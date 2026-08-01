@@ -7,11 +7,20 @@ import {
   removeTileAt,
   reorderStack,
   replaceStack,
+  serializeMap,
   updatePlacedDirection,
 } from "../lib/mapData";
 import { canPlace, canReplaceStack, tilesByIdFromList } from "../lib/validation";
 
 export type ToolId = "select" | "erase" | "pencil" | "rect" | "circle";
+
+type HistoryEntry = {
+  map: MapFile;
+  level: number;
+};
+
+const HISTORY_LIMIT = 100;
+const EMPTY_MAP: MapFile = { version: 1, levels: {} };
 
 export type EditorStore = {
   map: MapFile;
@@ -40,6 +49,13 @@ export type EditorStore = {
   } | null;
   lastToast: string | null;
 
+  past: HistoryEntry[];
+  future: HistoryEntry[];
+  /** Snapshot taken at the start of a paint stroke; null when not painting. */
+  strokeBase: HistoryEntry | null;
+  /** Map reference as of the last hydrate/save — used for dirty checks. */
+  savedMap: MapFile;
+
   hydrate: (map: MapFile, tiles: TileDef[]) => void;
   setTiles: (tiles: TileDef[]) => void;
   setLevel: (z: number) => void;
@@ -56,6 +72,12 @@ export type EditorStore = {
   markSaved: () => void;
   clearToast: () => void;
 
+  commitMap: (next: MapFile) => void;
+  beginStroke: () => void;
+  endStroke: () => void;
+  undo: () => void;
+  redo: () => void;
+
   selectCoord: (x: number, y: number) => void;
   eraseAt: (x: number, y: number) => void;
   stampAt: (x: number, y: number) => { skipped: boolean; reason?: string };
@@ -69,7 +91,7 @@ export type EditorStore = {
 };
 
 export const useEditorStore = create<EditorStore>((set, get) => ({
-  map: { version: 1, levels: {} },
+  map: EMPTY_MAP,
   tiles: [],
   tilesById: {},
   dirty: false,
@@ -86,14 +108,39 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   shapePreview: null,
   lastToast: null,
 
-  hydrate: (map, tiles) =>
+  past: [],
+  future: [],
+  strokeBase: null,
+  savedMap: EMPTY_MAP,
+
+  hydrate: (map, tiles) => {
+    const state = get();
+    const tilesById = tilesByIdFromList(tiles);
+    // Revalidation after save produces a new map identity with the same
+    // contents — keep history and the current map reference so dirty checks
+    // against savedMap stay meaningful.
+    if (serializeMap(map) === serializeMap(state.map)) {
+      set({
+        tiles,
+        tilesById,
+        savedMap: state.map,
+        dirty: false,
+        strokeBase: null,
+      });
+      return;
+    }
     set({
       map,
       tiles,
-      tilesById: tilesByIdFromList(tiles),
+      tilesById,
       dirty: false,
-      mapVersion: get().mapVersion + 1,
-    }),
+      mapVersion: state.mapVersion + 1,
+      savedMap: map,
+      past: [],
+      future: [],
+      strokeBase: null,
+    });
+  },
 
   setTiles: (tiles) =>
     set({ tiles, tilesById: tilesByIdFromList(tiles) }),
@@ -109,19 +156,88 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   setZoom: (z) => set({ zoom: z }),
   setCamera: (c) => set({ camera: c }),
   setShapePreview: (p) => set({ shapePreview: p }),
-  markSaved: () => set({ dirty: false }),
+  markSaved: () => set({ dirty: false, savedMap: get().map }),
   clearToast: () => set({ lastToast: null }),
+
+  commitMap: (next) => {
+    const { map, currentLevel, mapVersion, past, strokeBase, savedMap } = get();
+    if (next === map) return;
+    const base = {
+      map: next,
+      dirty: next !== savedMap,
+      mapVersion: mapVersion + 1,
+      future: [] as HistoryEntry[],
+    };
+    // During a drag the base snapshot was captured by beginStroke, so skip
+    // per-cell pushes — endStroke will push a single entry.
+    if (strokeBase) {
+      set(base);
+      return;
+    }
+    set({
+      ...base,
+      past: [...past, { map, level: currentLevel }].slice(-HISTORY_LIMIT),
+    });
+  },
+
+  beginStroke: () => {
+    const { map, currentLevel, strokeBase } = get();
+    if (strokeBase) return;
+    set({ strokeBase: { map, level: currentLevel } });
+  },
+
+  endStroke: () => {
+    const { map, strokeBase, past } = get();
+    if (!strokeBase) return;
+    if (map === strokeBase.map) {
+      set({ strokeBase: null });
+      return;
+    }
+    set({
+      strokeBase: null,
+      past: [...past, strokeBase].slice(-HISTORY_LIMIT),
+    });
+  },
+
+  undo: () => {
+    const { past, future, map, currentLevel, mapVersion, savedMap, strokeBase } =
+      get();
+    if (strokeBase || past.length === 0) return;
+    const entry = past[past.length - 1]!;
+    set({
+      past: past.slice(0, -1),
+      future: [...future, { map, level: currentLevel }],
+      map: entry.map,
+      currentLevel: entry.level,
+      mapVersion: mapVersion + 1,
+      dirty: entry.map !== savedMap,
+    });
+  },
+
+  redo: () => {
+    const { past, future, map, currentLevel, mapVersion, savedMap, strokeBase } =
+      get();
+    if (strokeBase || future.length === 0) return;
+    const entry = future[future.length - 1]!;
+    set({
+      future: future.slice(0, -1),
+      past: [...past, { map, level: currentLevel }],
+      map: entry.map,
+      currentLevel: entry.level,
+      mapVersion: mapVersion + 1,
+      dirty: entry.map !== savedMap,
+    });
+  },
 
   selectCoord: (x, y) => set({ selected: { x, y } }),
 
   eraseAt: (x, y) => {
-    const { map, currentLevel, mapVersion } = get();
-    const next = clearStack(map, x, y, currentLevel);
-    set({ map: next, dirty: true, mapVersion: mapVersion + 1 });
+    const { map, currentLevel } = get();
+    get().commitMap(clearStack(map, x, y, currentLevel));
   },
 
   stampAt: (x, y) => {
-    const { map, selected, currentLevel, tilesById, mapVersion } = get();
+    const { map, selected, currentLevel, tilesById } = get();
     if (!selected) {
       return { skipped: true, reason: "No source selected" };
     }
@@ -141,19 +257,15 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const next = replaceStack(map, x, y, currentLevel, clone);
     // Selection trails the brush: the cell we just wrote holds an identical
     // stack, so the source is unchanged and the panel shows what you painted.
-    set({
-      map: next,
-      dirty: true,
-      mapVersion: mapVersion + 1,
-      selected: { x, y },
-    });
+    get().commitMap(next);
+    set({ selected: { x, y } });
     return { skipped: false };
   },
 
   stampMany: (coords) => {
     let skipped = 0;
     let reason: string | undefined;
-    let { map, selected, currentLevel, tilesById, mapVersion } = get();
+    let { map, selected, currentLevel, tilesById } = get();
     if (!selected) {
       return { skipped: coords.length, reason: "No source selected" };
     }
@@ -171,14 +283,14 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       last = { x, y };
     }
     if (last) {
-      set({ map, dirty: true, mapVersion: mapVersion + 1, selected: last });
+      get().commitMap(map);
+      set({ selected: last });
     }
     return { skipped, reason };
   },
 
   appendArmed: () => {
-    const { map, selected, currentLevel, armedTileId, tilesById, mapVersion } =
-      get();
+    const { map, selected, currentLevel, armedTileId, tilesById } = get();
     if (!selected) return { ok: false, reason: "No coordinate selected" };
     if (!armedTileId) return { ok: false, reason: "No tile armed" };
     const def = tilesById[armedTileId];
@@ -195,55 +307,40 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const placed: PlacedTile = def.directional
       ? { tileId: def.id, direction: "s" }
       : { tileId: def.id };
-    const next = appendTile(
-      map,
-      selected.x,
-      selected.y,
-      currentLevel,
-      placed,
+    get().commitMap(
+      appendTile(map, selected.x, selected.y, currentLevel, placed),
     );
-    set({ map: next, dirty: true, mapVersion: mapVersion + 1 });
     return { ok: true };
   },
 
   removeFromStack: (stackIndex) => {
-    const { map, selected, currentLevel, mapVersion } = get();
+    const { map, selected, currentLevel } = get();
     if (!selected) return;
-    const next = removeTileAt(
-      map,
-      selected.x,
-      selected.y,
-      currentLevel,
-      stackIndex,
+    get().commitMap(
+      removeTileAt(map, selected.x, selected.y, currentLevel, stackIndex),
     );
-    set({ map: next, dirty: true, mapVersion: mapVersion + 1 });
   },
 
   reorderSelectedStack: (from, to) => {
-    const { map, selected, currentLevel, mapVersion } = get();
+    const { map, selected, currentLevel } = get();
     if (!selected) return;
-    const next = reorderStack(
-      map,
-      selected.x,
-      selected.y,
-      currentLevel,
-      from,
-      to,
+    get().commitMap(
+      reorderStack(map, selected.x, selected.y, currentLevel, from, to),
     );
-    set({ map: next, dirty: true, mapVersion: mapVersion + 1 });
   },
 
   setStackDirection: (stackIndex, direction) => {
-    const { map, selected, currentLevel, mapVersion } = get();
+    const { map, selected, currentLevel } = get();
     if (!selected) return;
-    const next = updatePlacedDirection(
-      map,
-      selected.x,
-      selected.y,
-      currentLevel,
-      stackIndex,
-      direction,
+    get().commitMap(
+      updatePlacedDirection(
+        map,
+        selected.x,
+        selected.y,
+        currentLevel,
+        stackIndex,
+        direction,
+      ),
     );
-    set({ map: next, dirty: true, mapVersion: mapVersion + 1 });
   },
 }));

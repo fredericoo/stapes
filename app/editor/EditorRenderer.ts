@@ -1074,6 +1074,7 @@ export class EditorRenderer {
     if (tool === "erase") {
       this.painting = true;
       this.lastPaintKey = `${coord.x},${coord.y}`;
+      store.beginStroke();
       store.eraseAt(coord.x, coord.y);
       this.canvas.setPointerCapture(e.pointerId);
       return;
@@ -1086,6 +1087,7 @@ export class EditorRenderer {
       }
       this.painting = true;
       this.lastPaintKey = `${coord.x},${coord.y}`;
+      store.beginStroke();
       const r = store.stampAt(coord.x, coord.y);
       if (r.skipped && r.reason) {
         useEditorStore.setState({ lastToast: r.reason });
@@ -1164,7 +1166,10 @@ export class EditorRenderer {
       return;
     }
 
-    this.painting = false;
+    if (this.painting) {
+      this.painting = false;
+      store.endStroke();
+    }
 
     if (this.shapeAnchor && store.shapePreview) {
       const { kind, x0, y0, x1, y1 } = store.shapePreview;

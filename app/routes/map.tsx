@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useFetcher, useLoaderData } from "react-router";
 import {
+  IconArrowBackUp,
+  IconArrowForwardUp,
   IconCircle,
   IconEraser,
   IconMinus,
@@ -79,6 +81,8 @@ export default function MapPage() {
   const armedTileId = useEditorStore((s) => s.armedTileId);
   const tilesById = useEditorStore((s) => s.tilesById);
   const lastToast = useEditorStore((s) => s.lastToast);
+  const canUndo = useEditorStore((s) => s.past.length > 0);
+  const canRedo = useEditorStore((s) => s.future.length > 0);
 
   const [levelDraft, setLevelDraft] = useState(String(currentLevel));
   const [search, setSearch] = useState("");
@@ -111,11 +115,35 @@ export default function MapPage() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod) return;
+
+      const key = e.key.toLowerCase();
+      if (key === "s") {
         e.preventDefault();
         const fd = new FormData();
         fd.set("map", JSON.stringify(useEditorStore.getState().map));
         fetcher.submit(fd, { method: "post" });
+        return;
+      }
+
+      // Leave native text undo/redo alone in inputs.
+      if (
+        e.target instanceof HTMLInputElement ||
+        e.target instanceof HTMLTextAreaElement ||
+        (e.target instanceof HTMLElement && e.target.isContentEditable)
+      ) {
+        return;
+      }
+
+      if (key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        useEditorStore.getState().undo();
+        return;
+      }
+      if ((key === "z" && e.shiftKey) || key === "y") {
+        e.preventDefault();
+        useEditorStore.getState().redo();
       }
     };
     window.addEventListener("keydown", onKey);
@@ -249,6 +277,30 @@ export default function MapPage() {
                 </Button>
               </Tooltip>
             ))}
+          </div>
+          <div className="flex gap-1">
+            <Tooltip content="Undo (⌘Z)">
+              <Button
+                size="icon"
+                variant="ghost-inverse"
+                aria-label="Undo"
+                disabled={!canUndo}
+                onClick={() => useEditorStore.getState().undo()}
+              >
+                <IconArrowBackUp size={18} aria-hidden="true" />
+              </Button>
+            </Tooltip>
+            <Tooltip content="Redo (⌘⇧Z)">
+              <Button
+                size="icon"
+                variant="ghost-inverse"
+                aria-label="Redo"
+                disabled={!canRedo}
+                onClick={() => useEditorStore.getState().redo()}
+              >
+                <IconArrowForwardUp size={18} aria-hidden="true" />
+              </Button>
+            </Tooltip>
           </div>
           <Button
             size="sm"
