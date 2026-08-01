@@ -1,10 +1,11 @@
 import { useMemo, useRef, type RefObject } from "react";
+import { IconTrash } from "@tabler/icons-react";
 import { DragDropProvider } from "@dnd-kit/react";
 import { isSortable, useSortable } from "@dnd-kit/react/sortable";
 import type { Direction, PlacedTile, TileDef, TilesetDef } from "../lib/types";
 import { getStack } from "../lib/mapData";
 import { useEditorStore } from "../editor/store";
-import { Button, Segmented } from "../ui";
+import { Button, Segmented, Tooltip } from "../ui";
 import { TilePreview } from "./TilePreview";
 
 type Props = {
@@ -131,17 +132,20 @@ function SortableStackItem({
           />
         ) : null}
       </div>
-      <Button
-        size="sm"
-        variant="ghost"
-        aria-label={`Remove ${def.name} from stack`}
-        onClick={() => {
-          useEditorStore.getState().removeFromStack(stackIndex);
-          focusAfterRemove();
-        }}
-      >
-        <span aria-hidden="true">✕</span>
-      </Button>
+      <Tooltip content={`Remove ${def.name}`}>
+        <Button
+          size="icon"
+          variant="ghost"
+          aria-label={`Remove ${def.name} from stack`}
+          className="text-muted hover:text-danger"
+          onClick={() => {
+            useEditorStore.getState().removeFromStack(stackIndex);
+            focusAfterRemove();
+          }}
+        >
+          <IconTrash size={16} aria-hidden="true" />
+        </Button>
+      </Tooltip>
     </li>
   );
 }

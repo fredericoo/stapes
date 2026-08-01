@@ -1,5 +1,15 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useFetcher, useLoaderData } from "react-router";
+import {
+  IconCircle,
+  IconEraser,
+  IconMinus,
+  IconPencil,
+  IconPlus,
+  IconPointer,
+  IconSquare,
+  type TablerIcon,
+} from "@tabler/icons-react";
 import type { Route } from "./+types/map";
 import { AppShell } from "../components/AppShell";
 import { SelectedStackList } from "../components/SelectedStackList";
@@ -10,7 +20,7 @@ import { getStack } from "../lib/mapData";
 import { readMap, readTiles, readTilesets, writeMap } from "../lib/fs.server";
 import type { MapFile } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL, clampLevel } from "../lib/types";
-import { Button, Input, Panel, useToast } from "../ui";
+import { Button, Input, Panel, Tooltip, useToast } from "../ui";
 
 export async function loader() {
   const [map, tiles, tilesets] = await Promise.all([
@@ -39,12 +49,17 @@ export async function action({ request }: Route.ActionArgs) {
   }
 }
 
-const TOOLS: Array<{ id: ToolId; label: string; key: string }> = [
-  { id: "select", label: "Select", key: "V" },
-  { id: "erase", label: "Erase", key: "E" },
-  { id: "pencil", label: "Pencil", key: "B" },
-  { id: "rect", label: "Rect", key: "R" },
-  { id: "circle", label: "Circle", key: "C" },
+const TOOLS: Array<{
+  id: ToolId;
+  label: string;
+  key: string;
+  Icon: TablerIcon;
+}> = [
+  { id: "select", label: "Select", key: "V", Icon: IconPointer },
+  { id: "erase", label: "Erase", key: "E", Icon: IconEraser },
+  { id: "pencil", label: "Pencil", key: "B", Icon: IconPencil },
+  { id: "rect", label: "Rect", key: "R", Icon: IconSquare },
+  { id: "circle", label: "Circle", key: "C", Icon: IconCircle },
 ];
 
 export default function MapPage() {
@@ -56,6 +71,7 @@ export default function MapPage() {
   const dirty = useEditorStore((s) => s.dirty);
   const currentLevel = useEditorStore((s) => s.currentLevel);
   const showOtherLevels = useEditorStore((s) => s.showOtherLevels);
+  const previewMode = useEditorStore((s) => s.previewMode);
   const tool = useEditorStore((s) => s.tool);
   const selected = useEditorStore((s) => s.selected);
   const hover = useEditorStore((s) => s.hover);
@@ -156,35 +172,48 @@ export default function MapPage() {
                 }
               }}
             />
-            <Button
-              size="sm"
-              variant="ghost"
-              className="text-paper"
-              onClick={() =>
-                useEditorStore
-                  .getState()
-                  .setLevel(Math.max(MIN_LEVEL, currentLevel - 1))
-              }
-            >
-              −
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              className="text-paper"
-              onClick={() =>
-                useEditorStore
-                  .getState()
-                  .setLevel(Math.min(MAX_LEVEL, currentLevel + 1))
-              }
-            >
-              +
-            </Button>
+            <Tooltip content="Level down (,)">
+              <Button
+                size="icon"
+                variant="ghost-inverse"
+                aria-label="Level down"
+                onClick={() =>
+                  useEditorStore
+                    .getState()
+                    .setLevel(Math.max(MIN_LEVEL, currentLevel - 1))
+                }
+              >
+                <IconMinus size={16} aria-hidden="true" />
+              </Button>
+            </Tooltip>
+            <Tooltip content="Level up (.)">
+              <Button
+                size="icon"
+                variant="ghost-inverse"
+                aria-label="Level up"
+                onClick={() =>
+                  useEditorStore
+                    .getState()
+                    .setLevel(Math.min(MAX_LEVEL, currentLevel + 1))
+                }
+              >
+                <IconPlus size={16} aria-hidden="true" />
+              </Button>
+            </Tooltip>
           </div>
-          <label className="flex items-center gap-1 text-xs text-paper">
+          <label
+            className={[
+              "flex items-center gap-1 text-xs text-paper",
+              previewMode ? "opacity-50" : "",
+            ].join(" ")}
+            title={
+              previewMode ? "Preview shows every level" : "Show other levels"
+            }
+          >
             <input
               type="checkbox"
               checked={showOtherLevels}
+              disabled={previewMode}
               onChange={(e) =>
                 useEditorStore.getState().setShowOtherLevels(e.target.checked)
               }
@@ -192,19 +221,33 @@ export default function MapPage() {
             />
             Show other levels
           </label>
+          <label
+            className="flex items-center gap-1 text-xs text-paper"
+            title="Preview (P) — every level at full opacity, no grid or selection"
+          >
+            <input
+              type="checkbox"
+              checked={previewMode}
+              onChange={(e) =>
+                useEditorStore.getState().setPreviewMode(e.target.checked)
+              }
+              className="accent-accent"
+            />
+            Preview
+          </label>
           <div className="flex gap-1">
-            {TOOLS.map((t) => (
-              <Button
-                key={t.id}
-                size="sm"
-                variant="ghost"
-                active={tool === t.id}
-                className={tool === t.id ? "" : "text-paper"}
-                title={`${t.label} (${t.key})`}
-                onClick={() => useEditorStore.getState().setTool(t.id)}
-              >
-                {t.label}
-              </Button>
+            {TOOLS.map(({ id, label, key, Icon }) => (
+              <Tooltip key={id} content={`${label} (${key})`}>
+                <Button
+                  size="icon"
+                  variant="ghost-inverse"
+                  active={tool === id}
+                  aria-label={label}
+                  onClick={() => useEditorStore.getState().setTool(id)}
+                >
+                  <Icon size={18} aria-hidden="true" />
+                </Button>
+              </Tooltip>
             ))}
           </div>
           <Button
@@ -293,6 +336,7 @@ export default function MapPage() {
           <MapCanvas tilesets={data.tilesets} tiles={data.tiles} />
           <div className="pointer-events-none absolute right-2 bottom-2 border-2 border-border bg-paper/90 px-2 py-1 text-xs shadow-hard">
             {hover ? `${hover.x},${hover.y}` : "—"} · z{currentLevel} · ×{zoom}
+            {previewMode ? <span className="text-accent"> · preview</span> : null}
             {tool !== "select" && !selected && tool !== "erase" ? (
               <span className="text-danger"> · no source selected</span>
             ) : null}

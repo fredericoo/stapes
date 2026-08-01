@@ -403,5 +403,59 @@
       ]
     },
     "attributes": {}
+  },
+  {
+    "id": "ramp",
+    "name": "Ramp",
+    "height": 1,
+    "directional": false,
+    "variants": {
+      "default": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 14,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    },
+    "attributes": {}
+  },
+  {
+    "id": "stone-stairs",
+    "name": "Stone Stairs",
+    "height": 1,
+    "directional": false,
+    "variants": {
+      "default": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 16,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    },
+    "attributes": {}
   }
 ]

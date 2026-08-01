@@ -1051,6 +1051,24 @@
         {
           "tileId": "roof-2"
         }
+      ],
+      "7,10": [
+        {
+          "tileId": "ramp"
+        }
+      ],
+      "12,8": [
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "stone-stairs"
+        }
+      ],
+      "12,9": [
+        {
+          "tileId": "stone-stairs"
+        }
       ]
     },
     "1": {

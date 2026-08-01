@@ -22,6 +22,8 @@ export type EditorStore = {
   mapVersion: number;
   currentLevel: number;
   showOtherLevels: boolean;
+  /** Every level at full opacity, no grid or selection chrome — how the game will look. */
+  previewMode: boolean;
   tool: ToolId;
   selected: { x: number; y: number } | null;
   hover: { x: number; y: number } | null;
@@ -42,6 +44,8 @@ export type EditorStore = {
   setTiles: (tiles: TileDef[]) => void;
   setLevel: (z: number) => void;
   setShowOtherLevels: (v: boolean) => void;
+  setPreviewMode: (v: boolean) => void;
+  togglePreviewMode: () => void;
   setTool: (tool: ToolId) => void;
   setSelected: (sel: { x: number; y: number } | null) => void;
   setHover: (h: { x: number; y: number } | null) => void;
@@ -72,6 +76,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   mapVersion: 0,
   currentLevel: 0,
   showOtherLevels: true,
+  previewMode: false,
   tool: "select",
   selected: null,
   hover: null,
@@ -95,6 +100,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
   setLevel: (z) => set({ currentLevel: z }),
   setShowOtherLevels: (v) => set({ showOtherLevels: v }),
+  setPreviewMode: (v) => set({ previewMode: v }),
+  togglePreviewMode: () => set({ previewMode: !get().previewMode }),
   setTool: (tool) => set({ tool }),
   setSelected: (sel) => set({ selected: sel }),
   setHover: (h) => set({ hover: h }),

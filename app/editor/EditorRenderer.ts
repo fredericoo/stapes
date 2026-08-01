@@ -25,6 +25,8 @@ type AnimatedInstance = {
   tileset: TilesetDef;
 };
 
+const BACKGROUND_COLOR = 0xb8b09e;
+
 function chunkId(z: number, cx: number, cy: number) {
   return `${z}:${cx},${cy}`;
 }
@@ -33,7 +35,9 @@ function opacityForLevel(
   z: number,
   current: number,
   showOther: boolean,
+  preview: boolean,
 ): number | null {
+  if (preview) return 1;
   if (z === current) return 1;
   if (!showOther) return null;
   if (z < current) {
@@ -42,6 +46,45 @@ function opacityForLevel(
   }
   // above
   return 0.4;
+}
+
+/**
+ * Flattens one level's render target onto the canvas at a single opacity.
+ * The target holds premultiplied linear colour, so we encode to the output
+ * colour space first and then scale the whole (already premultiplied) texel.
+ */
+function createCompositeMaterial() {
+  return new THREE.ShaderMaterial({
+    uniforms: {
+      tLevel: { value: null as THREE.Texture | null },
+      uOpacity: { value: 1 },
+    },
+    vertexShader: /* glsl */ `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = vec4(position.xy, 0.0, 1.0);
+      }
+    `,
+    fragmentShader: /* glsl */ `
+      uniform sampler2D tLevel;
+      uniform float uOpacity;
+      varying vec2 vUv;
+      void main() {
+        gl_FragColor = texture2D(tLevel, vUv);
+        #include <colorspace_fragment>
+        gl_FragColor *= uOpacity;
+      }
+    `,
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+    blending: THREE.CustomBlending,
+    blendSrc: THREE.OneFactor,
+    blendDst: THREE.OneMinusSrcAlphaFactor,
+    blendSrcAlpha: THREE.OneFactor,
+    blendDstAlpha: THREE.OneMinusSrcAlphaFactor,
+  });
 }
 
 export class EditorRenderer {
@@ -56,6 +99,12 @@ export class EditorRenderer {
   private tilesets: TilesetDef[] = [];
   private tilesById: Record<string, TileDef> = {};
   private chunkMeshes = new Map<string, THREE.Group>();
+  private levelGroups = new Map<number, THREE.Group>();
+  private levelTarget: THREE.WebGLRenderTarget | null = null;
+  private compositeScene: THREE.Scene;
+  private compositeCamera: THREE.Camera;
+  private compositeMaterial: THREE.ShaderMaterial;
+  private drawBufferSize = new THREE.Vector2();
   private animated: AnimatedInstance[] = [];
   private animClock = 0;
   private frameIndices = new Map<string, number>();
@@ -79,8 +128,10 @@ export class EditorRenderer {
       antialias: false,
       alpha: false,
     });
-    this.renderer.setClearColor(0xb8b09e, 1);
+    this.renderer.setClearColor(BACKGROUND_COLOR, 1);
     this.renderer.setPixelRatio(1);
+    // Levels are drawn one pass at a time, so clearing is done by hand.
+    this.renderer.autoClear = false;
 
     this.scene = new THREE.Scene();
     this.camera = new THREE.OrthographicCamera(0, 1, 0, 1, -1000, 1000);
@@ -92,6 +143,16 @@ export class EditorRenderer {
     this.scene.add(this.world);
     this.scene.add(this.grid);
     this.scene.add(this.overlays);
+
+    this.compositeMaterial = createCompositeMaterial();
+    const quad = new THREE.Mesh(
+      new THREE.PlaneGeometry(2, 2),
+      this.compositeMaterial,
+    );
+    quad.frustumCulled = false;
+    this.compositeScene = new THREE.Scene();
+    this.compositeScene.add(quad);
+    this.compositeCamera = new THREE.Camera();
 
     const data = new Uint8Array([255, 0, 255, 255]);
     this.magentaTex = new THREE.DataTexture(data, 1, 1, THREE.RGBAFormat);
@@ -134,6 +195,8 @@ export class EditorRenderer {
     this.canvas.removeEventListener("wheel", this.onWheel);
     window.removeEventListener("keydown", this.onKeyDown);
     window.removeEventListener("keyup", this.onKeyUp);
+    this.levelTarget?.dispose();
+    this.compositeMaterial.dispose();
     this.renderer.dispose();
     for (const tex of this.textures.values()) tex.dispose();
     this.magentaTex.dispose();
@@ -166,7 +229,8 @@ export class EditorRenderer {
       this.gridLevel = s.currentLevel;
     }
     this.drawOverlays(s);
-    const key = `${s.mapVersion}|${s.currentLevel}|${s.showOtherLevels}|${Object.keys(s.tilesById).length}`;
+    // Level visibility and opacity are decided per frame, so they don't force a rebuild.
+    const key = `${s.mapVersion}|${Object.keys(s.tilesById).length}`;
     if (forceRebuild || key !== this.rebuildKey) {
       this.rebuildKey = key;
       this.rebuildAll();
@@ -496,18 +560,22 @@ export class EditorRenderer {
       });
     }
     this.chunkMeshes.clear();
+    this.levelGroups.clear();
     this.animated = [];
 
     const s = useEditorStore.getState();
     for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
-      const opacity = opacityForLevel(z, s.currentLevel, s.showOtherLevels);
-      if (opacity === null) continue;
-      this.buildLevel(s.map, z, opacity);
+      this.buildLevel(s.map, z);
     }
   }
 
-  private buildLevel(map: MapFile, z: number, opacity: number) {
+  private buildLevel(map: MapFile, z: number) {
     const coords = listCoords(map, z);
+    if (coords.length === 0) return;
+    const levelGroup = new THREE.Group();
+    levelGroup.name = `level:${z}`;
+    this.world.add(levelGroup);
+    this.levelGroups.set(z, levelGroup);
     // Group by chunk
     const byChunk = new Map<
       string,
@@ -559,7 +627,6 @@ export class EditorRenderer {
               1,
               1,
               order,
-              opacity,
             );
             return;
           }
@@ -598,7 +665,6 @@ export class EditorRenderer {
               u1,
               v1,
               order,
-              opacity,
             );
             this.animated.push({
               mesh,
@@ -646,12 +712,11 @@ export class EditorRenderer {
             q.u1,
             q.v1,
             q.order,
-            opacity,
           );
         }
       }
 
-      this.world.add(group);
+      levelGroup.add(group);
       this.chunkMeshes.set(key, group);
     }
   }
@@ -668,7 +733,6 @@ export class EditorRenderer {
     u1: number,
     v1: number,
     renderOrder: number,
-    opacity: number,
   ): THREE.Mesh {
     const geo = new THREE.PlaneGeometry(w, h);
     const uvs = geo.attributes.uv!;
@@ -682,10 +746,11 @@ export class EditorRenderer {
     uvs.setXY(3, u1, v1);
     uvs.needsUpdate = true;
 
+    // Always fully opaque — level dimming is applied to the flattened level,
+    // otherwise overlapping sprites within a level ghost through each other.
     const mat = new THREE.MeshBasicMaterial({
       map: texture,
       transparent: true,
-      opacity,
       depthWrite: false,
       // Ortho camera uses top < bottom for Y-down, which reverses winding.
       side: THREE.DoubleSide,
@@ -748,8 +813,103 @@ export class EditorRenderer {
     // Resize
     const s = useEditorStore.getState();
     this.applyCamera(s.camera.x, s.camera.y, s.zoom);
-    this.renderer.render(this.scene, this.camera);
+    this.renderFrame(s);
   };
+
+  private levelRenderTarget(): THREE.WebGLRenderTarget {
+    const { x: w, y: h } = this.renderer.getDrawingBufferSize(
+      this.drawBufferSize,
+    );
+    if (!this.levelTarget) {
+      // The target holds linear colour, which bands visibly at 8 bits.
+      const halfFloat =
+        this.renderer.extensions.has("EXT_color_buffer_half_float") ||
+        this.renderer.extensions.has("EXT_color_buffer_float");
+      this.levelTarget = new THREE.WebGLRenderTarget(w, h, {
+        depthBuffer: false,
+        stencilBuffer: false,
+        type: halfFloat ? THREE.HalfFloatType : THREE.UnsignedByteType,
+        magFilter: THREE.NearestFilter,
+        minFilter: THREE.NearestFilter,
+        generateMipmaps: false,
+      });
+    } else if (this.levelTarget.width !== w || this.levelTarget.height !== h) {
+      this.levelTarget.setSize(w, h);
+    }
+    return this.levelTarget;
+  }
+
+  /**
+   * Levels at full opacity are drawn straight to the canvas. A dimmed level is
+   * drawn opaque into an offscreen target first, then composited as one flat
+   * image so the whole level fades together rather than tile by tile.
+   */
+  private renderFrame(s: ReturnType<typeof useEditorStore.getState>) {
+    const r = this.renderer;
+    r.setRenderTarget(null);
+    r.clear(true, true, false);
+
+    this.world.visible = false;
+    this.grid.visible = false;
+    this.overlays.visible = false;
+    for (const group of this.levelGroups.values()) group.visible = false;
+
+    const renderChrome = (group: THREE.Group) => {
+      if (s.previewMode) return;
+      group.visible = true;
+      r.render(this.scene, this.camera);
+      group.visible = false;
+    };
+
+    renderChrome(this.grid);
+
+    this.world.visible = true;
+    const levels = [...this.levelGroups.keys()].sort((a, b) => a - b);
+    let batch: THREE.Group[] = [];
+    const flush = () => {
+      if (batch.length === 0) return;
+      for (const g of batch) g.visible = true;
+      r.setRenderTarget(null);
+      r.render(this.scene, this.camera);
+      for (const g of batch) g.visible = false;
+      batch = [];
+    };
+
+    for (const z of levels) {
+      const opacity = opacityForLevel(
+        z,
+        s.currentLevel,
+        s.showOtherLevels,
+        s.previewMode,
+      );
+      if (opacity === null) continue;
+      const group = this.levelGroups.get(z)!;
+      if (opacity >= 1) {
+        batch.push(group);
+        continue;
+      }
+      // Anything below this level must already be on the canvas.
+      flush();
+
+      const target = this.levelRenderTarget();
+      group.visible = true;
+      r.setRenderTarget(target);
+      r.setClearColor(0x000000, 0);
+      r.clear(true, false, false);
+      r.render(this.scene, this.camera);
+      r.setRenderTarget(null);
+      r.setClearColor(BACKGROUND_COLOR, 1);
+      group.visible = false;
+
+      this.compositeMaterial.uniforms.tLevel!.value = target.texture;
+      this.compositeMaterial.uniforms.uOpacity!.value = opacity;
+      r.render(this.compositeScene, this.compositeCamera);
+    }
+    flush();
+    this.world.visible = false;
+
+    renderChrome(this.overlays);
+  }
 
   private pointerToCoord(e: PointerEvent) {
     const rect = this.canvas.getBoundingClientRect();
@@ -794,6 +954,9 @@ export class EditorRenderer {
     };
     if (toolMap[e.code]) {
       store.setTool(toolMap[e.code]!);
+    }
+    if (e.code === "KeyP") {
+      store.togglePreviewMode();
     }
     if (e.key === ",") {
       store.setLevel(Math.max(MIN_LEVEL, store.currentLevel - 1));

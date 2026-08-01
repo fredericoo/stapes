@@ -6,3 +6,4 @@ export { Tabs, TabPanel } from "./Tabs";
 export { Select } from "./Select";
 export { ToastProvider, useToast } from "./Toast";
 export { Segmented } from "./Segmented";
+export { Tooltip, TooltipProvider } from "./Tooltip";

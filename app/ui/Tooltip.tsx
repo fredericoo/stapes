@@ -1,0 +1,38 @@
+import { Tooltip as BaseTooltip } from "@base-ui/react/tooltip";
+import type { ReactElement, ReactNode } from "react";
+
+/**
+ * Shares an open delay across every tooltip so moving along a toolbar
+ * shows adjacent tooltips instantly.
+ */
+export function TooltipProvider({ children }: { children: ReactNode }) {
+  return (
+    <BaseTooltip.Provider delay={400} closeDelay={0}>
+      {children}
+    </BaseTooltip.Provider>
+  );
+}
+
+export function Tooltip({
+  content,
+  side = "bottom",
+  children,
+}: {
+  content: ReactNode;
+  side?: "top" | "bottom" | "left" | "right";
+  /** The trigger. Must accept a ref and spread props onto a DOM element. */
+  children: ReactElement;
+}) {
+  return (
+    <BaseTooltip.Root>
+      <BaseTooltip.Trigger render={children} />
+      <BaseTooltip.Portal>
+        <BaseTooltip.Positioner side={side} sideOffset={6}>
+          <BaseTooltip.Popup className="z-[90] border-2 border-border bg-paper px-2 py-1 text-xs text-ink shadow-hard">
+            {content}
+          </BaseTooltip.Popup>
+        </BaseTooltip.Positioner>
+      </BaseTooltip.Portal>
+    </BaseTooltip.Root>
+  );
+}
