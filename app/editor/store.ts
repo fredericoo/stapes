@@ -139,7 +139,14 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       return { skipped: true, reason: check.reason };
     }
     const next = replaceStack(map, x, y, currentLevel, clone);
-    set({ map: next, dirty: true, mapVersion: mapVersion + 1 });
+    // Selection trails the brush: the cell we just wrote holds an identical
+    // stack, so the source is unchanged and the panel shows what you painted.
+    set({
+      map: next,
+      dirty: true,
+      mapVersion: mapVersion + 1,
+      selected: { x, y },
+    });
     return { skipped: false };
   },
 
@@ -152,7 +159,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     }
     const source = getStack(map, selected.x, selected.y, currentLevel);
     const clone: PlacedTile[] = source.map((p) => ({ ...p }));
-    let changed = false;
+    let last: { x: number; y: number } | null = null;
     for (const { x, y } of coords) {
       const check = canReplaceStack(map, x, y, currentLevel, clone, tilesById);
       if (!check.ok) {
@@ -161,10 +168,10 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         continue;
       }
       map = replaceStack(map, x, y, currentLevel, clone);
-      changed = true;
+      last = { x, y };
     }
-    if (changed) {
-      set({ map, dirty: true, mapVersion: mapVersion + 1 });
+    if (last) {
+      set({ map, dirty: true, mapVersion: mapVersion + 1, selected: last });
     }
     return { skipped, reason };
   },

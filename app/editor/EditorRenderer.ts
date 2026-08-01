@@ -6,7 +6,13 @@ import {
   spriteWorldOrigin,
 } from "../lib/geometry";
 import { getStack, listCoords } from "../lib/mapData";
-import type { Frame, MapFile, TileDef, TilesetDef } from "../lib/types";
+import type {
+  Frame,
+  MapFile,
+  PlacedTile,
+  TileDef,
+  TilesetDef,
+} from "../lib/types";
 import {
   CELL_SIZE,
   CHUNK_SIZE,
@@ -14,6 +20,7 @@ import {
   MIN_LEVEL,
   getFrames,
 } from "../lib/types";
+import { canReplaceStack } from "../lib/validation";
 import { useEditorStore, type ToolId } from "./store";
 
 type AnimatedInstance = {
@@ -25,7 +32,24 @@ type AnimatedInstance = {
   tileset: TilesetDef;
 };
 
+/** A textured rectangle in world pixels, ready to be turned into a mesh. */
+type SpriteQuad = {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  texture: THREE.Texture;
+  u0: number;
+  v0: number;
+  u1: number;
+  v1: number;
+};
+
 const BACKGROUND_COLOR = 0xb8b09e;
+
+const GHOST_OPACITY = 0.55;
+/** Big shapes fall back to outlines only — one mesh per sprite gets costly. */
+const MAX_GHOST_CELLS = 256;
 
 function chunkId(z: number, cx: number, cy: number) {
   return `${z}:${cx},${cy}`;
@@ -374,83 +398,71 @@ export class EditorRenderer {
       }
     };
 
-    /** Additive glow of the sprite itself — texture alpha is the mask. */
-    const addBrightSprite = (
-      originX: number,
-      originY: number,
-      w: number,
-      h: number,
-      texture: THREE.Texture,
-      u0: number,
-      v0: number,
-      u1: number,
-      v1: number,
-      opacity: number,
+    const addSprite = (
+      q: SpriteQuad,
+      opts: {
+        color: number;
+        opacity: number;
+        blending: THREE.Blending;
+        renderOrder: number;
+      },
     ) => {
-      const geo = new THREE.PlaneGeometry(w, h);
+      const geo = new THREE.PlaneGeometry(q.w, q.h);
       const uvs = geo.attributes.uv!;
-      uvs.setXY(0, u0, v0);
-      uvs.setXY(1, u1, v0);
-      uvs.setXY(2, u0, v1);
-      uvs.setXY(3, u1, v1);
+      uvs.setXY(0, q.u0, q.v0);
+      uvs.setXY(1, q.u1, q.v0);
+      uvs.setXY(2, q.u0, q.v1);
+      uvs.setXY(3, q.u1, q.v1);
       uvs.needsUpdate = true;
 
       const mat = new THREE.MeshBasicMaterial({
-        map: texture,
-        color: 0xfff3b0,
+        map: q.texture,
+        color: opts.color,
         transparent: true,
-        opacity,
-        blending: THREE.AdditiveBlending,
+        opacity: opts.opacity,
+        blending: opts.blending,
         depthTest: false,
         depthWrite: false,
         side: THREE.DoubleSide,
       });
 
       const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.set(originX + w / 2, originY + h / 2, 0);
-      mesh.renderOrder = 1_000_000_010;
+      mesh.position.set(q.x + q.w / 2, q.y + q.h / 2, 0);
+      mesh.renderOrder = opts.renderOrder;
       this.overlays.add(mesh);
     };
+
+    const z = s.currentLevel;
+    const brush = s.selected
+      ? getStack(s.map, s.selected.x, s.selected.y, z)
+      : [];
 
     if (
       s.hover &&
       !(s.selected && s.hover.x === s.selected.x && s.hover.y === s.selected.y)
     ) {
-      const origin = baseCellWorldOrigin(
-        s.hover.x,
-        s.hover.y,
-        s.currentLevel,
-        0,
-      );
+      const origin = baseCellWorldOrigin(s.hover.x, s.hover.y, z, 0);
       addRectOutline(origin.x, origin.y, CELL_SIZE, CELL_SIZE, 0xffffff);
     }
 
     if (s.selected) {
       const { x, y } = s.selected;
-      const z = s.currentLevel;
-      const stack = getStack(s.map, x, y, z);
 
-      if (stack.length === 0) {
+      if (brush.length === 0) {
         const origin = baseCellWorldOrigin(x, y, z, 0);
         addRectOutline(origin.x, origin.y, CELL_SIZE, CELL_SIZE, 0xffcc00, true);
       }
 
       let elev = 0;
-      stack.forEach((placed, stackIndex) => {
+      brush.forEach((placed, stackIndex) => {
         const def = s.tilesById[placed.tileId];
-        const frames = def ? getFrames(def, placed.direction) : undefined;
-        let frame = frames?.[0];
-        if (def && frames && frames.length > 1) {
-          const key = `${def.id}:${placed.direction ?? "default"}`;
-          const idx = this.frameIndices.get(key) ?? 0;
-          frame = frames[idx] ?? frames[0];
-        }
-        const baseOrigin = baseCellWorldOrigin(x, y, z, elev);
+        const quad = def ? this.spriteQuad(placed, def, x, y, z, elev) : null;
 
-        if (!def || !frame) {
+        if (!def || !quad) {
+          const origin = baseCellWorldOrigin(x, y, z, elev);
           addRectOutline(
-            baseOrigin.x,
-            baseOrigin.y,
+            origin.x,
+            origin.y,
             CELL_SIZE,
             CELL_SIZE,
             0xff66ff,
@@ -459,43 +471,22 @@ export class EditorRenderer {
           return;
         }
 
-        const tileset = this.tilesets.find(
-          (t) => t.id === frame.sprite.tilesetId,
-        );
-        const tex =
-          (tileset && this.textures.get(tileset.id)) || this.magentaTex;
-        const origin = spriteWorldOrigin(baseOrigin, frame.sprite.base);
-        const w = frame.sprite.rect.w * CELL_SIZE;
-        const h = frame.sprite.rect.h * CELL_SIZE;
-        const { rect } = frame.sprite;
-        const tw = tileset?.width ?? CELL_SIZE;
-        const th = tileset?.height ?? CELL_SIZE;
-        const u0 = (rect.x * CELL_SIZE) / tw;
-        const u1 = ((rect.x + rect.w) * CELL_SIZE) / tw;
-        const v1 = 1 - (rect.y * CELL_SIZE) / th;
-        const v0 = 1 - ((rect.y + rect.h) * CELL_SIZE) / th;
-
-        const isTop = stackIndex === stack.length - 1;
+        const isTop = stackIndex === brush.length - 1;
         if (isTop) {
-          addBrightSprite(
-            origin.x,
-            origin.y,
-            w,
-            h,
-            tex,
-            u0,
-            v0,
-            u1,
-            v1,
-            0.75,
-          );
+          // Additive glow of the sprite itself — texture alpha is the mask.
+          addSprite(quad, {
+            color: 0xfff3b0,
+            opacity: 0.75,
+            blending: THREE.AdditiveBlending,
+            renderOrder: 1_000_000_010,
+          });
         }
         // Full sprite AABB outline (tree = 2×2, grass = 1×1, …)
         addRectOutline(
-          origin.x,
-          origin.y,
-          w,
-          h,
+          quad.x,
+          quad.y,
+          quad.w,
+          quad.h,
           isTop ? 0xffee55 : 0xe6b800,
           isTop,
         );
@@ -504,17 +495,97 @@ export class EditorRenderer {
       });
     }
 
-    if (s.shapePreview) {
-      const { kind, x0, y0, x1, y1 } = s.shapePreview;
-      const coords =
-        kind === "rect"
-          ? this.rectList(x0, y0, x1, y1)
-          : this.circleList(x0, y0, x1, y1);
-      for (const c of coords) {
-        const origin = baseCellWorldOrigin(c.x, c.y, s.currentLevel, 0);
+    const targets = this.brushTargets(s);
+    const showGhosts = brush.length > 0 && targets.length <= MAX_GHOST_CELLS;
+    for (const c of targets) {
+      if (s.shapePreview) {
+        const origin = baseCellWorldOrigin(c.x, c.y, z, 0);
         addRectOutline(origin.x, origin.y, CELL_SIZE, CELL_SIZE, 0x2d6a4f);
       }
+      // The source cell already shows the real thing.
+      if (s.selected && c.x === s.selected.x && c.y === s.selected.y) continue;
+      if (!showGhosts) continue;
+
+      if (!canReplaceStack(s.map, c.x, c.y, z, brush, s.tilesById).ok) {
+        const origin = baseCellWorldOrigin(c.x, c.y, z, 0);
+        addRectOutline(origin.x, origin.y, CELL_SIZE, CELL_SIZE, 0xff4d4d, true);
+        continue;
+      }
+
+      let elev = 0;
+      brush.forEach((placed, stackIndex) => {
+        const def = s.tilesById[placed.tileId];
+        if (!def) return;
+        const quad = this.spriteQuad(placed, def, c.x, c.y, z, elev);
+        if (quad) {
+          addSprite(quad, {
+            color: 0xffffff,
+            opacity: GHOST_OPACITY,
+            blending: THREE.NormalBlending,
+            renderOrder: drawOrder(c.x, c.y, stackIndex),
+          });
+        }
+        elev += def.height;
+      });
     }
+  }
+
+  /** Cells the current tool would paint if the pointer acted right now. */
+  private brushTargets(
+    s: ReturnType<typeof useEditorStore.getState>,
+  ): Array<{ x: number; y: number }> {
+    if (s.shapePreview) {
+      const { kind, x0, y0, x1, y1 } = s.shapePreview;
+      return kind === "rect"
+        ? this.rectList(x0, y0, x1, y1)
+        : this.circleList(x0, y0, x1, y1);
+    }
+    const paints =
+      s.tool === "pencil" || s.tool === "rect" || s.tool === "circle";
+    if (paints && s.hover) return [s.hover];
+    return [];
+  }
+
+  /**
+   * World-space quad for a placed tile, resolved against the frame that is on
+   * screen right now so overlays stay in step with animated tiles.
+   */
+  private spriteQuad(
+    placed: PlacedTile,
+    def: TileDef,
+    x: number,
+    y: number,
+    z: number,
+    elevation: number,
+  ): SpriteQuad | null {
+    const frames = getFrames(def, placed.direction);
+    let frame = frames?.[0];
+    if (frames && frames.length > 1) {
+      const key = `${def.id}:${placed.direction ?? "default"}`;
+      frame = frames[this.frameIndices.get(key) ?? 0] ?? frames[0];
+    }
+    if (!frame) return null;
+
+    const tileset = this.tilesets.find((t) => t.id === frame.sprite.tilesetId);
+    const { rect } = frame.sprite;
+    const tw = tileset?.width ?? CELL_SIZE;
+    const th = tileset?.height ?? CELL_SIZE;
+    const origin = spriteWorldOrigin(
+      baseCellWorldOrigin(x, y, z, elevation),
+      frame.sprite.base,
+    );
+
+    return {
+      x: origin.x,
+      y: origin.y,
+      w: rect.w * CELL_SIZE,
+      h: rect.h * CELL_SIZE,
+      texture: (tileset && this.textures.get(tileset.id)) || this.magentaTex,
+      u0: (rect.x * CELL_SIZE) / tw,
+      u1: ((rect.x + rect.w) * CELL_SIZE) / tw,
+      v0: 1 - ((rect.y + rect.h) * CELL_SIZE) / th,
+      v1: 1 - (rect.y * CELL_SIZE) / th,
+    };
   }
 
   private rectList(x0: number, y0: number, x1: number, y1: number) {
