@@ -1,0 +1,16 @@
+[
+  {
+    "id": "basic",
+    "name": "Basic",
+    "file": "basic.png",
+    "width": 128,
+    "height": 64
+  },
+  {
+    "id": "tiny-ranch-tiles",
+    "name": "tiny-ranch-tiles",
+    "file": "tiny-ranch-tiles.png",
+    "width": 80,
+    "height": 64
+  }
+]

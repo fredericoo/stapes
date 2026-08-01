@@ -1,0 +1,8 @@
+import { type RouteConfig, index, route } from "@react-router/dev/routes";
+
+export default [
+  index("routes/_index.tsx"),
+  route("tiles", "routes/tiles.tsx"),
+  route("map", "routes/map.tsx"),
+  route("tilesets/:file", "routes/tilesets.$file.ts"),
+] satisfies RouteConfig;

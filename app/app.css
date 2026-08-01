@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "IBM Plex Mono", "SF Mono", ui-monospace, Menlo, monospace;
+  --color-ink: #1a1a1a;
+  --color-paper: #f4f0e6;
+  --color-panel: #ebe6d8;
+  --color-muted: #7a7568;
+  --color-accent: #2d6a4f;
+  --color-danger: #9b2226;
+  --color-border: #1a1a1a;
+  --shadow-hard: 2px 2px 0 0 #1a1a1a;
+}
+
+@layer utilities {
+  .shadow-hard {
+    box-shadow: 2px 2px 0 0 var(--color-border);
+  }
+
+  .shadow-hard-sm {
+    box-shadow: 1px 1px 0 0 var(--color-border);
+  }
+}
+
+* {
+  border-radius: 0 !important;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+html,
+body {
+  @apply bg-paper text-ink font-sans antialiased;
+  margin: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+/* Nearest-neighbor for pixel art canvases */
+.pixelated {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
