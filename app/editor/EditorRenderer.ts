@@ -69,6 +69,8 @@ type Quad = {
   lightY0: number;
   lightX1: number;
   lightY1: number;
+  /** When true, skip light-map multiply (emitting props stay full-bright). */
+  unlit: boolean;
 };
 
 const BACKGROUND_COLOR = 0xb8b09e;
@@ -98,6 +100,7 @@ function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
   const positions = new Float32Array(n * 4 * 3);
   const uvs = new Float32Array(n * 4 * 2);
   const lightUvs = new Float32Array(n * 4 * 2);
+  const unlit = new Float32Array(n * 4);
   const indices = n * 4 > 65535 ? new Uint32Array(n * 6) : new Uint16Array(n * 6);
 
   for (let i = 0; i < n; i++) {
@@ -146,6 +149,13 @@ function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
     lightUvs[ub + 6] = q.lightX1;
     lightUvs[ub + 7] = q.lightY0;
 
+    const u = q.unlit ? 1 : 0;
+    const vb = i * 4;
+    unlit[vb] = u;
+    unlit[vb + 1] = u;
+    unlit[vb + 2] = u;
+    unlit[vb + 3] = u;
+
     const base = i * 4;
     const ib = i * 6;
     // PlaneGeometry winding: 0,2,1 / 2,3,1
@@ -161,6 +171,7 @@ function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
   geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
   geo.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
   geo.setAttribute("aLightUv", new THREE.BufferAttribute(lightUvs, 2));
+  geo.setAttribute("aUnlit", new THREE.BufferAttribute(unlit, 1));
   geo.setIndex(new THREE.BufferAttribute(indices, 1));
   return geo;
 }
@@ -459,6 +470,8 @@ export class EditorRenderer {
 
   dispose() {
     this.disposed = true;
+    // Finalize any open paint stroke so history isn't left stuck (e.g. HMR).
+    useEditorStore.getState().endStroke();
     cancelAnimationFrame(this.raf);
     this.unsub?.();
     this.resizeObserver?.disconnect();
@@ -572,12 +585,15 @@ export class EditorRenderer {
             "#include <common>",
             /* glsl */ `#include <common>
 attribute vec2 aLightUv;
-varying vec2 vLightUv;`,
+attribute float aUnlit;
+varying vec2 vLightUv;
+varying float vUnlit;`,
           )
           .replace(
             "#include <uv_vertex>",
             /* glsl */ `#include <uv_vertex>
-vLightUv = aLightUv;`,
+vLightUv = aLightUv;
+vUnlit = aUnlit;`,
           );
         shader.fragmentShader = shader.fragmentShader
           .replace(
@@ -587,19 +603,20 @@ uniform sampler2D uLightMap;
 uniform vec2 uLightOrigin;
 uniform vec2 uLightSize;
 uniform float uLightingEnabled;
-varying vec2 vLightUv;`,
+varying vec2 vLightUv;
+varying float vUnlit;`,
           )
           .replace(
             "#include <map_fragment>",
             /* glsl */ `#include <map_fragment>
-if (uLightingEnabled > 0.5) {
+if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
   vec2 lightUv = (vLightUv - uLightOrigin) / uLightSize;
   vec3 light = texture2D(uLightMap, lightUv).rgb;
   diffuseColor.rgb *= light;
 }`,
           );
       };
-      mat.customProgramCacheKey = () => "stapes-lit-v1";
+      mat.customProgramCacheKey = () => "stapes-lit-v2";
       mat.userData.lightUniforms = lightUniforms;
       this.materials.set(key, mat);
     }
@@ -1305,6 +1322,7 @@ if (uLightingEnabled > 0.5) {
             lightY0: cell.y,
             lightX1: cell.x + 1,
             lightY1: cell.y + 1,
+            unlit: false,
           });
           return;
         }
@@ -1331,6 +1349,9 @@ if (uLightingEnabled > 0.5) {
         const lightY0 = cell.y - first.sprite.base.y;
         const lightX1 = lightX0 + rect.w;
         const lightY1 = lightY0 + rect.h;
+        const unlit = Boolean(
+          def.light && def.light.radius > 0 && def.light.intensity > 0,
+        );
 
         items.push({
           x: origin.x,
@@ -1348,6 +1369,7 @@ if (uLightingEnabled > 0.5) {
           lightY0,
           lightX1,
           lightY1,
+          unlit,
           anim:
             isAnimated && frames
               ? {
@@ -1403,6 +1425,7 @@ if (uLightingEnabled > 0.5) {
           item.lightY0,
           item.lightX1,
           item.lightY1,
+          item.unlit,
         );
         animated.push({
           mesh,
@@ -1456,6 +1479,7 @@ if (uLightingEnabled > 0.5) {
     lightY0: number,
     lightX1: number,
     lightY1: number,
+    unlit: boolean,
   ): THREE.Mesh {
     const geo = new THREE.PlaneGeometry(w, h);
     const uvs = geo.attributes.uv!;
@@ -1480,6 +1504,11 @@ if (uLightingEnabled > 0.5) {
       lightY0,
     ]);
     geo.setAttribute("aLightUv", new THREE.BufferAttribute(lightUvs, 2));
+    const unlitVal = unlit ? 1 : 0;
+    geo.setAttribute(
+      "aUnlit",
+      new THREE.BufferAttribute(new Float32Array([unlitVal, unlitVal, unlitVal, unlitVal]), 1),
+    );
 
     // Cutout material — depth Z carries painter's order (no per-quad renderOrder).
     const mat = this.materialFor(texture, z);
@@ -1713,13 +1742,37 @@ if (uLightingEnabled > 0.5) {
     window.addEventListener("keyup", this.onKeyUp);
   }
 
+  private updateCursor() {
+    if (this.panning) {
+      this.canvas.style.cursor = "grabbing";
+    } else if (this.spaceDown) {
+      this.canvas.style.cursor = "grab";
+    } else {
+      this.canvas.style.cursor = "";
+    }
+  }
+
   private onKeyDown = (e: KeyboardEvent) => {
     if (e.code === "Space") {
       this.spaceDown = true;
+      this.updateCursor();
       e.preventDefault();
     }
     const store = useEditorStore.getState();
     if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+      return;
+    }
+    if (e.code === "Backspace" || e.code === "Delete") {
+      if (!store.selected) return;
+      const stack = getStack(
+        store.map,
+        store.selected.x,
+        store.selected.y,
+        store.currentLevel,
+      );
+      if (stack.length === 0) return;
+      e.preventDefault();
+      store.removeFromStack(stack.length - 1);
       return;
     }
     const toolMap: Record<string, ToolId> = {
@@ -1744,7 +1797,10 @@ if (uLightingEnabled > 0.5) {
   };
 
   private onKeyUp = (e: KeyboardEvent) => {
-    if (e.code === "Space") this.spaceDown = false;
+    if (e.code === "Space") {
+      this.spaceDown = false;
+      this.updateCursor();
+    }
   };
 
   private onWheel = (e: WheelEvent) => {
@@ -1764,6 +1820,7 @@ if (uLightingEnabled > 0.5) {
     if (e.button === 1 || (e.button === 0 && this.spaceDown)) {
       this.panning = true;
       this.panLast = { x: e.clientX, y: e.clientY };
+      this.updateCursor();
       this.canvas.setPointerCapture(e.pointerId);
       return;
     }
@@ -1864,6 +1921,7 @@ if (uLightingEnabled > 0.5) {
     const store = useEditorStore.getState();
     if (this.panning) {
       this.panning = false;
+      this.updateCursor();
       try {
         this.canvas.releasePointerCapture(e.pointerId);
       } catch {

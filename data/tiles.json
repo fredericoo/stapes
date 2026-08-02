@@ -502,7 +502,7 @@
           "sprite": {
             "tilesetId": "tiny-ranch-tiles",
             "rect": {
-              "x": 18,
+              "x": 19,
               "y": 2,
               "w": 1,
               "h": 1
@@ -516,6 +516,11 @@
         }
       ]
     },
-    "attributes": {}
+    "attributes": {},
+    "light": {
+      "radius": 5,
+      "intensity": 1,
+      "color": "#00d5ff"
+    }
   }
 ]

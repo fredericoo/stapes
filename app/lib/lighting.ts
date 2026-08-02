@@ -301,6 +301,12 @@ export function computeLighting(
   }
 
   for (const e of emitters) {
+    // An emitter never occludes its own light (cat/torch body would otherwise
+    // swallow most of the contribution on its own cell).
+    const selfKey = cellKey(e.x, e.y, e.z);
+    const selfOcc = occlusion.get(selfKey);
+    if (selfOcc) occlusion.delete(selfKey);
+
     const rCells = Math.ceil(e.radius);
     for (let dz = -rCells; dz <= rCells; dz++) {
       const tz = e.z + dz;
@@ -358,6 +364,8 @@ export function computeLighting(
         }
       }
     }
+
+    if (selfOcc) occlusion.set(selfKey, selfOcc);
   }
 
   // Fully opaque cells: force ambient only (no borrowed neighbour glow).

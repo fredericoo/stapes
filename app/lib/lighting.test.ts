@@ -180,4 +180,21 @@ describe("computeLighting", () => {
     const wallCell = sampleLevelLight(grid.levels.get(0)!, 1, 0);
     expect(wallCell[0]).toBeCloseTo(AMBIENT_PRESETS.night[0], 1);
   });
+
+  it("does not let an emitter occlude its own light", () => {
+    const tallLamp = tile({
+      id: "tall-lamp",
+      height: 3,
+      light: { radius: 4, intensity: 1, color: "#ffffff" },
+    });
+    const map = mapAt([{ x: 0, y: 0, tiles: ["tall-lamp"] }]);
+    const grid = computeLighting(
+      map,
+      { ...tilesById, "tall-lamp": tallLamp },
+      [0, 0, 0],
+    );
+    const self = sampleLevelLight(grid.levels.get(0)!, 0, 0);
+    // Full intensity at the source — not weakened by the tile's own height.
+    expect(self[0]).toBeCloseTo(1, 1);
+  });
 });

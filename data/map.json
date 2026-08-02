@@ -10298,6 +10298,10 @@
       "16,27": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "torch",
+          "direction": "s"
         }
       ],
       "16,29": [
@@ -10538,6 +10542,10 @@
       "1,32": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "torch",
+          "direction": "s"
         }
       ],
       "0,32": [
@@ -11434,10 +11442,6 @@
       "20,3": [
         {
           "tileId": "dirt"
-        },
-        {
-          "tileId": "torch",
-          "direction": "s"
         }
       ],
       "19,3": [
@@ -11458,6 +11462,10 @@
       "17,5": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "torch",
+          "direction": "e"
         }
       ],
       "17,6": [
@@ -12348,6 +12356,9 @@
       "22,-5": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "cat"
         }
       ],
       "23,-5": [
@@ -13645,6 +13656,10 @@
       "14,17": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "torch",
+          "direction": "s"
         }
       ],
       "14,18": [

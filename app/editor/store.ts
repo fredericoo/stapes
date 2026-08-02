@@ -79,7 +79,12 @@ export type EditorStore = {
   markSaved: () => void;
   clearToast: () => void;
 
-  commitMap: (next: MapFile) => void;
+  /**
+   * Apply a map mutation and record undo history.
+   * All map data changes must go through this (or a store method that calls it).
+   * Pass `{ coalesceInStroke: true }` only for per-cell steps inside beginStroke/endStroke.
+   */
+  commitMap: (next: MapFile, opts?: { coalesceInStroke?: boolean }) => void;
   beginStroke: () => void;
   endStroke: () => void;
   undo: () => void;
@@ -193,23 +198,35 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   markSaved: () => set({ dirty: false, savedMap: get().map }),
   clearToast: () => set({ lastToast: null }),
 
-  commitMap: (next) => {
-    const { map, currentLevel, mapVersion, past, strokeBase, savedMap } = get();
+  commitMap: (next, opts) => {
+    if (next === get().map) return;
+
+    // Per-cell drag steps coalesce into one undo entry via endStroke.
+    if (opts?.coalesceInStroke && get().strokeBase) {
+      const { mapVersion, savedMap } = get();
+      set({
+        map: next,
+        dirty: next !== savedMap,
+        mapVersion: mapVersion + 1,
+        future: [],
+      });
+      return;
+    }
+
+    // Discrete edits (backspace, stack panel, stampMany, …) must always be
+    // undoable on their own — close any open stroke first so they aren't
+    // swallowed / undo isn't blocked by a stuck strokeBase.
+    if (get().strokeBase) {
+      get().endStroke();
+    }
+
+    const { map, currentLevel, mapVersion, past, savedMap } = get();
     if (next === map) return;
-    const base = {
+    set({
       map: next,
       dirty: next !== savedMap,
       mapVersion: mapVersion + 1,
-      future: [] as HistoryEntry[],
-    };
-    // During a drag the base snapshot was captured by beginStroke, so skip
-    // per-cell pushes — endStroke will push a single entry.
-    if (strokeBase) {
-      set(base);
-      return;
-    }
-    set({
-      ...base,
+      future: [],
       past: [...past, { map, level: currentLevel }].slice(-HISTORY_LIMIT),
     });
   },
@@ -267,7 +284,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
   eraseAt: (x, y) => {
     const { map, currentLevel } = get();
-    get().commitMap(clearStack(map, x, y, currentLevel));
+    get().commitMap(clearStack(map, x, y, currentLevel), {
+      coalesceInStroke: true,
+    });
   },
 
   stampAt: (x, y) => {
@@ -291,7 +310,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const next = replaceStack(map, x, y, currentLevel, clone);
     // Selection trails the brush: the cell we just wrote holds an identical
     // stack, so the source is unchanged and the panel shows what you painted.
-    get().commitMap(next);
+    get().commitMap(next, { coalesceInStroke: true });
     set({ selected: { x, y } });
     return { skipped: false };
   },
