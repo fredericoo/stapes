@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { EditorRenderer } from "./EditorRenderer";
+import type { EditorPerfProbe } from "./perf";
 import { useEditorStore } from "./store";
 
 export function MapCanvas({
@@ -18,7 +19,16 @@ export function MapCanvas({
     if (!canvas) return;
     const renderer = new EditorRenderer(canvas);
     rendererRef.current = renderer;
+
+    const probe: EditorPerfProbe = {
+      ready: () => renderer.isReady(),
+      snapshot: () => renderer.getPerfSnapshot(),
+      measureRenders: (samples) => renderer.measureRenders(samples),
+    };
+    window.__editorPerf = probe;
+
     return () => {
+      if (window.__editorPerf === probe) delete window.__editorPerf;
       renderer.dispose();
       rendererRef.current = null;
     };

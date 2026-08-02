@@ -22,6 +22,7 @@ import {
 } from "../lib/types";
 import { canReplaceStack } from "../lib/validation";
 import { useEditorStore, type ToolId } from "./store";
+import type { EditorPerfMeasure, EditorPerfSnapshot } from "./perf";
 
 type AnimatedInstance = {
   mesh: THREE.Mesh;
@@ -196,6 +197,15 @@ function disposeObject3D(obj: THREE.Object3D) {
   });
 }
 
+function percentile(sortedAsc: number[], p: number): number {
+  if (sortedAsc.length === 0) return 0;
+  const idx = Math.min(
+    sortedAsc.length - 1,
+    Math.max(0, Math.ceil(p * sortedAsc.length) - 1),
+  );
+  return sortedAsc[idx]!;
+}
+
 export class EditorRenderer {
   private canvas: HTMLCanvasElement;
   private renderer: THREE.WebGLRenderer;
@@ -247,6 +257,8 @@ export class EditorRenderer {
   private statsAccum = 0;
   private statsFrames = 0;
   private statsLastReport = 0;
+  private lastFrameMs = 0;
+  private assetsReady = false;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -310,18 +322,92 @@ export class EditorRenderer {
     this.tilesets = tilesets;
     this.tilesetById = new Map(tilesets.map((t) => [t.id, t]));
     if (tilesById) this.tilesById = tilesById;
+    this.assetsReady = false;
     void this.preloadTextures()
       .then(() => {
+        if (this.disposed) return;
         // Always rebuild from the live store so we don't race hydrate.
         this.tilesById = useEditorStore.getState().tilesById;
         this.rebuildKey = "";
         this.prevMap = null;
         this.rebuildAll();
+        this.assetsReady = true;
         this.requestRender();
       })
       .catch((err) => {
         console.error("Failed to load tileset textures", err);
       });
+  }
+
+  /** True once tileset textures are in and the world has been built at least once. */
+  isReady(): boolean {
+    return !this.disposed && this.assetsReady && this.prevMap !== null;
+  }
+
+  getPerfSnapshot(): EditorPerfSnapshot {
+    const s = useEditorStore.getState();
+    const info = this.renderer.info.render;
+    return {
+      lastFrameMs: this.lastFrameMs,
+      calls: info.calls,
+      triangles: info.triangles,
+      levels: this.levelGroups.size,
+      worldMeshes: this.countWorldMeshes(),
+      animated: this.animated.length,
+      placedQuads: this.countPlacedQuads(),
+      showOtherLevels: s.showOtherLevels,
+      currentLevel: s.currentLevel,
+      previewMode: s.previewMode,
+    };
+  }
+
+  /**
+   * Force `samples` synchronous frames and return timing percentiles.
+   * Used by Playwright perf budgets — not on the hot path.
+   */
+  measureRenders(samples = 60): EditorPerfMeasure {
+    const times: number[] = [];
+    const warmup = Math.min(10, samples);
+    for (let i = 0; i < warmup + samples; i++) {
+      const s = useEditorStore.getState();
+      const t0 = performance.now();
+      this.applyCamera(s.camera.x, s.camera.y, s.zoom);
+      this.renderFrame(s);
+      const dt = performance.now() - t0;
+      this.lastFrameMs = dt;
+      if (i >= warmup) times.push(dt);
+    }
+    times.sort((a, b) => a - b);
+    const info = this.renderer.info.render;
+    return {
+      samples: times.length,
+      p50Ms: percentile(times, 0.5),
+      p95Ms: percentile(times, 0.95),
+      maxMs: times[times.length - 1] ?? 0,
+      calls: info.calls,
+      triangles: info.triangles,
+      levels: this.levelGroups.size,
+      worldMeshes: this.countWorldMeshes(),
+      animated: this.animated.length,
+      placedQuads: this.countPlacedQuads(),
+    };
+  }
+
+  private countWorldMeshes(): number {
+    let n = 0;
+    this.world.traverse((obj) => {
+      if ((obj as THREE.Mesh).isMesh) n++;
+    });
+    return n;
+  }
+
+  private countPlacedQuads(): number {
+    const map = this.prevMap ?? useEditorStore.getState().map;
+    let n = 0;
+    for (const level of Object.values(map.levels)) {
+      for (const stack of Object.values(level)) n += stack.length;
+    }
+    return n;
   }
 
   dispose() {
@@ -1206,13 +1292,14 @@ export class EditorRenderer {
     if (!this.needsRender) return;
     this.needsRender = false;
 
-    const frameStart = import.meta.env.DEV ? performance.now() : 0;
+    const frameStart = performance.now();
     const s = useEditorStore.getState();
     this.applyCamera(s.camera.x, s.camera.y, s.zoom);
     this.renderFrame(s);
+    this.lastFrameMs = performance.now() - frameStart;
 
     if (import.meta.env.DEV && this.statsEl) {
-      const frameMs = performance.now() - frameStart;
+      const frameMs = this.lastFrameMs;
       this.statsAccum += frameMs;
       this.statsFrames++;
       if (now - this.statsLastReport >= 500) {

@@ -1,0 +1,16 @@
+---
+description: Run renderer perf budgets before shipping editor/renderer changes
+globs: app/editor/**/*.{ts,tsx}
+alwaysApply: false
+---
+
+# Renderer performance gates
+
+When you change the Three.js editor renderer, map mesh building, or anything under `app/editor/` that can affect draw calls or frame time:
+
+1. Before considering the work done, run:
+   - `pnpm test:unit`
+   - `pnpm test:perf`
+2. Do not ship if either fails. If a budget in `app/editor/perf.ts` must rise for a real feature (e.g. lighting passes), update the budget in the same change and say why in the PR/commit summary.
+3. Prefer fixing regressions (draw calls, mesh/quad ratio, frame p95) over raising caps.
+4. `PERF_SKIP_TIMING=1` is only for diagnosing structure asserts when the GPU is unavailable — not a way to ignore slow frames on a normal machine.
