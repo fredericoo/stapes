@@ -150,8 +150,7 @@ function opacityForLevel(
 
 /**
  * Flattens one level's render target onto the canvas at a single opacity.
- * The target holds premultiplied linear colour, so we encode to the output
- * colour space first and then scale the whole (already premultiplied) texel.
+ * The RT holds straight-alpha coverage (opaque cutouts write A=1; clear is A=0).
  */
 function createCompositeMaterial() {
   return new THREE.ShaderMaterial({
@@ -171,14 +170,16 @@ function createCompositeMaterial() {
       uniform float uOpacity;
       varying vec2 vUv;
       void main() {
-        gl_FragColor = texture2D(tLevel, vUv);
+        vec4 texel = texture2D(tLevel, vUv);
+        // Straight alpha → premultiplied for CustomBlending below.
+        gl_FragColor = vec4(texel.rgb * texel.a, texel.a) * uOpacity;
         #include <colorspace_fragment>
-        gl_FragColor *= uOpacity;
       }
     `,
     transparent: true,
     depthTest: false,
     depthWrite: false,
+    toneMapped: false,
     blending: THREE.CustomBlending,
     blendSrc: THREE.OneFactor,
     blendDst: THREE.OneMinusSrcAlphaFactor,
@@ -403,19 +404,22 @@ export class EditorRenderer {
   private materialFor(texture: THREE.Texture): THREE.MeshBasicMaterial {
     let mat = this.materials.get(texture);
     if (!mat) {
-      // Cutout (not blended): depth write works, so quads can be merged.
-      // Tilesets are effectively binary-alpha; a few partial pixels become opaque.
       mat = new THREE.MeshBasicMaterial({
         map: texture,
-        alphaTest: 0.5,
-        transparent: false,
-        depthTest: true,
-        depthWrite: true,
         // Ortho camera uses top < bottom for Y-down, which reverses winding.
         side: THREE.DoubleSide,
       });
       this.materials.set(texture, mat);
     }
+    // Cutout with depth: alphaTest discards holes; depth buffer sorts overlaps
+    // so we can merge quads. transparent:true keeps texture alpha in the level
+    // RT so the composite pass can fade a whole level as one flat image.
+    mat.alphaTest = 0.5;
+    mat.transparent = true;
+    mat.opacity = 1;
+    mat.depthTest = true;
+    mat.depthWrite = true;
+    mat.needsUpdate = true;
     return mat;
   }
 
@@ -1086,8 +1090,10 @@ export class EditorRenderer {
 
     for (const [tex, quads] of staticByTex) {
       const geo = buildMergedQuadGeometry(quads);
+      geo.computeBoundingSphere();
       const mesh = new THREE.Mesh(geo, this.materialFor(tex));
-      mesh.frustumCulled = true;
+      // Editor views are small; avoid any first-frame bounds miss on the level RT.
+      mesh.frustumCulled = false;
       mesh.matrixAutoUpdate = false;
       mesh.updateMatrix();
       levelGroup.add(mesh);
@@ -1227,25 +1233,27 @@ export class EditorRenderer {
     const { x: w, y: h } = this.renderer.getDrawingBufferSize(
       this.drawBufferSize,
     );
-    if (this.levelTarget && !this.levelTarget.depthBuffer) {
-      // Recreate if an older target lacked a depth buffer.
+    if (
+      this.levelTarget &&
+      (!this.levelTarget.depthBuffer ||
+        this.levelTarget.texture.type !== THREE.UnsignedByteType)
+    ) {
       this.levelTarget.dispose();
       this.levelTarget = null;
     }
     if (!this.levelTarget) {
-      // The target holds linear colour, which bands visibly at 8 bits.
-      // Depth is required so merged cutout quads sort correctly within the level.
-      const halfFloat =
-        this.renderer.extensions.has("EXT_color_buffer_half_float") ||
-        this.renderer.extensions.has("EXT_color_buffer_float");
+      // Unsigned byte + depth: predictable alpha coverage for the composite pass.
+      // (Half-float is nicer for colour but some paths leave A unusable for fading.)
       this.levelTarget = new THREE.WebGLRenderTarget(w, h, {
         depthBuffer: true,
         stencilBuffer: false,
-        type: halfFloat ? THREE.HalfFloatType : THREE.UnsignedByteType,
+        type: THREE.UnsignedByteType,
+        format: THREE.RGBAFormat,
         magFilter: THREE.NearestFilter,
         minFilter: THREE.NearestFilter,
         generateMipmaps: false,
       });
+      this.levelTarget.texture.colorSpace = THREE.SRGBColorSpace;
     } else if (this.levelTarget.width !== w || this.levelTarget.height !== h) {
       this.levelTarget.setSize(w, h);
     }
@@ -1261,6 +1269,7 @@ export class EditorRenderer {
     const r = this.renderer;
     r.info.reset();
     r.setRenderTarget(null);
+    r.setClearColor(BACKGROUND_COLOR, 1);
     r.clear(true, true, false);
 
     this.world.visible = false;
@@ -1284,6 +1293,7 @@ export class EditorRenderer {
       if (batch.length === 0) return;
       for (const g of batch) g.visible = true;
       r.setRenderTarget(null);
+      r.setClearColor(BACKGROUND_COLOR, 1);
       r.render(this.scene, this.camera);
       for (const g of batch) g.visible = false;
       batch = [];
@@ -1311,10 +1321,10 @@ export class EditorRenderer {
       r.setClearColor(0x000000, 0);
       r.clear(true, true, false);
       r.render(this.scene, this.camera);
-      r.setRenderTarget(null);
-      r.setClearColor(BACKGROUND_COLOR, 1);
       group.visible = false;
 
+      r.setRenderTarget(null);
+      r.setClearColor(BACKGROUND_COLOR, 1);
       this.compositeMaterial.uniforms.tLevel!.value = target.texture;
       this.compositeMaterial.uniforms.uOpacity!.value = opacity;
       r.render(this.compositeScene, this.compositeCamera);

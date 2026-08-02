@@ -484,5 +484,32 @@
       ]
     },
     "attributes": {}
+  },
+  {
+    "id": "cat",
+    "name": "Cat",
+    "height": 3,
+    "directional": false,
+    "variants": {
+      "default": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 18,
+              "y": 2,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    },
+    "attributes": {}
   }
 ]
