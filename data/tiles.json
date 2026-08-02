@@ -457,5 +457,32 @@
       ]
     },
     "attributes": {}
+  },
+  {
+    "id": "brick-slab",
+    "name": "Brick Slab",
+    "height": 2,
+    "directional": false,
+    "variants": {
+      "default": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 18,
+              "y": 6,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    },
+    "attributes": {}
   }
 ]

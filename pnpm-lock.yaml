@@ -35,6 +35,9 @@ importers:
       react-router:
         specifier: ^8
         version: 8.3.0(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      react-splitkit:
+        specifier: ^0.1.0
+        version: 0.1.0(@types/react@19.2.18)(react@19.2.8)(use-sync-external-store@1.6.0(react@19.2.8))
       three:
         specifier: ^0.185.1
         version: 0.185.1
@@ -1346,6 +1349,11 @@ packages:
     peerDependenciesMeta:
       react-dom:
         optional: true
+
+  react-splitkit@0.1.0:
+    resolution: {integrity: sha512-NRew5V9qnHJ+MV13dWduwTI1LlllYOErluv7meaR3SaXMkp+bVa98JIKTVt86FQRq4KKH4suwxDNqskEqCcibA==}
+    peerDependencies:
+      react: '>=18'
 
   react@19.2.8:
     resolution: {integrity: sha512-PWaYA1L/q9u2u7xYQi+Y3L3Yfnie7XyLeaJICV1MGD6LprsBxcAqGjYyr0eY3p+QdsA+x/Irkt4Qif8D63+Sbw==}
@@ -2707,6 +2715,15 @@ snapshots:
       react: 19.2.8
     optionalDependencies:
       react-dom: 19.2.8(react@19.2.8)
+
+  react-splitkit@0.1.0(@types/react@19.2.18)(react@19.2.8)(use-sync-external-store@1.6.0(react@19.2.8)):
+    dependencies:
+      react: 19.2.8
+      zustand: 5.0.14(@types/react@19.2.18)(react@19.2.8)(use-sync-external-store@1.6.0(react@19.2.8))
+    transitivePeerDependencies:
+      - '@types/react'
+      - immer
+      - use-sync-external-store
 
   react@19.2.8: {}
 

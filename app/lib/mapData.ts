@@ -42,17 +42,13 @@ export function elevationAt(
   return e;
 }
 
-function cloneMap(map: MapFile): MapFile {
-  const levels: MapFile["levels"] = {};
-  for (const [zk, level] of Object.entries(map.levels)) {
-    levels[zk] = { ...level };
-    for (const [ck, stack] of Object.entries(levels[zk]!)) {
-      levels[zk]![ck] = [...stack];
-    }
-  }
-  return { version: 1, levels };
-}
-
+/**
+ * Copy-on-write path update: only the touched level and cell get new objects.
+ * Untouched levels and cells keep their identity so the renderer can diff by
+ * reference and rebuild only dirty chunks.
+ *
+ * Callers must pass a freshly built `stack` array — we do not clone it.
+ */
 function setStack(
   map: MapFile,
   x: number,
@@ -60,19 +56,15 @@ function setStack(
   z: number,
   stack: PlacedTile[],
 ): MapFile {
-  const next = cloneMap(map);
   const zk = levelKey(z);
   const ck = coordKey(x, y);
-  if (!next.levels[zk]) next.levels[zk] = {};
-  if (stack.length === 0) {
-    delete next.levels[zk]![ck];
-    if (Object.keys(next.levels[zk]!).length === 0) {
-      delete next.levels[zk];
-    }
-  } else {
-    next.levels[zk]![ck] = stack.map((p) => ({ ...p }));
-  }
-  return next;
+  const level = { ...(map.levels[zk] ?? {}) };
+  if (stack.length === 0) delete level[ck];
+  else level[ck] = stack;
+  const levels = { ...map.levels };
+  if (Object.keys(level).length === 0) delete levels[zk];
+  else levels[zk] = level;
+  return { version: 1, levels };
 }
 
 export function clearStack(

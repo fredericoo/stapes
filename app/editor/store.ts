@@ -151,11 +151,36 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   togglePreviewMode: () => set({ previewMode: !get().previewMode }),
   setTool: (tool) => set({ tool }),
   setSelected: (sel) => set({ selected: sel }),
-  setHover: (h) => set({ hover: h }),
+  setHover: (h) => {
+    const prev = get().hover;
+    if (prev === h) return;
+    if (prev && h && prev.x === h.x && prev.y === h.y) return;
+    if (!prev && !h) return;
+    set({ hover: h });
+  },
   setArmedTileId: (id) => set({ armedTileId: id }),
   setZoom: (z) => set({ zoom: z }),
-  setCamera: (c) => set({ camera: c }),
-  setShapePreview: (p) => set({ shapePreview: p }),
+  setCamera: (c) => {
+    const prev = get().camera;
+    if (prev.x === c.x && prev.y === c.y) return;
+    set({ camera: c });
+  },
+  setShapePreview: (p) => {
+    const prev = get().shapePreview;
+    if (prev === p) return;
+    if (
+      prev &&
+      p &&
+      prev.kind === p.kind &&
+      prev.x0 === p.x0 &&
+      prev.y0 === p.y0 &&
+      prev.x1 === p.x1 &&
+      prev.y1 === p.y1
+    ) {
+      return;
+    }
+    set({ shapePreview: p });
+  },
   markSaved: () => set({ dirty: false, savedMap: get().map }),
   clearToast: () => set({ lastToast: null }),
 
@@ -270,9 +295,10 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       return { skipped: coords.length, reason: "No source selected" };
     }
     const source = getStack(map, selected.x, selected.y, currentLevel);
-    const clone: PlacedTile[] = source.map((p) => ({ ...p }));
     let last: { x: number; y: number } | null = null;
     for (const { x, y } of coords) {
+      // Fresh clone per cell so stacks don't share identity across coords.
+      const clone: PlacedTile[] = source.map((p) => ({ ...p }));
       const check = canReplaceStack(map, x, y, currentLevel, clone, tilesById);
       if (!check.ok) {
         skipped++;

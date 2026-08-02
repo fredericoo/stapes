@@ -15,10 +15,10 @@ import type {
 } from "../lib/types";
 import {
   CELL_SIZE,
-  CHUNK_SIZE,
   MAX_LEVEL,
   MIN_LEVEL,
   getFrames,
+  levelKey,
 } from "../lib/types";
 import { canReplaceStack } from "../lib/validation";
 import { useEditorStore, type ToolId } from "./store";
@@ -30,6 +30,7 @@ type AnimatedInstance = {
   tilesetId: string;
   frames: Frame[];
   tileset: TilesetDef;
+  animKey: string;
 };
 
 /** A textured rectangle in world pixels, ready to be turned into a mesh. */
@@ -45,14 +46,89 @@ type SpriteQuad = {
   v1: number;
 };
 
+type Quad = {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  u0: number;
+  v0: number;
+  u1: number;
+  v1: number;
+  /** World Z — higher draws in front via the depth buffer. */
+  depth: number;
+};
+
 const BACKGROUND_COLOR = 0xb8b09e;
 
 const GHOST_OPACITY = 0.55;
 /** Big shapes fall back to outlines only — one mesh per sprite gets costly. */
 const MAX_GHOST_CELLS = 256;
 
-function chunkId(z: number, cx: number, cy: number) {
-  return `${z}:${cx},${cy}`;
+/** Spacing between consecutive painter-sorted quads on a level. */
+const DEPTH_STEP = 0.0001;
+/** Separates levels in Z so dimmed/opaque passes never z-fight across floors. */
+const DEPTH_LEVEL_STRIDE = 1;
+
+/** One BufferGeometry for every quad sharing a tileset inside a level. */
+function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
+  const n = quads.length;
+  const positions = new Float32Array(n * 4 * 3);
+  const uvs = new Float32Array(n * 4 * 2);
+  const indices = n * 4 > 65535 ? new Uint32Array(n * 6) : new Uint16Array(n * 6);
+
+  for (let i = 0; i < n; i++) {
+    const q = quads[i]!;
+    const x0 = q.x;
+    const y0 = q.y;
+    const x1 = q.x + q.w;
+    const y1 = q.y + q.h;
+    const z = q.depth;
+    const pb = i * 12;
+    // Match PlaneGeometry + Y-down UV mapping (see addQuadMesh).
+    // vert0 (local +Y / screen-bottom): (x0, y1) uv (u0, v0)
+    // vert1: (x1, y1) uv (u1, v0)
+    // vert2 (local -Y / screen-top): (x0, y0) uv (u0, v1)
+    // vert3: (x1, y0) uv (u1, v1)
+    positions[pb] = x0;
+    positions[pb + 1] = y1;
+    positions[pb + 2] = z;
+    positions[pb + 3] = x1;
+    positions[pb + 4] = y1;
+    positions[pb + 5] = z;
+    positions[pb + 6] = x0;
+    positions[pb + 7] = y0;
+    positions[pb + 8] = z;
+    positions[pb + 9] = x1;
+    positions[pb + 10] = y0;
+    positions[pb + 11] = z;
+
+    const ub = i * 8;
+    uvs[ub] = q.u0;
+    uvs[ub + 1] = q.v0;
+    uvs[ub + 2] = q.u1;
+    uvs[ub + 3] = q.v0;
+    uvs[ub + 4] = q.u0;
+    uvs[ub + 5] = q.v1;
+    uvs[ub + 6] = q.u1;
+    uvs[ub + 7] = q.v1;
+
+    const base = i * 4;
+    const ib = i * 6;
+    // PlaneGeometry winding: 0,2,1 / 2,3,1
+    indices[ib] = base;
+    indices[ib + 1] = base + 2;
+    indices[ib + 2] = base + 1;
+    indices[ib + 3] = base + 2;
+    indices[ib + 4] = base + 3;
+    indices[ib + 5] = base + 1;
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
+  geo.setIndex(new THREE.BufferAttribute(indices, 1));
+  return geo;
 }
 
 function opacityForLevel(
@@ -111,6 +187,14 @@ function createCompositeMaterial() {
   });
 }
 
+function disposeObject3D(obj: THREE.Object3D) {
+  obj.traverse((child) => {
+    const mesh = child as THREE.Mesh;
+    mesh.geometry?.dispose();
+    // Shared materials are owned by the renderer — never dispose them here.
+  });
+}
+
 export class EditorRenderer {
   private canvas: HTMLCanvasElement;
   private renderer: THREE.WebGLRenderer;
@@ -120,17 +204,24 @@ export class EditorRenderer {
   private overlays: THREE.Group;
   private world: THREE.Group;
   private textures = new Map<string, THREE.Texture>();
+  private materials = new Map<THREE.Texture, THREE.MeshBasicMaterial>();
   private tilesets: TilesetDef[] = [];
+  private tilesetById = new Map<string, TilesetDef>();
   private tilesById: Record<string, TileDef> = {};
-  private chunkMeshes = new Map<string, THREE.Group>();
   private levelGroups = new Map<number, THREE.Group>();
   private levelTarget: THREE.WebGLRenderTarget | null = null;
   private compositeScene: THREE.Scene;
   private compositeCamera: THREE.Camera;
   private compositeMaterial: THREE.ShaderMaterial;
   private drawBufferSize = new THREE.Vector2();
+  /** Animated instances keyed by level. */
+  private animatedByLevel = new Map<number, AnimatedInstance[]>();
+  /** Flat list rebuilt whenever level animation lists change. */
   private animated: AnimatedInstance[] = [];
+  /** Precomputed grouping of animated instances by anim key. */
+  private animatedByKey = new Map<string, AnimatedInstance[]>();
   private animClock = 0;
+  private lastAnimTime = 0;
   private frameIndices = new Map<string, number>();
   private raf = 0;
   private unsub: (() => void) | null = null;
@@ -144,6 +235,17 @@ export class EditorRenderer {
   private magentaTex: THREE.DataTexture;
   private rebuildKey = "";
   private gridLevel = Number.NaN;
+  /** Previous map for reference-diff dirty-chunk detection. */
+  private prevMap: MapFile | null = null;
+  private needsRender = true;
+  private canvasW = 0;
+  private canvasH = 0;
+  private resizeObserver: ResizeObserver | null = null;
+  private overlaySig = "";
+  private statsEl: HTMLDivElement | null = null;
+  private statsAccum = 0;
+  private statsFrames = 0;
+  private statsLastReport = 0;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -156,10 +258,16 @@ export class EditorRenderer {
     this.renderer.setPixelRatio(1);
     // Levels are drawn one pass at a time, so clearing is done by hand.
     this.renderer.autoClear = false;
+    // Accumulate draw calls across the multi-pass frame; we reset in renderFrame.
+    this.renderer.info.autoReset = false;
 
     this.scene = new THREE.Scene();
-    this.camera = new THREE.OrthographicCamera(0, 1, 0, 1, -1000, 1000);
-    this.camera.position.z = 10;
+    // World meshes never move after build — update matrices only on rebuild.
+    this.scene.matrixWorldAutoUpdate = false;
+    // Depths are ~[0, 20] from per-level sorted indices. Tight frustum keeps
+    // the 24-bit depth buffer precise enough for DEPTH_STEP.
+    this.camera = new THREE.OrthographicCamera(0, 1, 0, 1, -10, 50);
+    this.camera.position.z = 25;
 
     this.world = new THREE.Group();
     this.grid = new THREE.Group();
@@ -186,22 +294,29 @@ export class EditorRenderer {
     this.magentaTex.needsUpdate = true;
 
     this.bindEvents();
+    this.bindResize();
+    if (import.meta.env.DEV) this.createStatsEl();
+
     this.unsub = useEditorStore.subscribe(() => {
       this.syncFromStore();
     });
     this.syncFromStore(true);
+    this.lastAnimTime = performance.now();
     this.loop();
   }
 
   setAssets(tilesets: TilesetDef[], tilesById?: Record<string, TileDef>) {
     this.tilesets = tilesets;
+    this.tilesetById = new Map(tilesets.map((t) => [t.id, t]));
     if (tilesById) this.tilesById = tilesById;
     void this.preloadTextures()
       .then(() => {
         // Always rebuild from the live store so we don't race hydrate.
         this.tilesById = useEditorStore.getState().tilesById;
         this.rebuildKey = "";
+        this.prevMap = null;
         this.rebuildAll();
+        this.requestRender();
       })
       .catch((err) => {
         console.error("Failed to load tileset textures", err);
@@ -212,6 +327,8 @@ export class EditorRenderer {
     this.disposed = true;
     cancelAnimationFrame(this.raf);
     this.unsub?.();
+    this.resizeObserver?.disconnect();
+    this.statsEl?.remove();
     this.canvas.removeEventListener("pointerdown", this.onPointerDown);
     this.canvas.removeEventListener("pointermove", this.onPointerMove);
     this.canvas.removeEventListener("pointerup", this.onPointerUp);
@@ -223,7 +340,47 @@ export class EditorRenderer {
     this.compositeMaterial.dispose();
     this.renderer.dispose();
     for (const tex of this.textures.values()) tex.dispose();
+    for (const mat of this.materials.values()) mat.dispose();
     this.magentaTex.dispose();
+  }
+
+  private requestRender() {
+    this.needsRender = true;
+  }
+
+  private bindResize() {
+    this.resizeObserver = new ResizeObserver(() => {
+      this.updateCanvasSize();
+      this.requestRender();
+    });
+    this.resizeObserver.observe(this.canvas);
+    this.updateCanvasSize();
+  }
+
+  private updateCanvasSize() {
+    const w = Math.max(1, this.canvas.clientWidth);
+    const h = Math.max(1, this.canvas.clientHeight);
+    if (w === this.canvasW && h === this.canvasH) return;
+    this.canvasW = w;
+    this.canvasH = h;
+    this.renderer.setSize(w, h, false);
+  }
+
+  private createStatsEl() {
+    const el = document.createElement("div");
+    el.style.cssText =
+      "position:absolute;top:4px;right:4px;z-index:50;font:11px/1.3 ui-monospace,monospace;" +
+      "background:rgba(0,0,0,0.65);color:#9f9;padding:4px 6px;pointer-events:none;" +
+      "border-radius:3px;white-space:pre;";
+    el.textContent = "…";
+    const parent = this.canvas.parentElement;
+    if (parent) {
+      if (getComputedStyle(parent).position === "static") {
+        parent.style.position = "relative";
+      }
+      parent.appendChild(el);
+      this.statsEl = el;
+    }
   }
 
   private async preloadTextures() {
@@ -243,6 +400,25 @@ export class EditorRenderer {
     );
   }
 
+  private materialFor(texture: THREE.Texture): THREE.MeshBasicMaterial {
+    let mat = this.materials.get(texture);
+    if (!mat) {
+      // Cutout (not blended): depth write works, so quads can be merged.
+      // Tilesets are effectively binary-alpha; a few partial pixels become opaque.
+      mat = new THREE.MeshBasicMaterial({
+        map: texture,
+        alphaTest: 0.5,
+        transparent: false,
+        depthTest: true,
+        depthWrite: true,
+        // Ortho camera uses top < bottom for Y-down, which reverses winding.
+        side: THREE.DoubleSide,
+      });
+      this.materials.set(texture, mat);
+    }
+    return mat;
+  }
+
   private syncFromStore(forceRebuild = false) {
     if (this.disposed) return;
     const s = useEditorStore.getState();
@@ -256,17 +432,26 @@ export class EditorRenderer {
     // Level visibility and opacity are decided per frame, so they don't force a rebuild.
     const key = `${s.mapVersion}|${Object.keys(s.tilesById).length}`;
     if (forceRebuild || key !== this.rebuildKey) {
+      const prevKey = this.rebuildKey;
       this.rebuildKey = key;
-      this.rebuildAll();
+      // Full rebuild when tilesById count changed (defs loaded/replaced) or forced.
+      const tilesChanged =
+        forceRebuild ||
+        !prevKey ||
+        prevKey.split("|")[1] !== key.split("|")[1];
+      if (tilesChanged || this.prevMap === null) {
+        this.rebuildAll();
+      } else {
+        this.rebuildDirtyChunks(s.map);
+      }
     }
+    this.requestRender();
   }
 
   private applyCamera(camX: number, camY: number, zoom: number) {
-    const w = Math.max(1, this.canvas.clientWidth);
-    const h = Math.max(1, this.canvas.clientHeight);
-    this.renderer.setSize(w, h, false);
-    const viewW = w / zoom;
-    const viewH = h / zoom;
+    this.updateCanvasSize();
+    const viewW = this.canvasW / zoom;
+    const viewH = this.canvasH / zoom;
     this.camera.left = camX;
     this.camera.right = camX + viewW;
     // Y grows down in our world. top < bottom flips Y to match screen space.
@@ -275,6 +460,7 @@ export class EditorRenderer {
     this.camera.bottom = camY + viewH;
     this.camera.scale.set(1, 1, 1);
     this.camera.updateProjectionMatrix();
+    this.camera.updateMatrixWorld(true);
   }
 
   private drawGrid(level: number) {
@@ -313,9 +499,13 @@ export class EditorRenderer {
       color: 0x000000,
       transparent: true,
       opacity: 0.12,
+      depthTest: false,
+      depthWrite: false,
     });
     const lines = new THREE.LineSegments(geo, mat);
     lines.renderOrder = -1000;
+    lines.matrixAutoUpdate = false;
+    lines.updateMatrix();
     this.grid.add(lines);
 
     // Origin axes
@@ -346,13 +536,42 @@ export class EditorRenderer {
         color: 0x2d6a4f,
         transparent: true,
         opacity: 0.5,
+        depthTest: false,
+        depthWrite: false,
       }),
     );
     axis.renderOrder = -999;
+    axis.matrixAutoUpdate = false;
+    axis.updateMatrix();
     this.grid.add(axis);
+    this.grid.updateMatrixWorld(true);
+  }
+
+  private overlaySignature(
+    s: ReturnType<typeof useEditorStore.getState>,
+  ): string {
+    const h = s.hover;
+    const sel = s.selected;
+    const sp = s.shapePreview;
+    // Include frame indices so animated overlay sprites stay in sync.
+    let frames = "";
+    for (const [k, v] of this.frameIndices) frames += `${k}=${v};`;
+    return [
+      s.mapVersion,
+      s.currentLevel,
+      s.tool,
+      h ? `${h.x},${h.y}` : "",
+      sel ? `${sel.x},${sel.y}` : "",
+      sp ? `${sp.kind}:${sp.x0},${sp.y0},${sp.x1},${sp.y1}` : "",
+      frames,
+    ].join("|");
   }
 
   private drawOverlays(s: ReturnType<typeof useEditorStore.getState>) {
+    const sig = this.overlaySignature(s);
+    if (sig === this.overlaySig) return;
+    this.overlaySig = sig;
+
     while (this.overlays.children.length) {
       const c = this.overlays.children.pop()!;
       const mesh = c as THREE.Mesh;
@@ -390,6 +609,8 @@ export class EditorRenderer {
           }),
         );
         line.renderOrder = 1_000_000_020;
+        line.matrixAutoUpdate = false;
+        line.updateMatrix();
         this.overlays.add(line);
       };
       makeLine(originX, originY, w, h, 1);
@@ -429,6 +650,8 @@ export class EditorRenderer {
       const mesh = new THREE.Mesh(geo, mat);
       mesh.position.set(q.x + q.w / 2, q.y + q.h / 2, 0);
       mesh.renderOrder = opts.renderOrder;
+      mesh.matrixAutoUpdate = false;
+      mesh.updateMatrix();
       this.overlays.add(mesh);
     };
 
@@ -528,6 +751,8 @@ export class EditorRenderer {
         elev += def.height;
       });
     }
+
+    this.overlays.updateMatrixWorld(true);
   }
 
   /** Cells the current tool would paint if the pointer acted right now. */
@@ -566,7 +791,7 @@ export class EditorRenderer {
     }
     if (!frame) return null;
 
-    const tileset = this.tilesets.find((t) => t.id === frame.sprite.tilesetId);
+    const tileset = this.tilesetById.get(frame.sprite.tilesetId);
     const { rect } = frame.sprite;
     const tw = tileset?.width ?? CELL_SIZE;
     const th = tileset?.height ?? CELL_SIZE;
@@ -618,177 +843,258 @@ export class EditorRenderer {
     return out;
   }
 
+  private rebuildAnimatedIndex() {
+    this.animated = [];
+    for (const list of this.animatedByLevel.values()) {
+      for (const inst of list) this.animated.push(inst);
+    }
+    this.animatedByKey.clear();
+    for (const inst of this.animated) {
+      let list = this.animatedByKey.get(inst.animKey);
+      if (!list) {
+        list = [];
+        this.animatedByKey.set(inst.animKey, list);
+      }
+      list.push(inst);
+    }
+  }
+
+  private removeLevel(z: number) {
+    const group = this.levelGroups.get(z);
+    if (group) {
+      group.parent?.remove(group);
+      disposeObject3D(group);
+      this.levelGroups.delete(z);
+    }
+    this.animatedByLevel.delete(z);
+  }
+
   private rebuildAll() {
-    // Clear world
     while (this.world.children.length) {
       const g = this.world.children.pop()!;
-      g.traverse((obj) => {
-        const mesh = obj as THREE.Mesh;
-        mesh.geometry?.dispose();
-        const mat = mesh.material as THREE.Material | THREE.Material[];
-        if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
-        else mat?.dispose?.();
-      });
+      disposeObject3D(g);
     }
-    this.chunkMeshes.clear();
     this.levelGroups.clear();
+    this.animatedByLevel.clear();
     this.animated = [];
+    this.animatedByKey.clear();
 
     const s = useEditorStore.getState();
     for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
       this.buildLevel(s.map, z);
     }
+    this.rebuildAnimatedIndex();
+    this.prevMap = s.map;
+    this.world.updateMatrixWorld(true);
+    // Force overlay refresh (map content changed under selection).
+    this.overlaySig = "";
+  }
+
+  /**
+   * Diff `next` against `prevMap` by stack reference identity and rebuild
+   * every level that has any changed cell. Depths are assigned from a
+   * level-wide painter sort, so a single cell edit must refresh the whole
+   * level's merged meshes — still cheap (one buffer per tileset).
+   */
+  private rebuildDirtyChunks(next: MapFile) {
+    const prev = this.prevMap;
+    if (!prev) {
+      this.rebuildAll();
+      return;
+    }
+
+    const dirtyLevels = new Set<number>();
+    const allZ = new Set<number>();
+    for (const zk of Object.keys(prev.levels)) allZ.add(Number(zk));
+    for (const zk of Object.keys(next.levels)) allZ.add(Number(zk));
+
+    for (const z of allZ) {
+      const prevLevel = prev.levels[levelKey(z)];
+      const nextLevel = next.levels[levelKey(z)];
+      if (prevLevel === nextLevel) continue;
+
+      const keys = new Set<string>();
+      if (prevLevel) for (const k of Object.keys(prevLevel)) keys.add(k);
+      if (nextLevel) for (const k of Object.keys(nextLevel)) keys.add(k);
+
+      for (const ck of keys) {
+        if (prevLevel?.[ck] !== nextLevel?.[ck]) {
+          dirtyLevels.add(z);
+          break;
+        }
+      }
+    }
+
+    if (dirtyLevels.size === 0) {
+      this.prevMap = next;
+      return;
+    }
+
+    for (const z of dirtyLevels) {
+      this.removeLevel(z);
+      this.buildLevel(next, z);
+    }
+
+    this.rebuildAnimatedIndex();
+    this.prevMap = next;
+    this.world.updateMatrixWorld(true);
+    this.overlaySig = "";
   }
 
   private buildLevel(map: MapFile, z: number) {
     const coords = listCoords(map, z);
     if (coords.length === 0) return;
-    const levelGroup = new THREE.Group();
-    levelGroup.name = `level:${z}`;
-    this.world.add(levelGroup);
-    this.levelGroups.set(z, levelGroup);
-    // Group by chunk
-    const byChunk = new Map<
-      string,
-      Array<{ x: number; y: number; stack: typeof coords[0]["stack"] }>
-    >();
-    for (const c of coords) {
-      const cx = Math.floor(c.x / CHUNK_SIZE);
-      const cy = Math.floor(c.y / CHUNK_SIZE);
-      const key = chunkId(z, cx, cy);
-      if (!byChunk.has(key)) byChunk.set(key, []);
-      byChunk.get(key)!.push(c);
+
+    type Item = Quad & {
+      order: number;
+      texture: THREE.Texture;
+      anim?: {
+        frames: Frame[];
+        tileId: string;
+        direction?: string;
+        tileset: TilesetDef;
+        animKey: string;
+      };
+    };
+
+    const items: Item[] = [];
+
+    for (const cell of coords) {
+      let elev = 0;
+      cell.stack.forEach((placed, stackIndex) => {
+        const def = this.tilesById[placed.tileId];
+        const order = drawOrder(cell.x, cell.y, stackIndex);
+
+        if (!def) {
+          const origin = baseCellWorldOrigin(cell.x, cell.y, z, elev);
+          items.push({
+            x: origin.x,
+            y: origin.y,
+            w: CELL_SIZE,
+            h: CELL_SIZE,
+            u0: 0,
+            v0: 0,
+            u1: 1,
+            v1: 1,
+            depth: 0,
+            order,
+            texture: this.magentaTex,
+          });
+          return;
+        }
+
+        const frames = getFrames(def, placed.direction);
+        const first = frames?.[0];
+        if (!first) return;
+
+        const tileset = this.tilesetById.get(first.sprite.tilesetId);
+        if (!tileset) return;
+
+        const baseOrigin = baseCellWorldOrigin(cell.x, cell.y, z, elev);
+        const origin = spriteWorldOrigin(baseOrigin, first.sprite.base);
+        const { rect } = first.sprite;
+        const w = rect.w * CELL_SIZE;
+        const h = rect.h * CELL_SIZE;
+        const u0 = (rect.x * CELL_SIZE) / tileset.width;
+        const u1 = ((rect.x + rect.w) * CELL_SIZE) / tileset.width;
+        const v1 = 1 - (rect.y * CELL_SIZE) / tileset.height;
+        const v0 = 1 - ((rect.y + rect.h) * CELL_SIZE) / tileset.height;
+        const texture = this.textures.get(tileset.id) ?? this.magentaTex;
+        const isAnimated = (frames?.length ?? 0) > 1;
+
+        items.push({
+          x: origin.x,
+          y: origin.y,
+          w,
+          h,
+          u0,
+          v0,
+          u1,
+          v1,
+          depth: 0,
+          order,
+          texture,
+          anim:
+            isAnimated && frames
+              ? {
+                  frames,
+                  tileId: def.id,
+                  direction: placed.direction,
+                  tileset,
+                  animKey: `${def.id}:${placed.direction ?? "default"}`,
+                }
+              : undefined,
+        });
+
+        elev += def.height;
+      });
     }
 
-    for (const [key, cells] of byChunk) {
-      const group = new THREE.Group();
-      group.name = key;
+    if (items.length === 0) return;
 
-      type Quad = {
-        x: number;
-        y: number;
-        w: number;
-        h: number;
-        u0: number;
-        v0: number;
-        u1: number;
-        v1: number;
-        order: number;
-      };
-      const staticByTileset = new Map<string, Quad[]>();
+    // Global painter sort, then sequential Z — float32-safe and identical
+    // across tileset batches, so roof seams at old chunk boundaries sort correctly.
+    items.sort((a, b) => a.order - b.order || a.x - b.x || a.y - b.y);
+    const depthBase = (z + 8) * DEPTH_LEVEL_STRIDE;
+    for (let i = 0; i < items.length; i++) {
+      items[i]!.depth = depthBase + i * DEPTH_STEP;
+    }
 
-      for (const cell of cells) {
-        let elev = 0;
-        cell.stack.forEach((placed, stackIndex) => {
-          const def = this.tilesById[placed.tileId];
-          const order = (z + 8) * 10_000_000 + drawOrder(cell.x, cell.y, stackIndex);
+    const levelGroup = new THREE.Group();
+    levelGroup.name = `level:${z}`;
+    levelGroup.matrixAutoUpdate = false;
+    levelGroup.updateMatrix();
+    this.world.add(levelGroup);
+    this.levelGroups.set(z, levelGroup);
 
-          if (!def) {
-            // Magenta placeholder
-            const origin = baseCellWorldOrigin(cell.x, cell.y, z, elev);
-            this.addQuadMesh(
-              group,
-              origin.x,
-              origin.y,
-              CELL_SIZE,
-              CELL_SIZE,
-              this.magentaTex,
-              0,
-              0,
-              1,
-              1,
-              order,
-            );
-            return;
-          }
+    const staticByTex = new Map<THREE.Texture, Quad[]>();
+    const animated: AnimatedInstance[] = [];
 
-          const frames = getFrames(def, placed.direction);
-          const first = frames?.[0];
-          if (!first) return;
-
-          const tileset = this.tilesets.find(
-            (t) => t.id === first.sprite.tilesetId,
-          );
-          if (!tileset) return;
-
-          const baseOrigin = baseCellWorldOrigin(cell.x, cell.y, z, elev);
-          const origin = spriteWorldOrigin(baseOrigin, first.sprite.base);
-          const { rect } = first.sprite;
-          const w = rect.w * CELL_SIZE;
-          const h = rect.h * CELL_SIZE;
-          const u0 = (rect.x * CELL_SIZE) / tileset.width;
-          const u1 = ((rect.x + rect.w) * CELL_SIZE) / tileset.width;
-          // flipY texture: v=0 at bottom
-          const v1 = 1 - (rect.y * CELL_SIZE) / tileset.height;
-          const v0 = 1 - ((rect.y + rect.h) * CELL_SIZE) / tileset.height;
-
-          const animated = (frames?.length ?? 0) > 1;
-          if (animated && frames) {
-            const mesh = this.addQuadMesh(
-              group,
-              origin.x,
-              origin.y,
-              w,
-              h,
-              this.textures.get(tileset.id) ?? this.magentaTex,
-              u0,
-              v0,
-              u1,
-              v1,
-              order,
-            );
-            this.animated.push({
-              mesh,
-              tileId: def.id,
-              direction: placed.direction,
-              tilesetId: tileset.id,
-              frames,
-              tileset,
-            });
-          } else {
-            if (!staticByTileset.has(tileset.id)) {
-              staticByTileset.set(tileset.id, []);
-            }
-            staticByTileset.get(tileset.id)!.push({
-              x: origin.x,
-              y: origin.y,
-              w,
-              h,
-              u0,
-              v0,
-              u1,
-              v1,
-              order,
-            });
-          }
-
-          elev += def.height;
+    for (const item of items) {
+      if (item.anim) {
+        const mesh = this.addQuadMesh(
+          levelGroup,
+          item.x,
+          item.y,
+          item.w,
+          item.h,
+          item.texture,
+          item.u0,
+          item.v0,
+          item.u1,
+          item.v1,
+          item.depth,
+        );
+        animated.push({
+          mesh,
+          tileId: item.anim.tileId,
+          direction: item.anim.direction,
+          tilesetId: item.anim.tileset.id,
+          frames: item.anim.frames,
+          tileset: item.anim.tileset,
+          animKey: item.anim.animKey,
         });
-      }
-
-      for (const [tilesetId, quads] of staticByTileset) {
-        const tex = this.textures.get(tilesetId) ?? this.magentaTex;
-        // Individual meshes per quad to keep correct renderOrder (merged would lose per-quad order).
-        // At editor scale this is fine; can merge later with depth tricks.
-        for (const q of quads) {
-          this.addQuadMesh(
-            group,
-            q.x,
-            q.y,
-            q.w,
-            q.h,
-            tex,
-            q.u0,
-            q.v0,
-            q.u1,
-            q.v1,
-            q.order,
-          );
+      } else {
+        let list = staticByTex.get(item.texture);
+        if (!list) {
+          list = [];
+          staticByTex.set(item.texture, list);
         }
+        list.push(item);
       }
+    }
 
-      levelGroup.add(group);
-      this.chunkMeshes.set(key, group);
+    for (const [tex, quads] of staticByTex) {
+      const geo = buildMergedQuadGeometry(quads);
+      const mesh = new THREE.Mesh(geo, this.materialFor(tex));
+      mesh.frustumCulled = true;
+      mesh.matrixAutoUpdate = false;
+      mesh.updateMatrix();
+      levelGroup.add(mesh);
+    }
+
+    if (animated.length > 0) {
+      this.animatedByLevel.set(z, animated);
     }
   }
 
@@ -803,7 +1109,7 @@ export class EditorRenderer {
     v0: number,
     u1: number,
     v1: number,
-    renderOrder: number,
+    depth: number,
   ): THREE.Mesh {
     const geo = new THREE.PlaneGeometry(w, h);
     const uvs = geo.attributes.uv!;
@@ -817,33 +1123,28 @@ export class EditorRenderer {
     uvs.setXY(3, u1, v1);
     uvs.needsUpdate = true;
 
-    // Always fully opaque — level dimming is applied to the flattened level,
-    // otherwise overlapping sprites within a level ghost through each other.
-    const mat = new THREE.MeshBasicMaterial({
-      map: texture,
-      transparent: true,
-      depthWrite: false,
-      // Ortho camera uses top < bottom for Y-down, which reverses winding.
-      side: THREE.DoubleSide,
-    });
+    // Cutout material — depth Z carries painter's order (no per-quad renderOrder).
+    const mat = this.materialFor(texture);
     const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.set(x + w / 2, y + h / 2, 0);
-    mesh.renderOrder = renderOrder;
+    mesh.position.set(x + w / 2, y + h / 2, depth);
+    mesh.matrixAutoUpdate = false;
+    mesh.updateMatrix();
     parent.add(mesh);
     return mesh;
   }
 
-  private updateAnimations(dt: number) {
+  /**
+   * Advance animation clocks. Returns true if any frame index changed
+   * (so UVs were rewritten and a re-render is needed).
+   */
+  private updateAnimations(dt: number): boolean {
+    if (this.animatedByKey.size === 0) return false;
+
     this.animClock += dt;
-    // Global frame index per tileId+direction key
-    const keys = new Set(
-      this.animated.map((a) => `${a.tileId}:${a.direction ?? "default"}`),
-    );
-    for (const key of keys) {
-      const sample = this.animated.find(
-        (a) => `${a.tileId}:${a.direction ?? "default"}` === key,
-      );
-      if (!sample) continue;
+    let changed = false;
+
+    for (const [key, instances] of this.animatedByKey) {
+      const sample = instances[0]!;
       let total = 0;
       for (const f of sample.frames) total += f.durationMs;
       if (total <= 0) continue;
@@ -856,48 +1157,89 @@ export class EditorRenderer {
         }
         t -= sample.frames[i]!.durationMs;
       }
+      const prev = this.frameIndices.get(key);
+      if (prev === idx) continue;
       this.frameIndices.set(key, idx);
+      changed = true;
+
+      const frame = sample.frames[idx]!;
+      const { rect } = frame.sprite;
+      const u0 = (rect.x * CELL_SIZE) / sample.tileset.width;
+      const u1 = ((rect.x + rect.w) * CELL_SIZE) / sample.tileset.width;
+      const v1 = 1 - (rect.y * CELL_SIZE) / sample.tileset.height;
+      const v0 = 1 - ((rect.y + rect.h) * CELL_SIZE) / sample.tileset.height;
+      for (const inst of instances) {
+        const uvs = inst.mesh.geometry.attributes.uv!;
+        uvs.setXY(0, u0, v0);
+        uvs.setXY(1, u1, v0);
+        uvs.setXY(2, u0, v1);
+        uvs.setXY(3, u1, v1);
+        uvs.needsUpdate = true;
+      }
     }
 
-    for (const inst of this.animated) {
-      const key = `${inst.tileId}:${inst.direction ?? "default"}`;
-      const idx = this.frameIndices.get(key) ?? 0;
-      const frame = inst.frames[idx]!;
-      const { rect } = frame.sprite;
-      const u0 = (rect.x * CELL_SIZE) / inst.tileset.width;
-      const u1 = ((rect.x + rect.w) * CELL_SIZE) / inst.tileset.width;
-      const v1 = 1 - (rect.y * CELL_SIZE) / inst.tileset.height;
-      const v0 = 1 - ((rect.y + rect.h) * CELL_SIZE) / inst.tileset.height;
-      const uvs = inst.mesh.geometry.attributes.uv!;
-      uvs.setXY(0, u0, v0);
-      uvs.setXY(1, u1, v0);
-      uvs.setXY(2, u0, v1);
-      uvs.setXY(3, u1, v1);
-      uvs.needsUpdate = true;
-    }
+    return changed;
   }
 
   private loop = () => {
     if (this.disposed) return;
     this.raf = requestAnimationFrame(this.loop);
-    this.updateAnimations(1000 / 60);
-    // Resize
+
+    const now = performance.now();
+    const dt = Math.min(100, now - this.lastAnimTime);
+    this.lastAnimTime = now;
+
+    // Always tick animations so frame-index changes are detected even while
+    // the canvas is otherwise idle. Only dirty the frame when an index flips.
+    if (this.updateAnimations(dt)) {
+      this.overlaySig = "";
+      this.drawOverlays(useEditorStore.getState());
+      this.requestRender();
+    }
+
+    if (!this.needsRender) return;
+    this.needsRender = false;
+
+    const frameStart = import.meta.env.DEV ? performance.now() : 0;
     const s = useEditorStore.getState();
     this.applyCamera(s.camera.x, s.camera.y, s.zoom);
     this.renderFrame(s);
+
+    if (import.meta.env.DEV && this.statsEl) {
+      const frameMs = performance.now() - frameStart;
+      this.statsAccum += frameMs;
+      this.statsFrames++;
+      if (now - this.statsLastReport >= 500) {
+        const avg = this.statsAccum / Math.max(1, this.statsFrames);
+        const info = this.renderer.info.render;
+        this.statsEl.textContent =
+          `${avg.toFixed(1)} ms\n` +
+          `${info.calls} calls · ${info.triangles} tris\n` +
+          `${this.levelGroups.size} levels · ${this.animated.length} anim`;
+        this.statsAccum = 0;
+        this.statsFrames = 0;
+        this.statsLastReport = now;
+      }
+    }
   };
 
   private levelRenderTarget(): THREE.WebGLRenderTarget {
     const { x: w, y: h } = this.renderer.getDrawingBufferSize(
       this.drawBufferSize,
     );
+    if (this.levelTarget && !this.levelTarget.depthBuffer) {
+      // Recreate if an older target lacked a depth buffer.
+      this.levelTarget.dispose();
+      this.levelTarget = null;
+    }
     if (!this.levelTarget) {
       // The target holds linear colour, which bands visibly at 8 bits.
+      // Depth is required so merged cutout quads sort correctly within the level.
       const halfFloat =
         this.renderer.extensions.has("EXT_color_buffer_half_float") ||
         this.renderer.extensions.has("EXT_color_buffer_float");
       this.levelTarget = new THREE.WebGLRenderTarget(w, h, {
-        depthBuffer: false,
+        depthBuffer: true,
         stencilBuffer: false,
         type: halfFloat ? THREE.HalfFloatType : THREE.UnsignedByteType,
         magFilter: THREE.NearestFilter,
@@ -917,6 +1259,7 @@ export class EditorRenderer {
    */
   private renderFrame(s: ReturnType<typeof useEditorStore.getState>) {
     const r = this.renderer;
+    r.info.reset();
     r.setRenderTarget(null);
     r.clear(true, true, false);
 
@@ -966,7 +1309,7 @@ export class EditorRenderer {
       group.visible = true;
       r.setRenderTarget(target);
       r.setClearColor(0x000000, 0);
-      r.clear(true, false, false);
+      r.clear(true, true, false);
       r.render(this.scene, this.camera);
       r.setRenderTarget(null);
       r.setClearColor(BACKGROUND_COLOR, 1);
@@ -1195,4 +1538,3 @@ export class EditorRenderer {
     }
   };
 }
-

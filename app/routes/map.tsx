@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useFetcher, useLoaderData } from "react-router";
 import {
   IconArrowBackUp,
@@ -14,15 +14,12 @@ import {
 } from "@tabler/icons-react";
 import type { Route } from "./+types/map";
 import { AppShell } from "../components/AppShell";
-import { SelectedStackList } from "../components/SelectedStackList";
-import { TilePreview } from "../components/TilePreview";
-import { MapCanvas } from "../editor/MapCanvas";
+import { MapPanels } from "../editor/panels/MapPanels";
 import { useEditorStore, type ToolId } from "../editor/store";
-import { getStack } from "../lib/mapData";
 import { readMap, readTiles, readTilesets, writeMap } from "../lib/fs.server";
 import type { MapFile } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL, clampLevel } from "../lib/types";
-import { Button, Input, Panel, Tooltip, useToast } from "../ui";
+import { Button, Input, Tooltip, useToast } from "../ui";
 
 export async function loader() {
   const [map, tiles, tilesets] = await Promise.all([
@@ -69,23 +66,16 @@ export default function MapPage() {
   const fetcher = useFetcher<typeof action>();
   const { show: showToast } = useToast();
 
-  const map = useEditorStore((s) => s.map);
   const dirty = useEditorStore((s) => s.dirty);
   const currentLevel = useEditorStore((s) => s.currentLevel);
   const showOtherLevels = useEditorStore((s) => s.showOtherLevels);
   const previewMode = useEditorStore((s) => s.previewMode);
   const tool = useEditorStore((s) => s.tool);
-  const selected = useEditorStore((s) => s.selected);
-  const hover = useEditorStore((s) => s.hover);
-  const zoom = useEditorStore((s) => s.zoom);
-  const armedTileId = useEditorStore((s) => s.armedTileId);
-  const tilesById = useEditorStore((s) => s.tilesById);
   const lastToast = useEditorStore((s) => s.lastToast);
   const canUndo = useEditorStore((s) => s.past.length > 0);
   const canRedo = useEditorStore((s) => s.future.length > 0);
 
   const [levelDraft, setLevelDraft] = useState(String(currentLevel));
-  const [search, setSearch] = useState("");
   const handledSaveData = useRef<unknown>(null);
 
   useLayoutEffect(() => {
@@ -166,20 +156,6 @@ export default function MapPage() {
     fd.set("map", JSON.stringify(useEditorStore.getState().map));
     fetcher.submit(fd, { method: "post" });
   };
-
-  // Tile picker always reads from loader data — not the editor store —
-  // so the library is visible on first paint / first visit to /map.
-  const filteredTiles = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    if (!q) return data.tiles;
-    return data.tiles.filter(
-      (t) => t.name.toLowerCase().includes(q) || t.id.includes(q),
-    );
-  }, [data.tiles, search]);
-
-  const stack = selected
-    ? getStack(map, selected.x, selected.y, currentLevel)
-    : [];
 
   return (
     <AppShell
@@ -313,88 +289,7 @@ export default function MapPage() {
         </>
       }
     >
-      <div className="flex h-full min-h-0">
-        <aside className="flex w-64 shrink-0 flex-col border-r-2 border-border bg-panel">
-          <Panel title="Tile picker" className="border-0 shadow-none">
-            <div className="p-2">
-              <Input
-                placeholder="Search…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="mb-2 w-full"
-              />
-              <div className="grid max-h-48 grid-cols-3 gap-1 overflow-auto">
-                {filteredTiles.map((tile) => (
-                  <button
-                    key={tile.id}
-                    type="button"
-                    title={tile.name}
-                    onClick={() => {
-                      const store = useEditorStore.getState();
-                      store.setArmedTileId(tile.id);
-                      if (store.selected) {
-                        const r = store.appendArmed();
-                        if (!r.ok && r.reason) showToast(r.reason);
-                      }
-                    }}
-                    className={[
-                      "flex flex-col items-center gap-1 border-2 p-1",
-                      armedTileId === tile.id
-                        ? "border-accent bg-paper"
-                        : "border-transparent hover:border-border hover:bg-paper",
-                    ].join(" ")}
-                  >
-                    <TilePreview
-                      tile={tile}
-                      tilesets={data.tilesets}
-                      size={40}
-                    />
-                    <span className="truncate text-[10px]">{tile.name}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          </Panel>
-
-          <Panel
-            title={
-              selected
-                ? `Selected ${selected.x},${selected.y}`
-                : "No selection"
-            }
-            className="min-h-0 flex-1 border-0 border-t-2 shadow-none"
-          >
-            <div className="h-full overflow-auto p-2">
-              {!selected ? (
-                <p className="text-xs text-muted">
-                  Use Select (V) and click a coordinate.
-                </p>
-              ) : stack.length === 0 ? (
-                <p className="text-xs text-muted">
-                  No tiles at {selected.x},{selected.y}
-                </p>
-              ) : (
-                <SelectedStackList
-                  stack={stack}
-                  tilesById={tilesById}
-                  tilesets={data.tilesets}
-                />
-              )}
-            </div>
-          </Panel>
-        </aside>
-
-        <div className="relative min-w-0 flex-1">
-          <MapCanvas tilesets={data.tilesets} tiles={data.tiles} />
-          <div className="pointer-events-none absolute right-2 bottom-2 border-2 border-border bg-paper/90 px-2 py-1 text-xs shadow-hard">
-            {hover ? `${hover.x},${hover.y}` : "—"} · z{currentLevel} · ×{zoom}
-            {previewMode ? <span className="text-accent"> · preview</span> : null}
-            {tool !== "select" && !selected && tool !== "erase" ? (
-              <span className="text-danger"> · no source selected</span>
-            ) : null}
-          </div>
-        </div>
-      </div>
+      <MapPanels tiles={data.tiles} tilesets={data.tilesets} />
     </AppShell>
   );
 }
