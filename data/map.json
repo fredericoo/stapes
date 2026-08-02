@@ -1399,6 +1399,10 @@
       "0,11": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "player",
+          "direction": "s"
         }
       ],
       "-1,10": [
@@ -11022,7 +11026,10 @@
       ],
       "33,0": [
         {
-          "tileId": "grass-2"
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cat"
         }
       ],
       "31,2": [
@@ -11470,6 +11477,9 @@
       "19,5": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "cat"
         }
       ],
       "20,5": [

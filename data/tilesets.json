@@ -12,5 +12,12 @@
     "file": "tiny-ranch-tiles.png",
     "width": 160,
     "height": 64
+  },
+  {
+    "id": "characters",
+    "name": "characters",
+    "file": "characters.png",
+    "width": 32,
+    "height": 48
   }
 ]

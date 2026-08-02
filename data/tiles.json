@@ -413,7 +413,7 @@
   {
     "id": "ramp",
     "name": "Ramp",
-    "height": 1,
+    "height": 2,
     "directional": false,
     "variants": {
       "default": [
@@ -440,7 +440,7 @@
   {
     "id": "stone-stairs",
     "name": "Stone Stairs",
-    "height": 1,
+    "height": 2,
     "directional": false,
     "variants": {
       "default": [
@@ -521,6 +521,140 @@
       "radius": 5,
       "intensity": 1,
       "color": "#00d5ff"
+    }
+  },
+  {
+    "id": "player",
+    "name": "Player",
+    "height": 4,
+    "directional": true,
+    "variants": {
+      "n": [
+        {
+          "sprite": {
+            "tilesetId": "characters",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        },
+        {
+          "sprite": {
+            "tilesetId": "characters",
+            "rect": {
+              "x": 2,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ],
+      "e": [
+        {
+          "sprite": {
+            "tilesetId": "characters",
+            "rect": {
+              "x": 0,
+              "y": 2,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        },
+        {
+          "sprite": {
+            "tilesetId": "characters",
+            "rect": {
+              "x": 2,
+              "y": 2,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ],
+      "s": [
+        {
+          "sprite": {
+            "tilesetId": "characters",
+            "rect": {
+              "x": 0,
+              "y": 4,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        },
+        {
+          "sprite": {
+            "tilesetId": "characters",
+            "rect": {
+              "x": 2,
+              "y": 4,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ],
+      "w": [
+        {
+          "sprite": {
+            "tilesetId": "characters",
+            "rect": {
+              "x": 0,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    },
+    "attributes": {},
+    "light": {
+      "radius": 5,
+      "intensity": 0.5,
+      "color": "#ffcc88"
     }
   }
 ]
