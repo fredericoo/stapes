@@ -965,6 +965,8 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
         opacity: number;
         blending: THREE.Blending;
         renderOrder: number;
+        /** Match world cutouts when covering lit tiles. */
+        alphaTest?: number;
       },
     ) => {
       const geo = new THREE.PlaneGeometry(q.w, q.h);
@@ -984,6 +986,7 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
         depthTest: false,
         depthWrite: false,
         side: THREE.DoubleSide,
+        alphaTest: opts.alphaTest ?? 0,
       });
 
       const mesh = new THREE.Mesh(geo, mat);
@@ -995,12 +998,12 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
     };
 
     /**
-     * Half-px outer silhouette outline via alpha edge detect.
-     * Mesh is padded 0.5 world-px; UVs outside the sprite rect count as
+     * 1px outer silhouette outline via alpha edge detect.
+     * Mesh is padded 1 world-px; UVs outside the sprite rect count as
      * transparent so neighbouring atlas tiles never bleed in.
      */
     const addSpriteOutline = (q: SpriteQuad, color: number) => {
-      const pad = 0.5;
+      const pad = 1;
       const du = (q.u1 - q.u0) / q.w;
       const dv = (q.v1 - q.v0) / q.h;
       const geo = new THREE.PlaneGeometry(q.w + pad * 2, q.h + pad * 2);
@@ -1016,7 +1019,6 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
           map: { value: q.texture },
           uUvMin: { value: new THREE.Vector2(q.u0, q.v0) },
           uUvMax: { value: new THREE.Vector2(q.u1, q.v1) },
-          // Neighbour reach stays 1 texel so the half-px ring still finds the edge.
           uPx: { value: new THREE.Vector2(du, dv) },
           uColor: { value: new THREE.Color(color) },
         },
@@ -1113,12 +1115,19 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
           return;
         }
 
-        // Brighten every tile in the cell — texture alpha is the mask.
+        // Unlit redraw covers the lit map tile, then a tiny additive lift.
         addSprite(quad, {
-          color: 0xfff3b0,
-          opacity: 0.75,
-          blending: THREE.AdditiveBlending,
+          color: 0xffffff,
+          opacity: 1,
+          blending: THREE.NormalBlending,
           renderOrder: 1_000_000_010,
+          alphaTest: 0.5,
+        });
+        addSprite(quad, {
+          color: 0xffffff,
+          opacity: 0.08,
+          blending: THREE.AdditiveBlending,
+          renderOrder: 1_000_000_011,
         });
 
         if (stackIndex === brush.length - 1) {
