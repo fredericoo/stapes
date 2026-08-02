@@ -15,6 +15,23 @@ import { canPlace, canReplaceStack, tilesByIdFromList } from "../lib/validation"
 
 export type ToolId = "select" | "erase" | "pencil" | "rect" | "circle";
 
+/** Discrete map zoom steps (canvas px per world px). */
+export const ZOOM_LEVELS = [1, 2, 4, 8] as const;
+export type ZoomLevel = (typeof ZOOM_LEVELS)[number];
+
+export function snapZoom(z: number): ZoomLevel {
+  let best: ZoomLevel = ZOOM_LEVELS[0];
+  let bestDist = Math.abs(z - best);
+  for (const level of ZOOM_LEVELS) {
+    const dist = Math.abs(z - level);
+    if (dist < bestDist) {
+      best = level;
+      bestDist = dist;
+    }
+  }
+  return best;
+}
+
 export type LightingSettings = {
   timeOfDay: TimeOfDay;
 };
@@ -173,7 +190,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     set({ hover: h });
   },
   setArmedTileId: (id) => set({ armedTileId: id }),
-  setZoom: (z) => set({ zoom: z }),
+  setZoom: (z) => set({ zoom: snapZoom(z) }),
   setCamera: (c) => {
     const prev = get().camera;
     if (prev.x === c.x && prev.y === c.y) return;

@@ -86,6 +86,11 @@ const DEPTH_LEVEL_STRIDE = 1;
 
 /** Debounce lighting recompute while painting. */
 const LIGHTING_DEBOUNCE_MS = 50;
+/**
+ * Shift the sampled light map half a cell up-left so glow sits nearer the
+ * visual middle of a tile (cabinet projection), not the base corner.
+ */
+const LIGHT_MAP_CELL_OFFSET = 0.5;
 
 type LevelLightUniforms = {
   uLightMap: { value: THREE.Texture };
@@ -699,7 +704,10 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
   private uploadLevelLight(z: number, level: LevelLightMap) {
     const u = this.ensureLightUniforms(z);
     u.uLightingEnabled.value = 1;
-    u.uLightOrigin.value.set(level.x0, level.y0);
+    u.uLightOrigin.value.set(
+      level.x0 - LIGHT_MAP_CELL_OFFSET,
+      level.y0 - LIGHT_MAP_CELL_OFFSET,
+    );
     u.uLightSize.value.set(level.w, level.h);
 
     const rgba = new Uint8Array(level.w * level.h * 4);
@@ -1887,13 +1895,20 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
   private onWheel = (e: WheelEvent) => {
     e.preventDefault();
     const store = useEditorStore.getState();
-    const zooms = [2, 3, 4, 5, 6, 7, 8];
-    const idx = zooms.indexOf(store.zoom);
-    const next =
-      e.deltaY > 0
-        ? zooms[Math.max(0, (idx === -1 ? 2 : idx) - 1)]!
-        : zooms[Math.min(zooms.length - 1, (idx === -1 ? 2 : idx) + 1)]!;
-    store.setZoom(next);
+    // Shift+wheel on mice often only reports deltaY — treat it as horizontal.
+    let dx = e.shiftKey && e.deltaX === 0 ? e.deltaY : e.deltaX;
+    let dy = e.shiftKey && e.deltaX === 0 ? 0 : e.deltaY;
+    if (e.deltaMode === 1) {
+      dx *= 16;
+      dy *= 16;
+    } else if (e.deltaMode === 2) {
+      dx *= this.canvasW;
+      dy *= this.canvasH;
+    }
+    store.setCamera({
+      x: store.camera.x + dx / store.zoom,
+      y: store.camera.y + dy / store.zoom,
+    });
   };
 
   private onPointerDown = (e: PointerEvent) => {

@@ -15,7 +15,12 @@ import {
 import type { Route } from "./+types/map";
 import { AppShell } from "../components/AppShell";
 import { MapPanels } from "../editor/panels/MapPanels";
-import { useEditorStore, type ToolId } from "../editor/store";
+import {
+  useEditorStore,
+  ZOOM_LEVELS,
+  snapZoom,
+  type ToolId,
+} from "../editor/store";
 import { readMap, readTiles, readTilesets, writeMap } from "../lib/fs.server";
 import type { TimeOfDay } from "../lib/lighting";
 import type { MapFile } from "../lib/types";
@@ -73,6 +78,7 @@ export default function MapPage() {
   const previewMode = useEditorStore((s) => s.previewMode);
   const timeOfDay = useEditorStore((s) => s.lighting.timeOfDay);
   const tool = useEditorStore((s) => s.tool);
+  const zoom = useEditorStore((s) => s.zoom);
   const lastToast = useEditorStore((s) => s.lastToast);
   const canUndo = useEditorStore((s) => s.past.length > 0);
   const canRedo = useEditorStore((s) => s.future.length > 0);
@@ -252,6 +258,28 @@ export default function MapPage() {
               { value: "night", label: "Night" },
             ]}
           />
+          <div className="flex items-center gap-2">
+            <span className="text-xs uppercase text-paper/70">Zoom</span>
+            <input
+              type="range"
+              min={0}
+              max={ZOOM_LEVELS.length - 1}
+              step={1}
+              value={ZOOM_LEVELS.indexOf(snapZoom(zoom))}
+              onChange={(e) => {
+                const level = ZOOM_LEVELS[Number(e.target.value)];
+                if (level !== undefined) {
+                  useEditorStore.getState().setZoom(level);
+                }
+              }}
+              aria-label="Zoom"
+              aria-valuetext={`${snapZoom(zoom)}x`}
+              className="hard-slider"
+            />
+            <span className="border-2 border-paper/40 px-1.5 py-0.5 text-xs tabular-nums text-paper">
+              {snapZoom(zoom)}x
+            </span>
+          </div>
           <div className="flex gap-1">
             {TOOLS.map(({ id, label, key, Icon }) => (
               <Tooltip key={id} content={`${label} (${key})`}>
