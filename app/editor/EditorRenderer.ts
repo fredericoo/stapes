@@ -1,3 +1,7 @@
+/**
+ * Map editor renderer (grid, tools, overlays, store sync).
+ * Play mode uses the shared world draw in `app/render/WorldRenderer.ts`.
+ */
 import * as THREE from "three";
 import {
   baseCellWorldOrigin,

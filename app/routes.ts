@@ -4,5 +4,6 @@ export default [
   index("routes/_index.tsx"),
   route("tiles", "routes/tiles.tsx"),
   route("map", "routes/map.tsx"),
+  route("play", "routes/play.tsx"),
   route("tilesets/:file", "routes/tilesets.$file.ts"),
 ] satisfies RouteConfig;

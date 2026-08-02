@@ -55,7 +55,15 @@ export type TileDef = {
   blocksLight?: boolean;
   /** Absent means not a light source. */
   light?: LightDef;
+  /**
+   * When true, unsupported tiles fall until they land on something solid.
+   * Default / absent → not affected by gravity.
+   */
+  affectedByGravity?: boolean;
 };
+
+/** Height units per map level (full stack before overflow). */
+export const HEIGHT_PER_LEVEL = 4;
 
 /** Whether light passes through this tile. Default: blocks (false). */
 export function resolveLightPassing(def: TileDef): boolean {

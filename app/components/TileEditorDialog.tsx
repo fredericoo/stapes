@@ -190,6 +190,7 @@ export function TileEditorDialog({
     onSave({
       ...draft,
       lightPassing: draft.lightPassing ? true : undefined,
+      affectedByGravity: draft.affectedByGravity ? true : undefined,
       blocksLight: undefined,
       light: light
         ? {
@@ -284,6 +285,17 @@ export function TileEditorDialog({
               className="hard-checkbox"
             />
             Passes light
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={draft.affectedByGravity ?? false}
+              onChange={(e) =>
+                setDraft({ ...draft, affectedByGravity: e.target.checked })
+              }
+              className="hard-checkbox"
+            />
+            Affected by gravity
           </label>
         </div>
 

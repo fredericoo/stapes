@@ -1413,11 +1413,32 @@
       "-1,9": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
         }
       ],
       "-2,9": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
         }
       ],
       "-2,8": [
@@ -14427,11 +14448,20 @@
       "-4,9": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "plaster"
         }
       ],
       "-3,9": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
         }
       ],
       "27,19": [

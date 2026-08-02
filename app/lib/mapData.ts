@@ -1,5 +1,11 @@
 import type { MapFile, PlacedTile, TileDef } from "./types";
-import { CHUNK_SIZE, coordKey, levelKey, parseCoordKey } from "./types";
+import {
+  CHUNK_SIZE,
+  HEIGHT_PER_LEVEL,
+  coordKey,
+  levelKey,
+  parseCoordKey,
+} from "./types";
 
 export function emptyMap(): MapFile {
   return { version: 1, levels: {} };
@@ -40,6 +46,18 @@ export function elevationAt(
     e += def?.height ?? 0;
   }
   return e;
+}
+
+/**
+ * Absolute standing elevation for a stack surface:
+ * `z * HEIGHT_PER_LEVEL + stackHeight(stack)`.
+ */
+export function absoluteStandingElevation(
+  z: number,
+  stack: PlacedTile[],
+  tilesById: Record<string, TileDef>,
+): number {
+  return z * HEIGHT_PER_LEVEL + stackHeight(stack, tilesById);
 }
 
 /**

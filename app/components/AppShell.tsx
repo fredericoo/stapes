@@ -38,6 +38,19 @@ export function AppShell({
           >
             Map
           </NavLink>
+          <NavLink
+            to="/play"
+            className={({ isActive }) =>
+              [
+                "border-2 px-2 py-1 text-xs font-medium",
+                isActive
+                  ? "border-paper bg-paper text-ink"
+                  : "border-paper/40 text-paper hover:border-paper",
+              ].join(" ")
+            }
+          >
+            Play
+          </NavLink>
         </nav>
         <div className="ml-auto flex flex-wrap items-center gap-2">{trailing}</div>
       </header>

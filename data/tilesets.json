@@ -19,5 +19,12 @@
     "file": "characters.png",
     "width": 32,
     "height": 48
+  },
+  {
+    "id": "ultima-vi",
+    "name": "Ultima VI",
+    "file": "ultima-vi.png",
+    "width": 512,
+    "height": 1024
   }
 ]
