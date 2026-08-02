@@ -679,6 +679,9 @@
       "11,6": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "cobblestone"
         }
       ],
       "12,6": [
@@ -1403,6 +1406,9 @@
         {
           "tileId": "player",
           "direction": "s"
+        },
+        {
+          "tileId": "cat"
         }
       ],
       "-1,10": [
@@ -14547,6 +14553,14 @@
       "27,24": [
         {
           "tileId": "grass-2"
+        }
+      ],
+      "11,2": [
+        {
+          "tileId": "grass-2"
+        },
+        {
+          "tileId": "cobblestone"
         }
       ]
     },

@@ -4,10 +4,12 @@
  */
 import * as THREE from "three";
 import {
+  absoluteElevation,
   baseCellWorldOrigin,
   drawOrder,
   screenToCoord,
   spriteWorldOrigin,
+  tileDepth,
 } from "../lib/geometry";
 import {
   AMBIENT_PRESETS,
@@ -82,11 +84,6 @@ const BACKGROUND_COLOR = 0xb8b09e;
 const GHOST_OPACITY = 0.55;
 /** Big shapes fall back to outlines only — one mesh per sprite gets costly. */
 const MAX_GHOST_CELLS = 256;
-
-/** Spacing between consecutive painter-sorted quads on a level. */
-const DEPTH_STEP = 0.0001;
-/** Separates levels in Z so dimmed/opaque passes never z-fight across floors. */
-const DEPTH_LEVEL_STRIDE = 1;
 
 /** Debounce lighting recompute while painting. */
 const LIGHTING_DEBOUNCE_MS = 50;
@@ -337,8 +334,8 @@ export class EditorRenderer {
     this.scene = new THREE.Scene();
     // World meshes never move after build — update matrices only on rebuild.
     this.scene.matrixWorldAutoUpdate = false;
-    // Depths are ~[0, 20] from per-level sorted indices. Tight frustum keeps
-    // the 24-bit depth buffer precise enough for DEPTH_STEP.
+    // Depths are ~[0, 20] from tileDepth (y / absElev / x). Tight frustum keeps
+    // the 24-bit depth buffer precise enough for adjacent tiles.
     this.camera = new THREE.OrthographicCamera(0, 1, 0, 1, -10, 50);
     this.camera.position.z = 25;
 
@@ -1177,7 +1174,12 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
             color: 0xffffff,
             opacity: GHOST_OPACITY,
             blending: THREE.NormalBlending,
-            renderOrder: drawOrder(c.x, c.y, stackIndex),
+            renderOrder: drawOrder(
+              c.x,
+              c.y,
+              absoluteElevation(z, elev),
+              stackIndex,
+            ),
           });
         }
         elev += def.height;
@@ -1324,9 +1326,9 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
 
   /**
    * Diff `next` against `prevMap` by stack reference identity and rebuild
-   * every level that has any changed cell. Depths are assigned from a
-   * level-wide painter sort, so a single cell edit must refresh the whole
-   * level's merged meshes — still cheap (one buffer per tileset).
+   * every level that has any changed cell. Quads are merged per tileset on
+   * the level, so a single cell edit must refresh the whole level's meshes —
+   * still cheap (one buffer per tileset).
    */
   private rebuildDirtyChunks(next: MapFile) {
     const prev = this.prevMap;
@@ -1378,7 +1380,6 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
     if (coords.length === 0) return;
 
     type Item = Quad & {
-      order: number;
       texture: THREE.Texture;
       anim?: {
         frames: Frame[];
@@ -1395,7 +1396,8 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
       let elev = 0;
       cell.stack.forEach((placed, stackIndex) => {
         const def = this.tilesById[placed.tileId];
-        const order = drawOrder(cell.x, cell.y, stackIndex);
+        const absElev = absoluteElevation(z, elev);
+        const depth = tileDepth(cell.x, cell.y, absElev, stackIndex);
 
         if (!def) {
           const origin = baseCellWorldOrigin(cell.x, cell.y, z, elev);
@@ -1408,8 +1410,7 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
             v0: 0,
             u1: 1,
             v1: 1,
-            depth: 0,
-            order,
+            depth,
             texture: this.magentaTex,
             lightX0: cell.x,
             lightY0: cell.y,
@@ -1455,8 +1456,7 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
           v0,
           u1,
           v1,
-          depth: 0,
-          order,
+          depth,
           texture,
           lightX0,
           lightY0,
@@ -1480,14 +1480,6 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
     }
 
     if (items.length === 0) return;
-
-    // Global painter sort, then sequential Z — float32-safe and identical
-    // across tileset batches, so roof seams at old chunk boundaries sort correctly.
-    items.sort((a, b) => a.order - b.order || a.x - b.x || a.y - b.y);
-    const depthBase = (z + 8) * DEPTH_LEVEL_STRIDE;
-    for (let i = 0; i < items.length; i++) {
-      items[i]!.depth = depthBase + i * DEPTH_STEP;
-    }
 
     const levelGroup = new THREE.Group();
     levelGroup.name = `level:${z}`;

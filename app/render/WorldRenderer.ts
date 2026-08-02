@@ -1,8 +1,9 @@
 import * as THREE from "three";
 import {
+  absoluteElevation,
   baseCellWorldOrigin,
-  drawOrder,
   spriteWorldOrigin,
+  tileDepth,
 } from "../lib/geometry";
 import {
   AMBIENT_PRESETS,
@@ -11,7 +12,7 @@ import {
   type LightGrid,
   type TimeOfDay,
 } from "../lib/lighting";
-import { listCoords } from "../lib/mapData";
+import { elevationAt, getStack, listCoords } from "../lib/mapData";
 import type { Frame, MapFile, TileDef, TilesetDef } from "../lib/types";
 import {
   CELL_SIZE,
@@ -53,8 +54,6 @@ type LevelLightUniforms = {
 };
 
 const BACKGROUND_COLOR = 0xb8b09e;
-const DEPTH_STEP = 0.0001;
-const DEPTH_LEVEL_STRIDE = 1;
 const LIGHT_MAP_CELL_OFFSET = 0.5;
 
 export type EntityVisualKey = {
@@ -186,11 +185,6 @@ export class WorldRenderer {
   private entityMeshes = new Map<string, THREE.Mesh>();
   private entityBasePos = new Map<string, { x: number; y: number }>();
   private entityBaseDepth = new Map<string, number>();
-  /** Per-level painter entries after build — used to estimate depth at a cell. */
-  private levelSortDepths = new Map<
-    number,
-    Array<{ order: number; depth: number }>
-  >();
   private animClock = 0;
   private lastAnimTime = 0;
   private frameIndices = new Map<string, number>();
@@ -378,7 +372,7 @@ export class WorldRenderer {
 
   /**
    * Depth the entity would get if inserted on top of (x,y,z) at stackIndex
-   * in the painter sort (matches buildLevel sequential assignment).
+   * (absolute elevation, same formula as buildLevel).
    */
   private depthForSort(
     z: number,
@@ -386,12 +380,14 @@ export class WorldRenderer {
     y: number,
     stackIndex: number,
   ): number {
-    const order = drawOrder(x, y, stackIndex);
-    const list = this.levelSortDepths.get(z) ?? [];
-    let i = 0;
-    while (i < list.length && list[i]!.order < order) i++;
-    const depthBase = (z + 8) * DEPTH_LEVEL_STRIDE;
-    return depthBase + i * DEPTH_STEP;
+    const map = this.view?.map ?? this.prevMap;
+    const stack = map ? getStack(map, x, y, z) : [];
+    const elev = elevationAt(
+      stack,
+      Math.min(stackIndex, stack.length),
+      this.tilesById,
+    );
+    return tileDepth(x, y, absoluteElevation(z, elev), stackIndex);
   }
 
   private applyMap(map: MapFile, force: boolean) {
@@ -617,7 +613,6 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
     this.entityMeshes.clear();
     this.entityBasePos.clear();
     this.entityBaseDepth.clear();
-    this.levelSortDepths.clear();
 
     for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
       this.buildLevel(map, z);
@@ -668,7 +663,6 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
       this.levelGroups.delete(z);
     }
     this.animatedByLevel.delete(z);
-    this.levelSortDepths.delete(z);
     for (const key of [...this.entityMeshes.keys()]) {
       if (key.startsWith(`${z}:`)) {
         this.entityMeshes.delete(key);
@@ -699,7 +693,6 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
     if (coords.length === 0) return;
 
     type Item = Quad & {
-      order: number;
       texture: THREE.Texture;
       entityKey?: string;
       anim?: {
@@ -715,7 +708,6 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
       let elev = 0;
       cell.stack.forEach((placed, stackIndex) => {
         const def = this.tilesById[placed.tileId];
-        const order = drawOrder(cell.x, cell.y, stackIndex);
         if (!def) {
           elev += 0;
           return;
@@ -728,6 +720,8 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
         const tileset = this.tilesetById.get(first.sprite.tilesetId);
         if (!tileset) return;
 
+        const absElev = absoluteElevation(z, elev);
+        const depth = tileDepth(cell.x, cell.y, absElev, stackIndex);
         const baseOrigin = baseCellWorldOrigin(cell.x, cell.y, z, elev);
         const origin = spriteWorldOrigin(baseOrigin, first.sprite.base);
         const { rect } = first.sprite;
@@ -751,8 +745,7 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
           v0,
           u1,
           v1,
-          depth: 0,
-          order,
+          depth,
           texture,
           lightX0: cell.x,
           lightY0: cell.y,
@@ -784,16 +777,6 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
     }
 
     if (items.length === 0) return;
-
-    items.sort((a, b) => a.order - b.order || a.x - b.x || a.y - b.y);
-    const depthBase = (z + 8) * DEPTH_LEVEL_STRIDE;
-    for (let i = 0; i < items.length; i++) {
-      items[i]!.depth = depthBase + i * DEPTH_STEP;
-    }
-    this.levelSortDepths.set(
-      z,
-      items.map((it) => ({ order: it.order, depth: it.depth })),
-    );
 
     const levelGroup = new THREE.Group();
     levelGroup.name = `level:${z}`;

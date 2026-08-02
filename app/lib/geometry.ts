@@ -1,7 +1,16 @@
-import { CELL_SIZE } from "./types";
+import { CELL_SIZE, HEIGHT_PER_LEVEL } from "./types";
 
 /** 1 height unit = 2px up-left on screen. */
 export const PX_PER_HEIGHT = 2;
+
+/**
+ * Absolute foot elevation for a tile: level floor + in-stack elevation.
+ * Matches gameplay (`absoluteStandingElevation`) so overflow stacks sort
+ * against superior-level tiles by height, not by level membership.
+ */
+export function absoluteElevation(z: number, elevation: number): number {
+  return z * HEIGHT_PER_LEVEL + elevation;
+}
 
 /** Full level (4 height units) = 8px = one cell. */
 export function levelScreenOffset(z: number): { x: number; y: number } {
@@ -66,7 +75,38 @@ export function screenToCoord(
   };
 }
 
-/** Painter's algorithm sort key within a level. */
-export function drawOrder(x: number, y: number, stackIndex: number): number {
-  return y * 1_000_000 + x * 1_000 + stackIndex;
+/**
+ * Painter's algorithm sort key across levels.
+ * South (y) and east (x) decide screen occlusion first; absolute elevation
+ * only orders tiles that share a cell (incl. overflow vs the level above).
+ */
+export function drawOrder(
+  x: number,
+  y: number,
+  absElev: number,
+  stackIndex: number,
+): number {
+  return y * 1_000_000_000 + x * 1_000_000 + absElev * 1_000 + stackIndex;
+}
+
+/**
+ * Ortho mesh depth from the same key as {@link drawOrder}.
+ * Kept in ~[0, 20] for the editor/world camera frustum + 24-bit depth buffer.
+ *
+ * Grid position outranks height so tall western tiles don't cover eastern
+ * neighbours; absElev still replaces old per-level depth bands.
+ */
+export function tileDepth(
+  x: number,
+  y: number,
+  absElev: number,
+  stackIndex: number,
+): number {
+  // Spaced for ~128 cells and ~128 elev units without z-fighting the depth buffer.
+  return (
+    (y + 64) * 0.1 +
+    (x + 64) * 0.0007 +
+    (absElev + 64) * 0.000005 +
+    stackIndex * 0.0000001
+  );
 }
