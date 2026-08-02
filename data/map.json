@@ -184,10 +184,6 @@
         },
         {
           "tileId": "grass"
-        },
-        {
-          "tileId": "torch",
-          "direction": "e"
         }
       ],
       "0,4": [
@@ -627,9 +623,6 @@
       "10,8": [
         {
           "tileId": "grass-2"
-        },
-        {
-          "tileId": "cat"
         }
       ],
       "10,9": [
@@ -11462,10 +11455,6 @@
       "17,5": [
         {
           "tileId": "dirt"
-        },
-        {
-          "tileId": "torch",
-          "direction": "e"
         }
       ],
       "17,6": [
@@ -12356,9 +12345,6 @@
       "22,-5": [
         {
           "tileId": "dirt"
-        },
-        {
-          "tileId": "cat"
         }
       ],
       "23,-5": [
@@ -12547,10 +12533,6 @@
       "11,-7": [
         {
           "tileId": "dirt"
-        },
-        {
-          "tileId": "torch",
-          "direction": "s"
         }
       ],
       "12,-7": [
@@ -15338,6 +15320,12 @@
         {
           "tileId": "cobblestone"
         }
+      ],
+      "12,-2": [
+        {
+          "tileId": "torch",
+          "direction": "s"
+        }
       ]
     },
     "3": {
@@ -15364,6 +15352,714 @@
       "12,5": [
         {
           "tileId": "roof-3"
+        }
+      ],
+      "16,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "16,-4": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "16,-5": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "16,-6": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "16,-7": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "16,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "15,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "14,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "13,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "12,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "11,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "10,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "9,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "8,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-7": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-6": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-5": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-4": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "8,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "9,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "10,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "11,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "12,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "13,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "14,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "15,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ]
+    },
+    "4": {
+      "16,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "16,-4": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "16,-5": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "16,-6": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "16,-7": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "16,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "15,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "14,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "13,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "12,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "11,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "10,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "9,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "8,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-7": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-6": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-5": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-4": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "8,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "9,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "10,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "11,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "12,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "13,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "14,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "15,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ]
+    },
+    "5": {
+      "16,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "16,-4": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "16,-5": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "16,-6": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "16,-7": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "16,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "15,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "14,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "13,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "12,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "11,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "9,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "10,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "8,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-7": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-6": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-5": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-4": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "8,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "9,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "10,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "11,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "12,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "13,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "14,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "15,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ]
+    },
+    "6": {
+      "15,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "16,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "16,-4": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "16,-5": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "16,-6": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "16,-7": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "16,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "15,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "14,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "13,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "12,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "11,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "10,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "9,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "8,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-7": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-6": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-5": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-4": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "8,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "9,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "10,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "11,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "12,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "13,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "14,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ]
+    },
+    "7": {
+      "14,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "15,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "16,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "16,-4": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "16,-5": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "16,-6": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "16,-7": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "16,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "15,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "14,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "13,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "12,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "11,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "10,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "9,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "8,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-7": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-6": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-5": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-4": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "8,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "9,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "10,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "11,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "12,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "13,-3": [
+        {
+          "tileId": "stone-wall"
         }
       ]
     },

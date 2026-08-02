@@ -1874,7 +1874,7 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
     if (toolMap[e.code]) {
       store.setTool(toolMap[e.code]!);
     }
-    if (e.code === "KeyP") {
+    if (e.code === "KeyW") {
       store.togglePreviewMode();
     }
     if (e.key === ",") {

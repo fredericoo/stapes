@@ -104,6 +104,23 @@ describe("rayTransmission", () => {
     ]);
     expect(rayTransmission(0, 0, 0, 0, 0, 2, occlusion)).toBe(0);
   });
+
+  it("lets a descending diagonal cross floors on the destination level", () => {
+    const occlusion = new Map<string, { opacity: number; sealsLevel: boolean }>();
+    for (let x = 0; x <= 3; x++) {
+      occlusion.set(`0:${x},0`, { opacity: 0, sealsLevel: true });
+    }
+    // Torch above (0,0,1) → floor cell (3,0,0). DDA steps down onto the floor
+    // plane then walks across it — must not treat those horizontal moves as seals.
+    expect(rayTransmission(0, 0, 1, 3, 0, 0, occlusion)).toBe(1);
+  });
+
+  it("blocks descending past an intermediate floor to a lower level", () => {
+    const occlusion = new Map([
+      ["1:0,0", { opacity: 0, sealsLevel: true }],
+    ]);
+    expect(rayTransmission(0, 0, 2, 0, 0, 0, occlusion)).toBe(0);
+  });
 });
 
 describe("computeLighting", () => {
@@ -160,6 +177,31 @@ describe("computeLighting", () => {
     const grid = computeLighting(map, tilesById, [0, 0, 0]);
     const above = sampleLevelLight(grid.levels.get(1)!, 0, 0);
     expect(above[0]).toBe(0);
+  });
+
+  it("lights the floor below from a torch above", () => {
+    const map = mapAt([
+      { x: 0, y: 0, z: 1, tiles: ["torch"] },
+      { x: 0, y: 0, z: 0, tiles: ["floor"] },
+      { x: 1, y: 0, z: 0, tiles: ["floor"] },
+      { x: 2, y: 0, z: 0, tiles: ["floor"] },
+    ]);
+    const grid = computeLighting(map, tilesById, [0, 0, 0]);
+    const below = grid.levels.get(0)!;
+    expect(sampleLevelLight(below, 0, 0)[0]).toBeGreaterThan(0.5);
+    expect(sampleLevelLight(below, 1, 0)[0]).toBeGreaterThan(0.3);
+    expect(sampleLevelLight(below, 2, 0)[0]).toBeGreaterThan(0.1);
+  });
+
+  it("does not shine through an intermediate floor to the level below it", () => {
+    const map = mapAt([
+      { x: 0, y: 0, z: 2, tiles: ["torch"] },
+      { x: 0, y: 0, z: 1, tiles: ["floor"] },
+      { x: 0, y: 0, z: 0, tiles: ["floor"] },
+    ]);
+    const grid = computeLighting(map, tilesById, [0, 0, 0]);
+    expect(sampleLevelLight(grid.levels.get(1)!, 0, 0)[0]).toBeGreaterThan(0.5);
+    expect(sampleLevelLight(grid.levels.get(0)!, 0, 0)[0]).toBe(0);
   });
 
   it("lets light travel vertically through water", () => {

@@ -270,7 +270,7 @@ export function TileEditorDialog({
               type="checkbox"
               checked={draft.directional}
               onChange={(e) => toggleDirectional(e.target.checked)}
-              className="size-4 accent-accent"
+              className="hard-checkbox"
             />
             Directional
           </label>
@@ -281,7 +281,7 @@ export function TileEditorDialog({
               onChange={(e) =>
                 setDraft({ ...draft, lightPassing: e.target.checked })
               }
-              className="size-4 accent-accent"
+              className="hard-checkbox"
             />
             Passes light
           </label>
@@ -300,7 +300,7 @@ export function TileEditorDialog({
                   light: on ? (draft.light ?? { ...DEFAULT_LIGHT }) : undefined,
                 });
               }}
-              className="size-4 accent-accent"
+              className="hard-checkbox"
             />
             Emits light
           </label>

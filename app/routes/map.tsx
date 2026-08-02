@@ -5,6 +5,7 @@ import {
   IconArrowForwardUp,
   IconCircle,
   IconEraser,
+  IconEye,
   IconMinus,
   IconPencil,
   IconPlus,
@@ -25,7 +26,7 @@ import { readMap, readTiles, readTilesets, writeMap } from "../lib/fs.server";
 import type { TimeOfDay } from "../lib/lighting";
 import type { MapFile } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL, clampLevel } from "../lib/types";
-import { Button, Input, Segmented, Tooltip, useToast } from "../ui";
+import { Button, Input, Segmented, Switch, Tooltip, useToast } from "../ui";
 
 export async function loader() {
   const [map, tiles, tilesets] = await Promise.all([
@@ -229,24 +230,20 @@ export default function MapPage() {
               onChange={(e) =>
                 useEditorStore.getState().setShowOtherLevels(e.target.checked)
               }
-              className="accent-accent"
+              className="hard-checkbox"
             />
             Show other levels
           </label>
-          <label
-            className="flex items-center gap-1 text-xs text-paper"
-            title="Preview (P) — every level at full opacity, no grid or selection"
-          >
-            <input
-              type="checkbox"
+          <Tooltip content="Preview (W) — every level at full opacity, no grid or selection">
+            <Switch
               checked={previewMode}
-              onChange={(e) =>
-                useEditorStore.getState().setPreviewMode(e.target.checked)
+              onCheckedChange={(v) =>
+                useEditorStore.getState().setPreviewMode(v)
               }
-              className="accent-accent"
+              ariaLabel="Preview"
+              thumb={<IconEye size={12} stroke={2.5} aria-hidden="true" />}
             />
-            Preview
-          </label>
+          </Tooltip>
           <Segmented<TimeOfDay>
             value={timeOfDay}
             onChange={(t) => useEditorStore.getState().setTimeOfDay(t)}

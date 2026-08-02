@@ -132,6 +132,9 @@ export function rayTransmission(
   let transmission = 1;
   const maxSteps = absDx + absDy + absDz;
   for (let i = 0; i < maxSteps; i++) {
+    // Track which axis actually advanced this step — stepZ alone is nonzero for
+    // any vertical ray, including during its horizontal DDA moves.
+    let movedZ = false;
     if (tMaxX < tMaxY) {
       if (tMaxX < tMaxZ) {
         x += stepX;
@@ -139,6 +142,7 @@ export function rayTransmission(
       } else {
         z += stepZ;
         tMaxZ += tDeltaZ;
+        movedZ = true;
       }
     } else if (tMaxY < tMaxZ) {
       y += stepY;
@@ -146,6 +150,7 @@ export function rayTransmission(
     } else {
       z += stepZ;
       tMaxZ += tDeltaZ;
+      movedZ = true;
     }
 
     if (x === x1 && y === y1 && z === z1) break;
@@ -153,8 +158,13 @@ export function rayTransmission(
     const cell = occlusion.get(cellKey(x, y, z));
     if (!cell) continue;
 
-    // Vertical step through a floor/prop seals the level completely.
-    if (stepZ !== 0 && cell.sealsLevel) return 0;
+    // Floors seal vertical *passage* past them, not landing on their own level.
+    // Descending onto a floor then walking across it (common DDA path) must stay
+    // open; only block when the ray's destination is beyond this floor in Z.
+    if (movedZ && cell.sealsLevel) {
+      if (stepZ < 0 && z1 < z) return 0;
+      if (stepZ > 0 && z1 > z) return 0;
+    }
 
     if (cell.opacity > 0) {
       transmission *= 1 - cell.opacity;
@@ -321,11 +331,12 @@ export function computeLighting(
           const target = occlusion.get(cellKey(tx, ty, tz));
 
           // Solids stay dark — except an emitter's own cell (self-lit).
-          // opacity > 0 means any height ≥ 1 blocker; sealsLevel covers floors
-          // when light tries to climb/descend onto them.
+          // Floors (sealsLevel, opacity 0) accept light from above (dz < 0) but
+          // refuse light climbing up from below (dz > 0). Light still cannot
+          // pass *through* a floor — rayTransmission seals on real Z steps.
           if (!isSelf) {
             if (target && target.opacity >= 1) continue;
-            if (dz !== 0 && target?.sealsLevel) continue;
+            if (dz > 0 && target?.sealsLevel) continue;
           }
 
           let transmission = 1;

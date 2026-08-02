@@ -368,12 +368,12 @@
             "tilesetId": "tiny-ranch-tiles",
             "rect": {
               "x": 16,
-              "y": 6,
-              "w": 1,
+              "y": 7,
+              "w": 2,
               "h": 1
             },
             "base": {
-              "x": 0,
+              "x": 1,
               "y": 0
             }
           },
@@ -502,14 +502,14 @@
           "sprite": {
             "tilesetId": "tiny-ranch-tiles",
             "rect": {
-              "x": 19,
-              "y": 2,
-              "w": 1,
-              "h": 1
+              "x": 18,
+              "y": 4,
+              "w": 2,
+              "h": 2
             },
             "base": {
-              "x": 0,
-              "y": 0
+              "x": 1,
+              "y": 1
             }
           },
           "durationMs": 200
