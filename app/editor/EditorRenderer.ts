@@ -5,6 +5,12 @@ import {
   screenToCoord,
   spriteWorldOrigin,
 } from "../lib/geometry";
+import {
+  AMBIENT_PRESETS,
+  computeLighting,
+  type LevelLightMap,
+  type LightGrid,
+} from "../lib/lighting";
 import { getStack, listCoords } from "../lib/mapData";
 import type {
   Frame,
@@ -58,6 +64,11 @@ type Quad = {
   v1: number;
   /** World Z — higher draws in front via the depth buffer. */
   depth: number;
+  /** Sprite extent in cell space for light-map sampling (inclusive-exclusive). */
+  lightX0: number;
+  lightY0: number;
+  lightX1: number;
+  lightY1: number;
 };
 
 const BACKGROUND_COLOR = 0xb8b09e;
@@ -71,11 +82,22 @@ const DEPTH_STEP = 0.0001;
 /** Separates levels in Z so dimmed/opaque passes never z-fight across floors. */
 const DEPTH_LEVEL_STRIDE = 1;
 
+/** Debounce lighting recompute while painting. */
+const LIGHTING_DEBOUNCE_MS = 50;
+
+type LevelLightUniforms = {
+  uLightMap: { value: THREE.Texture };
+  uLightOrigin: { value: THREE.Vector2 };
+  uLightSize: { value: THREE.Vector2 };
+  uLightingEnabled: { value: number };
+};
+
 /** One BufferGeometry for every quad sharing a tileset inside a level. */
 function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
   const n = quads.length;
   const positions = new Float32Array(n * 4 * 3);
   const uvs = new Float32Array(n * 4 * 2);
+  const lightUvs = new Float32Array(n * 4 * 2);
   const indices = n * 4 > 65535 ? new Uint32Array(n * 6) : new Uint16Array(n * 6);
 
   for (let i = 0; i < n; i++) {
@@ -114,6 +136,16 @@ function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
     uvs[ub + 6] = q.u1;
     uvs[ub + 7] = q.v1;
 
+    // Same vert order as UVs — cell-space corners for the light map.
+    lightUvs[ub] = q.lightX0;
+    lightUvs[ub + 1] = q.lightY1;
+    lightUvs[ub + 2] = q.lightX1;
+    lightUvs[ub + 3] = q.lightY1;
+    lightUvs[ub + 4] = q.lightX0;
+    lightUvs[ub + 5] = q.lightY0;
+    lightUvs[ub + 6] = q.lightX1;
+    lightUvs[ub + 7] = q.lightY0;
+
     const base = i * 4;
     const ib = i * 6;
     // PlaneGeometry winding: 0,2,1 / 2,3,1
@@ -128,6 +160,7 @@ function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
   geo.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
+  geo.setAttribute("aLightUv", new THREE.BufferAttribute(lightUvs, 2));
   geo.setIndex(new THREE.BufferAttribute(indices, 1));
   return geo;
 }
@@ -215,7 +248,8 @@ export class EditorRenderer {
   private overlays: THREE.Group;
   private world: THREE.Group;
   private textures = new Map<string, THREE.Texture>();
-  private materials = new Map<THREE.Texture, THREE.MeshBasicMaterial>();
+  /** Shared cutout materials keyed by `${texture.uuid}:${z}`. */
+  private materials = new Map<string, THREE.MeshBasicMaterial>();
   private tilesets: TilesetDef[] = [];
   private tilesetById = new Map<string, TilesetDef>();
   private tilesById: Record<string, TileDef> = {};
@@ -244,6 +278,12 @@ export class EditorRenderer {
   private lastPaintKey = "";
   private disposed = false;
   private magentaTex: THREE.DataTexture;
+  private whiteTex: THREE.DataTexture;
+  private lightTextures = new Map<number, THREE.DataTexture>();
+  private lightUniformsByZ = new Map<number, LevelLightUniforms>();
+  private lightGrid: LightGrid | null = null;
+  private lightingKey = "";
+  private lightingTimer: ReturnType<typeof setTimeout> | null = null;
   private rebuildKey = "";
   private gridLevel = Number.NaN;
   /** Previous map for reference-diff dirty-chunk detection. */
@@ -305,6 +345,13 @@ export class EditorRenderer {
     this.magentaTex.minFilter = THREE.NearestFilter;
     this.magentaTex.colorSpace = THREE.SRGBColorSpace;
     this.magentaTex.needsUpdate = true;
+
+    const white = new Uint8Array([255, 255, 255, 255]);
+    this.whiteTex = new THREE.DataTexture(white, 1, 1, THREE.RGBAFormat);
+    this.whiteTex.magFilter = THREE.LinearFilter;
+    this.whiteTex.minFilter = THREE.LinearFilter;
+    this.whiteTex.generateMipmaps = false;
+    this.whiteTex.needsUpdate = true;
 
     this.bindEvents();
     this.bindResize();
@@ -428,7 +475,10 @@ export class EditorRenderer {
     this.renderer.dispose();
     for (const tex of this.textures.values()) tex.dispose();
     for (const mat of this.materials.values()) mat.dispose();
+    for (const tex of this.lightTextures.values()) tex.dispose();
+    if (this.lightingTimer) clearTimeout(this.lightingTimer);
     this.magentaTex.dispose();
+    this.whiteTex.dispose();
   }
 
   private requestRender() {
@@ -487,15 +537,71 @@ export class EditorRenderer {
     );
   }
 
-  private materialFor(texture: THREE.Texture): THREE.MeshBasicMaterial {
-    let mat = this.materials.get(texture);
+  private materialKey(texture: THREE.Texture, z: number) {
+    return `${texture.uuid}:${z}`;
+  }
+
+  private ensureLightUniforms(z: number): LevelLightUniforms {
+    let u = this.lightUniformsByZ.get(z);
+    if (!u) {
+      u = {
+        uLightMap: { value: this.whiteTex },
+        uLightOrigin: { value: new THREE.Vector2(0, 0) },
+        uLightSize: { value: new THREE.Vector2(1, 1) },
+        uLightingEnabled: { value: 1 },
+      };
+      this.lightUniformsByZ.set(z, u);
+    }
+    return u;
+  }
+
+  private materialFor(texture: THREE.Texture, z: number): THREE.MeshBasicMaterial {
+    const key = this.materialKey(texture, z);
+    let mat = this.materials.get(key);
     if (!mat) {
+      const lightUniforms = this.ensureLightUniforms(z);
       mat = new THREE.MeshBasicMaterial({
         map: texture,
         // Ortho camera uses top < bottom for Y-down, which reverses winding.
         side: THREE.DoubleSide,
       });
-      this.materials.set(texture, mat);
+      mat.onBeforeCompile = (shader) => {
+        Object.assign(shader.uniforms, lightUniforms);
+        shader.vertexShader = shader.vertexShader
+          .replace(
+            "#include <common>",
+            /* glsl */ `#include <common>
+attribute vec2 aLightUv;
+varying vec2 vLightUv;`,
+          )
+          .replace(
+            "#include <uv_vertex>",
+            /* glsl */ `#include <uv_vertex>
+vLightUv = aLightUv;`,
+          );
+        shader.fragmentShader = shader.fragmentShader
+          .replace(
+            "#include <common>",
+            /* glsl */ `#include <common>
+uniform sampler2D uLightMap;
+uniform vec2 uLightOrigin;
+uniform vec2 uLightSize;
+uniform float uLightingEnabled;
+varying vec2 vLightUv;`,
+          )
+          .replace(
+            "#include <map_fragment>",
+            /* glsl */ `#include <map_fragment>
+if (uLightingEnabled > 0.5) {
+  vec2 lightUv = (vLightUv - uLightOrigin) / uLightSize;
+  vec3 light = texture2D(uLightMap, lightUv).rgb;
+  diffuseColor.rgb *= light;
+}`,
+          );
+      };
+      mat.customProgramCacheKey = () => "stapes-lit-v1";
+      mat.userData.lightUniforms = lightUniforms;
+      this.materials.set(key, mat);
     }
     // Cutout with depth: alphaTest discards holes; depth buffer sorts overlaps
     // so we can merge quads. transparent:true keeps texture alpha in the level
@@ -507,6 +613,101 @@ export class EditorRenderer {
     mat.depthWrite = true;
     mat.needsUpdate = true;
     return mat;
+  }
+
+  private scheduleLightingUpdate() {
+    if (this.lightingTimer) clearTimeout(this.lightingTimer);
+    this.lightingTimer = setTimeout(() => {
+      this.lightingTimer = null;
+      this.updateLighting(true);
+    }, LIGHTING_DEBOUNCE_MS);
+  }
+
+  /**
+   * Recompute the light grid and upload DataTextures.
+   */
+  private updateLighting(force = false) {
+    if (this.disposed) return;
+    const s = useEditorStore.getState();
+    const key = this.lightingFingerprint(s);
+    if (!force && key === this.lightingKey) return;
+    this.lightingKey = key;
+
+    const ambient = AMBIENT_PRESETS[s.lighting.timeOfDay];
+    const grid = computeLighting(s.map, s.tilesById, [...ambient]);
+    this.lightGrid = grid;
+    this.uploadLightGrid(grid);
+    this.requestRender();
+  }
+
+  private uploadLightGrid(grid: LightGrid) {
+    const seen = new Set<number>();
+    for (const [z, level] of grid.levels) {
+      seen.add(z);
+      this.uploadLevelLight(z, level);
+    }
+    // Levels with no contribution still need ambient-only maps if we have uniforms.
+    for (const z of this.lightUniformsByZ.keys()) {
+      if (seen.has(z)) continue;
+      const u = this.ensureLightUniforms(z);
+      u.uLightingEnabled.value = 1;
+      u.uLightMap.value = this.whiteTex;
+      u.uLightOrigin.value.set(0, 0);
+      u.uLightSize.value.set(1, 1);
+      // Apply ambient via a 1×1 tinted texture when the grid skipped this z.
+      const ambient = AMBIENT_PRESETS[useEditorStore.getState().lighting.timeOfDay];
+      const data = new Uint8Array([
+        Math.round(ambient[0] * 255),
+        Math.round(ambient[1] * 255),
+        Math.round(ambient[2] * 255),
+        255,
+      ]);
+      let tex = this.lightTextures.get(z);
+      if (!tex || tex.image.width !== 1) {
+        tex?.dispose();
+        tex = new THREE.DataTexture(data, 1, 1, THREE.RGBAFormat);
+        tex.magFilter = THREE.LinearFilter;
+        tex.minFilter = THREE.LinearFilter;
+        tex.generateMipmaps = false;
+        tex.needsUpdate = true;
+        this.lightTextures.set(z, tex);
+      } else {
+        (tex.image.data as Uint8Array).set(data);
+        tex.needsUpdate = true;
+      }
+      u.uLightMap.value = tex;
+    }
+  }
+
+  private uploadLevelLight(z: number, level: LevelLightMap) {
+    const u = this.ensureLightUniforms(z);
+    u.uLightingEnabled.value = 1;
+    u.uLightOrigin.value.set(level.x0, level.y0);
+    u.uLightSize.value.set(level.w, level.h);
+
+    const rgba = new Uint8Array(level.w * level.h * 4);
+    for (let i = 0, p = 0; i < level.rgb.length; i += 3, p += 4) {
+      rgba[p] = level.rgb[i]!;
+      rgba[p + 1] = level.rgb[i + 1]!;
+      rgba[p + 2] = level.rgb[i + 2]!;
+      rgba[p + 3] = 255;
+    }
+
+    let tex = this.lightTextures.get(z);
+    if (!tex || tex.image.width !== level.w || tex.image.height !== level.h) {
+      tex?.dispose();
+      tex = new THREE.DataTexture(rgba, level.w, level.h, THREE.RGBAFormat);
+      tex.magFilter = THREE.LinearFilter;
+      tex.minFilter = THREE.LinearFilter;
+      tex.generateMipmaps = false;
+      tex.flipY = false;
+      tex.needsUpdate = true;
+      this.lightTextures.set(z, tex);
+    } else {
+      (tex.image as { data: Uint8Array }).data.set(rgba);
+      tex.needsUpdate = true;
+    }
+    u.uLightMap.value = tex;
   }
 
   private syncFromStore(forceRebuild = false) {
@@ -535,7 +736,38 @@ export class EditorRenderer {
         this.rebuildDirtyChunks(s.map);
       }
     }
+    this.maybeScheduleLighting();
     this.requestRender();
+  }
+
+  private lightingFingerprint(s: ReturnType<typeof useEditorStore.getState>) {
+    let lightDefsSig = 0;
+    for (const t of s.tiles) {
+      if (t.light) {
+        const col = t.light.color;
+        let colHash = 0;
+        for (let i = 0; i < col.length; i++) colHash = (colHash * 31 + col.charCodeAt(i)) | 0;
+        lightDefsSig =
+          (lightDefsSig * 31 +
+            t.id.length +
+            t.light.radius * 10 +
+            Math.round(t.light.intensity * 100) +
+            colHash) |
+          0;
+      }
+      if (t.lightPassing) lightDefsSig = (lightDefsSig * 17 + 3) | 0;
+      if (t.blocksLight != null) {
+        lightDefsSig = (lightDefsSig * 17 + (t.blocksLight ? 3 : 5)) | 0;
+      }
+    }
+    const { timeOfDay } = s.lighting;
+    return `${timeOfDay}|${s.mapVersion}|${lightDefsSig}|${Object.keys(s.tilesById).length}`;
+  }
+
+  private maybeScheduleLighting() {
+    const s = useEditorStore.getState();
+    if (this.lightingFingerprint(s) === this.lightingKey) return;
+    this.scheduleLightingUpdate();
   }
 
   private applyCamera(camX: number, camY: number, zoom: number) {
@@ -1069,6 +1301,10 @@ export class EditorRenderer {
             depth: 0,
             order,
             texture: this.magentaTex,
+            lightX0: cell.x,
+            lightY0: cell.y,
+            lightX1: cell.x + 1,
+            lightY1: cell.y + 1,
           });
           return;
         }
@@ -1091,6 +1327,10 @@ export class EditorRenderer {
         const v0 = 1 - ((rect.y + rect.h) * CELL_SIZE) / tileset.height;
         const texture = this.textures.get(tileset.id) ?? this.magentaTex;
         const isAnimated = (frames?.length ?? 0) > 1;
+        const lightX0 = cell.x - first.sprite.base.x;
+        const lightY0 = cell.y - first.sprite.base.y;
+        const lightX1 = lightX0 + rect.w;
+        const lightY1 = lightY0 + rect.h;
 
         items.push({
           x: origin.x,
@@ -1104,6 +1344,10 @@ export class EditorRenderer {
           depth: 0,
           order,
           texture,
+          lightX0,
+          lightY0,
+          lightX1,
+          lightY1,
           anim:
             isAnimated && frames
               ? {
@@ -1154,6 +1398,11 @@ export class EditorRenderer {
           item.u1,
           item.v1,
           item.depth,
+          z,
+          item.lightX0,
+          item.lightY0,
+          item.lightX1,
+          item.lightY1,
         );
         animated.push({
           mesh,
@@ -1177,7 +1426,7 @@ export class EditorRenderer {
     for (const [tex, quads] of staticByTex) {
       const geo = buildMergedQuadGeometry(quads);
       geo.computeBoundingSphere();
-      const mesh = new THREE.Mesh(geo, this.materialFor(tex));
+      const mesh = new THREE.Mesh(geo, this.materialFor(tex, z));
       // Editor views are small; avoid any first-frame bounds miss on the level RT.
       mesh.frustumCulled = false;
       mesh.matrixAutoUpdate = false;
@@ -1202,6 +1451,11 @@ export class EditorRenderer {
     u1: number,
     v1: number,
     depth: number,
+    z: number,
+    lightX0: number,
+    lightY0: number,
+    lightX1: number,
+    lightY1: number,
   ): THREE.Mesh {
     const geo = new THREE.PlaneGeometry(w, h);
     const uvs = geo.attributes.uv!;
@@ -1215,8 +1469,20 @@ export class EditorRenderer {
     uvs.setXY(3, u1, v1);
     uvs.needsUpdate = true;
 
+    const lightUvs = new Float32Array([
+      lightX0,
+      lightY1,
+      lightX1,
+      lightY1,
+      lightX0,
+      lightY0,
+      lightX1,
+      lightY0,
+    ]);
+    geo.setAttribute("aLightUv", new THREE.BufferAttribute(lightUvs, 2));
+
     // Cutout material — depth Z carries painter's order (no per-quad renderOrder).
-    const mat = this.materialFor(texture);
+    const mat = this.materialFor(texture, z);
     const mesh = new THREE.Mesh(geo, mat);
     mesh.position.set(x + w / 2, y + h / 2, depth);
     mesh.matrixAutoUpdate = false;

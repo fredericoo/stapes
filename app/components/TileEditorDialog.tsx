@@ -1,6 +1,20 @@
 import { useEffect, useState } from "react";
-import type { Direction, Frame, SpriteRef, TileDef, TileHeight, TilesetDef, VariantKey } from "../lib/types";
-import { DIRECTIONS, defaultBase, isAnimated } from "../lib/types";
+import type {
+  Direction,
+  Frame,
+  LightDef,
+  SpriteRef,
+  TileDef,
+  TileHeight,
+  TilesetDef,
+  VariantKey,
+} from "../lib/types";
+import {
+  DIRECTIONS,
+  defaultBase,
+  isAnimated,
+  resolveLightPassing,
+} from "../lib/types";
 import { SpriteSelector } from "./SpriteSelector";
 import { TilePreview } from "./TilePreview";
 import { Button, Dialog, Input, Segmented, Select, TabPanel, Tabs } from "../ui";
@@ -13,6 +27,12 @@ function emptyFrame(tilesetId: string): Frame {
   };
 }
 
+const DEFAULT_LIGHT: LightDef = {
+  radius: 5,
+  intensity: 1,
+  color: "#ffcc88",
+};
+
 function blankTile(tilesets: TilesetDef[]): TileDef {
   const ts = tilesets[0]?.id ?? "";
   return {
@@ -22,6 +42,16 @@ function blankTile(tilesets: TilesetDef[]): TileDef {
     directional: false,
     variants: { default: [emptyFrame(ts)] },
     attributes: {},
+    lightPassing: false,
+  };
+}
+
+/** Normalise optional lighting fields for the editor draft. */
+function withLightingDefaults(tile: TileDef): TileDef {
+  const { blocksLight: _deprecated, ...rest } = tile;
+  return {
+    ...rest,
+    lightPassing: resolveLightPassing(tile),
   };
 }
 
@@ -44,21 +74,25 @@ export function TileEditorDialog({
   onSave,
   onDelete,
 }: Props) {
-  const [draft, setDraft] = useState<TileDef>(() => tile ?? blankTile(tilesets));
+  const [draft, setDraft] = useState<TileDef>(() =>
+    withLightingDefaults(tile ?? blankTile(tilesets)),
+  );
   const [dir, setDir] = useState<VariantKey>(
     tile?.directional ? "n" : "default",
   );
   const [frameIndex, setFrameIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [lightOpen, setLightOpen] = useState(false);
 
   // Reset when opening with a different tile
   useEffect(() => {
     if (!open) return;
-    const next = tile ?? blankTile(tilesets);
+    const next = withLightingDefaults(tile ?? blankTile(tilesets));
     setDraft(next);
     setDir(next.directional ? "n" : "default");
     setFrameIndex(0);
     setError(null);
+    setLightOpen(Boolean(next.light));
   }, [open, tile, tilesets]);
 
   const frames = draft.variants[dir] ?? [];
@@ -134,7 +168,37 @@ export function TileEditorDialog({
       return;
     }
     setError(null);
-    onSave(draft);
+    const light = draft.light;
+    if (light) {
+      if (!(light.radius > 0) || !Number.isFinite(light.radius)) {
+        setError("Light radius must be a positive number");
+        return;
+      }
+      if (
+        !(light.intensity >= 0) ||
+        !(light.intensity <= 1) ||
+        !Number.isFinite(light.intensity)
+      ) {
+        setError("Light intensity must be between 0 and 1");
+        return;
+      }
+      if (!/^#[0-9a-fA-F]{6}$/.test(light.color)) {
+        setError("Light colour must be a hex like #ffcc88");
+        return;
+      }
+    }
+    onSave({
+      ...draft,
+      lightPassing: draft.lightPassing ? true : undefined,
+      blocksLight: undefined,
+      light: light
+        ? {
+            radius: light.radius,
+            intensity: light.intensity,
+            color: light.color.toLowerCase(),
+          }
+        : undefined,
+    });
   };
 
   const dirTabs = draft.directional
@@ -210,6 +274,93 @@ export function TileEditorDialog({
             />
             Directional
           </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={draft.lightPassing ?? false}
+              onChange={(e) =>
+                setDraft({ ...draft, lightPassing: e.target.checked })
+              }
+              className="size-4 accent-accent"
+            />
+            Passes light
+          </label>
+        </div>
+
+        <div className="flex flex-col gap-2 border-2 border-border p-2">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={lightOpen}
+              onChange={(e) => {
+                const on = e.target.checked;
+                setLightOpen(on);
+                setDraft({
+                  ...draft,
+                  light: on ? (draft.light ?? { ...DEFAULT_LIGHT }) : undefined,
+                });
+              }}
+              className="size-4 accent-accent"
+            />
+            Emits light
+          </label>
+          {lightOpen && draft.light ? (
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="flex flex-col gap-1 text-xs">
+                <span className="font-bold uppercase text-muted">Radius</span>
+                <Input
+                  type="number"
+                  min={1}
+                  step={1}
+                  className="w-20"
+                  value={draft.light.radius}
+                  onChange={(e) =>
+                    setDraft({
+                      ...draft,
+                      light: {
+                        ...draft.light!,
+                        radius: Number(e.target.value) || 1,
+                      },
+                    })
+                  }
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-xs">
+                <span className="font-bold uppercase text-muted">Intensity</span>
+                <Input
+                  type="number"
+                  min={0}
+                  max={1}
+                  step={0.05}
+                  className="w-20"
+                  value={draft.light.intensity}
+                  onChange={(e) =>
+                    setDraft({
+                      ...draft,
+                      light: {
+                        ...draft.light!,
+                        intensity: Number(e.target.value),
+                      },
+                    })
+                  }
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-xs">
+                <span className="font-bold uppercase text-muted">Colour</span>
+                <input
+                  type="color"
+                  value={draft.light.color}
+                  onChange={(e) =>
+                    setDraft({
+                      ...draft,
+                      light: { ...draft.light!, color: e.target.value },
+                    })
+                  }
+                  className="h-8 w-12 cursor-pointer border-2 border-border bg-panel p-0"
+                />
+              </label>
+            </div>
+          ) : null}
         </div>
 
         {error ? (

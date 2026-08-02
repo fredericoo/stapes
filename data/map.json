@@ -540,11 +540,6 @@
           "tileId": "cobblestone"
         }
       ],
-      "11,2": [
-        {
-          "tileId": "roof-2"
-        }
-      ],
       "11,3": [
         {
           "tileId": "grass-2"
@@ -951,10 +946,6 @@
         },
         {
           "tileId": "torch",
-          "direction": "e"
-        },
-        {
-          "tileId": "torch",
           "direction": "s"
         }
       ],
@@ -964,10 +955,6 @@
         },
         {
           "tileId": "cobblestone"
-        },
-        {
-          "tileId": "torch",
-          "direction": "s"
         }
       ],
       "15,4": [
@@ -976,26 +963,11 @@
         },
         {
           "tileId": "cobblestone"
-        },
-        {
-          "tileId": "torch",
-          "direction": "w"
-        },
-        {
-          "tileId": "torch",
-          "direction": "s"
         }
       ],
       "15,5": [
         {
           "tileId": "dirt"
-        },
-        {
-          "tileId": "cobblestone"
-        },
-        {
-          "tileId": "torch",
-          "direction": "w"
         }
       ],
       "14,5": [
@@ -1020,10 +992,6 @@
         },
         {
           "tileId": "cobblestone"
-        },
-        {
-          "tileId": "torch",
-          "direction": "n"
         }
       ],
       "14,6": [
@@ -1032,10 +1000,6 @@
         },
         {
           "tileId": "cobblestone"
-        },
-        {
-          "tileId": "torch",
-          "direction": "n"
         }
       ],
       "15,6": [
@@ -1044,10 +1008,6 @@
         },
         {
           "tileId": "cobblestone"
-        },
-        {
-          "tileId": "torch",
-          "direction": "w"
         }
       ],
       "15,2": [
@@ -11013,6 +10973,10 @@
       "32,-2": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "torch",
+          "direction": "s"
         }
       ],
       "31,-2": [
@@ -11470,6 +11434,10 @@
       "20,3": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "torch",
+          "direction": "s"
         }
       ],
       "19,3": [
@@ -12034,22 +12002,46 @@
       ],
       "16,-4": [
         {
-          "tileId": "dirt"
+          "tileId": "grass-2"
+        },
+        {
+          "tileId": "cobblestone"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "14,-3": [
         {
-          "tileId": "dirt"
+          "tileId": "grass-2"
+        },
+        {
+          "tileId": "cobblestone"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "15,-3": [
         {
-          "tileId": "dirt"
+          "tileId": "grass-2"
+        },
+        {
+          "tileId": "cobblestone"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "16,-3": [
         {
-          "tileId": "dirt"
+          "tileId": "grass-2"
+        },
+        {
+          "tileId": "cobblestone"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "14,-2": [
@@ -12114,17 +12106,35 @@
       ],
       "14,-8": [
         {
-          "tileId": "dirt"
+          "tileId": "grass-2"
+        },
+        {
+          "tileId": "cobblestone"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "15,-8": [
         {
-          "tileId": "dirt"
+          "tileId": "grass-2"
+        },
+        {
+          "tileId": "cobblestone"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "16,-8": [
         {
-          "tileId": "dirt"
+          "tileId": "grass-2"
+        },
+        {
+          "tileId": "cobblestone"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "17,-8": [
@@ -12179,7 +12189,13 @@
       ],
       "16,-7": [
         {
-          "tileId": "dirt"
+          "tileId": "grass-2"
+        },
+        {
+          "tileId": "cobblestone"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "17,-7": [
@@ -12234,7 +12250,13 @@
       ],
       "16,-6": [
         {
-          "tileId": "dirt"
+          "tileId": "grass-2"
+        },
+        {
+          "tileId": "cobblestone"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "17,-6": [
@@ -12289,7 +12311,13 @@
       ],
       "16,-5": [
         {
-          "tileId": "dirt"
+          "tileId": "grass-2"
+        },
+        {
+          "tileId": "cobblestone"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "17,-5": [
@@ -12369,37 +12397,79 @@
       ],
       "7,-8": [
         {
-          "tileId": "dirt"
+          "tileId": "grass-2"
+        },
+        {
+          "tileId": "cobblestone"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "8,-8": [
         {
-          "tileId": "dirt"
+          "tileId": "grass-2"
+        },
+        {
+          "tileId": "cobblestone"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "9,-8": [
         {
-          "tileId": "dirt"
+          "tileId": "grass-2"
+        },
+        {
+          "tileId": "cobblestone"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "10,-8": [
         {
-          "tileId": "dirt"
+          "tileId": "grass-2"
+        },
+        {
+          "tileId": "cobblestone"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "11,-8": [
         {
-          "tileId": "dirt"
+          "tileId": "grass-2"
+        },
+        {
+          "tileId": "cobblestone"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "12,-8": [
         {
-          "tileId": "dirt"
+          "tileId": "grass-2"
+        },
+        {
+          "tileId": "cobblestone"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "13,-8": [
         {
-          "tileId": "dirt"
+          "tileId": "grass-2"
+        },
+        {
+          "tileId": "cobblestone"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "0,-7": [
@@ -12439,7 +12509,13 @@
       ],
       "7,-7": [
         {
-          "tileId": "dirt"
+          "tileId": "grass-2"
+        },
+        {
+          "tileId": "cobblestone"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "8,-7": [
@@ -12460,6 +12536,10 @@
       "11,-7": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "torch",
+          "direction": "s"
         }
       ],
       "12,-7": [
@@ -12509,7 +12589,13 @@
       ],
       "7,-6": [
         {
-          "tileId": "dirt"
+          "tileId": "grass-2"
+        },
+        {
+          "tileId": "cobblestone"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "8,-6": [
@@ -12579,7 +12665,13 @@
       ],
       "7,-5": [
         {
-          "tileId": "dirt"
+          "tileId": "grass-2"
+        },
+        {
+          "tileId": "cobblestone"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "8,-5": [
@@ -12649,7 +12741,13 @@
       ],
       "7,-4": [
         {
-          "tileId": "dirt"
+          "tileId": "grass-2"
+        },
+        {
+          "tileId": "cobblestone"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "8,-4": [
@@ -12719,37 +12817,79 @@
       ],
       "7,-3": [
         {
-          "tileId": "dirt"
+          "tileId": "grass-2"
+        },
+        {
+          "tileId": "cobblestone"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "8,-3": [
         {
-          "tileId": "dirt"
+          "tileId": "grass-2"
+        },
+        {
+          "tileId": "cobblestone"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "9,-3": [
         {
-          "tileId": "dirt"
+          "tileId": "grass-2"
+        },
+        {
+          "tileId": "cobblestone"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "10,-3": [
         {
-          "tileId": "dirt"
+          "tileId": "grass-2"
+        },
+        {
+          "tileId": "cobblestone"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "11,-3": [
         {
-          "tileId": "dirt"
+          "tileId": "grass-2"
+        },
+        {
+          "tileId": "cobblestone"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "12,-3": [
         {
-          "tileId": "dirt"
+          "tileId": "grass-2"
+        },
+        {
+          "tileId": "cobblestone"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "13,-3": [
         {
-          "tileId": "dirt"
+          "tileId": "grass-2"
+        },
+        {
+          "tileId": "cobblestone"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "0,-2": [
@@ -14543,6 +14683,158 @@
         {
           "tileId": "plaster"
         }
+      ],
+      "16,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "16,-7": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "16,-6": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "16,-5": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "16,-4": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "16,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "15,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "14,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "13,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "12,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "11,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "10,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "9,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "8,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-4": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-5": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-6": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-7": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "8,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "9,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "10,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "11,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "12,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "13,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "14,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "15,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "9,-7": [
+        {
+          "tileId": "torch",
+          "direction": "s"
+        }
+      ],
+      "13,-7": [
+        {
+          "tileId": "torch",
+          "direction": "s"
+        }
       ]
     },
     "2": {
@@ -14634,6 +14926,402 @@
         },
         {
           "tileId": "plaster"
+        }
+      ],
+      "16,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "16,-7": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "16,-6": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "16,-5": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "16,-4": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "16,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "15,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "14,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "13,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "12,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "11,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "10,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "9,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "8,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-3": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-4": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-5": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-6": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-7": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "7,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "8,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "9,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "10,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "11,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "12,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "13,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "14,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "15,-8": [
+        {
+          "tileId": "stone-wall"
+        }
+      ],
+      "8,-7": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "9,-7": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "10,-7": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "11,-7": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "12,-7": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "13,-7": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "14,-7": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "15,-7": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "15,-6": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "15,-5": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "15,-4": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "14,-4": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "13,-4": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "12,-4": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "11,-4": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "11,-5": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "10,-5": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "9,-5": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "9,-4": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "8,-4": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "10,-4": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "14,-5": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "14,-6": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "13,-6": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "12,-6": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "11,-6": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "10,-6": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "9,-6": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "8,-6": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "8,-5": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "12,-5": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "13,-5": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
         }
       ]
     },

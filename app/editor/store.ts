@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
+import type { TimeOfDay } from "../lib/lighting";
 import {
   appendTile,
   clearStack,
@@ -13,6 +14,10 @@ import {
 import { canPlace, canReplaceStack, tilesByIdFromList } from "../lib/validation";
 
 export type ToolId = "select" | "erase" | "pencil" | "rect" | "circle";
+
+export type LightingSettings = {
+  timeOfDay: TimeOfDay;
+};
 
 type HistoryEntry = {
   map: MapFile;
@@ -33,6 +38,7 @@ export type EditorStore = {
   showOtherLevels: boolean;
   /** Every level at full opacity, no grid or selection chrome — how the game will look. */
   previewMode: boolean;
+  lighting: LightingSettings;
   tool: ToolId;
   selected: { x: number; y: number } | null;
   hover: { x: number; y: number } | null;
@@ -62,6 +68,7 @@ export type EditorStore = {
   setShowOtherLevels: (v: boolean) => void;
   setPreviewMode: (v: boolean) => void;
   togglePreviewMode: () => void;
+  setTimeOfDay: (t: TimeOfDay) => void;
   setTool: (tool: ToolId) => void;
   setSelected: (sel: { x: number; y: number } | null) => void;
   setHover: (h: { x: number; y: number } | null) => void;
@@ -99,6 +106,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   currentLevel: 0,
   showOtherLevels: true,
   previewMode: false,
+  lighting: { timeOfDay: "day" },
   tool: "select",
   selected: null,
   hover: null,
@@ -149,6 +157,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   setShowOtherLevels: (v) => set({ showOtherLevels: v }),
   setPreviewMode: (v) => set({ previewMode: v }),
   togglePreviewMode: () => set({ previewMode: !get().previewMode }),
+  setTimeOfDay: (t) => set({ lighting: { timeOfDay: t } }),
   setTool: (tool) => set({ tool }),
   setSelected: (sel) => set({ selected: sel }),
   setHover: (h) => {

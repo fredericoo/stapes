@@ -26,6 +26,15 @@ export type TileHeight = 0 | 1 | 2 | 3 | 4;
 
 export type VariantKey = "default" | Direction;
 
+export type LightDef = {
+  /** Reach in cells, where attenuation hits zero. */
+  radius: number;
+  /** 0–1 multiplier on the emitted colour. */
+  intensity: number;
+  /** Hex, e.g. "#ffcc88". */
+  color: string;
+};
+
 export type TileDef = {
   id: string;
   name: string;
@@ -35,7 +44,30 @@ export type TileDef = {
   variants: Partial<Record<VariantKey, Frame[]>>;
   /** Reserved for flammable/wet/frozen/pushable later. */
   attributes: Record<string, never>;
+  /**
+   * When true, this tile does not occlude light (e.g. water).
+   * Default / absent → blocks. Prefer this over deprecated {@link blocksLight}.
+   */
+  lightPassing?: boolean;
+  /**
+   * @deprecated Use {@link lightPassing} (inverted). Kept so old tiles.json still loads.
+   */
+  blocksLight?: boolean;
+  /** Absent means not a light source. */
+  light?: LightDef;
 };
+
+/** Whether light passes through this tile. Default: blocks (false). */
+export function resolveLightPassing(def: TileDef): boolean {
+  if (def.lightPassing != null) return def.lightPassing;
+  if (def.blocksLight != null) return !def.blocksLight;
+  return false;
+}
+
+/** @deprecated Use {@link resolveLightPassing}. */
+export function resolveBlocksLight(def: TileDef): boolean {
+  return !resolveLightPassing(def);
+}
 
 export type TilesetDef = {
   id: string;

@@ -78,7 +78,8 @@
         }
       ]
     },
-    "attributes": {}
+    "attributes": {},
+    "lightPassing": true
   },
   {
     "id": "half-stone",
@@ -240,7 +241,12 @@
         }
       ]
     },
-    "attributes": {}
+    "attributes": {},
+    "light": {
+      "radius": 8,
+      "intensity": 1,
+      "color": "#ffcc88"
+    }
   },
   {
     "id": "grass-2",

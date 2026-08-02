@@ -17,9 +17,10 @@ import { AppShell } from "../components/AppShell";
 import { MapPanels } from "../editor/panels/MapPanels";
 import { useEditorStore, type ToolId } from "../editor/store";
 import { readMap, readTiles, readTilesets, writeMap } from "../lib/fs.server";
+import type { TimeOfDay } from "../lib/lighting";
 import type { MapFile } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL, clampLevel } from "../lib/types";
-import { Button, Input, Tooltip, useToast } from "../ui";
+import { Button, Input, Segmented, Tooltip, useToast } from "../ui";
 
 export async function loader() {
   const [map, tiles, tilesets] = await Promise.all([
@@ -70,6 +71,7 @@ export default function MapPage() {
   const currentLevel = useEditorStore((s) => s.currentLevel);
   const showOtherLevels = useEditorStore((s) => s.showOtherLevels);
   const previewMode = useEditorStore((s) => s.previewMode);
+  const timeOfDay = useEditorStore((s) => s.lighting.timeOfDay);
   const tool = useEditorStore((s) => s.tool);
   const lastToast = useEditorStore((s) => s.lastToast);
   const canUndo = useEditorStore((s) => s.past.length > 0);
@@ -239,6 +241,17 @@ export default function MapPage() {
             />
             Preview
           </label>
+          <Segmented<TimeOfDay>
+            value={timeOfDay}
+            onChange={(t) => useEditorStore.getState().setTimeOfDay(t)}
+            size="sm"
+            ariaLabel="Time of day"
+            options={[
+              { value: "day", label: "Day" },
+              { value: "dusk", label: "Dusk" },
+              { value: "night", label: "Night" },
+            ]}
+          />
           <div className="flex gap-1">
             {TOOLS.map(({ id, label, key, Icon }) => (
               <Tooltip key={id} content={`${label} (${key})`}>
