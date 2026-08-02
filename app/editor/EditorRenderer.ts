@@ -994,6 +994,86 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
       this.overlays.add(mesh);
     };
 
+    /**
+     * Half-px outer silhouette outline via alpha edge detect.
+     * Mesh is padded 0.5 world-px; UVs outside the sprite rect count as
+     * transparent so neighbouring atlas tiles never bleed in.
+     */
+    const addSpriteOutline = (q: SpriteQuad, color: number) => {
+      const pad = 0.5;
+      const du = (q.u1 - q.u0) / q.w;
+      const dv = (q.v1 - q.v0) / q.h;
+      const geo = new THREE.PlaneGeometry(q.w + pad * 2, q.h + pad * 2);
+      const uvs = geo.attributes.uv!;
+      uvs.setXY(0, q.u0 - du * pad, q.v0 - dv * pad);
+      uvs.setXY(1, q.u1 + du * pad, q.v0 - dv * pad);
+      uvs.setXY(2, q.u0 - du * pad, q.v1 + dv * pad);
+      uvs.setXY(3, q.u1 + du * pad, q.v1 + dv * pad);
+      uvs.needsUpdate = true;
+
+      const mat = new THREE.ShaderMaterial({
+        uniforms: {
+          map: { value: q.texture },
+          uUvMin: { value: new THREE.Vector2(q.u0, q.v0) },
+          uUvMax: { value: new THREE.Vector2(q.u1, q.v1) },
+          // Neighbour reach stays 1 texel so the half-px ring still finds the edge.
+          uPx: { value: new THREE.Vector2(du, dv) },
+          uColor: { value: new THREE.Color(color) },
+        },
+        vertexShader: /* glsl */ `
+          varying vec2 vUv;
+          void main() {
+            vUv = uv;
+            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+          }
+        `,
+        fragmentShader: /* glsl */ `
+          uniform sampler2D map;
+          uniform vec2 uUvMin;
+          uniform vec2 uUvMax;
+          uniform vec2 uPx;
+          uniform vec3 uColor;
+          varying vec2 vUv;
+
+          float sampleA(vec2 uv) {
+            if (uv.x < uUvMin.x || uv.x >= uUvMax.x ||
+                uv.y < uUvMin.y || uv.y >= uUvMax.y) {
+              return 0.0;
+            }
+            return texture2D(map, uv).a;
+          }
+
+          void main() {
+            // Outer ring only — opaque texels belong to the sprite itself.
+            if (sampleA(vUv) >= 0.5) discard;
+
+            // 4-connected only: including diagonals fattens stair-step edges
+            // (corner-touch pixels fill the staircase and read as ~2px thick).
+            float n = max(
+              max(sampleA(vUv + vec2(-uPx.x, 0.0)), sampleA(vUv + vec2(uPx.x, 0.0))),
+              max(sampleA(vUv + vec2(0.0, -uPx.y)), sampleA(vUv + vec2(0.0, uPx.y)))
+            );
+            if (n < 0.5) discard;
+
+            gl_FragColor = vec4(uColor, 1.0);
+            #include <colorspace_fragment>
+          }
+        `,
+        transparent: true,
+        depthTest: false,
+        depthWrite: false,
+        side: THREE.DoubleSide,
+        toneMapped: false,
+      });
+
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(q.x + q.w / 2, q.y + q.h / 2, 0);
+      mesh.renderOrder = 1_000_000_015;
+      mesh.matrixAutoUpdate = false;
+      mesh.updateMatrix();
+      this.overlays.add(mesh);
+    };
+
     const z = s.currentLevel;
     const brush = s.selected
       ? getStack(s.map, s.selected.x, s.selected.y, z)
@@ -1033,25 +1113,17 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
           return;
         }
 
-        const isTop = stackIndex === brush.length - 1;
-        if (isTop) {
-          // Additive glow of the sprite itself — texture alpha is the mask.
-          addSprite(quad, {
-            color: 0xfff3b0,
-            opacity: 0.75,
-            blending: THREE.AdditiveBlending,
-            renderOrder: 1_000_000_010,
-          });
+        // Brighten every tile in the cell — texture alpha is the mask.
+        addSprite(quad, {
+          color: 0xfff3b0,
+          opacity: 0.75,
+          blending: THREE.AdditiveBlending,
+          renderOrder: 1_000_000_010,
+        });
+
+        if (stackIndex === brush.length - 1) {
+          addSpriteOutline(quad, 0xffcc00);
         }
-        // Full sprite AABB outline (tree = 2×2, grass = 1×1, …)
-        addRectOutline(
-          quad.x,
-          quad.y,
-          quad.w,
-          quad.h,
-          isTop ? 0xffee55 : 0xe6b800,
-          isTop,
-        );
 
         elev += def.height;
       });
@@ -1345,10 +1417,10 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
         const v0 = 1 - ((rect.y + rect.h) * CELL_SIZE) / tileset.height;
         const texture = this.textures.get(tileset.id) ?? this.magentaTex;
         const isAnimated = (frames?.length ?? 0) > 1;
-        const lightX0 = cell.x - first.sprite.base.x;
-        const lightY0 = cell.y - first.sprite.base.y;
-        const lightX1 = lightX0 + rect.w;
-        const lightY1 = lightY0 + rect.h;
+        const lightX0 = cell.x;
+        const lightY0 = cell.y;
+        const lightX1 = cell.x + 1;
+        const lightY1 = cell.y + 1;
         const unlit = Boolean(
           def.light && def.light.radius > 0 && def.light.intensity > 0,
         );

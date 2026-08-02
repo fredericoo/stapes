@@ -66,8 +66,8 @@ describe("stackOcclusion", () => {
     });
   });
 
-  it("scales opacity by blocking height", () => {
-    expect(stackOcclusion([{ tileId: "half" }], tilesById).opacity).toBe(0.5);
+  it("treats any positive height as a full hard block", () => {
+    expect(stackOcclusion([{ tileId: "half" }], tilesById).opacity).toBe(1);
     expect(stackOcclusion([{ tileId: "wall" }], tilesById).opacity).toBe(1);
   });
 
@@ -91,11 +91,11 @@ describe("rayTransmission", () => {
     expect(rayTransmission(0, 0, 0, 3, 0, 0, occlusion)).toBe(0);
   });
 
-  it("weakens through a half wall", () => {
+  it("hard-blocks at a half wall", () => {
     const occlusion = new Map([
-      ["0:1,0", { opacity: 0.5, sealsLevel: true }],
+      ["0:1,0", { opacity: 1, sealsLevel: true }],
     ]);
-    expect(rayTransmission(0, 0, 0, 3, 0, 0, occlusion)).toBeCloseTo(0.5);
+    expect(rayTransmission(0, 0, 0, 3, 0, 0, occlusion)).toBe(0);
   });
 
   it("seals vertical travel through a floor plate", () => {
@@ -122,33 +122,34 @@ describe("computeLighting", () => {
     const outside = sampleLevelLight(level, 3, 0);
 
     expect(inside[0]).toBeGreaterThan(AMBIENT_PRESETS.night[0] + 0.1);
-    // Full wall stays at ambient only.
     expect(wallCell[0]).toBeCloseTo(AMBIENT_PRESETS.night[0], 1);
     expect(outside[0]).toBeCloseTo(AMBIENT_PRESETS.night[0], 1);
   });
 
-  it("lets weakened light through a half wall", () => {
+  it("hard-blocks through half-height slabs", () => {
     const map = mapAt([
       { x: 0, y: 0, tiles: ["floor", "torch"] },
       { x: 1, y: 0, tiles: ["half"] },
       { x: 2, y: 0, tiles: ["floor"] },
     ]);
-    const grid = computeLighting(map, tilesById, [0, 0, 0]);
+    const grid = computeLighting(map, tilesById, AMBIENT_PRESETS.night);
     const level = grid.levels.get(0)!;
+    const slab = sampleLevelLight(level, 1, 0);
     const beyond = sampleLevelLight(level, 2, 0);
-    const clear = (() => {
-      const open = mapAt([
-        { x: 0, y: 0, tiles: ["floor", "torch"] },
-        { x: 2, y: 0, tiles: ["floor"] },
-      ]);
-      return sampleLevelLight(
-        computeLighting(open, tilesById, [0, 0, 0]).levels.get(0)!,
-        2,
-        0,
-      );
-    })();
-    expect(beyond[0]).toBeGreaterThan(0);
-    expect(beyond[0]).toBeLessThan(clear[0] * 0.75);
+    expect(slab[0]).toBeCloseTo(AMBIENT_PRESETS.night[0], 1);
+    expect(beyond[0]).toBeCloseTo(AMBIENT_PRESETS.night[0], 1);
+  });
+
+  it("does not light roof slabs on the level above", () => {
+    const map = mapAt([
+      { x: 0, y: 0, z: 0, tiles: ["floor", "torch"] },
+      { x: 0, y: 0, z: 1, tiles: ["half"] },
+      { x: 1, y: 0, z: 1, tiles: ["half"] },
+    ]);
+    const grid = computeLighting(map, tilesById, [0, 0, 0]);
+    const above = grid.levels.get(1)!;
+    expect(sampleLevelLight(above, 0, 0)[0]).toBe(0);
+    expect(sampleLevelLight(above, 1, 0)[0]).toBe(0);
   });
 
   it("does not leak light to the floor above", () => {
@@ -194,7 +195,6 @@ describe("computeLighting", () => {
       [0, 0, 0],
     );
     const self = sampleLevelLight(grid.levels.get(0)!, 0, 0);
-    // Full intensity at the source — not weakened by the tile's own height.
     expect(self[0]).toBeCloseTo(1, 1);
   });
 });

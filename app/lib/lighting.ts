@@ -70,8 +70,8 @@ function cellKey(x: number, y: number, z: number): string {
 /**
  * How much a stack occludes light.
  * - Light-passing tiles (water) ignored.
- * - Opacity = sum(blocker heights) / 4 (half-wall → 0.5, full wall → 1).
- * - Any blocker (even height 0 grass) seals the level vertically.
+ * - Any positive blocking height fully seals the cell (no partial seep through
+ *   half-slabs / plaster). Height 0 floors still seal vertically only.
  */
 export function stackOcclusion(
   stack: PlacedTile[],
@@ -87,7 +87,7 @@ export function stackOcclusion(
     blockH += def.height;
   }
   return {
-    opacity: Math.min(1, blockH / 4),
+    opacity: blockH > 0 ? 1 : 0,
     sealsLevel,
   };
 }
@@ -214,6 +214,7 @@ export function computeLighting(
 ): LightGrid {
   const occlusion = new Map<string, CellOcclusion>();
   const emitters: Emitter[] = [];
+  const emitterCells = new Set<string>();
   let minX = Infinity;
   let minY = Infinity;
   let maxX = -Infinity;
@@ -253,6 +254,7 @@ export function computeLighting(
           g: cg,
           b: cb,
         });
+        emitterCells.add(cellKey(x, y, z));
         if (def.light.radius > maxRadius) maxRadius = def.light.radius;
       }
     }
@@ -301,12 +303,6 @@ export function computeLighting(
   }
 
   for (const e of emitters) {
-    // An emitter never occludes its own light (cat/torch body would otherwise
-    // swallow most of the contribution on its own cell).
-    const selfKey = cellKey(e.x, e.y, e.z);
-    const selfOcc = occlusion.get(selfKey);
-    if (selfOcc) occlusion.delete(selfKey);
-
     const rCells = Math.ceil(e.radius);
     for (let dz = -rCells; dz <= rCells; dz++) {
       const tz = e.z + dz;
@@ -321,13 +317,16 @@ export function computeLighting(
           );
           if (dist > e.radius) continue;
 
+          const isSelf = tx === e.x && ty === e.y && tz === e.z;
           const target = occlusion.get(cellKey(tx, ty, tz));
 
-          // Full-height blockers stay dark — no light contribution at all.
-          if (target && target.opacity >= 1) continue;
-
-          // Floors/props seal between levels even at height 0 (grass, dirt).
-          if (dz !== 0 && target?.sealsLevel) continue;
+          // Solids stay dark — except an emitter's own cell (self-lit).
+          // opacity > 0 means any height ≥ 1 blocker; sealsLevel covers floors
+          // when light tries to climb/descend onto them.
+          if (!isSelf) {
+            if (target && target.opacity >= 1) continue;
+            if (dz !== 0 && target?.sealsLevel) continue;
+          }
 
           let transmission = 1;
           if (dist > 0) {
@@ -343,10 +342,8 @@ export function computeLighting(
             if (transmission < TRANSMISSION_EPSILON) continue;
           }
 
-          // Partial cover at the target weakens the light that lands there.
-          const targetFactor = target ? 1 - target.opacity : 1;
           const t = 1 - dist / e.radius;
-          const atten = t * t * e.intensity * transmission * targetFactor;
+          const atten = t * t * e.intensity * transmission;
           if (atten < TRANSMISSION_EPSILON) continue;
 
           accumulateAt(
@@ -364,15 +361,15 @@ export function computeLighting(
         }
       }
     }
-
-    if (selfOcc) occlusion.set(selfKey, selfOcc);
   }
 
-  // Fully opaque cells: force ambient only (no borrowed neighbour glow).
+  // Solid cells: force ambient only (no borrowed neighbour glow / filter bleed source).
+  // Emitter cells keep their self-lit contribution.
   for (let z = zMin; z <= zMax; z++) {
     const floats = floatsByZ.get(z)!;
     for (const [key, cell] of occlusion) {
       if (cell.opacity < 1) continue;
+      if (emitterCells.has(key)) continue;
       const colon = key.indexOf(":");
       if (Number(key.slice(0, colon)) !== z) continue;
       const { x, y } = parseCoordKey(key.slice(colon + 1));
