@@ -5,6 +5,10 @@
       "0,0": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "player",
+          "direction": "s"
         }
       ],
       "1,0": [
@@ -1402,13 +1406,6 @@
       "0,11": [
         {
           "tileId": "dirt"
-        },
-        {
-          "tileId": "player",
-          "direction": "s"
-        },
-        {
-          "tileId": "cat"
         }
       ],
       "-1,10": [

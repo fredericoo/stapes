@@ -56,11 +56,24 @@ type LevelLightUniforms = {
 const BACKGROUND_COLOR = 0xb8b09e;
 const LIGHT_MAP_CELL_OFFSET = 0.5;
 
-export type EntityVisualKey = {
+/** Map cell + stack slot identifying a placed tile instance. */
+export type TileInstanceKey = {
   x: number;
   y: number;
   z: number;
   stackIndex: number;
+};
+
+/**
+ * Per-frame motion for a placed tile (walk/fall lerp, push, etc.).
+ * Not player-specific — any tile can move. While moving, `sortAt` is combined
+ * with the origin depth via max() so south/east clear the dest floor and
+ * north/west stay above the tile being left.
+ */
+export type TileMotion = TileInstanceKey & {
+  ox: number;
+  oy: number;
+  sortAt?: TileInstanceKey;
 };
 
 export type WorldView = {
@@ -69,16 +82,8 @@ export type WorldView = {
   camera: { x: number; y: number };
   zoom: number;
   timeOfDay: TimeOfDay;
-  /**
-   * World-pixel offset for a tracked entity mesh (walk/fall lerp).
-   * When `sortAt` is set, draw depth is promoted to that cell for the duration
-   * (so the sprite isn’t covered by the destination floor while lerping south/east).
-   */
-  entityOffset?: EntityVisualKey & {
-    ox: number;
-    oy: number;
-    sortAt?: { x: number; y: number; z: number; stackIndex: number };
-  };
+  /** Active lerps; depth uses `sortAt` when set, else the tile’s built depth. */
+  tileMotions?: TileMotion[];
 };
 
 function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
@@ -182,9 +187,12 @@ export class WorldRenderer {
   private animatedByLevel = new Map<number, AnimatedInstance[]>();
   private animated: AnimatedInstance[] = [];
   private animatedByKey = new Map<string, AnimatedInstance[]>();
-  private entityMeshes = new Map<string, THREE.Mesh>();
-  private entityBasePos = new Map<string, { x: number; y: number }>();
-  private entityBaseDepth = new Map<string, number>();
+  /** Separate meshes that can receive {@link TileMotion} offsets (anim or in-motion). */
+  private movableMeshes = new Map<string, THREE.Mesh>();
+  private movableBasePos = new Map<string, { x: number; y: number }>();
+  private movableBaseDepth = new Map<string, number>();
+  /** Instance keys that must stay unmerged this build (active motions). */
+  private motionKeys = new Set<string>();
   private animClock = 0;
   private lastAnimTime = 0;
   private frameIndices = new Map<string, number>();
@@ -259,9 +267,20 @@ export class WorldRenderer {
     this.view = view;
     this.tilesById = view.tilesById;
     this.applyCamera(view.camera.x, view.camera.y, view.zoom);
-    this.applyMap(view.map, false);
+
+    const nextMotionKeys = new Set(
+      (view.tileMotions ?? []).map((m) => this.tileKey(m)),
+    );
+    // Non-animated tiles only get a separate mesh while moving — rebuild when
+    // the motion set changes so they can be peeled out of / merged back into batches.
+    const motionSetChanged =
+      nextMotionKeys.size !== this.motionKeys.size ||
+      [...nextMotionKeys].some((k) => !this.motionKeys.has(k));
+    this.motionKeys = nextMotionKeys;
+
+    this.applyMap(view.map, motionSetChanged);
     this.updateLighting(view);
-    this.applyEntityOffset(view.entityOffset);
+    this.applyTileMotions(view.tileMotions);
     this.needsRender = true;
   }
 
@@ -324,35 +343,31 @@ export class WorldRenderer {
     this.whiteTex.dispose();
   }
 
-  private entityKey(k: EntityVisualKey): string {
+  private tileKey(k: TileInstanceKey): string {
     return `${k.z}:${k.x},${k.y}:${k.stackIndex}`;
   }
 
-  private applyEntityOffset(
-    offset:
-      | (EntityVisualKey & {
-          ox: number;
-          oy: number;
-          sortAt?: { x: number; y: number; z: number; stackIndex: number };
-        })
-      | undefined,
-  ) {
-    for (const [key, mesh] of this.entityMeshes) {
-      const base = this.entityBasePos.get(key);
-      const baseDepth = this.entityBaseDepth.get(key);
+  private applyTileMotions(motions: TileMotion[] | undefined) {
+    const byKey = new Map<string, TileMotion>();
+    for (const m of motions ?? []) byKey.set(this.tileKey(m), m);
+
+    for (const [key, mesh] of this.movableMeshes) {
+      const base = this.movableBasePos.get(key);
+      const baseDepth = this.movableBaseDepth.get(key);
       if (!base || baseDepth == null) continue;
 
-      if (offset && this.entityKey(offset) === key) {
-        mesh.position.x = base.x + offset.ox;
-        mesh.position.y = base.y + offset.oy;
-        // Promote to destination painter depth as soon as a walk starts so
-        // south/east lerps aren’t covered by the dest floor.
-        if (offset.sortAt) {
+      const motion = byKey.get(key);
+      if (motion) {
+        mesh.position.x = base.x + motion.ox;
+        mesh.position.y = base.y + motion.oy;
+        // max(origin, dest): south/east use dest (clear dest floor);
+        // north/west keep origin (don't slip under the tile you're leaving).
+        if (motion.sortAt) {
           const destDepth = this.depthForSort(
-            offset.sortAt.z,
-            offset.sortAt.x,
-            offset.sortAt.y,
-            offset.sortAt.stackIndex,
+            motion.sortAt.z,
+            motion.sortAt.x,
+            motion.sortAt.y,
+            motion.sortAt.stackIndex,
           );
           mesh.position.z = Math.max(baseDepth, destDepth);
         } else {
@@ -371,7 +386,7 @@ export class WorldRenderer {
   }
 
   /**
-   * Depth the entity would get if inserted on top of (x,y,z) at stackIndex
+   * Depth a tile would get with its feet at (x,y,z) stackIndex
    * (absolute elevation, same formula as buildLevel).
    */
   private depthForSort(
@@ -610,9 +625,9 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
     this.animatedByLevel.clear();
     this.animated = [];
     this.animatedByKey.clear();
-    this.entityMeshes.clear();
-    this.entityBasePos.clear();
-    this.entityBaseDepth.clear();
+    this.movableMeshes.clear();
+    this.movableBasePos.clear();
+    this.movableBaseDepth.clear();
 
     for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
       this.buildLevel(map, z);
@@ -663,11 +678,11 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
       this.levelGroups.delete(z);
     }
     this.animatedByLevel.delete(z);
-    for (const key of [...this.entityMeshes.keys()]) {
+    for (const key of [...this.movableMeshes.keys()]) {
       if (key.startsWith(`${z}:`)) {
-        this.entityMeshes.delete(key);
-        this.entityBasePos.delete(key);
-        this.entityBaseDepth.delete(key);
+        this.movableMeshes.delete(key);
+        this.movableBasePos.delete(key);
+        this.movableBaseDepth.delete(key);
       }
     }
   }
@@ -694,7 +709,7 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
 
     type Item = Quad & {
       texture: THREE.Texture;
-      entityKey?: string;
+      tileKey?: string;
       anim?: {
         frames: Frame[];
         tileset: TilesetDef;
@@ -733,8 +748,14 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
         const v0 = 1 - ((rect.y + rect.h) * CELL_SIZE) / tileset.height;
         const texture = this.textures.get(tileset.id) ?? this.magentaTex;
         const isAnimated = (frames?.length ?? 0) > 1;
-        // Always separate mesh for player so walk/fall offsets work.
-        const trackEntity = placed.tileId === "player";
+        const instanceKey = this.tileKey({
+          x: cell.x,
+          y: cell.y,
+          z,
+          stackIndex,
+        });
+        // Separate mesh when animated or currently lerping (so we can offset it).
+        const separate = isAnimated || this.motionKeys.has(instanceKey);
 
         items.push({
           x: origin.x,
@@ -754,14 +775,7 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
           unlit: Boolean(
             def.light && def.light.radius > 0 && def.light.intensity > 0,
           ),
-          entityKey: trackEntity
-            ? this.entityKey({
-                x: cell.x,
-                y: cell.y,
-                z,
-                stackIndex,
-              })
-            : undefined,
+          tileKey: separate ? instanceKey : undefined,
           anim:
             isAnimated && frames
               ? {
@@ -789,7 +803,7 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
     const animated: AnimatedInstance[] = [];
 
     for (const item of items) {
-      if (item.anim || item.entityKey) {
+      if (item.anim || item.tileKey) {
         const mesh = this.addQuadMesh(
           levelGroup,
           item.x,
@@ -809,13 +823,13 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
           item.lightY1,
           item.unlit,
         );
-        if (item.entityKey) {
-          this.entityMeshes.set(item.entityKey, mesh);
-          this.entityBasePos.set(item.entityKey, {
+        if (item.tileKey) {
+          this.movableMeshes.set(item.tileKey, mesh);
+          this.movableBasePos.set(item.tileKey, {
             x: mesh.position.x,
             y: mesh.position.y,
           });
-          this.entityBaseDepth.set(item.entityKey, item.depth);
+          this.movableBaseDepth.set(item.tileKey, item.depth);
         }
         if (item.anim) {
           animated.push({

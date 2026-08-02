@@ -7,13 +7,13 @@ import { sceneryStack } from "../game/movement";
 import { getStack, stackHeight } from "../lib/mapData";
 import type { MapFile, TileDef, TilesetDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
-import { WorldRenderer } from "./WorldRenderer";
+import { type TileMotion, WorldRenderer } from "./WorldRenderer";
 
 const DEFAULT_ZOOM = 4;
 
 /**
  * Client play loop: ticks GameSession, centers camera on the player, and
- * lerps the player sprite during walks / falls.
+ * lerps moving tiles during walks / falls.
  */
 export class GameRenderer {
   private world: WorldRenderer;
@@ -78,17 +78,25 @@ export class GameRenderer {
       y: visual.y - viewH / 2,
     };
 
-    let entityOffset:
-      | {
-          x: number;
-          y: number;
-          z: number;
-          stackIndex: number;
-          ox: number;
-          oy: number;
-        }
-      | undefined;
+    this.world.setView({
+      map: snap.map,
+      tilesById: this.tilesById,
+      camera,
+      zoom,
+      timeOfDay: "day",
+      tileMotions: this.tileMotionsFor(snap, visual),
+    });
+  }
 
+  /**
+   * Motions for tiles currently lerping. Same path for any moving tile —
+   * today only the player walks/falls, but depth uses destination `sortAt`
+   * rather than a player-specific rule.
+   */
+  private tileMotionsFor(
+    snap: GameSnapshot,
+    visual: { x: number; y: number },
+  ): TileMotion[] | undefined {
     if (snap.walk) {
       const from = this.cellWorldCenter(
         snap.walk.from.x,
@@ -104,40 +112,39 @@ export class GameRenderer {
         snap.walk.to.y,
         snap.walk.to.z,
       ).length;
-      entityOffset = {
-        x: snap.walk.from.x,
-        y: snap.walk.from.y,
-        z: snap.walk.from.z,
-        stackIndex: snap.player.stackIndex,
-        ox: visual.x - from.x,
-        oy: visual.y - from.y,
-        sortAt: {
-          x: snap.walk.to.x,
-          y: snap.walk.to.y,
-          z: snap.walk.to.z,
-          stackIndex: destStackLen,
+      return [
+        {
+          x: snap.walk.from.x,
+          y: snap.walk.from.y,
+          z: snap.walk.from.z,
+          stackIndex: snap.player.stackIndex,
+          ox: visual.x - from.x,
+          oy: visual.y - from.y,
+          sortAt: {
+            x: snap.walk.to.x,
+            y: snap.walk.to.y,
+            z: snap.walk.to.z,
+            stackIndex: destStackLen,
+          },
         },
-      };
-    } else if (snap.fall) {
-      const drop = snap.fallProgress * PX_PER_HEIGHT;
-      entityOffset = {
-        x: snap.player.x,
-        y: snap.player.y,
-        z: snap.player.z,
-        stackIndex: snap.player.stackIndex,
-        ox: drop,
-        oy: drop,
-      };
+      ];
     }
 
-    this.world.setView({
-      map: snap.map,
-      tilesById: this.tilesById,
-      camera,
-      zoom,
-      timeOfDay: "day",
-      entityOffset,
-    });
+    if (snap.fall) {
+      const drop = snap.fallProgress * PX_PER_HEIGHT;
+      return [
+        {
+          x: snap.player.x,
+          y: snap.player.y,
+          z: snap.player.z,
+          stackIndex: snap.player.stackIndex,
+          ox: drop,
+          oy: drop,
+        },
+      ];
+    }
+
+    return undefined;
   }
 
   private playerVisualWorld(snap: GameSnapshot): { x: number; y: number } {
@@ -176,7 +183,7 @@ export class GameRenderer {
     return base;
   }
 
-  /** Standing surface center for a cell (scenery only — no player yet). */
+  /** Standing surface center for a cell (scenery only — no mover yet). */
   private surfaceWorldCenter(
     x: number,
     y: number,

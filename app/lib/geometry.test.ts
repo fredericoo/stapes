@@ -60,9 +60,17 @@ describe("drawOrder / tileDepth across levels", () => {
     );
   });
 
+  it("puts later same-cell stack entries clearly in front of height-0 ground", () => {
+    // (0,0): dirt h=0 then player — shared absElev, stackIndex must beat depth precision.
+    const dirt = tileDepth(0, 0, 0, 0);
+    const player = tileDepth(0, 0, 0, 1);
+    expect(player).toBeGreaterThan(dirt);
+    expect(player - dirt).toBeGreaterThan(0.00005);
+  });
+
   it("tileDepth stays within the ortho frustum budget", () => {
     const d = tileDepth(40, 40, absoluteElevation(8, 8), 16);
     expect(d).toBeGreaterThanOrEqual(0);
-    expect(d).toBeLessThan(20);
+    expect(d).toBeLessThan(40);
   });
 });

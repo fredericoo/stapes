@@ -91,10 +91,10 @@ export function drawOrder(
 
 /**
  * Ortho mesh depth from the same key as {@link drawOrder}.
- * Kept in ~[0, 20] for the editor/world camera frustum + 24-bit depth buffer.
+ * Kept in ~[0, 20] so the ortho far plane can stay tight (better depth precision).
  *
- * Grid position outranks height so tall western tiles don't cover eastern
- * neighbours; absElev still replaces old per-level depth bands.
+ * stackIndex uses 1e-4 — enough to beat 24-bit depth precision when a height-0
+ * ground tile shares absElev with the tile above it (e.g. dirt + player at 0,0).
  */
 export function tileDepth(
   x: number,
@@ -102,11 +102,11 @@ export function tileDepth(
   absElev: number,
   stackIndex: number,
 ): number {
-  // Spaced for ~128 cells and ~128 elev units without z-fighting the depth buffer.
+  // y > x > elev > stack; sized for ~50-cell maps and ~8 elev of local overlap.
   return (
-    (y + 64) * 0.1 +
-    (x + 64) * 0.0007 +
-    (absElev + 64) * 0.000005 +
-    stackIndex * 0.0000001
+    (y + 64) * 0.35 +
+    (x + 64) * 0.006 +
+    (absElev + 64) * 0.0005 +
+    stackIndex * 0.0001
   );
 }

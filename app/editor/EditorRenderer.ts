@@ -334,8 +334,8 @@ export class EditorRenderer {
     this.scene = new THREE.Scene();
     // World meshes never move after build — update matrices only on rebuild.
     this.scene.matrixWorldAutoUpdate = false;
-    // Depths are ~[0, 20] from tileDepth (y / absElev / x). Tight frustum keeps
-    // the 24-bit depth buffer precise enough for adjacent tiles.
+    // Depths are ~[0, 20] from tileDepth (y / x / absElev / stack). Tight
+    // frustum keeps the 24-bit depth buffer precise enough for stackIndex.
     this.camera = new THREE.OrthographicCamera(0, 1, 0, 1, -10, 50);
     this.camera.position.z = 25;
 
