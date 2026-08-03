@@ -5,6 +5,7 @@ import {
   DEPTH_STACK_BIAS,
   type DepthBox,
   PX_PER_HEIGHT,
+  RAY_DEPTH_ELEV,
 } from "../lib/geometry";
 import { CELL_SIZE } from "../lib/types";
 
@@ -289,7 +290,7 @@ float faces = min(
 float surfaceElev = clamp(min(faces, vBox.w), vBox.z, vBox.w);
 float rayDepth =
   (vWorldPx.x + vWorldPx.y) / ${glsl(CELL_SIZE)} +
-  4.5 * surfaceElev +
+  ${glsl(RAY_DEPTH_ELEV)} * surfaceElev +
   vStack * ${glsl(DEPTH_STACK_BIAS)};
 gl_FragDepth = clamp(
   (${glsl(DEPTH_MAX)} - rayDepth) / ${glsl(DEPTH_MAX - DEPTH_MIN)},

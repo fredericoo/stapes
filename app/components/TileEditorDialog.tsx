@@ -258,10 +258,8 @@ export function TileEditorDialog({
               onChange={(height) => setDraft({ ...draft, height })}
               options={[
                 { value: 0, label: "0 flat" },
-                { value: 1, label: "1 slab" },
-                { value: 2, label: "2 half" },
-                { value: 3, label: "3 ¾" },
-                { value: 4, label: "4 full" },
+                { value: 1, label: "1 half" },
+                { value: 2, label: "2 full" },
               ]}
               size="sm"
             />

@@ -37,8 +37,7 @@ export type LightGrid = {
 
 export type CellOcclusion = {
   /**
-   * 0 = open, 1 = sealed by full-height blockers.
-   * Sum of blocking tile heights / 4, clamped.
+   * 0 = open, 1 = sealed by any positive-height blocker.
    */
   opacity: number;
   /** Any non-light-passing tile — seals vertical travel between floors. */

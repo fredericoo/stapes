@@ -16,10 +16,11 @@ export type PlaceResult =
  * Can `tileDef` sit on top of the stack at (x,y,z)?
  * Generic fit check (not player-specific) — same rules as editor placement.
  *
- * - e + h <= 4: always allowed
- * - 4 < e + h <= 8: only if (x,y,z+1) is empty and z < MAX_LEVEL
- * - e + h > 8: rejected
- * - Also rejected if stack at (x,y,z-1) totals more than 4
+ * - e + h <= HEIGHT_PER_LEVEL: always allowed
+ * - HEIGHT_PER_LEVEL < e + h <= 2*HEIGHT_PER_LEVEL: only if (x,y,z+1) is empty
+ *   and z < MAX_LEVEL
+ * - e + h > 2*HEIGHT_PER_LEVEL: rejected
+ * - Also rejected if stack at (x,y,z-1) totals more than HEIGHT_PER_LEVEL
  */
 export function fitsTile(
   map: MapFile,
@@ -67,7 +68,10 @@ export function fitsTile(
     return { ok: true };
   }
 
-  return { ok: false, reason: "Stack would exceed 8 height units" };
+  return {
+    ok: false,
+    reason: `Stack would exceed ${HEIGHT_PER_LEVEL * 2} height units`,
+  };
 }
 
 /** Can we append `tileDef` onto the existing stack at (x,y,z)? */
@@ -184,7 +188,10 @@ export function canReplaceStack(
     return { ok: true };
   }
 
-  return { ok: false, reason: "Stack would exceed 8 height units" };
+  return {
+    ok: false,
+    reason: `Stack would exceed ${HEIGHT_PER_LEVEL * 2} height units`,
+  };
 }
 
 export function tilesByIdFromList(tiles: TileDef[]): Record<string, TileDef> {

@@ -99,7 +99,7 @@ async function main() {
     setPixel(png, x + 5, 5 - (i % 2), 180, 220, 255);
   });
 
-  // half stone (5,0) — lower half filled to suggest height 2
+  // half stone (5,0) — lower half filled to suggest height 1
   fillRect(png, 40, 0, 8, 8, 0, 0, 0, 0);
   fillRect(png, 40, 4, 8, 4, 150, 150, 155);
   fillRect(png, 40, 4, 8, 1, 190, 190, 195);
@@ -215,7 +215,7 @@ async function main() {
     {
       id: "half-stone",
       name: "Half Stone",
-      height: 2,
+      height: 1,
       directional: false,
       variants: {
         default: [{ sprite: cell(5, 0), durationMs: 200 }],
@@ -225,7 +225,7 @@ async function main() {
     {
       id: "stone-wall",
       name: "Stone Wall",
-      height: 4,
+      height: 2,
       directional: false,
       variants: {
         default: [{ sprite: cell(6, 0), durationMs: 200 }],
@@ -235,7 +235,7 @@ async function main() {
     {
       id: "tree",
       name: "Tree",
-      height: 4,
+      height: 2,
       directional: false,
       variants: {
         default: [{ sprite: cell(0, 1, 2, 2, 1, 1), durationMs: 200 }],
@@ -245,7 +245,7 @@ async function main() {
     {
       id: "torch",
       name: "Wall Torch",
-      height: 1,
+      height: 0,
       directional: true,
       variants: {
         n: [

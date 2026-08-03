@@ -11706,11 +11706,6 @@
           "tileId": "dirt"
         }
       ],
-      "19,0": [
-        {
-          "tileId": "dirt"
-        }
-      ],
       "20,0": [
         {
           "tileId": "dirt"
@@ -11742,11 +11737,6 @@
         }
       ],
       "18,1": [
-        {
-          "tileId": "dirt"
-        }
-      ],
-      "19,1": [
         {
           "tileId": "dirt"
         }
@@ -16118,11 +16108,23 @@
       "5,2": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
         }
       ],
       "6,2": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
         }
       ],
       "7,2": [
@@ -16183,11 +16185,17 @@
       "5,3": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "water"
         }
       ],
       "5,4": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "water"
         }
       ],
       "5,5": [
@@ -16241,10 +16249,7 @@
           "tileId": "dirt"
         },
         {
-          "tileId": "half-stone"
-        },
-        {
-          "tileId": "half-stone"
+          "tileId": "water"
         }
       ],
       "3,4": [
@@ -16362,6 +16367,12 @@
       "7,1": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
         }
       ],
       "8,1": [
@@ -16387,21 +16398,45 @@
       "11,0": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
         }
       ],
       "12,0": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
         }
       ],
       "13,-1": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
         }
       ],
       "14,-1": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
         }
       ],
       "14,0": [
@@ -16482,6 +16517,12 @@
       "9,4": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
         }
       ],
       "10,3": [
@@ -16497,9 +16538,15 @@
       "16,0": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "dirt"
         }
       ],
       "17,0": [
+        {
+          "tileId": "dirt"
+        },
         {
           "tileId": "dirt"
         }
@@ -16507,9 +16554,7 @@
       "18,1": [
         {
           "tileId": "dirt"
-        }
-      ],
-      "19,1": [
+        },
         {
           "tileId": "dirt"
         }
@@ -16517,9 +16562,15 @@
       "19,2": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "dirt"
         }
       ],
       "18,2": [
+        {
+          "tileId": "dirt"
+        },
         {
           "tileId": "dirt"
         }
@@ -16527,9 +16578,15 @@
       "17,1": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "dirt"
         }
       ],
       "16,1": [
+        {
+          "tileId": "dirt"
+        },
         {
           "tileId": "dirt"
         }
@@ -16537,9 +16594,15 @@
       "16,2": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "dirt"
         }
       ],
       "16,3": [
+        {
+          "tileId": "dirt"
+        },
         {
           "tileId": "dirt"
         }
@@ -16547,9 +16610,15 @@
       "17,3": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "dirt"
         }
       ],
       "17,2": [
+        {
+          "tileId": "dirt"
+        },
         {
           "tileId": "dirt"
         }
@@ -16557,9 +16626,15 @@
       "17,4": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "dirt"
         }
       ],
       "18,4": [
+        {
+          "tileId": "dirt"
+        },
         {
           "tileId": "dirt"
         }
@@ -16567,9 +16642,15 @@
       "18,3": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "dirt"
         }
       ],
       "16,4": [
+        {
+          "tileId": "dirt"
+        },
         {
           "tileId": "dirt"
         }
@@ -16577,6 +16658,12 @@
       "16,5": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
         }
       ],
       "17,6": [
@@ -16592,14 +16679,29 @@
       "19,6": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
         }
       ],
       "20,5": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
         }
       ],
       "20,4": [
+        {
+          "tileId": "dirt"
+        },
         {
           "tileId": "dirt"
         }
@@ -16627,9 +16729,15 @@
       "21,4": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "dirt"
         }
       ],
       "21,3": [
+        {
+          "tileId": "dirt"
+        },
         {
           "tileId": "dirt"
         }
@@ -16637,9 +16745,15 @@
       "20,2": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "dirt"
         }
       ],
       "20,1": [
+        {
+          "tileId": "dirt"
+        },
         {
           "tileId": "dirt"
         }
@@ -16652,9 +16766,15 @@
       "21,2": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "dirt"
         }
       ],
       "21,1": [
+        {
+          "tileId": "dirt"
+        },
         {
           "tileId": "dirt"
         }
@@ -16662,24 +16782,48 @@
       "20,0": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "dirt"
         }
       ],
       "20,-1": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
         }
       ],
       "19,-1": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
         }
       ],
       "18,-1": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
         }
       ],
       "20,3": [
+        {
+          "tileId": "dirt"
+        },
         {
           "tileId": "dirt"
         }
@@ -16687,14 +16831,26 @@
       "21,0": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "dirt"
         }
       ],
       "19,0": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "ramp"
         }
       ],
       "18,0": [
+        {
+          "tileId": "dirt"
+        },
         {
           "tileId": "dirt"
         }
@@ -16724,6 +16880,9 @@
       "2,2": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "water"
         }
       ],
       "1,2": [
@@ -16790,6 +16949,588 @@
         },
         {
           "tileId": "half-stone"
+        }
+      ],
+      "19,1": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "dirt"
+        }
+      ],
+      "21,-1": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "22,-1": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "22,0": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "22,1": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "22,2": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "22,3": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "22,4": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "17,-1": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "16,-1": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "6,1": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "7,0": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "8,0": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "9,0": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "10,0": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "12,-1": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "15,-1": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "22,5": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "21,5": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "20,6": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "19,7": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "18,7": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "17,7": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "16,7": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "16,6": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "15,5": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "15,4": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "15,3": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "14,3": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "13,3": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "12,3": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "12,4": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "11,4": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "10,4": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "9,5": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "9,6": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "9,7": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "9,8": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "9,9": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "8,9": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "7,9": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "6,9": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "5,9": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "4,9": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "3,9": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "2,9": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "1,9": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "1,8": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "1,7": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "1,6": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "1,5": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "half-stone"
+        },
+        {
+          "tileId": "half-stone"
+        }
+      ],
+      "3,3": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "water"
+        }
+      ],
+      "3,2": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "water"
+        }
+      ],
+      "2,3": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "water"
         }
       ]
     }

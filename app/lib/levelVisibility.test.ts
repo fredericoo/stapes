@@ -39,7 +39,7 @@ function mapAt(
 }
 
 const floor = tile({ id: "floor", height: 0 });
-const wall = tile({ id: "wall", height: 4 });
+const wall = tile({ id: "wall", height: 2 });
 const roof = tile({ id: "roof", height: 0 });
 
 const tilesById: Record<string, TileDef> = { floor, wall, roof };
@@ -66,12 +66,12 @@ describe("viewAnchorFromSnapshot", () => {
   });
 
   it("uses landing level while falling", () => {
-    // landingAbs 4 → level 1 (HEIGHT_PER_LEVEL = 4)
+    // landingAbs 2 → level 1 (HEIGHT_PER_LEVEL = 2)
     expect(
       viewAnchorFromSnapshot({
         player: { x: 3, y: 4, z: 2 },
         walk: null,
-        fall: { landingAbs: 4 },
+        fall: { landingAbs: 2 },
       }),
     ).toEqual({ x: 3, y: 4, z: 1 });
   });

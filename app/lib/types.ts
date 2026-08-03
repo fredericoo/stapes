@@ -22,7 +22,8 @@ export type Frame = {
   durationMs: number;
 };
 
-export type TileHeight = 0 | 1 | 2 | 3 | 4;
+/** 0 = flat, 1 = half level, 2 = full level. */
+export type TileHeight = 0 | 1 | 2;
 
 export type VariantKey = "default" | Direction;
 
@@ -63,7 +64,7 @@ export type TileDef = {
 };
 
 /** Height units per map level (full stack before overflow). */
-export const HEIGHT_PER_LEVEL = 4;
+export const HEIGHT_PER_LEVEL = 2;
 
 /** Whether light passes through this tile. Default: blocks (false). */
 export function resolveLightPassing(def: TileDef): boolean {

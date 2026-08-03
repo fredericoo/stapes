@@ -41,8 +41,8 @@ function mapAt(
 }
 
 const floor = tile({ id: "floor", height: 0 });
-const wall = tile({ id: "wall", height: 4 });
-const half = tile({ id: "half", height: 2 });
+const wall = tile({ id: "wall", height: 2 });
+const half = tile({ id: "half", height: 1 });
 const water = tile({ id: "water", height: 0, lightPassing: true });
 const torch = tile({
   id: "torch",
@@ -227,7 +227,7 @@ describe("computeLighting", () => {
   it("does not let an emitter occlude its own light", () => {
     const tallLamp = tile({
       id: "tall-lamp",
-      height: 3,
+      height: 2,
       light: { radius: 4, intensity: 1, color: "#ffffff" },
     });
     const map = mapAt([{ x: 0, y: 0, tiles: ["tall-lamp"] }]);
@@ -288,7 +288,7 @@ describe("computeLighting", () => {
   it("does not let an opaque emitter block its own light behind it mid-lerp", () => {
     const tallLamp = tile({
       id: "tall-lamp",
-      height: 4,
+      height: 2,
       light: { radius: 4, intensity: 1, color: "#ffffff" },
     });
     const map = mapAt([

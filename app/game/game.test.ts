@@ -34,13 +34,13 @@ function tile(
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
   tile({ id: "dirt", height: 0 }),
-  tile({ id: "slab", height: 2 }),
-  tile({ id: "plaster", height: 2 }),
-  tile({ id: "wall", height: 4 }),
+  tile({ id: "slab", height: 1 }),
+  tile({ id: "plaster", height: 1 }),
+  tile({ id: "wall", height: 2 }),
   tile({ id: "roof", height: 0 }),
   tile({
     id: "player",
-    height: 4,
+    height: 2,
     directional: true,
     affectedByGravity: true,
     variants: {
@@ -86,7 +86,7 @@ const tiles: TileDef[] = [
       ],
     },
   }),
-  tile({ id: "dwarf", height: 2, affectedByGravity: true }),
+  tile({ id: "dwarf", height: 1, affectedByGravity: true }),
 ];
 
 const tilesById = tilesByIdFromList(tiles);
@@ -130,15 +130,15 @@ describe("fitsTile", () => {
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "slab" }]);
     map = replaceStack(map, 0, 0, 1, [{ tileId: "roof" }]);
     const dwarf = tilesById.dwarf!;
-    // slab(2)+dwarf(2)=4 → ok under roof
+    // slab(1)+dwarf(1)=2 → ok under roof
     expect(fitsTile(map, 0, 0, 0, dwarf, tilesById).ok).toBe(true);
-    // player(4)+slab(2)=6 → needs empty above, roof blocks
+    // player(2)+slab(1)=3 → needs empty above, roof blocks
     expect(fitsTile(map, 0, 0, 0, tilesById.player!, tilesById).ok).toBe(false);
   });
 });
 
 describe("canWalk climb", () => {
-  it("allows climb of 2", () => {
+  it("allows climb of 1", () => {
     let map = mapWithPlayer({ x: 0, y: 0 });
     map = replaceStack(map, 1, 0, 0, [{ tileId: "slab" }]);
     const loc = requireSinglePlayer(map);
@@ -152,7 +152,7 @@ describe("canWalk climb", () => {
     expect(check.ok).toBe(true);
   });
 
-  it("rejects climb above 2", () => {
+  it("rejects climb above 1", () => {
     let map = mapWithPlayer({ x: 0, y: 0 });
     map = replaceStack(map, 1, 0, 0, [{ tileId: "wall" }]);
     const loc = requireSinglePlayer(map);
@@ -182,7 +182,7 @@ describe("canWalk climb", () => {
   });
 
   it("steps down a level within climb height without targeting void", () => {
-    // Player on z=1 floor (abs 4); dest column has slab top at abs 2 on z=0.
+    // Player on z=1 floor (abs 2); dest column has slab top at abs 1 on z=0.
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "wall" }]);
     map = replaceStack(map, 0, 0, 1, [{ tileId: "player", direction: "s" }]);
     map = replaceStack(map, 1, 0, 0, [{ tileId: "slab" }]);
@@ -202,8 +202,8 @@ describe("canWalk climb", () => {
     }
   });
 
-  it("climbs a plaster ladder onto overflowing stacks (height 4 → 6)", () => {
-    // Mimics -4,9 → -3,9 → -2,9: tops at abs 2, 4, 6.
+  it("climbs a plaster ladder onto overflowing stacks (height 2 → 3)", () => {
+    // Tops at abs 1, 2, 3 with half-height plaster.
     let map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "grass" },
       { tileId: "plaster" },
@@ -218,7 +218,7 @@ describe("canWalk climb", () => {
     ]);
     const loc = requireSinglePlayer(map);
     expect(standingAbs(map, loc.x, loc.y, loc.z, loc.stackIndex, tilesById)).toBe(
-      4,
+      2,
     );
 
     const check = canWalk(
@@ -251,7 +251,7 @@ describe("canWalk climb", () => {
         snap.player.stackIndex,
         tilesById,
       ),
-    ).toBe(6);
+    ).toBe(3);
   });
 });
 
@@ -300,7 +300,7 @@ describe("gravity support", () => {
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }]);
     map = replaceStack(map, 0, 0, 1, [{ tileId: "player", direction: "s" }]);
     const loc = requireSinglePlayer(map);
-    const landing = findLandingAbs(map, 0, 0, 4, tilesById, {
+    const landing = findLandingAbs(map, 0, 0, 2, tilesById, {
       z: loc.z,
       stackIndex: loc.stackIndex,
     });
@@ -348,7 +348,7 @@ describe("GameSession fall", () => {
     expect(snap.fall).not.toBeNull();
 
     let elapsed = 1000 / 30;
-    const budget = FALL_MS_PER_HEIGHT * 8;
+    const budget = FALL_MS_PER_HEIGHT * 4;
     while (elapsed < budget) {
       session.tick(1000 / 30);
       elapsed += 1000 / 30;

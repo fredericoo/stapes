@@ -1,7 +1,14 @@
 import { CELL_SIZE, HEIGHT_PER_LEVEL } from "./types";
 
-/** 1 height unit = 2px up-left on screen. */
-export const PX_PER_HEIGHT = 2;
+/** 1 height unit = 4px up-left on screen (full level = 8px = one cell). */
+export const PX_PER_HEIGHT = CELL_SIZE / HEIGHT_PER_LEVEL;
+
+/**
+ * Elev weight in ray-depth. Geometric constant is HEIGHT_PER_LEVEL
+ * (one cell step matches that many height units); +0.5 biases toward
+ * higher surfaces when separating coplanar-ish fragments.
+ */
+export const RAY_DEPTH_ELEV = HEIGHT_PER_LEVEL + 0.5;
 
 /**
  * Absolute foot elevation for a tile: level floor + in-stack elevation.
@@ -12,12 +19,12 @@ export function absoluteElevation(z: number, elevation: number): number {
   return z * HEIGHT_PER_LEVEL + elevation;
 }
 
-/** Full level (4 height units) = 8px = one cell. */
+/** Full level (2 height units) = 8px = one cell. */
 export function levelScreenOffset(z: number): { x: number; y: number } {
   return { x: -CELL_SIZE * z, y: -CELL_SIZE * z };
 }
 
-/** Elevation within a stack: e height units → 2e px up-left. */
+/** Elevation within a stack: e height units → 4e px up-left. */
 export function elevationScreenOffset(e: number): { x: number; y: number } {
   return { x: -PX_PER_HEIGHT * e, y: -PX_PER_HEIGHT * e };
 }
@@ -99,8 +106,8 @@ export function drawOrder(
  *
  * Edges are stored as world pixels of the *unshifted* cell grid — raw
  * `(cell + 1) * CELL_SIZE`, NOT what {@link baseCellWorldOrigin} returns. The
- * origin bakes in the -2*elevation screen shift; these planes must not, since
- * the shader recovers elevation *from* that shift.
+ * origin bakes in the -PX_PER_HEIGHT*elevation screen shift; these planes must
+ * not, since the shader recovers elevation *from* that shift.
  */
 export type DepthBox = {
   eastPx: number;
@@ -127,13 +134,14 @@ export function depthBox(
 /**
  * Ray depth of a world point, larger = nearer the camera.
  *
- * The oblique projection puts (x+1, y+1, elev+4) on the same screen pixel as
- * (x, y, elev), so `x + y + 4*elev` is constant along a view ray. Substituting
- * the projection (screenPx = CELL_SIZE*cell - PX_PER_HEIGHT*elev) gives this in
- * terms of the pixel a fragment lands on plus the elevation it depicts.
+ * The oblique projection puts (x+1, y+1, elev+HEIGHT_PER_LEVEL) on the same
+ * screen pixel as (x, y, elev), so `x + y + HEIGHT_PER_LEVEL*elev` is constant
+ * along a view ray. Substituting the projection
+ * (screenPx = CELL_SIZE*cell - PX_PER_HEIGHT*elev) gives this in terms of the
+ * pixel a fragment lands on plus the elevation it depicts.
  */
 export function rayDepth(screenX: number, screenY: number, elev: number): number {
-  return (screenX + screenY) / CELL_SIZE + 4.5 * elev;
+  return (screenX + screenY) / CELL_SIZE + RAY_DEPTH_ELEV * elev;
 }
 
 /**
@@ -163,7 +171,8 @@ export function boxSurfaceElevation(
  */
 const DEPTH_COORD_LIMIT = 256;
 const DEPTH_ELEV_LIMIT = 48;
-export const DEPTH_MAX = 2 * DEPTH_COORD_LIMIT + 4 * DEPTH_ELEV_LIMIT;
+export const DEPTH_MAX =
+  2 * DEPTH_COORD_LIMIT + HEIGHT_PER_LEVEL * DEPTH_ELEV_LIMIT;
 export const DEPTH_MIN = -DEPTH_MAX;
 
 /**
