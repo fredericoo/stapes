@@ -78,6 +78,11 @@ export type TileMotion = TileInstanceKey & {
   ox: number;
   oy: number;
   box: MotionBox;
+  /**
+   * Also draw under this level while moving. Used when descending so the
+   * mover stays visible after roof-cut hides the origin level group.
+   */
+  alsoDrawAtZ?: number;
 };
 
 export type WorldView = {
@@ -148,8 +153,15 @@ export class WorldRenderer {
     string,
     { box: DepthBox; stackBias: number }
   >();
+  /**
+   * Extra draw of a descending mover under {@link TileMotion.alsoDrawAtZ}.
+   * Geometry is cloned (not shared) so level dispose cannot free the source.
+   */
+  private motionGhosts = new Map<string, THREE.Mesh>();
   /** Instance keys that must stay unmerged this build (active motions). */
   private motionKeys = new Set<string>();
+  /** Last roof-cut ceiling — empty level groups created mid-frame need it. */
+  private hideLevelsAbove: number | undefined;
   private animClock = 0;
   private lastAnimTime = 0;
   private frameIndices = new Map<string, number>();
@@ -251,6 +263,7 @@ export class WorldRenderer {
 
   /** Toggle whole level groups; no mesh rebuild. */
   private applyLevelVisibility(hideLevelsAbove?: number) {
+    this.hideLevelsAbove = hideLevelsAbove;
     for (const [z, group] of this.levelGroups) {
       group.visible =
         hideLevelsAbove === undefined || z <= hideLevelsAbove;
@@ -325,6 +338,8 @@ export class WorldRenderer {
     const byKey = new Map<string, TileMotion>();
     for (const m of motions ?? []) byKey.set(this.tileKey(m), m);
 
+    const activeGhosts = new Set<string>();
+
     for (const [key, mesh] of this.movableMeshes) {
       const base = this.movableBasePos.get(key);
       const baseBox = this.movableBaseBox.get(key);
@@ -346,6 +361,90 @@ export class WorldRenderer {
       // mesh never moves on screen despite position changing.
       mesh.updateMatrix();
       mesh.updateMatrixWorld(true);
+
+      // Descending movers: also draw under the destination level so roof-cut can
+      // hide the origin group without the sprite vanishing mid-lerp. Hide the
+      // origin mesh while the dest copy is up so we never double-draw.
+      if (motion?.alsoDrawAtZ != null) {
+        activeGhosts.add(key);
+        const ghost = this.ensureMotionGhost(key, mesh, motion.alsoDrawAtZ);
+        this.syncMotionGhost(ghost, mesh);
+        ghost.visible = true;
+        mesh.visible = false;
+      } else {
+        mesh.visible = true;
+      }
+    }
+
+    for (const key of [...this.motionGhosts.keys()]) {
+      if (!activeGhosts.has(key)) this.disposeMotionGhost(key);
+    }
+  }
+
+  /** Level group for z, creating an empty one when the dest floor has no tiles yet. */
+  private ensureLevelGroup(z: number): THREE.Group {
+    let group = this.levelGroups.get(z);
+    if (group) return group;
+    group = new THREE.Group();
+    group.name = `level:${z}`;
+    group.matrixAutoUpdate = false;
+    group.updateMatrix();
+    group.visible =
+      this.hideLevelsAbove === undefined || z <= this.hideLevelsAbove;
+    this.world.add(group);
+    this.levelGroups.set(z, group);
+    return group;
+  }
+
+  private ensureMotionGhost(
+    key: string,
+    source: THREE.Mesh,
+    z: number,
+  ): THREE.Mesh {
+    const existing = this.motionGhosts.get(key);
+    if (existing && existing.userData.drawOnZ === z) return existing;
+    this.disposeMotionGhost(key);
+
+    const mat = source.material as THREE.MeshBasicMaterial;
+    const texture = mat.map ?? this.magentaTex;
+    const ghost = new THREE.Mesh(
+      source.geometry.clone(),
+      this.materialFor(texture, z),
+    );
+    ghost.frustumCulled = false;
+    ghost.matrixAutoUpdate = false;
+    ghost.userData.drawOnZ = z;
+    this.ensureLevelGroup(z).add(ghost);
+    this.motionGhosts.set(key, ghost);
+    return ghost;
+  }
+
+  private syncMotionGhost(ghost: THREE.Mesh, source: THREE.Mesh) {
+    ghost.position.copy(source.position);
+    const srcAttrs = source.geometry.attributes;
+    const dstAttrs = ghost.geometry.attributes;
+    for (const name of Object.keys(srcAttrs)) {
+      const src = srcAttrs[name];
+      const dst = dstAttrs[name];
+      if (!src?.array || !dst?.array) continue;
+      (dst.array as Float32Array).set(src.array as Float32Array);
+      dst.needsUpdate = true;
+    }
+    ghost.updateMatrix();
+    ghost.updateMatrixWorld(true);
+  }
+
+  private disposeMotionGhost(key: string) {
+    const ghost = this.motionGhosts.get(key);
+    if (!ghost) return;
+    ghost.parent?.remove(ghost);
+    ghost.geometry.dispose();
+    this.motionGhosts.delete(key);
+  }
+
+  private clearMotionGhosts() {
+    for (const key of [...this.motionGhosts.keys()]) {
+      this.disposeMotionGhost(key);
     }
   }
 
@@ -534,6 +633,7 @@ export class WorldRenderer {
   }
 
   private rebuildAll(map: MapFile) {
+    this.clearMotionGhosts();
     while (this.world.children.length) {
       const g = this.world.children.pop()!;
       disposeObject3D(g);
@@ -588,6 +688,9 @@ export class WorldRenderer {
   }
 
   private removeLevel(z: number) {
+    for (const [key, ghost] of this.motionGhosts) {
+      if (ghost.userData.drawOnZ === z) this.disposeMotionGhost(key);
+    }
     const group = this.levelGroups.get(z);
     if (group) {
       group.parent?.remove(group);
@@ -600,6 +703,7 @@ export class WorldRenderer {
         this.movableMeshes.delete(key);
         this.movableBasePos.delete(key);
         this.movableBaseBox.delete(key);
+        this.disposeMotionGhost(key);
       }
     }
   }

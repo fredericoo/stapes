@@ -183,6 +183,9 @@ export class GameRenderer {
           stackIndex,
           ox: visual.x - fromCenter.x,
           oy: visual.y - fromCenter.y,
+          // Descending: also draw under the destination level so roof-cut can
+          // hide the origin group without the sprite vanishing mid-lerp.
+          alsoDrawAtZ: to.z < from.z ? to.z : undefined,
           box: {
             x: from.x + (to.x - from.x) * t,
             y: from.y + (to.y - from.y) * t,
@@ -203,6 +206,7 @@ export class GameRenderer {
       const drop = snap.fallProgress * PX_PER_HEIGHT;
       const { player } = snap;
       const foot = snap.fall.feetAbs - snap.fallProgress;
+      const landingZ = viewAnchorFromSnapshot(snap).z;
       return [
         {
           x: player.x,
@@ -211,6 +215,7 @@ export class GameRenderer {
           stackIndex: player.stackIndex,
           ox: drop,
           oy: drop,
+          alsoDrawAtZ: landingZ < player.z ? landingZ : undefined,
           box: {
             x: player.x,
             y: player.y,
