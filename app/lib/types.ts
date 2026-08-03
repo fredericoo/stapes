@@ -67,10 +67,11 @@ export type TileDef = {
    */
   walkable?: boolean;
   /**
-   * Local dirs you may climb UP from this tile toward.
-   * Omit / all true = unrestricted. Rotated by placement direction.
+   * World-side dirs you may climb UP toward, keyed by variant.
+   * Non-directional tiles use `"default"`; directional use `n`/`e`/`s`/`w`
+   * for each placement facing. Missing dirs default to true. Not per-frame.
    */
-  climbFrom?: Partial<Record<Direction, boolean>>;
+  climbFrom?: Partial<Record<VariantKey, Partial<Record<Direction, boolean>>>>;
 };
 
 /** Whether this tile’s top is a stand/land surface. Default: true. */
@@ -78,56 +79,51 @@ export function resolveWalkable(def: TileDef): boolean {
   return def.walkable !== false;
 }
 
-/** Local climb-from flags; missing dirs default to true. */
+const OPEN_CLIMB: Record<Direction, boolean> = {
+  n: true,
+  e: true,
+  s: true,
+  w: true,
+};
+
+/** World climb-from flags for a variant; missing dirs default to true. */
 export function resolveClimbFrom(
   def: TileDef,
+  variant: VariantKey = "default",
 ): Record<Direction, boolean> {
+  const key: VariantKey = def.directional
+    ? variant === "default"
+      ? "s"
+      : variant
+    : "default";
+  const flags = def.climbFrom?.[key] ?? def.climbFrom?.default;
   return {
-    n: def.climbFrom?.n !== false,
-    e: def.climbFrom?.e !== false,
-    s: def.climbFrom?.s !== false,
-    w: def.climbFrom?.w !== false,
+    n: flags?.n !== false,
+    e: flags?.e !== false,
+    s: flags?.s !== false,
+    w: flags?.w !== false,
   };
 }
 
-/**
- * Rotate a local direction into world space given placement facing.
- * Local `s` is canonical (same basis as directional sprites).
- */
-export function rotateDir(local: Direction, facing: Direction): Direction {
-  const from = DIRECTIONS.indexOf(local);
-  const by = DIRECTIONS.indexOf(facing);
-  // facing `s` (index 2) is identity; rotate local by (facing - s).
-  return DIRECTIONS[(from + by - 2 + 4) % 4]!;
-}
-
-/**
- * World-space climb-from flags for a placed tile (local arrows rotated by facing).
- */
-export function worldClimbFrom(
-  def: TileDef,
-  placedDir: Direction = "s",
-): Record<Direction, boolean> {
-  const local = resolveClimbFrom(def);
-  const out: Record<Direction, boolean> = { n: true, e: true, s: true, w: true };
-  for (const d of DIRECTIONS) {
-    out[rotateDir(d, placedDir)] = local[d];
-  }
-  return out;
-}
-
-/** Persist climbFrom only when at least one side is closed. */
+/** Persist climb-from; omit all-open variants and the field when unrestricted. */
 export function climbFromForSave(
-  flags: Record<Direction, boolean>,
-): Partial<Record<Direction, boolean>> | undefined {
-  if (flags.n && flags.e && flags.s && flags.w) return undefined;
-  const out: Partial<Record<Direction, boolean>> = {};
-  for (const d of DIRECTIONS) {
-    if (!flags[d]) out[d] = false;
+  def: TileDef,
+  byVariant: Partial<Record<VariantKey, Record<Direction, boolean>>>,
+): TileDef["climbFrom"] {
+  const keys: VariantKey[] = def.directional ? DIRECTIONS : ["default"];
+  const out: NonNullable<TileDef["climbFrom"]> = {};
+  let any = false;
+  for (const key of keys) {
+    const flags = byVariant[key] ?? OPEN_CLIMB;
+    if (flags.n && flags.e && flags.s && flags.w) continue;
+    const partial: Partial<Record<Direction, boolean>> = {};
+    for (const d of DIRECTIONS) {
+      if (!flags[d]) partial[d] = false;
+    }
+    out[key] = partial;
+    any = true;
   }
-  // Also store true sides so the object is explicit when mixed? Plan: omit-when-default.
-  // Only falses need storing since resolve defaults missing to true.
-  return out;
+  return any ? out : undefined;
 }
 
 /** Height units per map level (full stack before overflow). */

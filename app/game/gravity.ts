@@ -3,6 +3,7 @@ import {
   absoluteWalkableElevation,
   getStack,
   stackHeight,
+  walkableFloorAbove,
 } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL, MAX_LEVEL, MIN_LEVEL } from "../lib/types";
@@ -110,11 +111,9 @@ export function findWalkableLandingAbs(
       if (exclude && exclude.z === z - 1) {
         below = sceneryStack(map, x, y, z - 1, exclude.stackIndex);
       }
-      if (stackHeight(below, tilesById) >= HEIGHT_PER_LEVEL) {
-        const floorAbs = z * HEIGHT_PER_LEVEL;
-        if (floorAbs < feetAbs) {
-          best = best == null ? floorAbs : Math.max(best, floorAbs);
-        }
+      const floorAbs = walkableFloorAbove(z - 1, below, tilesById);
+      if (floorAbs != null && floorAbs < feetAbs) {
+        best = best == null ? floorAbs : Math.max(best, floorAbs);
       }
     }
   }

@@ -93,6 +93,23 @@ export function absoluteWalkableElevation(
 }
 
 /**
+ * When `below` at `zBelow` is an exactly-full level whose walkable top seals
+ * the level, returns the floor abs at the base of `zBelow + 1`.
+ * Non-walkable fillers (e.g. a lone tree) do not form a floor.
+ */
+export function walkableFloorAbove(
+  zBelow: number,
+  below: PlacedTile[],
+  tilesById: Record<string, TileDef>,
+): number | null {
+  if (stackHeight(below, tilesById) !== HEIGHT_PER_LEVEL) return null;
+  const walkAbs = absoluteWalkableElevation(zBelow, below, tilesById);
+  const floorAbs = (zBelow + 1) * HEIGHT_PER_LEVEL;
+  if (walkAbs !== floorAbs) return null;
+  return floorAbs;
+}
+
+/**
  * The walkable placed tile whose top is at `elevInLevel` within `stack`,
  * or null if none (e.g. floor-only surface).
  */
@@ -131,14 +148,14 @@ export function isWalkableSurfaceAt(
     const def = tilesById[topPlaced.tileId];
     return def ? resolveWalkable(def) : true;
   }
-  // Floor formed by a full level below is always walkable.
+  // Floor formed by a full walkable level below.
   const zFloor = Math.floor(abs / HEIGHT_PER_LEVEL);
   if (abs === zFloor * HEIGHT_PER_LEVEL && zFloor > MIN_LEVEL) {
     let below = getStack(map, x, y, zFloor - 1);
     if (exclude && exclude.z === zFloor - 1) {
       below = below.filter((_, i) => i !== exclude.stackIndex);
     }
-    if (stackHeight(below, tilesById) >= HEIGHT_PER_LEVEL) return true;
+    if (walkableFloorAbove(zFloor - 1, below, tilesById) === abs) return true;
   }
   return false;
 }

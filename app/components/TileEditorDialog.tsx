@@ -47,8 +47,17 @@ function blankTile(tilesets: TilesetDef[]): TileDef {
     attributes: {},
     lightPassing: false,
     walkable: true,
-    climbFrom: undefined,
+    climbFrom: { default: { n: true, e: true, s: true, w: true } },
   };
+}
+
+function expandClimbFrom(tile: TileDef): NonNullable<TileDef["climbFrom"]> {
+  const keys: VariantKey[] = tile.directional ? [...DIRECTIONS] : ["default"];
+  const out: NonNullable<TileDef["climbFrom"]> = {};
+  for (const key of keys) {
+    out[key] = resolveClimbFrom(tile, key);
+  }
+  return out;
 }
 
 /** Normalise optional lighting / traversal fields for the editor draft. */
@@ -58,7 +67,7 @@ function withLightingDefaults(tile: TileDef): TileDef {
     ...rest,
     lightPassing: resolveLightPassing(tile),
     walkable: resolveWalkable(tile),
-    climbFrom: resolveClimbFrom(tile),
+    climbFrom: expandClimbFrom(tile),
   };
 }
 
@@ -131,10 +140,13 @@ export function TileEditorDialog({
     if (on) {
       const base = draft.variants.default ?? draft.variants.n ?? [emptyFrame(tilesets[0]?.id ?? "")];
       const variants: TileDef["variants"] = {};
+      const climbBase = resolveClimbFrom(draft, "default");
+      const climbFrom: NonNullable<TileDef["climbFrom"]> = {};
       for (const d of DIRECTIONS) {
         variants[d] = structuredClone(base);
+        climbFrom[d] = { ...climbBase };
       }
-      setDraft({ ...draft, directional: true, variants });
+      setDraft({ ...draft, directional: true, variants, climbFrom });
       setDir("n");
       setFrameIndex(0);
     } else {
@@ -144,10 +156,30 @@ export function TileEditorDialog({
         ...draft,
         directional: false,
         variants: { default: structuredClone(keep) },
+        climbFrom: {
+          default: resolveClimbFrom(draft, "n"),
+        },
       });
       setDir("default");
       setFrameIndex(0);
     }
+  };
+
+  const climbVariant: VariantKey = draft.directional
+    ? dir === "default"
+      ? "n"
+      : dir
+    : "default";
+  const climbFlags = resolveClimbFrom(draft, climbVariant);
+
+  const setClimbSide = (side: Direction, value: boolean) => {
+    setDraft({
+      ...draft,
+      climbFrom: {
+        ...draft.climbFrom,
+        [climbVariant]: { ...climbFlags, [side]: value },
+      },
+    });
   };
 
   const handleSave = () => {
@@ -194,12 +226,19 @@ export function TileEditorDialog({
         return;
       }
     }
+    const climbByVariant: Partial<
+      Record<VariantKey, Record<Direction, boolean>>
+    > = {};
+    const keys: VariantKey[] = draft.directional ? [...DIRECTIONS] : ["default"];
+    for (const key of keys) {
+      climbByVariant[key] = resolveClimbFrom(draft, key);
+    }
     onSave({
       ...draft,
       lightPassing: draft.lightPassing ? true : undefined,
       affectedByGravity: draft.affectedByGravity ? true : undefined,
       walkable: draft.walkable === false ? false : undefined,
-      climbFrom: climbFromForSave(resolveClimbFrom(draft)),
+      climbFrom: climbFromForSave(draft, climbByVariant),
       blocksLight: undefined,
       light: light
         ? {
@@ -318,71 +357,6 @@ export function TileEditorDialog({
         </div>
 
         <div className="flex flex-col gap-2 border-2 border-border p-2">
-          <span className="text-xs font-bold uppercase text-muted">
-            Climb up from (local)
-          </span>
-          <div className="flex items-center gap-3">
-            <div
-              className="grid w-fit grid-cols-3 gap-1"
-              role="group"
-              aria-label="Climb-from directions"
-            >
-              <span />
-              <ClimbFromToggle
-                label="N"
-                checked={resolveClimbFrom(draft).n}
-                onChange={(n) =>
-                  setDraft({
-                    ...draft,
-                    climbFrom: { ...resolveClimbFrom(draft), n },
-                  })
-                }
-              />
-              <span />
-              <ClimbFromToggle
-                label="W"
-                checked={resolveClimbFrom(draft).w}
-                onChange={(w) =>
-                  setDraft({
-                    ...draft,
-                    climbFrom: { ...resolveClimbFrom(draft), w },
-                  })
-                }
-              />
-              <span className="flex h-8 w-8 items-center justify-center text-[10px] text-muted">
-                ·
-              </span>
-              <ClimbFromToggle
-                label="E"
-                checked={resolveClimbFrom(draft).e}
-                onChange={(e) =>
-                  setDraft({
-                    ...draft,
-                    climbFrom: { ...resolveClimbFrom(draft), e },
-                  })
-                }
-              />
-              <span />
-              <ClimbFromToggle
-                label="S"
-                checked={resolveClimbFrom(draft).s}
-                onChange={(s) =>
-                  setDraft({
-                    ...draft,
-                    climbFrom: { ...resolveClimbFrom(draft), s },
-                  })
-                }
-              />
-              <span />
-            </div>
-            <p className="max-w-xs text-xs text-muted">
-              When standing on this tile, which local sides allow climbing to a
-              higher neighbour. Rotates with placement facing.
-            </p>
-          </div>
-        </div>
-
-        <div className="flex flex-col gap-2 border-2 border-border p-2">
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
@@ -472,6 +446,44 @@ export function TileEditorDialog({
           }}
           items={dirTabs}
         >
+          <div className="flex items-center gap-3 pt-3">
+            <span className="text-xs font-bold uppercase text-muted">
+              Climb up from
+            </span>
+            <div
+              className="grid w-fit grid-cols-3 gap-1"
+              role="group"
+              aria-label="Climb-from directions"
+            >
+              <span />
+              <ClimbFromToggle
+                label="N"
+                checked={climbFlags.n}
+                onChange={(n) => setClimbSide("n", n)}
+              />
+              <span />
+              <ClimbFromToggle
+                label="W"
+                checked={climbFlags.w}
+                onChange={(w) => setClimbSide("w", w)}
+              />
+              <span className="flex h-8 w-8 items-center justify-center text-[10px] text-muted">
+                ·
+              </span>
+              <ClimbFromToggle
+                label="E"
+                checked={climbFlags.e}
+                onChange={(e) => setClimbSide("e", e)}
+              />
+              <span />
+              <ClimbFromToggle
+                label="S"
+                checked={climbFlags.s}
+                onChange={(s) => setClimbSide("s", s)}
+              />
+              <span />
+            </div>
+          </div>
           {dirTabs.map((t) => (
             <TabPanel key={t.value} value={t.value}>
               <Tabs

@@ -492,10 +492,30 @@
     },
     "attributes": {},
     "climbFrom": {
-      "n": true,
-      "e": false,
-      "s": false,
-      "w": false
+      "n": {
+        "n": true,
+        "e": false,
+        "s": false,
+        "w": false
+      },
+      "e": {
+        "n": false,
+        "e": true,
+        "s": false,
+        "w": false
+      },
+      "s": {
+        "n": false,
+        "e": false,
+        "s": true,
+        "w": false
+      },
+      "w": {
+        "n": false,
+        "e": false,
+        "s": false,
+        "w": true
+      }
     }
   },
   {
@@ -579,10 +599,30 @@
     },
     "attributes": {},
     "climbFrom": {
-      "n": true,
-      "e": false,
-      "s": false,
-      "w": false
+      "n": {
+        "n": true,
+        "e": false,
+        "s": false,
+        "w": false
+      },
+      "e": {
+        "n": false,
+        "e": true,
+        "s": false,
+        "w": false
+      },
+      "s": {
+        "n": false,
+        "e": false,
+        "s": true,
+        "w": false
+      },
+      "w": {
+        "n": false,
+        "e": false,
+        "s": false,
+        "w": true
+      }
     }
   },
   {

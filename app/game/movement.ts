@@ -4,14 +4,14 @@ import {
   climbFromSourceAt,
   getStack,
   stackHeight,
+  walkableFloorAbove,
 } from "../lib/mapData";
-import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
+import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import {
-  HEIGHT_PER_LEVEL,
   MAX_LEVEL,
   MIN_LEVEL,
+  resolveClimbFrom,
   resolveWalkable,
-  worldClimbFrom,
 } from "../lib/types";
 import { fitsAtElevation, fitsTile } from "../lib/validation";
 import { MAX_CLIMB_HEIGHT } from "./constants";
@@ -82,16 +82,29 @@ export function listStandingSurfaces(
     }
     if (z > MIN_LEVEL) {
       const below = getStack(map, x, y, z - 1);
-      const belowH = stackHeight(below, tilesById);
-      // Only when the level below is exactly full does its top form a floor at
-      // this level's base. Taller overflow is already covered by the stack-top
-      // surface on z-1.
-      if (belowH === HEIGHT_PER_LEVEL) {
-        add(z * HEIGHT_PER_LEVEL, z);
-      }
+      const floorAbs = walkableFloorAbove(z - 1, below, tilesById);
+      if (floorAbs != null) add(floorAbs, z);
     }
   }
   return out;
+}
+
+/** Scenery tile whose solid top is at absolute `abs`, if any. */
+function solidTopAt(
+  map: MapFile,
+  x: number,
+  y: number,
+  abs: number,
+  tilesById: Record<string, TileDef>,
+): PlacedTile | null {
+  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+    const stack = getStack(map, x, y, z);
+    if (stack.length === 0) continue;
+    if (absoluteStandingElevation(z, stack, tilesById) === abs) {
+      return stack[stack.length - 1]!;
+    }
+  }
+  return null;
 }
 
 /**
@@ -134,7 +147,7 @@ function climbUpAllowed(
     stackIndex: from.stackIndex,
   });
   if (!source) return true;
-  const flags = worldClimbFrom(source.def, source.direction);
+  const flags = resolveClimbFrom(source.def, source.direction);
   return flags[direction];
 }
 
@@ -214,9 +227,12 @@ export function canWalk(
     return { ok: false, reason: `Climb ${climb} exceeds max ${MAX_CLIMB_HEIGHT}` };
   }
 
-  if (destScenery.length > 0) {
-    const topDef = tilesById[destScenery[destScenery.length - 1]!.tileId];
-    if (topDef && !resolveWalkable(topDef) && climb >= 0) {
+  // Reject standing on a non-walkable solid top (including a full-height tree
+  // whose top coincides with an empty level's base above it).
+  const solidTop = solidTopAt(map, destX, destY, destAbs, tilesById);
+  if (solidTop) {
+    const topDef = tilesById[solidTop.tileId];
+    if (topDef && !resolveWalkable(topDef)) {
       return { ok: false, reason: "Destination surface is not walkable" };
     }
   }
