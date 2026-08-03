@@ -66,11 +66,15 @@ export function listStandingSurfaces(
   tilesById: Record<string, TileDef>,
 ): StandingSurface[] {
   const out: StandingSurface[] = [];
-  const seen = new Set<number>();
 
+  // Same abs can be claimed by a lower stack top and an upper-level floor /
+  // height-0 tile. Prefer the highest level — that owns the plane.
   const add = (abs: number, z: number) => {
-    if (seen.has(abs)) return;
-    seen.add(abs);
+    const existing = out.find((s) => s.abs === abs);
+    if (existing) {
+      if (z > existing.z) existing.z = z;
+      return;
+    }
     out.push({ abs, z });
   };
 

@@ -3,6 +3,7 @@ import {
   absoluteElevation,
   boxSurfaceElevation,
   depthBox,
+  depthStackBias,
   drawOrder,
   fragDepth,
   PX_PER_HEIGHT,
@@ -102,6 +103,17 @@ describe("fragDepth", () => {
     expectInFront(
       fragDepth(player, p.sx + 4, p.sy + 4, 1),
       fragDepth(cell, p.sx + 4, p.sy + 4, 0),
+    );
+  });
+
+  it("lets an upper-level height-0 tile beat a full lower stack top", () => {
+    // Exactly-full level -1 top and level-0 grass share abs elev 0.
+    const lowerTop = depthBox(2, 1, absoluteElevation(-1, 1), absoluteElevation(-1, 2));
+    const grass = depthBox(2, 1, absoluteElevation(0, 0), absoluteElevation(0, 0));
+    const p = footPixel(2, 1);
+    expectInFront(
+      fragDepth(grass, p.sx + 4, p.sy + 4, depthStackBias(0, 0)),
+      fragDepth(lowerTop, p.sx + 4, p.sy + 4, depthStackBias(-1, 2)),
     );
   });
 

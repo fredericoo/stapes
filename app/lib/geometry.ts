@@ -1,4 +1,4 @@
-import { CELL_SIZE, HEIGHT_PER_LEVEL } from "./types";
+import { CELL_SIZE, HEIGHT_PER_LEVEL, MIN_LEVEL } from "./types";
 
 /** 1 height unit = 4px up-left on screen (full level = 8px = one cell). */
 export const PX_PER_HEIGHT = CELL_SIZE / HEIGHT_PER_LEVEL;
@@ -176,7 +176,7 @@ export const DEPTH_MAX =
 export const DEPTH_MIN = -DEPTH_MAX;
 
 /**
- * Nudge, in ray-depth units, applied per stack index.
+ * Nudge, in ray-depth units, applied per stack-bias unit.
  *
  * Coplanar surfaces are the one case geometry can't separate: a character's
  * feet sit exactly on the floor plane it stands on. ~24x the 24-bit depth
@@ -184,6 +184,19 @@ export const DEPTH_MIN = -DEPTH_MAX;
  * anything that is genuinely apart.
  */
 export const DEPTH_STACK_BIAS = 0.002;
+
+/**
+ * Per-level stride for {@link depthStackBias}. Must beat any in-level
+ * stackIndex, but keep
+ * `(levelSpan * stride + maxIndex) * DEPTH_STACK_BIAS < RAY_DEPTH_ELEV`
+ * so one elev unit of ray depth still wins over the largest bias.
+ */
+export const DEPTH_BIAS_PER_LEVEL = 64;
+
+/** Bias so higher levels win coplanar ties; within a level, higher stackIndex. */
+export function depthStackBias(z: number, stackIndex: number): number {
+  return (z - MIN_LEVEL) * DEPTH_BIAS_PER_LEVEL + stackIndex;
+}
 
 /**
  * Window depth ([0, 1], smaller = nearer, matching the default GL_LESS test)

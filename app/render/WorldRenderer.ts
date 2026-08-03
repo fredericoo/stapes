@@ -4,6 +4,7 @@ import {
   baseCellWorldOrigin,
   type DepthBox,
   depthBox,
+  depthStackBias,
   spriteWorldOrigin,
 } from "../lib/geometry";
 import {
@@ -683,7 +684,7 @@ export class WorldRenderer {
           u1,
           v1,
           box,
-          stackBias: stackIndex,
+          stackBias: depthStackBias(z, stackIndex),
           texture,
           lightX0: cell.x,
           lightY0: cell.y,

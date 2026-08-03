@@ -93,11 +93,12 @@ const tiles: TileDef[] = [
     id: "ramp",
     height: 1,
     directional: true,
+    // Tall end is opposite facing (south-facing → climb north).
     climbFrom: {
-      n: { n: true, e: false, s: false, w: false },
-      e: { n: false, e: true, s: false, w: false },
-      s: { n: false, e: false, s: true, w: false },
-      w: { n: false, e: false, s: false, w: true },
+      n: { n: false, e: false, s: true, w: false },
+      e: { n: false, e: false, s: false, w: true },
+      s: { n: true, e: false, s: false, w: false },
+      w: { n: false, e: true, s: false, w: false },
     },
     variants: {
       n: [
@@ -255,6 +256,83 @@ describe("canWalk climb", () => {
     if (check.ok) {
       expect(check.to).toEqual({ x: 1, y: 0, z: 0 });
     }
+  });
+
+  it("walks onto grass above a full lower level without dropping to that level", () => {
+    // Mimics map (2,1): dirt + 2× half-height fillers on z=-1, grass on z=0.
+    // Both surfaces share abs 0; the upper level must own the plane.
+    let map = mapWithPlayer({ x: 0, y: 0 });
+    map = replaceStack(map, 1, 0, -1, [
+      { tileId: "dirt" },
+      { tileId: "slab" },
+      { tileId: "slab" },
+    ]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }]);
+    const loc = requireSinglePlayer(map);
+
+    const check = canWalk(
+      map,
+      { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex },
+      "e",
+      tilesById.player!,
+      tilesById,
+    );
+    expect(check.ok).toBe(true);
+    if (check.ok) {
+      expect(check.to).toEqual({ x: 1, y: 0, z: 0 });
+    }
+  });
+
+  it("climbs ground → ramp → half+ramp (elev 0 → 1 → 2)", () => {
+    // Default south-facing ramp: tall end is north. Staircase climbs north.
+    let map = replaceStack(emptyMap(), 0, 1, 0, [
+      { tileId: "grass" },
+      { tileId: "player", direction: "n" },
+    ]);
+    map = replaceStack(map, 0, 0, 0, [{ tileId: "ramp", direction: "s" }]);
+    map = replaceStack(map, 0, -1, 0, [
+      { tileId: "slab" },
+      { tileId: "ramp", direction: "s" },
+    ]);
+
+    const loc = requireSinglePlayer(map);
+    expect(standingAbs(map, loc.x, loc.y, loc.z, loc.stackIndex, tilesById)).toBe(
+      0,
+    );
+
+    const ontoRamp = canWalk(
+      map,
+      { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex },
+      "n",
+      tilesById.player!,
+      tilesById,
+    );
+    expect(ontoRamp.ok).toBe(true);
+    if (!ontoRamp.ok) return;
+    expect(ontoRamp.to).toEqual({ x: 0, y: 0, z: 0 });
+
+    // On the first ramp, climb onto half + ramp (abs 1 → 2).
+    map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }]);
+    map = replaceStack(map, 0, 0, 0, [
+      { tileId: "ramp", direction: "s" },
+      { tileId: "player", direction: "n" },
+    ]);
+    const onRamp = requireSinglePlayer(map);
+    expect(
+      standingAbs(map, onRamp.x, onRamp.y, onRamp.z, onRamp.stackIndex, tilesById),
+    ).toBe(1);
+
+    const ontoHalfRamp = canWalk(
+      map,
+      { x: onRamp.x, y: onRamp.y, z: onRamp.z, stackIndex: onRamp.stackIndex },
+      "n",
+      tilesById.player!,
+      tilesById,
+    );
+    expect(ontoHalfRamp.ok).toBe(true);
+    if (!ontoHalfRamp.ok) return;
+    // Full-height stack seals z=0; standing surface is owned by z=1 floor.
+    expect(ontoHalfRamp.to).toEqual({ x: 0, y: -1, z: 1 });
   });
 
   it("climbs a plaster ladder onto overflowing stacks (height 2 → 3)", () => {
@@ -479,19 +557,19 @@ describe("walkable surfaces", () => {
 });
 
 describe("climb-from", () => {
-  it("allows climb up only toward the open side for that facing", () => {
-    // Ramp facing south: climbFrom.s opens world south. Upper floor south of ramp.
+  it("allows climb up only toward the tall end for that facing", () => {
+    // Ramp facing south: tall end is north. Upper floor north of ramp.
     let map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "ramp", direction: "s" },
-      { tileId: "player", direction: "s" },
+      { tileId: "player", direction: "n" },
     ]);
-    map = replaceStack(map, 0, 1, 0, [{ tileId: "wall" }]);
+    map = replaceStack(map, 0, -1, 0, [{ tileId: "wall" }]);
 
     const loc = requireSinglePlayer(map);
     const up = canWalk(
       map,
       { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex },
-      "s",
+      "n",
       tilesById.player!,
       tilesById,
     );
@@ -509,18 +587,18 @@ describe("climb-from", () => {
   });
 
   it("uses the climb-from set for the placed facing (no rotation)", () => {
-    // Facing east opens world east only — not a rotated copy of south.
+    // Facing east: tall end is west — not the same as facing direction.
     let map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "ramp", direction: "e" },
-      { tileId: "player", direction: "e" },
+      { tileId: "player", direction: "w" },
     ]);
-    map = replaceStack(map, 1, 0, 0, [{ tileId: "wall" }]);
+    map = replaceStack(map, -1, 0, 0, [{ tileId: "wall" }]);
 
     const loc = requireSinglePlayer(map);
     const up = canWalk(
       map,
       { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex },
-      "e",
+      "w",
       tilesById.player!,
       tilesById,
     );
@@ -540,7 +618,7 @@ describe("climb-from", () => {
   it("allows step-down from the ramp regardless of climb-from", () => {
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "wall" }]);
     map = replaceStack(map, 0, 0, 1, [{ tileId: "player", direction: "s" }]);
-    // Ramp south of the upper floor; facing s only opens climb-up south.
+    // Ramp south of the upper floor; south-facing tall end is north (back toward floor).
     map = replaceStack(map, 0, 1, 0, [{ tileId: "ramp", direction: "s" }]);
 
     const loc = requireSinglePlayer(map);

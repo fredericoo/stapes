@@ -1,5 +1,6 @@
 import {
   baseCellWorldOrigin,
+  depthStackBias,
   PX_PER_HEIGHT,
 } from "../lib/geometry";
 import type { GameSession, GameSnapshot } from "../game/GameSession";
@@ -189,7 +190,10 @@ export class GameRenderer {
             top: foot + this.movingTileHeight(snap.map, from, stackIndex),
             // Feet share a plane with both floors it passes over; outrank the
             // top tile of whichever stack it is standing on.
-            stackBias: Math.max(stackIndex, destStackLen),
+            stackBias: Math.max(
+              depthStackBias(from.z, stackIndex),
+              depthStackBias(to.z, destStackLen),
+            ),
           },
         },
       ];
@@ -212,7 +216,7 @@ export class GameRenderer {
             y: player.y,
             foot,
             top: foot + this.movingTileHeight(snap.map, player, player.stackIndex),
-            stackBias: player.stackIndex,
+            stackBias: depthStackBias(player.z, player.stackIndex),
           },
         },
       ];
