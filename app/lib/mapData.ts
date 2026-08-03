@@ -1,10 +1,13 @@
-import type { MapFile, PlacedTile, TileDef } from "./types";
+import type { Direction, MapFile, PlacedTile, TileDef } from "./types";
 import {
   CHUNK_SIZE,
   HEIGHT_PER_LEVEL,
+  MAX_LEVEL,
+  MIN_LEVEL,
   coordKey,
   levelKey,
   parseCoordKey,
+  resolveWalkable,
 } from "./types";
 
 export function emptyMap(): MapFile {
@@ -58,6 +61,112 @@ export function absoluteStandingElevation(
   tilesById: Record<string, TileDef>,
 ): number {
   return z * HEIGHT_PER_LEVEL + stackHeight(stack, tilesById);
+}
+
+/**
+ * Elevation (within the level) of the highest walkable tile top in `stack`.
+ * Null when no walkable tile is present.
+ */
+export function walkableElevInStack(
+  stack: PlacedTile[],
+  tilesById: Record<string, TileDef>,
+): number | null {
+  let elev = 0;
+  let best: number | null = null;
+  for (const p of stack) {
+    const def = tilesById[p.tileId];
+    elev += def?.height ?? 0;
+    if (def && resolveWalkable(def)) best = elev;
+  }
+  return best;
+}
+
+/** Absolute walkable standing elevation for a stack, or null. */
+export function absoluteWalkableElevation(
+  z: number,
+  stack: PlacedTile[],
+  tilesById: Record<string, TileDef>,
+): number | null {
+  const elev = walkableElevInStack(stack, tilesById);
+  if (elev == null) return null;
+  return z * HEIGHT_PER_LEVEL + elev;
+}
+
+/**
+ * The walkable placed tile whose top is at `elevInLevel` within `stack`,
+ * or null if none (e.g. floor-only surface).
+ */
+export function walkableTileAtElev(
+  stack: PlacedTile[],
+  elevInLevel: number,
+  tilesById: Record<string, TileDef>,
+): PlacedTile | null {
+  let elev = 0;
+  for (const p of stack) {
+    const def = tilesById[p.tileId];
+    elev += def?.height ?? 0;
+    if (def && resolveWalkable(def) && elev === elevInLevel) return p;
+  }
+  return null;
+}
+
+/** True when a solid stack top at absolute `abs` is walkable. */
+export function isWalkableSurfaceAt(
+  map: MapFile,
+  x: number,
+  y: number,
+  abs: number,
+  tilesById: Record<string, TileDef>,
+  exclude?: { z: number; stackIndex: number },
+): boolean {
+  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+    let stack = getStack(map, x, y, z);
+    if (exclude && exclude.z === z) {
+      stack = stack.filter((_, i) => i !== exclude.stackIndex);
+    }
+    if (stack.length === 0) continue;
+    const top = absoluteStandingElevation(z, stack, tilesById);
+    if (top !== abs) continue;
+    const topPlaced = stack[stack.length - 1]!;
+    const def = tilesById[topPlaced.tileId];
+    return def ? resolveWalkable(def) : true;
+  }
+  // Floor formed by a full level below is always walkable.
+  const zFloor = Math.floor(abs / HEIGHT_PER_LEVEL);
+  if (abs === zFloor * HEIGHT_PER_LEVEL && zFloor > MIN_LEVEL) {
+    let below = getStack(map, x, y, zFloor - 1);
+    if (exclude && exclude.z === zFloor - 1) {
+      below = below.filter((_, i) => i !== exclude.stackIndex);
+    }
+    if (stackHeight(below, tilesById) >= HEIGHT_PER_LEVEL) return true;
+  }
+  return false;
+}
+
+/** Climb-from source underfoot at absolute standing elevation `fromAbs`. */
+export function climbFromSourceAt(
+  map: MapFile,
+  x: number,
+  y: number,
+  fromAbs: number,
+  tilesById: Record<string, TileDef>,
+  exclude?: { z: number; stackIndex: number },
+): { def: TileDef; direction: Direction } | null {
+  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+    let stack = getStack(map, x, y, z);
+    if (exclude && exclude.z === z) {
+      stack = stack.filter((_, i) => i !== exclude.stackIndex);
+    }
+    const walkAbs = absoluteWalkableElevation(z, stack, tilesById);
+    if (walkAbs !== fromAbs) continue;
+    const elevIn = fromAbs - z * HEIGHT_PER_LEVEL;
+    const placed = walkableTileAtElev(stack, elevIn, tilesById);
+    if (!placed) continue;
+    const def = tilesById[placed.tileId];
+    if (!def) continue;
+    return { def, direction: placed.direction ?? "s" };
+  }
+  return null;
 }
 
 /**

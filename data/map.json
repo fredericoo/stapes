@@ -1061,6 +1061,9 @@
       "0,9": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "tree"
         }
       ],
       "0,8": [
@@ -11666,11 +11669,6 @@
           "tileId": "dirt"
         }
       ],
-      "19,-1": [
-        {
-          "tileId": "dirt"
-        }
-      ],
       "20,-1": [
         {
           "tileId": "dirt"
@@ -12623,6 +12621,9 @@
       "9,-6": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "stone-stairs"
         }
       ],
       "10,-6": [
@@ -12866,17 +12867,6 @@
         }
       ],
       "10,-3": [
-        {
-          "tileId": "grass-2"
-        },
-        {
-          "tileId": "cobblestone"
-        },
-        {
-          "tileId": "stone-wall"
-        }
-      ],
-      "11,-3": [
         {
           "tileId": "grass-2"
         },
@@ -14549,6 +14539,16 @@
         {
           "tileId": "cobblestone"
         }
+      ],
+      "19,1": [
+        {
+          "tileId": "dirt"
+        }
+      ],
+      "11,-3": [
+        {
+          "tileId": "dirt"
+        }
       ]
     },
     "1": {
@@ -14864,14 +14864,253 @@
       ],
       "9,-7": [
         {
-          "tileId": "torch",
-          "direction": "s"
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
         }
       ],
       "13,-7": [
         {
-          "tileId": "torch",
-          "direction": "s"
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "8,-6": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "8,-7": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "8,-5": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "9,-5": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "10,-5": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "10,-6": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "10,-7": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "11,-7": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "12,-7": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "14,-7": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "15,-7": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "15,-6": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "15,-5": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "14,-5": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "13,-5": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "12,-5": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "11,-5": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "11,-6": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "12,-6": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        },
+        {
+          "tileId": "brick-slab"
+        }
+      ],
+      "13,-6": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "14,-6": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "15,-4": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "14,-4": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "13,-4": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "12,-4": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "11,-4": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "10,-4": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "9,-4": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
+        }
+      ],
+      "8,-4": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "cobblestone"
         }
       ]
     },
@@ -15291,14 +15530,6 @@
         }
       ],
       "13,-6": [
-        {
-          "tileId": "dirt"
-        },
-        {
-          "tileId": "cobblestone"
-        }
-      ],
-      "12,-6": [
         {
           "tileId": "dirt"
         },
@@ -16540,7 +16771,8 @@
           "tileId": "dirt"
         },
         {
-          "tileId": "dirt"
+          "tileId": "torch",
+          "direction": "s"
         }
       ],
       "17,0": [
@@ -16605,6 +16837,10 @@
         },
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "torch",
+          "direction": "e"
         }
       ],
       "17,3": [
@@ -16806,7 +17042,7 @@
           "tileId": "half-stone"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "ramp"
         }
       ],
       "18,-1": [

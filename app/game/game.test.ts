@@ -43,6 +43,7 @@ const tiles: TileDef[] = [
     height: 2,
     directional: true,
     affectedByGravity: true,
+    walkable: false,
     variants: {
       n: [
         {
@@ -87,6 +88,55 @@ const tiles: TileDef[] = [
     },
   }),
   tile({ id: "dwarf", height: 1, affectedByGravity: true }),
+  tile({ id: "tree", height: 2, walkable: false }),
+  tile({
+    id: "ramp",
+    height: 1,
+    directional: true,
+    climbFrom: { n: true, e: false, s: false, w: false },
+    variants: {
+      n: [
+        {
+          sprite: {
+            tilesetId: "basic",
+            rect: { x: 0, y: 0, w: 1, h: 1 },
+            base: { x: 0, y: 0 },
+          },
+          durationMs: 200,
+        },
+      ],
+      e: [
+        {
+          sprite: {
+            tilesetId: "basic",
+            rect: { x: 0, y: 0, w: 1, h: 1 },
+            base: { x: 0, y: 0 },
+          },
+          durationMs: 200,
+        },
+      ],
+      s: [
+        {
+          sprite: {
+            tilesetId: "basic",
+            rect: { x: 0, y: 0, w: 1, h: 1 },
+            base: { x: 0, y: 0 },
+          },
+          durationMs: 200,
+        },
+      ],
+      w: [
+        {
+          sprite: {
+            tilesetId: "basic",
+            rect: { x: 0, y: 0, w: 1, h: 1 },
+            base: { x: 0, y: 0 },
+          },
+          durationMs: 200,
+        },
+      ],
+    },
+  }),
 ];
 
 const tilesById = tilesByIdFromList(tiles);
@@ -368,5 +418,167 @@ describe("GameSession fall", () => {
         tilesById,
       ),
     ).toBe(true);
+  });
+});
+
+describe("walkable surfaces", () => {
+  it("does not treat a non-walkable top as a standing surface", () => {
+    let map = mapWithPlayer({ x: 0, y: 0 });
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "tree" }]);
+    const loc = requireSinglePlayer(map);
+    const check = canWalk(
+      map,
+      { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex },
+      "e",
+      tilesById.player!,
+      tilesById,
+    );
+    expect(check.ok).toBe(false);
+  });
+});
+
+describe("climb-from", () => {
+  it("allows climb up only toward the open local side (rotated by facing)", () => {
+    // Ramp facing south: local n → world n. Upper floor north of ramp.
+    let map = replaceStack(emptyMap(), 0, 1, 0, [
+      { tileId: "ramp", direction: "s" },
+      { tileId: "player", direction: "n" },
+    ]);
+    map = replaceStack(map, 0, 0, 0, [{ tileId: "wall" }]); // abs 2 north
+
+    const loc = requireSinglePlayer(map);
+    const up = canWalk(
+      map,
+      { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex },
+      "n",
+      tilesById.player!,
+      tilesById,
+    );
+    expect(up.ok).toBe(true);
+
+    // East of ramp also has a wall — climb up east blocked by climbFrom.
+    map = replaceStack(map, 1, 1, 0, [{ tileId: "wall" }]);
+    const blocked = canWalk(
+      map,
+      { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex },
+      "e",
+      tilesById.player!,
+      tilesById,
+    );
+    expect(blocked.ok).toBe(false);
+  });
+
+  it("rotates climb-from with placement facing", () => {
+    // Ramp facing east: local n → world w. Upper floor west of ramp.
+    let map = replaceStack(emptyMap(), 1, 0, 0, [
+      { tileId: "ramp", direction: "e" },
+      { tileId: "player", direction: "w" },
+    ]);
+    map = replaceStack(map, 0, 0, 0, [{ tileId: "wall" }]);
+
+    const loc = requireSinglePlayer(map);
+    const up = canWalk(
+      map,
+      { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex },
+      "w",
+      tilesById.player!,
+      tilesById,
+    );
+    expect(up.ok).toBe(true);
+
+    map = replaceStack(map, 1, -1, 0, [{ tileId: "wall" }]);
+    const blocked = canWalk(
+      map,
+      { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex },
+      "n",
+      tilesById.player!,
+      tilesById,
+    );
+    expect(blocked.ok).toBe(false);
+  });
+
+  it("allows step-down from the ramp regardless of climb-from", () => {
+    let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "wall" }]);
+    map = replaceStack(map, 0, 0, 1, [{ tileId: "player", direction: "s" }]);
+    // Ramp south of the upper floor; climbFrom only opens north (away from us).
+    map = replaceStack(map, 0, 1, 0, [{ tileId: "ramp", direction: "s" }]);
+
+    const loc = requireSinglePlayer(map);
+    const down = canWalk(
+      map,
+      { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex },
+      "s",
+      tilesById.player!,
+      tilesById,
+    );
+    expect(down.ok).toBe(true);
+  });
+});
+
+describe("preferDescend", () => {
+  it("picks the lowest surface in the climb band when set", () => {
+    // Player on slab (abs 1). Dest has grass at abs 0 (z=0) and grass at abs 2 (z=1).
+    let map = replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "slab" },
+      { tileId: "player", direction: "e" },
+    ]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }]);
+    map = replaceStack(map, 1, 0, 1, [{ tileId: "grass" }]);
+
+    const loc = requireSinglePlayer(map);
+    const high = canWalk(
+      map,
+      { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex },
+      "e",
+      tilesById.player!,
+      tilesById,
+    );
+    expect(high.ok).toBe(true);
+    if (high.ok) expect(high.to).toEqual({ x: 1, y: 0, z: 1 });
+
+    const low = canWalk(
+      map,
+      { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex },
+      "e",
+      tilesById.player!,
+      tilesById,
+      { preferDescend: true },
+    );
+    expect(low.ok).toBe(true);
+    if (low.ok) expect(low.to).toEqual({ x: 1, y: 0, z: 0 });
+  });
+});
+
+describe("GameSession faceOnly and slide", () => {
+  it("Shift/faceOnly updates facing without walking", () => {
+    let map = mapWithPlayer({ x: 0, y: 0 });
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }]);
+    const session = new GameSession(map, tiles);
+    session.setInput({ directions: ["e"], faceOnly: true });
+    session.tick(1000 / 30);
+    const snap = session.getSnapshot();
+    expect(snap.walk).toBeNull();
+    expect(snap.player.x).toBe(0);
+    expect(snap.player.direction).toBe("e");
+  });
+
+  it("slides in facing direction when landing on a non-walkable top", () => {
+    // Tree at (0,0) abs 2; grass east. Player falls from z=2 facing east.
+    let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "tree" }]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }]);
+    map = replaceStack(map, 0, 0, 2, [{ tileId: "player", direction: "e" }]);
+    const session = new GameSession(map, tiles);
+
+    let elapsed = 0;
+    const budget = FALL_MS_PER_HEIGHT * 8 + WALK_DURATION_MS + 100;
+    while (elapsed < budget) {
+      session.tick(1000 / 30);
+      elapsed += 1000 / 30;
+    }
+
+    const snap = session.getSnapshot();
+    expect(snap.fall).toBeNull();
+    // Slid onto grass east of the tree.
+    expect(snap.player).toMatchObject({ x: 1, y: 0, z: 0 });
   });
 });

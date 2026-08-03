@@ -11,9 +11,12 @@ import type {
 } from "../lib/types";
 import {
   DIRECTIONS,
+  climbFromForSave,
   defaultBase,
   isAnimated,
+  resolveClimbFrom,
   resolveLightPassing,
+  resolveWalkable,
 } from "../lib/types";
 import { SpriteSelector } from "./SpriteSelector";
 import { TilePreview } from "./TilePreview";
@@ -43,15 +46,19 @@ function blankTile(tilesets: TilesetDef[]): TileDef {
     variants: { default: [emptyFrame(ts)] },
     attributes: {},
     lightPassing: false,
+    walkable: true,
+    climbFrom: undefined,
   };
 }
 
-/** Normalise optional lighting fields for the editor draft. */
+/** Normalise optional lighting / traversal fields for the editor draft. */
 function withLightingDefaults(tile: TileDef): TileDef {
   const { blocksLight: _deprecated, ...rest } = tile;
   return {
     ...rest,
     lightPassing: resolveLightPassing(tile),
+    walkable: resolveWalkable(tile),
+    climbFrom: resolveClimbFrom(tile),
   };
 }
 
@@ -191,6 +198,8 @@ export function TileEditorDialog({
       ...draft,
       lightPassing: draft.lightPassing ? true : undefined,
       affectedByGravity: draft.affectedByGravity ? true : undefined,
+      walkable: draft.walkable === false ? false : undefined,
+      climbFrom: climbFromForSave(resolveClimbFrom(draft)),
       blocksLight: undefined,
       light: light
         ? {
@@ -295,6 +304,82 @@ export function TileEditorDialog({
             />
             Affected by gravity
           </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={draft.walkable !== false}
+              onChange={(e) =>
+                setDraft({ ...draft, walkable: e.target.checked })
+              }
+              className="hard-checkbox"
+            />
+            Walkable
+          </label>
+        </div>
+
+        <div className="flex flex-col gap-2 border-2 border-border p-2">
+          <span className="text-xs font-bold uppercase text-muted">
+            Climb up from (local)
+          </span>
+          <div className="flex items-center gap-3">
+            <div
+              className="grid w-fit grid-cols-3 gap-1"
+              role="group"
+              aria-label="Climb-from directions"
+            >
+              <span />
+              <ClimbFromToggle
+                label="N"
+                checked={resolveClimbFrom(draft).n}
+                onChange={(n) =>
+                  setDraft({
+                    ...draft,
+                    climbFrom: { ...resolveClimbFrom(draft), n },
+                  })
+                }
+              />
+              <span />
+              <ClimbFromToggle
+                label="W"
+                checked={resolveClimbFrom(draft).w}
+                onChange={(w) =>
+                  setDraft({
+                    ...draft,
+                    climbFrom: { ...resolveClimbFrom(draft), w },
+                  })
+                }
+              />
+              <span className="flex h-8 w-8 items-center justify-center text-[10px] text-muted">
+                ·
+              </span>
+              <ClimbFromToggle
+                label="E"
+                checked={resolveClimbFrom(draft).e}
+                onChange={(e) =>
+                  setDraft({
+                    ...draft,
+                    climbFrom: { ...resolveClimbFrom(draft), e },
+                  })
+                }
+              />
+              <span />
+              <ClimbFromToggle
+                label="S"
+                checked={resolveClimbFrom(draft).s}
+                onChange={(s) =>
+                  setDraft({
+                    ...draft,
+                    climbFrom: { ...resolveClimbFrom(draft), s },
+                  })
+                }
+              />
+              <span />
+            </div>
+            <p className="max-w-xs text-xs text-muted">
+              When standing on this tile, which local sides allow climbing to a
+              higher neighbour. Rotates with placement facing.
+            </p>
+          </div>
         </div>
 
         <div className="flex flex-col gap-2 border-2 border-border p-2">
@@ -494,6 +579,30 @@ export function TileEditorDialog({
         </Tabs>
       </div>
     </Dialog>
+  );
+}
+
+function ClimbFromToggle({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (next: boolean) => void;
+}) {
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant={checked ? "primary" : "secondary"}
+      aria-pressed={checked}
+      aria-label={`Climb from ${label}`}
+      onClick={() => onChange(!checked)}
+      className="h-8 w-8 px-0"
+    >
+      {label}
+    </Button>
   );
 }
 

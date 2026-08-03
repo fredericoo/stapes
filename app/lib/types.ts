@@ -61,7 +61,74 @@ export type TileDef = {
    * Default / absent → not affected by gravity.
    */
   affectedByGravity?: boolean;
+  /**
+   * When false, this tile’s top is not a stand / land surface.
+   * Default / absent → walkable.
+   */
+  walkable?: boolean;
+  /**
+   * Local dirs you may climb UP from this tile toward.
+   * Omit / all true = unrestricted. Rotated by placement direction.
+   */
+  climbFrom?: Partial<Record<Direction, boolean>>;
 };
+
+/** Whether this tile’s top is a stand/land surface. Default: true. */
+export function resolveWalkable(def: TileDef): boolean {
+  return def.walkable !== false;
+}
+
+/** Local climb-from flags; missing dirs default to true. */
+export function resolveClimbFrom(
+  def: TileDef,
+): Record<Direction, boolean> {
+  return {
+    n: def.climbFrom?.n !== false,
+    e: def.climbFrom?.e !== false,
+    s: def.climbFrom?.s !== false,
+    w: def.climbFrom?.w !== false,
+  };
+}
+
+/**
+ * Rotate a local direction into world space given placement facing.
+ * Local `s` is canonical (same basis as directional sprites).
+ */
+export function rotateDir(local: Direction, facing: Direction): Direction {
+  const from = DIRECTIONS.indexOf(local);
+  const by = DIRECTIONS.indexOf(facing);
+  // facing `s` (index 2) is identity; rotate local by (facing - s).
+  return DIRECTIONS[(from + by - 2 + 4) % 4]!;
+}
+
+/**
+ * World-space climb-from flags for a placed tile (local arrows rotated by facing).
+ */
+export function worldClimbFrom(
+  def: TileDef,
+  placedDir: Direction = "s",
+): Record<Direction, boolean> {
+  const local = resolveClimbFrom(def);
+  const out: Record<Direction, boolean> = { n: true, e: true, s: true, w: true };
+  for (const d of DIRECTIONS) {
+    out[rotateDir(d, placedDir)] = local[d];
+  }
+  return out;
+}
+
+/** Persist climbFrom only when at least one side is closed. */
+export function climbFromForSave(
+  flags: Record<Direction, boolean>,
+): Partial<Record<Direction, boolean>> | undefined {
+  if (flags.n && flags.e && flags.s && flags.w) return undefined;
+  const out: Partial<Record<Direction, boolean>> = {};
+  for (const d of DIRECTIONS) {
+    if (!flags[d]) out[d] = false;
+  }
+  // Also store true sides so the object is explicit when mixed? Plan: omit-when-default.
+  // Only falses need storing since resolve defaults missing to true.
+  return out;
+}
 
 /** Height units per map level (full stack before overflow). */
 export const HEIGHT_PER_LEVEL = 2;

@@ -46,12 +46,25 @@ export default function PlayPage() {
     renderer.start();
 
     const held: Direction[] = [];
+    let faceOnly = false;
+    let preferDescend = false;
 
     const syncInput = () => {
-      session.setInput({ directions: [...held] });
+      session.setInput({
+        directions: [...held],
+        faceOnly,
+        preferDescend,
+      });
+    };
+
+    const syncModifiers = (e: KeyboardEvent) => {
+      faceOnly = e.shiftKey;
+      preferDescend = e.altKey;
+      syncInput();
     };
 
     const onKeyDown = (e: KeyboardEvent) => {
+      syncModifiers(e);
       const dir = KEY_TO_DIR[e.code];
       if (!dir) return;
       e.preventDefault();
@@ -63,20 +76,31 @@ export default function PlayPage() {
     };
 
     const onKeyUp = (e: KeyboardEvent) => {
+      syncModifiers(e);
       const dir = KEY_TO_DIR[e.code];
-      if (!dir) return;
-      e.preventDefault();
-      const idx = held.indexOf(dir);
-      if (idx >= 0) held.splice(idx, 1);
+      if (dir) {
+        e.preventDefault();
+        const idx = held.indexOf(dir);
+        if (idx >= 0) held.splice(idx, 1);
+      }
+      syncInput();
+    };
+
+    const onBlur = () => {
+      held.length = 0;
+      faceOnly = false;
+      preferDescend = false;
       syncInput();
     };
 
     window.addEventListener("keydown", onKeyDown);
     window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", onBlur);
 
     return () => {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", onBlur);
       renderer.dispose();
     };
   }, [map, tiles, tilesets]);
@@ -90,7 +114,7 @@ export default function PlayPage() {
           style={{ imageRendering: "pixelated" }}
         />
         <div className="pointer-events-none absolute bottom-3 left-3 text-xs text-paper/70">
-          Arrows / WASD to move
+          Arrows / WASD move · Shift face · Option descend
         </div>
       </div>
     </AppShell>

@@ -2,9 +2,10 @@ import {
   absoluteStandingElevation,
   appendTile,
   getStack,
+  isWalkableSurfaceAt,
 } from "../lib/mapData";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
-import { HEIGHT_PER_LEVEL, MIN_LEVEL } from "../lib/types";
+import { MIN_LEVEL } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import {
   FALL_MS_PER_HEIGHT,
@@ -13,14 +14,19 @@ import {
   TICK_MS,
   WALK_DURATION_MS,
 } from "./constants";
-import { cellForFeetAbs, findLandingAbs, isSupported } from "./gravity";
+import {
+  cellForFeetAbs,
+  findLandingAbs,
+  findWalkableLandingAbs,
+  isSupported,
+} from "./gravity";
 import {
   moveEntity,
   placeEntityOnSurface,
   removeEntity,
   setEntityDirection,
 } from "./mapMutations";
-import { canWalk, sceneryStack, standingAbs } from "./movement";
+import { canWalk, standingAbs } from "./movement";
 import { playerDirection, requireSinglePlayer } from "./player";
 
 export type WalkState = {
@@ -39,6 +45,10 @@ export type FallState = {
 export type GameInput = {
   /** Held movement directions; latest pressed wins when several are held. */
   directions: Direction[];
+  /** Shift: update facing only, do not walk. */
+  faceOnly?: boolean;
+  /** Option/Alt: prefer lowest surface in climb band. */
+  preferDescend?: boolean;
 };
 
 export type GameSnapshot = {
@@ -159,9 +169,23 @@ export class GameSession {
 
     const loc = requireSinglePlayer(this.map);
     const def = this.playerDef();
+    const faceOnly = Boolean(this.input.faceOnly);
+    const preferDescend = Boolean(this.input.preferDescend);
 
     for (let i = dirs.length - 1; i >= 0; i--) {
       const direction = dirs[i]!;
+
+      this.map = setEntityDirection(
+        this.map,
+        loc.x,
+        loc.y,
+        loc.z,
+        loc.stackIndex,
+        direction,
+      );
+
+      if (faceOnly) return;
+
       const check = canWalk(
         this.map,
         {
@@ -173,15 +197,7 @@ export class GameSession {
         direction,
         def,
         this.tilesById,
-      );
-
-      this.map = setEntityDirection(
-        this.map,
-        loc.x,
-        loc.y,
-        loc.z,
-        loc.stackIndex,
-        direction,
+        { preferDescend },
       );
 
       if (!check.ok) continue;
@@ -272,6 +288,79 @@ export class GameSession {
   private land(landingAbs: number) {
     this.fall = null;
     const loc = requireSinglePlayer(this.map);
+    const exclude = { z: loc.z, stackIndex: loc.stackIndex };
+
+    if (
+      !isWalkableSurfaceAt(
+        this.map,
+        loc.x,
+        loc.y,
+        landingAbs,
+        this.tilesById,
+        exclude,
+      )
+    ) {
+      this.commitLandAt(landingAbs);
+      const after = requireSinglePlayer(this.map);
+      const facing = playerDirection(after);
+      const slide = canWalk(
+        this.map,
+        {
+          x: after.x,
+          y: after.y,
+          z: after.z,
+          stackIndex: after.stackIndex,
+        },
+        facing,
+        this.playerDef(),
+        this.tilesById,
+      );
+      if (slide.ok) {
+        this.walk = {
+          from: { x: after.x, y: after.y, z: after.z },
+          to: slide.to,
+          direction: facing,
+          elapsedMs: 0,
+        };
+        return;
+      }
+
+      const nextWalkable = findWalkableLandingAbs(
+        this.map,
+        after.x,
+        after.y,
+        landingAbs,
+        this.tilesById,
+        { z: after.z, stackIndex: after.stackIndex },
+      );
+      if (nextWalkable != null && nextWalkable < landingAbs) {
+        const feetAbs = standingAbs(
+          this.map,
+          after.x,
+          after.y,
+          after.z,
+          after.stackIndex,
+          this.tilesById,
+        );
+        if (feetAbs - nextWalkable <= MAX_CLIMB_HEIGHT) {
+          this.commitLandAt(nextWalkable);
+          return;
+        }
+        this.fall = {
+          feetAbs,
+          landingAbs: nextWalkable,
+          elapsedMs: 0,
+        };
+        return;
+      }
+      return;
+    }
+
+    this.commitLandAt(landingAbs);
+  }
+
+  private commitLandAt(landingAbs: number) {
+    const loc = requireSinglePlayer(this.map);
     const { z: targetZ } = cellForFeetAbs(landingAbs);
     const placed = { ...loc.placed };
 
@@ -294,13 +383,6 @@ export class GameSession {
         );
         return;
       }
-    }
-
-    // Floor formed by a full level below targetZ.
-    const floorAbs = targetZ * HEIGHT_PER_LEVEL;
-    if (landingAbs === floorAbs) {
-      this.map = appendTile(next, loc.x, loc.y, targetZ, placed);
-      return;
     }
 
     this.map = appendTile(next, loc.x, loc.y, targetZ, placed);

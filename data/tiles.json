@@ -160,12 +160,13 @@
         }
       ]
     },
-    "attributes": {}
+    "attributes": {},
+    "walkable": false
   },
   {
     "id": "torch",
     "name": "Wall Torch",
-    "height": 0,
+    "height": 2,
     "directional": true,
     "variants": {
       "n": [
@@ -414,9 +415,63 @@
     "id": "ramp",
     "name": "Ramp",
     "height": 1,
-    "directional": false,
+    "directional": true,
     "variants": {
-      "default": [
+      "n": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 14,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ],
+      "e": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 14,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ],
+      "s": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 14,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ],
+      "w": [
         {
           "sprite": {
             "tilesetId": "tiny-ranch-tiles",
@@ -435,15 +490,75 @@
         }
       ]
     },
-    "attributes": {}
+    "attributes": {},
+    "climbFrom": {
+      "n": true,
+      "e": false,
+      "s": false,
+      "w": false
+    }
   },
   {
     "id": "stone-stairs",
     "name": "Stone Stairs",
     "height": 1,
-    "directional": false,
+    "directional": true,
     "variants": {
-      "default": [
+      "n": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 16,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ],
+      "e": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 16,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ],
+      "s": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 16,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ],
+      "w": [
         {
           "sprite": {
             "tilesetId": "tiny-ranch-tiles",
@@ -462,7 +577,13 @@
         }
       ]
     },
-    "attributes": {}
+    "attributes": {},
+    "climbFrom": {
+      "n": true,
+      "e": false,
+      "s": false,
+      "w": false
+    }
   },
   {
     "id": "brick-slab",
@@ -503,13 +624,13 @@
             "tilesetId": "tiny-ranch-tiles",
             "rect": {
               "x": 19,
-              "y": 4,
+              "y": 1,
               "w": 1,
-              "h": 2
+              "h": 1
             },
             "base": {
               "x": 0,
-              "y": 1
+              "y": 0
             }
           },
           "durationMs": 200
@@ -609,6 +730,7 @@
       "intensity": 0.5,
       "color": "#ffcc88"
     },
-    "lightPassing": true
+    "lightPassing": true,
+    "walkable": false
   }
 ]

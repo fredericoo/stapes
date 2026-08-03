@@ -1,5 +1,6 @@
 import {
   absoluteStandingElevation,
+  absoluteWalkableElevation,
   getStack,
   stackHeight,
 } from "../lib/mapData";
@@ -32,6 +33,7 @@ export function isSupported(
 
 /**
  * Highest solid surface absolute elevation strictly below `feetAbs` at (x,y).
+ * Includes non-walkable tops (caller may slide or fall through).
  * Returns null if nothing is below (open void).
  */
 export function findLandingAbs(
@@ -59,6 +61,50 @@ export function findLandingAbs(
     }
 
     // Full stack below forms a floor at the base of this level.
+    if (z > MIN_LEVEL) {
+      let below = getStack(map, x, y, z - 1);
+      if (exclude && exclude.z === z - 1) {
+        below = sceneryStack(map, x, y, z - 1, exclude.stackIndex);
+      }
+      if (stackHeight(below, tilesById) >= HEIGHT_PER_LEVEL) {
+        const floorAbs = z * HEIGHT_PER_LEVEL;
+        if (floorAbs < feetAbs) {
+          best = best == null ? floorAbs : Math.max(best, floorAbs);
+        }
+      }
+    }
+  }
+
+  return best;
+}
+
+/**
+ * Highest walkable surface absolute elevation strictly below `feetAbs`.
+ * Skips non-walkable solid tops (fall-through after a failed slide).
+ */
+export function findWalkableLandingAbs(
+  map: MapFile,
+  x: number,
+  y: number,
+  feetAbs: number,
+  tilesById: Record<string, TileDef>,
+  exclude?: { z: number; stackIndex: number },
+): number | null {
+  let best: number | null = null;
+
+  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+    let stack = getStack(map, x, y, z);
+    if (exclude && exclude.z === z) {
+      stack = sceneryStack(map, x, y, z, exclude.stackIndex);
+    }
+
+    if (stack.length > 0) {
+      const walkAbs = absoluteWalkableElevation(z, stack, tilesById);
+      if (walkAbs != null && walkAbs < feetAbs) {
+        best = best == null ? walkAbs : Math.max(best, walkAbs);
+      }
+    }
+
     if (z > MIN_LEVEL) {
       let below = getStack(map, x, y, z - 1);
       if (exclude && exclude.z === z - 1) {

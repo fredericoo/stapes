@@ -1,10 +1,18 @@
 import {
   absoluteStandingElevation,
+  absoluteWalkableElevation,
+  climbFromSourceAt,
   getStack,
   stackHeight,
 } from "../lib/mapData";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
-import { HEIGHT_PER_LEVEL, MAX_LEVEL, MIN_LEVEL } from "../lib/types";
+import {
+  HEIGHT_PER_LEVEL,
+  MAX_LEVEL,
+  MIN_LEVEL,
+  resolveWalkable,
+  worldClimbFrom,
+} from "../lib/types";
 import { fitsAtElevation, fitsTile } from "../lib/validation";
 import { MAX_CLIMB_HEIGHT } from "./constants";
 import { normalizeStandingCell } from "./mapMutations";
@@ -48,8 +56,8 @@ export type StandingSurface = {
 };
 
 /**
- * All solid standing surfaces in column (x,y): stack tops and floors formed by
- * a full level below.
+ * All walkable standing surfaces in column (x,y): highest walkable tile top
+ * per stack, and floors formed by a full level below.
  */
 export function listStandingSurfaces(
   map: MapFile,
@@ -69,14 +77,15 @@ export function listStandingSurfaces(
   for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
     const stack = getStack(map, x, y, z);
     if (stack.length > 0) {
-      add(absoluteStandingElevation(z, stack, tilesById), z);
+      const walkAbs = absoluteWalkableElevation(z, stack, tilesById);
+      if (walkAbs != null) add(walkAbs, z);
     }
     if (z > MIN_LEVEL) {
       const below = getStack(map, x, y, z - 1);
       const belowH = stackHeight(below, tilesById);
       // Only when the level below is exactly full does its top form a floor at
       // this level's base. Taller overflow is already covered by the stack-top
-      // surface on z-1 (and abs z*4 would be inside that solid).
+      // surface on z-1.
       if (belowH === HEIGHT_PER_LEVEL) {
         add(z * HEIGHT_PER_LEVEL, z);
       }
@@ -106,6 +115,29 @@ export type WalkCheck =
   | { ok: true; to: Coord }
   | { ok: false; reason: string };
 
+export type CanWalkOpts = {
+  /** Prefer lowest surface in the climb band (Option / Alt). */
+  preferDescend?: boolean;
+};
+
+function climbUpAllowed(
+  map: MapFile,
+  from: Coord & { stackIndex: number },
+  fromAbs: number,
+  destAbs: number,
+  direction: Direction,
+  tilesById: Record<string, TileDef>,
+): boolean {
+  if (destAbs <= fromAbs) return true;
+  const source = climbFromSourceAt(map, from.x, from.y, fromAbs, tilesById, {
+    z: from.z,
+    stackIndex: from.stackIndex,
+  });
+  if (!source) return true;
+  const flags = worldClimbFrom(source.def, source.direction);
+  return flags[direction];
+}
+
 /**
  * Can `tileDef` walk from its current cell one step in `direction`?
  * Vertical change within ±MAX_CLIMB_HEIGHT is a normal walk (including down a
@@ -117,6 +149,7 @@ export function canWalk(
   direction: Direction,
   tileDef: TileDef,
   tilesById: Record<string, TileDef>,
+  opts?: CanWalkOpts,
 ): WalkCheck {
   const { dx, dy } = DIR_DELTA[direction];
   const destX = from.x + dx;
@@ -136,9 +169,24 @@ export function canWalk(
 
   const candidates = listStandingSurfaces(map, destX, destY, tilesById)
     .filter((s) => s.abs >= lo && s.abs <= hi)
-    .sort((a, b) => b.abs - a.abs);
+    .sort((a, b) =>
+      opts?.preferDescend ? a.abs - b.abs : b.abs - a.abs,
+    );
 
   for (const surface of candidates) {
+    if (
+      !climbUpAllowed(
+        map,
+        from,
+        fromAbs,
+        surface.abs,
+        direction,
+        tilesById,
+      )
+    ) {
+      continue;
+    }
+
     const fit = fitsAtElevation(
       map,
       destX,
@@ -164,6 +212,17 @@ export function canWalk(
   const climb = destAbs - fromAbs;
   if (climb > MAX_CLIMB_HEIGHT) {
     return { ok: false, reason: `Climb ${climb} exceeds max ${MAX_CLIMB_HEIGHT}` };
+  }
+
+  if (destScenery.length > 0) {
+    const topDef = tilesById[destScenery[destScenery.length - 1]!.tileId];
+    if (topDef && !resolveWalkable(topDef) && climb >= 0) {
+      return { ok: false, reason: "Destination surface is not walkable" };
+    }
+  }
+
+  if (!climbUpAllowed(map, from, fromAbs, destAbs, direction, tilesById)) {
+    return { ok: false, reason: "Climb-from blocked in that direction" };
   }
 
   const to = destCellAfterStep(from.z, destX, destY, map, tilesById);
