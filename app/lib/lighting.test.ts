@@ -239,4 +239,72 @@ describe("computeLighting", () => {
     const self = sampleLevelLight(grid.levels.get(0)!, 0, 0);
     expect(self[0]).toBeCloseTo(1, 1);
   });
+
+  it("shifts neighbour light when an emitter is overridden halfway between cells", () => {
+    const map = mapAt([
+      { x: 0, y: 0, tiles: ["floor", "torch"] },
+      { x: 1, y: 0, tiles: ["floor"] },
+      { x: 2, y: 0, tiles: ["floor"] },
+    ]);
+    const baseline = computeLighting(map, tilesById, [0, 0, 0]);
+    const moved = computeLighting(map, tilesById, [0, 0, 0], [
+      { x: 0, y: 0, z: 0, fx: 0.5, fy: 0, fz: 0 },
+    ]);
+    const baseLevel = baseline.levels.get(0)!;
+    const movedLevel = moved.levels.get(0)!;
+
+    // Closer to (1,0) than the integer emitter — that neighbour brightens.
+    expect(sampleLevelLight(movedLevel, 1, 0)[0]).toBeGreaterThan(
+      sampleLevelLight(baseLevel, 1, 0)[0],
+    );
+    // Logical self-cell stays lit (emitter still keyed at origin).
+    expect(sampleLevelLight(movedLevel, 0, 0)[0]).toBeGreaterThan(0.5);
+  });
+
+  it("override relocates only the matched emitter — other lights stay put", () => {
+    const map = mapAt([
+      { x: 0, y: 0, tiles: ["floor", "torch"] },
+      { x: 10, y: 0, tiles: ["floor", "torch"] },
+      { x: 11, y: 0, tiles: ["floor"] },
+    ]);
+    const baseline = computeLighting(map, tilesById, [0, 0, 0]);
+    const moved = computeLighting(map, tilesById, [0, 0, 0], [
+      { x: 0, y: 0, z: 0, fx: 1, fy: 0, fz: 0 },
+    ]);
+    const baseLevel = baseline.levels.get(0)!;
+    const movedLevel = moved.levels.get(0)!;
+
+    // Far torch at (10,0) unchanged — neighbour (11,0) same brightness.
+    expect(sampleLevelLight(movedLevel, 11, 0)[0]).toBeCloseTo(
+      sampleLevelLight(baseLevel, 11, 0)[0],
+      2,
+    );
+    // Overridden torch now sits at (1,0) — that cell brighter than baseline.
+    expect(sampleLevelLight(movedLevel, 1, 0)[0]).toBeGreaterThan(
+      sampleLevelLight(baseLevel, 1, 0)[0],
+    );
+  });
+
+  it("does not let an opaque emitter block its own light behind it mid-lerp", () => {
+    const tallLamp = tile({
+      id: "tall-lamp",
+      height: 4,
+      light: { radius: 4, intensity: 1, color: "#ffffff" },
+    });
+    const map = mapAt([
+      { x: 0, y: 0, tiles: ["floor", "tall-lamp"] },
+      { x: 1, y: 0, tiles: ["floor"] },
+      { x: -1, y: 0, tiles: ["floor"] },
+    ]);
+    // Emit from (1,0) while the lamp tile still occupies (0,0). Rays back to
+    // (-1,0) pass through the logical cell — must not self-occlude.
+    const grid = computeLighting(
+      map,
+      { ...tilesById, "tall-lamp": tallLamp },
+      [0, 0, 0],
+      [{ x: 0, y: 0, z: 0, fx: 1, fy: 0, fz: 0 }],
+    );
+    const level = grid.levels.get(0)!;
+    expect(sampleLevelLight(level, -1, 0)[0]).toBeGreaterThan(0.2);
+  });
 });

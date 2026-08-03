@@ -1,10 +1,22 @@
 import { describe, expect, it } from "vitest";
 import {
   absoluteElevation,
+  boxSurfaceElevation,
+  depthBox,
   drawOrder,
-  tileDepth,
+  fragDepth,
 } from "./geometry";
-import { HEIGHT_PER_LEVEL } from "./types";
+import { CELL_SIZE, HEIGHT_PER_LEVEL } from "./types";
+
+/** Window depth is smaller = nearer, so "in front" means a lower value. */
+function expectInFront(near: number, far: number) {
+  expect(near).toBeLessThan(far);
+}
+
+/** Screen pixel where a cell's own foot corner lands (no elevation shift). */
+function footPixel(cellX: number, cellY: number) {
+  return { sx: cellX * CELL_SIZE, sy: cellY * CELL_SIZE };
+}
 
 describe("absoluteElevation", () => {
   it("combines level floor with in-stack elevation", () => {
@@ -15,62 +27,120 @@ describe("absoluteElevation", () => {
   });
 });
 
-describe("drawOrder / tileDepth across levels", () => {
+describe("drawOrder", () => {
   it("lets east win over a taller western tile on the same row", () => {
     const westTall = drawOrder(5, 10, absoluteElevation(0, 5), 2);
     const eastRoof = drawOrder(6, 10, absoluteElevation(1, 0), 0);
     expect(eastRoof).toBeGreaterThan(westTall);
-    expect(tileDepth(6, 10, absoluteElevation(1, 0), 0)).toBeGreaterThan(
-      tileDepth(5, 10, absoluteElevation(0, 5), 2),
-    );
   });
 
   it("lets south win over a northern tile on a superior level", () => {
-    // Level banding used to bury this; grid position must outrank level.
     const south = drawOrder(5, 10, absoluteElevation(0, 5), 2);
     const northRoof = drawOrder(5, 9, absoluteElevation(1, 0), 0);
     expect(south).toBeGreaterThan(northRoof);
-    expect(tileDepth(5, 10, absoluteElevation(0, 5), 2)).toBeGreaterThan(
-      tileDepth(5, 9, absoluteElevation(1, 0), 0),
-    );
-  });
-
-  it("keeps southern tiles in front at equal elevation", () => {
-    const north = drawOrder(5, 9, absoluteElevation(0, 0), 0);
-    const south = drawOrder(5, 10, absoluteElevation(0, 0), 0);
-    expect(south).toBeGreaterThan(north);
-    expect(tileDepth(5, 10, 0, 0)).toBeGreaterThan(tileDepth(5, 9, 0, 0));
   });
 
   it("orders same-cell stacks by absolute elevation across levels", () => {
     const lower = drawOrder(3, 3, absoluteElevation(0, 2), 0);
     const upper = drawOrder(3, 3, absoluteElevation(1, 0), 0);
     expect(upper).toBeGreaterThan(lower);
-    expect(tileDepth(3, 3, absoluteElevation(1, 0), 0)).toBeGreaterThan(
-      tileDepth(3, 3, absoluteElevation(0, 2), 0),
+  });
+});
+
+describe("boxSurfaceElevation", () => {
+  it("reads the top face over the middle of a flat tile", () => {
+    const flat = depthBox(4, 4, 0, 0);
+    const { sx, sy } = footPixel(4, 4);
+    expect(boxSurfaceElevation(flat, sx + 4, sy + 4)).toBe(0);
+  });
+
+  it("climbs the east face as pixels move west across a tall tile", () => {
+    const column = depthBox(4, 4, 0, 8);
+    // Each height unit shifts a face 2px up-left, so pixels sampled up-left
+    // along the face read progressively higher. Staying north keeps the south
+    // face from being the nearer one.
+    expect(boxSurfaceElevation(column, 38, 34)).toBe(1);
+    expect(boxSurfaceElevation(column, 34, 30)).toBe(3);
+  });
+
+  it("caps at the top face and never dips below the foot", () => {
+    const column = depthBox(4, 4, 2, 6);
+    expect(boxSurfaceElevation(column, -1000, -1000)).toBe(6);
+    // Art drawn outside the footprint (tree canopy) clamps to the foot plane.
+    expect(boxSurfaceElevation(column, 1000, 1000)).toBe(2);
+  });
+});
+
+describe("fragDepth", () => {
+  /**
+   * Cells one step down-right and 4 height units up project to the very same
+   * pixels, so this is where sprites actually overlap and depth has to decide.
+   */
+  it("puts a raised south-east tile in front of the ground tile it covers", () => {
+    const ground = depthBox(5, 9, 0, 0);
+    const roof = depthBox(6, 10, HEIGHT_PER_LEVEL, HEIGHT_PER_LEVEL);
+    const sx = 44;
+    const sy = 76;
+    expectInFront(fragDepth(roof, sx, sy), fragDepth(ground, sx, sy));
+  });
+
+  it("puts a tall column's flank in front of the ground tile behind it", () => {
+    const ground = depthBox(5, 9, 0, 0);
+    const column = depthBox(6, 10, 0, 8);
+    const sx = 44;
+    const sy = 76;
+    expectInFront(fragDepth(column, sx, sy), fragDepth(ground, sx, sy));
+  });
+
+  it("separates coplanar surfaces by stack bias", () => {
+    // Dirt (h=0) and the player standing on it share the same foot plane.
+    const cell = depthBox(0, 0, 0, 0);
+    const player = depthBox(0, 0, 0, 4);
+    const p = footPixel(0, 0);
+    expectInFront(
+      fragDepth(player, p.sx + 4, p.sy + 4, 1),
+      fragDepth(cell, p.sx + 4, p.sy + 4, 0),
     );
   });
 
-  it("matches z*4+elev at equal foot height and stack index", () => {
-    const lower = drawOrder(3, 3, absoluteElevation(0, 4), 0);
-    const upper = drawOrder(3, 3, absoluteElevation(1, 0), 0);
-    expect(lower).toBe(upper);
-    expect(tileDepth(3, 3, absoluteElevation(0, 4), 0)).toBe(
-      tileDepth(3, 3, absoluteElevation(1, 0), 0),
+  it("stays inside the normalised depth range for extreme placements", () => {
+    const far = depthBox(200, 200, absoluteElevation(8, 8), absoluteElevation(8, 12));
+    const d = fragDepth(far, 200 * CELL_SIZE, 200 * CELL_SIZE, 16);
+    expect(d).toBeGreaterThan(0);
+    expect(d).toBeLessThan(1);
+  });
+
+  /**
+   * The case that motivated per-pixel depth. Mid-step the mover has to be
+   * behind the tall stack beside it AND in front of the floor it is stepping
+   * onto — two orderings no single depth value per sprite can hold at once.
+   */
+  it("keeps a mid-walk mover behind the east stack and above the destination floor", () => {
+    const col = 5;
+    const row = 10;
+    const eastStack = depthBox(col + 1, row, 0, 8);
+    const destFloor = depthBox(col, row + 1, 0, 0);
+    const mover = depthBox(col, row + 0.5, 0, 4);
+    const moverBias = 1;
+
+    // A pixel on the east stack's west flank, level with the mover's row.
+    const againstStack = {
+      sx: (col + 1) * CELL_SIZE + 1,
+      sy: row * CELL_SIZE + 4,
+    };
+    expectInFront(
+      fragDepth(eastStack, againstStack.sx, againstStack.sy),
+      fragDepth(mover, againstStack.sx, againstStack.sy, moverBias),
     );
-  });
 
-  it("puts later same-cell stack entries clearly in front of height-0 ground", () => {
-    // (0,0): dirt h=0 then player — shared absElev, stackIndex must beat depth precision.
-    const dirt = tileDepth(0, 0, 0, 0);
-    const player = tileDepth(0, 0, 0, 1);
-    expect(player).toBeGreaterThan(dirt);
-    expect(player - dirt).toBeGreaterThan(0.00005);
-  });
-
-  it("tileDepth stays within the ortho frustum budget", () => {
-    const d = tileDepth(40, 40, absoluteElevation(8, 8), 16);
-    expect(d).toBeGreaterThanOrEqual(0);
-    expect(d).toBeLessThan(40);
+    // A pixel over the destination floor, where the mover's feet are landing.
+    const overFloor = {
+      sx: col * CELL_SIZE + 4,
+      sy: (row + 1) * CELL_SIZE + 2,
+    };
+    expectInFront(
+      fragDepth(mover, overFloor.sx, overFloor.sy, moverBias),
+      fragDepth(destFloor, overFloor.sx, overFloor.sy),
+    );
   });
 });

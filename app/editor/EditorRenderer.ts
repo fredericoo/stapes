@@ -6,10 +6,10 @@ import * as THREE from "three";
 import {
   absoluteElevation,
   baseCellWorldOrigin,
+  depthBox,
   drawOrder,
   screenToCoord,
   spriteWorldOrigin,
-  tileDepth,
 } from "../lib/geometry";
 import {
   AMBIENT_PRESETS,
@@ -35,6 +35,14 @@ import {
 import { canReplaceStack } from "../lib/validation";
 import { useEditorStore, type ToolId } from "./store";
 import type { EditorPerfMeasure, EditorPerfSnapshot } from "./perf";
+import {
+  type LevelLightUniforms,
+  type Quad,
+  WORLD_SHADER_CACHE_KEY,
+  buildMergedQuadGeometry,
+  buildSingleQuadGeometry,
+  injectWorldShader,
+} from "../render/worldQuads";
 
 type AnimatedInstance = {
   mesh: THREE.Mesh;
@@ -59,26 +67,6 @@ type SpriteQuad = {
   v1: number;
 };
 
-type Quad = {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  u0: number;
-  v0: number;
-  u1: number;
-  v1: number;
-  /** World Z — higher draws in front via the depth buffer. */
-  depth: number;
-  /** Sprite extent in cell space for light-map sampling (inclusive-exclusive). */
-  lightX0: number;
-  lightY0: number;
-  lightX1: number;
-  lightY1: number;
-  /** When true, skip light-map multiply (emitting props stay full-bright). */
-  unlit: boolean;
-};
-
 const BACKGROUND_COLOR = 0xb8b09e;
 
 const GHOST_OPACITY = 0.55;
@@ -92,95 +80,6 @@ const LIGHTING_DEBOUNCE_MS = 50;
  * visual middle of a tile (cabinet projection), not the base corner.
  */
 const LIGHT_MAP_CELL_OFFSET = 0.5;
-
-type LevelLightUniforms = {
-  uLightMap: { value: THREE.Texture };
-  uLightOrigin: { value: THREE.Vector2 };
-  uLightSize: { value: THREE.Vector2 };
-  uLightingEnabled: { value: number };
-};
-
-/** One BufferGeometry for every quad sharing a tileset inside a level. */
-function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
-  const n = quads.length;
-  const positions = new Float32Array(n * 4 * 3);
-  const uvs = new Float32Array(n * 4 * 2);
-  const lightUvs = new Float32Array(n * 4 * 2);
-  const unlit = new Float32Array(n * 4);
-  const indices = n * 4 > 65535 ? new Uint32Array(n * 6) : new Uint16Array(n * 6);
-
-  for (let i = 0; i < n; i++) {
-    const q = quads[i]!;
-    const x0 = q.x;
-    const y0 = q.y;
-    const x1 = q.x + q.w;
-    const y1 = q.y + q.h;
-    const z = q.depth;
-    const pb = i * 12;
-    // Match PlaneGeometry + Y-down UV mapping (see addQuadMesh).
-    // vert0 (local +Y / screen-bottom): (x0, y1) uv (u0, v0)
-    // vert1: (x1, y1) uv (u1, v0)
-    // vert2 (local -Y / screen-top): (x0, y0) uv (u0, v1)
-    // vert3: (x1, y0) uv (u1, v1)
-    positions[pb] = x0;
-    positions[pb + 1] = y1;
-    positions[pb + 2] = z;
-    positions[pb + 3] = x1;
-    positions[pb + 4] = y1;
-    positions[pb + 5] = z;
-    positions[pb + 6] = x0;
-    positions[pb + 7] = y0;
-    positions[pb + 8] = z;
-    positions[pb + 9] = x1;
-    positions[pb + 10] = y0;
-    positions[pb + 11] = z;
-
-    const ub = i * 8;
-    uvs[ub] = q.u0;
-    uvs[ub + 1] = q.v0;
-    uvs[ub + 2] = q.u1;
-    uvs[ub + 3] = q.v0;
-    uvs[ub + 4] = q.u0;
-    uvs[ub + 5] = q.v1;
-    uvs[ub + 6] = q.u1;
-    uvs[ub + 7] = q.v1;
-
-    // Same vert order as UVs — cell-space corners for the light map.
-    lightUvs[ub] = q.lightX0;
-    lightUvs[ub + 1] = q.lightY1;
-    lightUvs[ub + 2] = q.lightX1;
-    lightUvs[ub + 3] = q.lightY1;
-    lightUvs[ub + 4] = q.lightX0;
-    lightUvs[ub + 5] = q.lightY0;
-    lightUvs[ub + 6] = q.lightX1;
-    lightUvs[ub + 7] = q.lightY0;
-
-    const u = q.unlit ? 1 : 0;
-    const vb = i * 4;
-    unlit[vb] = u;
-    unlit[vb + 1] = u;
-    unlit[vb + 2] = u;
-    unlit[vb + 3] = u;
-
-    const base = i * 4;
-    const ib = i * 6;
-    // PlaneGeometry winding: 0,2,1 / 2,3,1
-    indices[ib] = base;
-    indices[ib + 1] = base + 2;
-    indices[ib + 2] = base + 1;
-    indices[ib + 3] = base + 2;
-    indices[ib + 4] = base + 3;
-    indices[ib + 5] = base + 1;
-  }
-
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  geo.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
-  geo.setAttribute("aLightUv", new THREE.BufferAttribute(lightUvs, 2));
-  geo.setAttribute("aUnlit", new THREE.BufferAttribute(unlit, 1));
-  geo.setIndex(new THREE.BufferAttribute(indices, 1));
-  return geo;
-}
 
 function opacityForLevel(
   z: number,
@@ -334,8 +233,8 @@ export class EditorRenderer {
     this.scene = new THREE.Scene();
     // World meshes never move after build — update matrices only on rebuild.
     this.scene.matrixWorldAutoUpdate = false;
-    // Depths are ~[0, 20] from tileDepth (y / x / absElev / stack). Tight
-    // frustum keeps the 24-bit depth buffer precise enough for stackIndex.
+    // Tile quads all sit at z = 0 and write their own fragment depth, so the
+    // frustum only has to contain that plane; chrome overlays skip depth test.
     this.camera = new THREE.OrthographicCamera(0, 1, 0, 1, -10, 50);
     this.camera.position.z = 25;
 
@@ -585,44 +484,9 @@ export class EditorRenderer {
         side: THREE.DoubleSide,
       });
       mat.onBeforeCompile = (shader) => {
-        Object.assign(shader.uniforms, lightUniforms);
-        shader.vertexShader = shader.vertexShader
-          .replace(
-            "#include <common>",
-            /* glsl */ `#include <common>
-attribute vec2 aLightUv;
-attribute float aUnlit;
-varying vec2 vLightUv;
-varying float vUnlit;`,
-          )
-          .replace(
-            "#include <uv_vertex>",
-            /* glsl */ `#include <uv_vertex>
-vLightUv = aLightUv;
-vUnlit = aUnlit;`,
-          );
-        shader.fragmentShader = shader.fragmentShader
-          .replace(
-            "#include <common>",
-            /* glsl */ `#include <common>
-uniform sampler2D uLightMap;
-uniform vec2 uLightOrigin;
-uniform vec2 uLightSize;
-uniform float uLightingEnabled;
-varying vec2 vLightUv;
-varying float vUnlit;`,
-          )
-          .replace(
-            "#include <map_fragment>",
-            /* glsl */ `#include <map_fragment>
-if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
-  vec2 lightUv = (vLightUv - uLightOrigin) / uLightSize;
-  vec3 light = texture2D(uLightMap, lightUv).rgb;
-  diffuseColor.rgb *= light;
-}`,
-          );
+        injectWorldShader(shader, lightUniforms);
       };
-      mat.customProgramCacheKey = () => "stapes-lit-v2";
+      mat.customProgramCacheKey = () => WORLD_SHADER_CACHE_KEY;
       mat.userData.lightUniforms = lightUniforms;
       this.materials.set(key, mat);
     }
@@ -1396,8 +1260,7 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
       let elev = 0;
       cell.stack.forEach((placed, stackIndex) => {
         const def = this.tilesById[placed.tileId];
-        const absElev = absoluteElevation(z, elev);
-        const depth = tileDepth(cell.x, cell.y, absElev, stackIndex);
+        const foot = absoluteElevation(z, elev);
 
         if (!def) {
           const origin = baseCellWorldOrigin(cell.x, cell.y, z, elev);
@@ -1410,7 +1273,8 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
             v0: 0,
             u1: 1,
             v1: 1,
-            depth,
+            box: depthBox(cell.x, cell.y, foot, foot),
+            stackBias: stackIndex,
             texture: this.magentaTex,
             lightX0: cell.x,
             lightY0: cell.y,
@@ -1456,7 +1320,8 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
           v0,
           u1,
           v1,
-          depth,
+          box: depthBox(cell.x, cell.y, foot, foot + def.height),
+          stackBias: stackIndex,
           texture,
           lightX0,
           lightY0,
@@ -1493,25 +1358,7 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
 
     for (const item of items) {
       if (item.anim) {
-        const mesh = this.addQuadMesh(
-          levelGroup,
-          item.x,
-          item.y,
-          item.w,
-          item.h,
-          item.texture,
-          item.u0,
-          item.v0,
-          item.u1,
-          item.v1,
-          item.depth,
-          z,
-          item.lightX0,
-          item.lightY0,
-          item.lightX1,
-          item.lightY1,
-          item.unlit,
-        );
+        const mesh = this.addQuadMesh(levelGroup, item, item.texture, z);
         animated.push({
           mesh,
           tileId: item.anim.tileId,
@@ -1549,56 +1396,14 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
 
   private addQuadMesh(
     parent: THREE.Object3D,
-    x: number,
-    y: number,
-    w: number,
-    h: number,
+    quad: Quad,
     texture: THREE.Texture,
-    u0: number,
-    v0: number,
-    u1: number,
-    v1: number,
-    depth: number,
     z: number,
-    lightX0: number,
-    lightY0: number,
-    lightX1: number,
-    lightY1: number,
-    unlit: boolean,
   ): THREE.Mesh {
-    const geo = new THREE.PlaneGeometry(w, h);
-    const uvs = geo.attributes.uv!;
-    // PlaneGeometry verts (Y-up local space):
-    //   0=(-w/2,+h/2)  1=(+w/2,+h/2)  2=(-w/2,-h/2)  3=(+w/2,-h/2)
-    // With our Y-down ortho (top < bottom), +h/2 is LOWER on screen and -h/2 is HIGHER.
-    // So map top-of-sprite (v1) to verts 2/3 and bottom-of-sprite (v0) to verts 0/1.
-    uvs.setXY(0, u0, v0);
-    uvs.setXY(1, u1, v0);
-    uvs.setXY(2, u0, v1);
-    uvs.setXY(3, u1, v1);
-    uvs.needsUpdate = true;
-
-    const lightUvs = new Float32Array([
-      lightX0,
-      lightY1,
-      lightX1,
-      lightY1,
-      lightX0,
-      lightY0,
-      lightX1,
-      lightY0,
-    ]);
-    geo.setAttribute("aLightUv", new THREE.BufferAttribute(lightUvs, 2));
-    const unlitVal = unlit ? 1 : 0;
-    geo.setAttribute(
-      "aUnlit",
-      new THREE.BufferAttribute(new Float32Array([unlitVal, unlitVal, unlitVal, unlitVal]), 1),
-    );
-
-    // Cutout material — depth Z carries painter's order (no per-quad renderOrder).
-    const mat = this.materialFor(texture, z);
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.set(x + w / 2, y + h / 2, depth);
+    // Cutout material — the shader writes per-fragment depth for painter order.
+    const geo = buildSingleQuadGeometry(quad);
+    const mesh = new THREE.Mesh(geo, this.materialFor(texture, z));
+    mesh.position.set(quad.x + quad.w / 2, quad.y + quad.h / 2, 0);
     mesh.matrixAutoUpdate = false;
     mesh.updateMatrix();
     parent.add(mesh);

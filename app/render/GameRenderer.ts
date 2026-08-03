@@ -3,9 +3,16 @@ import {
   PX_PER_HEIGHT,
 } from "../lib/geometry";
 import type { GameSession, GameSnapshot } from "../game/GameSession";
+import { PLAYER_TILE_ID } from "../game/constants";
 import { sceneryStack } from "../game/movement";
+import type { EmitterOverride } from "../lib/lighting";
 import { getStack, stackHeight } from "../lib/mapData";
+import {
+  levelsAboveShouldHide,
+  viewAnchorFromSnapshot,
+} from "../lib/levelVisibility";
 import type { MapFile, TileDef, TilesetDef } from "../lib/types";
+import { HEIGHT_PER_LEVEL } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { type TileMotion, WorldRenderer } from "./WorldRenderer";
 
@@ -78,53 +85,111 @@ export class GameRenderer {
       y: visual.y - viewH / 2,
     };
 
+    const anchor = viewAnchorFromSnapshot(snap);
+    const hideAbove = levelsAboveShouldHide(
+      snap.map,
+      this.tilesById,
+      anchor,
+    );
+
     this.world.setView({
       map: snap.map,
       tilesById: this.tilesById,
       camera,
       zoom,
-      timeOfDay: "day",
+      timeOfDay: "night",
       tileMotions: this.tileMotionsFor(snap, visual),
+      emitterOverrides: this.emitterOverridesFor(snap),
+      hideLevelsAbove: hideAbove ? anchor.z : undefined,
     });
   }
 
   /**
-   * Motions for tiles currently lerping. Same path for any moving tile —
-   * today only the player walks/falls, but depth uses destination `sortAt`
-   * rather than a player-specific rule.
+   * Cell-space fractional emit positions for lit tiles mid-walk/fall —
+   * same progress as sprite LERP so cast light tracks the mover.
+   */
+  private emitterOverridesFor(
+    snap: GameSnapshot,
+  ): EmitterOverride[] | undefined {
+    const light = this.tilesById[PLAYER_TILE_ID]?.light;
+    if (!light || !(light.radius > 0) || !(light.intensity > 0)) {
+      return undefined;
+    }
+
+    if (snap.walk) {
+      const { from, to } = snap.walk;
+      const t = snap.walkProgress;
+      return [
+        {
+          x: from.x,
+          y: from.y,
+          z: from.z,
+          fx: from.x + (to.x - from.x) * t,
+          fy: from.y + (to.y - from.y) * t,
+          fz: from.z + (to.z - from.z) * t,
+        },
+      ];
+    }
+
+    if (snap.fall) {
+      const visualFeet = snap.fall.feetAbs - snap.fallProgress;
+      return [
+        {
+          x: snap.player.x,
+          y: snap.player.y,
+          z: snap.player.z,
+          fx: snap.player.x,
+          fy: snap.player.y,
+          fz: visualFeet / HEIGHT_PER_LEVEL,
+        },
+      ];
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Motions for tiles currently lerping. Same path for any moving tile — today
+   * only the player walks/falls. The box travels with the sprite in fractional
+   * cells, which is what lets a mover be behind the wall beside it and in front
+   * of the floor it is stepping onto at the same time.
    */
   private tileMotionsFor(
     snap: GameSnapshot,
     visual: { x: number; y: number },
   ): TileMotion[] | undefined {
     if (snap.walk) {
-      const from = this.cellWorldCenter(
-        snap.walk.from.x,
-        snap.walk.from.y,
-        snap.walk.from.z,
+      const { from, to } = snap.walk;
+      const stackIndex = snap.player.stackIndex;
+      const fromCenter = this.cellWorldCenter(
+        from.x,
+        from.y,
+        from.z,
         snap.map,
-        snap.player.stackIndex,
+        stackIndex,
       );
-      // Painter depth as if already on top of the destination stack.
-      const destStackLen = getStack(
-        snap.map,
-        snap.walk.to.x,
-        snap.walk.to.y,
-        snap.walk.to.z,
-      ).length;
+      const originFoot = this.standingFootAbs(snap.map, from, stackIndex);
+      const destFoot = this.surfaceFootAbs(snap.map, to.x, to.y, to.z);
+      const destStackLen = getStack(snap.map, to.x, to.y, to.z).length;
+      const t = snap.walkProgress;
+      const foot = originFoot + (destFoot - originFoot) * t;
+
       return [
         {
-          x: snap.walk.from.x,
-          y: snap.walk.from.y,
-          z: snap.walk.from.z,
-          stackIndex: snap.player.stackIndex,
-          ox: visual.x - from.x,
-          oy: visual.y - from.y,
-          sortAt: {
-            x: snap.walk.to.x,
-            y: snap.walk.to.y,
-            z: snap.walk.to.z,
-            stackIndex: destStackLen,
+          x: from.x,
+          y: from.y,
+          z: from.z,
+          stackIndex,
+          ox: visual.x - fromCenter.x,
+          oy: visual.y - fromCenter.y,
+          box: {
+            x: from.x + (to.x - from.x) * t,
+            y: from.y + (to.y - from.y) * t,
+            foot,
+            top: foot + this.movingTileHeight(snap.map, from, stackIndex),
+            // Feet share a plane with both floors it passes over; outrank the
+            // top tile of whichever stack it is standing on.
+            stackBias: Math.max(stackIndex, destStackLen),
           },
         },
       ];
@@ -132,19 +197,64 @@ export class GameRenderer {
 
     if (snap.fall) {
       const drop = snap.fallProgress * PX_PER_HEIGHT;
+      const { player } = snap;
+      const foot = snap.fall.feetAbs - snap.fallProgress;
       return [
         {
-          x: snap.player.x,
-          y: snap.player.y,
-          z: snap.player.z,
-          stackIndex: snap.player.stackIndex,
+          x: player.x,
+          y: player.y,
+          z: player.z,
+          stackIndex: player.stackIndex,
           ox: drop,
           oy: drop,
+          box: {
+            x: player.x,
+            y: player.y,
+            foot,
+            top: foot + this.movingTileHeight(snap.map, player, player.stackIndex),
+            stackBias: player.stackIndex,
+          },
         },
       ];
     }
 
     return undefined;
+  }
+
+  /** Height of the tile at a stack slot — the mover is not always the player. */
+  private movingTileHeight(
+    map: MapFile,
+    cell: { x: number; y: number; z: number },
+    stackIndex: number,
+  ): number {
+    const placed = getStack(map, cell.x, cell.y, cell.z)[stackIndex];
+    if (!placed) return 0;
+    return this.tilesById[placed.tileId]?.height ?? 0;
+  }
+
+  /** Absolute foot elevation of a tile standing at a stack slot. */
+  private standingFootAbs(
+    map: MapFile,
+    cell: { x: number; y: number; z: number },
+    stackIndex: number,
+  ): number {
+    const elev = stackHeight(
+      sceneryStack(map, cell.x, cell.y, cell.z, stackIndex),
+      this.tilesById,
+    );
+    return cell.z * HEIGHT_PER_LEVEL + elev;
+  }
+
+  /** Absolute elevation of a cell's standing surface (scenery only). */
+  private surfaceFootAbs(
+    map: MapFile,
+    x: number,
+    y: number,
+    z: number,
+  ): number {
+    return (
+      z * HEIGHT_PER_LEVEL + stackHeight(getStack(map, x, y, z), this.tilesById)
+    );
   }
 
   private playerVisualWorld(snap: GameSnapshot): { x: number; y: number } {

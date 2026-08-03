@@ -79,6 +79,10 @@ export function screenToCoord(
  * Painter's algorithm sort key across levels.
  * South (y) and east (x) decide screen occlusion first; absolute elevation
  * only orders tiles that share a cell (incl. overflow vs the level above).
+ *
+ * World tiles do NOT use this — they get per-pixel depth (see {@link fragDepth}).
+ * It survives for the editor's overlay chrome, which is drawn with `depthTest:
+ * false` and needs a whole-sprite `renderOrder`.
  */
 export function drawOrder(
   x: number,
@@ -90,23 +94,103 @@ export function drawOrder(
 }
 
 /**
- * Ortho mesh depth from the same key as {@link drawOrder}.
- * Kept in ~[0, 20] so the ortho far plane can stay tight (better depth precision).
+ * A placed tile as a solid box in world space: the cell footprint
+ * [x, x+1] x [y, y+1] extruded from `foot` to `top` height units.
  *
- * stackIndex uses 1e-4 — enough to beat 24-bit depth precision when a height-0
- * ground tile shares absElev with the tile above it (e.g. dirt + player at 0,0).
+ * Edges are stored as world pixels of the *unshifted* cell grid — raw
+ * `(cell + 1) * CELL_SIZE`, NOT what {@link baseCellWorldOrigin} returns. The
+ * origin bakes in the -2*elevation screen shift; these planes must not, since
+ * the shader recovers elevation *from* that shift.
  */
-export function tileDepth(
+export type DepthBox = {
+  eastPx: number;
+  southPx: number;
+  foot: number;
+  top: number;
+};
+
+/** Box for a tile whose base cell is (x, y), standing from `foot` to `top`. */
+export function depthBox(
   x: number,
   y: number,
-  absElev: number,
-  stackIndex: number,
+  foot: number,
+  top: number,
+): DepthBox {
+  return {
+    eastPx: (x + 1) * CELL_SIZE,
+    southPx: (y + 1) * CELL_SIZE,
+    foot,
+    top,
+  };
+}
+
+/**
+ * Ray depth of a world point, larger = nearer the camera.
+ *
+ * The oblique projection puts (x+1, y+1, elev+4) on the same screen pixel as
+ * (x, y, elev), so `x + y + 4*elev` is constant along a view ray. Substituting
+ * the projection (screenPx = CELL_SIZE*cell - PX_PER_HEIGHT*elev) gives this in
+ * terms of the pixel a fragment lands on plus the elevation it depicts.
+ */
+export function rayDepth(screenX: number, screenY: number, elev: number): number {
+  return (screenX + screenY) / CELL_SIZE + 4.5 * elev;
+}
+
+/**
+ * Elevation of the box surface seen at a screen pixel — the box's three visible
+ * faces (top, south, east) resolved as one value.
+ *
+ * Along a view ray elevation rises as it travels away from the camera, so the
+ * nearest surface is the *highest* elevation still inside the box: each face
+ * caps it, hence the min. Rays that miss the box entirely (sprite art drawn
+ * outside its logical footprint, e.g. a tree canopy) clamp to `foot`.
+ */
+export function boxSurfaceElevation(
+  box: DepthBox,
+  screenX: number,
+  screenY: number,
 ): number {
-  // y > x > elev > stack; sized for ~50-cell maps and ~8 elev of local overlap.
-  return (
-    (y + 64) * 0.35 +
-    (x + 64) * 0.006 +
-    (absElev + 64) * 0.0005 +
-    stackIndex * 0.0001
-  );
+  const eastFace = (box.eastPx - screenX) / PX_PER_HEIGHT;
+  const southFace = (box.southPx - screenY) / PX_PER_HEIGHT;
+  const surface = Math.min(eastFace, southFace, box.top);
+  return Math.max(box.foot, Math.min(surface, box.top));
+}
+
+/**
+ * Ray depths are normalised into the [0, 1] window-depth range against these
+ * bounds. Generous enough for maps far larger than we ship (levels are capped
+ * at +/-8, so +/-48 covers every elevation including overflow stacks).
+ */
+const DEPTH_COORD_LIMIT = 256;
+const DEPTH_ELEV_LIMIT = 48;
+export const DEPTH_MAX = 2 * DEPTH_COORD_LIMIT + 4 * DEPTH_ELEV_LIMIT;
+export const DEPTH_MIN = -DEPTH_MAX;
+
+/**
+ * Nudge, in ray-depth units, applied per stack index.
+ *
+ * Coplanar surfaces are the one case geometry can't separate: a character's
+ * feet sit exactly on the floor plane it stands on. ~24x the 24-bit depth
+ * buffer's step over [DEPTH_MIN, DEPTH_MAX], and far too small to reorder
+ * anything that is genuinely apart.
+ */
+export const DEPTH_STACK_BIAS = 0.002;
+
+/**
+ * Window depth ([0, 1], smaller = nearer, matching the default GL_LESS test)
+ * for the fragment of `box` landing on a screen pixel.
+ *
+ * Mirrors the GLSL in `app/render/worldQuads.ts` — the reference the tests
+ * assert against.
+ */
+export function fragDepth(
+  box: DepthBox,
+  screenX: number,
+  screenY: number,
+  stackBias = 0,
+): number {
+  const elev = boxSurfaceElevation(box, screenX, screenY);
+  const d = rayDepth(screenX, screenY, elev) + stackBias * DEPTH_STACK_BIAS;
+  const normalized = (DEPTH_MAX - d) / (DEPTH_MAX - DEPTH_MIN);
+  return Math.max(0, Math.min(1, normalized));
 }

@@ -2,17 +2,19 @@ import * as THREE from "three";
 import {
   absoluteElevation,
   baseCellWorldOrigin,
+  type DepthBox,
+  depthBox,
   spriteWorldOrigin,
-  tileDepth,
 } from "../lib/geometry";
 import {
   AMBIENT_PRESETS,
   computeLighting,
+  type EmitterOverride,
   type LevelLightMap,
   type LightGrid,
   type TimeOfDay,
 } from "../lib/lighting";
-import { elevationAt, getStack, listCoords } from "../lib/mapData";
+import { listCoords } from "../lib/mapData";
 import type { Frame, MapFile, TileDef, TilesetDef } from "../lib/types";
 import {
   CELL_SIZE,
@@ -21,6 +23,15 @@ import {
   getFrames,
   levelKey,
 } from "../lib/types";
+import {
+  type LevelLightUniforms,
+  type Quad,
+  WORLD_SHADER_CACHE_KEY,
+  buildMergedQuadGeometry,
+  buildSingleQuadGeometry,
+  injectWorldShader,
+  writeBoxAttr,
+} from "./worldQuads";
 
 type AnimatedInstance = {
   mesh: THREE.Mesh;
@@ -29,31 +40,11 @@ type AnimatedInstance = {
   animKey: string;
 };
 
-type Quad = {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  u0: number;
-  v0: number;
-  u1: number;
-  v1: number;
-  depth: number;
-  lightX0: number;
-  lightY0: number;
-  lightX1: number;
-  lightY1: number;
-  unlit: boolean;
+const BACKGROUND_BY_TIME: Record<TimeOfDay, number> = {
+  day: 0xb8b09e,
+  dusk: 0x6a5040,
+  night: 0x0a0d1a,
 };
-
-type LevelLightUniforms = {
-  uLightMap: { value: THREE.Texture };
-  uLightOrigin: { value: THREE.Vector2 };
-  uLightSize: { value: THREE.Vector2 };
-  uLightingEnabled: { value: number };
-};
-
-const BACKGROUND_COLOR = 0xb8b09e;
 const LIGHT_MAP_CELL_OFFSET = 0.5;
 
 /** Map cell + stack slot identifying a placed tile instance. */
@@ -65,15 +56,27 @@ export type TileInstanceKey = {
 };
 
 /**
+ * Where a moving tile's solid volume is right now, in fractional cells and
+ * absolute height units. A tile mid-step straddles two cells, so its box has
+ * to travel with the sprite rather than snap between the cells it occupies.
+ */
+export type MotionBox = {
+  x: number;
+  y: number;
+  foot: number;
+  top: number;
+  /** Separates the mover from whatever floor plane its feet are resting on. */
+  stackBias: number;
+};
+
+/**
  * Per-frame motion for a placed tile (walk/fall lerp, push, etc.).
- * Not player-specific — any tile can move. While moving, `sortAt` is combined
- * with the origin depth via max() so south/east clear the dest floor and
- * north/west stay above the tile being left.
+ * Not player-specific — any tile can move.
  */
 export type TileMotion = TileInstanceKey & {
   ox: number;
   oy: number;
-  sortAt?: TileInstanceKey;
+  box: MotionBox;
 };
 
 export type WorldView = {
@@ -82,81 +85,31 @@ export type WorldView = {
   camera: { x: number; y: number };
   zoom: number;
   timeOfDay: TimeOfDay;
-  /** Active lerps; depth uses `sortAt` when set, else the tile’s built depth. */
+  /** Active lerps; each carries the depth box its sprite currently occupies. */
   tileMotions?: TileMotion[];
+  /**
+   * Fractional cell-space emit positions for tiles mid-walk/fall so cast
+   * light tracks sprite motion. Logical `x,y,z` must match the map cell.
+   */
+  emitterOverrides?: EmitterOverride[];
+  /**
+   * When set, hide every level group with z strictly above this value
+   * (player roof-cut). Omit to show all levels (editor / preview).
+   */
+  hideLevelsAbove?: number;
 };
 
-function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
-  const n = quads.length;
-  const positions = new Float32Array(n * 4 * 3);
-  const uvs = new Float32Array(n * 4 * 2);
-  const lightUvs = new Float32Array(n * 4 * 2);
-  const unlit = new Float32Array(n * 4);
-  const indices = n * 4 > 65535 ? new Uint32Array(n * 6) : new Uint16Array(n * 6);
-
-  for (let i = 0; i < n; i++) {
-    const q = quads[i]!;
-    const x0 = q.x;
-    const y0 = q.y;
-    const x1 = q.x + q.w;
-    const y1 = q.y + q.h;
-    const z = q.depth;
-    const pb = i * 12;
-    positions[pb] = x0;
-    positions[pb + 1] = y1;
-    positions[pb + 2] = z;
-    positions[pb + 3] = x1;
-    positions[pb + 4] = y1;
-    positions[pb + 5] = z;
-    positions[pb + 6] = x0;
-    positions[pb + 7] = y0;
-    positions[pb + 8] = z;
-    positions[pb + 9] = x1;
-    positions[pb + 10] = y0;
-    positions[pb + 11] = z;
-
-    const ub = i * 8;
-    uvs[ub] = q.u0;
-    uvs[ub + 1] = q.v0;
-    uvs[ub + 2] = q.u1;
-    uvs[ub + 3] = q.v0;
-    uvs[ub + 4] = q.u0;
-    uvs[ub + 5] = q.v1;
-    uvs[ub + 6] = q.u1;
-    uvs[ub + 7] = q.v1;
-
-    lightUvs[ub] = q.lightX0;
-    lightUvs[ub + 1] = q.lightY1;
-    lightUvs[ub + 2] = q.lightX1;
-    lightUvs[ub + 3] = q.lightY1;
-    lightUvs[ub + 4] = q.lightX0;
-    lightUvs[ub + 5] = q.lightY0;
-    lightUvs[ub + 6] = q.lightX1;
-    lightUvs[ub + 7] = q.lightY0;
-
-    const u = q.unlit ? 1 : 0;
-    unlit[i * 4] = u;
-    unlit[i * 4 + 1] = u;
-    unlit[i * 4 + 2] = u;
-    unlit[i * 4 + 3] = u;
-
-    const ib = i * 6;
-    const v = i * 4;
-    indices[ib] = v;
-    indices[ib + 1] = v + 1;
-    indices[ib + 2] = v + 2;
-    indices[ib + 3] = v + 1;
-    indices[ib + 4] = v + 3;
-    indices[ib + 5] = v + 2;
-  }
-
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  geo.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
-  geo.setAttribute("aLightUv", new THREE.BufferAttribute(lightUvs, 2));
-  geo.setAttribute("aUnlit", new THREE.BufferAttribute(unlit, 1));
-  geo.setIndex(new THREE.BufferAttribute(indices, 1));
-  return geo;
+/** Stable cache key for fractional emitter overrides (~0.01 cell). */
+function emitterOverridesKey(
+  overrides: EmitterOverride[] | undefined,
+): string {
+  if (!overrides?.length) return "";
+  return overrides
+    .map(
+      (o) =>
+        `${o.x},${o.y},${o.z}:${o.fx.toFixed(2)},${o.fy.toFixed(2)},${o.fz.toFixed(2)}`,
+    )
+    .join("|");
 }
 
 function disposeObject3D(obj: THREE.Object3D) {
@@ -190,7 +143,10 @@ export class WorldRenderer {
   /** Separate meshes that can receive {@link TileMotion} offsets (anim or in-motion). */
   private movableMeshes = new Map<string, THREE.Mesh>();
   private movableBasePos = new Map<string, { x: number; y: number }>();
-  private movableBaseDepth = new Map<string, number>();
+  private movableBaseBox = new Map<
+    string,
+    { box: DepthBox; stackBias: number }
+  >();
   /** Instance keys that must stay unmerged this build (active motions). */
   private motionKeys = new Set<string>();
   private animClock = 0;
@@ -220,7 +176,7 @@ export class WorldRenderer {
       antialias: false,
       alpha: false,
     });
-    this.renderer.setClearColor(BACKGROUND_COLOR, 1);
+    this.renderer.setClearColor(BACKGROUND_BY_TIME.day, 1);
     this.renderer.setPixelRatio(1);
     this.renderer.autoClear = true;
 
@@ -257,7 +213,14 @@ export class WorldRenderer {
     void this.preloadTextures().then(() => {
       if (this.disposed) return;
       this.prevMap = null;
-      if (this.view) this.applyMap(this.view.map, true);
+      // Force light re-upload after rebuild — materials may be new, and
+      // the first setView can race textures still loading.
+      this.lightingKey = "";
+      this.lastLitMap = null;
+      if (this.view) {
+        this.applyMap(this.view.map, true);
+        this.updateLighting(this.view);
+      }
       this.assetsReady = true;
       this.needsRender = true;
     });
@@ -279,9 +242,18 @@ export class WorldRenderer {
     this.motionKeys = nextMotionKeys;
 
     this.applyMap(view.map, motionSetChanged);
+    this.applyLevelVisibility(view.hideLevelsAbove);
     this.updateLighting(view);
     this.applyTileMotions(view.tileMotions);
     this.needsRender = true;
+  }
+
+  /** Toggle whole level groups; no mesh rebuild. */
+  private applyLevelVisibility(hideLevelsAbove?: number) {
+    for (const [z, group] of this.levelGroups) {
+      group.visible =
+        hideLevelsAbove === undefined || z <= hideLevelsAbove;
+    }
   }
 
   /** Advance sprite animations; call from the host rAF loop. */
@@ -318,7 +290,8 @@ export class WorldRenderer {
     if (this.view) {
       this.applyCamera(this.view.camera.x, this.view.camera.y, this.view.zoom);
     }
-    this.renderer.setClearColor(BACKGROUND_COLOR, 1);
+    const bg = BACKGROUND_BY_TIME[this.view?.timeOfDay ?? "day"];
+    this.renderer.setClearColor(bg, 1);
     this.renderer.clear();
     this.renderer.render(this.scene, this.camera);
   }
@@ -353,56 +326,26 @@ export class WorldRenderer {
 
     for (const [key, mesh] of this.movableMeshes) {
       const base = this.movableBasePos.get(key);
-      const baseDepth = this.movableBaseDepth.get(key);
-      if (!base || baseDepth == null) continue;
+      const baseBox = this.movableBaseBox.get(key);
+      if (!base || !baseBox) continue;
 
+      // Sprite offset and depth box come from the same motion, so what is drawn
+      // and where it sorts can never disagree for a frame.
       const motion = byKey.get(key);
-      if (motion) {
-        mesh.position.x = base.x + motion.ox;
-        mesh.position.y = base.y + motion.oy;
-        // max(origin, dest): south/east use dest (clear dest floor);
-        // north/west keep origin (don't slip under the tile you're leaving).
-        if (motion.sortAt) {
-          const destDepth = this.depthForSort(
-            motion.sortAt.z,
-            motion.sortAt.x,
-            motion.sortAt.y,
-            motion.sortAt.stackIndex,
-          );
-          mesh.position.z = Math.max(baseDepth, destDepth);
-        } else {
-          mesh.position.z = baseDepth;
-        }
-      } else {
-        mesh.position.x = base.x;
-        mesh.position.y = base.y;
-        mesh.position.z = baseDepth;
-      }
+      mesh.position.x = base.x + (motion?.ox ?? 0);
+      mesh.position.y = base.y + (motion?.oy ?? 0);
+      writeBoxAttr(
+        mesh.geometry,
+        motion
+          ? depthBox(motion.box.x, motion.box.y, motion.box.foot, motion.box.top)
+          : baseBox.box,
+        motion ? motion.box.stackBias : baseBox.stackBias,
+      );
       // Scene has matrixWorldAutoUpdate=false — must push local → world or the
       // mesh never moves on screen despite position changing.
       mesh.updateMatrix();
       mesh.updateMatrixWorld(true);
     }
-  }
-
-  /**
-   * Depth a tile would get with its feet at (x,y,z) stackIndex
-   * (absolute elevation, same formula as buildLevel).
-   */
-  private depthForSort(
-    z: number,
-    x: number,
-    y: number,
-    stackIndex: number,
-  ): number {
-    const map = this.view?.map ?? this.prevMap;
-    const stack = map ? getStack(map, x, y, z) : [];
-    const elev = elevationAt(
-      stack,
-      Math.min(stackIndex, stack.length),
-      this.tilesById,
-    );
-    return tileDepth(x, y, absoluteElevation(z, elev), stackIndex);
   }
 
   private applyMap(map: MapFile, force: boolean) {
@@ -486,44 +429,9 @@ export class WorldRenderer {
         side: THREE.DoubleSide,
       });
       mat.onBeforeCompile = (shader) => {
-        Object.assign(shader.uniforms, lightUniforms);
-        shader.vertexShader = shader.vertexShader
-          .replace(
-            "#include <common>",
-            /* glsl */ `#include <common>
-attribute vec2 aLightUv;
-attribute float aUnlit;
-varying vec2 vLightUv;
-varying float vUnlit;`,
-          )
-          .replace(
-            "#include <uv_vertex>",
-            /* glsl */ `#include <uv_vertex>
-vLightUv = aLightUv;
-vUnlit = aUnlit;`,
-          );
-        shader.fragmentShader = shader.fragmentShader
-          .replace(
-            "#include <common>",
-            /* glsl */ `#include <common>
-uniform sampler2D uLightMap;
-uniform vec2 uLightOrigin;
-uniform vec2 uLightSize;
-uniform float uLightingEnabled;
-varying vec2 vLightUv;
-varying float vUnlit;`,
-          )
-          .replace(
-            "#include <map_fragment>",
-            /* glsl */ `#include <map_fragment>
-if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
-  vec2 lightUv = (vLightUv - uLightOrigin) / uLightSize;
-  vec3 light = texture2D(uLightMap, lightUv).rgb;
-  diffuseColor.rgb *= light;
-}`,
-          );
+        injectWorldShader(shader, lightUniforms);
       };
-      mat.customProgramCacheKey = () => "stapes-lit-world-v1";
+      mat.customProgramCacheKey = () => WORLD_SHADER_CACHE_KEY;
       this.materials.set(key, mat);
     }
     mat.alphaTest = 0.5;
@@ -536,13 +444,19 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
   }
 
   private updateLighting(view: WorldView) {
-    const key = `${view.timeOfDay}|${Object.keys(view.tilesById).length}`;
+    const overridesKey = emitterOverridesKey(view.emitterOverrides);
+    const key = `${view.timeOfDay}|${Object.keys(view.tilesById).length}|${overridesKey}`;
     if (view.map === this.lastLitMap && key === this.lightingKey) return;
     this.lastLitMap = view.map;
     this.lightingKey = key;
 
     const ambient = AMBIENT_PRESETS[view.timeOfDay];
-    const grid = computeLighting(view.map, view.tilesById, [...ambient]);
+    const grid = computeLighting(
+      view.map,
+      view.tilesById,
+      [...ambient],
+      view.emitterOverrides,
+    );
     this.uploadLightGrid(grid, view.timeOfDay);
   }
 
@@ -570,6 +484,7 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
         tex.magFilter = THREE.LinearFilter;
         tex.minFilter = THREE.LinearFilter;
         tex.generateMipmaps = false;
+        tex.colorSpace = THREE.NoColorSpace;
         tex.needsUpdate = true;
         this.lightTextures.set(z, tex);
       } else {
@@ -607,6 +522,7 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
       tex.minFilter = THREE.LinearFilter;
       tex.generateMipmaps = false;
       tex.flipY = false;
+      tex.colorSpace = THREE.NoColorSpace;
       tex.needsUpdate = true;
       this.lightTextures.set(z, tex);
     } else {
@@ -627,7 +543,7 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
     this.animatedByKey.clear();
     this.movableMeshes.clear();
     this.movableBasePos.clear();
-    this.movableBaseDepth.clear();
+    this.movableBaseBox.clear();
 
     for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
       this.buildLevel(map, z);
@@ -682,7 +598,7 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
       if (key.startsWith(`${z}:`)) {
         this.movableMeshes.delete(key);
         this.movableBasePos.delete(key);
-        this.movableBaseDepth.delete(key);
+        this.movableBaseBox.delete(key);
       }
     }
   }
@@ -735,8 +651,8 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
         const tileset = this.tilesetById.get(first.sprite.tilesetId);
         if (!tileset) return;
 
-        const absElev = absoluteElevation(z, elev);
-        const depth = tileDepth(cell.x, cell.y, absElev, stackIndex);
+        const foot = absoluteElevation(z, elev);
+        const box = depthBox(cell.x, cell.y, foot, foot + def.height);
         const baseOrigin = baseCellWorldOrigin(cell.x, cell.y, z, elev);
         const origin = spriteWorldOrigin(baseOrigin, first.sprite.base);
         const { rect } = first.sprite;
@@ -766,7 +682,8 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
           v0,
           u1,
           v1,
-          depth,
+          box,
+          stackBias: stackIndex,
           texture,
           lightX0: cell.x,
           lightY0: cell.y,
@@ -804,32 +721,17 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
 
     for (const item of items) {
       if (item.anim || item.tileKey) {
-        const mesh = this.addQuadMesh(
-          levelGroup,
-          item.x,
-          item.y,
-          item.w,
-          item.h,
-          item.texture,
-          item.u0,
-          item.v0,
-          item.u1,
-          item.v1,
-          item.depth,
-          z,
-          item.lightX0,
-          item.lightY0,
-          item.lightX1,
-          item.lightY1,
-          item.unlit,
-        );
+        const mesh = this.addQuadMesh(levelGroup, item, item.texture, z);
         if (item.tileKey) {
           this.movableMeshes.set(item.tileKey, mesh);
           this.movableBasePos.set(item.tileKey, {
             x: mesh.position.x,
             y: mesh.position.y,
           });
-          this.movableBaseDepth.set(item.tileKey, item.depth);
+          this.movableBaseBox.set(item.tileKey, {
+            box: item.box,
+            stackBias: item.stackBias,
+          });
         }
         if (item.anim) {
           animated.push({
@@ -866,59 +768,13 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
 
   private addQuadMesh(
     parent: THREE.Object3D,
-    x: number,
-    y: number,
-    w: number,
-    h: number,
+    quad: Quad,
     texture: THREE.Texture,
-    u0: number,
-    v0: number,
-    u1: number,
-    v1: number,
-    depth: number,
     z: number,
-    lightX0: number,
-    lightY0: number,
-    lightX1: number,
-    lightY1: number,
-    unlitFlag: boolean,
   ): THREE.Mesh {
-    const geo = new THREE.BufferGeometry();
-    const positions = new Float32Array([
-      -w / 2,
-      h / 2,
-      0,
-      w / 2,
-      h / 2,
-      0,
-      -w / 2,
-      -h / 2,
-      0,
-      w / 2,
-      -h / 2,
-      0,
-    ]);
-    const uvs = new Float32Array([u0, v0, u1, v0, u0, v1, u1, v1]);
-    const lightUvs = new Float32Array([
-      lightX0,
-      lightY1,
-      lightX1,
-      lightY1,
-      lightX0,
-      lightY0,
-      lightX1,
-      lightY0,
-    ]);
-    const unlit = new Float32Array(4).fill(unlitFlag ? 1 : 0);
-    geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-    geo.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
-    geo.setAttribute("aLightUv", new THREE.BufferAttribute(lightUvs, 2));
-    geo.setAttribute("aUnlit", new THREE.BufferAttribute(unlit, 1));
-    geo.setIndex(new THREE.BufferAttribute(new Uint16Array([0, 1, 2, 1, 3, 2]), 1));
-
-    const mat = this.materialFor(texture, z);
-    const mesh = new THREE.Mesh(geo, mat);
-    mesh.position.set(x + w / 2, y + h / 2, depth);
+    const geo = buildSingleQuadGeometry(quad);
+    const mesh = new THREE.Mesh(geo, this.materialFor(texture, z));
+    mesh.position.set(quad.x + quad.w / 2, quad.y + quad.h / 2, 0);
     mesh.matrixAutoUpdate = false;
     mesh.updateMatrix();
     parent.add(mesh);

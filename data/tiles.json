@@ -359,7 +359,7 @@
   {
     "id": "roof-3",
     "name": "Roof",
-    "height": 0,
+    "height": 2,
     "directional": false,
     "variants": {
       "default": [
@@ -736,6 +736,7 @@
       "radius": 5,
       "intensity": 0.5,
       "color": "#ffcc88"
-    }
+    },
+    "lightPassing": true
   }
 ]

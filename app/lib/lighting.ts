@@ -45,10 +45,28 @@ export type CellOcclusion = {
   sealsLevel: boolean;
 };
 
-type Emitter = {
+/**
+ * Relocate a map-cell emitter to a fractional cell-space position (walk/fall lerp).
+ * `x,y,z` is the logical cell still on the map; `fx,fy,fz` is where light emits from.
+ */
+export type EmitterOverride = {
   x: number;
   y: number;
   z: number;
+  fx: number;
+  fy: number;
+  fz: number;
+};
+
+type Emitter = {
+  /** Fractional emit position (cell space). */
+  x: number;
+  y: number;
+  z: number;
+  /** Logical map cell — self-lit / emitterCells. */
+  lx: number;
+  ly: number;
+  lz: number;
   radius: number;
   intensity: number;
   r: number;
@@ -216,12 +234,23 @@ function accumulateAt(
 /**
  * Build a per-level RGB light grid from map tile defs + ambient.
  * Pure / deterministic — no Three.js.
+ *
+ * Optional `overrides` relocate emitters from their map cell to a fractional
+ * cell-space position (e.g. mid-walk) so cast light tracks sprite motion.
  */
 export function computeLighting(
   map: MapFile,
   tilesById: Record<string, TileDef>,
   ambient: [number, number, number],
+  overrides?: ReadonlyArray<EmitterOverride>,
 ): LightGrid {
+  const overrideByCell = new Map<string, EmitterOverride>();
+  if (overrides) {
+    for (const o of overrides) {
+      overrideByCell.set(cellKey(o.x, o.y, o.z), o);
+    }
+  }
+
   const occlusion = new Map<string, CellOcclusion>();
   const emitters: Emitter[] = [];
   const emitterCells = new Set<string>();
@@ -254,10 +283,14 @@ export function computeLighting(
         if (!def?.light) continue;
         if (!(def.light.radius > 0) || !(def.light.intensity > 0)) continue;
         const [cr, cg, cb] = parseHexColor(def.light.color);
+        const ov = overrideByCell.get(cellKey(x, y, z));
         emitters.push({
-          x,
-          y,
-          z,
+          x: ov?.fx ?? x,
+          y: ov?.fy ?? y,
+          z: ov?.fz ?? z,
+          lx: x,
+          ly: y,
+          lz: z,
           radius: def.light.radius,
           intensity: def.light.intensity,
           r: cr,
@@ -289,11 +322,15 @@ export function computeLighting(
   if (emitters.length > 0) {
     zMin = Math.max(
       MIN_LEVEL,
-      Math.min(...emitters.map((e) => e.z - Math.ceil(e.radius))),
+      Math.min(
+        ...emitters.map((e) => Math.floor(e.z) - Math.ceil(e.radius)),
+      ),
     );
     zMax = Math.min(
       MAX_LEVEL,
-      Math.max(...emitters.map((e) => e.z + Math.ceil(e.radius))),
+      Math.max(
+        ...emitters.map((e) => Math.ceil(e.z) + Math.ceil(e.radius)),
+      ),
     );
   }
   for (const z of occupiedZ) {
@@ -314,37 +351,53 @@ export function computeLighting(
 
   for (const e of emitters) {
     const rCells = Math.ceil(e.radius);
-    for (let dz = -rCells; dz <= rCells; dz++) {
-      const tz = e.z + dz;
+    const sx = Math.round(e.x);
+    const sy = Math.round(e.y);
+    const sz = Math.round(e.z);
+    const zLo = Math.floor(e.z) - rCells;
+    const zHi = Math.ceil(e.z) + rCells;
+    const yLo = Math.floor(e.y) - rCells;
+    const yHi = Math.ceil(e.y) + rCells;
+    const xLo = Math.floor(e.x) - rCells;
+    const xHi = Math.ceil(e.x) + rCells;
+
+    // An emitter must never occlude its own light — including when the emit
+    // position has lerped away and rays pass back through the logical cell.
+    const selfKey = cellKey(e.lx, e.ly, e.lz);
+    const savedSelfOcc = occlusion.get(selfKey);
+    occlusion.delete(selfKey);
+
+    for (let tz = zLo; tz <= zHi; tz++) {
       const floats = floatsByZ.get(tz);
       if (!floats) continue;
-      for (let dy = -rCells; dy <= rCells; dy++) {
-        for (let dx = -rCells; dx <= rCells; dx++) {
-          const tx = e.x + dx;
-          const ty = e.y + dy;
+      for (let ty = yLo; ty <= yHi; ty++) {
+        for (let tx = xLo; tx <= xHi; tx++) {
+          const dx = tx - e.x;
+          const dy = ty - e.y;
+          const dz = tz - e.z;
           const dist = Math.sqrt(
             dx * dx + dy * dy + (dz * VERTICAL_FALLOFF) * (dz * VERTICAL_FALLOFF),
           );
           if (dist > e.radius) continue;
 
-          const isSelf = tx === e.x && ty === e.y && tz === e.z;
+          const isSelf = tx === e.lx && ty === e.ly && tz === e.lz;
           const target = occlusion.get(cellKey(tx, ty, tz));
 
           // Solids stay dark — except an emitter's own cell (self-lit).
-          // Floors (sealsLevel, opacity 0) accept light from above (dz < 0) but
-          // refuse light climbing up from below (dz > 0). Light still cannot
+          // Floors (sealsLevel, opacity 0) accept light from above but
+          // refuse light climbing up from below. Light still cannot
           // pass *through* a floor — rayTransmission seals on real Z steps.
           if (!isSelf) {
             if (target && target.opacity >= 1) continue;
-            if (dz > 0 && target?.sealsLevel) continue;
+            if (tz > sz && target?.sealsLevel) continue;
           }
 
           let transmission = 1;
-          if (dist > 0) {
+          if (!isSelf && dist > 0) {
             transmission = rayTransmission(
-              e.x,
-              e.y,
-              e.z,
+              sx,
+              sy,
+              sz,
               tx,
               ty,
               tz,
@@ -372,6 +425,8 @@ export function computeLighting(
         }
       }
     }
+
+    if (savedSelfOcc) occlusion.set(selfKey, savedSelfOcc);
   }
 
   // Solid cells: force ambient only (no borrowed neighbour glow / filter bleed source).
