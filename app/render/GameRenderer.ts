@@ -20,6 +20,21 @@ import { type TileMotion, WorldRenderer } from "./WorldRenderer";
 const DEFAULT_ZOOM = 4;
 
 /**
+ * Land a lerped sprite on the same whole-pixel grid the static world sits on.
+ *
+ * Scenery is placed at integer world pixels, so a mover at a fractional offset
+ * reads as sliding *between* the pixels around it — the sprite's own texels
+ * stop lining up with everything else. Snapping trades perfectly smooth motion
+ * for motion that steps in whole pixels, which is what pixel art expects.
+ */
+function snapToWholePixels(p: { x: number; y: number }): {
+  x: number;
+  y: number;
+} {
+  return { x: Math.round(p.x), y: Math.round(p.y) };
+}
+
+/**
  * Client play loop: ticks GameSession, centers camera on the player, and
  * lerps moving tiles during walks / falls.
  */
@@ -282,10 +297,10 @@ export class GameRenderer {
         snap.map,
       );
       const t = snap.walkProgress;
-      return {
+      return snapToWholePixels({
         x: a.x + (b.x - a.x) * t,
         y: a.y + (b.y - a.y) * t,
-      };
+      });
     }
 
     const base = this.cellWorldCenter(
@@ -297,7 +312,7 @@ export class GameRenderer {
     );
     if (snap.fall) {
       const drop = snap.fallProgress * PX_PER_HEIGHT;
-      return { x: base.x + drop, y: base.y + drop };
+      return snapToWholePixels({ x: base.x + drop, y: base.y + drop });
     }
     return base;
   }
