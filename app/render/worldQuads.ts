@@ -50,6 +50,21 @@ function glsl(n: number): string {
   return Number.isInteger(n) ? `${n}.0` : `${n}`;
 }
 
+/**
+ * Light-map cells covered per world pixel of this quad — the gradient of
+ * `aLightUv` across it. Constant per quad, so the shader can re-evaluate the
+ * light coordinate at any point on the quad from any other.
+ */
+function lightCellsPerPixel(q: Pick<
+  Quad,
+  "w" | "h" | "lightX0" | "lightY0" | "lightX1" | "lightY1"
+>): [number, number] {
+  return [
+    q.w === 0 ? 0 : (q.lightX1 - q.lightX0) / q.w,
+    q.h === 0 ? 0 : (q.lightY1 - q.lightY0) / q.h,
+  ];
+}
+
 function writeQuadBox(
   boxes: Float32Array,
   stacks: Float32Array,
@@ -80,6 +95,7 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
   const unlit = new Float32Array(n * VERTS_PER_QUAD);
   const boxes = new Float32Array(n * VERTS_PER_QUAD * BOX_COMPONENTS);
   const stacks = new Float32Array(n * VERTS_PER_QUAD);
+  const lightScales = new Float32Array(n * VERTS_PER_QUAD * 2);
   const indices =
     n * VERTS_PER_QUAD > 65535 ? new Uint32Array(n * 6) : new Uint16Array(n * 6);
 
@@ -133,6 +149,12 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
 
     writeQuadBox(boxes, stacks, i, q.box, q.stackBias);
 
+    const [lsx, lsy] = lightCellsPerPixel(q);
+    for (let v = 0; v < VERTS_PER_QUAD; v++) {
+      lightScales[ub + v * 2] = lsx;
+      lightScales[ub + v * 2 + 1] = lsy;
+    }
+
     const base = i * VERTS_PER_QUAD;
     const ib = i * 6;
     // PlaneGeometry winding: 0,2,1 / 2,3,1
@@ -151,6 +173,10 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
   geo.setAttribute("aUnlit", new THREE.BufferAttribute(unlit, 1));
   geo.setAttribute("aBox", new THREE.BufferAttribute(boxes, BOX_COMPONENTS));
   geo.setAttribute("aStack", new THREE.BufferAttribute(stacks, 1));
+  geo.setAttribute(
+    "aLightScale",
+    new THREE.BufferAttribute(lightScales, 2),
+  );
   geo.setIndex(new THREE.BufferAttribute(indices, 1));
   return geo;
 }
@@ -183,6 +209,8 @@ export function buildSingleQuadGeometry(
   const boxes = new Float32Array(VERTS_PER_QUAD * BOX_COMPONENTS);
   const stacks = new Float32Array(VERTS_PER_QUAD);
   writeQuadBox(boxes, stacks, 0, q.box, q.stackBias);
+  const [lsx, lsy] = lightCellsPerPixel(q);
+  const lightScales = new Float32Array([lsx, lsy, lsx, lsy, lsx, lsy, lsx, lsy]);
 
   geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
   geo.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
@@ -190,6 +218,10 @@ export function buildSingleQuadGeometry(
   geo.setAttribute("aUnlit", new THREE.BufferAttribute(unlit, 1));
   geo.setAttribute("aBox", new THREE.BufferAttribute(boxes, BOX_COMPONENTS));
   geo.setAttribute("aStack", new THREE.BufferAttribute(stacks, 1));
+  geo.setAttribute(
+    "aLightScale",
+    new THREE.BufferAttribute(lightScales, 2),
+  );
   geo.setIndex(
     new THREE.BufferAttribute(new Uint16Array([0, 2, 1, 2, 3, 1]), 1),
   );
@@ -243,11 +275,13 @@ attribute vec2 aLightUv;
 attribute float aUnlit;
 attribute vec4 aBox;
 attribute float aStack;
+attribute vec2 aLightScale;
 varying vec2 vLightUv;
 varying float vUnlit;
 varying vec4 vBox;
 varying float vStack;
-varying vec2 vWorldPx;`,
+varying vec2 vWorldPx;
+varying vec2 vLightScale;`,
     )
     .replace(
       "#include <uv_vertex>",
@@ -256,6 +290,7 @@ vLightUv = aLightUv;
 vUnlit = aUnlit;
 vBox = aBox;
 vStack = aStack;
+vLightScale = aLightScale;
 vWorldPx = (modelMatrix * vec4(position, 1.0)).xy;`,
     );
 
@@ -271,21 +306,28 @@ varying vec2 vLightUv;
 varying float vUnlit;
 varying vec4 vBox;
 varying float vStack;
-varying vec2 vWorldPx;`,
+varying vec2 vWorldPx;
+varying vec2 vLightScale;`,
     )
     .replace(
       "#include <map_fragment>",
       /* glsl */ `#include <map_fragment>
+// Everything below samples at the centre of the art pixel this fragment falls
+// in, not at the fragment itself. A fragment is smaller than a texel once
+// zoomed (16 of them per texel at 4x), so sampling per fragment lets a value
+// vary *inside* a pixel — which is how a smooth diagonal seam or a smooth
+// light gradient ends up drawn across art that should be flat per pixel.
+vec2 depthPx = floor(vWorldPx) + 0.5;
 if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
-  vec2 lightUv = (vLightUv - uLightOrigin) / uLightSize;
+  // vLightUv and vWorldPx are both affine across the quad, so stepping from the
+  // fragment to the pixel centre is just the constant per-quad gradient.
+  vec2 lightCell = vLightUv + (depthPx - vWorldPx) * vLightScale;
+  vec2 lightUv = (lightCell - uLightOrigin) / uLightSize;
   vec3 light = texture2D(uLightMap, lightUv).rgb;
   diffuseColor.rgb *= light;
 }
-// Sample depth at the art pixel's centre, not the fragment's own position: a
-// fragment is smaller than a texel once zoomed, and sampling per fragment lets
-// a depth crossing cut a texel in half, drawing a smooth diagonal seam through
-// pixel art. Snapping keeps every crossing on a texel boundary.
-vec2 depthPx = floor(vWorldPx) + 0.5;
+// Depth, at that same pixel centre, so a crossing between two sprites can only
+// ever land on a texel boundary.
 // Nearest box surface on this ray: each visible face caps how far the ray
 // climbs before leaving the box, so the highest point inside is the min.
 float faces = min(
