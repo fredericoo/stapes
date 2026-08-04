@@ -1425,20 +1425,11 @@
         },
         {
           "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
         }
       ],
       "-2,9": [
         {
           "tileId": "dirt"
-        },
-        {
-          "tileId": "plaster"
         },
         {
           "tileId": "plaster"
@@ -12623,6 +12614,9 @@
           "tileId": "dirt"
         },
         {
+          "tileId": "brick-slab"
+        },
+        {
           "tileId": "stone-stairs"
         }
       ],
@@ -12700,6 +12694,9 @@
       "9,-5": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "stone-stairs"
         }
       ],
       "10,-5": [
@@ -14902,14 +14899,6 @@
           "tileId": "cobblestone"
         }
       ],
-      "9,-5": [
-        {
-          "tileId": "dirt"
-        },
-        {
-          "tileId": "cobblestone"
-        }
-      ],
       "10,-5": [
         {
           "tileId": "dirt"
@@ -15111,6 +15100,19 @@
         },
         {
           "tileId": "cobblestone"
+        }
+      ],
+      "-2,9": [
+        {
+          "tileId": "plaster"
+        }
+      ],
+      "-1,9": [
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
         }
       ]
     },

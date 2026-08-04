@@ -182,6 +182,17 @@ describe("fitsTile", () => {
     expect(fitsTile(map, 0, 0, 0, tilesById.player!, tilesById).ok).toBe(true);
   });
 
+  it("allows full-height on a half-height base (overflow)", () => {
+    const map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "slab" }]);
+    expect(fitsTile(map, 0, 0, 0, tilesById.wall!, tilesById).ok).toBe(true);
+  });
+
+  it("rejects placing on a stack that already reaches the next level", () => {
+    const map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "wall" }]);
+    expect(fitsTile(map, 0, 0, 0, tilesById.slab!, tilesById).ok).toBe(false);
+    expect(fitsTile(map, 0, 0, 0, tilesById.grass!, tilesById).ok).toBe(false);
+  });
+
   it("rejects overflow under an occupied level above", () => {
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "slab" }]);
     map = replaceStack(map, 0, 0, 1, [{ tileId: "roof" }]);

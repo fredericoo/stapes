@@ -16,9 +16,11 @@ export type PlaceResult =
  * Can `tileDef` sit on top of the stack at (x,y,z)?
  * Generic fit check (not player-specific) — same rules as editor placement.
  *
+ * - Feet must be within this level: e < HEIGHT_PER_LEVEL. A full stack already
+ *   reaches the next level; place there instead (clean floor).
  * - e + h <= HEIGHT_PER_LEVEL: always allowed
  * - HEIGHT_PER_LEVEL < e + h <= 2*HEIGHT_PER_LEVEL: only if (x,y,z+1) is empty
- *   and z < MAX_LEVEL
+ *   and z < MAX_LEVEL (e.g. full-height on a half-height base)
  * - e + h > 2*HEIGHT_PER_LEVEL: rejected
  * - Also rejected if stack at (x,y,z-1) totals more than HEIGHT_PER_LEVEL
  */
@@ -49,6 +51,13 @@ export function fitsTile(
   const e = stackHeight(stack, tilesById);
   const h = tileDef.height;
   const total = e + h;
+
+  if (e >= HEIGHT_PER_LEVEL) {
+    return {
+      ok: false,
+      reason: "Stack already reaches the next level; place there instead",
+    };
+  }
 
   if (total <= HEIGHT_PER_LEVEL) {
     return { ok: true };
@@ -165,6 +174,12 @@ export function canReplaceStack(
 
   let e = 0;
   for (const placed of newStack) {
+    if (e >= HEIGHT_PER_LEVEL) {
+      return {
+        ok: false,
+        reason: "Stack already reaches the next level; place there instead",
+      };
+    }
     const def = tilesById[placed.tileId];
     const h = def?.height ?? 0;
     e += h;
