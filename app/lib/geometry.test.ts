@@ -95,15 +95,34 @@ describe("fragDepth", () => {
     expectInFront(fragDepth(column, sx, sy), fragDepth(ground, sx, sy));
   });
 
-  it("separates coplanar surfaces by stack bias", () => {
-    // Dirt (h=0) and the player standing on it share the same foot plane.
-    const cell = depthBox(0, 0, 0, 0);
-    const player = depthBox(0, 0, 0, 2);
+  it("separates coplanar surfaces by stack bias alone", () => {
+    // Two flat tiles stacked in one cell — identical geometry, so only the
+    // bias can order them.
+    const floor = depthBox(0, 0, 0, 0);
+    const rug = depthBox(0, 0, 0, 0);
     const p = footPixel(0, 0);
     expectInFront(
-      fragDepth(player, p.sx + 4, p.sy + 4, 1),
-      fragDepth(cell, p.sx + 4, p.sy + 4, 0),
+      fragDepth(rug, p.sx + 4, p.sy + 4, 1),
+      fragDepth(floor, p.sx + 4, p.sy + 4, 0),
     );
+  });
+
+  /**
+   * Depth must be uniform across an art pixel. A fragment is finer than a texel
+   * once zoomed, so if depth varied within one, a crossing between two sprites
+   * would cut the texel in half and draw a smooth diagonal seam through the
+   * pixel art.
+   */
+  it("gives every fragment inside one art pixel the same depth", () => {
+    const column = depthBox(6, 10, 0, 4);
+    const base = fragDepth(column, 44, 76);
+    for (const dx of [0, 0.25, 0.5, 0.75, 0.99]) {
+      for (const dy of [0, 0.25, 0.5, 0.75, 0.99]) {
+        expect(fragDepth(column, 44 + dx, 76 + dy)).toBe(base);
+      }
+    }
+    // Neighbouring texels still differ, so ordering is not flattened.
+    expect(fragDepth(column, 45, 76)).not.toBe(base);
   });
 
   it("lets an upper-level height-0 tile beat a full lower stack top", () => {

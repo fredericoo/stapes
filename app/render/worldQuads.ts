@@ -281,15 +281,20 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
   vec3 light = texture2D(uLightMap, lightUv).rgb;
   diffuseColor.rgb *= light;
 }
+// Sample depth at the art pixel's centre, not the fragment's own position: a
+// fragment is smaller than a texel once zoomed, and sampling per fragment lets
+// a depth crossing cut a texel in half, drawing a smooth diagonal seam through
+// pixel art. Snapping keeps every crossing on a texel boundary.
+vec2 depthPx = floor(vWorldPx) + 0.5;
 // Nearest box surface on this ray: each visible face caps how far the ray
 // climbs before leaving the box, so the highest point inside is the min.
 float faces = min(
-  (vBox.x - vWorldPx.x) / ${glsl(PX_PER_HEIGHT)},
-  (vBox.y - vWorldPx.y) / ${glsl(PX_PER_HEIGHT)}
+  (vBox.x - depthPx.x) / ${glsl(PX_PER_HEIGHT)},
+  (vBox.y - depthPx.y) / ${glsl(PX_PER_HEIGHT)}
 );
 float surfaceElev = clamp(min(faces, vBox.w), vBox.z, vBox.w);
 float rayDepth =
-  (vWorldPx.x + vWorldPx.y) / ${glsl(CELL_SIZE)} +
+  (depthPx.x + depthPx.y) / ${glsl(CELL_SIZE)} +
   ${glsl(RAY_DEPTH_ELEV)} * surfaceElev +
   vStack * ${glsl(DEPTH_STACK_BIAS)};
 gl_FragDepth = clamp(

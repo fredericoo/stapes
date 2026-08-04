@@ -199,6 +199,20 @@ export function depthStackBias(z: number, stackIndex: number): number {
 }
 
 /**
+ * Centre of the art pixel a point falls in.
+ *
+ * Depth is sampled here rather than at the raw fragment position because a
+ * fragment is finer than an art pixel once zoomed — at 4x, sixteen fragments
+ * share one texel. Sampling per fragment lets a depth crossing pass *through* a
+ * texel, drawing a smooth diagonal seam across pixel art that has no business
+ * containing one. Snapping first gives every fragment of a texel the same
+ * depth, so a crossing can only ever land on a texel boundary.
+ */
+export function snapToPixelCenter(v: number): number {
+  return Math.floor(v) + 0.5;
+}
+
+/**
  * Window depth ([0, 1], smaller = nearer, matching the default GL_LESS test)
  * for the fragment of `box` landing on a screen pixel.
  *
@@ -211,8 +225,10 @@ export function fragDepth(
   screenY: number,
   stackBias = 0,
 ): number {
-  const elev = boxSurfaceElevation(box, screenX, screenY);
-  const d = rayDepth(screenX, screenY, elev) + stackBias * DEPTH_STACK_BIAS;
+  const px = snapToPixelCenter(screenX);
+  const py = snapToPixelCenter(screenY);
+  const elev = boxSurfaceElevation(box, px, py);
+  const d = rayDepth(px, py, elev) + stackBias * DEPTH_STACK_BIAS;
   const normalized = (DEPTH_MAX - d) / (DEPTH_MAX - DEPTH_MIN);
   return Math.max(0, Math.min(1, normalized));
 }
