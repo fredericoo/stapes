@@ -8,6 +8,7 @@ import {
   resizeGrid,
   rotateGridCW,
   sheetLayout,
+  sheetSprites,
   sheetVariants,
   spriteCells,
   voxelDims,
@@ -246,10 +247,25 @@ describe("sheet export", () => {
     expect(variants.e?.[0].sprite.base).toEqual({ x: 1, y: 1 });
   });
 
+  it("emits typed sprites for TileDef export", () => {
+    const project = testProject();
+    const sheet = sheetSprites(project, "my-sheet");
+    expect(sheet.type).toBe("directional");
+    expect(sheet.sprites?.e?.frames[0].sprite.rect).toEqual({
+      x: 0,
+      y: 2,
+      w: 2,
+      h: 2,
+    });
+  });
+
   it("uses a single default row for non-directional models", () => {
     const project = testProject({ directional: false });
     const variants = sheetVariants(project, "my-sheet");
     expect(Object.keys(variants)).toEqual(["default"]);
+    const sheet = sheetSprites(project, "my-sheet");
+    expect(sheet.type).toBe("simple");
+    expect(sheet.sprite?.frames).toHaveLength(1);
   });
 });
 

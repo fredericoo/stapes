@@ -42,11 +42,12 @@ export function SpriteSelector({
     if (!canvas || !tileset) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    ctx.imageSmoothingEnabled = false;
     const w = tileset.width * zoom;
     const h = tileset.height * zoom;
+    // Resizing the buffer resets context state — set smoothing after.
     canvas.width = w;
     canvas.height = h;
+    ctx.imageSmoothingEnabled = false;
     ctx.clearRect(0, 0, w, h);
     ctx.fillStyle = "#cfc8b6";
     ctx.fillRect(0, 0, w, h);

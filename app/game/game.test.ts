@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { appendTile, emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
+import { normalizeTileDef } from "../lib/types";
 import { fitsTile, tilesByIdFromList } from "../lib/validation";
 import { FALL_MS_PER_HEIGHT, WALK_DURATION_MS } from "./constants";
 import { GameSession } from "./GameSession";
@@ -9,9 +10,9 @@ import { canWalk, standingAbs } from "./movement";
 import { findPlayers, requireSinglePlayer } from "./player";
 
 function tile(
-  partial: Partial<TileDef> & Pick<TileDef, "id" | "height">,
+  partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
 ): TileDef {
-  return {
+  return normalizeTileDef({
     name: partial.id,
     directional: false,
     variants: {
@@ -28,7 +29,7 @@ function tile(
     },
     attributes: {},
     ...partial,
-  };
+  });
 }
 
 const tiles: TileDef[] = [

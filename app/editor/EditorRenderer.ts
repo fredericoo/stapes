@@ -30,9 +30,10 @@ import {
   CELL_SIZE,
   MAX_LEVEL,
   MIN_LEVEL,
-  getFrames,
   levelKey,
+  tileCanEmitLight,
 } from "../lib/types";
+import { getFrames, tileLightSignature } from "../lib/tileResolve";
 import { canReplaceStack } from "../lib/validation";
 import { useEditorStore, type ToolId } from "./store";
 import type { EditorPerfMeasure, EditorPerfSnapshot } from "./perf";
@@ -618,17 +619,11 @@ export class EditorRenderer {
   private lightingFingerprint(s: ReturnType<typeof useEditorStore.getState>) {
     let lightDefsSig = 0;
     for (const t of s.tiles) {
-      if (t.light) {
-        const col = t.light.color;
-        let colHash = 0;
-        for (let i = 0; i < col.length; i++) colHash = (colHash * 31 + col.charCodeAt(i)) | 0;
-        lightDefsSig =
-          (lightDefsSig * 31 +
-            t.id.length +
-            t.light.radius * 10 +
-            Math.round(t.light.intensity * 100) +
-            colHash) |
-          0;
+      const sig = tileLightSignature(t);
+      if (sig) {
+        let h = 0;
+        for (let i = 0; i < sig.length; i++) h = (h * 31 + sig.charCodeAt(i)) | 0;
+        lightDefsSig = (lightDefsSig * 31 + h) | 0;
       }
       if (t.lightPassing) lightDefsSig = (lightDefsSig * 17 + 3) | 0;
       if (t.blocksLight != null) {
@@ -958,7 +953,9 @@ export class EditorRenderer {
       let elev = 0;
       brush.forEach((placed, stackIndex) => {
         const def = s.tilesById[placed.tileId];
-        const quad = def ? this.spriteQuad(placed, def, x, y, z, elev) : null;
+        const quad = def
+          ? this.spriteQuad(placed, def, x, y, z, elev, s.map)
+          : null;
 
         if (!def || !quad) {
           const origin = baseCellWorldOrigin(x, y, z, elev);
@@ -1017,7 +1014,7 @@ export class EditorRenderer {
       brush.forEach((placed, stackIndex) => {
         const def = s.tilesById[placed.tileId];
         if (!def) return;
-        const quad = this.spriteQuad(placed, def, c.x, c.y, z, elev);
+        const quad = this.spriteQuad(placed, def, c.x, c.y, z, elev, s.map);
         if (quad) {
           addSprite(quad, {
             color: 0xffffff,
@@ -1065,11 +1062,21 @@ export class EditorRenderer {
     y: number,
     z: number,
     elevation: number,
+    map: MapFile,
   ): SpriteQuad | null {
-    const frames = getFrames(def, placed.direction);
+    const frames = getFrames(def, {
+      direction: placed.direction,
+      map,
+      x,
+      y,
+      z,
+    });
     let frame = frames?.[0];
     if (frames && frames.length > 1) {
-      const key = `${def.id}:${placed.direction ?? "default"}`;
+      const key =
+        def.type === "autotile"
+          ? `${def.id}:${x},${y},${z}`
+          : `${def.id}:${placed.direction ?? "default"}`;
       frame = frames[this.frameIndices.get(key) ?? 0] ?? frames[0];
     }
     if (!frame) return null;
@@ -1270,7 +1277,13 @@ export class EditorRenderer {
           return;
         }
 
-        const frames = getFrames(def, placed.direction);
+        const frames = getFrames(def, {
+          direction: placed.direction,
+          map,
+          x: cell.x,
+          y: cell.y,
+          z,
+        });
         const first = frames?.[0];
         if (!first) return;
 
@@ -1292,9 +1305,11 @@ export class EditorRenderer {
         const lightY0 = cell.y;
         const lightX1 = cell.x + 1;
         const lightY1 = cell.y + 1;
-        const unlit = Boolean(
-          def.light && def.light.radius > 0 && def.light.intensity > 0,
-        );
+        const unlit = tileCanEmitLight(def);
+        const animKey =
+          def.type === "autotile"
+            ? `${def.id}:${cell.x},${cell.y},${z}`
+            : `${def.id}:${placed.direction ?? "default"}`;
 
         items.push({
           x: origin.x,
@@ -1320,7 +1335,7 @@ export class EditorRenderer {
                   tileId: def.id,
                   direction: placed.direction,
                   tileset,
-                  animKey: `${def.id}:${placed.direction ?? "default"}`,
+                  animKey,
                 }
               : undefined,
         });

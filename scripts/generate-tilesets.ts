@@ -6,6 +6,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import { PNG } from "pngjs";
 import type { MapFile, TileDef, TilesetDef } from "../app/lib/types";
+import { normalizeTiles } from "../app/lib/types";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
 const DATA = path.join(ROOT, "data");
@@ -177,7 +178,7 @@ async function main() {
     base: { x: baseX, y: baseY },
   });
 
-  const tiles: TileDef[] = [
+  const tiles = normalizeTiles([
     {
       id: "grass",
       name: "Grass",
@@ -267,7 +268,7 @@ async function main() {
       },
       attributes: {},
     },
-  ];
+  ] as unknown[]);
 
   const map: MapFile = { version: 1, levels: {} };
 

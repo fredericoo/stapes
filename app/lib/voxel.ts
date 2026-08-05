@@ -1,6 +1,6 @@
 import * as v from "valibot";
 import { CELL_SIZE, DIRECTIONS, defaultBase } from "./types";
-import type { CellRect, Direction, Frame } from "./types";
+import type { CellRect, Direction, Frame, TileSprite } from "./types";
 
 /**
  * Voxel space matches the game projection 1:1: a voxel is 1px wide/deep,
@@ -495,7 +495,42 @@ function blit(
   }
 }
 
-/** Frames arrays for a TileDef pointing at the exported sheet. */
+/** Tile sprites for a TileDef pointing at the exported sheet. */
+export function sheetSprites(
+  project: VoxelProject,
+  tilesetId: string,
+): { type: "simple" | "directional"; sprite?: TileSprite; sprites?: Partial<Record<Direction, TileSprite>> } {
+  const layout = sheetLayout(project);
+  const rows = layout.rows;
+  const toSprite = (rowIdx: number): TileSprite => ({
+    frames: project.frames.map((frame, colIdx) => ({
+      sprite: {
+        tilesetId,
+        rect: {
+          x: colIdx * layout.cellsW,
+          y: rowIdx * layout.cellsH,
+          w: layout.cellsW,
+          h: layout.cellsH,
+        },
+        base: { x: layout.cellsW - 1, y: layout.cellsH - 1 },
+      },
+      durationMs: frame.durationMs,
+    })),
+  });
+
+  if (!project.directional) {
+    return { type: "simple", sprite: toSprite(0) };
+  }
+
+  const sprites: Partial<Record<Direction, TileSprite>> = {};
+  rows.forEach((row, rowIdx) => {
+    if (row.key === "default") return;
+    sprites[row.key] = toSprite(rowIdx);
+  });
+  return { type: "directional", sprites };
+}
+
+/** @deprecated Prefer {@link sheetSprites}. */
 export function sheetVariants(
   project: VoxelProject,
   tilesetId: string,

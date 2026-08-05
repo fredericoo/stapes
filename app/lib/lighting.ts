@@ -10,6 +10,7 @@ import {
 } from "./types";
 import { elevationAt } from "./mapData";
 import { computeLightingFlood, MAX_LIGHT_LEVEL } from "./lightingFlood";
+import { resolveLight } from "./tileResolve";
 
 export { MAX_LIGHT_LEVEL };
 
@@ -449,9 +450,14 @@ export function overlayEmitterOverrides(
 
       for (const placed of stack) {
         const def = tilesById[placed.tileId];
-        if (!def?.light) continue;
-        if (!(def.light.radius > 0) || !(def.light.intensity > 0)) continue;
-        const [cr, cg, cb] = parseHexColor(def.light.color);
+        if (!def) continue;
+        const light = resolveLight(
+          def,
+          { map, x, y, z, direction: placed.direction },
+          0,
+        );
+        if (!light) continue;
+        const [cr, cg, cb] = parseHexColor(light.color);
         emitters.push({
           x: ov.fx,
           y: ov.fy,
@@ -459,8 +465,8 @@ export function overlayEmitterOverrides(
           lx: x,
           ly: y,
           lz: z,
-          radius: def.light.radius,
-          intensity: def.light.intensity,
+          radius: light.radius,
+          intensity: light.intensity,
           r: cr,
           g: cg,
           b: cb,

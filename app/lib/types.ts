@@ -17,16 +17,6 @@ export type SpriteRef = {
   base: { x: number; y: number };
 };
 
-export type Frame = {
-  sprite: SpriteRef;
-  durationMs: number;
-};
-
-/** 0 = flat, 1 = half level, 2 = full level. */
-export type TileHeight = 0 | 1 | 2;
-
-export type VariantKey = "default" | Direction;
-
 export type LightDef = {
   /** Reach in cells, where attenuation hits zero. */
   radius: number;
@@ -36,13 +26,37 @@ export type LightDef = {
   color: string;
 };
 
+export type Frame = {
+  sprite: SpriteRef;
+  durationMs: number;
+  /** Absent means this frame does not emit light. */
+  light?: LightDef;
+};
+
+export type TileSprite = {
+  frames: Frame[];
+};
+
+/** 0 = flat, 1 = half level, 2 = full level. */
+export type TileHeight = 0 | 1 | 2;
+
+export type TileType = "simple" | "directional" | "autotile";
+
+export const TILE_TYPES: TileType[] = ["simple", "directional", "autotile"];
+
+/** Climb / facing key: non-directional use `"default"`; directional use n/e/s/w. */
+export type VariantKey = "default" | Direction;
+
+/** Blob autotile slice index (0 = isolated … 46 = full). */
+export type AutotileSlice = number;
+
+export const AUTOTILE_SLICE_COUNT = 47;
+
 export type TileDef = {
   id: string;
   name: string;
   height: TileHeight;
-  directional: boolean;
-  /** Direction-less tiles use only "default"; directional use n/e/s/w. */
-  variants: Partial<Record<VariantKey, Frame[]>>;
+  type: TileType;
   /** Reserved for flammable/wet/frozen/pushable later. */
   attributes: Record<string, never>;
   /**
@@ -54,8 +68,6 @@ export type TileDef = {
    * @deprecated Use {@link lightPassing} (inverted). Kept so old tiles.json still loads.
    */
   blocksLight?: boolean;
-  /** Absent means not a light source. */
-  light?: LightDef;
   /**
    * When true, unsupported tiles fall until they land on something solid.
    * Default / absent → not affected by gravity.
@@ -68,10 +80,16 @@ export type TileDef = {
   walkable?: boolean;
   /**
    * World-side dirs you may climb UP toward, keyed by variant.
-   * Non-directional tiles use `"default"`; directional use `n`/`e`/`s`/`w`
-   * for each placement facing. Missing dirs default to true. Not per-frame.
+   * Simple / autotile use `"default"`; directional use `n`/`e`/`s`/`w`
+   * for each placement facing. Missing dirs default to true.
    */
   climbFrom?: Partial<Record<VariantKey, Partial<Record<Direction, boolean>>>>;
+  /** type === "simple" */
+  sprite?: TileSprite;
+  /** type === "directional" */
+  sprites?: Partial<Record<Direction, TileSprite>>;
+  /** type === "autotile" — sparse 0..46 */
+  slices?: Partial<Record<AutotileSlice, TileSprite>>;
 };
 
 /** Whether this tile’s top is a stand/land surface. Default: true. */
@@ -86,12 +104,16 @@ const OPEN_CLIMB: Record<Direction, boolean> = {
   w: true,
 };
 
+export function isDirectional(def: TileDef): boolean {
+  return def.type === "directional";
+}
+
 /** World climb-from flags for a variant; missing dirs default to true. */
 export function resolveClimbFrom(
   def: TileDef,
   variant: VariantKey = "default",
 ): Record<Direction, boolean> {
-  const key: VariantKey = def.directional
+  const key: VariantKey = isDirectional(def)
     ? variant === "default"
       ? "s"
       : variant
@@ -110,7 +132,7 @@ export function climbFromForSave(
   def: TileDef,
   byVariant: Partial<Record<VariantKey, Record<Direction, boolean>>>,
 ): TileDef["climbFrom"] {
-  const keys: VariantKey[] = def.directional ? DIRECTIONS : ["default"];
+  const keys: VariantKey[] = isDirectional(def) ? DIRECTIONS : ["default"];
   const out: NonNullable<TileDef["climbFrom"]> = {};
   let any = false;
   for (const key of keys) {
@@ -191,17 +213,142 @@ export function clampLevel(z: number): number {
   return Math.max(MIN_LEVEL, Math.min(MAX_LEVEL, Math.round(z)));
 }
 
-export function isAnimated(tile: TileDef): boolean {
-  const frames = Object.values(tile.variants);
-  return frames.some((f) => (f?.length ?? 0) > 1);
+/** Context for resolving which TileSprite a placement uses. */
+export type TileResolveContext = {
+  direction?: Direction;
+  /** Required for autotile neighbor matching. */
+  map?: MapFile;
+  x?: number;
+  y?: number;
+  z?: number;
+  /** Override slice for previews (isolated = 0). */
+  autotileSlice?: AutotileSlice;
+};
+
+function framesWithLight(frames: Frame[], light?: LightDef): Frame[] {
+  if (!light) return frames;
+  return frames.map((f) => (f.light ? f : { ...f, light }));
 }
 
-export function getFrames(
-  tile: TileDef,
-  direction?: Direction,
-): Frame[] | undefined {
-  if (tile.directional) {
-    return tile.variants[direction ?? "s"];
-  }
-  return tile.variants.default;
+function framesToSprite(frames: Frame[] | undefined, light?: LightDef): TileSprite {
+  return { frames: framesWithLight(frames ?? [], light) };
 }
+
+/**
+ * Migrate legacy `directional` + `variants` (+ tile-level `light`) to the
+ * type → TileSprite model. Idempotent on already-new tiles.
+ */
+export function normalizeTileDef(raw: unknown): TileDef {
+  const t = raw as Record<string, unknown>;
+  if (t && typeof t.type === "string" && TILE_TYPES.includes(t.type as TileType)) {
+    const def = raw as TileDef;
+    return {
+      ...def,
+      attributes: def.attributes ?? {},
+    };
+  }
+
+  const legacy = raw as {
+    id: string;
+    name: string;
+    height: TileHeight;
+    directional?: boolean;
+    variants?: Partial<Record<VariantKey, Frame[]>>;
+    attributes?: Record<string, never>;
+    lightPassing?: boolean;
+    blocksLight?: boolean;
+    light?: LightDef;
+    affectedByGravity?: boolean;
+    walkable?: boolean;
+    climbFrom?: TileDef["climbFrom"];
+  };
+
+  const light = legacy.light;
+  const type: TileType = legacy.directional ? "directional" : "simple";
+  const base: TileDef = {
+    id: legacy.id,
+    name: legacy.name,
+    height: legacy.height,
+    type,
+    attributes: legacy.attributes ?? {},
+    lightPassing: legacy.lightPassing,
+    blocksLight: legacy.blocksLight,
+    affectedByGravity: legacy.affectedByGravity,
+    walkable: legacy.walkable,
+    climbFrom: legacy.climbFrom,
+  };
+
+  if (type === "directional") {
+    const sprites: Partial<Record<Direction, TileSprite>> = {};
+    for (const d of DIRECTIONS) {
+      const frames = legacy.variants?.[d];
+      if (frames) sprites[d] = framesToSprite(frames, light);
+    }
+    return { ...base, sprites };
+  }
+
+  return {
+    ...base,
+    sprite: framesToSprite(legacy.variants?.default, light),
+  };
+}
+
+export function normalizeTiles(raw: unknown[]): TileDef[] {
+  return raw.map(normalizeTileDef);
+}
+
+/** All TileSprites on a def (for animation / light scans). */
+export function allTileSprites(tile: TileDef): TileSprite[] {
+  if (tile.type === "simple") {
+    return tile.sprite ? [tile.sprite] : [];
+  }
+  if (tile.type === "directional") {
+    return DIRECTIONS.map((d) => tile.sprites?.[d]).filter(
+      (s): s is TileSprite => s != null,
+    );
+  }
+  if (!tile.slices) return [];
+  return Object.values(tile.slices).filter((s): s is TileSprite => s != null);
+}
+
+export function isAnimated(tile: TileDef): boolean {
+  return allTileSprites(tile).some((s) => s.frames.length > 1);
+}
+
+/** True if any frame on any sprite can emit light. */
+export function tileCanEmitLight(tile: TileDef): boolean {
+  return allTileSprites(tile).some((s) =>
+    s.frames.some(
+      (f) => f.light && f.light.radius > 0 && f.light.intensity > 0,
+    ),
+  );
+}
+
+export function frameAtTime(frames: Frame[], timeMs: number): Frame | undefined {
+  if (frames.length === 0) return undefined;
+  if (frames.length === 1) return frames[0];
+  const total = frames.reduce((sum, f) => sum + Math.max(1, f.durationMs), 0);
+  let t = ((timeMs % total) + total) % total;
+  for (const f of frames) {
+    const d = Math.max(1, f.durationMs);
+    if (t < d) return f;
+    t -= d;
+  }
+  return frames[frames.length - 1];
+}
+
+export function frameIndexAtTime(frames: Frame[], timeMs: number): number {
+  if (frames.length === 0) return 0;
+  if (frames.length === 1) return 0;
+  const total = frames.reduce((sum, f) => sum + Math.max(1, f.durationMs), 0);
+  let t = ((timeMs % total) + total) % total;
+  for (let i = 0; i < frames.length; i++) {
+    const d = Math.max(1, frames[i].durationMs);
+    if (t < d) return i;
+    t -= d;
+  }
+  return frames.length - 1;
+}
+
+// resolveTileSprite / getFrames / resolveLight live in ./tileResolve
+// (needs autotile without a circular import).

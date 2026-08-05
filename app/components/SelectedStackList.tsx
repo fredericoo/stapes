@@ -25,9 +25,9 @@ function missingTile(tileId: string): TileDef {
     id: tileId,
     name: "(missing)",
     height: 0,
-    directional: false,
-    variants: {},
+    type: "simple",
     attributes: {},
+    sprite: { frames: [] },
   };
 }
 
@@ -115,7 +115,7 @@ function SortableStackItem({
       <div className="min-w-0 flex-1">
         <div className="truncate text-xs font-bold">{def.name}</div>
         <div className="text-[10px] text-muted">h{def.height}</div>
-        {def.directional ? (
+        {def.type === "directional" ? (
           <Segmented<Direction>
             size="sm"
             ariaLabel={`Direction for ${def.name}`}

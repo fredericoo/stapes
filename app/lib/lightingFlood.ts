@@ -18,6 +18,7 @@ import {
 } from "./types";
 import { elevationAt } from "./mapData";
 import type { EmitterOverride, LightGrid, LevelLightMap } from "./lighting";
+import { resolveLight } from "./tileResolve";
 
 /** Max sky level after column seed. Tune to widen/narrow sky spill. */
 export const MAX_LIGHT_LEVEL = 15;
@@ -242,9 +243,20 @@ export function computeLightingFlood(
       const placed = c.stack[si]!;
       if (omitLightTileIds?.has(placed.tileId)) continue;
       const def = tilesById[placed.tileId];
-      if (!def?.light) continue;
-      if (!(def.light.radius > 0) || !(def.light.intensity > 0)) continue;
-      const [cr, cg, cb] = parseHexColor(def.light.color);
+      if (!def) continue;
+      const light = resolveLight(
+        def,
+        {
+          map,
+          x: c.x,
+          y: c.y,
+          z: c.z,
+          direction: placed.direction,
+        },
+        0,
+      );
+      if (!light) continue;
+      const [cr, cg, cb] = parseHexColor(light.color);
       const center = emitCenter(c.x, c.y, c.z, c.stack, si, tilesById);
       const ex = ov?.fx ?? center.fx;
       const ey = ov?.fy ?? center.fy;
@@ -256,14 +268,14 @@ export function computeLightingFlood(
         lx: c.x,
         ly: c.y,
         lz: c.z,
-        radius: def.light.radius,
-        intensity: def.light.intensity,
+        radius: light.radius,
+        intensity: light.intensity,
         r: cr,
         g: cg,
         b: cb,
       });
-      if (def.light.radius > maxRadius) maxRadius = def.light.radius;
-      const rx = Math.ceil(def.light.radius);
+      if (light.radius > maxRadius) maxRadius = light.radius;
+      const rx = Math.ceil(light.radius);
       if (ex - rx < minX) minX = Math.floor(ex - rx);
       if (ey - rx < minY) minY = Math.floor(ey - rx);
       if (ex + rx > maxX) maxX = Math.ceil(ex + rx);

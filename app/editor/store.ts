@@ -375,7 +375,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       tilesById,
     );
     if (!check.ok) return { ok: false, reason: check.reason };
-    const placed: PlacedTile = def.directional
+    const placed: PlacedTile = def.type === "directional"
       ? { tileId: def.id, direction: "s" }
       : { tileId: def.id };
     get().commitMap(

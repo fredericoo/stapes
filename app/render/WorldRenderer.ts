@@ -21,9 +21,10 @@ import {
   CELL_SIZE,
   MAX_LEVEL,
   MIN_LEVEL,
-  getFrames,
   levelKey,
+  tileCanEmitLight,
 } from "../lib/types";
+import { getFrames } from "../lib/tileResolve";
 import { PLAYER_TILE_ID } from "../game/constants";
 import { GpuLighting } from "./gpuLighting";
 import { PalettePass } from "./palettePass";
@@ -783,7 +784,13 @@ export class WorldRenderer {
           return;
         }
 
-        const frames = getFrames(def, placed.direction);
+        const frames = getFrames(def, {
+          direction: placed.direction,
+          map,
+          x: cell.x,
+          y: cell.y,
+          z,
+        });
         const first = frames?.[0];
         if (!first) return;
 
@@ -811,6 +818,10 @@ export class WorldRenderer {
         });
         // Separate mesh when animated or currently lerping (so we can offset it).
         const separate = isAnimated || this.motionKeys.has(instanceKey);
+        const animKey =
+          def.type === "autotile"
+            ? `${def.id}:${cell.x},${cell.y},${z}`
+            : `${def.id}:${placed.direction ?? "default"}`;
 
         items.push({
           x: origin.x,
@@ -828,16 +839,14 @@ export class WorldRenderer {
           lightY0: cell.y,
           lightX1: cell.x + 1,
           lightY1: cell.y + 1,
-          unlit: Boolean(
-            def.light && def.light.radius > 0 && def.light.intensity > 0,
-          ),
+          unlit: tileCanEmitLight(def),
           tileKey: separate ? instanceKey : undefined,
           anim:
             isAnimated && frames
               ? {
                   frames,
                   tileset,
-                  animKey: `${def.id}:${placed.direction ?? "default"}`,
+                  animKey,
                 }
               : undefined,
         });

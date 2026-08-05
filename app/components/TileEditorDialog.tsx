@@ -1,26 +1,35 @@
 import { useEffect, useState } from "react";
 import type {
+  AutotileSlice,
   Direction,
   Frame,
   LightDef,
   SpriteRef,
   TileDef,
   TileHeight,
+  TileSprite,
+  TileType,
   TilesetDef,
   VariantKey,
 } from "../lib/types";
 import {
+  AUTOTILE_SLICE_COUNT,
   DIRECTIONS,
   climbFromForSave,
   defaultBase,
   isAnimated,
+  isDirectional,
   resolveClimbFrom,
   resolveLightPassing,
   resolveWalkable,
 } from "../lib/types";
 import { SpriteSelector } from "./SpriteSelector";
 import { TilePreview } from "./TilePreview";
-import { Button, Dialog, Input, Segmented, Select, TabPanel, Tabs } from "../ui";
+import {
+  AutotileSlicePreview,
+  autotileSliceTitle,
+} from "./AutotileSlicePreview";
+import { Button, Dialog, Input, Segmented, Select, Tabs } from "../ui";
 
 function emptyFrame(tilesetId: string): Frame {
   const rect = { x: 0, y: 0, w: 1, h: 1 };
@@ -28,6 +37,10 @@ function emptyFrame(tilesetId: string): Frame {
     sprite: { tilesetId, rect, base: defaultBase(rect) },
     durationMs: 200,
   };
+}
+
+function emptySprite(tilesetId: string): TileSprite {
+  return { frames: [emptyFrame(tilesetId)] };
 }
 
 const DEFAULT_LIGHT: LightDef = {
@@ -42,17 +55,17 @@ function blankTile(tilesets: TilesetDef[]): TileDef {
     id: "",
     name: "New Tile",
     height: 0,
-    directional: false,
-    variants: { default: [emptyFrame(ts)] },
+    type: "simple",
     attributes: {},
     lightPassing: false,
     walkable: true,
     climbFrom: { default: { n: true, e: true, s: true, w: true } },
+    sprite: emptySprite(ts),
   };
 }
 
 function expandClimbFrom(tile: TileDef): NonNullable<TileDef["climbFrom"]> {
-  const keys: VariantKey[] = tile.directional ? [...DIRECTIONS] : ["default"];
+  const keys: VariantKey[] = isDirectional(tile) ? [...DIRECTIONS] : ["default"];
   const out: NonNullable<TileDef["climbFrom"]> = {};
   for (const key of keys) {
     out[key] = resolveClimbFrom(tile, key);
@@ -68,6 +81,66 @@ function withLightingDefaults(tile: TileDef): TileDef {
     lightPassing: resolveLightPassing(tile),
     walkable: resolveWalkable(tile),
     climbFrom: expandClimbFrom(tile),
+  };
+}
+
+function currentSprite(
+  draft: TileDef,
+  dir: Direction,
+  slice: AutotileSlice,
+): TileSprite | undefined {
+  if (draft.type === "simple") return draft.sprite;
+  if (draft.type === "directional") return draft.sprites?.[dir];
+  return draft.slices?.[slice];
+}
+
+function setCurrentSprite(
+  draft: TileDef,
+  dir: Direction,
+  slice: AutotileSlice,
+  sprite: TileSprite,
+): TileDef {
+  if (draft.type === "simple") return { ...draft, sprite };
+  if (draft.type === "directional") {
+    return { ...draft, sprites: { ...draft.sprites, [dir]: sprite } };
+  }
+  return { ...draft, slices: { ...draft.slices, [slice]: sprite } };
+}
+
+function validateFrameLights(frames: Frame[]): string | null {
+  for (let i = 0; i < frames.length; i++) {
+    const light = frames[i]?.light;
+    if (!light) continue;
+    if (!(light.radius > 0) || !Number.isFinite(light.radius)) {
+      return `Frame ${i + 1}: light radius must be a positive number`;
+    }
+    if (
+      !(light.intensity >= 0) ||
+      !(light.intensity <= 1) ||
+      !Number.isFinite(light.intensity)
+    ) {
+      return `Frame ${i + 1}: light intensity must be between 0 and 1`;
+    }
+    if (!/^#[0-9a-fA-F]{6}$/.test(light.color)) {
+      return `Frame ${i + 1}: light colour must be a hex like #ffcc88`;
+    }
+  }
+  return null;
+}
+
+function sanitizeSprite(sprite: TileSprite): TileSprite {
+  return {
+    frames: sprite.frames.map((f) => {
+      if (!f.light) return f;
+      return {
+        ...f,
+        light: {
+          radius: f.light.radius,
+          intensity: f.light.intensity,
+          color: f.light.color.toLowerCase(),
+        },
+      };
+    }),
   };
 }
 
@@ -93,83 +166,107 @@ export function TileEditorDialog({
   const [draft, setDraft] = useState<TileDef>(() =>
     withLightingDefaults(tile ?? blankTile(tilesets)),
   );
-  const [dir, setDir] = useState<VariantKey>(
-    tile?.directional ? "n" : "default",
-  );
+  const [dir, setDir] = useState<Direction>("n");
+  const [slice, setSlice] = useState<AutotileSlice>(0);
   const [frameIndex, setFrameIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
-  const [lightOpen, setLightOpen] = useState(false);
 
-  // Reset when opening with a different tile
   useEffect(() => {
     if (!open) return;
     const next = withLightingDefaults(tile ?? blankTile(tilesets));
     setDraft(next);
-    setDir(next.directional ? "n" : "default");
+    setDir("n");
+    setSlice(0);
     setFrameIndex(0);
     setError(null);
-    setLightOpen(Boolean(next.light));
   }, [open, tile, tilesets]);
 
-  const frames = draft.variants[dir] ?? [];
+  const sprite = currentSprite(draft, dir, slice);
+  const frames = sprite?.frames ?? [];
   const frame = frames[frameIndex] ?? frames[0];
+  const definedSlice =
+    draft.type === "autotile" ? Boolean(draft.slices?.[slice]) : true;
   const tileset =
     tilesets.find((t) => t.id === frame?.sprite.tilesetId) ?? tilesets[0] ?? null;
 
+  const setSprite = (next: TileSprite) => {
+    setDraft((d) => setCurrentSprite(d, dir, slice, next));
+  };
+
   const setFrames = (next: Frame[]) => {
-    setDraft((d) => ({
-      ...d,
-      variants: { ...d.variants, [dir]: next },
-    }));
+    setSprite({ frames: next });
   };
 
   const updateFrame = (patch: Partial<Frame>) => {
     if (!frame) return;
-    const next = frames.map((f, i) =>
-      i === frameIndex ? { ...f, ...patch } : f,
+    setFrames(
+      frames.map((f, i) => (i === frameIndex ? { ...f, ...patch } : f)),
     );
-    setFrames(next);
   };
 
-  const setSprite = (sprite: SpriteRef) => {
-    updateFrame({ sprite });
+  const setFrameSprite = (s: SpriteRef) => {
+    updateFrame({ sprite: s });
   };
 
-  const toggleDirectional = (on: boolean) => {
-    if (on === draft.directional) return;
-    if (on) {
-      const base = draft.variants.default ?? draft.variants.n ?? [emptyFrame(tilesets[0]?.id ?? "")];
-      const variants: TileDef["variants"] = {};
+  const changeType = (type: TileType) => {
+    if (type === draft.type) return;
+    const ts = tilesets[0]?.id ?? "";
+    const from =
+      draft.sprite ??
+      draft.sprites?.n ??
+      draft.sprites?.s ??
+      draft.slices?.[0] ??
+      emptySprite(ts);
+
+    if (type === "simple") {
+      if (
+        draft.type !== "simple" &&
+        !confirm("Convert to simple? Keeping current sprite as default.")
+      ) {
+        return;
+      }
+      setDraft({
+        ...draft,
+        type: "simple",
+        sprite: structuredClone(from),
+        sprites: undefined,
+        slices: undefined,
+        climbFrom: { default: resolveClimbFrom(draft, isDirectional(draft) ? dir : "default") },
+      });
+    } else if (type === "directional") {
+      const sprites: Partial<Record<Direction, TileSprite>> = {};
       const climbBase = resolveClimbFrom(draft, "default");
       const climbFrom: NonNullable<TileDef["climbFrom"]> = {};
       for (const d of DIRECTIONS) {
-        variants[d] = structuredClone(base);
+        sprites[d] = structuredClone(
+          draft.sprites?.[d] ?? draft.sprite ?? from,
+        );
         climbFrom[d] = { ...climbBase };
       }
-      setDraft({ ...draft, directional: true, variants, climbFrom });
-      setDir("n");
-      setFrameIndex(0);
-    } else {
-      if (!confirm("Convert to non-directional? Keeping N as default.")) return;
-      const keep = draft.variants.n ?? draft.variants.default ?? [];
       setDraft({
         ...draft,
-        directional: false,
-        variants: { default: structuredClone(keep) },
-        climbFrom: {
-          default: resolveClimbFrom(draft, "n"),
-        },
+        type: "directional",
+        sprite: undefined,
+        sprites,
+        slices: undefined,
+        climbFrom,
       });
-      setDir("default");
-      setFrameIndex(0);
+      setDir("n");
+    } else {
+      setDraft({
+        ...draft,
+        type: "autotile",
+        sprite: undefined,
+        sprites: undefined,
+        slices: { 0: structuredClone(from) },
+        climbFrom: { default: resolveClimbFrom(draft, "default") },
+      });
+      setSlice(0);
     }
+    setFrameIndex(0);
   };
 
-  const climbVariant: VariantKey = draft.directional
-    ? dir === "default"
-      ? "n"
-      : dir
-    : "default";
+  const climbVariant: VariantKey = isDirectional(draft) ? dir : "default";
   const climbFlags = resolveClimbFrom(draft, climbVariant);
 
   const setClimbSide = (side: Direction, value: boolean) => {
@@ -195,69 +292,300 @@ export function TileEditorDialog({
       setError("Name is required");
       return;
     }
-    if (draft.directional) {
+
+    if (draft.type === "simple") {
+      if (!draft.sprite?.frames.length) {
+        setError("At least one frame is required");
+        return;
+      }
+      const err = validateFrameLights(draft.sprite.frames);
+      if (err) {
+        setError(err);
+        return;
+      }
+    } else if (draft.type === "directional") {
       for (const d of DIRECTIONS) {
-        if (!draft.variants[d]?.length) {
+        if (!draft.sprites?.[d]?.frames.length) {
           setError(`Missing frames for direction ${d.toUpperCase()}`);
           return;
         }
+        const err = validateFrameLights(draft.sprites[d]!.frames);
+        if (err) {
+          setError(`${d.toUpperCase()}: ${err}`);
+          return;
+        }
       }
-    } else if (!draft.variants.default?.length) {
-      setError("At least one frame is required");
-      return;
+    } else {
+      const defined = Object.values(draft.slices ?? {}).filter(Boolean);
+      if (!defined.length) {
+        setError("Define at least one autotile slice");
+        return;
+      }
+      for (const [k, s] of Object.entries(draft.slices ?? {})) {
+        if (!s?.frames.length) continue;
+        const err = validateFrameLights(s.frames);
+        if (err) {
+          setError(`Slice ${k}: ${err}`);
+          return;
+        }
+      }
     }
+
     setError(null);
-    const light = draft.light;
-    if (light) {
-      if (!(light.radius > 0) || !Number.isFinite(light.radius)) {
-        setError("Light radius must be a positive number");
-        return;
-      }
-      if (
-        !(light.intensity >= 0) ||
-        !(light.intensity <= 1) ||
-        !Number.isFinite(light.intensity)
-      ) {
-        setError("Light intensity must be between 0 and 1");
-        return;
-      }
-      if (!/^#[0-9a-fA-F]{6}$/.test(light.color)) {
-        setError("Light colour must be a hex like #ffcc88");
-        return;
-      }
-    }
     const climbByVariant: Partial<
       Record<VariantKey, Record<Direction, boolean>>
     > = {};
-    const keys: VariantKey[] = draft.directional ? [...DIRECTIONS] : ["default"];
+    const keys: VariantKey[] = isDirectional(draft) ? [...DIRECTIONS] : ["default"];
     for (const key of keys) {
       climbByVariant[key] = resolveClimbFrom(draft, key);
     }
-    onSave({
-      ...draft,
+
+    const saved: TileDef = {
+      id: draft.id,
+      name: draft.name,
+      height: draft.height,
+      type: draft.type,
+      attributes: {},
       lightPassing: draft.lightPassing ? true : undefined,
       affectedByGravity: draft.affectedByGravity ? true : undefined,
       walkable: draft.walkable === false ? false : undefined,
       climbFrom: climbFromForSave(draft, climbByVariant),
-      blocksLight: undefined,
-      light: light
-        ? {
-            radius: light.radius,
-            intensity: light.intensity,
-            color: light.color.toLowerCase(),
-          }
-        : undefined,
-    });
+    };
+
+    if (draft.type === "simple" && draft.sprite) {
+      saved.sprite = sanitizeSprite(draft.sprite);
+    } else if (draft.type === "directional" && draft.sprites) {
+      const sprites: Partial<Record<Direction, TileSprite>> = {};
+      for (const d of DIRECTIONS) {
+        if (draft.sprites[d]) sprites[d] = sanitizeSprite(draft.sprites[d]!);
+      }
+      saved.sprites = sprites;
+    } else if (draft.type === "autotile" && draft.slices) {
+      const slices: Partial<Record<AutotileSlice, TileSprite>> = {};
+      for (const [k, s] of Object.entries(draft.slices)) {
+        if (s) slices[Number(k)] = sanitizeSprite(s);
+      }
+      saved.slices = slices;
+    }
+
+    onSave(saved);
   };
 
-  const dirTabs = draft.directional
-    ? DIRECTIONS.map((d) => ({ value: d, label: d.toUpperCase() }))
-    : [{ value: "default", label: "Default" }];
+  const dirTabs = DIRECTIONS.map((d) => ({ value: d, label: d.toUpperCase() }));
 
   const frameTabs = [
     ...frames.map((_, i) => ({ value: String(i), label: `Frame ${i + 1}` })),
     { value: "add", label: "+" },
   ];
+
+  const lightOpen = Boolean(frame?.light);
+
+  const climbPad = (
+    <div className="flex items-center gap-3 pt-1">
+      <span className="text-xs font-bold uppercase text-muted">Climb up from</span>
+      <div
+        className="grid w-fit grid-cols-3 gap-1"
+        role="group"
+        aria-label="Climb-from directions"
+      >
+        <span />
+        <ClimbFromToggle
+          label="N"
+          checked={climbFlags.n}
+          onChange={(n) => setClimbSide("n", n)}
+        />
+        <span />
+        <ClimbFromToggle
+          label="W"
+          checked={climbFlags.w}
+          onChange={(w) => setClimbSide("w", w)}
+        />
+        <span className="flex h-8 w-8 items-center justify-center text-[10px] text-muted">
+          ·
+        </span>
+        <ClimbFromToggle
+          label="E"
+          checked={climbFlags.e}
+          onChange={(e) => setClimbSide("e", e)}
+        />
+        <span />
+        <ClimbFromToggle
+          label="S"
+          checked={climbFlags.s}
+          onChange={(s) => setClimbSide("s", s)}
+        />
+        <span />
+      </div>
+    </div>
+  );
+
+  const frameEditor = (
+    <Tabs
+      value={String(frameIndex)}
+      onValueChange={(v) => {
+        if (v === "add") {
+          const clone = structuredClone(
+            frames[frames.length - 1] ?? emptyFrame(tilesets[0]?.id ?? ""),
+          );
+          setFrames([...frames, clone]);
+          setFrameIndex(frames.length);
+          return;
+        }
+        setFrameIndex(Number(v));
+      }}
+      items={frameTabs}
+    >
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-2 text-xs">
+          <span className="font-bold uppercase text-muted">Duration ms</span>
+          <Input
+            type="number"
+            className="w-24"
+            value={frame?.durationMs ?? 200}
+            onChange={(e) =>
+              updateFrame({ durationMs: Number(e.target.value) || 200 })
+            }
+          />
+        </label>
+        {frames.length > 1 ? (
+          <Button
+            size="sm"
+            variant="danger"
+            onClick={() => {
+              const next = frames.filter((_, i) => i !== frameIndex);
+              setFrames(next);
+              setFrameIndex(Math.max(0, frameIndex - 1));
+            }}
+          >
+            Remove frame
+          </Button>
+        ) : null}
+        <Button
+          size="sm"
+          onClick={() => {
+            if (!frame) return;
+            setFrames([
+              ...frames.slice(0, frameIndex + 1),
+              structuredClone(frame),
+              ...frames.slice(frameIndex + 1),
+            ]);
+            setFrameIndex(frameIndex + 1);
+          }}
+        >
+          Duplicate frame
+        </Button>
+      </div>
+
+      <div className="mt-2 flex flex-col gap-2 border-2 border-border p-2">
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={lightOpen}
+            onChange={(e) => {
+              const on = e.target.checked;
+              updateFrame({
+                light: on ? (frame?.light ?? { ...DEFAULT_LIGHT }) : undefined,
+              });
+            }}
+            className="hard-checkbox"
+          />
+          Emits light
+        </label>
+        {lightOpen && frame?.light ? (
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="flex flex-col gap-1 text-xs">
+              <span className="font-bold uppercase text-muted">Radius</span>
+              <Input
+                type="number"
+                min={1}
+                step={1}
+                className="w-20"
+                value={frame.light.radius}
+                onChange={(e) =>
+                  updateFrame({
+                    light: {
+                      ...frame.light!,
+                      radius: Number(e.target.value) || 1,
+                    },
+                  })
+                }
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-xs">
+              <span className="font-bold uppercase text-muted">Intensity</span>
+              <Input
+                type="number"
+                min={0}
+                max={1}
+                step={0.05}
+                className="w-20"
+                value={frame.light.intensity}
+                onChange={(e) =>
+                  updateFrame({
+                    light: {
+                      ...frame.light!,
+                      intensity: Number(e.target.value),
+                    },
+                  })
+                }
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-xs">
+              <span className="font-bold uppercase text-muted">Colour</span>
+              <input
+                type="color"
+                value={frame.light.color}
+                onChange={(e) =>
+                  updateFrame({
+                    light: { ...frame.light!, color: e.target.value },
+                  })
+                }
+                className="h-8 w-12 cursor-pointer border-2 border-border bg-panel p-0"
+              />
+            </label>
+          </div>
+        ) : null}
+      </div>
+
+      <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_180px]">
+        <div className="flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold uppercase text-muted">Tileset</span>
+            <Select
+              value={tileset?.id ?? null}
+              onValueChange={(id) => {
+                if (!id || !frame) return;
+                setFrameSprite({
+                  tilesetId: id,
+                  rect: { ...frame.sprite.rect },
+                  base: frame.sprite.base,
+                });
+              }}
+              options={tilesets.map((t) => ({
+                value: t.id,
+                label: t.name,
+              }))}
+            />
+          </div>
+          <SpriteSelector
+            tileset={tileset}
+            value={frame?.sprite ?? null}
+            onChange={setFrameSprite}
+          />
+        </div>
+        <div className="flex flex-col items-center gap-2">
+          <span className="text-xs font-bold uppercase text-muted">Preview</span>
+          <TilePreview
+            tile={draft}
+            tilesets={tilesets}
+            size={96}
+            direction={draft.type === "directional" ? dir : undefined}
+            autotileSlice={draft.type === "autotile" ? slice : undefined}
+          />
+        </div>
+      </div>
+    </Tabs>
+  );
 
   return (
     <Dialog
@@ -312,15 +640,19 @@ export function TileEditorDialog({
               size="sm"
             />
           </div>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={draft.directional}
-              onChange={(e) => toggleDirectional(e.target.checked)}
-              className="hard-checkbox"
+          <div className="flex flex-col gap-1 text-xs">
+            <span className="font-bold uppercase text-muted">Type</span>
+            <Segmented<TileType>
+              value={draft.type}
+              onChange={changeType}
+              options={[
+                { value: "simple", label: "Simple" },
+                { value: "directional", label: "Directional" },
+                { value: "autotile", label: "Autotile" },
+              ]}
+              size="sm"
             />
-            Directional
-          </label>
+          </div>
           <label className="flex items-center gap-2 text-sm">
             <input
               type="checkbox"
@@ -356,239 +688,129 @@ export function TileEditorDialog({
           </label>
         </div>
 
-        <div className="flex flex-col gap-2 border-2 border-border p-2">
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={lightOpen}
-              onChange={(e) => {
-                const on = e.target.checked;
-                setLightOpen(on);
-                setDraft({
-                  ...draft,
-                  light: on ? (draft.light ?? { ...DEFAULT_LIGHT }) : undefined,
-                });
-              }}
-              className="hard-checkbox"
-            />
-            Emits light
-          </label>
-          {lightOpen && draft.light ? (
-            <div className="flex flex-wrap items-end gap-3">
-              <label className="flex flex-col gap-1 text-xs">
-                <span className="font-bold uppercase text-muted">Radius</span>
-                <Input
-                  type="number"
-                  min={1}
-                  step={1}
-                  className="w-20"
-                  value={draft.light.radius}
-                  onChange={(e) =>
-                    setDraft({
-                      ...draft,
-                      light: {
-                        ...draft.light!,
-                        radius: Number(e.target.value) || 1,
-                      },
-                    })
-                  }
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-xs">
-                <span className="font-bold uppercase text-muted">Intensity</span>
-                <Input
-                  type="number"
-                  min={0}
-                  max={1}
-                  step={0.05}
-                  className="w-20"
-                  value={draft.light.intensity}
-                  onChange={(e) =>
-                    setDraft({
-                      ...draft,
-                      light: {
-                        ...draft.light!,
-                        intensity: Number(e.target.value),
-                      },
-                    })
-                  }
-                />
-              </label>
-              <label className="flex flex-col gap-1 text-xs">
-                <span className="font-bold uppercase text-muted">Colour</span>
-                <input
-                  type="color"
-                  value={draft.light.color}
-                  onChange={(e) =>
-                    setDraft({
-                      ...draft,
-                      light: { ...draft.light!, color: e.target.value },
-                    })
-                  }
-                  className="h-8 w-12 cursor-pointer border-2 border-border bg-panel p-0"
-                />
-              </label>
-            </div>
-          ) : null}
-        </div>
-
         {error ? (
           <div className="border-2 border-danger bg-danger/10 px-2 py-1 text-sm text-danger">
             {error}
           </div>
         ) : null}
 
-        <Tabs
-          value={String(dir)}
-          onValueChange={(v) => {
-            setDir(v as VariantKey);
-            setFrameIndex(0);
-          }}
-          items={dirTabs}
-        >
-          <div className="flex items-center gap-3 pt-3">
-            <span className="text-xs font-bold uppercase text-muted">
-              Climb up from
-            </span>
-            <div
-              className="grid w-fit grid-cols-3 gap-1"
-              role="group"
-              aria-label="Climb-from directions"
-            >
-              <span />
-              <ClimbFromToggle
-                label="N"
-                checked={climbFlags.n}
-                onChange={(n) => setClimbSide("n", n)}
-              />
-              <span />
-              <ClimbFromToggle
-                label="W"
-                checked={climbFlags.w}
-                onChange={(w) => setClimbSide("w", w)}
-              />
-              <span className="flex h-8 w-8 items-center justify-center text-[10px] text-muted">
-                ·
-              </span>
-              <ClimbFromToggle
-                label="E"
-                checked={climbFlags.e}
-                onChange={(e) => setClimbSide("e", e)}
-              />
-              <span />
-              <ClimbFromToggle
-                label="S"
-                checked={climbFlags.s}
-                onChange={(s) => setClimbSide("s", s)}
-              />
-              <span />
-            </div>
-          </div>
-          {dirTabs.map((t) => (
-            <TabPanel key={t.value} value={t.value}>
-              <Tabs
-                value={String(frameIndex)}
-                onValueChange={(v) => {
-                  if (v === "add") {
-                    const clone = structuredClone(
-                      frames[frames.length - 1] ?? emptyFrame(tilesets[0]?.id ?? ""),
-                    );
-                    setFrames([...frames, clone]);
-                    setFrameIndex(frames.length);
-                    return;
-                  }
-                  setFrameIndex(Number(v));
-                }}
-                items={frameTabs}
-              >
-                <div className="flex flex-wrap items-center gap-3">
-                  <label className="flex items-center gap-2 text-xs">
-                    <span className="font-bold uppercase text-muted">Duration ms</span>
-                    <Input
-                      type="number"
-                      className="w-24"
-                      value={frame?.durationMs ?? 200}
-                      onChange={(e) =>
-                        updateFrame({ durationMs: Number(e.target.value) || 200 })
-                      }
-                    />
-                  </label>
-                  {frames.length > 1 ? (
-                    <Button
-                      size="sm"
-                      variant="danger"
-                      onClick={() => {
-                        const next = frames.filter((_, i) => i !== frameIndex);
-                        setFrames(next);
-                        setFrameIndex(Math.max(0, frameIndex - 1));
-                      }}
-                    >
-                      Remove frame
-                    </Button>
-                  ) : null}
-                  <Button
-                    size="sm"
-                    onClick={() => {
-                      if (!frame) return;
-                      setFrames([
-                        ...frames.slice(0, frameIndex + 1),
-                        structuredClone(frame),
-                        ...frames.slice(frameIndex + 1),
-                      ]);
-                      setFrameIndex(frameIndex + 1);
-                    }}
-                  >
-                    Duplicate frame
-                  </Button>
-                </div>
+        {!isDirectional(draft) ? climbPad : null}
 
-                <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_180px]">
-                  <div className="flex flex-col gap-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold uppercase text-muted">
-                        Tileset
-                      </span>
-                      <Select
-                        value={tileset?.id ?? null}
-                        onValueChange={(id) => {
-                          if (!id || !frame) return;
-                          const rect = { ...frame.sprite.rect };
-                          setSprite({
-                            tilesetId: id,
-                            rect,
-                            base: frame.sprite.base,
+        {draft.type === "simple" ? (
+          frameEditor
+        ) : draft.type === "directional" ? (
+          <Tabs
+            value={dir}
+            onValueChange={(v) => {
+              setDir(v as Direction);
+              setFrameIndex(0);
+            }}
+            items={dirTabs}
+          >
+            {climbPad}
+            {frameEditor}
+          </Tabs>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {climbPad}
+            <div className="flex flex-col gap-2">
+              <div className="flex flex-col gap-0.5">
+                <span className="text-xs font-bold uppercase text-muted">
+                  Autotile slices (47)
+                </span>
+                <p className="text-[11px] leading-snug text-muted">
+                  Each icon is a neighborhood: dark green = this tile, light
+                  green = matching neighbors. Rendering picks the slice from
+                  nearby same-id tiles. Sparse — only define the shapes you
+                  need (missing falls back to isolated).
+                </p>
+              </div>
+              <div
+                className="grid w-fit gap-1"
+                style={{ gridTemplateColumns: "repeat(8, minmax(0, 1fr))" }}
+                role="listbox"
+                aria-label="Autotile slices"
+              >
+                {Array.from({ length: AUTOTILE_SLICE_COUNT }, (_, i) => {
+                  const defined = Boolean(draft.slices?.[i]);
+                  const selected = slice === i;
+                  return (
+                    <button
+                      key={i}
+                      type="button"
+                      role="option"
+                      aria-selected={selected}
+                      aria-label={autotileSliceTitle(i)}
+                      title={`${autotileSliceTitle(i)}${defined ? "" : " — empty"}`}
+                      onClick={() => {
+                        setSlice(i);
+                        setFrameIndex(0);
+                        if (!draft.slices?.[i]) {
+                          const base =
+                            draft.slices?.[0] ??
+                            emptySprite(tilesets[0]?.id ?? "");
+                          setDraft({
+                            ...draft,
+                            slices: {
+                              ...draft.slices,
+                              [i]: structuredClone(base),
+                            },
                           });
-                        }}
-                        options={tilesets.map((t) => ({
-                          value: t.id,
-                          label: t.name,
-                        }))}
-                      />
-                    </div>
-                    <SpriteSelector
-                      tileset={tileset}
-                      value={frame?.sprite ?? null}
-                      onChange={setSprite}
-                    />
-                  </div>
-                  <div className="flex flex-col items-center gap-2">
-                    <span className="text-xs font-bold uppercase text-muted">
-                      Preview
-                    </span>
-                    <TilePreview
-                      tile={draft}
-                      tilesets={tilesets}
-                      size={96}
-                      direction={
-                        draft.directional ? (dir as Direction) : undefined
-                      }
-                    />
-                  </div>
-                </div>
-              </Tabs>
-            </TabPanel>
-          ))}
-        </Tabs>
+                        }
+                      }}
+                      className={[
+                        "relative rounded-sm border-2 p-0.5",
+                        selected
+                          ? "border-accent bg-paper"
+                          : defined
+                            ? "border-border bg-panel hover:border-ink"
+                            : "border-dashed border-muted opacity-55 hover:opacity-100",
+                      ].join(" ")}
+                    >
+                      <AutotileSlicePreview slice={i} size={32} />
+                      <span
+                        className={[
+                          "pointer-events-none absolute right-0 bottom-0 px-0.5 font-mono text-[9px] leading-none",
+                          selected
+                            ? "bg-accent text-paper"
+                            : "bg-paper/90 text-ink",
+                        ].join(" ")}
+                      >
+                        {i}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="flex items-center gap-2 text-[11px] text-muted">
+                <AutotileSlicePreview slice={slice} size={20} />
+                <span>{autotileSliceTitle(slice)}</span>
+                {definedSlice ? (
+                  <span className="text-ink">· sprite defined</span>
+                ) : (
+                  <span>· using fallback</span>
+                )}
+              </div>
+              {draft.slices?.[slice] && slice !== 0 ? (
+                <Button
+                  size="sm"
+                  variant="danger"
+                  className="w-fit"
+                  onClick={() => {
+                    const next = { ...draft.slices };
+                    delete next[slice];
+                    setDraft({ ...draft, slices: next });
+                    setSlice(0);
+                    setFrameIndex(0);
+                  }}
+                >
+                  Clear this slice
+                </Button>
+              ) : null}
+            </div>
+            {frameEditor}
+          </div>
+        )}
       </div>
     </Dialog>
   );

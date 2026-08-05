@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { getStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
+import { normalizeTileDef } from "../lib/types";
 import { useEditorStore } from "./store";
 
 const tiles: TileDef[] = [
-  {
+  normalizeTileDef({
     id: "grass",
     name: "Grass",
     height: 0,
@@ -22,8 +23,8 @@ const tiles: TileDef[] = [
       ],
     },
     attributes: {},
-  },
-  {
+  }),
+  normalizeTileDef({
     id: "rock",
     name: "Rock",
     height: 1,
@@ -41,7 +42,7 @@ const tiles: TileDef[] = [
       ],
     },
     attributes: {},
-  },
+  }),
 ];
 
 const seedMap: MapFile = {

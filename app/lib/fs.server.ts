@@ -1,6 +1,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import type { MapFile, TileDef, TilesetDef } from "./types";
+import { normalizeTiles } from "./types";
 import { emptyMap, parseMap, serializeMap } from "./mapData";
 
 const DATA_DIR = path.resolve(process.cwd(), "data");
@@ -36,7 +37,7 @@ export async function readTiles(): Promise<TileDef[]> {
   await ensureDataDir();
   try {
     const raw = await fs.readFile(tilesPath(), "utf8");
-    return JSON.parse(raw) as TileDef[];
+    return normalizeTiles(JSON.parse(raw) as unknown[]);
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") return [];
     throw err;

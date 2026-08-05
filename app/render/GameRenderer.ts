@@ -15,6 +15,7 @@ import {
 } from "../lib/levelVisibility";
 import type { MapFile, TileDef, TilesetDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL } from "../lib/types";
+import { resolveLight } from "../lib/tileResolve";
 import { tilesByIdFromList } from "../lib/validation";
 import { type TileMotion, WorldRenderer } from "./WorldRenderer";
 
@@ -129,12 +130,15 @@ export class GameRenderer {
   private emitterOverridesFor(
     snap: GameSnapshot,
   ): EmitterOverride[] | undefined {
-    const light = this.tilesById[PLAYER_TILE_ID]?.light;
-    if (!light || !(light.radius > 0) || !(light.intensity > 0)) {
+    const playerDef = this.tilesById[PLAYER_TILE_ID];
+    const light = playerDef
+      ? resolveLight(playerDef, { direction: snap.player.direction })
+      : undefined;
+    if (!light) {
       return undefined;
     }
 
-    const playerH = this.tilesById[PLAYER_TILE_ID]?.height ?? 0;
+    const playerH = playerDef?.height ?? 0;
 
     if (snap.walk) {
       const { from, to } = snap.walk;

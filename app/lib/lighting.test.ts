@@ -11,19 +11,30 @@ import {
 } from "./lighting";
 import { MAX_LIGHT_LEVEL } from "./lightingFlood";
 import type { MapFile, TileDef } from "./types";
-import { coordKey, levelKey } from "./types";
+import { coordKey, levelKey, normalizeTileDef } from "./types";
 
 function tile(
-  partial: Partial<TileDef> & Pick<TileDef, "id">,
+  partial: Record<string, unknown> & Pick<TileDef, "id">,
 ): TileDef {
-  return {
+  return normalizeTileDef({
     name: partial.id,
     height: 0,
     directional: false,
-    variants: {},
+    variants: {
+      default: [
+        {
+          sprite: {
+            tilesetId: "t",
+            rect: { x: 0, y: 0, w: 1, h: 1 },
+            base: { x: 0, y: 0 },
+          },
+          durationMs: 200,
+        },
+      ],
+    },
     attributes: {},
     ...partial,
-  };
+  });
 }
 
 function mapAt(

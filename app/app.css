@@ -45,10 +45,10 @@ textarea {
   font: inherit;
 }
 
-/* Nearest-neighbor for pixel art canvases */
+/* Nearest-neighbor for pixel art canvases / imgs */
 .pixelated {
+  image-rendering: -moz-crisp-edges;
   image-rendering: pixelated;
-  image-rendering: crisp-edges;
 }
 
 /* Hard-edged checkbox — matches Input / Segmented chrome */

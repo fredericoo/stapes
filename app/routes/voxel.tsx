@@ -21,6 +21,7 @@ import {
   renderGrid,
   renderSheet,
   resizeGrid,
+  sheetSprites,
   sheetVariants,
   voxelCount,
   voxelDims,
@@ -833,12 +834,14 @@ function buildTileDef(
   tilesetId: string,
   tileHeight: string,
 ): TileDef {
+  const sheet = sheetSprites(project, tilesetId);
   return {
     id: tilesetId,
     name: project.name,
     height: Number(tileHeight) as TileHeight,
-    directional: project.directional,
-    variants: sheetVariants(project, tilesetId),
+    type: sheet.type,
     attributes: {},
+    sprite: sheet.sprite,
+    sprites: sheet.sprites,
   };
 }

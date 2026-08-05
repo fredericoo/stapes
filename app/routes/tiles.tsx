@@ -143,11 +143,9 @@ export default function TilesPage() {
                   <span className="border border-border bg-paper px-1 text-[10px] font-bold">
                     h{tile.height}
                   </span>
-                  {tile.directional ? (
-                    <span className="border border-border bg-paper px-1 text-[10px]">
-                      dir
-                    </span>
-                  ) : null}
+                  <span className="border border-border bg-paper px-1 text-[10px]">
+                    {tile.type}
+                  </span>
                   {tileIsAnimated(tile) ? (
                     <span className="border border-border bg-paper px-1 text-[10px]">
                       anim
