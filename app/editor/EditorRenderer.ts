@@ -44,7 +44,10 @@ import {
   buildSingleQuadGeometry,
   injectWorldShader,
 } from "../render/worldQuads";
-import { PalettePass } from "../render/palettePass";
+import {
+  createPaletteDitherCompositeMaterial,
+  PalettePass,
+} from "../render/palettePass";
 
 type AnimatedInstance = {
   mesh: THREE.Mesh;
@@ -83,11 +86,19 @@ const LIGHTING_DEBOUNCE_MS = 50;
  */
 const LIGHT_MAP_CELL_OFFSET = 0.5;
 
+/** Bayer keep-rate hits 0 at this |Δz| (max |Δz| in range is 16, but falloff stops earlier). */
+const GHOST_FADE_DISTANCE = 9;
+/** Keep-rate for the nearest non-current level (|Δz| === 1). */
+const GHOST_NEAR_KEEP = 0.5;
+
 /**
- * Ghost opacity for a level when "show other levels" is on.
- * Direction is context-aware so cave editing isn't drowned by the surface:
- * - current ≥ 0: ghost only floors above
- * - current ≤ -1: ghost only floors below
+ * Visibility / Bayer keep-rate for a level when "show other levels" is on.
+ *
+ * Hard bands (always, including preview) so caves and surface never mix:
+ * - current ≥ 0 (surface / 0 is above ground): only [0..MAX]
+ * - current ≤ -1 (cave): only [MIN..-1] — never 0 or above
+ *
+ * Within the band: above → ghost (fade with Δz), at/below → full.
  */
 function opacityForLevel(
   z: number,
@@ -95,56 +106,23 @@ function opacityForLevel(
   showOther: boolean,
   preview: boolean,
 ): number | null {
+  if (current < 0) {
+    if (z >= 0 || z < MIN_LEVEL) return null;
+  } else if (z < 0 || z > MAX_LEVEL) {
+    return null;
+  }
+
   if (preview) return 1;
   if (z === current) return 1;
   if (!showOther) return null;
-  if (current >= 0) {
-    if (z < current) return null;
-    return 0.4;
-  }
-  if (z > current) return null;
-  const dist = current - z;
-  return Math.max(0.15, 0.7 - dist * 0.15);
-}
+  if (z < current) return 1;
 
-/**
- * Flattens one level's render target onto the canvas at a single opacity.
- * The RT holds straight-alpha coverage (opaque cutouts write A=1; clear is A=0).
- */
-function createCompositeMaterial() {
-  return new THREE.ShaderMaterial({
-    uniforms: {
-      tLevel: { value: null as THREE.Texture | null },
-      uOpacity: { value: 1 },
-    },
-    vertexShader: /* glsl */ `
-      varying vec2 vUv;
-      void main() {
-        vUv = uv;
-        gl_Position = vec4(position.xy, 0.0, 1.0);
-      }
-    `,
-    fragmentShader: /* glsl */ `
-      uniform sampler2D tLevel;
-      uniform float uOpacity;
-      varying vec2 vUv;
-      void main() {
-        vec4 texel = texture2D(tLevel, vUv);
-        // Straight alpha → premultiplied for CustomBlending below.
-        gl_FragColor = vec4(texel.rgb * texel.a, texel.a) * uOpacity;
-        #include <colorspace_fragment>
-      }
-    `,
-    transparent: true,
-    depthTest: false,
-    depthWrite: false,
-    toneMapped: false,
-    blending: THREE.CustomBlending,
-    blendSrc: THREE.OneFactor,
-    blendDst: THREE.OneMinusSrcAlphaFactor,
-    blendSrcAlpha: THREE.OneFactor,
-    blendDstAlpha: THREE.OneMinusSrcAlphaFactor,
-  });
+  // z > current — dithered ghost toward the sky / surface (still in-band).
+  const dist = z - current;
+  if (dist >= GHOST_FADE_DISTANCE) return null;
+  const linear = (GHOST_FADE_DISTANCE - dist) / GHOST_FADE_DISTANCE;
+  const nearLinear = (GHOST_FADE_DISTANCE - 1) / GHOST_FADE_DISTANCE;
+  return (linear / nearLinear) * GHOST_NEAR_KEEP;
 }
 
 function disposeObject3D(obj: THREE.Object3D) {
@@ -257,7 +235,7 @@ export class EditorRenderer {
     this.scene.add(this.grid);
     this.scene.add(this.overlays);
 
-    this.compositeMaterial = createCompositeMaterial();
+    this.compositeMaterial = createPaletteDitherCompositeMaterial();
     const quad = new THREE.Mesh(
       new THREE.PlaneGeometry(2, 2),
       this.compositeMaterial,
@@ -1617,6 +1595,15 @@ export class EditorRenderer {
       r.setClearColor(BACKGROUND_COLOR, 1);
       this.compositeMaterial.uniforms.tLevel!.value = target.texture;
       this.compositeMaterial.uniforms.uOpacity!.value = opacity;
+      this.compositeMaterial.uniforms.uPixelScale!.value = s.zoom;
+      (this.compositeMaterial.uniforms.uCamera!.value as THREE.Vector2).set(
+        s.camera.x,
+        s.camera.y,
+      );
+      (this.compositeMaterial.uniforms.uCanvasSize!.value as THREE.Vector2).set(
+        this.canvasW,
+        this.canvasH,
+      );
       r.render(this.compositeScene, this.compositeCamera);
     }
     flush();
