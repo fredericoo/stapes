@@ -65,7 +65,7 @@ describe("lighting bake perf", () => {
       omit,
     );
     const p = requireSinglePlayer(mapFile);
-    const ov = [{ x: p.x, y: p.y, z: p.z, fx: p.x + 0.5, fy: p.y, fz: p.z }];
+    const ov = [{ x: p.x, y: p.y, z: p.z, fx: p.x + 0.5, fy: p.y + 0.5, fz: p.z + 0.5 }];
     for (let i = 0; i < 3; i++) {
       overlayEmitterOverrides(staticGrid, mapFile, tilesById, ov);
     }

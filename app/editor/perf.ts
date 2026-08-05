@@ -20,13 +20,14 @@ export const PERF_BUDGETS = {
   frameMsP95Ci: 8,
   /**
    * Cold static lighting bake on fixture map (circular hybrid: Euclidean sky
-   * spill + spherical torches). Local p95 ~45–55ms on the fixture map.
+   * spill + spherical torches). Half-blocks participate in sky flood, so local
+   * p95 sits ~60–70ms on the fixture map.
    * Asserted in `app/lib/lighting.perf.test.ts` — not the editor frame probe.
    */
-  lightingBakeMsP95: 60,
-  lightingBakeMsP95Ci: 120,
+  lightingBakeMsP95: 80,
+  lightingBakeMsP95Ci: 140,
   /** Player light overlay atop cached bake. */
-  lightingOverlayMsP95: 4,
+  lightingOverlayMsP95: 5,
   lightingOverlayMsP95Ci: 10,
 } as const;
 

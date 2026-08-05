@@ -1,5 +1,6 @@
 import type { MapFile, PlacedTile, TileDef } from "./types";
 import {
+  HEIGHT_PER_LEVEL,
   MAX_LEVEL,
   MIN_LEVEL,
   coordKey,
@@ -7,6 +8,7 @@ import {
   parseCoordKey,
   resolveLightPassing,
 } from "./types";
+import { elevationAt } from "./mapData";
 import { computeLightingFlood, MAX_LIGHT_LEVEL } from "./lightingFlood";
 
 export { MAX_LIGHT_LEVEL };
@@ -46,10 +48,14 @@ export type LightGrid = {
 
 export type CellOcclusion = {
   /**
-   * 0 = open, 1 = sealed by any positive-height blocker.
+   * 0 = open, 1 = fully sealed. Half-height blockers are 0.5
+   * (`blockH / HEIGHT_PER_LEVEL`); rays multiply transmission by `(1 - opacity)`.
    */
   opacity: number;
-  /** Any non-light-passing tile — seals vertical travel between floors. */
+  /**
+   * Non-light-passing tiles present. Height-0 floors hard-seal vertical
+   * travel; positive-height blockers use {@link opacity} instead.
+   */
   sealsLevel: boolean;
 };
 
@@ -114,8 +120,9 @@ export function isSkyExposed(
 /**
  * How much a stack occludes light.
  * - Light-passing tiles (water) ignored.
- * - Any positive blocking height fully seals the cell (no partial seep through
- *   half-slabs / plaster). Height 0 floors still seal vertically only.
+ * - Blocking height maps to opacity as `min(1, blockH / HEIGHT_PER_LEVEL)` —
+ *   half-blocks decay light by half, full blocks seal.
+ * - Height 0 floors still hard-seal vertically only (`sealsLevel`, opacity 0).
  */
 export function stackOcclusion(
   stack: PlacedTile[],
@@ -131,8 +138,30 @@ export function stackOcclusion(
     blockH += def.height;
   }
   return {
-    opacity: blockH > 0 ? 1 : 0,
+    opacity: Math.min(1, blockH / HEIGHT_PER_LEVEL),
     sealsLevel,
+  };
+}
+
+/**
+ * Fractional cell-space emit position for a lit tile: XY at the cell centre,
+ * Z at the tile's vertical centre (stack base elevation + half its height).
+ */
+export function emitterCenter(
+  x: number,
+  y: number,
+  z: number,
+  stack: PlacedTile[],
+  stackIndex: number,
+  tilesById: Record<string, TileDef>,
+): { fx: number; fy: number; fz: number } {
+  const def = tilesById[stack[stackIndex]?.tileId ?? ""];
+  const height = def?.height ?? 0;
+  const baseAbs = z * HEIGHT_PER_LEVEL + elevationAt(stack, stackIndex, tilesById);
+  return {
+    fx: x + 0.5,
+    fy: y + 0.5,
+    fz: (baseAbs + height / 2) / HEIGHT_PER_LEVEL,
   };
 }
 
@@ -202,10 +231,9 @@ export function rayTransmission(
     const cell = occlusion.get(cellKey(x, y, z));
     if (!cell) continue;
 
-    // Floors seal vertical *passage* past them, not landing on their own level.
-    // Descending onto a floor then walking across it (common DDA path) must stay
-    // open; only block when the ray's destination is beyond this floor in Z.
-    if (movedZ && cell.sealsLevel) {
+    // Height-0 floors hard-seal vertical *passage* past them (opacity 0).
+    // Positive-height blockers (half/full) use opacity decay instead.
+    if (movedZ && cell.sealsLevel && cell.opacity < TRANSMISSION_EPSILON) {
       if (stepZ < 0 && z1 < z) return 0;
       if (stepZ > 0 && z1 > z) return 0;
     }
@@ -272,9 +300,9 @@ function castEmitter(
   h: number,
 ) {
   const rCells = Math.ceil(e.radius);
-  const sx = Math.round(e.x);
-  const sy = Math.round(e.y);
-  const sz = Math.round(e.z);
+  const sx = Math.floor(e.x);
+  const sy = Math.floor(e.y);
+  const sz = Math.floor(e.z);
   const zLo = Math.floor(e.z) - rCells;
   const zHi = Math.ceil(e.z) + rCells;
   const yLo = Math.floor(e.y) - rCells;
@@ -304,7 +332,14 @@ function castEmitter(
 
         if (!isSelf) {
           if (target && target.opacity >= 1) continue;
-          if (tz > sz && target?.sealsLevel) continue;
+          // Height-0 floors refuse light climbing from below.
+          if (
+            tz > sz &&
+            target?.sealsLevel &&
+            (target.opacity ?? 0) < TRANSMISSION_EPSILON
+          ) {
+            continue;
+          }
         }
 
         let transmission = 1;

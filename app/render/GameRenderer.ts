@@ -7,6 +7,7 @@ import type { GameSession, GameSnapshot } from "../game/GameSession";
 import { PLAYER_TILE_ID } from "../game/constants";
 import { sceneryStack } from "../game/movement";
 import type { EmitterOverride } from "../lib/lighting";
+import { emitterCenter } from "../lib/lighting";
 import { getStack, stackHeight } from "../lib/mapData";
 import {
   levelsAboveShouldHide,
@@ -122,8 +123,8 @@ export class GameRenderer {
 
   /**
    * Cell-space fractional emit positions for the player light.
-   * Always returned when the player emits light — standing uses the integer
-   * cell so the static bake can omit the player and never re-run on each step.
+   * Always returned when the player emits light — standing uses the tile
+   * centre so the static bake can omit the player and never re-run on each step.
    */
   private emitterOverridesFor(
     snap: GameSnapshot,
@@ -133,17 +134,34 @@ export class GameRenderer {
       return undefined;
     }
 
+    const playerH = this.tilesById[PLAYER_TILE_ID]?.height ?? 0;
+
     if (snap.walk) {
       const { from, to } = snap.walk;
       const t = snap.walkProgress;
+      const a = emitterCenter(
+        from.x,
+        from.y,
+        from.z,
+        getStack(snap.map, from.x, from.y, from.z),
+        snap.player.stackIndex,
+        this.tilesById,
+      );
+      // Destination stack does not hold the player yet — centre above its surface.
+      const destAbs = this.surfaceFootAbs(snap.map, to.x, to.y, to.z);
+      const b = {
+        fx: to.x + 0.5,
+        fy: to.y + 0.5,
+        fz: (destAbs + playerH / 2) / HEIGHT_PER_LEVEL,
+      };
       return [
         {
           x: from.x,
           y: from.y,
           z: from.z,
-          fx: from.x + (to.x - from.x) * t,
-          fy: from.y + (to.y - from.y) * t,
-          fz: from.z + (to.z - from.z) * t,
+          fx: a.fx + (b.fx - a.fx) * t,
+          fy: a.fy + (b.fy - a.fy) * t,
+          fz: a.fz + (b.fz - a.fz) * t,
         },
       ];
     }
@@ -155,15 +173,23 @@ export class GameRenderer {
           x: snap.player.x,
           y: snap.player.y,
           z: snap.player.z,
-          fx: snap.player.x,
-          fy: snap.player.y,
-          fz: visualFeet / HEIGHT_PER_LEVEL,
+          fx: snap.player.x + 0.5,
+          fy: snap.player.y + 0.5,
+          fz: (visualFeet + playerH / 2) / HEIGHT_PER_LEVEL,
         },
       ];
     }
 
-    const { x, y, z } = snap.player;
-    return [{ x, y, z, fx: x, fy: y, fz: z }];
+    const { x, y, z, stackIndex } = snap.player;
+    const center = emitterCenter(
+      x,
+      y,
+      z,
+      getStack(snap.map, x, y, z),
+      stackIndex,
+      this.tilesById,
+    );
+    return [{ x, y, z, fx: center.fx, fy: center.fy, fz: center.fz }];
   }
 
   /**

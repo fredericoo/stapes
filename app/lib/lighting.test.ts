@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   AMBIENT_PRESETS,
   computeLighting,
+  emitterCenter,
   isSkyExposed,
   overlayEmitterOverrides,
   rayTransmission,
@@ -69,9 +70,13 @@ describe("stackOcclusion", () => {
     });
   });
 
-  it("treats any positive height as a full hard block", () => {
-    expect(stackOcclusion([{ tileId: "half" }], tilesById).opacity).toBe(1);
+  it("maps blocking height to opacity (half = 0.5, full = 1)", () => {
+    expect(stackOcclusion([{ tileId: "half" }], tilesById).opacity).toBe(0.5);
     expect(stackOcclusion([{ tileId: "wall" }], tilesById).opacity).toBe(1);
+    expect(
+      stackOcclusion([{ tileId: "half" }, { tileId: "half" }], tilesById)
+        .opacity,
+    ).toBe(1);
   });
 
   it("ignores light-passing tiles", () => {
@@ -108,15 +113,79 @@ describe("rayTransmission", () => {
     expect(rayTransmission(0, 0, 0, 3, 0, 0, occlusion)).toBe(0);
   });
 
+  it("half-decays through a half-block", () => {
+    const occlusion = new Map([
+      ["0:1,0", { opacity: 0.5, sealsLevel: true }],
+    ]);
+    expect(rayTransmission(0, 0, 0, 3, 0, 0, occlusion)).toBeCloseTo(0.5);
+  });
+
   it("seals vertical travel through a floor plate", () => {
     const occlusion = new Map([
       ["1:0,0", { opacity: 0, sealsLevel: true }],
     ]);
     expect(rayTransmission(0, 0, 0, 0, 0, 2, occlusion)).toBe(0);
   });
+
+  it("half-decays vertical travel through a half-block", () => {
+    const occlusion = new Map([
+      ["1:0,0", { opacity: 0.5, sealsLevel: true }],
+    ]);
+    expect(rayTransmission(0, 0, 0, 0, 0, 2, occlusion)).toBeCloseTo(0.5);
+  });
+});
+
+describe("emitterCenter", () => {
+  it("emits from the cell centre at floor level for a flat lit tile", () => {
+    expect(
+      emitterCenter(3, 4, 0, [{ tileId: "torch" }], 0, tilesById),
+    ).toEqual({ fx: 3.5, fy: 4.5, fz: 0 });
+  });
+
+  it("raises Z by half the tile height", () => {
+    const tall = tile({
+      id: "lamp",
+      height: 2,
+      light: { radius: 4, intensity: 1, color: "#ffffff" },
+    });
+    const byId = { ...tilesById, lamp: tall };
+    expect(emitterCenter(0, 0, 0, [{ tileId: "lamp" }], 0, byId)).toEqual({
+      fx: 0.5,
+      fy: 0.5,
+      fz: 0.5,
+    });
+  });
+
+  it("accounts for standing on a half-block base", () => {
+    expect(
+      emitterCenter(
+        0,
+        0,
+        0,
+        [{ tileId: "half" }, { tileId: "torch" }],
+        1,
+        tilesById,
+      ),
+    ).toEqual({ fx: 0.5, fy: 0.5, fz: 0.5 });
+  });
 });
 
 describe("computeLighting flood fill", () => {
+  it("torch light seeps through a half-block at half strength", () => {
+    const map = mapAt([
+      { x: 0, y: 0, tiles: ["floor", "torch"] },
+      { x: 1, y: 0, tiles: ["half"] },
+      { x: 2, y: 0, tiles: ["floor"] },
+    ]);
+    const grid = computeLighting(map, tilesById, [0, 0, 0]);
+    const level = grid.levels.get(0)!;
+    const before = sampleLevelLight(level, 0, 0)[0];
+    const after = sampleLevelLight(level, 2, 0)[0];
+    expect(before).toBeGreaterThan(0.5);
+    expect(after).toBeGreaterThan(0.05);
+    expect(after).toBeLessThan(before);
+  });
+
   it("contains torch light inside walls — no bleed past a full wall", () => {
     const map = mapAt([
       { x: 0, y: 0, tiles: ["floor", "torch"] },
@@ -323,7 +392,7 @@ describe("computeLighting flood fill", () => {
     const staticGrid = computeLighting(map, tilesById, [0, 0, 0], undefined, omit);
     expect(sampleLevelLight(staticGrid.levels.get(0)!, 0, 0)[0]).toBe(0);
     const painted = overlayEmitterOverrides(staticGrid, map, tilesById, [
-      { x: 0, y: 0, z: 0, fx: 0, fy: 0, fz: 0 },
+      { x: 0, y: 0, z: 0, fx: 0.5, fy: 0.5, fz: 0 },
     ]);
     expect(sampleLevelLight(painted.levels.get(0)!, 0, 0)[0]).toBeGreaterThan(
       0.5,

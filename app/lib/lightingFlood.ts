@@ -8,6 +8,7 @@
  */
 import type { MapFile, PlacedTile, TileDef } from "./types";
 import {
+  HEIGHT_PER_LEVEL,
   MAX_LEVEL,
   MIN_LEVEL,
   coordKey,
@@ -15,6 +16,7 @@ import {
   parseCoordKey,
   resolveLightPassing,
 } from "./types";
+import { elevationAt } from "./mapData";
 import type { EmitterOverride, LightGrid, LevelLightMap } from "./lighting";
 
 /** Max sky level after column seed. Tune to widen/narrow sky spill. */
@@ -57,6 +59,7 @@ function idx(dom: Domain, lx: number, ly: number, lz: number): number {
   return lz * dom.w * dom.h + ly * dom.w + lx;
 }
 
+/** Mirrors {@link stackOcclusion} — kept local to avoid a lighting↔flood cycle. */
 function stackOcc(
   stack: PlacedTile[],
   tilesById: Record<string, TileDef>,
@@ -70,7 +73,30 @@ function stackOcc(
     seals = true;
     blockH += def.height;
   }
-  return { opacity: blockH > 0 ? 1 : 0, seals };
+  return {
+    opacity: Math.min(1, blockH / HEIGHT_PER_LEVEL),
+    seals,
+  };
+}
+
+/** Mirrors {@link emitterCenter} — kept local to avoid a lighting↔flood cycle. */
+function emitCenter(
+  x: number,
+  y: number,
+  z: number,
+  stack: PlacedTile[],
+  stackIndex: number,
+  tilesById: Record<string, TileDef>,
+): { fx: number; fy: number; fz: number } {
+  const def = tilesById[stack[stackIndex]?.tileId ?? ""];
+  const height = def?.height ?? 0;
+  const baseAbs =
+    z * HEIGHT_PER_LEVEL + elevationAt(stack, stackIndex, tilesById);
+  return {
+    fx: x + 0.5,
+    fy: y + 0.5,
+    fz: (baseAbs + height / 2) / HEIGHT_PER_LEVEL,
+  };
 }
 
 type EmitterSeed = {
@@ -91,7 +117,7 @@ type EmitterSeed = {
 /** Dense Amanatides–Woo; endpoints excluded. */
 function denseRayTransmission(
   dom: Domain,
-  opacity: Uint8Array,
+  opacity: Float32Array,
   seals: Uint8Array,
   x0: number,
   y0: number,
@@ -147,13 +173,15 @@ function denseRayTransmission(
       continue;
     }
     const i = idx(dom, lx, ly, lz);
-    if (movedZ && seals[i]!) {
+    // Height-0 floors hard-seal vertical passage; half/full use opacity.
+    if (movedZ && seals[i]! && opacity[i]! < TRANSMISSION_EPSILON) {
       if (stepZ < 0 && z1 < z) return 0;
       if (stepZ > 0 && z1 > z) return 0;
     }
-    if (opacity[i]!) {
-      transmission = 0;
-      return 0;
+    const op = opacity[i]!;
+    if (op > 0) {
+      transmission *= 1 - op;
+      if (transmission < TRANSMISSION_EPSILON) return 0;
     }
   }
   return transmission;
@@ -210,15 +238,17 @@ export function computeLightingFlood(
   let maxRadius = 0;
   for (const c of cells) {
     const ov = overrideByCell.get(`${c.z}:${coordKey(c.x, c.y)}`);
-    for (const placed of c.stack) {
+    for (let si = 0; si < c.stack.length; si++) {
+      const placed = c.stack[si]!;
       if (omitLightTileIds?.has(placed.tileId)) continue;
       const def = tilesById[placed.tileId];
       if (!def?.light) continue;
       if (!(def.light.radius > 0) || !(def.light.intensity > 0)) continue;
       const [cr, cg, cb] = parseHexColor(def.light.color);
-      const ex = ov?.fx ?? c.x;
-      const ey = ov?.fy ?? c.y;
-      const ez = ov?.fz ?? c.z;
+      const center = emitCenter(c.x, c.y, c.z, c.stack, si, tilesById);
+      const ex = ov?.fx ?? center.fx;
+      const ey = ov?.fy ?? center.fy;
+      const ez = ov?.fz ?? center.fz;
       emitters.push({
         x: ex,
         y: ey,
@@ -256,7 +286,7 @@ export function computeLightingFlood(
   dom.d = zTop - dom.z0 + 1;
 
   const n = dom.w * dom.h * dom.d;
-  const opacity = new Uint8Array(n);
+  const opacity = new Float32Array(n);
   const seals = new Uint8Array(n);
   const sky = new Float32Array(n);
   const blockR = new Float32Array(n);
@@ -278,31 +308,34 @@ export function computeLightingFlood(
 
   const slice = dom.w * dom.h;
 
-  // Sky column seed. Opaque solids (walls/trees/roofs) still receive the shaft
-  // that hits their top — otherwise outdoor bricks bake black and only pick up
-  // neighbour flood via bilinear sampling. Flood spreads through open cells only.
+  // Sky column seed. Full solids still receive the shaft that hits their top —
+  // otherwise outdoor bricks bake black. Half-blocks attenuate the shaft by
+  // half; height-0 floors seal it. Flood spreads through non-full cells.
   for (let ly = 0; ly < dom.h; ly++) {
     for (let lx = 0; lx < dom.w; lx++) {
       let shaft = MAX_LIGHT_LEVEL;
       for (let lz = dom.d - 1; lz >= 0; lz--) {
         const i = idx(dom, lx, ly, lz);
-        if (opacity[i]!) {
-          sky[i] = shaft;
+        const op = opacity[i]!;
+        sky[i] = shaft;
+        if (op >= 1) {
           shaft = 0;
-        } else {
-          sky[i] = shaft;
-          if (seals[i]!) shaft = 0;
+        } else if (op > 0) {
+          shaft *= 1 - op;
+        } else if (seals[i]!) {
+          shaft = 0;
         }
       }
     }
   }
 
   // Sky spread with Euclidean edge costs (rounder than Manhattan diamonds).
-  // Do not enqueue opaques — their shaft paint must not spill through walls.
+  // Full opaques are not enqueued — their shaft paint must not spill through
+  // walls. Half-blocks participate and decay light by half on entry.
   const skyQ = new Int32Array(n);
   let skyLen = 0;
   for (let i = 0; i < n; i++) {
-    if (opacity[i]!) continue;
+    if (opacity[i]! >= 1) continue;
     if (sky[i]! > 0.5) skyQ[skyLen++] = i;
   }
   let skyHead = 0;
@@ -323,12 +356,15 @@ export function computeLightingFlood(
         continue;
       }
       const j = idx(dom, tx, ty, tz);
-      if (opacity[j]!) continue;
+      const topOp = opacity[j]!;
+      if (topOp >= 1) continue;
       if (dz !== 0) {
         const upper = dz > 0 ? j : i;
-        if (seals[upper]!) continue;
+        // Height-0 floors hard-seal vertical flood edges.
+        if (seals[upper]! && opacity[upper]! < TRANSMISSION_EPSILON) continue;
       }
-      const next = s - cost;
+      let next = s - cost;
+      if (topOp > 0) next *= 1 - topOp;
       if (next > sky[j]!) {
         sky[j] = next;
         skyQ[skyLen++] = j;
@@ -339,9 +375,9 @@ export function computeLightingFlood(
   // Circular block lights (spherical falloff + dense ray occlusion).
   for (const e of emitters) {
     const rCells = Math.ceil(e.radius);
-    const sx = Math.round(e.x);
-    const sy = Math.round(e.y);
-    const sz = Math.round(e.z);
+    const sx = Math.floor(e.x);
+    const sy = Math.floor(e.y);
+    const sz = Math.floor(e.z);
     const selfLx = e.lx - dom.x0;
     const selfLy = e.ly - dom.y0;
     const selfLz = e.lz - dom.z0;
@@ -364,9 +400,16 @@ export function computeLightingFlood(
       hadSelf = true;
     }
 
-    for (let tz = sz - rCells; tz <= sz + rCells; tz++) {
-      for (let ty = sy - rCells; ty <= sy + rCells; ty++) {
-        for (let tx = sx - rCells; tx <= sx + rCells; tx++) {
+    const zLo = Math.floor(e.z) - rCells;
+    const zHi = Math.ceil(e.z) + rCells;
+    const yLo = Math.floor(e.y) - rCells;
+    const yHi = Math.ceil(e.y) + rCells;
+    const xLo = Math.floor(e.x) - rCells;
+    const xHi = Math.ceil(e.x) + rCells;
+
+    for (let tz = zLo; tz <= zHi; tz++) {
+      for (let ty = yLo; ty <= yHi; ty++) {
+        for (let tx = xLo; tx <= xHi; tx++) {
           const lx = tx - dom.x0;
           const ly = ty - dom.y0;
           const lz = tz - dom.z0;
@@ -384,8 +427,15 @@ export function computeLightingFlood(
           const i = idx(dom, lx, ly, lz);
           const isSelf = tx === e.lx && ty === e.ly && tz === e.lz;
           if (!isSelf) {
-            if (opacity[i]!) continue;
-            if (tz > sz && seals[i]!) continue;
+            if (opacity[i]! >= 1) continue;
+            // Height-0 floors refuse light climbing from below.
+            if (
+              tz > sz &&
+              seals[i]! &&
+              opacity[i]! < TRANSMISSION_EPSILON
+            ) {
+              continue;
+            }
           }
 
           let transmission = 1;
@@ -432,7 +482,7 @@ export function computeLightingFlood(
         const i = idx(dom, lx, ly, lz);
         const pi = (ly * dom.w + lx) * 3;
         const sk = Math.min(1, sky[i]! / MAX_LIGHT_LEVEL);
-        if (opacity[i]!) {
+        if (opacity[i]! >= 1) {
           const br = blockR[i]!;
           const bg = blockG[i]!;
           const bb = blockB[i]!;
