@@ -144,6 +144,26 @@ const FACE_SHADE_CORNER = 0.5;
 
 export type ShadeMode = "faces" | "flat";
 
+/**
+ * Outlines belong to the 2D read of the sprite, not to the model: they mark
+ * where a shape ends, so they are drawn as a pass over the projection rather
+ * than painted as black voxels.
+ * - `silhouette` rings the sprite against the background.
+ * - `full` also separates parts that overlap on screen but sit far apart in
+ *   space (a raised sword against the torso behind it).
+ */
+export type OutlineMode = "none" | "silhouette" | "full";
+
+const OUTLINE_COLOR = "#000000";
+
+/**
+ * Camera-distance gap that reads as "different shape". Smooth surfaces step
+ * by 1 per pixel, so anything from 3 up is a genuine separation.
+ */
+const DEPTH_OUTLINE_THRESHOLD = 3;
+
+const NO_DEPTH = -1;
+
 type Rgb = [number, number, number];
 
 /** Magenta, the project's "missing sprite" colour — signals a bad palette entry. */
@@ -185,6 +205,11 @@ export function spriteCells(size: VoxelSize): { cellsW: number; cellsH: number }
   };
 }
 
+export type RenderOptions = {
+  shadeMode?: ShadeMode;
+  outline?: OutlineMode;
+};
+
 /**
  * Render a grid in the game projection: voxel (x,y,z) → pixel (x−z, y−z),
  * painter-ordered so higher voxels along a view ray win. The model is
@@ -194,7 +219,7 @@ export function renderGrid(
   grid: VoxelGrid,
   size: VoxelSize,
   palette: string[],
-  shadeMode: ShadeMode = "faces",
+  { shadeMode = "faces", outline = "none" }: RenderOptions = {},
 ): RenderedSprite {
   const dims = voxelDims(size);
   const { cellsW, cellsH } = spriteCells(size);
@@ -204,6 +229,8 @@ export function renderGrid(
   const offsetY = heightPx - dims.vy;
   const rgba = new Uint8ClampedArray(widthPx * heightPx * 4);
   const colors = palette.map(parseHexColor);
+  // Camera distance of the voxel that won each pixel; drives depth outlines.
+  const depth = new Int16Array(widthPx * heightPx).fill(NO_DEPTH);
 
   // Flat-index order is z, then y, then x ascending — exactly painter order,
   // since along a view ray only higher-z voxels overdraw (see voxel.test.ts).
@@ -224,10 +251,73 @@ export function renderGrid(
     rgba[p + 1] = g;
     rgba[p + 2] = b;
     rgba[p + 3] = 255;
+    // The view ray runs along (+1,+1,+1), so this sum grows toward the camera.
+    depth[sy * widthPx + sx] = x + y + z;
+  }
+
+  if (outline !== "none") {
+    applyOutline(rgba, depth, widthPx, heightPx, outline);
   }
 
   const rect: CellRect = { x: 0, y: 0, w: cellsW, h: cellsH };
   return { widthPx, heightPx, cellsW, cellsH, base: defaultBase(rect), rgba };
+}
+
+const NEIGHBOURS: [number, number][] = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+];
+
+/**
+ * Paint outline pixels over the projection. Runs off a snapshot of the depth
+ * buffer so freshly drawn outline never seeds more outline.
+ */
+function applyOutline(
+  rgba: Uint8ClampedArray,
+  depth: Int16Array,
+  widthPx: number,
+  heightPx: number,
+  mode: OutlineMode,
+) {
+  const [r, g, b] = parseHexColor(OUTLINE_COLOR);
+  const targets: number[] = [];
+
+  for (let sy = 0; sy < heightPx; sy++) {
+    for (let sx = 0; sx < widthPx; sx++) {
+      const here = depth[sy * widthPx + sx];
+      for (const [dx, dy] of NEIGHBOURS) {
+        const nx = sx + dx;
+        const ny = sy + dy;
+        if (nx < 0 || ny < 0 || nx >= widthPx || ny >= heightPx) continue;
+        const there = depth[ny * widthPx + nx];
+        // Empty pixel touching the model: ring the silhouette.
+        if (here === NO_DEPTH && there !== NO_DEPTH) {
+          targets.push(sy * widthPx + sx);
+          break;
+        }
+        // Filled pixel sitting well behind its neighbour: separate the shapes
+        // by darkening the farther one, so the nearer shape keeps its size.
+        if (
+          mode === "full" &&
+          here !== NO_DEPTH &&
+          there - here >= DEPTH_OUTLINE_THRESHOLD
+        ) {
+          targets.push(sy * widthPx + sx);
+          break;
+        }
+      }
+    }
+  }
+
+  for (const pixel of targets) {
+    const p = pixel * 4;
+    rgba[p] = r;
+    rgba[p + 1] = g;
+    rgba[p + 2] = b;
+    rgba[p + 3] = 255;
+  }
 }
 
 function isFilled(
@@ -353,7 +443,7 @@ export function sheetLayout(project: VoxelProject): SheetLayout {
 /** Render every direction × frame into one RGBA sheet (rows = directions). */
 export function renderSheet(
   project: VoxelProject,
-  shadeMode: ShadeMode = "faces",
+  options: RenderOptions = {},
 ): { layout: SheetLayout; rgba: Uint8ClampedArray<ArrayBuffer> } {
   const layout = sheetLayout(project);
   const rgba = new Uint8ClampedArray(layout.widthPx * layout.heightPx * 4);
@@ -368,7 +458,12 @@ export function renderSheet(
         project.size,
         direction,
       );
-      const sprite = renderGrid(faced.grid, faced.size, project.palette, shadeMode);
+      const sprite = renderGrid(
+        faced.grid,
+        faced.size,
+        project.palette,
+        options,
+      );
       // Bottom-right align inside the slot so the base cell stays put even
       // when a non-square footprint renders smaller for some directions.
       const dx = colIdx * slotW + (slotW - sprite.widthPx);

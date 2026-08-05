@@ -25,6 +25,8 @@ import {
   voxelCount,
   voxelDims,
   voxelIndex,
+  type OutlineMode,
+  type RenderOptions,
   type ShadeMode,
   type VoxelProject,
   type VoxelSize,
@@ -134,8 +136,14 @@ export default function VoxelPage() {
   const [selectedColor, setSelectedColor] = useState(1);
   const [tool, setTool] = useState<SliceTool>("paint");
   const [shadeMode, setShadeMode] = useState<ShadeMode>("faces");
+  const [outline, setOutline] = useState<OutlineMode>("full");
   const [exportOpen, setExportOpen] = useState(false);
   const toast = useToast();
+
+  const render: RenderOptions = useMemo(
+    () => ({ shadeMode, outline }),
+    [shadeMode, outline],
+  );
 
   useEffect(() => {
     const stored = loadStoredProject();
@@ -215,7 +223,7 @@ export default function VoxelPage() {
   };
 
   const downloadSheetPng = async () => {
-    const blob = await sheetPngBlob(project, shadeMode);
+    const blob = await sheetPngBlob(project, render);
     triggerDownload(blob, `${slugify(project.name) || "voxel"}.png`);
   };
 
@@ -263,7 +271,7 @@ export default function VoxelPage() {
           <FramesPanel
             project={project}
             frameIdx={frameIdx}
-            shadeMode={shadeMode}
+            render={render}
             onSelect={setFrameIdx}
             onChange={setProject}
           />
@@ -303,14 +311,28 @@ export default function VoxelPage() {
         </main>
 
         <aside className="flex min-h-0 flex-col gap-3 overflow-auto border-l-2 border-border bg-panel p-3">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col gap-2">
             <span className="text-xs font-bold uppercase text-muted">Preview</span>
-            <label className="flex items-center gap-2 text-xs">
-              Shading
+            <label className="flex items-center justify-between gap-2 text-xs">
+              Face shading
               <Switch
                 checked={shadeMode === "faces"}
                 onCheckedChange={(on) => setShadeMode(on ? "faces" : "flat")}
                 ariaLabel="Toggle face shading"
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-xs">
+              <span className="font-bold uppercase text-muted">Outline</span>
+              <Segmented
+                size="sm"
+                ariaLabel="Outline mode"
+                value={outline}
+                onChange={setOutline}
+                options={[
+                  { value: "none", label: "None" },
+                  { value: "silhouette", label: "Edge" },
+                  { value: "full", label: "Edge+depth" },
+                ]}
               />
             </label>
           </div>
@@ -320,7 +342,7 @@ export default function VoxelPage() {
                 key={d}
                 project={project}
                 direction={d}
-                shadeMode={shadeMode}
+                render={render}
                 zoom={PREVIEW_ZOOM}
                 label={d}
               />
@@ -343,7 +365,7 @@ export default function VoxelPage() {
         open={exportOpen}
         onOpenChange={setExportOpen}
         project={project}
-        shadeMode={shadeMode}
+        render={render}
       />
     </AppShell>
   );
@@ -515,13 +537,13 @@ function PalettePanel({
 function FramesPanel({
   project,
   frameIdx,
-  shadeMode,
+  render,
   onSelect,
   onChange,
 }: {
   project: VoxelProject;
   frameIdx: number;
-  shadeMode: ShadeMode;
+  render: RenderOptions;
   onSelect: (idx: number) => void;
   onChange: React.Dispatch<React.SetStateAction<VoxelProject>>;
 }) {
@@ -557,7 +579,7 @@ function FramesPanel({
             key={`frame-${idx}-${project.frames.length}`}
             project={project}
             voxels={f.voxels}
-            shadeMode={shadeMode}
+            render={render}
             active={idx === frameIdx}
             onClick={() => onSelect(idx)}
           />
@@ -607,13 +629,13 @@ function FramesPanel({
 function FrameThumb({
   project,
   voxels,
-  shadeMode,
+  render,
   active,
   onClick,
 }: {
   project: VoxelProject;
   voxels: number[];
-  shadeMode: ShadeMode;
+  render: RenderOptions;
   active: boolean;
   onClick: () => void;
 }) {
@@ -624,9 +646,9 @@ function FrameThumb({
         Uint8Array.from(voxels),
         project.size,
         project.palette,
-        shadeMode,
+        render,
       ),
-    [voxels, project.size, project.palette, shadeMode],
+    [voxels, project.size, project.palette, render],
   );
 
   useEffect(() => {
@@ -660,9 +682,9 @@ function FrameThumb({
 
 async function sheetPngBlob(
   project: VoxelProject,
-  shadeMode: ShadeMode,
+  render: RenderOptions,
 ): Promise<Blob> {
-  const { layout, rgba } = renderSheet(project, shadeMode);
+  const { layout, rgba } = renderSheet(project, render);
   const canvas = document.createElement("canvas");
   canvas.width = layout.widthPx;
   canvas.height = layout.heightPx;
@@ -696,12 +718,12 @@ function ExportDialog({
   open,
   onOpenChange,
   project,
-  shadeMode,
+  render,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   project: VoxelProject;
-  shadeMode: ShadeMode;
+  render: RenderOptions;
 }) {
   const fetcher = useFetcher<typeof action>();
   const toast = useToast();
@@ -733,7 +755,7 @@ function ExportDialog({
       toast.show("Name required");
       return;
     }
-    const blob = await sheetPngBlob(project, shadeMode);
+    const blob = await sheetPngBlob(project, render);
     const fd = new FormData();
     fd.set("intent", "export-tileset");
     fd.set("name", name);

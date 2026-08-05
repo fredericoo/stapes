@@ -33,6 +33,7 @@ import {
   injectWorldShader,
   writeBoxAttr,
 } from "./worldQuads";
+import { PalettePass } from "./palettePass";
 
 type AnimatedInstance = {
   mesh: THREE.Mesh;
@@ -181,6 +182,7 @@ export class WorldRenderer {
   private view: WorldView | null = null;
   private looping = false;
   private raf = 0;
+  private palettePass = new PalettePass();
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -305,9 +307,15 @@ export class WorldRenderer {
       this.applyCamera(this.view.camera.x, this.view.camera.y, this.view.zoom);
     }
     const bg = BACKGROUND_BY_TIME[this.view?.timeOfDay ?? "day"];
-    this.renderer.setClearColor(bg, 1);
-    this.renderer.clear();
-    this.renderer.render(this.scene, this.camera);
+    const r = this.renderer;
+
+    // PROTOTYPE — always palettise play frames.
+    const target = this.palettePass.sceneTarget(r);
+    r.setRenderTarget(target);
+    r.setClearColor(bg, 1);
+    r.clear();
+    r.render(this.scene, this.camera);
+    this.palettePass.blitToCanvas(r);
   }
 
   isReady(): boolean {
@@ -322,6 +330,7 @@ export class WorldRenderer {
     this.disposed = true;
     this.stop();
     this.resizeObserver?.disconnect();
+    this.palettePass.dispose();
     this.renderer.dispose();
     for (const tex of this.textures.values()) tex.dispose();
     for (const mat of this.materials.values()) mat.dispose();

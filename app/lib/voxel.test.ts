@@ -72,7 +72,7 @@ describe("renderGrid", () => {
     const dims = voxelDims(ONE_CELL);
     const grid = emptyGrid(ONE_CELL);
     grid[voxelIndex(dims, 0, 0, 0)] = 1;
-    const sprite = renderGrid(grid, ONE_CELL, ["#000000", "#ff0000"], "flat");
+    const sprite = renderGrid(grid, ONE_CELL, ["#000000", "#ff0000"], { shadeMode: "flat" });
     // z=0 x=0 lands at widthPx - vx = 8; fully transparent elsewhere.
     expect(pixel(sprite.rgba, sprite.widthPx, 8, 8)).toEqual([255, 0, 0, 255]);
     expect(pixel(sprite.rgba, sprite.widthPx, 7, 8)[3]).toBe(0);
@@ -85,7 +85,7 @@ describe("renderGrid", () => {
     grid[voxelIndex(dims, 5, 5, 0)] = 1;
     grid[voxelIndex(dims, 6, 6, 1)] = 2;
     const palette = ["#000000", "#ff0000", "#00ff00"];
-    const sprite = renderGrid(grid, ONE_CELL, palette, "flat");
+    const sprite = renderGrid(grid, ONE_CELL, palette, { shadeMode: "flat" });
     expect(pixel(sprite.rgba, sprite.widthPx, 8 + 5, 8 + 5)).toEqual([
       0, 255, 0, 255,
     ]);
@@ -109,6 +109,93 @@ describe("renderGrid", () => {
     expect(pixel(sprite.rgba, sprite.widthPx, 15, 8)).toEqual([
       eastShade, eastShade, eastShade, 255,
     ]);
+  });
+});
+
+describe("outline pass", () => {
+  const RED = ["#000000", "#ff0000"];
+  const BLACK: [number, number, number, number] = [0, 0, 0, 255];
+
+  it("leaves the sprite untouched when disabled", () => {
+    const dims = voxelDims(ONE_CELL);
+    const grid = emptyGrid(ONE_CELL);
+    grid[voxelIndex(dims, 4, 4, 0)] = 1;
+    const sprite = renderGrid(grid, ONE_CELL, RED, { shadeMode: "flat" });
+    expect(pixel(sprite.rgba, sprite.widthPx, 8 + 3, 8 + 4)[3]).toBe(0);
+  });
+
+  it("rings a lone voxel on all four sides", () => {
+    const dims = voxelDims(ONE_CELL);
+    const grid = emptyGrid(ONE_CELL);
+    grid[voxelIndex(dims, 4, 4, 0)] = 1;
+    const sprite = renderGrid(grid, ONE_CELL, RED, {
+      shadeMode: "flat",
+      outline: "silhouette",
+    });
+    const [sx, sy] = [8 + 4, 8 + 4];
+    expect(pixel(sprite.rgba, sprite.widthPx, sx, sy)).toEqual([255, 0, 0, 255]);
+    for (const [dx, dy] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ]) {
+      expect(pixel(sprite.rgba, sprite.widthPx, sx + dx, sy + dy)).toEqual(
+        BLACK,
+      );
+    }
+  });
+
+  it("does not paint outline voxels into the model itself", () => {
+    const grid = emptyGrid(ONE_CELL);
+    grid.fill(1);
+    const outlined = renderGrid(grid, ONE_CELL, RED, {
+      shadeMode: "flat",
+      outline: "silhouette",
+    });
+    const plain = renderGrid(grid, ONE_CELL, RED, { shadeMode: "flat" });
+    // Interior pixels are identical; only the surrounding ring changed.
+    expect(pixel(outlined.rgba, outlined.widthPx, 8, 8)).toEqual(
+      pixel(plain.rgba, plain.widthPx, 8, 8),
+    );
+  });
+
+  it("separates shapes that are far apart in depth", () => {
+    const dims = voxelDims(ONE_CELL);
+    const grid = emptyGrid(ONE_CELL);
+    // A back wall at y=0, plus a near block at the front-top-east corner
+    // whose projection lands inside the wall's.
+    for (let x = 0; x < 8; x++) {
+      for (let z = 0; z < 8; z++) grid[voxelIndex(dims, x, 0, z)] = 1;
+    }
+    for (let z = 6; z < 8; z++) {
+      for (let y = 6; y < 8; y++) {
+        for (let x = 6; x < 8; x++) grid[voxelIndex(dims, x, y, z)] = 1;
+      }
+    }
+
+    const plain = renderGrid(grid, ONE_CELL, RED, { shadeMode: "flat" });
+    const outlined = renderGrid(grid, ONE_CELL, RED, {
+      shadeMode: "flat",
+      outline: "full",
+    });
+    const edgeOnly = renderGrid(grid, ONE_CELL, RED, {
+      shadeMode: "flat",
+      outline: "silhouette",
+    });
+
+    const blackCount = (rgba: Uint8ClampedArray) => {
+      let n = 0;
+      for (let i = 0; i < rgba.length; i += 4) {
+        if (rgba[i + 3] === 255 && rgba[i] === 0 && rgba[i + 1] === 0) n++;
+      }
+      return n;
+    };
+    // Depth mode must darken interior pixels that edge-only mode leaves alone.
+    expect(blackCount(plain.rgba)).toBe(0);
+    expect(blackCount(outlined.rgba)).toBeGreaterThan(
+      blackCount(edgeOnly.rgba),
+    );
   });
 });
 

@@ -7,9 +7,9 @@ import {
   IconEraser,
   IconEye,
   IconMinus,
-  IconPencil,
   IconPlus,
   IconPointer,
+  IconPencil,
   IconSquare,
   type TablerIcon,
 } from "@tabler/icons-react";
@@ -220,7 +220,9 @@ export default function MapPage() {
               previewMode ? "opacity-50" : "",
             ].join(" ")}
             title={
-              previewMode ? "Preview shows every level" : "Show other levels"
+              previewMode
+                ? "Preview shows every level"
+                : "Ghost related floors — above when on 0+, below when underground"
             }
           >
             <input

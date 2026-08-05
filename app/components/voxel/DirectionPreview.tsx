@@ -4,7 +4,7 @@ import {
   DEFAULT_FRAME_DURATION_MS,
   gridFacing,
   renderGrid,
-  type ShadeMode,
+  type RenderOptions,
   type VoxelProject,
 } from "../../lib/voxel";
 
@@ -15,13 +15,13 @@ import {
 export function DirectionPreview({
   project,
   direction,
-  shadeMode,
+  render,
   zoom,
   label,
 }: {
   project: VoxelProject;
   direction: Direction;
-  shadeMode: ShadeMode;
+  render: RenderOptions;
   zoom: number;
   label?: string;
 }) {
@@ -36,9 +36,9 @@ export function DirectionPreview({
           project.size,
           direction,
         );
-        return renderGrid(faced.grid, faced.size, project.palette, shadeMode);
+        return renderGrid(faced.grid, faced.size, project.palette, render);
       }),
-    [project, direction, shadeMode],
+    [project, direction, render],
   );
 
   const safeIdx = Math.min(frameIdx, rendered.length - 1);

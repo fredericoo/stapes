@@ -44,6 +44,7 @@ import {
   buildSingleQuadGeometry,
   injectWorldShader,
 } from "../render/worldQuads";
+import { PalettePass } from "../render/palettePass";
 
 type AnimatedInstance = {
   mesh: THREE.Mesh;
@@ -82,6 +83,12 @@ const LIGHTING_DEBOUNCE_MS = 50;
  */
 const LIGHT_MAP_CELL_OFFSET = 0.5;
 
+/**
+ * Ghost opacity for a level when "show other levels" is on.
+ * Direction is context-aware so cave editing isn't drowned by the surface:
+ * - current ≥ 0: ghost only floors above
+ * - current ≤ -1: ghost only floors below
+ */
 function opacityForLevel(
   z: number,
   current: number,
@@ -91,12 +98,13 @@ function opacityForLevel(
   if (preview) return 1;
   if (z === current) return 1;
   if (!showOther) return null;
-  if (z < current) {
-    const dist = current - z;
-    return Math.max(0.15, 0.7 - dist * 0.15);
+  if (current >= 0) {
+    if (z < current) return null;
+    return 0.4;
   }
-  // above
-  return 0.4;
+  if (z > current) return null;
+  const dist = current - z;
+  return Math.max(0.15, 0.7 - dist * 0.15);
 }
 
 /**
@@ -172,9 +180,12 @@ export class EditorRenderer {
   private tilesById: Record<string, TileDef> = {};
   private levelGroups = new Map<number, THREE.Group>();
   private levelTarget: THREE.WebGLRenderTarget | null = null;
+  /** Where world/grid/composite write before the palette pass. */
+  private outputTarget: THREE.WebGLRenderTarget | null = null;
   private compositeScene: THREE.Scene;
   private compositeCamera: THREE.Camera;
   private compositeMaterial: THREE.ShaderMaterial;
+  private palettePass: PalettePass;
   private drawBufferSize = new THREE.Vector2();
   /** Animated instances keyed by level. */
   private animatedByLevel = new Map<number, AnimatedInstance[]>();
@@ -255,6 +266,8 @@ export class EditorRenderer {
     this.compositeScene = new THREE.Scene();
     this.compositeScene.add(quad);
     this.compositeCamera = new THREE.Camera();
+
+    this.palettePass = new PalettePass();
 
     const data = new Uint8Array([255, 0, 255, 255]);
     this.magentaTex = new THREE.DataTexture(data, 1, 1, THREE.RGBAFormat);
@@ -390,6 +403,7 @@ export class EditorRenderer {
     window.removeEventListener("keydown", this.onKeyDown);
     window.removeEventListener("keyup", this.onKeyUp);
     this.levelTarget?.dispose();
+    this.palettePass.dispose();
     this.compositeMaterial.dispose();
     this.renderer.dispose();
     for (const tex of this.textures.values()) tex.dispose();
@@ -1541,7 +1555,10 @@ export class EditorRenderer {
   private renderFrame(s: ReturnType<typeof useEditorStore.getState>) {
     const r = this.renderer;
     r.info.reset();
-    r.setRenderTarget(null);
+
+    this.outputTarget = this.palettePass.sceneTarget(r);
+
+    r.setRenderTarget(this.outputTarget);
     r.setClearColor(BACKGROUND_COLOR, 1);
     r.clear(true, true, false);
 
@@ -1565,7 +1582,7 @@ export class EditorRenderer {
     const flush = () => {
       if (batch.length === 0) return;
       for (const g of batch) g.visible = true;
-      r.setRenderTarget(null);
+      r.setRenderTarget(this.outputTarget);
       r.setClearColor(BACKGROUND_COLOR, 1);
       r.render(this.scene, this.camera);
       for (const g of batch) g.visible = false;
@@ -1585,7 +1602,7 @@ export class EditorRenderer {
         batch.push(group);
         continue;
       }
-      // Anything below this level must already be on the canvas.
+      // Anything below this level must already be on the canvas (or sceneTarget).
       flush();
 
       const target = this.levelRenderTarget();
@@ -1596,7 +1613,7 @@ export class EditorRenderer {
       r.render(this.scene, this.camera);
       group.visible = false;
 
-      r.setRenderTarget(null);
+      r.setRenderTarget(this.outputTarget);
       r.setClearColor(BACKGROUND_COLOR, 1);
       this.compositeMaterial.uniforms.tLevel!.value = target.texture;
       this.compositeMaterial.uniforms.uOpacity!.value = opacity;
@@ -1604,6 +1621,10 @@ export class EditorRenderer {
     }
     flush();
     this.world.visible = false;
+
+    // Quantise before chrome so selection outlines stay crisp.
+    this.outputTarget = null;
+    this.palettePass.blitToCanvas(r);
 
     renderChrome(this.overlays);
   }
