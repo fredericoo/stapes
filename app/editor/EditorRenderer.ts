@@ -526,22 +526,14 @@ export class EditorRenderer {
       seen.add(z);
       this.uploadLevelLight(z, level);
     }
-    // Levels with no contribution still need ambient-only maps if we have uniforms.
+    // Levels with no contribution stay black (sky/torch fill comes from computeLighting).
     for (const z of this.lightUniformsByZ.keys()) {
       if (seen.has(z)) continue;
       const u = this.ensureLightUniforms(z);
       u.uLightingEnabled.value = 1;
-      u.uLightMap.value = this.whiteTex;
       u.uLightOrigin.value.set(0, 0);
       u.uLightSize.value.set(1, 1);
-      // Apply ambient via a 1×1 tinted texture when the grid skipped this z.
-      const ambient = AMBIENT_PRESETS[useEditorStore.getState().lighting.timeOfDay];
-      const data = new Uint8Array([
-        Math.round(ambient[0] * 255),
-        Math.round(ambient[1] * 255),
-        Math.round(ambient[2] * 255),
-        255,
-      ]);
+      const data = new Uint8Array([0, 0, 0, 255]);
       let tex = this.lightTextures.get(z);
       if (!tex || tex.image.width !== 1) {
         tex?.dispose();

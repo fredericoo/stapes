@@ -121,8 +121,9 @@ export class GameRenderer {
   }
 
   /**
-   * Cell-space fractional emit positions for lit tiles mid-walk/fall —
-   * same progress as sprite LERP so cast light tracks the mover.
+   * Cell-space fractional emit positions for the player light.
+   * Always returned when the player emits light — standing uses the integer
+   * cell so the static bake can omit the player and never re-run on each step.
    */
   private emitterOverridesFor(
     snap: GameSnapshot,
@@ -161,7 +162,8 @@ export class GameRenderer {
       ];
     }
 
-    return undefined;
+    const { x, y, z } = snap.player;
+    return [{ x, y, z, fx: x, fy: y, fz: z }];
   }
 
   /**

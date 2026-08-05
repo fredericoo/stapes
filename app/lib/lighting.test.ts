@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   AMBIENT_PRESETS,
   computeLighting,
+  isSkyExposed,
+  paintEmitterOverrides,
   rayTransmission,
   sampleLevelLight,
   stackOcclusion,
@@ -79,6 +81,20 @@ describe("stackOcclusion", () => {
   });
 });
 
+describe("isSkyExposed", () => {
+  it("is true with nothing above", () => {
+    expect(isSkyExposed(0, 0, 0, new Map())).toBe(true);
+  });
+
+  it("is blocked by a floor plate above", () => {
+    const occlusion = new Map([
+      ["1:0,0", { opacity: 0, sealsLevel: true }],
+    ]);
+    expect(isSkyExposed(0, 0, 0, occlusion)).toBe(false);
+    expect(isSkyExposed(0, 0, 1, occlusion)).toBe(true);
+  });
+});
+
 describe("rayTransmission", () => {
   it("passes freely through empty space", () => {
     expect(rayTransmission(0, 0, 0, 3, 0, 0, new Map())).toBe(1);
@@ -115,7 +131,7 @@ describe("rayTransmission", () => {
     expect(rayTransmission(0, 0, 1, 3, 0, 0, occlusion)).toBe(1);
   });
 
-  it("blocks descending past an intermediate floor to a lower level", () => {
+  it("blocks descending past an intermediate floor to the lower level", () => {
     const occlusion = new Map([
       ["1:0,0", { opacity: 0, sealsLevel: true }],
     ]);
@@ -139,6 +155,7 @@ describe("computeLighting", () => {
     const outside = sampleLevelLight(level, 3, 0);
 
     expect(inside[0]).toBeGreaterThan(AMBIENT_PRESETS.night[0] + 0.1);
+    // Outdoor wall / floor keep sky color (torch does not light them).
     expect(wallCell[0]).toBeCloseTo(AMBIENT_PRESETS.night[0], 1);
     expect(outside[0]).toBeCloseTo(AMBIENT_PRESETS.night[0], 1);
   });
@@ -221,6 +238,7 @@ describe("computeLighting", () => {
     ]);
     const grid = computeLighting(map, tilesById, AMBIENT_PRESETS.night);
     const wallCell = sampleLevelLight(grid.levels.get(0)!, 1, 0);
+    // Outdoor wall is sky-lit only — no torch bleed onto the solid.
     expect(wallCell[0]).toBeCloseTo(AMBIENT_PRESETS.night[0], 1);
   });
 
@@ -306,5 +324,164 @@ describe("computeLighting", () => {
     );
     const level = grid.levels.get(0)!;
     expect(sampleLevelLight(level, -1, 0)[0]).toBeGreaterThan(0.2);
+  });
+
+  it("paintEmitterOverrides matches a full bake with the same override", () => {
+    const map = mapAt([
+      { x: 0, y: 0, tiles: ["floor", "torch"] },
+      { x: 1, y: 0, tiles: ["floor"] },
+      { x: 2, y: 0, tiles: ["floor"] },
+    ]);
+    const overrides = [{ x: 0, y: 0, z: 0, fx: 0.5, fy: 0, fz: 0 }];
+    const full = computeLighting(map, tilesById, [0, 0, 0], overrides);
+    const staticGrid = computeLighting(map, tilesById, [0, 0, 0]);
+    const painted = paintEmitterOverrides(
+      staticGrid,
+      map,
+      tilesById,
+      overrides,
+    );
+    const fullLevel = full.levels.get(0)!;
+    const paintedLevel = painted.levels.get(0)!;
+    for (const x of [0, 1, 2]) {
+      expect(sampleLevelLight(paintedLevel, x, 0)[0]).toBeCloseTo(
+        sampleLevelLight(fullLevel, x, 0)[0],
+        1,
+      );
+    }
+  });
+
+  it("daytime: open cells get full sky; sealed caves stay dark", () => {
+    // Enclosed 3x3 room with roof — center is buried; pad empties are outdoor.
+    const cells: Array<{ x: number; y: number; z?: number; tiles: string[] }> =
+      [];
+    for (let x = 0; x <= 2; x++) {
+      for (let y = 0; y <= 2; y++) {
+        cells.push({ x, y, z: 0, tiles: ["floor"] });
+        cells.push({ x, y, z: 1, tiles: ["floor"] });
+      }
+    }
+    // Perimeter walls at z=0 block outdoor spill into the room.
+    for (let x = 0; x <= 2; x++) {
+      cells.push({ x, y: 0, z: 0, tiles: ["floor", "wall"] });
+      cells.push({ x, y: 2, z: 0, tiles: ["floor", "wall"] });
+    }
+    cells.push({ x: 0, y: 1, z: 0, tiles: ["floor", "wall"] });
+    cells.push({ x: 2, y: 1, z: 0, tiles: ["floor", "wall"] });
+
+    const map = mapAt(cells);
+    const grid = computeLighting(map, tilesById, AMBIENT_PRESETS.day);
+    const outdoor = sampleLevelLight(grid.levels.get(1)!, 1, 1);
+    const cave = sampleLevelLight(grid.levels.get(0)!, 1, 1);
+
+    expect(outdoor[0]).toBeCloseTo(1, 1);
+    expect(cave[0]).toBeLessThan(0.05);
+  });
+
+  it("daytime: skylight hole is bright and spills to roofed neighbours", () => {
+    // Roofed corridor with a hole at (1,0): walls keep outdoor pad from flooding in.
+    const cells: Array<{ x: number; y: number; z?: number; tiles: string[] }> =
+      [
+        { x: 0, y: 0, z: 0, tiles: ["floor"] },
+        { x: 1, y: 0, z: 0, tiles: ["floor"] },
+        { x: 2, y: 0, z: 0, tiles: ["floor"] },
+        { x: 0, y: 0, z: 1, tiles: ["floor"] },
+        // hole at (1,0) z=1
+        { x: 2, y: 0, z: 1, tiles: ["floor"] },
+        // north/south walls + ends
+        { x: 0, y: 1, z: 0, tiles: ["wall"] },
+        { x: 1, y: 1, z: 0, tiles: ["wall"] },
+        { x: 2, y: 1, z: 0, tiles: ["wall"] },
+        { x: 0, y: -1, z: 0, tiles: ["wall"] },
+        { x: 1, y: -1, z: 0, tiles: ["wall"] },
+        { x: 2, y: -1, z: 0, tiles: ["wall"] },
+        { x: -1, y: 0, z: 0, tiles: ["wall"] },
+        { x: 3, y: 0, z: 0, tiles: ["wall"] },
+      ];
+
+    const map = mapAt(cells);
+    const grid = computeLighting(map, tilesById, AMBIENT_PRESETS.day);
+    const level = grid.levels.get(0)!;
+    const hole = sampleLevelLight(level, 1, 0);
+    const underRoof = sampleLevelLight(level, 0, 0);
+
+    expect(hole[0]).toBeCloseTo(1, 1);
+    expect(underRoof[0]).toBeGreaterThan(0.1);
+    expect(underRoof[0]).toBeLessThan(hole[0] - 0.05);
+  });
+
+  it("daytime: walls block sky spill into the next room", () => {
+    // Two chambers: open sky on the left, roofed on the right, wall between.
+    // Outer walls stop pad sky from wrapping around.
+    const map = mapAt([
+      { x: 0, y: 0, z: 0, tiles: ["floor"] },
+      { x: 1, y: 0, z: 0, tiles: ["wall"] },
+      { x: 2, y: 0, z: 0, tiles: ["floor"] },
+      { x: 2, y: 0, z: 1, tiles: ["floor"] },
+      { x: 0, y: 1, z: 0, tiles: ["wall"] },
+      { x: 1, y: 1, z: 0, tiles: ["wall"] },
+      { x: 2, y: 1, z: 0, tiles: ["wall"] },
+      { x: 0, y: -1, z: 0, tiles: ["wall"] },
+      { x: 1, y: -1, z: 0, tiles: ["wall"] },
+      { x: 2, y: -1, z: 0, tiles: ["wall"] },
+      { x: -1, y: 0, z: 0, tiles: ["wall"] },
+      { x: 3, y: 0, z: 0, tiles: ["wall"] },
+    ]);
+    const grid = computeLighting(map, tilesById, AMBIENT_PRESETS.day);
+    const level = grid.levels.get(0)!;
+    const open = sampleLevelLight(level, 0, 0);
+    const sealed = sampleLevelLight(level, 2, 0);
+
+    expect(open[0]).toBeCloseTo(1, 1);
+    expect(sealed[0]).toBeLessThan(0.05);
+  });
+
+  it("night: outdoor sky still glows dimly; buried caves are black", () => {
+    const cells: Array<{ x: number; y: number; z?: number; tiles: string[] }> =
+      [];
+    for (let x = 0; x <= 2; x++) {
+      for (let y = 0; y <= 2; y++) {
+        cells.push({ x, y, z: 0, tiles: ["floor"] });
+        cells.push({ x, y, z: 1, tiles: ["floor"] });
+      }
+    }
+    for (let x = 0; x <= 2; x++) {
+      cells.push({ x, y: 0, z: 0, tiles: ["floor", "wall"] });
+      cells.push({ x, y: 2, z: 0, tiles: ["floor", "wall"] });
+    }
+    cells.push({ x: 0, y: 1, z: 0, tiles: ["floor", "wall"] });
+    cells.push({ x: 2, y: 1, z: 0, tiles: ["floor", "wall"] });
+
+    const map = mapAt(cells);
+    const grid = computeLighting(map, tilesById, AMBIENT_PRESETS.night);
+    const outdoor = sampleLevelLight(grid.levels.get(1)!, 1, 1);
+    const cave = sampleLevelLight(grid.levels.get(0)!, 1, 1);
+
+    expect(outdoor[0]).toBeCloseTo(AMBIENT_PRESETS.night[0], 1);
+    expect(cave[0]).toBeLessThan(0.01);
+  });
+
+  it("torch still lights a buried cave at night", () => {
+    const cells: Array<{ x: number; y: number; z?: number; tiles: string[] }> =
+      [];
+    for (let x = 0; x <= 2; x++) {
+      for (let y = 0; y <= 2; y++) {
+        cells.push({ x, y, z: 0, tiles: ["floor"] });
+        cells.push({ x, y, z: 1, tiles: ["floor"] });
+      }
+    }
+    for (let x = 0; x <= 2; x++) {
+      cells.push({ x, y: 0, z: 0, tiles: ["floor", "wall"] });
+      cells.push({ x, y: 2, z: 0, tiles: ["floor", "wall"] });
+    }
+    cells.push({ x: 0, y: 1, z: 0, tiles: ["floor", "wall"] });
+    cells.push({ x: 2, y: 1, z: 0, tiles: ["floor", "wall"] });
+    // Center gets a torch — mapAt last write wins for (1,1).
+    cells.push({ x: 1, y: 1, z: 0, tiles: ["floor", "torch"] });
+
+    const map = mapAt(cells);
+    const grid = computeLighting(map, tilesById, AMBIENT_PRESETS.night);
+    const cave = sampleLevelLight(grid.levels.get(0)!, 1, 1);
+    expect(cave[0]).toBeGreaterThan(0.5);
   });
 });

@@ -10,11 +10,14 @@ import {
 import {
   AMBIENT_PRESETS,
   computeLighting,
+  overlayEmitterOverrides,
+  staticLightingMapKey,
   type EmitterOverride,
   type LevelLightMap,
   type LightGrid,
   type TimeOfDay,
 } from "../lib/lighting";
+import { PLAYER_TILE_ID } from "../game/constants";
 import { listCoords } from "../lib/mapData";
 import type { Frame, MapFile, TileDef, TilesetDef } from "../lib/types";
 import {
@@ -119,6 +122,8 @@ function emitterOverridesKey(
     .join("|");
 }
 
+const DYNAMIC_LIGHT_TILE_IDS = new Set([PLAYER_TILE_ID]);
+
 function disposeObject3D(obj: THREE.Object3D) {
   obj.traverse((child) => {
     const mesh = child as THREE.Mesh;
@@ -172,7 +177,8 @@ export class WorldRenderer {
   private lightTextures = new Map<number, THREE.DataTexture>();
   private lightUniformsByZ = new Map<number, LevelLightUniforms>();
   private lightingKey = "";
-  private lastLitMap: MapFile | null = null;
+  private staticLightingKey = "";
+  private staticLightGrid: LightGrid | null = null;
   private prevMap: MapFile | null = null;
   private needsRender = true;
   private canvasW = 0;
@@ -231,7 +237,8 @@ export class WorldRenderer {
       // Force light re-upload after rebuild — materials may be new, and
       // the first setView can race textures still loading.
       this.lightingKey = "";
-      this.lastLitMap = null;
+      this.staticLightingKey = "";
+      this.staticLightGrid = null;
       if (this.view) {
         this.applyMap(this.view.map, true);
         this.updateLighting(this.view);
@@ -554,22 +561,47 @@ export class WorldRenderer {
 
   private updateLighting(view: WorldView) {
     const overridesKey = emitterOverridesKey(view.emitterOverrides);
-    const key = `${view.timeOfDay}|${Object.keys(view.tilesById).length}|${overridesKey}`;
-    if (view.map === this.lastLitMap && key === this.lightingKey) return;
-    this.lastLitMap = view.map;
-    this.lightingKey = key;
+    const mapKey = staticLightingMapKey(view.map, DYNAMIC_LIGHT_TILE_IDS);
+    const staticKey = `${view.timeOfDay}|${Object.keys(view.tilesById).length}|${mapKey}`;
+    const key = `${staticKey}|${overridesKey}`;
+    if (key === this.lightingKey && this.staticLightGrid) {
+      return;
+    }
 
     const ambient = AMBIENT_PRESETS[view.timeOfDay];
-    const grid = computeLighting(
+
+    // Full sky + map-torch bake only when non-player scene content changes.
+    // Moving the player between cells must not re-run this (~800ms).
+    if (staticKey !== this.staticLightingKey || !this.staticLightGrid) {
+      this.staticLightGrid = computeLighting(
+        view.map,
+        view.tilesById,
+        [...ambient],
+        undefined,
+        DYNAMIC_LIGHT_TILE_IDS,
+      );
+      this.staticLightingKey = staticKey;
+    }
+
+    this.lightingKey = key;
+
+    const overrides = view.emitterOverrides;
+    if (!overrides?.length) {
+      this.uploadLightGrid(this.staticLightGrid);
+      return;
+    }
+
+    // Player (and other dynamic lights): add-only atop the cached bake.
+    const painted = overlayEmitterOverrides(
+      this.staticLightGrid,
       view.map,
       view.tilesById,
-      [...ambient],
-      view.emitterOverrides,
+      overrides,
     );
-    this.uploadLightGrid(grid, view.timeOfDay);
+    this.uploadLightGrid(painted);
   }
 
-  private uploadLightGrid(grid: LightGrid, timeOfDay: TimeOfDay) {
+  private uploadLightGrid(grid: LightGrid) {
     const seen = new Set<number>();
     for (const [z, level] of grid.levels) {
       seen.add(z);
@@ -579,13 +611,8 @@ export class WorldRenderer {
       if (seen.has(z)) continue;
       const u = this.ensureLightUniforms(z);
       u.uLightingEnabled.value = 1;
-      const ambient = AMBIENT_PRESETS[timeOfDay];
-      const data = new Uint8Array([
-        Math.round(ambient[0] * 255),
-        Math.round(ambient[1] * 255),
-        Math.round(ambient[2] * 255),
-        255,
-      ]);
+      // No grid for this Z — stay black (sky/torch fill comes from computeLighting).
+      const data = new Uint8Array([0, 0, 0, 255]);
       let tex = this.lightTextures.get(z);
       if (!tex || tex.image.width !== 1) {
         tex?.dispose();
