@@ -278,14 +278,16 @@ export function computeLightingFlood(
 
   const slice = dom.w * dom.h;
 
-  // Sky column seed
+  // Sky column seed. Opaque solids (walls/trees/roofs) still receive the shaft
+  // that hits their top — otherwise outdoor bricks bake black and only pick up
+  // neighbour flood via bilinear sampling. Flood spreads through open cells only.
   for (let ly = 0; ly < dom.h; ly++) {
     for (let lx = 0; lx < dom.w; lx++) {
       let shaft = MAX_LIGHT_LEVEL;
       for (let lz = dom.d - 1; lz >= 0; lz--) {
         const i = idx(dom, lx, ly, lz);
         if (opacity[i]!) {
-          sky[i] = 0;
+          sky[i] = shaft;
           shaft = 0;
         } else {
           sky[i] = shaft;
@@ -296,9 +298,11 @@ export function computeLightingFlood(
   }
 
   // Sky spread with Euclidean edge costs (rounder than Manhattan diamonds).
+  // Do not enqueue opaques — their shaft paint must not spill through walls.
   const skyQ = new Int32Array(n);
   let skyLen = 0;
   for (let i = 0; i < n; i++) {
+    if (opacity[i]!) continue;
     if (sky[i]! > 0.5) skyQ[skyLen++] = i;
   }
   let skyHead = 0;

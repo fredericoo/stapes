@@ -164,6 +164,32 @@ describe("computeLighting flood fill", () => {
     expect(sampleLevelLight(grid.levels.get(0)!, 0, 0)[0]).toBeGreaterThan(0.4);
   });
 
+  it("daytime: sky-exposed walls, half-bricks, and trees get full daylight", () => {
+    // Positive-height tiles are opaque to flood but must still receive the
+    // vertical shaft so outdoor solids aren't baked black.
+    const map = mapAt([
+      { x: 0, y: 0, tiles: ["wall"] },
+      { x: 1, y: 0, tiles: ["half"] },
+      { x: 2, y: 0, tiles: ["floor"] },
+      { x: 0, y: 1, tiles: ["floor"] },
+    ]);
+    const grid = computeLighting(map, tilesById, AMBIENT_PRESETS.day);
+    const level = grid.levels.get(0)!;
+    expect(sampleLevelLight(level, 0, 0)[0]).toBeCloseTo(1, 1);
+    expect(sampleLevelLight(level, 1, 0)[0]).toBeCloseTo(1, 1);
+    expect(sampleLevelLight(level, 2, 0)[0]).toBeCloseTo(1, 1);
+  });
+
+  it("daytime: solid under a sealed roof stays dark (cave wall)", () => {
+    const map = mapAt([
+      { x: 0, y: 0, z: 0, tiles: ["wall"] },
+      { x: 0, y: 0, z: 1, tiles: ["floor"] },
+    ]);
+    const grid = computeLighting(map, tilesById, AMBIENT_PRESETS.day);
+    expect(sampleLevelLight(grid.levels.get(0)!, 0, 0)[0]).toBeLessThan(0.15);
+    expect(sampleLevelLight(grid.levels.get(1)!, 0, 0)[0]).toBeCloseTo(1, 1);
+  });
+
   it("daytime: open cells get full sky; sealed caves stay dark", () => {
     const cells: Array<{ x: number; y: number; z?: number; tiles: string[] }> =
       [];

@@ -766,8 +766,8 @@
     "attributes": {},
     "affectedByGravity": true,
     "light": {
-      "radius": 5,
-      "intensity": 0.5,
+      "radius": 8,
+      "intensity": 1,
       "color": "#ffcc88"
     },
     "lightPassing": true,
