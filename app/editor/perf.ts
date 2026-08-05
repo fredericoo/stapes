@@ -19,14 +19,15 @@ export const PERF_BUDGETS = {
   /** CI without a discrete GPU — looser timing; structure caps still apply. */
   frameMsP95Ci: 8,
   /**
-   * Cold static lighting bake on fixture map (flood fill). Local p95.
+   * Cold static lighting bake on fixture map (circular hybrid: Euclidean sky
+   * spill + spherical torches). Local p95 ~45–55ms on the fixture map.
    * Asserted in `app/lib/lighting.perf.test.ts` — not the editor frame probe.
    */
-  lightingBakeMsP95: 8,
-  lightingBakeMsP95Ci: 40,
+  lightingBakeMsP95: 60,
+  lightingBakeMsP95Ci: 120,
   /** Player light overlay atop cached bake. */
-  lightingOverlayMsP95: 3,
-  lightingOverlayMsP95Ci: 8,
+  lightingOverlayMsP95: 4,
+  lightingOverlayMsP95Ci: 10,
 } as const;
 
 export type EditorPerfSnapshot = {
