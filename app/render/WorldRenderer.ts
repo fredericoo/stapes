@@ -9,15 +9,12 @@ import {
 } from "../lib/geometry";
 import {
   AMBIENT_PRESETS,
-  computeLighting,
-  overlayEmitterOverrides,
   staticLightingMapKey,
   type EmitterOverride,
   type LevelLightMap,
   type LightGrid,
   type TimeOfDay,
 } from "../lib/lighting";
-import { PLAYER_TILE_ID } from "../game/constants";
 import { listCoords } from "../lib/mapData";
 import type { Frame, MapFile, TileDef, TilesetDef } from "../lib/types";
 import {
@@ -27,6 +24,9 @@ import {
   getFrames,
   levelKey,
 } from "../lib/types";
+import { PLAYER_TILE_ID } from "../game/constants";
+import { GpuLighting } from "./gpuLighting";
+import { PalettePass } from "./palettePass";
 import {
   type LevelLightUniforms,
   type Quad,
@@ -36,7 +36,6 @@ import {
   injectWorldShader,
   writeBoxAttr,
 } from "./worldQuads";
-import { PalettePass } from "./palettePass";
 
 type AnimatedInstance = {
   mesh: THREE.Mesh;
@@ -179,6 +178,7 @@ export class WorldRenderer {
   private lightingKey = "";
   private staticLightingKey = "";
   private staticLightGrid: LightGrid | null = null;
+  private gpuLighting = new GpuLighting();
   private prevMap: MapFile | null = null;
   private needsRender = true;
   private canvasW = 0;
@@ -573,11 +573,10 @@ export class WorldRenderer {
     // Full sky + map-torch bake only when non-player scene content changes.
     // Moving the player between cells must not re-run this (~800ms).
     if (staticKey !== this.staticLightingKey || !this.staticLightGrid) {
-      this.staticLightGrid = computeLighting(
+      this.staticLightGrid = this.gpuLighting.bake(
         view.map,
         view.tilesById,
         [...ambient],
-        undefined,
         DYNAMIC_LIGHT_TILE_IDS,
       );
       this.staticLightingKey = staticKey;
@@ -591,8 +590,7 @@ export class WorldRenderer {
       return;
     }
 
-    // Player (and other dynamic lights): add-only atop the cached bake.
-    const painted = overlayEmitterOverrides(
+    const painted = this.gpuLighting.overlay(
       this.staticLightGrid,
       view.map,
       view.tilesById,

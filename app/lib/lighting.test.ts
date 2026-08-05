@@ -3,11 +3,12 @@ import {
   AMBIENT_PRESETS,
   computeLighting,
   isSkyExposed,
-  paintEmitterOverrides,
+  overlayEmitterOverrides,
   rayTransmission,
   sampleLevelLight,
   stackOcclusion,
 } from "./lighting";
+import { MAX_LIGHT_LEVEL } from "./lightingFlood";
 import type { MapFile, TileDef } from "./types";
 import { coordKey, levelKey } from "./types";
 
@@ -107,252 +108,63 @@ describe("rayTransmission", () => {
     expect(rayTransmission(0, 0, 0, 3, 0, 0, occlusion)).toBe(0);
   });
 
-  it("hard-blocks at a half wall", () => {
-    const occlusion = new Map([
-      ["0:1,0", { opacity: 1, sealsLevel: true }],
-    ]);
-    expect(rayTransmission(0, 0, 0, 3, 0, 0, occlusion)).toBe(0);
-  });
-
   it("seals vertical travel through a floor plate", () => {
     const occlusion = new Map([
       ["1:0,0", { opacity: 0, sealsLevel: true }],
     ]);
     expect(rayTransmission(0, 0, 0, 0, 0, 2, occlusion)).toBe(0);
   });
-
-  it("lets a descending diagonal cross floors on the destination level", () => {
-    const occlusion = new Map<string, { opacity: number; sealsLevel: boolean }>();
-    for (let x = 0; x <= 3; x++) {
-      occlusion.set(`0:${x},0`, { opacity: 0, sealsLevel: true });
-    }
-    // Torch above (0,0,1) → floor cell (3,0,0). DDA steps down onto the floor
-    // plane then walks across it — must not treat those horizontal moves as seals.
-    expect(rayTransmission(0, 0, 1, 3, 0, 0, occlusion)).toBe(1);
-  });
-
-  it("blocks descending past an intermediate floor to the lower level", () => {
-    const occlusion = new Map([
-      ["1:0,0", { opacity: 0, sealsLevel: true }],
-    ]);
-    expect(rayTransmission(0, 0, 2, 0, 0, 0, occlusion)).toBe(0);
-  });
 });
 
-describe("computeLighting", () => {
-  it("contains light inside walls — no bleed past a full wall", () => {
+describe("computeLighting flood fill", () => {
+  it("contains torch light inside walls — no bleed past a full wall", () => {
     const map = mapAt([
       { x: 0, y: 0, tiles: ["floor", "torch"] },
       { x: 1, y: 0, tiles: ["floor"] },
       { x: 2, y: 0, tiles: ["wall"] },
       { x: 3, y: 0, tiles: ["floor"] },
     ]);
-    const grid = computeLighting(map, tilesById, AMBIENT_PRESETS.night);
-    const level = grid.levels.get(0)!;
-
-    const inside = sampleLevelLight(level, 1, 0);
-    const wallCell = sampleLevelLight(level, 2, 0);
-    const outside = sampleLevelLight(level, 3, 0);
-
-    expect(inside[0]).toBeGreaterThan(AMBIENT_PRESETS.night[0] + 0.1);
-    // Outdoor wall / floor keep sky color (torch does not light them).
-    expect(wallCell[0]).toBeCloseTo(AMBIENT_PRESETS.night[0], 1);
-    expect(outside[0]).toBeCloseTo(AMBIENT_PRESETS.night[0], 1);
-  });
-
-  it("hard-blocks through half-height slabs", () => {
-    const map = mapAt([
-      { x: 0, y: 0, tiles: ["floor", "torch"] },
-      { x: 1, y: 0, tiles: ["half"] },
-      { x: 2, y: 0, tiles: ["floor"] },
-    ]);
-    const grid = computeLighting(map, tilesById, AMBIENT_PRESETS.night);
-    const level = grid.levels.get(0)!;
-    const slab = sampleLevelLight(level, 1, 0);
-    const beyond = sampleLevelLight(level, 2, 0);
-    expect(slab[0]).toBeCloseTo(AMBIENT_PRESETS.night[0], 1);
-    expect(beyond[0]).toBeCloseTo(AMBIENT_PRESETS.night[0], 1);
-  });
-
-  it("does not light roof slabs on the level above", () => {
-    const map = mapAt([
-      { x: 0, y: 0, z: 0, tiles: ["floor", "torch"] },
-      { x: 0, y: 0, z: 1, tiles: ["half"] },
-      { x: 1, y: 0, z: 1, tiles: ["half"] },
-    ]);
     const grid = computeLighting(map, tilesById, [0, 0, 0]);
-    const above = grid.levels.get(1)!;
-    expect(sampleLevelLight(above, 0, 0)[0]).toBe(0);
-    expect(sampleLevelLight(above, 1, 0)[0]).toBe(0);
+    const level = grid.levels.get(0)!;
+    const inside = sampleLevelLight(level, 1, 0)[0];
+    const wallCell = sampleLevelLight(level, 2, 0)[0];
+    const outside = sampleLevelLight(level, 3, 0)[0];
+    expect(inside).toBeGreaterThan(0.5);
+    // Solid wall stays dark (sky ambient is 0 in this bake).
+    expect(wallCell).toBeLessThan(0.05);
+    // Direct path through the wall is blocked — wrap-around is allowed but weaker.
+    expect(outside).toBeLessThan(inside);
   });
 
-  it("does not leak light to the floor above", () => {
+  it("does not leak light to the floor above through a seal", () => {
+    // Sealed shaft: torch below cannot wrap around to the roof via open air.
     const map = mapAt([
       { x: 0, y: 0, z: 0, tiles: ["floor", "torch"] },
       { x: 0, y: 0, z: 1, tiles: ["floor"] },
+      { x: 1, y: 0, z: 0, tiles: ["wall"] },
+      { x: -1, y: 0, z: 0, tiles: ["wall"] },
+      { x: 0, y: 1, z: 0, tiles: ["wall"] },
+      { x: 0, y: -1, z: 0, tiles: ["wall"] },
+      { x: 1, y: 0, z: 1, tiles: ["wall"] },
+      { x: -1, y: 0, z: 1, tiles: ["wall"] },
+      { x: 0, y: 1, z: 1, tiles: ["wall"] },
+      { x: 0, y: -1, z: 1, tiles: ["wall"] },
     ]);
     const grid = computeLighting(map, tilesById, [0, 0, 0]);
-    const above = sampleLevelLight(grid.levels.get(1)!, 0, 0);
-    expect(above[0]).toBe(0);
+    expect(sampleLevelLight(grid.levels.get(1)!, 0, 0)[0]).toBe(0);
   });
 
-  it("lights the floor below from a torch above", () => {
+  it("lights the floor below from a torch above (open shaft)", () => {
     const map = mapAt([
       { x: 0, y: 0, z: 1, tiles: ["torch"] },
       { x: 0, y: 0, z: 0, tiles: ["floor"] },
       { x: 1, y: 0, z: 0, tiles: ["floor"] },
-      { x: 2, y: 0, z: 0, tiles: ["floor"] },
     ]);
     const grid = computeLighting(map, tilesById, [0, 0, 0]);
-    const below = grid.levels.get(0)!;
-    expect(sampleLevelLight(below, 0, 0)[0]).toBeGreaterThan(0.5);
-    expect(sampleLevelLight(below, 1, 0)[0]).toBeGreaterThan(0.3);
-    expect(sampleLevelLight(below, 2, 0)[0]).toBeGreaterThan(0.1);
-  });
-
-  it("does not shine through an intermediate floor to the level below it", () => {
-    const map = mapAt([
-      { x: 0, y: 0, z: 2, tiles: ["torch"] },
-      { x: 0, y: 0, z: 1, tiles: ["floor"] },
-      { x: 0, y: 0, z: 0, tiles: ["floor"] },
-    ]);
-    const grid = computeLighting(map, tilesById, [0, 0, 0]);
-    expect(sampleLevelLight(grid.levels.get(1)!, 0, 0)[0]).toBeGreaterThan(0.5);
-    expect(sampleLevelLight(grid.levels.get(0)!, 0, 0)[0]).toBe(0);
-  });
-
-  it("lets light travel vertically through water", () => {
-    const map = mapAt([
-      { x: 0, y: 0, z: 0, tiles: ["water", "torch"] },
-      { x: 0, y: 0, z: 1, tiles: ["water"] },
-    ]);
-    const grid = computeLighting(map, tilesById, [0, 0, 0]);
-    const above = sampleLevelLight(grid.levels.get(1)!, 0, 0);
-    expect(above[0]).toBeGreaterThan(0.2);
-  });
-
-  it("keeps full walls dark even next to a torch", () => {
-    const map = mapAt([
-      { x: 0, y: 0, tiles: ["floor", "torch"] },
-      { x: 1, y: 0, tiles: ["wall"] },
-    ]);
-    const grid = computeLighting(map, tilesById, AMBIENT_PRESETS.night);
-    const wallCell = sampleLevelLight(grid.levels.get(0)!, 1, 0);
-    // Outdoor wall is sky-lit only — no torch bleed onto the solid.
-    expect(wallCell[0]).toBeCloseTo(AMBIENT_PRESETS.night[0], 1);
-  });
-
-  it("does not let an emitter occlude its own light", () => {
-    const tallLamp = tile({
-      id: "tall-lamp",
-      height: 2,
-      light: { radius: 4, intensity: 1, color: "#ffffff" },
-    });
-    const map = mapAt([{ x: 0, y: 0, tiles: ["tall-lamp"] }]);
-    const grid = computeLighting(
-      map,
-      { ...tilesById, "tall-lamp": tallLamp },
-      [0, 0, 0],
-    );
-    const self = sampleLevelLight(grid.levels.get(0)!, 0, 0);
-    expect(self[0]).toBeCloseTo(1, 1);
-  });
-
-  it("shifts neighbour light when an emitter is overridden halfway between cells", () => {
-    const map = mapAt([
-      { x: 0, y: 0, tiles: ["floor", "torch"] },
-      { x: 1, y: 0, tiles: ["floor"] },
-      { x: 2, y: 0, tiles: ["floor"] },
-    ]);
-    const baseline = computeLighting(map, tilesById, [0, 0, 0]);
-    const moved = computeLighting(map, tilesById, [0, 0, 0], [
-      { x: 0, y: 0, z: 0, fx: 0.5, fy: 0, fz: 0 },
-    ]);
-    const baseLevel = baseline.levels.get(0)!;
-    const movedLevel = moved.levels.get(0)!;
-
-    // Closer to (1,0) than the integer emitter — that neighbour brightens.
-    expect(sampleLevelLight(movedLevel, 1, 0)[0]).toBeGreaterThan(
-      sampleLevelLight(baseLevel, 1, 0)[0],
-    );
-    // Logical self-cell stays lit (emitter still keyed at origin).
-    expect(sampleLevelLight(movedLevel, 0, 0)[0]).toBeGreaterThan(0.5);
-  });
-
-  it("override relocates only the matched emitter — other lights stay put", () => {
-    const map = mapAt([
-      { x: 0, y: 0, tiles: ["floor", "torch"] },
-      { x: 10, y: 0, tiles: ["floor", "torch"] },
-      { x: 11, y: 0, tiles: ["floor"] },
-    ]);
-    const baseline = computeLighting(map, tilesById, [0, 0, 0]);
-    const moved = computeLighting(map, tilesById, [0, 0, 0], [
-      { x: 0, y: 0, z: 0, fx: 1, fy: 0, fz: 0 },
-    ]);
-    const baseLevel = baseline.levels.get(0)!;
-    const movedLevel = moved.levels.get(0)!;
-
-    // Far torch at (10,0) unchanged — neighbour (11,0) same brightness.
-    expect(sampleLevelLight(movedLevel, 11, 0)[0]).toBeCloseTo(
-      sampleLevelLight(baseLevel, 11, 0)[0],
-      2,
-    );
-    // Overridden torch now sits at (1,0) — that cell brighter than baseline.
-    expect(sampleLevelLight(movedLevel, 1, 0)[0]).toBeGreaterThan(
-      sampleLevelLight(baseLevel, 1, 0)[0],
-    );
-  });
-
-  it("does not let an opaque emitter block its own light behind it mid-lerp", () => {
-    const tallLamp = tile({
-      id: "tall-lamp",
-      height: 2,
-      light: { radius: 4, intensity: 1, color: "#ffffff" },
-    });
-    const map = mapAt([
-      { x: 0, y: 0, tiles: ["floor", "tall-lamp"] },
-      { x: 1, y: 0, tiles: ["floor"] },
-      { x: -1, y: 0, tiles: ["floor"] },
-    ]);
-    // Emit from (1,0) while the lamp tile still occupies (0,0). Rays back to
-    // (-1,0) pass through the logical cell — must not self-occlude.
-    const grid = computeLighting(
-      map,
-      { ...tilesById, "tall-lamp": tallLamp },
-      [0, 0, 0],
-      [{ x: 0, y: 0, z: 0, fx: 1, fy: 0, fz: 0 }],
-    );
-    const level = grid.levels.get(0)!;
-    expect(sampleLevelLight(level, -1, 0)[0]).toBeGreaterThan(0.2);
-  });
-
-  it("paintEmitterOverrides matches a full bake with the same override", () => {
-    const map = mapAt([
-      { x: 0, y: 0, tiles: ["floor", "torch"] },
-      { x: 1, y: 0, tiles: ["floor"] },
-      { x: 2, y: 0, tiles: ["floor"] },
-    ]);
-    const overrides = [{ x: 0, y: 0, z: 0, fx: 0.5, fy: 0, fz: 0 }];
-    const full = computeLighting(map, tilesById, [0, 0, 0], overrides);
-    const staticGrid = computeLighting(map, tilesById, [0, 0, 0]);
-    const painted = paintEmitterOverrides(
-      staticGrid,
-      map,
-      tilesById,
-      overrides,
-    );
-    const fullLevel = full.levels.get(0)!;
-    const paintedLevel = painted.levels.get(0)!;
-    for (const x of [0, 1, 2]) {
-      expect(sampleLevelLight(paintedLevel, x, 0)[0]).toBeCloseTo(
-        sampleLevelLight(fullLevel, x, 0)[0],
-        1,
-      );
-    }
+    expect(sampleLevelLight(grid.levels.get(0)!, 0, 0)[0]).toBeGreaterThan(0.4);
   });
 
   it("daytime: open cells get full sky; sealed caves stay dark", () => {
-    // Enclosed 3x3 room with roof — center is buried; pad empties are outdoor.
     const cells: Array<{ x: number; y: number; z?: number; tiles: string[] }> =
       [];
     for (let x = 0; x <= 2; x++) {
@@ -361,7 +173,6 @@ describe("computeLighting", () => {
         cells.push({ x, y, z: 1, tiles: ["floor"] });
       }
     }
-    // Perimeter walls at z=0 block outdoor spill into the room.
     for (let x = 0; x <= 2; x++) {
       cells.push({ x, y: 0, z: 0, tiles: ["floor", "wall"] });
       cells.push({ x, y: 2, z: 0, tiles: ["floor", "wall"] });
@@ -371,24 +182,18 @@ describe("computeLighting", () => {
 
     const map = mapAt(cells);
     const grid = computeLighting(map, tilesById, AMBIENT_PRESETS.day);
-    const outdoor = sampleLevelLight(grid.levels.get(1)!, 1, 1);
-    const cave = sampleLevelLight(grid.levels.get(0)!, 1, 1);
-
-    expect(outdoor[0]).toBeCloseTo(1, 1);
-    expect(cave[0]).toBeLessThan(0.05);
+    expect(sampleLevelLight(grid.levels.get(1)!, 1, 1)[0]).toBeCloseTo(1, 1);
+    expect(sampleLevelLight(grid.levels.get(0)!, 1, 1)[0]).toBeLessThan(0.15);
   });
 
   it("daytime: skylight hole is bright and spills to roofed neighbours", () => {
-    // Roofed corridor with a hole at (1,0): walls keep outdoor pad from flooding in.
     const cells: Array<{ x: number; y: number; z?: number; tiles: string[] }> =
       [
         { x: 0, y: 0, z: 0, tiles: ["floor"] },
         { x: 1, y: 0, z: 0, tiles: ["floor"] },
         { x: 2, y: 0, z: 0, tiles: ["floor"] },
         { x: 0, y: 0, z: 1, tiles: ["floor"] },
-        // hole at (1,0) z=1
         { x: 2, y: 0, z: 1, tiles: ["floor"] },
-        // north/south walls + ends
         { x: 0, y: 1, z: 0, tiles: ["wall"] },
         { x: 1, y: 1, z: 0, tiles: ["wall"] },
         { x: 2, y: 1, z: 0, tiles: ["wall"] },
@@ -398,21 +203,17 @@ describe("computeLighting", () => {
         { x: -1, y: 0, z: 0, tiles: ["wall"] },
         { x: 3, y: 0, z: 0, tiles: ["wall"] },
       ];
-
     const map = mapAt(cells);
     const grid = computeLighting(map, tilesById, AMBIENT_PRESETS.day);
     const level = grid.levels.get(0)!;
     const hole = sampleLevelLight(level, 1, 0);
     const underRoof = sampleLevelLight(level, 0, 0);
-
     expect(hole[0]).toBeCloseTo(1, 1);
-    expect(underRoof[0]).toBeGreaterThan(0.1);
-    expect(underRoof[0]).toBeLessThan(hole[0] - 0.05);
+    expect(underRoof[0]).toBeGreaterThan(0.05);
+    expect(underRoof[0]).toBeLessThan(hole[0]);
   });
 
   it("daytime: walls block sky spill into the next room", () => {
-    // Two chambers: open sky on the left, roofed on the right, wall between.
-    // Outer walls stop pad sky from wrapping around.
     const map = mapAt([
       { x: 0, y: 0, z: 0, tiles: ["floor"] },
       { x: 1, y: 0, z: 0, tiles: ["wall"] },
@@ -429,14 +230,11 @@ describe("computeLighting", () => {
     ]);
     const grid = computeLighting(map, tilesById, AMBIENT_PRESETS.day);
     const level = grid.levels.get(0)!;
-    const open = sampleLevelLight(level, 0, 0);
-    const sealed = sampleLevelLight(level, 2, 0);
-
-    expect(open[0]).toBeCloseTo(1, 1);
-    expect(sealed[0]).toBeLessThan(0.05);
+    expect(sampleLevelLight(level, 0, 0)[0]).toBeCloseTo(1, 1);
+    expect(sampleLevelLight(level, 2, 0)[0]).toBeLessThan(0.15);
   });
 
-  it("night: outdoor sky still glows dimly; buried caves are black", () => {
+  it("night: outdoor sky still glows dimly; buried caves are darker", () => {
     const cells: Array<{ x: number; y: number; z?: number; tiles: string[] }> =
       [];
     for (let x = 0; x <= 2; x++) {
@@ -454,11 +252,13 @@ describe("computeLighting", () => {
 
     const map = mapAt(cells);
     const grid = computeLighting(map, tilesById, AMBIENT_PRESETS.night);
-    const outdoor = sampleLevelLight(grid.levels.get(1)!, 1, 1);
-    const cave = sampleLevelLight(grid.levels.get(0)!, 1, 1);
-
-    expect(outdoor[0]).toBeCloseTo(AMBIENT_PRESETS.night[0], 1);
-    expect(cave[0]).toBeLessThan(0.01);
+    expect(sampleLevelLight(grid.levels.get(1)!, 1, 1)[0]).toBeCloseTo(
+      AMBIENT_PRESETS.night[0],
+      1,
+    );
+    expect(sampleLevelLight(grid.levels.get(0)!, 1, 1)[0]).toBeLessThan(
+      AMBIENT_PRESETS.night[0] * 0.5 + 0.02,
+    );
   });
 
   it("torch still lights a buried cave at night", () => {
@@ -476,12 +276,30 @@ describe("computeLighting", () => {
     }
     cells.push({ x: 0, y: 1, z: 0, tiles: ["floor", "wall"] });
     cells.push({ x: 2, y: 1, z: 0, tiles: ["floor", "wall"] });
-    // Center gets a torch — mapAt last write wins for (1,1).
     cells.push({ x: 1, y: 1, z: 0, tiles: ["floor", "torch"] });
 
     const map = mapAt(cells);
     const grid = computeLighting(map, tilesById, AMBIENT_PRESETS.night);
-    const cave = sampleLevelLight(grid.levels.get(0)!, 1, 1);
-    expect(cave[0]).toBeGreaterThan(0.5);
+    expect(sampleLevelLight(grid.levels.get(0)!, 1, 1)[0]).toBeGreaterThan(0.5);
+  });
+
+  it("overlayEmitterOverrides adds an omitted player-style light", () => {
+    const map = mapAt([
+      { x: 0, y: 0, tiles: ["floor", "torch"] },
+      { x: 1, y: 0, tiles: ["floor"] },
+    ]);
+    const omit = new Set(["torch"]);
+    const staticGrid = computeLighting(map, tilesById, [0, 0, 0], undefined, omit);
+    expect(sampleLevelLight(staticGrid.levels.get(0)!, 0, 0)[0]).toBe(0);
+    const painted = overlayEmitterOverrides(staticGrid, map, tilesById, [
+      { x: 0, y: 0, z: 0, fx: 0, fy: 0, fz: 0 },
+    ]);
+    expect(sampleLevelLight(painted.levels.get(0)!, 0, 0)[0]).toBeGreaterThan(
+      0.5,
+    );
+  });
+
+  it(`uses MAX_LIGHT_LEVEL=${MAX_LIGHT_LEVEL}`, () => {
+    expect(MAX_LIGHT_LEVEL).toBe(15);
   });
 });

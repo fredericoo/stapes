@@ -18,6 +18,15 @@ export const PERF_BUDGETS = {
   frameMsP95: 1,
   /** CI without a discrete GPU — looser timing; structure caps still apply. */
   frameMsP95Ci: 8,
+  /**
+   * Cold static lighting bake on fixture map (flood fill). Local p95.
+   * Asserted in `app/lib/lighting.perf.test.ts` — not the editor frame probe.
+   */
+  lightingBakeMsP95: 8,
+  lightingBakeMsP95Ci: 40,
+  /** Player light overlay atop cached bake. */
+  lightingOverlayMsP95: 3,
+  lightingOverlayMsP95Ci: 8,
 } as const;
 
 export type EditorPerfSnapshot = {
