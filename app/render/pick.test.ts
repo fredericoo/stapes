@@ -59,4 +59,23 @@ describe("indexInteractive", () => {
     ]);
     expect(indexInteractive(map, 0, tilesById)).toEqual([]);
   });
+
+  it("includes adjacent floors when levelSlack is 1", () => {
+    let map = replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "crate" },
+    ]);
+    map = replaceStack(map, 1, 0, 1, [{ tileId: "grass" }, { tileId: "crate" }]);
+    map = replaceStack(map, 2, 0, -1, [
+      { tileId: "grass" },
+      { tileId: "crate" },
+    ]);
+    map = replaceStack(map, 3, 0, 2, [{ tileId: "grass" }, { tileId: "crate" }]);
+
+    expect(indexInteractive(map, 0, tilesById, 1)).toEqual([
+      { ref: { x: 2, y: 0, z: -1, stackIndex: 1 }, elevation: 0 },
+      { ref: { x: 0, y: 0, z: 0, stackIndex: 1 }, elevation: 0 },
+      { ref: { x: 1, y: 0, z: 1, stackIndex: 1 }, elevation: 0 },
+    ]);
+  });
 });

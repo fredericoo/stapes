@@ -15,7 +15,7 @@ import {
 } from "./types";
 
 /** Euclidean cell radius around the view anchor for roof-hide checks. */
-export const VIEW_RADIUS = 2;
+export const VIEW_RADIUS = 2.5;
 
 const TRANSMISSION_EPSILON = 1e-3;
 
@@ -58,6 +58,10 @@ export function viewAnchorFromSnapshot(snap: ViewAnchorSnapshot): ViewAnchor {
   return { x: snap.player.x, y: snap.player.y, z: snap.player.z };
 }
 
+/**
+ * Same occlusion model as lighting: light-passing tiles are ignored, height
+ * maps to opacity, full walls seal the ray.
+ */
 function buildOcclusion(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -91,6 +95,32 @@ function hasContentAbove(
 }
 
 /**
+ * Same-floor LOS for roof-hide, matching light: intermediate cells attenuate
+ * by opacity, and a fully opaque destination (solid wall) blocks looking into
+ * that cell. Light-passing tiles (windows) stay see-through.
+ */
+function hideRayClear(
+  x0: number,
+  y0: number,
+  z: number,
+  x1: number,
+  y1: number,
+  occlusion: Map<string, CellOcclusion>,
+): boolean {
+  if (x0 === x1 && y0 === y1) return true;
+
+  const transmission = rayTransmission(x0, y0, z, x1, y1, z, occlusion);
+  if (transmission < TRANSMISSION_EPSILON) return false;
+
+  // rayTransmission skips the destination; a solid wall on the probe cell
+  // still means you cannot look through it into content above.
+  const dest = occlusion.get(cellKey(x1, y1, z));
+  if (dest && dest.opacity >= 1 - TRANSMISSION_EPSILON) return false;
+
+  return true;
+}
+
+/**
  * True when any cell within Euclidean `radius` of `view` has same-floor LOS
  * and content on a higher level — callers should then hide all z > view.z.
  */
@@ -112,18 +142,7 @@ export function levelsAboveShouldHide(
       const y = view.y + dy;
       if (!hasContentAbove(map, x, y, view.z)) continue;
 
-      if (x === view.x && y === view.y) return true;
-
-      const transmission = rayTransmission(
-        view.x,
-        view.y,
-        view.z,
-        x,
-        y,
-        view.z,
-        occlusion,
-      );
-      if (transmission >= TRANSMISSION_EPSILON) return true;
+      if (hideRayClear(view.x, view.y, view.z, x, y, occlusion)) return true;
     }
   }
 

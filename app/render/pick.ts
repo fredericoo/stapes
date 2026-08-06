@@ -3,6 +3,7 @@ import type { ObjectRef } from "../game/GameSession";
 import { isInteractive } from "../lib/interactions";
 import { getStack, listCoords } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
+import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 import {
   type SpriteQuadAssets,
   quadContains,
@@ -10,32 +11,38 @@ import {
 } from "./spriteQuad";
 
 /**
- * Every interactive placement on one level that can actually be acted on —
+ * Every interactive placement near `centerZ` that can actually be acted on —
  * only the top of its stack — with the elevation its sprite is drawn at.
- * Maps hold far more scenery than interactive objects, so the candidate list
- * is built once per map version rather than per pointer move.
+ * `levelSlack` includes floors above and below (game play uses 1). Maps hold
+ * far more scenery than interactive objects, so the candidate list is built
+ * once per map version rather than per pointer move.
  */
 export type InteractiveIndex = Array<{ ref: ObjectRef; elevation: number }>;
 
 export function indexInteractive(
   map: MapFile,
-  z: number,
+  centerZ: number,
   tilesById: Record<string, TileDef>,
+  levelSlack = 0,
 ): InteractiveIndex {
   const out: InteractiveIndex = [];
+  const zMin = Math.max(MIN_LEVEL, centerZ - levelSlack);
+  const zMax = Math.min(MAX_LEVEL, centerZ + levelSlack);
 
-  for (const { x, y } of listCoords(map, z)) {
-    const stack = getStack(map, x, y, z);
-    let elevation = 0;
-    stack.forEach((placed, stackIndex) => {
-      const def = tilesById[placed.tileId];
-      const drawnAt = elevation;
-      elevation += def?.height ?? 0;
-      // Buried under another tile: not hoverable, not draggable.
-      if (stackIndex !== stack.length - 1) return;
-      if (!def || !isInteractive(def)) return;
-      out.push({ ref: { x, y, z, stackIndex }, elevation: drawnAt });
-    });
+  for (let z = zMin; z <= zMax; z++) {
+    for (const { x, y } of listCoords(map, z)) {
+      const stack = getStack(map, x, y, z);
+      let elevation = 0;
+      stack.forEach((placed, stackIndex) => {
+        const def = tilesById[placed.tileId];
+        const drawnAt = elevation;
+        elevation += def?.height ?? 0;
+        // Buried under another tile: not hoverable, not draggable.
+        if (stackIndex !== stack.length - 1) return;
+        if (!def || !isInteractive(def)) return;
+        out.push({ ref: { x, y, z, stackIndex }, elevation: drawnAt });
+      });
+    }
   }
 
   return out;

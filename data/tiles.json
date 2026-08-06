@@ -1627,13 +1627,6 @@
     "type": "simple",
     "attributes": {},
     "affectedByGravity": true,
-    "interactions": {
-      "drag": {
-        "distanceTiles": 1.5,
-        "climb": "half",
-        "moveOnTileIds": []
-      }
-    },
     "sprite": {
       "frames": [
         {
@@ -2708,6 +2701,97 @@
               "rect": {
                 "x": 6,
                 "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "window-1",
+    "name": "Window",
+    "height": 2,
+    "type": "directional",
+    "attributes": {},
+    "lightPassing": true,
+    "walkable": false,
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "walls",
+              "rect": {
+                "x": 8,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "walls",
+              "rect": {
+                "x": 8,
+                "y": 2,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "walls",
+              "rect": {
+                "x": 8,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "walls",
+              "rect": {
+                "x": 8,
+                "y": 2,
                 "w": 2,
                 "h": 2
               },

@@ -69,7 +69,7 @@ export class GameRenderer {
   private raf = 0;
   private lastTime = 0;
   private running = false;
-  /** Interactive placements on the player's level, rebuilt when either changes. */
+  /** Interactive placements on the player's level ±1, rebuilt when either changes. */
   private interactive: InteractiveIndex = [];
   private interactiveKey = "";
   private indexedMap: MapFile | null = null;
@@ -218,7 +218,7 @@ export class GameRenderer {
     this.session.setHoveredObject(null);
   };
 
-  /** Interactive placements on the player's level, cached per map + level. */
+  /** Interactive placements on the player's level ±1, cached per map + level. */
   private interactiveIndex(snap: GameSnapshot): InteractiveIndex {
     const key = `${snap.player.z}`;
     if (this.indexedMap === snap.map && this.interactiveKey === key) {
@@ -226,7 +226,12 @@ export class GameRenderer {
     }
     this.indexedMap = snap.map;
     this.interactiveKey = key;
-    this.interactive = indexInteractive(snap.map, snap.player.z, this.tilesById);
+    this.interactive = indexInteractive(
+      snap.map,
+      snap.player.z,
+      this.tilesById,
+      1,
+    );
     return this.interactive;
   }
 

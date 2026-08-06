@@ -826,11 +826,24 @@ describe("GameSession drag", () => {
     expect(session.getSnapshot().hover).toBeNull();
   });
 
-  it("ignores a hover on another level", () => {
+  it("hovers an interactive object one floor above", () => {
     let map = mapWithCrate(3);
     map = replaceStack(map, 1, 0, 1, [{ tileId: "grass" }, { tileId: "crate" }]);
     const session = new GameSession(map, tiles);
     session.setHoveredObject({ x: 1, y: 0, z: 1, stackIndex: 1 });
+    expect(session.getSnapshot().hover).toEqual({
+      x: 1,
+      y: 0,
+      z: 1,
+      stackIndex: 1,
+    });
+  });
+
+  it("ignores a hover two floors away", () => {
+    let map = mapWithCrate(3);
+    map = replaceStack(map, 1, 0, 2, [{ tileId: "grass" }, { tileId: "crate" }]);
+    const session = new GameSession(map, tiles);
+    session.setHoveredObject({ x: 1, y: 0, z: 2, stackIndex: 1 });
     expect(session.getSnapshot().hover).toBeNull();
   });
 
@@ -854,11 +867,21 @@ describe("GameSession drag", () => {
     expect(session.beginDrag({ x: 2, y: 2, z: 0, stackIndex: 1 })).toBe(false);
   });
 
-  it("refuses to grab an object on another level", () => {
+  it("grabs an object one floor below", () => {
     let map = mapWithCrate(3);
-    map = replaceStack(map, 1, 0, 1, [{ tileId: "grass" }, { tileId: "crate" }]);
+    map = replaceStack(map, 1, 0, -1, [
+      { tileId: "grass" },
+      { tileId: "crate" },
+    ]);
     const session = new GameSession(map, tiles);
-    expect(session.beginDrag({ x: 1, y: 0, z: 1, stackIndex: 1 })).toBe(false);
+    expect(session.beginDrag({ x: 1, y: 0, z: -1, stackIndex: 1 })).toBe(true);
+  });
+
+  it("refuses to grab an object two floors away", () => {
+    let map = mapWithCrate(3);
+    map = replaceStack(map, 1, 0, 2, [{ tileId: "grass" }, { tileId: "crate" }]);
+    const session = new GameSession(map, tiles);
+    expect(session.beginDrag({ x: 1, y: 0, z: 2, stackIndex: 1 })).toBe(false);
   });
 
   it("refuses to grab a buried interactive object", () => {

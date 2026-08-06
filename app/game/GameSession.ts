@@ -95,6 +95,8 @@ export type GameSnapshot = {
  * so anything in the ring of 8 cells touching them is grabbable.
  */
 const GRAB_REACH_TILES = 1;
+/** Floors above/below the player that still count for hover and grab. */
+const INTERACT_LEVEL_SLACK = 1;
 
 type DragState = {
   object: ObjectRef;
@@ -153,13 +155,12 @@ export class GameSession {
 
   /**
    * Interactive object at a stack slot, if the player could be looking at it.
-   * Objects on any other level are invisible to the pointer — the player only
-   * reaches into the plane they are standing on. Buried under another tile is
-   * the same: only the top of a stack is hoverable or grabable.
+   * Reach extends one floor above and below the standing level. Buried under
+   * another tile is still out: only the top of a stack is hoverable or grabable.
    */
   private interactiveDefAt(ref: ObjectRef): TileDef | null {
     const loc = requireSinglePlayer(this.map);
-    if (ref.z !== loc.z) return null;
+    if (Math.abs(ref.z - loc.z) > INTERACT_LEVEL_SLACK) return null;
     const stack = getStack(this.map, ref.x, ref.y, ref.z);
     if (ref.stackIndex !== stack.length - 1) return null;
     const placed = stack[ref.stackIndex];
@@ -180,8 +181,8 @@ export class GameSession {
 
   /**
    * Can the player start dragging this object right now? Hover outlines every
-   * interactive object on the level as an affordance, but only objects in reach
-   * can actually be acted on.
+   * interactive object in level range as an affordance, but only objects in
+   * reach can actually be acted on.
    */
   canGrab(ref: ObjectRef): boolean {
     if (this.drag || this.slide || this.walk || this.fall) return false;
