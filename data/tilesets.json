@@ -33,5 +33,12 @@
     "file": "walls.png",
     "width": 160,
     "height": 64
+  },
+  {
+    "id": "floors",
+    "name": "floors",
+    "file": "floors.png",
+    "width": 160,
+    "height": 64
   }
 ]

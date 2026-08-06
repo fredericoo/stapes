@@ -2,6 +2,8 @@ import * as THREE from "three";
 import {
   DEPTH_MAX,
   DEPTH_MIN,
+  DEPTH_PLANE_BIAS,
+  DEPTH_PLANE_EAST_WEIGHT,
   DEPTH_STACK_BIAS,
   type DepthBox,
   PX_PER_HEIGHT,
@@ -44,7 +46,7 @@ const VERTS_PER_QUAD = 4;
 const BOX_COMPONENTS = 4;
 
 /** Both renderers must agree, or the same tile sorts differently in each. */
-export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v3";
+export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v4";
 
 function glsl(n: number): string {
   return Number.isInteger(n) ? `${n}.0` : `${n}`;
@@ -335,10 +337,17 @@ float faces = min(
   (vBox.y - depthPx.y) / ${glsl(PX_PER_HEIGHT)}
 );
 float surfaceElev = clamp(min(faces, vBox.w), vBox.z, vBox.w);
+// vBox.xy are the unshifted east/south edges of the base cell. When two flat
+// overhanging sprites share a pixel at the same elev, this restores S-then-E
+// painter order (merge draw order alone is not stable).
+float planeBias =
+  (vBox.y + vBox.x * ${glsl(DEPTH_PLANE_EAST_WEIGHT)}) *
+  ${glsl(DEPTH_PLANE_BIAS)};
 float rayDepth =
   (depthPx.x + depthPx.y) / ${glsl(CELL_SIZE)} +
   ${glsl(RAY_DEPTH_ELEV)} * surfaceElev +
-  vStack * ${glsl(DEPTH_STACK_BIAS)};
+  vStack * ${glsl(DEPTH_STACK_BIAS)} +
+  planeBias;
 gl_FragDepth = clamp(
   (${glsl(DEPTH_MAX)} - rayDepth) / ${glsl(DEPTH_MAX - DEPTH_MIN)},
   0.0,

@@ -186,6 +186,21 @@ export const DEPTH_MIN = -DEPTH_MAX;
 export const DEPTH_STACK_BIAS = 0.002;
 
 /**
+ * Multiplier on the box's south/east edges for coplanar cross-cell ties.
+ *
+ * Multi-cell sprites (base ≠ corner) overhang neighbouring cells. At a shared
+ * screen pixel two flat tiles can resolve the same {@link boxSurfaceElevation},
+ * so ray depth alone is a coin flip — merge order then looks "random". This
+ * bias restores painter order: south, then east, in front. Sized so one cell
+ * step (~{@link CELL_SIZE} × this) beats a few stack indices, while the whole
+ * map stays under one elev unit of {@link RAY_DEPTH_ELEV}.
+ */
+export const DEPTH_PLANE_BIAS = 0.0005;
+
+/** East contributes far less than south (south-major, matching {@link drawOrder}). */
+export const DEPTH_PLANE_EAST_WEIGHT = 1 / 1024;
+
+/**
  * Per-level stride for {@link depthStackBias}. Must beat any in-level
  * stackIndex, but keep
  * `(levelSpan * stride + maxIndex) * DEPTH_STACK_BIAS < RAY_DEPTH_ELEV`
@@ -219,6 +234,13 @@ export function snapToPixelCenter(v: number): number {
  * Mirrors the GLSL in `app/render/worldQuads.ts` — the reference the tests
  * assert against.
  */
+/** South-then-east coplanar nudge from a depth box's footprint edges. */
+export function planeDepthBias(box: DepthBox): number {
+  return (
+    (box.southPx + box.eastPx * DEPTH_PLANE_EAST_WEIGHT) * DEPTH_PLANE_BIAS
+  );
+}
+
 export function fragDepth(
   box: DepthBox,
   screenX: number,
@@ -228,7 +250,10 @@ export function fragDepth(
   const px = snapToPixelCenter(screenX);
   const py = snapToPixelCenter(screenY);
   const elev = boxSurfaceElevation(box, px, py);
-  const d = rayDepth(px, py, elev) + stackBias * DEPTH_STACK_BIAS;
+  const d =
+    rayDepth(px, py, elev) +
+    stackBias * DEPTH_STACK_BIAS +
+    planeDepthBias(box);
   const normalized = (DEPTH_MAX - d) / (DEPTH_MAX - DEPTH_MIN);
   return Math.max(0, Math.min(1, normalized));
 }

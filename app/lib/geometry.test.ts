@@ -107,6 +107,35 @@ describe("fragDepth", () => {
     );
   });
 
+  it("puts a southern coplanar overhang in front of its northern neighbour", () => {
+    // Height-0 multi-cell sprites share elev at overlap pixels; without a
+    // plane bias, depth is a coin flip (merge order looks random).
+    const north = depthBox(5, 9, 0, 0);
+    const south = depthBox(5, 10, 0, 0);
+    const sx = 5 * CELL_SIZE + 4;
+    const sy = 10 * CELL_SIZE + 2;
+    expectInFront(fragDepth(south, sx, sy), fragDepth(north, sx, sy));
+  });
+
+  it("puts an eastern coplanar overhang in front of its western neighbour", () => {
+    const west = depthBox(5, 10, 0, 0);
+    const east = depthBox(6, 10, 0, 0);
+    const sx = 6 * CELL_SIZE + 2;
+    const sy = 10 * CELL_SIZE + 4;
+    expectInFront(fragDepth(east, sx, sy), fragDepth(west, sx, sy));
+  });
+
+  it("still lets real elevation beat the south/east plane bias", () => {
+    const southFlat = depthBox(5, 11, 0, 0);
+    const northTall = depthBox(5, 10, 0, 2);
+    const sx = 5 * CELL_SIZE + 4;
+    const sy = 10 * CELL_SIZE + 4;
+    expectInFront(
+      fragDepth(northTall, sx, sy),
+      fragDepth(southFlat, sx, sy),
+    );
+  });
+
   /**
    * Depth must be uniform across an art pixel. A fragment is finer than a texel
    * once zoomed, so if depth varied within one, a crossing between two sprites
