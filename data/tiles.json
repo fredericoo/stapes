@@ -1592,6 +1592,13 @@
     "height": 1,
     "type": "simple",
     "attributes": {},
+    "interactions": {
+      "drag": {
+        "distanceTiles": 1.5,
+        "climb": "half",
+        "moveOnTileIds": []
+      }
+    },
     "sprite": {
       "frames": [
         {
@@ -1616,9 +1623,17 @@
   {
     "id": "cat",
     "name": "Cat",
-    "height": 2,
+    "height": 1,
     "type": "simple",
     "attributes": {},
+    "affectedByGravity": true,
+    "interactions": {
+      "drag": {
+        "distanceTiles": 1.5,
+        "climb": "half",
+        "moveOnTileIds": []
+      }
+    },
     "sprite": {
       "frames": [
         {

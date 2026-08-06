@@ -12769,6 +12769,9 @@
       "1,-3": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "cat"
         }
       ],
       "2,-3": [
@@ -12779,6 +12782,9 @@
       "3,-3": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "stone-wall"
         }
       ],
       "4,-3": [
@@ -28999,94 +29005,352 @@
           "tileId": "grass-2"
         }
       ],
-      "-34,-8": [
-        {
-          "tileId": "grass-2"
-        }
-      ],
-      "-33,-8": [
-        {
-          "tileId": "grass-2"
-        }
-      ],
-      "-35,-8": [
-        {
-          "tileId": "grass-2"
-        }
-      ],
-      "-36,-8": [
-        {
-          "tileId": "grass-2"
-        }
-      ],
-      "-36,-9": [
-        {
-          "tileId": "grass-2"
-        }
-      ],
-      "-35,-9": [
-        {
-          "tileId": "grass-2"
-        }
-      ],
-      "-34,-9": [
-        {
-          "tileId": "grass-2"
-        }
-      ],
-      "-33,-9": [
-        {
-          "tileId": "grass-2"
-        }
-      ],
-      "-32,-9": [
-        {
-          "tileId": "grass-2"
-        }
-      ],
-      "-32,-8": [
-        {
-          "tileId": "grass-2"
-        }
-      ],
-      "-32,-10": [
-        {
-          "tileId": "grass-2"
-        }
-      ],
       "-33,-10": [
         {
-          "tileId": "grass-2"
+          "tileId": "roof-2"
         }
       ],
       "-34,-10": [
         {
-          "tileId": "grass-2"
+          "tileId": "roof-2"
         }
       ],
       "-35,-10": [
         {
-          "tileId": "grass-2"
+          "tileId": "roof-2"
         }
       ],
       "-36,-10": [
         {
-          "tileId": "grass-2"
+          "tileId": "roof-2"
         }
       ],
       "-37,-10": [
         {
-          "tileId": "grass-2"
+          "tileId": "roof-2"
+        }
+      ],
+      "-37,-3": [
+        {
+          "tileId": "roof-1"
+        }
+      ],
+      "-36,-3": [
+        {
+          "tileId": "roof-1"
+        }
+      ],
+      "-35,-3": [
+        {
+          "tileId": "roof-1"
+        }
+      ],
+      "-34,-3": [
+        {
+          "tileId": "roof-1"
+        }
+      ],
+      "-33,-3": [
+        {
+          "tileId": "roof-1"
+        }
+      ],
+      "-32,-3": [
+        {
+          "tileId": "roof-1"
+        }
+      ],
+      "-32,-10": [
+        {
+          "tileId": "roof-2"
         }
       ],
       "-37,-9": [
         {
-          "tileId": "grass-2"
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
+        }
+      ],
+      "-36,-9": [
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
+        }
+      ],
+      "-35,-9": [
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
+        }
+      ],
+      "-34,-9": [
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
+        }
+      ],
+      "-33,-9": [
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
+        }
+      ],
+      "-32,-9": [
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
         }
       ],
       "-37,-8": [
         {
-          "tileId": "grass-2"
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
+        }
+      ],
+      "-36,-8": [
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
+        }
+      ],
+      "-35,-8": [
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
+        }
+      ],
+      "-34,-8": [
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
+        }
+      ],
+      "-33,-8": [
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
+        }
+      ],
+      "-32,-8": [
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
+        }
+      ],
+      "-37,-7": [
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
+        }
+      ],
+      "-36,-7": [
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
+        }
+      ],
+      "-35,-7": [
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
+        }
+      ],
+      "-34,-7": [
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
+        }
+      ],
+      "-33,-7": [
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
+        }
+      ],
+      "-32,-7": [
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
+        }
+      ],
+      "-37,-6": [
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
+        }
+      ],
+      "-36,-6": [
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
+        }
+      ],
+      "-35,-6": [
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
+        }
+      ],
+      "-34,-6": [
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
+        }
+      ],
+      "-33,-6": [
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
+        }
+      ],
+      "-32,-6": [
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
+        }
+      ],
+      "-37,-5": [
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
+        }
+      ],
+      "-36,-5": [
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
+        }
+      ],
+      "-35,-5": [
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
+        }
+      ],
+      "-34,-5": [
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
+        }
+      ],
+      "-33,-5": [
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
+        }
+      ],
+      "-32,-5": [
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
+        }
+      ],
+      "-37,-4": [
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
+        }
+      ],
+      "-36,-4": [
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
+        }
+      ],
+      "-35,-4": [
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
+        }
+      ],
+      "-34,-4": [
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
+        }
+      ],
+      "-33,-4": [
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
+        }
+      ],
+      "-32,-4": [
+        {
+          "tileId": "plaster"
+        },
+        {
+          "tileId": "plaster"
         }
       ]
     },

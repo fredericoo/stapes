@@ -4,10 +4,14 @@ import {
   getStack,
   isWalkableSurfaceAt,
 } from "../lib/mapData";
+import { isInteractive, resolveDrag } from "../lib/interactions";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
-import { MIN_LEVEL } from "../lib/types";
+import { MIN_LEVEL, coordKey } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
+import type { DragTargets } from "./drag";
+import { reachableDragTargets } from "./drag";
 import {
+  DRAG_STEP_MS,
   FALL_MS_PER_HEIGHT,
   MAX_CLIMB_HEIGHT,
   PLAYER_TILE_ID,
@@ -51,6 +55,28 @@ export type GameInput = {
   preferDescend?: boolean;
 };
 
+/** A specific placed tile in the map — cell plus slot in its stack. */
+export type ObjectRef = Coord & { stackIndex: number };
+
+export type DragSnapshot = {
+  object: ObjectRef;
+  /** `coordKey`s of every cell this drag can reach. */
+  targetKeys: string[];
+  /** Cell the pointer is over, legal or not. */
+  pointer: { x: number; y: number } | null;
+  /** Where the object would come to rest, or null when the pointer is illegal. */
+  target: Coord | null;
+};
+
+/** A dropped object travelling to where it was dragged, one tile at a time. */
+export type SlideSnapshot = {
+  object: ObjectRef;
+  from: Coord;
+  to: Coord;
+  /** 0–1 through the current tile. */
+  progress: number;
+};
+
 export type GameSnapshot = {
   map: MapFile;
   player: Coord & { stackIndex: number; direction: Direction };
@@ -58,6 +84,35 @@ export type GameSnapshot = {
   fall: FallState | null;
   walkProgress: number;
   fallProgress: number;
+  /** Interactive object under the pointer, if any. */
+  hover: ObjectRef | null;
+  drag: DragSnapshot | null;
+  slide: SlideSnapshot | null;
+};
+
+/**
+ * Reach in tiles, measured as a square around the player — diagonals count,
+ * so anything in the ring of 8 cells touching them is grabbable.
+ */
+const GRAB_REACH_TILES = 1;
+
+type DragState = {
+  object: ObjectRef;
+  targets: DragTargets;
+  pointer: { x: number; y: number } | null;
+};
+
+/**
+ * A released drag in flight. The object is committed one cell at a time so the
+ * map is always a legal state mid-slide, and the renderer lerps between them.
+ */
+type SlideState = {
+  /** Where the object sits right now — updated on every committed step. */
+  object: ObjectRef;
+  /** Remaining cells to travel through, in order. */
+  remaining: Coord[];
+  from: Coord;
+  elapsedMs: number;
 };
 
 /**
@@ -70,6 +125,9 @@ export class GameSession {
   private walk: WalkState | null = null;
   private fall: FallState | null = null;
   private accumulatorMs = 0;
+  private hovered: ObjectRef | null = null;
+  private drag: DragState | null = null;
+  private slide: SlideState | null = null;
 
   constructor(map: MapFile, tiles: TileDef[]) {
     this.map = structuredClone(map);
@@ -93,8 +151,156 @@ export class GameSession {
     }
   }
 
+  /**
+   * Interactive object at a stack slot, if the player could be looking at it.
+   * Objects on any other level are invisible to the pointer — the player only
+   * reaches into the plane they are standing on.
+   */
+  private interactiveDefAt(ref: ObjectRef): TileDef | null {
+    const loc = requireSinglePlayer(this.map);
+    if (ref.z !== loc.z) return null;
+    const placed = getStack(this.map, ref.x, ref.y, ref.z)[ref.stackIndex];
+    if (!placed) return null;
+    const def = this.tilesById[placed.tileId];
+    if (!def || !isInteractive(def)) return null;
+    return def;
+  }
+
+  /** Within arm's reach: any of the 8 cells touching the player, diagonals included. */
+  private withinReach(ref: ObjectRef): boolean {
+    const loc = requireSinglePlayer(this.map);
+    const dx = Math.abs(ref.x - loc.x);
+    const dy = Math.abs(ref.y - loc.y);
+    const rings = Math.max(dx, dy);
+    return rings > 0 && rings <= GRAB_REACH_TILES;
+  }
+
+  /**
+   * Can the player start dragging this object right now? Hover outlines every
+   * interactive object on the level as an affordance, but only objects in reach
+   * can actually be acted on.
+   */
+  canGrab(ref: ObjectRef): boolean {
+    if (this.drag || this.slide || this.walk || this.fall) return false;
+    const def = this.interactiveDefAt(ref);
+    return Boolean(def && resolveDrag(def) && this.withinReach(ref));
+  }
+
+  /** Renderer reports what the pointer is over; the session decides if it counts. */
+  setHoveredObject(ref: ObjectRef | null) {
+    this.hovered = ref && this.interactiveDefAt(ref) ? ref : null;
+  }
+
+  /** Start dragging an object. Returns false when the player cannot reach it. */
+  beginDrag(ref: ObjectRef): boolean {
+    if (!this.canGrab(ref)) return false;
+    const def = this.interactiveDefAt(ref);
+    const drag = def && resolveDrag(def);
+    if (!def || !drag) return false;
+
+    this.drag = {
+      object: ref,
+      targets: reachableDragTargets(this.map, ref, def, drag, this.tilesById),
+      pointer: null,
+    };
+    return true;
+  }
+
+  /** Cell the pointer is over mid-drag, in the object's own level plane. */
+  setDragPointer(cell: { x: number; y: number } | null) {
+    if (!this.drag) return;
+    this.drag.pointer = cell;
+  }
+
+  /** Drop the object if the pointer is on a reachable cell; otherwise put it back. */
+  endDrag() {
+    const active = this.drag;
+    this.drag = null;
+    if (!active?.pointer) return;
+
+    const target = active.targets.get(
+      coordKey(active.pointer.x, active.pointer.y),
+    );
+    if (!target || target.path.length === 0) return;
+
+    // Travels the path it was cleared for rather than teleporting; each cell
+    // is committed as it is reached, so the map is never in a halfway state.
+    this.slide = {
+      object: active.object,
+      remaining: [...target.path],
+      from: { x: active.object.x, y: active.object.y, z: active.object.z },
+      elapsedMs: 0,
+    };
+    // The outline rides along with it.
+    this.hovered = active.object;
+  }
+
+  cancelDrag() {
+    this.drag = null;
+  }
+
+  isDragging(): boolean {
+    return this.drag != null;
+  }
+
+  private tickSlide(tickMs: number) {
+    const slide = this.slide;
+    if (!slide) return;
+
+    slide.elapsedMs += tickMs;
+    while (this.slide && this.slide.elapsedMs >= DRAG_STEP_MS) {
+      this.slide.elapsedMs -= DRAG_STEP_MS;
+      this.commitSlideStep();
+    }
+  }
+
+  private commitSlideStep() {
+    const slide = this.slide;
+    if (!slide) return;
+
+    const next = slide.remaining.shift();
+    if (!next) {
+      this.slide = null;
+      return;
+    }
+
+    this.map = moveEntity(this.map, slide.object, next, undefined, this.tilesById);
+    const landed = {
+      ...next,
+      stackIndex: getStack(this.map, next.x, next.y, next.z).length - 1,
+    };
+    slide.object = landed;
+    slide.from = { x: next.x, y: next.y, z: next.z };
+    if (this.hovered) this.hovered = landed;
+
+    if (slide.remaining.length === 0) this.slide = null;
+  }
+
+  private slideSnapshot(): SlideSnapshot | null {
+    const slide = this.slide;
+    const to = slide?.remaining[0];
+    if (!slide || !to) return null;
+    return {
+      object: slide.object,
+      from: slide.from,
+      to,
+      progress: Math.min(
+        1,
+        (slide.elapsedMs + this.accumulatorMs) / DRAG_STEP_MS,
+      ),
+    };
+  }
+
   /** Single fixed tick. */
   tick(tickMs: number = TICK_MS) {
+    // Anything that moves the player invalidates the reach the drag was
+    // computed against, so physics wins and the grab is released.
+    if (this.drag && this.fall) this.drag = null;
+
+    // Independent of the player: a released object keeps travelling whatever
+    // the player does next.
+    this.tickSlide(tickMs);
+
     if (this.fall) {
       this.tickFall(tickMs);
       return;
@@ -136,6 +342,23 @@ export class GameSession {
       fallProgress: this.fall
         ? Math.min(1, (this.fall.elapsedMs + visualExtra) / FALL_MS_PER_HEIGHT)
         : 0,
+      hover: this.hovered,
+      drag: this.dragSnapshot(),
+      slide: this.slideSnapshot(),
+    };
+  }
+
+  private dragSnapshot(): DragSnapshot | null {
+    const active = this.drag;
+    if (!active) return null;
+    const pointer = active.pointer;
+    return {
+      object: active.object,
+      targetKeys: [...active.targets.keys()],
+      pointer,
+      target: pointer
+        ? active.targets.get(coordKey(pointer.x, pointer.y))?.to ?? null
+        : null,
     };
   }
 
@@ -164,6 +387,10 @@ export class GameSession {
   }
 
   private maybeStartWalk() {
+    // Hands are busy — walking away mid-drag would break the reach the drag
+    // targets were computed from.
+    if (this.drag) return;
+
     const dirs = this.input.directions;
     if (dirs.length === 0) return;
 

@@ -29,7 +29,9 @@ import {
   AutotileSlicePreview,
   autotileSliceTitle,
 } from "./AutotileSlicePreview";
-import { Button, Dialog, Input, Segmented, Select, Tabs } from "../ui";
+import { InteractiveTab } from "./InteractiveTab";
+import { interactionsForSave } from "../lib/interactions";
+import { Button, Dialog, Input, Segmented, Select, TabPanel, Tabs } from "../ui";
 
 function emptyFrame(tilesetId: string): Frame {
   const rect = { x: 0, y: 0, w: 1, h: 1 };
@@ -148,16 +150,22 @@ type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   tile: TileDef | null;
+  /** Whole library — the interactive tab picks tile ids out of it. */
+  tiles: TileDef[];
   tilesets: TilesetDef[];
   isNew: boolean;
   onSave: (tile: TileDef) => void;
   onDelete?: () => void;
 };
 
+const TAB_TILE = "tile";
+const TAB_INTERACTIVE = "interactive";
+
 export function TileEditorDialog({
   open,
   onOpenChange,
   tile,
+  tiles,
   tilesets,
   isNew,
   onSave,
@@ -166,6 +174,7 @@ export function TileEditorDialog({
   const [draft, setDraft] = useState<TileDef>(() =>
     withLightingDefaults(tile ?? blankTile(tilesets)),
   );
+  const [tab, setTab] = useState(TAB_TILE);
   const [dir, setDir] = useState<Direction>("n");
   const [slice, setSlice] = useState<AutotileSlice>(0);
   const [frameIndex, setFrameIndex] = useState(0);
@@ -175,6 +184,7 @@ export function TileEditorDialog({
     if (!open) return;
     const next = withLightingDefaults(tile ?? blankTile(tilesets));
     setDraft(next);
+    setTab(TAB_TILE);
     setDir("n");
     setSlice(0);
     setFrameIndex(0);
@@ -350,6 +360,7 @@ export function TileEditorDialog({
       affectedByGravity: draft.affectedByGravity ? true : undefined,
       walkable: draft.walkable === false ? false : undefined,
       climbFrom: climbFromForSave(draft, climbByVariant),
+      interactions: interactionsForSave(draft.interactions),
     };
 
     if (draft.type === "simple" && draft.sprite) {
@@ -610,6 +621,33 @@ export function TileEditorDialog({
       }
     >
       <div className="flex flex-col gap-3">
+        {error ? (
+          <div className="border-2 border-danger bg-danger/10 px-2 py-1 text-sm text-danger">
+            {error}
+          </div>
+        ) : null}
+
+        <Tabs
+          value={tab}
+          onValueChange={setTab}
+          items={[
+            { value: TAB_TILE, label: "Tile" },
+            {
+              value: TAB_INTERACTIVE,
+              label: draft.interactions?.drag ? "Interactive •" : "Interactive",
+            },
+          ]}
+        >
+          <TabPanel value={TAB_INTERACTIVE}>
+            <InteractiveTab
+              draft={draft}
+              onChange={setDraft}
+              tiles={tiles}
+              tilesets={tilesets}
+            />
+          </TabPanel>
+
+          <TabPanel value={TAB_TILE} className="flex flex-col gap-3">
         <div className="flex flex-wrap items-end gap-3">
           <label className="flex flex-col gap-1 text-xs">
             <span className="font-bold uppercase text-muted">Id</span>
@@ -687,12 +725,6 @@ export function TileEditorDialog({
             Walkable
           </label>
         </div>
-
-        {error ? (
-          <div className="border-2 border-danger bg-danger/10 px-2 py-1 text-sm text-danger">
-            {error}
-          </div>
-        ) : null}
 
         {!isDirectional(draft) ? climbPad : null}
 
@@ -811,6 +843,8 @@ export function TileEditorDialog({
             {frameEditor}
           </div>
         )}
+          </TabPanel>
+        </Tabs>
       </div>
     </Dialog>
   );

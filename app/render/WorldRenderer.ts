@@ -15,7 +15,7 @@ import {
   type LightGrid,
   type TimeOfDay,
 } from "../lib/lighting";
-import { listCoords } from "../lib/mapData";
+import { getStack, listCoords, stackHeight } from "../lib/mapData";
 import type { Frame, MapFile, TileDef, TilesetDef } from "../lib/types";
 import {
   CELL_SIZE,
@@ -37,6 +37,13 @@ import {
   injectWorldShader,
   writeBoxAttr,
 } from "./worldQuads";
+import {
+  OVERLAY_RENDER_ORDER,
+  disposeGroupChildren,
+  makeSpriteMesh,
+  makeSpriteOutline,
+} from "./overlayMeshes";
+import { type SpriteQuadAssets, spriteQuadFor } from "./spriteQuad";
 
 type AnimatedInstance = {
   mesh: THREE.Mesh;
@@ -109,6 +116,35 @@ export type WorldView = {
   hideLevelsAbove?: number;
 };
 
+/** Silhouette outline around one placed tile, drawn over the finished frame. */
+export type ObjectOutlineOverlay = TileInstanceKey & {
+  kind: "objectOutline";
+  color: number;
+};
+
+/**
+ * Translucent copy of a placed tile drawn where it would end up. Its presence
+ * *is* the "you can drop here" signal — no ghost means no legal drop.
+ */
+export type GhostOverlay = {
+  kind: "ghost";
+  /** Tile to copy, at its current home in the map. */
+  object: TileInstanceKey;
+  /** Cell it would come to rest in. */
+  to: { x: number; y: number; z: number };
+  opacity: number;
+};
+
+export type OverlaySpec = ObjectOutlineOverlay | GhostOverlay;
+
+function overlaySpecKey(spec: OverlaySpec): string {
+  if (spec.kind === "ghost") {
+    const { object: o, to } = spec;
+    return `g:${o.x},${o.y},${o.z},${o.stackIndex}>${to.x},${to.y},${to.z}`;
+  }
+  return `o:${spec.x},${spec.y},${spec.z},${spec.stackIndex}:${spec.color}`;
+}
+
 /** Stable cache key for fractional emitter overrides (~0.01 cell). */
 function emitterOverridesKey(
   overrides: EmitterOverride[] | undefined,
@@ -143,6 +179,10 @@ export class WorldRenderer {
   private scene: THREE.Scene;
   private camera: THREE.OrthographicCamera;
   private world: THREE.Group;
+  private overlayScene: THREE.Scene;
+  private overlays: THREE.Group;
+  /** null forces a rebuild; "" is the valid signature of an empty overlay set. */
+  private overlaySig: string | null = null;
   private textures = new Map<string, THREE.Texture>();
   private materials = new Map<string, THREE.MeshBasicMaterial>();
   private tilesets: TilesetDef[] = [];
@@ -210,6 +250,13 @@ export class WorldRenderer {
     this.world = new THREE.Group();
     this.scene.add(this.world);
 
+    // Chrome lives in its own scene so it can be drawn after the palette
+    // quantise, keeping outline colours exact instead of snapped to the ramp.
+    this.overlayScene = new THREE.Scene();
+    this.overlayScene.matrixWorldAutoUpdate = false;
+    this.overlays = new THREE.Group();
+    this.overlayScene.add(this.overlays);
+
     const data = new Uint8Array([255, 0, 255, 255]);
     this.magentaTex = new THREE.DataTexture(data, 1, 1, THREE.RGBAFormat);
     this.magentaTex.magFilter = THREE.NearestFilter;
@@ -271,6 +318,98 @@ export class WorldRenderer {
     this.needsRender = true;
   }
 
+  /** Asset handles the shared sprite-quad builder needs. */
+  quadAssets(): SpriteQuadAssets {
+    return {
+      tilesetById: this.tilesetById,
+      textures: this.textures,
+      fallbackTexture: this.magentaTex,
+      frameIndices: this.frameIndices,
+    };
+  }
+
+  /**
+   * Replace the chrome layer. Rebuilding allocates throwaway meshes, so a
+   * signature gates it — this is called every frame from the play loop.
+   */
+  setOverlays(specs: OverlaySpec[]) {
+    const sig = specs.map(overlaySpecKey).join("|");
+    if (sig === this.overlaySig) return;
+    this.overlaySig = sig;
+
+    disposeGroupChildren(this.overlays);
+    for (const spec of specs) this.addOverlay(spec);
+    // Scene has matrixWorldAutoUpdate=false — without this the meshes keep an
+    // identity matrixWorld and all draw at the world origin.
+    this.overlays.updateMatrixWorld(true);
+    this.needsRender = true;
+  }
+
+  /** The placed tile an overlay refers to, plus the elevation it is drawn at. */
+  private overlaySubject(key: TileInstanceKey) {
+    const map = this.view?.map;
+    if (!map) return null;
+    const stack = getStack(map, key.x, key.y, key.z);
+    const placed = stack[key.stackIndex];
+    const def = placed && this.tilesById[placed.tileId];
+    if (!placed || !def) return null;
+    return {
+      map,
+      placed,
+      def,
+      elevation: stackHeight(stack.slice(0, key.stackIndex), this.tilesById),
+    };
+  }
+
+  private addOverlay(spec: OverlaySpec) {
+    if (spec.kind === "ghost") {
+      this.addGhostOverlay(spec);
+      return;
+    }
+
+    const subject = this.overlaySubject(spec);
+    if (!subject) return;
+    const quad = spriteQuadFor(
+      this.quadAssets(),
+      subject.map,
+      { x: spec.x, y: spec.y, z: spec.z, elevation: subject.elevation },
+      subject.placed,
+      subject.def,
+    );
+    if (quad) this.overlays.add(makeSpriteOutline(quad, spec.color));
+  }
+
+  private addGhostOverlay(spec: GhostOverlay) {
+    const subject = this.overlaySubject(spec.object);
+    if (!subject) return;
+
+    const { to } = spec;
+    // Sits on whatever is already in the destination cell — the object is
+    // still parked at its origin, so the stack there is exactly what it lands on.
+    const elevation = stackHeight(
+      getStack(subject.map, to.x, to.y, to.z),
+      this.tilesById,
+    );
+    const quad = spriteQuadFor(
+      this.quadAssets(),
+      subject.map,
+      { x: to.x, y: to.y, z: to.z, elevation },
+      subject.placed,
+      subject.def,
+    );
+    if (!quad) return;
+
+    this.overlays.add(
+      makeSpriteMesh(quad, {
+        color: 0xffffff,
+        opacity: spec.opacity,
+        blending: THREE.NormalBlending,
+        renderOrder: OVERLAY_RENDER_ORDER.spriteFill,
+        alphaTest: 0.5,
+      }),
+    );
+  }
+
   /** Toggle whole level groups; no mesh rebuild. */
   private applyLevelVisibility(hideLevelsAbove?: number) {
     this.hideLevelsAbove = hideLevelsAbove;
@@ -282,7 +421,11 @@ export class WorldRenderer {
 
   /** Advance sprite animations; call from the host rAF loop. */
   tick(dt: number) {
-    if (this.updateAnimations(dt)) this.needsRender = true;
+    if (!this.updateAnimations(dt)) return;
+    this.needsRender = true;
+    // Outline quads are cut from the frame on screen, so a frame flip has to
+    // rebuild them even though the overlay spec itself has not changed.
+    this.overlaySig = null;
   }
 
   start() {
@@ -324,6 +467,14 @@ export class WorldRenderer {
     r.clear();
     r.render(this.scene, this.camera);
     this.palettePass.blitToCanvas(r);
+
+    // Quantise before chrome so hover outlines and target squares keep their
+    // exact colour instead of snapping to the nearest palette entry.
+    if (this.overlays.children.length > 0) {
+      r.autoClear = false;
+      r.render(this.overlayScene, this.camera);
+      r.autoClear = true;
+    }
   }
 
   isReady(): boolean {
@@ -331,6 +482,9 @@ export class WorldRenderer {
   }
 
   getCameraSize(): { canvasW: number; canvasH: number } {
+    // Measured here rather than trusted from the last frame — pointer picking
+    // asks for this between frames, and before the first one.
+    this.updateCanvasSize();
     return { canvasW: this.canvasW, canvasH: this.canvasH };
   }
 
@@ -339,6 +493,7 @@ export class WorldRenderer {
     this.stop();
     this.resizeObserver?.disconnect();
     this.palettePass.dispose();
+    disposeGroupChildren(this.overlays);
     this.renderer.dispose();
     for (const tex of this.textures.values()) tex.dispose();
     for (const mat of this.materials.values()) mat.dispose();
@@ -467,6 +622,8 @@ export class WorldRenderer {
 
   private applyMap(map: MapFile, force: boolean) {
     if (!force && map === this.prevMap) return;
+    // Stacks moved under the chrome — whatever it was anchored to may be gone.
+    this.overlaySig = null;
     if (!force && this.prevMap) {
       this.rebuildDirty(map);
     } else {

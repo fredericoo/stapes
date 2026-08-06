@@ -1,3 +1,5 @@
+import type { TileInteractions } from "./interactions";
+
 export type Direction = "n" | "e" | "s" | "w";
 
 export const DIRECTIONS: Direction[] = ["n", "e", "s", "w"];
@@ -84,6 +86,12 @@ export type TileDef = {
    * for each placement facing. Missing dirs default to true.
    */
   climbFrom?: Partial<Record<VariantKey, Partial<Record<Direction, boolean>>>>;
+  /**
+   * What the player can do with this object in play mode. Absent → inert.
+   * Read through `resolveDrag` / `isInteractive` in ./interactions, which
+   * validate the on-disk shape.
+   */
+  interactions?: TileInteractions;
   /** type === "simple" */
   sprite?: TileSprite;
   /** type === "directional" */
@@ -261,6 +269,7 @@ export function normalizeTileDef(raw: unknown): TileDef {
     affectedByGravity?: boolean;
     walkable?: boolean;
     climbFrom?: TileDef["climbFrom"];
+    interactions?: TileInteractions;
   };
 
   const light = legacy.light;
@@ -276,6 +285,7 @@ export function normalizeTileDef(raw: unknown): TileDef {
     affectedByGravity: legacy.affectedByGravity,
     walkable: legacy.walkable,
     climbFrom: legacy.climbFrom,
+    interactions: legacy.interactions,
   };
 
   if (type === "directional") {

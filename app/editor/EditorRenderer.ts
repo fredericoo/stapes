@@ -51,6 +51,19 @@ import {
   createPaletteDitherCompositeMaterial,
   PalettePass,
 } from "../render/palettePass";
+import {
+  OVERLAY_RENDER_ORDER,
+  type SpriteMeshOptions,
+  disposeGroupChildren,
+  makeRectOutline,
+  makeSpriteMesh,
+  makeSpriteOutline,
+} from "../render/overlayMeshes";
+import {
+  type SpriteQuad,
+  type SpriteQuadAssets,
+  spriteQuadFor,
+} from "../render/spriteQuad";
 
 type AnimatedInstance = {
   mesh: THREE.Mesh;
@@ -63,18 +76,6 @@ type AnimatedInstance = {
 };
 
 /** A textured rectangle in world pixels, ready to be turned into a mesh. */
-type SpriteQuad = {
-  x: number;
-  y: number;
-  w: number;
-  h: number;
-  texture: THREE.Texture;
-  u0: number;
-  v0: number;
-  u1: number;
-  v1: number;
-};
-
 const BACKGROUND_COLOR = 0xb8b09e;
 
 const GHOST_OPACITY = 0.55;
@@ -774,16 +775,8 @@ export class EditorRenderer {
     if (sig === this.overlaySig) return;
     this.overlaySig = sig;
 
-    while (this.overlays.children.length) {
-      const c = this.overlays.children.pop()!;
-      const mesh = c as THREE.Mesh;
-      mesh.geometry?.dispose();
-      const mat = mesh.material as THREE.Material | THREE.Material[];
-      if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
-      else mat?.dispose?.();
-    }
+    disposeGroupChildren(this.overlays);
 
-    /** Axis-aligned outline in world pixels — LineLoop, not EdgesGeometry (unreliable with Y-down ortho). */
     const addRectOutline = (
       originX: number,
       originY: number,
@@ -792,151 +785,17 @@ export class EditorRenderer {
       color: number,
       heavy = false,
     ) => {
-      const makeLine = (ox: number, oy: number, ww: number, hh: number, opacity: number) => {
-        const pts = [
-          new THREE.Vector3(ox, oy, 0),
-          new THREE.Vector3(ox + ww, oy, 0),
-          new THREE.Vector3(ox + ww, oy + hh, 0),
-          new THREE.Vector3(ox, oy + hh, 0),
-          new THREE.Vector3(ox, oy, 0),
-        ];
-        const line = new THREE.Line(
-          new THREE.BufferGeometry().setFromPoints(pts),
-          new THREE.LineBasicMaterial({
-            color,
-            transparent: true,
-            opacity,
-            depthTest: false,
-            depthWrite: false,
-          }),
-        );
-        line.renderOrder = 1_000_000_020;
-        line.matrixAutoUpdate = false;
-        line.updateMatrix();
+      for (const line of makeRectOutline(originX, originY, w, h, color, heavy)) {
         this.overlays.add(line);
-      };
-      makeLine(originX, originY, w, h, 1);
-      if (heavy) {
-        makeLine(originX + 0.5, originY + 0.5, w - 1, h - 1, 0.85);
       }
     };
 
-    const addSprite = (
-      q: SpriteQuad,
-      opts: {
-        color: number;
-        opacity: number;
-        blending: THREE.Blending;
-        renderOrder: number;
-        /** Match world cutouts when covering lit tiles. */
-        alphaTest?: number;
-      },
-    ) => {
-      const geo = new THREE.PlaneGeometry(q.w, q.h);
-      const uvs = geo.attributes.uv!;
-      uvs.setXY(0, q.u0, q.v0);
-      uvs.setXY(1, q.u1, q.v0);
-      uvs.setXY(2, q.u0, q.v1);
-      uvs.setXY(3, q.u1, q.v1);
-      uvs.needsUpdate = true;
-
-      const mat = new THREE.MeshBasicMaterial({
-        map: q.texture,
-        color: opts.color,
-        transparent: true,
-        opacity: opts.opacity,
-        blending: opts.blending,
-        depthTest: false,
-        depthWrite: false,
-        side: THREE.DoubleSide,
-        alphaTest: opts.alphaTest ?? 0,
-      });
-
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.set(q.x + q.w / 2, q.y + q.h / 2, 0);
-      mesh.renderOrder = opts.renderOrder;
-      mesh.matrixAutoUpdate = false;
-      mesh.updateMatrix();
-      this.overlays.add(mesh);
+    const addSprite = (q: SpriteQuad, opts: SpriteMeshOptions) => {
+      this.overlays.add(makeSpriteMesh(q, opts));
     };
 
-    /**
-     * 1px outer silhouette outline via alpha edge detect.
-     * Mesh is padded 1 world-px; UVs outside the sprite rect count as
-     * transparent so neighbouring atlas tiles never bleed in.
-     */
     const addSpriteOutline = (q: SpriteQuad, color: number) => {
-      const pad = 1;
-      const du = (q.u1 - q.u0) / q.w;
-      const dv = (q.v1 - q.v0) / q.h;
-      const geo = new THREE.PlaneGeometry(q.w + pad * 2, q.h + pad * 2);
-      const uvs = geo.attributes.uv!;
-      uvs.setXY(0, q.u0 - du * pad, q.v0 - dv * pad);
-      uvs.setXY(1, q.u1 + du * pad, q.v0 - dv * pad);
-      uvs.setXY(2, q.u0 - du * pad, q.v1 + dv * pad);
-      uvs.setXY(3, q.u1 + du * pad, q.v1 + dv * pad);
-      uvs.needsUpdate = true;
-
-      const mat = new THREE.ShaderMaterial({
-        uniforms: {
-          map: { value: q.texture },
-          uUvMin: { value: new THREE.Vector2(q.u0, q.v0) },
-          uUvMax: { value: new THREE.Vector2(q.u1, q.v1) },
-          uPx: { value: new THREE.Vector2(du, dv) },
-          uColor: { value: new THREE.Color(color) },
-        },
-        vertexShader: /* glsl */ `
-          varying vec2 vUv;
-          void main() {
-            vUv = uv;
-            gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
-          }
-        `,
-        fragmentShader: /* glsl */ `
-          uniform sampler2D map;
-          uniform vec2 uUvMin;
-          uniform vec2 uUvMax;
-          uniform vec2 uPx;
-          uniform vec3 uColor;
-          varying vec2 vUv;
-
-          float sampleA(vec2 uv) {
-            if (uv.x < uUvMin.x || uv.x >= uUvMax.x ||
-                uv.y < uUvMin.y || uv.y >= uUvMax.y) {
-              return 0.0;
-            }
-            return texture2D(map, uv).a;
-          }
-
-          void main() {
-            // Outer ring only — opaque texels belong to the sprite itself.
-            if (sampleA(vUv) >= 0.5) discard;
-
-            // 4-connected only: including diagonals fattens stair-step edges
-            // (corner-touch pixels fill the staircase and read as ~2px thick).
-            float n = max(
-              max(sampleA(vUv + vec2(-uPx.x, 0.0)), sampleA(vUv + vec2(uPx.x, 0.0))),
-              max(sampleA(vUv + vec2(0.0, -uPx.y)), sampleA(vUv + vec2(0.0, uPx.y)))
-            );
-            if (n < 0.5) discard;
-
-            gl_FragColor = vec4(uColor, 1.0);
-            #include <colorspace_fragment>
-          }
-        `,
-        transparent: true,
-        depthTest: false,
-        depthWrite: false,
-        side: THREE.DoubleSide,
-        toneMapped: false,
-      });
-
-      const mesh = new THREE.Mesh(geo, mat);
-      mesh.position.set(q.x + q.w / 2, q.y + q.h / 2, 0);
-      mesh.renderOrder = 1_000_000_015;
-      mesh.matrixAutoUpdate = false;
-      mesh.updateMatrix();
-      this.overlays.add(mesh);
+      this.overlays.add(makeSpriteOutline(q, color));
     };
 
     const z = s.currentLevel;
@@ -996,14 +855,14 @@ export class EditorRenderer {
           color: 0xffffff,
           opacity: 1,
           blending: THREE.NormalBlending,
-          renderOrder: 1_000_000_010,
+          renderOrder: OVERLAY_RENDER_ORDER.spriteFill,
           alphaTest: 0.5,
         });
         addSprite(quad, {
           color: 0xffffff,
           opacity: 0.08,
           blending: THREE.AdditiveBlending,
-          renderOrder: 1_000_000_011,
+          renderOrder: OVERLAY_RENDER_ORDER.spriteLift,
         });
 
         if (stackIndex === brush.length - 1) {
@@ -1102,10 +961,16 @@ export class EditorRenderer {
     return [];
   }
 
-  /**
-   * World-space quad for a placed tile, resolved against the frame that is on
-   * screen right now so overlays stay in step with animated tiles.
-   */
+  /** Asset handles the shared sprite-quad builder needs. */
+  private quadAssets(): SpriteQuadAssets {
+    return {
+      tilesetById: this.tilesetById,
+      textures: this.textures,
+      fallbackTexture: this.magentaTex,
+      frameIndices: this.frameIndices,
+    };
+  }
+
   private spriteQuad(
     placed: PlacedTile,
     def: TileDef,
@@ -1115,43 +980,13 @@ export class EditorRenderer {
     elevation: number,
     map: MapFile,
   ): SpriteQuad | null {
-    const frames = getFrames(def, {
-      direction: placed.direction,
+    return spriteQuadFor(
+      this.quadAssets(),
       map,
-      x,
-      y,
-      z,
-    });
-    let frame = frames?.[0];
-    if (frames && frames.length > 1) {
-      const key =
-        def.type === "autotile"
-          ? `${def.id}:${x},${y},${z}`
-          : `${def.id}:${placed.direction ?? "default"}`;
-      frame = frames[this.frameIndices.get(key) ?? 0] ?? frames[0];
-    }
-    if (!frame) return null;
-
-    const tileset = this.tilesetById.get(frame.sprite.tilesetId);
-    const { rect } = frame.sprite;
-    const tw = tileset?.width ?? CELL_SIZE;
-    const th = tileset?.height ?? CELL_SIZE;
-    const origin = spriteWorldOrigin(
-      baseCellWorldOrigin(x, y, z, elevation),
-      frame.sprite.base,
+      { x, y, z, elevation },
+      placed,
+      def,
     );
-
-    return {
-      x: origin.x,
-      y: origin.y,
-      w: rect.w * CELL_SIZE,
-      h: rect.h * CELL_SIZE,
-      texture: (tileset && this.textures.get(tileset.id)) || this.magentaTex,
-      u0: (rect.x * CELL_SIZE) / tw,
-      u1: ((rect.x + rect.w) * CELL_SIZE) / tw,
-      v0: 1 - ((rect.y + rect.h) * CELL_SIZE) / th,
-      v1: 1 - (rect.y * CELL_SIZE) / th,
-    };
   }
 
   private rectList(x0: number, y0: number, x1: number, y1: number) {

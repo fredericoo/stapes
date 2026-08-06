@@ -167,6 +167,7 @@ export default function TilesPage() {
           }
         }}
         tile={editing}
+        tiles={tiles}
         tilesets={tilesets}
         isNew={isNew}
         onSave={(tile) => {

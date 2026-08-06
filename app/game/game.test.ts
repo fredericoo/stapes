@@ -7,7 +7,11 @@ import {
   fitsTile,
   tilesByIdFromList,
 } from "../lib/validation";
-import { FALL_MS_PER_HEIGHT, WALK_DURATION_MS } from "./constants";
+import {
+  DRAG_STEP_MS,
+  FALL_MS_PER_HEIGHT,
+  WALK_DURATION_MS,
+} from "./constants";
 import { GameSession } from "./GameSession";
 import { findLandingAbs, isSupported } from "./gravity";
 import { canWalk, standingAbs } from "./movement";
@@ -94,6 +98,12 @@ const tiles: TileDef[] = [
   }),
   tile({ id: "dwarf", height: 1, affectedByGravity: true }),
   tile({ id: "tree", height: 2, walkable: false }),
+  tile({
+    id: "crate",
+    height: 1,
+    affectedByGravity: true,
+    interactions: { drag: { distanceTiles: 2, climb: "half", moveOnTileIds: [] } },
+  }),
   tile({
     id: "ramp",
     height: 1,
@@ -758,5 +768,201 @@ describe("GameSession faceOnly and slide", () => {
     expect(snap.fall).toBeNull();
     // Slid onto grass east of the tree.
     expect(snap.player).toMatchObject({ x: 1, y: 0, z: 0 });
+  });
+});
+
+describe("GameSession drag", () => {
+  /** Grass row y=0, player at (0,0), crate at (crateX,0). */
+  function mapWithCrate(crateX: number, width = 5): MapFile {
+    let map = emptyMap();
+    for (let x = 0; x < width; x++) {
+      map = replaceStack(map, x, 0, 0, [{ tileId: "grass" }]);
+      map = replaceStack(map, x, 1, 0, [{ tileId: "grass" }]);
+    }
+    map = replaceStack(map, 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "player", direction: "e" },
+    ]);
+    map = replaceStack(map, crateX, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "crate" },
+    ]);
+    return map;
+  }
+
+  const crateRef = (x: number) => ({ x, y: 0, z: 0, stackIndex: 1 });
+
+  /** Drive fixed ticks until a released drag has finished travelling. */
+  function runSlide(session: GameSession, steps: number) {
+    let elapsed = 0;
+    const budget = DRAG_STEP_MS * steps + 80;
+    while (elapsed < budget) {
+      session.tick(1000 / 30);
+      elapsed += 1000 / 30;
+    }
+  }
+
+  it("hovers an interactive object on the player's level", () => {
+    const session = new GameSession(mapWithCrate(1), tiles);
+    session.setHoveredObject(crateRef(1));
+    expect(session.getSnapshot().hover).toEqual(crateRef(1));
+  });
+
+  it("ignores a hover on a non-interactive tile", () => {
+    const session = new GameSession(mapWithCrate(1), tiles);
+    session.setHoveredObject({ x: 2, y: 0, z: 0, stackIndex: 0 });
+    expect(session.getSnapshot().hover).toBeNull();
+  });
+
+  it("ignores a hover on another level", () => {
+    let map = mapWithCrate(3);
+    map = replaceStack(map, 1, 0, 1, [{ tileId: "grass" }, { tileId: "crate" }]);
+    const session = new GameSession(map, tiles);
+    session.setHoveredObject({ x: 1, y: 0, z: 1, stackIndex: 1 });
+    expect(session.getSnapshot().hover).toBeNull();
+  });
+
+  it("refuses to grab an object two cells away", () => {
+    const session = new GameSession(mapWithCrate(2), tiles);
+    expect(session.beginDrag(crateRef(2))).toBe(false);
+    expect(session.getSnapshot().drag).toBeNull();
+  });
+
+  it("grabs an object on the diagonal", () => {
+    let map = mapWithCrate(3);
+    map = replaceStack(map, 1, 1, 0, [{ tileId: "grass" }, { tileId: "crate" }]);
+    const session = new GameSession(map, tiles);
+    expect(session.beginDrag({ x: 1, y: 1, z: 0, stackIndex: 1 })).toBe(true);
+  });
+
+  it("refuses a diagonal two rings out", () => {
+    let map = mapWithCrate(4);
+    map = replaceStack(map, 2, 2, 0, [{ tileId: "grass" }, { tileId: "crate" }]);
+    const session = new GameSession(map, tiles);
+    expect(session.beginDrag({ x: 2, y: 2, z: 0, stackIndex: 1 })).toBe(false);
+  });
+
+  it("refuses to grab an object on another level", () => {
+    let map = mapWithCrate(3);
+    map = replaceStack(map, 1, 0, 1, [{ tileId: "grass" }, { tileId: "crate" }]);
+    const session = new GameSession(map, tiles);
+    expect(session.beginDrag({ x: 1, y: 0, z: 1, stackIndex: 1 })).toBe(false);
+  });
+
+  it("grabs an orthogonally adjacent object and offers its reach", () => {
+    const session = new GameSession(mapWithCrate(1), tiles);
+    expect(session.beginDrag(crateRef(1))).toBe(true);
+
+    const drag = session.getSnapshot().drag;
+    expect(drag).not.toBeNull();
+    // distanceTiles 2 from (1,0): east to (2,0)/(3,0) and south to (1,1)/(2,1).
+    expect(drag?.targetKeys).toContain("3,0");
+    expect(drag?.targetKeys).not.toContain("4,0");
+    // The player is standing on (0,0), so the crate cannot be pushed into them.
+    expect(drag?.targetKeys).not.toContain("0,0");
+  });
+
+  it("marks the pointer cell valid or invalid", () => {
+    const session = new GameSession(mapWithCrate(1), tiles);
+    session.beginDrag(crateRef(1));
+
+    session.setDragPointer({ x: 2, y: 0 });
+    expect(session.getSnapshot().drag?.target).toEqual({ x: 2, y: 0, z: 0 });
+
+    session.setDragPointer({ x: 4, y: 0 });
+    expect(session.getSnapshot().drag?.target).toBeNull();
+  });
+
+  it("slides toward the target rather than teleporting", () => {
+    const session = new GameSession(mapWithCrate(1), tiles);
+    session.beginDrag(crateRef(1));
+    session.setDragPointer({ x: 3, y: 0 });
+    session.endDrag();
+
+    // Still at its origin the instant the pointer is released.
+    expect(getStack(session.getSnapshot().map, 1, 0, 0).map((p) => p.tileId)).toEqual([
+      "grass",
+      "crate",
+    ]);
+    expect(session.getSnapshot().slide).not.toBeNull();
+
+    // One step in, it has travelled exactly one cell.
+    runSlide(session, 1);
+    expect(getStack(session.getSnapshot().map, 2, 0, 0).map((p) => p.tileId)).toEqual([
+      "grass",
+      "crate",
+    ]);
+  });
+
+  it("cannot be grabbed again while still sliding", () => {
+    const session = new GameSession(mapWithCrate(1), tiles);
+    session.beginDrag(crateRef(1));
+    session.setDragPointer({ x: 3, y: 0 });
+    session.endDrag();
+    expect(session.beginDrag(crateRef(1))).toBe(false);
+  });
+
+  it("commits the move on release over a reachable cell", () => {
+    const session = new GameSession(mapWithCrate(1), tiles);
+    session.beginDrag(crateRef(1));
+    session.setDragPointer({ x: 3, y: 0 });
+    session.endDrag();
+    runSlide(session, 2);
+
+    const map = session.getSnapshot().map;
+    expect(getStack(map, 1, 0, 0).map((p) => p.tileId)).toEqual(["grass"]);
+    expect(getStack(map, 3, 0, 0).map((p) => p.tileId)).toEqual([
+      "grass",
+      "crate",
+    ]);
+    expect(session.getSnapshot().drag).toBeNull();
+    expect(session.getSnapshot().slide).toBeNull();
+  });
+
+  it("keeps the dropped object hovered at its new home", () => {
+    const session = new GameSession(mapWithCrate(1), tiles);
+    session.beginDrag(crateRef(1));
+    session.setDragPointer({ x: 3, y: 0 });
+    session.endDrag();
+    runSlide(session, 2);
+
+    expect(session.getSnapshot().hover).toEqual({
+      x: 3,
+      y: 0,
+      z: 0,
+      stackIndex: 1,
+    });
+  });
+
+  it("leaves the object put on release over an unreachable cell", () => {
+    const session = new GameSession(mapWithCrate(1), tiles);
+    session.beginDrag(crateRef(1));
+    session.setDragPointer({ x: 4, y: 0 });
+    session.endDrag();
+
+    expect(
+      getStack(session.getSnapshot().map, 1, 0, 0).map((p) => p.tileId),
+    ).toEqual(["grass", "crate"]);
+  });
+
+  it("ignores movement input while dragging", () => {
+    const session = new GameSession(mapWithCrate(1), tiles);
+    session.beginDrag(crateRef(1));
+    session.setInput({ directions: ["s"] });
+
+    let elapsed = 0;
+    while (elapsed < WALK_DURATION_MS + 80) {
+      session.tick(1000 / 30);
+      elapsed += 1000 / 30;
+    }
+    expect(session.getSnapshot().player).toMatchObject({ x: 0, y: 0, z: 0 });
+
+    session.cancelDrag();
+    elapsed = 0;
+    while (elapsed < WALK_DURATION_MS + 80) {
+      session.tick(1000 / 30);
+      elapsed += 1000 / 30;
+    }
+    expect(session.getSnapshot().player).toMatchObject({ x: 0, y: 1, z: 0 });
   });
 });

@@ -21,7 +21,8 @@ export function Tabs({
             value={item.value}
             className={[
               "border-2 border-border bg-panel px-2 py-1 text-xs font-medium shadow-hard",
-              "data-[selected]:translate-x-[2px] data-[selected]:translate-y-[2px] data-[selected]:bg-ink data-[selected]:text-paper data-[selected]:shadow-none",
+              // Base UI marks the selected tab with `data-active`, not `data-selected`.
+              "data-[active]:translate-x-[2px] data-[active]:translate-y-[2px] data-[active]:bg-ink data-[active]:text-paper data-[active]:shadow-none",
               "hover:bg-paper",
             ].join(" ")}
           >

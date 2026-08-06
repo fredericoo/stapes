@@ -52,19 +52,26 @@ export function placeEntityOnSurface(
   return appendTile(map, x, y, z, placed);
 }
 
-/** Move an entity from one cell to another (end-of-walk commit). */
+/**
+ * Move an entity from one cell to another (end-of-walk commit).
+ * Omit `direction` to keep whatever facing the tile already had — dragged
+ * scenery is repositioned without being turned.
+ */
 export function moveEntity(
   map: MapFile,
   from: { x: number; y: number; z: number; stackIndex: number },
   to: { x: number; y: number; z: number },
-  direction: Direction,
+  direction: Direction | undefined,
   tilesById: Record<string, TileDef>,
 ): MapFile {
   const stack = getStack(map, from.x, from.y, from.z);
   const entity = stack[from.stackIndex];
   if (!entity) return map;
 
-  const placed: PlacedTile = { tileId: entity.tileId, direction };
+  const placed: PlacedTile = {
+    tileId: entity.tileId,
+    direction: direction ?? entity.direction,
+  };
   let next = removeEntity(map, from.x, from.y, from.z, from.stackIndex);
   next = placeEntityOnSurface(next, to.x, to.y, to.z, placed, tilesById);
   return next;
