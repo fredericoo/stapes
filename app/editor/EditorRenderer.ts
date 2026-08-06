@@ -36,6 +36,7 @@ import {
 import { getFrames, tileLightSignature } from "../lib/tileResolve";
 import { canReplaceStack } from "../lib/validation";
 import { useEditorStore, type ToolId } from "./store";
+import { floodCoords, stacksEqual } from "./tools";
 import type { EditorPerfMeasure, EditorPerfSnapshot } from "./perf";
 import {
   type LevelLightUniforms,
@@ -417,12 +418,19 @@ export class EditorRenderer {
 
   private createStatsEl() {
     const el = document.createElement("div");
-    el.style.cssText =
-      "position:absolute;top:4px;right:4px;z-index:50;font:11px/1.3 ui-monospace,monospace;" +
-      "background:rgba(0,0,0,0.65);color:#9f9;padding:4px 6px;pointer-events:none;" +
-      "border-radius:3px;white-space:pre;";
     el.textContent = "…";
     const parent = this.canvas.parentElement;
+    const slot = parent?.querySelector("[data-editor-stats]");
+    if (slot) {
+      slot.replaceChildren(el);
+      this.statsEl = el;
+      return;
+    }
+    // Fallback when the React chrome slot isn't mounted yet.
+    el.style.cssText =
+      "position:absolute;top:4px;right:4px;z-index:50;font:11px/1.3 ui-monospace,monospace;" +
+      "background:rgba(244,240,230,0.9);color:#2d6a4f;padding:4px 6px;pointer-events:none;" +
+      "border:2px solid #1a1a1a;box-shadow:2px 2px 0 0 #1a1a1a;white-space:pre;";
     if (parent) {
       if (getComputedStyle(parent).position === "static") {
         parent.style.position = "relative";
@@ -1046,7 +1054,10 @@ export class EditorRenderer {
         : this.circleList(x0, y0, x1, y1);
     }
     const paints =
-      s.tool === "pencil" || s.tool === "rect" || s.tool === "circle";
+      s.tool === "pencil" ||
+      s.tool === "rect" ||
+      s.tool === "circle" ||
+      s.tool === "bucket";
     if (paints && s.hover) return [s.hover];
     return [];
   }
@@ -1659,15 +1670,25 @@ export class EditorRenderer {
   }
 
   private onKeyDown = (e: KeyboardEvent) => {
+    const target = e.target;
+    const inField =
+      target instanceof HTMLInputElement ||
+      target instanceof HTMLTextAreaElement ||
+      (target instanceof HTMLElement && target.isContentEditable);
+    const inChrome =
+      target instanceof Element &&
+      Boolean(target.closest("button, a, [role='button'], select"));
+
     if (e.code === "Space") {
+      if (inField || inChrome) return;
       this.spaceDown = true;
       this.updateCursor();
       e.preventDefault();
-    }
-    const store = useEditorStore.getState();
-    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
       return;
     }
+    if (inField) return;
+
+    const store = useEditorStore.getState();
     if (e.code === "Backspace" || e.code === "Delete") {
       if (!store.selected) return;
       const stack = getStack(
@@ -1687,6 +1708,7 @@ export class EditorRenderer {
       KeyB: "pencil",
       KeyR: "rect",
       KeyC: "circle",
+      KeyG: "bucket",
     };
     if (toolMap[e.code]) {
       store.setTool(toolMap[e.code]!);
@@ -1786,6 +1808,42 @@ export class EditorRenderer {
         y1: coord.y,
       });
       this.canvas.setPointerCapture(e.pointerId);
+    }
+
+    if (tool === "bucket") {
+      if (!store.selected) {
+        useEditorStore.setState({ lastToast: "No source selected" });
+        return;
+      }
+      const target = getStack(
+        store.map,
+        coord.x,
+        coord.y,
+        store.currentLevel,
+      );
+      if (target.length === 0) return;
+      const source = getStack(
+        store.map,
+        store.selected.x,
+        store.selected.y,
+        store.currentLevel,
+      );
+      if (stacksEqual(source, target)) return;
+      const coords = floodCoords(
+        store.map,
+        coord.x,
+        coord.y,
+        store.currentLevel,
+      );
+      if (coords.length === 0) return;
+      const result = store.stampMany(coords);
+      if (result.skipped > 0) {
+        useEditorStore.setState({
+          lastToast: `Skipped ${result.skipped} cell(s)${
+            result.reason ? `: ${result.reason}` : ""
+          }`,
+        });
+      }
     }
   };
 

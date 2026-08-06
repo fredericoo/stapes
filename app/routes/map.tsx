@@ -3,15 +3,9 @@ import { useFetcher, useLoaderData } from "react-router";
 import {
   IconArrowBackUp,
   IconArrowForwardUp,
-  IconCircle,
-  IconEraser,
   IconEye,
   IconMinus,
   IconPlus,
-  IconPointer,
-  IconPencil,
-  IconSquare,
-  type TablerIcon,
 } from "@tabler/icons-react";
 import type { Route } from "./+types/map";
 import { AppShell } from "../components/AppShell";
@@ -20,7 +14,6 @@ import {
   useEditorStore,
   ZOOM_LEVELS,
   snapZoom,
-  type ToolId,
 } from "../editor/store";
 import { readMap, readTiles, readTilesets, writeMap } from "../lib/fs.server";
 import type { TimeOfDay } from "../lib/lighting";
@@ -55,19 +48,6 @@ export async function action({ request }: Route.ActionArgs) {
   }
 }
 
-const TOOLS: Array<{
-  id: ToolId;
-  label: string;
-  key: string;
-  Icon: TablerIcon;
-}> = [
-  { id: "select", label: "Select", key: "V", Icon: IconPointer },
-  { id: "erase", label: "Erase", key: "E", Icon: IconEraser },
-  { id: "pencil", label: "Pencil", key: "B", Icon: IconPencil },
-  { id: "rect", label: "Rect", key: "R", Icon: IconSquare },
-  { id: "circle", label: "Circle", key: "C", Icon: IconCircle },
-];
-
 export default function MapPage() {
   const data = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
@@ -78,7 +58,6 @@ export default function MapPage() {
   const showOtherLevels = useEditorStore((s) => s.showOtherLevels);
   const previewMode = useEditorStore((s) => s.previewMode);
   const timeOfDay = useEditorStore((s) => s.lighting.timeOfDay);
-  const tool = useEditorStore((s) => s.tool);
   const zoom = useEditorStore((s) => s.zoom);
   const lastToast = useEditorStore((s) => s.lastToast);
   const canUndo = useEditorStore((s) => s.past.length > 0);
@@ -278,21 +257,6 @@ export default function MapPage() {
             <span className="border-2 border-paper/40 px-1.5 py-0.5 text-xs tabular-nums text-paper">
               {snapZoom(zoom)}x
             </span>
-          </div>
-          <div className="flex gap-1">
-            {TOOLS.map(({ id, label, key, Icon }) => (
-              <Tooltip key={id} content={`${label} (${key})`}>
-                <Button
-                  size="icon"
-                  variant="ghost-inverse"
-                  active={tool === id}
-                  aria-label={label}
-                  onClick={() => useEditorStore.getState().setTool(id)}
-                >
-                  <Icon size={18} aria-hidden="true" />
-                </Button>
-              </Tooltip>
-            ))}
           </div>
           <div className="flex gap-1">
             <Tooltip content="Undo (⌘Z)">

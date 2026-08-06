@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import { appendTile, emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
-import { fitsTile, tilesByIdFromList } from "../lib/validation";
+import {
+  canReplaceStack,
+  fitsTile,
+  tilesByIdFromList,
+} from "../lib/validation";
 import { FALL_MS_PER_HEIGHT, WALK_DURATION_MS } from "./constants";
 import { GameSession } from "./GameSession";
 import { findLandingAbs, isSupported } from "./gravity";
@@ -188,10 +192,24 @@ describe("fitsTile", () => {
     expect(fitsTile(map, 0, 0, 0, tilesById.wall!, tilesById).ok).toBe(true);
   });
 
-  it("rejects placing on a stack that already reaches the next level", () => {
+  it("rejects height-adding tiles on a stack that already reaches the next level", () => {
     const map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "wall" }]);
     expect(fitsTile(map, 0, 0, 0, tilesById.slab!, tilesById).ok).toBe(false);
-    expect(fitsTile(map, 0, 0, 0, tilesById.grass!, tilesById).ok).toBe(false);
+    expect(fitsTile(map, 0, 0, 0, tilesById.wall!, tilesById).ok).toBe(false);
+  });
+
+  it("allows height-0 tiles on a full or overflowing stack", () => {
+    const full = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "wall" }]);
+    expect(fitsTile(full, 0, 0, 0, tilesById.grass!, tilesById).ok).toBe(true);
+    expect(fitsTile(full, 0, 0, 0, tilesById.roof!, tilesById).ok).toBe(true);
+
+    const overflow = replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "slab" },
+      { tileId: "wall" },
+    ]);
+    expect(fitsTile(overflow, 0, 0, 0, tilesById.grass!, tilesById).ok).toBe(
+      true,
+    );
   });
 
   it("rejects overflow under an occupied level above", () => {
@@ -202,6 +220,36 @@ describe("fitsTile", () => {
     expect(fitsTile(map, 0, 0, 0, dwarf, tilesById).ok).toBe(true);
     // player(2)+slab(1)=3 → needs empty above, roof blocks
     expect(fitsTile(map, 0, 0, 0, tilesById.player!, tilesById).ok).toBe(false);
+  });
+});
+
+describe("canReplaceStack", () => {
+  it("allows trailing height-0 tiles on a full stack", () => {
+    const map = emptyMap();
+    expect(
+      canReplaceStack(
+        map,
+        0,
+        0,
+        0,
+        [{ tileId: "wall" }, { tileId: "grass" }, { tileId: "roof" }],
+        tilesById,
+      ).ok,
+    ).toBe(true);
+  });
+
+  it("rejects a height-adding tile after the stack is already full", () => {
+    const map = emptyMap();
+    expect(
+      canReplaceStack(
+        map,
+        0,
+        0,
+        0,
+        [{ tileId: "wall" }, { tileId: "slab" }],
+        tilesById,
+      ).ok,
+    ).toBe(false);
   });
 });
 

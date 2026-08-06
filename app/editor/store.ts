@@ -13,7 +13,13 @@ import {
 } from "../lib/mapData";
 import { canPlace, canReplaceStack, tilesByIdFromList } from "../lib/validation";
 
-export type ToolId = "select" | "erase" | "pencil" | "rect" | "circle";
+export type ToolId =
+  | "select"
+  | "erase"
+  | "pencil"
+  | "rect"
+  | "circle"
+  | "bucket";
 
 /** Discrete map zoom steps (canvas px per world px). */
 export const ZOOM_LEVELS = [1, 2, 4, 8] as const;

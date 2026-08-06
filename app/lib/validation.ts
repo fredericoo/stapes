@@ -16,8 +16,10 @@ export type PlaceResult =
  * Can `tileDef` sit on top of the stack at (x,y,z)?
  * Generic fit check (not player-specific) — same rules as editor placement.
  *
- * - Feet must be within this level: e < HEIGHT_PER_LEVEL. A full stack already
- *   reaches the next level; place there instead (clean floor).
+ * - Height-0 tiles add no volume and may stack freely on a full or overflowing
+ *   stack (floors / plates / decorations on a solid top).
+ * - For h > 0: feet must be within this level (e < HEIGHT_PER_LEVEL). A full
+ *   stack already reaches the next level; place there instead (clean floor).
  * - e + h <= HEIGHT_PER_LEVEL: always allowed
  * - HEIGHT_PER_LEVEL < e + h <= 2*HEIGHT_PER_LEVEL: only if (x,y,z+1) is empty
  *   and z < MAX_LEVEL (e.g. full-height on a half-height base)
@@ -51,6 +53,11 @@ export function fitsTile(
   const e = stackHeight(stack, tilesById);
   const h = tileDef.height;
   const total = e + h;
+
+  // Flat tiles don't grow the stack volume — always fine on a full top.
+  if (h === 0) {
+    return { ok: true };
+  }
 
   if (e >= HEIGHT_PER_LEVEL) {
     return {
@@ -174,14 +181,16 @@ export function canReplaceStack(
 
   let e = 0;
   for (const placed of newStack) {
-    if (e >= HEIGHT_PER_LEVEL) {
+    const def = tilesById[placed.tileId];
+    const h = def?.height ?? 0;
+    // Height-0 tiles may sit on a full/overflow stack; only volume-adding
+    // tiles must start below the next-level boundary.
+    if (e >= HEIGHT_PER_LEVEL && h > 0) {
       return {
         ok: false,
         reason: "Stack already reaches the next level; place there instead",
       };
     }
-    const def = tilesById[placed.tileId];
-    const h = def?.height ?? 0;
     e += h;
   }
 

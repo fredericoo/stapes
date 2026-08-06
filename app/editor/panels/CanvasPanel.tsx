@@ -3,6 +3,7 @@ import { resolveAutotileSlice } from "../../lib/autotile";
 import { MapCanvas } from "../MapCanvas";
 import { useEditorStore } from "../store";
 import { useMapAssets } from "./MapAssetsContext";
+import { MapToolbar } from "./MapToolbar";
 
 export function CanvasPanel() {
   const { tiles, tilesets } = useMapAssets();
@@ -10,7 +11,28 @@ export function CanvasPanel() {
   return (
     <div className="relative min-h-0 min-w-0 flex-1">
       <MapCanvas tilesets={tilesets} tiles={tiles} />
-      <CanvasStatus />
+      <aside
+        aria-label="Map editor chrome"
+        className={[
+          "pointer-events-none absolute inset-y-2 right-2 z-50",
+          "flex w-max max-w-[min(100%,16rem)] flex-col items-end gap-2",
+        ].join(" ")}
+      >
+        {import.meta.env.DEV ? (
+          <div
+            data-editor-stats
+            className="relative z-10 shrink-0 empty:hidden [&_>div]:border-2 [&_>div]:border-border [&_>div]:bg-paper/90 [&_>div]:px-2 [&_>div]:py-1 [&_>div]:font-mono [&_>div]:text-[11px]/[&_>div]:leading-snug [&_>div]:text-accent [&_>div]:shadow-hard [&_>div]:whitespace-pre"
+          />
+        ) : null}
+        <div className="relative min-h-0 w-full flex-1">
+          <div className="absolute inset-0 flex items-center justify-end">
+            <div className="pointer-events-auto max-h-full min-h-0 overflow-hidden">
+              <MapToolbar />
+            </div>
+          </div>
+        </div>
+        <CanvasStatus />
+      </aside>
     </div>
   );
 }
@@ -50,7 +72,7 @@ function CanvasStatus() {
           .filter((x): x is NonNullable<typeof x> => x != null);
 
   return (
-    <div className="pointer-events-none absolute right-2 bottom-2 border-2 border-border bg-paper/90 px-2 py-1 text-xs shadow-hard">
+    <div className="relative z-10 shrink-0 border-2 border-border bg-paper/90 px-2 py-1 text-xs shadow-hard">
       {hover ? `${hover.x},${hover.y}` : "—"} · z{currentLevel} · ×{zoom}
       {previewMode ? <span className="text-accent"> · preview</span> : null}
       {tool !== "select" && !selected && tool !== "erase" ? (
