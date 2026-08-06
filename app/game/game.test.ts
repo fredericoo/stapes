@@ -814,6 +814,18 @@ describe("GameSession drag", () => {
     expect(session.getSnapshot().hover).toBeNull();
   });
 
+  it("ignores a hover on a buried interactive object", () => {
+    let map = mapWithCrate(1);
+    map = replaceStack(map, 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "crate" },
+      { tileId: "slab" },
+    ]);
+    const session = new GameSession(map, tiles);
+    session.setHoveredObject({ x: 1, y: 0, z: 0, stackIndex: 1 });
+    expect(session.getSnapshot().hover).toBeNull();
+  });
+
   it("ignores a hover on another level", () => {
     let map = mapWithCrate(3);
     map = replaceStack(map, 1, 0, 1, [{ tileId: "grass" }, { tileId: "crate" }]);
@@ -847,6 +859,18 @@ describe("GameSession drag", () => {
     map = replaceStack(map, 1, 0, 1, [{ tileId: "grass" }, { tileId: "crate" }]);
     const session = new GameSession(map, tiles);
     expect(session.beginDrag({ x: 1, y: 0, z: 1, stackIndex: 1 })).toBe(false);
+  });
+
+  it("refuses to grab a buried interactive object", () => {
+    let map = mapWithCrate(1);
+    map = replaceStack(map, 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "crate" },
+      { tileId: "slab" },
+    ]);
+    const session = new GameSession(map, tiles);
+    expect(session.beginDrag({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(false);
+    expect(session.getSnapshot().drag).toBeNull();
   });
 
   it("grabs an orthogonally adjacent object and offers its reach", () => {

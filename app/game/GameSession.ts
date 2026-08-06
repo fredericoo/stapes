@@ -154,12 +154,15 @@ export class GameSession {
   /**
    * Interactive object at a stack slot, if the player could be looking at it.
    * Objects on any other level are invisible to the pointer — the player only
-   * reaches into the plane they are standing on.
+   * reaches into the plane they are standing on. Buried under another tile is
+   * the same: only the top of a stack is hoverable or grabable.
    */
   private interactiveDefAt(ref: ObjectRef): TileDef | null {
     const loc = requireSinglePlayer(this.map);
     if (ref.z !== loc.z) return null;
-    const placed = getStack(this.map, ref.x, ref.y, ref.z)[ref.stackIndex];
+    const stack = getStack(this.map, ref.x, ref.y, ref.z);
+    if (ref.stackIndex !== stack.length - 1) return null;
+    const placed = stack[ref.stackIndex];
     if (!placed) return null;
     const def = this.tilesById[placed.tileId];
     if (!def || !isInteractive(def)) return null;

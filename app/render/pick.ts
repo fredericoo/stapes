@@ -10,9 +10,10 @@ import {
 } from "./spriteQuad";
 
 /**
- * Every interactive placement on one level, with the elevation its sprite is
- * drawn at. Maps hold far more scenery than interactive objects, so the
- * candidate list is built once per map version rather than per pointer move.
+ * Every interactive placement on one level that can actually be acted on —
+ * only the top of its stack — with the elevation its sprite is drawn at.
+ * Maps hold far more scenery than interactive objects, so the candidate list
+ * is built once per map version rather than per pointer move.
  */
 export type InteractiveIndex = Array<{ ref: ObjectRef; elevation: number }>;
 
@@ -24,11 +25,14 @@ export function indexInteractive(
   const out: InteractiveIndex = [];
 
   for (const { x, y } of listCoords(map, z)) {
+    const stack = getStack(map, x, y, z);
     let elevation = 0;
-    getStack(map, x, y, z).forEach((placed, stackIndex) => {
+    stack.forEach((placed, stackIndex) => {
       const def = tilesById[placed.tileId];
       const drawnAt = elevation;
       elevation += def?.height ?? 0;
+      // Buried under another tile: not hoverable, not draggable.
+      if (stackIndex !== stack.length - 1) return;
       if (!def || !isInteractive(def)) return;
       out.push({ ref: { x, y, z, stackIndex }, elevation: drawnAt });
     });
