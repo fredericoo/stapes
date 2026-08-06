@@ -38,6 +38,11 @@ const tilesById = tilesByIdFromList([
       drag: { distanceTiles: 1, climb: "half", moveOnTileIds: [] },
     },
   }),
+  tile({
+    id: "door-closed",
+    height: 1,
+    interactions: { switch: { targetTileId: "door-open" } },
+  }),
 ]);
 
 describe("indexInteractive", () => {
@@ -76,6 +81,16 @@ describe("indexInteractive", () => {
       { ref: { x: 2, y: 0, z: -1, stackIndex: 1 }, elevation: 0 },
       { ref: { x: 0, y: 0, z: 0, stackIndex: 1 }, elevation: 0 },
       { ref: { x: 1, y: 0, z: 1, stackIndex: 1 }, elevation: 0 },
+    ]);
+  });
+
+  it("includes switch-only tiles", () => {
+    const map = replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "door-closed" },
+    ]);
+    expect(indexInteractive(map, 0, tilesById)).toEqual([
+      { ref: { x: 0, y: 0, z: 0, stackIndex: 1 }, elevation: 0 },
     ]);
   });
 });

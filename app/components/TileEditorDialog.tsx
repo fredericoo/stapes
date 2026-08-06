@@ -634,7 +634,10 @@ export function TileEditorDialog({
             { value: TAB_TILE, label: "Tile" },
             {
               value: TAB_INTERACTIVE,
-              label: draft.interactions?.drag ? "Interactive •" : "Interactive",
+              label:
+                draft.interactions?.drag || draft.interactions?.switch
+                  ? "Interactive •"
+                  : "Interactive",
             },
           ]}
         >

@@ -2805,5 +2805,72 @@
         ]
       }
     }
+  },
+  {
+    "id": "door-closed",
+    "name": "Closed door",
+    "height": 2,
+    "type": "simple",
+    "attributes": {},
+    "walkable": false,
+    "interactions": {
+      "switch": {
+        "targetTileId": "door-open"
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "walls",
+            "rect": {
+              "x": 18,
+              "y": 6,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "door-open",
+    "name": "Open door",
+    "height": 2,
+    "type": "simple",
+    "attributes": {},
+    "lightPassing": true,
+    "walkable": false,
+    "interactions": {
+      "switch": {
+        "targetTileId": "door-closed"
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "walls",
+            "rect": {
+              "x": 18,
+              "y": 3,
+              "w": 2,
+              "h": 3
+            },
+            "base": {
+              "x": 1,
+              "y": 2
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
   }
 ]

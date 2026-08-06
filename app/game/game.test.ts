@@ -105,6 +105,29 @@ const tiles: TileDef[] = [
     interactions: { drag: { distanceTiles: 2, climb: "half", moveOnTileIds: [] } },
   }),
   tile({
+    id: "door-closed",
+    height: 1,
+    walkable: false,
+    interactions: { switch: { targetTileId: "door-open" } },
+  }),
+  tile({
+    id: "door-open",
+    height: 1,
+    walkable: false,
+    interactions: { switch: { targetTileId: "door-closed" } },
+  }),
+  tile({
+    id: "door-tall",
+    height: 2,
+    walkable: false,
+  }),
+  tile({
+    id: "switch-to-tall",
+    height: 1,
+    walkable: false,
+    interactions: { switch: { targetTileId: "door-tall" } },
+  }),
+  tile({
     id: "ramp",
     height: 1,
     directional: true,
@@ -1011,5 +1034,117 @@ describe("GameSession drag", () => {
       elapsed += 1000 / 30;
     }
     expect(session.getSnapshot().player).toMatchObject({ x: 0, y: 1, z: 0 });
+  });
+});
+
+describe("GameSession switch", () => {
+  /** Grass row, player at (0,0), switchable tile at (1,0). */
+  function mapWithSwitchable(tileId: string): MapFile {
+    let map = emptyMap();
+    for (let x = 0; x < 3; x++) {
+      map = replaceStack(map, x, 0, 0, [{ tileId: "grass" }]);
+    }
+    map = replaceStack(map, 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "player", direction: "e" },
+    ]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId }]);
+    return map;
+  }
+
+  const doorRef = { x: 1, y: 0, z: 0, stackIndex: 1 };
+
+  it("replaces the tile with its switch target", () => {
+    const session = new GameSession(mapWithSwitchable("door-closed"), tiles);
+    expect(session.activateSwitch(doorRef)).toBe(true);
+    expect(
+      getStack(session.getSnapshot().map, 1, 0, 0).map((p) => p.tileId),
+    ).toEqual(["grass", "door-open"]);
+  });
+
+  it("toggles back when the target also has switch", () => {
+    const session = new GameSession(mapWithSwitchable("door-closed"), tiles);
+    expect(session.activateSwitch(doorRef)).toBe(true);
+    expect(session.activateSwitch(doorRef)).toBe(true);
+    expect(
+      getStack(session.getSnapshot().map, 1, 0, 0).map((p) => p.tileId),
+    ).toEqual(["grass", "door-closed"]);
+  });
+
+  it("preserves placement direction", () => {
+    let map = mapWithSwitchable("door-closed");
+    map = replaceStack(map, 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "door-closed", direction: "s" },
+    ]);
+    const session = new GameSession(map, tiles);
+    expect(session.activateSwitch(doorRef)).toBe(true);
+    expect(getStack(session.getSnapshot().map, 1, 0, 0)[1]).toEqual({
+      tileId: "door-open",
+      direction: "s",
+    });
+  });
+
+  it("refuses when the taller target would not fit", () => {
+    // slab(1)+switch(1)=2 → swapping in door-tall(2) overflows (3); roof above blocks.
+    let map = mapWithSwitchable("switch-to-tall");
+    map = replaceStack(map, 1, 0, 0, [
+      { tileId: "slab" },
+      { tileId: "switch-to-tall" },
+    ]);
+    map = replaceStack(map, 1, 0, 1, [{ tileId: "roof" }]);
+    const session = new GameSession(map, tiles);
+    expect(session.activateSwitch(doorRef)).toBe(false);
+    expect(
+      getStack(session.getSnapshot().map, 1, 0, 0).map((p) => p.tileId),
+    ).toEqual(["slab", "switch-to-tall"]);
+  });
+
+  it("allows a taller target when overflow headroom is free", () => {
+    let map = mapWithSwitchable("switch-to-tall");
+    map = replaceStack(map, 1, 0, 0, [
+      { tileId: "slab" },
+      { tileId: "switch-to-tall" },
+    ]);
+    const session = new GameSession(map, tiles);
+    expect(session.activateSwitch(doorRef)).toBe(true);
+    expect(
+      getStack(session.getSnapshot().map, 1, 0, 0).map((p) => p.tileId),
+    ).toEqual(["slab", "door-tall"]);
+  });
+
+  it("refuses out of reach", () => {
+    let map = mapWithSwitchable("door-closed");
+    map = replaceStack(map, 2, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "door-closed" },
+    ]);
+    // Move the adjacent door away — only the far one remains switchable.
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }]);
+    const session = new GameSession(map, tiles);
+    expect(
+      session.activateSwitch({ x: 2, y: 0, z: 0, stackIndex: 1 }),
+    ).toBe(false);
+  });
+
+  it("refuses while dragging", () => {
+    let map = mapWithSwitchable("door-closed");
+    map = replaceStack(map, 1, 1, 0, [{ tileId: "grass" }, { tileId: "crate" }]);
+    const session = new GameSession(map, tiles);
+    expect(session.beginDrag({ x: 1, y: 1, z: 0, stackIndex: 1 })).toBe(true);
+    expect(session.activateSwitch(doorRef)).toBe(false);
+  });
+
+  it("refuses a buried switchable object", () => {
+    let map = mapWithSwitchable("door-closed");
+    map = replaceStack(map, 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "door-closed" },
+      { tileId: "slab" },
+    ]);
+    const session = new GameSession(map, tiles);
+    expect(
+      session.activateSwitch({ x: 1, y: 0, z: 0, stackIndex: 1 }),
+    ).toBe(false);
   });
 });

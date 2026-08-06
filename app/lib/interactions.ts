@@ -31,9 +31,22 @@ export type DragInteraction = {
   moveOnTileIds: string[];
 };
 
+/**
+ * Replace this placement with another tile when the player activates it.
+ * Author the reverse on the target for a toggle (e.g. door open ↔ closed).
+ */
+export type SwitchInteraction = {
+  targetTileId: string;
+};
+
 /** Ways the player can interact with a placed object. Grows over time. */
 export type TileInteractions = {
   drag?: DragInteraction;
+  switch?: SwitchInteraction;
+};
+
+export const DEFAULT_SWITCH: SwitchInteraction = {
+  targetTileId: "",
 };
 
 export const MAX_DRAG_DISTANCE_TILES = 32;
@@ -75,13 +88,35 @@ export function resolveDrag(def: TileDef): DragInteraction | null {
   return drag;
 }
 
+const switchSchema = v.object({
+  targetTileId: v.pipe(v.string(), v.minLength(1)),
+});
+
+const switchCache = new WeakMap<TileDef, SwitchInteraction | null>();
+
+/**
+ * Parsed switch config per tile def. Same trust model as {@link resolveDrag}:
+ * malformed or empty target → not switchable.
+ */
+export function resolveSwitch(def: TileDef): SwitchInteraction | null {
+  const cached = switchCache.get(def);
+  if (cached !== undefined) return cached;
+
+  const raw = def.interactions?.switch;
+  const parsed = raw == null ? null : v.safeParse(switchSchema, raw);
+  const sw = parsed?.success ? parsed.output : null;
+  switchCache.set(def, sw);
+  return sw;
+}
+
 /** Kinds of interaction a tile offers. Grows as new interactions are added. */
-export type InteractionKind = "drag";
+export type InteractionKind = "drag" | "switch";
 
 /** Every interaction enabled on this tile, in a stable order. */
 export function interactionKinds(def: TileDef): InteractionKind[] {
   const kinds: InteractionKind[] = [];
   if (resolveDrag(def)) kinds.push("drag");
+  if (resolveSwitch(def)) kinds.push("switch");
   return kinds;
 }
 
@@ -95,12 +130,19 @@ export function interactionsForSave(
   interactions: TileInteractions | undefined,
 ): TileInteractions | undefined {
   const drag = interactions?.drag;
-  if (!drag) return undefined;
+  const sw = interactions?.switch;
+  const savedDrag = drag
+    ? {
+        distanceTiles: drag.distanceTiles,
+        climb: drag.climb,
+        moveOnTileIds: [...drag.moveOnTileIds].sort(),
+      }
+    : undefined;
+  const savedSwitch =
+    sw?.targetTileId.trim() ? { targetTileId: sw.targetTileId.trim() } : undefined;
+  if (!savedDrag && !savedSwitch) return undefined;
   return {
-    drag: {
-      distanceTiles: drag.distanceTiles,
-      climb: drag.climb,
-      moveOnTileIds: [...drag.moveOnTileIds].sort(),
-    },
+    ...(savedDrag ? { drag: savedDrag } : {}),
+    ...(savedSwitch ? { switch: savedSwitch } : {}),
   };
 }

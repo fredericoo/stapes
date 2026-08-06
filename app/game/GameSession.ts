@@ -3,11 +3,12 @@ import {
   appendTile,
   getStack,
   isWalkableSurfaceAt,
+  replaceStack,
 } from "../lib/mapData";
-import { isInteractive, resolveDrag } from "../lib/interactions";
+import { isInteractive, resolveDrag, resolveSwitch } from "../lib/interactions";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
 import { MIN_LEVEL, coordKey } from "../lib/types";
-import { tilesByIdFromList } from "../lib/validation";
+import { canReplaceStack, tilesByIdFromList } from "../lib/validation";
 import type { DragTargets } from "./drag";
 import { reachableDragTargets } from "./drag";
 import {
@@ -188,6 +189,57 @@ export class GameSession {
     if (this.drag || this.slide || this.walk || this.fall) return false;
     const def = this.interactiveDefAt(ref);
     return Boolean(def && resolveDrag(def) && this.withinReach(ref));
+  }
+
+  /**
+   * Can the player switch this object right now? Same reach / busy gates as
+   * grab; also requires the target tile to fit in this stack slot.
+   */
+  canSwitch(ref: ObjectRef): boolean {
+    if (this.drag || this.slide || this.walk || this.fall) return false;
+    const def = this.interactiveDefAt(ref);
+    const sw = def && resolveSwitch(def);
+    if (!def || !sw || !this.withinReach(ref)) return false;
+    return this.switchWouldFit(ref, sw.targetTileId);
+  }
+
+  /** Replace the object with its switch target. Returns false when blocked. */
+  activateSwitch(ref: ObjectRef): boolean {
+    if (!this.canSwitch(ref)) return false;
+    const def = this.interactiveDefAt(ref);
+    const sw = def && resolveSwitch(def);
+    if (!def || !sw) return false;
+
+    const stack = getStack(this.map, ref.x, ref.y, ref.z);
+    const next = stack.map((placed, i) =>
+      i === ref.stackIndex
+        ? { tileId: sw.targetTileId, direction: placed.direction }
+        : placed,
+    );
+    this.map = replaceStack(this.map, ref.x, ref.y, ref.z, next);
+    // Re-evaluate hover: the replacement may be interactive (toggle) or inert.
+    if (this.hovered) this.setHoveredObject(ref);
+    return true;
+  }
+
+  private switchWouldFit(ref: ObjectRef, targetTileId: string): boolean {
+    if (!this.tilesById[targetTileId]) return false;
+    const stack = getStack(this.map, ref.x, ref.y, ref.z);
+    const placed = stack[ref.stackIndex];
+    if (!placed) return false;
+    const next = stack.map((p, i) =>
+      i === ref.stackIndex
+        ? { tileId: targetTileId, direction: p.direction }
+        : p,
+    );
+    return canReplaceStack(
+      this.map,
+      ref.x,
+      ref.y,
+      ref.z,
+      next,
+      this.tilesById,
+    ).ok;
   }
 
   /** Renderer reports what the pointer is over; the session decides if it counts. */

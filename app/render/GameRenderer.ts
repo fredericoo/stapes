@@ -124,6 +124,7 @@ export class GameRenderer {
     this.canvas.addEventListener("pointerup", this.onPointerUp);
     this.canvas.addEventListener("pointercancel", this.onPointerCancel);
     this.canvas.addEventListener("pointerleave", this.onPointerLeave);
+    this.canvas.addEventListener("contextmenu", this.onContextMenu);
   }
 
   private detachPointer() {
@@ -132,7 +133,13 @@ export class GameRenderer {
     this.canvas.removeEventListener("pointerup", this.onPointerUp);
     this.canvas.removeEventListener("pointercancel", this.onPointerCancel);
     this.canvas.removeEventListener("pointerleave", this.onPointerLeave);
+    this.canvas.removeEventListener("contextmenu", this.onContextMenu);
   }
+
+  /** Keep the OS menu from eating right-clicks meant for switch. */
+  private onContextMenu = (e: Event) => {
+    e.preventDefault();
+  };
 
   private localPoint(e: PointerEvent): { x: number; y: number } {
     const rect = this.canvas.getBoundingClientRect();
@@ -184,7 +191,8 @@ export class GameRenderer {
   }
 
   private onPointerDown = (e: PointerEvent) => {
-    if (e.button !== 0) return;
+    // Left = drag; right = switch. Other buttons are ignored.
+    if (e.button !== 0 && e.button !== 2) return;
     const snap = this.session.getSnapshot();
 
     // Resolved here rather than read off the last hover: touch has no hover
@@ -192,6 +200,16 @@ export class GameRenderer {
     const target = this.pickAt(e, snap);
     if (!target) return;
     this.session.setHoveredObject(target);
+
+    if (e.button === 2) {
+      e.preventDefault();
+      this.session.activateSwitch(target);
+      // Map identity changes on a successful swap — drop the pick cache.
+      this.indexedMap = null;
+      this.applyCursor(this.session.getSnapshot());
+      return;
+    }
+
     if (!this.session.beginDrag(target)) return;
 
     e.preventDefault();
@@ -327,7 +345,7 @@ export class GameRenderer {
       tilesById: this.tilesById,
       camera,
       zoom,
-      timeOfDay: "day",
+      timeOfDay: "dusk",
       tileMotions: this.tileMotionsFor(snap, visual),
       emitterOverrides: this.emitterOverridesFor(snap),
       hideLevelsAbove: hideAbove ? anchor.z : undefined,

@@ -13,6 +13,8 @@ type Props = {
   label: string;
   /** Shown when nothing is selected, to explain what "none" means. */
   emptyHint: string;
+  /** When true, picking a tile replaces the current selection (radio). */
+  single?: boolean;
 };
 
 /**
@@ -27,6 +29,7 @@ export function TileIdMultiSelect({
   onChange,
   label,
   emptyHint,
+  single = false,
 }: Props) {
   const [query, setQuery] = useState("");
 
@@ -41,6 +44,10 @@ export function TileIdMultiSelect({
 
   const selected = new Set(selectedIds);
   const toggle = (id: string) => {
+    if (single) {
+      onChange(selected.has(id) ? [] : [id]);
+      return;
+    }
     const next = selected.has(id)
       ? selectedIds.filter((s) => s !== id)
       : [...selectedIds, id];
@@ -76,7 +83,11 @@ export function TileIdMultiSelect({
       />
 
       <ScrollArea className="h-40 border-2 border-border bg-panel">
-        <div role="listbox" aria-multiselectable aria-label={label}>
+        <div
+          role="listbox"
+          aria-multiselectable={!single}
+          aria-label={label}
+        >
           {matches.map((tile) => {
             const isSelected = selected.has(tile.id);
             return (
