@@ -45,6 +45,7 @@ function CanvasStatus() {
   const previewMode = useEditorStore((s) => s.previewMode);
   const tool = useEditorStore((s) => s.tool);
   const selected = useEditorStore((s) => s.selected);
+  const armedTileId = useEditorStore((s) => s.armedTileId);
   const map = useEditorStore((s) => s.map);
   const tilesById = useEditorStore((s) => s.tilesById);
 
@@ -75,8 +76,11 @@ function CanvasStatus() {
     <div className="relative z-10 shrink-0 border-2 border-border bg-paper/90 px-2 py-1 text-xs shadow-hard">
       {hover ? `${hover.x},${hover.y}` : "—"} · z{currentLevel} · ×{zoom}
       {previewMode ? <span className="text-accent"> · preview</span> : null}
-      {tool !== "select" && !selected && tool !== "erase" ? (
-        <span className="text-danger"> · no source selected</span>
+      {tool !== "select" &&
+      tool !== "erase" &&
+      !selected &&
+      !armedTileId ? (
+        <span className="text-danger"> · no tile armed</span>
       ) : null}
       {autotileSlices && autotileSlices.length > 0 ? (
         <span className="block font-mono text-[10px] text-muted">

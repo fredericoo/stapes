@@ -18,7 +18,7 @@ import {
   type LevelLightMap,
   type LightGrid,
 } from "../lib/lighting";
-import { getStack, listCoords } from "../lib/mapData";
+import { getStack, listCoords, stackHeight } from "../lib/mapData";
 import type {
   Frame,
   MapFile,
@@ -34,10 +34,11 @@ import {
   tileCanEmitLight,
 } from "../lib/types";
 import { getFrames, tileLightSignature } from "../lib/tileResolve";
-import { canReplaceStack } from "../lib/validation";
+import { canPlace, canReplaceStack } from "../lib/validation";
 import { useEditorStore, type ToolId } from "./store";
-import { floodCoords, stacksEqual } from "./tools";
+import { panCameraByWheel } from "./camera";
 import type { EditorPerfMeasure, EditorPerfSnapshot } from "./perf";
+import { floodCoords, stacksEqual } from "./tools";
 import {
   type LevelLightUniforms,
   type Quad,
@@ -762,6 +763,7 @@ export class EditorRenderer {
       s.tool,
       h ? `${h.x},${h.y}` : "",
       sel ? `${sel.x},${sel.y}` : "",
+      s.armedTileId ?? "",
       sp ? `${sp.kind}:${sp.x0},${sp.y0},${sp.x1},${sp.y1}` : "",
       frames,
     ].join("|");
@@ -938,9 +940,20 @@ export class EditorRenderer {
     };
 
     const z = s.currentLevel;
-    const brush = s.selected
-      ? getStack(s.map, s.selected.x, s.selected.y, z)
-      : [];
+    // Selected cell → stamp that stack; otherwise ghost the armed tile (append).
+    const appendMode = !s.selected;
+    let brush: PlacedTile[] = [];
+    if (s.selected) {
+      brush = getStack(s.map, s.selected.x, s.selected.y, z);
+    } else if (s.armedTileId) {
+      const def = s.tilesById[s.armedTileId];
+      if (def) {
+        brush =
+          def.type === "directional"
+            ? [{ tileId: def.id, direction: "s" }]
+            : [{ tileId: def.id }];
+      }
+    }
 
     if (
       s.hover &&
@@ -1011,6 +1024,33 @@ export class EditorRenderer {
       // The source cell already shows the real thing.
       if (s.selected && c.x === s.selected.x && c.y === s.selected.y) continue;
       if (!showGhosts) continue;
+
+      if (appendMode) {
+        const def = s.tilesById[brush[0]!.tileId];
+        if (!def) continue;
+        if (!canPlace(s.map, c.x, c.y, z, def, s.tilesById).ok) {
+          const origin = baseCellWorldOrigin(c.x, c.y, z, 0);
+          addRectOutline(origin.x, origin.y, CELL_SIZE, CELL_SIZE, 0xff4d4d, true);
+          continue;
+        }
+        const elev = stackHeight(getStack(s.map, c.x, c.y, z), s.tilesById);
+        const placed = brush[0]!;
+        const quad = this.spriteQuad(placed, def, c.x, c.y, z, elev, s.map);
+        if (quad) {
+          addSprite(quad, {
+            color: 0xffffff,
+            opacity: GHOST_OPACITY,
+            blending: THREE.NormalBlending,
+            renderOrder: drawOrder(
+              c.x,
+              c.y,
+              absoluteElevation(z, elev),
+              getStack(s.map, c.x, c.y, z).length,
+            ),
+          });
+        }
+        continue;
+      }
 
       if (!canReplaceStack(s.map, c.x, c.y, z, brush, s.tilesById).ok) {
         const origin = baseCellWorldOrigin(c.x, c.y, z, 0);
@@ -1689,6 +1729,12 @@ export class EditorRenderer {
     if (inField) return;
 
     const store = useEditorStore.getState();
+    if (e.code === "Escape") {
+      if (!store.selected) return;
+      e.preventDefault();
+      store.setSelected(null);
+      return;
+    }
     if (e.code === "Backspace" || e.code === "Delete") {
       if (!store.selected) return;
       const stack = getStack(
@@ -1733,21 +1779,7 @@ export class EditorRenderer {
 
   private onWheel = (e: WheelEvent) => {
     e.preventDefault();
-    const store = useEditorStore.getState();
-    // Shift+wheel on mice often only reports deltaY — treat it as horizontal.
-    let dx = e.shiftKey && e.deltaX === 0 ? e.deltaY : e.deltaX;
-    let dy = e.shiftKey && e.deltaX === 0 ? 0 : e.deltaY;
-    if (e.deltaMode === 1) {
-      dx *= 16;
-      dy *= 16;
-    } else if (e.deltaMode === 2) {
-      dx *= this.canvasW;
-      dy *= this.canvasH;
-    }
-    store.setCamera({
-      x: store.camera.x + dx / store.zoom,
-      y: store.camera.y + dy / store.zoom,
-    });
+    panCameraByWheel(e, { width: this.canvasW, height: this.canvasH });
   };
 
   private onPointerDown = (e: PointerEvent) => {
@@ -1779,8 +1811,8 @@ export class EditorRenderer {
     }
 
     if (tool === "pencil") {
-      if (!store.selected) {
-        useEditorStore.setState({ lastToast: "No source selected" });
+      if (!store.selected && !store.armedTileId) {
+        useEditorStore.setState({ lastToast: "No tile armed" });
         return;
       }
       this.painting = true;
@@ -1795,8 +1827,8 @@ export class EditorRenderer {
     }
 
     if (tool === "rect" || tool === "circle") {
-      if (!store.selected) {
-        useEditorStore.setState({ lastToast: "No source selected" });
+      if (!store.selected && !store.armedTileId) {
+        useEditorStore.setState({ lastToast: "No tile armed" });
         return;
       }
       this.shapeAnchor = coord;
@@ -1811,8 +1843,8 @@ export class EditorRenderer {
     }
 
     if (tool === "bucket") {
-      if (!store.selected) {
-        useEditorStore.setState({ lastToast: "No source selected" });
+      if (!store.selected && !store.armedTileId) {
+        useEditorStore.setState({ lastToast: "No tile armed" });
         return;
       }
       const target = getStack(
@@ -1822,13 +1854,15 @@ export class EditorRenderer {
         store.currentLevel,
       );
       if (target.length === 0) return;
-      const source = getStack(
-        store.map,
-        store.selected.x,
-        store.selected.y,
-        store.currentLevel,
-      );
-      if (stacksEqual(source, target)) return;
+      if (store.selected) {
+        const source = getStack(
+          store.map,
+          store.selected.x,
+          store.selected.y,
+          store.currentLevel,
+        );
+        if (stacksEqual(source, target)) return;
+      }
       const coords = floodCoords(
         store.map,
         coord.x,

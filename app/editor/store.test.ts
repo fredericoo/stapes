@@ -98,3 +98,64 @@ describe("editor store history", () => {
     ]);
   });
 });
+
+describe("editor store paint", () => {
+  beforeEach(() => {
+    useEditorStore.getState().hydrate(structuredClone(seedMap), tiles);
+    useEditorStore.getState().setSelected(null);
+    useEditorStore.getState().setArmedTileId(null);
+  });
+
+  it("stampAt with a selection copies the stack without moving selection", () => {
+    const store = useEditorStore.getState();
+    store.selectCoord(1, 2);
+    store.beginStroke();
+    const r = store.stampAt(3, 4);
+    store.endStroke();
+
+    expect(r.skipped).toBe(false);
+    expect(useEditorStore.getState().selected).toEqual({ x: 1, y: 2 });
+    expect(getStack(useEditorStore.getState().map, 3, 4, 0)).toEqual([
+      { tileId: "grass" },
+      { tileId: "rock" },
+    ]);
+  });
+
+  it("stampAt without selection appends the armed tile", () => {
+    const store = useEditorStore.getState();
+    store.setArmedTileId("grass");
+    store.beginStroke();
+    const r = store.stampAt(5, 5);
+    store.endStroke();
+
+    expect(r.skipped).toBe(false);
+    expect(useEditorStore.getState().selected).toBeNull();
+    expect(getStack(useEditorStore.getState().map, 5, 5, 0)).toEqual([
+      { tileId: "grass" },
+    ]);
+  });
+
+  it("stampAt without selection or armed tile is a no-op", () => {
+    const r = useEditorStore.getState().stampAt(5, 5);
+    expect(r).toEqual({ skipped: true, reason: "No tile armed" });
+    expect(getStack(useEditorStore.getState().map, 5, 5, 0)).toEqual([]);
+  });
+
+  it("stampMany without selection appends armed tile to each cell", () => {
+    const store = useEditorStore.getState();
+    store.setArmedTileId("rock");
+    const r = store.stampMany([
+      { x: 0, y: 0 },
+      { x: 1, y: 0 },
+    ]);
+
+    expect(r.skipped).toBe(0);
+    expect(useEditorStore.getState().selected).toBeNull();
+    expect(getStack(useEditorStore.getState().map, 0, 0, 0)).toEqual([
+      { tileId: "rock" },
+    ]);
+    expect(getStack(useEditorStore.getState().map, 1, 0, 0)).toEqual([
+      { tileId: "rock" },
+    ]);
+  });
+});

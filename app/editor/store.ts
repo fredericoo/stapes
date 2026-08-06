@@ -313,56 +313,90 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   },
 
   stampAt: (x, y) => {
-    const { map, selected, currentLevel, tilesById } = get();
-    if (!selected) {
-      return { skipped: true, reason: "No source selected" };
+    const { map, selected, currentLevel, tilesById, armedTileId } = get();
+
+    // With a coordinate selected: copy that cell’s full stack onto the target.
+    // Without one: append the armed tile picker tile instead.
+    if (selected) {
+      const source = getStack(map, selected.x, selected.y, currentLevel);
+      const clone: PlacedTile[] = source.map((p) => ({ ...p }));
+      const check = canReplaceStack(
+        map,
+        x,
+        y,
+        currentLevel,
+        clone,
+        tilesById,
+      );
+      if (!check.ok) {
+        return { skipped: true, reason: check.reason };
+      }
+      get().commitMap(replaceStack(map, x, y, currentLevel, clone), {
+        coalesceInStroke: true,
+      });
+      return { skipped: false };
     }
-    const source = getStack(map, selected.x, selected.y, currentLevel);
-    const clone: PlacedTile[] = source.map((p) => ({ ...p }));
-    const check = canReplaceStack(
-      map,
-      x,
-      y,
-      currentLevel,
-      clone,
-      tilesById,
-    );
-    if (!check.ok) {
-      return { skipped: true, reason: check.reason };
+
+    if (!armedTileId) {
+      return { skipped: true, reason: "No tile armed" };
     }
-    const next = replaceStack(map, x, y, currentLevel, clone);
-    // Selection trails the brush: the cell we just wrote holds an identical
-    // stack, so the source is unchanged and the panel shows what you painted.
-    get().commitMap(next, { coalesceInStroke: true });
-    set({ selected: { x, y } });
+    const def = tilesById[armedTileId];
+    if (!def) return { skipped: true, reason: "Unknown tile" };
+    const check = canPlace(map, x, y, currentLevel, def, tilesById);
+    if (!check.ok) return { skipped: true, reason: check.reason };
+    const placed: PlacedTile =
+      def.type === "directional"
+        ? { tileId: def.id, direction: "s" }
+        : { tileId: def.id };
+    get().commitMap(appendTile(map, x, y, currentLevel, placed), {
+      coalesceInStroke: true,
+    });
     return { skipped: false };
   },
 
   stampMany: (coords) => {
     let skipped = 0;
     let reason: string | undefined;
-    let { map, selected, currentLevel, tilesById } = get();
-    if (!selected) {
-      return { skipped: coords.length, reason: "No source selected" };
-    }
-    const source = getStack(map, selected.x, selected.y, currentLevel);
-    let last: { x: number; y: number } | null = null;
-    for (const { x, y } of coords) {
-      // Fresh clone per cell so stacks don't share identity across coords.
-      const clone: PlacedTile[] = source.map((p) => ({ ...p }));
-      const check = canReplaceStack(map, x, y, currentLevel, clone, tilesById);
-      if (!check.ok) {
-        skipped++;
-        reason = check.reason;
-        continue;
+    let { map, selected, currentLevel, tilesById, armedTileId } = get();
+    let wrote = false;
+
+    if (selected) {
+      const source = getStack(map, selected.x, selected.y, currentLevel);
+      for (const { x, y } of coords) {
+        // Fresh clone per cell so stacks don't share identity across coords.
+        const clone: PlacedTile[] = source.map((p) => ({ ...p }));
+        const check = canReplaceStack(map, x, y, currentLevel, clone, tilesById);
+        if (!check.ok) {
+          skipped++;
+          reason = check.reason;
+          continue;
+        }
+        map = replaceStack(map, x, y, currentLevel, clone);
+        wrote = true;
       }
-      map = replaceStack(map, x, y, currentLevel, clone);
-      last = { x, y };
+    } else {
+      if (!armedTileId) {
+        return { skipped: coords.length, reason: "No tile armed" };
+      }
+      const def = tilesById[armedTileId];
+      if (!def) return { skipped: coords.length, reason: "Unknown tile" };
+      const placed: PlacedTile =
+        def.type === "directional"
+          ? { tileId: def.id, direction: "s" }
+          : { tileId: def.id };
+      for (const { x, y } of coords) {
+        const check = canPlace(map, x, y, currentLevel, def, tilesById);
+        if (!check.ok) {
+          skipped++;
+          reason = check.reason;
+          continue;
+        }
+        map = appendTile(map, x, y, currentLevel, { ...placed });
+        wrote = true;
+      }
     }
-    if (last) {
-      get().commitMap(map);
-      set({ selected: last });
-    }
+
+    if (wrote) get().commitMap(map);
     return { skipped, reason };
   },
 
