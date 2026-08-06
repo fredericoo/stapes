@@ -22,6 +22,7 @@ import {
   MAX_LEVEL,
   MIN_LEVEL,
   levelKey,
+  physicalHeight,
   tileCanEmitLight,
 } from "../lib/types";
 import { getFrames } from "../lib/tileResolve";
@@ -1008,7 +1009,7 @@ export class WorldRenderer {
               : undefined,
         });
 
-        elev += def.height;
+        elev += physicalHeight(def);
       });
     }
 

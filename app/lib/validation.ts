@@ -5,6 +5,7 @@ import {
   MIN_LEVEL,
   coordKey,
   levelKey,
+  physicalHeight,
 } from "./types";
 import { getStack, stackHeight } from "./mapData";
 
@@ -51,7 +52,7 @@ export function fitsTile(
 
   const stack = getStack(map, x, y, z);
   const e = stackHeight(stack, tilesById);
-  const h = tileDef.height;
+  const h = physicalHeight(tileDef);
   const total = e + h;
 
   // Flat tiles don't grow the stack volume — always fine on a full top.
@@ -117,7 +118,7 @@ export function fitsAtElevation(
   tileDef: TileDef,
   tilesById: Record<string, TileDef>,
 ): PlaceResult {
-  const headAbs = feetAbs + tileDef.height;
+  const headAbs = feetAbs + physicalHeight(tileDef);
   const maxAbs = (MAX_LEVEL + 1) * HEIGHT_PER_LEVEL + HEIGHT_PER_LEVEL;
   if (feetAbs < MIN_LEVEL * HEIGHT_PER_LEVEL || headAbs > maxAbs) {
     return { ok: false, reason: "Out of vertical range" };
@@ -182,9 +183,9 @@ export function canReplaceStack(
   let e = 0;
   for (const placed of newStack) {
     const def = tilesById[placed.tileId];
-    const h = def?.height ?? 0;
-    // Height-0 tiles may sit on a full/overflow stack; only volume-adding
-    // tiles must start below the next-level boundary.
+    const h = def ? physicalHeight(def) : 0;
+    // Height-0 / intangible tiles may sit on a full/overflow stack; only
+    // volume-adding tiles must start below the next-level boundary.
     if (e >= HEIGHT_PER_LEVEL && h > 0) {
       return {
         ok: false,

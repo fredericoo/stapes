@@ -4,6 +4,7 @@ import {
   climbFromSourceAt,
   getStack,
   stackHeight,
+  surfaceTileAt,
   walkableFloorAbove,
 } from "../lib/mapData";
 import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
@@ -101,14 +102,7 @@ function solidTopAt(
   abs: number,
   tilesById: Record<string, TileDef>,
 ): PlacedTile | null {
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
-    const stack = getStack(map, x, y, z);
-    if (stack.length === 0) continue;
-    if (absoluteStandingElevation(z, stack, tilesById) === abs) {
-      return stack[stack.length - 1]!;
-    }
-  }
-  return null;
+  return surfaceTileAt(map, x, y, abs, tilesById);
 }
 
 /**

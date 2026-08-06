@@ -31,6 +31,7 @@ import {
   MAX_LEVEL,
   MIN_LEVEL,
   levelKey,
+  physicalHeight,
   tileCanEmitLight,
 } from "../lib/types";
 import { getFrames, tileLightSignature } from "../lib/tileResolve";
@@ -869,7 +870,7 @@ export class EditorRenderer {
           addSpriteOutline(quad, 0xffcc00);
         }
 
-        elev += def.height;
+        elev += physicalHeight(def);
       });
     }
 
@@ -935,7 +936,7 @@ export class EditorRenderer {
             ),
           });
         }
-        elev += def.height;
+        elev += physicalHeight(def);
       });
     }
 
@@ -1226,7 +1227,7 @@ export class EditorRenderer {
               : undefined,
         });
 
-        elev += def.height;
+        elev += physicalHeight(def);
       });
     }
 

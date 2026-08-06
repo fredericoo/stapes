@@ -7,6 +7,8 @@ import {
   coordKey,
   levelKey,
   parseCoordKey,
+  physicalHeight,
+  resolveIntangible,
   resolveWalkable,
 } from "./types";
 
@@ -32,12 +34,12 @@ export function stackHeight(
   let h = 0;
   for (const p of stack) {
     const def = tilesById[p.tileId];
-    h += def?.height ?? 0;
+    if (def) h += physicalHeight(def);
   }
   return h;
 }
 
-/** Elevation under the tile at stackIndex (sum of heights below it). */
+/** Elevation under the tile at stackIndex (sum of physical heights below it). */
 export function elevationAt(
   stack: PlacedTile[],
   stackIndex: number,
@@ -46,9 +48,26 @@ export function elevationAt(
   let e = 0;
   for (let i = 0; i < stackIndex; i++) {
     const def = tilesById[stack[i]!.tileId];
-    e += def?.height ?? 0;
+    if (def) e += physicalHeight(def);
   }
   return e;
+}
+
+/**
+ * Topmost non-intangible tile in a stack. Intangibles don't form a solid
+ * surface — walk/land checks look through them to the tile underneath.
+ */
+export function solidTopOfStack(
+  stack: PlacedTile[],
+  tilesById: Record<string, TileDef>,
+): PlacedTile | null {
+  for (let i = stack.length - 1; i >= 0; i--) {
+    const placed = stack[i]!;
+    const def = tilesById[placed.tileId];
+    if (def && resolveIntangible(def)) continue;
+    return placed;
+  }
+  return null;
 }
 
 /**
@@ -75,8 +94,10 @@ export function walkableElevInStack(
   let best: number | null = null;
   for (const p of stack) {
     const def = tilesById[p.tileId];
-    elev += def?.height ?? 0;
-    if (def && resolveWalkable(def)) best = elev;
+    if (!def) continue;
+    elev += physicalHeight(def);
+    // Intangible walkable tops don't form a standing plane — pass through.
+    if (resolveWalkable(def) && !resolveIntangible(def)) best = elev;
   }
   return best;
 }
@@ -121,8 +142,15 @@ export function walkableTileAtElev(
   let elev = 0;
   for (const p of stack) {
     const def = tilesById[p.tileId];
-    elev += def?.height ?? 0;
-    if (def && resolveWalkable(def) && elev === elevInLevel) return p;
+    if (!def) continue;
+    elev += physicalHeight(def);
+    if (
+      resolveWalkable(def) &&
+      !resolveIntangible(def) &&
+      elev === elevInLevel
+    ) {
+      return p;
+    }
   }
   return null;
 }
@@ -132,6 +160,7 @@ export function walkableTileAtElev(
  * nothing surfaces there. The first stack whose top lands on `abs` wins even
  * if it is not walkable — that tile still owns the plane, and callers that
  * care about standing on it check {@link resolveWalkable} themselves.
+ * Intangible tops are skipped so pass-through tiles don't block standing.
  */
 export function surfaceTileAt(
   map: MapFile,
@@ -149,7 +178,8 @@ export function surfaceTileAt(
     if (stack.length === 0) continue;
     const top = absoluteStandingElevation(z, stack, tilesById);
     if (top !== abs) continue;
-    return stack[stack.length - 1]!;
+    const solid = solidTopOfStack(stack, tilesById);
+    if (solid) return solid;
   }
 
   // Floor formed by a full walkable level below — its top tile is the surface.
@@ -160,7 +190,7 @@ export function surfaceTileAt(
       below = below.filter((_, i) => i !== exclude.stackIndex);
     }
     if (walkableFloorAbove(zFloor - 1, below, tilesById) === abs) {
-      return below[below.length - 1] ?? null;
+      return solidTopOfStack(below, tilesById);
     }
   }
   return null;

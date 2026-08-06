@@ -345,7 +345,7 @@ export class GameRenderer {
       tilesById: this.tilesById,
       camera,
       zoom,
-      timeOfDay: "dusk",
+      timeOfDay: "night",
       tileMotions: this.tileMotionsFor(snap, visual),
       emitterOverrides: this.emitterOverridesFor(snap),
       hideLevelsAbove: hideAbove ? anchor.z : undefined,

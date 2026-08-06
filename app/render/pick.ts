@@ -3,7 +3,7 @@ import type { ObjectRef } from "../game/GameSession";
 import { isInteractive } from "../lib/interactions";
 import { getStack, listCoords } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
-import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
+import { MAX_LEVEL, MIN_LEVEL, physicalHeight } from "../lib/types";
 import {
   type SpriteQuadAssets,
   quadContains,
@@ -36,7 +36,7 @@ export function indexInteractive(
       stack.forEach((placed, stackIndex) => {
         const def = tilesById[placed.tileId];
         const drawnAt = elevation;
-        elevation += def?.height ?? 0;
+        if (def) elevation += physicalHeight(def);
         // Buried under another tile: not hoverable, not draggable.
         if (stackIndex !== stack.length - 1) return;
         if (!def || !isInteractive(def)) return;

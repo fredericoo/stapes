@@ -128,6 +128,12 @@ const tiles: TileDef[] = [
     interactions: { switch: { targetTileId: "door-tall" } },
   }),
   tile({
+    id: "door-ajar",
+    height: 2,
+    intangible: true,
+    walkable: false,
+  }),
+  tile({
     id: "ramp",
     height: 1,
     directional: true,
@@ -313,6 +319,24 @@ describe("canWalk climb", () => {
       tilesById,
     );
     expect(check.ok).toBe(false);
+  });
+
+  it("walks through a full-height intangible door", () => {
+    let map = mapWithPlayer({ x: 0, y: 0 });
+    map = replaceStack(map, 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "door-ajar" },
+    ]);
+    const loc = requireSinglePlayer(map);
+    const check = canWalk(
+      map,
+      { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex },
+      "e",
+      tilesById.player!,
+      tilesById,
+    );
+    expect(check.ok).toBe(true);
+    if (check.ok) expect(check.to).toMatchObject({ x: 1, y: 0, z: 0 });
   });
 
   it("rejects walking under a roof that does not fit", () => {

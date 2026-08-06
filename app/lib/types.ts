@@ -71,6 +71,12 @@ export type TileDef = {
    */
   blocksLight?: boolean;
   /**
+   * When true, this tile contributes no physical volume — other tiles and the
+   * player can pass through it. Authored {@link height} is kept for lighting
+   * and drawing. Default / absent → solid.
+   */
+  intangible?: boolean;
+  /**
    * When true, unsupported tiles fall until they land on something solid.
    * Default / absent → not affected by gravity.
    */
@@ -103,6 +109,20 @@ export type TileDef = {
 /** Whether this tile’s top is a stand/land surface. Default: true. */
 export function resolveWalkable(def: TileDef): boolean {
   return def.walkable !== false;
+}
+
+/** Whether this tile has no physical volume. Default: solid (false). */
+export function resolveIntangible(def: TileDef): boolean {
+  return def.intangible === true;
+}
+
+/**
+ * Height that counts for stacking, collision, and standing elevation.
+ * Intangible tiles read as 0 so others can pass through; lighting and
+ * sprite depth still use authored {@link TileDef.height}.
+ */
+export function physicalHeight(def: TileDef): number {
+  return resolveIntangible(def) ? 0 : def.height;
 }
 
 const OPEN_CLIMB: Record<Direction, boolean> = {
@@ -265,6 +285,7 @@ export function normalizeTileDef(raw: unknown): TileDef {
     attributes?: Record<string, never>;
     lightPassing?: boolean;
     blocksLight?: boolean;
+    intangible?: boolean;
     light?: LightDef;
     affectedByGravity?: boolean;
     walkable?: boolean;
@@ -282,6 +303,7 @@ export function normalizeTileDef(raw: unknown): TileDef {
     attributes: legacy.attributes ?? {},
     lightPassing: legacy.lightPassing,
     blocksLight: legacy.blocksLight,
+    intangible: legacy.intangible,
     affectedByGravity: legacy.affectedByGravity,
     walkable: legacy.walkable,
     climbFrom: legacy.climbFrom,

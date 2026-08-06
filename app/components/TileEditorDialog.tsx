@@ -20,6 +20,7 @@ import {
   isAnimated,
   isDirectional,
   resolveClimbFrom,
+  resolveIntangible,
   resolveLightPassing,
   resolveWalkable,
 } from "../lib/types";
@@ -60,6 +61,7 @@ function blankTile(tilesets: TilesetDef[]): TileDef {
     type: "simple",
     attributes: {},
     lightPassing: false,
+    intangible: false,
     walkable: true,
     climbFrom: { default: { n: true, e: true, s: true, w: true } },
     sprite: emptySprite(ts),
@@ -81,6 +83,7 @@ function withLightingDefaults(tile: TileDef): TileDef {
   return {
     ...rest,
     lightPassing: resolveLightPassing(tile),
+    intangible: resolveIntangible(tile),
     walkable: resolveWalkable(tile),
     climbFrom: expandClimbFrom(tile),
   };
@@ -357,6 +360,7 @@ export function TileEditorDialog({
       type: draft.type,
       attributes: {},
       lightPassing: draft.lightPassing ? true : undefined,
+      intangible: draft.intangible ? true : undefined,
       affectedByGravity: draft.affectedByGravity ? true : undefined,
       walkable: draft.walkable === false ? false : undefined,
       climbFrom: climbFromForSave(draft, climbByVariant),
@@ -704,6 +708,17 @@ export function TileEditorDialog({
               className="hard-checkbox"
             />
             Passes light
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={draft.intangible ?? false}
+              onChange={(e) =>
+                setDraft({ ...draft, intangible: e.target.checked })
+              }
+              className="hard-checkbox"
+            />
+            Intangible
           </label>
           <label className="flex items-center gap-2 text-sm">
             <input

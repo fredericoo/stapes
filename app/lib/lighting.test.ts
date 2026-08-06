@@ -96,6 +96,20 @@ describe("stackOcclusion", () => {
       sealsLevel: false,
     });
   });
+
+  it("still occludes with authored height when intangible", () => {
+    const openDoor = tile({
+      id: "door-open",
+      height: 2,
+      intangible: true,
+      walkable: false,
+    });
+    const byId = { ...tilesById, "door-open": openDoor };
+    expect(stackOcclusion([{ tileId: "door-open" }], byId)).toEqual({
+      opacity: 1,
+      sealsLevel: true,
+    });
+  });
 });
 
 describe("isSkyExposed", () => {
@@ -165,6 +179,19 @@ describe("emitterCenter", () => {
       fy: 0.5,
       fz: 0.5,
     });
+  });
+
+  it("uses authored height for an intangible emitter", () => {
+    const lamp = tile({
+      id: "ghost-lamp",
+      height: 2,
+      intangible: true,
+      light: { radius: 4, intensity: 1, color: "#ffffff" },
+    });
+    const byId = { ...tilesById, "ghost-lamp": lamp };
+    expect(
+      emitterCenter(0, 0, 0, [{ tileId: "ghost-lamp" }], 0, byId),
+    ).toEqual({ fx: 0.5, fy: 0.5, fz: 0.5 });
   });
 
   it("accounts for standing on a half-block base", () => {

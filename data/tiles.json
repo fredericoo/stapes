@@ -1091,6 +1091,7 @@
     "height": 2,
     "type": "directional",
     "attributes": {},
+    "intangible": true,
     "sprites": {
       "n": {
         "frames": [
@@ -2846,6 +2847,7 @@
     "type": "simple",
     "attributes": {},
     "lightPassing": true,
+    "intangible": true,
     "walkable": false,
     "interactions": {
       "switch": {
