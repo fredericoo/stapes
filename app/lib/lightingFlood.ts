@@ -26,19 +26,36 @@ export const MAX_LIGHT_LEVEL = 15;
 const TRANSMISSION_EPSILON = 1e-3;
 const VERTICAL_FALLOFF = 1;
 
-/** 6-face + 4 diagonal (XY) with Euclidean step cost — softens diamond shapes. */
-const SKY_EDGES: ReadonlyArray<readonly [number, number, number, number]> = [
-  [1, 0, 0, 1],
-  [-1, 0, 0, 1],
-  [0, 1, 0, 1],
-  [0, -1, 0, 1],
-  [0, 0, 1, 1],
-  [0, 0, -1, 1],
-  [1, 1, 0, Math.SQRT2],
-  [1, -1, 0, Math.SQRT2],
-  [-1, 1, 0, Math.SQRT2],
-  [-1, -1, 0, Math.SQRT2],
-];
+/**
+ * 6-face + 4 diagonal (XY) with Euclidean step cost — softens diamond shapes.
+ *
+ * Flattened into `(dx, dy, dz, cost)` runs of one typed array rather than an
+ * array of tuples. The flood relaxes millions of edges, and pulling a tuple out
+ * of a nested array — a pointer chase plus destructuring — costs several times
+ * the relaxation it feeds. Keeping this flat is the difference between a ~13ms
+ * and a ~95ms bake on the fixture map.
+ */
+const SKY_EDGE_STRIDE = 4;
+const SKY_EDGES = new Float64Array([
+  1, 0, 0, 1,
+  -1, 0, 0, 1,
+  0, 1, 0, 1,
+  0, -1, 0, 1,
+  0, 0, 1, 1,
+  0, 0, -1, 1,
+  1, 1, 0, Math.SQRT2,
+  1, -1, 0, Math.SQRT2,
+  -1, 1, 0, Math.SQRT2,
+  -1, -1, 0, Math.SQRT2,
+]);
+const SKY_EDGE_COUNT = SKY_EDGES.length / SKY_EDGE_STRIDE;
+
+/**
+ * Starting queue size as a multiple of the cell count. Relaxation revisits
+ * cells, so enqueues are *not* bounded by the domain — the fixture map alone
+ * needs ~1.25×. It grows on demand; this only sets how often that happens.
+ */
+const SKY_QUEUE_HEADROOM = 2;
 
 function parseHexColor(hex: string): [number, number, number] {
   const m = /^#([0-9a-fA-F]{6})$/.exec(hex.trim());
@@ -344,7 +361,9 @@ export function computeLightingFlood(
   // Sky spread with Euclidean edge costs (rounder than Manhattan diamonds).
   // Full opaques are not enqueued — their shaft paint must not spill through
   // walls. Half-blocks participate and decay light by half on entry.
-  const skyQ = new Int32Array(n);
+  // Must grow: a typed-array write past the end is a silent no-op, so an
+  // undersized queue drops propagations and bakes those cells too dark.
+  let skyQ = new Int32Array(n * SKY_QUEUE_HEADROOM);
   let skyLen = 0;
   for (let i = 0; i < n; i++) {
     if (opacity[i]! >= 1) continue;
@@ -359,8 +378,12 @@ export function computeLightingFlood(
     const rem = i - lz * slice;
     const ly = (rem / dom.w) | 0;
     const lx = rem - ly * dom.w;
-    for (let ei = 0; ei < SKY_EDGES.length; ei++) {
-      const [dx, dy, dz, cost] = SKY_EDGES[ei]!;
+    for (let ei = 0; ei < SKY_EDGE_COUNT; ei++) {
+      const e = ei * SKY_EDGE_STRIDE;
+      const dx = SKY_EDGES[e]!;
+      const dy = SKY_EDGES[e + 1]!;
+      const dz = SKY_EDGES[e + 2]!;
+      const cost = SKY_EDGES[e + 3]!;
       const tx = lx + dx;
       const ty = ly + dy;
       const tz = lz + dz;
@@ -379,6 +402,11 @@ export function computeLightingFlood(
       if (topOp > 0) next *= 1 - topOp;
       if (next > sky[j]!) {
         sky[j] = next;
+        if (skyLen === skyQ.length) {
+          const grown = new Int32Array(skyQ.length * 2);
+          grown.set(skyQ);
+          skyQ = grown;
+        }
         skyQ[skyLen++] = j;
       }
     }

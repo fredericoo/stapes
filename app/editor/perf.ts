@@ -22,9 +22,15 @@ export const PERF_BUDGETS = {
    * Cold static lighting bake on fixture map (circular hybrid: Euclidean sky
    * spill + spherical torches). Half-blocks participate in sky flood.
    * Asserted in `app/lib/lighting.perf.test.ts` — not the editor frame probe.
+   *
+   * This runs synchronously on any non-player map change — a push landing, a
+   * door switching — so the budget is counted in dropped frames, not in "does
+   * it finish". Measures ~23ms p50 / ~46ms p95 today. The old 200ms ceiling
+   * was wide enough to hide a 147ms stall, so keep this tight to the real
+   * number and treat a regression as a visible hitch rather than a warning.
    */
-  lightingBakeMsP95: 200,
-  lightingBakeMsP95Ci: 280,
+  lightingBakeMsP95: 60,
+  lightingBakeMsP95Ci: 110,
   /** Player light overlay atop cached bake. */
   lightingOverlayMsP95: 15,
   lightingOverlayMsP95Ci: 25,
