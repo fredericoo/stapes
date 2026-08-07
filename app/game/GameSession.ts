@@ -32,6 +32,12 @@ import {
 } from "./mapMutations";
 import { canWalk, standingAbs } from "./movement";
 import { playerDirection, requireSinglePlayer } from "./player";
+import {
+  cellHasPlate,
+  cellKey,
+  findPlateCells,
+  settlePlates,
+} from "./pressurePlates";
 
 export type WalkState = {
   from: Coord;
@@ -109,11 +115,64 @@ export class GameSession {
   private accumulatorMs = 0;
   private hovered: ObjectRef | null = null;
   private slide: SlideState | null = null;
+  /**
+   * Cells holding a pressure plate, so settling reads a handful of columns
+   * instead of the whole board every tick. Kept true by
+   * {@link reindexPlates} at the few sites that can relocate a plate; a stale
+   * extra entry only costs a wasted stack read, a missing one is a dead plate.
+   */
+  private readonly plateCells = new Map<string, Coord>();
+  /** Map identity the last settle pass read. See {@link settlePlatesNow}. */
+  private settledMap: MapFile | null = null;
 
   constructor(map: MapFile, tiles: TileDef[]) {
     this.map = structuredClone(map);
     this.tilesById = tilesByIdFromList(tiles);
     requireSinglePlayer(this.map);
+
+    for (const cell of findPlateCells(this.map, this.tilesById)) {
+      this.plateCells.set(cellKey(cell), cell);
+    }
+    // An authored map opens in the state its load implies — a boulder already
+    // sitting on a plate means that plate starts pressed, not pressed one tick
+    // after the player first sees it.
+    this.settlePlatesNow();
+  }
+
+  /** Keep the plate index true for cells whose stack just changed. */
+  private reindexPlates(cells: Iterable<Coord>) {
+    for (const cell of cells) {
+      const key = cellKey(cell);
+      if (cellHasPlate(this.map, cell, this.tilesById)) {
+        this.plateCells.set(key, cell);
+      } else {
+        this.plateCells.delete(key);
+      }
+    }
+  }
+
+  /**
+   * Bring every plate in line with what is resting on it.
+   *
+   * The skip is on map identity, not a dirty flag: the map is copy-on-write, so
+   * an unchanged map cannot have changed a plate's load. The identity recorded
+   * is the one read *before* the pass, which is what lets a swap that shifts
+   * another plate's load settle on the next tick rather than being mistaken for
+   * a board at rest.
+   */
+  private settlePlatesNow() {
+    if (this.plateCells.size === 0) return;
+    const before = this.map;
+    if (before === this.settledMap) return;
+    this.settledMap = before;
+
+    const { map, changed } = settlePlates(
+      before,
+      this.plateCells.values(),
+      this.tilesById,
+    );
+    this.map = map;
+    this.reindexPlates(changed);
   }
 
   setInput(input: GameInput) {
@@ -230,6 +289,8 @@ export class GameSession {
       from,
       elapsedMs: 0,
     };
+    // The object itself may be a plate, so both ends of the shove are suspect.
+    this.reindexPlates([from, to]);
     return true;
   }
 
@@ -259,6 +320,8 @@ export class GameSession {
         : placed,
     );
     this.map = replaceStack(this.map, ref.x, ref.y, ref.z, next);
+    // The tile switched into may be a plate — or may have been one.
+    this.reindexPlates([{ x: ref.x, y: ref.y, z: ref.z }]);
     return true;
   }
 
@@ -333,7 +396,14 @@ export class GameSession {
     // Independent of the player: a shoved object keeps travelling whatever
     // the player does next.
     this.tickSlide(tickMs);
+    this.tickMotion(tickMs);
+    // Last, and on every path through the tick: plates answer to the board the
+    // tick leaves behind, not to any particular thing having caused it.
+    this.settlePlatesNow();
+  }
 
+  /** The player's own motion for one tick — walking, falling, or starting to. */
+  private tickMotion(tickMs: number) {
     if (this.fall) {
       this.tickFall(tickMs);
       return;

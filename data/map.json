@@ -17242,6 +17242,9 @@
       "-4,1": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "pressure-plate"
         }
       ],
       "-2,-2": [

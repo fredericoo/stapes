@@ -2874,5 +2874,73 @@
         }
       ]
     }
+  },
+  {
+    "id": "pressure-plate",
+    "name": "Pressure Plate",
+    "height": 0,
+    "type": "simple",
+    "attributes": {},
+    "interactions": {
+      "pressurePlate": {
+        "tileId": "pressure-plate-pressed",
+        "type": "gte",
+        "height": 1
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 10,
+              "y": 5,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "pressure-plate-pressed",
+    "name": "Pressure Plate (Pressed)",
+    "height": 0,
+    "type": "simple",
+    "attributes": {},
+    "interactions": {
+      "pressurePlate": {
+        "tileId": "pressure-plate",
+        "type": "lte",
+        "height": 0
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 11,
+              "y": 5,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
   }
 ]

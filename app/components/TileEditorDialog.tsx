@@ -31,7 +31,7 @@ import {
   autotileSliceTitle,
 } from "./AutotileSlicePreview";
 import { InteractiveTab } from "./InteractiveTab";
-import { interactionsForSave } from "../lib/interactions";
+import { hasAnyInteraction, interactionsForSave } from "../lib/interactions";
 import { Button, Dialog, Input, Segmented, Select, TabPanel, Tabs } from "../ui";
 
 function emptyFrame(tilesetId: string): Frame {
@@ -638,10 +638,9 @@ export function TileEditorDialog({
             { value: TAB_TILE, label: "Tile" },
             {
               value: TAB_INTERACTIVE,
-              label:
-                draft.interactions?.push || draft.interactions?.switch
-                  ? "Interactive •"
-                  : "Interactive",
+              label: hasAnyInteraction(draft.interactions)
+                ? "Interactive •"
+                : "Interactive",
             },
           ]}
         >

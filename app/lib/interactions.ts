@@ -39,10 +39,58 @@ export type SwitchInteraction = {
   targetTileId: string;
 };
 
-/** Ways the player can interact with a placed object. Grows over time. */
+/** How a plate's authored {@link PressurePlateInteraction.height} reads its load. */
+export type PlateComparison = "eq" | "neq" | "gt" | "gte" | "lt" | "lte";
+
+export const PLATE_COMPARISONS: PlateComparison[] = [
+  "eq",
+  "neq",
+  "gt",
+  "gte",
+  "lt",
+  "lte",
+];
+
+const COMPARATORS: Record<
+  PlateComparison,
+  (load: number, height: number) => boolean
+> = {
+  eq: (load, height) => load === height,
+  neq: (load, height) => load !== height,
+  gt: (load, height) => load > height,
+  gte: (load, height) => load >= height,
+  lt: (load, height) => load < height,
+  lte: (load, height) => load <= height,
+};
+
+/**
+ * A plate that watches what is stacked on top of it and swaps itself out the
+ * moment the comparison holds. Unlike push and switch this is not something
+ * the player aims at — the board pressing on it is the whole input.
+ *
+ * One plate is only half a mechanism: the swap is one-way, and the behaviour
+ * comes from what the target tile does in turn. Two plates pointing at each
+ * other (`gte 1` → pressed, `lte 0` → unpressed) follow their load; a target
+ * with no plate of its own stays pressed forever.
+ */
+export type PressurePlateInteraction = {
+  /** Tile this becomes while the comparison holds. */
+  tileId: string;
+  /** How {@link height} is compared against the load resting on the plate. */
+  type: PlateComparison;
+  /**
+   * Load to compare against, in height units — a half-height crate is 1 and a
+   * full level is {@link HEIGHT_PER_LEVEL}. Flat and intangible tiles weigh
+   * nothing, so `gte 1` reads as "something solid is standing here".
+   */
+  height: number;
+};
+
+/** Ways a placed object can behave in play. Grows over time. */
 export type TileInteractions = {
   push?: PushInteraction;
   switch?: SwitchInteraction;
+  pressurePlate?: PressurePlateInteraction;
 };
 
 export const DEFAULT_SWITCH: SwitchInteraction = {
@@ -53,6 +101,20 @@ export const DEFAULT_PUSH: PushInteraction = {
   climb: "half",
   moveOnTileIds: [],
 };
+
+export const DEFAULT_PRESSURE_PLATE: PressurePlateInteraction = {
+  tileId: "",
+  type: "gte",
+  height: 1,
+};
+
+/** Does the load resting on this plate satisfy its authored comparison? */
+export function plateTriggers(
+  plate: PressurePlateInteraction,
+  load: number,
+): boolean {
+  return COMPARATORS[plate.type](load, plate.height);
+}
 
 const pushSchema = v.object({
   climb: v.picklist(CLIMB_ABILITIES),
@@ -101,14 +163,46 @@ export function resolveSwitch(def: TileDef): SwitchInteraction | null {
   return sw;
 }
 
+const pressurePlateSchema = v.object({
+  tileId: v.pipe(v.string(), v.minLength(1)),
+  type: v.picklist(PLATE_COMPARISONS),
+  height: v.pipe(v.number(), v.integer(), v.minValue(0)),
+});
+
+const pressurePlateCache = new WeakMap<
+  TileDef,
+  PressurePlateInteraction | null
+>();
+
 /**
- * Kinds of interaction a tile offers, in the order the single interact button
- * tries them. Switch comes first: it is an explicit authored swap, whereas a
- * push is the fallback "just shove it" behaviour.
+ * Parsed pressure plate config per tile def. Same trust model as
+ * {@link resolvePush}: malformed or targetless → not a plate.
+ */
+export function resolvePressurePlate(
+  def: TileDef,
+): PressurePlateInteraction | null {
+  const cached = pressurePlateCache.get(def);
+  if (cached !== undefined) return cached;
+
+  const raw = def.interactions?.pressurePlate;
+  const parsed = raw == null ? null : v.safeParse(pressurePlateSchema, raw);
+  const plate = parsed?.success ? parsed.output : null;
+  pressurePlateCache.set(def, plate);
+  return plate;
+}
+
+/**
+ * Kinds of interaction a tile offers the player, in the order the single
+ * interact button tries them. Switch comes first: it is an explicit authored
+ * swap, whereas a push is the fallback "just shove it" behaviour.
+ *
+ * Pressure plates are deliberately absent — nothing about them answers to a
+ * tap, and listing one here would outline a floor tile the player cannot act
+ * on.
  */
 export type InteractionKind = "switch" | "push";
 
-/** Every interaction enabled on this tile, in a stable order. */
+/** Every player-activated interaction on this tile, in a stable order. */
 export function interactionKinds(def: TileDef): InteractionKind[] {
   const kinds: InteractionKind[] = [];
   if (resolveSwitch(def)) kinds.push("switch");
@@ -121,12 +215,26 @@ export function isInteractive(def: TileDef): boolean {
   return interactionKinds(def).length > 0;
 }
 
+/**
+ * Whether this tile does anything in play — passive behaviour included. Use
+ * over {@link isInteractive} when the question is "is this tile inert?" rather
+ * than "can the player act on it?".
+ */
+export function hasAnyInteraction(
+  interactions: TileInteractions | undefined,
+): boolean {
+  return Boolean(
+    interactions?.push || interactions?.switch || interactions?.pressurePlate,
+  );
+}
+
 /** Persist interactions; omit the field entirely when nothing is enabled. */
 export function interactionsForSave(
   interactions: TileInteractions | undefined,
 ): TileInteractions | undefined {
   const push = interactions?.push;
   const sw = interactions?.switch;
+  const plate = interactions?.pressurePlate;
   const savedPush = push
     ? {
         climb: push.climb,
@@ -135,9 +243,13 @@ export function interactionsForSave(
     : undefined;
   const savedSwitch =
     sw?.targetTileId.trim() ? { targetTileId: sw.targetTileId.trim() } : undefined;
-  if (!savedPush && !savedSwitch) return undefined;
+  const savedPlate = plate?.tileId.trim()
+    ? { tileId: plate.tileId.trim(), type: plate.type, height: plate.height }
+    : undefined;
+  if (!savedPush && !savedSwitch && !savedPlate) return undefined;
   return {
     ...(savedPush ? { push: savedPush } : {}),
     ...(savedSwitch ? { switch: savedSwitch } : {}),
+    ...(savedPlate ? { pressurePlate: savedPlate } : {}),
   };
 }

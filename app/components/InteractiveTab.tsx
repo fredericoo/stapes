@@ -1,13 +1,34 @@
 import type {
   ClimbAbility,
+  PlateComparison,
+  PressurePlateInteraction,
   PushInteraction,
   SwitchInteraction,
   TileInteractions,
 } from "../lib/interactions";
-import { DEFAULT_PUSH, DEFAULT_SWITCH } from "../lib/interactions";
+import {
+  DEFAULT_PRESSURE_PLATE,
+  DEFAULT_PUSH,
+  DEFAULT_SWITCH,
+  hasAnyInteraction,
+} from "../lib/interactions";
 import type { TileDef, TilesetDef } from "../lib/types";
-import { Segmented, Switch } from "../ui";
+import { HEIGHT_PER_LEVEL } from "../lib/types";
+import { Input, Segmented, Switch } from "../ui";
 import { TileIdMultiSelect } from "./TileIdMultiSelect";
+
+/** Symbols read left-to-right after the "load is" label. */
+const COMPARISON_OPTIONS: Array<{ value: PlateComparison; label: string }> = [
+  { value: "eq", label: "=" },
+  { value: "neq", label: "≠" },
+  { value: "gt", label: ">" },
+  { value: "gte", label: "≥" },
+  { value: "lt", label: "<" },
+  { value: "lte", label: "≤" },
+];
+
+/** Deepest a plate can be buried: a stack may overflow one level into the next. */
+const MAX_PLATE_HEIGHT = HEIGHT_PER_LEVEL * 2;
 
 type Props = {
   draft: TileDef;
@@ -23,6 +44,7 @@ type Props = {
 export function InteractiveTab({ draft, onChange, tiles, tilesets }: Props) {
   const push = draft.interactions?.push;
   const sw = draft.interactions?.switch;
+  const plate = draft.interactions?.pressurePlate;
 
   const setInteractions = (next: TileInteractions | undefined) => {
     onChange({ ...draft, interactions: next });
@@ -36,9 +58,7 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets }: Props) {
     const merged: TileInteractions = { ...draft.interactions };
     if (value == null) delete merged[key];
     else merged[key] = value;
-    setInteractions(
-      merged.push || merged.switch ? merged : undefined,
-    );
+    setInteractions(hasAnyInteraction(merged) ? merged : undefined);
   };
 
   const setPush = (next: PushInteraction | undefined) => {
@@ -57,6 +77,15 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets }: Props) {
   const patchSwitch = (patch: Partial<SwitchInteraction>) => {
     if (!sw) return;
     setSwitch({ ...sw, ...patch });
+  };
+
+  const setPlate = (next: PressurePlateInteraction | undefined) => {
+    patchKind("pressurePlate", next ?? null);
+  };
+
+  const patchPlate = (patch: Partial<PressurePlateInteraction>) => {
+    if (!plate) return;
+    setPlate({ ...plate, ...patch });
   };
 
   return (
@@ -141,6 +170,83 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets }: Props) {
               }
               label="Target tile"
               emptyHint="Pick the tile this becomes when switched."
+              single
+            />
+          </div>
+        ) : null}
+      </section>
+
+      <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
+        <label className="flex items-center gap-2 text-sm font-bold">
+          <Switch
+            checked={Boolean(plate)}
+            onCheckedChange={(on) =>
+              setPlate(on ? { ...DEFAULT_PRESSURE_PLATE } : undefined)
+            }
+            ariaLabel="Pressure plate"
+          />
+          Pressure plate
+        </label>
+        <p className="text-[11px] leading-snug text-muted">
+          Swaps itself for another tile whenever the load stacked on top of it
+          matches. The player never clicks it — the board pressing on it is the
+          whole input. Put a plate on both tiles to follow the load (unpressed{" "}
+          <strong>≥ 1</strong> → pressed, pressed <strong>≤ 0</strong> →
+          unpressed); leave the pressed tile without one and it stays down for
+          good.
+        </p>
+
+        {plate ? (
+          <div className="flex flex-col gap-3 border-t-2 border-border pt-3">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex flex-col gap-1 text-xs">
+                <span className="font-bold uppercase text-muted">
+                  Swap when load is
+                </span>
+                <Segmented<PlateComparison>
+                  value={plate.type}
+                  onChange={(type) => patchPlate({ type })}
+                  options={COMPARISON_OPTIONS}
+                  size="sm"
+                  ariaLabel="Comparison"
+                />
+              </div>
+
+              <label className="flex flex-col gap-1 text-xs">
+                <span className="font-bold uppercase text-muted">Height</span>
+                <Input
+                  type="number"
+                  min={0}
+                  max={MAX_PLATE_HEIGHT}
+                  step={1}
+                  value={plate.height}
+                  onChange={(e) => {
+                    const parsed = Number.parseInt(e.target.value, 10);
+                    const height = Number.isNaN(parsed) ? 0 : parsed;
+                    patchPlate({
+                      height: Math.min(MAX_PLATE_HEIGHT, Math.max(0, height)),
+                    });
+                  }}
+                  className="w-16"
+                />
+              </label>
+            </div>
+
+            <span className="text-[11px] leading-snug text-muted">
+              Load is measured in height units: a half-height crate is 1, the
+              player and a full level are {HEIGHT_PER_LEVEL}. Flat and
+              intangible tiles weigh nothing, so <strong>≥ 1</strong> reads as
+              “something solid is standing here”. Only this cell’s own stack
+              counts.
+            </span>
+
+            <TileIdMultiSelect
+              tiles={tiles.filter((t) => t.id !== draft.id)}
+              tilesets={tilesets}
+              selectedIds={plate.tileId ? [plate.tileId] : []}
+              onChange={(ids) => patchPlate({ tileId: ids[0] ?? "" })}
+              label="Swap to"
+              emptyHint="Pick the tile this becomes while the comparison holds."
               single
             />
           </div>
