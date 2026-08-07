@@ -58,11 +58,12 @@ export type GameInput = {
 /** A specific placed tile in the map — cell plus slot in its stack. */
 export type ObjectRef = Coord & { stackIndex: number };
 
-/** A pushed object travelling to the cell it was shoved into. */
+/** A pushed object whose sprite is still catching up to where it already is. */
 export type SlideSnapshot = {
+  /** The object at its committed cell — the move is already in the map. */
   object: ObjectRef;
+  /** Cell it is sliding out of. Visual only; nothing occupies it any more. */
   from: Coord;
-  to: Coord;
   /** 0–1 through the tile. */
   progress: number;
 };
@@ -83,13 +84,16 @@ export type GameSnapshot = {
 const INTERACT_LEVEL_SLACK = 1;
 
 /**
- * A push in flight. The object is only committed to the map once it arrives,
- * so the map is never in a halfway state, and the renderer lerps across.
+ * The tail of a push. The object lands in the map the instant it is shoved, so
+ * everything that queries the board — walking into the cell it vacated above
+ * all — sees the truth immediately; this is the animation catching up. Holding
+ * the commit back would not remove the halfway state, only hide it from the
+ * map, where every collision check is looking.
  */
 type SlideState = {
+  /** The object at its new home. */
   object: ObjectRef;
   from: Coord;
-  to: Coord;
   elapsedMs: number;
 };
 
@@ -162,7 +166,11 @@ export class GameSession {
     return dy === 1 ? "s" : "n";
   }
 
-  /** Hands free? Anything mid-motion owns the map until it settles. */
+  /**
+   * Hands free? Own motion owns the map until it settles; a slide no longer
+   * does, but is still held against the player so pushes cannot be machine-
+   * gunned out faster than the object can be seen leaving.
+   */
   private idle(): boolean {
     return !this.slide && !this.walk && !this.fall;
   }
@@ -212,10 +220,14 @@ export class GameSession {
       direction,
     );
 
+    const from = { x: ref.x, y: ref.y, z: ref.z };
+    this.map = moveEntity(this.map, ref, to, undefined, this.tilesById);
+
+    // moveEntity appends, so the object is the top of the destination stack.
+    const stackIndex = getStack(this.map, to.x, to.y, to.z).length - 1;
     this.slide = {
-      object: ref,
-      from: { x: ref.x, y: ref.y, z: ref.z },
-      to,
+      object: { ...to, stackIndex },
+      from,
       elapsedMs: 0,
     };
     return true;
@@ -298,16 +310,9 @@ export class GameSession {
   private tickSlide(tickMs: number) {
     if (!this.slide) return;
     this.slide.elapsedMs += tickMs;
-    if (this.slide.elapsedMs >= PUSH_STEP_MS) this.commitSlide();
-  }
-
-  private commitSlide() {
-    const slide = this.slide;
-    if (!slide) return;
-    this.slide = null;
-
-    const { to } = slide;
-    this.map = moveEntity(this.map, slide.object, to, undefined, this.tilesById);
+    // Nothing to commit — the sprite has simply arrived where the map already
+    // put it, so dropping the state is the whole of "landing".
+    if (this.slide.elapsedMs >= PUSH_STEP_MS) this.slide = null;
   }
 
   private slideSnapshot(): SlideSnapshot | null {
@@ -316,7 +321,6 @@ export class GameSession {
     return {
       object: slide.object,
       from: slide.from,
-      to: slide.to,
       progress: Math.min(
         1,
         (slide.elapsedMs + this.accumulatorMs) / PUSH_STEP_MS,

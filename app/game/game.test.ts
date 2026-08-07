@@ -1065,18 +1065,47 @@ describe("GameSession push", () => {
     ).toEqual(["grass", "crate"]);
   });
 
-  it("slides rather than teleporting", () => {
+  it("commits the move up front and slides only the sprite", () => {
     const session = new GameSession(mapWithCrate(1), tiles);
     session.push(crateRef(1));
 
-    // Still at its origin the instant the push starts.
-    expect(
-      getStack(session.getSnapshot().map, 1, 0, 0).map((p) => p.tileId),
-    ).toEqual(["grass", "crate"]);
-    expect(session.getSnapshot().slide).not.toBeNull();
+    // The board is already settled on the frame the push starts; only the
+    // animation is outstanding.
+    const snap = session.getSnapshot();
+    expect(getStack(snap.map, 1, 0, 0).map((p) => p.tileId)).toEqual(["grass"]);
+    expect(getStack(snap.map, 2, 0, 0).map((p) => p.tileId)).toEqual([
+      "grass",
+      "crate",
+    ]);
+    expect(snap.slide).not.toBeNull();
+    expect(snap.slide?.from).toEqual({ x: 1, y: 0, z: 0 });
+    expect(snap.slide?.object).toEqual({ x: 2, y: 0, z: 0, stackIndex: 1 });
+    expect(snap.slide?.progress).toBe(0);
 
     runSlide(session);
     expect(session.getSnapshot().slide).toBeNull();
+  });
+
+  it("lets the player follow straight into the cell the object left", () => {
+    // Two stacked crates put the top of (1,0) out of climbing range; shoving
+    // the upper one off drops it back within reach. A deferred commit swallows
+    // the follow-up step for the whole slide even though the crate has visibly
+    // gone, which is the stickiness this guards against.
+    let map = mapWithCrate(1);
+    map = replaceStack(map, 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "crate" },
+      { tileId: "crate" },
+    ]);
+    const session = new GameSession(map, tiles);
+    expect(session.push({ x: 1, y: 0, z: 0, stackIndex: 2 })).toBe(true);
+
+    session.setInput({ directions: ["e"] });
+    session.tick(1000 / 30);
+
+    const snap = session.getSnapshot();
+    expect(snap.slide).not.toBeNull();
+    expect(snap.walk?.to).toEqual({ x: 1, y: 0, z: 0 });
   });
 
   it("cannot be pushed again while still travelling", () => {

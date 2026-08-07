@@ -423,50 +423,54 @@ export class GameRenderer {
   }
 
   /**
-   * Motion for a pushed object travelling to the cell it was shoved into. Same
-   * lerp the player walks with, so the object slides between cells and sorts
-   * against its neighbours rather than jumping.
+   * Motion for a pushed object still catching up to the cell it was shoved
+   * into. The push is already committed, so this is anchored at the object's
+   * real slot and drags it *back* towards the cell it left — the offset decays
+   * to zero rather than building up to the move. Same lerp the player walks
+   * with, so the object sorts against its neighbours rather than jumping.
    */
   private slideMotion(snap: GameSnapshot): TileMotion | null {
     const slide = snap.slide;
     if (!slide) return null;
 
-    const { object, from, to } = slide;
+    const { object, from } = slide;
     const t = slide.progress;
-    const fromCenter = this.cellWorldCenter(
-      from.x,
-      from.y,
-      from.z,
+    // The object has left `from`, so its old surface is that stack's top now;
+    // at `object` it is in the stack, so its surface is the scenery under it.
+    const fromCenter = this.surfaceWorldCenter(from.x, from.y, from.z, snap.map);
+    const toCenter = this.cellWorldCenter(
+      object.x,
+      object.y,
+      object.z,
       snap.map,
       object.stackIndex,
     );
-    const toCenter = this.surfaceWorldCenter(to.x, to.y, to.z, snap.map);
     const visual = snapToWholePixels({
       x: fromCenter.x + (toCenter.x - fromCenter.x) * t,
       y: fromCenter.y + (toCenter.y - fromCenter.y) * t,
     });
 
-    const originFoot = this.standingFootAbs(snap.map, from, object.stackIndex);
-    const destFoot = this.surfaceFootAbs(snap.map, to.x, to.y, to.z);
+    const originFoot = this.surfaceFootAbs(snap.map, from.x, from.y, from.z);
+    const destFoot = this.standingFootAbs(snap.map, object, object.stackIndex);
     const foot = originFoot + (destFoot - originFoot) * t;
-    const destStackLen = getStack(snap.map, to.x, to.y, to.z).length;
+    const originStackLen = getStack(snap.map, from.x, from.y, from.z).length;
 
     return {
       x: object.x,
       y: object.y,
       z: object.z,
       stackIndex: object.stackIndex,
-      ox: visual.x - fromCenter.x,
-      oy: visual.y - fromCenter.y,
-      alsoDrawAtZ: to.z < from.z ? to.z : undefined,
+      ox: visual.x - toCenter.x,
+      oy: visual.y - toCenter.y,
+      alsoDrawAtZ: from.z < object.z ? from.z : undefined,
       box: {
-        x: from.x + (to.x - from.x) * t,
-        y: from.y + (to.y - from.y) * t,
+        x: from.x + (object.x - from.x) * t,
+        y: from.y + (object.y - from.y) * t,
         foot,
-        top: foot + this.movingTileHeight(snap.map, from, object.stackIndex),
+        top: foot + this.movingTileHeight(snap.map, object, object.stackIndex),
         stackBias: Math.max(
-          depthStackBias(from.z, object.stackIndex),
-          depthStackBias(to.z, destStackLen),
+          depthStackBias(from.z, originStackLen),
+          depthStackBias(object.z, object.stackIndex),
         ),
       },
     };
