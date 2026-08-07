@@ -62,20 +62,32 @@ export function viewAnchorFromSnapshot(snap: ViewAnchorSnapshot): ViewAnchor {
  * Same occlusion model as lighting: light-passing tiles are ignored, height
  * maps to opacity, full walls seal the ray.
  */
+/**
+ * Occluders the roof-cut probe can consult: the anchor's own level, within
+ * `span` cells of it.
+ *
+ * That is the whole reachable set — {@link hideRayClear} rays on a single level
+ * between two points inside the radius, so the walk cannot leave the box. This
+ * runs every frame, and sweeping the world to look at a handful of cells around
+ * the player put the map's size into the frame budget.
+ */
 function buildOcclusion(
   map: MapFile,
   tilesById: Record<string, TileDef>,
+  view: ViewAnchor,
+  span: number,
 ): Map<string, CellOcclusion> {
   const occlusion = new Map<string, CellOcclusion>();
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
-    const level = map.levels[levelKey(z)];
-    if (!level) continue;
-    for (const [ck, stack] of Object.entries(level)) {
-      if (!stack.length) continue;
-      const { x, y } = parseCoordKey(ck);
+  const level = map.levels[levelKey(view.z)];
+  if (!level) return occlusion;
+
+  for (let y = view.y - span; y <= view.y + span; y++) {
+    for (let x = view.x - span; x <= view.x + span; x++) {
+      const stack = level[coordKey(x, y)];
+      if (!stack?.length) continue;
       const occ = stackOcclusion(stack, tilesById);
       if (occ.opacity > 0 || occ.sealsLevel) {
-        occlusion.set(cellKey(x, y, z), occ);
+        occlusion.set(cellKey(x, y, view.z), occ);
       }
     }
   }
@@ -130,9 +142,9 @@ export function levelsAboveShouldHide(
   view: ViewAnchor,
   radius = VIEW_RADIUS,
 ): boolean {
-  const occlusion = buildOcclusion(map, tilesById);
   const r2 = radius * radius;
   const span = Math.ceil(radius);
+  const occlusion = buildOcclusion(map, tilesById, view, span);
 
   for (let dy = -span; dy <= span; dy++) {
     for (let dx = -span; dx <= span; dx++) {

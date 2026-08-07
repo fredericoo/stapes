@@ -219,3 +219,49 @@ describe("levelsAboveShouldHide on the current map", () => {
     expect(levelsAboveShouldHide(map, mapTiles, view)).toBe(hide);
   });
 });
+
+describe("occluders out at the probe radius", () => {
+  // The probe only gathers occluders near the anchor. These pin that box wide
+  // enough: an occluder two cells out still has to count, which a tighter
+  // gather would miss — and missing an occluder fails open, hiding the roof
+  // when the player cannot actually see under it.
+  it("a solid wall at the far probe cell blocks seeing content above it", () => {
+    const map = mapAt([
+      { x: 0, y: 0, tiles: ["floor"] },
+      { x: 1, y: 0, tiles: ["floor"] },
+      { x: 2, y: 0, tiles: ["floor", "wall"] },
+      { x: 2, y: 0, z: 1, tiles: ["roof"] },
+    ]);
+    expect(
+      levelsAboveShouldHide(map, tilesById, { x: 0, y: 0, z: 0 }),
+    ).toBe(false);
+  });
+
+  it("still hides when that far cell is see-through", () => {
+    const map = mapAt([
+      { x: 0, y: 0, tiles: ["floor"] },
+      { x: 1, y: 0, tiles: ["floor"] },
+      { x: 2, y: 0, tiles: ["floor", "window"] },
+      { x: 2, y: 0, z: 1, tiles: ["roof"] },
+    ]);
+    expect(
+      levelsAboveShouldHide(map, tilesById, { x: 0, y: 0, z: 0 }),
+    ).toBe(true);
+  });
+
+  it("a wall midway blocks content above the cell beyond it", () => {
+    const map = mapAt([
+      { x: 0, y: 0, tiles: ["floor"] },
+      { x: 1, y: 0, tiles: ["floor", "wall"] },
+      { x: 2, y: 0, tiles: ["floor"] },
+      { x: 2, y: 0, z: 1, tiles: ["roof"] },
+    ]);
+    expect(
+      levelsAboveShouldHide(map, tilesById, { x: 0, y: 0, z: 0 }),
+    ).toBe(false);
+  });
+
+  it("VIEW_RADIUS reaches at least two cells, which the box must cover", () => {
+    expect(VIEW_RADIUS).toBeGreaterThanOrEqual(2);
+  });
+});
