@@ -9,6 +9,7 @@ import type {
   ObjectRef,
 } from "../game/GameSession";
 import { PLAYER_TILE_ID } from "../game/constants";
+import { FrameProfiler, type FrameStats } from "./frameProfile";
 import { sceneryStack } from "../game/movement";
 import type { EmitterOverride } from "../lib/lighting";
 import {
@@ -70,9 +71,8 @@ export class GameRenderer {
   private minutesOfDay: number = DEFAULT_PLAY_MINUTES;
   private clockPaused = false;
   private onClock: ((minutes: MinutesOfDay) => void) | null = null;
-  private onFps: ((fps: number) => void) | null = null;
-  private fpsFrames = 0;
-  private fpsLastReport = 0;
+  private onStats: ((stats: FrameStats) => void) | null = null;
+  private profiler = new FrameProfiler();
   private disposed = false;
   private raf = 0;
   private lastTime = 0;
@@ -109,16 +109,20 @@ export class GameRenderer {
     this.onClock = cb;
   }
 
-  setOnFps(cb: ((fps: number) => void) | null) {
-    this.onFps = cb;
+  /**
+   * Per-frame timings, roughly twice a second. Reports the worst frame in each
+   * window as well as the median — a hitch on the frame a step commits is
+   * invisible in an average but is the whole of what a player feels.
+   */
+  setOnStats(cb: ((stats: FrameStats) => void) | null) {
+    this.onStats = cb;
+    this.world.setProfiler(cb ? this.profiler : null);
   }
 
   start() {
     if (this.running || this.disposed) return;
     this.running = true;
     this.lastTime = performance.now();
-    this.fpsFrames = 0;
-    this.fpsLastReport = this.lastTime;
     const loop = () => {
       if (!this.running || this.disposed) return;
       this.raf = requestAnimationFrame(loop);
@@ -131,11 +135,19 @@ export class GameRenderer {
         const next = Math.floor(this.minutesOfDay);
         if (next !== prev) this.onClock?.(next);
       }
-      this.session.update(dt);
-      this.pushView();
-      this.world.tick(dt);
-      this.world.renderOnce();
-      this.sampleFps(now);
+      const frameStart = performance.now();
+      this.profiler.measure("sim", () => this.session.update(dt));
+      // `view` nests the sync/map/light/motion phases recorded inside setView,
+      // so it is their total rather than a separate slice.
+      this.profiler.measure("view", () => this.pushView());
+      this.profiler.measure("anim", () => this.world.tick(dt));
+      // CPU cost of submitting the frame. GPU time lands after this returns and
+      // is not counted — a low `draw` does not by itself mean the GPU is idle.
+      this.profiler.measure("draw", () => this.world.renderOnce());
+      this.profiler.frame(performance.now() - frameStart);
+
+      const stats = this.profiler.report(now);
+      if (stats) this.onStats?.(stats);
     };
     this.raf = requestAnimationFrame(loop);
   }
@@ -147,20 +159,12 @@ export class GameRenderer {
 
   dispose() {
     this.disposed = true;
-    this.onFps = null;
+    this.onStats = null;
+    this.world.setProfiler(null);
     this.onClock = null;
     this.stop();
     this.detachPointer();
     this.world.dispose();
-  }
-
-  private sampleFps(now: number) {
-    this.fpsFrames++;
-    const elapsed = now - this.fpsLastReport;
-    if (elapsed < 500) return;
-    this.onFps?.(Math.round((this.fpsFrames * 1000) / elapsed));
-    this.fpsFrames = 0;
-    this.fpsLastReport = now;
   }
 
   private attachPointer() {

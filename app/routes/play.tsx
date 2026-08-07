@@ -11,6 +11,8 @@ import {
 import type { Direction } from "../lib/types";
 import { readMap, readTiles, readTilesets } from "../lib/fs.server";
 import { GameRenderer } from "../render/GameRenderer";
+import { FrameStatsReadout } from "../components/FrameStatsReadout";
+import type { FrameStats } from "../render/frameProfile";
 
 export async function loader() {
   const [map, tiles, tilesets] = await Promise.all([
@@ -40,7 +42,7 @@ export default function PlayPage() {
     DEFAULT_PLAY_MINUTES,
   );
   const [clockPaused, setClockPaused] = useState(false);
-  const [fps, setFps] = useState<number | null>(null);
+  const [stats, setStats] = useState<FrameStats | null>(null);
   const minutesRef = useRef(minutesOfDay);
   minutesRef.current = minutesOfDay;
   const pausedRef = useRef(clockPaused);
@@ -62,7 +64,7 @@ export default function PlayPage() {
     renderer.setMinutesOfDay(minutesRef.current);
     renderer.setClockPaused(pausedRef.current);
     renderer.setOnClock(setMinutesOfDay);
-    renderer.setOnFps(setFps);
+    renderer.setOnStats(setStats);
     rendererRef.current = renderer;
     renderer.start();
 
@@ -124,7 +126,7 @@ export default function PlayPage() {
       window.removeEventListener("blur", onBlur);
       rendererRef.current = null;
       renderer.dispose();
-      setFps(null);
+      setStats(null);
     };
   }, [map, tiles, tilesets]);
 
@@ -141,16 +143,7 @@ export default function PlayPage() {
     <AppShell
       trailing={
         <>
-          <div className="flex items-center gap-2">
-            <span className="text-xs uppercase text-paper/70">FPS</span>
-            <span
-              className="border-2 border-paper/40 px-1.5 py-0.5 text-xs tabular-nums text-paper"
-              aria-live="polite"
-              aria-label="Frames per second"
-            >
-              {fps ?? "—"}
-            </span>
-          </div>
+          <FrameStatsReadout stats={stats} />
           <div className="flex items-center gap-2">
             <span className="text-xs uppercase text-paper/70">Time</span>
             <input
