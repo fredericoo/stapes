@@ -206,7 +206,29 @@ function denseRayTransmission(
 }
 
 /**
+ * Explicit bake domain, inclusive on every axis.
+ *
+ * Without one the domain is derived from wherever the given map has content,
+ * which is fine for a whole map but wrong for a windowed bake: an empty
+ * neighbourhood shrinks the domain inside the window, and the caller silently
+ * gets no plane for the cells it asked about. State the domain and empty space
+ * still bakes — as sky, which is what empty space looks like.
+ */
+export type FloodDomain = {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  z0: number;
+  z1: number;
+};
+
+/**
  * Hybrid bake: Euclidean-cost sky flood + circular block emitters.
+ *
+ * Pass `domain` to bake a fixed region — cells outside it are still read for
+ * occlusion and emitters, so a caller wanting a correct window must hand in a
+ * map cropped no tighter than the window plus {@link MAX_LIGHT_LEVEL}.
  */
 export function computeLightingFlood(
   map: MapFile,
@@ -214,6 +236,7 @@ export function computeLightingFlood(
   ambient: [number, number, number],
   overrides?: ReadonlyArray<EmitterOverride>,
   omitLightTileIds?: ReadonlySet<string>,
+  domain?: FloodDomain,
 ): LightGrid {
   const levels = new Map<number, LevelLightMap>();
 
@@ -243,7 +266,18 @@ export function computeLightingFlood(
     }
   }
 
-  if (!Number.isFinite(minX)) return { levels };
+  // An explicit domain wins outright: empty space inside it must still bake,
+  // and content outside it must not stretch it.
+  if (domain) {
+    minX = domain.x0;
+    minY = domain.y0;
+    maxX = domain.x1;
+    maxY = domain.y1;
+    minZ = domain.z0;
+    maxZ = domain.z1;
+  } else if (!Number.isFinite(minX)) {
+    return { levels };
+  }
 
   const overrideByCell = new Map<string, EmitterOverride>();
   if (overrides) {
@@ -292,6 +326,10 @@ export function computeLightingFlood(
         b: cb,
       });
       if (light.radius > maxRadius) maxRadius = light.radius;
+      if (domain) continue;
+      // Grow to fit each emitter's sphere. Skipped under an explicit domain —
+      // there the caller has already sized the region, and a torch just
+      // outside it should light its way in, not enlarge what gets baked.
       const rx = Math.ceil(light.radius);
       if (ex - rx < minX) minX = Math.floor(ex - rx);
       if (ey - rx < minY) minY = Math.floor(ey - rx);
@@ -302,16 +340,18 @@ export function computeLightingFlood(
     }
   }
 
-  const pad = Math.max(1, Math.ceil(maxRadius));
+  // Derived domains get a margin so emitter spheres and sky spill are not
+  // clipped at the map's edge. An explicit one is taken as given.
+  const pad = domain ? 0 : Math.max(1, Math.ceil(maxRadius));
   const dom: Domain = {
     x0: minX - pad,
     y0: minY - pad,
-    z0: Math.max(MIN_LEVEL, minZ - 1),
+    z0: domain ? domain.z0 : Math.max(MIN_LEVEL, minZ - 1),
     w: maxX - minX + 1 + pad * 2,
     h: maxY - minY + 1 + pad * 2,
     d: 0,
   };
-  const zTop = Math.min(MAX_LEVEL, maxZ + 1);
+  const zTop = domain ? domain.z1 : Math.min(MAX_LEVEL, maxZ + 1);
   dom.d = zTop - dom.z0 + 1;
 
   const n = dom.w * dom.h * dom.d;

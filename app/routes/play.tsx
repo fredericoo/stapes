@@ -1,10 +1,12 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLoaderData } from "react-router";
 import { AppShell } from "../components/AppShell";
 import { GameSession } from "../game/GameSession";
+import type { TimeOfDay } from "../lib/lighting";
 import type { Direction } from "../lib/types";
 import { readMap, readTiles, readTilesets } from "../lib/fs.server";
 import { GameRenderer } from "../render/GameRenderer";
+import { Segmented } from "../ui";
 
 export async function loader() {
   const [map, tiles, tilesets] = await Promise.all([
@@ -29,6 +31,11 @@ const KEY_TO_DIR: Record<string, Direction> = {
 export default function PlayPage() {
   const { map, tiles, tilesets } = useLoaderData<typeof loader>();
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const rendererRef = useRef<GameRenderer | null>(null);
+  const [timeOfDay, setTimeOfDay] = useState<TimeOfDay>("night");
+  const [fps, setFps] = useState<number | null>(null);
+  const timeOfDayRef = useRef(timeOfDay);
+  timeOfDayRef.current = timeOfDay;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -43,6 +50,9 @@ export default function PlayPage() {
     }
 
     const renderer = new GameRenderer(canvas, session, tilesets, tiles);
+    renderer.setTimeOfDay(timeOfDayRef.current);
+    renderer.setOnFps(setFps);
+    rendererRef.current = renderer;
     renderer.start();
 
     const held: Direction[] = [];
@@ -101,12 +111,44 @@ export default function PlayPage() {
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("blur", onBlur);
+      rendererRef.current = null;
       renderer.dispose();
+      setFps(null);
     };
   }, [map, tiles, tilesets]);
 
+  useEffect(() => {
+    rendererRef.current?.setTimeOfDay(timeOfDay);
+  }, [timeOfDay]);
+
   return (
-    <AppShell>
+    <AppShell
+      trailing={
+        <>
+          <div className="flex items-center gap-2">
+            <span className="text-xs uppercase text-paper/70">FPS</span>
+            <span
+              className="border-2 border-paper/40 px-1.5 py-0.5 text-xs tabular-nums text-paper"
+              aria-live="polite"
+              aria-label="Frames per second"
+            >
+              {fps ?? "—"}
+            </span>
+          </div>
+          <Segmented<TimeOfDay>
+            value={timeOfDay}
+            onChange={setTimeOfDay}
+            size="sm"
+            ariaLabel="Time of day"
+            options={[
+              { value: "day", label: "Day" },
+              { value: "dusk", label: "Dusk" },
+              { value: "night", label: "Night" },
+            ]}
+          />
+        </>
+      }
+    >
       <div className="relative h-full w-full bg-ink">
         <canvas
           ref={canvasRef}

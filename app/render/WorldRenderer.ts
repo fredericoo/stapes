@@ -9,7 +9,6 @@ import {
 } from "../lib/geometry";
 import {
   AMBIENT_PRESETS,
-  staticLightingMapKey,
   type EmitterOverride,
   type LevelLightMap,
   type LightGrid,
@@ -27,6 +26,7 @@ import {
 } from "../lib/types";
 import { getFrames } from "../lib/tileResolve";
 import { PLAYER_TILE_ID } from "../game/constants";
+import { ChunkedLighting, type WorldRect } from "../lib/lightingChunks";
 import { GpuLighting } from "./gpuLighting";
 import { PalettePass } from "./palettePass";
 import {
@@ -139,6 +139,14 @@ function emitterOverridesKey(
 
 const DYNAMIC_LIGHT_TILE_IDS = new Set([PLAYER_TILE_ID]);
 
+/**
+ * Slack cells around the camera's reach, for sprite overhang the strict cell
+ * rect misses. Deliberately small: the apron that makes edge light *correct* is
+ * applied inside the bake, and chunk alignment already keeps a nudging camera
+ * from refilling, so widening this only bakes cells nobody looks at.
+ */
+const LIGHT_WINDOW_MARGIN = 4;
+
 function disposeObject3D(obj: THREE.Object3D) {
   obj.traverse((child) => {
     const mesh = child as THREE.Mesh;
@@ -196,9 +204,11 @@ export class WorldRenderer {
   private lightTextures = new Map<number, THREE.DataTexture>();
   private lightUniformsByZ = new Map<number, LevelLightUniforms>();
   private lightingKey = "";
-  private staticLightingKey = "";
   private staticLightGrid: LightGrid | null = null;
   private gpuLighting = new GpuLighting();
+  private lighting = new ChunkedLighting({}, DYNAMIC_LIGHT_TILE_IDS);
+  /** Tile defs the light cache was built against; new defs void every chunk. */
+  private lightingTilesById: Record<string, TileDef> | null = null;
   private prevMap: MapFile | null = null;
   private needsRender = true;
   private canvasW = 0;
@@ -264,7 +274,6 @@ export class WorldRenderer {
       // Force light re-upload after rebuild — materials may be new, and
       // the first setView can race textures still loading.
       this.lightingKey = "";
-      this.staticLightingKey = "";
       this.staticLightGrid = null;
       if (this.view) {
         this.applyMap(this.view.map, true);
@@ -289,6 +298,10 @@ export class WorldRenderer {
       nextMotionKeys.size !== this.motionKeys.size ||
       [...nextMotionKeys].some((k) => !this.motionKeys.has(k));
     this.motionKeys = nextMotionKeys;
+
+    // Before applyMap, which advances prevMap — the light cache needs to see
+    // both versions to work out which chunks the edit reached.
+    this.lighting.syncTo(this.prevMap, view.map);
 
     this.applyMap(view.map, motionSetChanged);
     this.applyLevelVisibility(view.hideLevelsAbove);
@@ -660,30 +673,51 @@ export class WorldRenderer {
     return mat;
   }
 
+  /**
+   * Cells the camera can reach at any level.
+   *
+   * The projection is axis-aligned in world pixels — level `z` shifts a cell by
+   * `CELL_SIZE * z` (see {@link screenToCoord}) — so the visible region is a
+   * plain rect per level, and the union across levels is the same rect grown by
+   * the level span. Cheap enough to redo every frame.
+   */
+  private lightWindow(view: WorldView): WorldRect {
+    const viewW = this.canvasW / view.zoom;
+    const viewH = this.canvasH / view.zoom;
+    const cell = (px: number, z: number) =>
+      Math.floor((px + CELL_SIZE * z) / CELL_SIZE);
+    return {
+      x0: cell(view.camera.x, MIN_LEVEL) - LIGHT_WINDOW_MARGIN,
+      y0: cell(view.camera.y, MIN_LEVEL) - LIGHT_WINDOW_MARGIN,
+      x1: cell(view.camera.x + viewW, MAX_LEVEL) + LIGHT_WINDOW_MARGIN,
+      y1: cell(view.camera.y + viewH, MAX_LEVEL) + LIGHT_WINDOW_MARGIN,
+    };
+  }
+
   private updateLighting(view: WorldView) {
+    if (view.tilesById !== this.lightingTilesById) {
+      this.lighting = new ChunkedLighting(view.tilesById, DYNAMIC_LIGHT_TILE_IDS);
+      this.lightingTilesById = view.tilesById;
+      this.staticLightGrid = null;
+    }
+
+    // Bakes only the chunks in view that are missing, and hands back the same
+    // grid object while nothing has changed — so identity, not a content hash,
+    // is what decides whether the textures need rewriting. This is what
+    // replaced hashing every cell in the map on every frame.
+    const ambient = AMBIENT_PRESETS[view.timeOfDay];
+    const base = this.lighting.gridFor(
+      view.map,
+      [...ambient],
+      this.lightWindow(view),
+    );
+
     const overridesKey = emitterOverridesKey(view.emitterOverrides);
-    const mapKey = staticLightingMapKey(view.map, DYNAMIC_LIGHT_TILE_IDS);
-    const staticKey = `${view.timeOfDay}|${Object.keys(view.tilesById).length}|${mapKey}`;
-    const key = `${staticKey}|${overridesKey}`;
-    if (key === this.lightingKey && this.staticLightGrid) {
+    if (base === this.staticLightGrid && overridesKey === this.lightingKey) {
       return;
     }
-
-    const ambient = AMBIENT_PRESETS[view.timeOfDay];
-
-    // Full sky + map-torch bake only when non-player scene content changes.
-    // Moving the player between cells must not re-run this (~800ms).
-    if (staticKey !== this.staticLightingKey || !this.staticLightGrid) {
-      this.staticLightGrid = this.gpuLighting.bake(
-        view.map,
-        view.tilesById,
-        [...ambient],
-        DYNAMIC_LIGHT_TILE_IDS,
-      );
-      this.staticLightingKey = staticKey;
-    }
-
-    this.lightingKey = key;
+    this.staticLightGrid = base;
+    this.lightingKey = overridesKey;
 
     const overrides = view.emitterOverrides;
     if (!overrides?.length) {

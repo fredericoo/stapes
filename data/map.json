@@ -12604,6 +12604,9 @@
       "12,-6": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "brick-slab"
         }
       ],
       "13,-6": [
@@ -28811,9 +28814,6 @@
         },
         {
           "tileId": "cobblestone"
-        },
-        {
-          "tileId": "brick-slab"
         }
       ],
       "13,-6": [
@@ -29819,6 +29819,10 @@
         },
         {
           "tileId": "cobblestone"
+        },
+        {
+          "tileId": "torch",
+          "direction": "s"
         }
       ],
       "8,-5": [
