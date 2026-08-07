@@ -2,7 +2,6 @@ import {
   baseCellWorldOrigin,
   depthStackBias,
   PX_PER_HEIGHT,
-  screenToCoord,
 } from "../lib/geometry";
 import type {
   GameSession,
@@ -21,7 +20,6 @@ import {
 import type { MapFile, TileDef, TilesetDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL } from "../lib/types";
 import { resolveLight } from "../lib/tileResolve";
-import { interactionKinds } from "../lib/interactions";
 import { tilesByIdFromList } from "../lib/validation";
 import {
   type OverlaySpec,
@@ -38,8 +36,6 @@ const DEFAULT_ZOOM = 4;
 
 /** Editor selection yellow — same affordance, same colour. */
 const HOVER_COLOR = 0xffcc00;
-/** Matches the editor's ghost stamps. */
-const DRAG_GHOST_OPACITY = 0.55;
 
 /**
  * Land a lerped sprite on the same whole-pixel grid the static world sits on.
@@ -121,56 +117,22 @@ export class GameRenderer {
   private attachPointer() {
     this.canvas.addEventListener("pointermove", this.onPointerMove);
     this.canvas.addEventListener("pointerdown", this.onPointerDown);
-    this.canvas.addEventListener("pointerup", this.onPointerUp);
-    this.canvas.addEventListener("pointercancel", this.onPointerCancel);
     this.canvas.addEventListener("pointerleave", this.onPointerLeave);
-    this.canvas.addEventListener("contextmenu", this.onContextMenu);
   }
 
   private detachPointer() {
     this.canvas.removeEventListener("pointermove", this.onPointerMove);
     this.canvas.removeEventListener("pointerdown", this.onPointerDown);
-    this.canvas.removeEventListener("pointerup", this.onPointerUp);
-    this.canvas.removeEventListener("pointercancel", this.onPointerCancel);
     this.canvas.removeEventListener("pointerleave", this.onPointerLeave);
-    this.canvas.removeEventListener("contextmenu", this.onContextMenu);
   }
-
-  /** Keep the OS menu from eating right-clicks meant for switch. */
-  private onContextMenu = (e: Event) => {
-    e.preventDefault();
-  };
 
   private localPoint(e: PointerEvent): { x: number; y: number } {
     const rect = this.canvas.getBoundingClientRect();
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   }
 
-  /** Cell under the pointer on `z`'s ground plane. */
-  private pointerCell(
-    e: PointerEvent,
-    z: number,
-    snap: GameSnapshot,
-  ): { x: number; y: number } {
-    const p = this.localPoint(e);
-    const camera = this.cameraFor(snap);
-    return screenToCoord(p.x, p.y, DEFAULT_ZOOM, camera.x, camera.y, z);
-  }
-
   private onPointerMove = (e: PointerEvent) => {
-    const snap = this.session.getSnapshot();
-
-    if (snap.drag) {
-      // Targets are addressed on the object's own plane: you drag it off a
-      // ledge rather than aiming at the level below.
-      this.session.setDragPointer(
-        this.pointerCell(e, snap.drag.object.z, snap),
-      );
-      return;
-    }
-
-    this.session.setHoveredObject(this.pickAt(e, snap));
-    this.applyCursor(this.session.getSnapshot());
+    this.session.setHoveredObject(this.pickAt(e, this.session.getSnapshot()));
   };
 
   /** Interactive object drawn under the pointer, if any. */
@@ -187,52 +149,29 @@ export class GameRenderer {
       this.interactiveIndex(snap),
       p.x,
       p.y,
+      (ref) => this.session.canInteract(ref),
     );
   }
 
+  /**
+   * One button for everything: a tap on an object runs whatever it offers.
+   * The alternative — a modifier or a second button per interaction — is the
+   * thing that made this unlearnable, and touch has neither.
+   */
   private onPointerDown = (e: PointerEvent) => {
-    // Left = drag; right = switch. Other buttons are ignored.
-    if (e.button !== 0 && e.button !== 2) return;
-    const snap = this.session.getSnapshot();
+    if (e.button !== 0) return;
 
     // Resolved here rather than read off the last hover: touch has no hover
     // at all, and a press that outruns its move event would otherwise miss.
-    const target = this.pickAt(e, snap);
+    const target = this.pickAt(e, this.session.getSnapshot());
     if (!target) return;
-    this.session.setHoveredObject(target);
-
-    if (e.button === 2) {
-      e.preventDefault();
-      this.session.activateSwitch(target);
-      // Map identity changes on a successful swap — drop the pick cache.
-      this.indexedMap = null;
-      this.applyCursor(this.session.getSnapshot());
-      return;
-    }
-
-    if (!this.session.beginDrag(target)) return;
 
     e.preventDefault();
-    this.canvas.setPointerCapture(e.pointerId);
-    this.session.setDragPointer(this.pointerCell(e, target.z, snap));
-    this.applyCursor(this.session.getSnapshot());
-  };
-
-  private onPointerUp = (e: PointerEvent) => {
-    if (!this.session.isDragging()) return;
-    this.session.endDrag();
-    if (this.canvas.hasPointerCapture(e.pointerId)) {
-      this.canvas.releasePointerCapture(e.pointerId);
-    }
-    this.applyCursor(this.session.getSnapshot());
-  };
-
-  private onPointerCancel = () => {
-    this.session.cancelDrag();
+    this.session.setHoveredObject(target);
+    this.session.interact(target);
   };
 
   private onPointerLeave = () => {
-    if (this.session.isDragging()) return;
     this.session.setHoveredObject(null);
   };
 
@@ -255,62 +194,22 @@ export class GameRenderer {
 
   /**
    * Chrome for the current frame: a silhouette around the object under the
-   * pointer, plus — while dragging — a ghost of it standing where it would
-   * land. No ghost is the "you cannot drop here" signal; nothing is drawn on
-   * an illegal cell rather than marking it.
+   * pointer. The session only reports a hover the player can actually act on,
+   * so the outline *is* the affordance — an object that will not budge simply
+   * never lights up, and no second cue is needed to explain why.
    */
   private overlaysFor(snap: GameSnapshot): OverlaySpec[] {
-    const specs: OverlaySpec[] = [];
-
-    const outlined = snap.drag?.object ?? snap.hover;
-    if (outlined) {
-      specs.push({ kind: "objectOutline", ...outlined, color: HOVER_COLOR });
-    }
-
-    const target = snap.drag?.target;
-    if (snap.drag && target) {
-      specs.push({
-        kind: "ghost",
-        object: snap.drag.object,
-        to: target,
-        opacity: DRAG_GHOST_OPACITY,
-      });
-    }
-
-    return specs;
+    if (!snap.hover) return [];
+    return [{ kind: "objectOutline", ...snap.hover, color: HOVER_COLOR }];
   }
 
-  /**
-   * Grab affordance, updated from the pointer rather than the render loop.
-   *
-   * Only shown when a drag would actually start — an out-of-reach object still
-   * outlines, but promising a grab the player cannot make is worse than saying
-   * nothing. Reserved for objects whose *only* interaction is drag; once a tile
-   * offers several, the pointer no longer stands for one of them.
-   */
+  /** Same signal as the outline, for the pointer. */
   private applyCursor(snap: GameSnapshot) {
-    if (snap.drag) {
-      this.setCursor("grabbing");
-      return;
-    }
-    const hover = snap.hover;
-    const grabbable =
-      hover != null &&
-      this.session.canGrab(hover) &&
-      this.onlyInteractionIsDrag(hover, snap);
-    this.setCursor(grabbable ? "grab" : "");
+    this.setCursor(snap.hover ? "pointer" : "");
   }
 
   private setCursor(cursor: string) {
     if (this.canvas.style.cursor !== cursor) this.canvas.style.cursor = cursor;
-  }
-
-  private onlyInteractionIsDrag(ref: ObjectRef, snap: GameSnapshot): boolean {
-    const placed = getStack(snap.map, ref.x, ref.y, ref.z)[ref.stackIndex];
-    const def = placed && this.tilesById[placed.tileId];
-    if (!def) return false;
-    const kinds = interactionKinds(def);
-    return kinds.length === 1 && kinds[0] === "drag";
   }
 
   /**
@@ -352,6 +251,9 @@ export class GameRenderer {
     });
 
     this.world.setOverlays(this.overlaysFor(snap));
+    // Driven by the frame, not the pointer: walking away from an object
+    // revokes the affordance without the pointer having moved at all.
+    this.applyCursor(snap);
   }
 
   /**
@@ -521,9 +423,9 @@ export class GameRenderer {
   }
 
   /**
-   * Motion for a dragged object travelling to where it was dropped. Same lerp
-   * the player walks with, so the object slides between cells and sorts against
-   * its neighbours rather than jumping.
+   * Motion for a pushed object travelling to the cell it was shoved into. Same
+   * lerp the player walks with, so the object slides between cells and sorts
+   * against its neighbours rather than jumping.
    */
   private slideMotion(snap: GameSnapshot): TileMotion | null {
     const slide = snap.slide;

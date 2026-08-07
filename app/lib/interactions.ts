@@ -3,7 +3,7 @@ import type { TileDef } from "./types";
 import { HEIGHT_PER_LEVEL } from "./types";
 
 /**
- * How far up a dragged object can step. Descent is deliberately absent —
+ * How far up a pushed object can step. Descent is deliberately absent —
  * going down is physics: any step down is legal, and whether the object then
  * falls is already answered by {@link TileDef.affectedByGravity}.
  */
@@ -18,13 +18,13 @@ export const CLIMB_HEIGHT_UNITS: Record<ClimbAbility, number> = {
   full: HEIGHT_PER_LEVEL,
 };
 
-export type DragInteraction = {
-  /**
-   * Ground-distance budget for one drag gesture (fractional). Orthogonal steps
-   * cost 1; diagonals cost √2 — so 1.5 reaches any adjacent cell, while 1 is
-   * orthogonal only. Resets each drag.
-   */
-  distanceTiles: number;
+/**
+ * The player shoves this object one cell directly away from themselves. There
+ * is no distance to author: a push is always exactly one cell, which is what
+ * makes it legible without a pointer — you stand somewhere and the direction
+ * follows from where you are.
+ */
+export type PushInteraction = {
   /** Max upward step. Descent is unconstrained — gravity resolves it. */
   climb: ClimbAbility;
   /** When non-empty, the object may only come to rest on these tile ids. */
@@ -41,7 +41,7 @@ export type SwitchInteraction = {
 
 /** Ways the player can interact with a placed object. Grows over time. */
 export type TileInteractions = {
-  drag?: DragInteraction;
+  push?: PushInteraction;
   switch?: SwitchInteraction;
 };
 
@@ -49,43 +49,35 @@ export const DEFAULT_SWITCH: SwitchInteraction = {
   targetTileId: "",
 };
 
-export const MAX_DRAG_DISTANCE_TILES = 32;
-
-export const DEFAULT_DRAG: DragInteraction = {
-  distanceTiles: 1,
+export const DEFAULT_PUSH: PushInteraction = {
   climb: "half",
   moveOnTileIds: [],
 };
 
-const dragSchema = v.object({
-  distanceTiles: v.pipe(
-    v.number(),
-    v.minValue(1),
-    v.maxValue(MAX_DRAG_DISTANCE_TILES),
-  ),
+const pushSchema = v.object({
   climb: v.picklist(CLIMB_ABILITIES),
   moveOnTileIds: v.array(v.string()),
 });
 
 /**
- * Parsed drag config per tile def. `data/tiles.json` is hand-editable, so the
+ * Parsed push config per tile def. `data/tiles.json` is hand-editable, so the
  * shape is validated rather than trusted; a malformed block reads as "not
- * draggable" instead of throwing mid-frame.
+ * pushable" instead of throwing mid-frame.
  *
  * Memoised on def identity — {@link isInteractive} runs over every candidate
  * tile on each pointer move.
  */
-const dragCache = new WeakMap<TileDef, DragInteraction | null>();
+const pushCache = new WeakMap<TileDef, PushInteraction | null>();
 
-export function resolveDrag(def: TileDef): DragInteraction | null {
-  const cached = dragCache.get(def);
+export function resolvePush(def: TileDef): PushInteraction | null {
+  const cached = pushCache.get(def);
   if (cached !== undefined) return cached;
 
-  const raw = def.interactions?.drag;
-  const parsed = raw == null ? null : v.safeParse(dragSchema, raw);
-  const drag = parsed?.success ? parsed.output : null;
-  dragCache.set(def, drag);
-  return drag;
+  const raw = def.interactions?.push;
+  const parsed = raw == null ? null : v.safeParse(pushSchema, raw);
+  const push = parsed?.success ? parsed.output : null;
+  pushCache.set(def, push);
+  return push;
 }
 
 const switchSchema = v.object({
@@ -95,7 +87,7 @@ const switchSchema = v.object({
 const switchCache = new WeakMap<TileDef, SwitchInteraction | null>();
 
 /**
- * Parsed switch config per tile def. Same trust model as {@link resolveDrag}:
+ * Parsed switch config per tile def. Same trust model as {@link resolvePush}:
  * malformed or empty target → not switchable.
  */
 export function resolveSwitch(def: TileDef): SwitchInteraction | null {
@@ -109,14 +101,18 @@ export function resolveSwitch(def: TileDef): SwitchInteraction | null {
   return sw;
 }
 
-/** Kinds of interaction a tile offers. Grows as new interactions are added. */
-export type InteractionKind = "drag" | "switch";
+/**
+ * Kinds of interaction a tile offers, in the order the single interact button
+ * tries them. Switch comes first: it is an explicit authored swap, whereas a
+ * push is the fallback "just shove it" behaviour.
+ */
+export type InteractionKind = "switch" | "push";
 
 /** Every interaction enabled on this tile, in a stable order. */
 export function interactionKinds(def: TileDef): InteractionKind[] {
   const kinds: InteractionKind[] = [];
-  if (resolveDrag(def)) kinds.push("drag");
   if (resolveSwitch(def)) kinds.push("switch");
+  if (resolvePush(def)) kinds.push("push");
   return kinds;
 }
 
@@ -129,20 +125,19 @@ export function isInteractive(def: TileDef): boolean {
 export function interactionsForSave(
   interactions: TileInteractions | undefined,
 ): TileInteractions | undefined {
-  const drag = interactions?.drag;
+  const push = interactions?.push;
   const sw = interactions?.switch;
-  const savedDrag = drag
+  const savedPush = push
     ? {
-        distanceTiles: drag.distanceTiles,
-        climb: drag.climb,
-        moveOnTileIds: [...drag.moveOnTileIds].sort(),
+        climb: push.climb,
+        moveOnTileIds: [...push.moveOnTileIds].sort(),
       }
     : undefined;
   const savedSwitch =
     sw?.targetTileId.trim() ? { targetTileId: sw.targetTileId.trim() } : undefined;
-  if (!savedDrag && !savedSwitch) return undefined;
+  if (!savedPush && !savedSwitch) return undefined;
   return {
-    ...(savedDrag ? { drag: savedDrag } : {}),
+    ...(savedPush ? { push: savedPush } : {}),
     ...(savedSwitch ? { switch: savedSwitch } : {}),
   };
 }

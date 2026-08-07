@@ -982,6 +982,7 @@
     "type": "simple",
     "attributes": {},
     "lightPassing": true,
+    "intangible": true,
     "sprite": {
       "frames": [
         {
@@ -1594,8 +1595,7 @@
     "type": "simple",
     "attributes": {},
     "interactions": {
-      "drag": {
-        "distanceTiles": 1.5,
+      "push": {
         "climb": "half",
         "moveOnTileIds": []
       }

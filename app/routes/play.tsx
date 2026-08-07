@@ -114,8 +114,8 @@ export default function PlayPage() {
           style={{ imageRendering: "pixelated" }}
         />
         <div className="pointer-events-none absolute bottom-3 left-3 text-xs text-paper/70">
-          Arrows / WASD move · Shift face · Option descend · Drag nearby
-          objects · Right-click to switch
+          Arrows / WASD move · Shift face · Option descend · Click an adjacent
+          object to push or switch it
         </div>
       </div>
     </AppShell>

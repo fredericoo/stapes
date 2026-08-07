@@ -1,16 +1,12 @@
 import type {
   ClimbAbility,
-  DragInteraction,
+  PushInteraction,
   SwitchInteraction,
   TileInteractions,
 } from "../lib/interactions";
-import {
-  DEFAULT_DRAG,
-  DEFAULT_SWITCH,
-  MAX_DRAG_DISTANCE_TILES,
-} from "../lib/interactions";
+import { DEFAULT_PUSH, DEFAULT_SWITCH } from "../lib/interactions";
 import type { TileDef, TilesetDef } from "../lib/types";
-import { Input, Segmented, Switch } from "../ui";
+import { Segmented, Switch } from "../ui";
 import { TileIdMultiSelect } from "./TileIdMultiSelect";
 
 type Props = {
@@ -25,7 +21,7 @@ type Props = {
  * interaction kind.
  */
 export function InteractiveTab({ draft, onChange, tiles, tilesets }: Props) {
-  const drag = draft.interactions?.drag;
+  const push = draft.interactions?.push;
   const sw = draft.interactions?.switch;
 
   const setInteractions = (next: TileInteractions | undefined) => {
@@ -41,17 +37,17 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets }: Props) {
     if (value == null) delete merged[key];
     else merged[key] = value;
     setInteractions(
-      merged.drag || merged.switch ? merged : undefined,
+      merged.push || merged.switch ? merged : undefined,
     );
   };
 
-  const setDrag = (next: DragInteraction | undefined) => {
-    patchKind("drag", next ?? null);
+  const setPush = (next: PushInteraction | undefined) => {
+    patchKind("push", next ?? null);
   };
 
-  const patchDrag = (patch: Partial<DragInteraction>) => {
-    if (!drag) return;
-    setDrag({ ...drag, ...patch });
+  const patchPush = (patch: Partial<PushInteraction>) => {
+    if (!push) return;
+    setPush({ ...push, ...patch });
   };
 
   const setSwitch = (next: SwitchInteraction | undefined) => {
@@ -68,47 +64,27 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets }: Props) {
       <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
         <label className="flex items-center gap-2 text-sm font-bold">
           <Switch
-            checked={Boolean(drag)}
-            onCheckedChange={(on) => setDrag(on ? { ...DEFAULT_DRAG } : undefined)}
-            ariaLabel="Draggable"
+            checked={Boolean(push)}
+            onCheckedChange={(on) => setPush(on ? { ...DEFAULT_PUSH } : undefined)}
+            ariaLabel="Pushable"
           />
-          Drag
+          Push
         </label>
         <p className="text-[11px] leading-snug text-muted">
-          The player can grab this object from an adjacent tile on the same
-          level and pull it to a new cell.
+          Standing next to this object and clicking it shoves it one cell
+          straight away from the player. Never diagonally, never further than
+          one cell — where it goes is decided by where the player stands.
         </p>
 
-        {drag ? (
+        {push ? (
           <div className="flex flex-col gap-3 border-t-2 border-border pt-3">
-            <label className="flex flex-col gap-1 text-xs">
-              <span className="font-bold uppercase text-muted">Distance</span>
-              <Input
-                type="number"
-                min={1}
-                max={MAX_DRAG_DISTANCE_TILES}
-                step="any"
-                value={drag.distanceTiles}
-                className="w-24"
-                onChange={(e) =>
-                  patchDrag({
-                    distanceTiles: clampDistance(Number(e.target.value)),
-                  })
-                }
-              />
-              <span className="text-[11px] leading-snug text-muted">
-                Ground distance per drag. Orthogonal steps cost 1; diagonals
-                cost √2 — use 1.5 to allow a single diagonal pull.
-              </span>
-            </label>
-
             <div className="flex flex-col gap-1 text-xs">
               <span className="font-bold uppercase text-muted">
                 Climb height
               </span>
               <Segmented<ClimbAbility>
-                value={drag.climb}
-                onChange={(climb) => patchDrag({ climb })}
+                value={push.climb}
+                onChange={(climb) => patchPush({ climb })}
                 options={[
                   { value: "none", label: "None" },
                   { value: "half", label: "Half" },
@@ -117,17 +93,18 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets }: Props) {
                 size="sm"
               />
               <span className="text-[11px] leading-snug text-muted">
-                How far up it can be dragged. Going down is physics — turn on{" "}
-                <strong>Affected by gravity</strong> on the Tile tab to let it
-                be pushed off ledges.
+                How far up it can be shoved. When the cell ahead offers both a
+                step up and a step down it takes the step down. Going down is
+                physics — turn on <strong>Affected by gravity</strong> on the
+                Tile tab to let it be pushed off ledges.
               </span>
             </div>
 
             <TileIdMultiSelect
               tiles={tiles}
               tilesets={tilesets}
-              selectedIds={drag.moveOnTileIds}
-              onChange={(moveOnTileIds) => patchDrag({ moveOnTileIds })}
+              selectedIds={push.moveOnTileIds}
+              onChange={(moveOnTileIds) => patchPush({ moveOnTileIds })}
               label="Move on tiles"
               emptyHint="Any surface. Pick tiles to confine this object to them — it can only come to rest on top of one of the chosen tiles."
             />
@@ -147,9 +124,10 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets }: Props) {
           Switch
         </label>
         <p className="text-[11px] leading-snug text-muted">
-          Right-click replaces this object with another tile. Put switch on
+          Clicking this object replaces it with another tile. Put switch on
           both tiles to toggle (e.g. door closed ↔ open). The swap is refused
-          when the target would not fit in the stack.
+          when the target would not fit in the stack. A tile with both switch
+          and push switches — push is the fallback.
         </p>
 
         {sw ? (
@@ -170,9 +148,4 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets }: Props) {
       </section>
     </div>
   );
-}
-
-function clampDistance(value: number): number {
-  if (!Number.isFinite(value)) return DEFAULT_DRAG.distanceTiles;
-  return Math.max(1, Math.min(MAX_DRAG_DISTANCE_TILES, value));
 }

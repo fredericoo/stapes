@@ -639,7 +639,7 @@ export function TileEditorDialog({
             {
               value: TAB_INTERACTIVE,
               label:
-                draft.interactions?.drag || draft.interactions?.switch
+                draft.interactions?.push || draft.interactions?.switch
                   ? "Interactive •"
                   : "Interactive",
             },

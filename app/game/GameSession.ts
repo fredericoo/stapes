@@ -5,17 +5,16 @@ import {
   isWalkableSurfaceAt,
   replaceStack,
 } from "../lib/mapData";
-import { isInteractive, resolveDrag, resolveSwitch } from "../lib/interactions";
+import { isInteractive, resolvePush, resolveSwitch } from "../lib/interactions";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
-import { MIN_LEVEL, coordKey } from "../lib/types";
+import { MIN_LEVEL } from "../lib/types";
 import { canReplaceStack, tilesByIdFromList } from "../lib/validation";
-import type { DragTargets } from "./drag";
-import { reachableDragTargets } from "./drag";
+import { pushDestination } from "./push";
 import {
-  DRAG_STEP_MS,
   FALL_MS_PER_HEIGHT,
   MAX_CLIMB_HEIGHT,
   PLAYER_TILE_ID,
+  PUSH_STEP_MS,
   TICK_MS,
   WALK_DURATION_MS,
 } from "./constants";
@@ -59,22 +58,12 @@ export type GameInput = {
 /** A specific placed tile in the map — cell plus slot in its stack. */
 export type ObjectRef = Coord & { stackIndex: number };
 
-export type DragSnapshot = {
-  object: ObjectRef;
-  /** `coordKey`s of every cell this drag can reach. */
-  targetKeys: string[];
-  /** Cell the pointer is over, legal or not. */
-  pointer: { x: number; y: number } | null;
-  /** Where the object would come to rest, or null when the pointer is illegal. */
-  target: Coord | null;
-};
-
-/** A dropped object travelling to where it was dragged, one tile at a time. */
+/** A pushed object travelling to the cell it was shoved into. */
 export type SlideSnapshot = {
   object: ObjectRef;
   from: Coord;
   to: Coord;
-  /** 0–1 through the current tile. */
+  /** 0–1 through the tile. */
   progress: number;
 };
 
@@ -85,36 +74,22 @@ export type GameSnapshot = {
   fall: FallState | null;
   walkProgress: number;
   fallProgress: number;
-  /** Interactive object under the pointer, if any. */
+  /** Object under the pointer that the player can act on right now, if any. */
   hover: ObjectRef | null;
-  drag: DragSnapshot | null;
   slide: SlideSnapshot | null;
 };
 
-/**
- * Reach in tiles, measured as a square around the player — diagonals count,
- * so anything in the ring of 8 cells touching them is grabbable.
- */
-const GRAB_REACH_TILES = 1;
-/** Floors above/below the player that still count for hover and grab. */
+/** Floors above/below the player that still count for hover and interaction. */
 const INTERACT_LEVEL_SLACK = 1;
 
-type DragState = {
-  object: ObjectRef;
-  targets: DragTargets;
-  pointer: { x: number; y: number } | null;
-};
-
 /**
- * A released drag in flight. The object is committed one cell at a time so the
- * map is always a legal state mid-slide, and the renderer lerps between them.
+ * A push in flight. The object is only committed to the map once it arrives,
+ * so the map is never in a halfway state, and the renderer lerps across.
  */
 type SlideState = {
-  /** Where the object sits right now — updated on every committed step. */
   object: ObjectRef;
-  /** Remaining cells to travel through, in order. */
-  remaining: Coord[];
   from: Coord;
+  to: Coord;
   elapsedMs: number;
 };
 
@@ -129,7 +104,6 @@ export class GameSession {
   private fall: FallState | null = null;
   private accumulatorMs = 0;
   private hovered: ObjectRef | null = null;
-  private drag: DragState | null = null;
   private slide: SlideState | null = null;
 
   constructor(map: MapFile, tiles: TileDef[]) {
@@ -157,7 +131,7 @@ export class GameSession {
   /**
    * Interactive object at a stack slot, if the player could be looking at it.
    * Reach extends one floor above and below the standing level. Buried under
-   * another tile is still out: only the top of a stack is hoverable or grabable.
+   * another tile is still out: only the top of a stack can be acted on.
    */
   private interactiveDefAt(ref: ObjectRef): TileDef | null {
     const loc = requireSinglePlayer(this.map);
@@ -171,35 +145,91 @@ export class GameSession {
     return def;
   }
 
-  /** Within arm's reach: any of the 8 cells touching the player, diagonals included. */
-  private withinReach(ref: ObjectRef): boolean {
+  /**
+   * Direction the player would shove this object, or null when they are not
+   * standing next to it. Orthogonal only: a diagonal push has no unambiguous
+   * "one cell further away" cell, and reading it off the board is guesswork.
+   * Floors are not part of the test — reaching one level up or down is fine
+   * (see {@link INTERACT_LEVEL_SLACK}); it is the plan view that must touch.
+   */
+  private pushDirectionFor(ref: ObjectRef): Direction | null {
     const loc = requireSinglePlayer(this.map);
-    const dx = Math.abs(ref.x - loc.x);
-    const dy = Math.abs(ref.y - loc.y);
-    const rings = Math.max(dx, dy);
-    return rings > 0 && rings <= GRAB_REACH_TILES;
+    const dx = ref.x - loc.x;
+    const dy = ref.y - loc.y;
+    if (Math.abs(dx) + Math.abs(dy) !== 1) return null;
+    if (dx === 1) return "e";
+    if (dx === -1) return "w";
+    return dy === 1 ? "s" : "n";
+  }
+
+  /** Hands free? Anything mid-motion owns the map until it settles. */
+  private idle(): boolean {
+    return !this.slide && !this.walk && !this.fall;
+  }
+
+  /** Where this object would land if pushed right now, or null when it cannot be. */
+  private pushTargetFor(ref: ObjectRef): Coord | null {
+    if (!this.idle()) return null;
+    const def = this.interactiveDefAt(ref);
+    const push = def && resolvePush(def);
+    if (!def || !push) return null;
+
+    const direction = this.pushDirectionFor(ref);
+    if (!direction) return null;
+
+    const check = pushDestination(
+      this.map,
+      ref,
+      direction,
+      def,
+      push,
+      this.tilesById,
+    );
+    return check.ok ? check.to : null;
+  }
+
+  canPush(ref: ObjectRef): boolean {
+    return this.pushTargetFor(ref) != null;
   }
 
   /**
-   * Can the player start dragging this object right now? Hover outlines every
-   * interactive object in level range as an affordance, but only objects in
-   * reach can actually be acted on.
+   * Shove the object one cell directly away from the player. Returns false
+   * when the push is illegal — a blocked push is a no-op, not an error state.
    */
-  canGrab(ref: ObjectRef): boolean {
-    if (this.drag || this.slide || this.walk || this.fall) return false;
-    const def = this.interactiveDefAt(ref);
-    return Boolean(def && resolveDrag(def) && this.withinReach(ref));
+  push(ref: ObjectRef): boolean {
+    const to = this.pushTargetFor(ref);
+    const direction = this.pushDirectionFor(ref);
+    if (!to || !direction) return false;
+
+    // The shove is what turns the player, so facing lands before the motion.
+    const loc = requireSinglePlayer(this.map);
+    this.map = setEntityDirection(
+      this.map,
+      loc.x,
+      loc.y,
+      loc.z,
+      loc.stackIndex,
+      direction,
+    );
+
+    this.slide = {
+      object: ref,
+      from: { x: ref.x, y: ref.y, z: ref.z },
+      to,
+      elapsedMs: 0,
+    };
+    return true;
   }
 
   /**
    * Can the player switch this object right now? Same reach / busy gates as
-   * grab; also requires the target tile to fit in this stack slot.
+   * push; also requires the target tile to fit in this stack slot.
    */
   canSwitch(ref: ObjectRef): boolean {
-    if (this.drag || this.slide || this.walk || this.fall) return false;
+    if (!this.idle()) return false;
     const def = this.interactiveDefAt(ref);
     const sw = def && resolveSwitch(def);
-    if (!def || !sw || !this.withinReach(ref)) return false;
+    if (!def || !sw || !this.pushDirectionFor(ref)) return false;
     return this.switchWouldFit(ref, sw.targetTileId);
   }
 
@@ -217,9 +247,17 @@ export class GameSession {
         : placed,
     );
     this.map = replaceStack(this.map, ref.x, ref.y, ref.z, next);
-    // Re-evaluate hover: the replacement may be interactive (toggle) or inert.
-    if (this.hovered) this.setHoveredObject(ref);
     return true;
+  }
+
+  /**
+   * The one thing a tap on this object does. Everything the player can do to
+   * an object lives behind a single button, so the tile's own capabilities
+   * pick the action rather than the input device — switch wins when authored,
+   * push is the fallback. Returns false when nothing happened.
+   */
+  interact(ref: ObjectRef): boolean {
+    return this.activateSwitch(ref) || this.push(ref);
   }
 
   private switchWouldFit(ref: ObjectRef, targetTileId: string): boolean {
@@ -242,118 +280,53 @@ export class GameSession {
     ).ok;
   }
 
-  /** Renderer reports what the pointer is over; the session decides if it counts. */
+  /**
+   * Renderer reports what the pointer is over; whether it counts is decided on
+   * read, not here. Reach changes as the player walks and as objects settle,
+   * and a pointer that has not moved must not keep an outline alive that the
+   * player can no longer act on.
+   */
   setHoveredObject(ref: ObjectRef | null) {
-    this.hovered = ref && this.interactiveDefAt(ref) ? ref : null;
+    this.hovered = ref;
   }
 
-  /** Start dragging an object. Returns false when the player cannot reach it. */
-  beginDrag(ref: ObjectRef): boolean {
-    if (!this.canGrab(ref)) return false;
-    const def = this.interactiveDefAt(ref);
-    const drag = def && resolveDrag(def);
-    if (!def || !drag) return false;
-
-    this.drag = {
-      object: ref,
-      targets: reachableDragTargets(this.map, ref, def, drag, this.tilesById),
-      pointer: null,
-    };
-    return true;
-  }
-
-  /** Cell the pointer is over mid-drag, in the object's own level plane. */
-  setDragPointer(cell: { x: number; y: number } | null) {
-    if (!this.drag) return;
-    this.drag.pointer = cell;
-  }
-
-  /** Drop the object if the pointer is on a reachable cell; otherwise put it back. */
-  endDrag() {
-    const active = this.drag;
-    this.drag = null;
-    if (!active?.pointer) return;
-
-    const target = active.targets.get(
-      coordKey(active.pointer.x, active.pointer.y),
-    );
-    if (!target || target.path.length === 0) return;
-
-    // Travels the path it was cleared for rather than teleporting; each cell
-    // is committed as it is reached, so the map is never in a halfway state.
-    this.slide = {
-      object: active.object,
-      remaining: [...target.path],
-      from: { x: active.object.x, y: active.object.y, z: active.object.z },
-      elapsedMs: 0,
-    };
-    // The outline rides along with it.
-    this.hovered = active.object;
-  }
-
-  cancelDrag() {
-    this.drag = null;
-  }
-
-  isDragging(): boolean {
-    return this.drag != null;
+  /** Is there anything a tap on this object would do right now? */
+  canInteract(ref: ObjectRef): boolean {
+    return this.canSwitch(ref) || this.canPush(ref);
   }
 
   private tickSlide(tickMs: number) {
-    const slide = this.slide;
-    if (!slide) return;
-
-    slide.elapsedMs += tickMs;
-    while (this.slide && this.slide.elapsedMs >= DRAG_STEP_MS) {
-      this.slide.elapsedMs -= DRAG_STEP_MS;
-      this.commitSlideStep();
-    }
+    if (!this.slide) return;
+    this.slide.elapsedMs += tickMs;
+    if (this.slide.elapsedMs >= PUSH_STEP_MS) this.commitSlide();
   }
 
-  private commitSlideStep() {
+  private commitSlide() {
     const slide = this.slide;
     if (!slide) return;
+    this.slide = null;
 
-    const next = slide.remaining.shift();
-    if (!next) {
-      this.slide = null;
-      return;
-    }
-
-    this.map = moveEntity(this.map, slide.object, next, undefined, this.tilesById);
-    const landed = {
-      ...next,
-      stackIndex: getStack(this.map, next.x, next.y, next.z).length - 1,
-    };
-    slide.object = landed;
-    slide.from = { x: next.x, y: next.y, z: next.z };
-    if (this.hovered) this.hovered = landed;
-
-    if (slide.remaining.length === 0) this.slide = null;
+    const { to } = slide;
+    this.map = moveEntity(this.map, slide.object, to, undefined, this.tilesById);
   }
 
   private slideSnapshot(): SlideSnapshot | null {
     const slide = this.slide;
-    const to = slide?.remaining[0];
-    if (!slide || !to) return null;
+    if (!slide) return null;
     return {
       object: slide.object,
       from: slide.from,
-      to,
+      to: slide.to,
       progress: Math.min(
         1,
-        (slide.elapsedMs + this.accumulatorMs) / DRAG_STEP_MS,
+        (slide.elapsedMs + this.accumulatorMs) / PUSH_STEP_MS,
       ),
     };
   }
 
   /** Single fixed tick. */
   tick(tickMs: number = TICK_MS) {
-    // Anything that moves the player invalidates the reach the drag was
-    // computed against, so physics wins and the grab is released.
-    if (this.drag && this.fall) this.drag = null;
-
-    // Independent of the player: a released object keeps travelling whatever
+    // Independent of the player: a shoved object keeps travelling whatever
     // the player does next.
     this.tickSlide(tickMs);
 
@@ -398,23 +371,9 @@ export class GameSession {
       fallProgress: this.fall
         ? Math.min(1, (this.fall.elapsedMs + visualExtra) / FALL_MS_PER_HEIGHT)
         : 0,
-      hover: this.hovered,
-      drag: this.dragSnapshot(),
+      hover:
+        this.hovered && this.canInteract(this.hovered) ? this.hovered : null,
       slide: this.slideSnapshot(),
-    };
-  }
-
-  private dragSnapshot(): DragSnapshot | null {
-    const active = this.drag;
-    if (!active) return null;
-    const pointer = active.pointer;
-    return {
-      object: active.object,
-      targetKeys: [...active.targets.keys()],
-      pointer,
-      target: pointer
-        ? active.targets.get(coordKey(pointer.x, pointer.y))?.to ?? null
-        : null,
     };
   }
 
@@ -443,10 +402,6 @@ export class GameSession {
   }
 
   private maybeStartWalk() {
-    // Hands are busy — walking away mid-drag would break the reach the drag
-    // targets were computed from.
-    if (this.drag) return;
-
     const dirs = this.input.directions;
     if (dirs.length === 0) return;
 

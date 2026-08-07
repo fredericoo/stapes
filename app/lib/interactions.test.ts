@@ -3,7 +3,7 @@ import {
   interactionsForSave,
   interactionKinds,
   isInteractive,
-  resolveDrag,
+  resolvePush,
   resolveSwitch,
 } from "./interactions";
 import type { TileDef } from "./types";
@@ -54,34 +54,30 @@ describe("resolveSwitch", () => {
     expect(isInteractive(def)).toBe(false);
   });
 
-  it("coexists with drag", () => {
+  it("coexists with push, and is tried first", () => {
     const def = tile({
       id: "lever",
       height: 1,
       interactions: {
-        drag: { distanceTiles: 1, climb: "half", moveOnTileIds: [] },
+        push: { climb: "half", moveOnTileIds: [] },
         switch: { targetTileId: "lever-pulled" },
       },
     });
-    expect(resolveDrag(def)).not.toBeNull();
+    expect(resolvePush(def)).not.toBeNull();
     expect(resolveSwitch(def)).toEqual({ targetTileId: "lever-pulled" });
-    expect(interactionKinds(def)).toEqual(["drag", "switch"]);
+    expect(interactionKinds(def)).toEqual(["switch", "push"]);
   });
 });
 
 describe("interactionsForSave", () => {
-  it("persists switch alongside drag", () => {
+  it("persists switch alongside push", () => {
     expect(
       interactionsForSave({
-        drag: { distanceTiles: 1.5, climb: "full", moveOnTileIds: ["b", "a"] },
+        push: { climb: "full", moveOnTileIds: ["b", "a"] },
         switch: { targetTileId: "door-open" },
       }),
     ).toEqual({
-      drag: {
-        distanceTiles: 1.5,
-        climb: "full",
-        moveOnTileIds: ["a", "b"],
-      },
+      push: { climb: "full", moveOnTileIds: ["a", "b"] },
       switch: { targetTileId: "door-open" },
     });
   });

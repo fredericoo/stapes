@@ -94,7 +94,7 @@ export type TileDef = {
   climbFrom?: Partial<Record<VariantKey, Partial<Record<Direction, boolean>>>>;
   /**
    * What the player can do with this object in play mode. Absent → inert.
-   * Read through `resolveDrag` / `resolveSwitch` / `isInteractive` in
+   * Read through `resolvePush` / `resolveSwitch` / `isInteractive` in
    * ./interactions, which validate the on-disk shape.
    */
   interactions?: TileInteractions;

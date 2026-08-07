@@ -37,7 +37,7 @@ export function indexInteractive(
         const def = tilesById[placed.tileId];
         const drawnAt = elevation;
         if (def) elevation += physicalHeight(def);
-        // Buried under another tile: not hoverable, not draggable.
+        // Buried under another tile: not hoverable, not interactive.
         if (stackIndex !== stack.length - 1) return;
         if (!def || !isInteractive(def)) return;
         out.push({ ref: { x, y, z, stackIndex }, elevation: drawnAt });
@@ -60,20 +60,29 @@ export type PickContext = {
 /**
  * The interactive object drawn under a canvas-relative point, or null.
  *
- * A rect test against each candidate's sprite quad, taking the frontmost hit.
- * There is no ID buffer and no readback: the candidate list is only the
- * interactive placements on one level, so brute force is cheaper than a pass.
+ * A rect test against each candidate's sprite quad. There is no ID buffer and
+ * no readback: the candidate list is only the interactive placements on one
+ * level, so brute force is cheaper than a pass.
+ *
+ * Candidates are ranked by `isActionable` first and draw order second. Draw
+ * order alone loses the object the player came for whenever something inert
+ * overlaps it — a doorway two cells off is drawn in front of the crate beside
+ * you, and it has no business swallowing the click when tapping it would do
+ * nothing. Reaching past it costs nothing, because the thing in front is not
+ * a target at all right now.
  */
 export function pickInteractiveAt(
   ctx: PickContext,
   index: InteractiveIndex,
   screenX: number,
   screenY: number,
+  isActionable: (ref: ObjectRef) => boolean = () => false,
 ): ObjectRef | null {
   const worldX = ctx.camera.x + screenX / ctx.zoom;
   const worldY = ctx.camera.y + screenY / ctx.zoom;
 
   let best: ObjectRef | null = null;
+  let bestActionable = false;
   let bestOrder = -Infinity;
 
   for (const { ref, elevation } of index) {
@@ -90,16 +99,32 @@ export function pickInteractiveAt(
     );
     if (!quad || !quadContains(quad, worldX, worldY)) continue;
 
+    const actionable = isActionable(ref);
     const order = drawOrder(
       ref.x,
       ref.y,
       absoluteElevation(ref.z, elevation),
       ref.stackIndex,
     );
-    if (order <= bestOrder) continue;
-    bestOrder = order;
+    if (best && !outranks(actionable, order, bestActionable, bestOrder)) {
+      continue;
+    }
+
     best = ref;
+    bestActionable = actionable;
+    bestOrder = order;
   }
 
   return best;
+}
+
+/** Lexicographic rank: actionable beats inert, then frontmost beats behind. */
+function outranks(
+  actionable: boolean,
+  order: number,
+  bestActionable: boolean,
+  bestOrder: number,
+): boolean {
+  if (actionable !== bestActionable) return actionable;
+  return order > bestOrder;
 }

@@ -38,12 +38,7 @@ import {
   injectWorldShader,
   writeBoxAttr,
 } from "./worldQuads";
-import {
-  OVERLAY_RENDER_ORDER,
-  disposeGroupChildren,
-  makeSpriteMesh,
-  makeSpriteOutline,
-} from "./overlayMeshes";
+import { disposeGroupChildren, makeSpriteOutline } from "./overlayMeshes";
 import { type SpriteQuadAssets, spriteQuadFor } from "./spriteQuad";
 
 type AnimatedInstance = {
@@ -123,26 +118,9 @@ export type ObjectOutlineOverlay = TileInstanceKey & {
   color: number;
 };
 
-/**
- * Translucent copy of a placed tile drawn where it would end up. Its presence
- * *is* the "you can drop here" signal — no ghost means no legal drop.
- */
-export type GhostOverlay = {
-  kind: "ghost";
-  /** Tile to copy, at its current home in the map. */
-  object: TileInstanceKey;
-  /** Cell it would come to rest in. */
-  to: { x: number; y: number; z: number };
-  opacity: number;
-};
-
-export type OverlaySpec = ObjectOutlineOverlay | GhostOverlay;
+export type OverlaySpec = ObjectOutlineOverlay;
 
 function overlaySpecKey(spec: OverlaySpec): string {
-  if (spec.kind === "ghost") {
-    const { object: o, to } = spec;
-    return `g:${o.x},${o.y},${o.z},${o.stackIndex}>${to.x},${to.y},${to.z}`;
-  }
   return `o:${spec.x},${spec.y},${spec.z},${spec.stackIndex}:${spec.color}`;
 }
 
@@ -363,11 +341,6 @@ export class WorldRenderer {
   }
 
   private addOverlay(spec: OverlaySpec) {
-    if (spec.kind === "ghost") {
-      this.addGhostOverlay(spec);
-      return;
-    }
-
     const subject = this.overlaySubject(spec);
     if (!subject) return;
     const quad = spriteQuadFor(
@@ -378,37 +351,6 @@ export class WorldRenderer {
       subject.def,
     );
     if (quad) this.overlays.add(makeSpriteOutline(quad, spec.color));
-  }
-
-  private addGhostOverlay(spec: GhostOverlay) {
-    const subject = this.overlaySubject(spec.object);
-    if (!subject) return;
-
-    const { to } = spec;
-    // Sits on whatever is already in the destination cell — the object is
-    // still parked at its origin, so the stack there is exactly what it lands on.
-    const elevation = stackHeight(
-      getStack(subject.map, to.x, to.y, to.z),
-      this.tilesById,
-    );
-    const quad = spriteQuadFor(
-      this.quadAssets(),
-      subject.map,
-      { x: to.x, y: to.y, z: to.z, elevation },
-      subject.placed,
-      subject.def,
-    );
-    if (!quad) return;
-
-    this.overlays.add(
-      makeSpriteMesh(quad, {
-        color: 0xffffff,
-        opacity: spec.opacity,
-        blending: THREE.NormalBlending,
-        renderOrder: OVERLAY_RENDER_ORDER.spriteFill,
-        alphaTest: 0.5,
-      }),
-    );
   }
 
   /** Toggle whole level groups; no mesh rebuild. */
