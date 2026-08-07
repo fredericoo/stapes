@@ -140,14 +140,21 @@ describe("chunked lighting", () => {
     expect(dropped).toBeLessThanOrEqual(4);
   });
 
-  it("drops everything when time of day changes", () => {
+  it("keeps window chunks cached when ambient changes", () => {
     const chunked = new ChunkedLighting(tilesById, omit);
     const rect: WorldRect = { x0: 0, y0: 0, x1: 40, y1: 40 };
     chunked.gridFor(mapFile, ambient, rect);
-    expect(chunked.cachedChunks).toBeGreaterThan(0);
+    const cached = chunked.cachedChunks;
+    expect(cached).toBeGreaterThan(0);
 
-    chunked.gridFor(mapFile, [...AMBIENT_PRESETS.day], rect);
-    expect(chunked.bakedLastCall).toBeGreaterThan(0);
+    const dayGrid = chunked.gridFor(mapFile, [...AMBIENT_PRESETS.day], rect);
+    // No window bake — ambient is a compose-time tint. Prefetch may still
+    // trickle one ring chunk on an otherwise idle call.
+    expect(chunked.bakedLastCall).toBe(0);
+    expect(chunked.cachedChunks).toBeGreaterThanOrEqual(cached);
+    // Recompose must produce a new grid identity so uploaders refresh textures.
+    const nightGrid = chunked.gridFor(mapFile, ambient, rect);
+    expect(dayGrid).not.toBe(nightGrid);
   });
 });
 

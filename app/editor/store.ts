@@ -1,6 +1,10 @@
 import { create } from "zustand";
 import type { Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
-import type { TimeOfDay } from "../lib/lighting";
+import {
+  DEFAULT_EDITOR_MINUTES,
+  type MinutesOfDay,
+  wrapMinutes,
+} from "../lib/clock";
 import {
   appendTile,
   clearStack,
@@ -39,7 +43,8 @@ export function snapZoom(z: number): ZoomLevel {
 }
 
 export type LightingSettings = {
-  timeOfDay: TimeOfDay;
+  /** Minutes past midnight (0…1439). */
+  minutesOfDay: MinutesOfDay;
 };
 
 type HistoryEntry = {
@@ -91,7 +96,7 @@ export type EditorStore = {
   setShowOtherLevels: (v: boolean) => void;
   setPreviewMode: (v: boolean) => void;
   togglePreviewMode: () => void;
-  setTimeOfDay: (t: TimeOfDay) => void;
+  setMinutesOfDay: (m: MinutesOfDay) => void;
   setTool: (tool: ToolId) => void;
   setSelected: (sel: { x: number; y: number } | null) => void;
   setHover: (h: { x: number; y: number } | null) => void;
@@ -134,7 +139,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   currentLevel: 0,
   showOtherLevels: true,
   previewMode: false,
-  lighting: { timeOfDay: "day" },
+  lighting: { minutesOfDay: DEFAULT_EDITOR_MINUTES },
   tool: "select",
   selected: null,
   hover: null,
@@ -185,7 +190,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   setShowOtherLevels: (v) => set({ showOtherLevels: v }),
   setPreviewMode: (v) => set({ previewMode: v }),
   togglePreviewMode: () => set({ previewMode: !get().previewMode }),
-  setTimeOfDay: (t) => set({ lighting: { timeOfDay: t } }),
+  setMinutesOfDay: (m) =>
+    set({ lighting: { minutesOfDay: wrapMinutes(Math.floor(m)) } }),
   setTool: (tool) => set({ tool }),
   setSelected: (sel) => set({ selected: sel }),
   setHover: (h) => {

@@ -10,7 +10,13 @@ import type {
 } from "../game/GameSession";
 import { PLAYER_TILE_ID } from "../game/constants";
 import { sceneryStack } from "../game/movement";
-import type { EmitterOverride, TimeOfDay } from "../lib/lighting";
+import type { EmitterOverride } from "../lib/lighting";
+import {
+  DEFAULT_PLAY_MINUTES,
+  advanceClock,
+  wrapMinutes,
+  type MinutesOfDay,
+} from "../lib/clock";
 import { emitterCenter } from "../lib/lighting";
 import { getStack, stackHeight } from "../lib/mapData";
 import {
@@ -61,7 +67,9 @@ export class GameRenderer {
   private session: GameSession;
   private canvas: HTMLCanvasElement;
   private tilesById: Record<string, TileDef>;
-  private timeOfDay: TimeOfDay = "night";
+  private minutesOfDay: number = DEFAULT_PLAY_MINUTES;
+  private clockPaused = false;
+  private onClock: ((minutes: MinutesOfDay) => void) | null = null;
   private onFps: ((fps: number) => void) | null = null;
   private fpsFrames = 0;
   private fpsLastReport = 0;
@@ -88,8 +96,17 @@ export class GameRenderer {
     this.attachPointer();
   }
 
-  setTimeOfDay(t: TimeOfDay) {
-    this.timeOfDay = t;
+  setMinutesOfDay(m: MinutesOfDay) {
+    this.minutesOfDay = wrapMinutes(m);
+    this.onClock?.(Math.floor(this.minutesOfDay));
+  }
+
+  setClockPaused(paused: boolean) {
+    this.clockPaused = paused;
+  }
+
+  setOnClock(cb: ((minutes: MinutesOfDay) => void) | null) {
+    this.onClock = cb;
   }
 
   setOnFps(cb: ((fps: number) => void) | null) {
@@ -108,6 +125,12 @@ export class GameRenderer {
       const now = performance.now();
       const dt = Math.min(100, now - this.lastTime);
       this.lastTime = now;
+      if (!this.clockPaused) {
+        const prev = Math.floor(this.minutesOfDay);
+        this.minutesOfDay = advanceClock(this.minutesOfDay, dt);
+        const next = Math.floor(this.minutesOfDay);
+        if (next !== prev) this.onClock?.(next);
+      }
       this.session.update(dt);
       this.pushView();
       this.world.tick(dt);
@@ -125,6 +148,7 @@ export class GameRenderer {
   dispose() {
     this.disposed = true;
     this.onFps = null;
+    this.onClock = null;
     this.stop();
     this.detachPointer();
     this.world.dispose();
@@ -269,7 +293,7 @@ export class GameRenderer {
       tilesById: this.tilesById,
       camera,
       zoom,
-      timeOfDay: this.timeOfDay,
+      minutesOfDay: this.minutesOfDay,
       tileMotions: this.tileMotionsFor(snap, visual),
       emitterOverrides: this.emitterOverridesFor(snap),
       hideLevelsAbove: hideAbove ? anchor.z : undefined,

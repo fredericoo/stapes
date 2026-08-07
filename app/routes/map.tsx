@@ -16,10 +16,10 @@ import {
   snapZoom,
 } from "../editor/store";
 import { readMap, readTiles, readTilesets, writeMap } from "../lib/fs.server";
-import type { TimeOfDay } from "../lib/lighting";
+import { formatClock, MINUTES_PER_DAY } from "../lib/clock";
 import type { MapFile } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL, clampLevel } from "../lib/types";
-import { Button, Input, Segmented, Switch, Tooltip, useToast } from "../ui";
+import { Button, Input, Switch, Tooltip, useToast } from "../ui";
 
 export async function loader() {
   const [map, tiles, tilesets] = await Promise.all([
@@ -57,7 +57,7 @@ export default function MapPage() {
   const currentLevel = useEditorStore((s) => s.currentLevel);
   const showOtherLevels = useEditorStore((s) => s.showOtherLevels);
   const previewMode = useEditorStore((s) => s.previewMode);
-  const timeOfDay = useEditorStore((s) => s.lighting.timeOfDay);
+  const minutesOfDay = useEditorStore((s) => s.lighting.minutesOfDay);
   const zoom = useEditorStore((s) => s.zoom);
   const lastToast = useEditorStore((s) => s.lastToast);
   const canUndo = useEditorStore((s) => s.past.length > 0);
@@ -225,17 +225,27 @@ export default function MapPage() {
               thumb={<IconEye size={12} stroke={2.5} aria-hidden="true" />}
             />
           </Tooltip>
-          <Segmented<TimeOfDay>
-            value={timeOfDay}
-            onChange={(t) => useEditorStore.getState().setTimeOfDay(t)}
-            size="sm"
-            ariaLabel="Time of day"
-            options={[
-              { value: "day", label: "Day" },
-              { value: "dusk", label: "Dusk" },
-              { value: "night", label: "Night" },
-            ]}
-          />
+          <div className="flex items-center gap-2">
+            <span className="text-xs uppercase text-paper/70">Time</span>
+            <input
+              type="range"
+              min={0}
+              max={MINUTES_PER_DAY - 1}
+              step={1}
+              value={minutesOfDay}
+              onChange={(e) =>
+                useEditorStore
+                  .getState()
+                  .setMinutesOfDay(Number(e.target.value))
+              }
+              aria-label="Time of day"
+              aria-valuetext={formatClock(minutesOfDay)}
+              className="hard-slider w-28"
+            />
+            <span className="border-2 border-paper/40 px-1.5 py-0.5 text-xs tabular-nums text-paper">
+              {formatClock(minutesOfDay)}
+            </span>
+          </div>
           <div className="flex items-center gap-2">
             <span className="text-xs uppercase text-paper/70">Zoom</span>
             <input

@@ -13,11 +13,11 @@ import {
   spriteWorldOrigin,
 } from "../lib/geometry";
 import {
-  AMBIENT_PRESETS,
   computeLighting,
   type LevelLightMap,
   type LightGrid,
 } from "../lib/lighting";
+import { sampleIllumination } from "../lib/clock";
 import { getStack, listCoords, stackHeight } from "../lib/mapData";
 import type {
   Frame,
@@ -525,8 +525,8 @@ export class EditorRenderer {
     if (!force && key === this.lightingKey) return;
     this.lightingKey = key;
 
-    const ambient = AMBIENT_PRESETS[s.lighting.timeOfDay];
-    const grid = computeLighting(s.map, s.tilesById, [...ambient]);
+    const ambient = sampleIllumination(s.lighting.minutesOfDay).ambient;
+    const grid = computeLighting(s.map, s.tilesById, ambient);
     this.lightGrid = grid;
     this.uploadLightGrid(grid);
     this.requestRender();
@@ -641,8 +641,8 @@ export class EditorRenderer {
         lightDefsSig = (lightDefsSig * 17 + (t.blocksLight ? 3 : 5)) | 0;
       }
     }
-    const { timeOfDay } = s.lighting;
-    return `${timeOfDay}|${s.mapVersion}|${lightDefsSig}|${Object.keys(s.tilesById).length}`;
+    const { minutesOfDay } = s.lighting;
+    return `${Math.floor(minutesOfDay)}|${s.mapVersion}|${lightDefsSig}|${Object.keys(s.tilesById).length}`;
   }
 
   private maybeScheduleLighting() {

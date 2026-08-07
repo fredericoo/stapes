@@ -8,12 +8,11 @@ import {
   spriteWorldOrigin,
 } from "../lib/geometry";
 import {
-  AMBIENT_PRESETS,
   type EmitterOverride,
   type LevelLightMap,
   type LightGrid,
-  type TimeOfDay,
 } from "../lib/lighting";
+import { sampleIllumination } from "../lib/clock";
 import { getStack, listCoords, stackHeight } from "../lib/mapData";
 import type { Frame, MapFile, TileDef, TilesetDef } from "../lib/types";
 import {
@@ -48,11 +47,7 @@ type AnimatedInstance = {
   animKey: string;
 };
 
-const BACKGROUND_BY_TIME: Record<TimeOfDay, number> = {
-  day: 0xb8b09e,
-  dusk: 0x6a5040,
-  night: 0x0a0d1a,
-};
+const DEFAULT_BACKGROUND = sampleIllumination(12 * 60).background;
 const LIGHT_MAP_CELL_OFFSET = 0.5;
 
 /** Map cell + stack slot identifying a placed tile instance. */
@@ -97,7 +92,8 @@ export type WorldView = {
   tilesById: Record<string, TileDef>;
   camera: { x: number; y: number };
   zoom: number;
-  timeOfDay: TimeOfDay;
+  /** Minutes past midnight — drives ambient + clear colour. */
+  minutesOfDay: number;
   /** Active lerps; each carries the depth box its sprite currently occupies. */
   tileMotions?: TileMotion[];
   /**
@@ -227,7 +223,7 @@ export class WorldRenderer {
       antialias: false,
       alpha: false,
     });
-    this.renderer.setClearColor(BACKGROUND_BY_TIME.day, 1);
+    this.renderer.setClearColor(DEFAULT_BACKGROUND, 1);
     this.renderer.setPixelRatio(1);
     this.renderer.autoClear = true;
 
@@ -413,7 +409,7 @@ export class WorldRenderer {
     if (this.view) {
       this.applyCamera(this.view.camera.x, this.view.camera.y, this.view.zoom);
     }
-    const bg = BACKGROUND_BY_TIME[this.view?.timeOfDay ?? "day"];
+    const bg = sampleIllumination(this.view?.minutesOfDay ?? 12 * 60).background;
     const r = this.renderer;
 
     // PROTOTYPE — always palettise play frames.
@@ -705,10 +701,10 @@ export class WorldRenderer {
     // grid object while nothing has changed — so identity, not a content hash,
     // is what decides whether the textures need rewriting. This is what
     // replaced hashing every cell in the map on every frame.
-    const ambient = AMBIENT_PRESETS[view.timeOfDay];
+    const ambient = sampleIllumination(view.minutesOfDay).ambient;
     const base = this.lighting.gridFor(
       view.map,
-      [...ambient],
+      ambient,
       this.lightWindow(view),
     );
 

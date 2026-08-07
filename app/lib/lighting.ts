@@ -26,14 +26,6 @@ const TRANSMISSION_EPSILON = 1e-3;
  */
 export const SKY_SPILL_RADIUS = 8;
 
-export type TimeOfDay = "day" | "dusk" | "night";
-
-export const AMBIENT_PRESETS: Record<TimeOfDay, [number, number, number]> = {
-  day: [1, 1, 1],
-  dusk: [0.55, 0.4, 0.3],
-  night: [0.04, 0.05, 0.1],
-};
-
 export type LevelLightMap = {
   x0: number;
   y0: number;
@@ -46,6 +38,73 @@ export type LevelLightMap = {
 export type LightGrid = {
   levels: Map<number, LevelLightMap>;
 };
+
+/**
+ * Ambient-free bake: sky factor + block light. Tint with
+ * {@link composeLightGrid} so time of day can change without rebaking.
+ */
+export type RawLevelLight = {
+  x0: number;
+  y0: number;
+  w: number;
+  h: number;
+  /** Sky factor 0–255 per cell, length w * h. */
+  sky: Uint8Array;
+  /** Block light RGB 0–255, length w * h * 3. */
+  block: Uint8Array;
+};
+
+export type RawLightGrid = {
+  levels: Map<number, RawLevelLight>;
+};
+
+/** Named presets kept for tests — samples from the clock keyframes. */
+export const AMBIENT_PRESETS = {
+  day: [1, 1, 1] as [number, number, number],
+  dusk: [0.55, 0.4, 0.3] as [number, number, number],
+  night: [0.04, 0.05, 0.1] as [number, number, number],
+};
+
+/** Write `sky * ambient + block` into `rgb` (length sky.length * 3). */
+export function composeAmbientRgb(
+  sky: Uint8Array,
+  block: Uint8Array,
+  ambient: [number, number, number],
+  rgb: Uint8Array,
+): void {
+  for (let i = 0, p = 0; i < sky.length; i++, p += 3) {
+    const sk = sky[i]! / 255;
+    rgb[p] = Math.round(
+      Math.min(1, sk * ambient[0] + block[p]! / 255) * 255,
+    );
+    rgb[p + 1] = Math.round(
+      Math.min(1, sk * ambient[1] + block[p + 1]! / 255) * 255,
+    );
+    rgb[p + 2] = Math.round(
+      Math.min(1, sk * ambient[2] + block[p + 2]! / 255) * 255,
+    );
+  }
+}
+
+export function composeLevelLight(
+  raw: RawLevelLight,
+  ambient: [number, number, number],
+): LevelLightMap {
+  const rgb = new Uint8Array(raw.w * raw.h * 3);
+  composeAmbientRgb(raw.sky, raw.block, ambient, rgb);
+  return { x0: raw.x0, y0: raw.y0, w: raw.w, h: raw.h, rgb };
+}
+
+export function composeLightGrid(
+  raw: RawLightGrid,
+  ambient: [number, number, number],
+): LightGrid {
+  const levels = new Map<number, LevelLightMap>();
+  for (const [z, level] of raw.levels) {
+    levels.set(z, composeLevelLight(level, ambient));
+  }
+  return { levels };
+}
 
 export type CellOcclusion = {
   /**
@@ -387,12 +446,9 @@ export function computeLighting(
   overrides?: ReadonlyArray<EmitterOverride>,
   omitLightTileIds?: ReadonlySet<string>,
 ): LightGrid {
-  return computeLightingFlood(
-    map,
-    tilesById,
+  return composeLightGrid(
+    computeLightingFlood(map, tilesById, overrides, omitLightTileIds),
     ambient,
-    overrides,
-    omitLightTileIds,
   );
 }
 

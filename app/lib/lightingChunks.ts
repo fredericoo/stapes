@@ -14,7 +14,8 @@
  * apron that wide therefore reproduces the monolithic result exactly inside the
  * chunk — see the parity test.
  */
-import type { LightGrid, LevelLightMap } from "./lighting";
+import type { LightGrid, LevelLightMap, RawLevelLight } from "./lighting";
+import { composeAmbientRgb } from "./lighting";
 import { computeLightingFlood, MAX_LIGHT_LEVEL } from "./lightingFlood";
 import type { MapFile, PlacedTile, TileDef } from "./types";
 import { MAX_LEVEL, MIN_LEVEL, coordKey } from "./types";
@@ -48,13 +49,16 @@ export const PREFETCH_RING_CHUNKS = 1;
 export const PREFETCH_CHUNKS_PER_CALL = 1;
 
 /**
- * Chunks held before the coldest are dropped. ~51 KiB each, so this caps the
- * cache near 13 MiB. Must comfortably exceed the window's chunk count or the
- * window would evict itself and rebake every frame.
+ * Chunks held before the coldest are dropped. ~68 KiB each (RGBA raw), so this
+ * caps the cache near 17 MiB. Must comfortably exceed the window's chunk count
+ * or the window would evict itself and rebake every frame.
  */
 export const DEFAULT_MAX_CACHED_CHUNKS = 256;
 
-/** Per-chunk light: one RGB plane per level, `LIGHT_CHUNK_SIZE` square. */
+/**
+ * Per-chunk light: one plane per level, `LIGHT_CHUNK_SIZE` square.
+ * Layout is RGBA: block R,G,B + sky factor — ambient is applied at assemble.
+ */
 type ChunkLight = Map<number, Uint8Array>;
 
 type CachedChunk = {
@@ -62,6 +66,9 @@ type CachedChunk = {
   /** Tick this chunk was last drawn from — the LRU's recency stamp. */
   usedAt: number;
 };
+
+/** Bytes per cell in a raw chunk plane (block RGB + sky). */
+const RAW_STRIDE = 4;
 
 function chunkOf(v: number): number {
   return Math.floor(v / LIGHT_CHUNK_SIZE);
@@ -140,22 +147,26 @@ function levelDiffersIn(
   return false;
 }
 
-/** Copy one chunk's square out of a baked level plane. */
-function sliceChunk(level: LevelLightMap, rect: WorldRect): Uint8Array {
-  const out = new Uint8Array(LIGHT_CHUNK_SIZE * LIGHT_CHUNK_SIZE * 3);
+/** Copy one chunk's square out of a baked raw level plane (block RGB + sky). */
+function sliceChunk(level: RawLevelLight, rect: WorldRect): Uint8Array {
+  const out = new Uint8Array(LIGHT_CHUNK_SIZE * LIGHT_CHUNK_SIZE * RAW_STRIDE);
   for (let row = 0; row < LIGHT_CHUNK_SIZE; row++) {
     const sy = rect.y0 + row - level.y0;
     if (sy < 0 || sy >= level.h) continue;
     const sx = rect.x0 - level.x0;
-    // Clamp the run to the source plane; a chunk at the world edge overhangs it.
     const from = Math.max(0, sx);
     const to = Math.min(level.w, sx + LIGHT_CHUNK_SIZE);
     if (to <= from) continue;
-    const src = (sy * level.w + from) * 3;
-    out.set(
-      level.rgb.subarray(src, src + (to - from) * 3),
-      (row * LIGHT_CHUNK_SIZE + (from - sx)) * 3,
-    );
+    for (let x = from; x < to; x++) {
+      const srcCell = sy * level.w + x;
+      const dstCell = row * LIGHT_CHUNK_SIZE + (x - sx);
+      const srcP = srcCell * 3;
+      const dstP = dstCell * RAW_STRIDE;
+      out[dstP] = level.block[srcP]!;
+      out[dstP + 1] = level.block[srcP + 1]!;
+      out[dstP + 2] = level.block[srcP + 2]!;
+      out[dstP + 3] = level.sky[srcCell]!;
+    }
   }
   return out;
 }
@@ -168,7 +179,6 @@ function sliceChunk(level: LevelLightMap, rect: WorldRect): Uint8Array {
 function bakeRegion(
   map: MapFile,
   tilesById: Record<string, TileDef>,
-  ambient: [number, number, number],
   omitLightTileIds: ReadonlySet<string> | undefined,
   rect: WorldRect,
 ): Map<string, ChunkLight> {
@@ -184,7 +194,6 @@ function bakeRegion(
   const grid = computeLightingFlood(
     cropMap(map, padded),
     tilesById,
-    ambient,
     undefined,
     omitLightTileIds,
     { ...padded, z0: MIN_LEVEL, z1: MAX_LEVEL },
@@ -208,14 +217,15 @@ function bakeRegion(
  */
 export class ChunkedLighting {
   private cache = new Map<string, CachedChunk>();
-  /** Ambient is baked into the planes, so a time-of-day change voids all of it. */
-  private ambientKey = "";
   private lastBakedChunks = 0;
   private version = 0;
   /**
    * Last grid handed out. Re-returned by identity while nothing has changed, so
    * a caller can drive this every frame and use `===` to decide whether to redo
    * whatever it derived — an upload, say — without diffing pixels.
+   *
+   * Ambient is part of the assemble key: sky/block stay cached across time-of-day
+   * changes; only the composed RGB grid is rebuilt.
    */
   private assembled: { key: string; grid: LightGrid } | null = null;
   /** Monotonic call counter; the LRU's clock. */
@@ -328,23 +338,18 @@ export class ChunkedLighting {
     ambient: [number, number, number],
     rect: WorldRect,
   ): LightGrid {
-    const ambientKey = ambient.join(",");
-    if (ambientKey !== this.ambientKey) {
-      this.invalidateAll();
-      this.ambientKey = ambientKey;
-    }
-
     this.tick++;
-    this.fillMissing(map, ambient, rect);
-    if (this.lastBakedChunks === 0) this.prefetchRing(map, ambient, rect);
+    this.fillMissing(map, rect);
+    if (this.lastBakedChunks === 0) this.prefetchRing(map, rect);
 
-    const key = `${rect.x0},${rect.y0},${rect.x1},${rect.y1}|${this.version}`;
+    const ambientKey = ambient.map((c) => c.toFixed(4)).join(",");
+    const key = `${rect.x0},${rect.y0},${rect.x1},${rect.y1}|${this.version}|${ambientKey}`;
     if (this.assembled?.key === key) {
       this.touchWindow(rect);
       this.evictColdest();
       return this.assembled.grid;
     }
-    const grid = this.assemble(rect);
+    const grid = this.assemble(rect, ambient);
     this.assembled = { key, grid };
     this.evictColdest();
     return grid;
@@ -356,11 +361,7 @@ export class ChunkedLighting {
    * no coupling to the player — a camera panning in the editor gets the same
    * treatment as a character walking.
    */
-  private prefetchRing(
-    map: MapFile,
-    ambient: [number, number, number],
-    rect: WorldRect,
-  ) {
+  private prefetchRing(map: MapFile, rect: WorldRect) {
     const centre = { x: (rect.x0 + rect.x1) / 2, y: (rect.y0 + rect.y1) / 2 };
     const drift = this.lastCentre
       ? { x: centre.x - this.lastCentre.x, y: centre.y - this.lastCentre.y }
@@ -385,7 +386,6 @@ export class ChunkedLighting {
       const baked = bakeRegion(
         map,
         this.tilesById,
-        ambient,
         this.omitLightTileIds,
         chunkRect(c.cx, c.cy),
       );
@@ -439,11 +439,7 @@ export class ChunkedLighting {
    * Bake the chunks in `rect` that are absent, batched into one pass over their
    * bounding box. Filling the union costs a single apron rather than one each.
    */
-  private fillMissing(
-    map: MapFile,
-    ambient: [number, number, number],
-    rect: WorldRect,
-  ) {
+  private fillMissing(map: MapFile, rect: WorldRect) {
     let x0 = Infinity;
     let y0 = Infinity;
     let x1 = -Infinity;
@@ -467,7 +463,6 @@ export class ChunkedLighting {
     const baked = bakeRegion(
       map,
       this.tilesById,
-      ambient,
       this.omitLightTileIds,
       { x0, y0, x1, y1 },
     );
@@ -478,8 +473,11 @@ export class ChunkedLighting {
     this.version++;
   }
 
-  /** Stitch cached chunks into one grid covering `rect`. */
-  private assemble(rect: WorldRect): LightGrid {
+  /** Stitch cached chunks into one RGB grid covering `rect`, tinted by ambient. */
+  private assemble(
+    rect: WorldRect,
+    ambient: [number, number, number],
+  ): LightGrid {
     const cx0 = chunkOf(rect.x0);
     const cy0 = chunkOf(rect.y0);
     const cx1 = chunkOf(rect.x1);
@@ -489,40 +487,53 @@ export class ChunkedLighting {
     const w = (cx1 - cx0 + 1) * LIGHT_CHUNK_SIZE;
     const h = (cy1 - cy0 + 1) * LIGHT_CHUNK_SIZE;
 
-    const planesByZ = new Map<number, Uint8Array>();
+    const rawByZ = new Map<number, { sky: Uint8Array; block: Uint8Array }>();
     for (let cy = cy0; cy <= cy1; cy++) {
       for (let cx = cx0; cx <= cx1; cx++) {
         const chunk = this.cache.get(chunkCacheKey(cx, cy));
         if (!chunk) continue;
         chunk.usedAt = this.tick;
-        this.blitChunk(planesByZ, chunk.planes, cx - cx0, cy - cy0, w, h);
+        this.blitChunk(rawByZ, chunk.planes, cx - cx0, cy - cy0, w, h);
       }
     }
 
     const levels = new Map<number, LevelLightMap>();
-    for (const [z, rgb] of planesByZ) levels.set(z, { x0, y0, w, h, rgb });
+    for (const [z, raw] of rawByZ) {
+      const rgb = new Uint8Array(w * h * 3);
+      composeAmbientRgb(raw.sky, raw.block, ambient, rgb);
+      levels.set(z, { x0, y0, w, h, rgb });
+    }
     return { levels };
   }
 
   private blitChunk(
-    planesByZ: Map<number, Uint8Array>,
+    rawByZ: Map<number, { sky: Uint8Array; block: Uint8Array }>,
     chunk: ChunkLight,
     ox: number,
     oy: number,
     w: number,
     h: number,
   ) {
-    for (const [z, rgb] of chunk) {
-      let plane = planesByZ.get(z);
-      if (!plane) {
-        plane = new Uint8Array(w * h * 3);
-        planesByZ.set(z, plane);
+    for (const [z, plane] of chunk) {
+      let raw = rawByZ.get(z);
+      if (!raw) {
+        raw = {
+          sky: new Uint8Array(w * h),
+          block: new Uint8Array(w * h * 3),
+        };
+        rawByZ.set(z, raw);
       }
       for (let row = 0; row < LIGHT_CHUNK_SIZE; row++) {
-        const src = row * LIGHT_CHUNK_SIZE * 3;
         const dstRow = oy * LIGHT_CHUNK_SIZE + row;
-        const dst = (dstRow * w + ox * LIGHT_CHUNK_SIZE) * 3;
-        plane.set(rgb.subarray(src, src + LIGHT_CHUNK_SIZE * 3), dst);
+        for (let col = 0; col < LIGHT_CHUNK_SIZE; col++) {
+          const src = (row * LIGHT_CHUNK_SIZE + col) * RAW_STRIDE;
+          const dstCell = dstRow * w + ox * LIGHT_CHUNK_SIZE + col;
+          const dstP = dstCell * 3;
+          raw.block[dstP] = plane[src]!;
+          raw.block[dstP + 1] = plane[src + 1]!;
+          raw.block[dstP + 2] = plane[src + 2]!;
+          raw.sky[dstCell] = plane[src + 3]!;
+        }
       }
     }
   }

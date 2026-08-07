@@ -13,6 +13,7 @@ import type { MapFile, TileDef } from "../lib/types";
 import {
   type EmitterOverride,
   type LightGrid,
+  composeLightGrid,
   overlayEmitterOverrides,
 } from "../lib/lighting";
 import { computeLightingFlood, MAX_LIGHT_LEVEL } from "../lib/lightingFlood";
@@ -49,12 +50,9 @@ export class GpuLighting {
     // CPU flood is the production path — faster than GPU readback for our grid size.
     // Gpu Jacobi (ping-pong RTs → bind as uLightMap) can replace this without
     // changing callers once RT sampling is wired in WorldRenderer.
-    return computeLightingFlood(
-      map,
-      tilesById,
+    return composeLightGrid(
+      computeLightingFlood(map, tilesById, undefined, omitLightTileIds),
       ambient,
-      undefined,
-      omitLightTileIds,
     );
   }
 

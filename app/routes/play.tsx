@@ -2,11 +2,15 @@ import { useEffect, useRef, useState } from "react";
 import { useLoaderData } from "react-router";
 import { AppShell } from "../components/AppShell";
 import { GameSession } from "../game/GameSession";
-import type { TimeOfDay } from "../lib/lighting";
+import {
+  DEFAULT_PLAY_MINUTES,
+  formatClock,
+  MINUTES_PER_DAY,
+  type MinutesOfDay,
+} from "../lib/clock";
 import type { Direction } from "../lib/types";
 import { readMap, readTiles, readTilesets } from "../lib/fs.server";
 import { GameRenderer } from "../render/GameRenderer";
-import { Segmented } from "../ui";
 
 export async function loader() {
   const [map, tiles, tilesets] = await Promise.all([
@@ -32,10 +36,15 @@ export default function PlayPage() {
   const { map, tiles, tilesets } = useLoaderData<typeof loader>();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<GameRenderer | null>(null);
-  const [timeOfDay, setTimeOfDay] = useState<TimeOfDay>("night");
+  const [minutesOfDay, setMinutesOfDay] = useState<MinutesOfDay>(
+    DEFAULT_PLAY_MINUTES,
+  );
+  const [clockPaused, setClockPaused] = useState(false);
   const [fps, setFps] = useState<number | null>(null);
-  const timeOfDayRef = useRef(timeOfDay);
-  timeOfDayRef.current = timeOfDay;
+  const minutesRef = useRef(minutesOfDay);
+  minutesRef.current = minutesOfDay;
+  const pausedRef = useRef(clockPaused);
+  pausedRef.current = clockPaused;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -50,7 +59,9 @@ export default function PlayPage() {
     }
 
     const renderer = new GameRenderer(canvas, session, tilesets, tiles);
-    renderer.setTimeOfDay(timeOfDayRef.current);
+    renderer.setMinutesOfDay(minutesRef.current);
+    renderer.setClockPaused(pausedRef.current);
+    renderer.setOnClock(setMinutesOfDay);
     renderer.setOnFps(setFps);
     rendererRef.current = renderer;
     renderer.start();
@@ -118,8 +129,13 @@ export default function PlayPage() {
   }, [map, tiles, tilesets]);
 
   useEffect(() => {
-    rendererRef.current?.setTimeOfDay(timeOfDay);
-  }, [timeOfDay]);
+    rendererRef.current?.setClockPaused(clockPaused);
+  }, [clockPaused]);
+
+  const scrubTime = (m: MinutesOfDay) => {
+    setMinutesOfDay(m);
+    rendererRef.current?.setMinutesOfDay(m);
+  };
 
   return (
     <AppShell
@@ -135,17 +151,32 @@ export default function PlayPage() {
               {fps ?? "—"}
             </span>
           </div>
-          <Segmented<TimeOfDay>
-            value={timeOfDay}
-            onChange={setTimeOfDay}
-            size="sm"
-            ariaLabel="Time of day"
-            options={[
-              { value: "day", label: "Day" },
-              { value: "dusk", label: "Dusk" },
-              { value: "night", label: "Night" },
-            ]}
-          />
+          <div className="flex items-center gap-2">
+            <span className="text-xs uppercase text-paper/70">Time</span>
+            <input
+              type="range"
+              min={0}
+              max={MINUTES_PER_DAY - 1}
+              step={1}
+              value={Math.floor(minutesOfDay)}
+              onChange={(e) => scrubTime(Number(e.target.value))}
+              aria-label="Time of day"
+              aria-valuetext={formatClock(minutesOfDay)}
+              className="hard-slider w-36"
+            />
+            <span className="border-2 border-paper/40 px-1.5 py-0.5 text-xs tabular-nums text-paper">
+              {formatClock(minutesOfDay)}
+            </span>
+            <label className="flex items-center gap-1.5 text-xs text-paper">
+              <input
+                type="checkbox"
+                checked={clockPaused}
+                onChange={(e) => setClockPaused(e.target.checked)}
+                className="hard-checkbox"
+              />
+              Pause
+            </label>
+          </div>
         </>
       }
     >

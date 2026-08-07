@@ -17,7 +17,7 @@ import {
   resolveLightPassing,
 } from "./types";
 import { elevationAt } from "./mapData";
-import type { EmitterOverride, LightGrid, LevelLightMap } from "./lighting";
+import type { EmitterOverride, RawLightGrid, RawLevelLight } from "./lighting";
 import { resolveLight } from "./tileResolve";
 
 /** Max sky level after column seed. Tune to widen/narrow sky spill. */
@@ -226,6 +226,10 @@ export type FloodDomain = {
 /**
  * Hybrid bake: Euclidean-cost sky flood + circular block emitters.
  *
+ * Ambient is *not* applied here — sky factor and block light are stored
+ * separately so time of day can re-tint without rebaking. Compose with
+ * {@link composeLightGrid}.
+ *
  * Pass `domain` to bake a fixed region — cells outside it are still read for
  * occlusion and emitters, so a caller wanting a correct window must hand in a
  * map cropped no tighter than the window plus {@link MAX_LIGHT_LEVEL}.
@@ -233,12 +237,11 @@ export type FloodDomain = {
 export function computeLightingFlood(
   map: MapFile,
   tilesById: Record<string, TileDef>,
-  ambient: [number, number, number],
   overrides?: ReadonlyArray<EmitterOverride>,
   omitLightTileIds?: ReadonlySet<string>,
   domain?: FloodDomain,
-): LightGrid {
-  const levels = new Map<number, LevelLightMap>();
+): RawLightGrid {
+  const levels = new Map<number, RawLevelLight>();
 
   let minX = Infinity;
   let minY = Infinity;
@@ -556,39 +559,46 @@ export function computeLightingFlood(
 
   for (let lz = 0; lz < dom.d; lz++) {
     const z = dom.z0 + lz;
-    const rgb = new Uint8Array(dom.w * dom.h * 3);
+    const nCells = dom.w * dom.h;
+    const skyOut = new Uint8Array(nCells);
+    const blockOut = new Uint8Array(nCells * 3);
     for (let ly = 0; ly < dom.h; ly++) {
       for (let lx = 0; lx < dom.w; lx++) {
         const i = idx(dom, lx, ly, lz);
-        const pi = (ly * dom.w + lx) * 3;
+        const ci = ly * dom.w + lx;
+        const pi = ci * 3;
         const sk = Math.min(1, sky[i]! / MAX_LIGHT_LEVEL);
+        const br = blockR[i]!;
+        const bg = blockG[i]!;
+        const bb = blockB[i]!;
         if (opacity[i]! >= 1) {
-          const br = blockR[i]!;
-          const bg = blockG[i]!;
-          const bb = blockB[i]!;
+          // Solid cells: keep block light when present; otherwise leave sky so
+          // buried/sealed surfaces still pick up ambient tint. Encoding sky=0
+          // when block wins keeps compose ambient-free (`sky*amb + block`).
           if (br + bg + bb > 0.01) {
-            rgb[pi] = Math.round(Math.min(1, br) * 255);
-            rgb[pi + 1] = Math.round(Math.min(1, bg) * 255);
-            rgb[pi + 2] = Math.round(Math.min(1, bb) * 255);
+            skyOut[ci] = 0;
+            blockOut[pi] = Math.round(Math.min(1, br) * 255);
+            blockOut[pi + 1] = Math.round(Math.min(1, bg) * 255);
+            blockOut[pi + 2] = Math.round(Math.min(1, bb) * 255);
           } else {
-            rgb[pi] = Math.round(Math.min(1, sk * ambient[0]) * 255);
-            rgb[pi + 1] = Math.round(Math.min(1, sk * ambient[1]) * 255);
-            rgb[pi + 2] = Math.round(Math.min(1, sk * ambient[2]) * 255);
+            skyOut[ci] = Math.round(sk * 255);
           }
           continue;
         }
-        rgb[pi] = Math.round(
-          Math.min(1, sk * ambient[0] + blockR[i]!) * 255,
-        );
-        rgb[pi + 1] = Math.round(
-          Math.min(1, sk * ambient[1] + blockG[i]!) * 255,
-        );
-        rgb[pi + 2] = Math.round(
-          Math.min(1, sk * ambient[2] + blockB[i]!) * 255,
-        );
+        skyOut[ci] = Math.round(sk * 255);
+        blockOut[pi] = Math.round(Math.min(1, br) * 255);
+        blockOut[pi + 1] = Math.round(Math.min(1, bg) * 255);
+        blockOut[pi + 2] = Math.round(Math.min(1, bb) * 255);
       }
     }
-    levels.set(z, { x0: dom.x0, y0: dom.y0, w: dom.w, h: dom.h, rgb });
+    levels.set(z, {
+      x0: dom.x0,
+      y0: dom.y0,
+      w: dom.w,
+      h: dom.h,
+      sky: skyOut,
+      block: blockOut,
+    });
   }
 
   return { levels };
