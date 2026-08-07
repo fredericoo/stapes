@@ -421,6 +421,47 @@ describe("computeLighting flood fill", () => {
     expect(sampleLevelLight(grid.levels.get(0)!, 1, 1)[0]).toBeGreaterThan(0.5);
   });
 
+  it("overlayEmitterOverrides respects a wall out near the radius edge", () => {
+    // The overlay only gathers occluders within the emitter's reach. A wall
+    // three cells out, shadowing a target near the rim, is exactly what a
+    // too-tight reach box would miss — the target would come back lit.
+    const map = mapAt([
+      { x: 0, y: 0, tiles: ["floor", "torch"] },
+      { x: 1, y: 0, tiles: ["floor"] },
+      { x: 2, y: 0, tiles: ["floor", "wall"] },
+      { x: 3, y: 0, tiles: ["floor"] },
+    ]);
+    const omit = new Set(["torch"]);
+    const staticGrid = computeLighting(map, tilesById, [0, 0, 0], undefined, omit);
+    const painted = overlayEmitterOverrides(staticGrid, map, tilesById, [
+      { x: 0, y: 0, z: 0, fx: 0.5, fy: 0.5, fz: 0 },
+    ]);
+
+    // Open cell before the wall is lit; the one it shadows is not.
+    expect(sampleLevelLight(painted.levels.get(0)!, 1, 0)[0]).toBeGreaterThan(0);
+    expect(sampleLevelLight(painted.levels.get(0)!, 3, 0)[0]).toBe(0);
+  });
+
+  it("overlayEmitterOverrides lights the whole radius, not a clipped box", () => {
+    // Torch radius is 4, so cell 3 must still receive light. A reach box built
+    // from anything smaller than the radius would cut this short.
+    const cells = [{ x: 0, y: 0, tiles: ["floor", "torch"] }];
+    for (let x = 1; x <= 6; x++) cells.push({ x, y: 0, tiles: ["floor"] });
+    const map = mapAt(cells);
+    const omit = new Set(["torch"]);
+    const staticGrid = computeLighting(map, tilesById, [0, 0, 0], undefined, omit);
+    const painted = overlayEmitterOverrides(staticGrid, map, tilesById, [
+      { x: 0, y: 0, z: 0, fx: 0.5, fy: 0.5, fz: 0 },
+    ]);
+
+    const level = painted.levels.get(0)!;
+    expect(sampleLevelLight(level, 3, 0)[0]).toBeGreaterThan(0);
+    // Falls off with distance rather than ending abruptly.
+    expect(sampleLevelLight(level, 1, 0)[0]).toBeGreaterThan(
+      sampleLevelLight(level, 3, 0)[0],
+    );
+  });
+
   it("overlayEmitterOverrides adds an omitted player-style light", () => {
     const map = mapAt([
       { x: 0, y: 0, tiles: ["floor", "torch"] },

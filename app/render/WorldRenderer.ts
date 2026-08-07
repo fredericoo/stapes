@@ -8,9 +8,10 @@ import {
   spriteWorldOrigin,
 } from "../lib/geometry";
 import {
+  overlayEmitterOverridesPacked,
   type EmitterOverride,
-  type LevelLightMap,
-  type LightGrid,
+  type PackedLevelLight,
+  type PackedLightGrid,
 } from "../lib/lighting";
 import { sampleIllumination } from "../lib/clock";
 import { getStack, listCoords, stackHeight } from "../lib/mapData";
@@ -26,6 +27,7 @@ import {
 import { getFrames } from "../lib/tileResolve";
 import { PLAYER_TILE_ID } from "../game/constants";
 import { ChunkedLighting, type WorldRect } from "../lib/lightingChunks";
+import type { FramePhase, FrameProfiler } from "./frameProfile";
 import { GpuLighting } from "./gpuLighting";
 import { PalettePass } from "./palettePass";
 import {
@@ -200,7 +202,9 @@ export class WorldRenderer {
   private lightTextures = new Map<number, THREE.DataTexture>();
   private lightUniformsByZ = new Map<number, LevelLightUniforms>();
   private lightingKey = "";
-  private staticLightGrid: LightGrid | null = null;
+  private staticLightGrid: PackedLightGrid | null = null;
+  /** Latest tint, so a level whose uniforms appear later still gets it. */
+  private pendingAmbient: [number, number, number] | null = null;
   private gpuLighting = new GpuLighting();
   private lighting = new ChunkedLighting({}, DYNAMIC_LIGHT_TILE_IDS);
   /** Tile defs the light cache was built against; new defs void every chunk. */
@@ -215,6 +219,7 @@ export class WorldRenderer {
   private looping = false;
   private raf = 0;
   private palettePass = new PalettePass();
+  private profiler: FrameProfiler | null = null;
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -280,6 +285,15 @@ export class WorldRenderer {
     });
   }
 
+  /** Attach a profiler to break {@link setView} down by phase. Null to stop. */
+  setProfiler(profiler: FrameProfiler | null) {
+    this.profiler = profiler;
+  }
+
+  private time<T>(phase: FramePhase, fn: () => T): T {
+    return this.profiler ? this.profiler.measure(phase, fn) : fn();
+  }
+
   setView(view: WorldView) {
     this.view = view;
     this.tilesById = view.tilesById;
@@ -297,12 +311,14 @@ export class WorldRenderer {
 
     // Before applyMap, which advances prevMap — the light cache needs to see
     // both versions to work out which chunks the edit reached.
-    this.lighting.syncTo(this.prevMap, view.map);
+    this.time("sync", () => this.lighting.syncTo(this.prevMap, view.map));
 
-    this.applyMap(view.map, motionSetChanged);
-    this.applyLevelVisibility(view.hideLevelsAbove);
-    this.updateLighting(view);
-    this.applyTileMotions(view.tileMotions);
+    this.time("map", () => {
+      this.applyMap(view.map, motionSetChanged);
+      this.applyLevelVisibility(view.hideLevelsAbove);
+    });
+    this.time("light", () => this.updateLighting(view));
+    this.time("motion", () => this.applyTileMotions(view.tileMotions));
     this.needsRender = true;
   }
 
@@ -639,6 +655,7 @@ export class WorldRenderer {
         uLightOrigin: { value: new THREE.Vector2(0, 0) },
         uLightSize: { value: new THREE.Vector2(1, 1) },
         uLightingEnabled: { value: 1 },
+        uAmbient: { value: new THREE.Vector3(0, 0, 0) },
       };
       this.lightUniformsByZ.set(z, u);
     }
@@ -697,16 +714,19 @@ export class WorldRenderer {
       this.staticLightGrid = null;
     }
 
+    // Ambient is a uniform, not a bake input. Moving the clock now costs one
+    // vector write per level — no re-tint, no re-upload, nothing invalidated.
+    const ambient = sampleIllumination(view.minutesOfDay).ambient;
+    for (const u of this.lightUniformsByZ.values()) {
+      u.uAmbient.value.set(ambient[0], ambient[1], ambient[2]);
+    }
+    this.pendingAmbient = ambient;
+
     // Bakes only the chunks in view that are missing, and hands back the same
     // grid object while nothing has changed — so identity, not a content hash,
     // is what decides whether the textures need rewriting. This is what
     // replaced hashing every cell in the map on every frame.
-    const ambient = sampleIllumination(view.minutesOfDay).ambient;
-    const base = this.lighting.gridFor(
-      view.map,
-      ambient,
-      this.lightWindow(view),
-    );
+    const base = this.lighting.packedGridFor(view.map, this.lightWindow(view));
 
     const overridesKey = emitterOverridesKey(view.emitterOverrides);
     if (base === this.staticLightGrid && overridesKey === this.lightingKey) {
@@ -717,72 +737,73 @@ export class WorldRenderer {
 
     const overrides = view.emitterOverrides;
     if (!overrides?.length) {
-      this.uploadLightGrid(this.staticLightGrid);
+      this.uploadPackedGrid(base);
       return;
     }
 
-    const painted = this.gpuLighting.overlay(
-      this.staticLightGrid,
-      view.map,
-      view.tilesById,
-      overrides,
+    this.uploadPackedGrid(
+      overlayEmitterOverridesPacked(base, view.map, view.tilesById, overrides),
     );
-    this.uploadLightGrid(painted);
   }
 
-  private uploadLightGrid(grid: LightGrid) {
+  private uploadPackedGrid(grid: PackedLightGrid) {
     const seen = new Set<number>();
     for (const [z, level] of grid.levels) {
       seen.add(z);
-      this.uploadLevelLight(z, level);
+      this.uploadPackedLevel(z, level);
     }
     for (const z of this.lightUniformsByZ.keys()) {
       if (seen.has(z)) continue;
-      const u = this.ensureLightUniforms(z);
-      u.uLightingEnabled.value = 1;
-      // No grid for this Z — stay black (sky/torch fill comes from computeLighting).
-      const data = new Uint8Array([0, 0, 0, 255]);
-      let tex = this.lightTextures.get(z);
-      if (!tex || tex.image.width !== 1) {
-        tex?.dispose();
-        tex = new THREE.DataTexture(data, 1, 1, THREE.RGBAFormat);
-        tex.magFilter = THREE.LinearFilter;
-        tex.minFilter = THREE.LinearFilter;
-        tex.generateMipmaps = false;
-        tex.colorSpace = THREE.NoColorSpace;
-        tex.needsUpdate = true;
-        this.lightTextures.set(z, tex);
-      } else {
-        (tex.image.data as Uint8Array).set(data);
-        tex.needsUpdate = true;
-      }
-      u.uLightMap.value = tex;
-      u.uLightOrigin.value.set(0, 0);
-      u.uLightSize.value.set(1, 1);
+      this.uploadDarkLevel(z);
     }
   }
 
-  private uploadLevelLight(z: number, level: LevelLightMap) {
+  /**
+   * No grid for this level, so it draws unlit. Alpha 0 as well as RGB 0 — with
+   * ambient applied in the shader, a leftover alpha would tint this to the sky
+   * colour instead of leaving it dark.
+   */
+  private uploadDarkLevel(z: number) {
     const u = this.ensureLightUniforms(z);
     u.uLightingEnabled.value = 1;
+    const data = new Uint8Array([0, 0, 0, 0]);
+    let tex = this.lightTextures.get(z);
+    if (!tex || tex.image.width !== 1) {
+      tex?.dispose();
+      tex = new THREE.DataTexture(data, 1, 1, THREE.RGBAFormat);
+      tex.magFilter = THREE.LinearFilter;
+      tex.minFilter = THREE.LinearFilter;
+      tex.generateMipmaps = false;
+      tex.colorSpace = THREE.NoColorSpace;
+      tex.needsUpdate = true;
+      this.lightTextures.set(z, tex);
+    } else {
+      (tex.image.data as Uint8Array).set(data);
+      tex.needsUpdate = true;
+    }
+    u.uLightMap.value = tex;
+    u.uLightOrigin.value.set(0, 0);
+    u.uLightSize.value.set(1, 1);
+  }
+
+  /** Hand the packed plane straight to the GPU — it is already in texture layout. */
+  private uploadPackedLevel(z: number, level: PackedLevelLight) {
+    const u = this.ensureLightUniforms(z);
+    u.uLightingEnabled.value = 1;
+    if (this.pendingAmbient) {
+      const a = this.pendingAmbient;
+      u.uAmbient.value.set(a[0], a[1], a[2]);
+    }
     u.uLightOrigin.value.set(
       level.x0 - LIGHT_MAP_CELL_OFFSET,
       level.y0 - LIGHT_MAP_CELL_OFFSET,
     );
     u.uLightSize.value.set(level.w, level.h);
 
-    const rgba = new Uint8Array(level.w * level.h * 4);
-    for (let i = 0, p = 0; i < level.rgb.length; i += 3, p += 4) {
-      rgba[p] = level.rgb[i]!;
-      rgba[p + 1] = level.rgb[i + 1]!;
-      rgba[p + 2] = level.rgb[i + 2]!;
-      rgba[p + 3] = 255;
-    }
-
     let tex = this.lightTextures.get(z);
     if (!tex || tex.image.width !== level.w || tex.image.height !== level.h) {
       tex?.dispose();
-      tex = new THREE.DataTexture(rgba, level.w, level.h, THREE.RGBAFormat);
+      tex = new THREE.DataTexture(level.rgba, level.w, level.h, THREE.RGBAFormat);
       tex.magFilter = THREE.LinearFilter;
       tex.minFilter = THREE.LinearFilter;
       tex.generateMipmaps = false;
@@ -791,11 +812,12 @@ export class WorldRenderer {
       tex.needsUpdate = true;
       this.lightTextures.set(z, tex);
     } else {
-      (tex.image as { data: Uint8Array }).data.set(rgba);
+      (tex.image as { data: Uint8Array }).data.set(level.rgba);
       tex.needsUpdate = true;
     }
     u.uLightMap.value = tex;
   }
+
 
   private rebuildAll(map: MapFile) {
     this.clearMotionGhosts();

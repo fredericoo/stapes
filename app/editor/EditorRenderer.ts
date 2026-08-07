@@ -472,6 +472,7 @@ export class EditorRenderer {
         uLightOrigin: { value: new THREE.Vector2(0, 0) },
         uLightSize: { value: new THREE.Vector2(1, 1) },
         uLightingEnabled: { value: 1 },
+        uAmbient: { value: new THREE.Vector3(0, 0, 0) },
       };
       this.lightUniformsByZ.set(z, u);
     }
@@ -577,7 +578,9 @@ export class EditorRenderer {
       rgba[p] = level.rgb[i]!;
       rgba[p + 1] = level.rgb[i + 1]!;
       rgba[p + 2] = level.rgb[i + 2]!;
-      rgba[p + 3] = 255;
+      // Alpha 0: this grid is already tinted, so the shader must not add a
+      // second helping of ambient on top.
+      rgba[p + 3] = 0;
     }
 
     let tex = this.lightTextures.get(z);

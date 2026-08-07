@@ -14,11 +14,23 @@
  * apron that wide therefore reproduces the monolithic result exactly inside the
  * chunk — see the parity test.
  */
-import type { LightGrid, LevelLightMap, RawLevelLight } from "./lighting";
+import type {
+  LightGrid,
+  LevelLightMap,
+  PackedLevelLight,
+  PackedLightGrid,
+  RawLevelLight,
+} from "./lighting";
 import { composeAmbientRgb } from "./lighting";
 import { computeLightingFlood, MAX_LIGHT_LEVEL } from "./lightingFlood";
 import type { MapFile, PlacedTile, TileDef } from "./types";
-import { MAX_LEVEL, MIN_LEVEL, coordKey } from "./types";
+import {
+  MAX_LEVEL,
+  MIN_LEVEL,
+  coordKey,
+  parseCoordKey,
+  resolveLightPassing,
+} from "./types";
 
 /**
  * Chunk edge in cells. The apron is paid on every bake, so small chunks waste
@@ -66,6 +78,30 @@ type CachedChunk = {
   /** Tick this chunk was last drawn from — the LRU's recency stamp. */
   usedAt: number;
 };
+
+/** Copy a chunk's RGBA plane straight into the window plane — no per-pixel work. */
+function blitPacked(
+  planesByZ: Map<number, Uint8Array>,
+  chunk: ChunkLight,
+  ox: number,
+  oy: number,
+  w: number,
+  h: number,
+) {
+  for (const [z, plane] of chunk) {
+    let dstPlane = planesByZ.get(z);
+    if (!dstPlane) {
+      dstPlane = new Uint8Array(w * h * RAW_STRIDE);
+      planesByZ.set(z, dstPlane);
+    }
+    for (let row = 0; row < LIGHT_CHUNK_SIZE; row++) {
+      const src = row * LIGHT_CHUNK_SIZE * RAW_STRIDE;
+      const dstRow = oy * LIGHT_CHUNK_SIZE + row;
+      const dst = (dstRow * w + ox * LIGHT_CHUNK_SIZE) * RAW_STRIDE;
+      dstPlane.set(plane.subarray(src, src + LIGHT_CHUNK_SIZE * RAW_STRIDE), dst);
+    }
+  }
+}
 
 /** Bytes per cell in a raw chunk plane (block RGB + sky). */
 const RAW_STRIDE = 4;
@@ -129,22 +165,6 @@ function prefetchScore(
   const distance = Math.hypot(dx, dy) || 1;
   const ahead = (dx * drift.x + dy * drift.y) / distance;
   return ahead * LIGHT_CHUNK_SIZE - distance;
-}
-
-/** Any cell in `rect` whose stack changed identity between two level records? */
-function levelDiffersIn(
-  prev: Record<string, PlacedTile[]> | undefined,
-  next: Record<string, PlacedTile[]> | undefined,
-  rect: WorldRect,
-): boolean {
-  if (prev === next) return false;
-  for (let y = rect.y0; y <= rect.y1; y++) {
-    for (let x = rect.x0; x <= rect.x1; x++) {
-      const key = coordKey(x, y);
-      if (prev?.[key] !== next?.[key]) return true;
-    }
-  }
-  return false;
 }
 
 /** Copy one chunk's square out of a baked raw level plane (block RGB + sky). */
@@ -228,6 +248,7 @@ export class ChunkedLighting {
    * changes; only the composed RGB grid is rebuilt.
    */
   private assembled: { key: string; grid: LightGrid } | null = null;
+  private packed: { key: string; grid: PackedLightGrid } | null = null;
   /** Monotonic call counter; the LRU's clock. */
   private tick = 0;
   /** Window centre last call, for inferring which way to prefetch. */
@@ -286,42 +307,69 @@ export class ChunkedLighting {
     }
     if (prev === next) return;
 
-    const changed: string[] = [];
     const levelKeys = new Set([
       ...Object.keys(prev.levels),
       ...Object.keys(next.levels),
     ]);
     for (const lz of levelKeys) {
-      if (prev.levels[lz] !== next.levels[lz]) changed.push(lz);
-    }
-    if (!changed.length) return;
-
-    for (const key of [...this.cache.keys()]) {
-      if (!this.chunkIsStale(prev, next, changed, key)) continue;
-      this.cache.delete(key);
-      this.version++;
+      const before = prev.levels[lz];
+      const after = next.levels[lz];
+      if (before !== after) this.invalidateChangedCells(before, after);
     }
   }
 
-  /** Did any cell that lights this chunk change between the two maps? */
-  private chunkIsStale(
-    prev: MapFile,
-    next: MapFile,
-    changedLevels: readonly string[],
-    key: string,
-  ): boolean {
-    const [cxs, cys] = key.split(",");
-    const cr = chunkRect(Number(cxs), Number(cys));
-    const rect: WorldRect = {
-      x0: cr.x0 - LIGHT_APRON,
-      y0: cr.y0 - LIGHT_APRON,
-      x1: cr.x1 + LIGHT_APRON,
-      y1: cr.y1 + LIGHT_APRON,
-    };
-    for (const lz of changedLevels) {
-      if (levelDiffersIn(prev.levels[lz], next.levels[lz], rect)) return true;
+  /**
+   * Invalidate around cells whose *bake-relevant* content changed.
+   *
+   * Driven off the level's own keys rather than by sweeping each cached chunk's
+   * apron. The sweep visited every cell of every cached chunk and built a
+   * coordinate string for each — hundreds of thousands of allocations to find
+   * the one cell that actually moved.
+   */
+  private invalidateChangedCells(
+    before: Record<string, PlacedTile[]> | undefined,
+    after: Record<string, PlacedTile[]> | undefined,
+  ) {
+    for (const key in after) {
+      if (before?.[key] === after[key]) continue;
+      this.invalidateIfLit(key, before?.[key], after[key]);
     }
-    return false;
+    for (const key in before) {
+      if (after?.[key] !== undefined) continue;
+      this.invalidateIfLit(key, before[key], undefined);
+    }
+  }
+
+  private invalidateIfLit(
+    key: string,
+    before: PlacedTile[] | undefined,
+    after: PlacedTile[] | undefined,
+  ) {
+    if (this.bakeSignature(before) === this.bakeSignature(after)) return;
+    const { x, y } = parseCoordKey(key);
+    this.invalidateAt(x, y);
+  }
+
+  /**
+   * What this stack contributes to a static bake, as a comparable string.
+   *
+   * Tiles whose light is painted dynamically are skipped — but only when they
+   * also pass light, since an omitted emitter that still casts a shadow is very
+   * much part of the bake. The player is the motivating case: it changes cell
+   * every step and is light-passing, so without this every step dirties the
+   * chunks around it and rebakes them for no visible change at all.
+   */
+  private bakeSignature(stack: PlacedTile[] | undefined): string {
+    if (!stack?.length) return "";
+    let sig = "";
+    for (const placed of stack) {
+      if (this.omitLightTileIds?.has(placed.tileId)) {
+        const def = this.tilesById[placed.tileId];
+        if (def && resolveLightPassing(def)) continue;
+      }
+      sig += `${placed.tileId}:${placed.direction ?? ""}|`;
+    }
+    return sig;
   }
 
   /**
@@ -471,6 +519,56 @@ export class ChunkedLighting {
     }
     this.lastBakedChunks = baked.size;
     this.version++;
+  }
+
+  /**
+   * Light covering `rect` in the GPU's own layout, untinted.
+   *
+   * No ambient anywhere in this path: chunk planes are already interleaved
+   * RGBA, so stitching is row copies and the tint happens per fragment. This is
+   * the path a continuously moving clock should use — changing time of day
+   * touches a uniform and nothing else.
+   */
+  packedGridFor(map: MapFile, rect: WorldRect): PackedLightGrid {
+    this.tick++;
+    this.fillMissing(map, rect);
+    if (this.lastBakedChunks === 0) this.prefetchRing(map, rect);
+
+    const key = `packed|${rect.x0},${rect.y0},${rect.x1},${rect.y1}|${this.version}`;
+    if (this.packed?.key === key) {
+      this.touchWindow(rect);
+      this.evictColdest();
+      return this.packed.grid;
+    }
+    const grid = this.assemblePacked(rect);
+    this.packed = { key, grid };
+    this.evictColdest();
+    return grid;
+  }
+
+  private assemblePacked(rect: WorldRect): PackedLightGrid {
+    const cx0 = chunkOf(rect.x0);
+    const cy0 = chunkOf(rect.y0);
+    const cx1 = chunkOf(rect.x1);
+    const cy1 = chunkOf(rect.y1);
+    const x0 = cx0 * LIGHT_CHUNK_SIZE;
+    const y0 = cy0 * LIGHT_CHUNK_SIZE;
+    const w = (cx1 - cx0 + 1) * LIGHT_CHUNK_SIZE;
+    const h = (cy1 - cy0 + 1) * LIGHT_CHUNK_SIZE;
+
+    const planesByZ = new Map<number, Uint8Array>();
+    for (let cy = cy0; cy <= cy1; cy++) {
+      for (let cx = cx0; cx <= cx1; cx++) {
+        const chunk = this.cache.get(chunkCacheKey(cx, cy));
+        if (!chunk) continue;
+        chunk.usedAt = this.tick;
+        blitPacked(planesByZ, chunk.planes, cx - cx0, cy - cy0, w, h);
+      }
+    }
+
+    const levels = new Map<number, PackedLevelLight>();
+    for (const [z, rgba] of planesByZ) levels.set(z, { x0, y0, w, h, rgba });
+    return { levels };
   }
 
   /** Stitch cached chunks into one RGB grid covering `rect`, tinted by ambient. */

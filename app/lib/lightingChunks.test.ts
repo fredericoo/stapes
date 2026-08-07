@@ -229,3 +229,71 @@ describe("chunked lighting prefetch and eviction", () => {
     expect(chunked.bakedLastCall).toBe(0);
   });
 });
+
+describe("packed grid matches CPU-composed output", () => {
+  /** What the fragment shader does: `min(1, a * ambient + rgb)`. */
+  function composeLikeShader(
+    rgba: Uint8Array,
+    ambient: [number, number, number],
+  ): Uint8Array {
+    const rgb = new Uint8Array((rgba.length / 4) * 3);
+    for (let i = 0, p = 0; i < rgba.length; i += 4, p += 3) {
+      const sky = rgba[i + 3]! / 255;
+      for (let c = 0; c < 3; c++) {
+        rgb[p + c] = Math.round(
+          Math.min(1, sky * ambient[c]! + rgba[i + c]! / 255) * 255,
+        );
+      }
+    }
+    return rgb;
+  }
+
+  const rect: WorldRect = { x0: -32, y0: -48, x1: 48, y1: 32 };
+
+  for (const [name, ambient] of Object.entries(AMBIENT_PRESETS)) {
+    it(`is identical to the composed grid at ${name}`, () => {
+      const amb = [...ambient] as [number, number, number];
+      const composed = new ChunkedLighting(tilesById, omit).gridFor(
+        mapFile,
+        amb,
+        rect,
+      );
+      const packed = new ChunkedLighting(tilesById, omit).packedGridFor(
+        mapFile,
+        rect,
+      );
+
+      expect([...packed.levels.keys()].sort()).toEqual(
+        [...composed.levels.keys()].sort(),
+      );
+
+      let differing = 0;
+      let total = 0;
+      for (const [z, packedLevel] of packed.levels) {
+        const want = composed.levels.get(z)!.rgb;
+        const got = composeLikeShader(packedLevel.rgba, amb);
+        expect(got.length).toBe(want.length);
+        for (let i = 0; i < want.length; i++) {
+          total++;
+          if (got[i] !== want[i]) differing++;
+        }
+      }
+      expect(total).toBeGreaterThan(100_000);
+      expect(differing, `${differing}/${total} bytes differ`).toBe(0);
+    });
+  }
+
+  it("stays put when only the clock moves", () => {
+    // The point of the packed path: ambient is no longer a bake input, so a
+    // moving clock must not disturb the cache or the returned buffers.
+    const c = new ChunkedLighting(tilesById, omit);
+    const first = c.packedGridFor(mapFile, rect);
+    const again = c.packedGridFor(mapFile, rect);
+
+    // Same object back, and nothing re-baked on demand. The cache may still
+    // have grown by a prefetched ring chunk — that is the trickle working, not
+    // the clock invalidating anything.
+    expect(again).toBe(first);
+    expect(c.bakedLastCall).toBe(0);
+  });
+});

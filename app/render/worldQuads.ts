@@ -40,6 +40,12 @@ export type LevelLightUniforms = {
   uLightOrigin: { value: THREE.Vector2 };
   uLightSize: { value: THREE.Vector2 };
   uLightingEnabled: { value: number };
+  /**
+   * Time-of-day tint, multiplied into the sky factor per fragment. Keeping this
+   * a uniform is what lets the clock move without re-tinting and re-uploading
+   * every light texture — see the alpha convention on `uLightMap`.
+   */
+  uAmbient: { value: THREE.Vector3 };
 };
 
 const VERTS_PER_QUAD = 4;
@@ -304,6 +310,7 @@ uniform sampler2D uLightMap;
 uniform vec2 uLightOrigin;
 uniform vec2 uLightSize;
 uniform float uLightingEnabled;
+uniform vec3 uAmbient;
 varying vec2 vLightUv;
 varying float vUnlit;
 varying vec4 vBox;
@@ -325,7 +332,11 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
   // fragment to the pixel centre is just the constant per-quad gradient.
   vec2 lightCell = vLightUv + (depthPx - vWorldPx) * vLightScale;
   vec2 lightUv = (lightCell - uLightOrigin) / uLightSize;
-  vec3 light = texture2D(uLightMap, lightUv).rgb;
+  // RGB is block light, alpha is the sky factor, so the tint happens here
+  // rather than on the CPU. Alpha 0 means "already composed" — a caller that
+  // tints its own texture uploads it that way and this reduces to a passthrough.
+  vec4 lightTexel = texture2D(uLightMap, lightUv);
+  vec3 light = min(vec3(1.0), lightTexel.a * uAmbient + lightTexel.rgb);
   diffuseColor.rgb *= light;
 }
 // Depth, at that same pixel centre, so a crossing between two sprites can only

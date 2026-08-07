@@ -58,6 +58,33 @@ export type RawLightGrid = {
   levels: Map<number, RawLevelLight>;
 };
 
+/**
+ * A level's light in the exact byte layout the GPU wants: interleaved RGBA with
+ * block light in RGB and the sky factor in alpha. Uploaded verbatim, and tinted
+ * in the fragment shader against `uAmbient`, so moving the clock costs neither
+ * a re-tint nor a re-upload.
+ */
+export type PackedLevelLight = {
+  x0: number;
+  y0: number;
+  w: number;
+  h: number;
+  /** Length w * h * 4. */
+  rgba: Uint8Array;
+};
+
+export type PackedLightGrid = {
+  levels: Map<number, PackedLevelLight>;
+};
+
+export function clonePackedLightGrid(grid: PackedLightGrid): PackedLightGrid {
+  const levels = new Map<number, PackedLevelLight>();
+  for (const [z, level] of grid.levels) {
+    levels.set(z, { ...level, rgba: new Uint8Array(level.rgba) });
+  }
+  return { levels };
+}
+
 /** Named presets kept for tests — samples from the clock keyframes. */
 export const AMBIENT_PRESETS = {
   day: [1, 1, 1] as [number, number, number],
@@ -470,9 +497,222 @@ export function cloneLightGrid(grid: LightGrid): LightGrid {
   return { levels };
 }
 
+/** Cells an emitter set can reach: a rect plus the levels it spans. */
+type Reach = { x0: number; y0: number; x1: number; y1: number; z0: number; z1: number };
+
+function emitterReach(emitters: readonly Emitter[]): Reach {
+  const r: Reach = {
+    x0: Infinity,
+    y0: Infinity,
+    x1: -Infinity,
+    y1: -Infinity,
+    z0: Infinity,
+    z1: -Infinity,
+  };
+  for (const e of emitters) {
+    const rc = Math.ceil(e.radius);
+    r.x0 = Math.min(r.x0, Math.floor(e.x) - rc);
+    r.y0 = Math.min(r.y0, Math.floor(e.y) - rc);
+    r.x1 = Math.max(r.x1, Math.ceil(e.x) + rc);
+    r.y1 = Math.max(r.y1, Math.ceil(e.y) + rc);
+    r.z0 = Math.min(r.z0, Math.floor(e.z) - rc);
+    r.z1 = Math.max(r.z1, Math.ceil(e.z) + rc);
+  }
+  return r;
+}
+
+/**
+ * Emitters at the override cells, found by looking those cells up rather than
+ * sweeping the map for them. There is one override in practice — the player —
+ * so the old sweep read every cell in the world to find a single tile.
+ */
+function collectOverrideEmitters(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  overrides: ReadonlyArray<EmitterOverride>,
+): Emitter[] {
+  const emitters: Emitter[] = [];
+  for (const ov of overrides) {
+    const stack = map.levels[levelKey(ov.z)]?.[coordKey(ov.x, ov.y)];
+    if (!stack?.length) continue;
+    for (const placed of stack) {
+      const def = tilesById[placed.tileId];
+      if (!def) continue;
+      const light = resolveLight(
+        def,
+        { map, x: ov.x, y: ov.y, z: ov.z, direction: placed.direction },
+        0,
+      );
+      if (!light) continue;
+      const [cr, cg, cb] = parseHexColor(light.color);
+      emitters.push({
+        x: ov.fx,
+        y: ov.fy,
+        z: ov.fz,
+        lx: ov.x,
+        ly: ov.y,
+        lz: ov.z,
+        radius: light.radius,
+        intensity: light.intensity,
+        r: cr,
+        g: cg,
+        b: cb,
+      });
+    }
+  }
+  return emitters;
+}
+
+/**
+ * Occluders inside `reach`. Rays only ever run from an emitter to a cell within
+ * its own radius, so occlusion beyond the reach box cannot affect the result —
+ * which is what lets this be addressed instead of swept.
+ */
+function occlusionIn(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  reach: Reach,
+): Map<string, CellOcclusion> {
+  const occlusion = new Map<string, CellOcclusion>();
+  for (let z = Math.max(MIN_LEVEL, reach.z0); z <= Math.min(MAX_LEVEL, reach.z1); z++) {
+    const level = map.levels[levelKey(z)];
+    if (!level) continue;
+    collectOcclusionOnLevel(level, tilesById, reach, z, occlusion);
+  }
+  return occlusion;
+}
+
+function collectOcclusionOnLevel(
+  level: Record<string, PlacedTile[]>,
+  tilesById: Record<string, TileDef>,
+  reach: Reach,
+  z: number,
+  into: Map<string, CellOcclusion>,
+) {
+  for (let y = reach.y0; y <= reach.y1; y++) {
+    for (let x = reach.x0; x <= reach.x1; x++) {
+      const stack = level[coordKey(x, y)];
+      if (!stack?.length) continue;
+      const occ = stackOcclusion(stack, tilesById);
+      // Absent means open, so only blockers are worth storing.
+      if (occ.opacity > 0 || occ.sealsLevel) into.set(cellKey(x, y, z), occ);
+    }
+  }
+}
+
+/**
+ * A level's colour bytes viewed generically, so the same overlay maths serves
+ * both a composed RGB grid and a packed RGBA one whose RGB half is block light.
+ */
+type ChannelView = {
+  x0: number;
+  y0: number;
+  w: number;
+  h: number;
+  data: Uint8Array;
+  stride: number;
+};
+
+/** Lift the reach rect out of a level into float accumulators. */
+function readReachFloats(level: ChannelView, reach: Reach, w: number, h: number) {
+  const floats = new Float32Array(w * h * 3);
+  for (let ly = 0; ly < h; ly++) {
+    const sy = reach.y0 + ly - level.y0;
+    if (sy < 0 || sy >= level.h) continue;
+    for (let lx = 0; lx < w; lx++) {
+      const sx = reach.x0 + lx - level.x0;
+      if (sx < 0 || sx >= level.w) continue;
+      const src = (sy * level.w + sx) * level.stride;
+      const dst = (ly * w + lx) * 3;
+      floats[dst] = level.data[src]! / 255;
+      floats[dst + 1] = level.data[src + 1]! / 255;
+      floats[dst + 2] = level.data[src + 2]! / 255;
+    }
+  }
+  return floats;
+}
+
+function writeReachFloats(
+  level: ChannelView,
+  floats: Float32Array,
+  reach: Reach,
+  w: number,
+  h: number,
+) {
+  const quantise = (v: number) => (v <= 0 ? 0 : v >= 1 ? 255 : Math.round(v * 255));
+  for (let ly = 0; ly < h; ly++) {
+    const sy = reach.y0 + ly - level.y0;
+    if (sy < 0 || sy >= level.h) continue;
+    for (let lx = 0; lx < w; lx++) {
+      const sx = reach.x0 + lx - level.x0;
+      if (sx < 0 || sx >= level.w) continue;
+      const src = (ly * w + lx) * 3;
+      const dst = (sy * level.w + sx) * level.stride;
+      level.data[dst] = quantise(floats[src]!);
+      level.data[dst + 1] = quantise(floats[src + 1]!);
+      level.data[dst + 2] = quantise(floats[src + 2]!);
+    }
+  }
+}
+
+function rgbView(level: LevelLightMap): ChannelView {
+  return { ...level, data: level.rgb, stride: 3 };
+}
+
+function blockView(level: PackedLevelLight): ChannelView {
+  return { ...level, data: level.rgba, stride: 4 };
+}
+
+/**
+ * Paint dynamic emitters into the block channel of a packed grid.
+ *
+ * The identical cast to {@link overlayEmitterOverrides}, aimed at block light
+ * rather than an already-tinted RGB. A dynamic light *is* block light, so this
+ * is where it belongs once ambient moved to the shader.
+ */
+export function overlayEmitterOverridesPacked(
+  base: PackedLightGrid,
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  overrides: ReadonlyArray<EmitterOverride>,
+): PackedLightGrid {
+  if (!overrides.length) return clonePackedLightGrid(base);
+
+  const emitters = collectOverrideEmitters(map, tilesById, overrides);
+  if (!emitters.length) return clonePackedLightGrid(base);
+
+  const reach = emitterReach(emitters);
+  const occlusion = occlusionIn(map, tilesById, reach);
+
+  const out = clonePackedLightGrid(base);
+  const w = reach.x1 - reach.x0 + 1;
+  const h = reach.y1 - reach.y0 + 1;
+
+  const floatsByZ = new Map<number, Float32Array>();
+  for (let z = reach.z0; z <= reach.z1; z++) {
+    const level = out.levels.get(z);
+    if (!level) continue;
+    floatsByZ.set(z, readReachFloats(blockView(level), reach, w, h));
+  }
+
+  for (const e of emitters) {
+    castEmitter(e, occlusion, floatsByZ, reach.x0, reach.y0, w, h);
+  }
+
+  for (const [z, floats] of floatsByZ) {
+    writeReachFloats(blockView(out.levels.get(z)!), floats, reach, w, h);
+  }
+
+  return out;
+}
+
 /**
  * Add-only overlay for emitters that were omitted from the static bake
  * (e.g. the player). No subtract — `base` must not already include them.
+ *
+ * Everything here is scoped to the emitters' reach. This runs on every frame a
+ * dynamic light moves, so touching anything proportional to the map — or even
+ * to the whole window — shows up directly as frame time.
  */
 export function overlayEmitterOverrides(
   base: LightGrid,
@@ -482,86 +722,29 @@ export function overlayEmitterOverrides(
 ): LightGrid {
   if (!overrides.length) return cloneLightGrid(base);
 
-  const overrideByCell = new Map<string, EmitterOverride>();
-  for (const o of overrides) {
-    overrideByCell.set(cellKey(o.x, o.y, o.z), o);
-  }
-
-  const occlusion = new Map<string, CellOcclusion>();
-  const emitters: Emitter[] = [];
-
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
-    const level = map.levels[levelKey(z)];
-    if (!level) continue;
-    for (const [ck, stack] of Object.entries(level)) {
-      if (!stack.length) continue;
-      const { x, y } = parseCoordKey(ck);
-      const occ = stackOcclusion(stack, tilesById);
-      if (occ.opacity > 0 || occ.sealsLevel) {
-        occlusion.set(cellKey(x, y, z), occ);
-      }
-
-      const ov = overrideByCell.get(cellKey(x, y, z));
-      if (!ov) continue;
-
-      for (const placed of stack) {
-        const def = tilesById[placed.tileId];
-        if (!def) continue;
-        const light = resolveLight(
-          def,
-          { map, x, y, z, direction: placed.direction },
-          0,
-        );
-        if (!light) continue;
-        const [cr, cg, cb] = parseHexColor(light.color);
-        emitters.push({
-          x: ov.fx,
-          y: ov.fy,
-          z: ov.fz,
-          lx: x,
-          ly: y,
-          lz: z,
-          radius: light.radius,
-          intensity: light.intensity,
-          r: cr,
-          g: cg,
-          b: cb,
-        });
-      }
-    }
-  }
-
+  const emitters = collectOverrideEmitters(map, tilesById, overrides);
   if (!emitters.length) return cloneLightGrid(base);
 
-  const out = cloneLightGrid(base);
-  const floatsByZ = new Map<number, Float32Array>();
-  let x0 = 0;
-  let y0 = 0;
-  let w = 0;
-  let h = 0;
+  const reach = emitterReach(emitters);
+  const occlusion = occlusionIn(map, tilesById, reach);
 
-  for (const [z, level] of out.levels) {
-    x0 = level.x0;
-    y0 = level.y0;
-    w = level.w;
-    h = level.h;
-    const floats = new Float32Array(level.rgb.length);
-    for (let i = 0; i < level.rgb.length; i++) {
-      floats[i] = level.rgb[i]! / 255;
-    }
-    floatsByZ.set(z, floats);
+  const out = cloneLightGrid(base);
+  const w = reach.x1 - reach.x0 + 1;
+  const h = reach.y1 - reach.y0 + 1;
+
+  const floatsByZ = new Map<number, Float32Array>();
+  for (let z = reach.z0; z <= reach.z1; z++) {
+    const level = out.levels.get(z);
+    if (!level) continue;
+    floatsByZ.set(z, readReachFloats(rgbView(level), reach, w, h));
   }
 
   for (const e of emitters) {
-    castEmitter(e, occlusion, floatsByZ, x0, y0, w, h);
+    castEmitter(e, occlusion, floatsByZ, reach.x0, reach.y0, w, h);
   }
 
   for (const [z, floats] of floatsByZ) {
-    const level = out.levels.get(z)!;
-    for (let i = 0; i < floats.length; i++) {
-      const v = floats[i]!;
-      level.rgb[i] = v <= 0 ? 0 : v >= 1 ? 255 : Math.round(v * 255);
-    }
+    writeReachFloats(rgbView(out.levels.get(z)!), floats, reach, w, h);
   }
 
   return out;
