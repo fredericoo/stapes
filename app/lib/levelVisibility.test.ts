@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { chunkifyMap } from "./mapData";
+import type { FlatMapFile } from "./types";
 import mapFile from "../../data/map.json";
 import tilesFile from "../../data/tiles.json";
 import {
@@ -42,14 +44,14 @@ function mapAt(
     tiles: string[];
   }>,
 ): MapFile {
-  const levels: MapFile["levels"] = {};
+  const levels: FlatMapFile["levels"] = {};
   for (const c of cells) {
     const z = c.z ?? 0;
     const lk = levelKey(z);
     if (!levels[lk]) levels[lk] = {};
     levels[lk]![coordKey(c.x, c.y)] = c.tiles.map((tileId) => ({ tileId }));
   }
-  return { version: 1, levels };
+  return chunkifyMap({ version: 1, levels });
 }
 
 const floor = tile({ id: "floor", height: 0 });
@@ -195,7 +197,7 @@ describe("levelsAboveShouldHide", () => {
 });
 
 describe("levelsAboveShouldHide on the current map", () => {
-  const map = mapFile as MapFile;
+  const map = chunkifyMap(mapFile as FlatMapFile);
   const mapTiles = tilesByIdFromList(
     (tilesFile as Array<Parameters<typeof normalizeTileDef>[0]>).map((t) =>
       normalizeTileDef(t),

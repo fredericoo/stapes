@@ -23,7 +23,14 @@ import type {
 } from "./lighting";
 import { composeAmbientRgb } from "./lighting";
 import { computeLightingFlood, MAX_LIGHT_LEVEL } from "./lightingFlood";
-import type { MapFile, PlacedTile, TileDef } from "./types";
+import { chunkifyMap, getStack } from "./mapData";
+import type {
+  ChunkCells,
+  LevelChunks,
+  MapFile,
+  PlacedTile,
+  TileDef,
+} from "./types";
 import {
   MAX_LEVEL,
   MIN_LEVEL,
@@ -121,15 +128,15 @@ function chunkRect(cx: number, cy: number): WorldRect {
 }
 
 function cropLevel(
-  level: Record<string, PlacedTile[]>,
+  map: MapFile,
+  z: number,
   rect: WorldRect,
 ): Record<string, PlacedTile[]> {
   const kept: Record<string, PlacedTile[]> = {};
   for (let y = rect.y0; y <= rect.y1; y++) {
     for (let x = rect.x0; x <= rect.x1; x++) {
-      const key = coordKey(x, y);
-      const stack = level[key];
-      if (stack?.length) kept[key] = stack;
+      const stack = getStack(map, x, y, z);
+      if (stack.length) kept[coordKey(x, y)] = stack;
     }
   }
   return kept;
@@ -143,11 +150,14 @@ function cropLevel(
  */
 function cropMap(map: MapFile, rect: WorldRect): MapFile {
   const levels: Record<string, Record<string, PlacedTile[]>> = {};
-  for (const [lz, level] of Object.entries(map.levels)) {
-    const kept = cropLevel(level, rect);
-    if (Object.keys(kept).length) levels[lz] = kept;
+  for (const lz of Object.keys(map.levels)) {
+    const kept = cropLevel(map, Number(lz), rect);
+    for (const _ in kept) {
+      levels[lz] = kept;
+      break;
+    }
   }
-  return { version: map.version, levels };
+  return chunkifyMap({ version: 1, levels });
 }
 
 /**
@@ -314,7 +324,29 @@ export class ChunkedLighting {
     for (const lz of levelKeys) {
       const before = prev.levels[lz];
       const after = next.levels[lz];
-      if (before !== after) this.invalidateChangedCells(before, after);
+      if (before !== after) this.invalidateChangedChunks(before, after);
+    }
+  }
+
+  /**
+   * Narrow a changed level to the chunks that actually differ.
+   *
+   * Chunked storage means an edit rewrites one chunk and leaves its neighbours
+   * identical, so this skips almost everything on a normal edit — the level's
+   * other thousands of cells never get looked at.
+   */
+  private invalidateChangedChunks(
+    before: LevelChunks | undefined,
+    after: LevelChunks | undefined,
+  ) {
+    const chunkKeys = new Set([
+      ...Object.keys(before ?? {}),
+      ...Object.keys(after ?? {}),
+    ]);
+    for (const chk of chunkKeys) {
+      const a = before?.[chk];
+      const b = after?.[chk];
+      if (a !== b) this.invalidateChangedCells(a, b);
     }
   }
 
@@ -327,8 +359,8 @@ export class ChunkedLighting {
    * the one cell that actually moved.
    */
   private invalidateChangedCells(
-    before: Record<string, PlacedTile[]> | undefined,
-    after: Record<string, PlacedTile[]> | undefined,
+    before: ChunkCells | undefined,
+    after: ChunkCells | undefined,
   ) {
     for (const key in after) {
       if (before?.[key] === after[key]) continue;

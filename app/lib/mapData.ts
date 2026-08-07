@@ -1,4 +1,12 @@
-import type { Direction, MapFile, PlacedTile, TileDef } from "./types";
+import type {
+  ChunkCells,
+  Direction,
+  FlatMapFile,
+  LevelChunks,
+  MapFile,
+  PlacedTile,
+  TileDef,
+} from "./types";
 import {
   CHUNK_SIZE,
   HEIGHT_PER_LEVEL,
@@ -22,9 +30,27 @@ export function getStack(
   y: number,
   z: number,
 ): PlacedTile[] {
+  return map.levels[levelKey(z)]?.[chunkKeyFor(x, y)]?.[coordKey(x, y)] ?? [];
+}
+
+/** Chunk a cell belongs to. Hot enough to inline the arithmetic. */
+export function chunkKeyFor(x: number, y: number): string {
+  return `${Math.floor(x / CHUNK_SIZE)},${Math.floor(y / CHUNK_SIZE)}`;
+}
+
+/** Cells of one chunk, or an empty record. */
+export function getChunk(
+  map: MapFile,
+  z: number,
+  chunk: string,
+): ChunkCells | undefined {
+  return map.levels[levelKey(z)]?.[chunk];
+}
+
+/** Every chunk key present on a level. */
+export function listChunkKeys(map: MapFile, z: number): string[] {
   const level = map.levels[levelKey(z)];
-  if (!level) return [];
-  return level[coordKey(x, y)] ?? [];
+  return level ? Object.keys(level) : [];
 }
 
 export function stackHeight(
@@ -244,6 +270,88 @@ export function climbFromSourceAt(
  *
  * Callers must pass a freshly built `stack` array — we do not clone it.
  */
+/**
+ * Only worth asking after a delete — and not cheap even then. `for...in` makes
+ * V8 build an enumeration cache over the whole object, so on a populated level
+ * this is O(cells), not the O(1) it looks like.
+ */
+function isEmptyRecord(record: Record<string, unknown>): boolean {
+  for (const _ in record) return false;
+  return true;
+}
+
+/** One cell's new contents. An empty `stack` clears the cell. */
+export type StackEdit = {
+  x: number;
+  y: number;
+  z: number;
+  stack: PlacedTile[];
+};
+
+/**
+ * Apply several cell edits, copying each affected level once.
+ *
+ * Callers that move a tile touch two cells, and doing that as two separate
+ * writes copies the level twice — on a populated ground floor that is thousands
+ * of keys copied to change two of them. Levels the edits do not touch keep
+ * their identity, which is what downstream change detection reads.
+ */
+export function setStacks(map: MapFile, edits: readonly StackEdit[]): MapFile {
+  if (!edits.length) return map;
+
+  const levels = { ...map.levels };
+  // Chunks copied so far, so several edits landing in one chunk share a copy.
+  const copied = new Map<string, ChunkCells>();
+  let deleted = false;
+
+  for (const edit of edits) {
+    const zk = levelKey(edit.z);
+    const chk = chunkKeyFor(edit.x, edit.y);
+    const path = `${zk}/${chk}`;
+
+    let chunk = copied.get(path);
+    if (!chunk) {
+      const level = levels[zk];
+      chunk = { ...(level?.[chk] ?? {}) };
+      copied.set(path, chunk);
+      levels[zk] = { ...(level ?? {}), [chk]: chunk };
+    }
+
+    const ck = coordKey(edit.x, edit.y);
+    if (edit.stack.length === 0) {
+      delete chunk[ck];
+      deleted = true;
+    } else {
+      chunk[ck] = edit.stack;
+    }
+  }
+
+  // Only a delete can empty anything, and emptiness checks are not free.
+  if (deleted) pruneEmpty(levels, copied);
+  return { version: 1, levels };
+}
+
+/** Drop chunks and levels an edit emptied, so identity means "has content". */
+function pruneEmpty(
+  levels: Record<string, LevelChunks>,
+  copied: Map<string, ChunkCells>,
+) {
+  const touchedLevels = new Set<string>();
+  for (const path of copied.keys()) {
+    const [zk, chk] = path.split("/");
+    touchedLevels.add(zk!);
+    const level = levels[zk!];
+    if (level && isEmptyRecord(level[chk!]!)) {
+      const next = { ...level };
+      delete next[chk!];
+      levels[zk!] = next;
+    }
+  }
+  for (const zk of touchedLevels) {
+    if (isEmptyRecord(levels[zk]!)) delete levels[zk];
+  }
+}
+
 function setStack(
   map: MapFile,
   x: number,
@@ -251,15 +359,7 @@ function setStack(
   z: number,
   stack: PlacedTile[],
 ): MapFile {
-  const zk = levelKey(z);
-  const ck = coordKey(x, y);
-  const level = { ...(map.levels[zk] ?? {}) };
-  if (stack.length === 0) delete level[ck];
-  else level[ck] = stack;
-  const levels = { ...map.levels };
-  if (Object.keys(level).length === 0) delete levels[zk];
-  else levels[zk] = level;
-  return { version: 1, levels };
+  return setStacks(map, [{ x, y, z, stack }]);
 }
 
 export function clearStack(
@@ -360,20 +460,72 @@ export function listCoords(
 ): Array<{ x: number; y: number; stack: PlacedTile[] }> {
   const level = map.levels[levelKey(z)];
   if (!level) return [];
-  return Object.entries(level).map(([key, stack]) => {
-    const { x, y } = parseCoordKey(key);
-    return { x, y, stack };
-  });
+  const out: Array<{ x: number; y: number; stack: PlacedTile[] }> = [];
+  for (const chunk of Object.values(level)) {
+    for (const [key, stack] of Object.entries(chunk)) {
+      const { x, y } = parseCoordKey(key);
+      out.push({ x, y, stack });
+    }
+  }
+  return out;
+}
+
+/**
+ * Group a flat on-disk level into chunks.
+ *
+ * The stored format stays flat: it is diffable, hand-editable, and chunk
+ * boundaries are a runtime concern that should not leak into a file people read.
+ */
+export function chunkifyMap(flat: FlatMapFile): MapFile {
+  const levels: Record<string, LevelChunks> = {};
+  for (const [zk, cells] of Object.entries(flat.levels)) {
+    const level: LevelChunks = {};
+    for (const [ck, stack] of Object.entries(cells)) {
+      if (!stack.length) continue;
+      const { x, y } = parseCoordKey(ck);
+      const chk = chunkKeyFor(x, y);
+      (level[chk] ??= {})[ck] = stack;
+    }
+    if (!isEmptyRecord(level)) levels[zk] = level;
+  }
+  return { version: 1, levels };
+}
+
+/**
+ * Flatten chunked levels back to the on-disk shape.
+ *
+ * Cells come out in a deterministic (x, then y) order rather than whatever
+ * order the chunks happen to hold them. The file is version-controlled, and
+ * without this every save would reshuffle thousands of lines and bury the one
+ * cell that actually changed.
+ */
+export function flattenMap(map: MapFile): FlatMapFile {
+  const levels: Record<string, Record<string, PlacedTile[]>> = {};
+  for (const [zk, level] of Object.entries(map.levels)) {
+    const entries: Array<[number, number, PlacedTile[]]> = [];
+    for (const chunk of Object.values(level)) {
+      for (const [ck, stack] of Object.entries(chunk)) {
+        const { x, y } = parseCoordKey(ck);
+        entries.push([x, y, stack]);
+      }
+    }
+    if (!entries.length) continue;
+    entries.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const cells: Record<string, PlacedTile[]> = {};
+    for (const [x, y, stack] of entries) cells[coordKey(x, y)] = stack;
+    levels[zk] = cells;
+  }
+  return { version: 1, levels };
 }
 
 export function serializeMap(map: MapFile): string {
-  return `${JSON.stringify(map, null, 2)}\n`;
+  return `${JSON.stringify(flattenMap(map), null, 2)}\n`;
 }
 
 export function parseMap(json: string): MapFile {
-  const data = JSON.parse(json) as MapFile;
+  const data = JSON.parse(json) as FlatMapFile;
   if (data.version !== 1) {
     throw new Error(`Unsupported map version: ${String(data.version)}`);
   }
-  return data;
+  return chunkifyMap(data);
 }

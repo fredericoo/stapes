@@ -6,7 +6,7 @@
  *
  * Sky flood stays cheap; circular casts only run for the few map emitters.
  */
-import type { MapFile, PlacedTile, TileDef } from "./types";
+import type { ChunkCells, MapFile, PlacedTile, TileDef } from "./types";
 import {
   HEIGHT_PER_LEVEL,
   MAX_LEVEL,
@@ -223,6 +223,18 @@ export type FloodDomain = {
   z1: number;
 };
 
+function collectLevelCells(
+  chunk: ChunkCells,
+  z: number,
+  into: Array<{ x: number; y: number; z: number; stack: PlacedTile[] }>,
+) {
+  for (const [ck, stack] of Object.entries(chunk)) {
+    if (!stack.length) continue;
+    const { x, y } = parseCoordKey(ck);
+    into.push({ x, y, z, stack });
+  }
+}
+
 /**
  * Hybrid bake: Euclidean-cost sky flood + circular block emitters.
  *
@@ -253,20 +265,22 @@ export function computeLightingFlood(
   type Cell = { x: number; y: number; z: number; stack: PlacedTile[] };
   const cells: Cell[] = [];
 
+  // Walked chunk by chunk rather than via listCoords: the bake reads every cell
+  // and listCoords would allocate a wrapper object per cell to hand them over.
   for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
     const level = map.levels[levelKey(z)];
     if (!level) continue;
-    for (const [ck, stack] of Object.entries(level)) {
-      if (!stack.length) continue;
-      const { x, y } = parseCoordKey(ck);
-      cells.push({ x, y, z, stack });
-      if (x < minX) minX = x;
-      if (y < minY) minY = y;
-      if (x > maxX) maxX = x;
-      if (y > maxY) maxY = y;
-      if (z < minZ) minZ = z;
-      if (z > maxZ) maxZ = z;
+    for (const chunk of Object.values(level)) {
+      collectLevelCells(chunk, z, cells);
     }
+  }
+  for (const c of cells) {
+    if (c.x < minX) minX = c.x;
+    if (c.y < minY) minY = c.y;
+    if (c.x > maxX) maxX = c.x;
+    if (c.y > maxY) maxY = c.y;
+    if (c.z < minZ) minZ = c.z;
+    if (c.z > maxZ) maxZ = c.z;
   }
 
   // An explicit domain wins outright: empty space inside it must still bake,

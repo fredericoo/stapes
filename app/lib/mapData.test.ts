@@ -10,18 +10,21 @@ import {
   solidTopOfStack,
   stackHeight,
   surfaceTileAt,
+  chunkKeyFor,
+  chunkifyMap,
 } from "./mapData";
-import type { MapFile, PlacedTile, TileDef } from "./types";
+import type { FlatMapFile, MapFile, PlacedTile, TileDef } from "./types";
 import { coordKey, levelKey, normalizeTileDef, physicalHeight } from "./types";
 import { fitsAtElevation, fitsTile, tilesByIdFromList } from "./validation";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "../..");
-const fixtureMap = JSON.parse(
-  readFileSync(join(root, "data/map.json"), "utf8"),
-) as MapFile;
+// The file on disk is flat; the runtime shape is chunked.
+const fixtureMap: MapFile = chunkifyMap(
+  JSON.parse(readFileSync(join(root, "data/map.json"), "utf8")) as FlatMapFile,
+);
 
 describe("mapData copy-on-write", () => {
-  it("keeps untouched levels and cells by reference", () => {
+  it("keeps untouched levels, chunks and cells by reference", () => {
     const z = 0;
     const levelBefore = fixtureMap.levels[levelKey(z)]!;
     const otherKeys = Object.keys(fixtureMap.levels).filter(
@@ -29,25 +32,30 @@ describe("mapData copy-on-write", () => {
     );
     const otherLevelRefs = otherKeys.map((k) => fixtureMap.levels[k]);
 
-    // Pick a cell that exists and one neighbour key that may or may not.
-    const [ck] = Object.keys(levelBefore);
-    expect(ck).toBeTruthy();
-    const { x, y } = (() => {
-      const [xs, ys] = ck!.split(",");
-      return { x: Number(xs), y: Number(ys) };
-    })();
+    const coords = listCoords(fixtureMap, z);
+    const target = coords[0]!;
+    const chk = chunkKeyFor(target.x, target.y);
 
-    const untouchedCk = Object.keys(levelBefore).find((k) => k !== ck)!;
-    const untouchedStack = levelBefore[untouchedCk]!;
+    // A cell in some *other* chunk of the same level — the reference that must
+    // survive, and the whole reason levels are chunked.
+    const elsewhere = coords.find((c) => chunkKeyFor(c.x, c.y) !== chk)!;
+    expect(elsewhere).toBeTruthy();
+    const otherChunkBefore = levelBefore[chunkKeyFor(elsewhere.x, elsewhere.y)]!;
 
     const nextStack: PlacedTile[] = [{ tileId: "grass" }];
-    const next = replaceStack(fixtureMap, x, y, z, nextStack);
+    const next = replaceStack(fixtureMap, target.x, target.y, z, nextStack);
 
     expect(next).not.toBe(fixtureMap);
     expect(next.levels).not.toBe(fixtureMap.levels);
     expect(next.levels[levelKey(z)]).not.toBe(levelBefore);
-    expect(next.levels[levelKey(z)]![ck!]).toBe(nextStack);
-    expect(next.levels[levelKey(z)]![untouchedCk]).toBe(untouchedStack);
+    expect(next.levels[levelKey(z)]![chk]).not.toBe(levelBefore[chk]);
+    expect(getStack(next, target.x, target.y, z)).toBe(nextStack);
+
+    // Untouched chunk keeps its identity, so an edit copies one chunk rather
+    // than the whole floor.
+    expect(
+      next.levels[levelKey(z)]![chunkKeyFor(elsewhere.x, elsewhere.y)],
+    ).toBe(otherChunkBefore);
 
     for (let i = 0; i < otherKeys.length; i++) {
       expect(next.levels[otherKeys[i]!]).toBe(otherLevelRefs[i]);
@@ -58,13 +66,12 @@ describe("mapData copy-on-write", () => {
     const coords = listCoords(fixtureMap, 0);
     expect(coords.length).toBeGreaterThan(10);
     const a = coords[0]!;
-    const b = coords[1]!;
+    const b = coords.find((c) => c.x !== a.x || c.y !== a.y)!;
     const stackB = getStack(fixtureMap, b.x, b.y, 0);
 
     const next = clearStack(fixtureMap, a.x, a.y, 0);
     expect(getStack(next, a.x, a.y, 0)).toEqual([]);
     expect(getStack(next, b.x, b.y, 0)).toBe(stackB);
-    expect(next.levels[levelKey(0)]![coordKey(b.x, b.y)]).toBe(stackB);
   });
 });
 

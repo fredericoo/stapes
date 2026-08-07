@@ -78,13 +78,12 @@ function buildOcclusion(
   span: number,
 ): Map<string, CellOcclusion> {
   const occlusion = new Map<string, CellOcclusion>();
-  const level = map.levels[levelKey(view.z)];
-  if (!level) return occlusion;
+  if (!map.levels[levelKey(view.z)]) return occlusion;
 
   for (let y = view.y - span; y <= view.y + span; y++) {
     for (let x = view.x - span; x <= view.x + span; x++) {
-      const stack = level[coordKey(x, y)];
-      if (!stack?.length) continue;
+      const stack = getStack(map, x, y, view.z);
+      if (!stack.length) continue;
       const occ = stackOcclusion(stack, tilesById);
       if (occ.opacity > 0 || occ.sealsLevel) {
         occlusion.set(cellKey(x, y, view.z), occ);

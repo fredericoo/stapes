@@ -205,7 +205,33 @@ export type PlacedTile = {
   direction?: Direction;
 };
 
+/**
+ * Cells of one chunk, keyed by {@link coordKey}.
+ */
+export type ChunkCells = Record<string, PlacedTile[]>;
+
+/**
+ * A level's cells, grouped into {@link CHUNK_SIZE} squares keyed by
+ * {@link chunkKey}.
+ *
+ * Grouped rather than flat because the map is copy-on-write: editing one cell
+ * copies the record holding it, and a populated floor runs to thousands of
+ * cells. Chunking bounds that copy to one chunk, and gives change detection a
+ * granularity between "this level" and "this cell" — which is what lets the
+ * renderer rebuild the geometry around an edit instead of the whole floor.
+ *
+ * On disk the format stays flat; {@link parseMap} and {@link serializeMap}
+ * convert at the boundary.
+ */
+export type LevelChunks = Record<string, ChunkCells>;
+
 export type MapFile = {
+  version: 1;
+  levels: Record<string, LevelChunks>;
+};
+
+/** The on-disk shape: cells flat per level, no chunk grouping. */
+export type FlatMapFile = {
   version: 1;
   levels: Record<string, Record<string, PlacedTile[]>>;
 };

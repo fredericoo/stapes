@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { chunkifyMap } from "./mapData";
+import type { FlatMapFile } from "./types";
 import map from "../../data/map.json";
 import tiles from "../../data/tiles.json";
 import { PERF_BUDGETS } from "../editor/perf";
@@ -34,7 +36,7 @@ describe("lighting bake perf", () => {
   const tilesById = Object.fromEntries(
     (tiles as TileDef[]).map((t) => [t.id, t]),
   ) as Record<string, TileDef>;
-  const mapFile = map as MapFile;
+  const mapFile = chunkifyMap(map as FlatMapFile);
   const omit = new Set([PLAYER_TILE_ID]);
 
   it(`full static bake p95 < ${BAKE_MS}ms on fixture map`, () => {

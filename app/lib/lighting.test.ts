@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { chunkifyMap } from "./mapData";
+import type { FlatMapFile } from "./types";
 import {
   AMBIENT_PRESETS,
   computeLighting,
@@ -45,14 +47,14 @@ function mapAt(
     tiles: string[];
   }>,
 ): MapFile {
-  const levels: MapFile["levels"] = {};
+  const levels: FlatMapFile["levels"] = {};
   for (const c of cells) {
     const z = c.z ?? 0;
     const lk = levelKey(z);
     if (!levels[lk]) levels[lk] = {};
     levels[lk]![coordKey(c.x, c.y)] = c.tiles.map((tileId) => ({ tileId }));
   }
-  return { version: 1, levels };
+  return chunkifyMap({ version: 1, levels });
 }
 
 const floor = tile({ id: "floor", height: 0 });

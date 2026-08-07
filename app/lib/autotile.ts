@@ -1,3 +1,4 @@
+import { getStack } from "./mapData";
 import {
   AUTOTILE_SLICE_COUNT,
   coordKey,
@@ -115,9 +116,7 @@ export function stackHasTileId(
   z: number,
   tileId: string,
 ): boolean {
-  const stack = map.levels[levelKey(z)]?.[coordKey(x, y)];
-  if (!stack) return false;
-  return stack.some((p) => p.tileId === tileId);
+  return getStack(map, x, y, z).some((p) => p.tileId === tileId);
 }
 
 /** Build 8-neighbor bitmask for an autotile placement. */

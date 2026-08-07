@@ -365,7 +365,9 @@ export class EditorRenderer {
     const map = this.prevMap ?? useEditorStore.getState().map;
     let n = 0;
     for (const level of Object.values(map.levels)) {
-      for (const stack of Object.values(level)) n += stack.length;
+      for (const chunk of Object.values(level)) {
+        for (const stack of Object.values(chunk)) n += stack.length;
+      }
     }
     return n;
   }

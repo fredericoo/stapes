@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { chunkifyMap } from "../lib/mapData";
 import { getStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
@@ -45,14 +46,14 @@ const tiles: TileDef[] = [
   }),
 ];
 
-const seedMap: MapFile = {
+const seedMap: MapFile = chunkifyMap({
   version: 1,
   levels: {
     "0": {
       "1,2": [{ tileId: "grass" }, { tileId: "rock" }],
     },
   },
-};
+});
 
 describe("editor store history", () => {
   beforeEach(() => {

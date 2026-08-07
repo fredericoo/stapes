@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { chunkifyMap, listCoords } from "./mapData";
+import type { FlatMapFile } from "./types";
 import map from "../../data/map.json";
 import tiles from "../../data/tiles.json";
 import { AMBIENT_PRESETS, computeLighting, sampleLevelLight } from "./lighting";
@@ -15,7 +17,7 @@ import { MAX_LEVEL, MIN_LEVEL, levelKey, parseCoordKey } from "./types";
 const tilesById = Object.fromEntries(
   (tiles as TileDef[]).map((t) => [t.id, t]),
 ) as Record<string, TileDef>;
-const mapFile = map as MapFile;
+const mapFile = chunkifyMap(map as FlatMapFile);
 const omit = new Set([PLAYER_TILE_ID]);
 
 /** Bounding box of everything placed on the fixture map. */
@@ -25,10 +27,8 @@ function mapBounds(m: MapFile): WorldRect {
   let x1 = -Infinity;
   let y1 = -Infinity;
   for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
-    const level = m.levels[levelKey(z)];
-    if (!level) continue;
-    for (const ck of Object.keys(level)) {
-      const { x, y } = parseCoordKey(ck);
+    if (!m.levels[levelKey(z)]) continue;
+    for (const { x, y } of listCoords(m, z)) {
       if (x < x0) x0 = x;
       if (y < y0) y0 = y;
       if (x > x1) x1 = x;

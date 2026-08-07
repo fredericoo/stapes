@@ -1,4 +1,4 @@
-import type { MapFile, PlacedTile, TileDef } from "./types";
+import type { LevelChunks, MapFile, PlacedTile, TileDef } from "./types";
 import {
   HEIGHT_PER_LEVEL,
   MAX_LEVEL,
@@ -8,7 +8,7 @@ import {
   parseCoordKey,
   resolveLightPassing,
 } from "./types";
-import { elevationAt } from "./mapData";
+import { elevationAt, getStack } from "./mapData";
 import { computeLightingFlood, MAX_LIGHT_LEVEL } from "./lightingFlood";
 import { resolveLight } from "./tileResolve";
 
@@ -379,7 +379,7 @@ function accumulateAt(
  */
 function castEmitter(
   e: Emitter,
-  occlusion: Map<string, CellOcclusion>,
+  occlusion: DenseOcclusion,
   floatsByZ: Map<number, Float32Array>,
   x0: number,
   y0: number,
@@ -397,9 +397,14 @@ function castEmitter(
   const xLo = Math.floor(e.x) - rCells;
   const xHi = Math.ceil(e.x) + rCells;
 
-  const selfKey = cellKey(e.lx, e.ly, e.lz);
-  const savedSelfOcc = occlusion.get(selfKey);
-  occlusion.delete(selfKey);
+  // The emitter's own cell must not shadow itself; restored below.
+  const selfIndex = denseIndex(occlusion, e.lx, e.ly, e.lz);
+  const savedSelfOpacity = selfIndex < 0 ? 0 : occlusion.opacity[selfIndex]!;
+  const savedSelfSeals = selfIndex < 0 ? 0 : occlusion.seals[selfIndex]!;
+  if (selfIndex >= 0) {
+    occlusion.opacity[selfIndex] = 0;
+    occlusion.seals[selfIndex] = 0;
+  }
 
   for (let tz = zLo; tz <= zHi; tz++) {
     const floats = floatsByZ.get(tz);
@@ -415,23 +420,21 @@ function castEmitter(
         if (dist > e.radius) continue;
 
         const isSelf = tx === e.lx && ty === e.ly && tz === e.lz;
-        const target = occlusion.get(cellKey(tx, ty, tz));
+        const ti = denseIndex(occlusion, tx, ty, tz);
+        const targetOpacity = ti < 0 ? 0 : occlusion.opacity[ti]!;
+        const targetSeals = ti < 0 ? 0 : occlusion.seals[ti]!;
 
         if (!isSelf) {
-          if (target && target.opacity >= 1) continue;
+          if (targetOpacity >= 1) continue;
           // Height-0 floors refuse light climbing from below.
-          if (
-            tz > sz &&
-            target?.sealsLevel &&
-            (target.opacity ?? 0) < TRANSMISSION_EPSILON
-          ) {
+          if (tz > sz && targetSeals && targetOpacity < TRANSMISSION_EPSILON) {
             continue;
           }
         }
 
         let transmission = 1;
         if (!isSelf && dist > 0) {
-          transmission = rayTransmission(sx, sy, sz, tx, ty, tz, occlusion);
+          transmission = denseRayTransmission(occlusion, sx, sy, sz, tx, ty, tz);
           if (transmission < TRANSMISSION_EPSILON) continue;
         }
 
@@ -455,7 +458,10 @@ function castEmitter(
     }
   }
 
-  if (savedSelfOcc) occlusion.set(selfKey, savedSelfOcc);
+  if (selfIndex >= 0) {
+    occlusion.opacity[selfIndex] = savedSelfOpacity;
+    occlusion.seals[selfIndex] = savedSelfSeals;
+  }
 }
 
 /**
@@ -533,8 +539,8 @@ function collectOverrideEmitters(
 ): Emitter[] {
   const emitters: Emitter[] = [];
   for (const ov of overrides) {
-    const stack = map.levels[levelKey(ov.z)]?.[coordKey(ov.x, ov.y)];
-    if (!stack?.length) continue;
+    const stack = getStack(map, ov.x, ov.y, ov.z);
+    if (!stack.length) continue;
     for (const placed of stack) {
       const def = tilesById[placed.tileId];
       if (!def) continue;
@@ -564,40 +570,146 @@ function collectOverrideEmitters(
 }
 
 /**
- * Occluders inside `reach`. Rays only ever run from an emitter to a cell within
- * its own radius, so occlusion beyond the reach box cannot affect the result —
- * which is what lets this be addressed instead of swept.
+ * Occluders inside `reach`, as flat arrays indexed off the box.
+ *
+ * The cast probes a cell per ray step, millions of times a second, and a
+ * string-keyed Map turns each of those into a key build plus a hash lookup.
+ * Indexing arithmetic on a typed array is the same trick that took the sky
+ * flood from ~95ms to ~13ms.
  */
-function occlusionIn(
+export type DenseOcclusion = {
+  reach: Reach;
+  w: number;
+  h: number;
+  d: number;
+  /** 0 open, 1 sealed; matches {@link CellOcclusion.opacity}. */
+  opacity: Float32Array;
+  /** 1 where {@link CellOcclusion.sealsLevel}. */
+  seals: Uint8Array;
+};
+
+function denseIndex(o: DenseOcclusion, x: number, y: number, z: number): number {
+  const lx = x - o.reach.x0;
+  const ly = y - o.reach.y0;
+  const lz = z - o.reach.z0;
+  if (lx < 0 || ly < 0 || lz < 0 || lx >= o.w || ly >= o.h || lz >= o.d) return -1;
+  return (lz * o.h + ly) * o.w + lx;
+}
+
+function denseOcclusionIn(
   map: MapFile,
   tilesById: Record<string, TileDef>,
   reach: Reach,
-): Map<string, CellOcclusion> {
-  const occlusion = new Map<string, CellOcclusion>();
+): DenseOcclusion {
+  const w = reach.x1 - reach.x0 + 1;
+  const h = reach.y1 - reach.y0 + 1;
+  const d = reach.z1 - reach.z0 + 1;
+  const dense: DenseOcclusion = {
+    reach,
+    w,
+    h,
+    d,
+    opacity: new Float32Array(w * h * d),
+    seals: new Uint8Array(w * h * d),
+  };
+
   for (let z = Math.max(MIN_LEVEL, reach.z0); z <= Math.min(MAX_LEVEL, reach.z1); z++) {
-    const level = map.levels[levelKey(z)];
-    if (!level) continue;
-    collectOcclusionOnLevel(level, tilesById, reach, z, occlusion);
+    if (!map.levels[levelKey(z)]) continue;
+    fillDenseLevel(dense, map, tilesById, z);
   }
-  return occlusion;
+  return dense;
 }
 
-function collectOcclusionOnLevel(
-  level: Record<string, PlacedTile[]>,
+function fillDenseLevel(
+  dense: DenseOcclusion,
+  map: MapFile,
   tilesById: Record<string, TileDef>,
-  reach: Reach,
   z: number,
-  into: Map<string, CellOcclusion>,
 ) {
+  const { reach } = dense;
   for (let y = reach.y0; y <= reach.y1; y++) {
     for (let x = reach.x0; x <= reach.x1; x++) {
-      const stack = level[coordKey(x, y)];
-      if (!stack?.length) continue;
+      const stack = getStack(map, x, y, z);
+      if (!stack.length) continue;
       const occ = stackOcclusion(stack, tilesById);
-      // Absent means open, so only blockers are worth storing.
-      if (occ.opacity > 0 || occ.sealsLevel) into.set(cellKey(x, y, z), occ);
+      if (occ.opacity <= 0 && !occ.sealsLevel) continue;
+      const i = denseIndex(dense, x, y, z);
+      if (i < 0) continue;
+      dense.opacity[i] = occ.opacity;
+      dense.seals[i] = occ.sealsLevel ? 1 : 0;
     }
   }
+}
+
+/** {@link rayTransmission} against a {@link DenseOcclusion}. Same maths, no hashing. */
+function denseRayTransmission(
+  o: DenseOcclusion,
+  x0: number,
+  y0: number,
+  z0: number,
+  x1: number,
+  y1: number,
+  z1: number,
+): number {
+  let x = x0;
+  let y = y0;
+  let z = z0;
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  const dz = z1 - z0;
+  const stepX = Math.sign(dx) || 0;
+  const stepY = Math.sign(dy) || 0;
+  const stepZ = Math.sign(dz) || 0;
+  const absDx = Math.abs(dx);
+  const absDy = Math.abs(dy);
+  const absDz = Math.abs(dz);
+  const tDeltaX = absDx === 0 ? Number.POSITIVE_INFINITY : 1 / absDx;
+  const tDeltaY = absDy === 0 ? Number.POSITIVE_INFINITY : 1 / absDy;
+  const tDeltaZ = absDz === 0 ? Number.POSITIVE_INFINITY : 1 / absDz;
+  let tMaxX = absDx === 0 ? Number.POSITIVE_INFINITY : tDeltaX * 0.5;
+  let tMaxY = absDy === 0 ? Number.POSITIVE_INFINITY : tDeltaY * 0.5;
+  let tMaxZ = absDz === 0 ? Number.POSITIVE_INFINITY : tDeltaZ * 0.5;
+
+  let transmission = 1;
+  const maxSteps = absDx + absDy + absDz;
+  for (let i = 0; i < maxSteps; i++) {
+    let movedZ = false;
+    if (tMaxX < tMaxY) {
+      if (tMaxX < tMaxZ) {
+        x += stepX;
+        tMaxX += tDeltaX;
+      } else {
+        z += stepZ;
+        tMaxZ += tDeltaZ;
+        movedZ = true;
+      }
+    } else if (tMaxY < tMaxZ) {
+      y += stepY;
+      tMaxY += tDeltaY;
+    } else {
+      z += stepZ;
+      tMaxZ += tDeltaZ;
+      movedZ = true;
+    }
+
+    if (x === x1 && y === y1 && z === z1) break;
+
+    const i2 = denseIndex(o, x, y, z);
+    if (i2 < 0) continue;
+    const opacity = o.opacity[i2]!;
+    const seals = o.seals[i2]!;
+    if (!opacity && !seals) continue;
+
+    if (movedZ && seals && opacity < TRANSMISSION_EPSILON) {
+      if (stepZ < 0 && z1 < z) return 0;
+      if (stepZ > 0 && z1 > z) return 0;
+    }
+    if (opacity > 0) {
+      transmission *= 1 - opacity;
+      if (transmission < TRANSMISSION_EPSILON) return 0;
+    }
+  }
+  return transmission;
 }
 
 /**
@@ -682,7 +794,7 @@ export function overlayEmitterOverridesPacked(
   if (!emitters.length) return clonePackedLightGrid(base);
 
   const reach = emitterReach(emitters);
-  const occlusion = occlusionIn(map, tilesById, reach);
+  const occlusion = denseOcclusionIn(map, tilesById, reach);
 
   const out = clonePackedLightGrid(base);
   const w = reach.x1 - reach.x0 + 1;
@@ -726,7 +838,7 @@ export function overlayEmitterOverrides(
   if (!emitters.length) return cloneLightGrid(base);
 
   const reach = emitterReach(emitters);
-  const occlusion = occlusionIn(map, tilesById, reach);
+  const occlusion = denseOcclusionIn(map, tilesById, reach);
 
   const out = cloneLightGrid(base);
   const w = reach.x1 - reach.x0 + 1;
@@ -750,6 +862,15 @@ export function overlayEmitterOverrides(
   return out;
 }
 
+/** Every (cellKey, stack) on a level, across its chunks. */
+function* allCells(
+  level: LevelChunks,
+): Generator<[string, PlacedTile[]]> {
+  for (const chunk of Object.values(level)) {
+    yield* Object.entries(chunk);
+  }
+}
+
 /**
  * Stable key for static lighting: map content excluding tiles whose lights are
  * painted dynamically (player). Moving those tiles alone must not invalidate
@@ -763,7 +884,7 @@ export function staticLightingMapKey(
   for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
     const level = map.levels[levelKey(z)];
     if (!level) continue;
-    for (const [ck, stack] of Object.entries(level)) {
+    for (const [ck, stack] of allCells(level)) {
       if (!stack.length) continue;
       let any = false;
       for (const placed of stack) {

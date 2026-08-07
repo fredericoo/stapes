@@ -31,7 +31,13 @@ import {
   setEntityDirection,
 } from "./mapMutations";
 import { canWalk, standingAbs } from "./movement";
-import { playerDirection, requireSinglePlayer } from "./player";
+import {
+  findPlayerNear,
+  playerDirection,
+  playerStillAt,
+  requireSinglePlayer,
+  type PlayerLocation,
+} from "./player";
 import {
   cellHasPlate,
   cellKey,
@@ -108,6 +114,15 @@ type SlideState = {
  */
 export class GameSession {
   private map: MapFile;
+  /**
+   * Player location memo, keyed on the map object it was read from.
+   *
+   * Finding the player is a full sweep, and a single frame asks several times
+   * over — once for the snapshot, again for each hover affordance test. Map
+   * mutation is persistent, so object identity is an exact staleness check:
+   * this recomputes once per edit and never returns a stale answer.
+   */
+  private playerMemo: { map: MapFile; loc: PlayerLocation } | null = null;
   private readonly tilesById: Record<string, TileDef>;
   private input: GameInput = { directions: [] };
   private walk: WalkState | null = null;
@@ -175,6 +190,25 @@ export class GameSession {
     this.reindexPlates(changed);
   }
 
+  /**
+   * The player, without sweeping the map unless they actually moved.
+   *
+   * A single tick can rewrite the map several times — commit a step, then
+   * settle a plate under it — and every rewrite makes the memo stale. Nearly
+   * all of those edits leave the player exactly where they were, so confirming
+   * the one cell is enough; only a real relocation falls back to the sweep.
+   */
+  private player(): PlayerLocation {
+    const memo = this.playerMemo;
+    if (memo?.map === this.map) return memo.loc;
+
+    const stillThere = memo && playerStillAt(this.map, memo.loc);
+    const nearby = stillThere ?? (memo && findPlayerNear(this.map, memo.loc));
+    const loc = nearby || requireSinglePlayer(this.map);
+    this.playerMemo = { map: this.map, loc };
+    return loc;
+  }
+
   setInput(input: GameInput) {
     this.input = input;
   }
@@ -197,7 +231,7 @@ export class GameSession {
    * another tile is still out: only the top of a stack can be acted on.
    */
   private interactiveDefAt(ref: ObjectRef): TileDef | null {
-    const loc = requireSinglePlayer(this.map);
+    const loc = this.player();
     if (Math.abs(ref.z - loc.z) > INTERACT_LEVEL_SLACK) return null;
     const stack = getStack(this.map, ref.x, ref.y, ref.z);
     if (ref.stackIndex !== stack.length - 1) return null;
@@ -216,7 +250,7 @@ export class GameSession {
    * (see {@link INTERACT_LEVEL_SLACK}); it is the plan view that must touch.
    */
   private pushDirectionFor(ref: ObjectRef): Direction | null {
-    const loc = requireSinglePlayer(this.map);
+    const loc = this.player();
     const dx = ref.x - loc.x;
     const dy = ref.y - loc.y;
     if (Math.abs(dx) + Math.abs(dy) !== 1) return null;
@@ -269,7 +303,7 @@ export class GameSession {
     if (!to || !direction) return false;
 
     // The shove is what turns the player, so facing lands before the motion.
-    const loc = requireSinglePlayer(this.map);
+    const loc = this.player();
     this.map = setEntityDirection(
       this.map,
       loc.x,
@@ -425,7 +459,7 @@ export class GameSession {
   }
 
   getSnapshot(): GameSnapshot {
-    const loc = requireSinglePlayer(this.map);
+    const loc = this.player();
     // Include leftover accumulator so 60fps+ renders interpolate between 30Hz ticks.
     const visualExtra = this.accumulatorMs;
     return {
@@ -464,7 +498,7 @@ export class GameSession {
   private commitWalk() {
     const w = this.walk;
     if (!w) return;
-    const loc = requireSinglePlayer(this.map);
+    const loc = this.player();
     this.map = moveEntity(
       this.map,
       { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex },
@@ -479,7 +513,7 @@ export class GameSession {
     const dirs = this.input.directions;
     if (dirs.length === 0) return;
 
-    const loc = requireSinglePlayer(this.map);
+    const loc = this.player();
     const def = this.playerDef();
     const faceOnly = Boolean(this.input.faceOnly);
     const preferDescend = Boolean(this.input.preferDescend);
@@ -528,7 +562,7 @@ export class GameSession {
     const def = this.playerDef();
     if (!def.affectedByGravity) return;
 
-    const loc = requireSinglePlayer(this.map);
+    const loc = this.player();
     if (
       isSupported(
         this.map,
@@ -599,7 +633,7 @@ export class GameSession {
 
   private land(landingAbs: number) {
     this.fall = null;
-    const loc = requireSinglePlayer(this.map);
+    const loc = this.player();
     const exclude = { z: loc.z, stackIndex: loc.stackIndex };
 
     if (
@@ -613,7 +647,7 @@ export class GameSession {
       )
     ) {
       this.commitLandAt(landingAbs);
-      const after = requireSinglePlayer(this.map);
+      const after = this.player();
       const facing = playerDirection(after);
       const slide = canWalk(
         this.map,
@@ -672,7 +706,7 @@ export class GameSession {
   }
 
   private commitLandAt(landingAbs: number) {
-    const loc = requireSinglePlayer(this.map);
+    const loc = this.player();
     const { z: targetZ } = cellForFeetAbs(landingAbs);
     const placed = { ...loc.placed };
 
@@ -701,7 +735,7 @@ export class GameSession {
   }
 
   private relocatePlayerToFeet(feetAbs: number) {
-    const loc = requireSinglePlayer(this.map);
+    const loc = this.player();
     const { z: newZ } = cellForFeetAbs(feetAbs);
     if (newZ === loc.z) return;
 

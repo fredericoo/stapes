@@ -5,7 +5,12 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { PNG } from "pngjs";
-import type { MapFile, TileDef, TilesetDef } from "../app/lib/types";
+import type {
+  FlatMapFile,
+  PlacedTile,
+  TileDef,
+  TilesetDef,
+} from "../app/lib/types";
 import { normalizeTiles } from "../app/lib/types";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
@@ -270,13 +275,14 @@ async function main() {
     },
   ] as unknown[]);
 
-  const map: MapFile = { version: 1, levels: {} };
+  // Built flat, then grouped — same shape the file on disk uses.
+  const map: FlatMapFile = { version: 1, levels: {} };
 
   const put = (
     z: number,
     x: number,
     y: number,
-    stack: MapFile["levels"][string][string],
+    stack: PlacedTile[],
   ) => {
     const zk = String(z);
     if (!map.levels[zk]) map.levels[zk] = {};

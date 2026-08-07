@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { chunkifyMap } from "./mapData";
+import type { FlatMapFile } from "./types";
 import {
   AUTOTILE_SLICE_MASKS,
   blobMaskToSlice,
@@ -49,7 +51,7 @@ describe("autotile blob", () => {
 function mapWith(
   cells: { x: number; y: number; z?: number; tileId: string }[],
 ): MapFile {
-  const levels: MapFile["levels"] = {};
+  const levels: FlatMapFile["levels"] = {};
   for (const c of cells) {
     const z = c.z ?? 0;
     const lk = levelKey(z);
@@ -58,7 +60,7 @@ function mapWith(
     if (!levels[lk][ck]) levels[lk][ck] = [];
     levels[lk][ck].push({ tileId: c.tileId });
   }
-  return { version: 1, levels };
+  return chunkifyMap({ version: 1, levels });
 }
 
 describe("neighbor matching", () => {
