@@ -6,7 +6,7 @@ import tilesFile from "../../data/tiles.json";
 import {
   VIEW_RADIUS,
   levelsAboveShouldHide,
-  viewAnchorFromSnapshot,
+  viewAnchorFor,
 } from "./levelVisibility";
 import type { MapFile, TileDef } from "./types";
 import { coordKey, levelKey, normalizeTileDef } from "./types";
@@ -68,11 +68,13 @@ const tilesById: Record<string, TileDef> = {
   roof,
 };
 
-describe("viewAnchorFromSnapshot", () => {
-  it("uses committed player when idle", () => {
+describe("viewAnchorFor", () => {
+  it("uses the committed cell when idle", () => {
     expect(
-      viewAnchorFromSnapshot({
-        player: { x: 1, y: 2, z: 0 },
+      viewAnchorFor({
+        x: 1,
+        y: 2,
+        z: 0,
         walk: null,
         fall: null,
       }),
@@ -81,8 +83,10 @@ describe("viewAnchorFromSnapshot", () => {
 
   it("uses walk destination while walking", () => {
     expect(
-      viewAnchorFromSnapshot({
-        player: { x: 0, y: 0, z: 0 },
+      viewAnchorFor({
+        x: 0,
+        y: 0,
+        z: 0,
         walk: { to: { x: 1, y: 0, z: 1 } },
         fall: null,
       }),
@@ -92,8 +96,10 @@ describe("viewAnchorFromSnapshot", () => {
   it("uses landing level while falling", () => {
     // landingAbs 2 → level 1 (HEIGHT_PER_LEVEL = 2)
     expect(
-      viewAnchorFromSnapshot({
-        player: { x: 3, y: 4, z: 2 },
+      viewAnchorFor({
+        x: 3,
+        y: 4,
+        z: 2,
         walk: null,
         fall: { landingAbs: 2 },
       }),

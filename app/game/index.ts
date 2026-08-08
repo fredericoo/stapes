@@ -5,8 +5,23 @@ export {
   TICK_MS,
   WALK_DURATION_MS,
 } from "./constants";
-export { GameSession } from "./GameSession";
-export type { GameInput, GameSnapshot, WalkState, FallState } from "./GameSession";
+export { GameSession, LOCAL_ACTOR_ID } from "./GameSession";
+export type {
+  ActorSnapshot,
+  FallState,
+  GameInput,
+  GameSnapshot,
+  ObjectRef,
+  PlaySession,
+  WalkState,
+} from "./GameSession";
+export {
+  despawnActor,
+  locateActor,
+  spawnActor,
+  spawnPoint,
+  type ActorLocation,
+} from "./actors";
 export { canWalk } from "./movement";
 export { fitsTile } from "../lib/validation";
 export { findPlayers, requireSinglePlayer } from "./player";

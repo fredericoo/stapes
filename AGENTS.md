@@ -38,6 +38,45 @@ Do not add a second write path that bypasses `DataStore`. The reason the two
 directions stay consistent is that there is only ever one copy of the truth in a
 given environment, never a sync between two.
 
+## The simulation holds N actors
+
+`GameSession` runs any number of actors. `/play` runs exactly one and never
+names it (`LOCAL_ACTOR_ID`); the game server will spawn one per connection.
+
+- **Ownership lives on the placement.** `PlacedTile.owner` is what tells two
+  identical `player` tiles apart. Authored maps never carry one — the map's
+  single `player` tile is a *spawn marker*, and `requireSinglePlayer` now exists
+  only to read it. Nothing in the tick loop calls that function: the invariant
+  it enforces is broken deliberately the moment a second actor joins.
+- **Locate through `./actors`, never by sweeping.** `locateActor` tries the
+  actor's last cell, then the neighbourhood, then the board — the same
+  cheapest-first discipline the single-player memo had, and for the same reason:
+  a tick rewrites the map several times and almost none of those edits move
+  anybody.
+- **Per-actor vs per-board state.** Input, walk, fall, slide, hover and the
+  location memo belong to the actor. The map, the plate and wire indexes, and
+  `settledMap` belong to the session — a plate does not care who stepped on it,
+  and settling once per tick rather than once per actor is what keeps that true.
+- **Actors tick in insertion order, and the order is load-bearing.** Two actors
+  contending for a cell resolve by it, so a stable order is what makes a tick
+  reproducible instead of dependent on whose message arrived first.
+- **A walk reserves its destination.** A step only commits to the map when it
+  lands, so for its whole duration the destination still reads as empty to
+  everyone else — two actors pressing the same direction on the same tick both
+  passed `canWalk` and both arrived, inside one another. `destinationTaken`
+  closes that. The map cannot answer the question, because the answer is not in
+  the map yet.
+
+Affordances (`./affordances`) are pure functions of board plus actor, kept out
+of the session because both ends of the wire ask: the server to validate an
+interaction, the client to decide whether to draw one under the cursor. Same
+rules on both sides means the client cannot offer something the server refuses.
+
+The renderer is a *viewer*. Camera, roof-cut, hover and pick follow `snap.self`
+and deliberately stay single-anchor; `snap.actors` is what gets drawn and lerped.
+`GameRenderer` is typed against `PlaySession`, not `GameSession`, so a remote
+session can drive it.
+
 ## Map mutations must be undoable
 
 Every change to map data (`MapFile` / placed tiles) **must** go through `useEditorStore.getState().commitMap(...)` (or a store method that calls it: `eraseAt`, `stampAt`, `stampMany`, `appendArmed`, `removeFromStack`, `reorderSelectedStack`, `setStackDirection`).

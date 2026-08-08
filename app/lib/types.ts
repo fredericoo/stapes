@@ -216,6 +216,19 @@ export type PlacedTile = {
    * See ../game/signals for how it is read.
    */
   channel?: string;
+  /**
+   * Which actor drives this placement, for the handful of tiles that are
+   * somebody's avatar rather than scenery.
+   *
+   * Authored maps never carry one: the map's single `player` tile marks where
+   * actors enter, and ownership is assigned at runtime as they join. It is what
+   * lets the simulation tell two identical player tiles apart — without it,
+   * finding "this connection's actor" would mean guessing between them.
+   *
+   * Survives a move for free because `moveEntity` spreads the placement rather
+   * than rebuilding it field by field.
+   */
+  owner?: string;
 };
 
 /**

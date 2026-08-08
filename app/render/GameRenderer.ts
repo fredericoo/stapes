@@ -4,9 +4,10 @@ import {
   PX_PER_HEIGHT,
 } from "../lib/geometry";
 import type {
-  GameSession,
+  ActorSnapshot,
   GameSnapshot,
   ObjectRef,
+  PlaySession,
 } from "../game/GameSession";
 import { PLAYER_TILE_ID } from "../game/constants";
 import { FrameProfiler, type FrameStats } from "./frameProfile";
@@ -22,7 +23,7 @@ import { emitterCenter } from "../lib/lighting";
 import { getStack, stackHeight } from "../lib/mapData";
 import {
   levelsAboveShouldHide,
-  viewAnchorFromSnapshot,
+  viewAnchorFor,
 } from "../lib/levelVisibility";
 import type { MapFile, TileDef, TilesetDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL } from "../lib/types";
@@ -60,12 +61,16 @@ function snapToWholePixels(p: { x: number; y: number }): {
 }
 
 /**
- * Client play loop: ticks GameSession, centers camera on the player, and
- * lerps moving tiles during walks / falls.
+ * Client play loop: ticks a session, centers the camera on the viewer's own
+ * actor, and lerps every moving actor during walks / falls.
+ *
+ * Typed against {@link PlaySession} rather than GameSession so the same
+ * renderer can be driven by a local simulation or by a remote one fed over the
+ * wire — the two differ in where the truth comes from, not in what is drawn.
  */
 export class GameRenderer {
   private world: WorldRenderer;
-  private session: GameSession;
+  private session: PlaySession;
   private canvas: HTMLCanvasElement;
   private tilesById: Record<string, TileDef>;
   private minutesOfDay: number = DEFAULT_PLAY_MINUTES;
@@ -77,14 +82,14 @@ export class GameRenderer {
   private raf = 0;
   private lastTime = 0;
   private running = false;
-  /** Interactive placements on the player's level ±1, rebuilt when either changes. */
+  /** Interactive placements on the viewer's level ±1, rebuilt when either changes. */
   private interactive: InteractiveIndex = [];
   private interactiveKey = "";
   private indexedMap: MapFile | null = null;
 
   constructor(
     canvas: HTMLCanvasElement,
-    session: GameSession,
+    session: PlaySession,
     tilesets: TilesetDef[],
     tiles: TileDef[],
   ) {
@@ -228,9 +233,9 @@ export class GameRenderer {
     this.session.setHoveredObject(null);
   };
 
-  /** Interactive placements on the player's level ±1, cached per map + level. */
+  /** Interactive placements on the viewer's level ±1, cached per map + level. */
   private interactiveIndex(snap: GameSnapshot): InteractiveIndex {
-    const key = `${snap.player.z}`;
+    const key = `${snap.self.z}`;
     if (this.indexedMap === snap.map && this.interactiveKey === key) {
       return this.interactive;
     }
@@ -238,7 +243,7 @@ export class GameRenderer {
     this.interactiveKey = key;
     this.interactive = indexInteractive(
       snap.map,
-      snap.player.z,
+      snap.self.z,
       this.tilesById,
       1,
     );
@@ -272,7 +277,7 @@ export class GameRenderer {
    */
   private cameraFor(snap: GameSnapshot): { x: number; y: number } {
     const { canvasW, canvasH } = this.world.getCameraSize();
-    const visual = this.playerVisualWorld(snap);
+    const visual = this.actorVisualWorld(snap.map, snap.self);
     return {
       x: visual.x - Math.max(1, canvasW / DEFAULT_ZOOM) / 2,
       y: visual.y - Math.max(1, canvasH / DEFAULT_ZOOM) / 2,
@@ -282,10 +287,9 @@ export class GameRenderer {
   private pushView() {
     const snap = this.session.getSnapshot();
     const zoom = DEFAULT_ZOOM;
-    const visual = this.playerVisualWorld(snap);
     const camera = this.cameraFor(snap);
 
-    const anchor = viewAnchorFromSnapshot(snap);
+    const anchor = viewAnchorFor(snap.self);
     const hideAbove = levelsAboveShouldHide(
       snap.map,
       this.tilesById,
@@ -298,7 +302,7 @@ export class GameRenderer {
       camera,
       zoom,
       minutesOfDay: this.minutesOfDay,
-      tileMotions: this.tileMotionsFor(snap, visual),
+      tileMotions: this.tileMotionsFor(snap),
       emitterOverrides: this.emitterOverridesFor(snap),
       hideLevelsAbove: hideAbove ? anchor.z : undefined,
     });
@@ -318,69 +322,82 @@ export class GameRenderer {
     snap: GameSnapshot,
   ): EmitterOverride[] | undefined {
     const playerDef = this.tilesById[PLAYER_TILE_ID];
-    const light = playerDef
-      ? resolveLight(playerDef, { direction: snap.player.direction })
-      : undefined;
-    if (!light) {
-      return undefined;
+    if (!playerDef) return undefined;
+
+    // One override per actor, in the snapshot's stable id order — the override
+    // list is joined into a cache key downstream, so a wobbling order would
+    // miss the cache every frame. Emitting only the viewer's own would leave
+    // every other actor's light omitted from the bake and never painted back,
+    // which is exactly the "goes dark" failure the bake omission warns about.
+    const overrides: EmitterOverride[] = [];
+    for (const actor of snap.actors) {
+      const light = resolveLight(playerDef, { direction: actor.direction });
+      if (!light) continue;
+      overrides.push(this.actorEmitter(snap.map, actor, playerDef.height ?? 0));
     }
+    return overrides.length > 0 ? overrides : undefined;
+  }
 
-    const playerH = playerDef?.height ?? 0;
-
-    if (snap.walk) {
-      const { from, to } = snap.walk;
-      const t = snap.walkProgress;
+  /**
+   * Cell-space fractional emit position for one actor's light. Standing uses
+   * the tile centre so the static bake can omit actors and never re-run on a
+   * step.
+   */
+  private actorEmitter(
+    map: MapFile,
+    actor: ActorSnapshot,
+    actorHeight: number,
+  ): EmitterOverride {
+    if (actor.walk) {
+      const { from, to } = actor.walk;
+      const t = actor.walkProgress;
       const a = emitterCenter(
         from.x,
         from.y,
         from.z,
-        getStack(snap.map, from.x, from.y, from.z),
-        snap.player.stackIndex,
+        getStack(map, from.x, from.y, from.z),
+        actor.stackIndex,
         this.tilesById,
       );
-      // Destination stack does not hold the player yet — centre above its surface.
-      const destAbs = this.surfaceFootAbs(snap.map, to.x, to.y, to.z);
+      // Destination stack does not hold the actor yet — centre above its surface.
+      const destAbs = this.surfaceFootAbs(map, to.x, to.y, to.z);
       const b = {
         fx: to.x + 0.5,
         fy: to.y + 0.5,
-        fz: (destAbs + playerH / 2) / HEIGHT_PER_LEVEL,
+        fz: (destAbs + actorHeight / 2) / HEIGHT_PER_LEVEL,
       };
-      return [
-        {
-          x: from.x,
-          y: from.y,
-          z: from.z,
-          fx: a.fx + (b.fx - a.fx) * t,
-          fy: a.fy + (b.fy - a.fy) * t,
-          fz: a.fz + (b.fz - a.fz) * t,
-        },
-      ];
+      return {
+        x: from.x,
+        y: from.y,
+        z: from.z,
+        fx: a.fx + (b.fx - a.fx) * t,
+        fy: a.fy + (b.fy - a.fy) * t,
+        fz: a.fz + (b.fz - a.fz) * t,
+      };
     }
 
-    if (snap.fall) {
-      const visualFeet = snap.fall.feetAbs - snap.fallProgress;
-      return [
-        {
-          x: snap.player.x,
-          y: snap.player.y,
-          z: snap.player.z,
-          fx: snap.player.x + 0.5,
-          fy: snap.player.y + 0.5,
-          fz: (visualFeet + playerH / 2) / HEIGHT_PER_LEVEL,
-        },
-      ];
+    if (actor.fall) {
+      const visualFeet = actor.fall.feetAbs - actor.fallProgress;
+      return {
+        x: actor.x,
+        y: actor.y,
+        z: actor.z,
+        fx: actor.x + 0.5,
+        fy: actor.y + 0.5,
+        fz: (visualFeet + actorHeight / 2) / HEIGHT_PER_LEVEL,
+      };
     }
 
-    const { x, y, z, stackIndex } = snap.player;
+    const { x, y, z, stackIndex } = actor;
     const center = emitterCenter(
       x,
       y,
       z,
-      getStack(snap.map, x, y, z),
+      getStack(map, x, y, z),
       stackIndex,
       this.tilesById,
     );
-    return [{ x, y, z, fx: center.fx, fy: center.fy, fz: center.fz }];
+    return { x, y, z, fx: center.fx, fy: center.fy, fz: center.fz };
   }
 
   /**
@@ -389,39 +406,41 @@ export class GameRenderer {
    * cells, which is what lets a mover be behind the wall beside it and in front
    * of the floor it is stepping onto at the same time.
    */
-  private tileMotionsFor(
-    snap: GameSnapshot,
-    visual: { x: number; y: number },
-  ): TileMotion[] | undefined {
+  private tileMotionsFor(snap: GameSnapshot): TileMotion[] | undefined {
     const motions: TileMotion[] = [];
-    const slide = this.slideMotion(snap);
-    if (slide) motions.push(slide);
+    // Every actor, not just the viewer: a shove by someone across the room has
+    // to animate here too, or their crate teleports.
+    for (const actor of snap.actors) {
+      const slide = this.slideMotion(snap.map, actor);
+      if (slide) motions.push(slide);
 
-    const player = this.playerMotion(snap, visual);
-    if (player) motions.push(player);
+      const own = this.actorMotion(snap.map, actor);
+      if (own) motions.push(own);
+    }
 
     return motions.length > 0 ? motions : undefined;
   }
 
-  /** Motion for the player's own walk / fall lerp, if either is running. */
-  private playerMotion(
-    snap: GameSnapshot,
-    visual: { x: number; y: number },
+  /** Motion for one actor's walk / fall lerp, if either is running. */
+  private actorMotion(
+    map: MapFile,
+    actor: ActorSnapshot,
   ): TileMotion | null {
-    if (snap.walk) {
-      const { from, to } = snap.walk;
-      const stackIndex = snap.player.stackIndex;
+    if (actor.walk) {
+      const { from, to } = actor.walk;
+      const stackIndex = actor.stackIndex;
+      const visual = this.actorVisualWorld(map, actor);
       const fromCenter = this.cellWorldCenter(
         from.x,
         from.y,
         from.z,
-        snap.map,
+        map,
         stackIndex,
       );
-      const originFoot = this.standingFootAbs(snap.map, from, stackIndex);
-      const destFoot = this.surfaceFootAbs(snap.map, to.x, to.y, to.z);
-      const destStackLen = getStack(snap.map, to.x, to.y, to.z).length;
-      const t = snap.walkProgress;
+      const originFoot = this.standingFootAbs(map, from, stackIndex);
+      const destFoot = this.surfaceFootAbs(map, to.x, to.y, to.z);
+      const destStackLen = getStack(map, to.x, to.y, to.z).length;
+      const t = actor.walkProgress;
       const foot = originFoot + (destFoot - originFoot) * t;
 
       return {
@@ -438,7 +457,7 @@ export class GameRenderer {
           x: from.x + (to.x - from.x) * t,
           y: from.y + (to.y - from.y) * t,
           foot,
-          top: foot + this.movingTileHeight(snap.map, from, stackIndex),
+          top: foot + this.movingTileHeight(map, from, stackIndex),
           // Feet share a plane with both floors it passes over; outrank the
           // top tile of whichever stack it is standing on.
           stackBias: Math.max(
@@ -449,25 +468,24 @@ export class GameRenderer {
       };
     }
 
-    if (snap.fall) {
-      const drop = snap.fallProgress * PX_PER_HEIGHT;
-      const { player } = snap;
-      const foot = snap.fall.feetAbs - snap.fallProgress;
-      const landingZ = viewAnchorFromSnapshot(snap).z;
+    if (actor.fall) {
+      const drop = actor.fallProgress * PX_PER_HEIGHT;
+      const foot = actor.fall.feetAbs - actor.fallProgress;
+      const landingZ = viewAnchorFor(actor).z;
       return {
-        x: player.x,
-        y: player.y,
-        z: player.z,
-        stackIndex: player.stackIndex,
+        x: actor.x,
+        y: actor.y,
+        z: actor.z,
+        stackIndex: actor.stackIndex,
         ox: drop,
         oy: drop,
-        alsoDrawAtZ: landingZ < player.z ? landingZ : undefined,
+        alsoDrawAtZ: landingZ < actor.z ? landingZ : undefined,
         box: {
-          x: player.x,
-          y: player.y,
+          x: actor.x,
+          y: actor.y,
           foot,
-          top: foot + this.movingTileHeight(snap.map, player, player.stackIndex),
-          stackBias: depthStackBias(player.z, player.stackIndex),
+          top: foot + this.movingTileHeight(map, actor, actor.stackIndex),
+          stackBias: depthStackBias(actor.z, actor.stackIndex),
         },
       };
     }
@@ -482,20 +500,20 @@ export class GameRenderer {
    * to zero rather than building up to the move. Same lerp the player walks
    * with, so the object sorts against its neighbours rather than jumping.
    */
-  private slideMotion(snap: GameSnapshot): TileMotion | null {
-    const slide = snap.slide;
+  private slideMotion(map: MapFile, actor: ActorSnapshot): TileMotion | null {
+    const slide = actor.slide;
     if (!slide) return null;
 
     const { object, from } = slide;
     const t = slide.progress;
     // The object has left `from`, so its old surface is that stack's top now;
     // at `object` it is in the stack, so its surface is the scenery under it.
-    const fromCenter = this.surfaceWorldCenter(from.x, from.y, from.z, snap.map);
+    const fromCenter = this.surfaceWorldCenter(from.x, from.y, from.z, map);
     const toCenter = this.cellWorldCenter(
       object.x,
       object.y,
       object.z,
-      snap.map,
+      map,
       object.stackIndex,
     );
     const visual = snapToWholePixels({
@@ -503,10 +521,10 @@ export class GameRenderer {
       y: fromCenter.y + (toCenter.y - fromCenter.y) * t,
     });
 
-    const originFoot = this.surfaceFootAbs(snap.map, from.x, from.y, from.z);
-    const destFoot = this.standingFootAbs(snap.map, object, object.stackIndex);
+    const originFoot = this.surfaceFootAbs(map, from.x, from.y, from.z);
+    const destFoot = this.standingFootAbs(map, object, object.stackIndex);
     const foot = originFoot + (destFoot - originFoot) * t;
-    const originStackLen = getStack(snap.map, from.x, from.y, from.z).length;
+    const originStackLen = getStack(map, from.x, from.y, from.z).length;
 
     return {
       x: object.x,
@@ -520,7 +538,7 @@ export class GameRenderer {
         x: from.x + (object.x - from.x) * t,
         y: from.y + (object.y - from.y) * t,
         foot,
-        top: foot + this.movingTileHeight(snap.map, object, object.stackIndex),
+        top: foot + this.movingTileHeight(map, object, object.stackIndex),
         stackBias: Math.max(
           depthStackBias(from.z, originStackLen),
           depthStackBias(object.z, object.stackIndex),
@@ -565,22 +583,33 @@ export class GameRenderer {
     );
   }
 
-  private playerVisualWorld(snap: GameSnapshot): { x: number; y: number } {
-    if (snap.walk) {
+  /**
+   * Where an actor's sprite actually is this frame, in world pixels.
+   *
+   * Per actor rather than per frame: the camera wants this for the viewer's own
+   * actor, and every moving actor wants it for their own lerp. Computing it
+   * once for the camera and reusing it as everyone's offset — which is what the
+   * single-player version did — silently pins every other actor to the viewer.
+   */
+  private actorVisualWorld(
+    map: MapFile,
+    actor: ActorSnapshot,
+  ): { x: number; y: number } {
+    if (actor.walk) {
       const a = this.cellWorldCenter(
-        snap.walk.from.x,
-        snap.walk.from.y,
-        snap.walk.from.z,
-        snap.map,
-        snap.player.stackIndex,
+        actor.walk.from.x,
+        actor.walk.from.y,
+        actor.walk.from.z,
+        map,
+        actor.stackIndex,
       );
       const b = this.surfaceWorldCenter(
-        snap.walk.to.x,
-        snap.walk.to.y,
-        snap.walk.to.z,
-        snap.map,
+        actor.walk.to.x,
+        actor.walk.to.y,
+        actor.walk.to.z,
+        map,
       );
-      const t = snap.walkProgress;
+      const t = actor.walkProgress;
       return snapToWholePixels({
         x: a.x + (b.x - a.x) * t,
         y: a.y + (b.y - a.y) * t,
@@ -588,14 +617,14 @@ export class GameRenderer {
     }
 
     const base = this.cellWorldCenter(
-      snap.player.x,
-      snap.player.y,
-      snap.player.z,
-      snap.map,
-      snap.player.stackIndex,
+      actor.x,
+      actor.y,
+      actor.z,
+      map,
+      actor.stackIndex,
     );
-    if (snap.fall) {
-      const drop = snap.fallProgress * PX_PER_HEIGHT;
+    if (actor.fall) {
+      const drop = actor.fallProgress * PX_PER_HEIGHT;
       return snapToWholePixels({ x: base.x + drop, y: base.y + drop });
     }
     return base;

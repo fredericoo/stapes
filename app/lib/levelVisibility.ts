@@ -21,9 +21,11 @@ const TRANSMISSION_EPSILON = 1e-3;
 
 export type ViewAnchor = { x: number; y: number; z: number };
 
-/** Minimal snapshot shape — satisfied by GameSnapshot. */
-export type ViewAnchorSnapshot = {
-  player: { x: number; y: number; z: number };
+/** Minimal actor shape — satisfied by ActorSnapshot. */
+export type ViewAnchorActor = {
+  x: number;
+  y: number;
+  z: number;
   walk: { to: { x: number; y: number; z: number } } | null;
   fall: { landingAbs: number } | null;
 };
@@ -42,20 +44,26 @@ function levelForFeetAbs(feetAbs: number): number {
 
 /**
  * Where level-visibility is evaluated from: walk destination while walking,
- * landing level while falling, otherwise the committed player cell.
+ * landing level while falling, otherwise the committed cell.
+ *
+ * Takes one actor rather than the whole snapshot, and deliberately stays
+ * single-anchor with many actors on the board: the roof-cut is an affordance
+ * for whoever is looking, so it follows the viewer's own actor. Two players on
+ * different floors cannot both get a correct cut — visibility is one boolean
+ * per level group for the whole scene.
  */
-export function viewAnchorFromSnapshot(snap: ViewAnchorSnapshot): ViewAnchor {
-  if (snap.walk) {
-    return { x: snap.walk.to.x, y: snap.walk.to.y, z: snap.walk.to.z };
+export function viewAnchorFor(actor: ViewAnchorActor): ViewAnchor {
+  if (actor.walk) {
+    return { x: actor.walk.to.x, y: actor.walk.to.y, z: actor.walk.to.z };
   }
-  if (snap.fall) {
+  if (actor.fall) {
     return {
-      x: snap.player.x,
-      y: snap.player.y,
-      z: levelForFeetAbs(snap.fall.landingAbs),
+      x: actor.x,
+      y: actor.y,
+      z: levelForFeetAbs(actor.fall.landingAbs),
     };
   }
-  return { x: snap.player.x, y: snap.player.y, z: snap.player.z };
+  return { x: actor.x, y: actor.y, z: actor.z };
 }
 
 /**

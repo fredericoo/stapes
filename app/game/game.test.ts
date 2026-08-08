@@ -491,14 +491,14 @@ describe("canWalk climb", () => {
       elapsed += 1000 / 30;
     }
     const snap = session.getSnapshot();
-    expect(snap.player.x).toBe(1);
+    expect(snap.self.x).toBe(1);
     expect(
       standingAbs(
         snap.map,
-        snap.player.x,
-        snap.player.y,
-        snap.player.z,
-        snap.player.stackIndex,
+        snap.self.x,
+        snap.self.y,
+        snap.self.z,
+        snap.self.stackIndex,
         tilesById,
       ),
     ).toBe(3);
@@ -518,12 +518,12 @@ describe("GameSession step-down", () => {
       session.tick(1000 / 30);
       elapsed += 1000 / 30;
       const snap = session.getSnapshot();
-      expect(snap.fall).toBeNull();
+      expect(snap.self.fall).toBeNull();
     }
 
     const snap = session.getSnapshot();
-    expect(snap.player).toMatchObject({ x: 1, y: 0, z: 0 });
-    expect(snap.fall).toBeNull();
+    expect(snap.self).toMatchObject({ x: 1, y: 0, z: 0 });
+    expect(snap.self.fall).toBeNull();
   });
 });
 
@@ -568,8 +568,8 @@ describe("GameSession walk", () => {
     // Start walk
     session.tick(1000 / 30);
     let snap = session.getSnapshot();
-    expect(snap.walk).not.toBeNull();
-    expect(snap.player.x).toBe(0);
+    expect(snap.self.walk).not.toBeNull();
+    expect(snap.self.x).toBe(0);
 
     // Finish walk
     let elapsed = 1000 / 30;
@@ -578,8 +578,8 @@ describe("GameSession walk", () => {
       elapsed += 1000 / 30;
     }
     snap = session.getSnapshot();
-    expect(snap.player.x).toBe(1);
-    expect(snap.player.y).toBe(0);
+    expect(snap.self.x).toBe(1);
+    expect(snap.self.y).toBe(0);
     expect(getStack(snap.map, 0, 0, 0).some((p) => p.tileId === "player")).toBe(
       false,
     );
@@ -595,7 +595,7 @@ describe("GameSession fall", () => {
     // Kick gravity
     session.tick(1000 / 30);
     let snap = session.getSnapshot();
-    expect(snap.fall).not.toBeNull();
+    expect(snap.self.fall).not.toBeNull();
 
     let elapsed = 1000 / 30;
     const budget = FALL_MS_PER_HEIGHT * 4;
@@ -603,18 +603,18 @@ describe("GameSession fall", () => {
       session.tick(1000 / 30);
       elapsed += 1000 / 30;
       snap = session.getSnapshot();
-      if (!snap.fall) break;
+      if (!snap.self.fall) break;
     }
 
-    expect(snap.fall).toBeNull();
-    expect(snap.player.z).toBe(0);
+    expect(snap.self.fall).toBeNull();
+    expect(snap.self.z).toBe(0);
     expect(
       isSupported(
         snap.map,
-        snap.player.x,
-        snap.player.y,
-        snap.player.z,
-        snap.player.stackIndex,
+        snap.self.x,
+        snap.self.y,
+        snap.self.z,
+        snap.self.stackIndex,
         tilesById,
       ),
     ).toBe(true);
@@ -792,9 +792,9 @@ describe("GameSession faceOnly and slide", () => {
     session.setInput({ directions: ["e"], faceOnly: true });
     session.tick(1000 / 30);
     const snap = session.getSnapshot();
-    expect(snap.walk).toBeNull();
-    expect(snap.player.x).toBe(0);
-    expect(snap.player.direction).toBe("e");
+    expect(snap.self.walk).toBeNull();
+    expect(snap.self.x).toBe(0);
+    expect(snap.self.direction).toBe("e");
   });
 
   it("slides in facing direction when landing on a non-walkable top", () => {
@@ -812,9 +812,9 @@ describe("GameSession faceOnly and slide", () => {
     }
 
     const snap = session.getSnapshot();
-    expect(snap.fall).toBeNull();
+    expect(snap.self.fall).toBeNull();
     // Slid onto grass east of the tree.
-    expect(snap.player).toMatchObject({ x: 1, y: 0, z: 0 });
+    expect(snap.self).toMatchObject({ x: 1, y: 0, z: 0 });
   });
 });
 
@@ -932,7 +932,7 @@ describe("GameSession hover", () => {
       session.tick(1000 / 30);
       elapsed += 1000 / 30;
     }
-    expect(session.getSnapshot().player).toMatchObject({ x: 0, y: 1 });
+    expect(session.getSnapshot().self).toMatchObject({ x: 0, y: 1 });
     expect(session.getSnapshot().hover).toBeNull();
   });
 
@@ -994,13 +994,13 @@ describe("GameSession push", () => {
     map = replaceStack(map, 0, 2, 0, [{ tileId: "grass" }]);
     const session = new GameSession(map, tiles);
     expect(session.push({ x: 0, y: 1, z: 0, stackIndex: 1 })).toBe(true);
-    expect(session.getSnapshot().player.direction).toBe("s");
+    expect(session.getSnapshot().self.direction).toBe("s");
   });
 
   it("refuses an object two cells away", () => {
     const session = new GameSession(mapWithCrate(2), tiles);
     expect(session.push(crateRef(2))).toBe(false);
-    expect(session.getSnapshot().slide).toBeNull();
+    expect(session.getSnapshot().self.slide).toBeNull();
   });
 
   it("refuses an object on the diagonal", () => {
@@ -1077,13 +1077,13 @@ describe("GameSession push", () => {
       "grass",
       "crate",
     ]);
-    expect(snap.slide).not.toBeNull();
-    expect(snap.slide?.from).toEqual({ x: 1, y: 0, z: 0 });
-    expect(snap.slide?.object).toEqual({ x: 2, y: 0, z: 0, stackIndex: 1 });
-    expect(snap.slide?.progress).toBe(0);
+    expect(snap.self.slide).not.toBeNull();
+    expect(snap.self.slide?.from).toEqual({ x: 1, y: 0, z: 0 });
+    expect(snap.self.slide?.object).toEqual({ x: 2, y: 0, z: 0, stackIndex: 1 });
+    expect(snap.self.slide?.progress).toBe(0);
 
     runSlide(session);
-    expect(session.getSnapshot().slide).toBeNull();
+    expect(session.getSnapshot().self.slide).toBeNull();
   });
 
   it("lets the player follow straight into the cell the object left", () => {
@@ -1104,8 +1104,8 @@ describe("GameSession push", () => {
     session.tick(1000 / 30);
 
     const snap = session.getSnapshot();
-    expect(snap.slide).not.toBeNull();
-    expect(snap.walk?.to).toEqual({ x: 1, y: 0, z: 0 });
+    expect(snap.self.slide).not.toBeNull();
+    expect(snap.self.walk?.to).toEqual({ x: 1, y: 0, z: 0 });
   });
 
   it("cannot be pushed again while still travelling", () => {
@@ -1131,8 +1131,8 @@ describe("GameSession push", () => {
     session.tick(1000 / 30);
 
     const snap = session.getSnapshot();
-    expect(snap.slide).not.toBeNull();
-    expect(snap.walk).not.toBeNull();
+    expect(snap.self.slide).not.toBeNull();
+    expect(snap.self.walk).not.toBeNull();
   });
 });
 
