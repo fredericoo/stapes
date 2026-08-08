@@ -1680,12 +1680,7 @@
                 "y": 1
               }
             },
-            "durationMs": 200,
-            "light": {
-              "radius": 8,
-              "intensity": 1,
-              "color": "#ffcc88"
-            }
+            "durationMs": 200
           }
         ]
       },
@@ -1705,12 +1700,7 @@
                 "y": 1
               }
             },
-            "durationMs": 200,
-            "light": {
-              "radius": 8,
-              "intensity": 1,
-              "color": "#ffcc88"
-            }
+            "durationMs": 200
           }
         ]
       },
@@ -1730,12 +1720,7 @@
                 "y": 1
               }
             },
-            "durationMs": 200,
-            "light": {
-              "radius": 8,
-              "intensity": 1,
-              "color": "#ffcc88"
-            }
+            "durationMs": 200
           }
         ]
       },
@@ -1755,12 +1740,7 @@
                 "y": 1
               }
             },
-            "durationMs": 200,
-            "light": {
-              "radius": 8,
-              "intensity": 1,
-              "color": "#ffcc88"
-            }
+            "durationMs": 200
           }
         ]
       }
@@ -2817,6 +2797,11 @@
     "interactions": {
       "switch": {
         "targetTileId": "door-open"
+      },
+      "receive": {
+        "tileId": "door-open",
+        "when": "on",
+        "mode": "any"
       }
     },
     "sprite": {
@@ -2852,6 +2837,11 @@
     "interactions": {
       "switch": {
         "targetTileId": "door-closed"
+      },
+      "receive": {
+        "tileId": "door-closed",
+        "when": "off",
+        "mode": "all"
       }
     },
     "sprite": {
@@ -2886,6 +2876,9 @@
         "tileId": "pressure-plate-pressed",
         "type": "gte",
         "height": 1
+      },
+      "emit": {
+        "value": "off"
       }
     },
     "sprite": {
@@ -2920,6 +2913,9 @@
         "tileId": "pressure-plate",
         "type": "lte",
         "height": 0
+      },
+      "emit": {
+        "value": "on"
       }
     },
     "sprite": {

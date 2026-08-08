@@ -6,8 +6,11 @@ import {
   interactionKinds,
   isInteractive,
   plateTriggers,
+  receiveTriggers,
+  resolveEmit,
   resolvePressurePlate,
   resolvePush,
+  resolveReceive,
   resolveSwitch,
 } from "./interactions";
 import type { TileDef } from "./types";
@@ -141,6 +144,97 @@ describe("plateTriggers", () => {
   });
 });
 
+describe("resolveEmit", () => {
+  it("reads a valid emit block", () => {
+    const def = tile({
+      id: "torch-lit",
+      height: 0,
+      interactions: { emit: { value: "on" } },
+    });
+    expect(resolveEmit(def)).toEqual({ value: "on" });
+  });
+
+  it("rejects an unknown value", () => {
+    const def = tile({
+      id: "torch-lit",
+      height: 0,
+      interactions: { emit: { value: "maybe" } },
+    });
+    expect(resolveEmit(def)).toBeNull();
+  });
+
+  it("is not something the player can act on", () => {
+    const def = tile({
+      id: "torch-lit",
+      height: 0,
+      interactions: { emit: { value: "on" } },
+    });
+    expect(isInteractive(def)).toBe(false);
+    expect(hasAnyInteraction(def.interactions)).toBe(true);
+  });
+});
+
+describe("resolveReceive", () => {
+  it("reads a valid receive block", () => {
+    const def = tile({
+      id: "door",
+      height: 2,
+      interactions: {
+        receive: { tileId: "door-open", when: "on", mode: "any" },
+      },
+    });
+    expect(resolveReceive(def)).toEqual({
+      tileId: "door-open",
+      when: "on",
+      mode: "any",
+    });
+  });
+
+  it("rejects an empty target, an unknown reading and an unknown mode", () => {
+    const noTarget = tile({
+      id: "a",
+      height: 2,
+      interactions: { receive: { tileId: "", when: "on", mode: "any" } },
+    });
+    const badWhen = tile({
+      id: "b",
+      height: 2,
+      interactions: { receive: { tileId: "x", when: "maybe", mode: "any" } },
+    });
+    const badMode = tile({
+      id: "c",
+      height: 2,
+      interactions: { receive: { tileId: "x", when: "on", mode: "some" } },
+    });
+    expect(resolveReceive(noTarget)).toBeNull();
+    expect(resolveReceive(badWhen)).toBeNull();
+    expect(resolveReceive(badMode)).toBeNull();
+  });
+
+  it("is not something the player can act on", () => {
+    const def = tile({
+      id: "door",
+      height: 2,
+      interactions: {
+        receive: { tileId: "door-open", when: "on", mode: "any" },
+      },
+    });
+    expect(isInteractive(def)).toBe(false);
+    expect(hasAnyInteraction(def.interactions)).toBe(true);
+  });
+});
+
+describe("receiveTriggers", () => {
+  it("fires on the reading it was authored for", () => {
+    const onOpen = { tileId: "x", when: "on", mode: "any" } as const;
+    const offClose = { tileId: "y", when: "off", mode: "any" } as const;
+    expect(receiveTriggers(onOpen, true)).toBe(true);
+    expect(receiveTriggers(onOpen, false)).toBe(false);
+    expect(receiveTriggers(offClose, false)).toBe(true);
+    expect(receiveTriggers(offClose, true)).toBe(false);
+  });
+});
+
 describe("interactionsForSave", () => {
   it("persists switch alongside push", () => {
     expect(
@@ -170,6 +264,27 @@ describe("interactionsForSave", () => {
         pressurePlate: { tileId: "", type: "gte", height: 1 },
       }),
     ).toBeUndefined();
+  });
+
+  it("persists emit and receive", () => {
+    expect(
+      interactionsForSave({
+        emit: { value: "off" },
+        receive: { tileId: " door-open ", when: "on", mode: "all" },
+      }),
+    ).toEqual({
+      emit: { value: "off" },
+      receive: { tileId: "door-open", when: "on", mode: "all" },
+    });
+  });
+
+  it("omits a targetless receive but keeps a bare emit", () => {
+    expect(
+      interactionsForSave({
+        emit: { value: "on" },
+        receive: { tileId: "", when: "on", mode: "any" },
+      }),
+    ).toEqual({ emit: { value: "on" } });
   });
 
   it("omits an empty switch target", () => {

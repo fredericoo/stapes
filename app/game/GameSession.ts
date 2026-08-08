@@ -44,6 +44,7 @@ import {
   findPlateCells,
   settlePlates,
 } from "./pressurePlates";
+import { cellIsWired, findWiredCells, settleSignals } from "./signals";
 
 export type WalkState = {
   from: Coord;
@@ -133,11 +134,17 @@ export class GameSession {
   /**
    * Cells holding a pressure plate, so settling reads a handful of columns
    * instead of the whole board every tick. Kept true by
-   * {@link reindexPlates} at the few sites that can relocate a plate; a stale
+   * {@link reindexCells} at the few sites that can relocate a plate; a stale
    * extra entry only costs a wasted stack read, a missing one is a dead plate.
    */
   private readonly plateCells = new Map<string, Coord>();
-  /** Map identity the last settle pass read. See {@link settlePlatesNow}. */
+  /**
+   * Cells holding a placement wired to a signal channel — emitters and
+   * receivers alike, since reading a channel means finding both. Same index
+   * discipline as {@link plateCells}.
+   */
+  private readonly wiredCells = new Map<string, Coord>();
+  /** Map identity the last settle pass read. See {@link settleBoardNow}. */
   private settledMap: MapFile | null = null;
 
   constructor(map: MapFile, tiles: TileDef[]) {
@@ -148,14 +155,18 @@ export class GameSession {
     for (const cell of findPlateCells(this.map, this.tilesById)) {
       this.plateCells.set(cellKey(cell), cell);
     }
+    for (const cell of findWiredCells(this.map)) {
+      this.wiredCells.set(cellKey(cell), cell);
+    }
     // An authored map opens in the state its load implies — a boulder already
     // sitting on a plate means that plate starts pressed, not pressed one tick
-    // after the player first sees it.
-    this.settlePlatesNow();
+    // after the player first sees it, and the door that plate drives starts
+    // open.
+    this.settleBoardNow();
   }
 
-  /** Keep the plate index true for cells whose stack just changed. */
-  private reindexPlates(cells: Iterable<Coord>) {
+  /** Keep both indexes true for cells whose stack just changed. */
+  private reindexCells(cells: Iterable<Coord>) {
     for (const cell of cells) {
       const key = cellKey(cell);
       if (cellHasPlate(this.map, cell, this.tilesById)) {
@@ -163,31 +174,52 @@ export class GameSession {
       } else {
         this.plateCells.delete(key);
       }
+      if (cellIsWired(this.map, cell)) {
+        this.wiredCells.set(key, cell);
+      } else {
+        this.wiredCells.delete(key);
+      }
     }
   }
 
   /**
-   * Bring every plate in line with what is resting on it.
+   * Bring the board in line with itself: plates follow what rests on them,
+   * then receivers follow the channels those plates now drive.
+   *
+   * Plates first, and in the same tick, so a plate pressed by this tick's step
+   * opens its door on the frame the player sees the step land rather than the
+   * one after.
    *
    * The skip is on map identity, not a dirty flag: the map is copy-on-write, so
-   * an unchanged map cannot have changed a plate's load. The identity recorded
-   * is the one read *before* the pass, which is what lets a swap that shifts
-   * another plate's load settle on the next tick rather than being mistaken for
-   * a board at rest.
+   * an unchanged map cannot have changed a plate's load or a channel's value.
+   * The identity recorded is the one read *before* the pass, which is what lets
+   * a swap that shifts another plate's load — or drives another channel —
+   * settle on the next tick rather than being mistaken for a board at rest.
    */
-  private settlePlatesNow() {
-    if (this.plateCells.size === 0) return;
+  private settleBoardNow() {
     const before = this.map;
     if (before === this.settledMap) return;
     this.settledMap = before;
 
-    const { map, changed } = settlePlates(
-      before,
-      this.plateCells.values(),
-      this.tilesById,
-    );
-    this.map = map;
-    this.reindexPlates(changed);
+    if (this.plateCells.size > 0) {
+      const { map, changed } = settlePlates(
+        this.map,
+        this.plateCells.values(),
+        this.tilesById,
+      );
+      this.map = map;
+      this.reindexCells(changed);
+    }
+
+    if (this.wiredCells.size > 0) {
+      const { map, changed } = settleSignals(
+        this.map,
+        this.wiredCells.values(),
+        this.tilesById,
+      );
+      this.map = map;
+      this.reindexCells(changed);
+    }
   }
 
   /**
@@ -324,7 +356,7 @@ export class GameSession {
       elapsedMs: 0,
     };
     // The object itself may be a plate, so both ends of the shove are suspect.
-    this.reindexPlates([from, to]);
+    this.reindexCells([from, to]);
     return true;
   }
 
@@ -348,14 +380,14 @@ export class GameSession {
     if (!def || !sw) return false;
 
     const stack = getStack(this.map, ref.x, ref.y, ref.z);
+    // Only the tile id changes. The slot's own state — facing, signal channel —
+    // belongs to the placement, not to whichever tile is filling it.
     const next = stack.map((placed, i) =>
-      i === ref.stackIndex
-        ? { tileId: sw.targetTileId, direction: placed.direction }
-        : placed,
+      i === ref.stackIndex ? { ...placed, tileId: sw.targetTileId } : placed,
     );
     this.map = replaceStack(this.map, ref.x, ref.y, ref.z, next);
     // The tile switched into may be a plate — or may have been one.
-    this.reindexPlates([{ x: ref.x, y: ref.y, z: ref.z }]);
+    this.reindexCells([{ x: ref.x, y: ref.y, z: ref.z }]);
     return true;
   }
 
@@ -375,9 +407,7 @@ export class GameSession {
     const placed = stack[ref.stackIndex];
     if (!placed) return false;
     const next = stack.map((p, i) =>
-      i === ref.stackIndex
-        ? { tileId: targetTileId, direction: p.direction }
-        : p,
+      i === ref.stackIndex ? { ...p, tileId: targetTileId } : p,
     );
     return canReplaceStack(
       this.map,
@@ -431,9 +461,10 @@ export class GameSession {
     // the player does next.
     this.tickSlide(tickMs);
     this.tickMotion(tickMs);
-    // Last, and on every path through the tick: plates answer to the board the
-    // tick leaves behind, not to any particular thing having caused it.
-    this.settlePlatesNow();
+    // Last, and on every path through the tick: plates and channels answer to
+    // the board the tick leaves behind, not to any particular thing having
+    // caused it.
+    this.settleBoardNow();
   }
 
   /** The player's own motion for one tick — walking, falling, or starting to. */

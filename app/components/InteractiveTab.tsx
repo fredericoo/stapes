@@ -1,14 +1,20 @@
 import type {
   ClimbAbility,
+  EmitInteraction,
   PlateComparison,
   PressurePlateInteraction,
   PushInteraction,
+  ReceiveInteraction,
+  SignalMode,
+  SignalValue,
   SwitchInteraction,
   TileInteractions,
 } from "../lib/interactions";
 import {
+  DEFAULT_EMIT,
   DEFAULT_PRESSURE_PLATE,
   DEFAULT_PUSH,
+  DEFAULT_RECEIVE,
   DEFAULT_SWITCH,
   hasAnyInteraction,
 } from "../lib/interactions";
@@ -45,6 +51,8 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets }: Props) {
   const push = draft.interactions?.push;
   const sw = draft.interactions?.switch;
   const plate = draft.interactions?.pressurePlate;
+  const emit = draft.interactions?.emit;
+  const receive = draft.interactions?.receive;
 
   const setInteractions = (next: TileInteractions | undefined) => {
     onChange({ ...draft, interactions: next });
@@ -86,6 +94,19 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets }: Props) {
   const patchPlate = (patch: Partial<PressurePlateInteraction>) => {
     if (!plate) return;
     setPlate({ ...plate, ...patch });
+  };
+
+  const setEmit = (next: EmitInteraction | undefined) => {
+    patchKind("emit", next ?? null);
+  };
+
+  const setReceive = (next: ReceiveInteraction | undefined) => {
+    patchKind("receive", next ?? null);
+  };
+
+  const patchReceive = (patch: Partial<ReceiveInteraction>) => {
+    if (!receive) return;
+    setReceive({ ...receive, ...patch });
   };
 
   return (
@@ -247,6 +268,113 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets }: Props) {
               onChange={(ids) => patchPlate({ tileId: ids[0] ?? "" })}
               label="Swap to"
               emptyHint="Pick the tile this becomes while the comparison holds."
+              single
+            />
+          </div>
+        ) : null}
+      </section>
+
+      <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
+        <label className="flex items-center gap-2 text-sm font-bold">
+          <Switch
+            checked={Boolean(emit)}
+            onCheckedChange={(on) => setEmit(on ? { ...DEFAULT_EMIT } : undefined)}
+            ariaLabel="Emits a signal"
+          />
+          Emit
+        </label>
+        <p className="text-[11px] leading-snug text-muted">
+          While this tile sits on a placement with a channel, it drives that
+          channel. The tile <em>is</em> the state, so author both halves — torch
+          lit emits <strong>on</strong>, torch unlit emits <strong>off</strong>{" "}
+          — and let switch or pressure plate move between them. Which channel is
+          picked per placement in the map editor, not here.
+        </p>
+
+        {emit ? (
+          <div className="flex flex-col items-start gap-1 border-t-2 border-border pt-3 text-xs">
+            <span className="font-bold uppercase text-muted">Drives channel</span>
+            <Segmented<SignalValue>
+              value={emit.value}
+              onChange={(value) => setEmit({ value })}
+              options={[
+                { value: "on", label: "On" },
+                { value: "off", label: "Off" },
+              ]}
+              size="sm"
+              ariaLabel="Signal value"
+            />
+          </div>
+        ) : null}
+      </section>
+
+      <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
+        <label className="flex items-center gap-2 text-sm font-bold">
+          <Switch
+            checked={Boolean(receive)}
+            onCheckedChange={(on) =>
+              setReceive(on ? { ...DEFAULT_RECEIVE } : undefined)
+            }
+            ariaLabel="Receives a signal"
+          />
+          Receive
+        </label>
+        <p className="text-[11px] leading-snug text-muted">
+          Swaps itself for another tile while its channel reads a given way — a
+          pressure plate or lit torch somewhere else on the map is the whole
+          input. Same pairing as a pressure plate: author{" "}
+          <strong>on → open</strong> on the closed door and{" "}
+          <strong>off → closed</strong> on the open one, or it opens once and
+          stays open.
+        </p>
+
+        {receive ? (
+          <div className="flex flex-col gap-3 border-t-2 border-border pt-3">
+            <div className="flex flex-wrap items-end gap-3">
+              <div className="flex flex-col items-start gap-1 text-xs">
+                <span className="font-bold uppercase text-muted">
+                  Swap when channel is
+                </span>
+                <Segmented<SignalValue>
+                  value={receive.when}
+                  onChange={(when) => patchReceive({ when })}
+                  options={[
+                    { value: "on", label: "On" },
+                    { value: "off", label: "Off" },
+                  ]}
+                  size="sm"
+                  ariaLabel="Channel reading"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1 text-xs">
+                <span className="font-bold uppercase text-muted">Emitters</span>
+                <Segmented<SignalMode>
+                  value={receive.mode}
+                  onChange={(mode) => patchReceive({ mode })}
+                  options={[
+                    { value: "any", label: "Any" },
+                    { value: "all", label: "All" },
+                  ]}
+                  size="sm"
+                  ariaLabel="Emitter aggregation"
+                />
+              </div>
+            </div>
+
+            <span className="text-[11px] leading-snug text-muted">
+              With several emitters on one channel, <strong>any</strong> reads
+              on as soon as one of them is on; <strong>all</strong> waits for
+              every one. A channel with no emitters at all reads off.
+            </span>
+
+            <TileIdMultiSelect
+              tiles={tiles.filter((t) => t.id !== draft.id)}
+              tilesets={tilesets}
+              selectedIds={receive.tileId ? [receive.tileId] : []}
+              onChange={(ids) => patchReceive({ tileId: ids[0] ?? "" })}
+              label="Swap to"
+              emptyHint="Pick the tile this becomes while the channel matches."
               single
             />
           </div>

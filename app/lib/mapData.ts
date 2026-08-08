@@ -38,6 +38,55 @@ export function chunkKeyFor(x: number, y: number): string {
   return `${Math.floor(x / CHUNK_SIZE)},${Math.floor(y / CHUNK_SIZE)}`;
 }
 
+/** Key of the chunk at chunk-space coordinates — for addressing a rect's chunks. */
+export function chunkKeyAt(cx: number, cy: number): string {
+  return `${cx},${cy}`;
+}
+
+/** Chunk-space index containing cell coordinate `v` on either axis. */
+export function chunkIndexOf(v: number): number {
+  return Math.floor(v / CHUNK_SIZE);
+}
+
+/**
+ * Cell keys whose stack differs between two versions of a level.
+ *
+ * Leans entirely on copy-on-write: an edit rewrites the one chunk it touched
+ * and leaves every other chunk identical, so a reference compare skips
+ * thousands of cells before a single key is read. A walk comes out of this as
+ * exactly two cells on a 4565-cell floor.
+ *
+ * Callers use it to answer "is it worth rebuilding everything?" — so it returns
+ * the cells rather than a boolean, and stays silent about what changed in them.
+ */
+export function changedCellsOnLevel(
+  prev: MapFile,
+  next: MapFile,
+  z: number,
+): Set<string> {
+  const out = new Set<string>();
+  const before = prev.levels[levelKey(z)];
+  const after = next.levels[levelKey(z)];
+  if (before === after) return out;
+
+  const chunkKeys = new Set([
+    ...Object.keys(before ?? {}),
+    ...Object.keys(after ?? {}),
+  ]);
+  for (const chk of chunkKeys) {
+    const a = before?.[chk];
+    const b = after?.[chk];
+    if (a === b) continue;
+    for (const key in b) {
+      if (a?.[key] !== b[key]) out.add(key);
+    }
+    for (const key in a) {
+      if (b?.[key] === undefined) out.add(key);
+    }
+  }
+  return out;
+}
+
 /** Cells of one chunk, or an empty record. */
 export function getChunk(
   map: MapFile,
@@ -439,6 +488,47 @@ export function updatePlacedDirection(
   const stack = getStack(map, x, y, z).map((p, i) =>
     i === stackIndex ? { ...p, direction } : { ...p },
   );
+  return setStack(map, x, y, z, stack);
+}
+
+/**
+ * Every signal channel named anywhere in the map, sorted.
+ *
+ * There is no channel registry — a channel exists because some placement says
+ * so — which is exactly why the editor needs this: it is the only way to offer
+ * the names already in play and let a second plate join a wire by picking
+ * rather than by retyping it correctly.
+ */
+export function listChannels(map: MapFile): string[] {
+  const seen = new Set<string>();
+  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+    for (const { stack } of listCoords(map, z)) {
+      for (const placed of stack) {
+        if (placed.channel) seen.add(placed.channel);
+      }
+    }
+  }
+  return [...seen].sort();
+}
+
+/**
+ * Set (or clear, with an empty string) the signal channel on one placement.
+ * See {@link PlacedTile.channel}.
+ */
+export function updatePlacedChannel(
+  map: MapFile,
+  x: number,
+  y: number,
+  z: number,
+  stackIndex: number,
+  channel: string,
+): MapFile {
+  const trimmed = channel.trim();
+  const stack = getStack(map, x, y, z).map((p, i) => {
+    if (i !== stackIndex) return { ...p };
+    const { channel: _dropped, ...rest } = p;
+    return trimmed ? { ...rest, channel: trimmed } : rest;
+  });
   return setStack(map, x, y, z, stack);
 }
 

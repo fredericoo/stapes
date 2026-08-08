@@ -23,7 +23,6 @@ import type {
 } from "./lighting";
 import { composeAmbientRgb } from "./lighting";
 import { computeLightingFlood, MAX_LIGHT_LEVEL } from "./lightingFlood";
-import { chunkifyMap, getStack } from "./mapData";
 import type {
   ChunkCells,
   LevelChunks,
@@ -34,9 +33,11 @@ import type {
 import {
   MAX_LEVEL,
   MIN_LEVEL,
-  coordKey,
+  maxLightRadius,
   parseCoordKey,
+  physicalHeight,
   resolveLightPassing,
+  tileCanEmitLight,
 } from "./types";
 
 /**
@@ -61,9 +62,12 @@ export type WorldRect = { x0: number; y0: number; x1: number; y1: number };
 export const PREFETCH_RING_CHUNKS = 1;
 
 /**
- * Chunks baked per idle call. Deliberately one — a chunk bake is milliseconds,
- * so filling a ring in a single frame would just relocate the hitch it exists
- * to remove. Spread over frames it disappears into the walk.
+ * Chunks baked per idle call. Deliberately one, and one is already generous: a
+ * single chunk bake measures ~4.7ms on the fixture map, which is most of a
+ * 120fps frame on its own. Filling a whole ring in one call would simply
+ * relocate the hitch this exists to remove. Spread over frames it disappears
+ * into the walk — but raising this without first making a bake cheaper would
+ * put the stutter straight back.
  */
 export const PREFETCH_CHUNKS_PER_CALL = 1;
 
@@ -121,43 +125,30 @@ function chunkCacheKey(cx: number, cy: number): string {
   return `${cx},${cy}`;
 }
 
+/**
+ * Identity of everything an assembled grid depends on, spatially.
+ *
+ * Both assemble paths snap to whole chunks, so a window nudged one cell east
+ * produces byte-identical output until it crosses a chunk edge. Keying on the
+ * raw rect missed that and rebuilt every plane on every frame the camera moved
+ * — cheap in itself, but it minted a new grid object each time, and callers use
+ * grid identity to decide whether to re-upload their textures. A walk was
+ * therefore re-uploading every level, every frame, to hand the GPU bytes it
+ * already had.
+ */
+function chunkSpanKey(rect: WorldRect): string {
+  return [
+    chunkOf(rect.x0),
+    chunkOf(rect.y0),
+    chunkOf(rect.x1),
+    chunkOf(rect.y1),
+  ].join(",");
+}
+
 function chunkRect(cx: number, cy: number): WorldRect {
   const x0 = cx * LIGHT_CHUNK_SIZE;
   const y0 = cy * LIGHT_CHUNK_SIZE;
   return { x0, y0, x1: x0 + LIGHT_CHUNK_SIZE - 1, y1: y0 + LIGHT_CHUNK_SIZE - 1 };
-}
-
-function cropLevel(
-  map: MapFile,
-  z: number,
-  rect: WorldRect,
-): Record<string, PlacedTile[]> {
-  const kept: Record<string, PlacedTile[]> = {};
-  for (let y = rect.y0; y <= rect.y1; y++) {
-    for (let x = rect.x0; x <= rect.x1; x++) {
-      const stack = getStack(map, x, y, z);
-      if (stack.length) kept[coordKey(x, y)] = stack;
-    }
-  }
-  return kept;
-}
-
-/**
- * Cells of `map` inside `rect`, gathered by addressing the rect rather than
- * filtering the map. Scanning every cell would put the whole point of this
- * module back — the bake would be bounded but the gather feeding it would
- * still be O(world), which is the same cliff one level down.
- */
-function cropMap(map: MapFile, rect: WorldRect): MapFile {
-  const levels: Record<string, Record<string, PlacedTile[]>> = {};
-  for (const lz of Object.keys(map.levels)) {
-    const kept = cropLevel(map, Number(lz), rect);
-    for (const _ in kept) {
-      levels[lz] = kept;
-      break;
-    }
-  }
-  return chunkifyMap({ version: 1, levels });
 }
 
 /**
@@ -218,11 +209,12 @@ function bakeRegion(
     x1: rect.x1 + LIGHT_APRON,
     y1: rect.y1 + LIGHT_APRON,
   };
-  // Crop supplies the occluders and emitters that reach in; the domain fixes
-  // what comes out. Both are needed — the crop alone would let an empty
-  // neighbourhood shrink the domain inside the chunk and blank it out.
+  // The domain does both jobs: it bounds which cells are read — the apron
+  // covers every occluder and emitter that can reach in — and it fixes what
+  // comes out, so an empty neighbourhood cannot shrink the region and blank
+  // out the chunk's interior.
   const grid = computeLightingFlood(
-    cropMap(map, padded),
+    map,
     tilesById,
     undefined,
     omitLightTileIds,
@@ -280,13 +272,17 @@ export class ChunkedLighting {
   }
 
   /**
-   * Forget chunks an edit at this cell could have changed. Light reaches
-   * {@link LIGHT_APRON} cells, so the dirty area is that far out in every
-   * direction — typically one to four chunks, never the world.
+   * Forget chunks an edit at this cell could have changed.
+   *
+   * `reach` is how far the edit's effect travels, in cells. It defaults to
+   * {@link LIGHT_APRON} — the sky flood's span, and the only safe answer when
+   * an edit changes what blocks light. An edit that only changes what a cell
+   * *emits* travels no further than that emitter's own radius, which is
+   * typically half as far and a quarter of the chunks; see {@link editReach}.
    */
-  invalidateAt(x: number, y: number) {
-    const lo = { cx: chunkOf(x - LIGHT_APRON), cy: chunkOf(y - LIGHT_APRON) };
-    const hi = { cx: chunkOf(x + LIGHT_APRON), cy: chunkOf(y + LIGHT_APRON) };
+  invalidateAt(x: number, y: number, reach: number = LIGHT_APRON) {
+    const lo = { cx: chunkOf(x - reach), cy: chunkOf(y - reach) };
+    const hi = { cx: chunkOf(x + reach), cy: chunkOf(y + reach) };
     for (let cy = lo.cy; cy <= hi.cy; cy++) {
       for (let cx = lo.cx; cx <= hi.cx; cx++) {
         if (this.cache.delete(chunkCacheKey(cx, cy))) this.version++;
@@ -377,13 +373,57 @@ export class ChunkedLighting {
     before: PlacedTile[] | undefined,
     after: PlacedTile[] | undefined,
   ) {
-    if (this.bakeSignature(before) === this.bakeSignature(after)) return;
+    const reach = this.editReach(before, after);
+    if (reach == null) return;
     const { x, y } = parseCoordKey(key);
-    this.invalidateAt(x, y);
+    this.invalidateAt(x, y, reach);
   }
 
   /**
-   * What this stack contributes to a static bake, as a comparable string.
+   * How far this cell's edit can have changed the bake, in cells, or null when
+   * it cannot have changed it at all.
+   *
+   * A door opening and a lamp switching on are not the same size of edit, and
+   * charging both the sky flood's {@link LIGHT_APRON} was costing four chunks
+   * where one would do. Occlusion is the expensive kind: shadows and sky spill
+   * travel the full apron, so any change to what blocks light pays it. Emission
+   * is bounded by the emitter's own radius — half the apron for a torch, a
+   * third for the cat.
+   *
+   * Order matters: occlusion is checked first because a stack whose occluders
+   * changed may also have moved its emitters' elevation, and the wider reach
+   * covers both.
+   */
+  private editReach(
+    before: PlacedTile[] | undefined,
+    after: PlacedTile[] | undefined,
+  ): number | null {
+    if (this.occlusionSignature(before) !== this.occlusionSignature(after)) {
+      return LIGHT_APRON;
+    }
+    if (this.emissionSignature(before) === this.emissionSignature(after)) {
+      return null;
+    }
+    const reach = Math.max(
+      this.emissionReach(before),
+      this.emissionReach(after),
+    );
+    return reach > 0 ? Math.ceil(reach) : null;
+  }
+
+  /**
+   * What this stack contributes to occlusion and to stack geometry.
+   *
+   * Written in terms of the three properties the bake actually reads rather
+   * than the tile id, and that distinction is the whole point. A pressure plate
+   * pressing is a swap to a different id with identical height, volume and
+   * light-passing — it cannot move a single photon, and keying on the id
+   * charged it the full sky apron anyway. A door opening changes light-passing
+   * and volume, so it still pays.
+   *
+   * Facing is absent: nothing in the occlusion model reads direction, so a
+   * signpost turning round cannot cast a different shadow. Order is kept,
+   * because it sets the elevation every emitter above it sits at.
    *
    * Tiles whose light is painted dynamically are skipped — but only when they
    * also pass light, since an omitted emitter that still casts a shadow is very
@@ -391,17 +431,59 @@ export class ChunkedLighting {
    * every step and is light-passing, so without this every step dirties the
    * chunks around it and rebakes them for no visible change at all.
    */
-  private bakeSignature(stack: PlacedTile[] | undefined): string {
+  private occlusionSignature(stack: PlacedTile[] | undefined): string {
     if (!stack?.length) return "";
     let sig = "";
     for (const placed of stack) {
-      if (this.omitLightTileIds?.has(placed.tileId)) {
-        const def = this.tilesById[placed.tileId];
-        if (def && resolveLightPassing(def)) continue;
+      if (this.omittedFromBake(placed)) continue;
+      const def = this.tilesById[placed.tileId];
+      // An unknown id contributes nothing to the bake, but two different
+      // unknowns must not compare equal to two different knowns by accident.
+      if (!def) {
+        sig += `?${placed.tileId}|`;
+        continue;
       }
+      // height drives opacity and sealing; physical height drives the elevation
+      // emitters above sit at; light-passing decides whether it occludes at all.
+      sig += `${def.height},${physicalHeight(def)},${resolveLightPassing(def) ? 1 : 0}|`;
+    }
+    return sig;
+  }
+
+  /**
+   * What this stack emits, as a comparable string. Facing counts here — a
+   * directional torch lights a different cone each way round.
+   */
+  private emissionSignature(stack: PlacedTile[] | undefined): string {
+    if (!stack?.length) return "";
+    let sig = "";
+    for (const placed of stack) {
+      if (this.omittedFromBake(placed)) continue;
+      const def = this.tilesById[placed.tileId];
+      if (!def || !tileCanEmitLight(def)) continue;
       sig += `${placed.tileId}:${placed.direction ?? ""}|`;
     }
     return sig;
+  }
+
+  /** Furthest any emitter in this stack reaches, in cells. */
+  private emissionReach(stack: PlacedTile[] | undefined): number {
+    let reach = 0;
+    for (const placed of stack ?? []) {
+      if (this.omittedFromBake(placed)) continue;
+      const def = this.tilesById[placed.tileId];
+      if (!def) continue;
+      const radius = maxLightRadius(def);
+      if (radius > reach) reach = radius;
+    }
+    return reach;
+  }
+
+  /** Painted dynamically *and* casting no shadow, so the static bake ignores it. */
+  private omittedFromBake(placed: PlacedTile): boolean {
+    if (!this.omitLightTileIds?.has(placed.tileId)) return false;
+    const def = this.tilesById[placed.tileId];
+    return Boolean(def && resolveLightPassing(def));
   }
 
   /**
@@ -423,7 +505,7 @@ export class ChunkedLighting {
     if (this.lastBakedChunks === 0) this.prefetchRing(map, rect);
 
     const ambientKey = ambient.map((c) => c.toFixed(4)).join(",");
-    const key = `${rect.x0},${rect.y0},${rect.x1},${rect.y1}|${this.version}|${ambientKey}`;
+    const key = `${chunkSpanKey(rect)}|${this.version}|${ambientKey}`;
     if (this.assembled?.key === key) {
       this.touchWindow(rect);
       this.evictColdest();
@@ -566,7 +648,7 @@ export class ChunkedLighting {
     this.fillMissing(map, rect);
     if (this.lastBakedChunks === 0) this.prefetchRing(map, rect);
 
-    const key = `packed|${rect.x0},${rect.y0},${rect.x1},${rect.y1}|${this.version}`;
+    const key = `packed|${chunkSpanKey(rect)}|${this.version}`;
     if (this.packed?.key === key) {
       this.touchWindow(rect);
       this.evictColdest();

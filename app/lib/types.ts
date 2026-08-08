@@ -203,6 +203,19 @@ export type TilesetDef = {
 export type PlacedTile = {
   tileId: string;
   direction?: Direction;
+  /**
+   * Signal channel this placement is wired to. Emitters drive it, receivers
+   * follow it, and sharing a name is the whole of the binding — there is no
+   * link table and no per-tile identity to keep alive.
+   *
+   * Absent on all but the handful of wired placements in a map, which is why
+   * this is a placement field rather than an id minted for every tile in the
+   * world. It must survive any swap of the tile occupying the slot: a plate
+   * pressing, a door opening and a crate being shoved are all the same wire.
+   *
+   * See ../game/signals for how it is read.
+   */
+  channel?: string;
 };
 
 /**
@@ -381,6 +394,26 @@ export function tileCanEmitLight(tile: TileDef): boolean {
       (f) => f.light && f.light.radius > 0 && f.light.intensity > 0,
     ),
   );
+}
+
+/**
+ * Furthest this tile's light can reach, in cells, over every variant and frame.
+ *
+ * The bound has to hold across variants rather than for the placement's current
+ * one: a lamp swapping to its lit form, or a directional torch turning, changes
+ * which frame is live, and the cells that stop being lit are as dirty as the
+ * ones that start. Zero when the tile never emits.
+ */
+export function maxLightRadius(tile: TileDef): number {
+  let max = 0;
+  for (const sprite of allTileSprites(tile)) {
+    for (const frame of sprite.frames) {
+      const light = frame.light;
+      if (!light || light.intensity <= 0) continue;
+      if (light.radius > max) max = light.radius;
+    }
+  }
+  return max;
 }
 
 export function frameAtTime(frames: Frame[], timeMs: number): Frame | undefined {

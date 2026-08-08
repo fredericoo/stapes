@@ -86,11 +86,58 @@ export type PressurePlateInteraction = {
   height: number;
 };
 
+/** The two states a signal channel can be in. */
+export type SignalValue = "on" | "off";
+
+export const SIGNAL_VALUES: SignalValue[] = ["on", "off"];
+
+/**
+ * While this tile is placed on a wired cell, it drives that cell's channel to
+ * {@link value}.
+ *
+ * The tile def *is* the state — `torch_lit` emits on, `torch_unlit` emits off
+ * — so nothing here says when to switch. That stays with whatever already
+ * moves the tile between its two forms: a {@link SwitchInteraction} the player
+ * taps, or a {@link PressurePlateInteraction} the board presses.
+ *
+ * Which channel is not authored here either. A tile def is placed many times
+ * over and each copy answers to a different wire, so the channel lives on the
+ * placement ({@link PlacedTile.channel}).
+ */
+export type EmitInteraction = {
+  value: SignalValue;
+};
+
+/** How a receiver reads a channel driven by more than one emitter. */
+export type SignalMode = "any" | "all";
+
+export const SIGNAL_MODES: SignalMode[] = ["any", "all"];
+
+/**
+ * Swap this tile out for another while its cell's channel reads {@link when}.
+ *
+ * Deliberately the same shape as {@link PressurePlateInteraction} — a
+ * condition and the tile to become — because it is the same mechanism with a
+ * different sensor, and one authored half is likewise only half of it: a door
+ * that opens on `on` needs its open form to close on `off`, or it opens once
+ * and stays open.
+ */
+export type ReceiveInteraction = {
+  /** Tile this becomes while the channel matches. */
+  tileId: string;
+  /** Channel reading that triggers the swap. */
+  when: SignalValue;
+  /** With several emitters on the channel: any of them on, or all of them. */
+  mode: SignalMode;
+};
+
 /** Ways a placed object can behave in play. Grows over time. */
 export type TileInteractions = {
   push?: PushInteraction;
   switch?: SwitchInteraction;
   pressurePlate?: PressurePlateInteraction;
+  emit?: EmitInteraction;
+  receive?: ReceiveInteraction;
 };
 
 export const DEFAULT_SWITCH: SwitchInteraction = {
@@ -106,6 +153,16 @@ export const DEFAULT_PRESSURE_PLATE: PressurePlateInteraction = {
   tileId: "",
   type: "gte",
   height: 1,
+};
+
+export const DEFAULT_EMIT: EmitInteraction = {
+  value: "on",
+};
+
+export const DEFAULT_RECEIVE: ReceiveInteraction = {
+  tileId: "",
+  when: "on",
+  mode: "any",
 };
 
 /** Does the load resting on this plate satisfy its authored comparison? */
@@ -191,6 +248,58 @@ export function resolvePressurePlate(
   return plate;
 }
 
+const emitSchema = v.object({
+  value: v.picklist(SIGNAL_VALUES),
+});
+
+const emitCache = new WeakMap<TileDef, EmitInteraction | null>();
+
+/**
+ * Parsed emit config per tile def. Same trust model as {@link resolvePush}:
+ * malformed → does not drive anything.
+ */
+export function resolveEmit(def: TileDef): EmitInteraction | null {
+  const cached = emitCache.get(def);
+  if (cached !== undefined) return cached;
+
+  const raw = def.interactions?.emit;
+  const parsed = raw == null ? null : v.safeParse(emitSchema, raw);
+  const emit = parsed?.success ? parsed.output : null;
+  emitCache.set(def, emit);
+  return emit;
+}
+
+const receiveSchema = v.object({
+  tileId: v.pipe(v.string(), v.minLength(1)),
+  when: v.picklist(SIGNAL_VALUES),
+  mode: v.picklist(SIGNAL_MODES),
+});
+
+const receiveCache = new WeakMap<TileDef, ReceiveInteraction | null>();
+
+/**
+ * Parsed receive config per tile def. Same trust model as {@link resolvePush}:
+ * malformed or targetless → does not follow anything.
+ */
+export function resolveReceive(def: TileDef): ReceiveInteraction | null {
+  const cached = receiveCache.get(def);
+  if (cached !== undefined) return cached;
+
+  const raw = def.interactions?.receive;
+  const parsed = raw == null ? null : v.safeParse(receiveSchema, raw);
+  const receive = parsed?.success ? parsed.output : null;
+  receiveCache.set(def, receive);
+  return receive;
+}
+
+/** Does the channel reading satisfy this receiver's authored condition? */
+export function receiveTriggers(
+  receive: ReceiveInteraction,
+  powered: boolean,
+): boolean {
+  return powered === (receive.when === "on");
+}
+
 /**
  * Kinds of interaction a tile offers the player, in the order the single
  * interact button tries them. Switch comes first: it is an explicit authored
@@ -210,6 +319,30 @@ export function interactionKinds(def: TileDef): InteractionKind[] {
   return kinds;
 }
 
+/**
+ * Can this tile ever change cell during play?
+ *
+ * Derived rather than declared, because every way a tile can move is already
+ * stated: gravity makes it fall, a push interaction makes it shovable. A flag
+ * beside those would be a third thing to keep in sync, and the first tile
+ * authored without it would be the one that breaks.
+ *
+ * Two subsystems key off this and both want the same answer. The renderer keeps
+ * mobile tiles out of the merged geometry batch, so a step repositions one mesh
+ * instead of rebuilding a floor. The light cache keeps them out of the static
+ * bake, so a step does not dirty the chunks around it. Both used to ask "is
+ * this the player", which was true, cheap, and wrong the moment a second thing
+ * moved.
+ *
+ * Deliberately a property of the tile, not of whether it happens to be moving
+ * this frame. A boulder at rest is still mobile: classifying per frame would
+ * mean shuffling it between the batch and its own mesh every time it started
+ * and stopped, and that rebuild is exactly the cost being removed.
+ */
+export function isMobileTile(def: TileDef): boolean {
+  return def.affectedByGravity === true || resolvePush(def) !== null;
+}
+
 /** Whether the player can do anything at all with this tile. */
 export function isInteractive(def: TileDef): boolean {
   return interactionKinds(def).length > 0;
@@ -224,7 +357,11 @@ export function hasAnyInteraction(
   interactions: TileInteractions | undefined,
 ): boolean {
   return Boolean(
-    interactions?.push || interactions?.switch || interactions?.pressurePlate,
+    interactions?.push ||
+      interactions?.switch ||
+      interactions?.pressurePlate ||
+      interactions?.emit ||
+      interactions?.receive,
   );
 }
 
@@ -246,10 +383,30 @@ export function interactionsForSave(
   const savedPlate = plate?.tileId.trim()
     ? { tileId: plate.tileId.trim(), type: plate.type, height: plate.height }
     : undefined;
-  if (!savedPush && !savedSwitch && !savedPlate) return undefined;
+  const emit = interactions?.emit;
+  const receive = interactions?.receive;
+  const savedEmit = emit ? { value: emit.value } : undefined;
+  const savedReceive = receive?.tileId.trim()
+    ? {
+        tileId: receive.tileId.trim(),
+        when: receive.when,
+        mode: receive.mode,
+      }
+    : undefined;
+  if (
+    !savedPush &&
+    !savedSwitch &&
+    !savedPlate &&
+    !savedEmit &&
+    !savedReceive
+  ) {
+    return undefined;
+  }
   return {
     ...(savedPush ? { push: savedPush } : {}),
     ...(savedSwitch ? { switch: savedSwitch } : {}),
     ...(savedPlate ? { pressurePlate: savedPlate } : {}),
+    ...(savedEmit ? { emit: savedEmit } : {}),
+    ...(savedReceive ? { receive: savedReceive } : {}),
   };
 }

@@ -14,18 +14,32 @@ import {
   type PackedLightGrid,
 } from "../lib/lighting";
 import { sampleIllumination } from "../lib/clock";
-import { getStack, listCoords, stackHeight } from "../lib/mapData";
-import type { Frame, MapFile, TileDef, TilesetDef } from "../lib/types";
+import {
+  changedCellsOnLevel,
+  getStack,
+  listCoords,
+  stackHeight,
+} from "../lib/mapData";
+import type {
+  Frame,
+  MapFile,
+  PlacedTile,
+  TileDef,
+  TilesetDef,
+} from "../lib/types";
 import {
   CELL_SIZE,
   MAX_LEVEL,
   MIN_LEVEL,
+  coordKey,
   levelKey,
+  parseCoordKey,
   physicalHeight,
+  resolveLightPassing,
   tileCanEmitLight,
 } from "../lib/types";
+import { isMobileTile } from "../lib/interactions";
 import { getFrames } from "../lib/tileResolve";
-import { PLAYER_TILE_ID } from "../game/constants";
 import { ChunkedLighting, type WorldRect } from "../lib/lightingChunks";
 import type { FramePhase, FrameProfiler } from "./frameProfile";
 import { GpuLighting } from "./gpuLighting";
@@ -44,9 +58,23 @@ import { type SpriteQuadAssets, spriteQuadFor } from "./spriteQuad";
 
 type AnimatedInstance = {
   mesh: THREE.Mesh;
+  /** Instance key, so a cell's animated meshes can be dropped without a sweep. */
+  key: string;
   frames: Frame[];
   tileset: TilesetDef;
   animKey: string;
+};
+
+/** One quad the builder will emit, plus what decides how it is drawn. */
+type BuildItem = Quad & {
+  texture: THREE.Texture;
+  /** Set when this tile gets its own mesh rather than joining a merged batch. */
+  tileKey?: string;
+  anim?: {
+    frames: Frame[];
+    tileset: TilesetDef;
+    animKey: string;
+  };
 };
 
 const DEFAULT_BACKGROUND = sampleIllumination(12 * 60).background;
@@ -135,7 +163,30 @@ function emitterOverridesKey(
     .join("|");
 }
 
-const DYNAMIC_LIGHT_TILE_IDS = new Set([PLAYER_TILE_ID]);
+/**
+ * Tiles the static bake leaves out, painted per frame by the overlay instead.
+ *
+ * Derived from the tile set rather than named, so a second character — or a
+ * hundred — is omitted automatically. A hardcoded `{player}` was correct only
+ * for as long as exactly one thing moved.
+ *
+ * Both conditions are load-bearing. **Mobile** is why it is worth omitting: a
+ * tile that changes cell would otherwise dirty the chunks around it on every
+ * step. **Light-passing** is what makes omitting it *sound*: the overlay is
+ * add-only, so it can paint a light the bake left out but cannot carve a shadow
+ * the bake never knew about. Omitting an occluder would light straight through
+ * it. A mobile tile that blocks light therefore stays baked and pays for its
+ * movement — see the note in AGENTS.md before changing that.
+ */
+function dynamicLightTileIds(
+  tilesById: Record<string, TileDef>,
+): ReadonlySet<string> {
+  const ids = new Set<string>();
+  for (const def of Object.values(tilesById)) {
+    if (isMobileTile(def) && resolveLightPassing(def)) ids.add(def.id);
+  }
+  return ids;
+}
 
 /**
  * Slack cells around the camera's reach, for sprite overhang the strict cell
@@ -144,6 +195,29 @@ const DYNAMIC_LIGHT_TILE_IDS = new Set([PLAYER_TILE_ID]);
  * from refilling, so widening this only bakes cells nobody looks at.
  */
 const LIGHT_WINDOW_MARGIN = 4;
+
+/**
+ * Changed cells past which the incremental path stops being worth it.
+ *
+ * Each one costs two {@link cellItems} rebuilds for the comparison, plus nine
+ * more for its autotile ring. A step touches two cells; a paint stroke or a
+ * level load touches hundreds, and for those the wholesale rebuild is both
+ * simpler and faster. Set well above what gameplay produces and well below
+ * what an edit does.
+ */
+const MAX_INCREMENTAL_CELLS = 16;
+
+/** The cells themselves plus their 8 neighbours — an autotile's whole input. */
+function withNeighbourRing(cells: Set<string>): Set<string> {
+  const out = new Set<string>();
+  for (const key of cells) {
+    const { x, y } = parseCoordKey(key);
+    for (let dy = -1; dy <= 1; dy++) {
+      for (let dx = -1; dx <= 1; dx++) out.add(coordKey(x + dx, y + dy));
+    }
+  }
+  return out;
+}
 
 function disposeObject3D(obj: THREE.Object3D) {
   obj.traverse((child) => {
@@ -189,8 +263,6 @@ export class WorldRenderer {
    * Geometry is cloned (not shared) so level dispose cannot free the source.
    */
   private motionGhosts = new Map<string, THREE.Mesh>();
-  /** Instance keys that must stay unmerged this build (active motions). */
-  private motionKeys = new Set<string>();
   /** Last roof-cut ceiling — empty level groups created mid-frame need it. */
   private hideLevelsAbove: number | undefined;
   private animClock = 0;
@@ -206,7 +278,7 @@ export class WorldRenderer {
   /** Latest tint, so a level whose uniforms appear later still gets it. */
   private pendingAmbient: [number, number, number] | null = null;
   private gpuLighting = new GpuLighting();
-  private lighting = new ChunkedLighting({}, DYNAMIC_LIGHT_TILE_IDS);
+  private lighting = new ChunkedLighting({}, dynamicLightTileIds({}));
   /** Tile defs the light cache was built against; new defs void every chunk. */
   private lightingTilesById: Record<string, TileDef> | null = null;
   private prevMap: MapFile | null = null;
@@ -299,22 +371,12 @@ export class WorldRenderer {
     this.tilesById = view.tilesById;
     this.applyCamera(view.camera.x, view.camera.y, view.zoom);
 
-    const nextMotionKeys = new Set(
-      (view.tileMotions ?? []).map((m) => this.tileKey(m)),
-    );
-    // Non-animated tiles only get a separate mesh while moving — rebuild when
-    // the motion set changes so they can be peeled out of / merged back into batches.
-    const motionSetChanged =
-      nextMotionKeys.size !== this.motionKeys.size ||
-      [...nextMotionKeys].some((k) => !this.motionKeys.has(k));
-    this.motionKeys = nextMotionKeys;
-
     // Before applyMap, which advances prevMap — the light cache needs to see
     // both versions to work out which chunks the edit reached.
     this.time("sync", () => this.lighting.syncTo(this.prevMap, view.map));
 
     this.time("map", () => {
-      this.applyMap(view.map, motionSetChanged);
+      this.applyMap(view.map, false);
       this.applyLevelVisibility(view.hideLevelsAbove);
     });
     this.time("light", () => this.updateLighting(view));
@@ -709,7 +771,10 @@ export class WorldRenderer {
 
   private updateLighting(view: WorldView) {
     if (view.tilesById !== this.lightingTilesById) {
-      this.lighting = new ChunkedLighting(view.tilesById, DYNAMIC_LIGHT_TILE_IDS);
+      this.lighting = new ChunkedLighting(
+        view.tilesById,
+        dynamicLightTileIds(view.tilesById),
+      );
       this.lightingTilesById = view.tilesById;
       this.staticLightGrid = null;
     }
@@ -865,13 +930,127 @@ export class WorldRenderer {
       return;
     }
 
+    // A level can change identity without any cell differing — a chunk record
+    // rewritten to the same contents. Nothing to push to the GPU for those.
+    let meshesChanged = false;
     for (const z of dirtyLevels) {
+      const outcome = this.rebuildLevelIncrementally(prev, next, z);
+      if (outcome === "unchanged") continue;
+      if (outcome === "rebuilt") {
+        meshesChanged = true;
+        continue;
+      }
       this.removeLevel(z);
       this.buildLevel(next, z);
+      meshesChanged = true;
     }
-    this.rebuildAnimatedIndex();
+    if (meshesChanged) {
+      this.rebuildAnimatedIndex();
+      this.world.updateMatrixWorld(true);
+    }
     this.prevMap = next;
-    this.world.updateMatrixWorld(true);
+  }
+
+  /**
+   * Rebuild only what changed on a level, or report that it cannot.
+   *
+   * Merged geometry is one batch per (level, texture), so any change to it
+   * means rebuilding the floor — 4565 cells on level 0, ~8.7ms, for a step that
+   * moved one sprite. But a mobile tile is never in that batch, so a step
+   * changes only its own mesh, and the batch is byte-identical across the edit.
+   * This detects that case and takes the cheap path.
+   *
+   * Detection is by rebuilding the affected cells' quads and comparing the
+   * merged ones — the same {@link cellItems} the full build uses, so the two
+   * cannot disagree about what a cell should look like.
+   *
+   * Ordering inside the level group is not a concern: depth comes from the box
+   * attribute each quad carries, resolved per fragment, so a mesh appended late
+   * still sorts where it belongs.
+   */
+  private rebuildLevelIncrementally(
+    prev: MapFile,
+    next: MapFile,
+    z: number,
+  ): "unchanged" | "rebuilt" | "needs-full-rebuild" {
+    const changed = changedCellsOnLevel(prev, next, z);
+    if (changed.size === 0) return "unchanged";
+    // Bail rather than diff half a floor: past a handful of cells the
+    // comparison costs more than the rebuild it is trying to avoid.
+    if (changed.size > MAX_INCREMENTAL_CELLS) return "needs-full-rebuild";
+
+    // An autotile reads its 8 neighbours, so a changed cell can restyle the
+    // ring around it without those cells changing themselves.
+    const affected = withNeighbourRing(changed);
+    for (const key of affected) {
+      const { x, y } = parseCoordKey(key);
+      if (
+        this.mergedSignatureAt(prev, z, x, y) !==
+        this.mergedSignatureAt(next, z, x, y)
+      ) {
+        return "needs-full-rebuild";
+      }
+    }
+
+    // No group yet means this level had no geometry at all — there is nothing
+    // to patch into, so let the full build create it.
+    const group = this.levelGroups.get(z);
+    if (!group) return "needs-full-rebuild";
+
+    for (const key of changed) {
+      const { x, y } = parseCoordKey(key);
+      this.removeSeparatesAt(z, x, y);
+    }
+
+    const animated = this.animatedByLevel.get(z) ?? [];
+    for (const key of changed) {
+      const { x, y } = parseCoordKey(key);
+      for (const item of this.cellItems(next, z, x, y, getStack(next, x, y, z))) {
+        if (!item.anim && !item.tileKey) continue;
+        this.installSeparate(group, item, z, animated);
+      }
+    }
+    if (animated.length > 0) this.animatedByLevel.set(z, animated);
+    else this.animatedByLevel.delete(z);
+
+    return "rebuilt";
+  }
+
+  /** The merged-batch contribution of one cell, as a comparable string. */
+  private mergedSignatureAt(
+    map: MapFile,
+    z: number,
+    x: number,
+    y: number,
+  ): string {
+    let sig = "";
+    for (const item of this.cellItems(map, z, x, y, getStack(map, x, y, z))) {
+      if (item.anim || item.tileKey) continue;
+      const b = item.box;
+      sig += `${item.x},${item.y},${item.w},${item.h}|${item.u0},${item.v0},${item.u1},${item.v1}|${b.eastPx},${b.southPx},${b.foot},${b.top}|${item.stackBias}|${item.unlit ? 1 : 0}|${item.texture.uuid}~`;
+    }
+    return sig;
+  }
+
+  /** Drop every own-mesh tile at a cell, so the cell can be rebuilt from scratch. */
+  private removeSeparatesAt(z: number, x: number, y: number) {
+    const prefix = `${z}:${x},${y}:`;
+    for (const key of [...this.movableMeshes.keys()]) {
+      if (!key.startsWith(prefix)) continue;
+      const mesh = this.movableMeshes.get(key)!;
+      mesh.parent?.remove(mesh);
+      mesh.geometry.dispose();
+      this.movableMeshes.delete(key);
+      this.movableBasePos.delete(key);
+      this.movableBaseBox.delete(key);
+      this.disposeMotionGhost(key);
+    }
+    const animated = this.animatedByLevel.get(z);
+    if (!animated) return;
+    const kept = animated.filter((inst) => !inst.key.startsWith(prefix));
+    if (kept.length === animated.length) return;
+    if (kept.length > 0) this.animatedByLevel.set(z, kept);
+    else this.animatedByLevel.delete(z);
   }
 
   private removeLevel(z: number) {
@@ -911,100 +1090,133 @@ export class WorldRenderer {
     }
   }
 
+  /**
+   * Quads for one cell's stack.
+   *
+   * The single place a placed tile becomes geometry. Both the full level build
+   * and the incremental one go through it, so the cheap path cannot silently
+   * disagree with the expensive one about what a cell should look like — which
+   * is the failure mode that makes incremental rendering hard to trust.
+   */
+  private cellItems(
+    map: MapFile,
+    z: number,
+    x: number,
+    y: number,
+    stack: PlacedTile[],
+  ): BuildItem[] {
+    const items: BuildItem[] = [];
+    let elev = 0;
+
+    stack.forEach((placed, stackIndex) => {
+      const def = this.tilesById[placed.tileId];
+      if (!def) return;
+
+      const frames = getFrames(def, {
+        direction: placed.direction,
+        map,
+        x,
+        y,
+        z,
+      });
+      const first = frames?.[0];
+      if (!first) return;
+
+      const tileset = this.tilesetById.get(first.sprite.tilesetId);
+      if (!tileset) return;
+
+      const foot = absoluteElevation(z, elev);
+      const box = depthBox(x, y, foot, foot + def.height);
+      const baseOrigin = baseCellWorldOrigin(x, y, z, elev);
+      const origin = spriteWorldOrigin(baseOrigin, first.sprite.base);
+      const { rect } = first.sprite;
+      const w = rect.w * CELL_SIZE;
+      const h = rect.h * CELL_SIZE;
+      const u0 = (rect.x * CELL_SIZE) / tileset.width;
+      const u1 = ((rect.x + rect.w) * CELL_SIZE) / tileset.width;
+      const v1 = 1 - (rect.y * CELL_SIZE) / tileset.height;
+      const v0 = 1 - ((rect.y + rect.h) * CELL_SIZE) / tileset.height;
+      const texture = this.textures.get(tileset.id) ?? this.magentaTex;
+      const isAnimated = (frames?.length ?? 0) > 1;
+      const instanceKey = this.tileKey({ x, y, z, stackIndex });
+      // Own mesh when animated, or when the tile can move at all — not merely
+      // when it happens to be moving right now. Keying this on the live motion
+      // set meant a tile changed batch membership the instant it started and
+      // stopped, and changing membership rebuilt the merged geometry for the
+      // whole floor: a full rebuild per step, for a sprite that only needed a
+      // new position.
+      const separate = isAnimated || isMobileTile(def);
+      const animKey =
+        def.type === "autotile"
+          ? `${def.id}:${x},${y},${z}`
+          : `${def.id}:${placed.direction ?? "default"}`;
+
+      items.push({
+        x: origin.x,
+        y: origin.y,
+        w,
+        h,
+        u0,
+        v0,
+        u1,
+        v1,
+        box,
+        stackBias: depthStackBias(z, stackIndex),
+        texture,
+        lightX0: x,
+        lightY0: y,
+        lightX1: x + 1,
+        lightY1: y + 1,
+        unlit: tileCanEmitLight(def),
+        tileKey: separate ? instanceKey : undefined,
+        anim: isAnimated && frames ? { frames, tileset, animKey } : undefined,
+      });
+
+      elev += physicalHeight(def);
+    });
+
+    return items;
+  }
+
+  /** Give an item its own mesh and register it in whichever indexes claim it. */
+  private installSeparate(
+    parent: THREE.Object3D,
+    item: BuildItem,
+    z: number,
+    animated: AnimatedInstance[],
+  ) {
+    const mesh = this.addQuadMesh(parent, item, item.texture, z);
+    if (item.tileKey) {
+      this.movableMeshes.set(item.tileKey, mesh);
+      this.movableBasePos.set(item.tileKey, {
+        x: mesh.position.x,
+        y: mesh.position.y,
+      });
+      this.movableBaseBox.set(item.tileKey, {
+        box: item.box,
+        stackBias: item.stackBias,
+      });
+    }
+    if (item.anim) {
+      animated.push({
+        mesh,
+        key: item.tileKey ?? "",
+        frames: item.anim.frames,
+        tileset: item.anim.tileset,
+        animKey: item.anim.animKey,
+      });
+    }
+  }
+
   private buildLevel(map: MapFile, z: number) {
     const coords = listCoords(map, z);
     if (coords.length === 0) return;
 
-    type Item = Quad & {
-      texture: THREE.Texture;
-      tileKey?: string;
-      anim?: {
-        frames: Frame[];
-        tileset: TilesetDef;
-        animKey: string;
-      };
-    };
-
-    const items: Item[] = [];
-
+    const items: BuildItem[] = [];
     for (const cell of coords) {
-      let elev = 0;
-      cell.stack.forEach((placed, stackIndex) => {
-        const def = this.tilesById[placed.tileId];
-        if (!def) {
-          elev += 0;
-          return;
-        }
-
-        const frames = getFrames(def, {
-          direction: placed.direction,
-          map,
-          x: cell.x,
-          y: cell.y,
-          z,
-        });
-        const first = frames?.[0];
-        if (!first) return;
-
-        const tileset = this.tilesetById.get(first.sprite.tilesetId);
-        if (!tileset) return;
-
-        const foot = absoluteElevation(z, elev);
-        const box = depthBox(cell.x, cell.y, foot, foot + def.height);
-        const baseOrigin = baseCellWorldOrigin(cell.x, cell.y, z, elev);
-        const origin = spriteWorldOrigin(baseOrigin, first.sprite.base);
-        const { rect } = first.sprite;
-        const w = rect.w * CELL_SIZE;
-        const h = rect.h * CELL_SIZE;
-        const u0 = (rect.x * CELL_SIZE) / tileset.width;
-        const u1 = ((rect.x + rect.w) * CELL_SIZE) / tileset.width;
-        const v1 = 1 - (rect.y * CELL_SIZE) / tileset.height;
-        const v0 = 1 - ((rect.y + rect.h) * CELL_SIZE) / tileset.height;
-        const texture = this.textures.get(tileset.id) ?? this.magentaTex;
-        const isAnimated = (frames?.length ?? 0) > 1;
-        const instanceKey = this.tileKey({
-          x: cell.x,
-          y: cell.y,
-          z,
-          stackIndex,
-        });
-        // Separate mesh when animated or currently lerping (so we can offset it).
-        const separate = isAnimated || this.motionKeys.has(instanceKey);
-        const animKey =
-          def.type === "autotile"
-            ? `${def.id}:${cell.x},${cell.y},${z}`
-            : `${def.id}:${placed.direction ?? "default"}`;
-
-        items.push({
-          x: origin.x,
-          y: origin.y,
-          w,
-          h,
-          u0,
-          v0,
-          u1,
-          v1,
-          box,
-          stackBias: depthStackBias(z, stackIndex),
-          texture,
-          lightX0: cell.x,
-          lightY0: cell.y,
-          lightX1: cell.x + 1,
-          lightY1: cell.y + 1,
-          unlit: tileCanEmitLight(def),
-          tileKey: separate ? instanceKey : undefined,
-          anim:
-            isAnimated && frames
-              ? {
-                  frames,
-                  tileset,
-                  animKey,
-                }
-              : undefined,
-        });
-
-        elev += physicalHeight(def);
-      });
+      for (const item of this.cellItems(map, z, cell.x, cell.y, cell.stack)) {
+        items.push(item);
+      }
     }
 
     if (items.length === 0) return;
@@ -1021,26 +1233,7 @@ export class WorldRenderer {
 
     for (const item of items) {
       if (item.anim || item.tileKey) {
-        const mesh = this.addQuadMesh(levelGroup, item, item.texture, z);
-        if (item.tileKey) {
-          this.movableMeshes.set(item.tileKey, mesh);
-          this.movableBasePos.set(item.tileKey, {
-            x: mesh.position.x,
-            y: mesh.position.y,
-          });
-          this.movableBaseBox.set(item.tileKey, {
-            box: item.box,
-            stackBias: item.stackBias,
-          });
-        }
-        if (item.anim) {
-          animated.push({
-            mesh,
-            frames: item.anim.frames,
-            tileset: item.anim.tileset,
-            animKey: item.anim.animKey,
-          });
-        }
+        this.installSeparate(levelGroup, item, z, animated);
       } else {
         let list = staticByTex.get(item.texture);
         if (!list) {

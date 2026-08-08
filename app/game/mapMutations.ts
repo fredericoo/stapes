@@ -69,8 +69,10 @@ export function moveEntity(
   const entity = stack[from.stackIndex];
   if (!entity) return map;
 
+  // Spread, not rebuilt field by field: a placement carries per-placement state
+  // (its signal channel) that a move has no business dropping.
   const placed: PlacedTile = {
-    tileId: entity.tileId,
+    ...entity,
     direction: direction ?? entity.direction,
   };
   // Both cells in one pass. Done as remove-then-place it copies the level

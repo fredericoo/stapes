@@ -3,9 +3,10 @@ import { IconTrash } from "@tabler/icons-react";
 import { DragDropProvider } from "@dnd-kit/react";
 import { isSortable, useSortable } from "@dnd-kit/react/sortable";
 import type { Direction, PlacedTile, TileDef, TilesetDef } from "../lib/types";
-import { getStack } from "../lib/mapData";
+import { getStack, listChannels } from "../lib/mapData";
+import { resolveEmit, resolveReceive } from "../lib/interactions";
 import { useEditorStore } from "../editor/store";
-import { Button, Segmented, Tooltip } from "../ui";
+import { Button, Input, Segmented, Tooltip } from "../ui";
 import { TilePreview } from "./TilePreview";
 
 type Props = {
@@ -13,6 +14,9 @@ type Props = {
   tilesById: Record<string, TileDef>;
   tilesets: TilesetDef[];
 };
+
+/** Shared across every row, so one datalist backs all the channel inputs. */
+const CHANNEL_LIST_ID = "stack-signal-channels";
 
 type StackRow = {
   id: string;
@@ -48,6 +52,15 @@ function toDisplayRows(stack: PlacedTile[]): StackRow[] {
     const stackIndex = stack.length - 1 - displayIdx;
     return { id: ids[stackIndex]!, placed, stackIndex };
   });
+}
+
+/**
+ * Does this tile have anything to say to a signal channel? Only wired-capable
+ * tiles get a channel field — a channel on a rock is a control that can never
+ * do anything, on every row of every stack.
+ */
+function isWired(def: TileDef): boolean {
+  return resolveEmit(def) != null || resolveReceive(def) != null;
 }
 
 /** Display is top-first; store reorder uses bottom-first stack indices. */
@@ -131,6 +144,39 @@ function SortableStackItem({
             ]}
           />
         ) : null}
+        {isWired(def) ? (
+          <label className="mt-1 flex items-center gap-1 text-[10px]">
+            <span aria-hidden="true" className="text-muted">
+              ⌁
+            </span>
+            <Input
+              // Uncontrolled, so typing does not commit — see onBlur. Keyed on
+              // the committed value so a change from anywhere else (undo, a
+              // different cell selected into this row) remounts the field
+              // instead of leaving it showing a value the map no longer holds.
+              key={placed.channel ?? ""}
+              list={CHANNEL_LIST_ID}
+              aria-label={`Signal channel for ${def.name}`}
+              placeholder="channel"
+              defaultValue={placed.channel ?? ""}
+              // Committing per keystroke would be an undo entry and a geometry
+              // rebuild each one. The wire is named once.
+              onBlur={(e) =>
+                useEditorStore
+                  .getState()
+                  .setStackChannel(stackIndex, e.target.value)
+              }
+              // Enter is what naming something feels like it should take, and
+              // a field that only commits on blur silently throws the name
+              // away. Blurring routes it through the one commit path above
+              // rather than adding a second.
+              onKeyDown={(e) => {
+                if (e.key === "Enter") e.currentTarget.blur();
+              }}
+              className="h-6 w-full text-[10px]"
+            />
+          </label>
+        ) : null}
       </div>
       <Tooltip content={`Remove ${def.name}`}>
         <Button
@@ -154,6 +200,8 @@ export function SelectedStackList({ stack, tilesById, tilesets }: Props) {
   const rows = useMemo(() => toDisplayRows(stack), [stack]);
   const listRef = useRef<HTMLUListElement>(null);
   const stackLengthAtRender = stack.length;
+  const map = useEditorStore((s) => s.map);
+  const channels = useMemo(() => listChannels(map), [map]);
 
   return (
     <DragDropProvider
@@ -177,6 +225,11 @@ export function SelectedStackList({ stack, tilesById, tilesets }: Props) {
         store.reorderSelectedStack(from, to);
       }}
     >
+      <datalist id={CHANNEL_LIST_ID}>
+        {channels.map((channel) => (
+          <option key={channel} value={channel} />
+        ))}
+      </datalist>
       <ul
         ref={listRef}
         tabIndex={-1}

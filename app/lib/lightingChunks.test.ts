@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chunkifyMap, listCoords } from "./mapData";
+import { chunkifyMap, getStack, listCoords, replaceStack } from "./mapData";
 import type { FlatMapFile } from "./types";
 import map from "../../data/map.json";
 import tiles from "../../data/tiles.json";
@@ -124,6 +124,38 @@ describe("chunked lighting", () => {
     expect(baked).toBeLessThanOrEqual(20);
   });
 
+  it("hands back the same grid until the window leaves its chunks", () => {
+    const chunked = new ChunkedLighting(tilesById, omit);
+    // Sized and stepped so both edges stay inside chunk 0 for the whole walk —
+    // the point is a window that moves without changing which chunks it covers.
+    const width = 10;
+    const steps = 6;
+    expect(width + steps).toBeLessThan(LIGHT_CHUNK_SIZE);
+
+    // Warm the window and its prefetch ring first, so nothing bakes mid-walk
+    // and every identity change we see is the assemble, not a fill.
+    for (let i = 0; i < 40; i++) {
+      chunked.packedGridFor(mapFile, { x0: 0, y0: 0, x1: width, y1: width });
+    }
+
+    const seen = new Set<unknown>();
+    // One cell east at a time. Every frame's output is byte-identical, and
+    // callers key their texture uploads on this object — so a fresh one per
+    // step is a full re-upload per step, for bytes the GPU already has.
+    for (let step = 0; step < steps; step++) {
+      seen.add(
+        chunked.packedGridFor(mapFile, {
+          x0: step,
+          y0: 0,
+          x1: step + width,
+          y1: width,
+        }),
+      );
+      expect(chunked.bakedLastCall, `step ${step} baked`).toBe(0);
+    }
+    expect(seen.size).toBe(1);
+  });
+
   it("an edit dirties only chunks within light reach", () => {
     const chunked = new ChunkedLighting(tilesById, omit);
     const rect: WorldRect = { x0: -64, y0: -64, x1: 64, y1: 64 };
@@ -138,6 +170,252 @@ describe("chunked lighting", () => {
     expect(LIGHT_APRON).toBeLessThan(LIGHT_CHUNK_SIZE);
     expect(dropped).toBeGreaterThan(0);
     expect(dropped).toBeLessThanOrEqual(4);
+  });
+
+  /**
+   * Invalidation is sized per edit — an emitter swap dirties its own radius,
+   * not the sky flood's whole apron. Under-reaching leaves stale light on
+   * screen and nothing else in the suite would notice, so every kind of edit is
+   * checked against a cache that never saw the old map.
+   */
+  describe("an edit leaves no stale light behind", () => {
+    const rect: WorldRect = { x0: -64, y0: -64, x1: 64, y1: 64 };
+
+    /**
+     * Cells this far inside a chunk are the ones that discriminate. Nearer the
+     * edge than the smallest emitter radius, so real light spills into the
+     * neighbouring chunk — but far enough in that a token reach does not reach
+     * it by accident.
+     */
+    const EDGE_OFFSET_LO = 2;
+    const EDGE_OFFSET_HI = 7;
+
+    /**
+     * A populated cell just inside a chunk edge.
+     *
+     * The choice of cell is what gives these tests teeth, and two ways of
+     * choosing it look right and are not. Mid-chunk fails to discriminate
+     * because dropping the cell's own chunk already covers everything its light
+     * touches, so any reach passes. Flush against the edge fails too, and less
+     * obviously: at offset 0 even a reach of 1 crosses into the neighbour, so
+     * the neighbour is dropped for the wrong reason and the test still passes.
+     * Between the two, only a reach that genuinely spans the emitter's radius
+     * drops the chunk the light spills into.
+     */
+    function cellNearChunkEdge(z: number): { x: number; y: number } {
+      const offset = (x: number) =>
+        ((x % LIGHT_CHUNK_SIZE) + LIGHT_CHUNK_SIZE) % LIGHT_CHUNK_SIZE;
+      const found = listCoords(mapFile, z).find(
+        ({ x }) => offset(x) >= EDGE_OFFSET_LO && offset(x) <= EDGE_OFFSET_HI,
+      );
+      if (!found) throw new Error(`fixture has no near-edge cell on level ${z}`);
+      return { x: found.x, y: found.y };
+    }
+
+    function expectMatchesColdBake(edited: MapFile) {
+      const incremental = new ChunkedLighting(tilesById, omit);
+      incremental.gridFor(mapFile, ambient, rect);
+      incremental.syncTo(mapFile, edited);
+      const got = incremental.gridFor(edited, ambient, rect);
+
+      const cold = new ChunkedLighting(tilesById, omit);
+      const want = cold.gridFor(edited, ambient, rect);
+
+      expect([...got.levels.keys()].sort()).toEqual(
+        [...want.levels.keys()].sort(),
+      );
+      for (const [z, wantLevel] of want.levels) {
+        const gotLevel = got.levels.get(z)!;
+        expect({ z, rgb: [...gotLevel.rgb] }).toEqual({
+          z,
+          rgb: [...wantLevel.rgb],
+        });
+      }
+    }
+
+    it("when an emitter is added", () => {
+      const at = cellNearChunkEdge(0);
+      expectMatchesColdBake(
+        replaceStack(mapFile, at.x, at.y, 0, [
+          ...getStack(mapFile, at.x, at.y, 0),
+          { tileId: "torch", direction: "n" },
+        ]),
+      );
+    });
+
+    it("when an emitter is removed", () => {
+      const at = cellNearChunkEdge(0);
+      const lit = replaceStack(mapFile, at.x, at.y, 0, [
+        ...getStack(mapFile, at.x, at.y, 0),
+        { tileId: "torch", direction: "n" },
+      ]);
+      // Same comparison, run the other way round: bake with the torch, then
+      // take it away. A reach that is too small shows up as light that stays.
+      const incremental = new ChunkedLighting(tilesById, omit);
+      incremental.gridFor(lit, ambient, rect);
+      incremental.syncTo(lit, mapFile);
+      const got = incremental.gridFor(mapFile, ambient, rect);
+
+      const cold = new ChunkedLighting(tilesById, omit);
+      const want = cold.gridFor(mapFile, ambient, rect);
+      for (const [z, wantLevel] of want.levels) {
+        expect([...got.levels.get(z)!.rgb]).toEqual([...wantLevel.rgb]);
+      }
+    });
+
+    /**
+     * A lamp that lights up without changing shape — the case the emission
+     * reach exists for, and the one no fixture tile covers. `torch` occludes
+     * and every fixture swap that changes emission also changes occlusion, so
+     * without a pair like this the emission branch is never taken and its reach
+     * could be any number at all.
+     */
+    function lampPair(): {
+      defs: Record<string, TileDef>;
+      offId: string;
+      onId: string;
+      radius: number;
+    } {
+      const radius = 8;
+      const base = {
+        name: "Test lamp",
+        height: 1,
+        type: "simple",
+        attributes: {},
+        lightPassing: true,
+        intangible: true,
+      } as const;
+      const frame = {
+        sprite: {
+          tilesetId: "tiny-ranch-tiles",
+          rect: { x: 0, y: 0, w: 1, h: 1 },
+          base: { x: 0, y: 0 },
+        },
+        durationMs: 100,
+      };
+      const off: TileDef = { ...base, id: "test-lamp-off", sprite: { frames: [frame] } };
+      const on: TileDef = {
+        ...base,
+        id: "test-lamp-on",
+        sprite: {
+          frames: [{ ...frame, light: { radius, intensity: 1, color: "#ffffff" } }],
+        },
+      };
+      return {
+        defs: { ...tilesById, [off.id]: off, [on.id]: on },
+        offId: off.id,
+        onId: on.id,
+        radius,
+      };
+    }
+
+    it("when a lamp lights up without changing shape", () => {
+      const { defs, offId, onId, radius } = lampPair();
+      const at = cellNearChunkEdge(0);
+      expect(radius).toBeGreaterThan(EDGE_OFFSET_HI);
+
+      const dark = replaceStack(mapFile, at.x, at.y, 0, [
+        ...getStack(mapFile, at.x, at.y, 0),
+        { tileId: offId },
+      ]);
+      const lit = replaceStack(mapFile, at.x, at.y, 0, [
+        ...getStack(mapFile, at.x, at.y, 0),
+        { tileId: onId },
+      ]);
+
+      const incremental = new ChunkedLighting(defs, omit);
+      incremental.gridFor(dark, ambient, rect);
+      incremental.syncTo(dark, lit);
+      const got = incremental.gridFor(lit, ambient, rect);
+
+      const cold = new ChunkedLighting(defs, omit);
+      const want = cold.gridFor(lit, ambient, rect);
+      for (const [z, wantLevel] of want.levels) {
+        expect({ z, rgb: [...got.levels.get(z)!.rgb] }).toEqual({
+          z,
+          rgb: [...wantLevel.rgb],
+        });
+      }
+    });
+
+    it("costs nothing at all when a plate presses", () => {
+      // Both plate forms are height 0, solid and light-blocking, so the swap
+      // cannot change a single baked cell. Keying invalidation on the tile id
+      // charged this the full sky apron — up to four chunks rebaked, on the
+      // frame the player steps, for output that is identical by construction.
+      const at = cellNearChunkEdge(0);
+      const up = replaceStack(mapFile, at.x, at.y, 0, [
+        ...getStack(mapFile, at.x, at.y, 0),
+        { tileId: "pressure-plate" },
+      ]);
+      const pressed = replaceStack(mapFile, at.x, at.y, 0, [
+        ...getStack(mapFile, at.x, at.y, 0),
+        { tileId: "pressure-plate-pressed" },
+      ]);
+
+      const chunked = new ChunkedLighting(tilesById, omit);
+      chunked.gridFor(up, ambient, rect);
+      const cached = chunked.cachedChunks;
+      expect(cached).toBeGreaterThan(0);
+
+      chunked.syncTo(up, pressed);
+      expect(chunked.cachedChunks).toBe(cached);
+
+      chunked.gridFor(pressed, ambient, rect);
+      expect(chunked.bakedLastCall).toBe(0);
+    });
+
+    it("still pays the full apron when a door opens", () => {
+      // The counterpart: door-open is light-passing and intangible where
+      // door-closed is neither, so this genuinely changes what is in shadow.
+      const at = cellNearChunkEdge(0);
+      const closed = replaceStack(mapFile, at.x, at.y, 0, [
+        ...getStack(mapFile, at.x, at.y, 0),
+        { tileId: "door-closed" },
+      ]);
+      const opened = replaceStack(mapFile, at.x, at.y, 0, [
+        ...getStack(mapFile, at.x, at.y, 0),
+        { tileId: "door-open" },
+      ]);
+
+      const incremental = new ChunkedLighting(tilesById, omit);
+      incremental.gridFor(closed, ambient, rect);
+      const cached = incremental.cachedChunks;
+      incremental.syncTo(closed, opened);
+      // The contract, not just "the output happens to match": an occlusion
+      // change must drop chunks. If this ever stops dropping any, the parity
+      // below would pass for the wrong reason.
+      expect(incremental.cachedChunks).toBeLessThan(cached);
+      const got = incremental.gridFor(opened, ambient, rect);
+
+      const cold = new ChunkedLighting(tilesById, omit);
+      const want = cold.gridFor(opened, ambient, rect);
+      for (const [z, wantLevel] of want.levels) {
+        expect({ z, rgb: [...got.levels.get(z)!.rgb] }).toEqual({
+          z,
+          rgb: [...wantLevel.rgb],
+        });
+      }
+    });
+
+    it("when an occluder is added", () => {
+      const at = cellNearChunkEdge(0);
+      const solid = (tiles as TileDef[]).find(
+        (t) => t.height > 0 && !t.lightPassing && !t.intangible,
+      );
+      expect(solid).toBeDefined();
+      expectMatchesColdBake(
+        replaceStack(mapFile, at.x, at.y, 0, [
+          ...getStack(mapFile, at.x, at.y, 0),
+          { tileId: solid!.id },
+        ]),
+      );
+    });
+
+    it("when a whole stack is cleared", () => {
+      const at = cellNearChunkEdge(0);
+      expectMatchesColdBake(replaceStack(mapFile, at.x, at.y, 0, []));
+    });
   });
 
   it("keeps window chunks cached when ambient changes", () => {

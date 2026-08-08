@@ -12,6 +12,9 @@ import {
   surfaceTileAt,
   chunkKeyFor,
   chunkifyMap,
+  emptyMap,
+  listChannels,
+  updatePlacedChannel,
 } from "./mapData";
 import type { FlatMapFile, MapFile, PlacedTile, TileDef } from "./types";
 import { coordKey, levelKey, normalizeTileDef, physicalHeight } from "./types";
@@ -72,6 +75,43 @@ describe("mapData copy-on-write", () => {
     const next = clearStack(fixtureMap, a.x, a.y, 0);
     expect(getStack(next, a.x, a.y, 0)).toEqual([]);
     expect(getStack(next, b.x, b.y, 0)).toBe(stackB);
+  });
+});
+
+describe("signal channels", () => {
+  it("sets, trims and clears a channel on one placement", () => {
+    const map = replaceStack(emptyMap(), 1, 2, 0, [
+      { tileId: "grass" },
+      { tileId: "door" },
+    ]);
+
+    const wired = updatePlacedChannel(map, 1, 2, 0, 1, "  gate-a  ");
+    expect(getStack(wired, 1, 2, 0)).toEqual([
+      { tileId: "grass" },
+      { tileId: "door", channel: "gate-a" },
+    ]);
+
+    // Cleared, not left as an empty string — an unwired placement must read
+    // the same whether it was never wired or wired and undone.
+    const cleared = updatePlacedChannel(wired, 1, 2, 0, 1, "");
+    expect(getStack(cleared, 1, 2, 0)).toEqual([
+      { tileId: "grass" },
+      { tileId: "door" },
+    ]);
+  });
+
+  it("lists every channel in the map once, sorted", () => {
+    let map = replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "torch", channel: "gate-b" },
+    ]);
+    map = replaceStack(map, 1, 0, 0, [
+      { tileId: "plate", channel: "gate-a" },
+      { tileId: "door", channel: "gate-b" },
+    ]);
+    map = replaceStack(map, 2, 0, 4, [{ tileId: "door", channel: "hatch" }]);
+    map = replaceStack(map, 3, 0, 0, [{ tileId: "grass" }]);
+
+    expect(listChannels(map)).toEqual(["gate-a", "gate-b", "hatch"]);
   });
 });
 

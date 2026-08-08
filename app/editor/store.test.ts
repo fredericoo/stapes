@@ -78,6 +78,31 @@ describe("editor store history", () => {
     ]);
   });
 
+  it("setStackChannel wires, unwires and stays undoable", () => {
+    const store = useEditorStore.getState();
+    store.setStackChannel(1, "gate-a");
+    expect(getStack(useEditorStore.getState().map, 1, 2, 0)).toEqual([
+      { tileId: "grass" },
+      { tileId: "rock", channel: "gate-a" },
+    ]);
+
+    // Blank clears the field rather than storing "" — an unwired placement
+    // must read the same however it got there.
+    useEditorStore.getState().setStackChannel(1, "   ");
+    expect(getStack(useEditorStore.getState().map, 1, 2, 0)).toEqual([
+      { tileId: "grass" },
+      { tileId: "rock" },
+    ]);
+
+    useEditorStore.getState().undo();
+    expect(getStack(useEditorStore.getState().map, 1, 2, 0)).toEqual([
+      { tileId: "grass" },
+      { tileId: "rock", channel: "gate-a" },
+    ]);
+    useEditorStore.getState().undo();
+    expect(useEditorStore.getState().past).toHaveLength(0);
+  });
+
   it("discrete commits stay undoable during an open stroke", () => {
     const store = useEditorStore.getState();
     store.beginStroke();

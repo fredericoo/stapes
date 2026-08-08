@@ -47,6 +47,15 @@ Ask what the caller actually needs, then address exactly that region:
 Iterate a rect and look cells up (`level[coordKey(x, y)]`), or iterate the
 level's own keys. Do not filter the world down to the part you wanted.
 
+**Bounding the work is not enough if the gather feeding it is unbounded.** The
+chunked light bake was correctly scoped and still paid 7ms per chunk to a
+`cropMap` that called `getStack` for every coordinate in the padded rect —
+62x62x9 probes, two key strings each, to hand over 3144 cells. It cost as much
+as the flood it fed. Addressing the overlapping *chunks* and filtering on the
+way out made the gather proportional to content instead of to area, and took a
+one-chunk bake from 8.3ms to 4.7ms with byte-identical output. When you scope a
+computation, scope how its inputs are collected in the same breath.
+
 The cost is invisible on today's ~5k-cell fixture map and fatal at the intended
 size. The map is headed for thousands of cells square across 17 levels; anything
 O(map) per frame is already broken, it just has not shown up yet.
@@ -133,6 +142,71 @@ write. Doing that tint on the CPU meant recomposing and re-uploading 17 textures
 per frame; in the shader it is free. Before adding a CPU pass over pixel data,
 check whether the GPU can do it while sampling.
 
+### Mobility is a property of the tile, not of the frame
+
+`isMobileTile` (in `app/lib/interactions.ts`) answers "can this ever change
+cell", derived from gravity and a push interaction rather than declared. Two
+subsystems key off it and both must keep using the same answer:
+
+- The renderer keeps mobile tiles **out of the merged geometry batch**, always —
+  not only while they are moving. Membership used to follow the live motion set,
+  so a tile joined and left the batch as it started and stopped, and changing
+  membership rebuilds the whole floor. That was a full rebuild per step.
+- The light cache keeps mobile tiles **out of the static bake**, so a step does
+  not dirty the chunks around them. The overlay paints them per frame instead.
+
+Never reintroduce a hardcoded `player` check for either. It was true while
+exactly one thing moved and silently wrong afterwards.
+
+**The light omission has a second condition, and it is not optional.** A tile is
+omitted from the bake only when it is mobile *and* light-passing. The overlay is
+add-only: it can paint a light the bake left out, but it cannot carve a shadow
+the bake never knew about, so omitting an occluder would light straight through
+it. A mobile tile that blocks light therefore stays baked and pays for its
+movement — the cat is exactly this today. Giving mobile occluders dynamic
+shadows means teaching the overlay to subtract, which is a much bigger change
+than widening the predicate.
+
+There is one gap left. Anything omitted from the bake needs a matching emitter
+override each frame or its light simply vanishes, and today `GameRenderer`
+produces overrides only for the player it knows about. A second mobile,
+light-passing, light-emitting tile would go dark. Closing that means collecting
+omitted emitters in view — the bake already walks past them and could record
+them per chunk — rather than naming them at the call site.
+
+### Size an invalidation by what actually changed
+
+Not every edit is the same size. `ChunkedLighting.editReach` classifies a cell's
+change before deciding how far to invalidate:
+
+- **Occlusion changed** — height, physical volume, or light-passing — costs the
+  full `LIGHT_APRON`, because shadows and sky spill travel that far. A door
+  opening is this.
+- **Only emission changed** costs that emitter's own radius. A torch reaches 8,
+  not 15, which is usually one chunk instead of four.
+- **Neither changed** costs nothing. A pressure plate pressing is this: both
+  forms are height 0, solid and light-blocking, so the swap cannot alter a
+  single baked cell.
+
+The signature is written in terms of those *properties*, never the tile id.
+Keying on the id is what charged a plate press a four-chunk rebake for output
+identical by construction.
+
+Two traps when testing this, both of which produced a green test that proved
+nothing:
+
+- **A mid-chunk edit passes at every reach**, because dropping the cell's own
+  chunk already covers everywhere its light lands. Put the edit near a chunk
+  edge.
+- **An edit flush against the edge also passes at every reach**, because at
+  offset 0 even a reach of 1 crosses into the neighbour. Offset it 2–7 cells in,
+  so only a reach that genuinely spans the radius drops the right chunk.
+
+No fixture tile exercises the emission-only branch — every one of them changes
+occlusion when its light changes — so that test builds a synthetic lamp pair.
+Verify by starving each reach independently and confirming the matching test
+goes red.
+
 ### Bound the light cache, do not thrash it
 
 `ChunkedLighting` caches baked chunks in world space, prefetches one ring chunk
@@ -172,21 +246,26 @@ Measure in Node, or read the in-game counter on a real screen.
 
 Not yet fixed, and worth knowing before you profile something else:
 
-- **Level geometry still rebuilds wholesale.** `rebuildDirty` finds the dirty
-  level by identity, then does `removeLevel(z)` + `buildLevel(next, z)` — every
-  cell of the floor because one changed. ~8.7ms, and now the largest single
-  spike left.
+- **Level geometry rebuilds wholesale whenever the merged batch really changes.**
+  `rebuildDirty` now takes an incremental path first: it diffs the level to its
+  changed cells, compares each one's *merged* contribution before and after
+  (plus the autotile ring around it), and if none differ it rebuilds only the
+  own-mesh tiles in those cells. Gameplay motion always lands on that path,
+  because mobile tiles are never in the merged batch.
+
+  An actual edit — placing or erasing terrain — still falls back to
+  `removeLevel(z)` + `buildLevel(next, z)`, which is every cell of the floor.
+  Level 0 is 4565 cells / 6402 quads, and `listCoords` + `getFrames` over it is
+  6.5ms before THREE builds a single buffer. That is the remaining cliff, and
+  the per-(level, chunk) batching below is still the answer to it.
 
   The data model is already chunked, so the dirty *chunk* is available by
   identity (`prev.levels[z][chk] !== next.levels[z][chk]`). What remains is the
   renderer side: geometry is batched into one merged group per level, so making
   it per (level, chunk) means re-keying `levelGroups`, `animatedByLevel`, the
   `movableMeshes` key prefixes, motion ghosts, and `applyLevelVisibility`'s
-  roof-cut. Worth doing, but it touches depth sorting — verify visually, in a
-  real browser, not a headless one.
-
-  Note the player renders as a *separate* animated mesh, so on a step the merged
-  batch is often byte-identical across the rebuild. Confirming that cheaply may
-  be a shortcut worth taking before the full refactor.
+  roof-cut. Depth itself is safe — it comes from the per-quad box attribute
+  resolved in the shader, not from draw order — but verify visually in a real
+  browser regardless.
 - **The editor is a second, unchunked lighting path** and will hit the same wall
   the play renderer already climbed.

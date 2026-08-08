@@ -16,7 +16,7 @@ import {
   parseCoordKey,
   resolveLightPassing,
 } from "./types";
-import { elevationAt } from "./mapData";
+import { chunkIndexOf, chunkKeyAt, elevationAt } from "./mapData";
 import type { EmitterOverride, RawLightGrid, RawLevelLight } from "./lighting";
 import { resolveLight } from "./tileResolve";
 
@@ -223,15 +223,45 @@ export type FloodDomain = {
   z1: number;
 };
 
-function collectLevelCells(
-  chunk: ChunkCells,
-  z: number,
-  into: Array<{ x: number; y: number; z: number; stack: PlacedTile[] }>,
-) {
+type FloodCell = { x: number; y: number; z: number; stack: PlacedTile[] };
+
+function collectLevelCells(chunk: ChunkCells, z: number, into: FloodCell[]) {
   for (const [ck, stack] of Object.entries(chunk)) {
     if (!stack.length) continue;
     const { x, y } = parseCoordKey(ck);
     into.push({ x, y, z, stack });
+  }
+}
+
+/**
+ * Cells of a level inside `rect`, reached through the chunks that overlap it.
+ *
+ * The alternative — asking `getStack` for every coordinate in the rect — costs
+ * two key strings per probe and visits far more empty cells than full ones: on
+ * a windowed bake that was 34k lookups to hand over 3k cells, and measured as
+ * expensive as the flood it fed. Addressing the chunks instead makes the gather
+ * proportional to content rather than to area.
+ */
+function collectLevelCellsIn(
+  map: MapFile,
+  z: number,
+  rect: { x0: number; y0: number; x1: number; y1: number },
+  into: FloodCell[],
+) {
+  const level = map.levels[levelKey(z)];
+  if (!level) return;
+  for (let cy = chunkIndexOf(rect.y0); cy <= chunkIndexOf(rect.y1); cy++) {
+    for (let cx = chunkIndexOf(rect.x0); cx <= chunkIndexOf(rect.x1); cx++) {
+      const chunk = level[chunkKeyAt(cx, cy)];
+      if (!chunk) continue;
+      // Edge chunks straddle the rect, so cells still need the bounds test.
+      for (const [ck, stack] of Object.entries(chunk)) {
+        if (!stack.length) continue;
+        const { x, y } = parseCoordKey(ck);
+        if (x < rect.x0 || x > rect.x1 || y < rect.y0 || y > rect.y1) continue;
+        into.push({ x, y, z, stack });
+      }
+    }
   }
 }
 
@@ -262,12 +292,21 @@ export function computeLightingFlood(
   let minZ = Infinity;
   let maxZ = -Infinity;
 
-  type Cell = { x: number; y: number; z: number; stack: PlacedTile[] };
-  const cells: Cell[] = [];
+  const cells: FloodCell[] = [];
 
   // Walked chunk by chunk rather than via listCoords: the bake reads every cell
   // and listCoords would allocate a wrapper object per cell to hand them over.
+  //
+  // A domain also bounds the *gather*, not just the output. Without that the
+  // cost of a windowed bake tracks the whole map — the same cliff the chunk
+  // cache exists to avoid, one level down. Cells outside the domain cannot
+  // reach into it: the caller pads by MAX_LIGHT_LEVEL, which exceeds every
+  // emitter radius, so dropping them is exact rather than an approximation.
   for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+    if (domain) {
+      collectLevelCellsIn(map, z, domain, cells);
+      continue;
+    }
     const level = map.levels[levelKey(z)];
     if (!level) continue;
     for (const chunk of Object.values(level)) {
