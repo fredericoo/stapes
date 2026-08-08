@@ -5,6 +5,7 @@
   "scripts": {
     "build": "react-router build",
     "dev": "react-router dev",
+    "dev:r2": "VITE_USE_R2=1 react-router dev",
     "deploy": "pnpm build && wrangler deploy",
     "seed": "tsx scripts/seed-r2.ts",
     "typecheck": "react-router typegen && wrangler types && tsc && tsc -p tsconfig.node.json",

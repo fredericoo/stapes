@@ -4,7 +4,8 @@ import type { Route } from "./+types/tiles";
 import { AppShell } from "../components/AppShell";
 import { TileEditorDialog, tileIsAnimated } from "../components/TileEditorDialog";
 import { TilePreview } from "../components/TilePreview";
-import { dataStore, readPngSize } from "../lib/storage.server";
+import { dataStore } from "../context";
+import { readPngSize } from "../lib/storage.server";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { Button, Dialog, Input, useToast } from "../ui";
 

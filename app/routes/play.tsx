@@ -10,7 +10,7 @@ import {
   type MinutesOfDay,
 } from "../lib/clock";
 import type { Direction } from "../lib/types";
-import { dataStore } from "../lib/storage.server";
+import { dataStore } from "../context";
 import { GameRenderer } from "../render/GameRenderer";
 import { FrameStatsReadout } from "../components/FrameStatsReadout";
 import type { FrameStats } from "../render/frameProfile";

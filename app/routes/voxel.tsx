@@ -4,7 +4,8 @@ import type { Route } from "./+types/voxel";
 import { AppShell } from "../components/AppShell";
 import { DirectionPreview } from "../components/voxel/DirectionPreview";
 import { SliceEditor, type SliceTool } from "../components/voxel/SliceEditor";
-import { dataStore, readPngSize } from "../lib/storage.server";
+import { dataStore } from "../context";
+import { readPngSize } from "../lib/storage.server";
 import { CELL_SIZE, DIRECTIONS } from "../lib/types";
 import type { TileDef, TileHeight, TilesetDef } from "../lib/types";
 import {

@@ -2,19 +2,41 @@
 
 ## The server is a Cloudflare Worker
 
-`app/` and `workers/` run in workerd, not Node. There is no filesystem: authored
-content (map, tiles, tilesets, PNGs) lives in the `DATA` R2 bucket and is reached
-through `app/lib/storage.server.ts`, never through `node:fs`.
+`app/` and `workers/` run in workerd, not Node. There is no filesystem, so
+authored content (map, tiles, tilesets, PNGs) is reached through
+`app/lib/storage.server.ts`, never through `node:fs`.
 
 - Bindings arrive via React Router 8's context, not the v7 `AppLoadContext`.
-  A loader or action gets at them with `dataStore(context)`; the context itself
-  is set once per request in `workers/app.ts`. Docs and older examples showing
+  A loader or action gets the store with `dataStore(context)`; both contexts are
+  set once per request in `workers/app.ts`. Docs and older examples showing
   `context.cloudflare.env` are written for v7 and will not typecheck.
 - `tsconfig.json` covers `app/` and `workers/` and deliberately excludes Node
   types, so a `node:` import fails at typecheck rather than on deploy. Build
   tooling and tests that genuinely run in Node live under `tsconfig.node.json`.
-- R2 starts empty. `pnpm seed` uploads `data/` into it; a fresh environment
-  loads blank until that runs.
+
+### Two storage backends, one interface
+
+`DataStore` owns every decision about what the bytes mean — parsing a map,
+normalising tile defs, guarding a tileset filename. Underneath it, `Blobs` is a
+dumb get/put by key with two implementations, and that split is the point: the
+backends stay small enough to see through and cannot drift in how they read a
+map.
+
+- **Dev — `DevDiskBlobs`, over `data/` on disk.** Art iteration is a tight loop,
+  and making it a `pnpm seed` away was a real regression when this moved to
+  Workers. Disk stays the single source of truth while developing: an edited PNG
+  is live on the next request, an editor Save lands in `data/map.json` as a
+  reviewable diff, and there is nothing to sync back. The Worker reaches the
+  directory through a dev-only Vite middleware in `vite.config.ts`.
+- **Production — `R2Blobs`.** `pnpm seed` uploads `data/` into the bucket; a
+  fresh environment loads blank until it runs.
+
+`pnpm dev:r2` (`VITE_USE_R2=1`) runs dev against R2, since the default dev path
+otherwise never exercises it.
+
+Do not add a second write path that bypasses `DataStore`. The reason the two
+directions stay consistent is that there is only ever one copy of the truth in a
+given environment, never a sync between two.
 
 ## Map mutations must be undoable
 
