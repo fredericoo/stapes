@@ -18,6 +18,7 @@ import type {
   SlideSnapshot,
   WalkState,
 } from "../game/GameSession";
+import { standingAbs } from "../game/movement";
 import { DEFAULT_PLAY_MINUTES, type MinutesOfDay } from "../lib/clock";
 import { chunkifyMap, emptyMap, setStacks } from "../lib/mapData";
 import type { FlatMapFile, MapFile, TileDef } from "../lib/types";
@@ -177,17 +178,21 @@ export class RemoteSession implements PlaySession {
       }
       // Mirrors the simulation's own fall: feet step down one height unit at a
       // time, and progress is the fraction of the *current* unit — which is
-      // what the renderer subtracts from feetAbs to place the sprite.
-      if (motion.fall) {
-        motion.fall.elapsedMs += dtMs;
-        while (motion.fall && motion.fall.elapsedMs >= FALL_MS_PER_HEIGHT) {
-          motion.fall.elapsedMs -= FALL_MS_PER_HEIGHT;
-          const nextFeet = motion.fall.feetAbs - 1;
-          if (nextFeet <= motion.fall.landingAbs) {
-            motion.fall = null;
+      // what the renderer subtracts from feetAbs to place the sprite. A fall
+      // that has reached its landing stops advancing and waits to be released,
+      // for the same reason a finished walk does; see {@link releaseLandedFall}.
+      const fall = motion.fall;
+      if (fall && fall.feetAbs > fall.landingAbs) {
+        fall.elapsedMs += dtMs;
+        while (fall.elapsedMs >= FALL_MS_PER_HEIGHT) {
+          fall.elapsedMs -= FALL_MS_PER_HEIGHT;
+          const nextFeet = fall.feetAbs - 1;
+          if (nextFeet <= fall.landingAbs) {
+            fall.feetAbs = fall.landingAbs;
+            fall.elapsedMs = 0;
             break;
           }
-          motion.fall.feetAbs = nextFeet;
+          fall.feetAbs = nextFeet;
         }
       }
       if (motion.slide) {
@@ -211,7 +216,10 @@ export class RemoteSession implements PlaySession {
   private locate(id: string, motion: RemoteMotion): ActorLocation | null {
     const found = locateActor(this.map, id, motion.lastSeen ?? undefined);
     motion.lastSeen = found;
-    if (found) this.releaseArrivedWalk(motion, found);
+    if (found) {
+      this.releaseArrivedWalk(motion, found);
+      this.releaseLandedFall(motion, found);
+    }
     return found;
   }
 
@@ -233,6 +241,34 @@ export class RemoteSession implements PlaySession {
     if (at.x !== from.x || at.y !== from.y || at.z !== from.z) {
       motion.walk = null;
     }
+  }
+
+  /**
+   * End a fall once the map has put the actor down on its landing.
+   *
+   * A walk is released by the actor leaving the cell it started in, but a
+   * landing has no such signal: falling within a level commits without moving
+   * the actor's cell at all. Elevation is the thing that actually changed, so
+   * that is what is compared — the fall is over when the surface the map has
+   * the actor standing on is no higher than the landing it was aimed at.
+   *
+   * Only ever asked once the client's own animation has reached the landing
+   * (`feetAbs === landingAbs`). Mid-fall the map is not a reliable answer: an
+   * actor passing through an odd height is placed a unit low, which for a short
+   * drop already reads as the landing elevation.
+   */
+  private releaseLandedFall(motion: RemoteMotion, at: ActorLocation) {
+    const fall = motion.fall;
+    if (!fall || fall.feetAbs > fall.landingAbs) return;
+    const footAbs = standingAbs(
+      this.map,
+      at.x,
+      at.y,
+      at.z,
+      at.stackIndex,
+      this.tilesById,
+    );
+    if (footAbs <= fall.landingAbs) motion.fall = null;
   }
 
   private actorSnapshot(id: string, motion: RemoteMotion): ActorSnapshot | null {
@@ -259,8 +295,10 @@ export class RemoteSession implements PlaySession {
       walkProgress: motion.walk
         ? Math.min(1, motion.walk.elapsedMs / WALK_DURATION_MS)
         : 0,
+      // Unclamped for the same reason the simulation leaves it unclamped: a
+      // fall runs unit after unit, and holding at 1 between them stutters.
       fallProgress: motion.fall
-        ? Math.min(1, motion.fall.elapsedMs / FALL_MS_PER_HEIGHT)
+        ? motion.fall.elapsedMs / FALL_MS_PER_HEIGHT
         : 0,
       slide,
     };

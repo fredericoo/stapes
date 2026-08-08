@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { WALK_DURATION_MS } from "../game/constants";
+import { FALL_MS_PER_HEIGHT, WALK_DURATION_MS } from "../game/constants";
 import type { FlatMapFile, PlacedTile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { RemoteSession } from "./RemoteSession";
@@ -187,6 +187,98 @@ describe("RemoteSession walk interpolation", () => {
     expect(self.x).toBe(1);
     expect(self.walk?.to).toEqual({ x: 2, y: 0, z: 0 });
     expect(self.walkProgress).toBe(0);
+  });
+});
+
+/**
+ * A drop of two height units from (0,0,1) onto the grass at (0,0,0).
+ *
+ * One level down, so the landing does move the actor's cell — but the fall is
+ * released by elevation, not by that move, because a fall inside a level lands
+ * without changing the cell at all.
+ */
+const LANDING_ABS = 0;
+const fallStarted: MotionEvent = {
+  kind: "fallStarted",
+  actorId: SELF,
+  feetAbs: 2,
+  landingAbs: LANDING_ABS,
+};
+
+/** The landing, as the server commits it. */
+const landingCommitted: CellPatch[] = [
+  { x: 0, y: 0, z: 1, stack: [] },
+  { x: 0, y: 0, z: 0, stack: [grass, player] },
+];
+
+/** The actor standing one level up, mid-air over the grass it will land on. */
+function aloftMap(): FlatMapFile {
+  const cells: Record<string, PlacedTile[]> = {};
+  for (let x = 0; x < 4; x++) cells[`${x},0`] = [grass];
+  return {
+    version: 1,
+    levels: { "0": cells, "1": { "0,0": [player] } },
+  } as unknown as FlatMapFile;
+}
+
+function connectedAloft(): { socket: FakeSocket; session: RemoteSession } {
+  const socket = new FakeSocket();
+  const session = new RemoteSession(socket as unknown as WebSocket, tiles);
+  socket.deliver({
+    type: "hello",
+    selfId: SELF,
+    map: aloftMap(),
+    actorIds: [SELF],
+    minutesOfDay: SERVER_MINUTES,
+  });
+  return { socket, session };
+}
+
+describe("RemoteSession fall interpolation", () => {
+  it("holds the sprite on the landing until the patch commits it", () => {
+    const { socket, session } = connectedAloft();
+    socket.deliver(patch([], [fallStarted]));
+
+    // Past the whole two-unit drop, with the patch still in flight.
+    session.update(FALL_MS_PER_HEIGHT * 2 + 100);
+
+    const mid = session.getSnapshot().self;
+    expect(mid.fall).not.toBeNull();
+    // Standing on the landing already, so the sprite has nowhere left to go.
+    expect(mid.fall?.feetAbs).toBe(LANDING_ABS);
+    // And the map still has them a level up, which is why dropping the fall
+    // here snapped the sprite back into the air.
+    expect(mid.z).toBe(1);
+
+    socket.deliver(patch(landingCommitted));
+
+    const after = session.getSnapshot().self;
+    expect(after.fall).toBeNull();
+    expect(after.z).toBe(0);
+  });
+
+  it("never shows a frame between the landing and the patch", () => {
+    const { socket, session } = connectedAloft();
+    socket.deliver(patch([], [fallStarted]));
+
+    for (let elapsed = 0; elapsed < FALL_MS_PER_HEIGHT * 4; elapsed += 16) {
+      session.update(16);
+      // A frame with no fall is a frame drawn at the map's stale position.
+      expect(session.getSnapshot().self.fall).not.toBeNull();
+    }
+
+    socket.deliver(patch(landingCommitted));
+    expect(session.getSnapshot().self.fall).toBeNull();
+  });
+
+  it("keeps the descent moving at one unit per fall step", () => {
+    const { socket, session } = connectedAloft();
+    socket.deliver(patch([], [fallStarted]));
+
+    session.update(FALL_MS_PER_HEIGHT);
+    // The first unit is done and the second is under way — not stalled at the
+    // boundary waiting for anything.
+    expect(session.getSnapshot().self.fall?.feetAbs).toBe(1);
   });
 });
 

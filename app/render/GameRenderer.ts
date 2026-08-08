@@ -11,6 +11,7 @@ import type {
 } from "../game/GameSession";
 import { PLAYER_TILE_ID } from "../game/constants";
 import { FrameProfiler, type FrameStats } from "./frameProfile";
+import { fallDropPx, fallFootAbs, standingFootAbs } from "./fallAnchor";
 import { sceneryStack } from "../game/movement";
 import type { EmitterOverride } from "../lib/lighting";
 import {
@@ -498,8 +499,8 @@ export class GameRenderer {
     }
 
     if (actor.fall) {
-      const drop = actor.fallProgress * PX_PER_HEIGHT;
-      const foot = actor.fall.feetAbs - actor.fallProgress;
+      const drop = fallDropPx(map, this.tilesById, actor);
+      const foot = fallFootAbs(actor);
       const landingZ = viewAnchorFor(actor).z;
       return {
         x: actor.x,
@@ -593,11 +594,7 @@ export class GameRenderer {
     cell: { x: number; y: number; z: number },
     stackIndex: number,
   ): number {
-    const elev = stackHeight(
-      sceneryStack(map, cell.x, cell.y, cell.z, stackIndex),
-      this.tilesById,
-    );
-    return cell.z * HEIGHT_PER_LEVEL + elev;
+    return standingFootAbs(map, this.tilesById, cell, stackIndex);
   }
 
   /** Absolute elevation of a cell's standing surface (scenery only). */
@@ -653,7 +650,7 @@ export class GameRenderer {
       actor.stackIndex,
     );
     if (actor.fall) {
-      const drop = actor.fallProgress * PX_PER_HEIGHT;
+      const drop = fallDropPx(map, this.tilesById, actor);
       return snapToWholePixels({ x: base.x + drop, y: base.y + drop });
     }
     return base;

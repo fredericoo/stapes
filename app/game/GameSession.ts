@@ -608,8 +608,12 @@ export class GameSession implements PlaySession {
       walkProgress: actor.walk
         ? Math.min(1, (actor.walk.elapsedMs + visualExtra) / WALK_DURATION_MS)
         : 0,
+      // Unclamped, unlike the walk: a fall is a run of height units rather than
+      // one lerp, and the tick that commits a unit lands after the unit's time
+      // is up. Clamping there froze the sprite for a tick at every boundary and
+      // then lurched it. Past 1 is exactly what the next step will confirm.
       fallProgress: actor.fall
-        ? Math.min(1, (actor.fall.elapsedMs + visualExtra) / FALL_MS_PER_HEIGHT)
+        ? (actor.fall.elapsedMs + visualExtra) / FALL_MS_PER_HEIGHT
         : 0,
       slide: this.slideSnapshot(actor),
     };
