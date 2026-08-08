@@ -159,15 +159,21 @@ export class RemoteSession implements PlaySession {
   /**
    * Advance local animation clocks.
    *
-   * Motion ends on its own timer rather than waiting to be told: the patch that
-   * commits the step is what makes the new position true, and holding the lerp
-   * open past its duration would show the sprite twice.
+   * A finished walk is held at its destination rather than dropped, because the
+   * timer running out is not the same event as the step becoming true. The
+   * server announces the walk when it starts and commits it 200ms later, so the
+   * patch lands one network latency after the lerp ends — drop the lerp on the
+   * timer and the sprite falls back to the cell it is still standing in for
+   * those few frames, then jumps forward again when the patch arrives. That is
+   * the twitch. {@link releaseArrivedWalk} ends the walk on the patch instead.
    */
   update(dtMs: number) {
     for (const motion of this.motions.values()) {
       if (motion.walk) {
-        motion.walk.elapsedMs += dtMs;
-        if (motion.walk.elapsedMs >= WALK_DURATION_MS) motion.walk = null;
+        motion.walk.elapsedMs = Math.min(
+          WALK_DURATION_MS,
+          motion.walk.elapsedMs + dtMs,
+        );
       }
       // Mirrors the simulation's own fall: feet step down one height unit at a
       // time, and progress is the fraction of the *current* unit — which is
@@ -205,7 +211,28 @@ export class RemoteSession implements PlaySession {
   private locate(id: string, motion: RemoteMotion): ActorLocation | null {
     const found = locateActor(this.map, id, motion.lastSeen ?? undefined);
     motion.lastSeen = found;
+    if (found) this.releaseArrivedWalk(motion, found);
     return found;
+  }
+
+  /**
+   * End a walk once the map has moved the actor out of the cell it started in.
+   *
+   * Arrival is both when the walk *must* end and the only signal that it may.
+   * The lerp is anchored on `from` — it drags the tile sitting in that stack
+   * slot towards the destination — so once the patch commits the step, that slot
+   * holds something else and the lerp would be animating the wrong tile.
+   *
+   * Held indefinitely until then, deliberately: the patch is the only thing
+   * that can make the new position true, and if it never comes the actor is not
+   * moving anyway. A grace period would just restore the twitch on a slow link.
+   */
+  private releaseArrivedWalk(motion: RemoteMotion, at: ActorLocation) {
+    const from = motion.walk?.from;
+    if (!from) return;
+    if (at.x !== from.x || at.y !== from.y || at.z !== from.z) {
+      motion.walk = null;
+    }
   }
 
   private actorSnapshot(id: string, motion: RemoteMotion): ActorSnapshot | null {
