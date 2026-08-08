@@ -15,7 +15,9 @@ import {
   ZOOM_LEVELS,
   snapZoom,
 } from "../editor/store";
-import { dataStore } from "../context";
+import { cloudflareContext, dataStore } from "../context";
+import { flattenMap } from "../lib/mapData";
+import { gameServer } from "../net/gameServer.server";
 import { formatClock, MINUTES_PER_DAY } from "../lib/clock";
 import type { MapFile } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL, clampLevel } from "../lib/types";
@@ -31,6 +33,15 @@ export async function loader({ context }: Route.LoaderArgs) {
   return { map, tiles, tilesets };
 }
 
+/**
+ * Save the map.
+ *
+ * The write goes through the game server rather than straight to storage, which
+ * makes it the single writer: it persists the map, throws the running world
+ * away and starts a fresh game on the new one, so nobody is left playing a map
+ * that no longer exists. It also means saves and the tick loop cannot interleave
+ * into a world that half-changed.
+ */
 export async function action({ context, request }: Route.ActionArgs) {
   const form = await request.formData();
   const raw = String(form.get("map") ?? "");
@@ -39,7 +50,10 @@ export async function action({ context, request }: Route.ActionArgs) {
     if (map.version !== 1) {
       return { ok: false, error: "Unsupported map version" };
     }
-    await dataStore(context).writeMap(map);
+    // Flattened here, not in the server: the chunked shape is a runtime detail,
+    // and the on-disk file stays the hand-editable flat one.
+    const env = context.get(cloudflareContext).env;
+    await gameServer(env).replaceWorld(flattenMap(map));
     return { ok: true };
   } catch (err) {
     return {

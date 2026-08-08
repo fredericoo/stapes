@@ -4,7 +4,7 @@
     {
       "name": "stapes-dev",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["dev", "--port", "5175"],
+      "runtimeArgs": ["dev", "--port", "5175", "--host"],
       "port": 5175
     }
   ]

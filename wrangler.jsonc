@@ -20,5 +20,22 @@
       "binding": "DATA",
       "bucket_name": "stapes-data"
     }
+  ],
+  // One world, addressed by a fixed name. The world is the coordination atom:
+  // the map, the actors on it and the sockets watching them have to live in one
+  // place to stay consistent.
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "GAME",
+        "class_name": "GameServer"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["GameServer"]
+    }
   ]
 }

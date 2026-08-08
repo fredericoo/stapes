@@ -133,6 +133,27 @@ export function adoptAuthoredPlayer(map: MapFile, ownerId: string): MapFile {
 }
 
 /**
+ * Every actor with a tile on the board.
+ *
+ * A resumed world can hold actors nobody is driving any more — a connection
+ * that died while the object was evicted leaves its body behind — so the server
+ * needs to know who is present before deciding who belongs.
+ */
+export function listActorOwners(map: MapFile): string[] {
+  const owners = new Set<string>();
+  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+    for (const { stack } of listCoords(map, z)) {
+      for (const placed of stack) {
+        if (placed.tileId === PLAYER_TILE_ID && placed.owner) {
+          owners.add(placed.owner);
+        }
+      }
+    }
+  }
+  return [...owners];
+}
+
+/**
  * Take the authored `player` tile off the board, keeping its cell as the spawn
  * point. For a session that starts empty: the tile is only a marker, and
  * leaving it would draw an avatar nobody is driving.

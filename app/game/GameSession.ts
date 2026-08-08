@@ -13,6 +13,8 @@ import {
   actorDirection,
   adoptAuthoredPlayer,
   despawnActor,
+  findActorAnywhere,
+  listActorOwners,
   locateActor,
   removeAuthoredPlayer,
   spawnActor,
@@ -210,27 +212,40 @@ export class GameSession implements PlaySession {
    * @param actorIds actors to start with. The default adopts the authored
    *   `player` tile as a single local actor, which is what `/play` wants; pass
    *   an empty array to open an empty world and {@link spawn} into it.
+   * @param spawnAt where actors enter. Omit for an authored map, and it is read
+   *   from the `player` tile, which is then consumed — adopted by the first
+   *   actor or removed. **Required when resuming a map that has already been
+   *   run**, because that map no longer has a marker to read: it was consumed
+   *   the first time. Rediscovering it is impossible, so it has to be carried
+   *   alongside.
    */
   constructor(
     map: MapFile,
     tiles: TileDef[],
     actorIds: readonly string[] = [LOCAL_ACTOR_ID],
+    spawnAt?: Coord & { stackIndex: number },
   ) {
     this.map = structuredClone(map);
     this.tilesById = tilesByIdFromList(tiles);
-    this.spawnAt = spawnPoint(this.map);
 
-    // The first actor adopts the authored tile rather than spawning beside it,
-    // so a single-actor session is the map it was handed, tagged — the tile
-    // keeps its slot in the stack, and with it the elevation it stands at.
-    const [first, ...rest] = actorIds;
-    if (first === undefined) {
-      this.map = removeAuthoredPlayer(this.map);
+    if (spawnAt) {
+      this.spawnAt = spawnAt;
+      for (const id of actorIds) this.spawn(id);
     } else {
-      this.map = adoptAuthoredPlayer(this.map, first);
-      this.addActor(first);
+      this.spawnAt = spawnPoint(this.map);
+      // The first actor adopts the authored tile rather than spawning beside
+      // it, so a single-actor session is the map it was handed, tagged — the
+      // tile keeps its slot in the stack, and with it the elevation it stands
+      // at.
+      const [first, ...rest] = actorIds;
+      if (first === undefined) {
+        this.map = removeAuthoredPlayer(this.map);
+      } else {
+        this.map = adoptAuthoredPlayer(this.map, first);
+        this.addActor(first);
+      }
+      for (const id of rest) this.spawn(id);
     }
-    for (const id of rest) this.spawn(id);
 
     for (const cell of findPlateCells(this.map, this.tilesById)) {
       this.plateCells.set(cellKey(cell), cell);
@@ -262,14 +277,37 @@ export class GameSession implements PlaySession {
   /**
    * Put an actor on the board at the spawn point.
    *
+   * Idempotent against the *map*, not just the actor table: a resumed world
+   * already holds the tiles of everyone who was standing in it, and minting a
+   * second body for them would leave one behind forever — `despawn` only ever
+   * removes one. So an actor who already has a tile is re-seated on it, keeping
+   * where they were rather than being sent back to spawn.
+   *
    * No reindex: an actor tile is never a plate and never wired, so which cells
    * carry those is unchanged. Arriving on a plate still presses it — the map
    * identity changed, so the next {@link settleBoardNow} will not skip.
    */
   spawn(id: string) {
     if (this.actors.has(id)) return;
-    this.map = spawnActor(this.map, id, this.spawnAt);
+    if (!findActorAnywhere(this.map, id)) {
+      this.map = spawnActor(this.map, id, this.spawnAt);
+    }
     this.addActor(id);
+  }
+
+  /**
+   * Remove the bodies of actors nobody is driving.
+   *
+   * A world resumed from a checkpoint carries whoever was standing in it, and
+   * some of those connections are gone — they died while the object was
+   * evicted, so no close ever ran for them. Called with the set that is
+   * genuinely connected.
+   */
+  reapAbsentActors(present: Iterable<string>) {
+    const live = new Set(present);
+    for (const owner of listActorOwners(this.map)) {
+      if (!live.has(owner)) this.map = despawnActor(this.map, owner);
+    }
   }
 
   /**
@@ -283,6 +321,14 @@ export class GameSession implements PlaySession {
 
   actorIds(): string[] {
     return [...this.actors.keys()];
+  }
+
+  /**
+   * Where actors enter. Must be carried alongside any map this session is
+   * checkpointed into — see the constructor.
+   */
+  getSpawnPoint(): Coord & { stackIndex: number } {
+    return this.spawnAt;
   }
 
   private actor(id: string): ActorRuntime {
@@ -569,9 +615,17 @@ export class GameSession implements PlaySession {
     };
   }
 
+  /**
+   * Every actor, with no viewpoint. What the server broadcasts — it is not
+   * looking at the world from anywhere.
+   */
+  actorSnapshots(): ActorSnapshot[] {
+    return [...this.actors.values()].map((a) => this.actorSnapshot(a));
+  }
+
   getSnapshot(id: string = LOCAL_ACTOR_ID): GameSnapshot {
     const self = this.actor(id);
-    const actors = [...this.actors.values()].map((a) => this.actorSnapshot(a));
+    const actors = this.actorSnapshots();
     const mine = actors.find((a) => a.id === self.id)!;
     return {
       map: this.map,
@@ -580,6 +634,23 @@ export class GameSession implements PlaySession {
       hover:
         self.hovered && this.canInteract(self.hovered, id) ? self.hovered : null,
     };
+  }
+
+  /**
+   * Nothing is moving and nobody is asking to move.
+   *
+   * The server ticks only while this is false, so an idle world costs nothing
+   * and its Durable Object can hibernate with sockets still open. The board
+   * clause is the settle convergence condition rather than a flag: a pass that
+   * changed something leaves `map !== settledMap`, so the world keeps ticking
+   * until plates and channels agree with each other.
+   */
+  isAtRest(): boolean {
+    for (const actor of this.actors.values()) {
+      if (actor.walk || actor.fall || actor.slide) return false;
+      if (actor.input.directions.length > 0) return false;
+    }
+    return this.map === this.settledMap;
   }
 
   getMap(): MapFile {

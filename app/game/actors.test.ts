@@ -155,6 +155,58 @@ describe("actor lifecycle", () => {
     const session = new GameSession(strip(3), tiles);
     expect(() => session.getSnapshot("nobody")).toThrow(/No actor/);
   });
+
+  /**
+   * Starting a session consumes the authored marker, so a map that has already
+   * been run cannot be handed back without its spawn point — there is no tile
+   * left to read it from. The server checkpoints the two together for exactly
+   * this reason.
+   */
+  /**
+   * The server resumes worlds from a checkpoint whose map already holds every
+   * actor's tile. Spawning them again would mint a second body, and `despawn`
+   * only ever removes one — so the first would linger forever.
+   */
+  it("re-seats an actor who already has a tile instead of minting a second", () => {
+    const first = new GameSession(strip(4), tiles, ["a"]);
+    first.setInput({ directions: ["e"] }, "a");
+    first.update(ONE_WALK_MS);
+    const ranMap = first.getMap();
+    const spawn = first.getSpawnPoint();
+    expect(first.getSnapshot("a").self.x).toBe(1);
+
+    const resumed = new GameSession(ranMap, tiles, ["a"], spawn);
+
+    expect(findPlayers(resumed.getMap())).toHaveLength(1);
+    // And re-seated where they were, not sent back to spawn.
+    expect(resumed.getSnapshot("a").self.x).toBe(1);
+  });
+
+  it("reaps actors whose connections are gone", () => {
+    const session = new GameSession(strip(3), tiles, ["a", "b", "c"]);
+    expect(findPlayers(session.getMap())).toHaveLength(3);
+
+    session.reapAbsentActors(["b"]);
+
+    const owners = findPlayers(session.getMap()).map((p) => p.placed.owner);
+    expect(owners).toEqual(["b"]);
+  });
+
+  it("resumes a map whose marker was already consumed", () => {
+    const first = new GameSession(strip(3), tiles, []);
+    const ranMap = first.getMap();
+    const spawn = first.getSpawnPoint();
+    expect(findPlayers(ranMap)).toHaveLength(0);
+
+    expect(() => new GameSession(ranMap, tiles, [])).toThrow(/No tile/);
+
+    const resumed = new GameSession(ranMap, tiles, [], spawn);
+    resumed.spawn("a");
+    expect(ownersAt(resumed, spawn.x, spawn.y, spawn.z)).toEqual([
+      undefined,
+      "a",
+    ]);
+  });
 });
 
 describe("two actors on one board", () => {

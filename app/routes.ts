@@ -5,6 +5,7 @@ export default [
   route("tiles", "routes/tiles.tsx"),
   route("map", "routes/map.tsx"),
   route("play", "routes/play.tsx"),
+  route("online", "routes/online.tsx"),
   route("voxel", "routes/voxel.tsx"),
   route("tilesets/:file", "routes/tilesets.$file.ts"),
 ] satisfies RouteConfig;

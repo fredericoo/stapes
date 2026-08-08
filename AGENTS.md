@@ -38,6 +38,25 @@ Do not add a second write path that bypasses `DataStore`. The reason the two
 directions stay consistent is that there is only ever one copy of the truth in a
 given environment, never a sync between two.
 
+## `/online` needs `pnpm dev:worker`, not `pnpm dev`
+
+**Vite's dev server does not pass WebSocket upgrades through to the Worker.** An
+upgrade to `/online/ws` under `pnpm dev` gets an empty reply; the same request
+against workerd returns 101. Everything else about `/online` works in Vite —
+the loader, the cookie, the 403/426 responses on the socket route — so the
+failure looks like a bug in the game server and is not one.
+
+`pnpm dev:worker` builds and runs the real runtime, which is where `/online` can
+actually be exercised. Two caveats, both of which cost me a debugging cycle:
+
+- **Pass `--persist-to`.** With `-c build/server/wrangler.json` the default state
+  directory resolves next to that config, so wrangler quietly creates an empty
+  `build/server/.wrangler` — R2 reads then miss and the world loads blank. The
+  script pins it to the repo's own `.wrangler/state`.
+- **Two browser tabs share a cookie**, so they are the *same* actor. Use
+  `localhost` in one and `127.0.0.1` in the other for two cookie jars, which is
+  why the dev server binds `--host`.
+
 ## The simulation holds N actors
 
 `GameSession` runs any number of actors. `/play` runs exactly one and never
@@ -67,10 +86,49 @@ names it (`LOCAL_ACTOR_ID`); the game server will spawn one per connection.
   closes that. The map cannot answer the question, because the answer is not in
   the map yet.
 
+- **Spawning is idempotent against the map, not just the actor table.** A world
+  resumed from a checkpoint already holds everyone's tile, so `spawn` re-seats
+  an actor on the body they have rather than minting a second — `despawn` only
+  ever removes one, so a duplicate would linger forever. Actors in a resumed map
+  with no live connection are reaped (`reapAbsentActors`); nothing else would
+  ever remove them.
+- **A map that has been run cannot be resumed without its spawn point.**
+  Starting a session *consumes* the authored `player` marker — adopted or
+  removed — so there is no tile left to read it from. `getSpawnPoint` exists so
+  it can be carried alongside, and the server checkpoints the two together.
+
 Affordances (`./affordances`) are pure functions of board plus actor, kept out
 of the session because both ends of the wire ask: the server to validate an
 interaction, the client to decide whether to draw one under the cursor. Same
 rules on both sides means the client cannot offer something the server refuses.
+
+## The wire is patches plus motion events
+
+Two kinds of thing travel, and keeping them apart is what makes it cheap.
+
+**Cell patches are the truth.** After each tick the server diffs the map against
+the last broadcast with `changedCellsOnLevel` — chunk identity first — so a step
+falls out as exactly the two cells it touched on a floor of thousands. Every
+socket is at the same map version, so it is one diff and one `JSON.stringify`
+per tick regardless of player count.
+
+**Motion events are animation hints** for what the map cannot express yet. A
+walk commits only when it lands, so the server announces `walkStarted` at the
+start and the cell patch arrives 200ms later, exactly as the client's
+interpolation finishes. There is deliberately **no position stream**: a walking
+actor costs one event, not one message per tick. Events are emitted on object
+*identity* — motion state is mutated in place as it advances, so the same object
+across two ticks is the same motion and must not be announced twice.
+
+`RemoteSession` reads actor positions off the map rather than tracking them
+separately: the map is authoritative and already carries ownership, so there is
+no second copy to drift.
+
+**The world ticks only while there is work** (`isAtRest`). `setInterval` blocks
+hibernation, so an idle world stops ticking and its object can be evicted with
+sockets still open. Going idle checkpoints the runtime map, which is what makes
+eviction invisible — without it a wake would reload the authored map and drop
+everyone back at spawn.
 
 The renderer is a *viewer*. Camera, roof-cut, hover and pick follow `snap.self`
 and deliberately stay single-anchor; `snap.actors` is what gets drawn and lerped.
