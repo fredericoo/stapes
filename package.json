@@ -6,7 +6,7 @@
     "build": "react-router build",
     "dev": "react-router dev",
     "dev:r2": "VITE_USE_R2=1 react-router dev",
-    "dev:worker": "pnpm build && wrangler dev -c build/server/wrangler.json --persist-to .wrangler/state",
+    "dev:worker": "pnpm build && tsx scripts/dev-worker.ts",
     "deploy": "pnpm build && wrangler deploy",
     "seed": "tsx scripts/seed-r2.ts",
     "typecheck": "react-router typegen && wrangler types && tsc && tsc -p tsconfig.node.json",

@@ -14,11 +14,12 @@ Open http://localhost:5173 — redirects to `/map`. Tile database lives at `/til
 
 ## Scripts
 
-- `pnpm dev` — dev server, reading and writing `data/` on disk
+- `pnpm dev` — dev server, reading and writing `data/` on disk. Runs everything
+  including `/online`, with HMR
 - `pnpm dev:r2` — same, but against the local R2 bucket (needs `pnpm seed` first)
-- `pnpm dev:worker` — build and run the real Workers runtime. **Required for
-  `/online`:** Vite's dev server does not pass WebSocket upgrades through to the
-  Worker, so the socket only connects here (needs `pnpm seed` first)
+- `pnpm dev:worker` — build and run real workerd, with `data/` still on disk.
+  For production fidelity — real Durable Object hibernation, checkpointing and
+  eviction. No HMR, since it serves a build
 - `pnpm generate` — regenerate placeholder tileset + seed JSON in `data/`
 - `pnpm seed` — upload `data/` into the local R2 bucket (`--remote` for the deployed one)
 - `pnpm typecheck` — route typegen + `wrangler types` + tsc, for both tsconfigs
@@ -38,7 +39,8 @@ Saving in `/map` writes the map and restarts the world: everyone re-enters a
 fresh game on the new map.
 
 Two tabs in one browser share the cookie and are therefore the *same* player.
-To test two players locally, open one on `localhost` and one on `127.0.0.1`.
+To test two players locally, open one on `localhost` and one on `127.0.0.1` —
+different hosts, different cookie jars.
 
 ## Data
 

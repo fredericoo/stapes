@@ -10,6 +10,12 @@
   "observability": {
     "enabled": true
   },
+  // Empty in production, where authored content comes from R2. `pnpm dev:worker`
+  // overrides it with `--var` to point at a file server over `data/`, so the
+  // art loop and reviewable saves work on workerd too.
+  "vars": {
+    "DATA_ORIGIN": ""
+  },
   // Authored maps, tile definitions, tilesets and their PNGs. R2 rather than KV
   // because the editor saves and immediately reloads: KV's eventual consistency
   // would show the author their own write as stale for up to a minute.

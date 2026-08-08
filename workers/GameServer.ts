@@ -7,7 +7,7 @@ import {
   flattenMap,
   getStack,
 } from "../app/lib/mapData";
-import { DataStore, R2Blobs } from "../app/lib/storage.server";
+import { dataStoreFor, type DataStore } from "../app/lib/storage.server";
 import type { FlatMapFile, MapFile, TileDef } from "../app/lib/types";
 import { MAX_LEVEL, MIN_LEVEL, parseCoordKey } from "../app/lib/types";
 import {
@@ -65,8 +65,12 @@ export class GameServer extends DurableObject<Env> {
   private timer: ReturnType<typeof setInterval> | null = null;
   private loading: Promise<void> | null = null;
 
+  /**
+   * No request to derive an origin from, so under `pnpm dev:worker` this
+   * depends on `DATA_ORIGIN` to find `data/` on disk; everywhere else it is R2.
+   */
   private store(): DataStore {
-    return new DataStore(new R2Blobs(this.env.DATA));
+    return dataStoreFor(this.env);
   }
 
   /**

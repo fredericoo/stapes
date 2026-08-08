@@ -38,24 +38,33 @@ Do not add a second write path that bypasses `DataStore`. The reason the two
 directions stay consistent is that there is only ever one copy of the truth in a
 given environment, never a sync between two.
 
-## `/online` needs `pnpm dev:worker`, not `pnpm dev`
+## Two dev servers, and `pnpm dev` is the one you want
 
-**Vite's dev server does not pass WebSocket upgrades through to the Worker.** An
-upgrade to `/online/ws` under `pnpm dev` gets an empty reply; the same request
-against workerd returns 101. Everything else about `/online` works in Vite —
-the loader, the cookie, the 403/426 responses on the socket route — so the
-failure looks like a bug in the game server and is not one.
+`pnpm dev` runs everything, `/online` included: the Cloudflare Vite plugin
+proxies WebSocket upgrades through to the Worker and Durable Object, so you get
+multiplayer *and* HMR *and* `data/` on disk. Use it.
 
-`pnpm dev:worker` builds and runs the real runtime, which is where `/online` can
-actually be exercised. Two caveats, both of which cost me a debugging cycle:
+`pnpm dev:worker` builds and runs real workerd. It is for production fidelity —
+actual DO hibernation and checkpointing, actual eviction — not for day-to-day
+work, since it serves a build and has no HMR. It runs a file server over `data/`
+beside the Worker and points at it with `DATA_ORIGIN`, so the art loop and
+git-diffable saves behave the same in both.
 
-- **Pass `--persist-to`.** With `-c build/server/wrangler.json` the default state
-  directory resolves next to that config, so wrangler quietly creates an empty
-  `build/server/.wrangler` — R2 reads then miss and the world loads blank. The
-  script pins it to the repo's own `.wrangler/state`.
-- **Two browser tabs share a cookie**, so they are the *same* actor. Use
-  `localhost` in one and `127.0.0.1` in the other for two cookie jars, which is
-  why the dev server binds `--host`.
+Two traps when testing multiplayer, both of which have cost real time:
+
+- **Two browser tabs share a cookie**, so they are the *same* actor and it looks
+  like joining is broken. Use `localhost` in one and `127.0.0.1` in the other
+  for two cookie jars — which is why the dev server binds `--host`.
+- **`curl` is not a WebSocket client.** An upgrade probe against Vite returns an
+  empty reply while the same probe against workerd returns 101, and that
+  difference means nothing about whether the app works. Test upgrades in a
+  browser. A previous revision of this file confidently claimed Vite could not
+  proxy WebSockets at all, on exactly that evidence, while a browser tab sat
+  there connected.
+- **`pnpm dev:worker` needs an absolute `--persist-to`** (the script has one).
+  With `-c build/server/wrangler.json` the default state directory resolves next
+  to that config, so wrangler quietly creates an empty `build/server/.wrangler`,
+  every R2 read misses, and the world loads blank.
 
 ## The simulation holds N actors
 

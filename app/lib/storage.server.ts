@@ -174,20 +174,34 @@ export class DataStore {
 }
 
 /**
- * Pick a backend for this request.
+ * Pick a backend.
  *
  * Dev reads and writes `data/` on disk so art iteration stays a save away, and
- * so editor saves show up in `git diff`. Set `VITE_USE_R2=1` (`pnpm dev:r2`) to
- * exercise the real R2 path locally instead — production always takes it.
+ * so editor saves show up in `git diff`. Production always takes R2. Set
+ * `VITE_USE_R2=1` (`pnpm dev:r2`) to exercise the R2 path locally.
+ *
+ * Two ways to reach the disk, because the two dev runtimes differ in what sits
+ * in front of the Worker:
+ *
+ * - `DATA_ORIGIN` names a file server running beside it. `pnpm dev:worker` sets
+ *   it, since workerd has no Vite in front to ask.
+ * - Otherwise, under Vite, the middleware is on the Worker's own origin — which
+ *   is why this needs the request to find it, and why the Durable Object (which
+ *   has no request) depends on `DATA_ORIGIN` being set.
  */
-export function createDataStore(env: Env, request: Request): DataStore {
-  const useDisk =
-    import.meta.env.DEV && import.meta.env.VITE_USE_R2 !== "1";
+export function dataStoreFor(env: Env, selfOrigin?: string): DataStore {
+  if (env.DATA_ORIGIN) {
+    return new DataStore(new DevDiskBlobs(env.DATA_ORIGIN));
+  }
+  const useVite =
+    import.meta.env.DEV && import.meta.env.VITE_USE_R2 !== "1" && selfOrigin;
   return new DataStore(
-    useDisk
-      ? new DevDiskBlobs(new URL(request.url).origin)
-      : new R2Blobs(env.DATA),
+    useVite ? new DevDiskBlobs(selfOrigin) : new R2Blobs(env.DATA),
   );
+}
+
+export function createDataStore(env: Env, request: Request): DataStore {
+  return dataStoreFor(env, new URL(request.url).origin);
 }
 
 const PNG_SIGNATURE = [137, 80, 78, 71, 13, 10, 26, 10];
