@@ -1,5 +1,21 @@
 # Agent notes — Stapes
 
+## The server is a Cloudflare Worker
+
+`app/` and `workers/` run in workerd, not Node. There is no filesystem: authored
+content (map, tiles, tilesets, PNGs) lives in the `DATA` R2 bucket and is reached
+through `app/lib/storage.server.ts`, never through `node:fs`.
+
+- Bindings arrive via React Router 8's context, not the v7 `AppLoadContext`.
+  A loader or action gets at them with `dataStore(context)`; the context itself
+  is set once per request in `workers/app.ts`. Docs and older examples showing
+  `context.cloudflare.env` are written for v7 and will not typecheck.
+- `tsconfig.json` covers `app/` and `workers/` and deliberately excludes Node
+  types, so a `node:` import fails at typecheck rather than on deploy. Build
+  tooling and tests that genuinely run in Node live under `tsconfig.node.json`.
+- R2 starts empty. `pnpm seed` uploads `data/` into it; a fresh environment
+  loads blank until that runs.
+
 ## Map mutations must be undoable
 
 Every change to map data (`MapFile` / placed tiles) **must** go through `useEditorStore.getState().commitMap(...)` (or a store method that calls it: `eraseAt`, `stampAt`, `stampMany`, `appendArmed`, `removeFromStack`, `reorderSelectedStack`, `setStackDirection`).
@@ -104,10 +120,10 @@ Two things follow, and both matter:
   Prefer the coarsest that answers your question — `syncTo` skips whole chunks
   by identity before it looks at a single cell.
 
-The on-disk format stays flat, converted by `parseMap` / `serializeMap` via
+The stored format stays flat, converted by `parseMap` / `serializeMap` via
 `chunkifyMap` / `flattenMap`. Do not persist the chunked shape: the file is
-hand-editable and version-controlled, and `flattenMap` deliberately emits cells
-in a stable (x, y) order so a one-cell edit is a one-line diff.
+hand-editable and version-controlled in `data/`, and `flattenMap` deliberately
+emits cells in a stable (x, y) order so a one-cell edit is a one-line diff.
 
 Batch multi-cell edits through `setStacks` in one call so each chunk is copied
 once — `moveEntity` touches two cells and does exactly that.

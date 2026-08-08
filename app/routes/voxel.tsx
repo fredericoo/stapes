@@ -4,14 +4,7 @@ import type { Route } from "./+types/voxel";
 import { AppShell } from "../components/AppShell";
 import { DirectionPreview } from "../components/voxel/DirectionPreview";
 import { SliceEditor, type SliceTool } from "../components/voxel/SliceEditor";
-import {
-  readPngSize,
-  readTiles,
-  readTilesets,
-  writeTiles,
-  writeTilesets,
-  writeTilesetPng,
-} from "../lib/fs.server";
+import { dataStore, readPngSize } from "../lib/storage.server";
 import { CELL_SIZE, DIRECTIONS } from "../lib/types";
 import type { TileDef, TileHeight, TilesetDef } from "../lib/types";
 import {
@@ -49,7 +42,8 @@ const DEFAULT_PALETTE = [
   "#e8e0cf",
 ];
 
-export async function action({ request }: Route.ActionArgs) {
+export async function action({ context, request }: Route.ActionArgs) {
+  const store = dataStore(context);
   const form = await request.formData();
   const intent = String(form.get("intent") ?? "");
   if (intent !== "export-tileset") return { ok: false, error: "Unknown intent" };
@@ -59,18 +53,18 @@ export async function action({ request }: Route.ActionArgs) {
   if (!name) return { ok: false, error: "Name required" };
   if (!(file instanceof File)) return { ok: false, error: "File required" };
 
-  const buf = Buffer.from(await file.arrayBuffer());
+  const bytes = new Uint8Array(await file.arrayBuffer());
   let size: { width: number; height: number };
   try {
-    size = readPngSize(buf);
+    size = readPngSize(bytes);
   } catch {
     return { ok: false, error: "Sheet render produced an invalid PNG" };
   }
 
   const id = slugify(name);
   const fileName = `${id}.png`;
-  await writeTilesetPng(fileName, buf);
-  const tilesets = await readTilesets();
+  await store.writeTilesetPng(fileName, bytes);
+  const tilesets = await store.readTilesets();
   const def: TilesetDef = {
     id,
     name,
@@ -81,16 +75,16 @@ export async function action({ request }: Route.ActionArgs) {
   const idx = tilesets.findIndex((t) => t.id === id);
   if (idx >= 0) tilesets[idx] = def;
   else tilesets.push(def);
-  await writeTilesets(tilesets);
+  await store.writeTilesets(tilesets);
 
   const tileRaw = String(form.get("tile") ?? "");
   if (tileRaw) {
     const tile = JSON.parse(tileRaw) as TileDef;
-    const tiles = await readTiles();
+    const tiles = await store.readTiles();
     const tileIdx = tiles.findIndex((t) => t.id === tile.id);
     if (tileIdx >= 0) tiles[tileIdx] = tile;
     else tiles.push(tile);
-    await writeTiles(tiles);
+    await store.writeTiles(tiles);
   }
 
   return { ok: true, intent, tilesetId: id };

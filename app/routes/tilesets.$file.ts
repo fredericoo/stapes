@@ -1,16 +1,16 @@
 import type { Route } from "./+types/tilesets.$file";
-import { readTilesetPng } from "../lib/fs.server";
+import { dataStore } from "../lib/storage.server";
 
-export async function loader({ params }: Route.LoaderArgs) {
+export async function loader({ context, params }: Route.LoaderArgs) {
   const file = params.file;
   if (!file) {
     return new Response("Not found", { status: 404 });
   }
-  const buf = await readTilesetPng(file);
-  if (!buf) {
+  const bytes = await dataStore(context).readTilesetPng(file);
+  if (!bytes) {
     return new Response("Not found", { status: 404 });
   }
-  return new Response(new Uint8Array(buf), {
+  return new Response(bytes, {
     headers: {
       "Content-Type": "image/png",
       "Cache-Control": "public, max-age=60",

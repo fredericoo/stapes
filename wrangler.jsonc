@@ -1,0 +1,24 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "stapes",
+  "main": "workers/app.ts",
+  "compatibility_date": "2026-08-08",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "build/client"
+  },
+  "observability": {
+    "enabled": true
+  },
+  // Authored maps, tile definitions, tilesets and their PNGs. R2 rather than KV
+  // because the editor saves and immediately reloads: KV's eventual consistency
+  // would show the author their own write as stale for up to a minute.
+  // No preview_bucket_name: `wrangler dev` would then read a *different*
+  // bucket from the one `pnpm seed` fills, and dev would come up empty.
+  "r2_buckets": [
+    {
+      "binding": "DATA",
+      "bucket_name": "stapes-data"
+    }
+  ]
+}

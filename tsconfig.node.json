@@ -1,0 +1,21 @@
+{
+  // Build tooling and test harnesses, which legitimately run in Node: the
+  // tileset generator, the R2 seeder, the Vite/Vitest/Playwright configs and
+  // the Playwright specs.
+  "include": ["scripts/**/*", "e2e/**/*", "*.config.ts"],
+  "compilerOptions": {
+    // DOM for the Playwright specs: page.evaluate callbacks are typed here but
+    // execute in the browser.
+    "lib": ["ES2022", "DOM"],
+    "types": ["node"],
+    "target": "ES2022",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "esModuleInterop": true,
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "strict": true
+  }
+}

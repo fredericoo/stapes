@@ -4,41 +4,39 @@ import type { Route } from "./+types/tiles";
 import { AppShell } from "../components/AppShell";
 import { TileEditorDialog, tileIsAnimated } from "../components/TileEditorDialog";
 import { TilePreview } from "../components/TilePreview";
-import {
-  readPngSize,
-  readTiles,
-  readTilesets,
-  writeTiles,
-  writeTilesetPng,
-  writeTilesets,
-} from "../lib/fs.server";
+import { dataStore, readPngSize } from "../lib/storage.server";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { Button, Dialog, Input, useToast } from "../ui";
 
-export async function loader() {
-  const [tiles, tilesets] = await Promise.all([readTiles(), readTilesets()]);
+export async function loader({ context }: Route.LoaderArgs) {
+  const store = dataStore(context);
+  const [tiles, tilesets] = await Promise.all([
+    store.readTiles(),
+    store.readTilesets(),
+  ]);
   return { tiles, tilesets };
 }
 
-export async function action({ request }: Route.ActionArgs) {
+export async function action({ context, request }: Route.ActionArgs) {
+  const store = dataStore(context);
   const form = await request.formData();
   const intent = String(form.get("intent") ?? "");
 
   if (intent === "save-tile") {
     const raw = String(form.get("tile") ?? "");
     const tile = JSON.parse(raw) as TileDef;
-    const tiles = await readTiles();
+    const tiles = await store.readTiles();
     const idx = tiles.findIndex((t) => t.id === tile.id);
     if (idx >= 0) tiles[idx] = tile;
     else tiles.push(tile);
-    await writeTiles(tiles);
+    await store.writeTiles(tiles);
     return { ok: true, intent };
   }
 
   if (intent === "delete-tile") {
     const id = String(form.get("id") ?? "");
-    const tiles = await readTiles();
-    await writeTiles(tiles.filter((t) => t.id !== id));
+    const tiles = await store.readTiles();
+    await store.writeTiles(tiles.filter((t) => t.id !== id));
     return { ok: true, intent };
   }
 
@@ -47,10 +45,10 @@ export async function action({ request }: Route.ActionArgs) {
     const file = form.get("file");
     if (!name) return { ok: false, error: "Name required" };
     if (!(file instanceof File)) return { ok: false, error: "File required" };
-    const buf = Buffer.from(await file.arrayBuffer());
+    const bytes = new Uint8Array(await file.arrayBuffer());
     let size: { width: number; height: number };
     try {
-      size = readPngSize(buf);
+      size = readPngSize(bytes);
     } catch {
       return { ok: false, error: "Not a valid PNG" };
     }
@@ -65,8 +63,8 @@ export async function action({ request }: Route.ActionArgs) {
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "");
     const fileName = `${id}.png`;
-    await writeTilesetPng(fileName, buf);
-    const tilesets = await readTilesets();
+    await store.writeTilesetPng(fileName, bytes);
+    const tilesets = await store.readTilesets();
     const def: TilesetDef = {
       id,
       name,
@@ -77,7 +75,7 @@ export async function action({ request }: Route.ActionArgs) {
     const idx = tilesets.findIndex((t) => t.id === id);
     if (idx >= 0) tilesets[idx] = def;
     else tilesets.push(def);
-    await writeTilesets(tilesets);
+    await store.writeTilesets(tilesets);
     return { ok: true, intent };
   }
 

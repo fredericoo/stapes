@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useLoaderData } from "react-router";
+import type { Route } from "./+types/play";
 import { AppShell } from "../components/AppShell";
 import { GameSession } from "../game/GameSession";
 import {
@@ -9,16 +10,17 @@ import {
   type MinutesOfDay,
 } from "../lib/clock";
 import type { Direction } from "../lib/types";
-import { readMap, readTiles, readTilesets } from "../lib/fs.server";
+import { dataStore } from "../lib/storage.server";
 import { GameRenderer } from "../render/GameRenderer";
 import { FrameStatsReadout } from "../components/FrameStatsReadout";
 import type { FrameStats } from "../render/frameProfile";
 
-export async function loader() {
+export async function loader({ context }: Route.LoaderArgs) {
+  const store = dataStore(context);
   const [map, tiles, tilesets] = await Promise.all([
-    readMap(),
-    readTiles(),
-    readTilesets(),
+    store.readMap(),
+    store.readTiles(),
+    store.readTilesets(),
   ]);
   return { map, tiles, tilesets };
 }

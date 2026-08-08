@@ -15,22 +15,23 @@ import {
   ZOOM_LEVELS,
   snapZoom,
 } from "../editor/store";
-import { readMap, readTiles, readTilesets, writeMap } from "../lib/fs.server";
+import { dataStore } from "../lib/storage.server";
 import { formatClock, MINUTES_PER_DAY } from "../lib/clock";
 import type { MapFile } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL, clampLevel } from "../lib/types";
 import { Button, Input, Switch, Tooltip, useToast } from "../ui";
 
-export async function loader() {
+export async function loader({ context }: Route.LoaderArgs) {
+  const store = dataStore(context);
   const [map, tiles, tilesets] = await Promise.all([
-    readMap(),
-    readTiles(),
-    readTilesets(),
+    store.readMap(),
+    store.readTiles(),
+    store.readTilesets(),
   ]);
   return { map, tiles, tilesets };
 }
 
-export async function action({ request }: Route.ActionArgs) {
+export async function action({ context, request }: Route.ActionArgs) {
   const form = await request.formData();
   const raw = String(form.get("map") ?? "");
   try {
@@ -38,7 +39,7 @@ export async function action({ request }: Route.ActionArgs) {
     if (map.version !== 1) {
       return { ok: false, error: "Unsupported map version" };
     }
-    await writeMap(map);
+    await dataStore(context).writeMap(map);
     return { ok: true };
   } catch (err) {
     return {

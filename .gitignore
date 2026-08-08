@@ -11,3 +11,7 @@
 /playwright-report/
 /blob-report/
 /playwright/.cache/
+
+# Cloudflare
+/.wrangler/
+worker-configuration.d.ts

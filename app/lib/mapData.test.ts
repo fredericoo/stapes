@@ -1,6 +1,3 @@
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   clearStack,
@@ -16,15 +13,13 @@ import {
   listChannels,
   updatePlacedChannel,
 } from "./mapData";
+import mapJson from "../../data/map.json";
 import type { FlatMapFile, MapFile, PlacedTile, TileDef } from "./types";
 import { coordKey, levelKey, normalizeTileDef, physicalHeight } from "./types";
 import { fitsAtElevation, fitsTile, tilesByIdFromList } from "./validation";
 
-const root = join(dirname(fileURLToPath(import.meta.url)), "../..");
 // The file on disk is flat; the runtime shape is chunked.
-const fixtureMap: MapFile = chunkifyMap(
-  JSON.parse(readFileSync(join(root, "data/map.json"), "utf8")) as FlatMapFile,
-);
+const fixtureMap: MapFile = chunkifyMap(mapJson as FlatMapFile);
 
 describe("mapData copy-on-write", () => {
   it("keeps untouched levels, chunks and cells by reference", () => {
