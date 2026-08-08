@@ -1,6 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 import { GameSession, type ActorSnapshot } from "../app/game/GameSession";
 import { TICK_MS } from "../app/game/constants";
+import { minutesOfDayAt } from "../app/lib/clock";
 import {
   changedCellsOnLevel,
   chunkifyMap,
@@ -174,6 +175,10 @@ export class GameServer extends DurableObject<Env> {
       selfId: actorId,
       map: flattenMap(session.getMap()),
       actorIds: session.actorIds(),
+      // Read here rather than tracked: time of day is a function of the
+      // server's clock, so it costs nothing to keep and cannot fall behind
+      // while the object is hibernating.
+      minutesOfDay: minutesOfDayAt(Date.now()),
     };
     ws.send(JSON.stringify(message));
     // This socket is now current as of the map it was just sent, but the

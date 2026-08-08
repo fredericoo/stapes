@@ -15,7 +15,7 @@ import { sceneryStack } from "../game/movement";
 import type { EmitterOverride } from "../lib/lighting";
 import {
   DEFAULT_PLAY_MINUTES,
-  advanceClock,
+  clockAfter,
   wrapMinutes,
   type MinutesOfDay,
 } from "../lib/clock";
@@ -74,6 +74,13 @@ export class GameRenderer {
   private canvas: HTMLCanvasElement;
   private tilesById: Record<string, TileDef>;
   private minutesOfDay: number = DEFAULT_PLAY_MINUTES;
+  /**
+   * Last known reading of the clock and the frame time it was taken at. The
+   * clock is derived from this pair every frame rather than advanced by each
+   * frame's delta — see {@link clockAfter}.
+   */
+  private clockAnchorMinutes: MinutesOfDay = DEFAULT_PLAY_MINUTES;
+  private clockAnchorAtMs = 0;
   private clockPaused = false;
   private onClock: ((minutes: MinutesOfDay) => void) | null = null;
   private onStats: ((stats: FrameStats) => void) | null = null;
@@ -101,13 +108,33 @@ export class GameRenderer {
     this.attachPointer();
   }
 
+  /**
+   * Set the clock. Online this is the server's reading, taken on `hello`; the
+   * local rate carries it from there, so one anchor keeps every client in step
+   * for as long as the tab is open.
+   */
   setMinutesOfDay(m: MinutesOfDay) {
     this.minutesOfDay = wrapMinutes(m);
+    this.reanchorClock(this.minutesOfDay);
     this.onClock?.(Math.floor(this.minutesOfDay));
   }
 
   setClockPaused(paused: boolean) {
+    if (paused === this.clockPaused) return;
+    // Pausing freezes the hand where it is; resuming runs on from there. Both
+    // are the same move: re-anchor to what the clock reads right now.
+    this.reanchorClock(this.clockNow(performance.now()));
     this.clockPaused = paused;
+  }
+
+  private reanchorClock(minutes: MinutesOfDay) {
+    this.clockAnchorMinutes = minutes;
+    this.clockAnchorAtMs = performance.now();
+  }
+
+  private clockNow(nowMs: number): MinutesOfDay {
+    if (this.clockPaused) return this.clockAnchorMinutes;
+    return clockAfter(this.clockAnchorMinutes, nowMs - this.clockAnchorAtMs);
   }
 
   setOnClock(cb: ((minutes: MinutesOfDay) => void) | null) {
@@ -128,18 +155,20 @@ export class GameRenderer {
     if (this.running || this.disposed) return;
     this.running = true;
     this.lastTime = performance.now();
+    // Time only passes while the loop runs, so the anchor starts here rather
+    // than at construction — otherwise the first frame jumps the clock forward
+    // by however long the page had been open.
+    this.reanchorClock(this.minutesOfDay);
     const loop = () => {
       if (!this.running || this.disposed) return;
       this.raf = requestAnimationFrame(loop);
       const now = performance.now();
       const dt = Math.min(100, now - this.lastTime);
       this.lastTime = now;
-      if (!this.clockPaused) {
-        const prev = Math.floor(this.minutesOfDay);
-        this.minutesOfDay = advanceClock(this.minutesOfDay, dt);
-        const next = Math.floor(this.minutesOfDay);
-        if (next !== prev) this.onClock?.(next);
-      }
+      const prev = Math.floor(this.minutesOfDay);
+      this.minutesOfDay = this.clockNow(now);
+      const next = Math.floor(this.minutesOfDay);
+      if (next !== prev) this.onClock?.(next);
       const frameStart = performance.now();
       this.profiler.measure("sim", () => this.session.update(dt));
       // `view` nests the sync/map/light/motion phases recorded inside setView,

@@ -77,6 +77,12 @@ export type ServerMessage =
       /** The flat on-disk shape; the client chunkifies it. */
       map: unknown;
       actorIds: string[];
+      /**
+       * The world's time of day, as the server reads it right now. Clients
+       * carry it forward at the shared rate rather than keeping a clock of
+       * their own, so everyone is standing in the same hour.
+       */
+      minutesOfDay: number;
     }
   | {
       type: "patch";
@@ -136,6 +142,7 @@ const serverMessageSchema = v.variant("type", [
     selfId: v.string(),
     map: v.unknown(),
     actorIds: v.array(v.string()),
+    minutesOfDay: v.number(),
   }),
   v.object({
     type: v.literal("patch"),

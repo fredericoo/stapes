@@ -18,6 +18,7 @@ import type {
   SlideSnapshot,
   WalkState,
 } from "../game/GameSession";
+import { DEFAULT_PLAY_MINUTES, type MinutesOfDay } from "../lib/clock";
 import { chunkifyMap, emptyMap, setStacks } from "../lib/mapData";
 import type { FlatMapFile, MapFile, TileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
@@ -53,6 +54,7 @@ export class RemoteSession implements PlaySession {
   private map: MapFile = emptyMap();
   private readonly tilesById: Record<string, TileDef>;
   private selfId = "";
+  private serverMinutesOfDay: MinutesOfDay = DEFAULT_PLAY_MINUTES;
   private readonly motions = new Map<string, RemoteMotion>();
   private hovered: ObjectRef | null = null;
   private lastInput: string = "";
@@ -77,6 +79,17 @@ export class RemoteSession implements PlaySession {
     return this.ready;
   }
 
+  /**
+   * The world's time of day as of the last `hello`.
+   *
+   * Read once, when the renderer starts: from there the renderer runs the same
+   * rate the server does, so a single anchor is enough to keep two browsers in
+   * the same hour without a clock on the wire every tick.
+   */
+  minutesOfDay(): MinutesOfDay {
+    return this.serverMinutesOfDay;
+  }
+
   dispose() {
     this.socket.removeEventListener("message", this.onMessage);
   }
@@ -88,6 +101,7 @@ export class RemoteSession implements PlaySession {
 
     if (message.type === "hello") {
       this.selfId = message.selfId;
+      this.serverMinutesOfDay = message.minutesOfDay;
       this.map = chunkifyMap(message.map as FlatMapFile);
       // A restart moves everyone, so nothing that was animating still applies.
       this.motions.clear();

@@ -5,11 +5,8 @@
 
 export const MINUTES_PER_DAY = 24 * 60;
 
-/** One real-time second = one game minute. */
-export const GAME_MINUTE_MS = 1000;
-
-/** One game minute advances the clock by one hour. */
-export const CLOCK_MINUTES_PER_GAME_MINUTE = 60;
+/** One real second is one minute on the game clock — a day is 24 minutes. */
+export const MS_PER_CLOCK_MINUTE = 1000;
 
 export type MinutesOfDay = number;
 
@@ -61,11 +58,31 @@ export function formatClock(minutes: MinutesOfDay): string {
   return `${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}`;
 }
 
-/** Advance the clock by `dtMs` of real time at the play-mode rate. */
-export function advanceClock(minutes: number, dtMs: number): MinutesOfDay {
-  return wrapMinutes(
-    minutes + (dtMs / GAME_MINUTE_MS) * CLOCK_MINUTES_PER_GAME_MINUTE,
-  );
+/**
+ * What the clock reads `elapsedMs` of real time after it read `minutes`.
+ *
+ * A span since a known reading rather than a per-frame accumulation: frame
+ * deltas are clamped and a backgrounded tab gets a handful of them, so a clock
+ * summed frame by frame runs slow by however long it spent unfocused. Two
+ * clients that started in agreement would then quietly stop agreeing.
+ */
+export function clockAfter(
+  minutes: MinutesOfDay,
+  elapsedMs: number,
+): MinutesOfDay {
+  return wrapMinutes(minutes + elapsedMs / MS_PER_CLOCK_MINUTE);
+}
+
+/**
+ * Time of day at a wall-clock instant. The shared world's clock.
+ *
+ * A pure function of time, so the server has no clock to tick and none to
+ * checkpoint: an idle world can hibernate for an hour and the sky is still
+ * where everyone left it, and a client that joins late sees the same sky as
+ * everyone already standing there.
+ */
+export function minutesOfDayAt(epochMs: number): MinutesOfDay {
+  return wrapMinutes(epochMs / MS_PER_CLOCK_MINUTE);
 }
 
 function lerp(a: number, b: number, t: number): number {

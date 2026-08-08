@@ -1,6 +1,7 @@
 import { env, runInDurableObject } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import tilesJson from "../data/tiles.json";
+import { MINUTES_PER_DAY, minutesOfDayAt } from "../app/lib/clock";
 import type { FlatMapFile } from "../app/lib/types";
 import type { GameServer } from "./GameServer";
 
@@ -171,6 +172,51 @@ describe("joining and leaving", () => {
     const owners = playerOwners(hello.map as FlatMapFile).sort();
     expect(owners).toEqual(["bob", "carol"]);
     expect(hello.actorIds).not.toContain("alice");
+  });
+});
+
+/**
+ * A generous window, in clock minutes, for "the same instant". The clock runs a
+ * minute per real second, so this is ten seconds of slack for a loaded machine.
+ */
+const CLOCK_TOLERANCE_MINUTES = 10;
+
+/** Circular distance between two readings, so a run across midnight is fine. */
+function minutesApart(a: number, b: number): number {
+  const d = Math.abs(a - b) % MINUTES_PER_DAY;
+  return Math.min(d, MINUTES_PER_DAY - d);
+}
+
+describe("time of day", () => {
+  /**
+   * The hour belongs to the world, not to whoever is looking at it. Each client
+   * used to run a clock of its own from a fixed start, so two browsers in the
+   * same world were reliably in different hours and drifted further apart the
+   * longer they stayed.
+   */
+  it("hands every joiner the server's clock", async () => {
+    const alice = await connect("alice");
+    const bob = await connect("bob");
+
+    const serverNow = minutesOfDayAt(Date.now());
+    for (const hello of [alice.hello, bob.hello]) {
+      expect(typeof hello.minutesOfDay).toBe("number");
+      expect(minutesApart(hello.minutesOfDay as number, serverNow)).toBeLessThan(
+        CLOCK_TOLERANCE_MINUTES,
+      );
+    }
+  });
+
+  /** Nothing to restore: the clock is a function of time, not stored state. */
+  it("keeps time across an eviction", async () => {
+    await putCheckpoint(checkpointWith([]));
+    await simulateEviction();
+
+    const { hello } = await connect("alice");
+
+    expect(
+      minutesApart(hello.minutesOfDay as number, minutesOfDayAt(Date.now())),
+    ).toBeLessThan(CLOCK_TOLERANCE_MINUTES);
   });
 });
 

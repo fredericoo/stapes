@@ -7,7 +7,6 @@ import { dataStore } from "../context";
 import {
   DEFAULT_PLAY_MINUTES,
   formatClock,
-  MINUTES_PER_DAY,
   type MinutesOfDay,
 } from "../lib/clock";
 import type { Direction } from "../lib/types";
@@ -78,12 +77,12 @@ export default function OnlinePage() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<GameRenderer | null>(null);
   const [status, setStatus] = useState<Status>("connecting");
+  // Placeholder until `hello` says what time it is out there. Nobody scrubs it:
+  // the hour belongs to the world, not to whoever is looking at it.
   const [minutesOfDay, setMinutesOfDay] = useState<MinutesOfDay>(
     DEFAULT_PLAY_MINUTES,
   );
   const [stats, setStats] = useState<FrameStats | null>(null);
-  const minutesRef = useRef(minutesOfDay);
-  minutesRef.current = minutesOfDay;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -128,7 +127,7 @@ export default function OnlinePage() {
         attempt = 0;
         setStatus("live");
         renderer = new GameRenderer(canvas, remote, tilesets, tiles);
-        renderer.setMinutesOfDay(minutesRef.current);
+        renderer.setMinutesOfDay(remote.minutesOfDay());
         renderer.setOnClock(setMinutesOfDay);
         renderer.setOnStats(setStats);
         rendererRef.current = renderer;
@@ -206,11 +205,6 @@ export default function OnlinePage() {
     };
   }, [tiles, tilesets, socketPath]);
 
-  const scrubTime = (m: MinutesOfDay) => {
-    setMinutesOfDay(m);
-    rendererRef.current?.setMinutesOfDay(m);
-  };
-
   return (
     <AppShell
       trailing={
@@ -224,18 +218,12 @@ export default function OnlinePage() {
           </span>
           <div className="flex items-center gap-2">
             <span className="text-xs uppercase text-paper/70">Time</span>
-            <input
-              type="range"
-              min={0}
-              max={MINUTES_PER_DAY - 1}
-              step={1}
-              value={Math.floor(minutesOfDay)}
-              onChange={(e) => scrubTime(Number(e.target.value))}
-              aria-label="Time of day"
-              aria-valuetext={formatClock(minutesOfDay)}
-              className="hard-slider w-36"
-            />
-            <span className="border-2 border-paper/40 px-1.5 py-0.5 text-xs tabular-nums text-paper">
+            <span
+              className="border-2 border-paper/40 px-1.5 py-0.5 text-xs tabular-nums text-paper"
+              // Named rather than announced: the hour changes every second, so
+              // a live region here would talk over everything else.
+              aria-label={`Time of day, ${formatClock(minutesOfDay)}`}
+            >
               {formatClock(minutesOfDay)}
             </span>
           </div>

@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
-  advanceClock,
+  clockAfter,
   formatClock,
-  GAME_MINUTE_MS,
   MINUTES_PER_DAY,
+  minutesOfDayAt,
+  MS_PER_CLOCK_MINUTE,
   sampleIllumination,
   wrapMinutes,
   type IlluminationKeyframe,
@@ -86,9 +87,36 @@ describe("sampleIllumination", () => {
   });
 });
 
-describe("advanceClock", () => {
-  it("advances one hour per game minute", () => {
-    expect(advanceClock(0, GAME_MINUTE_MS)).toBe(60);
-    expect(advanceClock(23 * 60, GAME_MINUTE_MS)).toBe(0);
+describe("clockAfter", () => {
+  it("runs one clock minute per real second", () => {
+    expect(clockAfter(0, MS_PER_CLOCK_MINUTE)).toBe(1);
+    expect(clockAfter(0, 60 * MS_PER_CLOCK_MINUTE)).toBe(60);
+  });
+
+  it("wraps past midnight", () => {
+    expect(clockAfter(MINUTES_PER_DAY - 1, MS_PER_CLOCK_MINUTE)).toBe(0);
+  });
+});
+
+describe("minutesOfDayAt", () => {
+  /**
+   * The property the shared clock rests on: any two readings of the same
+   * instant agree, and the gap between two instants is real time at the game
+   * rate. This is what makes a client able to anchor once and stay in step
+   * without the server sending the time again.
+   */
+  it("is the same reading for the same instant", () => {
+    const now = 1_770_000_000_000;
+    expect(minutesOfDayAt(now)).toBe(minutesOfDayAt(now));
+  });
+
+  it("advances a minute per real second and a day per 24 real minutes", () => {
+    const now = 1_770_000_000_000;
+    expect(minutesOfDayAt(now + MS_PER_CLOCK_MINUTE)).toBe(
+      wrapMinutes(minutesOfDayAt(now) + 1),
+    );
+    expect(minutesOfDayAt(now + MINUTES_PER_DAY * MS_PER_CLOCK_MINUTE)).toBe(
+      minutesOfDayAt(now),
+    );
   });
 });
