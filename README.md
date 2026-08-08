@@ -23,6 +23,8 @@ Open http://localhost:5173 — redirects to `/map`. Tile database lives at `/til
 - `pnpm generate` — regenerate placeholder tileset + seed JSON in `data/`
 - `pnpm seed` — upload `data/` into the local R2 bucket (`--remote` for the deployed one)
 - `pnpm typecheck` — route typegen + `wrangler types` + tsc, for both tsconfigs
+- `pnpm test:unit` — `app/` logic, node pool
+- `pnpm test:workers` — `workers/` inside workerd, with real Durable Object storage
 - `pnpm build` / `pnpm deploy` — production build and deploy to Cloudflare Workers
 
 ## Multiplayer

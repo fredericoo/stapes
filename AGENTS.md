@@ -364,6 +364,30 @@ per idle call, and evicts LRU. Two invariants worth preserving:
 light (the player). Without that, walking dirties the chunks around the player
 and rebakes them for output that cannot differ.
 
+## Testing the Durable Object
+
+`workers/` runs under `@cloudflare/vitest-pool-workers` (`pnpm test:workers`),
+inside workerd with real DO storage and the bindings from `wrangler.jsonc`.
+`app/` stays on the node pool, which is far faster for plain logic.
+
+The split exists because **three bugs in `GameServer` all lived in the
+load / restore / checkpoint path and were invisible to a node test** — the
+object has to be constructed from a checkpoint for any of them to appear. That
+path is not exotic: every hibernation wake runs it.
+
+Two rules learned the hard way here:
+
+- **Revert one fix at a time when proving a test can fail.** Reverting all three
+  at once made two of the three tests pass, because the first revert changed
+  behaviour enough to mask the others — `requireSinglePlayer` treats an *owned*
+  player tile as the marker, so without the carried spawn point it deleted the
+  very body the duplication test was looking for. Three green tests, nothing
+  tested.
+- **Assert position, not just count.** "Exactly one body" passes whether an
+  actor was re-seated on the body they had or handed a fresh one at spawn.
+  Checkpoint them away from the spawn cell so the two outcomes differ; that is
+  what caught the accept-before-load bug.
+
 ## Verifying performance work
 
 **Prove the test can fail.** A parity test that passes at every setting is

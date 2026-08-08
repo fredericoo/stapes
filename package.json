@@ -11,9 +11,10 @@
     "seed": "tsx scripts/seed-r2.ts",
     "typecheck": "react-router typegen && wrangler types && tsc && tsc -p tsconfig.node.json",
     "generate": "tsx scripts/generate-tilesets.ts",
-    "test": "pnpm test:unit && pnpm test:perf",
+    "test": "pnpm test:unit && pnpm test:workers && pnpm test:perf",
     "test:unit": "vitest run",
-    "test:perf": "playwright test"
+    "test:perf": "playwright test",
+    "test:workers": "vitest run -c vitest.workers.config.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.6.0",
@@ -30,6 +31,7 @@
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^1.51.1",
+    "@cloudflare/vitest-pool-workers": "^0.12.0",
     "@playwright/test": "^1.62.1",
     "@react-router/dev": "^8",
     "@tailwindcss/vite": "^4.2.2",

@@ -137,14 +137,22 @@ export class GameServer extends DurableObject<Env> {
     const actorId = new URL(request.url).searchParams.get("actor");
     if (!actorId) return new Response("Missing actor", { status: 400 });
 
-    await this.ensureLoaded();
-
     const pair = new WebSocketPair();
     const [client, server] = [pair[0]!, pair[1]!];
     // acceptWebSocket rather than accept(): lets the object be evicted while
     // connections stay open, which is what makes an idle world free.
+    //
+    // Accepted *before* the world is loaded, and the order matters. This
+    // request is usually what wakes an evicted object, and loading reaps any
+    // actor in the checkpoint with no socket — so loading first would find this
+    // actor connectionless, throw away the body the checkpoint was keeping for
+    // them, and put them back at spawn. Every reconnect after a hibernation
+    // would silently lose its position. Messages arriving in the gap are safe:
+    // `webSocketMessage` loads for itself.
     this.ctx.acceptWebSocket(server);
     server.serializeAttachment({ actorId } satisfies Attachment);
+
+    await this.ensureLoaded();
 
     const session = this.session!;
     // Rejoining with the same id keeps the actor already on the board.
