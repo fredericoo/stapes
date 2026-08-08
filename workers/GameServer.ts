@@ -65,13 +65,26 @@ export class GameServer extends DurableObject<Env> {
   private events: MotionEvent[] = [];
   private timer: ReturnType<typeof setInterval> | null = null;
   private loading: Promise<void> | null = null;
+  /** Where `data/` is served in dev, told to us by whoever called in. */
+  private dataOrigin: string | null = null;
 
   /**
-   * No request to derive an origin from, so under `pnpm dev:worker` this
-   * depends on `DATA_ORIGIN` to find `data/` on disk; everywhere else it is R2.
+   * Find authored content.
+   *
+   * The origin is remembered from {@link replaceWorld} because in dev the
+   * answer is only knowable from a request: under `pnpm dev` the file
+   * middleware lives on the Vite server's own origin, and the object has no way
+   * to name it. Without it the object fell back to R2 while every loader read
+   * `data/` on disk, so an editor save landed in a bucket nobody reads and the
+   * map came back unchanged. `pnpm dev:worker` sets `DATA_ORIGIN`, which takes
+   * priority, and production ignores both and takes R2.
+   *
+   * Only the save tells us, not the socket handshake: the handshake's origin is
+   * whatever host the client reached, which is no basis for deciding where to
+   * fetch content from, and under Vite there are no sockets to serve anyway.
    */
   private store(): DataStore {
-    return dataStoreFor(this.env);
+    return dataStoreFor(this.env, this.dataOrigin ?? undefined);
   }
 
   /**
@@ -245,8 +258,12 @@ export class GameServer extends DurableObject<Env> {
    * The map persisted is the one the editor sent, never the running one: the
    * running map carries an `owner` on every actor's tile, and those have no
    * business in an authored file.
+   *
+   * `dataOrigin` is the editor's own origin — see {@link store} for why the
+   * object cannot work that out for itself in dev.
    */
-  async replaceWorld(flat: FlatMapFile): Promise<void> {
+  async replaceWorld(flat: FlatMapFile, dataOrigin?: string): Promise<void> {
+    if (dataOrigin) this.dataOrigin = dataOrigin;
     await this.ensureLoaded();
     const store = this.store();
     await store.writeMap(chunkifyMap(flat));

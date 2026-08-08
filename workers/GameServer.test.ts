@@ -1,7 +1,8 @@
-import { env, runInDurableObject } from "cloudflare:test";
-import { beforeEach, describe, expect, it } from "vitest";
+import { env, fetchMock, runInDurableObject } from "cloudflare:test";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import tilesJson from "../data/tiles.json";
 import { MINUTES_PER_DAY, minutesOfDayAt } from "../app/lib/clock";
+import { DEV_DATA_PREFIX } from "../app/lib/devData";
 import type { FlatMapFile } from "../app/lib/types";
 import type { GameServer } from "./GameServer";
 
@@ -123,6 +124,23 @@ async function simulateEviction() {
   });
 }
 
+/** Stands in for the dev server that hosts `data/`. */
+const DEV_DATA_ORIGIN = "http://data.test";
+
+function dataPath(key: string) {
+  return `${DEV_DATA_PREFIX}/${key}`;
+}
+
+/**
+ * Intercept the dev data server. Net access is off while it is mocked, so a
+ * request to a path with no interceptor fails loudly rather than escaping.
+ */
+function devDataPool() {
+  fetchMock.activate();
+  fetchMock.disableNetConnect();
+  return fetchMock.get(DEV_DATA_ORIGIN);
+}
+
 async function putCheckpoint(value: unknown) {
   await runInDurableObject(stub(), async (_instance, state) => {
     await state.storage.put("world", value);
@@ -132,6 +150,12 @@ async function putCheckpoint(value: unknown) {
 beforeEach(async () => {
   await env.DATA.put("tiles.json", JSON.stringify(tilesJson));
   await env.DATA.put("map.json", JSON.stringify(authoredMap()));
+});
+
+// Only the dev-origin case mocks fetch; leaving the agent active would make
+// every later test's outbound request fail with no interceptor.
+afterEach(() => {
+  fetchMock.deactivate();
 });
 
 describe("joining and leaving", () => {
@@ -295,5 +319,43 @@ describe("replacing the world", () => {
     await runInDurableObject(stub(), async (_instance, state) => {
       expect(await state.storage.get("world")).toBeUndefined();
     });
+  });
+
+  /**
+   * Regression: the object chose its storage backend from `env` alone, and
+   * under `pnpm dev` there is nothing in `env` to choose with — `data/` is
+   * served from the Vite server's own origin. So the editor's save went to R2
+   * while every loader kept reading disk: the save reported success, the
+   * revalidation read the untouched file, and the edit vanished.
+   */
+  it("writes through the origin it is given rather than R2", async () => {
+    const replacement = authoredMap();
+    replacement.levels["0"]![`${AWAY_FROM_SPAWN},0`] = [{ tileId: "water" }];
+
+    const pool = devDataPool();
+    // Two reads: the load that brings the world in, and the reload that gives
+    // the new session its tiles.
+    pool
+      .intercept({ path: dataPath("tiles.json") })
+      .reply(200, JSON.stringify(tilesJson))
+      .times(2);
+    pool
+      .intercept({ path: dataPath("map.json") })
+      .reply(200, JSON.stringify(authoredMap()));
+    let written = "";
+    pool
+      .intercept({ path: dataPath("map.json"), method: "PUT" })
+      .reply(200, (options) => {
+        written = String(options.body);
+        return "";
+      });
+
+    await stub().replaceWorld(replacement, DEV_DATA_ORIGIN);
+
+    expect(written).toContain('"water"');
+    // And R2 is left holding what it held before, rather than quietly taking
+    // the write the author will never read back.
+    const stored = await env.DATA.get("map.json");
+    expect(await stored!.text()).toBe(JSON.stringify(authoredMap()));
   });
 });

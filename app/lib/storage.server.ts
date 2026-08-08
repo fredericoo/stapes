@@ -186,8 +186,8 @@ export class DataStore {
  * - `DATA_ORIGIN` names a file server running beside it. `pnpm dev:worker` sets
  *   it, since workerd has no Vite in front to ask.
  * - Otherwise, under Vite, the middleware is on the Worker's own origin — which
- *   is why this needs the request to find it, and why the Durable Object (which
- *   has no request) depends on `DATA_ORIGIN` being set.
+ *   is why this needs the origin to find it. The Durable Object has no request
+ *   of its own, so it is told that origin by whoever calls in.
  */
 export function dataStoreFor(env: Env, selfOrigin?: string): DataStore {
   if (env.DATA_ORIGIN) {

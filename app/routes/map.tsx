@@ -53,7 +53,13 @@ export async function action({ context, request }: Route.ActionArgs) {
     // Flattened here, not in the server: the chunked shape is a runtime detail,
     // and the on-disk file stays the hand-editable flat one.
     const env = context.get(cloudflareContext).env;
-    await gameServer(env).replaceWorld(flattenMap(map));
+    // The origin travels with the map because the Durable Object has no request
+    // of its own to read it from, and in dev that is the only way to find the
+    // `data/` middleware — see GameServer's `store`.
+    await gameServer(env).replaceWorld(
+      flattenMap(map),
+      new URL(request.url).origin,
+    );
     return { ok: true };
   } catch (err) {
     return {
