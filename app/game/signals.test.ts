@@ -150,6 +150,30 @@ const tiles: TileDef[] = [
   }),
   tile({ id: "latch-open", height: 0 }),
 
+  // Both switchable and wired, as `data/tiles.json` authors a real door: tap it
+  // to open, and a channel overrules the tap. The open half is intangible,
+  // which is what lets anyone walk through the doorway — and what makes a door
+  // that closes on someone mid-step put them on top of itself.
+  tile({
+    id: "door-closed",
+    height: 2,
+    walkable: false,
+    interactions: {
+      switch: { targetTileId: "door-swing" },
+      receive: { tileId: "door-swing", when: "on", mode: "any" },
+    },
+  }),
+  tile({
+    id: "door-swing",
+    height: 2,
+    walkable: false,
+    intangible: true,
+    interactions: {
+      switch: { targetTileId: "door-closed" },
+      receive: { tileId: "door-closed", when: "off", mode: "all" },
+    },
+  }),
+
   // A receiver whose target is a full wall: cannot swap in under a load.
   tile({
     id: "swell",
@@ -495,6 +519,80 @@ describe("GameSession signals", () => {
     const after = session.getSnapshot().map;
     expect(stackIds(after, 2, 0)).toEqual(["grass", "plate"]);
     expect(stackIds(after, 6, 0)).toEqual(["latch-open"]);
+  });
+
+  /**
+   * Found by playtesters, who did it on purpose within a minute of finding a
+   * locked door.
+   *
+   * A wired door is meant to answer to its channel and nothing else, but the
+   * switch on it still fires — deliberately, since a door may want to be both
+   * tappable and overruled. The tap used to leave the door open on the board
+   * for the rest of the frame: `interact` runs between ticks and settling
+   * happened at the *end* of the next one, with movement in between. Holding
+   * the direction into the doorway, the walk saw an intangible open door,
+   * started, and was committed a few ticks later — by which time the channel
+   * had shut the door. Landing in a cell now filled by a solid door stacks the
+   * player on top of it, which is how you get onto a roof you were locked out
+   * of.
+   *
+   * The board a tick starts from has to be settled, so an out-of-tick edit
+   * settles with it: closed → tap → open → channel disagrees → closed, all
+   * before anything can be walked into.
+   */
+  it("does not let a tap on a wired door open a way through, even for a frame", () => {
+    let map = emptyMap();
+    for (let x = 0; x <= 2; x++) {
+      map = replaceStack(map, x, 0, 0, [{ tileId: "grass" }]);
+    }
+    map = replaceStack(map, 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "player", direction: "e" },
+    ]);
+    // Wired to a channel nothing drives, so the door's answer is always shut.
+    map = replaceStack(map, 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "door-closed", channel: "gate-a" },
+    ]);
+
+    const session = new GameSession(map, tiles);
+    // Leaning on the door, exactly as a player queuing a step would be.
+    session.setInput({ directions: ["e"] });
+    // The tap is allowed to happen: the switch is authored and still fires.
+    expect(session.interact({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(true);
+
+    // Long enough for a step to have started and committed.
+    run(session, TICKS_PER_STEP * 2);
+
+    const after = session.getSnapshot().map;
+    // The channel had the last word, as it must.
+    expect(stackIds(after, 1, 0)).toEqual(["grass", "door-closed"]);
+    // And nobody got through it, or onto it. Before the fix the player walked
+    // clean past the doorway to (2,0) and the door shut behind them; with a
+    // wall on the far side they would have been stacked on top of it instead.
+    expect(stackIds(after, 0, 0)).toEqual(["grass", "player"]);
+    expect(session.getSnapshot().self.x).toBe(0);
+  });
+
+  /** The same door with nothing wired to it stays an ordinary openable door. */
+  it("still opens a switchable door that answers to no channel", () => {
+    let map = replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "player", direction: "e" },
+    ]);
+    map = replaceStack(map, 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "door-closed" },
+    ]);
+
+    const session = new GameSession(map, tiles);
+    expect(session.interact({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(true);
+    run(session, 2);
+
+    expect(stackIds(session.getSnapshot().map, 1, 0)).toEqual([
+      "grass",
+      "door-swing",
+    ]);
   });
 
   it("oscillates rather than spinning on a self-defeating wire", () => {

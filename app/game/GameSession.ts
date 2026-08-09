@@ -529,9 +529,25 @@ export class GameSession implements PlaySession {
    * an object lives behind a single button, so the tile's own capabilities
    * pick the action rather than the input device — switch wins when authored,
    * push is the fallback. Returns false when nothing happened.
+   *
+   * Settles before returning, because this is the one edit that happens
+   * *between* ticks: input arrives whenever it arrives, while everything else
+   * that moves the board does so inside {@link tick}, which settles at the end.
+   * Movement therefore reads the board at the top of a tick as already
+   * answered-for, and an unsettled edit sitting there is a lie it will act on.
+   *
+   * A wired door is where that bites. Tapping one is allowed — a door may want
+   * to be both tappable and overruled by its channel — but the tap used to
+   * leave it open for the rest of the frame, which was long enough for a held
+   * direction to start a step through a doorway the channel was about to shut.
+   * The step is authorised once and committed later regardless, so the player
+   * ended up through a locked door, or standing on top of it. Closed → tap →
+   * open → channel disagrees → closed now happens with nothing in between.
    */
   interact(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
-    return this.activateSwitch(ref, id) || this.push(ref, id);
+    const acted = this.activateSwitch(ref, id) || this.push(ref, id);
+    if (acted) this.settleBoardNow();
+    return acted;
   }
 
   /**
