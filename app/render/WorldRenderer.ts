@@ -54,6 +54,7 @@ import {
   writeBoxAttr,
 } from "./worldQuads";
 import { disposeGroupChildren, makeSpriteOutline } from "./overlayMeshes";
+import { NameLabelLayer, type NameLabel } from "./nameLabels";
 import { type SpriteQuadAssets, spriteQuadFor } from "./spriteQuad";
 
 type AnimatedInstance = {
@@ -242,6 +243,7 @@ export class WorldRenderer {
   private overlays: THREE.Group;
   /** null forces a rebuild; "" is the valid signature of an empty overlay set. */
   private overlaySig: string | null = null;
+  private labels = new NameLabelLayer();
   private textures = new Map<string, THREE.Texture>();
   private materials = new Map<string, THREE.MeshBasicMaterial>();
   private tilesets: TilesetDef[] = [];
@@ -320,6 +322,7 @@ export class WorldRenderer {
     this.overlayScene.matrixWorldAutoUpdate = false;
     this.overlays = new THREE.Group();
     this.overlayScene.add(this.overlays);
+    this.overlayScene.add(this.labels.group);
 
     const data = new Uint8Array([255, 0, 255, 255]);
     this.magentaTex = new THREE.DataTexture(data, 1, 1, THREE.RGBAFormat);
@@ -413,6 +416,19 @@ export class WorldRenderer {
     this.needsRender = true;
   }
 
+  /**
+   * Names over heads. Not part of {@link setOverlays} because these move every
+   * frame rather than changing every so often: the overlay set is rebuilt
+   * whenever its signature moves, which for a walking actor would be a fresh
+   * mesh, material and texture per frame.
+   */
+  setLabels(labels: NameLabel[]) {
+    if (labels.length === 0 && this.labels.isEmpty) return;
+    this.labels.set(labels);
+    this.labels.group.updateMatrixWorld(true);
+    this.needsRender = true;
+  }
+
   /** The placed tile an overlay refers to, plus the elevation it is drawn at. */
   private overlaySubject(key: TileInstanceKey) {
     const map = this.view?.map;
@@ -502,7 +518,7 @@ export class WorldRenderer {
 
     // Quantise before chrome so hover outlines and target squares keep their
     // exact colour instead of snapping to the nearest palette entry.
-    if (this.overlays.children.length > 0) {
+    if (this.overlays.children.length > 0 || !this.labels.isEmpty) {
       r.autoClear = false;
       r.render(this.overlayScene, this.camera);
       r.autoClear = true;
@@ -519,6 +535,7 @@ export class WorldRenderer {
     this.resizeObserver?.disconnect();
     this.palettePass.dispose();
     disposeGroupChildren(this.overlays);
+    this.labels.dispose();
     this.renderer.dispose();
     for (const tex of this.textures.values()) tex.dispose();
     for (const mat of this.materials.values()) mat.dispose();

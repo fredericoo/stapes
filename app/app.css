@@ -1,5 +1,24 @@
 @import "tailwindcss";
 
+/**
+ * The in-world pixel font. Silkscreen, by Jason Kottke, under the SIL Open Font
+ * License — the licence travels with it in public/fonts.
+ *
+ * Its em is 8 units, so at 8px every stroke lands on a whole pixel. Any other
+ * size puts glyph edges on half pixels, which the canvas then antialiases into
+ * grey — the one thing 1-bit pixel art cannot absorb. Subset to printable
+ * ASCII: names are ids, and the whole file is 7kB because of it.
+ */
+@font-face {
+  font-family: "Silkscreen";
+  src: url("/fonts/silkscreen-ascii.woff") format("woff");
+  font-weight: 400;
+  font-style: normal;
+  /* Nothing on the page is typeset in it — it exists to be drawn into a canvas
+     texture, so there is no fallback flash to trade against. */
+  font-display: block;
+}
+
 @theme {
   --font-sans: "IBM Plex Mono", "SF Mono", ui-monospace, Menlo, monospace;
   --color-ink: #1a1a1a;

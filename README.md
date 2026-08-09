@@ -79,3 +79,11 @@ Two configs, because the codebase spans two runtimes:
   Node types, so a `node:` import here fails to typecheck rather than on deploy.
 - `tsconfig.node.json` — `scripts/`, `e2e/` and the `*.config.ts` files, which do
   run in Node.
+
+## Third-party assets
+
+- **Silkscreen** by Jason Kottke, in `public/fonts/` under the SIL Open Font
+  License 1.1 — the licence sits beside it, which is what the OFL asks for.
+  Subset to printable ASCII. It draws the names over players' heads, inside the
+  canvas rather than in the DOM, and it is used at **8px and only 8px**: its em
+  is 8 units, so that size puts every stroke on exactly one pixel.

@@ -1,6 +1,7 @@
 import {
   baseCellWorldOrigin,
   depthStackBias,
+  elevationScreenOffset,
   PX_PER_HEIGHT,
 } from "../lib/geometry";
 import type {
@@ -10,6 +11,8 @@ import type {
   PlaySession,
 } from "../game/GameSession";
 import { PLAYER_TILE_ID } from "../game/constants";
+import { displayNameFor } from "../game/displayName";
+import type { NameLabel } from "./nameLabels";
 import { FrameProfiler, type FrameStats } from "./frameProfile";
 import { fallDropPx, fallFootAbs, standingFootAbs } from "./fallAnchor";
 import { sceneryStack } from "../game/movement";
@@ -106,6 +109,7 @@ export class GameRenderer {
   private interactive: InteractiveIndex = [];
   private interactiveKey = "";
   private indexedMap: MapFile | null = null;
+  private showNames = false;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -305,6 +309,46 @@ export class GameRenderer {
     return [{ kind: "objectOutline", ...snap.hover, color: HOVER_COLOR }];
   }
 
+  /**
+   * A name over every actor's head, the viewer's own included.
+   *
+   * Off by default: alone in the single-player map there is nobody to tell
+   * apart, and a label over the only character on screen is noise. The online
+   * route turns it on.
+   */
+  setShowNames(show: boolean) {
+    this.showNames = show;
+  }
+
+  /**
+   * Anchored on the top of the head rather than on the cell.
+   *
+   * Height moves a tile up-*left* in this projection, 4px per unit, so a label
+   * placed straight above the feet would drift off the shoulder of anything
+   * tall. Taking the actor's own visual position and applying the same
+   * elevation shift its sprite gets puts the name over the head of a two-unit
+   * player and a ten-unit one alike — and, because that position already
+   * carries the walk lerp and the fall drop, the name travels with the sprite
+   * instead of chasing it.
+   */
+  private labelsFor(snap: GameSnapshot): NameLabel[] {
+    if (!this.showNames) return [];
+
+    const labels: NameLabel[] = [];
+    for (const actor of snap.actors) {
+      const visual = this.actorVisualWorld(snap.map, actor);
+      const height = this.movingTileHeight(snap.map, actor, actor.stackIndex);
+      const head = elevationScreenOffset(height);
+      labels.push({
+        id: actor.id,
+        text: displayNameFor(actor.id),
+        x: visual.x + head.x,
+        y: visual.y + head.y,
+      });
+    }
+    return labels;
+  }
+
   /** Same signal as the outline, for the pointer. */
   private applyCursor(snap: GameSnapshot) {
     this.setCursor(snap.hover ? "pointer" : "");
@@ -356,6 +400,7 @@ export class GameRenderer {
     });
 
     this.world.setOverlays(this.overlaysFor(snap));
+    this.world.setLabels(this.labelsFor(snap));
     // Driven by the frame, not the pointer: walking away from an object
     // revokes the affordance without the pointer having moved at all.
     this.applyCursor(snap);

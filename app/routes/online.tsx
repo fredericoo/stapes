@@ -125,6 +125,8 @@ export default function OnlinePage() {
         attempt = 0;
         setStatus("live");
         renderer = new GameRenderer(canvas, remote, tilesets, tiles);
+        // Shared world: everyone on screen is somebody, so everyone is named.
+        renderer.setShowNames(true);
         renderer.setMinutesOfDay(remote.minutesOfDay());
         renderer.setOnClock(setMinutesOfDay);
         renderer.setOnStats(setStats);

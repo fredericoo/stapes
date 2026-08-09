@@ -10,6 +10,10 @@ export const OVERLAY_RENDER_ORDER = {
   spriteLift: 1_000_000_011,
   spriteOutline: 1_000_000_015,
   rect: 1_000_000_020,
+  // Names last, and their outline immediately under them: a label belongs to
+  // nothing in the world, so it wins against every mark drawn on it.
+  labelOutline: 1_000_000_030,
+  label: 1_000_000_031,
 } as const;
 
 /** Second inset line for a heavy outline; keeps 1px art readable at low zoom. */
