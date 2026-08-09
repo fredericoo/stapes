@@ -14,7 +14,14 @@
 /** Six characters: distinct enough to tell a room apart, short enough to read. */
 const HANDLE_LENGTH = 6;
 
-/** Uppercase — the font's capitals are a full 5px tall, its lowercase is 4. */
+/**
+ * Uppercase because a handle should read as a tag, not because it has to be.
+ *
+ * Silkscreen draws both cases in the same 5px band — its lowercase is the
+ * height of its capitals, and only `q` (with the comma and semicolon) drops a
+ * pixel below the baseline. So mixed-case names would cost no height and lose
+ * no legibility here; the choice is style alone.
+ */
 export function displayNameFor(actorId: string): string {
   const usable = actorId.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
   if (usable.length >= HANDLE_LENGTH) return usable.slice(0, HANDLE_LENGTH);
