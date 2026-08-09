@@ -40,8 +40,20 @@ import {
   indexInteractive,
   pickInteractiveAt,
 } from "./pick";
+import { fitViewport, VIEW_PX, type ViewportFit } from "./viewport";
 
-const DEFAULT_ZOOM = 4;
+/**
+ * How the fixed square view maps onto this canvas right now.
+ *
+ * Read from the element rather than cached across frames: the pane changes with
+ * the window, the on-screen controls appearing, and a phone rotating, and a
+ * stale scale puts the pointer somewhere the player is not looking.
+ */
+function currentFit(canvas: HTMLCanvasElement): ViewportFit {
+  // Square by layout, so either side answers; the smaller one keeps a
+  // mis-sized pane showing the whole view rather than cropping it.
+  return fitViewport(Math.min(canvas.clientWidth, canvas.clientHeight));
+}
 
 /** Editor selection yellow — same affordance, same colour. */
 const HOVER_COLOR = 0xffcc00;
@@ -232,7 +244,9 @@ export class GameRenderer {
         tilesById: this.tilesById,
         assets: this.world.quadAssets(),
         camera: this.cameraFor(snap),
-        zoom: DEFAULT_ZOOM,
+        // CSS scale, not the render scale: the pointer arrives in the
+        // element's own coordinates, and the buffer is stretched over it.
+        zoom: currentFit(this.canvas).cssScale,
       },
       this.interactiveIndex(snap),
       p.x,
@@ -304,19 +318,23 @@ export class GameRenderer {
    * Top-left of the view in world pixels. Derived on demand rather than cached
    * from the last frame so pointer picking inverts the projection the player
    * is looking at, even between frames or before the first one.
+   *
+   * The span is {@link VIEW_PX} whatever the canvas measures, so this no longer
+   * asks the element how much world to show — that is the fixed view.
    */
   private cameraFor(snap: GameSnapshot): { x: number; y: number } {
-    const { canvasW, canvasH } = this.world.getCameraSize();
     const visual = this.actorVisualWorld(snap.map, snap.self);
-    return {
-      x: visual.x - Math.max(1, canvasW / DEFAULT_ZOOM) / 2,
-      y: visual.y - Math.max(1, canvasH / DEFAULT_ZOOM) / 2,
-    };
+    const half = VIEW_PX / 2;
+    return { x: visual.x - half, y: visual.y - half };
   }
 
   private pushView() {
     const snap = this.session.getSnapshot();
-    const zoom = DEFAULT_ZOOM;
+    const fit = currentFit(this.canvas);
+    // The buffer is a whole multiple of the view, so the world lands on a clean
+    // pixel grid and the element's stretch does the fitting.
+    this.world.setBufferSize(fit.bufferPx);
+    const zoom = fit.renderScale;
     const camera = this.cameraFor(snap);
 
     const anchor = viewAnchorFor(snap.self);

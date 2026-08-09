@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { data, useLoaderData } from "react-router";
 import type { Route } from "./+types/online";
 import { AppShell } from "../components/AppShell";
 import { FrameStatsReadout } from "../components/FrameStatsReadout";
+import { GameViewport } from "../components/GameViewport";
+import { bindKeyboard, HeldDirections } from "../game/heldDirections";
 import { dataStore } from "../context";
 import {
   DEFAULT_PLAY_MINUTES,
@@ -55,17 +57,6 @@ export async function loader({ context, request }: Route.LoaderArgs) {
   });
 }
 
-const KEY_TO_DIR: Record<string, Direction> = {
-  ArrowUp: "n",
-  ArrowDown: "s",
-  ArrowLeft: "w",
-  ArrowRight: "e",
-  KeyW: "n",
-  KeyS: "s",
-  KeyA: "w",
-  KeyD: "e",
-};
-
 /** Backoff between reconnect attempts, capped. */
 const RECONNECT_BASE_MS = 500;
 const RECONNECT_MAX_MS = 10_000;
@@ -76,6 +67,15 @@ export default function OnlinePage() {
   const { tiles, tilesets, socketPath } = useLoaderData<typeof loader>();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<GameRenderer | null>(null);
+  const inputRef = useRef<HeldDirections | null>(null);
+  const pressDirection = useCallback(
+    (d: Direction) => inputRef.current?.press(d),
+    [],
+  );
+  const releaseDirection = useCallback(
+    (d: Direction) => inputRef.current?.release(d),
+    [],
+  );
   const [status, setStatus] = useState<Status>("connecting");
   // Placeholder until `hello` says what time it is out there. Nobody scrubs it:
   // the hour belongs to the world, not to whoever is looking at it.
@@ -95,13 +95,11 @@ export default function OnlinePage() {
     let attempt = 0;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const held: Direction[] = [];
-    let faceOnly = false;
-    let preferDescend = false;
-
-    const syncInput = () => {
-      session?.setInput({ directions: [...held], faceOnly, preferDescend });
-    };
+    // Reads `session` at call time, not at construction: a reconnect swaps the
+    // session underneath while the same keys are still held.
+    const input = new HeldDirections((i) => session?.setInput(i));
+    inputRef.current = input;
+    const unbindKeyboard = bindKeyboard(input);
 
     const teardownRenderer = () => {
       rendererRef.current = null;
@@ -132,7 +130,8 @@ export default function OnlinePage() {
         renderer.setOnStats(setStats);
         rendererRef.current = renderer;
         renderer.start();
-        syncInput();
+        // The fresh session knows nothing about keys held across the reconnect.
+        input.resend();
       });
 
       socket.addEventListener("close", () => {
@@ -151,54 +150,11 @@ export default function OnlinePage() {
 
     connect();
 
-    const syncModifiers = (e: KeyboardEvent) => {
-      faceOnly = e.shiftKey;
-      preferDescend = e.altKey;
-      syncInput();
-    };
-
-    const onKeyDown = (e: KeyboardEvent) => {
-      syncModifiers(e);
-      const dir = KEY_TO_DIR[e.code];
-      if (!dir) return;
-      e.preventDefault();
-      if (e.repeat) return;
-      const idx = held.indexOf(dir);
-      if (idx >= 0) held.splice(idx, 1);
-      held.push(dir);
-      syncInput();
-    };
-
-    const onKeyUp = (e: KeyboardEvent) => {
-      syncModifiers(e);
-      const dir = KEY_TO_DIR[e.code];
-      if (dir) {
-        e.preventDefault();
-        const idx = held.indexOf(dir);
-        if (idx >= 0) held.splice(idx, 1);
-      }
-      syncInput();
-    };
-
-    // Losing the window drops every key: without this a held direction sticks
-    // on the server and the avatar walks off on its own.
-    const onBlur = () => {
-      held.length = 0;
-      faceOnly = false;
-      preferDescend = false;
-      syncInput();
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("keyup", onKeyUp);
-    window.addEventListener("blur", onBlur);
-
     return () => {
       disposed = true;
       if (retryTimer) clearTimeout(retryTimer);
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("keyup", onKeyUp);
-      window.removeEventListener("blur", onBlur);
+      unbindKeyboard();
+      inputRef.current = null;
       teardownRenderer();
       socket?.close();
       setStats(null);
@@ -230,17 +186,12 @@ export default function OnlinePage() {
         </>
       }
     >
-      <div className="relative h-full w-full bg-ink">
-        <canvas
-          ref={canvasRef}
-          className="block h-full w-full touch-none"
-          style={{ imageRendering: "pixelated" }}
-        />
-        <div className="pointer-events-none absolute bottom-3 left-3 text-xs text-paper/70">
-          Arrows / WASD move · Shift face · Option descend · Click an adjacent
-          object to push or switch it
-        </div>
-      </div>
+      <GameViewport
+        canvasRef={canvasRef}
+        onDirectionPress={pressDirection}
+        onDirectionRelease={releaseDirection}
+        hint="Arrows / WASD move · Shift face · Option descend · Click an adjacent object to push or switch it"
+      />
     </AppShell>
   );
 }

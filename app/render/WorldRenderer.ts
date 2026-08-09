@@ -286,6 +286,8 @@ export class WorldRenderer {
   private canvasW = 0;
   private canvasH = 0;
   private resizeObserver: ResizeObserver | null = null;
+  /** Square buffer side in pixels, or null to track the element. */
+  private fixedBufferPx: number | null = null;
   private assetsReady = false;
   private view: WorldView | null = null;
   private looping = false;
@@ -511,13 +513,6 @@ export class WorldRenderer {
     return !this.disposed && this.assetsReady && this.prevMap !== null;
   }
 
-  getCameraSize(): { canvasW: number; canvasH: number } {
-    // Measured here rather than trusted from the last frame — pointer picking
-    // asks for this between frames, and before the first one.
-    this.updateCanvasSize();
-    return { canvasW: this.canvasW, canvasH: this.canvasH };
-  }
-
   dispose() {
     this.disposed = true;
     this.stop();
@@ -670,12 +665,28 @@ export class WorldRenderer {
     this.updateCanvasSize();
   }
 
+  /**
+   * Draw into a square buffer of `px`, ignoring the element's CSS box.
+   *
+   * Play mode fixes the buffer so the world renders at a whole number of pixels
+   * per world pixel and the element is then stretched over its pane — see
+   * `./viewport`. Left unset, the buffer tracks the element, which is what the
+   * editor wants: there the pane *is* the view.
+   */
+  setBufferSize(px: number) {
+    this.fixedBufferPx = Math.max(1, Math.floor(px));
+    this.updateCanvasSize();
+  }
+
   private updateCanvasSize() {
-    const w = Math.max(1, this.canvas.clientWidth);
-    const h = Math.max(1, this.canvas.clientHeight);
+    const fixed = this.fixedBufferPx;
+    const w = fixed ?? Math.max(1, this.canvas.clientWidth);
+    const h = fixed ?? Math.max(1, this.canvas.clientHeight);
     if (w === this.canvasW && h === this.canvasH) return;
     this.canvasW = w;
     this.canvasH = h;
+    // `false`: the CSS box is the layout's business, and under a fixed buffer
+    // it is deliberately not the buffer's size.
     this.renderer.setSize(w, h, false);
   }
 

@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useLoaderData } from "react-router";
 import type { Route } from "./+types/play";
 import { AppShell } from "../components/AppShell";
+import { GameViewport } from "../components/GameViewport";
 import { GameSession } from "../game/GameSession";
+import { bindKeyboard, HeldDirections } from "../game/heldDirections";
 import {
   DEFAULT_PLAY_MINUTES,
   formatClock,
@@ -25,21 +27,19 @@ export async function loader({ context }: Route.LoaderArgs) {
   return { map, tiles, tilesets };
 }
 
-const KEY_TO_DIR: Record<string, Direction> = {
-  ArrowUp: "n",
-  ArrowDown: "s",
-  ArrowLeft: "w",
-  ArrowRight: "e",
-  KeyW: "n",
-  KeyS: "s",
-  KeyA: "w",
-  KeyD: "e",
-};
-
 export default function PlayPage() {
   const { map, tiles, tilesets } = useLoaderData<typeof loader>();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rendererRef = useRef<GameRenderer | null>(null);
+  const inputRef = useRef<HeldDirections | null>(null);
+  const pressDirection = useCallback(
+    (d: Direction) => inputRef.current?.press(d),
+    [],
+  );
+  const releaseDirection = useCallback(
+    (d: Direction) => inputRef.current?.release(d),
+    [],
+  );
   const [minutesOfDay, setMinutesOfDay] = useState<MinutesOfDay>(
     DEFAULT_PLAY_MINUTES,
   );
@@ -70,62 +70,13 @@ export default function PlayPage() {
     rendererRef.current = renderer;
     renderer.start();
 
-    const held: Direction[] = [];
-    let faceOnly = false;
-    let preferDescend = false;
-
-    const syncInput = () => {
-      session.setInput({
-        directions: [...held],
-        faceOnly,
-        preferDescend,
-      });
-    };
-
-    const syncModifiers = (e: KeyboardEvent) => {
-      faceOnly = e.shiftKey;
-      preferDescend = e.altKey;
-      syncInput();
-    };
-
-    const onKeyDown = (e: KeyboardEvent) => {
-      syncModifiers(e);
-      const dir = KEY_TO_DIR[e.code];
-      if (!dir) return;
-      e.preventDefault();
-      if (e.repeat) return;
-      const idx = held.indexOf(dir);
-      if (idx >= 0) held.splice(idx, 1);
-      held.push(dir);
-      syncInput();
-    };
-
-    const onKeyUp = (e: KeyboardEvent) => {
-      syncModifiers(e);
-      const dir = KEY_TO_DIR[e.code];
-      if (dir) {
-        e.preventDefault();
-        const idx = held.indexOf(dir);
-        if (idx >= 0) held.splice(idx, 1);
-      }
-      syncInput();
-    };
-
-    const onBlur = () => {
-      held.length = 0;
-      faceOnly = false;
-      preferDescend = false;
-      syncInput();
-    };
-
-    window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("keyup", onKeyUp);
-    window.addEventListener("blur", onBlur);
+    const input = new HeldDirections((i) => session.setInput(i));
+    inputRef.current = input;
+    const unbindKeyboard = bindKeyboard(input);
 
     return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("keyup", onKeyUp);
-      window.removeEventListener("blur", onBlur);
+      unbindKeyboard();
+      inputRef.current = null;
       rendererRef.current = null;
       renderer.dispose();
       setStats(null);
@@ -175,17 +126,12 @@ export default function PlayPage() {
         </>
       }
     >
-      <div className="relative h-full w-full bg-ink">
-        <canvas
-          ref={canvasRef}
-          className="block h-full w-full touch-none"
-          style={{ imageRendering: "pixelated" }}
-        />
-        <div className="pointer-events-none absolute bottom-3 left-3 text-xs text-paper/70">
-          Arrows / WASD move · Shift face · Option descend · Click an adjacent
-          object to push or switch it
-        </div>
-      </div>
+      <GameViewport
+        canvasRef={canvasRef}
+        onDirectionPress={pressDirection}
+        onDirectionRelease={releaseDirection}
+        hint="Arrows / WASD move · Shift face · Option descend · Click an adjacent object to push or switch it"
+      />
     </AppShell>
   );
 }
