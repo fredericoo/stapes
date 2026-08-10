@@ -46,6 +46,13 @@ export function snapZoom(z: number): ZoomLevel {
 export type LightingSettings = {
   /** Minutes past midnight (0…1439). */
   minutesOfDay: MinutesOfDay;
+  /**
+   * When false the renderer draws everything unlit and skips the bake
+   * entirely — see `EditorRenderer.applyLightingEnabled`. An authoring aid:
+   * the editor's lighting path is unchunked, so a dark map is both hard to
+   * paint into and the most expensive thing on the frame.
+   */
+  enabled: boolean;
 };
 
 type HistoryEntry = {
@@ -98,6 +105,7 @@ export type EditorStore = {
   setPreviewMode: (v: boolean) => void;
   togglePreviewMode: () => void;
   setMinutesOfDay: (m: MinutesOfDay) => void;
+  setLightingEnabled: (v: boolean) => void;
   setTool: (tool: ToolId) => void;
   setSelected: (sel: { x: number; y: number } | null) => void;
   setHover: (h: { x: number; y: number } | null) => void;
@@ -141,7 +149,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   currentLevel: 0,
   showOtherLevels: true,
   previewMode: false,
-  lighting: { minutesOfDay: DEFAULT_EDITOR_MINUTES },
+  lighting: { minutesOfDay: DEFAULT_EDITOR_MINUTES, enabled: true },
   tool: "select",
   selected: null,
   hover: null,
@@ -193,7 +201,11 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   setPreviewMode: (v) => set({ previewMode: v }),
   togglePreviewMode: () => set({ previewMode: !get().previewMode }),
   setMinutesOfDay: (m) =>
-    set({ lighting: { minutesOfDay: wrapMinutes(Math.floor(m)) } }),
+    set({
+      lighting: { ...get().lighting, minutesOfDay: wrapMinutes(Math.floor(m)) },
+    }),
+  setLightingEnabled: (v) =>
+    set({ lighting: { ...get().lighting, enabled: v } }),
   setTool: (tool) => set({ tool }),
   setSelected: (sel) => set({ selected: sel }),
   setHover: (h) => {

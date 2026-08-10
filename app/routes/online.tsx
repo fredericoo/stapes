@@ -4,6 +4,7 @@ import type { Route } from "./+types/online";
 import { AppShell } from "../components/AppShell";
 import { FrameStatsReadout } from "../components/FrameStatsReadout";
 import { GameViewport } from "../components/GameViewport";
+import { LightingToggle } from "../components/LightingToggle";
 import { bindKeyboard, HeldDirections } from "../game/heldDirections";
 import { dataStore } from "../context";
 import {
@@ -92,6 +93,15 @@ export default function OnlinePage() {
     DEFAULT_PLAY_MINUTES,
   );
   const [stats, setStats] = useState<FrameStats | null>(null);
+  const [lightingEnabled, setLightingEnabled] = useState(true);
+  // Through a ref because the renderer is built on `hello`, and a reconnect
+  // builds another one — both must come up at whatever the toggle says now.
+  const lightingRef = useRef(lightingEnabled);
+  lightingRef.current = lightingEnabled;
+
+  useEffect(() => {
+    rendererRef.current?.setLightingEnabled(lightingEnabled);
+  }, [lightingEnabled]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -144,6 +154,7 @@ export default function OnlinePage() {
         );
         // Shared world: everyone on screen is somebody, so everyone is named.
         renderer.setShowNames(true);
+        renderer.setLightingEnabled(lightingRef.current);
         renderer.setMinutesOfDay(remote.minutesOfDay());
         renderer.setOnClock(setMinutesOfDay);
         renderer.setOnStats(setStats);
@@ -191,6 +202,10 @@ export default function OnlinePage() {
           >
             {status}
           </span>
+          <LightingToggle
+            enabled={lightingEnabled}
+            onChange={setLightingEnabled}
+          />
           <div className="flex items-center gap-2">
             <span className="text-xs uppercase text-paper/70">Time</span>
             <span

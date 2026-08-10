@@ -3,6 +3,7 @@ import { useLoaderData } from "react-router";
 import type { Route } from "./+types/play";
 import { AppShell } from "../components/AppShell";
 import { GameViewport } from "../components/GameViewport";
+import { LightingToggle } from "../components/LightingToggle";
 import { GameSession } from "../game/GameSession";
 import { bindKeyboard, HeldDirections } from "../game/heldDirections";
 import {
@@ -44,11 +45,16 @@ export default function PlayPage() {
     DEFAULT_PLAY_MINUTES,
   );
   const [clockPaused, setClockPaused] = useState(false);
+  const [lightingEnabled, setLightingEnabled] = useState(true);
   const [stats, setStats] = useState<FrameStats | null>(null);
   const minutesRef = useRef(minutesOfDay);
   minutesRef.current = minutesOfDay;
   const pausedRef = useRef(clockPaused);
   pausedRef.current = clockPaused;
+  // Read at construction rather than only watched: a renderer built after the
+  // toggle was flipped — a hot reload, a map change — must not come up lit.
+  const lightingRef = useRef(lightingEnabled);
+  lightingRef.current = lightingEnabled;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -65,6 +71,7 @@ export default function PlayPage() {
     const renderer = new GameRenderer(canvas, session, tilesets, tiles);
     renderer.setMinutesOfDay(minutesRef.current);
     renderer.setClockPaused(pausedRef.current);
+    renderer.setLightingEnabled(lightingRef.current);
     renderer.setOnClock(setMinutesOfDay);
     renderer.setOnStats(setStats);
     rendererRef.current = renderer;
@@ -87,6 +94,10 @@ export default function PlayPage() {
     rendererRef.current?.setClockPaused(clockPaused);
   }, [clockPaused]);
 
+  useEffect(() => {
+    rendererRef.current?.setLightingEnabled(lightingEnabled);
+  }, [lightingEnabled]);
+
   const scrubTime = (m: MinutesOfDay) => {
     setMinutesOfDay(m);
     rendererRef.current?.setMinutesOfDay(m);
@@ -97,6 +108,10 @@ export default function PlayPage() {
       trailing={
         <>
           <FrameStatsReadout stats={stats} />
+          <LightingToggle
+            enabled={lightingEnabled}
+            onChange={setLightingEnabled}
+          />
           <div className="flex items-center gap-2">
             <span className="text-xs uppercase text-paper/70">Time</span>
             <input

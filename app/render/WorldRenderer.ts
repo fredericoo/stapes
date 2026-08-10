@@ -281,6 +281,8 @@ export class WorldRenderer {
   private lighting = new ChunkedLighting({}, dynamicLightTileIds({}));
   /** Tile defs the light cache was built against; new defs void every chunk. */
   private lightingTilesById: Record<string, TileDef> | null = null;
+  /** @see setLightingEnabled */
+  private lightingEnabled = true;
   private prevMap: MapFile | null = null;
   private needsRender = true;
   private canvasW = 0;
@@ -352,7 +354,7 @@ export class WorldRenderer {
       this.staticLightGrid = null;
       if (this.view) {
         this.applyMap(this.view.map, true);
-        this.updateLighting(this.view);
+        if (this.lightingEnabled) this.updateLighting(this.view);
       }
       this.assetsReady = true;
       this.needsRender = true;
@@ -375,14 +377,47 @@ export class WorldRenderer {
 
     // Before applyMap, which advances prevMap — the light cache needs to see
     // both versions to work out which chunks the edit reached.
-    this.time("sync", () => this.lighting.syncTo(this.prevMap, view.map));
+    if (this.lightingEnabled) {
+      this.time("sync", () => this.lighting.syncTo(this.prevMap, view.map));
+    }
 
     this.time("map", () => {
       this.applyMap(view.map, false);
       this.applyLevelVisibility(view.hideLevelsAbove);
     });
-    this.time("light", () => this.updateLighting(view));
+    if (this.lightingEnabled) {
+      this.time("light", () => this.updateLighting(view));
+    }
     this.time("motion", () => this.applyTileMotions(view.tileMotions));
+    this.needsRender = true;
+  }
+
+  /**
+   * Draw the world unlit, and stop computing light at all.
+   *
+   * Not a shader switch with the bake still running behind it: while this is
+   * off nothing is baked, stitched, uploaded or diffed for invalidation — the
+   * two most expensive phases of a frame (`sync` and `light`) are skipped
+   * outright, which is the point of the toggle.
+   *
+   * Skipping `syncTo` means the cache stops hearing about edits, so every
+   * chunk it holds is suspect the moment light comes back on: turning it on
+   * throws the cache away rather than trusting a diff that has a hole in it.
+   */
+  setLightingEnabled(enabled: boolean) {
+    if (enabled === this.lightingEnabled) return;
+    this.lightingEnabled = enabled;
+    for (const u of this.lightUniformsByZ.values()) {
+      u.uLightingEnabled.value = enabled ? 1 : 0;
+    }
+    if (enabled) {
+      this.lighting.invalidateAll();
+      // Left for the next frame's setView rather than baked here: that one
+      // arrives with the emitter overrides this frame's view no longer has,
+      // so baking now would only pay for a grid missing every dynamic light.
+      this.staticLightGrid = null;
+      this.lightingKey = "";
+    }
     this.needsRender = true;
   }
 
@@ -727,7 +762,9 @@ export class WorldRenderer {
         uLightMap: { value: this.whiteTex },
         uLightOrigin: { value: new THREE.Vector2(0, 0) },
         uLightSize: { value: new THREE.Vector2(1, 1) },
-        uLightingEnabled: { value: 1 },
+        // A level whose materials appear while the toggle is off must arrive
+        // unlit too, or it would be the one floor still shaded.
+        uLightingEnabled: { value: this.lightingEnabled ? 1 : 0 },
         uAmbient: { value: new THREE.Vector3(0, 0, 0) },
       };
       this.lightUniformsByZ.set(z, u);
@@ -841,7 +878,6 @@ export class WorldRenderer {
    */
   private uploadDarkLevel(z: number) {
     const u = this.ensureLightUniforms(z);
-    u.uLightingEnabled.value = 1;
     const data = new Uint8Array([0, 0, 0, 0]);
     let tex = this.lightTextures.get(z);
     if (!tex || tex.image.width !== 1) {
@@ -865,7 +901,6 @@ export class WorldRenderer {
   /** Hand the packed plane straight to the GPU — it is already in texture layout. */
   private uploadPackedLevel(z: number, level: PackedLevelLight) {
     const u = this.ensureLightUniforms(z);
-    u.uLightingEnabled.value = 1;
     if (this.pendingAmbient) {
       const a = this.pendingAmbient;
       u.uAmbient.value.set(a[0], a[1], a[2]);

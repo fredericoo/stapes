@@ -364,6 +364,24 @@ per idle call, and evicts LRU. Two invariants worth preserving:
 light (the player). Without that, walking dirties the chunks around the player
 and rebakes them for output that cannot differ.
 
+### Lighting has an off switch, and off means *not computed*
+
+The top bar of `/play`, `/online` and `/map` carries a Lighting toggle
+(`app/components/LightingToggle.tsx`). Off is not a fullbright ambient or a
+shader branch with the bake still running behind it: `sync` and `light` are
+skipped outright in `WorldRenderer.setView`, nothing is baked, stitched or
+uploaded, and `uLightingEnabled` draws the art as authored. Measured on the
+fixture map at night it takes the worst frame in `/play` from 15.3ms to 1.9ms,
+and the editor from 4.0ms to 1.9ms — which is also what makes it the first
+thing to reach for when profiling anything *else* on the frame.
+
+**Turning it back on must discard, not diff.** While it is off the cache stops
+hearing about edits — `syncTo` is one of the things being skipped — so every
+chunk it holds is suspect the moment light returns. `setLightingEnabled(true)`
+therefore calls `invalidateAll` and drops the grid identity; the editor clears
+`lightingKey` for the same reason. Anything cleverer here would have to reason
+about edits nobody was watching.
+
 ## Testing the Durable Object
 
 `workers/` runs under `@cloudflare/vitest-pool-workers` (`pnpm test:workers`),

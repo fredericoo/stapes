@@ -111,6 +111,8 @@ export class GameRenderer {
   private interactiveKey = "";
   private indexedMap: MapFile | null = null;
   private showNames = false;
+  /** @see setLightingEnabled */
+  private lightingEnabled = true;
   private labelLayer: WorldLabelLayer | null = null;
   /**
    * World-pixel anchor per live message, read once and held.
@@ -340,6 +342,17 @@ export class GameRenderer {
   }
 
   /**
+   * Draw the world unlit. The renderer stops baking and uploading light (see
+   * {@link WorldRenderer.setLightingEnabled}); this end stops producing the
+   * per-actor emitter overrides that feed it, since nothing would read them.
+   */
+  setLightingEnabled(enabled: boolean) {
+    if (enabled === this.lightingEnabled) return;
+    this.lightingEnabled = enabled;
+    this.world.setLightingEnabled(enabled);
+  }
+
+  /**
    * Every piece of in-world text this frame: names on heads, speech on cells.
    *
    * Both are produced here because both are anchored in world pixels and handed
@@ -553,6 +566,7 @@ export class GameRenderer {
   private emitterOverridesFor(
     snap: GameSnapshot,
   ): EmitterOverride[] | undefined {
+    if (!this.lightingEnabled) return undefined;
     const playerDef = this.tilesById[PLAYER_TILE_ID];
     if (!playerDef) return undefined;
 

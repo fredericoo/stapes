@@ -9,6 +9,7 @@ import {
 } from "@tabler/icons-react";
 import type { Route } from "./+types/map";
 import { AppShell } from "../components/AppShell";
+import { LightingToggle } from "../components/LightingToggle";
 import { MapPanels } from "../editor/panels/MapPanels";
 import {
   useEditorStore,
@@ -79,6 +80,7 @@ export default function MapPage() {
   const showOtherLevels = useEditorStore((s) => s.showOtherLevels);
   const previewMode = useEditorStore((s) => s.previewMode);
   const minutesOfDay = useEditorStore((s) => s.lighting.minutesOfDay);
+  const lightingEnabled = useEditorStore((s) => s.lighting.enabled);
   const zoom = useEditorStore((s) => s.zoom);
   const lastToast = useEditorStore((s) => s.lastToast);
   const canUndo = useEditorStore((s) => s.past.length > 0);
@@ -246,7 +248,19 @@ export default function MapPage() {
               thumb={<IconEye size={12} stroke={2.5} aria-hidden="true" />}
             />
           </Tooltip>
-          <div className="flex items-center gap-2">
+          <LightingToggle
+            enabled={lightingEnabled}
+            onChange={(v) => useEditorStore.getState().setLightingEnabled(v)}
+          />
+          {/* Nothing in the editor reads the hour once lighting is off — the
+              background here is a fixed paper colour, unlike in play — so the
+              slider goes with it rather than sitting there doing nothing. */}
+          <div
+            className={[
+              "flex items-center gap-2",
+              lightingEnabled ? "" : "opacity-50",
+            ].join(" ")}
+          >
             <span className="text-xs uppercase text-paper/70">Time</span>
             <input
               type="range"
@@ -254,6 +268,7 @@ export default function MapPage() {
               max={MINUTES_PER_DAY - 1}
               step={1}
               value={minutesOfDay}
+              disabled={!lightingEnabled}
               onChange={(e) =>
                 useEditorStore
                   .getState()

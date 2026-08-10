@@ -195,6 +195,8 @@ export class EditorRenderer {
   private lightGrid: LightGrid | null = null;
   private lightingKey = "";
   private lightingTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Last `lighting.enabled` pushed to the uniforms; drives the transition. */
+  private lightingEnabled = true;
   private rebuildKey = "";
   private gridLevel = Number.NaN;
   /** Previous map for reference-diff dirty-chunk detection. */
@@ -473,7 +475,9 @@ export class EditorRenderer {
         uLightMap: { value: this.whiteTex },
         uLightOrigin: { value: new THREE.Vector2(0, 0) },
         uLightSize: { value: new THREE.Vector2(1, 1) },
-        uLightingEnabled: { value: 1 },
+        // A level whose materials appear while the toggle is off must arrive
+        // unlit too, or it would be the one floor still shaded.
+        uLightingEnabled: { value: this.lightingEnabled ? 1 : 0 },
         uAmbient: { value: new THREE.Vector3(0, 0, 0) },
       };
       this.lightUniformsByZ.set(z, u);
@@ -524,6 +528,8 @@ export class EditorRenderer {
   private updateLighting(force = false) {
     if (this.disposed) return;
     const s = useEditorStore.getState();
+    // The last word on whether a bake happens, wherever the call came from.
+    if (!s.lighting.enabled) return;
     const key = this.lightingFingerprint(s);
     if (!force && key === this.lightingKey) return;
     this.lightingKey = key;
@@ -545,7 +551,6 @@ export class EditorRenderer {
     for (const z of this.lightUniformsByZ.keys()) {
       if (seen.has(z)) continue;
       const u = this.ensureLightUniforms(z);
-      u.uLightingEnabled.value = 1;
       u.uLightOrigin.value.set(0, 0);
       u.uLightSize.value.set(1, 1);
       const data = new Uint8Array([0, 0, 0, 255]);
@@ -568,7 +573,6 @@ export class EditorRenderer {
 
   private uploadLevelLight(z: number, level: LevelLightMap) {
     const u = this.ensureLightUniforms(z);
-    u.uLightingEnabled.value = 1;
     u.uLightOrigin.value.set(
       level.x0 - LIGHT_MAP_CELL_OFFSET,
       level.y0 - LIGHT_MAP_CELL_OFFSET,
@@ -628,8 +632,34 @@ export class EditorRenderer {
         this.rebuildDirtyChunks(s.map);
       }
     }
-    this.maybeScheduleLighting();
+    this.applyLightingEnabled(s.lighting.enabled);
+    if (s.lighting.enabled) this.maybeScheduleLighting();
     this.requestRender();
+  }
+
+  /**
+   * Draw the map unlit, and stop computing light at all.
+   *
+   * The bake here is unchunked — a whole-map flood every time the fingerprint
+   * moves — so turning it off has to mean *skipped*, not "computed and then
+   * ignored by the shader". Any pending recompute is dropped with it: a stroke
+   * that armed the debounce a moment ago would otherwise still land.
+   *
+   * Coming back on, the held fingerprint is cleared rather than compared: the
+   * map may have been painted all over while nothing was being recomputed, so
+   * an unchanged key would leave the stale grid on screen.
+   */
+  private applyLightingEnabled(enabled: boolean) {
+    if (enabled === this.lightingEnabled) return;
+    this.lightingEnabled = enabled;
+    for (const u of this.lightUniformsByZ.values()) {
+      u.uLightingEnabled.value = enabled ? 1 : 0;
+    }
+    if (!enabled && this.lightingTimer) {
+      clearTimeout(this.lightingTimer);
+      this.lightingTimer = null;
+    }
+    if (enabled) this.lightingKey = "";
   }
 
   private lightingFingerprint(s: ReturnType<typeof useEditorStore.getState>) {
