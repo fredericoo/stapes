@@ -14175,6 +14175,9 @@
       "4,-2": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "wooden-box"
         }
       ],
       "4,-1": [
@@ -14513,6 +14516,9 @@
         },
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "wooden-box"
         }
       ],
       "5,0": [

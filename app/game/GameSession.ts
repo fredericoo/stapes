@@ -50,6 +50,7 @@ import {
   setEntityDirection,
 } from "./mapMutations";
 import { canWalk, standingAbs } from "./movement";
+import { chooseStep, type StepRequest } from "./stepping";
 import {
   cellHasPlate,
   cellKey,
@@ -105,6 +106,27 @@ export type ActorSnapshot = {
   slide: SlideSnapshot | null;
 };
 
+/**
+ * Something somebody said, and where it is hanging.
+ *
+ * Pinned to a cell rather than to its author: the coordinate is the one it was
+ * said in, and it stays there while the speaker walks away or disconnects.
+ */
+export type ChatBubble = {
+  /** Distinct per message, so two lines from one actor are two bubbles. */
+  id: string;
+  actorId: string;
+  text: string;
+  x: number;
+  y: number;
+  z: number;
+  /**
+   * Where the speaker stood in that cell's stack. Carried so the bubble can
+   * hang over the ground *beneath* them rather than over their own head.
+   */
+  stackIndex: number;
+};
+
 export type GameSnapshot = {
   map: MapFile;
   /**
@@ -117,6 +139,13 @@ export type GameSnapshot = {
   actors: ActorSnapshot[];
   /** Object under the viewer's pointer that they can act on right now. */
   hover: ObjectRef | null;
+  /**
+   * Speech still on screen, on this viewer's level only.
+   *
+   * Always present rather than optional so the renderer's contract stays total;
+   * the local simulation has nobody to talk to and returns an empty list.
+   */
+  chats: ChatBubble[];
 };
 
 /** The id the single local actor takes when nobody names one. */
@@ -653,6 +682,9 @@ export class GameSession implements PlaySession {
       actors,
       hover:
         self.hovered && this.canInteract(self.hovered, id) ? self.hovered : null,
+      // Nobody to talk to: the local simulation has no wire and no other actors
+      // worth naming, so speech is a thing only the online client carries.
+      chats: [],
     };
   }
 
@@ -722,48 +754,97 @@ export class GameSession implements PlaySession {
   }
 
   private maybeStartWalk(actor: ActorRuntime) {
-    const dirs = actor.input.directions;
-    if (dirs.length === 0) return;
+    this.applyStepRequest(actor, actor.input);
+  }
 
+  /**
+   * Turn, and walk if the board allows it. The one path from "what is being
+   * asked for" to "what the actor does", whether the asking is a held key in
+   * `/play` or a step a networked client has already predicted.
+   */
+  private applyStepRequest(
+    actor: ActorRuntime,
+    request: StepRequest,
+  ): boolean {
     const loc = this.locate(actor);
-    const def = this.playerDef();
-    const faceOnly = Boolean(actor.input.faceOnly);
-    const preferDescend = Boolean(actor.input.preferDescend);
+    const choice = chooseStep(
+      this.map,
+      { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex },
+      request,
+      this.playerDef(),
+      this.tilesById,
+      (to) => this.destinationTaken(to, actor),
+    );
+    if (!choice) return false;
 
-    for (let i = dirs.length - 1; i >= 0; i--) {
-      const direction = dirs[i]!;
+    this.map = setEntityDirection(
+      this.map,
+      loc.x,
+      loc.y,
+      loc.z,
+      loc.stackIndex,
+      choice.facing,
+    );
 
-      this.map = setEntityDirection(
-        this.map,
-        loc.x,
-        loc.y,
-        loc.z,
-        loc.stackIndex,
-        direction,
-      );
+    if (!choice.step) return false;
 
-      if (faceOnly) return;
+    actor.walk = {
+      from: { x: loc.x, y: loc.y, z: loc.z },
+      to: choice.step.to,
+      direction: choice.step.direction,
+      elapsedMs: 0,
+    };
+    return true;
+  }
 
-      const check = canWalk(
-        this.map,
-        { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex },
-        direction,
-        def,
-        this.tilesById,
-        { preferDescend },
-      );
+  /**
+   * Take one step, because a client says it has already taken it.
+   *
+   * The other way in besides held input, and the one online play uses. A
+   * browser predicting its own movement decides *when* a step happens — that is
+   * the whole point, since waiting for this object to decide is the latency
+   * being removed — and this re-runs the same rule against the authoritative
+   * board to decide whether it is allowed to have happened.
+   *
+   * Deciding when does not mean deciding how fast: a step is only taken while
+   * the actor is free, so a client sending a thousand of these walks at exactly
+   * the same pace as one sending the honest four per second.
+   *
+   * `"later"` is the answer for an actor still finishing a walk, and it is not a
+   * refusal — the client is half a round trip ahead by design, so its next
+   * intent routinely arrives a few milliseconds before this side is done with
+   * the last one. The caller holds it and asks again. A fall or a slide *is* a
+   * refusal: those are motion the client did not predict, so whatever it thought
+   * it was doing is already void.
+   */
+  requestStep(
+    id: string,
+    direction: Direction,
+    opts?: { preferDescend?: boolean },
+  ): "started" | "later" | "refused" {
+    const actor = this.actor(id);
+    if (actor.fall || actor.slide) return "refused";
+    if (actor.walk) return "later";
 
-      if (!check.ok) continue;
-      if (this.destinationTaken(check.to, actor)) continue;
+    const started = this.applyStepRequest(actor, {
+      directions: [direction],
+      preferDescend: opts?.preferDescend,
+    });
+    return started ? "started" : "refused";
+  }
 
-      actor.walk = {
-        from: { x: loc.x, y: loc.y, z: loc.z },
-        to: check.to,
-        direction,
-        elapsedMs: 0,
-      };
-      return;
-    }
+  /** Turn an actor on the spot, without asking them to go anywhere. */
+  faceActor(id: string, direction: Direction) {
+    const actor = this.actor(id);
+    const loc = this.locate(actor);
+    this.map = setEntityDirection(
+      this.map,
+      loc.x,
+      loc.y,
+      loc.z,
+      loc.stackIndex,
+      direction,
+    );
   }
 
   private maybeStartFall(actor: ActorRuntime) {

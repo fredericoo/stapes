@@ -130,7 +130,6 @@ export default function PlayPage() {
         canvasRef={canvasRef}
         onDirectionPress={pressDirection}
         onDirectionRelease={releaseDirection}
-        hint="Arrows / WASD move · Shift face · Option descend · Click an adjacent object to push or switch it"
       />
     </AppShell>
   );

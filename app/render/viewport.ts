@@ -6,11 +6,12 @@
  * the point, since seeing further than the person you are standing next to is
  * an advantage the window size should not hand out.
  *
- * Tibia frames it the same way (15 tiles wide, player in the centre one, three
- * more shipped either side that are never drawn). The off-screen ring costs us
- * nothing to keep: chunk geometry is built for the whole map and culled per
- * chunk, and the lighting window is already grown past the view, so a step
- * never reveals an unbuilt or unlit strip at the edge.
+ * Tibia frames it the same way, on a slightly tighter square (15 tiles wide,
+ * player in the centre one, three more shipped either side that are never
+ * drawn). The off-screen ring costs us nothing to keep: chunk geometry is built
+ * for the whole map and culled per chunk, and the lighting window is already
+ * grown past the view, so a step never reveals an unbuilt or unlit strip at the
+ * edge.
  */
 import { CELL_SIZE } from "../lib/types";
 
@@ -18,7 +19,7 @@ import { CELL_SIZE } from "../lib/types";
  * Cells across the square view. Odd, so the player stands in a true centre
  * cell rather than on the seam between two.
  */
-export const VIEW_CELLS = 15;
+export const VIEW_CELLS = 19;
 
 /** Side of the view in world pixels — what the camera spans on both axes. */
 export const VIEW_PX = VIEW_CELLS * CELL_SIZE;

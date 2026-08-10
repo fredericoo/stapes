@@ -1,5 +1,6 @@
 import { useCallback, useSyncExternalStore } from "react";
 import type { Direction } from "../lib/types";
+import { ChatBar } from "./ChatBar";
 import { DirectionPad } from "./DirectionPad";
 
 /**
@@ -9,6 +10,12 @@ import { DirectionPad } from "./DirectionPad";
  * pane only decides how big it is drawn: on a phone the square sits at the top
  * with the arrows beneath it, on a desktop it grows until it hits the shorter
  * edge and the rest is ink.
+ *
+ * Chrome added below the square takes its height from the game rather than
+ * covering it, and needs no sizing work to do so: the canvas is `100cqmin` of a
+ * `flex-1` container, so anything in the flow underneath simply leaves it less
+ * to be the smaller edge of. That is the lever to keep pulling as more UI
+ * arrives.
  */
 
 const COARSE_POINTER = "(pointer: coarse)";
@@ -40,19 +47,32 @@ export function useCoarsePointer(): boolean {
 
 export function GameViewport({
   canvasRef,
-  hint,
+  labelRef,
   onDirectionPress,
   onDirectionRelease,
+  onSay,
+  onTypingChange,
 }: {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
-  /** Keyboard help. Shown only where there is a keyboard to help. */
-  hint?: React.ReactNode;
+  /**
+   * Where in-world text is drawn — names and speech, over the canvas but not in
+   * it. See `../render/textLabels` for why that text is DOM rather than pixels
+   * in the drawing buffer.
+   */
+  labelRef?: React.RefObject<HTMLDivElement | null>;
   onDirectionPress: (direction: Direction) => void;
   onDirectionRelease: (direction: Direction) => void;
+  /** Given only by a route with somebody to talk to; the bar is absent without it. */
+  onSay?: (text: string) => void;
+  onTypingChange?: (typing: boolean) => void;
 }) {
   const coarse = useCoarsePointer();
   const press = useCallback(onDirectionPress, [onDirectionPress]);
   const release = useCallback(onDirectionRelease, [onDirectionRelease]);
+  const noteTyping = useCallback(
+    (typing: boolean) => onTypingChange?.(typing),
+    [onTypingChange],
+  );
 
   return (
     <div
@@ -91,13 +111,12 @@ export function GameViewport({
             className="block h-full w-full touch-none"
             style={{ imageRendering: "pixelated" }}
           />
-          {!coarse && hint ? (
-            <div className="pointer-events-none absolute bottom-2 left-2 right-2 text-xs text-paper/70">
-              {hint}
-            </div>
-          ) : null}
+          {/* Sized and positioned by app.css; the render loop writes into it. */}
+          <div ref={labelRef} className="world-label-layer" />
         </div>
       </div>
+
+      {onSay ? <ChatBar onSay={onSay} onTypingChange={noteTyping} /> : null}
 
       {coarse ? (
         <div className="flex shrink-0 items-center justify-center py-4">

@@ -1116,6 +1116,27 @@
               "intensity": 1,
               "color": "#ffcc88"
             }
+          },
+          {
+            "sprite": {
+              "tilesetId": "tiny-ranch-tiles",
+              "rect": {
+                "x": 12,
+                "y": 2,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 180,
+            "light": {
+              "radius": 8,
+              "intensity": 0.5,
+              "color": "#ffcc88"
+            }
           }
         ]
       },
@@ -1139,6 +1160,27 @@
             "light": {
               "radius": 8,
               "intensity": 1,
+              "color": "#ffcc88"
+            }
+          },
+          {
+            "sprite": {
+              "tilesetId": "tiny-ranch-tiles",
+              "rect": {
+                "x": 10,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 180,
+            "light": {
+              "radius": 8,
+              "intensity": 0.5,
               "color": "#ffcc88"
             }
           }
@@ -1166,6 +1208,27 @@
               "intensity": 1,
               "color": "#ffcc88"
             }
+          },
+          {
+            "sprite": {
+              "tilesetId": "tiny-ranch-tiles",
+              "rect": {
+                "x": 12,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 180,
+            "light": {
+              "radius": 8,
+              "intensity": 0.5,
+              "color": "#ffcc88"
+            }
           }
         ]
       },
@@ -1189,6 +1252,27 @@
             "light": {
               "radius": 8,
               "intensity": 1,
+              "color": "#ffcc88"
+            }
+          },
+          {
+            "sprite": {
+              "tilesetId": "tiny-ranch-tiles",
+              "rect": {
+                "x": 10,
+                "y": 2,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 180,
+            "light": {
+              "radius": 8,
+              "intensity": 0.5,
               "color": "#ffcc88"
             }
           }
@@ -1594,12 +1678,6 @@
     "height": 1,
     "type": "simple",
     "attributes": {},
-    "interactions": {
-      "push": {
-        "climb": "half",
-        "moveOnTileIds": []
-      }
-    },
     "sprite": {
       "frames": [
         {
@@ -2932,6 +3010,40 @@
             "base": {
               "x": 0,
               "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "wooden-box",
+    "name": "Wooden Box",
+    "height": 1,
+    "type": "simple",
+    "attributes": {},
+    "affectedByGravity": true,
+    "interactions": {
+      "push": {
+        "climb": "half",
+        "moveOnTileIds": []
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 12,
+              "y": 8,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
             }
           },
           "durationMs": 200

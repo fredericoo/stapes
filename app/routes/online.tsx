@@ -66,8 +66,10 @@ type Status = "connecting" | "live" | "reconnecting";
 export default function OnlinePage() {
   const { tiles, tilesets, socketPath } = useLoaderData<typeof loader>();
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const labelRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<GameRenderer | null>(null);
   const inputRef = useRef<HeldDirections | null>(null);
+  const sessionRef = useRef<RemoteSession | null>(null);
   const pressDirection = useCallback(
     (d: Direction) => inputRef.current?.press(d),
     [],
@@ -76,6 +78,13 @@ export default function OnlinePage() {
     (d: Direction) => inputRef.current?.release(d),
     [],
   );
+  // Through a ref for the same reason the directions are: a reconnect swaps the
+  // session underneath while the page keeps the callback it was handed.
+  const say = useCallback((text: string) => sessionRef.current?.say(text), []);
+  // Focus is what makes held keys unreachable, so it is what has to drop them.
+  const noteTyping = useCallback((typing: boolean) => {
+    if (typing) inputRef.current?.clear();
+  }, []);
   const [status, setStatus] = useState<Status>("connecting");
   // Placeholder until `hello` says what time it is out there. Nobody scrubs it:
   // the hour belongs to the world, not to whoever is looking at it.
@@ -107,6 +116,7 @@ export default function OnlinePage() {
       renderer = null;
       session?.dispose();
       session = null;
+      sessionRef.current = null;
     };
 
     const connect = () => {
@@ -117,6 +127,7 @@ export default function OnlinePage() {
 
       const remote = new RemoteSession(socket, tiles);
       session = remote;
+      sessionRef.current = remote;
 
       // The renderer only starts once there is a world: it centres on the
       // viewer's own actor, and before `hello` there is nobody to centre on.
@@ -124,7 +135,13 @@ export default function OnlinePage() {
         if (disposed || renderer) return;
         attempt = 0;
         setStatus("live");
-        renderer = new GameRenderer(canvas, remote, tilesets, tiles);
+        renderer = new GameRenderer(
+          canvas,
+          remote,
+          tilesets,
+          tiles,
+          labelRef.current,
+        );
         // Shared world: everyone on screen is somebody, so everyone is named.
         renderer.setShowNames(true);
         renderer.setMinutesOfDay(remote.minutesOfDay());
@@ -190,9 +207,11 @@ export default function OnlinePage() {
     >
       <GameViewport
         canvasRef={canvasRef}
+        labelRef={labelRef}
         onDirectionPress={pressDirection}
         onDirectionRelease={releaseDirection}
-        hint="Arrows / WASD move · Shift face · Option descend · Click an adjacent object to push or switch it"
+        onSay={say}
+        onTypingChange={noteTyping}
       />
     </AppShell>
   );

@@ -1,21 +1,36 @@
 @import "tailwindcss";
 
 /**
- * The in-world pixel font. Silkscreen, by Jason Kottke, under the SIL Open Font
+ * The in-world pixel font. NF Pixels, by Steve Gigou, under the SIL Open Font
  * License — the licence travels with it in public/fonts.
  *
- * Its em is 8 units, so at 8px every stroke lands on a whole pixel. Any other
- * size puts glyph edges on half pixels, which the canvas then antialiases into
- * grey — the one thing 1-bit pixel art cannot absorb. Subset to printable
- * ASCII: names are ids, and the whole file is 7kB because of it.
+ * Replaced Silkscreen, which had no real lowercase: its minuscules are drawn at
+ * cap height, so a sentence typed into chat came out reading as capitals. NF
+ * Pixels has a true lowercase — a 5-pixel x-height under a 7-pixel cap — which
+ * is the whole reason for the swap.
+ *
+ * **It is pixel-exact, and the sizes that keep it so are the multiples of
+ * 10px.** Its em is 1000 units on a 100-unit grid: exactly 10 design pixels per
+ * em, with every advance width a whole number of them too. Any other size puts
+ * block edges on half pixels, which the browser antialiases into grey — the one
+ * thing 1-bit type cannot absorb. This is the same constraint Silkscreen had at
+ * multiples of 8px, and it is worth holding on to.
+ *
+ * Subset here to printable ASCII, which takes it to 2kB. The full font covers
+ * western European Latin-1, so accents could be had by reaching for a wider
+ * subset — chat strips to ASCII today, which is what keeps this file small.
+ * One gap worth knowing: the font has no `~`, and `app/net/chat.ts` drops that
+ * character for exactly that reason.
  */
 @font-face {
-  font-family: "Silkscreen";
-  src: url("/fonts/silkscreen-ascii.woff") format("woff");
+  font-family: "NF Pixels";
+  src: url("/fonts/nf-pixels-ascii.woff2") format("woff2");
   font-weight: 400;
   font-style: normal;
-  /* Nothing on the page is typeset in it — it exists to be drawn into a canvas
-     texture, so there is no fallback flash to trade against. */
+  /* Names and speech are typeset in it, over the game canvas. `block` rather
+     than `swap` because the fallback is a normal face at the wrong metrics: a
+     label that arrives a moment late reads as loading, while one that arrives
+     wrong and reflows reads as broken. */
   font-display: block;
 }
 
@@ -68,6 +83,95 @@ textarea {
 .pixelated {
   image-rendering: -moz-crisp-edges;
   image-rendering: pixelated;
+}
+
+/**
+ * In-world text: names over heads, and what people say.
+ *
+ * Positioned per frame from `app/render/textLabels.ts`, which writes `left` and
+ * `top` in CSS pixels. Everything about *size* lives here and nowhere else,
+ * because the whole point is that it does not scale with the canvas — the view
+ * zooms in whole steps as the window grows and this text does not move with it.
+ */
+.world-label-layer {
+  position: absolute;
+  inset: 0;
+  /* Clicks belong to the canvas underneath: a label must never eat the pointer
+     that was aiming at the object it is standing on. */
+  pointer-events: none;
+  /* A label near the edge is cut off by the view rather than escaping it. */
+  overflow: hidden;
+}
+
+.world-label {
+  /* 20px, which must stay a multiple of 10 — see the @font-face note. Two CSS
+     pixels per font pixel, and 20 specifically because it puts the x-height at
+     10 CSS pixels: exactly the height Silkscreen's letters were at 16px, so
+     swapping the font did not resize the world's chrome. Capitals are taller
+     than they used to be, which is what having a real lowercase to be taller
+     than buys. 10px is legible but thin next to art drawn at 5x; 30px shouts. */
+  --world-label-size: 20px;
+  /* Exactly one of the font's own pixels, since the em is 10 of them. */
+  --world-label-brick: calc(var(--world-label-size) / 10);
+
+  /* Anchored at the layer's origin and moved entirely by the transform below.
+     Not `left`/`top`: an absolutely positioned box only gets
+     `containingBlockWidth - left` to lay out in, so positioning that way made a
+     label wrap according to how near the right edge it was rather than to its
+     own max-width. A transform does not affect layout, so every label lays out
+     against the full width wherever it ends up. */
+  position: absolute;
+  left: 0;
+  top: 0;
+  /* A column whose *bottom* edge lands on the anchor (the -100% below). Lines
+     flow downward, so the last one rests on the ground and everything earlier is
+     pushed up by exactly the height of what came after it — wrapped or not, and
+     measured by nobody. This is what makes several messages at one cell stack. */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-family: "NF Pixels", monospace;
+  font-size: var(--world-label-size);
+  /* 1.2, because the font's own line box is 12 of its pixels — 10 above the
+     baseline and 2 below. A wrapped bubble's lines therefore sit a whole number
+     of font pixels apart instead of drifting off the grid down the paragraph. */
+  line-height: 1.2;
+  white-space: pre-wrap;
+  text-align: center;
+  /* Long enough for a sentence, short enough that it cannot wall off the view.
+     Relative to the square, so it holds at every window size. */
+  max-width: 60%;
+  /* A pasted 128-character word has to break somewhere. */
+  overflow-wrap: break-word;
+  /* Hangs upward from its anchor, centred on it. */
+  transform: translate(
+    calc(var(--label-x, 0px) - 50%),
+    calc(var(--label-y, 0px) - 100%)
+  );
+  /* An outline one brick wide, so it matches the glyph's own pixel size instead
+     of being a hairline beside it. Four offsets rather than eight: the font is
+     orthogonal, so the diagonals add nothing but weight. */
+  text-shadow:
+    var(--world-label-brick) 0 0 #000,
+    calc(var(--world-label-brick) * -1) 0 0 #000,
+    0 var(--world-label-brick) 0 #000,
+    0 calc(var(--world-label-brick) * -1) 0 #000;
+}
+
+/* EarthBound's dialogue yellow, near enough. A tag, not a voice. */
+.world-label--name {
+  color: #ffd23f;
+}
+
+.world-label--speech {
+  color: var(--color-paper);
+  /* Clear of the name tag on the same head. Both hang upward from anchors a
+     pixel apart, so without this a standing speaker prints through their own
+     name — and the gap has to be in screen space, like the type it separates. */
+  transform: translate(
+    calc(var(--label-x, 0px) - 50%),
+    calc(var(--label-y, 0px) - 100% - var(--world-label-size) * 1.5)
+  );
 }
 
 /* Hard-edged checkbox — matches Input / Segmented chrome */

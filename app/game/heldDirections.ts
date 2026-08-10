@@ -94,6 +94,22 @@ const KEY_TO_DIRECTION: Record<string, Direction> = {
   KeyD: "e",
 };
 
+/**
+ * Is this keystroke somebody typing rather than somebody playing?
+ *
+ * The bindings live on `window`, so without this every `w`, `a`, `s` and `d`
+ * typed into the chat field would also walk the avatar — and `preventDefault`
+ * would stop the letter reaching the field at all. Asking the event where it
+ * landed is the robust version: any field added later is covered by having been
+ * focused, with nothing to remember to update.
+ */
+export function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (target.isContentEditable) return true;
+  const tag = target.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+}
+
 /** Drive `input` from the keyboard. Returns the unbind. */
 export function bindKeyboard(input: HeldDirections): () => void {
   const modifiers = (e: KeyboardEvent) => {
@@ -101,6 +117,7 @@ export function bindKeyboard(input: HeldDirections): () => void {
   };
 
   const onKeyDown = (e: KeyboardEvent) => {
+    if (isTypingTarget(e.target)) return;
     modifiers(e);
     const direction = KEY_TO_DIRECTION[e.code];
     if (!direction) return;
@@ -111,6 +128,7 @@ export function bindKeyboard(input: HeldDirections): () => void {
   };
 
   const onKeyUp = (e: KeyboardEvent) => {
+    if (isTypingTarget(e.target)) return;
     modifiers(e);
     const direction = KEY_TO_DIRECTION[e.code];
     if (!direction) return;

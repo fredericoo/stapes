@@ -1,6 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 import { GameSession, type ActorSnapshot } from "../app/game/GameSession";
-import { TICK_MS } from "../app/game/constants";
+import { TICK_MS, WALK_DURATION_MS } from "../app/game/constants";
 import { minutesOfDayAt } from "../app/lib/clock";
 import {
   changedCellsOnLevel,
@@ -9,8 +9,14 @@ import {
   getStack,
 } from "../app/lib/mapData";
 import { dataStoreFor, type DataStore } from "../app/lib/storage.server";
-import type { FlatMapFile, MapFile, TileDef } from "../app/lib/types";
+import type {
+  Direction,
+  FlatMapFile,
+  MapFile,
+  TileDef,
+} from "../app/lib/types";
 import { MAX_LEVEL, MIN_LEVEL, parseCoordKey } from "../app/lib/types";
+import { CHAT_MIN_INTERVAL_MS, sanitizeChatText } from "../app/net/chat";
 import {
   parseClientMessage,
   type CellPatch,
@@ -21,7 +27,41 @@ import {
 /** Key under which the running world is checkpointed when it goes idle. */
 const CHECKPOINT_KEY = "world";
 
+/**
+ * How many messages the log keeps.
+ *
+ * Nothing reads this table yet, which is exactly why it needs a ceiling: an
+ * append-only store with no reader and no deletion path is the one thing in this
+ * object that grows without bound, and a Durable Object's disk is finite. Pruned
+ * on insert rather than on a timer so it cannot be forgotten when a reader
+ * finally arrives.
+ */
+export const CHAT_LOG_MAX_ROWS = 5_000;
+
+/**
+ * How many un-taken steps one actor may have waiting.
+ *
+ * A predicting client is half a round trip ahead of this object by design, so
+ * its next intent routinely arrives while the last one is still being walked —
+ * without somewhere to put it, every step would be refused and the world would
+ * be unwalkable. Two deep, so a pair of intents bunched by jitter into the same
+ * tick both survive.
+ *
+ * It is not a speed control and does not need to be: steps are only ever taken
+ * by an idle actor, so a client flooding this queue still walks at one cell per
+ * {@link WALK_DURATION_MS}. The cap is here so a client cannot make the queue
+ * itself grow.
+ */
+const MAX_QUEUED_STEPS = 2;
+
 type Attachment = { actorId: string };
+
+/** A step a client says it has taken, waiting for this side to agree. */
+type QueuedStep = {
+  seq: number;
+  direction: Direction;
+  preferDescend: boolean;
+};
 
 /**
  * A world that has already been run.
@@ -63,10 +103,16 @@ export class GameServer extends DurableObject<Env> {
   private broadcastMap: MapFile | null = null;
   private sentMotion = new Map<string, SentMotion>();
   private events: MotionEvent[] = [];
+  /** Steps clients say they have taken, oldest first, per actor. */
+  private readonly queuedSteps = new Map<string, QueuedStep[]>();
   private timer: ReturnType<typeof setInterval> | null = null;
   private loading: Promise<void> | null = null;
   /** Where `data/` is served in dev, told to us by whoever called in. */
   private dataOrigin: string | null = null;
+  /** When each actor last said something, for the rate limit. */
+  private lastSaidAt = new Map<string, number>();
+  /** Whether the chat table has been created in this instance's lifetime. */
+  private chatLogReady = false;
 
   /**
    * Find authored content.
@@ -213,15 +259,19 @@ export class GameServer extends DurableObject<Env> {
     const { actorId } = attachment;
     if (!session.actorIds().includes(actorId)) return;
 
-    if (message.type === "input") {
-      session.setInput(
-        {
-          directions: message.directions,
-          faceOnly: message.faceOnly,
-          preferDescend: message.preferDescend,
-        },
-        actorId,
-      );
+    if (message.type === "say") {
+      // Deliberately no wake(): talking does not move the board, and starting
+      // the tick loop for it would hold an idle world out of hibernation for
+      // five seconds of nothing. The message is sent inline instead of being
+      // queued into `events`, which is patch-scoped and shared by everyone.
+      this.say(actorId, message.text);
+      return;
+    }
+
+    if (message.type === "step") {
+      this.queueStep(actorId, message);
+    } else if (message.type === "face") {
+      session.faceActor(actorId, message.direction);
     } else {
       // Re-validated against the board rather than trusted: the client decided
       // to offer this affordance from the same rules, but it decided on a map
@@ -230,6 +280,191 @@ export class GameServer extends DurableObject<Env> {
     }
 
     this.wake();
+  }
+
+  /**
+   * Hold a step until the actor is free to take it.
+   *
+   * Never taken here, always on a tick — see {@link applyQueuedSteps} for why
+   * the moment matters.
+   */
+  private queueStep(actorId: string, step: QueuedStep) {
+    const queue = this.queuedSteps.get(actorId) ?? [];
+    if (queue.length >= MAX_QUEUED_STEPS) {
+      // Further ahead than any honest client gets. Refusing the newest rather
+      // than dropping the oldest keeps what is queued a contiguous run of steps,
+      // which is the only thing the client can roll back cleanly.
+      this.rejectStep(actorId, step.seq);
+      return;
+    }
+    queue.push(step);
+    this.queuedSteps.set(actorId, queue);
+  }
+
+  /**
+   * Take the steps clients are waiting on, at the one moment in the tick where
+   * taking them costs nothing.
+   *
+   * Immediately after the simulation, because that is where a walk that just
+   * finished releases its actor. Held input has always started the next step
+   * inside the same tick that committed the last one, and a queued step has to
+   * land in that same slot: leave it until the following tick and every step
+   * pays a tick of dead time, the server falls a tick further behind its client
+   * with each cell walked, and the drift shows up as the client's prediction
+   * running away.
+   *
+   * Before {@link collectMotionEvents}, so a walk started here is announced in
+   * the patch this tick is already sending.
+   */
+  private applyQueuedSteps() {
+    const session = this.session;
+    if (!session) return;
+
+    for (const [actorId, queue] of this.queuedSteps) {
+      while (queue.length > 0) {
+        const step = queue[0]!;
+        const outcome = session.requestStep(actorId, step.direction, {
+          preferDescend: step.preferDescend,
+        });
+        // Still walking off the last one. Everything behind it waits too —
+        // steps are a sequence, and taking them out of order would walk the
+        // actor somewhere neither side asked for.
+        if (outcome === "later") break;
+
+        queue.shift();
+        if (outcome === "refused") this.rejectStep(actorId, step.seq);
+        // Started: the actor is now busy, so anything left waits for the tick
+        // that finishes this walk.
+        if (outcome === "started") break;
+      }
+      if (queue.length === 0) this.queuedSteps.delete(actorId);
+    }
+  }
+
+  /** Tell one client a step it drew never happened. */
+  private rejectStep(actorId: string, seq: number) {
+    this.sendTo(actorId, { type: "stepRejected", seq });
+  }
+
+  /** Send to one actor's socket, if they still have one. */
+  private sendTo(actorId: string, message: ServerMessage) {
+    const payload = JSON.stringify(message);
+    for (const ws of this.ctx.getWebSockets()) {
+      const attachment = ws.deserializeAttachment() as Attachment | null;
+      if (attachment?.actorId !== actorId) continue;
+      try {
+        ws.send(payload);
+      } catch {
+        // Died between the check and the send; webSocketClose will tidy up.
+      }
+      return;
+    }
+  }
+
+  /**
+   * Say something, to the people standing on the same floor.
+   *
+   * Every drop here is silent. A refused message has no honest thing to tell the
+   * sender — the rate limit is a defence rather than a rule anybody agreed to,
+   * and "your text became empty after stripping" is not worth a round trip — so
+   * the field simply clears and nothing appears.
+   */
+  private say(actorId: string, raw: string) {
+    const now = Date.now();
+    const last = this.lastSaidAt.get(actorId);
+    if (last !== undefined && now - last < CHAT_MIN_INTERVAL_MS) return;
+
+    const text = sanitizeChatText(raw);
+    if (!text) return;
+
+    // One call, and the location memo behind it means this is a cell lookup per
+    // actor rather than a sweep — the same discipline the tick loop uses.
+    const actors = this.session!.actorSnapshots();
+    const author = actors.find((actor) => actor.id === actorId);
+    if (!author) return;
+
+    this.lastSaidAt.set(actorId, now);
+
+    const message: ServerMessage = {
+      type: "chat",
+      actorId,
+      text,
+      x: author.x,
+      y: author.y,
+      z: author.z,
+      stackIndex: author.stackIndex,
+    };
+    this.sendToLevel(author.z, actors, message);
+    this.logChat(now, actorId, author, text);
+  }
+
+  /**
+   * Send to everyone standing on one level.
+   *
+   * Serialized once for the level, not once per socket: the payload is the same
+   * for all of them, and the only thing being decided per socket is whether it
+   * is theirs to receive.
+   */
+  private sendToLevel(
+    z: number,
+    actors: ActorSnapshot[],
+    message: ServerMessage,
+  ) {
+    const levelById = new Map(actors.map((actor) => [actor.id, actor.z]));
+    const payload = JSON.stringify(message);
+    for (const ws of this.ctx.getWebSockets()) {
+      const attachment = ws.deserializeAttachment() as Attachment | null;
+      if (!attachment) continue;
+      if (levelById.get(attachment.actorId) !== z) continue;
+      try {
+        ws.send(payload);
+      } catch {
+        // Died between the check and the send; webSocketClose will tidy up.
+      }
+    }
+  }
+
+  /**
+   * Keep what was said.
+   *
+   * Write-only for now — there is no log on screen and nothing queries this. It
+   * exists so the history is not lost before anything wants it, which makes the
+   * row cap the load-bearing part rather than an afterthought.
+   */
+  private logChat(
+    atMs: number,
+    actorId: string,
+    at: { x: number; y: number; z: number },
+    text: string,
+  ) {
+    const sql = this.ctx.storage.sql;
+    if (!this.chatLogReady) {
+      sql.exec(
+        `CREATE TABLE IF NOT EXISTS chat (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          at INTEGER NOT NULL,
+          actor TEXT NOT NULL,
+          x INTEGER NOT NULL,
+          y INTEGER NOT NULL,
+          z INTEGER NOT NULL,
+          text TEXT NOT NULL
+        )`,
+      );
+      this.chatLogReady = true;
+    }
+    sql.exec(
+      "INSERT INTO chat (at, actor, x, y, z, text) VALUES (?, ?, ?, ?, ?, ?)",
+      atMs,
+      actorId,
+      at.x,
+      at.y,
+      at.z,
+      text,
+    );
+    sql.exec(
+      "DELETE FROM chat WHERE id <= (SELECT MAX(id) FROM chat) - ?",
+      CHAT_LOG_MAX_ROWS,
+    );
   }
 
   async webSocketClose(ws: WebSocket) {
@@ -247,6 +482,8 @@ export class GameServer extends DurableObject<Env> {
 
     this.session?.despawn(attachment.actorId);
     this.sentMotion.delete(attachment.actorId);
+    this.queuedSteps.delete(attachment.actorId);
+    this.lastSaidAt.delete(attachment.actorId);
     this.events.push({ kind: "left", actorId: attachment.actorId });
     // Their tile just left the board, so the removal has to reach everyone else.
     this.wake();
@@ -273,6 +510,11 @@ export class GameServer extends DurableObject<Env> {
     this.session = new GameSession(chunkifyMap(flat), this.tiles, []);
     this.broadcastMap = this.session.getMap();
     this.sentMotion.clear();
+    this.lastSaidAt.clear();
+    // Every queued step was aimed at a board that no longer exists. They are
+    // dropped rather than refused: the `hello` below resets each client's
+    // prediction wholesale, so there is nothing left to roll back.
+    this.queuedSteps.clear();
     this.events = [];
 
     // Everyone still connected re-enters the new world at its spawn point.
@@ -308,6 +550,10 @@ export class GameServer extends DurableObject<Env> {
   private sleepIfIdle() {
     const session = this.session;
     if (!session || !session.isAtRest()) return;
+    // A world with steps still waiting is not at rest, whatever the board says:
+    // stopping the tick loop here would leave them unclaimed until the next
+    // message woke it, and the actor would stand still through a held key.
+    if (this.queuedSteps.size > 0) return;
     if (this.timer !== null) {
       clearInterval(this.timer);
       this.timer = null;
@@ -323,6 +569,7 @@ export class GameServer extends DurableObject<Env> {
     if (!session) return;
 
     session.tick(TICK_MS);
+    this.applyQueuedSteps();
 
     const actors = session.actorSnapshots();
     this.collectMotionEvents(actors);

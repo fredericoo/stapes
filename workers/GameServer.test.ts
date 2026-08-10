@@ -1,10 +1,12 @@
 import { env, fetchMock, runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import tilesJson from "../data/tiles.json";
+import { WALK_DURATION_MS } from "../app/game/constants";
 import { MINUTES_PER_DAY, minutesOfDayAt } from "../app/lib/clock";
 import { DEV_DATA_PREFIX } from "../app/lib/devData";
 import type { FlatMapFile } from "../app/lib/types";
-import type { GameServer } from "./GameServer";
+import { CHAT_MIN_INTERVAL_MS } from "../app/net/chat";
+import { CHAT_LOG_MAX_ROWS, type GameServer } from "./GameServer";
 
 /**
  * The Durable Object's load / restore / checkpoint path, in the runtime it
@@ -357,5 +359,413 @@ describe("replacing the world", () => {
     // the write the author will never read back.
     const stored = await env.DATA.get("map.json");
     expect(await stored!.text()).toBe(JSON.stringify(authoredMap()));
+  });
+});
+
+/**
+ * A world where two people are standing on different floors.
+ *
+ * Built as a checkpoint rather than by walking anybody upstairs, because a
+ * checkpoint is exactly "a world that has already been run" and restoring from
+ * one is a path every hibernation wake takes anyway. The sockets have to be
+ * open before the restore: `restoreActors` reaps anyone in the checkpoint who
+ * has no connection, so a checkpoint loaded before the joins would throw both
+ * of these bodies away.
+ */
+function checkpointOnTwoLevels(): {
+  map: FlatMapFile;
+  spawn: { x: number; y: number; z: number; stackIndex: number };
+} {
+  const ground: Record<string, unknown[]> = {};
+  const upstairs: Record<string, unknown[]> = {};
+  for (let x = 0; x < 4; x++) {
+    ground[`${x},0`] = [{ tileId: "grass" }];
+    upstairs[`${x},0`] = [{ tileId: "grass" }];
+  }
+  ground["0,0"] = [{ tileId: "grass" }, { tileId: "player", direction: "s", owner: "alice" }];
+  upstairs["2,0"] = [{ tileId: "grass" }, { tileId: "player", direction: "s", owner: "bob" }];
+  return {
+    map: { version: 1, levels: { "0": ground, "1": upstairs } } as FlatMapFile,
+    spawn: { x: 0, y: 0, z: 0, stackIndex: 0 },
+  };
+}
+
+/**
+ * The next chat message on this socket, or null if none arrives in time.
+ *
+ * Filtered by type rather than taking whatever lands first, because the socket
+ * is also carrying the world: a join broadcasts a patch, and reading that patch
+ * as "the reply" makes a positive test pass on the wrong message and a negative
+ * one fail on an unrelated one. Both happened before this filtered.
+ */
+function chatWithin(
+  ws: WebSocket,
+  ms: number,
+): Promise<Record<string, unknown> | null> {
+  return new Promise((resolve) => {
+    const done = (value: Record<string, unknown> | null) => {
+      clearTimeout(timer);
+      ws.removeEventListener("message", onMessage);
+      resolve(value);
+    };
+    const onMessage = (event: MessageEvent) => {
+      const message = JSON.parse(event.data as string) as Record<string, unknown>;
+      if (message.type === "chat") done(message);
+    };
+    const timer = setTimeout(() => done(null), ms);
+    ws.addEventListener("message", onMessage);
+  });
+}
+
+/** Long enough for a tick to have happened if one was going to. */
+const QUIET_MS = 200;
+
+function say(ws: WebSocket, text: string) {
+  ws.send(JSON.stringify({ type: "say", text }));
+}
+
+/** Whether the tick loop is running, which is what blocks hibernation. */
+async function isTicking(): Promise<boolean> {
+  let ticking = false;
+  await runInDurableObject(stub(), (instance: GameServer) => {
+    ticking = (instance as unknown as Record<string, unknown>).timer !== null;
+  });
+  return ticking;
+}
+
+async function chatRows(): Promise<Record<string, unknown>[]> {
+  let rows: Record<string, unknown>[] = [];
+  await runInDurableObject(stub(), (_instance, state) => {
+    rows = [...state.storage.sql.exec("SELECT * FROM chat ORDER BY id")];
+  });
+  return rows;
+}
+
+/**
+ * Chat is the one thing on this wire that is not for everybody, and the level
+ * filter is the reason it has its own message rather than riding in a patch.
+ * A bug here does not corrupt the world — it quietly shows somebody a
+ * conversation they were not standing in, which no other test would catch.
+ */
+describe("chat", () => {
+  /** Two actors, one on each floor, with their sockets already open. */
+  async function twoLevels() {
+    const alice = await connect("alice");
+    const bob = await connect("bob");
+    await putCheckpoint(checkpointOnTwoLevels());
+    await simulateEviction();
+    return { alice, bob };
+  }
+
+  it("reaches the people standing on the same floor", async () => {
+    const alice = await connect("alice");
+    const bob = await connect("bob");
+
+    say(alice.ws, "hey there!");
+
+    const heard = await chatWithin(bob.ws, 1000);
+    expect(heard).toMatchObject({
+      type: "chat",
+      actorId: "alice",
+      text: "hey there!",
+    });
+  });
+
+  it("comes back to its own author", async () => {
+    const alice = await connect("alice");
+    say(alice.ws, "hey there!");
+
+    // No local echo on the client, so the author's own bubble is this message.
+    expect(await chatWithin(alice.ws, 1000)).toMatchObject({
+      type: "chat",
+      text: "hey there!",
+    });
+  });
+
+  it("does not reach another floor", async () => {
+    const { alice, bob } = await twoLevels();
+
+    say(alice.ws, "hey there!");
+
+    // The negative is the assertion that matters: proving alice was heard
+    // somewhere is not proof that bob was excluded.
+    expect(await chatWithin(bob.ws, QUIET_MS)).toBeNull();
+  });
+
+  it("still reaches the author on their own floor after the restore", async () => {
+    const { alice } = await twoLevels();
+
+    say(alice.ws, "hey there!");
+
+    // Guards the test above: if the restore had silently dropped everybody,
+    // "bob heard nothing" would pass for the wrong reason.
+    expect(await chatWithin(alice.ws, 1000)).toMatchObject({
+      type: "chat",
+      actorId: "alice",
+    });
+  });
+
+  it("pins the message to the cell its author was standing in", async () => {
+    const { alice } = await twoLevels();
+
+    say(alice.ws, "hey there!");
+
+    const heard = await chatWithin(alice.ws, 1000);
+    expect(heard).toMatchObject({ x: 0, y: 0, z: 0 });
+    // The speaker's slot in that cell's stack travels too, so the client can
+    // hang the bubble over the ground under them rather than over their head.
+    expect(typeof heard!.stackIndex).toBe("number");
+  });
+
+  it("drops a second message sent too soon after the first", async () => {
+    const alice = await connect("alice");
+
+    say(alice.ws, "first");
+    say(alice.ws, "second");
+
+    expect(await chatWithin(alice.ws, 1000)).toMatchObject({
+      text: "first",
+    });
+    expect(await chatWithin(alice.ws, QUIET_MS)).toBeNull();
+  });
+
+  it("drops a message with nothing drawable left in it", async () => {
+    const alice = await connect("alice");
+
+    say(alice.ws, "🎉🎉🎉");
+
+    expect(await chatWithin(alice.ws, QUIET_MS)).toBeNull();
+  });
+
+  /**
+   * Talking does not move the board. Waking the tick loop for it would hold an
+   * idle world out of hibernation for as long as people keep chatting, which is
+   * the opposite of what `isAtRest` exists for.
+   */
+  it("does not start the tick loop", async () => {
+    const alice = await connect("alice");
+    // Let the join's own wake settle first, or this measures that instead.
+    await scheduler.wait(QUIET_MS);
+    expect(await isTicking()).toBe(false);
+
+    say(alice.ws, "hey there!");
+    await chatWithin(alice.ws, 1000);
+
+    expect(await isTicking()).toBe(false);
+  });
+
+  it("keeps what was said", async () => {
+    const alice = await connect("alice");
+    say(alice.ws, "hey there!");
+    await chatWithin(alice.ws, 1000);
+
+    expect(await chatRows()).toMatchObject([
+      { actor: "alice", text: "hey there!", x: 0, y: 0, z: 0 },
+    ]);
+  });
+
+  /**
+   * Nothing reads this table yet, which is exactly why the cap has to hold: an
+   * append-only store with no reader is the only thing in the object that grows
+   * without bound.
+   */
+  it("keeps the log at its cap", async () => {
+    const alice = await connect("alice");
+    say(alice.ws, "hey there!");
+    await chatWithin(alice.ws, 1000);
+
+    // Backfill past the cap directly — the rate limit makes it impossible to
+    // reach from the wire, and the prune is what is under test, not the sending.
+    await runInDurableObject(stub(), (_instance, state) => {
+      state.storage.sql.exec(
+        `WITH RECURSIVE seq(n) AS (
+           SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < ?
+         )
+         INSERT INTO chat (at, actor, x, y, z, text)
+         SELECT 0, 'backfill', 0, 0, 0, 'old' FROM seq`,
+        CHAT_LOG_MAX_ROWS + 100,
+      );
+    });
+
+    const beforePrune = await chatRows();
+    expect(beforePrune.length).toBeGreaterThan(CHAT_LOG_MAX_ROWS);
+
+    // One more real message, which is what runs the prune.
+    await scheduler.wait(CHAT_MIN_INTERVAL_MS);
+    say(alice.ws, "and another");
+    await chatWithin(alice.ws, 1000);
+
+    expect(await chatRows()).toHaveLength(CHAT_LOG_MAX_ROWS);
+  });
+});
+
+/**
+ * Steps, as the wire now carries them.
+ *
+ * Clients decide when their own steps happen and draw them before this object
+ * has heard about it, so what arrives here is a claim to check rather than a
+ * request to fulfil. Two things have to hold for that to be playable: a claim
+ * that arrives while the last one is still being walked has to wait rather than
+ * be thrown away, and one the board refuses has to come back with its number so
+ * the client can put itself back.
+ */
+
+function step(ws: WebSocket, seq: number, direction: string) {
+  ws.send(JSON.stringify({ type: "step", seq, direction, preferDescend: false }));
+}
+
+/** Wait for the first message of a type, or null if it never comes. */
+function messageWithin(
+  ws: WebSocket,
+  type: string,
+  ms: number,
+): Promise<Record<string, unknown> | null> {
+  return new Promise((resolve) => {
+    const done = (value: Record<string, unknown> | null) => {
+      clearTimeout(timer);
+      ws.removeEventListener("message", onMessage);
+      resolve(value);
+    };
+    const onMessage = (event: MessageEvent) => {
+      const message = JSON.parse(event.data as string) as Record<string, unknown>;
+      if (message.type === type) done(message);
+    };
+    const timer = setTimeout(() => done(null), ms);
+    ws.addEventListener("message", onMessage);
+  });
+}
+
+/** Wait for a patch carrying a `walkStarted`, and hand back that event. */
+function walkWithin(
+  ws: WebSocket,
+  ms: number,
+): Promise<Record<string, unknown> | null> {
+  return new Promise((resolve) => {
+    const done = (value: Record<string, unknown> | null) => {
+      clearTimeout(timer);
+      ws.removeEventListener("message", onMessage);
+      resolve(value);
+    };
+    const onMessage = (event: MessageEvent) => {
+      const message = JSON.parse(event.data as string) as Record<string, unknown>;
+      if (message.type !== "patch") return;
+      const events = message.events as Record<string, unknown>[];
+      const walk = events.find((e) => e.kind === "walkStarted");
+      if (walk) done(walk);
+    };
+    const timer = setTimeout(() => done(null), ms);
+    ws.addEventListener("message", onMessage);
+  });
+}
+
+/** Where an actor's tile is in the running world, as an x. */
+async function actorX(actorId: string): Promise<number | null> {
+  let found: number | null = null;
+  await runInDurableObject(stub(), (instance: GameServer) => {
+    const internals = instance as unknown as {
+      session: { actorSnapshots(): { id: string; x: number }[] } | null;
+    };
+    const actor = internals.session
+      ?.actorSnapshots()
+      .find((a) => a.id === actorId);
+    found = actor ? actor.x : null;
+  });
+  return found;
+}
+
+describe("stepping", () => {
+  it("walks an actor that says it has taken a step", async () => {
+    const { ws } = await connect("alice");
+    step(ws, 0, "e");
+
+    const walk = await walkWithin(ws, 1000);
+    expect(walk).toMatchObject({
+      actorId: "alice",
+      from: { x: 0, y: 0, z: 0 },
+      to: { x: 1, y: 0, z: 0 },
+      direction: "e",
+    });
+  });
+
+  it("commits the step to the board", async () => {
+    const { ws } = await connect("alice");
+    step(ws, 0, "e");
+    await walkWithin(ws, 1000);
+
+    // The walk lands 200ms after it starts, and the cell patch that carries it
+    // is the only acknowledgement an accepted step ever gets.
+    await new Promise((resolve) => setTimeout(resolve, WALK_DURATION_MS + 200));
+    expect(await actorX("alice")).toBe(1);
+  });
+
+  it("turns an actor asked only to face", async () => {
+    const { ws } = await connect("alice");
+    ws.send(JSON.stringify({ type: "face", direction: "n" }));
+
+    await new Promise((resolve) => setTimeout(resolve, QUIET_MS));
+    let facing: string | undefined;
+    await runInDurableObject(stub(), (instance: GameServer) => {
+      const internals = instance as unknown as {
+        session: { actorSnapshots(): { id: string; direction: string }[] } | null;
+      };
+      facing = internals.session
+        ?.actorSnapshots()
+        .find((a) => a.id === "alice")?.direction;
+    });
+    expect(facing).toBe("n");
+    expect(await actorX("alice")).toBe(0);
+  });
+
+  it("refuses a step further ahead than it will hold", async () => {
+    const { ws } = await connect("alice");
+    // Three in a burst, before any tick can take one: two fit in the queue and
+    // the third is more than any honest client is ahead by.
+    step(ws, 0, "e");
+    step(ws, 1, "e");
+    step(ws, 2, "e");
+
+    expect(await messageWithin(ws, "stepRejected", 1000)).toEqual({
+      type: "stepRejected",
+      seq: 2,
+    });
+  });
+
+  it("tells only the client whose step it was", async () => {
+    const alice = await connect("alice");
+    const bob = await connect("bob");
+
+    step(alice.ws, 0, "e");
+    step(alice.ws, 1, "e");
+    step(alice.ws, 2, "e");
+
+    expect(await messageWithin(alice.ws, "stepRejected", 1000)).not.toBeNull();
+    // A refusal is about one client's guess, not about the board, so it has no
+    // business on anybody else's socket.
+    expect(await messageWithin(bob.ws, "stepRejected", QUIET_MS)).toBeNull();
+  });
+
+  it("walks the second of two steps that arrived together", async () => {
+    const { ws } = await connect("alice");
+    step(ws, 0, "e");
+    step(ws, 1, "e");
+
+    // Held rather than refused: the queued one is taken on the tick that
+    // finishes the first, so two cells are walked and neither is lost.
+    await new Promise((resolve) =>
+      setTimeout(resolve, WALK_DURATION_MS * 2 + 300),
+    );
+    expect(await actorX("alice")).toBe(2);
+  });
+
+  it("goes back to sleep once the steps are walked", async () => {
+    const { ws } = await connect("alice");
+    step(ws, 0, "e");
+
+    await new Promise((resolve) =>
+      setTimeout(resolve, WALK_DURATION_MS + QUIET_MS),
+    );
+    // Nothing is held on this side any more — the client is the only thing that
+    // knows a key is down — so one step leaves the world at rest.
+    expect(await isTicking()).toBe(false);
   });
 });

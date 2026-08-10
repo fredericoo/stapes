@@ -17,10 +17,12 @@ const HANDLE_LENGTH = 6;
 /**
  * Uppercase because a handle should read as a tag, not because it has to be.
  *
- * Silkscreen draws both cases in the same 5px band — its lowercase is the
- * height of its capitals, and only `q` (with the comma and semicolon) drops a
- * pixel below the baseline. So mixed-case names would cost no height and lose
- * no legibility here; the choice is style alone.
+ * This used to be free: Silkscreen drew both cases in the same 5px band, so
+ * case cost no height. NF Pixels has a real lowercase — 5 pixels of x-height
+ * under a 7-pixel cap — so an uppercase handle is now genuinely two pixels
+ * taller than a lowercase one would be. Still worth it: a name tag wants to
+ * look unlike the sentence hanging above it, and case is what separates them
+ * now that both are drawn in the same face.
  */
 export function displayNameFor(actorId: string): string {
   const usable = actorId.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();

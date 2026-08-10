@@ -1,16 +1,25 @@
 import {
   FALL_MS_PER_HEIGHT,
+  PLAYER_TILE_ID,
   PUSH_STEP_MS,
   WALK_DURATION_MS,
 } from "../game/constants";
-import { actorDirection, locateActor, type ActorLocation } from "../game/actors";
+import {
+  actorDirection,
+  actorStillAt,
+  locateActor,
+  type ActorLocation,
+} from "../game/actors";
 import {
   canPushFrom,
   canSwitchFrom,
   type ObjectRef,
 } from "../game/affordances";
+import { moveEntity, setEntityDirection } from "../game/mapMutations";
+import { chooseStep } from "../game/stepping";
 import type {
   ActorSnapshot,
+  ChatBubble,
   FallState,
   GameInput,
   GameSnapshot,
@@ -20,15 +29,29 @@ import type {
 } from "../game/GameSession";
 import { standingAbs } from "../game/movement";
 import { DEFAULT_PLAY_MINUTES, type MinutesOfDay } from "../lib/clock";
-import { chunkifyMap, emptyMap, setStacks } from "../lib/mapData";
-import type { FlatMapFile, MapFile, TileDef } from "../lib/types";
+import { chunkifyMap, emptyMap, getStack, setStacks } from "../lib/mapData";
+import type {
+  Coord,
+  Direction,
+  FlatMapFile,
+  MapFile,
+  TileDef,
+} from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
+import {
+  CHAT_LIFETIME_MS,
+  MAX_CHAT_LENGTH,
+  MAX_CHATS_PER_CELL,
+} from "./chat";
 import {
   parseServerMessage,
   type CellPatch,
   type ClientMessage,
   type MotionEvent,
 } from "./protocol";
+
+/** A bubble on screen, with the clock that will take it away. */
+type LiveChat = ChatBubble & { elapsedMs: number };
 
 /** Motion a client is animating, with its own clock. */
 type RemoteMotion = {
@@ -40,6 +63,45 @@ type RemoteMotion = {
 };
 
 /**
+ * A step this client took on its own authority, still waiting to become true.
+ *
+ * `landed` is about the drawing rather than the server: it turns true when the
+ * lerp finishes and the move goes into the predicted board, which is what lets
+ * the next step be chosen from the cell this one reached. Until then the actor
+ * is still being dragged out of the cell below and the board must still hold
+ * them there.
+ */
+type PredictedStep = {
+  seq: number;
+  to: Coord;
+  direction: Direction;
+  landed: boolean;
+  /** Time since it was sent, for {@link STEP_CONFIRM_TIMEOUT_MS}. */
+  waitedMs: number;
+};
+
+/**
+ * How far ahead of the server this client will walk before it waits.
+ *
+ * A step is confirmed a round trip *plus* a walk after it was sent, so several
+ * are legitimately outstanding at once on exactly the slow link this prediction
+ * exists for — a tight cap here would reinstate the stall it is meant to
+ * remove. Eight covers a round trip well past a second. Past that something is
+ * wrong rather than slow, and {@link STEP_CONFIRM_TIMEOUT_MS} is what notices.
+ */
+const MAX_PREDICTED_STEPS = 8;
+
+/**
+ * How long the oldest unconfirmed step waits before this client gives up on it.
+ *
+ * The backstop, not the mechanism: a refused step normally comes back as its own
+ * message and is rolled back at once. This catches only the cases where no
+ * answer arrives at all, and sits well past the round trip a confirmation takes
+ * so an ordinary slow link never trips it.
+ */
+export const STEP_CONFIRM_TIMEOUT_MS = 2_000;
+
+/**
  * The world as this browser sees it.
  *
  * Implements the same interface as the local simulation, so the renderer cannot
@@ -47,18 +109,43 @@ type RemoteMotion = {
  * as patches and are authoritative, while motion is interpolated locally from
  * the events that announced it.
  *
- * There is no client-side prediction. Input goes to the server and the answer
- * comes back as a `walkStarted`, so a step costs one round trip before it is
- * seen — simple and never wrong, at the price of feeling heavy on a slow link.
+ * Your own walking is the exception, and it is the reason this class is not
+ * simply a patch applier. Asking the server to decide each step put a round trip
+ * between pressing a key and moving, which on a distant object is the difference
+ * between a game and a remote control. So this client decides its own steps from
+ * the same rule the server validates with, draws them at once, and tells the
+ * server afterwards.
+ *
+ * That leaves two boards. {@link serverMap} is what the server last said, and
+ * {@link map} — the one everything else reads — is that board with the steps it
+ * has not confirmed yet replayed on top. Every patch rebuilds the second from
+ * the first, so a mistaken guess is corrected by the next thing the server says
+ * rather than accumulating. Only your own walking is predicted: falls, pushes
+ * and switches still cost their round trip, which keeps the guessing to the one
+ * thing that is held down for seconds at a time.
  */
 export class RemoteSession implements PlaySession {
+  /** The board as the server last described it. */
+  private serverMap: MapFile = emptyMap();
+  /** {@link serverMap} plus {@link pending}. What the renderer draws. */
   private map: MapFile = emptyMap();
   private readonly tilesById: Record<string, TileDef>;
   private selfId = "";
   private serverMinutesOfDay: MinutesOfDay = DEFAULT_PLAY_MINUTES;
   private readonly motions = new Map<string, RemoteMotion>();
+  /** Steps drawn but not yet confirmed by the server, oldest first. */
+  private pending: PredictedStep[] = [];
+  private nextStepSeq = 0;
+  /** What the player is holding, so a finished step can chain into the next. */
+  private held: GameInput = { directions: [] };
+  /** Last facing sent, so a held key does not resend it every frame. */
+  private facing: Direction | null = null;
+  /** Where the server last had us, so finding it stays a cell lookup. */
+  private serverSeen: ActorLocation | null = null;
+  private chats: LiveChat[] = [];
+  /** Ticks up per message, so two lines from one actor are two bubbles. */
+  private nextChatId = 0;
   private hovered: ObjectRef | null = null;
-  private lastInput: string = "";
   private ready = false;
   private onReady: (() => void) | null = null;
 
@@ -103,27 +190,63 @@ export class RemoteSession implements PlaySession {
     if (message.type === "hello") {
       this.selfId = message.selfId;
       this.serverMinutesOfDay = message.minutesOfDay;
-      this.map = chunkifyMap(message.map as FlatMapFile);
-      // A restart moves everyone, so nothing that was animating still applies.
+      this.serverMap = chunkifyMap(message.map as FlatMapFile);
+      this.map = this.serverMap;
+      // A restart moves everyone, so nothing that was animating still applies —
+      // including every step this client was still holding a guess about.
+      this.pending = [];
+      this.facing = null;
+      this.serverSeen = null;
       this.motions.clear();
+      // And every bubble is pinned to a coordinate in a world that no longer
+      // exists, which would leave them hanging over whatever is there now.
+      this.chats = [];
       for (const id of message.actorIds) this.motions.set(id, emptyMotion());
       this.ready = true;
       this.onReady?.();
       return;
     }
 
+    if (message.type === "chat") {
+      // Arrives already scoped to this viewer's level — the server sends it
+      // nowhere else — so there is nothing to filter here.
+      this.chats.push({
+        id: `chat-${this.nextChatId++}`,
+        actorId: message.actorId,
+        text: message.text,
+        x: message.x,
+        y: message.y,
+        z: message.z,
+        stackIndex: message.stackIndex,
+        elapsedMs: 0,
+      });
+      this.evictOldestAtCell(message);
+      return;
+    }
+
+    if (message.type === "stepRejected") {
+      this.rollBackFrom(message.seq);
+      return;
+    }
+
     this.applyCells(message.cells);
     for (const event of message.events) this.applyEvent(event);
+    this.rebuildPredicted();
   };
 
   /**
    * Cells are whole-stack replacements, applied in one `setStacks` call so each
    * affected chunk is copied once — the same discipline the simulation uses for
    * a multi-cell edit.
+   *
+   * Applied to the server's board rather than the drawn one. The drawn board is
+   * derived — see {@link rebuildPredicted} — and writing a patch straight into
+   * it would bake this client's guesses into the very thing that is supposed to
+   * be able to correct them.
    */
   private applyCells(cells: CellPatch[]) {
     if (cells.length === 0) return;
-    this.map = setStacks(this.map, cells);
+    this.serverMap = setStacks(this.serverMap, cells);
   }
 
   private applyEvent(event: MotionEvent) {
@@ -134,6 +257,16 @@ export class RemoteSession implements PlaySession {
     if (event.kind === "left") {
       this.motions.delete(event.actorId);
       return;
+    }
+
+    if (event.actorId === this.selfId) {
+      // A walk of our own is one we drew a round trip ago and are still holding
+      // a guess about; this is the server agreeing, not news, and replaying it
+      // would restart a lerp that has already finished.
+      if (event.kind === "walkStarted" && this.pending.length > 0) return;
+      // Anything else it does to us is motion this client never predicted — a
+      // fall above all — so whatever it thought it was doing is void.
+      this.abandonPrediction();
     }
 
     const motion = this.motions.get(event.actorId) ?? emptyMotion();
@@ -167,14 +300,23 @@ export class RemoteSession implements PlaySession {
    * timer and the sprite falls back to the cell it is still standing in for
    * those few frames, then jumps forward again when the patch arrives. That is
    * the twitch. {@link releaseArrivedWalk} ends the walk on the patch instead.
+   *
+   * None of which applies to this client's own walking, which is predicted: it
+   * lands on its own timer because this side is the one that decided it, and
+   * {@link landPredictedStep} is what commits it.
    */
   update(dtMs: number) {
-    for (const motion of this.motions.values()) {
+    for (const [id, motion] of this.motions) {
       if (motion.walk) {
-        motion.walk.elapsedMs = Math.min(
-          WALK_DURATION_MS,
-          motion.walk.elapsedMs + dtMs,
-        );
+        // A predicted walk is allowed past its own duration; every other walk
+        // is held at it. The overshoot is not wasted time, it is the part of
+        // the frame that belongs to the *next* step, and
+        // {@link landPredictedStep} hands it on. Rounded away instead, a step
+        // would cost a whole frame more than it should — 208ms at 60fps, 231ms
+        // at 30fps — and how fast you walk would depend on your frame rate.
+        motion.walk.elapsedMs = this.isPredicting(id)
+          ? motion.walk.elapsedMs + dtMs
+          : Math.min(WALK_DURATION_MS, motion.walk.elapsedMs + dtMs);
       }
       // Mirrors the simulation's own fall: feet step down one height unit at a
       // time, and progress is the fraction of the *current* unit — which is
@@ -200,6 +342,354 @@ export class RemoteSession implements PlaySession {
         if (motion.slide.elapsedMs >= PUSH_STEP_MS) motion.slide = null;
       }
     }
+
+    this.agePendingSteps(dtMs);
+    this.advancePrediction();
+    this.expireChats(dtMs);
+  }
+
+  /**
+   * Land whatever finished this frame, and start what comes next.
+   *
+   * A loop rather than a single pass, because one frame is not always one step:
+   * a tab coming back from the background, or a device that dropped a few
+   * hundred milliseconds, arrives with enough elapsed time for more than one.
+   * Walking them all is what keeps a step worth 200ms of the world's time
+   * rather than 200ms of *drawn* time.
+   *
+   * Bounded by how far ahead this client is willing to be anyway, so a stall
+   * measured in seconds stops rather than sprinting off across the map.
+   */
+  private advancePrediction() {
+    for (let taken = 0; taken < MAX_PREDICTED_STEPS; taken++) {
+      const carryMs = this.landPredictedStep();
+      this.predictStep(carryMs ?? 0);
+      if (carryMs === null) return;
+    }
+  }
+
+  /** Is this actor's current walk one this client drew for itself? */
+  private isPredicting(id: string): boolean {
+    if (id !== this.selfId) return false;
+    const last = this.pending[this.pending.length - 1];
+    return last ? !last.landed : false;
+  }
+
+  /**
+   * Give up on a step nobody ever answered for.
+   *
+   * Only the oldest is timed, because they are confirmed in order: while the
+   * front of the queue is moving, everything behind it is being answered too.
+   */
+  private agePendingSteps(dtMs: number) {
+    const oldest = this.pending[0];
+    if (!oldest) return;
+    oldest.waitedMs += dtMs;
+    if (oldest.waitedMs >= STEP_CONFIRM_TIMEOUT_MS) this.abandonPrediction();
+  }
+
+  /**
+   * Put a finished step into the predicted board.
+   *
+   * The moment the lerp ends, not the moment the server confirms it — which is
+   * the whole of what makes walking feel immediate. Holding the sprite at the
+   * destination until the patch arrives is right for *other* people's walks,
+   * because their next step is news that has not reached us; ours is not news,
+   * so the actor arrives, the cell under them becomes true locally, and the next
+   * step can be chosen from it without a pause.
+   *
+   * @returns the milliseconds the step overran by, which belong to the step
+   *   after it, or null when nothing landed.
+   */
+  private landPredictedStep(): number | null {
+    const motion = this.motions.get(this.selfId);
+    const walk = motion?.walk;
+    if (!motion || !walk || walk.elapsedMs < WALK_DURATION_MS) return null;
+
+    const step = this.pending.find((pending) => !pending.landed);
+    if (!step) return null;
+
+    const at = locateActor(this.map, this.selfId, motion.lastSeen ?? undefined);
+    if (!at) return null;
+
+    const carryMs = walk.elapsedMs - WALK_DURATION_MS;
+
+    this.map = moveEntity(this.map, at, step.to, step.direction, this.tilesById);
+    step.landed = true;
+    motion.walk = null;
+    // moveEntity appends, so the actor is the top of the destination stack.
+    // Recorded rather than searched for: the hint is what keeps locating an
+    // actor a cell read, and it is exactly known here.
+    const stack = getStack(this.map, step.to.x, step.to.y, step.to.z);
+    motion.lastSeen = {
+      ...step.to,
+      stackIndex: stack.length - 1,
+      placed: stack[stack.length - 1]!,
+    };
+    return carryMs;
+  }
+
+  /**
+   * Take the next step the player is asking for, if the board allows it.
+   *
+   * Run both from the frame loop — so a held key chains step after step — and
+   * straight off the key event in {@link setInput}, so the first one does not
+   * wait for the next frame.
+   *
+   * @param elapsedMs how far into this step the frame that started it already
+   *   is; see {@link landPredictedStep}.
+   */
+  private predictStep(elapsedMs = 0) {
+    if (this.held.directions.length === 0) return;
+
+    const motion = this.motions.get(this.selfId);
+    if (!motion || motion.walk || motion.fall || motion.slide) return;
+    if (this.pending.length >= MAX_PREDICTED_STEPS) return;
+
+    const def = this.tilesById[PLAYER_TILE_ID];
+    if (!def) return;
+    const loc = this.locate(this.selfId, motion);
+    if (!loc) return;
+
+    const choice = chooseStep(
+      this.map,
+      loc,
+      this.held,
+      def,
+      this.tilesById,
+      (to) => this.destinationTaken(to),
+    );
+    if (!choice) return;
+
+    this.face(loc, choice.facing);
+    if (!choice.step) return;
+
+    const seq = this.nextStepSeq++;
+    motion.walk = {
+      from: { x: loc.x, y: loc.y, z: loc.z },
+      to: choice.step.to,
+      direction: choice.step.direction,
+      elapsedMs,
+    };
+    this.pending.push({
+      seq,
+      to: choice.step.to,
+      direction: choice.step.direction,
+      landed: false,
+      waitedMs: 0,
+    });
+    this.send({
+      type: "step",
+      seq,
+      direction: choice.step.direction,
+      preferDescend: Boolean(this.held.preferDescend),
+    });
+  }
+
+  /**
+   * Turn, locally and on the wire.
+   *
+   * Sent only when the facing actually changes. A held key asks for the same
+   * one every frame, and the server has no more use for the ninetieth copy of
+   * "still facing east" than it had for the held-direction stream this replaced.
+   */
+  private face(loc: Coord & { stackIndex: number }, direction: Direction) {
+    this.map = setEntityDirection(
+      this.map,
+      loc.x,
+      loc.y,
+      loc.z,
+      loc.stackIndex,
+      direction,
+    );
+    if (this.facing === direction) return;
+    this.facing = direction;
+    this.send({ type: "face", direction });
+  }
+
+  /**
+   * Is another actor already walking into this cell?
+   *
+   * The same question the simulation asks, answered from the same evidence: a
+   * walk is not in the map until it lands, so the only sign of one is the event
+   * that announced it. Asked here so that two players stepping into one cell is
+   * a step this client never draws, rather than one the server takes back.
+   */
+  private destinationTaken(to: Coord): boolean {
+    for (const [id, motion] of this.motions) {
+      if (id === this.selfId) continue;
+      const other = motion.walk?.to;
+      if (other && other.x === to.x && other.y === to.y && other.z === to.z) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Rebuild the drawn board: what the server says, plus what we have not been
+   * answered about yet.
+   *
+   * Replayed from the server's board every time rather than patched in place,
+   * because a guess cannot be edited out of a board it was mixed into. The
+   * replay is at most a handful of single-tile moves, and the map is
+   * copy-on-write, so this touches the two chunks each step spans and nothing
+   * else.
+   */
+  private rebuildPredicted() {
+    const at = locateActor(
+      this.serverMap,
+      this.selfId,
+      this.serverSeen ?? undefined,
+    );
+    this.serverSeen = at;
+
+    if (!at) {
+      // Not on the authoritative board at all — before the first patch that
+      // carries us, or between a despawn and a respawn. Nothing to predict from.
+      this.pending = [];
+      this.map = this.serverMap;
+      return;
+    }
+
+    this.dropConfirmedSteps(at);
+
+    let map = this.serverMap;
+    let loc: Coord & { stackIndex: number } = at;
+    for (const step of this.pending) {
+      // The step in flight is still being drawn out of the cell below it, which
+      // is where the board has to keep holding the actor.
+      if (!step.landed) break;
+      if (!actorStillAt(map, this.selfId, loc)) {
+        this.abandonPrediction();
+        return;
+      }
+      map = moveEntity(map, loc, step.to, step.direction, this.tilesById);
+      const stack = getStack(map, step.to.x, step.to.y, step.to.z);
+      loc = { ...step.to, stackIndex: stack.length - 1 };
+    }
+
+    if (this.facing) {
+      map = setEntityDirection(
+        map,
+        loc.x,
+        loc.y,
+        loc.z,
+        loc.stackIndex,
+        this.facing,
+      );
+    }
+    this.map = map;
+  }
+
+  /**
+   * Retire the steps the server has caught up with.
+   *
+   * A step is confirmed when the authoritative board has the actor standing on
+   * its destination — the patch that commits it *is* the acknowledgement, so
+   * nothing extra travels for the overwhelmingly common case of a step simply
+   * being allowed.
+   *
+   * Strictly from the front, never by searching. Walking east and back west
+   * again puts the starting cell in the queue twice, and a search would read
+   * "still standing where you began" as proof that both had happened.
+   */
+  private dropConfirmedSteps(at: Coord) {
+    while (this.pending.length > 0) {
+      const step = this.pending[0]!;
+      if (step.to.x !== at.x || step.to.y !== at.y || step.to.z !== at.z) return;
+      this.pending.shift();
+      // The server got there before the lerp did, which only happens on a link
+      // fast enough for the round trip to beat the walk. Drop the animation
+      // rather than let it drag a tile that has already arrived.
+      if (!step.landed) {
+        const motion = this.motions.get(this.selfId);
+        if (motion) motion.walk = null;
+      }
+    }
+  }
+
+  /**
+   * Undo a refused step, and everything drawn after it.
+   *
+   * The later steps go whatever the board says about them: each was chosen from
+   * the cell the refused one would have reached, so with that cell taken away
+   * none of them was ever a step from anywhere the actor stood.
+   */
+  private rollBackFrom(seq: number) {
+    const at = this.pending.findIndex((step) => step.seq === seq);
+    if (at < 0) return;
+    this.pending.length = at;
+    const motion = this.motions.get(this.selfId);
+    if (motion) motion.walk = null;
+    this.rebuildPredicted();
+  }
+
+  /** Drop every guess and stand where the server says. */
+  private abandonPrediction() {
+    if (this.pending.length === 0) return;
+    this.pending = [];
+    const motion = this.motions.get(this.selfId);
+    if (motion) motion.walk = null;
+    this.map = this.serverMap;
+  }
+
+  /**
+   * Hold one cell to {@link MAX_CHATS_PER_CELL} bubbles.
+   *
+   * Bubbles at a coordinate stack upward, so an unbounded column would climb the
+   * screen and bury the world. The oldest goes the moment a fourth lands rather
+   * than being allowed to serve out its five seconds — what a reader wants from
+   * a busy cell is the newest line, not the one that got there first.
+   *
+   * Insertion order is age order, so the first match is the oldest.
+   */
+  private evictOldestAtCell(at: { x: number; y: number; z: number }) {
+    const here = this.chats.filter(
+      (chat) => chat.x === at.x && chat.y === at.y && chat.z === at.z,
+    );
+    if (here.length <= MAX_CHATS_PER_CELL) return;
+    const doomed = new Set(here.slice(0, here.length - MAX_CHATS_PER_CELL));
+    this.chats = this.chats.filter((chat) => !doomed.has(chat));
+  }
+
+  /**
+   * Age the bubbles out.
+   *
+   * Timed off the render loop's own delta, exactly like the motions above, so
+   * the server announces a message once and never has to think about it again —
+   * no five-second timer holding an idle world awake. The cost is that a
+   * backgrounded tab holds its bubbles the same way it holds a half-finished
+   * walk, which is the behaviour those already have.
+   */
+  private expireChats(dtMs: number) {
+    if (this.chats.length === 0) return;
+    let expired = false;
+    for (const chat of this.chats) {
+      chat.elapsedMs += dtMs;
+      if (chat.elapsedMs >= CHAT_LIFETIME_MS) expired = true;
+    }
+    // Rebuilt only when something actually went, so a screen full of live
+    // bubbles does not allocate a new array every frame.
+    if (expired) {
+      this.chats = this.chats.filter(
+        (chat) => chat.elapsedMs < CHAT_LIFETIME_MS,
+      );
+    }
+  }
+
+  /**
+   * Say something.
+   *
+   * No local echo. The author is on their own level, so the server's copy comes
+   * back to them like anyone else's — one code path, and the bubble they see is
+   * the bubble everyone else sees, cap and stripping included. Same trade the
+   * rest of this class makes: a round trip of latency for never being wrong.
+   */
+  say(text: string) {
+    const trimmed = text.trim().slice(0, MAX_CHAT_LENGTH);
+    if (trimmed.length === 0) return;
+    this.send({ type: "say", text: trimmed });
   }
 
   getMap(): MapFile {
@@ -322,6 +812,7 @@ export class RemoteSession implements PlaySession {
       self: self ?? offscreenActor(this.selfId),
       actors,
       hover: this.hovered && this.canInteract(this.hovered) ? this.hovered : null,
+      chats: this.chats,
     };
   }
 
@@ -342,6 +833,12 @@ export class RemoteSession implements PlaySession {
     if (!motion) return false;
     // Mid-motion the answer is no, matching the session's own gate.
     if (motion.walk || motion.fall || motion.slide) return false;
+    // And no while a step is still unconfirmed, for the same reason one cell
+    // further back: the server gates interaction on the actor being idle, and
+    // an actor this client has already walked is one the server is still
+    // walking. Offering the affordance in that window would have the tap
+    // silently refused at the other end.
+    if (this.pending.length > 0) return false;
     const loc = this.locate(this.selfId, motion);
     if (!loc) return false;
     return (
@@ -358,22 +855,25 @@ export class RemoteSession implements PlaySession {
   }
 
   /**
-   * Send held input, but only when it actually changed.
+   * Take what the player is holding. Nothing is sent from here.
    *
-   * The renderer calls this on every key event, and a held key repeats; without
-   * the guard a walk across a room would be hundreds of identical frames.
+   * Held directions used to *be* the message, and the server decided what they
+   * meant. Now they are kept and acted on locally, and only the steps they
+   * produce travel — so the wire carries one small frame per cell walked instead
+   * of one per key event, and the first one goes out with the step already
+   * drawn.
+   *
+   * Stepping immediately rather than waiting for the next frame: 16ms is small
+   * next to the round trip just removed, but it is the first 16ms of the press
+   * and it is free to not spend.
    */
   setInput(input: GameInput) {
-    const message: ClientMessage = {
-      type: "input",
-      directions: input.directions,
-      faceOnly: Boolean(input.faceOnly),
-      preferDescend: Boolean(input.preferDescend),
+    this.held = {
+      directions: [...input.directions],
+      faceOnly: input.faceOnly,
+      preferDescend: input.preferDescend,
     };
-    const encoded = JSON.stringify(message);
-    if (encoded === this.lastInput) return;
-    this.lastInput = encoded;
-    this.sendRaw(encoded);
+    this.predictStep();
   }
 
   private send(message: ClientMessage) {

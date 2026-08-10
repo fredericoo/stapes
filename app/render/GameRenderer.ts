@@ -6,13 +6,14 @@ import {
 } from "../lib/geometry";
 import type {
   ActorSnapshot,
+  ChatBubble,
   GameSnapshot,
   ObjectRef,
   PlaySession,
 } from "../game/GameSession";
 import { PLAYER_TILE_ID } from "../game/constants";
 import { displayNameFor } from "../game/displayName";
-import type { NameLabel } from "./nameLabels";
+import { WorldLabelLayer, type WorldLabel } from "./textLabels";
 import { FrameProfiler, type FrameStats } from "./frameProfile";
 import { fallDropPx, fallFootAbs, standingFootAbs } from "./fallAnchor";
 import { sceneryStack } from "../game/movement";
@@ -110,18 +111,34 @@ export class GameRenderer {
   private interactiveKey = "";
   private indexedMap: MapFile | null = null;
   private showNames = false;
+  private labelLayer: WorldLabelLayer | null = null;
+  /**
+   * World-pixel anchor per live message, read once and held.
+   *
+   * The freeze is the point: a remark belongs to the moment it was made, so it
+   * must not ride later edits to the cell it was made in. See
+   * {@link speechAnchor}.
+   */
+  private readonly speechAnchors = new Map<string, { x: number; y: number }>();
 
   constructor(
     canvas: HTMLCanvasElement,
     session: PlaySession,
     tilesets: TilesetDef[],
     tiles: TileDef[],
+    /**
+     * Where in-world text is drawn. An element over the canvas rather than
+     * anything inside it — see `./textLabels` for why the text left the scene.
+     * Optional so a caller that never asks for names need not supply one.
+     */
+    labelContainer?: HTMLElement | null,
   ) {
     this.session = session;
     this.canvas = canvas;
     this.tilesById = tilesByIdFromList(tiles);
     this.world = new WorldRenderer(canvas);
     this.world.setAssets(tilesets, this.tilesById);
+    if (labelContainer) this.labelLayer = new WorldLabelLayer(labelContainer);
     this.attachPointer();
   }
 
@@ -215,6 +232,8 @@ export class GameRenderer {
     this.onClock = null;
     this.stop();
     this.detachPointer();
+    this.labelLayer?.dispose();
+    this.labelLayer = null;
     this.world.dispose();
   }
 
@@ -321,6 +340,21 @@ export class GameRenderer {
   }
 
   /**
+   * Every piece of in-world text this frame: names on heads, speech on cells.
+   *
+   * Both are produced here because both are anchored in world pixels and handed
+   * to the same layer, which turns them into screen positions. Names are keyed
+   * by actor and speech by message id, so the two can never collide in the
+   * element cache.
+   */
+  private labelsFor(snap: GameSnapshot): WorldLabel[] {
+    const labels: WorldLabel[] = [];
+    this.pushNameLabels(snap, labels);
+    this.pushSpeechLabels(snap, labels);
+    return labels;
+  }
+
+  /**
    * Anchored on the top of the head rather than on the cell.
    *
    * Height moves a tile up-*left* in this projection, 4px per unit, so a label
@@ -331,22 +365,124 @@ export class GameRenderer {
    * carries the walk lerp and the fall drop, the name travels with the sprite
    * instead of chasing it.
    */
-  private labelsFor(snap: GameSnapshot): NameLabel[] {
-    if (!this.showNames) return [];
+  private pushNameLabels(snap: GameSnapshot, into: WorldLabel[]) {
+    if (!this.showNames) return;
 
-    const labels: NameLabel[] = [];
     for (const actor of snap.actors) {
       const visual = this.actorVisualWorld(snap.map, actor);
       const height = this.movingTileHeight(snap.map, actor, actor.stackIndex);
       const head = elevationScreenOffset(height);
-      labels.push({
-        id: actor.id,
-        text: displayNameFor(actor.id),
+      into.push({
+        id: `name:${actor.id}`,
+        kind: "name",
         x: visual.x + head.x,
         y: visual.y + head.y,
+        lines: [{ id: actor.id, text: displayNameFor(actor.id) }],
       });
     }
-    return labels;
+  }
+
+  /**
+   * Speech, anchored to the *cell* it was said in rather than to its author.
+   *
+   * That is the whole difference between a bubble and a name: the name belongs
+   * to a body and follows it, while the words stay where they were spoken. The
+   * speaker can walk out from under their own sentence, or disconnect entirely,
+   * and it hangs there for the rest of its five seconds.
+   *
+   * **The anchor is frozen the first frame the message is seen** and never
+   * recomputed — see {@link speechAnchor}. Messages at one cell are handed over
+   * as a single group so they stack; clearing the name tag on the same head is
+   * the stylesheet's job, since both are fixed screen-size text and a gap
+   * measured in world pixels would close at low zoom and yawn at high.
+   */
+  private pushSpeechLabels(snap: GameSnapshot, into: WorldLabel[]) {
+    if (snap.chats.length === 0) {
+      if (this.speechAnchors.size > 0) this.speechAnchors.clear();
+      return;
+    }
+
+    // Grouped by cell, in the order they arrived: the map preserves insertion
+    // order, so the oldest at a cell is first and ends up at the top of the
+    // column with the newest resting on the ground.
+    const byCell = new Map<string, WorldLabel>();
+    for (const chat of snap.chats) {
+      const key = `${chat.x},${chat.y},${chat.z}`;
+      const group = byCell.get(key);
+      const line = {
+        id: chat.id,
+        text: `${displayNameFor(chat.actorId)} says: ${chat.text}`,
+      };
+      if (group) {
+        group.lines.push(line);
+        continue;
+      }
+      const at = this.speechAnchor(chat, snap.map);
+      byCell.set(key, {
+        id: `speech:${key}`,
+        kind: "speech",
+        x: at.x,
+        y: at.y,
+        lines: [line],
+      });
+    }
+
+    this.forgetStaleSpeechAnchors(snap);
+    for (const group of byCell.values()) into.push(group);
+  }
+
+  /**
+   * Where a message hangs, worked out once and then held.
+   *
+   * Two things are deliberate here.
+   *
+   * **It ignores the speaker's own body.** `sceneryStack` drops the tile at the
+   * speaker's stack index, so the anchor is the ground they were standing *on*
+   * rather than the top of their head. Measured the other way the bubble
+   * appeared a body's height too high and then visibly dropped the moment they
+   * stepped away — the position after that drop is the right one, so it is the
+   * one taken from the start.
+   *
+   * **It is frozen.** Recomputing per frame meant the words rode whatever
+   * happened to the cell afterwards: drop a crate on the spot and the sentence
+   * climbed with it. A remark belongs to the moment it was made, so the height
+   * is read once, at the level and elevation of that moment, and kept.
+   */
+  private speechAnchor(
+    chat: ChatBubble,
+    map: MapFile,
+  ): { x: number; y: number } {
+    const held = this.speechAnchors.get(chat.id);
+    if (held) return held;
+
+    const ground = this.cellWorldCenter(
+      chat.x,
+      chat.y,
+      chat.z,
+      map,
+      chat.stackIndex,
+    );
+    const head = elevationScreenOffset(
+      this.tilesById[PLAYER_TILE_ID]?.height ?? 0,
+    );
+    const at = { x: ground.x + head.x, y: ground.y + head.y };
+    this.speechAnchors.set(chat.id, at);
+    return at;
+  }
+
+  /**
+   * Drop held anchors for messages that have expired.
+   *
+   * No size-based early-out: one message expiring as another arrives leaves the
+   * count unchanged while the contents differ, and a cheap guard that is right
+   * only most of the time is worse than no guard at a handful of entries.
+   */
+  private forgetStaleSpeechAnchors(snap: GameSnapshot) {
+    if (this.speechAnchors.size === 0) return;
+    const live = new Set(snap.chats.map((chat) => chat.id));
+    for (const id of this.speechAnchors.keys()) {
+      if (!live.has(id)) this.speechAnchors.delete(id);
+    }
   }
 
   /** Same signal as the outline, for the pointer. */
@@ -400,7 +536,10 @@ export class GameRenderer {
     });
 
     this.world.setOverlays(this.overlaysFor(snap));
-    this.world.setLabels(this.labelsFor(snap));
+    // Written from inside the render loop's own rAF, so the style change and the
+    // canvas paint land in the same commit — which is what stops DOM text from
+    // trailing the sprite it belongs to.
+    this.labelLayer?.set(this.labelsFor(snap), camera, fit.cssScale);
     // Driven by the frame, not the pointer: walking away from an object
     // revokes the affordance without the pointer having moved at all.
     this.applyCursor(snap);
