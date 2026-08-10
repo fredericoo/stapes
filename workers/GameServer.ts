@@ -1,5 +1,9 @@
 import { DurableObject } from "cloudflare:workers";
-import { GameSession, type ActorSnapshot } from "../app/game/GameSession";
+import {
+  GameSession,
+  type ActorPosition,
+  type ActorSnapshot,
+} from "../app/game/GameSession";
 import { TICK_MS, WALK_DURATION_MS } from "../app/game/constants";
 import { minutesOfDayAt } from "../app/lib/clock";
 import {
@@ -53,6 +57,39 @@ export const CHAT_LOG_MAX_ROWS = 5_000;
  * itself grow.
  */
 const MAX_QUEUED_STEPS = 2;
+
+/** Key prefix under which one actor's last known position is kept. */
+const POSITION_KEY_PREFIX = "pos:";
+
+/**
+ * How many actors the world remembers the whereabouts of.
+ *
+ * One entry per player who has ever connected — it grows with *visitors*, not
+ * with activity, which is a slow leak rather than a fast one and therefore the
+ * kind that is still there in a year. Identity is a cookie anybody can mint, so
+ * the ceiling is a defence as well as housekeeping. Least-recently-saved goes
+ * first: the entries being dropped are the ones whose owner has not been seen
+ * in longest, which is the closest thing here to "will not be missed".
+ */
+export const MAX_SAVED_POSITIONS = 1_000;
+
+/**
+ * How often positions are written out while the world is being played.
+ *
+ * The floor on how much a crash can cost somebody, and the whole reason this is
+ * not simply left to the idle checkpoint: a busy world never settles, so an
+ * object that died mid-session would hand everybody back the position they had
+ * when the room was last empty. Five seconds is a couple of rooms' walking.
+ */
+const POSITION_FLUSH_INTERVAL_MS = 5_000;
+
+/**
+ * Where somebody was standing, kept against their return.
+ *
+ * `savedAt` is here for the ceiling rather than for gameplay — see
+ * {@link MAX_SAVED_POSITIONS}.
+ */
+type SavedPosition = ActorPosition & { savedAt: number };
 
 type Attachment = { actorId: string };
 
@@ -111,6 +148,8 @@ export class GameServer extends DurableObject<Env> {
   private dataOrigin: string | null = null;
   /** When each actor last said something, for the rate limit. */
   private lastSaidAt = new Map<string, number>();
+  /** When positions were last written out. See {@link savePositionsIfDue}. */
+  private positionsSavedAt = 0;
   /** Whether the chat table has been created in this instance's lifetime. */
   private chatLogReady = false;
 
@@ -165,7 +204,8 @@ export class GameServer extends DurableObject<Env> {
         )
       : new GameSession(await store.readMap(), this.tiles, []);
     this.broadcastMap = this.session.getMap();
-    this.restoreActors();
+    await this.restoreActors();
+    await this.prunePositions();
   }
 
   /**
@@ -179,15 +219,118 @@ export class GameServer extends DurableObject<Env> {
    * Anyone in the map without a socket is gone for good — their connection died
    * while the object was evicted, so no close ever ran. Their body is reaped
    * here; nothing else would ever remove it.
+   *
+   * The remembered position is consulted for the same reason it is on a fresh
+   * join, and it is not redundant with the checkpoint: a socket can outlive the
+   * world its owner's body was in — the editor's save replaces the map and
+   * drops the checkpoint — and without this those players would come back from
+   * the next wake standing at spawn.
    */
-  private restoreActors() {
+  private async restoreActors() {
     const live: string[] = [];
     for (const ws of this.ctx.getWebSockets()) {
       const attachment = ws.deserializeAttachment() as Attachment | null;
       if (attachment) live.push(attachment.actorId);
     }
     this.session?.reapAbsentActors(live);
-    for (const id of live) this.session?.spawn(id);
+    for (const id of live) {
+      this.session?.spawn(id, await this.lastPositionOf(id));
+    }
+  }
+
+  private positionKey(actorId: string): string {
+    return `${POSITION_KEY_PREFIX}${actorId}`;
+  }
+
+  /**
+   * Where this actor was when the world last saw them, if it remembers.
+   *
+   * Undefined for somebody new, and undefined is exactly right: {@link spawn}
+   * reads it as "no wish", and puts them in at the spawn point.
+   */
+  private async lastPositionOf(
+    actorId: string,
+  ): Promise<ActorPosition | undefined> {
+    const saved = await this.ctx.storage.get<SavedPosition>(
+      this.positionKey(actorId),
+    );
+    if (!saved) return undefined;
+    return { x: saved.x, y: saved.y, z: saved.z, direction: saved.direction };
+  }
+
+  /**
+   * Write down where some actors are standing, without the tick waiting on it.
+   *
+   * `allowUnconfirmed` is the load-bearing part. A Durable Object normally
+   * holds every outgoing message until the writes that preceded it are durable,
+   * so that nobody can observe state that a failed write would roll back — and
+   * that is the right default for anything the world's consistency rests on.
+   * This is not that. A position is a convenience, and the failure it guards
+   * against is losing a few seconds of walking on a crash that has already lost
+   * the tick. Paying for it with the whole world's broadcast latency, thirty
+   * times a second, would be the wrong trade in the one place this object
+   * cannot afford one.
+   *
+   * The rejection is swallowed for the same reason: there is nothing useful to
+   * do about a position that did not stick, and an unhandled rejection here
+   * would take the world down over it.
+   */
+  private savePositions(actorIds: Iterable<string>) {
+    const session = this.session;
+    if (!session) return;
+
+    const savedAt = Date.now();
+    const entries: Record<string, SavedPosition> = {};
+    for (const actorId of actorIds) {
+      const at = session.actorPosition(actorId);
+      if (!at) continue;
+      entries[this.positionKey(actorId)] = { ...at, savedAt };
+    }
+    if (Object.keys(entries).length === 0) return;
+
+    this.ctx.storage.put(entries, { allowUnconfirmed: true }).catch(() => {});
+  }
+
+  /**
+   * Save everyone, at most once every {@link POSITION_FLUSH_INTERVAL_MS}.
+   *
+   * Throttled rather than per-tick because the position of a walking actor
+   * changes on a tick that already has a diff and a broadcast to pay for, and
+   * writing it there would put a storage call on the busiest frames to record
+   * something that will be superseded 200ms later.
+   */
+  private savePositionsIfDue() {
+    const session = this.session;
+    if (!session) return;
+    const now = Date.now();
+    if (now - this.positionsSavedAt < POSITION_FLUSH_INTERVAL_MS) return;
+    // Stamped whether or not anything was written, so an empty world costs one
+    // comparison per tick rather than a walk of its actor table.
+    this.positionsSavedAt = now;
+    this.savePositions(session.actorIds());
+  }
+
+  /**
+   * Drop the positions of people the world has not seen in longest.
+   *
+   * On load, because that is the one moment this object is already doing async
+   * I/O with nothing waiting on a tick — and it runs once per instance rather
+   * than once per wake, since an object that is already in memory does not
+   * reload.
+   */
+  private async prunePositions() {
+    const stored = await this.ctx.storage.list<SavedPosition>({
+      prefix: POSITION_KEY_PREFIX,
+    });
+    if (stored.size <= MAX_SAVED_POSITIONS) return;
+
+    const oldestFirst = [...stored].sort(
+      ([, a], [, b]) => a.savedAt - b.savedAt,
+    );
+    const doomed = oldestFirst
+      .slice(0, stored.size - MAX_SAVED_POSITIONS)
+      .map(([key]) => key);
+    await this.ctx.storage.delete(doomed);
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -215,8 +358,10 @@ export class GameServer extends DurableObject<Env> {
     await this.ensureLoaded();
 
     const session = this.session!;
-    // Rejoining with the same id keeps the actor already on the board.
-    session.spawn(actorId);
+    // Rejoining with the same id keeps the actor already on the board; the
+    // remembered position is for somebody whose body is gone — they left, or
+    // their connection died while this object was evicted and they were reaped.
+    session.spawn(actorId, await this.lastPositionOf(actorId));
     this.events.push({ kind: "joined", actorId });
 
     this.sendHello(server, actorId);
@@ -480,6 +625,9 @@ export class GameServer extends DurableObject<Env> {
     if (!attachment) return;
     await this.ensureLoaded();
 
+    // Before the despawn, which is what takes their tile — and with it the only
+    // record of where they were — off the board.
+    this.savePositions([attachment.actorId]);
     this.session?.despawn(attachment.actorId);
     this.sentMotion.delete(attachment.actorId);
     this.queuedSteps.delete(attachment.actorId);
@@ -558,6 +706,11 @@ export class GameServer extends DurableObject<Env> {
       clearInterval(this.timer);
       this.timer = null;
     }
+    // The last thing that happens before this object may be evicted, and the
+    // only chance to record the people whose sockets will not survive it: a
+    // connection that dies during hibernation runs no close, so the wake reaps
+    // its body without ever hearing about it.
+    this.savePositions(session.actorIds());
     void this.ctx.storage.put(CHECKPOINT_KEY, {
       map: flattenMap(session.getMap()),
       spawn: session.getSpawnPoint(),
@@ -581,6 +734,7 @@ export class GameServer extends DurableObject<Env> {
       this.events = [];
     }
 
+    this.savePositionsIfDue();
     this.sleepIfIdle();
   }
 

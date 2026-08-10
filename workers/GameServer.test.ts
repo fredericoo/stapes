@@ -6,7 +6,11 @@ import { MINUTES_PER_DAY, minutesOfDayAt } from "../app/lib/clock";
 import { DEV_DATA_PREFIX } from "../app/lib/devData";
 import type { FlatMapFile } from "../app/lib/types";
 import { CHAT_MIN_INTERVAL_MS } from "../app/net/chat";
-import { CHAT_LOG_MAX_ROWS, type GameServer } from "./GameServer";
+import {
+  CHAT_LOG_MAX_ROWS,
+  MAX_SAVED_POSITIONS,
+  type GameServer,
+} from "./GameServer";
 
 /**
  * The Durable Object's load / restore / checkpoint path, in the runtime it
@@ -767,5 +771,207 @@ describe("stepping", () => {
     // Nothing is held on this side any more — the client is the only thing that
     // knows a key is down — so one step leaves the world at rest.
     expect(await isTicking()).toBe(false);
+  });
+});
+
+/**
+ * Coming back to where you were.
+ *
+ * The world is not an account system — identity is a cookie — but the one thing
+ * that makes it feel like a place rather than a demo is that leaving and
+ * returning does not undo an afternoon of walking somewhere. The map already
+ * carries everyone who is *connected*, through the checkpoint; what has to be
+ * kept separately is where somebody was when their tile came off the board,
+ * because that is the moment the map stops being the record.
+ */
+
+/** The saved position the object is holding for an actor, if any. */
+async function savedPosition(
+  actorId: string,
+): Promise<Record<string, unknown> | undefined> {
+  let found: Record<string, unknown> | undefined;
+  await runInDurableObject(stub(), async (_instance, state) => {
+    found = await state.storage.get<Record<string, unknown>>(`pos:${actorId}`);
+  });
+  return found;
+}
+
+/**
+ * An identity no earlier test has used.
+ *
+ * Every test in this file drives one world with one disk, and permanence is
+ * exactly the property of outliving a connection — so a reused name carries the
+ * previous test's saved position into the next one, and an assertion about
+ * where somebody entered starts passing for the wrong reason.
+ */
+let playersSoFar = 0;
+
+function freshPlayer(): string {
+  return `player-${playersSoFar++}`;
+}
+
+/** Keys a single storage.put will take. */
+const BACKFILL_BATCH = 128;
+
+/** Every position key the object is holding. */
+async function storedPositionKeys(): Promise<string[]> {
+  let keys: string[] = [];
+  await runInDurableObject(stub(), async (_instance, state) => {
+    keys = [...(await state.storage.list({ prefix: "pos:" })).keys()];
+  });
+  return keys;
+}
+
+/** Where one step east from the fixture's spawn cell lands. */
+const ONE_STEP_EAST = 1;
+
+/** Walk one cell east and wait for it to land on the board. */
+async function walkEast(ws: WebSocket) {
+  step(ws, 0, "e");
+  await walkWithin(ws, 1000);
+  await new Promise((resolve) => setTimeout(resolve, WALK_DURATION_MS + 200));
+}
+
+/** Close a socket and let the object finish tidying up after it. */
+async function leave(ws: WebSocket) {
+  ws.close();
+  await new Promise((resolve) => setTimeout(resolve, QUIET_MS));
+}
+
+/**
+ * A wider strip whose spawn marker is at the far end.
+ *
+ * The fixture map spawns at the origin, which makes "bubbled to the neighbour
+ * on the west" and "gave up and went to spawn" the same cell — a test that
+ * passes either way. Moving the marker is what separates them.
+ */
+const FAR_SPAWN = 5;
+
+function stripSpawningAtTheFarEnd(): FlatMapFile {
+  const levels: Record<string, Record<string, unknown[]>> = { "0": {} };
+  for (let x = 0; x <= FAR_SPAWN; x++) levels["0"]![`${x},0`] = [{ tileId: "grass" }];
+  levels["0"]![`${FAR_SPAWN},0`] = [
+    { tileId: "grass" },
+    { tileId: "player", direction: "s" },
+  ];
+  return { version: 1, levels } as FlatMapFile;
+}
+
+describe("player permanence", () => {
+  it("brings a returning player back where they left off", async () => {
+    const who = freshPlayer();
+    const first = await connect(who);
+    await walkEast(first.ws);
+    expect(await actorX(who)).toBe(ONE_STEP_EAST);
+    await leave(first.ws);
+
+    await connect(who);
+
+    expect(await actorX(who)).toBe(ONE_STEP_EAST);
+  });
+
+  it("starts somebody the world has never met at the spawn point", async () => {
+    await connect(freshPlayer());
+
+    const newcomer = freshPlayer();
+    await connect(newcomer);
+
+    expect(await actorX(newcomer)).toBe(0);
+  });
+
+  /**
+   * The position has to be in storage, not only in this instance's memory: an
+   * idle world's object is evicted routinely, and a player who left before it
+   * happened has nothing else keeping their place.
+   */
+  it("remembers across an eviction", async () => {
+    const who = freshPlayer();
+    const first = await connect(who);
+    await walkEast(first.ws);
+    await leave(first.ws);
+    await simulateEviction();
+
+    await connect(who);
+
+    expect(await actorX(who)).toBe(ONE_STEP_EAST);
+  });
+
+  /**
+   * A crash is not a close. The write on disconnect covers somebody who leaves;
+   * this covers the object dying under somebody who has not, which is what the
+   * periodic flush and the write at idle are for.
+   */
+  it("writes a connected player's position down as the world settles", async () => {
+    const who = freshPlayer();
+    const { ws } = await connect(who);
+    await walkEast(ws);
+
+    // Saving is the last thing that happens before the world goes to sleep, and
+    // sleep is the point after which this object may be evicted.
+    await new Promise((resolve) => setTimeout(resolve, QUIET_MS));
+    expect(await savedPosition(who)).toMatchObject({
+      x: ONE_STEP_EAST,
+      y: 0,
+      z: 0,
+    });
+  });
+
+  /**
+   * One entry per visitor, on a disk that is not infinite and an identity
+   * anybody can mint. The oldest go, and the test has to show *which* ones —
+   * a prune that dropped the newcomers instead would leave the count right and
+   * the feature useless.
+   */
+  it("drops the least recently saved once the store is full", async () => {
+    const overflow = 5;
+    // Backfilled directly: reaching the cap over the wire means a thousand
+    // connections, and the prune is what is under test rather than the saving.
+    await runInDurableObject(stub(), async (_instance, state) => {
+      for (let i = 0; i < MAX_SAVED_POSITIONS + overflow; i += BACKFILL_BATCH) {
+        const batch: Record<string, unknown> = {};
+        const end = Math.min(i + BACKFILL_BATCH, MAX_SAVED_POSITIONS + overflow);
+        for (let n = i; n < end; n++) {
+          // savedAt ascending with n, so the lowest-numbered are the oldest.
+          batch[`pos:backfill-${n}`] = { x: 0, y: 0, z: 0, direction: "s", savedAt: n };
+        }
+        await state.storage.put(batch);
+      }
+    });
+
+    // Pruning happens on load, so the world has to be brought in fresh.
+    await simulateEviction();
+    await connect(freshPlayer());
+
+    const kept = await storedPositionKeys();
+    expect(kept).toHaveLength(MAX_SAVED_POSITIONS);
+    expect(kept).not.toContain("pos:backfill-0");
+    expect(kept).toContain(`pos:backfill-${MAX_SAVED_POSITIONS + overflow - 1}`);
+  });
+
+  /**
+   * The world keeps moving while somebody is away, so a remembered position is
+   * a wish rather than a promise: the map they come back to may have no room
+   * for them where they were standing.
+   */
+  it("bubbles to a neighbour when their cell has been built on", async () => {
+    const who = freshPlayer();
+    const first = await connect(who);
+    await walkEast(first.ws);
+    await leave(first.ws);
+
+    // A wall goes up on the cell they logged out of. The marker sits five cells
+    // away, so giving up and going to spawn would read differently from
+    // stepping aside.
+    const rebuilt = stripSpawningAtTheFarEnd();
+    rebuilt.levels["0"]![`${ONE_STEP_EAST},0`] = [
+      { tileId: "grass" },
+      { tileId: "stone-wall" },
+    ];
+    await stub().replaceWorld(rebuilt);
+
+    await connect(who);
+
+    // Stepped aside to the west, rather than sent to the far-end marker.
+    expect(await actorX(who)).toBe(ONE_STEP_EAST - 1);
   });
 });

@@ -163,15 +163,21 @@ export function removeAuthoredPlayer(map: MapFile): MapFile {
   return removeTileAt(map, at.x, at.y, at.z, at.stackIndex);
 }
 
-/** Put a new actor on top of the stack at `at`. */
+/**
+ * Put a new actor on top of the stack at `at`.
+ *
+ * `direction` is carried for a returning player, whose facing is part of where
+ * they were; a genuinely new actor takes the authored default.
+ */
 export function spawnActor(
   map: MapFile,
   ownerId: string,
   at: Coord,
+  direction: Direction = DEFAULT_FACING,
 ): MapFile {
   return appendTile(map, at.x, at.y, at.z, {
     tileId: PLAYER_TILE_ID,
-    direction: DEFAULT_FACING,
+    direction,
     owner: ownerId,
   });
 }

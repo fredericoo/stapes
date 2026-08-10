@@ -106,6 +106,46 @@ names it (`LOCAL_ACTOR_ID`); the game server will spawn one per connection.
   removed — so there is no tile left to read it from. `getSpawnPoint` exists so
   it can be carried alongside, and the server checkpoints the two together.
 
+## Where a player comes back in
+
+The checkpoint keeps everyone who is *connected*, because their tiles are in the
+map it stores. What it cannot keep is somebody who has left: `despawn` takes
+their tile off the board, and at that moment the map stops being the record. So
+positions are kept a second time, per actor, under `pos:<id>` — and the two are
+not redundant.
+
+**The write must not gate the broadcast.** A Durable Object holds outgoing
+messages until preceding writes are durable, which is right for anything the
+world's consistency rests on and wrong for this: a position is a convenience,
+and paying for it with every client's latency thirty times a second is the one
+trade this object cannot afford. Hence `allowUnconfirmed: true`, and hence a
+throttled flush (`POSITION_FLUSH_INTERVAL_MS`) rather than a write per tick — a
+walking actor's cell is superseded 200ms later anyway. The guaranteed writes are
+the ones on paths that are already rare: a socket closing, and the world going
+to sleep. The rejection is swallowed on purpose; there is nothing useful to do
+about a position that did not stick, and an unhandled one would take the world
+down over it.
+
+**A remembered position is a wish, not a promise.** The world keeps running
+while somebody is away — a wall goes up, a box gets pushed onto their cell, the
+editor replaces the map entirely — so `findEntryCell` bubbles outward from it
+(`ENTRY_SEARCH_RADIUS`, neighbours in WNES order) and falls back to the spawn
+point. The predicate is `fitsTile`, the same volume check the editor places
+against: a half-height tile dropped where you stood leaves just enough headroom
+until there is a roof on the level above, and then it does not. Everything below
+the feet is left to gravity, exactly as it is for an actor arriving at spawn.
+
+**Every path that seats an actor consults it, and the map still wins.** `spawn`
+looks at the remembered position only when the actor has no tile on the board,
+so a resumed checkpoint is always more recent than a memory of one. Both
+`fetch` and `restoreActors` pass it: a socket can outlive the world its owner's
+body was in — `replaceWorld` drops the checkpoint — and without it those players
+came back from the next wake standing at spawn.
+
+The store is capped (`MAX_SAVED_POSITIONS`, least-recently-saved evicted, pruned
+on load) for the same reason the chat log is: it grows with *visitors* rather
+than with activity, and identity here is a cookie anybody can mint.
+
 Affordances (`./affordances`) are pure functions of board plus actor, kept out
 of the session because both ends of the wire ask: the server to validate an
 interaction, the client to decide whether to draw one under the cursor. Same
@@ -405,6 +445,14 @@ Two rules learned the hard way here:
   actor was re-seated on the body they had or handed a fresh one at spawn.
   Checkpoint them away from the spawn cell so the two outcomes differ; that is
   what caught the accept-before-load bug.
+- **Every test in the file shares one world, one disk and every socket ever
+  opened.** Nothing resets the object between tests, and a socket a previous
+  test left open still answers `getWebSockets()` — so its owner is still "live"
+  at the next wake. Reusing an actor name therefore carries the previous test's
+  stored state *and* a phantom connection into the next one, which is fatal for
+  anything about outliving a connection: use a fresh id per test
+  (`freshPlayer()`). Two permanence tests passed for the wrong reason before
+  that, and a third failed for it.
 
 ## Verifying performance work
 

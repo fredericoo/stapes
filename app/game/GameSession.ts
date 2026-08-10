@@ -29,6 +29,7 @@ import {
   pushTargetFrom,
   type ObjectRef,
 } from "./affordances";
+import { findEntryCell } from "./entry";
 import {
   FALL_MS_PER_HEIGHT,
   MAX_CLIMB_HEIGHT,
@@ -90,6 +91,16 @@ export type SlideSnapshot = {
   from: Coord;
   progress: number;
 };
+
+/**
+ * Where an actor is, small enough to keep.
+ *
+ * Deliberately not an {@link ActorSnapshot}: this is what survives a
+ * disconnection, so it holds only what is still true when nobody is driving —
+ * a cell and a facing, no motion and no stack index. The index would be a lie
+ * the moment anything else is placed in that cell.
+ */
+export type ActorPosition = Coord & { direction: Direction };
 
 /** One actor as a viewer sees it. */
 export type ActorSnapshot = {
@@ -304,7 +315,7 @@ export class GameSession implements PlaySession {
   }
 
   /**
-   * Put an actor on the board at the spawn point.
+   * Put an actor on the board.
    *
    * Idempotent against the *map*, not just the actor table: a resumed world
    * already holds the tiles of everyone who was standing in it, and minting a
@@ -315,13 +326,42 @@ export class GameSession implements PlaySession {
    * No reindex: an actor tile is never a plate and never wired, so which cells
    * carry those is unchanged. Arriving on a plate still presses it — the map
    * identity changed, so the next {@link settleBoardNow} will not skip.
+   *
+   * @param at where this actor was standing the last time anyone saw them.
+   *   Consulted only when they have no tile on the board — a body already in
+   *   the map is more recent than any memory of one — and honoured only if it
+   *   still has room for them; see {@link findEntryCell}. Omit for an actor the
+   *   world has never met, who enters at the spawn point.
    */
-  spawn(id: string) {
+  spawn(id: string, at?: Coord & { direction?: Direction }) {
     if (this.actors.has(id)) return;
     if (!findActorAnywhere(this.map, id)) {
-      this.map = spawnActor(this.map, id, this.spawnAt);
+      const cell = at
+        ? findEntryCell(this.map, this.tilesById, at, this.spawnAt)
+        : this.spawnAt;
+      this.map = spawnActor(this.map, id, cell, at?.direction);
     }
     this.addActor(id);
+  }
+
+  /**
+   * Where an actor is standing right now, and which way they are facing.
+   *
+   * Null rather than a throw when nobody by that name is on the board: both
+   * callers are persistence and cleanup, and neither has anything useful to do
+   * with an exception.
+   */
+  actorPosition(id: string): ActorPosition | null {
+    const actor = this.actors.get(id);
+    if (!actor) return null;
+    const loc = this.tryLocate(actor);
+    if (!loc) return null;
+    return {
+      x: loc.x,
+      y: loc.y,
+      z: loc.z,
+      direction: actorDirection(loc),
+    };
   }
 
   /**
@@ -431,13 +471,18 @@ export class GameSession implements PlaySession {
    * all of those edits leave the actor exactly where they were, so confirming
    * the one cell is enough; only a real relocation costs more.
    */
-  private locate(actor: ActorRuntime): ActorLocation {
+  private tryLocate(actor: ActorRuntime): ActorLocation | null {
     const memo = actor.memo;
     if (memo?.map === this.map) return memo.loc;
 
     const loc = locateActor(this.map, actor.id, memo?.loc);
+    if (loc) actor.memo = { map: this.map, loc };
+    return loc;
+  }
+
+  private locate(actor: ActorRuntime): ActorLocation {
+    const loc = this.tryLocate(actor);
     if (!loc) throw new Error(`Actor "${actor.id}" is not on the map`);
-    actor.memo = { map: this.map, loc };
     return loc;
   }
 

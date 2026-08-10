@@ -19,7 +19,7 @@ import { CELL_SIZE } from "../lib/types";
  * Cells across the square view. Odd, so the player stands in a true centre
  * cell rather than on the seam between two.
  */
-export const VIEW_CELLS = 19;
+export const VIEW_CELLS = 23;
 
 /** Side of the view in world pixels — what the camera spans on both axes. */
 export const VIEW_PX = VIEW_CELLS * CELL_SIZE;
