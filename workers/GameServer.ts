@@ -156,17 +156,26 @@ export class GameServer extends DurableObject<Env> {
   /**
    * Find authored content.
    *
-   * The origin is remembered from {@link replaceWorld} because in dev the
-   * answer is only knowable from a request: under `pnpm dev` the file
-   * middleware lives on the Vite server's own origin, and the object has no way
-   * to name it. Without it the object fell back to R2 while every loader read
-   * `data/` on disk, so an editor save landed in a bucket nobody reads and the
-   * map came back unchanged. `pnpm dev:worker` sets `DATA_ORIGIN`, which takes
-   * priority, and production ignores both and takes R2.
+   * The origin is remembered from whoever called in, because in dev the answer
+   * is only knowable from a request: under `pnpm dev` the file middleware lives
+   * on the Vite server's own origin, and the object has no way to name it.
+   * Without it the object fell back to R2 while every loader read `data/` on
+   * disk, so it ran the world against whatever a past `pnpm seed` left in the
+   * bucket. `pnpm dev:worker` sets `DATA_ORIGIN`, which takes priority, and
+   * production ignores both and takes R2.
    *
-   * Only the save tells us, not the socket handshake: the handshake's origin is
-   * whatever host the client reached, which is no basis for deciding where to
-   * fetch content from, and under Vite there are no sockets to serve anyway.
+   * Both ways in carry it — {@link replaceWorld} from the editor's save, and
+   * the socket handshake from `workers/app.ts`. The save alone was not enough:
+   * it only holds for as long as this object stays in memory, so the first
+   * reload after an eviction went back to the bucket. That is a divergence
+   * nothing announces — the map comes from the checkpoint and is current, while
+   * the tile defs are a seed old, so an object authored since is on the board
+   * and inert, its interactions belonging to a tile this side has never heard
+   * of.
+   *
+   * The handshake origin is the host the client reached, so it is only ever
+   * consulted in dev — `workers/app.ts` does not send it otherwise, and
+   * {@link dataStoreFor} would ignore it in a production build regardless.
    */
   private store(): DataStore {
     return dataStoreFor(this.env, this.dataOrigin ?? undefined);
@@ -337,8 +346,15 @@ export class GameServer extends DurableObject<Env> {
     if (request.headers.get("Upgrade") !== "websocket") {
       return new Response("Expected websocket", { status: 426 });
     }
-    const actorId = new URL(request.url).searchParams.get("actor");
+    const params = new URL(request.url).searchParams;
+    const actorId = params.get("actor");
     if (!actorId) return new Response("Missing actor", { status: 400 });
+
+    // Before the world is loaded, which is the whole point of taking it here: a
+    // socket is what wakes an evicted object, and loading without an origin
+    // reads authored content out of R2 instead of off disk. See {@link store}.
+    const dataOrigin = params.get("dataOrigin");
+    if (dataOrigin) this.dataOrigin = dataOrigin;
 
     const pair = new WebSocketPair();
     const [client, server] = [pair[0]!, pair[1]!];

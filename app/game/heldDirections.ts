@@ -110,6 +110,51 @@ export function isTypingTarget(target: EventTarget | null): boolean {
   return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
 }
 
+/**
+ * Hold shift to look. Returns the unbind.
+ *
+ * Lives beside the direction bindings rather than in the renderer because it
+ * shares their two hard-won rules — {@link isTypingTarget}, so a capital letter
+ * typed into the chat bar does not flick the mode on and off mid-sentence, and
+ * window blur, so a modifier released outside the tab does not stick. A second
+ * copy of that discipline is exactly what this module exists to avoid.
+ *
+ * Shift already means "turn on the spot, do not walk" for a held direction. The
+ * two do not collide: one is about the keys, the other about the pointer, and
+ * shift reads as the careful, deliberate modifier in both.
+ *
+ * **Only the press is gated by focus.** A release always counts, wherever it
+ * lands: press shift over the world, click into the chat field, let go — gating
+ * that keyup would leave the mode stuck on with no way to turn it off.
+ */
+export function bindLookKey(onChange: (looking: boolean) => void): () => void {
+  let looking = false;
+  const set = (next: boolean) => {
+    if (next === looking) return;
+    looking = next;
+    onChange(next);
+  };
+
+  const onKeyDown = (e: KeyboardEvent) => {
+    if (isTypingTarget(e.target)) return;
+    if (e.key === "Shift") set(true);
+  };
+  const onKeyUp = (e: KeyboardEvent) => {
+    if (e.key === "Shift") set(false);
+  };
+  const onBlur = () => set(false);
+
+  window.addEventListener("keydown", onKeyDown);
+  window.addEventListener("keyup", onKeyUp);
+  window.addEventListener("blur", onBlur);
+
+  return () => {
+    window.removeEventListener("keydown", onKeyDown);
+    window.removeEventListener("keyup", onKeyUp);
+    window.removeEventListener("blur", onBlur);
+  };
+}
+
 /** Drive `input` from the keyboard. Returns the unbind. */
 export function bindKeyboard(input: HeldDirections): () => void {
   const modifiers = (e: KeyboardEvent) => {

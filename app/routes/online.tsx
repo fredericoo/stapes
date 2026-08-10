@@ -5,7 +5,11 @@ import { AppShell } from "../components/AppShell";
 import { FrameStatsReadout } from "../components/FrameStatsReadout";
 import { GameViewport } from "../components/GameViewport";
 import { LightingToggle } from "../components/LightingToggle";
-import { bindKeyboard, HeldDirections } from "../game/heldDirections";
+import {
+  bindKeyboard,
+  bindLookKey,
+  HeldDirections,
+} from "../game/heldDirections";
 import { dataStore } from "../context";
 import {
   DEFAULT_PLAY_MINUTES,
@@ -94,6 +98,11 @@ export default function OnlinePage() {
   );
   const [stats, setStats] = useState<FrameStats | null>(null);
   const [lightingEnabled, setLightingEnabled] = useState(true);
+  const [looking, setLooking] = useState(false);
+  // Same reason as the lighting ref below: a reconnect builds a fresh renderer,
+  // and it has to come up in whatever mode the player is already in.
+  const lookingRef = useRef(looking);
+  lookingRef.current = looking;
   // Through a ref because the renderer is built on `hello`, and a reconnect
   // builds another one — both must come up at whatever the toggle says now.
   const lightingRef = useRef(lightingEnabled);
@@ -102,6 +111,10 @@ export default function OnlinePage() {
   useEffect(() => {
     rendererRef.current?.setLightingEnabled(lightingEnabled);
   }, [lightingEnabled]);
+
+  useEffect(() => {
+    rendererRef.current?.setLookMode(looking);
+  }, [looking]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -119,6 +132,7 @@ export default function OnlinePage() {
     const input = new HeldDirections((i) => session?.setInput(i));
     inputRef.current = input;
     const unbindKeyboard = bindKeyboard(input);
+    const unbindLook = bindLookKey(setLooking);
 
     const teardownRenderer = () => {
       rendererRef.current = null;
@@ -155,6 +169,7 @@ export default function OnlinePage() {
         // Shared world: everyone on screen is somebody, so everyone is named.
         renderer.setShowNames(true);
         renderer.setLightingEnabled(lightingRef.current);
+        renderer.setLookMode(lookingRef.current);
         renderer.setMinutesOfDay(remote.minutesOfDay());
         renderer.setOnClock(setMinutesOfDay);
         renderer.setOnStats(setStats);
@@ -183,6 +198,7 @@ export default function OnlinePage() {
     return () => {
       disposed = true;
       if (retryTimer) clearTimeout(retryTimer);
+      unbindLook();
       unbindKeyboard();
       inputRef.current = null;
       teardownRenderer();
@@ -227,6 +243,8 @@ export default function OnlinePage() {
         onDirectionRelease={releaseDirection}
         onSay={say}
         onTypingChange={noteTyping}
+        looking={looking}
+        onLookingChange={setLooking}
       />
     </AppShell>
   );

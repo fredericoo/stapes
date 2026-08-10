@@ -366,6 +366,43 @@ describe("replacing the world", () => {
   });
 });
 
+describe("finding authored content", () => {
+  /**
+   * Regression: the origin arrived only with an editor save, and it is held in
+   * memory — so the first load after an eviction went back to R2 while every
+   * loader kept reading disk. Nothing announces that divergence, because the
+   * map is not part of it: it comes from the checkpoint and is current, and
+   * only the tile defs are a seed old. An object authored since then is on the
+   * board, drawn, offered as pushable by a client reading fresh defs, and inert
+   * — this side has never heard of its tile.
+   */
+  it("reads through the origin a joiner arrives with, rather than R2", async () => {
+    const onDisk = authoredMap();
+    onDisk.levels["0"]![`${AWAY_FROM_SPAWN},0`] = [{ tileId: "water" }];
+
+    const pool = devDataPool();
+    pool
+      .intercept({ path: dataPath("tiles.json") })
+      .reply(200, JSON.stringify(tilesJson));
+    pool
+      .intercept({ path: dataPath("map.json") })
+      .reply(200, JSON.stringify(onDisk));
+
+    const res = await stub().fetch(
+      new Request(
+        `https://world/online/ws?actor=alice&dataOrigin=${DEV_DATA_ORIGIN}`,
+        { headers: { Upgrade: "websocket" } },
+      ),
+    );
+    const ws = res.webSocket!;
+    ws.accept();
+    const hello = await nextMessage(ws);
+
+    // R2 is holding the plain strip, so the water can only have come off disk.
+    expect(JSON.stringify(hello.map)).toContain("water");
+  });
+});
+
 /**
  * A world where two people are standing on different floors.
  *

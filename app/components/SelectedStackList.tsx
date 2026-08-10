@@ -1,12 +1,13 @@
-import { useMemo, useRef, type RefObject } from "react";
-import { IconTrash } from "@tabler/icons-react";
+import { useMemo, useRef, useState, type RefObject } from "react";
+import { IconSettings, IconTrash } from "@tabler/icons-react";
 import { DragDropProvider } from "@dnd-kit/react";
 import { isSortable, useSortable } from "@dnd-kit/react/sortable";
 import type { Direction, PlacedTile, TileDef, TilesetDef } from "../lib/types";
 import { getStack, listChannels } from "../lib/mapData";
 import { resolveEmit, resolveReceive } from "../lib/interactions";
 import { useEditorStore } from "../editor/store";
-import { Button, Input, Segmented, Tooltip } from "../ui";
+import { Button, Segmented, Tooltip } from "../ui";
+import { PlacementSettingsDialog } from "./PlacementSettingsDialog";
 import { TilePreview } from "./TilePreview";
 
 type Props = {
@@ -88,6 +89,7 @@ function SortableStackItem({
   listRef: RefObject<HTMLUListElement | null>;
 }) {
   const { ref, handleRef, isDragging } = useSortable({ id, index });
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const focusAfterRemove = () => {
     requestAnimationFrame(() => {
@@ -144,40 +146,36 @@ function SortableStackItem({
             ]}
           />
         ) : null}
-        {isWired(def) ? (
-          <label className="mt-1 flex items-center gap-1 text-[10px]">
-            <span aria-hidden="true" className="text-muted">
-              ⌁
-            </span>
-            <Input
-              // Uncontrolled, so typing does not commit — see onBlur. Keyed on
-              // the committed value so a change from anywhere else (undo, a
-              // different cell selected into this row) remounts the field
-              // instead of leaving it showing a value the map no longer holds.
-              key={placed.channel ?? ""}
-              list={CHANNEL_LIST_ID}
-              aria-label={`Signal channel for ${def.name}`}
-              placeholder="channel"
-              defaultValue={placed.channel ?? ""}
-              // Committing per keystroke would be an undo entry and a geometry
-              // rebuild each one. The wire is named once.
-              onBlur={(e) =>
-                useEditorStore
-                  .getState()
-                  .setStackChannel(stackIndex, e.target.value)
-              }
-              // Enter is what naming something feels like it should take, and
-              // a field that only commits on blur silently throws the name
-              // away. Blurring routes it through the one commit path above
-              // rather than adding a second.
-              onKeyDown={(e) => {
-                if (e.key === "Enter") e.currentTarget.blur();
-              }}
-              className="h-6 w-full text-[10px]"
-            />
-          </label>
+        {/* What the placement carries, rather than the fields themselves: the
+            row says a wire and a description are set, and the dialog is where
+            they are read and changed. */}
+        {placed.channel || placed.description ? (
+          <div className="mt-1 flex items-center gap-2 text-[10px] text-muted">
+            {/* The channel keeps its width and the description gives way: a
+                wire name truncated to "⌁…" tells you nothing, while a clipped
+                first few words of prose still says which sign this is. */}
+            {placed.channel ? (
+              <span className="shrink-0">⌁ {placed.channel}</span>
+            ) : null}
+            {placed.description ? (
+              <span className="min-w-0 truncate" title={placed.description}>
+                ❝ {placed.description}
+              </span>
+            ) : null}
+          </div>
         ) : null}
       </div>
+      <Tooltip content={`Settings for ${def.name}`}>
+        <Button
+          size="icon"
+          variant="ghost"
+          aria-label={`Settings for ${def.name}`}
+          className="text-muted hover:text-ink"
+          onClick={() => setSettingsOpen(true)}
+        >
+          <IconSettings size={16} aria-hidden="true" />
+        </Button>
+      </Tooltip>
       <Tooltip content={`Remove ${def.name}`}>
         <Button
           size="icon"
@@ -192,6 +190,18 @@ function SortableStackItem({
           <IconTrash size={16} aria-hidden="true" />
         </Button>
       </Tooltip>
+      {/* Mounted only while open, which is what lets the dialog seed its fields
+          from the map with `useState` and no re-sync effect. */}
+      {settingsOpen ? (
+        <PlacementSettingsDialog
+          placed={placed}
+          def={def}
+          stackIndex={stackIndex}
+          wired={isWired(def)}
+          channelListId={CHANNEL_LIST_ID}
+          onClose={() => setSettingsOpen(false)}
+        />
+      ) : null}
     </li>
   );
 }

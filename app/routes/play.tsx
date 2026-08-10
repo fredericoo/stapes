@@ -5,7 +5,11 @@ import { AppShell } from "../components/AppShell";
 import { GameViewport } from "../components/GameViewport";
 import { LightingToggle } from "../components/LightingToggle";
 import { GameSession } from "../game/GameSession";
-import { bindKeyboard, HeldDirections } from "../game/heldDirections";
+import {
+  bindKeyboard,
+  bindLookKey,
+  HeldDirections,
+} from "../game/heldDirections";
 import {
   DEFAULT_PLAY_MINUTES,
   formatClock,
@@ -31,6 +35,9 @@ export async function loader({ context }: Route.LoaderArgs) {
 export default function PlayPage() {
   const { map, tiles, tilesets } = useLoaderData<typeof loader>();
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  // Single-player draws no names and hears no speech, but looking is in-world
+  // text like the rest of it, so the layer has to exist here too.
+  const labelRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<GameRenderer | null>(null);
   const inputRef = useRef<HeldDirections | null>(null);
   const pressDirection = useCallback(
@@ -45,6 +52,9 @@ export default function PlayPage() {
     DEFAULT_PLAY_MINUTES,
   );
   const [clockPaused, setClockPaused] = useState(false);
+  // Held here rather than in the renderer alone because the on-screen eye has
+  // to show it: the keyboard and the button are two ways into one mode.
+  const [looking, setLooking] = useState(false);
   const [lightingEnabled, setLightingEnabled] = useState(true);
   const [stats, setStats] = useState<FrameStats | null>(null);
   const minutesRef = useRef(minutesOfDay);
@@ -68,7 +78,13 @@ export default function PlayPage() {
       return;
     }
 
-    const renderer = new GameRenderer(canvas, session, tilesets, tiles);
+    const renderer = new GameRenderer(
+      canvas,
+      session,
+      tilesets,
+      tiles,
+      labelRef.current,
+    );
     renderer.setMinutesOfDay(minutesRef.current);
     renderer.setClockPaused(pausedRef.current);
     renderer.setLightingEnabled(lightingRef.current);
@@ -80,8 +96,10 @@ export default function PlayPage() {
     const input = new HeldDirections((i) => session.setInput(i));
     inputRef.current = input;
     const unbindKeyboard = bindKeyboard(input);
+    const unbindLook = bindLookKey(setLooking);
 
     return () => {
+      unbindLook();
       unbindKeyboard();
       inputRef.current = null;
       rendererRef.current = null;
@@ -97,6 +115,10 @@ export default function PlayPage() {
   useEffect(() => {
     rendererRef.current?.setLightingEnabled(lightingEnabled);
   }, [lightingEnabled]);
+
+  useEffect(() => {
+    rendererRef.current?.setLookMode(looking);
+  }, [looking]);
 
   const scrubTime = (m: MinutesOfDay) => {
     setMinutesOfDay(m);
@@ -143,8 +165,11 @@ export default function PlayPage() {
     >
       <GameViewport
         canvasRef={canvasRef}
+        labelRef={labelRef}
         onDirectionPress={pressDirection}
         onDirectionRelease={releaseDirection}
+        looking={looking}
+        onLookingChange={setLooking}
       />
     </AppShell>
   );

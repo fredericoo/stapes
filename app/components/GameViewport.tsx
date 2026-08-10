@@ -2,6 +2,7 @@ import { useCallback, useSyncExternalStore } from "react";
 import type { Direction } from "../lib/types";
 import { ChatBar } from "./ChatBar";
 import { DirectionPad } from "./DirectionPad";
+import { LookToggle } from "./LookToggle";
 
 /**
  * The game as a fixed square, letterboxed into whatever space it is given.
@@ -52,6 +53,8 @@ export function GameViewport({
   onDirectionRelease,
   onSay,
   onTypingChange,
+  looking = false,
+  onLookingChange,
 }: {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   /**
@@ -65,6 +68,13 @@ export function GameViewport({
   /** Given only by a route with somebody to talk to; the bar is absent without it. */
   onSay?: (text: string) => void;
   onTypingChange?: (typing: boolean) => void;
+  /**
+   * Look mode, for input devices that have no shift key. The button is drawn
+   * only where the arrows are — a keyboard already has a better way to do this,
+   * and a second control saying the same thing is one more thing on screen.
+   */
+  looking?: boolean;
+  onLookingChange?: (looking: boolean) => void;
 }) {
   const coarse = useCoarsePointer();
   const press = useCallback(onDirectionPress, [onDirectionPress]);
@@ -119,8 +129,11 @@ export function GameViewport({
       {onSay ? <ChatBar onSay={onSay} onTypingChange={noteTyping} /> : null}
 
       {coarse ? (
-        <div className="flex shrink-0 items-center justify-center py-4">
+        <div className="flex shrink-0 items-center justify-center gap-6 py-4">
           <DirectionPad onPress={press} onRelease={release} />
+          {onLookingChange ? (
+            <LookToggle looking={looking} onChange={onLookingChange} />
+          ) : null}
         </div>
       ) : null}
     </div>

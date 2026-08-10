@@ -512,6 +512,40 @@ export function listChannels(map: MapFile): string[] {
 }
 
 /**
+ * Set (or clear, with an empty string) one free-text field on a placement.
+ *
+ * Cleared means *absent*, not empty: the map is hand-editable and lives in
+ * version control, so an abandoned field should leave no line behind.
+ *
+ * **Returns the same map when nothing changes.** Both fields here are committed
+ * on blur, which fires on every focus-out whether or not a character was typed
+ * — so without this, tabbing through the panel minted a map identity, an undo
+ * entry and a geometry diff per field touched. A mutation that changes nothing
+ * must return the same object; see AGENTS.md.
+ */
+function updatePlacedText(
+  map: MapFile,
+  x: number,
+  y: number,
+  z: number,
+  stackIndex: number,
+  key: "channel" | "description",
+  value: string,
+): MapFile {
+  const current = getStack(map, x, y, z);
+  const trimmed = value.trim();
+  const next = trimmed || undefined;
+  if (current[stackIndex]?.[key] === next) return map;
+
+  const stack = current.map((p, i) => {
+    if (i !== stackIndex) return { ...p };
+    const { [key]: _dropped, ...rest } = p;
+    return next ? { ...rest, [key]: next } : rest;
+  });
+  return setStack(map, x, y, z, stack);
+}
+
+/**
  * Set (or clear, with an empty string) the signal channel on one placement.
  * See {@link PlacedTile.channel}.
  */
@@ -523,13 +557,22 @@ export function updatePlacedChannel(
   stackIndex: number,
   channel: string,
 ): MapFile {
-  const trimmed = channel.trim();
-  const stack = getStack(map, x, y, z).map((p, i) => {
-    if (i !== stackIndex) return { ...p };
-    const { channel: _dropped, ...rest } = p;
-    return trimmed ? { ...rest, channel: trimmed } : rest;
-  });
-  return setStack(map, x, y, z, stack);
+  return updatePlacedText(map, x, y, z, stackIndex, "channel", channel);
+}
+
+/**
+ * Set (or clear, with an empty string) what this placement says when looked at.
+ * See {@link PlacedTile.description}.
+ */
+export function updatePlacedDescription(
+  map: MapFile,
+  x: number,
+  y: number,
+  z: number,
+  stackIndex: number,
+  description: string,
+): MapFile {
+  return updatePlacedText(map, x, y, z, stackIndex, "description", description);
 }
 
 export function chunkKey(cx: number, cy: number): string {

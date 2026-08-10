@@ -30,7 +30,7 @@ import {
   levelsAboveShouldHide,
   viewAnchorFor,
 } from "../lib/levelVisibility";
-import type { MapFile, TileDef, TilesetDef } from "../lib/types";
+import type { MapFile, PlacedTile, TileDef, TilesetDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL } from "../lib/types";
 import { resolveLight } from "../lib/tileResolve";
 import { tilesByIdFromList } from "../lib/validation";
@@ -43,6 +43,8 @@ import {
   type InteractiveIndex,
   indexInteractive,
   pickInteractiveAt,
+  pickTileAt,
+  probeSpanFor,
 } from "./pick";
 import { fitViewport, VIEW_PX, type ViewportFit } from "./viewport";
 
@@ -61,6 +63,16 @@ function currentFit(canvas: HTMLCanvasElement): ViewportFit {
 
 /** Editor selection yellow — same affordance, same colour. */
 const HOVER_COLOR = 0xffcc00;
+
+/**
+ * Looking is blue, acting is yellow. Never both at once: two outlines in two
+ * colours on one object asks the player to decode a legend, so entering look
+ * mode takes the interaction hover off the screen entirely.
+ */
+const LOOK_COLOR = 0x3fa9ff;
+
+/** Floors above and below the viewer that a look can reach, as the pick does. */
+const LOOK_LEVEL_SLACK = 1;
 
 /**
  * Land a lerped sprite on the same whole-pixel grid the static world sits on.
@@ -111,6 +123,22 @@ export class GameRenderer {
   private interactiveKey = "";
   private indexedMap: MapFile | null = null;
   private showNames = false;
+  /** @see setLookMode */
+  private lookMode = false;
+  private lookedAt: ObjectRef | null = null;
+  /**
+   * Where the pointer was last seen, in canvas pixels.
+   *
+   * Held so entering look mode can pick immediately. Shift is a key, not a
+   * pointer event, so without this nothing lights up until the mouse next
+   * twitches — on a still hand that reads as the mode being broken.
+   */
+  private lastPointer: { x: number; y: number } | null = null;
+  /** Camera and map the held look pick was taken against. @see repickLook */
+  private lookPickKey = "";
+  private lookPickMap: MapFile | null = null;
+  /** How far a sprite can reach past its own cell; see {@link probeSpanFor}. */
+  private readonly probeSpan: number;
   /** @see setLightingEnabled */
   private lightingEnabled = true;
   private labelLayer: WorldLabelLayer | null = null;
@@ -138,6 +166,7 @@ export class GameRenderer {
     this.session = session;
     this.canvas = canvas;
     this.tilesById = tilesByIdFromList(tiles);
+    this.probeSpan = probeSpanFor(this.tilesById);
     this.world = new WorldRenderer(canvas);
     this.world.setAssets(tilesets, this.tilesById);
     if (labelContainer) this.labelLayer = new WorldLabelLayer(labelContainer);
@@ -257,6 +286,14 @@ export class GameRenderer {
   }
 
   private onPointerMove = (e: PointerEvent) => {
+    this.lastPointer = this.localPoint(e);
+    if (this.lookMode) {
+      this.lookedAt = this.lookAt(
+        this.lastPointer,
+        this.session.getSnapshot(),
+      );
+      return;
+    }
     this.session.setHoveredObject(this.pickAt(e, this.session.getSnapshot()));
   };
 
@@ -288,6 +325,19 @@ export class GameRenderer {
   private onPointerDown = (e: PointerEvent) => {
     if (e.button !== 0) return;
 
+    // Looking and acting cannot share a tap: a finger has no hover, so on touch
+    // the mode *is* the distinction. A tap on a door while looking reads it and
+    // leaves it shut.
+    if (this.lookMode) {
+      e.preventDefault();
+      this.lastPointer = this.localPoint(e);
+      this.lookedAt = this.lookAt(
+        this.lastPointer,
+        this.session.getSnapshot(),
+      );
+      return;
+    }
+
     // Resolved here rather than read off the last hover: touch has no hover
     // at all, and a press that outruns its move event would otherwise miss.
     const target = this.pickAt(e, this.session.getSnapshot());
@@ -299,8 +349,57 @@ export class GameRenderer {
   };
 
   private onPointerLeave = () => {
+    this.lastPointer = null;
+    this.lookedAt = null;
     this.session.setHoveredObject(null);
   };
+
+  /**
+   * Enter or leave look mode: shift on a keyboard, the eye button on a touch
+   * screen. Leaving clears what was being looked at; entering re-picks from
+   * where the pointer already is rather than waiting for it to move.
+   *
+   * Touch keeps its target until the next tap — {@link onPointerLeave} never
+   * fires for a finger, which is exactly the stickiness that mode wants.
+   */
+  setLookMode(enabled: boolean) {
+    if (enabled === this.lookMode) return;
+    this.lookMode = enabled;
+    if (!enabled) {
+      this.lookedAt = null;
+      return;
+    }
+    // Whatever the pointer was aimed at is no longer a hover target, and the
+    // yellow outline has to go with the mode that owns it.
+    this.session.setHoveredObject(null);
+    if (this.lastPointer) {
+      this.lookedAt = this.lookAt(this.lastPointer, this.session.getSnapshot());
+    }
+  }
+
+  /** Whatever tile is drawn under a point, interactive or not. */
+  private lookAt(
+    point: { x: number; y: number },
+    snap: GameSnapshot,
+  ): ObjectRef | null {
+    const anchor = viewAnchorFor(snap.self);
+    const hidden = levelsAboveShouldHide(snap.map, this.tilesById, anchor);
+    return pickTileAt(
+      {
+        map: snap.map,
+        tilesById: this.tilesById,
+        assets: this.world.quadAssets(),
+        camera: this.cameraFor(snap),
+        zoom: currentFit(this.canvas).cssScale,
+      },
+      this.probeSpan,
+      point.x,
+      point.y,
+      snap.self.z,
+      LOOK_LEVEL_SLACK,
+      hidden ? anchor.z : undefined,
+    );
+  }
 
   /** Interactive placements on the viewer's level ±1, cached per map + level. */
   private interactiveIndex(snap: GameSnapshot): InteractiveIndex {
@@ -326,8 +425,55 @@ export class GameRenderer {
    * never lights up, and no second cue is needed to explain why.
    */
   private overlaysFor(snap: GameSnapshot): OverlaySpec[] {
+    if (this.lookMode) {
+      const target = this.lookTarget(snap);
+      if (!target) return [];
+      return [{ kind: "objectOutline", ...target.ref, color: LOOK_COLOR }];
+    }
     if (!snap.hover) return [];
     return [{ kind: "objectOutline", ...snap.hover, color: HOVER_COLOR }];
+  }
+
+  /**
+   * What is being looked at right now, resolved against the board.
+   *
+   * A held reference goes stale in two ways and this closes both. The
+   * placement can leave — pushed, switched, erased by the editor — in which
+   * case there is nothing to outline or name. And the *world can move under a
+   * still pointer*: the camera follows the viewer, so walking with shift held
+   * slides a different cell under a cursor that never moved. Re-picking is what
+   * keeps the outline on the thing the player is actually pointing at, the same
+   * argument the cursor already makes for being driven by the frame rather than
+   * by pointer events.
+   */
+  private lookTarget(
+    snap: GameSnapshot,
+  ): { ref: ObjectRef; placed: PlacedTile; def: TileDef } | null {
+    if (!this.lookedAt) return null;
+    const stack = getStack(snap.map, this.lookedAt.x, this.lookedAt.y, this.lookedAt.z);
+    const placed = stack[this.lookedAt.stackIndex];
+    const def = placed && this.tilesById[placed.tileId];
+    if (!placed || !def) {
+      this.lookedAt = null;
+      return null;
+    }
+    return { ref: this.lookedAt, placed, def };
+  }
+
+  /**
+   * Re-pick when the world has moved under the pointer.
+   *
+   * Keyed on the camera and the map rather than run every frame: standing still
+   * and looking at a rock costs nothing, and the probe only pays while
+   * something is actually changing.
+   */
+  private repickLook(snap: GameSnapshot, camera: { x: number; y: number }) {
+    if (!this.lookMode || !this.lastPointer) return;
+    const key = `${camera.x},${camera.y}`;
+    if (key === this.lookPickKey && snap.map === this.lookPickMap) return;
+    this.lookPickKey = key;
+    this.lookPickMap = snap.map;
+    this.lookedAt = this.lookAt(this.lastPointer, snap);
   }
 
   /**
@@ -364,7 +510,53 @@ export class GameRenderer {
     const labels: WorldLabel[] = [];
     this.pushNameLabels(snap, labels);
     this.pushSpeechLabels(snap, labels);
+    this.pushLookLabel(snap, labels);
     return labels;
+  }
+
+  /**
+   * What the thing under the pointer is, and what it says.
+   *
+   * Two lines at most: the tile's own name, and the placement's description
+   * under it when it has one. Lines flow downward from a group whose bottom
+   * edge is the anchor, so `[name, description]` puts the name on top and the
+   * text directly beneath — the same stacking speech already uses, which is why
+   * a look reads like a bubble rather than a tooltip.
+   *
+   * One id for the whole mode, because there is only ever one looked-at thing:
+   * the layer then reuses a single element and refills it only when the words
+   * change, rather than churning a node per cell the pointer crosses.
+   *
+   * The anchor is the object's cell, so a described crate mid-shove has its
+   * label at the cell it has already committed to while the sprite lerps in
+   * behind. Accepted for now — see plans/looking-and-signs.md.
+   */
+  private pushLookLabel(snap: GameSnapshot, into: WorldLabel[]) {
+    if (!this.lookMode) return;
+    const target = this.lookTarget(snap);
+    if (!target) return;
+    const { ref, placed, def } = target;
+
+    const ground = this.cellWorldCenter(
+      ref.x,
+      ref.y,
+      ref.z,
+      snap.map,
+      ref.stackIndex,
+    );
+    const head = elevationScreenOffset(def.height);
+    const lines = [{ id: "name", text: def.name }];
+    if (placed.description) {
+      lines.push({ id: "description", text: placed.description });
+    }
+
+    into.push({
+      id: "look",
+      kind: "look",
+      x: ground.x + head.x,
+      y: ground.y + head.y,
+      lines,
+    });
   }
 
   /**
@@ -498,8 +690,16 @@ export class GameRenderer {
     }
   }
 
-  /** Same signal as the outline, for the pointer. */
+  /**
+   * Same signal as the outline, for the pointer. Looking gets `help` rather
+   * than `pointer`: the object is not going to do anything if you click it, and
+   * a hand that promises otherwise is the cursor lying about the mode.
+   */
   private applyCursor(snap: GameSnapshot) {
+    if (this.lookMode) {
+      this.setCursor(this.lookedAt ? "help" : "");
+      return;
+    }
     this.setCursor(snap.hover ? "pointer" : "");
   }
 
@@ -529,6 +729,9 @@ export class GameRenderer {
     this.world.setBufferSize(fit.bufferPx);
     const zoom = fit.renderScale;
     const camera = this.cameraFor(snap);
+    // Before the overlay and the label read it, so both describe the same
+    // frame's answer rather than the previous one's.
+    this.repickLook(snap, camera);
 
     const anchor = viewAnchorFor(snap.self);
     const hideAbove = levelsAboveShouldHide(

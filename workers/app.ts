@@ -38,6 +38,13 @@ export default {
       }
       const forward = new URL(request.url);
       forward.searchParams.set("actor", actorId);
+      // Where `data/` is served, for a Durable Object that has no request of
+      // its own to work it out from — see `GameServer.store()`. Dev only: the
+      // built Worker always takes R2, so in production this would be a
+      // client-controlled string with nothing left to decide.
+      if (import.meta.env.DEV) {
+        forward.searchParams.set("dataOrigin", url.origin);
+      }
       return gameServer(env).fetch(new Request(forward, request));
     }
 

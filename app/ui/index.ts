@@ -1,5 +1,6 @@
 export { Button } from "./Button";
 export { Input } from "./Input";
+export { Textarea } from "./Textarea";
 export { Dialog } from "./Dialog";
 export { Tabs, TabPanel } from "./Tabs";
 export { Select } from "./Select";

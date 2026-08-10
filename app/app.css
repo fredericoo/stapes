@@ -42,6 +42,9 @@
   --color-muted: #7a7568;
   --color-accent: #2d6a4f;
   --color-danger: #9b2226;
+  /* Looking. The same blue as the outline in the world and the label above it,
+     so the button, the silhouette and the text are visibly one mode. */
+  --color-look: #3fa9ff;
   --color-border: #1a1a1a;
   --shadow-hard: 2px 2px 0 0 #1a1a1a;
 }
@@ -168,6 +171,19 @@ textarea {
   /* Clear of the name tag on the same head. Both hang upward from anchors a
      pixel apart, so without this a standing speaker prints through their own
      name — and the gap has to be in screen space, like the type it separates. */
+  transform: translate(
+    calc(var(--label-x, 0px) - 50%),
+    calc(var(--label-y, 0px) - 100% - var(--world-label-size) * 1.5)
+  );
+}
+
+/* What you are pointing at, and what it says. Blue because that is the colour
+   of the outline drawn round the same object — one mode, one colour. */
+.world-label--look {
+  color: #9ad8ff;
+  /* Clear of a name tag on the same head, exactly as speech is: looking at
+     another player puts this label and their yellow tag on anchors a pixel
+     apart, and the gap has to be in screen space like the type it separates. */
   transform: translate(
     calc(var(--label-x, 0px) - 50%),
     calc(var(--label-y, 0px) - 100% - var(--world-label-size) * 1.5)

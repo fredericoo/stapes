@@ -217,6 +217,19 @@ export type PlacedTile = {
    */
   channel?: string;
   /**
+   * What this placement says when somebody looks at it.
+   *
+   * A placement field for the same reason {@link channel} is: what a thing says
+   * belongs to the slot, not to the tile filling it. Two signs share one `sign`
+   * tile def and read differently, and the text has to outlive every swap of the
+   * tile in the slot — a described door that opens is still the same door.
+   *
+   * The tile's own {@link TileDef.name} is what a look reports without one;
+   * this is the line underneath. Absent on all but the few placements anybody
+   * has written on.
+   */
+  description?: string;
+  /**
    * Which actor drives this placement, for the handful of tiles that are
    * somebody's avatar rather than scenery.
    *
@@ -230,6 +243,16 @@ export type PlacedTile = {
    */
   owner?: string;
 };
+
+/**
+ * Cap on {@link PlacedTile.description}, in characters.
+ *
+ * A layout bound rather than a safety one — the text is authored in the editor,
+ * not typed by a stranger, and it reaches the screen as `textContent`. What it
+ * protects is the view: a look label wraps at 60% of the square, so a paragraph
+ * would be a wall across the world it is describing.
+ */
+export const MAX_DESCRIPTION_LENGTH = 240;
 
 /**
  * Cells of one chunk, keyed by {@link coordKey}.

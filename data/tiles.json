@@ -1282,7 +1282,7 @@
   },
   {
     "id": "grass-2",
-    "name": "Grass 2",
+    "name": "Grass",
     "height": 0,
     "type": "simple",
     "attributes": {},
@@ -1713,7 +1713,7 @@
             "tilesetId": "tiny-ranch-tiles",
             "rect": {
               "x": 18,
-              "y": 4,
+              "y": 0,
               "w": 2,
               "h": 2
             },
@@ -1741,6 +1741,12 @@
     "lightPassing": true,
     "affectedByGravity": true,
     "walkable": false,
+    "interactions": {
+      "push": {
+        "climb": "none",
+        "moveOnTileIds": []
+      }
+    },
     "sprites": {
       "n": {
         "frames": [
@@ -1826,7 +1832,7 @@
   },
   {
     "id": "sw2",
-    "name": "sw2",
+    "name": "Wall",
     "height": 2,
     "type": "autotile",
     "attributes": {},
@@ -3038,6 +3044,372 @@
             "rect": {
               "x": 12,
               "y": 8,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "wooden-floor",
+    "name": "Wooden floor",
+    "height": 0,
+    "type": "autotile",
+    "attributes": {},
+    "slices": {
+      "0": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "walls",
+              "rect": {
+                "x": 8,
+                "y": 4,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "2": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "walls",
+              "rect": {
+                "x": 8,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "3": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "walls",
+              "rect": {
+                "x": 8,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "4": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "walls",
+              "rect": {
+                "x": 8,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "13": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "walls",
+              "rect": {
+                "x": 8,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "14": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "walls",
+              "rect": {
+                "x": 8,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "15": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "walls",
+              "rect": {
+                "x": 8,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "16": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "walls",
+              "rect": {
+                "x": 8,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "17": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "walls",
+              "rect": {
+                "x": 8,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "34": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "walls",
+              "rect": {
+                "x": 8,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "35": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "walls",
+              "rect": {
+                "x": 8,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "36": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "walls",
+              "rect": {
+                "x": 8,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "sign",
+    "name": "Sign",
+    "height": 1,
+    "type": "directional",
+    "attributes": {},
+    "walkable": false,
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "tiny-ranch-tiles",
+              "rect": {
+                "x": 14,
+                "y": 8,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "tiny-ranch-tiles",
+              "rect": {
+                "x": 14,
+                "y": 8,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "tiny-ranch-tiles",
+              "rect": {
+                "x": 16,
+                "y": 8,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "tiny-ranch-tiles",
+              "rect": {
+                "x": 16,
+                "y": 8,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "barrel",
+    "name": "Barrel",
+    "height": 1,
+    "type": "simple",
+    "attributes": {},
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 12,
+              "y": 10,
               "w": 2,
               "h": 2
             },

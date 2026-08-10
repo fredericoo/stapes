@@ -12,6 +12,7 @@ import {
   emptyMap,
   listChannels,
   updatePlacedChannel,
+  updatePlacedDescription,
 } from "./mapData";
 import mapJson from "../../data/map.json";
 import type { FlatMapFile, MapFile, PlacedTile, TileDef } from "./types";
@@ -95,6 +96,20 @@ describe("signal channels", () => {
     ]);
   });
 
+  it("returns the same map when the channel is unchanged", () => {
+    const map = replaceStack(emptyMap(), 1, 2, 0, [
+      { tileId: "door", channel: "gate-a" },
+    ]);
+
+    // Committed on blur, which fires whether or not anything was typed. A new
+    // map object here is an undo entry and a geometry diff for nothing.
+    expect(updatePlacedChannel(map, 1, 2, 0, 0, "gate-a")).toBe(map);
+    expect(updatePlacedChannel(map, 1, 2, 0, 0, "  gate-a  ")).toBe(map);
+
+    const bare = replaceStack(emptyMap(), 1, 2, 0, [{ tileId: "door" }]);
+    expect(updatePlacedChannel(bare, 1, 2, 0, 0, "")).toBe(bare);
+  });
+
   it("lists every channel in the map once, sorted", () => {
     let map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "torch", channel: "gate-b" },
@@ -107,6 +122,56 @@ describe("signal channels", () => {
     map = replaceStack(map, 3, 0, 0, [{ tileId: "grass" }]);
 
     expect(listChannels(map)).toEqual(["gate-a", "gate-b", "hatch"]);
+  });
+});
+
+describe("placement descriptions", () => {
+  it("sets, trims and clears a description on one placement", () => {
+    const map = replaceStack(emptyMap(), 1, 2, 0, [
+      { tileId: "grass" },
+      { tileId: "sign" },
+    ]);
+
+    const written = updatePlacedDescription(map, 1, 2, 0, 1, "  To the mill  ");
+    expect(getStack(written, 1, 2, 0)).toEqual([
+      { tileId: "grass" },
+      { tileId: "sign", description: "To the mill" },
+    ]);
+
+    // Absent, not empty: the map is hand-edited and version-controlled, so an
+    // abandoned description must leave no line behind.
+    const cleared = updatePlacedDescription(written, 1, 2, 0, 1, "");
+    expect(getStack(cleared, 1, 2, 0)).toEqual([
+      { tileId: "grass" },
+      { tileId: "sign" },
+    ]);
+  });
+
+  it("returns the same map when the description is unchanged", () => {
+    const map = replaceStack(emptyMap(), 1, 2, 0, [
+      { tileId: "sign", description: "To the mill" },
+    ]);
+
+    expect(updatePlacedDescription(map, 1, 2, 0, 0, "To the mill")).toBe(map);
+    expect(updatePlacedDescription(map, 1, 2, 0, 0, " To the mill ")).toBe(map);
+  });
+
+  it("keeps the description when the tile in the slot is swapped", () => {
+    // The whole reason this is a placement field: a described door that opens
+    // is still the same door, and the text belongs to the spot.
+    const map = replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "door-closed", description: "Beware of the dog", channel: "a" },
+    ]);
+    const swapped = getStack(map, 0, 0, 0).map((p) => ({
+      ...p,
+      tileId: "door-open",
+    }));
+
+    expect(swapped[0]).toEqual({
+      tileId: "door-open",
+      description: "Beware of the dog",
+      channel: "a",
+    });
   });
 });
 
