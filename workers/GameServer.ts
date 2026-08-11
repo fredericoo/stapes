@@ -466,11 +466,18 @@ export class GameServer extends DurableObject<Env> {
     if (!session.actorIds().includes(actorId)) return;
 
     if (message.type === "say") {
-      // Deliberately no wake(): talking does not move the board, and starting
-      // the tick loop for it would hold an idle world out of hibernation for
-      // five seconds of nothing. The message is sent inline instead of being
-      // queued into `events`, which is patch-scoped and shared by everyone.
+      // Sent inline rather than queued into `events`, which is patch-scoped and
+      // shared by everyone.
+      //
+      // This used to return without waking, on the grounds that talking does
+      // not move the board — true of the words, and no longer true of what
+      // hearing them can start. A brain gets one turn to notice an utterance, so
+      // an idle world has to tick at least once more or the call is simply never
+      // heard. The cost that comment was guarding against does not follow: what
+      // holds the loop open is one brain tick, not the five seconds the bubble
+      // hangs there, and `sleepIfIdle` puts the world straight back under.
       this.say(actorId, message.text);
+      this.wake();
       return;
     }
 
@@ -590,6 +597,10 @@ export class GameServer extends DurableObject<Env> {
     if (!author) return;
 
     this.lastSaidAt.set(actorId, now);
+    // The simulation hears the same sanitised line the room does, and hears it
+    // before it is broadcast so that a creature answering on the very next tick
+    // cannot have its reply overtake the call that caused it.
+    this.session!.hear(actorId, text);
     this.broadcastChat(actors, {
       actorId,
       tileId: author.tileId,

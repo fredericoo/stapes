@@ -1,5 +1,6 @@
 import {
   ANY_STATE,
+  SPEAKER_SELECTOR,
   slotOf,
   type BrainActionDef,
   type BrainConditionDef,
@@ -8,6 +9,7 @@ import {
   type Selector,
 } from "../lib/brain";
 import { DIRECTIONS, type Coord, type Direction } from "../lib/types";
+import { SIGHT_LEVEL_SLACK } from "./constants";
 import { DIR_DELTA } from "./movement";
 import type { Rng } from "./rng";
 
@@ -78,6 +80,17 @@ export type BrainMemory = {
    * initial state once more, which is the right amount for a mind that resets.
    */
   started: boolean;
+  /**
+   * Who the `heard` condition that just matched was about, for the length of one
+   * transition.
+   *
+   * The plumbing behind the `speaker` selector, and it lives here rather than in
+   * the blackboard because it is not a commitment — it is cleared at the top of
+   * every tick, so a `bind` reading it on a transition that heard nothing writes
+   * nothing. A creature keeps whoever called it by *binding* them to a slot,
+   * which is a decision the author makes and can see in the table.
+   */
+  heardFrom: string | null;
 };
 
 /**
@@ -127,16 +140,35 @@ export type BrainContext = {
    * arrange, on exactly the terms a player's chat already gets.
    */
   say(text: string): void;
+  /**
+   * Is there a clear line from here to there?
+   *
+   * A question about the board, so it belongs to whoever holds the board — this
+   * side only decides what to do with the answer. @see ./sight
+   */
+  canSee(at: Coord): boolean;
+  /**
+   * Everything said since this creature last had a turn, oldest first.
+   *
+   * Words and a speaker, nothing more: how far away they were and whether they
+   * can be seen are questions this module already knows how to ask, and asking
+   * them here keeps `cells` meaning the same thing in every condition.
+   *
+   * Empty on almost every tick. It is a list rather than the latest line because
+   * two people can call a creature between two of its ticks, and dropping one of
+   * them would make the machine's behaviour depend on how the brain clock
+   * happened to fall.
+   */
+  heard(): readonly Utterance[];
 };
 
-/**
- * Floors up or down that still count as being near somebody.
- *
- * The same slack interaction already uses for reach. Distance is otherwise
- * counted in steps on the plan, not as the crow flies: a creature that thinks
- * in cells it could walk is a creature whose behaviour matches the board.
- */
-const SIGHT_LEVEL_SLACK = 1;
+/** Something somebody said, as a listening brain sees it. */
+export type Utterance = {
+  /** Who said it. Resolved to a position through {@link BrainContext.positionOf}. */
+  speakerId: string;
+  text: string;
+};
+
 
 export function initialMemory(brain: BrainDef): BrainMemory {
   return {
@@ -146,6 +178,7 @@ export function initialMemory(brain: BrainDef): BrainMemory {
     stuck: false,
     scratch: {},
     started: false,
+    heardFrom: null,
   };
 }
 
@@ -176,6 +209,7 @@ function identify(
 ): string | null {
   const slot = slotOf(selector);
   if (slot !== null) return memory.blackboard[slot] ?? null;
+  if (selector === SPEAKER_SELECTOR) return memory.heardFrom;
   return ctx.nearestPlayerId();
 }
 
@@ -199,6 +233,45 @@ function within(self: Coord, other: Coord, cells: number): boolean {
   return stepsApart(self, other) <= cells;
 }
 
+/** Within `cells` and with nothing in the way. */
+function inSight(
+  at: Coord | null,
+  cells: number,
+  ctx: BrainContext,
+): at is Coord {
+  return at !== null && within(ctx.self, at, cells) && ctx.canSee(at);
+}
+
+/**
+ * Whoever just said something matching, near enough to have been heard.
+ *
+ * Oldest first, and the first match wins: two people calling a cat between one
+ * tick and the next is a real race, and resolving it by who spoke first is the
+ * only answer that does not depend on iteration order somewhere else.
+ *
+ * The speaker is remembered for the length of this tick even though the caller
+ * only wanted a yes or no — that is how `bind: { caller: "speaker" }` gets an
+ * id, and doing it here means the condition and the bind cannot disagree about
+ * who was heard.
+ */
+function heardFrom(
+  condition: Extract<BrainConditionDef, { cond: "heard" }>,
+  memory: BrainMemory,
+  ctx: BrainContext,
+): boolean {
+  const wanted = condition.text.toLowerCase();
+  for (const utterance of ctx.heard()) {
+    if (!utterance.text.toLowerCase().includes(wanted)) continue;
+    const at = ctx.positionOf(utterance.speakerId);
+    if (at === null) continue;
+    if (!within(ctx.self, at, condition.cells)) continue;
+    if (condition.los && !ctx.canSee(at)) continue;
+    memory.heardFrom = utterance.speakerId;
+    return true;
+  }
+  return false;
+}
+
 function holds(
   condition: BrainConditionDef,
   memory: BrainMemory,
@@ -220,6 +293,14 @@ function holds(
       // ghost. This is also what makes the two conditions exact complements.
       return at === null || !within(ctx.self, at, condition.cells);
     }
+    case "in_los":
+      return inSight(locate(condition.of, memory, ctx), condition.cells, ctx);
+    case "out_of_los":
+      // Gone, too far, or behind something — the same complement rule, now with
+      // one more way to be lost.
+      return !inSight(locate(condition.of, memory, ctx), condition.cells, ctx);
+    case "heard":
+      return heardFrom(condition, memory, ctx);
   }
 }
 
@@ -428,6 +509,12 @@ export function stepBrain(
     memory.started = true;
     runOnEnter(brain, memory, ctx);
   }
+
+  // Last tick's speaker is nobody's business now: the slot exists to carry an id
+  // from a condition to the bind on the same transition, and a leftover would
+  // let a later `bind: { caller: "speaker" }` write down somebody who has not
+  // said a word since.
+  memory.heardFrom = null;
 
   memory.msInState += tickMs;
 

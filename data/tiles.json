@@ -1717,11 +1717,36 @@
               }
             ]
           },
-          "follow": {
+          "roam": {
+            "do": [
+              {
+                "action": "walk_n_steps",
+                "steps": 1
+              }
+            ]
+          },
+          "answering": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "meow"
+              }
+            ],
             "do": [
               {
                 "action": "step_toward",
-                "of": "$friend"
+                "of": "$caller"
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "following": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": "$caller"
               },
               {
                 "action": "hold"
@@ -1731,23 +1756,47 @@
         },
         "transitions": [
           {
-            "from": "idle",
+            "from": "any",
             "if": {
-              "cond": "in_range",
-              "of": "nearest_player",
-              "cells": 3
+              "cond": "heard",
+              "text": "ps",
+              "cells": 5,
+              "los": true
             },
             "bind": {
-              "friend": "nearest_player"
+              "caller": "speaker"
             },
-            "to": "follow"
+            "to": "answering"
           },
           {
-            "from": "follow",
+            "from": "idle",
             "if": {
-              "cond": "out_of_range",
-              "of": "$friend",
-              "cells": 3
+              "cond": "after",
+              "ms": 5000
+            },
+            "to": "roam"
+          },
+          {
+            "from": "roam",
+            "if": {
+              "cond": "stuck"
+            },
+            "to": "idle"
+          },
+          {
+            "from": "answering",
+            "if": {
+              "cond": "after",
+              "ms": 200
+            },
+            "to": "following"
+          },
+          {
+            "from": "following",
+            "if": {
+              "cond": "out_of_los",
+              "of": "$caller",
+              "cells": 8
             },
             "to": "idle"
           }

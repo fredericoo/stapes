@@ -2,6 +2,7 @@ import { env, fetchMock, runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import tilesJson from "../data/tiles.json";
 import {
+  BRAIN_TICK_MS,
   PLAYER_TILE_ID,
   PUSH_STEP_MS,
   WALK_DURATION_MS,
@@ -722,11 +723,16 @@ describe("chat", () => {
   });
 
   /**
-   * Talking does not move the board. Waking the tick loop for it would hold an
-   * idle world out of hibernation for as long as people keep chatting, which is
-   * the opposite of what `isAtRest` exists for.
+   * Talking does not move the board, but it can start something that does: a
+   * brain gets exactly one turn to notice what was said, so the loop has to run
+   * at least that far or a call is never heard rather than heard late.
+   *
+   * This test used to assert the loop stayed stopped outright. What that rule
+   * was really protecting is the part kept here — an idle world must not be held
+   * out of hibernation for as long as people keep chatting — and one brain tick
+   * is the whole of what the change costs.
    */
-  it("does not start the tick loop", async () => {
+  it("goes back to sleep once the word has been heard", async () => {
     const alice = await connect("alice");
     // Let the join's own wake settle first, or this measures that instead.
     await scheduler.wait(QUIET_MS);
@@ -734,6 +740,7 @@ describe("chat", () => {
 
     say(alice.ws, "hey there!");
     await chatWithin(alice.ws, 1000);
+    await scheduler.wait(BRAIN_TICK_MS + QUIET_MS);
 
     expect(await isTicking()).toBe(false);
   });
@@ -780,6 +787,71 @@ describe("chat", () => {
     await chatWithin(alice.ws, 1000);
 
     expect(await chatRows()).toHaveLength(CHAT_LOG_MAX_ROWS);
+  });
+});
+
+/**
+ * Being called, over a real socket.
+ *
+ * The brain's own rules are tested against a board in `app/game/brain.test.ts`.
+ * What only exists here is the path between a person typing and a creature
+ * deciding: the object hands the simulation the same sanitised line it
+ * broadcasts, and keeps ticking long enough for a brain to have its turn. Both
+ * halves are invisible from either side alone.
+ */
+describe("calling a creature", () => {
+  /** Alice on a strip of grass, with the authored cat three cells along it. */
+  function checkpointWithCat(): {
+    map: FlatMapFile;
+    spawn: { x: number; y: number; z: number; stackIndex: number };
+  } {
+    const ground: Record<string, unknown[]> = {};
+    for (let x = 0; x < 6; x++) ground[`${x},0`] = [{ tileId: "grass" }];
+    ground["0,0"] = [
+      { tileId: "grass" },
+      { tileId: "player", direction: "s", owner: "alice" },
+    ];
+    ground["3,0"] = [{ tileId: "grass" }, { tileId: "cat" }];
+    return {
+      map: { version: 1, levels: { "0": ground } } as FlatMapFile,
+      spawn: { x: 0, y: 0, z: 0, stackIndex: 0 },
+    };
+  }
+
+  /** The next chat on this socket whose text is not the one just sent. */
+  async function replyWithin(ws: WebSocket, ms: number, sent: string) {
+    const deadline = Date.now() + ms;
+    for (;;) {
+      const left = deadline - Date.now();
+      if (left <= 0) return null;
+      const message = await chatWithin(ws, left);
+      if (!message) return null;
+      if (message.text !== sent) return message;
+    }
+  }
+
+  async function withCat() {
+    const alice = await connect("alice");
+    await putCheckpoint(checkpointWithCat());
+    await simulateEviction();
+    return alice;
+  }
+
+  it("answers somebody who calls it", async () => {
+    const alice = await withCat();
+
+    say(alice.ws, "psps");
+
+    const reply = await replyWithin(alice.ws, 2000, "psps");
+    expect(reply).toMatchObject({ type: "chat", text: "meow", tileId: "cat" });
+  });
+
+  it("says nothing back to a line that was not a call", async () => {
+    const alice = await withCat();
+
+    say(alice.ws, "hello there");
+
+    expect(await replyWithin(alice.ws, QUIET_MS * 4, "hello there")).toBeNull();
   });
 });
 

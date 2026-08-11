@@ -72,6 +72,34 @@ export const CONDITIONS: Record<
     ],
     make: () => ({ cond: "out_of_range", of: LIVE_SELECTOR, cells: 3 }),
   },
+  in_los: {
+    label: "in sight",
+    hint: "Within this many cells and in plain view — no full-height wall in between.",
+    params: [
+      { key: "of", kind: "selector", label: "of" },
+      { key: "cells", kind: "number", label: "cells", min: 0 },
+    ],
+    make: () => ({ cond: "in_los", of: LIVE_SELECTOR, cells: 5 }),
+  },
+  out_of_los: {
+    label: "out of sight",
+    hint: "Too far, behind something, or gone — the exact complement of in sight.",
+    params: [
+      { key: "of", kind: "selector", label: "of" },
+      { key: "cells", kind: "number", label: "cells", min: 0 },
+    ],
+    make: () => ({ cond: "out_of_los", of: LIVE_SELECTOR, cells: 5 }),
+  },
+  heard: {
+    label: "heard",
+    hint: "Somebody within this many cells said something containing these letters. Fires once per thing said.",
+    params: [
+      { key: "text", kind: "text", label: "text" },
+      { key: "cells", kind: "number", label: "cells", min: 0 },
+      { key: "los", kind: "boolean", label: "must see them" },
+    ],
+    make: () => ({ cond: "heard", text: "ps", cells: 5, los: true }),
+  },
   stuck: {
     label: "stuck",
     hint: "Every action in this state failed last turn. A state ending in hold can never be stuck.",

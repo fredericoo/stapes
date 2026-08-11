@@ -68,7 +68,9 @@ import {
   initialMemory,
   stepBrain,
   type BrainMemory,
+  type Utterance,
 } from "./brainRuntime";
+import { hasLineOfSight } from "./sight";
 import { Rng } from "./rng";
 import { chooseStep, type StepRequest } from "./stepping";
 import {
@@ -349,6 +351,20 @@ export class GameSession implements PlaySession {
   private pendingSpeech: ChatBubble[] = [];
   /** Ticks up per line, so two things said in one tick are two bubbles. */
   private nextSpeechId = 0;
+  /**
+   * What has been said *to* the world since the brains last had a turn.
+   *
+   * The mirror of {@link pendingSpeech}, and the reason it is a separate list
+   * rather than the same one: that holds what creatures said and empties every
+   * tick on its way to the wire, while this holds what people said and empties
+   * on the slower brain clock, because a brain that ticks once per six ticks
+   * would otherwise miss five sixths of everything shouted at it.
+   *
+   * Held only until the next round of decisions. An utterance is an event, not a
+   * state of the world: a creature hears a thing said once, and a word left
+   * lying here would be heard again by whoever ticks next.
+   */
+  private pendingHeard: Utterance[] = [];
   /**
    * The creature-driven emitters the last settle pass saw, as a signature.
    *
@@ -758,7 +774,13 @@ export class GameSession implements PlaySession {
    * clock survives a quiet spell instead of restarting on the next join.
    */
   private tickBrains(tickMs: number) {
-    if (!this.observed()) return;
+    if (!this.observed()) {
+      // Nobody here to have said it, and nobody left to hear it. Dropping the
+      // page rather than keeping it is what stops a word shouted on the way out
+      // of the door from greeting the next person to walk in.
+      this.pendingHeard = [];
+      return;
+    }
 
     this.brainAccumulatorMs += tickMs;
     if (this.brainAccumulatorMs < BRAIN_TICK_MS) return;
@@ -768,6 +790,28 @@ export class GameSession implements PlaySession {
       if (!actor.resident) continue;
       this.tickOneBrain(actor);
     }
+
+    // Every brain has now had its one chance at this round of speech. Clearing
+    // after the whole pass rather than per creature is what makes one word
+    // reach every ear at once — and clearing at all is what keeps it an event
+    // instead of a standing fact about the world.
+    this.pendingHeard = [];
+  }
+
+  /**
+   * Somebody said something out loud, for any brain near enough to notice.
+   *
+   * The server's to call, on the same message it broadcasts as chat — this is
+   * the simulation's copy of it, and the only reason the simulation gets one.
+   * Words that no creature is listening for cost a push and a clear.
+   *
+   * Deliberately not called for {@link recordSpeech}: creatures do not hear each
+   * other yet. Wiring it would be one line and the machinery is ready for it,
+   * but a deer's yelp setting off every brain in earshot is a world's worth of
+   * behaviour to think about rather than a side effect of this.
+   */
+  hear(speakerId: string, text: string) {
+    this.pendingHeard.push({ speakerId, text });
   }
 
   private tickOneBrain(actor: ActorRuntime) {
@@ -789,6 +833,14 @@ export class GameSession implements PlaySession {
       step: (direction) =>
         this.applyStepRequest(actor, { directions: [direction] }),
       say: (text) => this.recordSpeech(actor, loc, text),
+      canSee: (at) =>
+        hasLineOfSight(
+          this.map,
+          this.tilesById,
+          { x: loc.x, y: loc.y, z: loc.z },
+          at,
+        ),
+      heard: () => this.pendingHeard,
     });
   }
 
@@ -1137,6 +1189,13 @@ export class GameSession implements PlaySession {
    * until plates and channels agree with each other.
    */
   isAtRest(): boolean {
+    // Something has been said that no brain has had a turn to hear. Resting on
+    // it would stop the clock that was going to deliver it — and unlike a
+    // wander, which merely happens later, this one never happens at all: the
+    // next tick clears the page. A world with nothing else to do stays awake
+    // for one brain tick and settles again.
+    if (this.pendingHeard.length > 0) return false;
+
     let observed = false;
     let thinking = false;
     for (const actor of this.actors.values()) {

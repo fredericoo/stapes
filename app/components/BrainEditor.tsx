@@ -1,5 +1,6 @@
 import {
   ANY_STATE,
+  SPEAKER_SELECTOR,
   validateBrain,
   type BrainActionDef,
   type BrainConditionDef,
@@ -52,13 +53,20 @@ const EMPTY_BRAIN: BrainDef = {
   transitions: [],
 };
 
-/** `nearest_player`, plus every slot the brain's transitions bind. */
+/**
+ * The two live queries, plus every slot the brain's transitions bind.
+ *
+ * `speaker` is offered everywhere rather than only on transitions that hear
+ * something, because the editor would have to know which condition a bind sits
+ * beside to say otherwise — and a selector that answers nobody is already the
+ * documented behaviour, not a broken brain.
+ */
 export function selectorOptions(brain: BrainDef): string[] {
   const slots = new Set<string>();
   for (const t of brain.transitions) {
     for (const slot of Object.keys(t.bind ?? {})) slots.add(`$${slot}`);
   }
-  return [LIVE_SELECTOR, ...slots];
+  return [LIVE_SELECTOR, SPEAKER_SELECTOR, ...slots];
 }
 
 /** Pull the item at `from` out and drop it back in at `to`. */

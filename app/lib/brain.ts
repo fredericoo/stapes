@@ -46,7 +46,21 @@ export const ANY_STATE = "any";
  * jitter on the spot; binding on the way in means it commits to the one that
  * set it off, and keeps committing until something says otherwise.
  */
-export type Selector = "nearest_player" | `$${string}`;
+export type Selector = "nearest_player" | "speaker" | `$${string}`;
+
+/**
+ * Whoever the {@link BrainConditionDef} `heard` on this very transition matched.
+ *
+ * A live query like `nearest_player`, but one with a window of exactly one
+ * transition: it is how a `heard` names the person who spoke, and it answers
+ * nothing on a transition that did not just hear something. That is the point of
+ * it — "the one who called me" is not "the one standing nearest", and a room
+ * with two people in it is precisely where the difference shows.
+ *
+ * Meant to be bound rather than read from a state: `bind: { caller: "speaker" }`
+ * writes it down, and the state that follows chases `$caller`.
+ */
+export const SPEAKER_SELECTOR = "speaker";
 
 /** The bound-slot form, `$target`, as opposed to a live query. */
 export function slotOf(selector: Selector): string | null {
@@ -67,6 +81,44 @@ export type BrainConditionDef =
   | { cond: "in_range"; of: Selector; cells: number }
   /** Nobody within `cells` — including the case where the target is gone. */
   | { cond: "out_of_range"; of: Selector; cells: number }
+  /**
+   * Within `cells` *and* in plain view — no full-height wall in between.
+   *
+   * Distance and sight are one condition rather than two because a transition
+   * takes a single `if`: there is no `and`, deliberately, so anything an author
+   * needs to ask together has to be askable as one question.
+   *
+   * A creature that acts on this reads as noticing you rather than as sensing
+   * you through the scenery, which is most of the difference between a
+   * believable animal and a proximity trigger. @see ../game/sight
+   */
+  | { cond: "in_los"; of: Selector; cells: number }
+  /**
+   * Out of `cells`, or out of view, or gone. The exact complement of
+   * {@link in_los}, and the usual way a chase ends: what got behind the barn is
+   * lost, not still being followed through the wall.
+   */
+  | { cond: "out_of_los"; of: Selector; cells: number }
+  /**
+   * Somebody within earshot said something containing `text`.
+   *
+   * The one condition that is *edge* triggered. Every other one asks about a
+   * state of the world that is either true or false right now and will still be
+   * answerable next tick; this asks about something that happened, and an
+   * utterance is heard by a given creature on exactly one brain tick before it
+   * is gone. That is what makes a transition on it fire once per thing said
+   * rather than for as long as the words hang in the air.
+   *
+   * Matching is a case-insensitive substring, so `"ps"` catches "psps",
+   * "PSPSPS" and "come here ps". A word rather than an exact line is the useful
+   * thing to author against: people type at a creature, they do not enter a
+   * command.
+   *
+   * `los` adds the sight test to the distance one — a cat that answers a call
+   * from the other side of a closed door is a cat that heard through a wall,
+   * which is fine for sound and wrong for the summons this exists to express.
+   */
+  | { cond: "heard"; text: string; cells: number; los?: boolean }
   /**
    * Every action in this state failed, last time it had a turn.
    *
@@ -192,6 +244,7 @@ const stateName = v.pipe(v.string(), v.minLength(1));
 /** `nearest_player`, or `$` and a slot name. Anything else is not a selector. */
 const selectorSchema = v.union([
   v.literal("nearest_player"),
+  v.literal(SPEAKER_SELECTOR),
   v.pipe(v.string(), v.regex(/^\$[A-Za-z0-9_]+$/)),
 ]);
 
@@ -203,6 +256,16 @@ const conditionSchema = v.variant("cond", [
   v.object({ cond: v.literal("after"), ms: durationMs }),
   v.object({ cond: v.literal("in_range"), of: selectorSchema, cells }),
   v.object({ cond: v.literal("out_of_range"), of: selectorSchema, cells }),
+  v.object({ cond: v.literal("in_los"), of: selectorSchema, cells }),
+  v.object({ cond: v.literal("out_of_los"), of: selectorSchema, cells }),
+  v.object({
+    cond: v.literal("heard"),
+    // A word to listen for. Empty would match every utterance ever, which is
+    // authorable but is never what somebody meant to type.
+    text: v.pipe(v.string(), v.minLength(1)),
+    cells,
+    los: v.optional(v.boolean()),
+  }),
   v.object({ cond: v.literal("stuck") }),
 ]);
 

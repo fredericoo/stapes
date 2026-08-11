@@ -1,8 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
-import { resolveBrain, type BrainDef } from "../lib/brain";
+import tilesJson from "../../data/tiles.json";
+import {
+  ANY_STATE,
+  SPEAKER_SELECTOR,
+  resolveBrain,
+  type BrainDef,
+} from "../lib/brain";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
-import { normalizeTileDef } from "../lib/types";
+import { normalizeTileDef, normalizeTiles } from "../lib/types";
 import { initialMemory, stepBrain } from "./brainRuntime";
 import { BRAIN_TICK_MS, TICK_MS, WALK_DURATION_MS } from "./constants";
 import { GameSession } from "./GameSession";
@@ -197,6 +203,10 @@ describe("deciding", () => {
       wouldDrop: () => false,
       step: vi.fn(() => true),
       say: vi.fn(),
+      // Nothing in the way and nothing said, unless a test says otherwise: the
+      // defaults are the empty room these cases are written about.
+      canSee: () => true,
+      heard: () => [],
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
   }
@@ -630,6 +640,8 @@ describe("giving up", () => {
       wouldDrop: () => false,
       step: () => false,
       say: () => {},
+      canSee: () => true,
+      heard: () => [],
     };
 
     // One tick to try everything and fail; the verdict is read on the next.
@@ -756,6 +768,10 @@ describe("actions that take time", () => {
       wouldDrop: () => false,
       step: vi.fn(() => true),
       say: vi.fn(),
+      // Nothing in the way and nothing said, unless a test says otherwise: the
+      // defaults are the empty room these cases are written about.
+      canSee: () => true,
+      heard: () => [],
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
   }
@@ -1196,6 +1212,8 @@ describe("a deer that yelps", () => {
       wouldDrop: () => false,
       step: () => true,
       say,
+      canSee: () => true,
+      heard: () => [],
     };
 
     for (let tick = 0; tick < 5; tick++) stepBrain(brain, memory, BRAIN_TICK_MS, c);
@@ -1261,6 +1279,8 @@ describe("a deer that yelps", () => {
       wouldDrop: () => false,
       step: () => false,
       say: vi.fn(),
+      canSee: () => true,
+      heard: () => [],
     };
 
     stepBrain(brain, memory, BRAIN_TICK_MS, c);
@@ -1392,5 +1412,343 @@ describe("a world nobody is watching", () => {
     // One cell travelled, and then nothing further.
     expect(deerCell(session)).not.toBe("0,0");
     expect(session.isAtRest()).toBe(true);
+  });
+});
+
+/**
+ * Being called, and answering.
+ *
+ * The one condition that is edge triggered rather than a standing question
+ * about the board, so what is worth pinning down is *when* it fires: once per
+ * thing said, to everybody in earshot at once, and never again on the tick
+ * after.
+ */
+describe("hearing", () => {
+  /** Answers to "ps" from anyone it can see within five cells. */
+  function listeningBrain(los: boolean): BrainDef {
+    return {
+      initial: "idle",
+      states: {
+        idle: { do: [{ action: "hold" }] },
+        answering: {
+          onEnter: [{ effect: "say", text: "meow" }],
+          do: [{ action: "step_toward", of: "$caller" }, { action: "hold" }],
+        },
+        following: {
+          do: [{ action: "step_toward", of: "$caller" }, { action: "hold" }],
+        },
+      },
+      transitions: [
+        {
+          from: ANY_STATE,
+          if: { cond: "heard", text: "ps", cells: 5, los },
+          bind: { caller: SPEAKER_SELECTOR },
+          to: "answering",
+        },
+        { from: "answering", if: { cond: "after", ms: BRAIN_TICK_MS }, to: "following" },
+      ],
+    };
+  }
+
+  const listeners: TileDef[] = [
+    ...tiles,
+    tile({
+      id: "listener",
+      height: 1,
+      actor: true,
+      affectedByGravity: true,
+      walkable: false,
+      interactions: { brain: listeningBrain(false) },
+    }),
+    tile({
+      id: "watcher",
+      height: 1,
+      actor: true,
+      affectedByGravity: true,
+      walkable: false,
+      interactions: { brain: listeningBrain(true) },
+    }),
+  ];
+
+  /** A creature at the origin, alice `apart` cells east, spawn out of the way. */
+  function room(creature: string, apart: number): GameSession {
+    let map = field(9);
+    map = replaceStack(map, -9, -9, 0, [{ tileId: "grass" }]);
+    map = withDeer(map, 0, 0, creature);
+    map = withPlayerAt(map, apart, 0);
+    return new GameSession(map, listeners, ["alice"], {
+      x: -9,
+      y: -9,
+      z: 0,
+      stackIndex: 1,
+    });
+  }
+
+  /** Everything said out loud over one stretch of ticks. */
+  function saidDuring(session: GameSession, ms: number): string[] {
+    const heard: string[] = [];
+    for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) {
+      session.tick(TICK_MS);
+      for (const bubble of session.drainSpeech()) heard.push(bubble.text);
+    }
+    return heard;
+  }
+
+  it("answers somebody who calls it", () => {
+    const session = room("listener", 3);
+    session.hear("alice", "psps");
+
+    expect(saidDuring(session, BRAIN_TICK_MS * 2)).toEqual(["meow"]);
+  });
+
+  it("matches the word anywhere in the line, whatever the case", () => {
+    const session = room("listener", 3);
+    session.hear("alice", "come here PSPS!");
+
+    expect(saidDuring(session, BRAIN_TICK_MS * 2)).toEqual(["meow"]);
+  });
+
+  it("ignores a line that does not contain the word", () => {
+    const session = room("listener", 3);
+    session.hear("alice", "hello there");
+
+    expect(saidDuring(session, BRAIN_TICK_MS * 2)).toEqual([]);
+  });
+
+  it("ignores somebody calling from further off than it can hear", () => {
+    const session = room("listener", 6);
+    session.hear("alice", "psps");
+
+    expect(saidDuring(session, BRAIN_TICK_MS * 2)).toEqual([]);
+  });
+
+  /**
+   * The whole reason an utterance is cleared after the brain pass. A word left
+   * lying about would be heard again by every later tick, and the cat would
+   * meow forever over one call.
+   */
+  it("answers once per thing said, not once per tick after it", () => {
+    const session = room("listener", 3);
+    session.hear("alice", "psps");
+
+    expect(saidDuring(session, BRAIN_TICK_MS * 10)).toEqual(["meow"]);
+  });
+
+  it("answers again when called again", () => {
+    const session = room("listener", 3);
+    session.hear("alice", "psps");
+    advance(session, BRAIN_TICK_MS * 2);
+    session.hear("alice", "psps");
+
+    expect(saidDuring(session, BRAIN_TICK_MS * 2)).toEqual(["meow"]);
+  });
+
+  it("comes towards whoever called it", () => {
+    const session = room("listener", 4);
+    session.hear("alice", "psps");
+    advance(session, BRAIN_TICK_MS * 4);
+
+    const creature = session
+      .actorSnapshots()
+      .find((actor) => actor.tileId === "listener")!;
+    expect(creature.x).toBeGreaterThan(0);
+  });
+
+  /**
+   * Sound goes round a corner and a look does not, which is the difference the
+   * `los` flag exists to express — same call, same distance, two answers.
+   */
+  it("hears through a wall, but only answers a caller it can see", () => {
+    for (const [creature, answered] of [
+      ["listener", ["meow"]],
+      ["watcher", []],
+    ] as const) {
+      let map = field(9);
+      map = replaceStack(map, -9, -9, 0, [{ tileId: "grass" }]);
+      map = withDeer(map, 0, 0, creature);
+      map = replaceStack(map, 2, 0, 0, [{ tileId: "grass" }, { tileId: "wall" }]);
+      map = withPlayerAt(map, 4, 0);
+      const session = new GameSession(map, listeners, ["alice"], {
+        x: -9,
+        y: -9,
+        z: 0,
+        stackIndex: 1,
+      });
+
+      session.hear("alice", "psps");
+      expect(saidDuring(session, BRAIN_TICK_MS * 2), creature).toEqual(answered);
+    }
+  });
+
+  /**
+   * `nearest_player` would answer "whoever is closest", which is exactly the
+   * wrong answer in a room with two people in it: the one who called is not
+   * necessarily the one standing nearest.
+   */
+  it("turns to the one who called, over the one standing closer", () => {
+    const session = room("listener", 5);
+    // Off the line to alice, so this is a question about who it picks rather
+    // than about a body in the way.
+    session.spawn("bob", { x: 0, y: 2, z: 0 });
+    advance(session, BRAIN_TICK_MS);
+
+    session.hear("alice", "psps");
+    advance(session, BRAIN_TICK_MS * 4);
+
+    // Alice called from five cells east. Bob is two cells north and silent —
+    // and is who `nearest_player` would have named.
+    const creature = session
+      .actorSnapshots()
+      .find((actor) => actor.tileId === "listener")!;
+    expect(creature.x).toBeGreaterThan(0);
+    expect(creature.y).toBe(0);
+  });
+
+  it("changes its mind when somebody else calls it", () => {
+    let map = field(9);
+    map = replaceStack(map, -9, -9, 0, [{ tileId: "grass" }]);
+    map = withDeer(map, 0, 0, "listener");
+    map = withPlayerAt(map, 3, 0);
+    const session = new GameSession(map, listeners, ["alice"], {
+      x: -9,
+      y: -9,
+      z: 0,
+      stackIndex: 1,
+    });
+    session.spawn("bob", { x: 0, y: 3, z: 0 });
+
+    session.hear("alice", "psps");
+    advance(session, BRAIN_TICK_MS * 2);
+    const towardsAlice = session
+      .actorSnapshots()
+      .find((actor) => actor.tileId === "listener")!;
+    expect(towardsAlice.x).toBeGreaterThan(0);
+
+    // Bob calls from the other direction, and the second answer is the tell:
+    // re-entering the state is what fires the greeting again.
+    session.hear("bob", "psps");
+    expect(saidDuring(session, BRAIN_TICK_MS * 4)).toEqual(["meow"]);
+    const towardsBob = session
+      .actorSnapshots()
+      .find((actor) => actor.tileId === "listener")!;
+    expect(towardsBob.y).toBeGreaterThan(0);
+  });
+
+  /** One word, every ear: the page is cleared after the whole pass, not per creature. */
+  it("is heard by every creature in earshot at once", () => {
+    let map = field(9);
+    map = replaceStack(map, -9, -9, 0, [{ tileId: "grass" }]);
+    map = withDeer(map, 0, 0, "listener");
+    map = withDeer(map, 0, 1, "listener");
+    map = withPlayerAt(map, 3, 0);
+    const session = new GameSession(map, listeners, ["alice"], {
+      x: -9,
+      y: -9,
+      z: 0,
+      stackIndex: 1,
+    });
+
+    session.hear("alice", "psps");
+    expect(saidDuring(session, BRAIN_TICK_MS * 2)).toEqual(["meow", "meow"]);
+  });
+
+  /**
+   * A brain gets exactly one turn at an utterance, so a world that stopped
+   * ticking before that turn would swallow the call outright — not delay it.
+   */
+  it("keeps the world awake until the word has been heard", () => {
+    const session = room("listener", 3);
+    advance(session, BRAIN_TICK_MS * 8);
+
+    session.hear("alice", "psps");
+    expect(session.isAtRest()).toBe(false);
+  });
+
+  /** Said on the way out of the door, to an empty room, and gone. */
+  it("drops what was said with nobody left to hear it", () => {
+    const session = room("listener", 3);
+    session.despawn("alice");
+    session.hear("alice", "psps");
+    advance(session, TICK_MS);
+
+    expect(session.isAtRest()).toBe(true);
+  });
+});
+
+/**
+ * The cat as authored, not as a fixture.
+ *
+ * Everything above tests the machinery against brains written for the test. This
+ * one runs the brain that ships in `data/tiles.json`, because the machinery
+ * being right and the content being right are separate ways to end up with a cat
+ * that ignores you — a mistyped selector parses as a slot nobody binds, and the
+ * only place that shows up is here.
+ */
+describe("the cat we ship", () => {
+  const authored = normalizeTiles(tilesJson as unknown[]);
+
+  /** Grass under everybody, the cat at the origin, alice `apart` cells east. */
+  function yard(apart: number): GameSession {
+    let map = emptyMap();
+    for (let x = -9; x <= 9; x++) {
+      for (let y = -9; y <= 9; y++) {
+        map = replaceStack(map, x, y, 0, [{ tileId: "grass" }]);
+      }
+    }
+    map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }, { tileId: "cat" }]);
+    map = replaceStack(map, apart, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "player", direction: "e", owner: "alice" },
+    ]);
+    return new GameSession(map, authored, ["alice"], {
+      x: -9,
+      y: -9,
+      z: 0,
+      stackIndex: 1,
+    });
+  }
+
+  function catAt(session: GameSession) {
+    return session.actorSnapshots().find((actor) => actor.tileId === "cat")!;
+  }
+
+  function saidDuring(session: GameSession, ms: number): string[] {
+    const heard: string[] = [];
+    for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) {
+      session.tick(TICK_MS);
+      for (const bubble of session.drainSpeech()) heard.push(bubble.text);
+    }
+    return heard;
+  }
+
+  it("has a brain that holds together", () => {
+    const cat = authored.find((def) => def.id === "cat")!;
+    expect(resolveBrain(cat)?.initial).toBe("idle");
+  });
+
+  it("meows when called, and comes over", () => {
+    const session = yard(4);
+    session.hear("alice", "psps");
+
+    expect(saidDuring(session, BRAIN_TICK_MS * 2)).toEqual(["meow"]);
+    advance(session, BRAIN_TICK_MS * 6);
+    expect(catAt(session).x).toBeGreaterThan(0);
+  });
+
+  it("ignores somebody calling from outside its five cells", () => {
+    const session = yard(7);
+    session.hear("alice", "psps");
+
+    expect(saidDuring(session, BRAIN_TICK_MS * 4)).toEqual([]);
+  });
+
+  /** Its own wandering, which the call has to be able to interrupt. */
+  it("takes itself for a walk while nobody is talking to it", () => {
+    const session = yard(9);
+    const before = `${catAt(session).x},${catAt(session).y}`;
+
+    advance(session, 6000);
+
+    expect(`${catAt(session).x},${catAt(session).y}`).not.toBe(before);
   });
 });

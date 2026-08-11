@@ -64,13 +64,15 @@ describe("renaming a state", () => {
 });
 
 describe("offering selectors", () => {
-  it("is the live query alone when nothing is bound", () => {
+  it("is the live queries alone when nothing is bound", () => {
     const brain: BrainDef = {
       initial: "idle",
       states: { idle: { do: [] } },
       transitions: [],
     };
-    expect(selectorOptions(brain)).toEqual(["nearest_player"]);
+    // Both are answerable without anything having been bound: one asks the
+    // board who is nearest, the other asks the transition who just spoke.
+    expect(selectorOptions(brain)).toEqual(["nearest_player", "speaker"]);
   });
 
   it("adds a slot for each thing a transition binds, as $name", () => {
@@ -86,6 +88,10 @@ describe("offering selectors", () => {
         },
       ],
     };
-    expect(selectorOptions(brain)).toEqual(["nearest_player", "$spooked"]);
+    expect(selectorOptions(brain)).toEqual([
+      "nearest_player",
+      "speaker",
+      "$spooked",
+    ]);
   });
 });
