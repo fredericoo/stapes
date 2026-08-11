@@ -102,6 +102,7 @@ function connected(): { socket: FakeSocket; session: RemoteSession } {
     selfId: SELF,
     map: flatMap(),
     actorIds: [SELF],
+    playerCount: 1,
     minutesOfDay: SERVER_MINUTES,
   });
   return { socket, session };
@@ -230,6 +231,7 @@ function connectedAloft(): { socket: FakeSocket; session: RemoteSession } {
     selfId: SELF,
     map: aloftMap(),
     actorIds: [SELF],
+    playerCount: 1,
     minutesOfDay: SERVER_MINUTES,
   });
   return { socket, session };
@@ -430,6 +432,7 @@ describe("RemoteSession chat", () => {
       selfId: SELF,
       map: flatMap(),
       actorIds: [SELF],
+      playerCount: 1,
       minutesOfDay: SERVER_MINUTES,
     });
 
@@ -675,4 +678,48 @@ describe("RemoteSession prediction", () => {
     expect(framesOfType(socket, "face")).toHaveLength(1);
   });
 
+});
+
+describe("RemoteSession headcount", () => {
+  const OTHER = "them";
+
+  it("takes the count from the hello", () => {
+    const { session } = connected();
+    expect(session.playerCount()).toBe(1);
+  });
+
+  it("tells a listener registered after the hello", () => {
+    const { session } = connected();
+    const seen: number[] = [];
+    session.setOnPlayers((count) => seen.push(count));
+
+    expect(seen).toEqual([1]);
+  });
+
+  it("follows arrivals and departures", () => {
+    const { socket, session } = connected();
+    const seen: number[] = [];
+    session.setOnPlayers((count) => seen.push(count));
+
+    socket.deliver(patch([], [{ kind: "joined", actorId: OTHER, playerCount: 2 }]));
+    socket.deliver(patch([], [{ kind: "left", actorId: OTHER, playerCount: 1 }]));
+
+    expect(seen).toEqual([1, 2, 1]);
+    expect(session.playerCount()).toBe(1);
+  });
+
+  /**
+   * The count travels whole rather than as a delta, so the `joined` announcing
+   * an arrival the `hello` had already counted is a no-op — the case that would
+   * have every tab open one player too many.
+   */
+  it("says nothing when a repeat lands on the same number", () => {
+    const { socket, session } = connected();
+    const seen: number[] = [];
+    session.setOnPlayers((count) => seen.push(count));
+
+    socket.deliver(patch([], [{ kind: "joined", actorId: SELF, playerCount: 1 }]));
+
+    expect(seen).toEqual([1]);
+  });
 });

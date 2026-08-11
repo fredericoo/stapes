@@ -79,8 +79,18 @@ export type MotionEvent =
       object: { x: number; y: number; z: number; stackIndex: number };
       from: { x: number; y: number; z: number };
     }
-  | { kind: "joined"; actorId: string }
-  | { kind: "left"; actorId: string };
+  /**
+   * Somebody arrived, or somebody went.
+   *
+   * Both carry the headcount that resulted rather than leaving the client to
+   * add and subtract, because a client that keeps its own tally has to start it
+   * from somewhere and the `hello` that would seed it crosses with the `joined`
+   * announcing the same arrival — so the very first thing a tab learns would be
+   * counted twice. Sent as a whole number that replaces the last one, these
+   * cannot drift.
+   */
+  | { kind: "joined"; actorId: string; playerCount: number }
+  | { kind: "left"; actorId: string; playerCount: number };
 
 export type ServerMessage =
   /** Full state, on join and after the world restarts. */
@@ -90,6 +100,14 @@ export type ServerMessage =
       /** The flat on-disk shape; the client chunkifies it. */
       map: unknown;
       actorIds: string[];
+      /**
+       * How many people are in the world, this joiner included.
+       *
+       * Not derivable from `actorIds`: creatures are actors too, and from here
+       * they are indistinguishable from players. The server counts sockets,
+       * which is the one place the two are told apart.
+       */
+      playerCount: number;
       /**
        * The world's time of day, as the server reads it right now. Clients
        * carry it forward at the shared rate rather than keeping a clock of
@@ -219,6 +237,7 @@ const serverMessageSchema = v.variant("type", [
     selfId: v.string(),
     map: v.unknown(),
     actorIds: v.array(v.string()),
+    playerCount: v.number(),
     minutesOfDay: v.number(),
   }),
   v.object({
@@ -252,8 +271,16 @@ const serverMessageSchema = v.variant("type", [
           object: objectRefSchema,
           from: coordSchema,
         }),
-        v.object({ kind: v.literal("joined"), actorId: v.string() }),
-        v.object({ kind: v.literal("left"), actorId: v.string() }),
+        v.object({
+          kind: v.literal("joined"),
+          actorId: v.string(),
+          playerCount: v.number(),
+        }),
+        v.object({
+          kind: v.literal("left"),
+          actorId: v.string(),
+          playerCount: v.number(),
+        }),
       ]),
     ),
   }),

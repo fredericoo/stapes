@@ -97,6 +97,10 @@ export default function OnlinePage() {
     DEFAULT_PLAY_MINUTES,
   );
   const [stats, setStats] = useState<FrameStats | null>(null);
+  // Null while there is no connection to have heard it from, which is not the
+  // same as an empty world — an unknown headcount reads as a dash rather than
+  // claiming nobody is here.
+  const [players, setPlayers] = useState<number | null>(null);
   const [lightingEnabled, setLightingEnabled] = useState(true);
   const [looking, setLooking] = useState(false);
   // Same reason as the lighting ref below: a reconnect builds a fresh renderer,
@@ -152,6 +156,10 @@ export default function OnlinePage() {
       const remote = new RemoteSession(socket, tiles);
       session = remote;
       sessionRef.current = remote;
+      // Before the socket has said anything, so the count in the first `hello`
+      // is not missed — it lands well ahead of the renderer this page otherwise
+      // waits for.
+      remote.setOnPlayers(setPlayers);
 
       // The renderer only starts once there is a world: it centres on the
       // viewer's own actor, and before `hello` there is nobody to centre on.
@@ -184,6 +192,7 @@ export default function OnlinePage() {
         teardownRenderer();
         setStatus("reconnecting");
         setStats(null);
+        setPlayers(null);
         const delay = Math.min(
           RECONNECT_MAX_MS,
           RECONNECT_BASE_MS * 2 ** attempt,
@@ -204,6 +213,7 @@ export default function OnlinePage() {
       teardownRenderer();
       socket?.close();
       setStats(null);
+      setPlayers(null);
     };
   }, [tiles, tilesets, socketPath]);
 
@@ -211,6 +221,17 @@ export default function OnlinePage() {
     <AppShell
       trailing={
         <>
+          <div
+            className="flex items-center gap-2"
+            // Announced, unlike the clock beside it: the headcount changes only
+            // when somebody actually arrives or leaves, which is worth hearing.
+            role="status"
+          >
+            <span className="text-xs uppercase text-paper/70">Players</span>
+            <span className="border-2 border-paper/40 px-1.5 py-0.5 text-xs tabular-nums text-paper">
+              {players ?? "—"}
+            </span>
+          </div>
           <FrameStatsReadout stats={stats} />
           <span
             className="border-2 border-paper/40 px-1.5 py-0.5 text-xs uppercase text-paper"

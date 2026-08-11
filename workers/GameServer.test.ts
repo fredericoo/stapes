@@ -191,6 +191,52 @@ describe("joining and leaving", () => {
     expect(playerOwners(hello.map as FlatMapFile)).toEqual(["alice"]);
   });
 
+  /**
+   * The headcount the bar shows. Counted from sockets rather than from
+   * `actorIds`, because creatures are actors too and a world with a deer in it
+   * would otherwise report a player who is not there.
+   */
+  it("tells every joiner how many people are here", async () => {
+    const alice = await connect("alice");
+    expect(alice.hello.playerCount).toBe(1);
+
+    const bob = await connect("bob");
+    expect(bob.hello.playerCount).toBe(2);
+  });
+
+  it("tells the room when somebody arrives", async () => {
+    const alice = await connect("alice");
+    const arrival = nextMessage(alice.ws);
+    await connect("bob");
+
+    // Alice's own arrival may still be sitting in the same patch — she joined an
+    // idle world, so the tick that flushes her `joined` starts with bob's.
+    expect(await arrival).toMatchObject({
+      events: expect.arrayContaining([
+        { kind: "joined", actorId: "bob", playerCount: 2 },
+      ]),
+    });
+  });
+
+  /**
+   * A closing socket is still listed by `getWebSockets`, so a naive count would
+   * have the leaver counting themselves on the way out and the bar would sit one
+   * high until the next person arrived.
+   */
+  it("tells the room when somebody goes, without counting them", async () => {
+    const alice = await connect("alice");
+    const bob = await connect("bob");
+    // The `joined` that bob's arrival broadcast, out of the way.
+    await nextMessage(alice.ws);
+
+    const departure = nextMessage(alice.ws);
+    bob.ws.close();
+
+    expect(await departure).toMatchObject({
+      events: [{ kind: "left", actorId: "bob", playerCount: 1 }],
+    });
+  });
+
   it("removes an actor's tile when their socket closes", async () => {
     const alice = await connect("alice");
     await connect("bob");

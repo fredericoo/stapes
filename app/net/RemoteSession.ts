@@ -148,6 +148,9 @@ export class RemoteSession implements PlaySession {
   private hovered: ObjectRef | null = null;
   private ready = false;
   private onReady: (() => void) | null = null;
+  /** How many people the server last said were here. */
+  private players = 0;
+  private onPlayers: ((count: number) => void) | null = null;
 
   constructor(
     private readonly socket: WebSocket,
@@ -165,6 +168,30 @@ export class RemoteSession implements PlaySession {
 
   isReady(): boolean {
     return this.ready;
+  }
+
+  /**
+   * Watch the headcount.
+   *
+   * Pushed rather than polled because it changes on somebody else's timetable
+   * and can sit unchanged for hours; asking every frame would be a render of
+   * the same number sixty times a second. Fires on registration too, for a
+   * listener that arrives after the `hello` it would have learnt from.
+   */
+  setOnPlayers(cb: ((count: number) => void) | null) {
+    this.onPlayers = cb;
+    if (this.ready) cb?.(this.players);
+  }
+
+  playerCount(): number {
+    return this.players;
+  }
+
+  /** Take a headcount from the wire, telling anyone watching if it moved. */
+  private setPlayers(count: number) {
+    if (count === this.players) return;
+    this.players = count;
+    this.onPlayers?.(count);
   }
 
   /**
@@ -202,6 +229,7 @@ export class RemoteSession implements PlaySession {
       // exists, which would leave them hanging over whatever is there now.
       this.chats = [];
       for (const id of message.actorIds) this.motions.set(id, emptyMotion());
+      this.setPlayers(message.playerCount);
       this.ready = true;
       this.onReady?.();
       return;
@@ -266,10 +294,12 @@ export class RemoteSession implements PlaySession {
   private applyEvent(event: MotionEvent) {
     if (event.kind === "joined") {
       this.motions.set(event.actorId, emptyMotion());
+      this.setPlayers(event.playerCount);
       return;
     }
     if (event.kind === "left") {
       this.motions.delete(event.actorId);
+      this.setPlayers(event.playerCount);
       return;
     }
 

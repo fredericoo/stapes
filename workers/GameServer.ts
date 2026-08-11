@@ -388,7 +388,11 @@ export class GameServer extends DurableObject<Env> {
     // remembered position is for somebody whose body is gone — they left, or
     // their connection died while this object was evicted and they were reaped.
     session.spawn(actorId, await this.lastPositionOf(actorId));
-    this.events.push({ kind: "joined", actorId });
+    this.events.push({
+      kind: "joined",
+      actorId,
+      playerCount: this.playerCount(),
+    });
 
     this.sendHello(server, actorId);
     // A join moves the board, so it has to be broadcast even if nobody is
@@ -398,6 +402,29 @@ export class GameServer extends DurableObject<Env> {
     return new Response(null, { status: 101, webSocket: client });
   }
 
+  /**
+   * How many people are in the world.
+   *
+   * Distinct actor ids rather than sockets: identity is a cookie, so two tabs
+   * are one person with one body on the board, and counting connections would
+   * put them on the bar twice. Counted from the sockets rather than from the
+   * session, because the session's actors include the creatures living on the
+   * map and nothing there tells a deer from a player.
+   *
+   * @param excluding the socket on its way out. A closing connection is still
+   *   listed here, and the person it carried has already gone — though their id
+   *   stays counted if they still have another tab open.
+   */
+  private playerCount(excluding?: WebSocket): number {
+    const ids = new Set<string>();
+    for (const ws of this.ctx.getWebSockets()) {
+      if (ws === excluding) continue;
+      const attachment = ws.deserializeAttachment() as Attachment | null;
+      if (attachment) ids.add(attachment.actorId);
+    }
+    return ids.size;
+  }
+
   private sendHello(ws: WebSocket, actorId: string) {
     const session = this.session!;
     const message: ServerMessage = {
@@ -405,6 +432,7 @@ export class GameServer extends DurableObject<Env> {
       selfId: actorId,
       map: flattenMap(session.getMap()),
       actorIds: session.actorIds(),
+      playerCount: this.playerCount(),
       // Read here rather than tracked: time of day is a function of the
       // server's clock, so it costs nothing to keep and cannot fall behind
       // while the object is hibernating.
@@ -693,7 +721,11 @@ export class GameServer extends DurableObject<Env> {
     this.sentMotion.delete(attachment.actorId);
     this.queuedSteps.delete(attachment.actorId);
     this.lastSaidAt.delete(attachment.actorId);
-    this.events.push({ kind: "left", actorId: attachment.actorId });
+    this.events.push({
+      kind: "left",
+      actorId: attachment.actorId,
+      playerCount: this.playerCount(ws),
+    });
     // Their tile just left the board, so the removal has to reach everyone else.
     this.wake();
   }
