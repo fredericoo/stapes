@@ -65,9 +65,10 @@ describe("label placement", () => {
 
 describe("display names", () => {
   const uuid = "3f9ac1d2-55b7-4a0e-9c31-8a2b6f0e1d44";
+  const twoCapitalisedWords = /^[A-Z][a-z]+ [A-Z][a-z]+$/;
 
-  it("shortens a uuid to something that fits the view", () => {
-    expect(displayNameFor(uuid)).toBe("3F9AC1");
+  it("names an actor after a colour and an animal", () => {
+    expect(displayNameFor(uuid)).toMatch(twoCapitalisedWords);
   });
 
   it("gives the same actor the same name every time", () => {
@@ -80,10 +81,48 @@ describe("display names", () => {
     );
   });
 
-  /** Short or punctuation-only ids still have to draw something. */
-  it("always produces a fixed-width printable handle", () => {
+  /**
+   * The reason the id is hashed rather than handed to the generator's own
+   * `seed`, which sums char codes: uuids differing only in the order of their
+   * digits are exactly what a cookie mints, and summing gives every one of them
+   * the same name.
+   */
+  it("tells apart two ids made of the same characters", () => {
+    expect(displayNameFor("3f9ac1d2-55b7-4a0e-9c31-8a2b6f0e1d44")).not.toBe(
+      displayNameFor("2d1ca9f3-55b7-4a0e-9c31-8a2b6f0e1d44"),
+    );
+  });
+
+  /**
+   * A name is drawn from a fixed pair of word lists, so the odd ids have
+   * nothing to fall back to and nothing to fail at — but the arithmetic that
+   * indexes those lists can still walk off the end of one.
+   */
+  it("names an actor whatever its id looks like", () => {
     for (const id of ["", "-", "ab", "----------", "z"]) {
-      expect(displayNameFor(id)).toMatch(/^[A-Z0-9]{6}$/);
+      expect(displayNameFor(id)).toMatch(twoCapitalisedWords);
     }
+  });
+
+  /**
+   * Both halves have to keep moving. Everything above would still pass if one
+   * of the two words were drawn from a handful of entries — the names would be
+   * distinct and it would be the *other* word doing all the work — so this
+   * counts what a hundred ids actually get.
+   *
+   * The thresholds are well under what a uniform draw gives (≈45 of 52 colours,
+   * ≈87 of 355 animals, both by the birthday effect rather than by any flaw), so
+   * they fail on a stuck word list rather than on an unlucky run.
+   */
+  it("draws on the breadth of both word lists", () => {
+    const names = Array.from({ length: 100 }, (_, i) =>
+      displayNameFor(`actor-${i}`),
+    );
+
+    const colours = new Set(names.map((name) => name.split(" ")[0]));
+    const beasts = new Set(names.map((name) => name.split(" ")[1]));
+    expect(new Set(names).size).toBe(100);
+    expect(colours.size).toBeGreaterThan(30);
+    expect(beasts.size).toBeGreaterThan(70);
   });
 });
