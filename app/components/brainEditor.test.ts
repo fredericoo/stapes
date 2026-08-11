@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { BrainDef } from "../lib/brain";
-import { moved, renamedState, selectorOptions } from "./BrainEditor";
+import { arrayMove, renamedState, selectorOptions } from "./BrainEditor";
 
 /**
  * The editor's pure moves, tested where the correctness actually lives: order is
@@ -9,14 +9,15 @@ import { moved, renamedState, selectorOptions } from "./BrainEditor";
  */
 
 describe("reordering", () => {
-  it("swaps a neighbour and leaves the rest", () => {
-    expect(moved(["a", "b", "c"], 1, -1)).toEqual(["b", "a", "c"]);
-    expect(moved(["a", "b", "c"], 1, 1)).toEqual(["a", "c", "b"]);
+  it("pulls an item out and drops it back in at the target", () => {
+    // Drag the head to the tail, and a middle item up to the front.
+    expect(arrayMove(["a", "b", "c"], 0, 2)).toEqual(["b", "c", "a"]);
+    expect(arrayMove(["a", "b", "c"], 1, 0)).toEqual(["b", "a", "c"]);
   });
 
-  it("is a no-op past either edge", () => {
-    expect(moved(["a", "b"], 0, -1)).toEqual(["a", "b"]);
-    expect(moved(["a", "b"], 1, 1)).toEqual(["a", "b"]);
+  it("is a no-op in place or out of bounds", () => {
+    expect(arrayMove(["a", "b"], 1, 1)).toEqual(["a", "b"]);
+    expect(arrayMove(["a", "b"], 0, 5)).toEqual(["a", "b"]);
   });
 });
 

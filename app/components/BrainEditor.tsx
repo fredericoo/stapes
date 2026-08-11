@@ -19,6 +19,8 @@ import {
   LIVE_SELECTOR,
   type ParamSpec,
 } from "../lib/brainCatalog";
+import { DragDropProvider } from "@dnd-kit/react";
+import { isSortable, useSortable } from "@dnd-kit/react/sortable";
 import { Button, Input, Segmented, Select, Switch } from "../ui";
 
 /**
@@ -28,9 +30,10 @@ import { Button, Input, Segmented, Select, Switch } from "../ui";
  * being authored is already a table: an ordered transition list where position
  * is priority, and a set of states each holding an ordered `do` list where
  * position is priority again. A node canvas would draw those orderings badly, so
- * the one thing this UI works to make loud is order: the number on a transition,
- * the up/down that moves it, the fact that the first match and the first
- * non-failing action are what run.
+ * the one thing this UI works to make loud is order: the number on a row, the
+ * handle that drags it, the fact that the first match and the first non-failing
+ * action are what run. Reorder is drag-and-drop, the same @dnd-kit sortable the
+ * tile-stack list uses, so the two ordered things in the editor behave alike.
  *
  * Every picker is fed from the registry catalog, so the editor cannot name a
  * condition, action or effect the runtime does not implement — a whole class of
@@ -58,13 +61,43 @@ export function selectorOptions(brain: BrainDef): string[] {
   return [LIVE_SELECTOR, ...slots];
 }
 
-/** Move item `i` by `delta`, or return the list unchanged at an edge. */
-export function moved<T>(list: T[], i: number, delta: number): T[] {
-  const j = i + delta;
-  if (j < 0 || j >= list.length) return list;
+/** Pull the item at `from` out and drop it back in at `to`. */
+export function arrayMove<T>(list: T[], from: number, to: number): T[] {
+  if (
+    from === to ||
+    from < 0 ||
+    to < 0 ||
+    from >= list.length ||
+    to >= list.length
+  ) {
+    return list;
+  }
   const next = [...list];
-  [next[i], next[j]] = [next[j]!, next[i]!];
+  const [item] = next.splice(from, 1);
+  next.splice(to, 0, item!);
   return next;
+}
+
+/**
+ * The reorder half of a sortable list: read a settled drag and move the item.
+ *
+ * The same shape the tile-stack list uses — a cancelled or in-place drag is a
+ * no-op, and only a real move rewrites the array, which for these lists *is* the
+ * semantics being edited.
+ */
+function onSortEnd<T>(
+  event: Parameters<
+    NonNullable<React.ComponentProps<typeof DragDropProvider>["onDragEnd"]>
+  >[0],
+  list: T[],
+  apply: (next: T[]) => void,
+) {
+  if (event.canceled) return;
+  const { source } = event.operation;
+  if (!isSortable(source)) return;
+  const { initialIndex, index } = source;
+  if (initialIndex === index) return;
+  apply(arrayMove(list, initialIndex, index));
 }
 
 /** Rebuild the states record with `oldName` re-keyed to `newName`, order kept. */
@@ -344,53 +377,62 @@ function VerbList<T extends BrainActionDef | BrainEffectDef>({
           Add
         </Button>
       </div>
-      {items.map((item, i) => (
-        <VerbRow
-          key={i}
-          index={i}
-          count={items.length}
-          value={item}
-          names={names}
-          registry={registry}
-          discriminant={discriminant}
-          selectors={selectors}
-          onChange={(next) => set(i, next)}
-          onMove={(delta) => onChange(moved(items, i, delta))}
-          onRemove={() => onChange(items.filter((_, j) => j !== i))}
-        />
-      ))}
+      <DragDropProvider onDragEnd={(event) => onSortEnd(event, items, onChange)}>
+        <div className="flex flex-col gap-1">
+          {items.map((item, i) => (
+            <VerbRow
+              key={i}
+              id={String(i)}
+              index={i}
+              value={item}
+              names={names}
+              registry={registry}
+              discriminant={discriminant}
+              selectors={selectors}
+              onChange={(next) => set(i, next)}
+              onRemove={() => onChange(items.filter((_, j) => j !== i))}
+            />
+          ))}
+        </div>
+      </DragDropProvider>
     </div>
   );
 }
 
 function VerbRow<T extends BrainActionDef | BrainEffectDef>({
+  id,
   index,
-  count,
   value,
   names,
   registry,
   discriminant,
   selectors,
   onChange,
-  onMove,
   onRemove,
 }: {
+  id: string;
   index: number;
-  count: number;
   value: T;
   names: string[];
   registry: Record<string, { label: string; hint: string; params: ParamSpec[]; make: () => T }>;
   discriminant: "action" | "effect";
   selectors: string[];
   onChange: (next: T) => void;
-  onMove: (delta: number) => void;
   onRemove: () => void;
 }) {
+  const { ref, handleRef, isDragging } = useSortable({ id, index });
   const current = (value as Record<string, string>)[discriminant]!;
   const spec = registry[current]!;
 
   return (
-    <div className="flex flex-wrap items-center gap-2 bg-panel p-1.5">
+    <div
+      ref={ref}
+      className={[
+        "flex flex-wrap items-center gap-2 bg-panel p-1.5",
+        isDragging ? "opacity-60" : "",
+      ].join(" ")}
+    >
+      <DragHandle handleRef={handleRef} label={`Drag to reorder line ${index + 1}`} />
       <span className="w-5 text-center font-mono text-[11px] text-muted">
         {index + 1}
       </span>
@@ -406,7 +448,6 @@ function VerbRow<T extends BrainActionDef | BrainEffectDef>({
         selectors={selectors}
         onChange={(next) => onChange(next as T)}
       />
-      <MoveButtons index={index} count={count} onMove={onMove} />
       <Button size="sm" variant="danger" onClick={onRemove} aria-label="Remove">
         ✕
       </Button>
@@ -444,42 +485,44 @@ function TransitionsTable({
           Add transition
         </Button>
       </div>
-      {items.map((t, i) => (
-        <TransitionRow
-          key={i}
-          index={i}
-          count={items.length}
-          transition={t}
-          stateNames={stateNames}
-          selectors={selectors}
-          onChange={(next) => set(i, next)}
-          onMove={(delta) => onChange(moved(items, i, delta))}
-          onRemove={() => onChange(items.filter((_, j) => j !== i))}
-        />
-      ))}
+      <DragDropProvider onDragEnd={(event) => onSortEnd(event, items, onChange)}>
+        <div className="flex flex-col gap-1">
+          {items.map((t, i) => (
+            <TransitionRow
+              key={i}
+              id={String(i)}
+              index={i}
+              transition={t}
+              stateNames={stateNames}
+              selectors={selectors}
+              onChange={(next) => set(i, next)}
+              onRemove={() => onChange(items.filter((_, j) => j !== i))}
+            />
+          ))}
+        </div>
+      </DragDropProvider>
     </div>
   );
 }
 
 function TransitionRow({
+  id,
   index,
-  count,
   transition,
   stateNames,
   selectors,
   onChange,
-  onMove,
   onRemove,
 }: {
+  id: string;
   index: number;
-  count: number;
   transition: BrainTransitionDef;
   stateNames: string[];
   selectors: string[];
   onChange: (next: BrainTransitionDef) => void;
-  onMove: (delta: number) => void;
   onRemove: () => void;
 }) {
+  const { ref, handleRef, isDragging } = useSortable({ id, index });
   const cond = transition.if;
   const spec = CONDITIONS[cond.cond];
   const fromOptions = [ANY_STATE, ...stateNames].map((n) => ({ value: n, label: n }));
@@ -488,7 +531,17 @@ function TransitionRow({
   const setCond = (next: BrainConditionDef) => onChange({ ...transition, if: next });
 
   return (
-    <div className="flex flex-wrap items-center gap-2 bg-panel p-1.5">
+    <div
+      ref={ref}
+      className={[
+        "flex flex-wrap items-center gap-2 bg-panel p-1.5",
+        isDragging ? "opacity-60" : "",
+      ].join(" ")}
+    >
+      <DragHandle
+        handleRef={handleRef}
+        label={`Drag to reorder transition ${index + 1}`}
+      />
       <span className="w-5 text-center font-mono text-[11px] text-muted">
         {index + 1}
       </span>
@@ -521,7 +574,6 @@ function TransitionRow({
         className="min-w-[6rem]"
         placeholder="…"
       />
-      <MoveButtons index={index} count={count} onMove={onMove} />
       <Button size="sm" variant="danger" onClick={onRemove} aria-label="Remove transition">
         ✕
       </Button>
@@ -676,37 +728,26 @@ function ParamField({
   );
 }
 
-function MoveButtons({
-  index,
-  count,
-  onMove,
+/**
+ * The grip that drags a row. A dedicated handle rather than the whole row, so a
+ * click on a dropdown or a number field stays a click — the same choice the
+ * tile-stack list makes.
+ */
+function DragHandle({
+  handleRef,
+  label,
 }: {
-  index: number;
-  count: number;
-  onMove: (delta: number) => void;
+  handleRef: ReturnType<typeof useSortable>["handleRef"];
+  label: string;
 }) {
   return (
-    <div className="flex items-center">
-      <Button
-        size="sm"
-        variant="secondary"
-        className="px-1"
-        disabled={index === 0}
-        onClick={() => onMove(-1)}
-        aria-label="Move up"
-      >
-        ▲
-      </Button>
-      <Button
-        size="sm"
-        variant="secondary"
-        className="px-1"
-        disabled={index === count - 1}
-        onClick={() => onMove(1)}
-        aria-label="Move down"
-      >
-        ▼
-      </Button>
-    </div>
+    <button
+      type="button"
+      ref={handleRef}
+      aria-label={label}
+      className="cursor-grab px-1 text-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:cursor-grabbing"
+    >
+      <span aria-hidden="true">⋮⋮</span>
+    </button>
   );
 }

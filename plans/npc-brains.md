@@ -508,12 +508,12 @@ Decided while building:
   the editor until it is added here too — a missing option rather than a broken
   save. The one duplication accepted is default values, which live both here and
   in the schema and change together.
-- **Reorder is up/down buttons, not drag.** The design sketch said "drag-reorder",
-  but the acceptance criterion is "reorderable", and buttons meet it without a new
-  DnD dependency — which the same design section elsewhere prizes ("no new graph
-  dependency"). Each row shows its 1-based priority number beside the control, so
-  order is legible as well as changeable. Flagged as a deviation from the sketch's
-  wording; swap in drag later if it matters.
+- **Reorder is drag-and-drop**, the `@dnd-kit` sortable the tile-stack list
+  already uses — no new dependency, and the two ordered things in the editor
+  behave alike. (Shipped first as up/down buttons, then swapped to drag to match
+  the sketch once it was clear the DnD kit was already in the tree.) Each row
+  keeps its 1-based priority number beside the grip, so order stays legible as
+  well as draggable.
 - **Validation is a list, `isCoherent` its summary.** `validateBrain` returns each
   fault in words with a severity; the loader's `isCoherent` is now "no errors" over
   that list. An `error` (missing initial, unknown target, a state named `any`)
