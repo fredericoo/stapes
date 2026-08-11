@@ -88,15 +88,19 @@ export type TileDef = {
   walkable?: boolean;
   /**
    * When true, a placement of this tile is a *body* — something driven, rather
-   * than scenery. Bodies walk, fall and press plates through the same paths the
-   * player does; what drives them is a separate question, and one this flag
-   * deliberately does not answer. A player's body is driven by a socket, an
-   * NPC's by an authored brain, and both are actors.
+   * than scenery — even with no brain to say so. Authoring a brain already
+   * implies this (see {@link resolveActor}), so the flag is only needed for the
+   * mindless body: a prop that gravity moves, a thing with no behaviour of its
+   * own. Set it and leave the brain empty for that; author a brain and this
+   * follows.
    *
-   * Placements of a body tile are adopted as actors when the world loads, which
-   * is why placing one is the whole of putting an NPC in the map: there is no
-   * spawner. The authored `player` tile is the exception — it is a spawn marker
-   * consumed at load rather than a resident. Default / absent → scenery.
+   * Bodies walk, fall and press plates through the same paths the player does;
+   * what drives them is a separate question. Placements of a body tile are
+   * adopted as actors when the world loads, which is why placing one is the
+   * whole of putting an NPC in the map: there is no spawner. The authored
+   * `player` tile is the exception — a spawn marker driven by a socket, adopted
+   * by tile id and never routed through {@link resolveActor}, so it carries
+   * neither this flag nor a brain. Default / absent → scenery.
    */
   actor?: boolean;
   /**
@@ -141,9 +145,21 @@ export function resolveIntangible(def: TileDef): boolean {
   return def.intangible === true;
 }
 
-/** Whether a placement of this tile is a body something drives. Default: false. */
+/**
+ * Whether a placement of this tile is a body something drives.
+ *
+ * A brain is the usual way to say yes: authoring what drives a body is authoring
+ * that it *is* one, so a tile with a brain is an actor without also ticking a
+ * box. The explicit {@link TileDef.actor} flag stays for the rarer body that is
+ * driven but mindless — a prop gravity moves, a thing with no behaviour of its
+ * own — which has no brain to imply it.
+ *
+ * The player is neither: it is driven by a connection, adopted by tile id, and
+ * never routed through here. That is the one hardcoded exception, and it needs
+ * no flag — which is why the authored `player` tile carries none.
+ */
 export function resolveActor(def: TileDef): boolean {
-  return def.actor === true;
+  return def.actor === true || def.interactions?.brain != null;
 }
 
 /**

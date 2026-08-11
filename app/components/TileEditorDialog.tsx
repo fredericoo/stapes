@@ -281,6 +281,11 @@ export function TileEditorDialog({
     setFrameIndex(0);
   };
 
+  // A brain implies actorhood, so the Tile tab reflects that rather than letting
+  // the checkbox and the Interactive tab disagree — see `resolveActor`.
+  const impliedByBrain = draft.interactions?.brain != null;
+  const isActor = draft.actor === true || impliedByBrain;
+
   const climbVariant: VariantKey = isDirectional(draft) ? dir : "default";
   const climbFlags = resolveClimbFrom(draft, climbVariant);
 
@@ -376,8 +381,10 @@ export function TileEditorDialog({
       intangible: draft.intangible ? true : undefined,
       affectedByGravity: draft.affectedByGravity ? true : undefined,
       walkable: draft.walkable === false ? false : undefined,
+      // Only the explicit flag is persisted: a tile whose brain implies
+      // actorhood needs no redundant `actor: true` alongside it.
       actor: draft.actor ? true : undefined,
-      walkDurationMs: draft.actor ? draft.walkDurationMs : undefined,
+      walkDurationMs: isActor ? draft.walkDurationMs : undefined,
       climbFrom: climbFromForSave(draft, climbByVariant),
       interactions: interactionsForSave(draft.interactions),
     };
@@ -758,19 +765,26 @@ export function TileEditorDialog({
           </label>
           <label
             className="flex items-center gap-2 text-sm"
-            title="Every placement of this tile comes alive as its own actor when the world loads."
+            title={
+              impliedByBrain
+                ? "A brain makes this an actor — set on the Interactive tab."
+                : "Every placement of this tile comes alive as its own actor when the world loads."
+            }
           >
             <input
               type="checkbox"
-              checked={draft.actor ?? false}
+              // A brain already makes it an actor, so the box reads on and locks
+              // rather than pretending the flag is what decides.
+              checked={isActor}
+              disabled={impliedByBrain}
               onChange={(e) => setDraft({ ...draft, actor: e.target.checked })}
               className="hard-checkbox"
             />
-            Actor
+            Actor{impliedByBrain ? " — from brain" : ""}
           </label>
         </div>
 
-        {draft.actor ? (
+        {isActor ? (
           <label className="flex items-center gap-2 text-sm">
             Step duration
             <input

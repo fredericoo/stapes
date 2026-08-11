@@ -34,7 +34,19 @@ Durable across every phase.
   was authored in (`npc:12,3,0`), which reads better in a log than a counter and
   is stable across reloads.
 - **No spawner concept.** Any placement whose tile def has a brain becomes an
-  actor at load. Authoring a deer is placing a deer.
+  actor at load. Authoring a deer is placing a deer. (This was the plan from the
+  start, but the code first shipped an explicit `actor: true` flag as the gate;
+  `resolveActor` now honours it *or* the presence of a brain, so a brain implies
+  an actor as written here. The flag stays only for the mindless body — a prop
+  gravity moves — which has no brain to imply it. The player is neither: driven
+  by a socket, adopted by tile id, never routed through `resolveActor`, and so
+  it carries neither.)
+- **Physics is not gated on being an actor.** Pressing a plate is weight, and the
+  board settle already runs on any map change, so anything of any kind that moves
+  onto a plate presses it. Falling was the one exception — animated on an actor's
+  runtime — so a `settleGravity` pass drops unsupported gravity bodies that have
+  no runtime, snapping rather than animating. A crate whose floor is pulled lands
+  and presses its plate on the same frame; an actor still animates its own fall.
 
 ### Where a brain lives
 

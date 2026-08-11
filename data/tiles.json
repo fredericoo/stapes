@@ -1706,7 +1706,6 @@
     "type": "simple",
     "attributes": {},
     "affectedByGravity": true,
-    "actor": true,
     "interactions": {
       "brain": {
         "initial": "idle",
@@ -3477,7 +3476,6 @@
     "attributes": {},
     "affectedByGravity": true,
     "walkable": false,
-    "actor": true,
     "walkDurationMs": 170,
     "interactions": {
       "brain": {

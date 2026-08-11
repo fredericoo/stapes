@@ -43,9 +43,12 @@ import {
 } from "./constants";
 import {
   cellForFeetAbs,
+  cellHasLooseGravity,
   findLandingAbs,
+  findLooseGravityCells,
   findWalkableLandingAbs,
   isSupported,
+  settleGravity,
 } from "./gravity";
 import {
   moveEntity,
@@ -293,6 +296,12 @@ export class GameSession implements PlaySession {
    * discipline as {@link plateCells}.
    */
   private readonly wiredCells = new Map<string, Coord>();
+  /**
+   * Cells holding a gravity body no runtime drives — a crate, a barrel. The
+   * settle pass drops these; an actor animates its own fall and is excluded by
+   * its owner. Same index discipline as {@link plateCells}.
+   */
+  private readonly looseGravityCells = new Map<string, Coord>();
   /** Map identity the last settle pass read. See {@link settleBoardNow}. */
   private settledMap: MapFile | null = null;
   private accumulatorMs = 0;
@@ -383,6 +392,9 @@ export class GameSession implements PlaySession {
     }
     for (const cell of findWiredCells(this.map)) {
       this.wiredCells.set(cellKey(cell), cell);
+    }
+    for (const cell of findLooseGravityCells(this.map, this.tilesById)) {
+      this.looseGravityCells.set(cellKey(cell), cell);
     }
     // An authored map opens in the state its load implies — a boulder already
     // sitting on a plate means that plate starts pressed, not pressed one tick
@@ -561,16 +573,23 @@ export class GameSession implements PlaySession {
       } else {
         this.wiredCells.delete(key);
       }
+      if (cellHasLooseGravity(this.map, cell, this.tilesById)) {
+        this.looseGravityCells.set(key, cell);
+      } else {
+        this.looseGravityCells.delete(key);
+      }
     }
   }
 
   /**
-   * Bring the board in line with itself: plates follow what rests on them,
-   * then receivers follow the channels those plates now drive.
+   * Bring the board in line with itself: unsupported bodies drop, then plates
+   * follow what now rests on them, then receivers follow the channels those
+   * plates drive.
    *
-   * Plates first, and in the same tick, so a plate pressed by this tick's step
-   * opens its door on the frame the player sees the step land rather than the
-   * one after.
+   * Gravity first, and all in the same tick, so a crate whose floor was pulled
+   * lands and presses its plate — and opens the door that plate drives — on the
+   * frame the floor goes rather than a tick later, one settle bleeding into the
+   * next.
    *
    * The skip is on map identity, not a dirty flag: the map is copy-on-write, so
    * an unchanged map cannot have changed a plate's load or a channel's value.
@@ -587,6 +606,16 @@ export class GameSession implements PlaySession {
     if (before === this.settledMap && emitterSig === this.settledEmitters) return;
     this.settledMap = before;
     this.settledEmitters = emitterSig;
+
+    if (this.looseGravityCells.size > 0) {
+      const { map, changed } = settleGravity(
+        this.map,
+        this.looseGravityCells.values(),
+        this.tilesById,
+      );
+      this.map = map;
+      this.reindexCells(changed);
+    }
 
     if (this.plateCells.size > 0) {
       const { map, changed } = settlePlates(

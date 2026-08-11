@@ -1,13 +1,16 @@
 import {
   absoluteStandingElevation,
   absoluteWalkableElevation,
+  appendTile,
   getStack,
+  listCoords,
   stackHeight,
   walkableFloorAbove,
 } from "../lib/mapData";
-import type { MapFile, TileDef } from "../lib/types";
+import type { Coord, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL, MAX_LEVEL, MIN_LEVEL } from "../lib/types";
-import { sceneryStack } from "./movement";
+import { placeEntityOnSurface, removeEntity } from "./mapMutations";
+import { sceneryStack, standingAbs } from "./movement";
 
 /**
  * True when the entity has solid underfoot:
@@ -119,6 +122,113 @@ export function findWalkableLandingAbs(
   }
 
   return best;
+}
+
+/**
+ * A body the settle pass should drop, as opposed to one a runtime is driving.
+ *
+ * The only thing that keeps an unsupported gravity tile off the settle pass is
+ * something *already* animating its fall — an actor, which carries an `owner`.
+ * That is not the old actor/scenery divide by another name: a box and a deer
+ * both obey gravity, and the sole difference here is who plays the animation. A
+ * body with a runtime plays its own; everything else the board drops for it.
+ */
+function isLooseGravityBody(
+  placed: PlacedTile | undefined,
+  tilesById: Record<string, TileDef>,
+): boolean {
+  if (!placed || placed.owner) return false;
+  return tilesById[placed.tileId]?.affectedByGravity === true;
+}
+
+/** Does any placement in this cell fall under the board's own gravity? */
+export function cellHasLooseGravity(
+  map: MapFile,
+  cell: Coord,
+  tilesById: Record<string, TileDef>,
+): boolean {
+  return getStack(map, cell.x, cell.y, cell.z).some((placed) =>
+    isLooseGravityBody(placed, tilesById),
+  );
+}
+
+/**
+ * Every cell holding a gravity body no runtime drives. Whole-map scan, for
+ * building the index once at load rather than per tick.
+ */
+export function findLooseGravityCells(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+): Coord[] {
+  const out: Coord[] = [];
+  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+    for (const { x, y } of listCoords(map, z)) {
+      const cell = { x, y, z };
+      if (cellHasLooseGravity(map, cell, tilesById)) out.push(cell);
+    }
+  }
+  return out;
+}
+
+export type GravityResult = {
+  map: MapFile;
+  /** Cells whose stack changed — a body left one and joined another. */
+  changed: Coord[];
+};
+
+/**
+ * Drop every unsupported gravity body in `cells` onto whatever is beneath it.
+ *
+ * The counterpart to an actor's animated fall, for bodies with no runtime to
+ * animate one: it snaps rather than plays, so a crate whose floor is pulled
+ * lands on the frame the floor goes rather than hanging in the air like a
+ * broken switch. Run before plates settle, so a body that drops onto a plate
+ * presses it the same tick.
+ *
+ * A body only ever falls from the base of its level — anything sitting on top of
+ * something is supported by definition — so a single drop takes it straight to
+ * its landing rather than one height unit at a time. A stack of them collapses
+ * over successive settles, on the same next-tick convergence plates settle
+ * under.
+ */
+export function settleGravity(
+  map: MapFile,
+  cells: Iterable<Coord>,
+  tilesById: Record<string, TileDef>,
+): GravityResult {
+  const changed: Coord[] = [];
+  let next = map;
+
+  for (const cell of cells) {
+    const placed = getStack(next, cell.x, cell.y, cell.z)[0];
+    if (!isLooseGravityBody(placed, tilesById)) continue;
+    if (isSupported(next, cell.x, cell.y, cell.z, 0, tilesById)) continue;
+
+    const feetAbs = standingAbs(next, cell.x, cell.y, cell.z, 0, tilesById);
+    const landing = findLandingAbs(next, cell.x, cell.y, feetAbs, tilesById, {
+      z: cell.z,
+      stackIndex: 0,
+    });
+    // Nothing underneath, or nothing lower than it already stands: an object
+    // over the void has nowhere to fall, exactly as it does for an actor.
+    if (landing == null || landing >= feetAbs) continue;
+
+    const body = { ...placed! };
+    const { z: destZ } = cellForFeetAbs(landing);
+    next = removeEntity(next, cell.x, cell.y, cell.z, 0);
+
+    const destStack = getStack(next, cell.x, cell.y, destZ);
+    const destTop = absoluteStandingElevation(destZ, destStack, tilesById);
+    next =
+      destStack.length > 0 && destTop === landing
+        ? placeEntityOnSurface(next, cell.x, cell.y, destZ, body, tilesById)
+        : appendTile(next, cell.x, cell.y, destZ, body);
+
+    changed.push({ ...cell });
+    changed.push({ x: cell.x, y: cell.y, z: destZ });
+  }
+
+  return { map: next, changed };
 }
 
 /** Map cell where an entity with feet at `feetAbs` should be stored. */
