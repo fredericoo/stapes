@@ -194,6 +194,33 @@ and deliberately stay single-anchor; `snap.actors` is what gets drawn and lerped
 `GameRenderer` is typed against `PlaySession`, not `GameSession`, so a remote
 session can drive it.
 
+## The save is the repair path, so it must not need a working world
+
+`replaceWorld` is the only way to change the world, which makes it the only way
+to *fix* one. Two rules keep it able to, and a live world was lost learning
+them.
+
+**Validate before persisting.** A map with no `player` tile has no spawn point,
+so `new GameSession` throws on it. That check used to run *after* the map had
+been written and the checkpoint deleted — so one save of a map whose marker had
+been erased in the editor persisted the unstartable map and destroyed the only
+startable copy left. The session is now built first, from the incoming map, and
+storage is untouched until it exists.
+
+**Never read the world you are replacing.** `replaceWorld` used to open with
+`ensureLoaded()`. Once the stored map could not start, that threw — so the
+editor could no longer save the very fix that would have repaired it. Putting
+the marker back required a world that could not come up. Nothing in there needs
+the old session: the tiles are re-read and every actor is re-seated, so loading
+it was only ever a way for its failures to become the save's.
+
+Relatedly, `ensureLoaded` clears `loading` in a `finally`. A rejected promise
+left in place is handed to every later caller, so a world that failed to load
+once goes on failing long after the cause is fixed.
+
+The editor gives no warning before you erase the marker — it is an ordinary
+tile in the stack. The server refusing the save is the whole of the safety net.
+
 ## Map mutations must be undoable
 
 Every change to map data (`MapFile` / placed tiles) **must** go through `useEditorStore.getState().commitMap(...)` (or a store method that calls it: `eraseAt`, `stampAt`, `stampMany`, `appendArmed`, `removeFromStack`, `reorderSelectedStack`, `setStackDirection`).

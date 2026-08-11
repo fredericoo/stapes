@@ -436,10 +436,15 @@ describe("replacing the world", () => {
   it("persists the authored map and restarts everyone on it", async () => {
     const alice = await connect("alice");
 
+    // Listening before the save rather than after it. The hello goes out
+    // *during* `replaceWorld`, so a listener attached once the call resolves is
+    // racing its own delivery — it catches whatever comes next instead, which
+    // is the patch the following tick sends.
+    const fresh = nextMessage(alice.ws);
     const replacement = authoredMap();
     await stub().replaceWorld(replacement);
     // The editor's save pushes a fresh hello to everyone still connected.
-    const hello = await nextMessage(alice.ws);
+    const hello = await fresh;
 
     expect(hello.type).toBe("hello");
     expect(playerOwners(hello.map as FlatMapFile)).toEqual(["alice"]);
@@ -472,15 +477,13 @@ describe("replacing the world", () => {
     replacement.levels["0"]![`${AWAY_FROM_SPAWN},0`] = [{ tileId: "water" }];
 
     const pool = devDataPool();
-    // Two reads: the load that brings the world in, and the reload that gives
-    // the new session its tiles.
+    // One read, and it is the tiles: a save replaces the world wholesale, so it
+    // deliberately never reads the map it is replacing. No `map.json` GET is
+    // stubbed here, and that is the assertion — with net access off, reaching
+    // for one would fail the test rather than quietly pass.
     pool
       .intercept({ path: dataPath("tiles.json") })
-      .reply(200, JSON.stringify(tilesJson))
-      .times(2);
-    pool
-      .intercept({ path: dataPath("map.json") })
-      .reply(200, JSON.stringify(authoredMap()));
+      .reply(200, JSON.stringify(tilesJson));
     let written = "";
     pool
       .intercept({ path: dataPath("map.json"), method: "PUT" })
@@ -1247,5 +1250,80 @@ describe("pushing", () => {
     // events too, and that is a broken fixture rather than the bug under test.
     expect(await slides).toHaveLength(1);
     expect(await boxX()).toBe(BOX_AT + 1);
+  });
+});
+
+/**
+ * The editor's save is the only way to change the world, which makes it the
+ * only way to repair one — and it used to be the thing that broke it.
+ *
+ * A map whose `player` marker has been erased cannot start a session. That was
+ * discovered *after* the map had been written and the checkpoint deleted, so
+ * one such save persisted the unstartable map and destroyed the last startable
+ * copy of the world. Every load threw from then on; and because the save began
+ * by loading, the repair could not be saved either — putting the marker back
+ * needed a world that could not come up. A live world was lost this way, and
+ * both halves are needed to make sure another is not: validate before writing,
+ * and never read the world you are replacing.
+ */
+
+/** The strip, with nothing to say where anybody enters. */
+function markerlessMap(): FlatMapFile {
+  const levels: Record<string, Record<string, unknown[]>> = { "0": {} };
+  for (let x = 0; x < 4; x++) {
+    levels["0"]![`${x},0`] = [{ tileId: "grass" }];
+  }
+  return { version: 1, levels } as FlatMapFile;
+}
+
+/** The authored map as it currently sits in the bucket. */
+async function storedMap(): Promise<FlatMapFile> {
+  const stored = await env.DATA.get("map.json");
+  return JSON.parse(await stored!.text()) as FlatMapFile;
+}
+
+describe("saving a map that cannot start", () => {
+  it("refuses it without writing anything", async () => {
+    // A world worth losing, so "changed nothing" has something to say.
+    await stub().replaceWorld(authoredMap());
+    await putCheckpoint(checkpointWith(["ghost"]));
+    const before = await storedMap();
+
+    // Called on the instance rather than through the stub: an RPC that rejects
+    // is also reported as a remote unhandled error, which fails the run even
+    // when the rejection is the thing being asserted.
+    await runInDurableObject(stub(), async (instance: GameServer) => {
+      await expect(instance.replaceWorld(markerlessMap())).rejects.toThrow(
+        /player/,
+      );
+    });
+
+    // The map that was there is still there, marker and all.
+    expect(await storedMap()).toEqual(before);
+    // And so is the checkpoint, which is the copy that would have been lost.
+    await runInDurableObject(stub(), async (_instance, state) => {
+      expect(await state.storage.get("world")).toBeDefined();
+    });
+  });
+
+  /**
+   * The wedge itself, rebuilt from the outside: storage holding a map that
+   * cannot start, and no checkpoint to fall back on. Saving a good map has to
+   * work from here, because this is exactly the state a save has to dig a world
+   * out of — and it cannot do that by loading the world first.
+   */
+  it("saves onto a world too broken to load", async () => {
+    // An object of its own, and that is not tidiness. This test has to leave
+    // storage holding a map that cannot start, and the world every other test
+    // shares has live sockets on it — any one of them touching it in that
+    // window would load the broken map and take the run down with it. A fresh
+    // name has no checkpoint and no session, which is the wedged state exactly:
+    // the only copy of the world is one that cannot be started.
+    const wedged = env.GAME.getByName("wedged-world");
+    await env.DATA.put("map.json", JSON.stringify(markerlessMap()));
+
+    await wedged.replaceWorld(authoredMap());
+
+    expect(playerCells(await storedMap())).toEqual([0]);
   });
 });

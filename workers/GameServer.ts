@@ -201,8 +201,15 @@ export class GameServer extends DurableObject<Env> {
   private async ensureLoaded(): Promise<void> {
     if (this.session) return;
     this.loading ??= this.load();
-    await this.loading;
-    this.loading = null;
+    try {
+      await this.loading;
+    } finally {
+      // Cleared even when the load threw. A rejected promise left in place is
+      // handed to every later caller for as long as this object stays in
+      // memory, so a world that failed to load once goes on failing long after
+      // whatever broke it was put right — the retry never happens.
+      this.loading = null;
+    }
   }
 
   private async load() {
@@ -739,16 +746,41 @@ export class GameServer extends DurableObject<Env> {
    *
    * `dataOrigin` is the editor's own origin — see {@link store} for why the
    * object cannot work that out for itself in dev.
+   *
+   * **Nothing is persisted until the new world has been proved to start, and
+   * the running one is never loaded to get here.** Both halves of that are
+   * load-bearing, and the order they used to be in cost a live world.
+   *
+   * A map with no `player` tile has no spawn point, so `new GameSession` throws
+   * on it. That used to happen *after* the map had been written and the
+   * checkpoint deleted — so one save of a map whose marker had been erased
+   * persisted the unstartable map and destroyed the only startable copy left.
+   * From then on every load threw, and because this method began by loading,
+   * the editor could no longer save the very fix that would have repaired it:
+   * placing the marker back required a world that could not come up. The world
+   * was unreachable and the one tool that could mend it was locked behind it.
+   *
+   * So the session is built first, from the incoming map, and storage is only
+   * touched once it exists. A bad save now fails having changed nothing, and
+   * the save path stays usable on a world too broken to load — which is exactly
+   * when it is needed. Nothing here reads the old session: the tiles are re-read
+   * and every actor is re-seated below, so loading it was only ever a way for
+   * its failures to become this one's.
    */
   async replaceWorld(flat: FlatMapFile, dataOrigin?: string): Promise<void> {
     if (dataOrigin) this.dataOrigin = dataOrigin;
-    await this.ensureLoaded();
     const store = this.store();
-    await store.writeMap(chunkifyMap(flat));
+    const tiles = await store.readTiles();
+
+    const map = chunkifyMap(flat);
+    // Throws for a map that cannot start — before a single byte is written.
+    const session = new GameSession(map, tiles, []);
+
+    await store.writeMap(map);
     await this.ctx.storage.delete(CHECKPOINT_KEY);
 
-    this.tiles = await store.readTiles();
-    this.session = new GameSession(chunkifyMap(flat), this.tiles, []);
+    this.tiles = tiles;
+    this.session = session;
     this.broadcastMap = this.session.getMap();
     this.sentMotion.clear();
     this.lastSaidAt.clear();
