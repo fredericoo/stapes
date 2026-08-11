@@ -92,6 +92,20 @@ export type BrainConditionDef =
  */
 type Steering = { of: Selector; allowDrops?: boolean };
 
+/**
+ * What a creature can be asked to do for one turn.
+ *
+ * Two of these keep a count across turns — `wait` its clock, `walk_n_steps` its
+ * tally — and the line between that and a script is worth stating: **an action
+ * may hold a counter or a timer, but never a decision.** `patrol_between(a, b)`
+ * would be a state machine hiding inside an action, and the moment one exists
+ * half the creature's behaviour has vanished from the transition table.
+ *
+ * A counting action reports `failure` once it has finished counting, on the same
+ * terms as one that is blocked or has arrived: done is one more way of having
+ * nothing left to offer, so the priority list falls through to the next line and
+ * a state can read as a sequence without anything branching inside it.
+ */
 export type BrainActionDef =
   /** Step to a random walkable neighbour. Fails when hemmed in on all sides. */
   | { action: "step_random"; allowDrops?: boolean }
@@ -100,7 +114,11 @@ export type BrainActionDef =
   /** Step so as to close the distance. Fails when nothing gets closer. */
   | ({ action: "step_toward" } & Steering)
   /** Step so as to open it. Fails when nothing gets further — cornered. */
-  | ({ action: "step_away_from" } & Steering);
+  | ({ action: "step_away_from" } & Steering)
+  /** Stand still for a stretch, then get out of the way of the next line. */
+  | { action: "wait"; ms: number }
+  /** Wander a bounded distance, then get out of the way of the next line. */
+  | { action: "walk_n_steps"; steps: number; allowDrops?: boolean };
 
 export type BrainStateDef = {
   /** Priority list: the first action that does not fail is the one that runs. */
@@ -139,11 +157,10 @@ const selectorSchema = v.union([
 
 const cells = v.pipe(v.number(), v.integer(), v.minValue(0));
 
+const durationMs = v.pipe(v.number(), v.integer(), v.minValue(0));
+
 const conditionSchema = v.variant("cond", [
-  v.object({
-    cond: v.literal("after"),
-    ms: v.pipe(v.number(), v.integer(), v.minValue(0)),
-  }),
+  v.object({ cond: v.literal("after"), ms: durationMs }),
   v.object({ cond: v.literal("in_range"), of: selectorSchema, cells }),
   v.object({ cond: v.literal("out_of_range"), of: selectorSchema, cells }),
   v.object({ cond: v.literal("stuck") }),
@@ -162,6 +179,14 @@ const actionSchema = v.variant("action", [
   v.object({
     action: v.literal("step_away_from"),
     of: selectorSchema,
+    allowDrops,
+  }),
+  v.object({ action: v.literal("wait"), ms: durationMs }),
+  v.object({
+    action: v.literal("walk_n_steps"),
+    // At least one, because a walk of no steps is a line that can only ever
+    // fail — authored, almost certainly, by mistake.
+    steps: v.pipe(v.number(), v.integer(), v.minValue(1)),
     allowDrops,
   }),
 ]);

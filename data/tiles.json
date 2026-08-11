@@ -3481,19 +3481,24 @@
     "walkDurationMs": 170,
     "interactions": {
       "brain": {
-        "initial": "idle",
+        "initial": "graze",
         "states": {
-          "idle": {
+          "graze": {
             "do": [
               {
-                "action": "hold"
+                "action": "wait",
+                "ms": 3000
+              },
+              {
+                "action": "walk_n_steps",
+                "steps": 4
               }
             ]
           },
-          "wander": {
+          "looking": {
             "do": [
               {
-                "action": "step_random"
+                "action": "hold"
               }
             ]
           },
@@ -3541,7 +3546,7 @@
               "of": "$spooked",
               "cells": 8
             },
-            "to": "idle"
+            "to": "graze"
           },
           {
             "from": "cornered",
@@ -3550,30 +3555,22 @@
               "of": "$spooked",
               "cells": 8
             },
-            "to": "idle"
+            "to": "graze"
           },
           {
-            "from": "wander",
+            "from": "graze",
             "if": {
               "cond": "stuck"
             },
-            "to": "idle"
+            "to": "looking"
           },
           {
-            "from": "idle",
-            "if": {
-              "cond": "after",
-              "ms": 5000
-            },
-            "to": "wander"
-          },
-          {
-            "from": "wander",
+            "from": "looking",
             "if": {
               "cond": "after",
               "ms": 2000
             },
-            "to": "idle"
+            "to": "graze"
           }
         ]
       }

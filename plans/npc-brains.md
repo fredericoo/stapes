@@ -387,12 +387,22 @@ state already resets on load.
 
 ### Acceptance criteria
 
-- [ ] An action can return `running` across multiple brain ticks and resume where
+- [x] An action can return `running` across multiple brain ticks and resume where
       it left off
-- [ ] Entering a different state clears the previous state's action progress
-- [ ] A preempted action restarts rather than resuming when next selected
-- [ ] Action scratch never reaches the checkpoint
-- [ ] A long-running action does not prevent a transition from firing
+- [x] Entering a different state clears the previous state's action progress
+- [x] A preempted action restarts rather than resuming when next selected
+- [x] Action scratch never reaches the checkpoint
+- [x] A long-running action does not prevent a transition from firing
+
+Decided while building: **a counting action reports `failure` once it has
+finished counting**, on the same terms as one that is blocked or has arrived —
+phase 4 already listed "arrived" among the things that collapse into failure. It
+is what lets a state read top to bottom as a sequence (graze, then amble, then
+stand) with nothing branching inside it, and it means the loop closes through
+`stuck` rather than through a new mechanism. The corollary is that scratch is
+discarded only *below* the selected line: lines above failed because they were
+finished, and forgetting that would put a state back at the top of its sequence
+forever.
 
 ---
 

@@ -55,6 +55,19 @@ export type BrainMemory = {
    * state that rescued it.
    */
   stuck: boolean;
+  /**
+   * How far the action at each position in the current state's `do` list has
+   * got — milliseconds waited or steps taken, whichever that action counts.
+   *
+   * Keyed by position rather than by anything about the action itself, because
+   * position is what an author is looking at: two `wait`s in one list are two
+   * separate waits, and the same list in another state is a fresh start.
+   *
+   * Discarded wholesale on leaving a state, and below the selected line on
+   * every tick — see {@link stepBrain}. Nowhere near the checkpoint: this is
+   * brain state, and brain state does not survive a reload.
+   */
+  scratch: Record<number, number>;
 };
 
 /**
@@ -112,6 +125,7 @@ export function initialMemory(brain: BrainDef): BrainMemory {
     msInState: 0,
     blackboard: {},
     stuck: false,
+    scratch: {},
   };
 }
 
@@ -227,9 +241,29 @@ function stepRelativeTo(
   return "failure";
 }
 
+/**
+ * Try to go somewhere, anywhere.
+ *
+ * Every legal direction gets a turn, in an unbiased order: "pick one and give
+ * up if it is blocked" would leave a creature in a corridor standing still
+ * three times out of four.
+ */
+function stepAnywhere(
+  allowDrops: boolean | undefined,
+  ctx: BrainContext,
+): boolean {
+  const options = footing(ctx.rng.shuffle([...DIRECTIONS]), allowDrops, ctx);
+  for (const direction of options) {
+    if (ctx.step(direction)) return true;
+  }
+  return false;
+}
+
 function runAction(
   action: BrainActionDef,
+  index: number,
   memory: BrainMemory,
+  tickMs: number,
   ctx: BrainContext,
 ): ActionStatus {
   switch (action.action) {
@@ -238,18 +272,27 @@ function runAction(
     case "step_random": {
       // A step in flight is a step still being taken, not a new one to start.
       if (ctx.busy) return "running";
-      // Every legal direction gets a turn, in an unbiased order: "pick one and
-      // give up if it is blocked" would leave a creature in a corridor standing
-      // still three times out of four.
-      const options = footing(
-        ctx.rng.shuffle([...DIRECTIONS]),
-        action.allowDrops,
-        ctx,
-      );
-      for (const direction of options) {
-        if (ctx.step(direction)) return "success";
-      }
-      return "failure";
+      return stepAnywhere(action.allowDrops, ctx) ? "success" : "failure";
+    }
+    case "wait": {
+      // Clamped rather than left to run away, so the number in scratch stays
+      // the honest answer to "how long has this been waiting" no matter how
+      // many ticks pass with the line already served.
+      const waited = Math.min((memory.scratch[index] ?? 0) + tickMs, action.ms);
+      memory.scratch[index] = waited;
+      return waited >= action.ms ? "failure" : "running";
+    }
+    case "walk_n_steps": {
+      const taken = memory.scratch[index] ?? 0;
+      // Its distance is done. Failing rather than holding is what lets a state
+      // read top to bottom as a sequence.
+      if (taken >= action.steps) return "failure";
+      if (ctx.busy) return "running";
+      if (!stepAnywhere(action.allowDrops, ctx)) return "failure";
+      memory.scratch[index] = taken + 1;
+      // Running even on the last step, because that step is still in flight.
+      // The tick after it lands is the one that falls through.
+      return "running";
     }
     case "step_toward":
     case "step_away_from": {
@@ -313,6 +356,26 @@ function applyBind(
 }
 
 /**
+ * Forget how far the lines below this one had got.
+ *
+ * The subtle half of letting an action take time. Because the list is rescanned
+ * from the top every tick, a counting action can be interrupted by something
+ * above it — and when its turn comes round again it starts over rather than
+ * picking up mid-count. That is what an author reading the table expects: a
+ * higher line taking over is the creature changing its mind, and a mind changed
+ * halfway through a walk does not later remember it had one step left.
+ *
+ * Lines *above* the selected one keep theirs, and that is the same rule seen
+ * from the other side: they failed this tick because they were finished, and
+ * forgetting that would put the state back at the top of its sequence forever.
+ */
+function discardBelow(memory: BrainMemory, index: number) {
+  for (const key of Object.keys(memory.scratch)) {
+    if (Number(key) > index) delete memory.scratch[Number(key)];
+  }
+}
+
+/**
  * Advance one creature by one brain tick: consider leaving, then act.
  *
  * Transitions first, so a state entered on this tick does something on this
@@ -343,17 +406,21 @@ export function stepBrain(
       // A dead end belongs to the state it was reached in, not to the one that
       // rescued the creature from it.
       memory.stuck = false;
+      // Nor does a half-finished graze. Positions mean nothing across states,
+      // and a creature that comes back to one starts its sequence over — which
+      // is also why a transition can cut a long action short at any moment.
+      memory.scratch = {};
     }
   }
 
   const state = brain.states[memory.state];
   if (!state) return;
 
-  for (const action of state.do) {
-    if (runAction(action, memory, ctx) !== "failure") {
-      memory.stuck = false;
-      return;
-    }
+  for (const [index, action] of state.do.entries()) {
+    if (runAction(action, index, memory, tickMs, ctx) === "failure") continue;
+    discardBelow(memory, index);
+    memory.stuck = false;
+    return;
   }
 
   // Nothing left to try. An empty list is not stuck — a state that was authored

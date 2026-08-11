@@ -735,6 +735,241 @@ describe("watching its footing", () => {
   });
 });
 
+/**
+ * Actions that hold a count across turns, and the one rule that keeps them from
+ * being a scripting language: **a counter or a timer, never a decision.**
+ *
+ * Finishing reports failure, on the same terms as being blocked — done is one
+ * more way of having nothing left to offer — which is what lets a state read
+ * top to bottom as a sequence without anything branching inside it.
+ */
+describe("actions that take time", () => {
+  function ctx(overrides: Partial<Parameters<typeof stepBrain>[3]> = {}) {
+    return {
+      busy: false,
+      rng: new Rng(1),
+      self: { x: 0, y: 0, z: 0 },
+      nearestPlayerId: () => null,
+      positionOf: () => null,
+      wouldDrop: () => false,
+      step: vi.fn(() => true),
+      ...overrides,
+    } satisfies Parameters<typeof stepBrain>[3];
+  }
+
+  const GRAZE_MS = BRAIN_TICK_MS * 3;
+  const STROLL_STEPS = 4;
+
+  it("holds its line until the clock runs out, then hands it over", () => {
+    const brain: BrainDef = {
+      initial: "graze",
+      states: {
+        graze: {
+          do: [{ action: "wait", ms: GRAZE_MS }, { action: "step_random" }],
+        },
+      },
+      transitions: [],
+    };
+    const memory = initialMemory(brain);
+    const c = ctx();
+
+    stepBrain(brain, memory, BRAIN_TICK_MS, c);
+    stepBrain(brain, memory, BRAIN_TICK_MS, c);
+    // Two ticks in and still counting — the clock survived the rescan.
+    expect(c.step).not.toHaveBeenCalled();
+
+    stepBrain(brain, memory, BRAIN_TICK_MS, c);
+
+    expect(c.step).toHaveBeenCalledTimes(1);
+  });
+
+  it("takes the steps it was asked for and no more", () => {
+    const brain: BrainDef = {
+      initial: "stroll",
+      states: {
+        stroll: {
+          do: [
+            { action: "walk_n_steps", steps: STROLL_STEPS },
+            { action: "hold" },
+          ],
+        },
+      },
+      transitions: [],
+    };
+    const memory = initialMemory(brain);
+    const c = ctx();
+
+    for (let tick = 0; tick < STROLL_STEPS * 3; tick++) {
+      stepBrain(brain, memory, BRAIN_TICK_MS, c);
+    }
+
+    expect(c.step).toHaveBeenCalledTimes(STROLL_STEPS);
+  });
+
+  it("forgets a half-finished count on the way into another state", () => {
+    const brain: BrainDef = {
+      initial: "stroll",
+      states: {
+        stroll: { do: [{ action: "walk_n_steps", steps: STROLL_STEPS }] },
+        alert: { do: [{ action: "hold" }] },
+      },
+      transitions: [
+        {
+          from: "stroll",
+          if: { cond: "after", ms: BRAIN_TICK_MS * 2 },
+          to: "alert",
+        },
+      ],
+    };
+    const memory = initialMemory(brain);
+
+    stepBrain(brain, memory, BRAIN_TICK_MS, ctx());
+    expect(memory.scratch).not.toEqual({});
+
+    stepBrain(brain, memory, BRAIN_TICK_MS, ctx());
+
+    expect(memory.state).toBe("alert");
+    // Positions mean nothing across states, so a creature that comes back here
+    // starts its sequence over rather than one step from the end of it.
+    expect(memory.scratch).toEqual({});
+  });
+
+  /**
+   * The subtle half. The list is rescanned from the top every tick, so a
+   * counting action can be shoved aside by something above it — and when its
+   * turn comes round again it begins again, which is what an author reading the
+   * table expects. A mind changed halfway through a walk does not later
+   * remember it had one step left.
+   */
+  it("restarts a count that a higher line took over from", () => {
+    const brain: BrainDef = {
+      initial: "stroll",
+      states: {
+        stroll: {
+          do: [
+            { action: "step_toward", of: "$friend" },
+            { action: "walk_n_steps", steps: STROLL_STEPS },
+          ],
+        },
+      },
+      transitions: [],
+    };
+    const memory = initialMemory(brain);
+    memory.blackboard.friend = "alice";
+
+    // Somebody to walk towards, or nobody — which is the whole of whether the
+    // line above the count gets to run.
+    let arrived = false;
+    const c = ctx({ positionOf: () => (arrived ? { x: 4, y: 0, z: 0 } : null) });
+
+    stepBrain(brain, memory, BRAIN_TICK_MS, c);
+    stepBrain(brain, memory, BRAIN_TICK_MS, c);
+    expect(memory.scratch[1]).toBe(2);
+
+    arrived = true;
+    stepBrain(brain, memory, BRAIN_TICK_MS, c);
+    expect(memory.scratch[1]).toBeUndefined();
+
+    arrived = false;
+    stepBrain(brain, memory, BRAIN_TICK_MS, c);
+
+    expect(memory.scratch[1]).toBe(1);
+  });
+
+  it("lets a transition cut a long action short", () => {
+    const brain: BrainDef = {
+      initial: "graze",
+      states: {
+        graze: { do: [{ action: "wait", ms: BRAIN_TICK_MS * 100 }] },
+        bolt: { do: [{ action: "hold" }] },
+      },
+      transitions: [
+        { from: "graze", if: { cond: "after", ms: BRAIN_TICK_MS }, to: "bolt" },
+      ],
+    };
+    const memory = initialMemory(brain);
+
+    // Transitions are consulted before the actions run, so an action still
+    // counting never gets a veto over the creature changing its mind.
+    stepBrain(brain, memory, BRAIN_TICK_MS, ctx());
+
+    expect(memory.state).toBe("bolt");
+  });
+
+  const timed: TileDef[] = [
+    ...tiles,
+    tile({
+      id: "grazer",
+      height: 1,
+      actor: true,
+      affectedByGravity: true,
+      walkable: false,
+      interactions: {
+        brain: {
+          initial: "graze",
+          // The whole sequence in one state: each line gets out of the way of
+          // the next once it is done, and `hold` catches the end of it.
+          states: {
+            graze: {
+              do: [
+                { action: "wait", ms: GRAZE_MS },
+                { action: "walk_n_steps", steps: STROLL_STEPS },
+                { action: "hold" },
+              ],
+            },
+          },
+          transitions: [],
+        },
+      },
+    }),
+  ];
+
+  function grazing(): GameSession {
+    return new GameSession(withDeer(field(9), 0, 0, "grazer"), timed, ["alice"]);
+  }
+
+  it("grazes where it stands, strolls a bounded way, then settles", () => {
+    const session = grazing();
+
+    advance(session, GRAZE_MS - BRAIN_TICK_MS);
+    expect(deerCell(session)).toBe("0,0");
+
+    advance(session, BRAIN_TICK_MS * 20);
+    const settled = deerCell(session);
+    expect(settled).not.toBe("0,0");
+
+    // The count is spent, so it stays put — a bounded stroll rather than an
+    // endless one.
+    advance(session, BRAIN_TICK_MS * 20);
+    expect(deerCell(session)).toBe(settled);
+  });
+
+  /**
+   * Scratch is brain state, and brain state already resets on load — so this
+   * costs nothing to honour and would be a migration problem to break: a saved
+   * count belongs to a position in a list a since-edited brain may not have.
+   */
+  it("keeps its counting out of the saved world", () => {
+    const session = grazing();
+    advance(session, GRAZE_MS + BRAIN_TICK_MS * 4);
+
+    expect(JSON.stringify(session.getMap())).not.toContain("scratch");
+
+    const resumed = new GameSession(
+      session.getMap(),
+      timed,
+      ["alice"],
+      session.getSpawnPoint(),
+      session.getSeed(),
+    );
+    const where = deerCell(resumed);
+
+    // Back at the top of its sequence: a fresh graze before it strolls again.
+    advance(resumed, GRAZE_MS - BRAIN_TICK_MS);
+    expect(deerCell(resumed)).toBe(where);
+  });
+});
+
 describe("walking at its own pace", () => {
   const paced: TileDef[] = [
     ...tiles,
