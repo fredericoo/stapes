@@ -425,14 +425,32 @@ it.
 
 ### Acceptance criteria
 
-- [ ] A state can emit speech on entry, visible to players on that level and
+- [x] A state can emit speech on entry, visible to players on that level and
       subject to the same sanitisation and caps as player chat
-- [ ] A state can drive a signal channel on entry, and an authored receiver
+- [x] A state can drive a signal channel on entry, and an authored receiver
       responds
-- [ ] Effects run exactly once per entry, and never contribute to the priority
+- [x] Effects run exactly once per entry, and never contribute to the priority
       list's success or failure
-- [ ] An NPC that emits and then leaves the state releases the channel as the
+- [x] An NPC that emits and then leaves the state releases the channel as the
       existing settle pass expects
+
+Decided while building: the two effects have **different lifecycles**, so they
+are authored as two different things on a state. `say` is a one-shot `onEnter`
+effect, as sketched. The signal drive is **a state property `emit: {channel,
+value}`, held for as long as the creature is in the state** — not an `onEnter`
+effect — because that is the only shape the release criterion admits: a channel
+is re-read from its live emitters every settle pass, so a creature that has left
+the state is simply no longer among them and the door closes on the next pass,
+with no exit hook to author. The session hands its emitting minds to
+`settleSignals` as extra sources beside the tiles in wired cells, and a brain
+changing its emit leaves no mark on the map — so the settle pass gains a second
+trigger beside map identity: the signature of who is driving what.
+
+They surface through different seams, too. Speech is transient and the session
+accumulates it per tick for the server to drain and broadcast on the existing
+chat path — no new wire message. A held emit is a map mutation and rides the
+settle pass the session already runs. Speech stays online-only, as the local
+snapshot already declared.
 
 ---
 

@@ -68,6 +68,16 @@ export type BrainMemory = {
    * brain state, and brain state does not survive a reload.
    */
   scratch: Record<number, number>;
+  /**
+   * Whether this creature has ever been ticked.
+   *
+   * The initial state is entered too, and its `onEnter` is owed the same single
+   * firing as any other's — but there is no transition into it to hang that on.
+   * This flag is that entry: false until the first tick, which runs the initial
+   * effects and flips it. Fresh on every load, so a resumed creature greets its
+   * initial state once more, which is the right amount for a mind that resets.
+   */
+  started: boolean;
 };
 
 /**
@@ -108,6 +118,15 @@ export type BrainContext = {
    * how an action learns it is blocked.
    */
   step(direction: Direction): boolean;
+  /**
+   * Say something over this creature's head.
+   *
+   * The only capability here that is not a question or a step: an effect, run on
+   * the way into a state, that always lands. What becomes of the words — a
+   * bubble broadcast to a level, sanitised and capped — is the session's to
+   * arrange, on exactly the terms a player's chat already gets.
+   */
+  say(text: string): void;
 };
 
 /**
@@ -126,7 +145,17 @@ export function initialMemory(brain: BrainDef): BrainMemory {
     blackboard: {},
     stuck: false,
     scratch: {},
+    started: false,
   };
+}
+
+/** Run a state's entry effects — once, when it is entered. */
+function runOnEnter(brain: BrainDef, memory: BrainMemory, ctx: BrainContext) {
+  const onEnter = brain.states[memory.state]?.onEnter;
+  if (!onEnter) return;
+  for (const effect of onEnter) {
+    if (effect.effect === "say") ctx.say(effect.text);
+  }
 }
 
 /** Directions worth trying at all, given how this action feels about ledges. */
@@ -392,6 +421,14 @@ export function stepBrain(
   tickMs: number,
   ctx: BrainContext,
 ): void {
+  // The initial state is entered like any other, and its effects are owed the
+  // same one firing — but nothing transitioned into it, so the first tick is
+  // where that entry happens.
+  if (!memory.started) {
+    memory.started = true;
+    runOnEnter(brain, memory, ctx);
+  }
+
   memory.msInState += tickMs;
 
   const transition = firstMatch(brain, memory, ctx);
@@ -410,6 +447,9 @@ export function stepBrain(
       // and a creature that comes back to one starts its sequence over — which
       // is also why a transition can cut a long action short at any moment.
       memory.scratch = {};
+      // Once on the way in, before any action gets a turn: the yelp lands on
+      // the frame the creature bolts, not the one after.
+      runOnEnter(brain, memory, ctx);
     }
   }
 

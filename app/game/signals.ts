@@ -1,5 +1,5 @@
 import { getStack, listCoords, replaceStack } from "../lib/mapData";
-import type { ReceiveInteraction } from "../lib/interactions";
+import type { ReceiveInteraction, SignalValue } from "../lib/interactions";
 import {
   receiveTriggers,
   resolveEmit,
@@ -24,6 +24,18 @@ export type ChannelTally = {
 
 /** Channel name → its emitters' tally. Channels with no emitter are absent. */
 export type ChannelState = Map<string, ChannelTally>;
+
+/**
+ * An emitter that is not a tile in a wired cell.
+ *
+ * The seam by which a mind drives a wire. A creature holding a channel while it
+ * is in a state is a source the map does not carry — its body has no `channel`
+ * on it and its tile def does not emit — so it is handed to the settle pass
+ * from the side, on equal footing with the plates and torches the cells hold.
+ * That equal footing is the whole point: a door cannot tell a frightened deer
+ * from a pressed plate, and should not have to.
+ */
+export type ExtraEmitter = { channel: string; value: SignalValue };
 
 /**
  * Does this channel read as powered, for a receiver aggregating this way?
@@ -85,8 +97,16 @@ export function readChannels(
   map: MapFile,
   cells: Iterable<Coord>,
   tilesById: Record<string, TileDef>,
+  extra: Iterable<ExtraEmitter> = [],
 ): ChannelState {
   const state: ChannelState = new Map();
+  const add = (channel: string, value: SignalValue) => {
+    const tally = state.get(channel) ?? { on: 0, total: 0 };
+    tally.total += 1;
+    if (value === "on") tally.on += 1;
+    state.set(channel, tally);
+  };
+
   for (const cell of cells) {
     for (const placed of getStack(map, cell.x, cell.y, cell.z)) {
       const channel = placed.channel;
@@ -94,13 +114,10 @@ export function readChannels(
       const def = tilesById[placed.tileId];
       const emit = def && resolveEmit(def);
       if (!emit) continue;
-
-      const tally = state.get(channel) ?? { on: 0, total: 0 };
-      tally.total += 1;
-      if (emit.value === "on") tally.on += 1;
-      state.set(channel, tally);
+      add(channel, emit.value);
     }
   }
+  for (const source of extra) add(source.channel, source.value);
   return state;
 }
 
@@ -170,9 +187,10 @@ export function settleSignals(
   map: MapFile,
   cells: Iterable<Coord>,
   tilesById: Record<string, TileDef>,
+  extra: Iterable<ExtraEmitter> = [],
 ): SignalResult {
   const wired = [...cells];
-  const state = readChannels(map, wired, tilesById);
+  const state = readChannels(map, wired, tilesById, extra);
   const changed: Coord[] = [];
   let next = map;
   for (const cell of wired) {

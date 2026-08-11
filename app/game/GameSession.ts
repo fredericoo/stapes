@@ -74,7 +74,13 @@ import {
   findPlateCells,
   settlePlates,
 } from "./pressurePlates";
-import { cellIsWired, findWiredCells, settleSignals } from "./signals";
+import {
+  cellIsWired,
+  findWiredCells,
+  settleSignals,
+  type ExtraEmitter,
+} from "./signals";
+import { sanitizeChatText } from "../net/chat";
 
 export type { ObjectRef } from "./affordances";
 
@@ -300,6 +306,29 @@ export class GameSession implements PlaySession {
   private readonly rng: Rng;
   /** Time towards the next round of decisions. See {@link BRAIN_TICK_MS}. */
   private brainAccumulatorMs = 0;
+  /**
+   * What creatures said this tick, waiting to be broadcast.
+   *
+   * Emptied at the top of every tick and refilled by whatever brains say during
+   * it, so it only ever holds the current tick's speech. The server drains it
+   * after the tick and turns each line into the same chat a player sends; a
+   * session running with no wire — offline `/play` — simply never drains it, and
+   * the per-tick reset keeps that from leaking. Speech stays an online-only
+   * thing, as {@link getSnapshot} already declares.
+   */
+  private pendingSpeech: ChatBubble[] = [];
+  /** Ticks up per line, so two things said in one tick are two bubbles. */
+  private nextSpeechId = 0;
+  /**
+   * The creature-driven emitters the last settle pass saw, as a signature.
+   *
+   * A brain entering or leaving a state that holds a channel changes nothing on
+   * the map — the body has not moved — so the map-identity skip in
+   * {@link settleBoardNow} would sail straight past it and the door would never
+   * hear. This is the other half of that skip: when the minds driving the wires
+   * change, the pass runs even though the board looks untouched.
+   */
+  private settledEmitters = "";
 
   /**
    * @param actorIds actors to start with. The default adopts the authored
@@ -551,8 +580,13 @@ export class GameSession implements PlaySession {
    */
   private settleBoardNow() {
     const before = this.map;
-    if (before === this.settledMap) return;
+    const emitters = this.actorEmitters();
+    const emitterSig = this.emitterSignature(emitters);
+    // Two ways the board can owe a pass: the map changed, or a mind driving a
+    // wire did. The second leaves no trace on the map, so it needs its own say.
+    if (before === this.settledMap && emitterSig === this.settledEmitters) return;
     this.settledMap = before;
+    this.settledEmitters = emitterSig;
 
     if (this.plateCells.size > 0) {
       const { map, changed } = settlePlates(
@@ -569,6 +603,7 @@ export class GameSession implements PlaySession {
         this.map,
         this.wiredCells.values(),
         this.tilesById,
+        emitters,
       );
       this.map = map;
       this.reindexCells(changed);
@@ -623,6 +658,10 @@ export class GameSession implements PlaySession {
    * message happened to arrive first.
    */
   tick(tickMs: number = TICK_MS) {
+    // Last tick's speech has been broadcast or discarded; this tick starts with
+    // an empty page, so anything left undrained cannot pile up.
+    this.pendingSpeech = [];
+
     // Before the bodies move, so a decision taken now starts its walk on this
     // tick rather than the next.
     this.tickBrains(tickMs);
@@ -699,7 +738,74 @@ export class GameSession implements PlaySession {
       wouldDrop: (direction) => this.stepLeavesGround(loc, direction),
       step: (direction) =>
         this.applyStepRequest(actor, { directions: [direction] }),
+      say: (text) => this.recordSpeech(actor, loc, text),
     });
+  }
+
+  /**
+   * Note something a creature said, at the cell it said it in.
+   *
+   * Sanitised here, once, on the same terms a player's message is — so an NPC
+   * cannot say anything a person could not, and the bubble a viewer sees is the
+   * bubble the rules allow. A line that survives to nothing is simply not
+   * recorded; an authored `!` always will.
+   *
+   * Pinned to the cell and the stack slot, like every bubble, so it hangs over
+   * the ground the creature stands on rather than over its own head.
+   */
+  private recordSpeech(actor: ActorRuntime, loc: ActorLocation, raw: string) {
+    const text = sanitizeChatText(raw);
+    if (!text) return;
+    this.pendingSpeech.push({
+      id: `say-${this.nextSpeechId++}`,
+      actorId: actor.id,
+      text,
+      x: loc.x,
+      y: loc.y,
+      z: loc.z,
+      stackIndex: loc.stackIndex,
+    });
+  }
+
+  /**
+   * Everything a creature said this tick, handed over and forgotten.
+   *
+   * The server's to call, right after {@link tick}: it broadcasts each line to
+   * the level it was said on, exactly as a player's chat. Nobody else calls it,
+   * and the next tick would clear the list regardless — draining is how the
+   * speech reaches a wire, not how it is kept from piling up.
+   */
+  drainSpeech(): ChatBubble[] {
+    const said = this.pendingSpeech;
+    this.pendingSpeech = [];
+    return said;
+  }
+
+  /**
+   * The channels creatures are holding open right now, one entry per emitting
+   * mind. Read straight off each brain's current state, so a creature that has
+   * moved on is simply not among them and the wire it was driving falls quiet.
+   */
+  private actorEmitters(): ExtraEmitter[] {
+    const out: ExtraEmitter[] = [];
+    for (const actor of this.actors.values()) {
+      const state = actor.brain?.state;
+      if (state === undefined) continue;
+      const emit = resolveBrain(this.defFor(actor))?.states[state]?.emit;
+      if (emit) out.push({ channel: emit.channel, value: emit.value });
+    }
+    return out;
+  }
+
+  /**
+   * The emitting minds as one string, for the {@link settleBoardNow} skip.
+   *
+   * Insertion order, which is already what makes a tick reproducible, so the
+   * same set of held channels always renders the same signature and an unchanged
+   * mind never looks like a changed one.
+   */
+  private emitterSignature(emitters: ExtraEmitter[]): string {
+    return emitters.map((e) => `${e.channel}=${e.value}`).join(",");
   }
 
   /**

@@ -120,7 +120,47 @@ export type BrainActionDef =
   /** Wander a bounded distance, then get out of the way of the next line. */
   | { action: "walk_n_steps"; steps: number; allowDrops?: boolean };
 
+/**
+ * Something a state does the once, on the way in.
+ *
+ * Kept apart from the `do` list because effects are a different kind of thing:
+ * an action can fail and hand its turn to the next line, which is the whole
+ * point of the priority list, but an effect always lands. Folding a speech into
+ * that list would give it a success or failure to contribute, and "the deer
+ * yelped" is neither — so effects run first, once, and stay out of it.
+ *
+ * One kind for now. `say` reuses the chat a player already sends: a bubble
+ * pinned to the cell, sanitised and capped on the same terms, no new wire
+ * message and nothing new for the renderer to learn.
+ */
+export type BrainEffectDef = { effect: "say"; text: string };
+
+/**
+ * The two states a channel drive can be in — the same pair a torch or a plate
+ * emits. Spelled out here rather than imported to keep `./brain` free of a
+ * dependency on the rest of the interaction blocks; the schema below is the one
+ * place the strings live.
+ */
+export type BrainSignalValue = "on" | "off";
+
+/**
+ * Drive a signal channel for as long as the creature is in this state.
+ *
+ * Held, not pulsed — which is what makes it release itself. A channel's power
+ * is re-read from its live emitters every settle pass, so a creature that has
+ * left the state is simply no longer among them and the door it was holding
+ * open closes on the next pass, with no exit hook to author and nothing to
+ * remember. It is the difference between an NPC being part of the existing
+ * puzzle wiring and being a parallel system beside it: the same channels a
+ * plate drives, driven by a state of mind instead of a weight.
+ */
+export type BrainEmitDef = { channel: string; value: BrainSignalValue };
+
 export type BrainStateDef = {
+  /** Effects run once on entry, before the first action scan. */
+  onEnter?: BrainEffectDef[];
+  /** A channel this state holds, while the creature is in it. */
+  emit?: BrainEmitDef;
   /** Priority list: the first action that does not fail is the one that runs. */
   do: BrainActionDef[];
 };
@@ -191,11 +231,24 @@ const actionSchema = v.variant("action", [
   }),
 ]);
 
+const effectSchema = v.variant("effect", [
+  v.object({ effect: v.literal("say"), text: v.pipe(v.string(), v.minLength(1)) }),
+]);
+
+const emitSchema = v.object({
+  channel: v.pipe(v.string(), v.minLength(1)),
+  value: v.picklist(["on", "off"]),
+});
+
 const brainSchema = v.object({
   initial: stateName,
   states: v.record(
     stateName,
-    v.object({ do: v.array(actionSchema) }),
+    v.object({
+      onEnter: v.optional(v.array(effectSchema)),
+      emit: v.optional(emitSchema),
+      do: v.array(actionSchema),
+    }),
   ),
   transitions: v.array(
     v.object({

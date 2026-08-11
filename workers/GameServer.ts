@@ -555,18 +555,53 @@ export class GameServer extends DurableObject<Env> {
     if (!author) return;
 
     this.lastSaidAt.set(actorId, now);
-
-    const message: ServerMessage = {
-      type: "chat",
+    this.broadcastChat(actors, {
       actorId,
       text,
       x: author.x,
       y: author.y,
       z: author.z,
       stackIndex: author.stackIndex,
-    };
-    this.sendToLevel(author.z, actors, message);
-    this.logChat(now, actorId, author, text);
+    });
+  }
+
+  /**
+   * Say the things creatures said this tick.
+   *
+   * Drained after {@link GameSession.tick}, then sent on exactly the path a
+   * player's message takes — the sanitising and the per-cell cap happened
+   * already, the first inside the session and the second on every client, so
+   * this only has to fan out and log. No rate limit: an NPC's speech is authored
+   * and deterministic, and its `onEnter` fires once per entry rather than as
+   * fast as a socket can type.
+   */
+  private broadcastSpeech(session: GameSession, actors: ActorSnapshot[]) {
+    for (const bubble of session.drainSpeech()) {
+      this.broadcastChat(actors, bubble);
+    }
+  }
+
+  /**
+   * Fan one bubble out to its level and keep it.
+   *
+   * The tail shared by a player saying something and a creature saying
+   * something: by here the text is settled and where it hangs is decided, and
+   * all that is left is who hears it and writing it down.
+   */
+  private broadcastChat(
+    actors: ActorSnapshot[],
+    at: {
+      actorId: string;
+      text: string;
+      x: number;
+      y: number;
+      z: number;
+      stackIndex: number;
+    },
+  ) {
+    const message: ServerMessage = { type: "chat", ...at };
+    this.sendToLevel(at.z, actors, message);
+    this.logChat(Date.now(), at.actorId, at, at.text);
   }
 
   /**
@@ -753,6 +788,7 @@ export class GameServer extends DurableObject<Env> {
 
     const actors = session.actorSnapshots();
     this.collectMotionEvents(actors);
+    this.broadcastSpeech(session, actors);
 
     const cells = this.diffCells(session.getMap());
     if (cells.length > 0 || this.events.length > 0) {

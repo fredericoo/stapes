@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { resolveBrain, type BrainDef } from "../lib/brain";
-import { emptyMap, replaceStack } from "../lib/mapData";
+import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { initialMemory, stepBrain } from "./brainRuntime";
@@ -196,6 +196,7 @@ describe("deciding", () => {
       positionOf: () => null,
       wouldDrop: () => false,
       step: vi.fn(() => true),
+      say: vi.fn(),
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
   }
@@ -628,6 +629,7 @@ describe("giving up", () => {
       positionOf: () => null,
       wouldDrop: () => false,
       step: () => false,
+      say: () => {},
     };
 
     // One tick to try everything and fail; the verdict is read on the next.
@@ -753,6 +755,7 @@ describe("actions that take time", () => {
       positionOf: () => null,
       wouldDrop: () => false,
       step: vi.fn(() => true),
+      say: vi.fn(),
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
   }
@@ -1054,6 +1057,220 @@ describe("walking at its own pace", () => {
 
     const walk = session.actorSnapshots().find((a) => a.tileId === "deer")!.walk;
     expect(walk?.durationMs).toBe(WALK_DURATION_MS);
+  });
+});
+
+/**
+ * Effects, the third thing a state can carry beside its transitions and its
+ * actions: something it does the once, on the way in. Both kinds lean on
+ * machinery that already exists — a chat bubble, a signal channel — so an NPC
+ * joins the vocabulary the map already speaks rather than a parallel one.
+ */
+describe("a deer that yelps", () => {
+  /** A startled creature that both cries out and throws a switch. */
+  function alarmedBrain(emitTo?: string): BrainDef {
+    return {
+      initial: "calm",
+      states: {
+        calm: { do: [{ action: "hold" }] },
+        alarm: {
+          onEnter: [{ effect: "say", text: "!" }],
+          ...(emitTo ? { emit: { channel: emitTo, value: "on" as const } } : {}),
+          do: [{ action: "hold" }],
+        },
+      },
+      transitions: [
+        {
+          from: "calm",
+          if: { cond: "in_range", of: "nearest_player", cells: 3 },
+          bind: { who: "nearest_player" },
+          to: "alarm",
+        },
+        {
+          from: "alarm",
+          if: { cond: "out_of_range", of: "$who", cells: 3 },
+          to: "calm",
+        },
+      ],
+    };
+  }
+
+  const yelpers: TileDef[] = [
+    ...tiles,
+    tile({
+      id: "yelper",
+      height: 1,
+      actor: true,
+      affectedByGravity: true,
+      walkable: false,
+      interactions: { brain: alarmedBrain() },
+    }),
+    // Startle it and it drives the "gate" channel on.
+    tile({
+      id: "alarm-deer",
+      height: 1,
+      actor: true,
+      affectedByGravity: true,
+      walkable: false,
+      interactions: { brain: alarmedBrain("gate") },
+    }),
+    // The canonical receiver pair, wired to that channel.
+    tile({
+      id: "gate",
+      height: 2,
+      walkable: false,
+      interactions: { receive: { tileId: "gate-open", when: "on", mode: "any" } },
+    }),
+    tile({
+      id: "gate-open",
+      height: 0,
+      interactions: { receive: { tileId: "gate", when: "off", mode: "any" } },
+    }),
+  ];
+
+  /** Deer at the origin, a player three cells off, and room to place a gate. */
+  function startled(creature: string): MapFile {
+    let map = field(9);
+    map = replaceStack(map, -9, -9, 0, [{ tileId: "grass" }]);
+    map = withDeer(map, 0, 0, creature);
+    return withPlayerAt(map, 3, 0);
+  }
+
+  function session(creature: string): GameSession {
+    return new GameSession(startled(creature), yelpers, ["alice"], {
+      x: -9,
+      y: -9,
+      z: 0,
+      stackIndex: 1,
+    });
+  }
+
+  it("says its word on entry, pinned to the cell it stood in", () => {
+    const s = session("yelper");
+    advance(s, BRAIN_TICK_MS);
+
+    const said = s.drainSpeech();
+    expect(said).toHaveLength(1);
+    expect(said[0]!.text).toBe("!");
+    expect(said[0]!.actorId).not.toBe("alice");
+    expect({ x: said[0]!.x, y: said[0]!.y }).toEqual({ x: 0, y: 0 });
+  });
+
+  it("says it once per entry, not once per tick it stays alarmed", () => {
+    const s = session("yelper");
+    advance(s, BRAIN_TICK_MS);
+    expect(s.drainSpeech()).toHaveLength(1);
+
+    // Still alarmed several ticks on, and silent throughout — the effect fired
+    // on entry, not for as long as the state was held.
+    advance(s, BRAIN_TICK_MS * 4);
+    expect(s.drainSpeech()).toHaveLength(0);
+  });
+
+  /**
+   * The guard the once-per-entry rule actually rests on: a transition whose
+   * target is the state already occupied is not an entry. A wildcard that keeps
+   * matching would otherwise re-fire the effect every tick.
+   */
+  it("treats a self-matching transition as staying, not re-entering", () => {
+    const brain: BrainDef = {
+      initial: "ringing",
+      states: {
+        ringing: { onEnter: [{ effect: "say", text: "!" }], do: [{ action: "hold" }] },
+      },
+      // Always true, always pointing back at the current state.
+      transitions: [{ from: "any", if: { cond: "after", ms: 0 }, to: "ringing" }],
+    };
+    const memory = initialMemory(brain);
+    const say = vi.fn();
+    const c = {
+      busy: false,
+      rng: new Rng(1),
+      self: { x: 0, y: 0, z: 0 },
+      nearestPlayerId: () => null,
+      positionOf: () => null,
+      wouldDrop: () => false,
+      step: () => true,
+      say,
+    };
+
+    for (let tick = 0; tick < 5; tick++) stepBrain(brain, memory, BRAIN_TICK_MS, c);
+
+    // Once for entering the initial state, and never again for staying in it.
+    expect(say).toHaveBeenCalledTimes(1);
+  });
+
+  it("holds a channel open while alarmed, and lets it close on settling", () => {
+    let map = startled("alarm-deer");
+    map = replaceStack(map, 5, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "gate", channel: "gate" },
+    ]);
+    const s = new GameSession(map, yelpers, ["alice"], {
+      x: -9,
+      y: -9,
+      z: 0,
+      stackIndex: 1,
+    });
+
+    const gateAt = () =>
+      getStack(s.getMap(), 5, 0, 0).some((p) => p.tileId === "gate-open");
+
+    expect(gateAt()).toBe(false);
+    advance(s, BRAIN_TICK_MS * 2);
+    // The mind driving the wire opened the gate, with no plate and no tap.
+    expect(gateAt()).toBe(true);
+
+    // Somebody far off arrives, then the one it was watching leaves — so the
+    // world stays awake to think, but the deer is now out of range of anyone
+    // and settles back to calm. Stopping driving is all it takes: the existing
+    // settle pass closes the gate for free.
+    s.spawn("bob", { x: 9, y: 9, z: 0 });
+    s.despawn("alice");
+    advance(s, BRAIN_TICK_MS * 2);
+    expect(gateAt()).toBe(false);
+  });
+
+  /**
+   * "Effects never contribute to the priority list's success or failure." A
+   * successful `say` on entry must not rescue a state whose every action fails —
+   * cornered is still cornered, however loudly it complains about it.
+   */
+  it("does not let an entry effect stand in for a failing action", () => {
+    const brain: BrainDef = {
+      initial: "penned",
+      states: {
+        penned: {
+          onEnter: [{ effect: "say", text: "help" }],
+          do: [{ action: "step_random" }],
+        },
+      },
+      transitions: [],
+    };
+    const memory = initialMemory(brain);
+    const c = {
+      busy: false,
+      rng: new Rng(1),
+      self: { x: 0, y: 0, z: 0 },
+      nearestPlayerId: () => null,
+      positionOf: () => null,
+      wouldDrop: () => false,
+      step: () => false,
+      say: vi.fn(),
+    };
+
+    stepBrain(brain, memory, BRAIN_TICK_MS, c);
+
+    expect(c.say).toHaveBeenCalledTimes(1);
+    // The say landed, and the state is stuck all the same.
+    expect(memory.stuck).toBe(true);
+  });
+
+  it("puts nothing said into the saved world", () => {
+    const s = session("yelper");
+    advance(s, BRAIN_TICK_MS * 3);
+
+    expect(JSON.stringify(s.getMap())).not.toContain("!");
   });
 });
 

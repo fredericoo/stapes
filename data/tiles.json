@@ -3472,7 +3472,7 @@
   {
     "id": "deer",
     "name": "Deer",
-    "height": 1,
+    "height": 2,
     "type": "directional",
     "attributes": {},
     "affectedByGravity": true,
@@ -3503,6 +3503,16 @@
             ]
           },
           "flee": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "!"
+              }
+            ],
+            "emit": {
+              "channel": "alarm",
+              "value": "on"
+            },
             "do": [
               {
                 "action": "step_away_from",
