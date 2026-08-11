@@ -12,7 +12,7 @@ import type {
   PlaySession,
 } from "../game/GameSession";
 import { PLAYER_TILE_ID } from "../game/constants";
-import { displayNameFor } from "../game/displayName";
+import { displayNameFor, speakerNameFor } from "../game/displayName";
 import { WorldLabelLayer, type WorldLabel } from "./textLabels";
 import { FrameProfiler, type FrameStats } from "./frameProfile";
 import { fallDropPx, fallFootAbs, standingFootAbs } from "./fallAnchor";
@@ -621,7 +621,7 @@ export class GameRenderer {
       const group = byCell.get(key);
       const line = {
         id: chat.id,
-        text: `${displayNameFor(chat.actorId)} says: ${chat.text}`,
+        text: `${speakerNameFor(chat, this.tilesById)} says: ${chat.text}`,
       };
       if (group) {
         group.lines.push(line);

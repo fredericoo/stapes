@@ -132,12 +132,19 @@ export type ServerMessage =
    * rather than over their own head. Without it the bubble sits a body's height
    * too high until they walk away, and then drops.
    *
+   * `tileId` is the body the speaker was in, and it travels for the same reason
+   * the coordinate does: it is what the speaker *was* when they spoke, and the
+   * bubble outlives them. It is how the client knows whether to write a
+   * person's name over the words or the creature's — asking the live board
+   * would be asking about a deer that may have wandered off or been erased.
+   *
    * Sent only to sockets on `z`. A client never sees a message from another
    * level, so there is nothing to filter on arrival.
    */
   | {
       type: "chat";
       actorId: string;
+      tileId: string;
       text: string;
       x: number;
       y: number;
@@ -287,6 +294,7 @@ const serverMessageSchema = v.variant("type", [
   v.object({
     type: v.literal("chat"),
     actorId: v.string(),
+    tileId: v.string(),
     text: v.string(),
     x: v.number(),
     y: v.number(),

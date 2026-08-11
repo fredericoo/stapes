@@ -1,7 +1,11 @@
 import { env, fetchMock, runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import tilesJson from "../data/tiles.json";
-import { PUSH_STEP_MS, WALK_DURATION_MS } from "../app/game/constants";
+import {
+  PLAYER_TILE_ID,
+  PUSH_STEP_MS,
+  WALK_DURATION_MS,
+} from "../app/game/constants";
 import { MINUTES_PER_DAY, minutesOfDayAt } from "../app/lib/clock";
 import { DEV_DATA_PREFIX } from "../app/lib/devData";
 import { getStack, listCoords } from "../app/lib/mapData";
@@ -645,6 +649,9 @@ describe("chat", () => {
       type: "chat",
       actorId: "alice",
       text: "hey there!",
+      // The body alice said it in, so the client can tell a person's words from
+      // a creature's without asking the board about a speaker who may be gone.
+      tileId: PLAYER_TILE_ID,
     });
   });
 

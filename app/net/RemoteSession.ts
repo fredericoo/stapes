@@ -240,6 +240,7 @@ export class RemoteSession implements PlaySession {
       this.chats.push({
         id: `chat-${this.nextChatId++}`,
         actorId: message.actorId,
+        tileId: message.tileId,
         text: message.text,
         x: message.x,
         y: message.y,

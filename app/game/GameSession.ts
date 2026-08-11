@@ -175,6 +175,17 @@ export type ChatBubble = {
   /** Distinct per message, so two lines from one actor are two bubbles. */
   id: string;
   actorId: string;
+  /**
+   * The body the speaker was in when they said it, which is what decides how
+   * they are named: a person by the handle derived from their id, a creature by
+   * what its tile is called.
+   *
+   * Carried on the bubble rather than looked up when it is drawn, because the
+   * bubble outlives its author — the deer that yelped can wander off, and the
+   * editor can replace the map underneath it, and the words are still hanging
+   * there for the rest of their five seconds.
+   */
+  tileId: string;
   text: string;
   x: number;
   y: number;
@@ -798,6 +809,7 @@ export class GameSession implements PlaySession {
     this.pendingSpeech.push({
       id: `say-${this.nextSpeechId++}`,
       actorId: actor.id,
+      tileId: loc.placed.tileId,
       text,
       x: loc.x,
       y: loc.y,

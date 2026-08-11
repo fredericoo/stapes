@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { displayNameFor } from "../game/displayName";
+import { PLAYER_TILE_ID } from "../game/constants";
+import { displayNameFor, speakerNameFor } from "../game/displayName";
+import type { TileDef } from "../lib/types";
 import { labelScreenPosition } from "./textLabels";
 
 /**
@@ -124,5 +126,57 @@ describe("display names", () => {
     expect(new Set(names).size).toBe(100);
     expect(colours.size).toBeGreaterThan(30);
     expect(beasts.size).toBeGreaterThan(70);
+  });
+});
+
+/**
+ * Who a bubble is attributed to, which is a different question for a person and
+ * for a deer: one is a stranger behind a cookie, the other is a tile somebody
+ * authored and named.
+ */
+describe("naming a speaker", () => {
+  const tilesById = {
+    deer: { id: "deer", name: "Deer" } as TileDef,
+    [PLAYER_TILE_ID]: { id: PLAYER_TILE_ID, name: "Player" } as TileDef,
+  };
+  const uuid = "3f9ac1d2-55b7-4a0e-9c31-8a2b6f0e1d44";
+
+  it("calls a person by their generated name", () => {
+    expect(
+      speakerNameFor({ actorId: uuid, tileId: PLAYER_TILE_ID }, tilesById),
+    ).toBe(displayNameFor(uuid));
+  });
+
+  /**
+   * Not the tile's name — a player body is called "Player", and every visitor
+   * would be it.
+   */
+  it("does not call a person after the tile they stand up in", () => {
+    expect(
+      speakerNameFor({ actorId: uuid, tileId: PLAYER_TILE_ID }, tilesById),
+    ).not.toBe("Player");
+  });
+
+  it("calls a creature what its tile is called", () => {
+    expect(speakerNameFor({ actorId: "npc:1,2,0,1", tileId: "deer" }, tilesById))
+      .toBe("Deer");
+  });
+
+  /**
+   * The point of naming a creature after its tile rather than its owner id:
+   * every deer is the same deer, and two of them yelping should not read as two
+   * individuals with names.
+   */
+  it("calls every creature of a kind the same thing", () => {
+    expect(
+      speakerNameFor({ actorId: "npc:1,2,0,1", tileId: "deer" }, tilesById),
+    ).toBe(speakerNameFor({ actorId: "npc:8,4,0,1", tileId: "deer" }, tilesById));
+  });
+
+  /** A map holding a deleted tile id is a bug elsewhere, not a blank label. */
+  it("still attributes the words when the tile is unknown", () => {
+    expect(
+      speakerNameFor({ actorId: "npc:1,2,0,1", tileId: "ghost" }, tilesById),
+    ).toBeTruthy();
   });
 });

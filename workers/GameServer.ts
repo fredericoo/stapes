@@ -592,6 +592,7 @@ export class GameServer extends DurableObject<Env> {
     this.lastSaidAt.set(actorId, now);
     this.broadcastChat(actors, {
       actorId,
+      tileId: author.tileId,
       text,
       x: author.x,
       y: author.y,
@@ -627,6 +628,7 @@ export class GameServer extends DurableObject<Env> {
     actors: ActorSnapshot[],
     at: {
       actorId: string;
+      tileId: string;
       text: string;
       x: number;
       y: number;

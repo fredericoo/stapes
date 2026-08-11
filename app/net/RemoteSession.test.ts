@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { FALL_MS_PER_HEIGHT, WALK_DURATION_MS } from "../game/constants";
+import {
+  FALL_MS_PER_HEIGHT,
+  PLAYER_TILE_ID,
+  WALK_DURATION_MS,
+} from "../game/constants";
 import type { FlatMapFile, PlacedTile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { CHAT_LIFETIME_MS } from "./chat";
@@ -301,6 +305,7 @@ describe("RemoteSession chat", () => {
   const said = {
     type: "chat",
     actorId: SELF,
+    tileId: PLAYER_TILE_ID,
     text: "hey there!",
     x: 2,
     y: 0,
@@ -315,6 +320,10 @@ describe("RemoteSession chat", () => {
     const [bubble] = session.getSnapshot().chats;
     expect(bubble).toMatchObject({
       actorId: SELF,
+      // The body the speaker was in travels with the words, so the renderer can
+      // tell a person's line from a deer's without asking the board about a
+      // speaker who may have walked off or been erased.
+      tileId: PLAYER_TILE_ID,
       text: "hey there!",
       x: 2,
       y: 0,

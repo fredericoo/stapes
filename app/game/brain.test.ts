@@ -1154,6 +1154,10 @@ describe("a deer that yelps", () => {
     expect(said[0]!.text).toBe("!");
     expect(said[0]!.actorId).not.toBe("alice");
     expect({ x: said[0]!.x, y: said[0]!.y }).toEqual({ x: 0, y: 0 });
+    // The body it said it in travels with the words, because that is what the
+    // bubble is attributed to — and the creature is free to bolt before anybody
+    // reads it.
+    expect(said[0]!.tileId).toBe("yelper");
   });
 
   it("says it once per entry, not once per tick it stays alarmed", () => {
