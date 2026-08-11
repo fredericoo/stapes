@@ -475,12 +475,35 @@ and it is invisible in any other rendering.
 
 ### Acceptance criteria
 
-- [ ] States, actions, effects and transitions are all editable without hand-editing JSON
-- [ ] Transition order is visible and reorderable, and the saved order is what the
+- [x] States, actions, effects and transitions are all editable without hand-editing JSON
+- [x] Transition order is visible and reorderable, and the saved order is what the
       runtime evaluates
-- [ ] Condition, action and effect pickers offer only registered names
-- [ ] Unreachable states, unknown transition targets and a missing `initial` are
+- [x] Condition, action and effect pickers offer only registered names
+- [x] Unreachable states, unknown transition targets and a missing `initial` are
       reported in the editor
-- [ ] A saved brain reaches connected players through the existing world-replace
+- [x] A saved brain reaches connected players through the existing world-replace
       path
-- [ ] A brain authored in the UI round-trips through `tiles.json` unchanged
+- [x] A brain authored in the UI round-trips through `tiles.json` unchanged
+
+Decided while building:
+
+- **A registry catalog, at last.** The architectural decisions promised
+  "conditions, actions and effects are TypeScript registries keyed by name", but
+  through phases 2–6 they were only switch arms and valibot variants — code the
+  editor cannot enumerate. `brainCatalog.ts` is that registry turned outward: one
+  entry per name, each with a default instance and its parameter shape, and the
+  pickers are fed from it. Add a verb to the runtime and it stays invisible in
+  the editor until it is added here too — a missing option rather than a broken
+  save. The one duplication accepted is default values, which live both here and
+  in the schema and change together.
+- **Reorder is up/down buttons, not drag.** The design sketch said "drag-reorder",
+  but the acceptance criterion is "reorderable", and buttons meet it without a new
+  DnD dependency — which the same design section elsewhere prizes ("no new graph
+  dependency"). Each row shows its 1-based priority number beside the control, so
+  order is legible as well as changeable. Flagged as a deviation from the sketch's
+  wording; swap in drag later if it matters.
+- **Validation is a list, `isCoherent` its summary.** `validateBrain` returns each
+  fault in words with a severity; the loader's `isCoherent` is now "no errors" over
+  that list. An `error` (missing initial, unknown target, a state named `any`)
+  blocks save and would load inert; a `warn` (an unreachable state) loads and runs
+  exactly as authored but is surfaced anyway.

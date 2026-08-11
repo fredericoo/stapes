@@ -18,9 +18,11 @@ import {
   DEFAULT_SWITCH,
   hasAnyInteraction,
 } from "../lib/interactions";
+import type { BrainDef } from "../lib/brain";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL } from "../lib/types";
 import { Input, Segmented, Switch } from "../ui";
+import { BrainEditor } from "./BrainEditor";
 import { TileIdMultiSelect } from "./TileIdMultiSelect";
 
 /** Symbols read left-to-right after the "load is" label. */
@@ -96,6 +98,10 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets }: Props) {
     setPlate({ ...plate, ...patch });
   };
 
+  const setBrain = (next: BrainDef | undefined) => {
+    patchKind("brain", next ?? null);
+  };
+
   const setEmit = (next: EmitInteraction | undefined) => {
     patchKind("emit", next ?? null);
   };
@@ -111,6 +117,16 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets }: Props) {
 
   return (
     <div className="flex flex-col gap-4">
+      <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
+        <div className="flex items-center gap-2 text-sm font-bold">Brain</div>
+        <p className="text-[11px] leading-snug text-muted">
+          What drives this body when nobody is connected to it — an authored
+          state machine. It only runs on tiles marked <strong>Actor</strong> on
+          the Tile tab; a malformed brain leaves the creature standing still.
+        </p>
+        <BrainEditor brain={draft.interactions?.brain} onChange={setBrain} />
+      </section>
+
       <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
         <label className="flex items-center gap-2 text-sm font-bold">
           <Switch

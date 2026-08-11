@@ -33,6 +33,7 @@ import {
 } from "./AutotileSlicePreview";
 import { InteractiveTab } from "./InteractiveTab";
 import { hasAnyInteraction, interactionsForSave } from "../lib/interactions";
+import { validateBrain } from "../lib/brain";
 import { Button, Dialog, Input, Segmented, Select, TabPanel, Tabs } from "../ui";
 
 function emptyFrame(tilesetId: string): Frame {
@@ -305,6 +306,17 @@ export function TileEditorDialog({
     if (!draft.name.trim()) {
       setError("Name is required");
       return;
+    }
+
+    // A brain that would load inert is caught here, where it is actionable,
+    // rather than as a creature that silently never moves once online.
+    const brain = draft.interactions?.brain;
+    if (brain) {
+      const fatal = validateBrain(brain).find((i) => i.severity === "error");
+      if (fatal) {
+        setError(`Brain: ${fatal.message}`);
+        return;
+      }
     }
 
     if (draft.type === "simple") {

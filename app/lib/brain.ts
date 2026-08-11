@@ -270,15 +270,101 @@ const brainSchema = v.object({
  * nothing.
  */
 function isCoherent(brain: BrainDef): boolean {
+  return !validateBrain(brain).some((issue) => issue.severity === "error");
+}
+
+/** One thing wrong with a brain, at the level the editor should say it. */
+export type BrainIssue = {
+  /** `error` makes a brain inert at load; `warn` is a smell worth surfacing. */
+  severity: "error" | "warn";
+  message: string;
+};
+
+/**
+ * Everything true of a brain that its shape alone cannot say, as a list rather
+ * than a yes/no.
+ *
+ * The runtime asks only "is this coherent" — a malformed brain is an inert body
+ * and that is the whole of what a player needs. The editor is where the *reason*
+ * is actionable: it is the moment somebody can fix a transition that points at a
+ * renamed state, so this returns each fault in words rather than collapsing them
+ * to a boolean. `isCoherent` is that boolean, kept as the one thing the loader
+ * needs.
+ *
+ * The severities draw the line the loader draws: an `error` is a fault that
+ * makes the machine unrunnable and so refuses to load, while a `warn` — a state
+ * nothing can reach — loads and runs exactly as authored but almost certainly
+ * is not what the author meant.
+ */
+export function validateBrain(brain: BrainDef): BrainIssue[] {
+  const issues: BrainIssue[] = [];
+  const names = Object.keys(brain.states);
+
   // A state actually called "any" would be unreachable as a transition source,
   // since the wildcard shadows it — better refused than quietly never matched.
-  if (Object.hasOwn(brain.states, ANY_STATE)) return false;
-  if (!Object.hasOwn(brain.states, brain.initial)) return false;
-  return brain.transitions.every(
-    (t) =>
-      (t.from === ANY_STATE || Object.hasOwn(brain.states, t.from)) &&
-      Object.hasOwn(brain.states, t.to),
-  );
+  if (Object.hasOwn(brain.states, ANY_STATE)) {
+    issues.push({ severity: "error", message: `A state cannot be named "${ANY_STATE}".` });
+  }
+  if (names.length === 0) {
+    issues.push({ severity: "error", message: "Add at least one state." });
+  }
+  if (!brain.initial) {
+    issues.push({ severity: "error", message: "Pick an initial state." });
+  } else if (!Object.hasOwn(brain.states, brain.initial)) {
+    issues.push({
+      severity: "error",
+      message: `Initial state "${brain.initial}" does not exist.`,
+    });
+  }
+
+  brain.transitions.forEach((t, i) => {
+    if (t.from !== ANY_STATE && !Object.hasOwn(brain.states, t.from)) {
+      issues.push({
+        severity: "error",
+        message: `Transition ${i + 1}: from "${t.from}", which is not a state.`,
+      });
+    }
+    if (!Object.hasOwn(brain.states, t.to)) {
+      issues.push({
+        severity: "error",
+        message: `Transition ${i + 1}: goes to "${t.to}", which is not a state.`,
+      });
+    }
+  });
+
+  for (const name of unreachableStates(brain)) {
+    issues.push({ severity: "warn", message: `State "${name}" cannot be reached.` });
+  }
+
+  return issues;
+}
+
+/**
+ * States no run of transitions from `initial` can ever land in.
+ *
+ * A wildcard source reaches from everywhere, so the moment any state is
+ * reachable its target is too — which is why it is folded in as an edge out of
+ * every currently-reachable state rather than a special case. Skipped entirely
+ * when the initial state is itself missing: there is no vantage point to judge
+ * reachability from, and the missing-initial error already covers it.
+ */
+function unreachableStates(brain: BrainDef): string[] {
+  const names = Object.keys(brain.states);
+  if (!brain.initial || !Object.hasOwn(brain.states, brain.initial)) return [];
+
+  const reached = new Set<string>([brain.initial]);
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const t of brain.transitions) {
+      if (!Object.hasOwn(brain.states, t.to) || reached.has(t.to)) continue;
+      const canLeave = t.from === ANY_STATE || reached.has(t.from);
+      if (canLeave) {
+        reached.add(t.to);
+        grew = true;
+      }
+    }
+  }
+  return names.filter((name) => !reached.has(name));
 }
 
 const brainCache = new WeakMap<TileDef, BrainDef | null>();
