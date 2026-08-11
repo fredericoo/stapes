@@ -24,7 +24,6 @@ import type {
   GameInput,
   GameSnapshot,
   PlaySession,
-  SlideSnapshot,
   WalkState,
 } from "../game/GameSession";
 import { resolveWalkDurationMs, standingAbs } from "../game/movement";
@@ -815,14 +814,6 @@ export class RemoteSession implements PlaySession {
     const loc = this.locate(id, motion);
     if (!loc) return null;
 
-    const slide: SlideSnapshot | null = motion.slide
-      ? {
-          object: motion.slide.object,
-          from: motion.slide.from,
-          progress: Math.min(1, motion.slide.elapsedMs / PUSH_STEP_MS),
-        }
-      : null;
-
     return {
       id,
       tileId: loc.placed.tileId,
@@ -841,7 +832,12 @@ export class RemoteSession implements PlaySession {
       fallProgress: motion.fall
         ? motion.fall.elapsedMs / FALL_MS_PER_HEIGHT
         : 0,
-      slide,
+      // The live motion by reference, as the simulation hands it over too — the
+      // progress beside it is what the renderer lerps with.
+      slide: motion.slide,
+      slideProgress: motion.slide
+        ? Math.min(1, motion.slide.elapsedMs / PUSH_STEP_MS)
+        : 0,
     };
   }
 
@@ -958,5 +954,6 @@ function offscreenActor(id: string): ActorSnapshot {
     walkProgress: 0,
     fallProgress: 0,
     slide: null,
+    slideProgress: 0,
   };
 }

@@ -1,10 +1,11 @@
 import { env, fetchMock, runInDurableObject } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import tilesJson from "../data/tiles.json";
-import { WALK_DURATION_MS } from "../app/game/constants";
+import { PUSH_STEP_MS, WALK_DURATION_MS } from "../app/game/constants";
 import { MINUTES_PER_DAY, minutesOfDayAt } from "../app/lib/clock";
 import { DEV_DATA_PREFIX } from "../app/lib/devData";
-import type { FlatMapFile } from "../app/lib/types";
+import { getStack, listCoords } from "../app/lib/mapData";
+import type { FlatMapFile, MapFile } from "../app/lib/types";
 import { CHAT_MIN_INTERVAL_MS } from "../app/net/chat";
 import {
   CHAT_LOG_MAX_ROWS,
@@ -1142,5 +1143,109 @@ describe("player permanence", () => {
 
     // Stepped aside to the west, rather than sent to the far-end marker.
     expect(await actorX(who)).toBe(ONE_STEP_EAST - 1);
+  });
+});
+
+/**
+ * Shoving something, and being told about it exactly once.
+ *
+ * A push commits to the map the instant it happens; what travels afterwards is
+ * the animation hint, and the client restarts its lerp on every one it hears.
+ * So a shove announced six times is a shove drawn six times from the beginning,
+ * which is a crate juddering in place for its whole 200ms rather than sliding —
+ * and an actor this side has long since freed still reading as busy on the
+ * client, so the next step and the next push are both refused.
+ *
+ * The bug was upstream of this file: {@link ActorSnapshot}'s slide used to be
+ * rebuilt on every read to carry its own progress, and `collectMotionEvents`
+ * decides what is new by *identity*. Walking and falling hand over their live
+ * state and were fine; only the slide allocated.
+ */
+
+/** The push lane, east of everything the tests above walk on. */
+const BOX_SPAWN = 9;
+const BOX_AT = BOX_SPAWN + 1;
+
+/**
+ * A run-on world with a box beside its spawn point.
+ *
+ * Handed over as a checkpoint rather than as `map.json`, because every test in
+ * this file drives the one world and it loads its board once — a checkpoint
+ * plus an eviction is the only way to put a different one in front of it.
+ */
+function stripWithABox(): {
+  map: FlatMapFile;
+  spawn: { x: number; y: number; z: number; stackIndex: number };
+} {
+  const levels: Record<string, Record<string, unknown[]>> = { "0": {} };
+  for (let x = 0; x <= BOX_AT + 1; x++) {
+    levels["0"]![`${x},0`] = [{ tileId: "grass" }];
+  }
+  levels["0"]![`${BOX_AT},0`] = [{ tileId: "grass" }, { tileId: "wooden-box" }];
+  return {
+    map: { version: 1, levels } as FlatMapFile,
+    spawn: { x: BOX_SPAWN, y: 0, z: 0, stackIndex: 1 },
+  };
+}
+
+/** Every event of one kind that arrives in a window. */
+function eventsWithin(
+  ws: WebSocket,
+  kind: string,
+  ms: number,
+): Promise<Record<string, unknown>[]> {
+  return new Promise((resolve) => {
+    const found: Record<string, unknown>[] = [];
+    const onMessage = (event: MessageEvent) => {
+      const message = JSON.parse(event.data as string) as Record<string, unknown>;
+      if (message.type !== "patch") return;
+      for (const e of message.events as Record<string, unknown>[]) {
+        if (e.kind === kind) found.push(e);
+      }
+    };
+    ws.addEventListener("message", onMessage);
+    setTimeout(() => {
+      ws.removeEventListener("message", onMessage);
+      resolve(found);
+    }, ms);
+  });
+}
+
+/** Where the box is in the running world, as an x. */
+async function boxX(): Promise<number | null> {
+  let found: number | null = null;
+  await runInDurableObject(stub(), (instance: GameServer) => {
+    const internals = instance as unknown as {
+      session: { getMap(): MapFile } | null;
+    };
+    const map = internals.session?.getMap();
+    if (!map) return;
+    for (const coord of listCoords(map, 0)) {
+      const stack = getStack(map, coord.x, coord.y, 0);
+      if (stack.some((p) => p.tileId === "wooden-box")) found = coord.x;
+    }
+  });
+  return found;
+}
+
+describe("pushing", () => {
+  it("announces one shove once", async () => {
+    await putCheckpoint(stripWithABox());
+    await simulateEviction();
+    const { ws } = await connect(freshPlayer());
+
+    // Listening before the tap, so nothing the first tick sends is missed.
+    const slides = eventsWithin(ws, "slideStarted", PUSH_STEP_MS + QUIET_MS * 2);
+    ws.send(
+      JSON.stringify({
+        type: "interact",
+        ref: { x: BOX_AT, y: 0, z: 0, stackIndex: 1 },
+      }),
+    );
+
+    // Loudly rather than flakily: a push the board refused would report zero
+    // events too, and that is a broken fixture rather than the bug under test.
+    expect(await slides).toHaveLength(1);
+    expect(await boxX()).toBe(BOX_AT + 1);
   });
 });

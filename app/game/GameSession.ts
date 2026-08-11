@@ -115,12 +115,21 @@ export type GameInput = {
   preferDescend?: boolean;
 };
 
-/** A pushed object whose sprite is still catching up to where it already is. */
+/**
+ * A pushed object whose sprite is still catching up to where it already is.
+ *
+ * Deliberately without its progress, which travels beside it as
+ * {@link ActorSnapshot.slideProgress}. A snapshot carrying its own progress has
+ * to be a fresh object every tick, and the game server announces motion by
+ * *identity* — so a rebuilt one reads as a brand new slide every tick, and the
+ * client restarts its lerp on each of the six announcements one push produced.
+ * Walking and falling hand over their live state for exactly this reason; this
+ * is the same discipline, learned late.
+ */
 export type SlideSnapshot = {
   /** The object at its committed cell — the move is already in the map. */
   object: ObjectRef;
   from: Coord;
-  progress: number;
 };
 
 /**
@@ -153,6 +162,7 @@ export type ActorSnapshot = {
   walkProgress: number;
   fallProgress: number;
   slide: SlideSnapshot | null;
+  slideProgress: number;
 };
 
 /**
@@ -1025,19 +1035,6 @@ export class GameSession implements PlaySession {
     if (actor.slide.elapsedMs >= PUSH_STEP_MS) actor.slide = null;
   }
 
-  private slideSnapshot(actor: ActorRuntime): SlideSnapshot | null {
-    const slide = actor.slide;
-    if (!slide) return null;
-    return {
-      object: slide.object,
-      from: slide.from,
-      progress: Math.min(
-        1,
-        (slide.elapsedMs + this.accumulatorMs) / PUSH_STEP_MS,
-      ),
-    };
-  }
-
   /** One actor's own motion for one tick — walking, falling, or starting to. */
   private tickMotion(actor: ActorRuntime, tickMs: number) {
     if (actor.fall) {
@@ -1084,7 +1081,13 @@ export class GameSession implements PlaySession {
       fallProgress: actor.fall
         ? (actor.fall.elapsedMs + visualExtra) / FALL_MS_PER_HEIGHT
         : 0,
-      slide: this.slideSnapshot(actor),
+      // Handed over by reference, exactly as `walk` and `fall` are: it is
+      // mutated in place as it advances, so the same slide across two ticks is
+      // the same object and the server can tell a continuing push from a new one.
+      slide: actor.slide,
+      slideProgress: actor.slide
+        ? Math.min(1, (actor.slide.elapsedMs + visualExtra) / PUSH_STEP_MS)
+        : 0,
     };
   }
 

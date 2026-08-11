@@ -1080,10 +1080,31 @@ describe("GameSession push", () => {
     expect(snap.self.slide).not.toBeNull();
     expect(snap.self.slide?.from).toEqual({ x: 1, y: 0, z: 0 });
     expect(snap.self.slide?.object).toEqual({ x: 2, y: 0, z: 0, stackIndex: 1 });
-    expect(snap.self.slide?.progress).toBe(0);
+    expect(snap.self.slideProgress).toBe(0);
 
     runSlide(session);
     expect(session.getSnapshot().self.slide).toBeNull();
+  });
+
+  /**
+   * The game server tells a continuing shove from a fresh one by identity, the
+   * same way it does for a walk and a fall — so a slide rebuilt on every read
+   * reads as a new push every tick, and every client redraws it from the start.
+   * Progress lives beside the slide rather than inside it for exactly this
+   * reason; putting it back is what this catches.
+   */
+  it("hands back the same slide while it runs", () => {
+    const session = new GameSession(mapWithCrate(1), tiles);
+    session.push(crateRef(1));
+
+    const first = session.getSnapshot().self.slide;
+    session.tick(1000 / 30);
+    const second = session.getSnapshot().self.slide;
+
+    expect(second).toBe(first);
+    // And it is still advancing, so this is one live slide rather than a frozen
+    // object that happens to compare equal.
+    expect(session.getSnapshot().self.slideProgress).toBeGreaterThan(0);
   });
 
   it("lets the player follow straight into the cell the object left", () => {

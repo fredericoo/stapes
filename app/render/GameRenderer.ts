@@ -959,7 +959,7 @@ export class GameRenderer {
     if (!slide) return null;
 
     const { object, from } = slide;
-    const t = slide.progress;
+    const t = actor.slideProgress;
     // The object has left `from`, so its old surface is that stack's top now;
     // at `object` it is in the stack, so its surface is the scenery under it.
     const fromCenter = this.surfaceWorldCenter(from.x, from.y, from.z, map);

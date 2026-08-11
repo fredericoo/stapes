@@ -169,6 +169,16 @@ actor costs one event, not one message per tick. Events are emitted on object
 *identity* — motion state is mutated in place as it advances, so the same object
 across two ticks is the same motion and must not be announced twice.
 
+**Which is why progress travels beside a motion on `ActorSnapshot`, never inside
+it.** A snapshot that carries its own progress has to be a fresh object on every
+read, and `collectMotionEvents` cannot tell that from a new motion. `slide` was
+built that way and announced one shove on all six ticks of its life; each
+announcement restarted the client's lerp, so a pushed crate juddered in place
+for 200ms instead of sliding — and stayed "busy" on the client long after this
+side had freed it, refusing the next step and the next push. `walk` and `fall`
+were always handed over live; `slide` and `slideProgress` now match them. Any
+new motion goes the same way.
+
 `RemoteSession` reads actor positions off the map rather than tracking them
 separately: the map is authoritative and already carries ownership, so there is
 no second copy to drift.
