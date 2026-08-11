@@ -208,15 +208,15 @@ it when it moved.
 
 ### Acceptance criteria
 
-- [ ] A placement of an actor-marked tile becomes an actor at load, with an owner
+- [x] A placement of an actor-marked tile becomes an actor at load, with an owner
       minted from its authored cell
-- [ ] NPCs fall, land, and press pressure plates exactly as players do, with no
+- [x] NPCs fall, land, and press pressure plates exactly as players do, with no
       new code on those paths
-- [ ] Eviction and restore leaves NPCs on the board and in position; the reaper
+- [x] Eviction and restore leaves NPCs on the board and in position; the reaper
       removes disconnected players only
-- [ ] A world containing NPCs and no players reaches at-rest and hibernates
-- [ ] NPC placements are excluded from the static geometry batch and light bake
-- [ ] Two clients see the same NPC in the same cell
+- [x] A world containing NPCs and no players reaches at-rest and hibernates
+- [x] NPC placements are excluded from the static geometry batch and light bake
+- [x] Two clients see the same NPC in the same cell
 
 ---
 
@@ -245,17 +245,17 @@ editor rather than at runtime.
 
 ### Acceptance criteria
 
-- [ ] `interactions.brain` parses with valibot; a malformed brain yields an inert
+- [x] `interactions.brain` parses with valibot; a malformed brain yields an inert
       NPC and never throws mid-tick
-- [ ] A deer transitions `idle → wander` after its authored delay and steps to a
+- [x] A deer transitions `idle → wander` after its authored delay and steps to a
       random walkable neighbour
-- [ ] Brains evaluate every 200ms — a whole number of simulation ticks — while
+- [x] Brains evaluate every 200ms — a whole number of simulation ticks — while
       bodies continue to move at tick rate
-- [ ] Two sessions fed the same seed and inputs produce identical NPC paths
-- [ ] When the last player disconnects, brains stop deciding, any in-flight step
+- [x] Two sessions fed the same seed and inputs produce identical NPC paths
+- [x] When the last player disconnects, brains stop deciding, any in-flight step
       completes, and the world reaches at-rest
-- [ ] On reload, NPC positions are restored and brain state resets to `initial`
-- [ ] The priority list falls through a failing action to the next one
+- [x] On reload, NPC positions are restored and brain state resets to `initial`
+- [x] The priority list falls through a failing action to the next one
 
 ---
 

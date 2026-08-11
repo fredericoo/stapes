@@ -775,6 +775,7 @@ export class RemoteSession implements PlaySession {
 
     return {
       id,
+      tileId: loc.placed.tileId,
       x: loc.x,
       y: loc.y,
       z: loc.z,
@@ -894,6 +895,9 @@ function emptyMotion(): RemoteMotion {
 function offscreenActor(id: string): ActorSnapshot {
   return {
     id,
+    // The viewer's own body, which is always a player's — this stands in for
+    // one that has not arrived yet, not for one that turned out to be a deer.
+    tileId: PLAYER_TILE_ID,
     x: 0,
     y: 0,
     z: 0,

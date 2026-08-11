@@ -110,6 +110,15 @@ type QueuedStep = {
 type Checkpoint = {
   map: FlatMapFile;
   spawn: { x: number; y: number; z: number; stackIndex: number };
+  /**
+   * The world's dice, mid-roll. Travels for the same reason the spawn point
+   * does — it cannot be recovered from the map — and resuming without it would
+   * have every wake replay the wander the world had already played.
+   *
+   * Optional because checkpoints written before brains existed do not carry
+   * one; those worlds simply start rolling from the default.
+   */
+  seed?: number;
 };
 
 /**
@@ -210,6 +219,7 @@ export class GameServer extends DurableObject<Env> {
           this.tiles,
           [],
           checkpoint.spawn,
+          checkpoint.seed,
         )
       : new GameSession(await store.readMap(), this.tiles, []);
     this.broadcastMap = this.session.getMap();
@@ -730,6 +740,7 @@ export class GameServer extends DurableObject<Env> {
     void this.ctx.storage.put(CHECKPOINT_KEY, {
       map: flattenMap(session.getMap()),
       spawn: session.getSpawnPoint(),
+      seed: session.getSeed(),
     } satisfies Checkpoint);
   }
 

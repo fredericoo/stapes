@@ -87,6 +87,19 @@ export type TileDef = {
    */
   walkable?: boolean;
   /**
+   * When true, a placement of this tile is a *body* — something driven, rather
+   * than scenery. Bodies walk, fall and press plates through the same paths the
+   * player does; what drives them is a separate question, and one this flag
+   * deliberately does not answer. A player's body is driven by a socket, an
+   * NPC's by an authored brain, and both are actors.
+   *
+   * Placements of a body tile are adopted as actors when the world loads, which
+   * is why placing one is the whole of putting an NPC in the map: there is no
+   * spawner. The authored `player` tile is the exception — it is a spawn marker
+   * consumed at load rather than a resident. Default / absent → scenery.
+   */
+  actor?: boolean;
+  /**
    * World-side dirs you may climb UP toward, keyed by variant.
    * Simple / autotile use `"default"`; directional use `n`/`e`/`s`/`w`
    * for each placement facing. Missing dirs default to true.
@@ -115,6 +128,11 @@ export function resolveWalkable(def: TileDef): boolean {
 /** Whether this tile has no physical volume. Default: solid (false). */
 export function resolveIntangible(def: TileDef): boolean {
   return def.intangible === true;
+}
+
+/** Whether a placement of this tile is a body something drives. Default: false. */
+export function resolveActor(def: TileDef): boolean {
+  return def.actor === true;
 }
 
 /**
@@ -365,6 +383,7 @@ export function normalizeTileDef(raw: unknown): TileDef {
     light?: LightDef;
     affectedByGravity?: boolean;
     walkable?: boolean;
+    actor?: boolean;
     climbFrom?: TileDef["climbFrom"];
     interactions?: TileInteractions;
   };
@@ -382,6 +401,7 @@ export function normalizeTileDef(raw: unknown): TileDef {
     intangible: legacy.intangible,
     affectedByGravity: legacy.affectedByGravity,
     walkable: legacy.walkable,
+    actor: legacy.actor,
     climbFrom: legacy.climbFrom,
     interactions: legacy.interactions,
   };

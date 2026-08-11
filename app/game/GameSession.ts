@@ -12,6 +12,9 @@ import { tilesByIdFromList } from "../lib/validation";
 import {
   actorDirection,
   adoptAuthoredPlayer,
+  adoptBodyAt,
+  listResidentBodies,
+  residentOwnerId,
   despawnActor,
   findActorAnywhere,
   listActorOwners,
@@ -31,9 +34,9 @@ import {
 } from "./affordances";
 import { findEntryCell } from "./entry";
 import {
+  BRAIN_TICK_MS,
   FALL_MS_PER_HEIGHT,
   MAX_CLIMB_HEIGHT,
-  PLAYER_TILE_ID,
   PUSH_STEP_MS,
   TICK_MS,
   WALK_DURATION_MS,
@@ -51,6 +54,13 @@ import {
   setEntityDirection,
 } from "./mapMutations";
 import { canWalk, standingAbs } from "./movement";
+import { resolveBrain } from "../lib/brain";
+import {
+  initialMemory,
+  stepBrain,
+  type BrainMemory,
+} from "./brainRuntime";
+import { Rng } from "./rng";
 import { chooseStep, type StepRequest } from "./stepping";
 import {
   cellHasPlate,
@@ -105,6 +115,13 @@ export type ActorPosition = Coord & { direction: Direction };
 /** One actor as a viewer sees it. */
 export type ActorSnapshot = {
   id: string;
+  /**
+   * The tile this actor's body is. Carried because an actor is no longer
+   * necessarily a person: chrome meant for players — a name over the head,
+   * above all — has to be able to tell a visitor from a deer, and the body is
+   * the honest way to ask.
+   */
+  tileId: string;
   x: number;
   y: number;
   z: number;
@@ -205,6 +222,20 @@ type SlideState = {
  */
 type ActorRuntime = {
   readonly id: string;
+  /**
+   * Lives in the map rather than on a socket, so nothing outside will ever
+   * drive it. Recorded when the actor is created because that is the only
+   * moment the distinction is free — after that it would mean asking the board
+   * what kind of body this is, once per creature per tick.
+   */
+  readonly resident: boolean;
+  /**
+   * Where this creature is in its state machine, or null for a body with no
+   * brain — every player, and any creature whose authored brain did not parse.
+   * Built on first use rather than at adoption, which is what makes "brain
+   * state resets on load" free: a fresh runtime has no memory to restore.
+   */
+  brain: BrainMemory | null;
   input: GameInput;
   walk: WalkState | null;
   fall: FallState | null;
@@ -247,6 +278,16 @@ export class GameSession implements PlaySession {
   /** Map identity the last settle pass read. See {@link settleBoardNow}. */
   private settledMap: MapFile | null = null;
   private accumulatorMs = 0;
+  /**
+   * The world's dice, shared by every brain in it.
+   *
+   * One stream rather than one per creature, which makes actor order part of
+   * what makes a world reproducible — the same order that already decides who
+   * wins a contested cell.
+   */
+  private readonly rng: Rng;
+  /** Time towards the next round of decisions. See {@link BRAIN_TICK_MS}. */
+  private brainAccumulatorMs = 0;
 
   /**
    * @param actorIds actors to start with. The default adopts the authored
@@ -258,15 +299,20 @@ export class GameSession implements PlaySession {
    *   run**, because that map no longer has a marker to read: it was consumed
    *   the first time. Rediscovering it is impossible, so it has to be carried
    *   alongside.
+   * @param seed where the world's dice start. Carried in the checkpoint for the
+   *   same reason `spawnAt` is — resuming from the opening seed would replay
+   *   the wander the world had already played. Omit for a fresh world.
    */
   constructor(
     map: MapFile,
     tiles: TileDef[],
     actorIds: readonly string[] = [LOCAL_ACTOR_ID],
     spawnAt?: Coord & { stackIndex: number },
+    seed?: number,
   ) {
     this.map = structuredClone(map);
     this.tilesById = tilesByIdFromList(tiles);
+    this.rng = new Rng(seed);
 
     if (spawnAt) {
       this.spawnAt = spawnAt;
@@ -287,6 +333,10 @@ export class GameSession implements PlaySession {
       for (const id of rest) this.spawn(id);
     }
 
+    // After the connecting actors, and before anything reads the board: a
+    // resident is on the map whether or not anybody is here to see it.
+    this.adoptResidents();
+
     for (const cell of findPlateCells(this.map, this.tilesById)) {
       this.plateCells.set(cellKey(cell), cell);
     }
@@ -300,9 +350,37 @@ export class GameSession implements PlaySession {
     this.settleBoardNow();
   }
 
-  private addActor(id: string): ActorRuntime {
+  /**
+   * Give every body that lives in the map an actor to drive it.
+   *
+   * Placing the tile is the whole of putting an NPC in the world — there is no
+   * spawner and nothing to author beyond the placement itself. Idempotent
+   * against a resumed world: a body that already carries an owner keeps it and
+   * only gains its runtime back, because re-minting would hand the same
+   * creature a second identity and leave the first one on the board forever.
+   *
+   * The locations are read once, up front, and stayed reliable while the loop
+   * rewrites the map: adoption only ever writes an owner onto a placement, so
+   * nothing moves out from under the scan.
+   */
+  private adoptResidents() {
+    for (const body of listResidentBodies(this.map, this.tilesById)) {
+      const owner = body.placed.owner ?? residentOwnerId(body);
+      if (!body.placed.owner) {
+        this.map = adoptBodyAt(this.map, body, owner);
+      }
+      if (!this.actors.has(owner)) this.addActor(owner, { resident: true });
+    }
+  }
+
+  private addActor(
+    id: string,
+    opts: { resident?: boolean } = {},
+  ): ActorRuntime {
     const actor: ActorRuntime = {
       id,
+      resident: opts.resident === true,
+      brain: null,
       input: { directions: [] },
       walk: null,
       fall: null,
@@ -374,8 +452,19 @@ export class GameSession implements PlaySession {
    */
   reapAbsentActors(present: Iterable<string>) {
     const live = new Set(present);
+    // Residents are nobody's connection, so they are absent from every list of
+    // who is connected — reaping on that alone would clear the world of its
+    // wildlife on the first wake after an eviction. Read off the board rather
+    // than tracked beside it, and by the same rule adoption uses, so the two
+    // cannot come to disagree about what a resident is.
+    const residents = new Set(
+      listResidentBodies(this.map, this.tilesById)
+        .map((body) => body.placed.owner)
+        .filter((owner): owner is string => owner != null),
+    );
     for (const owner of listActorOwners(this.map)) {
-      if (!live.has(owner)) this.map = despawnActor(this.map, owner);
+      if (live.has(owner) || residents.has(owner)) continue;
+      this.map = despawnActor(this.map, owner);
     }
   }
 
@@ -398,6 +487,17 @@ export class GameSession implements PlaySession {
    */
   getSpawnPoint(): Coord & { stackIndex: number } {
     return this.spawnAt;
+  }
+
+  /**
+   * The dice as they stand, to be handed back to the constructor on resume.
+   *
+   * Must be checkpointed alongside the map: restoring a world from the seed it
+   * opened with would replay the wander it had already played, which is the one
+   * thing a fresh draw exists to avoid.
+   */
+  getSeed(): number {
+    return this.rng.save();
   }
 
   private actor(id: string): ActorRuntime {
@@ -511,6 +611,10 @@ export class GameSession implements PlaySession {
    * message happened to arrive first.
    */
   tick(tickMs: number = TICK_MS) {
+    // Before the bodies move, so a decision taken now starts its walk on this
+    // tick rather than the next.
+    this.tickBrains(tickMs);
+
     for (const actor of this.actors.values()) {
       // Independent of the actor: a shoved object keeps travelling whatever
       // they do next.
@@ -521,6 +625,64 @@ export class GameSession implements PlaySession {
     // board the tick leaves behind, not to any particular actor having caused
     // it. Running this per actor would settle the same plates N times.
     this.settleBoardNow();
+  }
+
+  /**
+   * Is anybody here to see it?
+   *
+   * Brains run only while somebody is connected, and this is the whole test:
+   * every actor is either somebody's connection or lives in the map, so "a
+   * non-resident exists" is "a player is present" without the session needing
+   * to know a socket from a hole in the ground.
+   */
+  private observed(): boolean {
+    for (const actor of this.actors.values()) {
+      if (!actor.resident) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Let every brain decide, at its own slower cadence.
+   *
+   * Frozen while nobody is connected, and that is a cost decision rather than a
+   * fiction about the world: the tick loop keeps a Durable Object out of
+   * hibernation, so a single deer on a five-second timer would hold an empty
+   * world awake forever, for nobody. What freezes is *deciding* — a body
+   * already mid-step finishes it, because `isAtRest` waits on motion and a step
+   * abandoned halfway would checkpoint a creature between two cells, which the
+   * whole simulation is written to make impossible.
+   *
+   * The accumulator is drained rather than reset, so the phase of the brain
+   * clock survives a quiet spell instead of restarting on the next join.
+   */
+  private tickBrains(tickMs: number) {
+    if (!this.observed()) return;
+
+    this.brainAccumulatorMs += tickMs;
+    if (this.brainAccumulatorMs < BRAIN_TICK_MS) return;
+    this.brainAccumulatorMs -= BRAIN_TICK_MS;
+
+    for (const actor of this.actors.values()) {
+      if (!actor.resident) continue;
+      this.tickOneBrain(actor);
+    }
+  }
+
+  private tickOneBrain(actor: ActorRuntime) {
+    // A body with no brain, or one whose authored brain did not hold together,
+    // simply stands there. Resolving is memoised on def identity, so asking
+    // every tick costs a map lookup rather than a parse.
+    const brain = resolveBrain(this.defFor(actor));
+    if (!brain) return;
+
+    actor.brain ??= initialMemory(brain);
+    stepBrain(brain, actor.brain, BRAIN_TICK_MS, {
+      busy: !this.idle(actor),
+      rng: this.rng,
+      step: (direction) =>
+        this.applyStepRequest(actor, { directions: [direction] }),
+    });
   }
 
   /**
@@ -688,6 +850,7 @@ export class GameSession implements PlaySession {
     const visualExtra = this.accumulatorMs;
     return {
       id: actor.id,
+      tileId: loc.placed.tileId,
       x: loc.x,
       y: loc.y,
       z: loc.z,
@@ -743,20 +906,58 @@ export class GameSession implements PlaySession {
    * until plates and channels agree with each other.
    */
   isAtRest(): boolean {
+    let observed = false;
+    let thinking = false;
     for (const actor of this.actors.values()) {
       if (actor.walk || actor.fall || actor.slide) return false;
       if (actor.input.directions.length > 0) return false;
+      if (!actor.resident) {
+        observed = true;
+      } else if (!thinking) {
+        thinking = this.thinks(actor);
+      }
     }
+
+    // A creature counting down to its next move is pending work, even with
+    // nothing on the board moving. Without this the loop stops the moment a
+    // player stands still, which freezes the very timer that would have started
+    // the next wander — stand still and the wildlife stops existing. Gated on
+    // somebody being here, so an empty world is still free: that is the whole
+    // bargain, and it is why brains freeze rather than run on an alarm.
+    if (observed && thinking) return false;
+
     return this.map === this.settledMap;
+  }
+
+  /** Does this actor have a brain that is going to want a turn? */
+  private thinks(actor: ActorRuntime): boolean {
+    const loc = this.tryLocate(actor);
+    if (!loc) return false;
+    const def = this.tilesById[loc.placed.tileId];
+    return def != null && resolveBrain(def) !== null;
   }
 
   getMap(): MapFile {
     return this.map;
   }
 
-  private playerDef(): TileDef {
-    const def = this.tilesById[PLAYER_TILE_ID];
-    if (!def) throw new Error(`Missing tile def "${PLAYER_TILE_ID}"`);
+  /**
+   * The tile an actor *is*, which is what every rule about their motion has to
+   * be asked against.
+   *
+   * This was the player's def for everybody, which was true for exactly as long
+   * as every actor was a person. A deer is a different height, may climb
+   * differently, and need not answer to gravity at all — reading the def off
+   * the body means none of that is a special case, and a new creature is a tile
+   * rather than a branch.
+   *
+   * Read through the location memo rather than stored on the runtime, because
+   * the body can be swapped underneath an actor and a copy would go stale.
+   */
+  private defFor(actor: ActorRuntime): TileDef {
+    const { placed } = this.locate(actor);
+    const def = this.tilesById[placed.tileId];
+    if (!def) throw new Error(`Missing tile def "${placed.tileId}"`);
     return def;
   }
 
@@ -816,7 +1017,7 @@ export class GameSession implements PlaySession {
       this.map,
       { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex },
       request,
-      this.playerDef(),
+      this.defFor(actor),
       this.tilesById,
       (to) => this.destinationTaken(to, actor),
     );
@@ -893,8 +1094,7 @@ export class GameSession implements PlaySession {
   }
 
   private maybeStartFall(actor: ActorRuntime) {
-    const def = this.playerDef();
-    if (!def.affectedByGravity) return;
+    if (!this.defFor(actor).affectedByGravity) return;
 
     const loc = this.locate(actor);
     if (
@@ -972,7 +1172,7 @@ export class GameSession implements PlaySession {
         this.map,
         { x: after.x, y: after.y, z: after.z, stackIndex: after.stackIndex },
         facing,
-        this.playerDef(),
+        this.defFor(actor),
         this.tilesById,
       );
       if (slide.ok) {

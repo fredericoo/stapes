@@ -249,8 +249,14 @@ describe("mobility classification", () => {
    * fail every time a tile was authored, which says nothing about whether the
    * classification is right.
    */
-  it("counts gravity and pushability, and nothing else", () => {
+  it("counts gravity, pushability and bodies, and nothing else", () => {
     expect(isMobileTile(tile({ id: "boulder", height: 2, affectedByGravity: true }))).toBe(true);
+    // A body moves under its own steam, and saying so explicitly is what keeps
+    // one that ignores gravity out of the static bake — baked into the floor,
+    // and smearing across it the moment it walked.
+    expect(isMobileTile(tile({ id: "ghost", height: 1, actor: true }))).toBe(
+      true,
+    );
     expect(
       isMobileTile(tile({ id: "crate", height: 1, interactions: { push: DEFAULT_PUSH } })),
     ).toBe(true);

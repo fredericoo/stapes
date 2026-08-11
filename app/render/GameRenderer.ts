@@ -574,6 +574,11 @@ export class GameRenderer {
     if (!this.showNames) return;
 
     for (const actor of snap.actors) {
+      // People are named; the wildlife is not. A handle is derived from the
+      // cookie behind a connection, so hanging one over a deer would be reading
+      // out an internal id and calling it a name.
+      if (actor.tileId !== PLAYER_TILE_ID) continue;
+
       const visual = this.actorVisualWorld(snap.map, actor);
       const height = this.movingTileHeight(snap.map, actor, actor.stackIndex);
       const head = elevationScreenOffset(height);

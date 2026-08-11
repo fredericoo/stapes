@@ -1,6 +1,7 @@
 import * as v from "valibot";
+import type { BrainDef } from "./brain";
 import type { TileDef } from "./types";
-import { HEIGHT_PER_LEVEL } from "./types";
+import { HEIGHT_PER_LEVEL, resolveActor } from "./types";
 
 /**
  * How far up a pushed object can step. Descent is deliberately absent —
@@ -133,6 +134,13 @@ export type ReceiveInteraction = {
 
 /** Ways a placed object can behave in play. Grows over time. */
 export type TileInteractions = {
+  /**
+   * What drives this body when nobody is connected to it. Only meaningful on a
+   * tile marked {@link TileDef.actor}; see `./brain`, which owns the shape and
+   * the parsing — it is large enough to be its own module rather than another
+   * block in here.
+   */
+  brain?: BrainDef;
   push?: PushInteraction;
   switch?: SwitchInteraction;
   pressurePlate?: PressurePlateInteraction;
@@ -338,9 +346,17 @@ export function interactionKinds(def: TileDef): InteractionKind[] {
  * this frame. A boulder at rest is still mobile: classifying per frame would
  * mean shuffling it between the batch and its own mesh every time it started
  * and stopped, and that rebuild is exactly the cost being removed.
+ *
+ * A body is mobile by definition, and saying so explicitly rather than leaning
+ * on its gravity is what keeps a hovering one out of the trap: baked into the
+ * floor geometry, and smearing across it the moment it moved.
  */
 export function isMobileTile(def: TileDef): boolean {
-  return def.affectedByGravity === true || resolvePush(def) !== null;
+  return (
+    def.affectedByGravity === true ||
+    resolveActor(def) ||
+    resolvePush(def) !== null
+  );
 }
 
 /** Whether the player can do anything at all with this tile. */
@@ -357,7 +373,8 @@ export function hasAnyInteraction(
   interactions: TileInteractions | undefined,
 ): boolean {
   return Boolean(
-    interactions?.push ||
+    interactions?.brain ||
+      interactions?.push ||
       interactions?.switch ||
       interactions?.pressurePlate ||
       interactions?.emit ||
@@ -393,7 +410,13 @@ export function interactionsForSave(
         mode: receive.mode,
       }
     : undefined;
+  // Passed through rather than rebuilt field by field, unlike everything else
+  // here: there is no brain editor yet, so the only way one survives a trip
+  // through the tile dialog is untouched. Rebuilding it would also mean this
+  // function knowing the whole state-machine shape, which is `./brain`'s job.
+  const savedBrain = interactions?.brain;
   if (
+    !savedBrain &&
     !savedPush &&
     !savedSwitch &&
     !savedPlate &&
@@ -403,6 +426,7 @@ export function interactionsForSave(
     return undefined;
   }
   return {
+    ...(savedBrain ? { brain: savedBrain } : {}),
     ...(savedPush ? { push: savedPush } : {}),
     ...(savedSwitch ? { switch: savedSwitch } : {}),
     ...(savedPlate ? { pressurePlate: savedPlate } : {}),

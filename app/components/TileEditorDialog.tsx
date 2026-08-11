@@ -363,6 +363,7 @@ export function TileEditorDialog({
       intangible: draft.intangible ? true : undefined,
       affectedByGravity: draft.affectedByGravity ? true : undefined,
       walkable: draft.walkable === false ? false : undefined,
+      actor: draft.actor ? true : undefined,
       climbFrom: climbFromForSave(draft, climbByVariant),
       interactions: interactionsForSave(draft.interactions),
     };
@@ -740,6 +741,18 @@ export function TileEditorDialog({
               className="hard-checkbox"
             />
             Walkable
+          </label>
+          <label
+            className="flex items-center gap-2 text-sm"
+            title="Every placement of this tile comes alive as its own actor when the world loads."
+          >
+            <input
+              type="checkbox"
+              checked={draft.actor ?? false}
+              onChange={(e) => setDraft({ ...draft, actor: e.target.checked })}
+              className="hard-checkbox"
+            />
+            Actor
           </label>
         </div>
 

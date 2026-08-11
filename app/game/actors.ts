@@ -1,6 +1,6 @@
 import { appendTile, getStack, listCoords, removeTileAt, replaceStack } from "../lib/mapData";
-import type { Coord, Direction, MapFile, PlacedTile } from "../lib/types";
-import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
+import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
+import { MAX_LEVEL, MIN_LEVEL, resolveActor } from "../lib/types";
 import { PLAYER_TILE_ID } from "./constants";
 import { requireSinglePlayer } from "./player";
 
@@ -20,8 +20,17 @@ const DEFAULT_FACING: Direction = "s";
  */
 const ACTOR_SEARCH_RADIUS = 1;
 
+/**
+ * An actor is any placement carrying an owner — the tile it happens to be is
+ * not part of the test.
+ *
+ * This used to insist on the `player` tile, which was true while a socket was
+ * the only thing that could drive a body. An owner now means "something is
+ * driving this", whether that something is a connection or an authored brain,
+ * so the tile id has no bearing on it.
+ */
 function isActor(placed: PlacedTile | undefined, ownerId: string): boolean {
-  return placed?.tileId === PLAYER_TILE_ID && placed.owner === ownerId;
+  return placed?.owner === ownerId;
 }
 
 /**
@@ -124,12 +133,7 @@ export function spawnPoint(map: MapFile): Coord & { stackIndex: number } {
  * with it the elevation it stands at.
  */
 export function adoptAuthoredPlayer(map: MapFile, ownerId: string): MapFile {
-  const at = requireSinglePlayer(map);
-  const stack = getStack(map, at.x, at.y, at.z);
-  const next = stack.map((placed, i) =>
-    i === at.stackIndex ? { ...placed, owner: ownerId } : placed,
-  );
-  return replaceStack(map, at.x, at.y, at.z, next);
+  return adoptBodyAt(map, requireSinglePlayer(map), ownerId);
 }
 
 /**
@@ -144,13 +148,68 @@ export function listActorOwners(map: MapFile): string[] {
   for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
     for (const { stack } of listCoords(map, z)) {
       for (const placed of stack) {
-        if (placed.tileId === PLAYER_TILE_ID && placed.owner) {
-          owners.add(placed.owner);
-        }
+        if (placed.owner) owners.add(placed.owner);
       }
     }
   }
   return [...owners];
+}
+
+/**
+ * Bodies that live in the map rather than arriving on a socket.
+ *
+ * Every placement of a tile marked {@link TileDef.actor}, minus the authored
+ * `player` tile — which wears the same flag because it *is* a body, but is a
+ * spawn marker the session consumes rather than a resident of the world. A
+ * connected player's body is excluded by the same test, which is correct: they
+ * are driven by their connection, and this is the list of everyone who is not.
+ *
+ * Returned with owners intact where they have them. A resumed world already
+ * carries the owners minted the first time it loaded, and re-minting would hand
+ * the same deer a second identity.
+ */
+export function listResidentBodies(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+): ActorLocation[] {
+  const found: ActorLocation[] = [];
+  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+    for (const { x, y, stack } of listCoords(map, z)) {
+      stack.forEach((placed, stackIndex) => {
+        if (placed.tileId === PLAYER_TILE_ID) return;
+        const def = tilesById[placed.tileId];
+        if (!def || !resolveActor(def)) return;
+        found.push({ x, y, z, stackIndex, placed });
+      });
+    }
+  }
+  return found;
+}
+
+/**
+ * The identity a resident body takes when it is first adopted.
+ *
+ * Derived from where it was authored, because that reads in a log in a way a
+ * counter does not, and because it is stable across reloads of the same map.
+ * The stack slot is part of it so that two bodies in one cell — a cat asleep on
+ * a crate — do not collide. It stops describing where they are the moment they
+ * move, which is fine: it is a name, not an address.
+ */
+export function residentOwnerId(at: Coord & { stackIndex: number }): string {
+  return `npc:${at.x},${at.y},${at.z},${at.stackIndex}`;
+}
+
+/** Tag a placement as belonging to `ownerId`, keeping its slot in the stack. */
+export function adoptBodyAt(
+  map: MapFile,
+  at: Coord & { stackIndex: number },
+  ownerId: string,
+): MapFile {
+  const stack = getStack(map, at.x, at.y, at.z);
+  const next = stack.map((placed, i) =>
+    i === at.stackIndex ? { ...placed, owner: ownerId } : placed,
+  );
+  return replaceStack(map, at.x, at.y, at.z, next);
 }
 
 /**

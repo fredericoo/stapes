@@ -3422,5 +3422,77 @@
         }
       ]
     }
+  },
+  {
+    "id": "deer",
+    "name": "Deer",
+    "height": 1,
+    "type": "simple",
+    "attributes": {},
+    "actor": true,
+    "affectedByGravity": true,
+    "walkable": false,
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 18,
+              "y": 0,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    },
+    "interactions": {
+      "brain": {
+        "initial": "idle",
+        "states": {
+          "idle": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "wander": {
+            "do": [
+              {
+                "action": "step_random"
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          }
+        },
+        "transitions": [
+          {
+            "from": "idle",
+            "if": {
+              "cond": "after",
+              "ms": 5000
+            },
+            "to": "wander"
+          },
+          {
+            "from": "wander",
+            "if": {
+              "cond": "after",
+              "ms": 2000
+            },
+            "to": "idle"
+          }
+        ]
+      }
+    }
   }
 ]

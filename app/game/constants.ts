@@ -14,5 +14,18 @@ export const PUSH_STEP_MS = WALK_DURATION_MS;
 
 export const PLAYER_TILE_ID = "player";
 
+/**
+ * How often a brain decides. Six simulation ticks — one decision per walk.
+ *
+ * A whole number of ticks, and that is load-bearing rather than tidy: a
+ * fractional cadence would drift against the tick loop and stop being
+ * reproducible, and reproducibility is the entire reason the dice are seeded.
+ *
+ * Bodies still move at the full tick rate. This is only the rate at which a
+ * creature reconsiders — thirty times a second is thirty times more often than
+ * anything here has a new answer.
+ */
+export const BRAIN_TICK_MS = WALK_DURATION_MS;
+
 /** Max climb up in absolute height units when walking into a cell (half a level). */
 export const MAX_CLIMB_HEIGHT = 1;

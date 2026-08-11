@@ -299,6 +299,92 @@ describe("surviving eviction", () => {
   });
 });
 
+/**
+ * A body that lives in the map, rather than arriving on a socket.
+ *
+ * The point of interest is the cleanup path: a resident is nobody's connection,
+ * so every list of who is present omits it, and the pass that clears out bodies
+ * whose sockets died is aimed squarely at it by accident.
+ */
+const DEER_CELL = 3;
+
+/** The real tile set, plus a creature to place. */
+function tilesWithDeer() {
+  return [
+    ...(tilesJson as unknown[]),
+    {
+      id: "deer",
+      name: "Deer",
+      type: "simple",
+      height: 1,
+      attributes: {},
+      actor: true,
+      affectedByGravity: true,
+      walkable: false,
+    },
+  ];
+}
+
+/** The authored strip, with a deer standing on it away from spawn. */
+function mapWithDeer(): FlatMapFile {
+  const map = authoredMap();
+  map.levels["0"]![`${DEER_CELL},0`] = [{ tileId: "grass" }, { tileId: "deer" }];
+  return map;
+}
+
+/** Every deer placement in a flat map, as `x` values. */
+function deerCells(map: FlatMapFile): number[] {
+  const found: number[] = [];
+  for (const cells of Object.values(map.levels)) {
+    for (const [key, stack] of Object.entries(cells)) {
+      for (const placed of stack) {
+        if (placed.tileId === "deer") found.push(Number(key.split(",")[0]));
+      }
+    }
+  }
+  return found.sort();
+}
+
+describe("residents", () => {
+  beforeEach(async () => {
+    await env.DATA.put("tiles.json", JSON.stringify(tilesWithDeer()));
+    await env.DATA.put("map.json", JSON.stringify(mapWithDeer()));
+  });
+
+  it("is in the world a joiner is handed, driving itself", async () => {
+    const { hello } = await connect("alice");
+
+    expect(deerCells(hello.map as FlatMapFile)).toEqual([DEER_CELL]);
+    // An actor like any other, so its motion rides the existing protocol.
+    expect(hello.actorIds).toEqual(
+      expect.arrayContaining([expect.stringMatching(/^npc:/)]),
+    );
+  });
+
+  it("looks the same to everybody in the room", async () => {
+    const alice = await connect("alice");
+    const { hello } = await connect("bob");
+
+    expect(deerCells(alice.hello.map as FlatMapFile)).toEqual(
+      deerCells(hello.map as FlatMapFile),
+    );
+  });
+
+  /**
+   * Regression: the reaper removes bodies whose socket is gone, and a resident
+   * has never had one. Every wake after an eviction emptied the world of its
+   * wildlife, permanently — the checkpoint written afterwards had no deer in it.
+   */
+  it("survives an eviction, in place and unduplicated", async () => {
+    await connect("alice");
+    await simulateEviction();
+
+    const { hello } = await connect("bob");
+
+    expect(deerCells(hello.map as FlatMapFile)).toEqual([DEER_CELL]);
+  });
+});
+
 describe("replacing the world", () => {
   it("persists the authored map and restarts everyone on it", async () => {
     const alice = await connect("alice");
