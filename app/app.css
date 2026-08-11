@@ -89,12 +89,19 @@ textarea {
 }
 
 /**
- * In-world text: names over heads, and what people say.
+ * In-world text: names over heads, what people say, and what you are looking at.
  *
- * Positioned per frame from `app/render/textLabels.ts`, which writes `left` and
- * `top` in CSS pixels. Everything about *size* lives here and nowhere else,
- * because the whole point is that it does not scale with the canvas — the view
- * zooms in whole steps as the window grows and this text does not move with it.
+ * Everything about *size* lives here and nowhere else, because the whole point
+ * is that it does not scale with the canvas — the view zooms in whole steps as
+ * the window grows and this text does not move with it.
+ *
+ * Everything about *position* lives in `app/render/labelLayout.ts` and nowhere
+ * else, for the opposite reason: where a label goes depends on where the others
+ * went, and a stylesheet cannot see a crowd. It writes each label's top left
+ * corner into `--label-x` / `--label-y` in CSS pixels, already measured and
+ * already resolved against every other label on screen. Nothing here may shift
+ * a label again — a second opinion about position is exactly the overlap that
+ * pass exists to prevent.
  */
 .world-label-layer {
   position: absolute;
@@ -126,10 +133,11 @@ textarea {
   position: absolute;
   left: 0;
   top: 0;
-  /* A column whose *bottom* edge lands on the anchor (the -100% below). Lines
-     flow downward, so the last one rests on the ground and everything earlier is
-     pushed up by exactly the height of what came after it — wrapped or not, and
-     measured by nobody. This is what makes several messages at one cell stack. */
+  /* A column of lines flowing downward, so the last one rests nearest the
+     ground and everything earlier is pushed up by exactly the height of what
+     came after it — wrapped or not. This is what makes several messages at one
+     cell stack inside a single label; keeping labels apart from *each other* is
+     the layout pass's job, not this one's. */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -146,11 +154,12 @@ textarea {
   max-width: 60%;
   /* A pasted 128-character word has to break somewhere. */
   overflow-wrap: break-word;
-  /* Hangs upward from its anchor, centred on it. */
-  transform: translate(
-    calc(var(--label-x, 0px) - 50%),
-    calc(var(--label-y, 0px) - 100%)
-  );
+  /* The corner the layout pass chose. No percentage nudges: the pass measured
+     this box and placed it as a box, so centring it on the anchor and hanging
+     it above are decisions it has already made. */
+  transform: translate(var(--label-x, 0px), var(--label-y, 0px));
+  /* Above a name tag wherever the two meet, which they are allowed to. */
+  z-index: 1;
   /* An outline one brick wide, so it matches the glyph's own pixel size instead
      of being a hairline beside it. Four offsets rather than eight: the font is
      orthogonal, so the diagonals add nothing but weight. */
@@ -161,33 +170,22 @@ textarea {
     0 calc(var(--world-label-brick) * -1) 0 #000;
 }
 
-/* EarthBound's dialogue yellow, near enough. A tag, not a voice. */
+/* EarthBound's dialogue yellow, near enough. A tag, not a voice — which is why
+   it is the one label allowed to be covered, and so the one drawn underneath:
+   a sentence over a name has to read as a sentence, not as a collision. */
 .world-label--name {
   color: #ffd23f;
+  z-index: 0;
 }
 
 .world-label--speech {
   color: var(--color-paper);
-  /* Clear of the name tag on the same head. Both hang upward from anchors a
-     pixel apart, so without this a standing speaker prints through their own
-     name — and the gap has to be in screen space, like the type it separates. */
-  transform: translate(
-    calc(var(--label-x, 0px) - 50%),
-    calc(var(--label-y, 0px) - 100% - var(--world-label-size) * 1.5)
-  );
 }
 
 /* What you are pointing at, and what it says. Blue because that is the colour
    of the outline drawn round the same object — one mode, one colour. */
 .world-label--look {
   color: #9ad8ff;
-  /* Clear of a name tag on the same head, exactly as speech is: looking at
-     another player puts this label and their yellow tag on anchors a pixel
-     apart, and the gap has to be in screen space like the type it separates. */
-  transform: translate(
-    calc(var(--label-x, 0px) - 50%),
-    calc(var(--label-y, 0px) - 100% - var(--world-label-size) * 1.5)
-  );
 }
 
 /* Hard-edged checkbox — matches Input / Segmented chrome */
