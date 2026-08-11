@@ -32,8 +32,9 @@ import {
   autotileSliceTitle,
 } from "./AutotileSlicePreview";
 import { InteractiveTab } from "./InteractiveTab";
+import { BrainEditor } from "./BrainEditor";
 import { hasAnyInteraction, interactionsForSave } from "../lib/interactions";
-import { validateBrain } from "../lib/brain";
+import { validateBrain, type BrainDef } from "../lib/brain";
 import { Button, Dialog, Input, Segmented, Select, TabPanel, Tabs } from "../ui";
 
 function emptyFrame(tilesetId: string): Frame {
@@ -165,6 +166,7 @@ type Props = {
 
 const TAB_TILE = "tile";
 const TAB_INTERACTIVE = "interactive";
+const TAB_BRAIN = "brain";
 
 export function TileEditorDialog({
   open,
@@ -285,6 +287,22 @@ export function TileEditorDialog({
   // the checkbox and the Interactive tab disagree — see `resolveActor`.
   const impliedByBrain = draft.interactions?.brain != null;
   const isActor = draft.actor === true || impliedByBrain;
+
+  const setBrain = (next: BrainDef | undefined) => {
+    const merged = { ...draft.interactions };
+    if (next == null) delete merged.brain;
+    else merged.brain = next;
+    setDraft({
+      ...draft,
+      interactions: hasAnyInteraction(merged) ? merged : undefined,
+    });
+  };
+
+  // Whether the Interactive tab has anything, brain aside — its own tab now.
+  const i = draft.interactions;
+  const hasNonBrainInteraction = Boolean(
+    i?.push || i?.switch || i?.pressurePlate || i?.emit || i?.receive,
+  );
 
   const climbVariant: VariantKey = isDirectional(draft) ? dir : "default";
   const climbFlags = resolveClimbFrom(draft, climbVariant);
@@ -660,9 +678,12 @@ export function TileEditorDialog({
             { value: TAB_TILE, label: "Tile" },
             {
               value: TAB_INTERACTIVE,
-              label: hasAnyInteraction(draft.interactions)
-                ? "Interactive •"
-                : "Interactive",
+              // The brain has its own tab now, so it no longer lights this dot.
+              label: hasNonBrainInteraction ? "Interactive •" : "Interactive",
+            },
+            {
+              value: TAB_BRAIN,
+              label: impliedByBrain ? "Brain •" : "Brain",
             },
           ]}
         >
@@ -673,6 +694,16 @@ export function TileEditorDialog({
               tiles={tiles}
               tilesets={tilesets}
             />
+          </TabPanel>
+
+          <TabPanel value={TAB_BRAIN} className="flex flex-col gap-3">
+            <p className="text-[11px] leading-snug text-muted">
+              What drives this body when nobody is connected to it — an authored
+              state machine. Authoring one makes the tile an{" "}
+              <strong>Actor</strong>; a malformed brain leaves the creature
+              standing still.
+            </p>
+            <BrainEditor brain={draft.interactions?.brain} onChange={setBrain} />
           </TabPanel>
 
           <TabPanel value={TAB_TILE} className="flex flex-col gap-3">
