@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { WALK_DURATION_MS } from "../game/constants";
 import type {
   AutotileSlice,
   Direction,
@@ -364,6 +365,7 @@ export function TileEditorDialog({
       affectedByGravity: draft.affectedByGravity ? true : undefined,
       walkable: draft.walkable === false ? false : undefined,
       actor: draft.actor ? true : undefined,
+      walkDurationMs: draft.actor ? draft.walkDurationMs : undefined,
       climbFrom: climbFromForSave(draft, climbByVariant),
       interactions: interactionsForSave(draft.interactions),
     };
@@ -755,6 +757,32 @@ export function TileEditorDialog({
             Actor
           </label>
         </div>
+
+        {draft.actor ? (
+          <label className="flex items-center gap-2 text-sm">
+            Step duration
+            <input
+              type="number"
+              min={1}
+              step={10}
+              // Blank means "the player's pace", which is a different thing from
+              // zero and has to survive a round trip through the field.
+              value={draft.walkDurationMs ?? ""}
+              placeholder={String(WALK_DURATION_MS)}
+              onChange={(e) =>
+                setDraft({
+                  ...draft,
+                  walkDurationMs:
+                    e.target.value === "" ? undefined : Number(e.target.value),
+                })
+              }
+              className="w-24"
+            />
+            <span className="text-xs text-ink/60">
+              ms per cell — larger is slower
+            </span>
+          </label>
+        ) : null}
 
         {!isDirectional(draft) ? climbPad : null}
 

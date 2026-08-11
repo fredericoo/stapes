@@ -53,7 +53,13 @@ import {
   removeEntity,
   setEntityDirection,
 } from "./mapMutations";
-import { canWalk, standingAbs } from "./movement";
+import {
+  canWalk,
+  DIR_DELTA,
+  listStandingSurfaces,
+  resolveWalkDurationMs,
+  standingAbs,
+} from "./movement";
 import { resolveBrain } from "../lib/brain";
 import {
   initialMemory,
@@ -77,6 +83,12 @@ export type WalkState = {
   to: Coord;
   direction: Direction;
   elapsedMs: number;
+  /**
+   * How long this particular step takes — the walker's own pace, not a shared
+   * constant. Carried on the motion rather than looked up while it runs, so a
+   * step keeps the speed it began at even if the body under it is swapped.
+   */
+  durationMs: number;
 };
 
 export type FallState = {
@@ -684,9 +696,42 @@ export class GameSession implements PlaySession {
       self: { x: loc.x, y: loc.y, z: loc.z },
       nearestPlayerId: () => this.nearestPlayerId(loc),
       positionOf: (id) => this.actorCell(id),
+      wouldDrop: (direction) => this.stepLeavesGround(loc, direction),
       step: (direction) =>
         this.applyStepRequest(actor, { directions: [direction] }),
     });
+  }
+
+  /**
+   * Would a step this way land on nothing?
+   *
+   * The same band `canWalk` measures against, asked separately rather than
+   * folded into it: the board deliberately permits walking into open air so
+   * gravity can pull an actor through a steeper drop, and that rule is shared
+   * with the client's own prediction. Changing it for creatures would put the
+   * two out of step over the one thing they must agree on. So the caution lives
+   * out here, where a brain can choose it per action.
+   */
+  private stepLeavesGround(loc: ActorLocation, direction: Direction): boolean {
+    const { dx, dy } = DIR_DELTA[direction];
+    const fromAbs = standingAbs(
+      this.map,
+      loc.x,
+      loc.y,
+      loc.z,
+      loc.stackIndex,
+      this.tilesById,
+    );
+    return !listStandingSurfaces(
+      this.map,
+      loc.x + dx,
+      loc.y + dy,
+      this.tilesById,
+    ).some(
+      (surface) =>
+        surface.abs >= fromAbs - MAX_CLIMB_HEIGHT &&
+        surface.abs <= fromAbs + MAX_CLIMB_HEIGHT,
+    );
   }
 
   /**
@@ -867,7 +912,7 @@ export class GameSession implements PlaySession {
 
     if (actor.walk) {
       actor.walk.elapsedMs += tickMs;
-      if (actor.walk.elapsedMs >= WALK_DURATION_MS) {
+      if (actor.walk.elapsedMs >= actor.walk.durationMs) {
         this.commitWalk(actor);
       } else {
         return;
@@ -895,7 +940,7 @@ export class GameSession implements PlaySession {
       walk: actor.walk,
       fall: actor.fall,
       walkProgress: actor.walk
-        ? Math.min(1, (actor.walk.elapsedMs + visualExtra) / WALK_DURATION_MS)
+        ? Math.min(1, (actor.walk.elapsedMs + visualExtra) / actor.walk.durationMs)
         : 0,
       // Unclamped, unlike the walk: a fall is a run of height units rather than
       // one lerp, and the tick that commits a unit lands after the unit's time
@@ -1075,6 +1120,7 @@ export class GameSession implements PlaySession {
       to: choice.step.to,
       direction: choice.step.direction,
       elapsedMs: 0,
+      durationMs: resolveWalkDurationMs(this.defFor(actor)),
     };
     return true;
   }
@@ -1217,6 +1263,7 @@ export class GameSession implements PlaySession {
           to: slide.to,
           direction: facing,
           elapsedMs: 0,
+          durationMs: resolveWalkDurationMs(this.defFor(actor)),
         };
         return;
       }

@@ -27,7 +27,7 @@ import type {
   SlideSnapshot,
   WalkState,
 } from "../game/GameSession";
-import { standingAbs } from "../game/movement";
+import { resolveWalkDurationMs, standingAbs } from "../game/movement";
 import { DEFAULT_PLAY_MINUTES, type MinutesOfDay } from "../lib/clock";
 import { chunkifyMap, emptyMap, getStack, setStacks } from "../lib/mapData";
 import type {
@@ -235,6 +235,20 @@ export class RemoteSession implements PlaySession {
   };
 
   /**
+   * How fast whatever is standing at `at` walks.
+   *
+   * Taken from the top of the stack, which is where a body sits. A cell that
+   * has already been patched out from under the event falls back to the
+   * player's pace — the wrong answer for one step of one creature, and better
+   * than refusing to animate it.
+   */
+  private walkDurationAt(at: { x: number; y: number; z: number }): number {
+    const stack = getStack(this.map, at.x, at.y, at.z);
+    const def = this.tilesById[stack[stack.length - 1]?.tileId ?? ""];
+    return def ? resolveWalkDurationMs(def) : WALK_DURATION_MS;
+  }
+
+  /**
    * Cells are whole-stack replacements, applied in one `setStacks` call so each
    * affected chunk is copied once — the same discipline the simulation uses for
    * a multi-cell edit.
@@ -278,6 +292,10 @@ export class RemoteSession implements PlaySession {
         to: event.to,
         direction: event.direction,
         elapsedMs: 0,
+        // Read off the body rather than sent with the event: this side already
+        // knows which tile is walking, so deriving the pace here cannot
+        // disagree with the server and costs nothing on the wire.
+        durationMs: this.walkDurationAt(event.from),
       };
     } else if (event.kind === "fallStarted") {
       motion.fall = {
@@ -316,7 +334,7 @@ export class RemoteSession implements PlaySession {
         // at 30fps — and how fast you walk would depend on your frame rate.
         motion.walk.elapsedMs = this.isPredicting(id)
           ? motion.walk.elapsedMs + dtMs
-          : Math.min(WALK_DURATION_MS, motion.walk.elapsedMs + dtMs);
+          : Math.min(motion.walk.durationMs, motion.walk.elapsedMs + dtMs);
       }
       // Mirrors the simulation's own fall: feet step down one height unit at a
       // time, and progress is the fraction of the *current* unit — which is
@@ -404,7 +422,7 @@ export class RemoteSession implements PlaySession {
   private landPredictedStep(): number | null {
     const motion = this.motions.get(this.selfId);
     const walk = motion?.walk;
-    if (!motion || !walk || walk.elapsedMs < WALK_DURATION_MS) return null;
+    if (!motion || !walk || walk.elapsedMs < walk.durationMs) return null;
 
     const step = this.pending.find((pending) => !pending.landed);
     if (!step) return null;
@@ -412,7 +430,7 @@ export class RemoteSession implements PlaySession {
     const at = locateActor(this.map, this.selfId, motion.lastSeen ?? undefined);
     if (!at) return null;
 
-    const carryMs = walk.elapsedMs - WALK_DURATION_MS;
+    const carryMs = walk.elapsedMs - walk.durationMs;
 
     this.map = moveEntity(this.map, at, step.to, step.direction, this.tilesById);
     step.landed = true;
@@ -470,6 +488,8 @@ export class RemoteSession implements PlaySession {
       to: choice.step.to,
       direction: choice.step.direction,
       elapsedMs,
+      // Our own body, so its pace is the one the server will time us by.
+      durationMs: resolveWalkDurationMs(def),
     };
     this.pending.push({
       seq,
@@ -784,7 +804,7 @@ export class RemoteSession implements PlaySession {
       walk: motion.walk,
       fall: motion.fall,
       walkProgress: motion.walk
-        ? Math.min(1, motion.walk.elapsedMs / WALK_DURATION_MS)
+        ? Math.min(1, motion.walk.elapsedMs / motion.walk.durationMs)
         : 0,
       // Unclamped for the same reason the simulation leaves it unclamped: a
       // fall runs unit after unit, and holding at 1 between them stutters.

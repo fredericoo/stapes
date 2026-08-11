@@ -66,17 +66,41 @@ export type BrainConditionDef =
    */
   | { cond: "in_range"; of: Selector; cells: number }
   /** Nobody within `cells` — including the case where the target is gone. */
-  | { cond: "out_of_range"; of: Selector; cells: number };
+  | { cond: "out_of_range"; of: Selector; cells: number }
+  /**
+   * Every action in this state failed, last time it had a turn.
+   *
+   * How "cornered" is authored without a branch inside an action: blocked,
+   * nowhere to run and nobody to run from all arrive here, because they are all
+   * just a priority list with nothing left in it.
+   *
+   * Note that a state ending in `hold` can never be stuck — `hold` succeeds by
+   * definition, so it swallows the condition. A state meant to give up needs to
+   * end in the action that can fail.
+   */
+  | { cond: "stuck" };
+
+/**
+ * Whether a step may leave the ground beneath it.
+ *
+ * Off by default, and that is a decision about creatures rather than about
+ * movement: the board has always let anyone walk into open air so gravity can
+ * pull them through, which is right for a player who can see the drop coming
+ * and wrong for a deer grazing along a rooftop. Authored per action rather than
+ * per creature, so the same animal can refuse a ledge while browsing and take
+ * it without hesitating when something is chasing it.
+ */
+type Steering = { of: Selector; allowDrops?: boolean };
 
 export type BrainActionDef =
   /** Step to a random walkable neighbour. Fails when hemmed in on all sides. */
-  | { action: "step_random" }
+  | { action: "step_random"; allowDrops?: boolean }
   /** Stand still, successfully. The usual last line of a priority list. */
   | { action: "hold" }
   /** Step so as to close the distance. Fails when nothing gets closer. */
-  | { action: "step_toward"; of: Selector }
+  | ({ action: "step_toward" } & Steering)
   /** Step so as to open it. Fails when nothing gets further — cornered. */
-  | { action: "step_away_from"; of: Selector };
+  | ({ action: "step_away_from" } & Steering);
 
 export type BrainStateDef = {
   /** Priority list: the first action that does not fail is the one that runs. */
@@ -122,13 +146,24 @@ const conditionSchema = v.variant("cond", [
   }),
   v.object({ cond: v.literal("in_range"), of: selectorSchema, cells }),
   v.object({ cond: v.literal("out_of_range"), of: selectorSchema, cells }),
+  v.object({ cond: v.literal("stuck") }),
 ]);
 
+const allowDrops = v.optional(v.boolean());
+
 const actionSchema = v.variant("action", [
-  v.object({ action: v.literal("step_random") }),
+  v.object({ action: v.literal("step_random"), allowDrops }),
   v.object({ action: v.literal("hold") }),
-  v.object({ action: v.literal("step_toward"), of: selectorSchema }),
-  v.object({ action: v.literal("step_away_from"), of: selectorSchema }),
+  v.object({
+    action: v.literal("step_toward"),
+    of: selectorSchema,
+    allowDrops,
+  }),
+  v.object({
+    action: v.literal("step_away_from"),
+    of: selectorSchema,
+    allowDrops,
+  }),
 ]);
 
 const brainSchema = v.object({

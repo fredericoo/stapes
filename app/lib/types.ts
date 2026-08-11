@@ -100,6 +100,17 @@ export type TileDef = {
    */
   actor?: boolean;
   /**
+   * Milliseconds this body takes to cross one cell. Absent → the player's pace.
+   *
+   * The knob that decides whether a creature can be outrun. Everything moving at
+   * exactly the player's speed makes a follower impossible to shake and a
+   * fleeing animal impossible to catch, since the gap between you can never
+   * change.
+   *
+   * Read through `resolveWalkDurationMs`. Larger is slower.
+   */
+  walkDurationMs?: number;
+  /**
    * World-side dirs you may climb UP toward, keyed by variant.
    * Simple / autotile use `"default"`; directional use `n`/`e`/`s`/`w`
    * for each placement facing. Missing dirs default to true.
@@ -377,33 +388,32 @@ export function normalizeTileDef(raw: unknown): TileDef {
     directional?: boolean;
     variants?: Partial<Record<VariantKey, Frame[]>>;
     attributes?: Record<string, never>;
-    lightPassing?: boolean;
-    blocksLight?: boolean;
-    intangible?: boolean;
     light?: LightDef;
-    affectedByGravity?: boolean;
-    walkable?: boolean;
-    actor?: boolean;
-    climbFrom?: TileDef["climbFrom"];
-    interactions?: TileInteractions;
   };
 
   const light = legacy.light;
   const type: TileType = legacy.directional ? "directional" : "simple";
+
+  // Everything that is not part of the old sprite encoding is carried across
+  // untouched, rather than copied field by field. Three fields in a row were
+  // added to `TileDef` and silently lost here — the enumeration reads as
+  // exhaustive and is not, and nothing fails until a creature quietly ignores
+  // the flag somebody just authored. Only the keys this function *replaces*
+  // need naming, and they are named right here.
+  const {
+    directional: _wasDirectional,
+    variants: _wasVariants,
+    light: _wasLight,
+    ...carried
+  } = raw as Record<string, unknown>;
+
   const base: TileDef = {
+    ...(carried as Omit<TileDef, "type" | "attributes">),
     id: legacy.id,
     name: legacy.name,
     height: legacy.height,
     type,
     attributes: legacy.attributes ?? {},
-    lightPassing: legacy.lightPassing,
-    blocksLight: legacy.blocksLight,
-    intangible: legacy.intangible,
-    affectedByGravity: legacy.affectedByGravity,
-    walkable: legacy.walkable,
-    actor: legacy.actor,
-    climbFrom: legacy.climbFrom,
-    interactions: legacy.interactions,
   };
 
   if (type === "directional") {

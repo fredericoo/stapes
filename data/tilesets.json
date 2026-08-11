@@ -40,5 +40,12 @@
     "file": "floors.png",
     "width": 160,
     "height": 64
+  },
+  {
+    "id": "animals",
+    "name": "Animals",
+    "file": "animals.png",
+    "width": 128,
+    "height": 128
   }
 ]

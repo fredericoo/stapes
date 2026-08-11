@@ -42,6 +42,19 @@ export type BrainMemory = {
    * held across several states, not a question re-asked in each.
    */
   blackboard: Record<string, string>;
+  /**
+   * Every action failed the last time this state had a turn.
+   *
+   * Recorded rather than asked, because the transition table is consulted
+   * *before* the actions run — so what a `stuck` condition reads is the
+   * previous tick's verdict. A creature therefore tries once more before giving
+   * up, which is a beat rather than a stall, and it is why this is one flag and
+   * not a re-run of the whole list from inside the condition.
+   *
+   * Cleared on the way into a state, so one dead end is never inherited by the
+   * state that rescued it.
+   */
+  stuck: boolean;
 };
 
 /**
@@ -73,6 +86,11 @@ export type BrainContext = {
   /** Where an actor is, or null once they are off the board. */
   positionOf(actorId: string): Coord | null;
   /**
+   * Would stepping this way leave nothing underfoot? The board allows it — that
+   * is how walking into a hole works — so refusing is a creature's own caution.
+   */
+  wouldDrop(direction: Direction): boolean;
+  /**
    * Ask to walk one cell. False when the board refuses, which is the whole of
    * how an action learns it is blocked.
    */
@@ -89,7 +107,22 @@ export type BrainContext = {
 const SIGHT_LEVEL_SLACK = 1;
 
 export function initialMemory(brain: BrainDef): BrainMemory {
-  return { state: brain.initial, msInState: 0, blackboard: {} };
+  return {
+    state: brain.initial,
+    msInState: 0,
+    blackboard: {},
+    stuck: false,
+  };
+}
+
+/** Directions worth trying at all, given how this action feels about ledges. */
+function footing(
+  directions: Direction[],
+  allowDrops: boolean | undefined,
+  ctx: BrainContext,
+): Direction[] {
+  if (allowDrops) return directions;
+  return directions.filter((direction) => !ctx.wouldDrop(direction));
 }
 
 /** Who a selector names, right now. */
@@ -131,6 +164,8 @@ function holds(
   switch (condition.cond) {
     case "after":
       return memory.msInState >= condition.ms;
+    case "stuck":
+      return memory.stuck;
     case "in_range": {
       const at = locate(condition.of, memory, ctx);
       return at !== null && within(ctx.self, at, condition.cells);
@@ -162,6 +197,7 @@ function holds(
 function stepRelativeTo(
   target: Coord,
   want: "closer" | "further",
+  allowDrops: boolean | undefined,
   ctx: BrainContext,
 ): ActionStatus {
   if (ctx.busy) return "running";
@@ -173,8 +209,7 @@ function stepRelativeTo(
   // which is most of the board when a target is diagonal — breaks differently
   // each time rather than always favouring north. Still reproducible: the
   // shuffle is the world's own seeded dice.
-  const candidates = ctx.rng
-    .shuffle([...DIRECTIONS])
+  const candidates = footing(ctx.rng.shuffle([...DIRECTIONS]), allowDrops, ctx)
     .map((direction) => {
       const { dx, dy } = DIR_DELTA[direction];
       const after = stepsApart(
@@ -206,7 +241,12 @@ function runAction(
       // Every legal direction gets a turn, in an unbiased order: "pick one and
       // give up if it is blocked" would leave a creature in a corridor standing
       // still three times out of four.
-      for (const direction of ctx.rng.shuffle([...DIRECTIONS])) {
+      const options = footing(
+        ctx.rng.shuffle([...DIRECTIONS]),
+        action.allowDrops,
+        ctx,
+      );
+      for (const direction of options) {
         if (ctx.step(direction)) return "success";
       }
       return "failure";
@@ -220,6 +260,7 @@ function runAction(
       return stepRelativeTo(
         at,
         action.action === "step_toward" ? "closer" : "further",
+        action.allowDrops,
         ctx,
       );
     }
@@ -299,6 +340,9 @@ export function stepBrain(
     if (transition.to !== memory.state) {
       memory.state = transition.to;
       memory.msInState = 0;
+      // A dead end belongs to the state it was reached in, not to the one that
+      // rescued the creature from it.
+      memory.stuck = false;
     }
   }
 
@@ -306,6 +350,13 @@ export function stepBrain(
   if (!state) return;
 
   for (const action of state.do) {
-    if (runAction(action, memory, ctx) !== "failure") return;
+    if (runAction(action, memory, ctx) !== "failure") {
+      memory.stuck = false;
+      return;
+    }
   }
+
+  // Nothing left to try. An empty list is not stuck — a state that was authored
+  // to do nothing is doing exactly that, and nothing failed to happen.
+  memory.stuck = state.do.length > 0;
 }

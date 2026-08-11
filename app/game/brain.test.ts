@@ -4,7 +4,7 @@ import { emptyMap, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { initialMemory, stepBrain } from "./brainRuntime";
-import { BRAIN_TICK_MS, TICK_MS } from "./constants";
+import { BRAIN_TICK_MS, TICK_MS, WALK_DURATION_MS } from "./constants";
 import { GameSession } from "./GameSession";
 import { Rng } from "./rng";
 
@@ -116,11 +116,11 @@ function advance(session: GameSession, ms: number) {
   }
 }
 
-/** Where the one resident is, as a string worth comparing. */
+/** Where the one creature is, as a string worth comparing. */
 function deerCell(session: GameSession): string {
   const deer = session
     .actorSnapshots()
-    .find((actor) => actor.tileId.startsWith("deer"));
+    .find((actor) => actor.tileId !== "player");
   return deer ? `${deer.x},${deer.y}` : "gone";
 }
 
@@ -194,6 +194,7 @@ describe("deciding", () => {
       self: { x: 0, y: 0, z: 0 },
       nearestPlayerId: () => null,
       positionOf: () => null,
+      wouldDrop: () => false,
       step: vi.fn(() => true),
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
@@ -552,6 +553,272 @@ describe("noticing you", () => {
     // so the creature goes back to minding its own business.
     expect(() => advance(session, BRAIN_TICK_MS * 4)).not.toThrow();
     expect(session.isAtRest()).toBe(true);
+  });
+});
+
+describe("giving up", () => {
+  /**
+   * "Cornered" without a branch inside an action: blocked, nowhere to run and
+   * nobody to run from all arrive at the same place, because they are all a
+   * priority list with nothing left in it.
+   */
+  const cornerable: TileDef[] = [
+    ...tiles,
+    tile({
+      id: "trapped",
+      height: 1,
+      actor: true,
+      affectedByGravity: true,
+      walkable: false,
+      interactions: {
+        brain: {
+          initial: "wander",
+          states: {
+            // No `hold` underneath, or the state could never be stuck.
+            wander: { do: [{ action: "step_random" }] },
+            resigned: { do: [{ action: "hold" }] },
+          },
+          transitions: [
+            { from: "wander", if: { cond: "stuck" }, to: "resigned" },
+          ],
+        },
+      },
+    }),
+  ];
+
+  /** A creature walled in on all four sides. */
+  function penned(): GameSession {
+    let map = field(4);
+    for (const [x, y] of [
+      [1, 0],
+      [-1, 0],
+      [0, 1],
+      [0, -1],
+    ]) {
+      map = replaceStack(map, x!, y!, 0, [
+        { tileId: "grass" },
+        { tileId: "wall" },
+      ]);
+    }
+    return new GameSession(withDeer(map, 0, 0, "trapped"), cornerable, [
+      "alice",
+    ]);
+  }
+
+  /**
+   * Observed on the memory rather than on the board, because from outside the
+   * two look identical: a creature retrying a blocked step and one that has
+   * given up are both standing still.
+   */
+  it("reaches a state of its own rather than retrying forever", () => {
+    const brain: BrainDef = {
+      initial: "wander",
+      states: {
+        wander: { do: [{ action: "step_random" }] },
+        resigned: { do: [{ action: "hold" }] },
+      },
+      transitions: [{ from: "wander", if: { cond: "stuck" }, to: "resigned" }],
+    };
+    const memory = initialMemory(brain);
+    const blocked = {
+      busy: false,
+      rng: new Rng(1),
+      self: { x: 0, y: 0, z: 0 },
+      nearestPlayerId: () => null,
+      positionOf: () => null,
+      wouldDrop: () => false,
+      step: () => false,
+    };
+
+    // One tick to try everything and fail; the verdict is read on the next.
+    stepBrain(brain, memory, BRAIN_TICK_MS, blocked);
+    expect(memory.stuck).toBe(true);
+    expect(memory.state).toBe("wander");
+
+    stepBrain(brain, memory, BRAIN_TICK_MS, blocked);
+    expect(memory.state).toBe("resigned");
+    // And the dead end belongs to the state it happened in.
+    expect(memory.stuck).toBe(false);
+  });
+
+  it("leaves a penned creature standing quietly where it was", () => {
+    const session = penned();
+
+    expect(() => advance(session, BRAIN_TICK_MS * 4)).not.toThrow();
+    expect(deerCell(session)).toBe("0,0");
+  });
+
+  it("is not stuck merely because it chose to stand still", () => {
+    // `hold` succeeds, so a state resting on it can never report stuck — the
+    // authoring gotcha worth having a test pinned to.
+    const session = new GameSession(
+      withDeer(field(4), 0, 0, "deer"),
+      cornerable,
+      ["alice"],
+    );
+
+    advance(session, BRAIN_TICK_MS * 2);
+
+    expect(deerCell(session)).toBe("0,0");
+  });
+});
+
+describe("watching its footing", () => {
+  const ledgeDwellers: TileDef[] = [
+    ...tiles,
+    tile({
+      id: "careful",
+      height: 1,
+      actor: true,
+      affectedByGravity: true,
+      walkable: false,
+      interactions: {
+        brain: {
+          initial: "wander",
+          states: { wander: { do: [{ action: "step_random" }] } },
+          transitions: [],
+        },
+      },
+    }),
+    tile({
+      id: "reckless",
+      height: 1,
+      actor: true,
+      affectedByGravity: true,
+      walkable: false,
+      interactions: {
+        brain: {
+          initial: "wander",
+          states: {
+            wander: { do: [{ action: "step_random", allowDrops: true }] },
+          },
+          transitions: [],
+        },
+      },
+    }),
+  ];
+
+  /** A one-cell plinth a level up, with open floor all around below. */
+  function plinth(creature: string): GameSession {
+    let map = field(4);
+    map = replaceStack(map, 0, 0, 1, [{ tileId: "grass" }, { tileId: creature }]);
+    return new GameSession(map, ledgeDwellers, ["alice"]);
+  }
+
+  function levelOf(session: GameSession, tileId: string): number {
+    return session.actorSnapshots().find((a) => a.tileId === tileId)!.z;
+  }
+
+  it("keeps a creature off a ledge it was not told it could take", () => {
+    const session = plinth("careful");
+
+    advance(session, BRAIN_TICK_MS * 8);
+
+    expect(levelOf(session, "careful")).toBe(1);
+  });
+
+  /**
+   * And the drop itself needs no brain-specific handling: the step commits, the
+   * creature is unsupported, and the same gravity that catches a player catches
+   * it.
+   */
+  it("lets one that was told it could, and lands it safely", () => {
+    const session = plinth("reckless");
+
+    advance(session, BRAIN_TICK_MS * 8);
+
+    expect(levelOf(session, "reckless")).toBe(0);
+    const landed = session
+      .actorSnapshots()
+      .find((a) => a.tileId === "reckless")!;
+    expect(landed.fall).toBeNull();
+  });
+});
+
+describe("walking at its own pace", () => {
+  const paced: TileDef[] = [
+    ...tiles,
+    tile({
+      id: "plodder",
+      height: 1,
+      actor: true,
+      affectedByGravity: true,
+      walkable: false,
+      // Twice a player's, so a follower can be walked away from.
+      walkDurationMs: WALK_DURATION_MS * 2,
+      interactions: {
+        brain: {
+          initial: "wander",
+          states: { wander: { do: [{ action: "step_random" }] } },
+          transitions: [],
+        },
+      },
+    }),
+    tile({
+      id: "sprinter",
+      height: 1,
+      actor: true,
+      affectedByGravity: true,
+      walkable: false,
+      walkDurationMs: WALK_DURATION_MS / 2,
+      interactions: {
+        brain: {
+          initial: "wander",
+          states: { wander: { do: [{ action: "step_random" }] } },
+          transitions: [],
+        },
+      },
+    }),
+  ];
+
+  /** How many cells a creature covers in a fixed stretch of time. */
+  function cellsCovered(creature: string): number {
+    const session = new GameSession(
+      withDeer(field(9), 0, 0, creature),
+      paced,
+      ["alice"],
+      undefined,
+      11,
+    );
+    let moves = 0;
+    let last = deerCell(session);
+    for (let i = 0; i < 40; i++) {
+      advance(session, TICK_MS);
+      const now = deerCell(session);
+      if (now !== last) moves += 1;
+      last = now;
+    }
+    return moves;
+  }
+
+  it("takes a slow creature longer to cross a cell", () => {
+    expect(cellsCovered("plodder")).toBeLessThan(cellsCovered("sprinter"));
+  });
+
+  it("times a step by the walker's own tile, not a shared constant", () => {
+    const session = new GameSession(
+      withDeer(field(9), 0, 0, "plodder"),
+      paced,
+      ["alice"],
+    );
+    advance(session, BRAIN_TICK_MS);
+
+    const walk = session
+      .actorSnapshots()
+      .find((a) => a.tileId === "plodder")!.walk;
+    expect(walk?.durationMs).toBe(WALK_DURATION_MS * 2);
+  });
+
+  it("leaves a body that authored no pace walking like a player", () => {
+    const session = new GameSession(
+      withDeer(field(9), 0, 0, "deer"),
+      paced,
+      ["alice"],
+    );
+    advance(session, IDLE_MS + BRAIN_TICK_MS);
+
+    const walk = session.actorSnapshots().find((a) => a.tileId === "deer")!.walk;
+    expect(walk?.durationMs).toBe(WALK_DURATION_MS);
   });
 });
 

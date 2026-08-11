@@ -15,7 +15,7 @@ import {
   resolveWalkable,
 } from "../lib/types";
 import { fitsAtElevation, fitsTile } from "../lib/validation";
-import { MAX_CLIMB_HEIGHT } from "./constants";
+import { MAX_CLIMB_HEIGHT, WALK_DURATION_MS } from "./constants";
 import { normalizeStandingCell } from "./mapMutations";
 
 export const DIR_DELTA: Record<Direction, { dx: number; dy: number }> = {
@@ -35,6 +35,21 @@ export function sceneryStack(
 ): ReturnType<typeof getStack> {
   const stack = getStack(map, x, y, z);
   return stack.filter((_, i) => i !== entityStackIndex);
+}
+
+/**
+ * How long one step takes this body, in milliseconds.
+ *
+ * Lives beside the movement rules rather than in the tile module because both
+ * ends of the wire need it and neither should have to guess: the simulation
+ * times the step with it, and the client divides by it to place the sprite. It
+ * never travels — a client already knows which tile an actor is, so deriving it
+ * on both sides is cheaper than a field on every walk event, and cannot
+ * disagree.
+ */
+export function resolveWalkDurationMs(def: TileDef): number {
+  const authored = def.walkDurationMs;
+  return authored != null && authored > 0 ? authored : WALK_DURATION_MS;
 }
 
 export function standingAbs(

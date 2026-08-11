@@ -129,6 +129,13 @@ content safe to load.
 - **The session must not learn about sockets** to do this. If NPCs are actors,
   the question is "is any player-driven actor present", which the session can
   already answer — and it stays testable in node.
+- **Each body walks at its own pace**, authored as `walkDurationMs` on the tile
+  and defaulting to the player's. Not in the original phases, and added during
+  phase 4 because the cat exposed the need: everything moving at exactly the
+  player's speed means the gap between you and anything else can never change,
+  so a follower is impossible to shake and a fleeing animal impossible to catch.
+  It never travels on the wire — a client already knows which tile is walking,
+  so both sides derive it and cannot disagree.
 
 ### Persistence
 
@@ -348,12 +355,12 @@ behaviour, authored once, rather than a decision taken per tick.
 
 ### Acceptance criteria
 
-- [ ] A state whose every action fails is available as a transition condition
-- [ ] A cornered deer reaches a distinct state rather than retrying a blocked
+- [x] A state whose every action fails is available as a transition condition
+- [x] A cornered deer reaches a distinct state rather than retrying a blocked
       step every brain tick
-- [ ] `allowDrops` changes which steps a movement action will take, and is
+- [x] `allowDrops` changes which steps a movement action will take, and is
       authored per action rather than per creature
-- [ ] A deer that flees off a ledge falls and recovers under the existing gravity
+- [x] A deer that flees off a ledge falls and recovers under the existing gravity
       path, with no brain-specific handling
 
 ---
