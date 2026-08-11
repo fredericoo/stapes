@@ -1,10 +1,14 @@
 import {
   ANY_STATE,
+  slotOf,
   type BrainActionDef,
   type BrainConditionDef,
   type BrainDef,
+  type BrainTransitionDef,
+  type Selector,
 } from "../lib/brain";
-import { DIRECTIONS, type Direction } from "../lib/types";
+import { DIRECTIONS, type Coord, type Direction } from "../lib/types";
+import { DIR_DELTA } from "./movement";
 import type { Rng } from "./rng";
 
 /**
@@ -30,6 +34,14 @@ export type BrainMemory = {
   state: string;
   /** Milliseconds spent in {@link state}, which is all `after` reads. */
   msInState: number;
+  /**
+   * Who this creature has its eye on, as `slot -> actor id`.
+   *
+   * Written by a transition's `bind` and read by whatever state it leads to.
+   * Outlives the state that set it, deliberately: a chase is one commitment
+   * held across several states, not a question re-asked in each.
+   */
+  blackboard: Record<string, string>;
 };
 
 /**
@@ -54,6 +66,12 @@ export type BrainContext = {
   /** Still finishing a walk, a fall, or a shove. */
   busy: boolean;
   rng: Rng;
+  /** Where this creature is standing. */
+  self: Coord;
+  /** Nearest connected player, or null in a world with nobody in it. */
+  nearestPlayerId(): string | null;
+  /** Where an actor is, or null once they are off the board. */
+  positionOf(actorId: string): Coord | null;
   /**
    * Ask to walk one cell. False when the board refuses, which is the whole of
    * how an action learns it is blocked.
@@ -61,18 +79,124 @@ export type BrainContext = {
   step(direction: Direction): boolean;
 };
 
+/**
+ * Floors up or down that still count as being near somebody.
+ *
+ * The same slack interaction already uses for reach. Distance is otherwise
+ * counted in steps on the plan, not as the crow flies: a creature that thinks
+ * in cells it could walk is a creature whose behaviour matches the board.
+ */
+const SIGHT_LEVEL_SLACK = 1;
+
 export function initialMemory(brain: BrainDef): BrainMemory {
-  return { state: brain.initial, msInState: 0 };
+  return { state: brain.initial, msInState: 0, blackboard: {} };
 }
 
-function holds(condition: BrainConditionDef, memory: BrainMemory): boolean {
+/** Who a selector names, right now. */
+function identify(
+  selector: Selector,
+  memory: BrainMemory,
+  ctx: BrainContext,
+): string | null {
+  const slot = slotOf(selector);
+  if (slot !== null) return memory.blackboard[slot] ?? null;
+  return ctx.nearestPlayerId();
+}
+
+/** Where a selector's subject is, or null when there is nobody to point at. */
+function locate(
+  selector: Selector,
+  memory: BrainMemory,
+  ctx: BrainContext,
+): Coord | null {
+  const id = identify(selector, memory, ctx);
+  return id === null ? null : ctx.positionOf(id);
+}
+
+/** Steps apart on the plan, ignoring elevation. */
+function stepsApart(a: Coord, b: Coord): number {
+  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+}
+
+function within(self: Coord, other: Coord, cells: number): boolean {
+  if (Math.abs(self.z - other.z) > SIGHT_LEVEL_SLACK) return false;
+  return stepsApart(self, other) <= cells;
+}
+
+function holds(
+  condition: BrainConditionDef,
+  memory: BrainMemory,
+  ctx: BrainContext,
+): boolean {
   switch (condition.cond) {
     case "after":
       return memory.msInState >= condition.ms;
+    case "in_range": {
+      const at = locate(condition.of, memory, ctx);
+      return at !== null && within(ctx.self, at, condition.cells);
+    }
+    case "out_of_range": {
+      const at = locate(condition.of, memory, ctx);
+      // A target that has left the world is as out of range as one that walked
+      // off, and answering anything else would strand a creature chasing a
+      // ghost. This is also what makes the two conditions exact complements.
+      return at === null || !within(ctx.self, at, condition.cells);
+    }
   }
 }
 
-function runAction(action: BrainActionDef, ctx: BrainContext): ActionStatus {
+/**
+ * Step so as to change the distance to `target` in the direction `want` asks
+ * for: `closer` for a chase, `further` for a flight.
+ *
+ * Only directions that genuinely improve matters are tried, and that filter is
+ * doing real work — without it a blocked chaser would take a sideways or
+ * backward step, which reads as a creature changing its mind rather than one
+ * stuck. Failing instead lets the priority list fall through to whatever the
+ * author put underneath.
+ *
+ * No route-finding: this is one step, judged on its own. A cat that rounds a
+ * corner will press itself flat against the wall and follow in spirit, which is
+ * the known cost of leaving A* out and the reason it is written down.
+ */
+function stepRelativeTo(
+  target: Coord,
+  want: "closer" | "further",
+  ctx: BrainContext,
+): ActionStatus {
+  if (ctx.busy) return "running";
+
+  const now = stepsApart(ctx.self, target);
+  const sign = want === "closer" ? 1 : -1;
+
+  // Shuffled before sorting, so the tie between two equally good directions —
+  // which is most of the board when a target is diagonal — breaks differently
+  // each time rather than always favouring north. Still reproducible: the
+  // shuffle is the world's own seeded dice.
+  const candidates = ctx.rng
+    .shuffle([...DIRECTIONS])
+    .map((direction) => {
+      const { dx, dy } = DIR_DELTA[direction];
+      const after = stepsApart(
+        { x: ctx.self.x + dx, y: ctx.self.y + dy, z: ctx.self.z },
+        target,
+      );
+      return { direction, gain: (now - after) * sign };
+    })
+    .filter((candidate) => candidate.gain > 0)
+    .sort((a, b) => b.gain - a.gain);
+
+  for (const { direction } of candidates) {
+    if (ctx.step(direction)) return "success";
+  }
+  return "failure";
+}
+
+function runAction(
+  action: BrainActionDef,
+  memory: BrainMemory,
+  ctx: BrainContext,
+): ActionStatus {
   switch (action.action) {
     case "hold":
       return "success";
@@ -87,6 +211,18 @@ function runAction(action: BrainActionDef, ctx: BrainContext): ActionStatus {
       }
       return "failure";
     }
+    case "step_toward":
+    case "step_away_from": {
+      const at = locate(action.of, memory, ctx);
+      // Nobody to move relative to. A failure rather than a stand-still, so the
+      // author's next line gets its turn.
+      if (!at) return "failure";
+      return stepRelativeTo(
+        at,
+        action.action === "step_toward" ? "closer" : "further",
+        ctx,
+      );
+    }
   }
 }
 
@@ -97,14 +233,42 @@ function runAction(action: BrainActionDef, ctx: BrainContext): ActionStatus {
  * actually in — so a wildcard placed above a specific transition wins, exactly
  * as it reads.
  */
-function nextState(brain: BrainDef, memory: BrainMemory): string | null {
+function firstMatch(
+  brain: BrainDef,
+  memory: BrainMemory,
+  ctx: BrainContext,
+): BrainTransitionDef | null {
   for (const transition of brain.transitions) {
     if (transition.from !== ANY_STATE && transition.from !== memory.state) {
       continue;
     }
-    if (holds(transition.if, memory)) return transition.to;
+    if (holds(transition.if, memory, ctx)) return transition;
   }
   return null;
+}
+
+/**
+ * Write down who set this off, on the way through.
+ *
+ * A selector that names nobody clears its slot rather than leaving the previous
+ * occupant in place — a stale id is worse than an empty slot, because every
+ * condition reading it would keep answering about somebody who is no longer
+ * relevant.
+ */
+function applyBind(
+  transition: BrainTransitionDef,
+  memory: BrainMemory,
+  ctx: BrainContext,
+) {
+  if (!transition.bind) return;
+  for (const [slot, selector] of Object.entries(transition.bind)) {
+    const id = identify(selector, memory, ctx);
+    if (id === null) {
+      delete memory.blackboard[slot];
+    } else {
+      memory.blackboard[slot] = id;
+    }
+  }
 }
 
 /**
@@ -126,16 +290,22 @@ export function stepBrain(
 ): void {
   memory.msInState += tickMs;
 
-  const next = nextState(brain, memory);
-  if (next !== null && next !== memory.state) {
-    memory.state = next;
-    memory.msInState = 0;
+  const transition = firstMatch(brain, memory, ctx);
+  if (transition) {
+    // Bound before the state changes, so a selector may still read a slot the
+    // previous state was using — rebinding `$target` from `$target` is a way to
+    // hold on to somebody rather than a way to lose them.
+    applyBind(transition, memory, ctx);
+    if (transition.to !== memory.state) {
+      memory.state = transition.to;
+      memory.msInState = 0;
+    }
   }
 
   const state = brain.states[memory.state];
   if (!state) return;
 
   for (const action of state.do) {
-    if (runAction(action, ctx) !== "failure") return;
+    if (runAction(action, memory, ctx) !== "failure") return;
   }
 }

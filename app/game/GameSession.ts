@@ -676,13 +676,49 @@ export class GameSession implements PlaySession {
     const brain = resolveBrain(this.defFor(actor));
     if (!brain) return;
 
+    const loc = this.locate(actor);
     actor.brain ??= initialMemory(brain);
     stepBrain(brain, actor.brain, BRAIN_TICK_MS, {
       busy: !this.idle(actor),
       rng: this.rng,
+      self: { x: loc.x, y: loc.y, z: loc.z },
+      nearestPlayerId: () => this.nearestPlayerId(loc),
+      positionOf: (id) => this.actorCell(id),
       step: (direction) =>
         this.applyStepRequest(actor, { directions: [direction] }),
     });
+  }
+
+  /**
+   * Whichever connected player is fewest steps away, or null in an empty world.
+   *
+   * Residents are skipped, so this is "the nearest *person*" — a deer does not
+   * flee another deer. Ties break on insertion order, the same order that
+   * already decides who wins a contested cell, which keeps the answer
+   * reproducible rather than dependent on a map sweep's traversal.
+   */
+  private nearestPlayerId(from: Coord): string | null {
+    let best: string | null = null;
+    let bestSteps = Infinity;
+    for (const actor of this.actors.values()) {
+      if (actor.resident) continue;
+      const loc = this.tryLocate(actor);
+      if (!loc) continue;
+      const steps = Math.abs(loc.x - from.x) + Math.abs(loc.y - from.y);
+      if (steps < bestSteps) {
+        bestSteps = steps;
+        best = actor.id;
+      }
+    }
+    return best;
+  }
+
+  /** Where an actor is standing, or null once they are off the board. */
+  private actorCell(id: string): Coord | null {
+    const actor = this.actors.get(id);
+    if (!actor) return null;
+    const loc = this.tryLocate(actor);
+    return loc ? { x: loc.x, y: loc.y, z: loc.z } : null;
   }
 
   /**

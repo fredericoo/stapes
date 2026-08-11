@@ -34,17 +34,49 @@ import type { TileDef } from "./types";
  */
 export const ANY_STATE = "any";
 
-export type BrainConditionDef = {
-  cond: "after";
-  /** Milliseconds in the current state before this holds. */
-  ms: number;
-};
+/**
+ * How a brain names somebody other than itself.
+ *
+ * Two forms, and the difference between them is the whole reason a blackboard
+ * exists. `nearest_player` is a question asked fresh — whoever is closest right
+ * now. `$slot` is a name written down earlier, by the transition that bound it.
+ *
+ * A state that chases has to use the second. Re-asking "who is nearest" every
+ * tick makes a creature standing between two people flip between them and
+ * jitter on the spot; binding on the way in means it commits to the one that
+ * set it off, and keeps committing until something says otherwise.
+ */
+export type Selector = "nearest_player" | `$${string}`;
+
+/** The bound-slot form, `$target`, as opposed to a live query. */
+export function slotOf(selector: Selector): string | null {
+  return selector.startsWith("$") ? selector.slice(1) : null;
+}
+
+export type BrainConditionDef =
+  /** Milliseconds in the current state. */
+  | { cond: "after"; ms: number }
+  /**
+   * Somebody is within `cells`, counted in steps rather than as the crow flies.
+   *
+   * Exact complements, this and {@link out_of_range}: at any distance precisely
+   * one of them holds. That is deliberate and it is what stops a creature
+   * authored with the same threshold on the way in and the way out from
+   * flipping state every tick while somebody stands on the boundary.
+   */
+  | { cond: "in_range"; of: Selector; cells: number }
+  /** Nobody within `cells` — including the case where the target is gone. */
+  | { cond: "out_of_range"; of: Selector; cells: number };
 
 export type BrainActionDef =
   /** Step to a random walkable neighbour. Fails when hemmed in on all sides. */
   | { action: "step_random" }
   /** Stand still, successfully. The usual last line of a priority list. */
-  | { action: "hold" };
+  | { action: "hold" }
+  /** Step so as to close the distance. Fails when nothing gets closer. */
+  | { action: "step_toward"; of: Selector }
+  /** Step so as to open it. Fails when nothing gets further — cornered. */
+  | { action: "step_away_from"; of: Selector };
 
 export type BrainStateDef = {
   /** Priority list: the first action that does not fail is the one that runs. */
@@ -55,6 +87,14 @@ export type BrainTransitionDef = {
   /** A state name, or {@link ANY_STATE}. */
   from: string;
   if: BrainConditionDef;
+  /**
+   * Slots to write on the way through, as `slot: selector`.
+   *
+   * Resolved once, here, and remembered — which is the point. The transition
+   * knows who set the creature off; the state it leads to only knows `$target`,
+   * and would have no way to ask again without changing its mind.
+   */
+  bind?: Record<string, Selector>;
   to: string;
 };
 
@@ -67,16 +107,28 @@ export type BrainDef = {
 
 const stateName = v.pipe(v.string(), v.minLength(1));
 
+/** `nearest_player`, or `$` and a slot name. Anything else is not a selector. */
+const selectorSchema = v.union([
+  v.literal("nearest_player"),
+  v.pipe(v.string(), v.regex(/^\$[A-Za-z0-9_]+$/)),
+]);
+
+const cells = v.pipe(v.number(), v.integer(), v.minValue(0));
+
 const conditionSchema = v.variant("cond", [
   v.object({
     cond: v.literal("after"),
     ms: v.pipe(v.number(), v.integer(), v.minValue(0)),
   }),
+  v.object({ cond: v.literal("in_range"), of: selectorSchema, cells }),
+  v.object({ cond: v.literal("out_of_range"), of: selectorSchema, cells }),
 ]);
 
 const actionSchema = v.variant("action", [
   v.object({ action: v.literal("step_random") }),
   v.object({ action: v.literal("hold") }),
+  v.object({ action: v.literal("step_toward"), of: selectorSchema }),
+  v.object({ action: v.literal("step_away_from"), of: selectorSchema }),
 ]);
 
 const brainSchema = v.object({
@@ -86,7 +138,12 @@ const brainSchema = v.object({
     v.object({ do: v.array(actionSchema) }),
   ),
   transitions: v.array(
-    v.object({ from: stateName, if: conditionSchema, to: stateName }),
+    v.object({
+      from: stateName,
+      if: conditionSchema,
+      bind: v.optional(v.record(v.pipe(v.string(), v.minLength(1)), selectorSchema)),
+      to: stateName,
+    }),
   ),
 });
 

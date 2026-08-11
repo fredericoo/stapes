@@ -315,18 +315,18 @@ greedy step working as specified, and the demo that argues for A\* later.
 
 ### Acceptance criteria
 
-- [ ] A transition can bind a selector to a blackboard slot; states resolve
+- [x] A transition can bind a selector to a blackboard slot; states resolve
       `$slot` back to the same actor
-- [ ] A deer flees, and a cat follows, the player who triggered the transition —
+- [x] A deer flees, and a cat follows, the player who triggered the transition —
       not whoever is nearest this tick
-- [ ] Both creatures are authored from the same conditions and actions, differing
+- [x] Both creatures are authored from the same conditions and actions, differing
       only in data
-- [ ] `out_of_range($target)` returns each to idle
-- [ ] A bound target that leaves the world is handled — the condition fails
+- [x] `out_of_range($target)` returns each to idle
+- [x] A bound target that leaves the world is handled — the condition fails
       rather than throwing, and the creature settles
-- [ ] A cat held at exactly its threshold distance settles on one state rather
+- [x] A cat held at exactly its threshold distance settles on one state rather
       than flipping every brain tick
-- [ ] Blackboard contents reset with the rest of brain state on load
+- [x] Blackboard contents reset with the rest of brain state on load
 
 ---
 

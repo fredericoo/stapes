@@ -191,9 +191,12 @@ describe("deciding", () => {
     return {
       busy: false,
       rng: new Rng(1),
+      self: { x: 0, y: 0, z: 0 },
+      nearestPlayerId: () => null,
+      positionOf: () => null,
       step: vi.fn(() => true),
       ...overrides,
-    };
+    } satisfies Parameters<typeof stepBrain>[3];
   }
 
   it("stays put until its condition holds", () => {
@@ -366,6 +369,189 @@ describe("a wandering deer", () => {
 
     expect(() => advance(session, IDLE_MS * 6)).not.toThrow();
     expect(deerCell(session)).toBe("0,0");
+  });
+});
+
+/**
+ * The blackboard, and the two creatures that prove it is a vocabulary rather
+ * than a deer with settings: `step_toward` is `step_away_from` with the
+ * comparison flipped, and a cat is a deer with two states renamed.
+ */
+const NOTICE_CELLS = 3;
+
+function followBrain(): BrainDef {
+  return {
+    initial: "idle",
+    states: {
+      idle: { do: [{ action: "hold" }] },
+      follow: {
+        do: [{ action: "step_toward", of: "$friend" }, { action: "hold" }],
+      },
+    },
+    transitions: [
+      {
+        from: "idle",
+        if: { cond: "in_range", of: "nearest_player", cells: NOTICE_CELLS },
+        bind: { friend: "nearest_player" },
+        to: "follow",
+      },
+      {
+        from: "follow",
+        if: { cond: "out_of_range", of: "$friend", cells: NOTICE_CELLS },
+        to: "idle",
+      },
+    ],
+  };
+}
+
+const noticing: TileDef[] = [
+  ...tiles,
+  tile({
+    id: "cat",
+    height: 1,
+    actor: true,
+    affectedByGravity: true,
+    walkable: false,
+    interactions: { brain: followBrain() },
+  }),
+  tile({
+    id: "shy",
+    height: 1,
+    actor: true,
+    affectedByGravity: true,
+    walkable: false,
+    interactions: {
+      brain: {
+        ...followBrain(),
+        states: {
+          idle: { do: [{ action: "hold" }] },
+          follow: {
+            do: [
+              { action: "step_away_from", of: "$friend" },
+              { action: "hold" },
+            ],
+          },
+        },
+      },
+    },
+  }),
+];
+
+/** Put a player's body at a cell, driven by nobody in particular. */
+function withPlayerAt(map: MapFile, x: number, y: number): MapFile {
+  return replaceStack(map, x, y, 0, [
+    { tileId: "grass" },
+    { tileId: "player", direction: "e", owner: "alice" },
+  ]);
+}
+
+/** Steps between the one creature and the player, on the plan. */
+function gap(session: GameSession): number {
+  const actors = session.actorSnapshots();
+  const creature = actors.find((a) => a.tileId === "cat" || a.tileId === "shy")!;
+  const player = actors.find((a) => a.tileId === "player")!;
+  return Math.abs(creature.x - player.x) + Math.abs(creature.y - player.y);
+}
+
+describe("noticing you", () => {
+  /**
+   * A map with the marker already consumed, so the player's body can be placed
+   * exactly where the test wants it rather than at spawn.
+   */
+  function facing(creature: string, apart: number): GameSession {
+    let map = field(9);
+    map = replaceStack(map, -9, -9, 0, [{ tileId: "grass" }]);
+    map = withDeer(map, 0, 0, creature);
+    map = withPlayerAt(map, apart, 0);
+    return new GameSession(map, noticing, ["alice"], {
+      x: -9,
+      y: -9,
+      z: 0,
+      stackIndex: 1,
+    });
+  }
+
+  it("closes on somebody who comes near", () => {
+    const session = facing("cat", NOTICE_CELLS);
+    expect(gap(session)).toBe(NOTICE_CELLS);
+
+    advance(session, BRAIN_TICK_MS * 4);
+
+    expect(gap(session)).toBeLessThan(NOTICE_CELLS);
+  });
+
+  it("ignores somebody standing further off than it looks", () => {
+    const session = facing("cat", NOTICE_CELLS + 1);
+
+    advance(session, BRAIN_TICK_MS * 6);
+
+    expect(gap(session)).toBe(NOTICE_CELLS + 1);
+  });
+
+  it("runs from them instead, given the mirrored action", () => {
+    const session = facing("shy", NOTICE_CELLS);
+
+    advance(session, BRAIN_TICK_MS * 4);
+
+    expect(gap(session)).toBeGreaterThan(NOTICE_CELLS);
+  });
+
+  /**
+   * Regression shape: the plan flagged that a creature authored with the same
+   * threshold going in and coming out would flip state every brain tick with
+   * somebody sitting exactly on the boundary. Defining the two conditions as
+   * exact complements is what dissolves it — at any distance precisely one of
+   * them holds.
+   */
+  it("settles on one mind about somebody standing exactly at its limit", () => {
+    const session = facing("cat", NOTICE_CELLS);
+    // Boxed in, so it cannot close the distance and the standoff persists.
+    const seen = new Set<number>();
+    for (let i = 0; i < 12; i++) {
+      advance(session, BRAIN_TICK_MS);
+      seen.add(gap(session));
+    }
+
+    // A flip-flopping creature would step in, out, in, out forever.
+    expect(seen.size).toBeLessThanOrEqual(NOTICE_CELLS);
+  });
+
+  it("keeps chasing the one that set it off, not whoever is nearest now", () => {
+    let map = field(9);
+    map = replaceStack(map, -9, -9, 0, [{ tileId: "grass" }]);
+    map = withDeer(map, 0, 0, "cat");
+    map = withPlayerAt(map, NOTICE_CELLS, 0);
+    const session = new GameSession(map, noticing, ["alice"], {
+      x: -9,
+      y: -9,
+      z: 0,
+      stackIndex: 1,
+    });
+
+    advance(session, BRAIN_TICK_MS);
+    // A second person arrives, closer than the first.
+    session.spawn("bob", { x: 0, y: 1, z: 0 });
+    advance(session, BRAIN_TICK_MS * 3);
+
+    const cat = session.actorSnapshots().find((a) => a.tileId === "cat")!;
+    const alice = session.actorSnapshots().find((a) => a.id === "alice")!;
+    // Committed to Alice: re-asking "who is nearest" every tick is what makes a
+    // creature between two people jitter on the spot.
+    expect(Math.abs(cat.x - alice.x) + Math.abs(cat.y - alice.y)).toBeLessThan(
+      NOTICE_CELLS,
+    );
+  });
+
+  it("settles when the one it was watching leaves the world", () => {
+    const session = facing("cat", NOTICE_CELLS);
+    advance(session, BRAIN_TICK_MS * 2);
+
+    session.despawn("alice");
+
+    // A target that is gone reads as out of range rather than as an exception,
+    // so the creature goes back to minding its own business.
+    expect(() => advance(session, BRAIN_TICK_MS * 4)).not.toThrow();
+    expect(session.isAtRest()).toBe(true);
   });
 });
 

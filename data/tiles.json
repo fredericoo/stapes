@@ -1730,6 +1730,55 @@
           }
         }
       ]
+    },
+    "actor": true,
+    "interactions": {
+      "brain": {
+        "initial": "idle",
+        "states": {
+          "idle": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "follow": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": "$friend"
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          }
+        },
+        "transitions": [
+          {
+            "from": "idle",
+            "if": {
+              "cond": "in_range",
+              "of": "nearest_player",
+              "cells": 3
+            },
+            "bind": {
+              "friend": "nearest_player"
+            },
+            "to": "follow"
+          },
+          {
+            "from": "follow",
+            "if": {
+              "cond": "out_of_range",
+              "of": "$friend",
+              "cells": 3
+            },
+            "to": "idle"
+          }
+        ]
+      }
     }
   },
   {
@@ -3472,9 +3521,41 @@
                 "action": "hold"
               }
             ]
+          },
+          "flee": {
+            "do": [
+              {
+                "action": "step_away_from",
+                "of": "$spooked"
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
+          {
+            "from": "any",
+            "if": {
+              "cond": "in_range",
+              "of": "nearest_player",
+              "cells": 4
+            },
+            "bind": {
+              "spooked": "nearest_player"
+            },
+            "to": "flee"
+          },
+          {
+            "from": "flee",
+            "if": {
+              "cond": "out_of_range",
+              "of": "$spooked",
+              "cells": 8
+            },
+            "to": "idle"
+          },
           {
             "from": "idle",
             "if": {
