@@ -50,7 +50,11 @@ describe("attack speed", () => {
     const halfway = attackIntervalMs(50);
     const linear = ((MIN_ATTACK_TICKS + MAX_ATTACK_TICKS) / 2) * TICK_MS;
     expect(halfway).toBeLessThan(linear / 4);
-    expect(halfway / TICK_MS).toBe(20);
+    // The geometric mean of the two bounds, which is what "halfway along a
+    // curve" means — and stays true whatever the bounds are scaled to.
+    expect(halfway / TICK_MS).toBe(
+      Math.round(Math.sqrt(MIN_ATTACK_TICKS * MAX_ATTACK_TICKS)),
+    );
   });
 
   it("clamps a stat somebody hand-edited out of range", () => {

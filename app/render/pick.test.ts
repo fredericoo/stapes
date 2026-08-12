@@ -1,21 +1,26 @@
-import * as THREE from "three";
 import { describe, expect, it } from "vitest";
-import { emptyMap, getStack, replaceStack } from "../lib/mapData";
+import { emptyMap, replaceStack } from "../lib/mapData";
 import type { ObjectRef } from "../game/GameSession";
 import type { MapFile, TileDef } from "../lib/types";
-import { normalizeTileDef } from "../lib/types";
+import { CELL_SIZE, normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
-import type { SpriteQuadAssets } from "./spriteQuad";
-import { quadContains, spriteQuadFor } from "./spriteQuad";
 import {
+  footRect,
   indexInteractive,
   pickInteractiveAt,
   pickTileAt,
-  probeSpanFor,
 } from "./pick";
 
-/** Wide enough that neighbouring cells' quads overlap on screen. */
-const OVERLAPPING_SPRITE_CELLS = 4;
+/**
+ * Picking is by the tile's foot, not by its art.
+ *
+ * The fixture leans on that: every tile here is drawn four cells square with its
+ * base in the *far* corner, so the sprite sprawls across a wide region of ground
+ * it does not stand on. Under the old sprite-quad pick that made these tiles
+ * enormous targets that swallowed everything behind them; under a foot pick the
+ * art is simply irrelevant, and these tests say so by never mentioning it.
+ */
+const SPRAWLING_SPRITE_CELLS = 4;
 
 function tile(
   partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
@@ -31,8 +36,8 @@ function tile(
             rect: {
               x: 0,
               y: 0,
-              w: OVERLAPPING_SPRITE_CELLS,
-              h: OVERLAPPING_SPRITE_CELLS,
+              w: SPRAWLING_SPRITE_CELLS,
+              h: SPRAWLING_SPRITE_CELLS,
             },
             base: { x: 0, y: 0 },
           },
@@ -112,26 +117,18 @@ describe("indexInteractive", () => {
   });
 });
 
+/** Camera at the origin and zoom 1, so screen coords are world coords. */
+function ctx(map: MapFile) {
+  return { map, tilesById, camera: { x: 0, y: 0 }, zoom: 1 };
+}
+
+/** The middle of a cell's ground square — where a player points to mean "that". */
+function onFoot(ref: { x: number; y: number; z: number }) {
+  const foot = footRect(ref.x, ref.y, ref.z);
+  return { x: foot.x + foot.w / 2, y: foot.y + foot.h / 2 };
+}
+
 describe("pickInteractiveAt", () => {
-  /** No tilesets registered — quads fall back, which picking does not care about. */
-  const assets: SpriteQuadAssets = {
-    tilesetById: new Map(),
-    textures: new Map(),
-    fallbackTexture: new THREE.Texture(),
-    frameIndices: new Map(),
-  };
-
-  /** Camera at the origin and zoom 1, so screen coords are world coords. */
-  function ctx(map: MapFile) {
-    return {
-      map,
-      tilesById,
-      assets,
-      camera: { x: 0, y: 0 },
-      zoom: 1,
-    };
-  }
-
   /** Two crates in neighbouring cells; (1,0) is drawn in front of (0,0). */
   function twoCrates(): MapFile {
     let map = replaceStack(emptyMap(), 0, 0, 0, [
@@ -147,117 +144,112 @@ describe("pickInteractiveAt", () => {
   const sameRef = (a: ObjectRef) => (b: ObjectRef) =>
     a.x === b.x && a.y === b.y && a.z === b.z && a.stackIndex === b.stackIndex;
 
-  function quadFor(map: MapFile, ref: ObjectRef) {
-    const placed = getStack(map, ref.x, ref.y, ref.z)[ref.stackIndex]!;
-    const quad = spriteQuadFor(
-      assets,
-      map,
-      { x: ref.x, y: ref.y, z: ref.z, elevation: 0 },
-      placed,
-      tilesById[placed.tileId]!,
-    );
-    if (!quad) throw new Error("no quad");
-    return quad;
-  }
-
   /**
-   * A world point covered by both crates' quads. They are the same size, so
-   * the front one's top-left corner lies inside the back one — assert the
-   * overlap rather than trusting it, since it depends on the projection.
+   * The headline of the whole change.
+   *
+   * These two crates have sprites four cells square, so under a sprite-quad pick
+   * the front one covered the back one entirely and the back one could not be
+   * hit from anywhere at all. Each now answers only over its own cell.
    */
-  function overlapPoint(map: MapFile) {
-    const front = quadFor(map, inFront);
-    const back = quadFor(map, behind);
-    const p = { x: front.x, y: front.y };
-    expect(quadContains(back, p.x, p.y)).toBe(true);
-    return p;
-  }
-
-  it("takes the frontmost object when nothing is actionable", () => {
+  it("gives every tile its own cell, whatever the art does", () => {
     const map = twoCrates();
-    const p = overlapPoint(map);
+    const index = indexInteractive(map, 0, tilesById);
+
+    for (const ref of [behind, inFront]) {
+      const p = onFoot(ref);
+      expect(pickInteractiveAt(ctx(map), index, p.x, p.y)).toEqual(ref);
+    }
+  });
+
+  it("finds nothing on a cell with nothing standing on it", () => {
+    const map = twoCrates();
+    const p = onFoot({ x: 5, y: 5, z: 0 });
     expect(
       pickInteractiveAt(ctx(map), indexInteractive(map, 0, tilesById), p.x, p.y),
-    ).toEqual(inFront);
+    ).toBeNull();
   });
 
-  it("reaches past an inert object in front to the one that can be acted on", () => {
-    const map = twoCrates();
-    const p = overlapPoint(map);
-    expect(
-      pickInteractiveAt(
-        ctx(map),
-        indexInteractive(map, 0, tilesById),
-        p.x,
-        p.y,
-        sameRef(behind),
-      ),
-    ).toEqual(behind);
-  });
+  /**
+   * Feet on different levels still overlap on screen — a floor above projects
+   * onto the one below — so the ranking that resolves them has to survive.
+   */
+  describe("when two feet land on the same point", () => {
+    /**
+     * A crate one level up sits exactly over the one below: a level is
+     * `CELL_SIZE` up-left, so (1,1,1) and (0,0,0) share a foot square.
+     */
+    function stackedLevels(): MapFile {
+      let map = replaceStack(emptyMap(), 0, 0, 0, [
+        { tileId: "grass" },
+        { tileId: "crate" },
+      ]);
+      map = replaceStack(map, 1, 1, 1, [
+        { tileId: "grass" },
+        { tileId: "crate" },
+      ]);
+      return map;
+    }
 
-  it("still prefers the frontmost when both can be acted on", () => {
-    const map = twoCrates();
-    const p = overlapPoint(map);
-    expect(
-      pickInteractiveAt(
-        ctx(map),
-        indexInteractive(map, 0, tilesById),
-        p.x,
-        p.y,
-        () => true,
-      ),
-    ).toEqual(inFront);
-  });
-});
+    const lower: ObjectRef = { x: 0, y: 0, z: 0, stackIndex: 1 };
+    const upper: ObjectRef = { x: 1, y: 1, z: 1, stackIndex: 1 };
 
-describe("probeSpanFor", () => {
-  it("takes the largest sprite dimension in the tile set", () => {
-    // Every fixture tile is drawn at OVERLAPPING_SPRITE_CELLS square, so the
-    // probe has to reach that far to find art hanging off a distant base cell.
-    expect(probeSpanFor(tilesById)).toBe(OVERLAPPING_SPRITE_CELLS);
+    function sharedPoint(): { x: number; y: number } {
+      const a = footRect(lower.x, lower.y, lower.z);
+      const b = footRect(upper.x, upper.y, upper.z);
+      expect(a).toEqual(b);
+      return { x: a.x + CELL_SIZE / 2, y: a.y + CELL_SIZE / 2 };
+    }
+
+    it("takes the frontmost when nothing is actionable", () => {
+      const map = stackedLevels();
+      const p = sharedPoint();
+      expect(
+        pickInteractiveAt(
+          ctx(map),
+          indexInteractive(map, 0, tilesById, 1),
+          p.x,
+          p.y,
+        ),
+      ).toEqual(upper);
+    });
+
+    it("reaches past an inert one to the one that can be acted on", () => {
+      const map = stackedLevels();
+      const p = sharedPoint();
+      expect(
+        pickInteractiveAt(
+          ctx(map),
+          indexInteractive(map, 0, tilesById, 1),
+          p.x,
+          p.y,
+          sameRef(lower),
+        ),
+      ).toEqual(lower);
+    });
+
+    it("still prefers the frontmost when both can be acted on", () => {
+      const map = stackedLevels();
+      const p = sharedPoint();
+      expect(
+        pickInteractiveAt(
+          ctx(map),
+          indexInteractive(map, 0, tilesById, 1),
+          p.x,
+          p.y,
+          () => true,
+        ),
+      ).toEqual(upper);
+    });
   });
 });
 
 describe("pickTileAt", () => {
-  const assets: SpriteQuadAssets = {
-    tilesetById: new Map(),
-    textures: new Map(),
-    fallbackTexture: new THREE.Texture(),
-    frameIndices: new Map(),
-  };
-
-  /** Camera at the origin and zoom 1, so screen coords are world coords. */
-  function ctx(map: MapFile) {
-    return { map, tilesById, assets, camera: { x: 0, y: 0 }, zoom: 1 };
-  }
-
-  const span = probeSpanFor(tilesById);
-
-  function quadFor(map: MapFile, ref: ObjectRef, elevation = 0) {
-    const placed = getStack(map, ref.x, ref.y, ref.z)[ref.stackIndex]!;
-    const quad = spriteQuadFor(
-      assets,
-      map,
-      { x: ref.x, y: ref.y, z: ref.z, elevation },
-      placed,
-      tilesById[placed.tileId]!,
-    );
-    if (!quad) throw new Error("no quad");
-    return quad;
-  }
-
-  /** Middle of a tile's drawn sprite, which is where a pointer would be. */
-  function centerOf(map: MapFile, ref: ObjectRef, elevation = 0) {
-    const q = quadFor(map, ref, elevation);
-    return { x: q.x + q.w / 2, y: q.y + q.h / 2 };
-  }
-
   it("finds a plain, inert tile — the whole point of looking", () => {
     const map = replaceStack(emptyMap(), 3, 4, 0, [{ tileId: "grass" }]);
     const ref: ObjectRef = { x: 3, y: 4, z: 0, stackIndex: 0 };
-    const p = centerOf(map, ref);
+    const p = onFoot(ref);
 
-    expect(pickTileAt(ctx(map), span, p.x, p.y, 0, 1)).toEqual(ref);
+    expect(pickTileAt(ctx(map), p.x, p.y, 0, 1)).toEqual(ref);
   });
 
   it("names the top of the stack, never what is buried under it", () => {
@@ -266,42 +258,65 @@ describe("pickTileAt", () => {
       { tileId: "crate" },
     ]);
     const top: ObjectRef = { x: 0, y: 0, z: 0, stackIndex: 1 };
-    const p = centerOf(map, top, 0);
+    const p = onFoot(top);
 
-    expect(pickTileAt(ctx(map), span, p.x, p.y, 0, 1)).toEqual(top);
-  });
-
-  it("takes the frontmost of two overlapping tiles", () => {
-    let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }]);
-    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }]);
-
-    const behind: ObjectRef = { x: 0, y: 0, z: 0, stackIndex: 0 };
-    const inFront: ObjectRef = { x: 1, y: 0, z: 0, stackIndex: 0 };
-    const front = quadFor(map, inFront);
-    const p = { x: front.x, y: front.y };
-    expect(quadContains(quadFor(map, behind), p.x, p.y)).toBe(true);
-
-    expect(pickTileAt(ctx(map), span, p.x, p.y, 0, 1)).toEqual(inFront);
+    expect(pickTileAt(ctx(map), p.x, p.y, 0, 1)).toEqual(top);
   });
 
   /**
-   * The case the probe span exists for.
+   * The hole that measuring at each tile's own elevation used to leave.
    *
-   * The sprite is four cells square with its base at the top-left corner, so it
-   * covers ground a long way down-right of the cell it belongs to. A probe that
-   * only looked at the cell under the pointer would find nothing at all here.
-   * **Starve the span and this test must go red** — that is what makes it a
-   * test of the bound rather than of the projection.
+   * A crate on a slab is drawn one unit up, so a square taken at *its* elevation
+   * sits four pixels up-left of the ground — and the strip it vacates belonged to
+   * nobody, because the tile that would have claimed it is the one that moved.
+   * On screen that was a half-cell dead band below and right of anything raised.
+   * Taking the square at the ground instead leaves the whole cell live.
    */
-  it("reaches a sprite hanging well off its own base cell", () => {
-    const map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }]);
-    const ref: ObjectRef = { x: 0, y: 0, z: 0, stackIndex: 0 };
-    const quad = quadFor(map, ref);
-    // Deep into the far corner of the art, cells away from the base.
-    const p = { x: quad.x + quad.w - 1, y: quad.y + quad.h - 1 };
+  it("answers everywhere on the cell, however high the stack is", () => {
+    const map = replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "slab" },
+      { tileId: "crate" },
+    ]);
+    const crate: ObjectRef = { x: 0, y: 0, z: 0, stackIndex: 1 };
+    const foot = footRect(0, 0, 0);
 
-    expect(pickTileAt(ctx(map), span, p.x, p.y, 0, 1)).toEqual(ref);
-    expect(pickTileAt(ctx(map), 0, p.x, p.y, 0, 1)).toBeNull();
+    // Every corner and the middle, inset by a pixel to stay off the boundary.
+    for (const [px, py] of [
+      [foot.x + 1, foot.y + 1],
+      [foot.x + foot.w - 1, foot.y + 1],
+      [foot.x + 1, foot.y + foot.h - 1],
+      [foot.x + foot.w - 1, foot.y + foot.h - 1],
+      [foot.x + foot.w / 2, foot.y + foot.h / 2],
+    ]) {
+      expect(pickTileAt(ctx(map), px!, py!, 0, 1)).toEqual(crate);
+    }
+  });
+
+  /**
+   * Ground squares tile the plane, so a sweep across a row of cells must never
+   * come back empty — a gap anywhere is a place the pointer falls through.
+   */
+  it("leaves no dead pixels between neighbouring cells", () => {
+    let map = emptyMap();
+    for (let x = 0; x < 4; x++) {
+      map = replaceStack(map, x, 0, 0, [{ tileId: "slab" }, { tileId: "crate" }]);
+    }
+    const start = footRect(0, 0, 0);
+    const y = start.y + CELL_SIZE / 2;
+
+    for (let px = start.x; px < start.x + CELL_SIZE * 4; px++) {
+      expect(pickTileAt(ctx(map), px, y, 0, 1)).not.toBeNull();
+    }
+  });
+
+  it("takes the frontmost of two tiles whose feet coincide", () => {
+    let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }]);
+    map = replaceStack(map, 1, 1, 1, [{ tileId: "grass" }]);
+
+    const upper: ObjectRef = { x: 1, y: 1, z: 1, stackIndex: 0 };
+    const p = onFoot(upper);
+
+    expect(pickTileAt(ctx(map), p.x, p.y, 0, 1)).toEqual(upper);
   });
 
   it("reaches the floor above and below when the slack allows", () => {
@@ -310,24 +325,24 @@ describe("pickTileAt", () => {
 
     const above: ObjectRef = { x: 0, y: 0, z: 1, stackIndex: 0 };
     const below: ObjectRef = { x: 5, y: 5, z: -1, stackIndex: 0 };
-    const pAbove = centerOf(map, above);
-    const pBelow = centerOf(map, below);
+    const pAbove = onFoot(above);
+    const pBelow = onFoot(below);
 
-    expect(pickTileAt(ctx(map), span, pAbove.x, pAbove.y, 0, 1)).toEqual(above);
-    expect(pickTileAt(ctx(map), span, pBelow.x, pBelow.y, 0, 1)).toEqual(below);
+    expect(pickTileAt(ctx(map), pAbove.x, pAbove.y, 0, 1)).toEqual(above);
+    expect(pickTileAt(ctx(map), pBelow.x, pBelow.y, 0, 1)).toEqual(below);
     // With no slack neither floor is in reach, and there is nothing on the
     // viewer's own level to find instead.
-    expect(pickTileAt(ctx(map), span, pAbove.x, pAbove.y, 0, 0)).toBeNull();
+    expect(pickTileAt(ctx(map), pAbove.x, pAbove.y, 0, 0)).toBeNull();
   });
 
   it("cannot name a level the roof-cut has taken away", () => {
     const map = replaceStack(emptyMap(), 0, 0, 1, [{ tileId: "grass" }]);
     const roof: ObjectRef = { x: 0, y: 0, z: 1, stackIndex: 0 };
-    const p = centerOf(map, roof);
+    const p = onFoot(roof);
 
     // Drawn: looking up at a roof over your head reports "Roof", which is the
     // right answer. Cut away: it is not on screen, so it is not there to name.
-    expect(pickTileAt(ctx(map), span, p.x, p.y, 0, 1)).toEqual(roof);
-    expect(pickTileAt(ctx(map), span, p.x, p.y, 0, 1, 0)).toBeNull();
+    expect(pickTileAt(ctx(map), p.x, p.y, 0, 1)).toEqual(roof);
+    expect(pickTileAt(ctx(map), p.x, p.y, 0, 1, 0)).toBeNull();
   });
 });

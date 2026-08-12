@@ -45,7 +45,6 @@ import {
   indexInteractive,
   pickInteractiveAt,
   pickTileAt,
-  probeSpanFor,
 } from "./pick";
 import { DamageNumberLayer, type DamageNumberView } from "./damageNumbers";
 import { HEALTH_BAR_LIFT_PX, healthFraction } from "./healthBar";
@@ -171,8 +170,6 @@ export class GameRenderer {
   /** Camera and map the held look pick was taken against. @see repickLook */
   private lookPickKey = "";
   private lookPickMap: MapFile | null = null;
-  /** How far a sprite can reach past its own cell; see {@link probeSpanFor}. */
-  private readonly probeSpan: number;
   /** @see setLightingEnabled */
   private lightingEnabled = true;
   private labelLayer: WorldLabelLayer | null = null;
@@ -200,7 +197,6 @@ export class GameRenderer {
     this.session = session;
     this.canvas = canvas;
     this.tilesById = tilesByIdFromList(tiles);
-    this.probeSpan = probeSpanFor(this.tilesById);
     this.world = new WorldRenderer(canvas);
     this.world.setAssets(tilesets, this.tilesById);
     if (labelContainer) {
@@ -376,7 +372,6 @@ export class GameRenderer {
       {
         map: snap.map,
         tilesById: this.tilesById,
-        assets: this.world.quadAssets(),
         camera: this.cameraFor(snap),
         // CSS scale, not the render scale: the pointer arrives in the
         // element's own coordinates, and the buffer is stretched over it.
@@ -459,7 +454,6 @@ export class GameRenderer {
       {
         map: snap.map,
         tilesById: this.tilesById,
-        assets: this.world.quadAssets(),
         camera: this.cameraFor(snap),
         zoom: currentFit(this.canvas).cssScale,
       },
@@ -540,11 +534,9 @@ export class GameRenderer {
       {
         map: snap.map,
         tilesById: this.tilesById,
-        assets: this.world.quadAssets(),
         camera: this.cameraFor(snap),
         zoom: currentFit(this.canvas).cssScale,
       },
-      this.probeSpan,
       point.x,
       point.y,
       snap.self.z,
@@ -576,7 +568,17 @@ export class GameRenderer {
    * so the outline *is* the affordance — an object that will not budge simply
    * never lights up, and no second cue is needed to explain why.
    */
-  private overlaysFor(snap: GameSnapshot): OverlaySpec[] {
+  private overlaysFor(
+    snap: GameSnapshot,
+    motions: TileMotion[],
+  ): OverlaySpec[] {
+    const outline = (ref: ObjectRef, color: number): OverlaySpec => ({
+      kind: "objectOutline",
+      ...ref,
+      color,
+      ...this.motionOffsetFor(ref, motions),
+    });
+
     if (this.lookMode) {
       const looked = this.lookTarget(snap);
       // Health bars still go up. Looking is a different question from fighting,
@@ -584,10 +586,7 @@ export class GameRenderer {
       // mode taking away information rather than adding it.
       const bars = this.healthBarsFor(snap);
       if (!looked) return bars;
-      return [
-        { kind: "objectOutline", ...looked.ref, color: LOOK_COLOR },
-        ...bars,
-      ];
+      return [outline(looked.ref, LOOK_COLOR), ...bars];
     }
 
     const specs: OverlaySpec[] = [];
@@ -595,21 +594,41 @@ export class GameRenderer {
     // committed rather than as merely hoverable — the later spec would otherwise
     // draw its white outline over the top.
     const target = this.targetOutline(snap);
-    if (target) {
-      specs.push({ kind: "objectOutline", ...target, color: TARGET_COLOR });
-    }
+    if (target) specs.push(outline(target, TARGET_COLOR));
     if (this.targetHover && !sameRef(this.targetHover, target)) {
-      specs.push({
-        kind: "objectOutline",
-        ...this.targetHover,
-        color: TARGET_HOVER_COLOR,
-      });
+      specs.push(outline(this.targetHover, TARGET_HOVER_COLOR));
     }
-    if (snap.hover) {
-      specs.push({ kind: "objectOutline", ...snap.hover, color: HOVER_COLOR });
-    }
+    if (snap.hover) specs.push(outline(snap.hover, HOVER_COLOR));
     specs.push(...this.healthBarsFor(snap));
     return specs;
+  }
+
+  /**
+   * The lerp offset the sprite at this slot is being drawn with, if it is
+   * moving at all.
+   *
+   * Looked up in the very list handed to the renderer rather than recomputed, so
+   * an outline and the art inside it are offset by the same number by
+   * construction. A motion is keyed at the cell the map still holds the tile in
+   * — a walk commits only when it lands, a slide commits at once — which is the
+   * same cell every outline reference is built from, so the two always agree
+   * about what to match on.
+   */
+  private motionOffsetFor(
+    ref: ObjectRef,
+    motions: TileMotion[],
+  ): { ox: number; oy: number } | undefined {
+    for (const motion of motions) {
+      if (
+        motion.x === ref.x &&
+        motion.y === ref.y &&
+        motion.z === ref.z &&
+        motion.stackIndex === ref.stackIndex
+      ) {
+        return { ox: motion.ox, oy: motion.oy };
+      }
+    }
+    return undefined;
   }
 
   /** Where the actor being fought is standing right now, if they still are. */
@@ -1019,18 +1038,24 @@ export class GameRenderer {
       anchor,
     );
 
+    // Worked out once and handed to both: the sprites are drawn with these
+    // offsets and the outlines have to be drawn with the same ones, so sharing
+    // the list is what keeps a silhouette on the thing it belongs to rather than
+    // a step behind it.
+    const motions = this.tileMotionsFor(snap);
+
     this.world.setView({
       map: snap.map,
       tilesById: this.tilesById,
       camera,
       zoom,
       minutesOfDay: this.minutesOfDay,
-      tileMotions: this.tileMotionsFor(snap),
+      tileMotions: motions.length > 0 ? motions : undefined,
       emitterOverrides: this.emitterOverridesFor(snap),
       hideLevelsAbove: hideAbove ? anchor.z : undefined,
     });
 
-    this.world.setOverlays(this.overlaysFor(snap));
+    this.world.setOverlays(this.overlaysFor(snap, motions));
     // Written from inside the render loop's own rAF, so the style change and the
     // canvas paint land in the same commit — which is what stops DOM text from
     // trailing the sprite it belongs to.
@@ -1177,7 +1202,7 @@ export class GameRenderer {
    * cells, which is what lets a mover be behind the wall beside it and in front
    * of the floor it is stepping onto at the same time.
    */
-  private tileMotionsFor(snap: GameSnapshot): TileMotion[] | undefined {
+  private tileMotionsFor(snap: GameSnapshot): TileMotion[] {
     const motions: TileMotion[] = [];
     // Every actor, not just the viewer: a shove by someone across the room has
     // to animate here too, or their crate teleports.
@@ -1189,7 +1214,9 @@ export class GameRenderer {
       if (own) motions.push(own);
     }
 
-    return motions.length > 0 ? motions : undefined;
+    // Always a list, empty or not: the caller hands it to two consumers, and one
+    // of them wants to search it rather than pass it along.
+    return motions;
   }
 
   /** Motion for one actor's walk / fall lerp, if either is running. */

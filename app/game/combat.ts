@@ -14,11 +14,20 @@ import type { Rng } from "./rng";
  * quietly wrong.
  */
 
-/** Ticks between blows at {@link BattlerDef.spd} 100 — as fast as it gets. */
-export const MIN_ATTACK_TICKS = 2;
+/**
+ * Ticks between blows at {@link BattlerDef.spd} 100 — as fast as it gets.
+ *
+ * Six rather than two, and the slow end is stretched to match. At two ticks a
+ * fight was over before a player could read what was happening to them: the
+ * numbers came off faster than they could be counted, and a decision — flee,
+ * change target — had nowhere to fit. Both ends are scaled by the same factor so
+ * the *shape* of the curve is untouched and every authored `spd` keeps its
+ * relative standing; only the clock it runs against is slower.
+ */
+export const MIN_ATTACK_TICKS = 6;
 
 /** Ticks between blows at {@link BattlerDef.spd} 0 — as slow as it gets. */
-export const MAX_ATTACK_TICKS = 200;
+export const MAX_ATTACK_TICKS = 600;
 
 /**
  * How far a blow reaches, in cells, counted as a square rather than a cross.

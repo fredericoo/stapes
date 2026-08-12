@@ -154,6 +154,20 @@ export type WorldView = {
 export type ObjectOutlineOverlay = TileInstanceKey & {
   kind: "objectOutline";
   color: number;
+  /**
+   * World-pixel offset to draw the outline at, matching the sprite's own lerp.
+   *
+   * An outline is cut from the art at the tile's *committed* cell, and a walk
+   * only commits when it lands — so without this the silhouette sits at the cell
+   * a creature is leaving and snaps a whole cell forward when the step
+   * completes. It read as the outline chasing the thing it was supposed to be
+   * around, permanently a step behind.
+   *
+   * Taken from the same {@link TileMotion} that offsets the sprite rather than
+   * recomputed here, so the two cannot drift apart by a frame or a pixel.
+   */
+  ox?: number;
+  oy?: number;
 };
 
 /**
@@ -185,7 +199,10 @@ function overlaySpecKey(spec: OverlaySpec): string {
     // to place the bar in the same place twice.
     return `h:${spec.id}:${Math.round(spec.x)},${Math.round(spec.y)}:${spec.fraction.toFixed(3)}`;
   }
-  return `o:${spec.x},${spec.y},${spec.z},${spec.stackIndex}:${spec.color}`;
+  // The offset is part of the identity: while a tile is walking it changes every
+  // frame, and that is exactly when the outline has to be rebuilt to keep up.
+  const at = spec.ox || spec.oy ? `@${Math.round(spec.ox ?? 0)},${Math.round(spec.oy ?? 0)}` : "";
+  return `o:${spec.x},${spec.y},${spec.z},${spec.stackIndex}:${spec.color}${at}`;
 }
 
 /** Stable cache key for fractional emitter overrides (~0.01 cell). */
@@ -516,7 +533,13 @@ export class WorldRenderer {
       subject.placed,
       subject.def,
     );
-    if (quad) this.overlays.add(makeSpriteOutline(quad, spec.color));
+    if (!quad) return;
+    // Moved rather than rebuilt at a different cell: the silhouette is cut from
+    // the art where the map says the tile is, and the offset carries it to where
+    // the sprite has actually been drawn this frame.
+    quad.x += spec.ox ?? 0;
+    quad.y += spec.oy ?? 0;
+    this.overlays.add(makeSpriteOutline(quad, spec.color));
   }
 
   /**

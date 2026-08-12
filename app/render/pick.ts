@@ -1,20 +1,82 @@
-import { absoluteElevation, drawOrder, screenToCoord } from "../lib/geometry";
+import {
+  absoluteElevation,
+  baseCellWorldOrigin,
+  drawOrder,
+  screenToCoord,
+} from "../lib/geometry";
 import type { ObjectRef } from "../game/GameSession";
 import { isBattler } from "../lib/battler";
 import { isInteractive } from "../lib/interactions";
 import { getStack, listCoords, stackHeight } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import {
+  CELL_SIZE,
   MAX_LEVEL,
   MIN_LEVEL,
-  allTileSprites,
   physicalHeight,
 } from "../lib/types";
-import {
-  type SpriteQuadAssets,
-  quadContains,
-  spriteQuadFor,
-} from "./spriteQuad";
+
+/**
+ * Picking is by the tile's **foot** — the one cell it stands on — and never by
+ * the art hanging off it.
+ *
+ * Testing the drawn sprite sounds more honest and is unusable. Art is authored
+ * up and to the left of the cell it belongs to, so a four-cell tree covers the
+ * ground of everything behind it: the tree is trivial to hit from anywhere in a
+ * wide region it does not occupy, and the cat standing one cell back is
+ * *unreachable*, because the tree's quad wins the depth comparison over every
+ * pixel of it. Size became reach, and small things behind big things could not
+ * be pointed at at all.
+ *
+ * A foot is the same eight pixels square for every tile — the ground its column
+ * stands on, which is where a player already believes the thing is: you point at
+ * its base, not at its canopy. Squares that size tile the plane, so each level
+ * offers exactly one candidate cell and picking needs no search at all. It also
+ * makes the pick independent of the texture atlas, so nothing here waits on
+ * assets to load.
+ *
+ * The cost is deliberate and worth naming: the top of a tall sprite is not
+ * clickable. Pointing at a tree's leaves selects whatever is standing on the
+ * ground there — which is the same rule the world already uses for depth, and
+ * the only rule under which everything on screen is reachable.
+ */
+
+/**
+ * The eight-pixel square a cell's whole column stands on, in world pixels.
+ *
+ * At elevation zero, always — the ground, not the raised top of whatever is
+ * stacked there. That is what makes these squares *tile the plane*: every point
+ * on a level belongs to exactly one of them, so there is no gap for a pointer to
+ * fall into and no cell that is bigger to aim at than any other.
+ *
+ * Measuring at each tile's own elevation instead is the obvious thing and it
+ * leaves holes. A tile standing one unit up has its square lifted four pixels
+ * up-left, off the strip of ground it used to cover — and nothing else claims
+ * that strip, because the tile that would have is the one that moved. On screen
+ * that was a half-cell band, below and right of anything raised, where pointing
+ * selected nothing at all.
+ */
+export function footRect(
+  x: number,
+  y: number,
+  z: number,
+): { x: number; y: number; w: number; h: number } {
+  const origin = baseCellWorldOrigin(x, y, z, 0);
+  return { x: origin.x, y: origin.y, w: CELL_SIZE, h: CELL_SIZE };
+}
+
+function footContains(
+  foot: { x: number; y: number; w: number; h: number },
+  worldX: number,
+  worldY: number,
+): boolean {
+  return (
+    worldX >= foot.x &&
+    worldX < foot.x + foot.w &&
+    worldY >= foot.y &&
+    worldY < foot.y + foot.h
+  );
+}
 
 /**
  * Every interactive placement near `centerZ` that can actually be acted on —
@@ -99,16 +161,15 @@ export function indexBattlers(
 export type PickContext = {
   map: MapFile;
   tilesById: Record<string, TileDef>;
-  assets: SpriteQuadAssets;
   /** Top-left of the view in world pixels. */
   camera: { x: number; y: number };
   zoom: number;
 };
 
 /**
- * The interactive object drawn under a canvas-relative point, or null.
+ * The interactive object whose foot is under a canvas-relative point, or null.
  *
- * A rect test against each candidate's sprite quad. There is no ID buffer and
+ * A rect test against each candidate's foot square. There is no ID buffer and
  * no readback: the candidate list is only the interactive placements on one
  * level, so brute force is cheaper than a pass.
  *
@@ -118,6 +179,10 @@ export type PickContext = {
  * you, and it has no business swallowing the click when tapping it would do
  * nothing. Reaching past it costs nothing, because the thing in front is not
  * a target at all right now.
+ *
+ * Feet on different levels do overlap on screen — a floor above projects onto
+ * the one below — which is why the draw-order tie-break survives the move away
+ * from sprite quads.
  */
 export function pickInteractiveAt(
   ctx: PickContext,
@@ -138,14 +203,8 @@ export function pickInteractiveAt(
     const def = placed && ctx.tilesById[placed.tileId];
     if (!placed || !def) continue;
 
-    const quad = spriteQuadFor(
-      ctx.assets,
-      ctx.map,
-      { x: ref.x, y: ref.y, z: ref.z, elevation },
-      placed,
-      def,
-    );
-    if (!quad || !quadContains(quad, worldX, worldY)) continue;
+    const foot = footRect(ref.x, ref.y, ref.z);
+    if (!footContains(foot, worldX, worldY)) continue;
 
     const actionable = isActionable(ref);
     const order = drawOrder(
@@ -167,46 +226,19 @@ export function pickInteractiveAt(
 }
 
 /**
- * How far a sprite can reach past the cell the pointer is over, in cells.
- *
- * Two things move art away from its own footprint, and the probe has to cover
- * both. A multi-cell sprite hangs up and left of its base cell by up to its own
- * rect. Elevation shifts a tile up-left by {@link PX_PER_HEIGHT} per height
- * unit, and a stack may overflow one level into the next — four height units,
- * or two cells.
- *
- * Derived from the tile set rather than declared, so a taller or wider sprite
- * cannot silently stop being pickable. Cheap, but call it once per tile set:
- * this is not per-pointer-move work.
- */
-export function probeSpanFor(tilesById: Record<string, TileDef>): number {
-  let maxRect = 1;
-  for (const def of Object.values(tilesById)) {
-    for (const sprite of allTileSprites(def)) {
-      for (const frame of sprite.frames) {
-        const { w, h } = frame.sprite.rect;
-        if (w > maxRect) maxRect = w;
-        if (h > maxRect) maxRect = h;
-      }
-    }
-  }
-  return maxRect;
-}
-
-/** Height units a stack can reach before the level above takes over. */
-const MAX_OVERFLOW_CELLS = 2;
-
-/**
- * The tile drawn under a canvas-relative point, whatever it is — the pick
- * behind *looking*.
+ * The tile whose column is under a canvas-relative point — the pick behind
+ * *looking*.
  *
  * Deliberately not an index. {@link indexInteractive} is affordable because
  * interactive placements are rare; every top-of-stack tile on three levels is
- * thousands of entries, needing a `spriteQuadFor` each per pointer move and a
- * rebuild on every map identity — which during a walk is every commit. So the
- * *probe* is bounded instead: invert the projection to the cell under the
- * pointer and test the handful of cells whose art could reach it. Nothing is
- * cached, so nothing can go stale.
+ * thousands of entries, rebuilt on every map identity — which during a walk is
+ * every commit. So the projection is simply inverted instead: ground squares
+ * tile the plane, so each level contributes exactly *one* candidate cell and
+ * there is nothing to search. Nothing is cached, so nothing can go stale.
+ *
+ * This used to probe a square of cells around the pointer, sized by the widest
+ * sprite in the tile set, and test each one's art. Both the search and the
+ * dependency on the atlas are gone with it.
  *
  * Only the top of each stack is a candidate, for the same reason it is in the
  * interactive index: a buried tile is not on screen, and you cannot look at
@@ -216,16 +248,12 @@ const MAX_OVERFLOW_CELLS = 2;
  */
 export function pickTileAt(
   ctx: PickContext,
-  span: number,
   screenX: number,
   screenY: number,
   centerZ: number,
   levelSlack: number,
   hideLevelsAbove?: number,
 ): ObjectRef | null {
-  const worldX = ctx.camera.x + screenX / ctx.zoom;
-  const worldY = ctx.camera.y + screenY / ctx.zoom;
-
   const zMax = Math.min(
     MAX_LEVEL,
     centerZ + levelSlack,
@@ -233,16 +261,13 @@ export function pickTileAt(
   );
   const zMin = Math.max(MIN_LEVEL, centerZ - levelSlack);
 
-  // A sprite reaches *toward* the camera from its base cell, so the cells that
-  // can cover a point lie down-right of it — hence the asymmetry.
-  const behind = span;
-  const ahead = span + MAX_OVERFLOW_CELLS;
-
   let best: ObjectRef | null = null;
   let bestOrder = -Infinity;
 
   for (let z = zMin; z <= zMax; z++) {
-    const base = screenToCoord(
+    // Exactly the cell whose ground square holds this point — the inverse of
+    // {@link footRect}, which is why no search is needed around it.
+    const { x, y } = screenToCoord(
       screenX,
       screenY,
       ctx.zoom,
@@ -251,46 +276,26 @@ export function pickTileAt(
       z,
     );
 
-    for (let dy = -behind; dy <= ahead; dy++) {
-      for (let dx = -behind; dx <= ahead; dx++) {
-        const x = base.x + dx;
-        const y = base.y + dy;
-        const stack = getStack(ctx.map, x, y, z);
-        if (stack.length === 0) continue;
+    const stack = getStack(ctx.map, x, y, z);
+    if (stack.length === 0) continue;
 
-        const placed = stack[stack.length - 1]!;
-        const def = ctx.tilesById[placed.tileId];
-        if (!def) continue;
+    const stackIndex = stack.length - 1;
+    const placed = stack[stackIndex]!;
+    if (!ctx.tilesById[placed.tileId]) continue;
 
-        // Elevation of the *top* tile: everything under it, stacked.
-        let elevation = 0;
-        for (let i = 0; i < stack.length - 1; i++) {
-          const under = ctx.tilesById[stack[i]!.tileId];
-          if (under) elevation += physicalHeight(under);
-        }
-
-        const quad = spriteQuadFor(
-          ctx.assets,
-          ctx.map,
-          { x, y, z, elevation },
-          placed,
-          def,
-        );
-        if (!quad || !quadContains(quad, worldX, worldY)) continue;
-
-        const stackIndex = stack.length - 1;
-        const order = drawOrder(
-          x,
-          y,
-          absoluteElevation(z, elevation),
-          stackIndex,
-        );
-        if (order <= bestOrder) continue;
-
-        best = { x, y, z, stackIndex };
-        bestOrder = order;
-      }
+    // Elevation of the *top* tile: everything under it, stacked. Only the sort
+    // key reads it — where the tile is *hit* is the ground, not its own height.
+    let elevation = 0;
+    for (let i = 0; i < stackIndex; i++) {
+      const under = ctx.tilesById[stack[i]!.tileId];
+      if (under) elevation += physicalHeight(under);
     }
+
+    const order = drawOrder(x, y, absoluteElevation(z, elevation), stackIndex);
+    if (order <= bestOrder) continue;
+
+    best = { x, y, z, stackIndex };
+    bestOrder = order;
   }
 
   return best;

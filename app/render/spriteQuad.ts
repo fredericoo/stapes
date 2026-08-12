@@ -85,17 +85,3 @@ export function spriteQuadFor(
     v1: 1 - (rect.y * CELL_SIZE) / th,
   };
 }
-
-/** True when `(px, py)` in world pixels falls inside the quad's rect. */
-export function quadContains(
-  quad: SpriteQuad,
-  px: number,
-  py: number,
-): boolean {
-  return (
-    px >= quad.x &&
-    px < quad.x + quad.w &&
-    py >= quad.y &&
-    py < quad.y + quad.h
-  );
-}
