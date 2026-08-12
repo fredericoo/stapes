@@ -198,22 +198,28 @@ textarea {
  * shifting the group can ever bring the two together.
  */
 .world-label__bar {
-  width: 2.4em;
-  height: 0.3em;
-  /* One screen pixel, against the font's two-pixel brick — the "thinner border"
-     that is only available out here. */
-  border: 1px solid #000;
+  /* Every dimension is a whole font brick, so the bar is drawn on exactly the
+     grid the letters are. Anything finer — a hairline border, a fill sliding by
+     fractions of a pixel — is a resolution the type beside it cannot match, and
+     reads as a widget from another program pasted over the game. It shows worst
+     on a small screen, where the world is zoomed out and the text is at its
+     coarsest while the bar stays razor sharp.
+
+     Width is written from `HEALTH_BAR_BRICKS` when the element is built, so the
+     track and the fill dividing it are one number in one place. */
+  height: calc(var(--world-label-brick) * 2);
+  border: var(--world-label-brick) solid #000;
   background: #1a1014;
   /* The fill starts at the left edge and grows right, like every health bar. */
   display: flex;
   /* Bars are chrome, not type: keep the line box from adding leading under it. */
   line-height: 0;
-  margin-top: 0.15em;
+  margin-top: var(--world-label-brick);
 }
 
 .world-label__bar > div {
   height: 100%;
-  /* Width and colour are written per frame from the health reading. */
+  /* Width and colour are written per frame from the health reading, in bricks. */
   width: 100%;
 }
 

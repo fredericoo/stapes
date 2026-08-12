@@ -7,6 +7,7 @@ import {
 import type {
   ActorSnapshot,
   ChatBubble,
+  DamageNumber,
   GameSnapshot,
   ObjectRef,
   PlaySession,
@@ -47,7 +48,7 @@ import {
   pickTileAt,
 } from "./pick";
 import { DamageNumberLayer, type DamageNumberView } from "./damageNumbers";
-import { healthFraction } from "./healthBar";
+import { healthBarColor, healthFraction } from "./healthBar";
 import { fitViewport, VIEW_PX, type ViewportFit } from "./viewport";
 
 /** Do two references point at the same slot in the same cell? */
@@ -186,6 +187,13 @@ export class GameRenderer {
    * {@link speechAnchor}.
    */
   private readonly speechAnchors = new Map<string, { x: number; y: number }>();
+  /**
+   * World-pixel anchor per damage number, read once and held.
+   *
+   * Same freeze, same reason as {@link speechAnchors}: what happened, happened
+   * at a height. @see damageFor
+   */
+  private readonly damageAnchors = new Map<string, { x: number; y: number }>();
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -876,19 +884,22 @@ export class GameRenderer {
         { actorId: actor.id, tileId: actor.tileId },
         this.tilesById,
       );
+      const fraction = healthFraction(actor.hp, actor.maxHp);
       into.push({
         id: `name:${actor.id}`,
         kind: "name",
         x: visual.x + head.x,
         y: visual.y + head.y,
         lines: [{ id: actor.id, text: name }],
+        // Tinted to match its own health, so the tag and the bar under it read
+        // as one reading of one thing. It also means a battler at full health
+        // says so in green with no bar drawn at all, which is the cheapest way
+        // to answer "how is that thing doing" at a glance across a room.
+        color: healthBarColor(fraction),
         // Only once something has been taken off. A bar over a creature nobody
         // has touched is a status readout the player did not ask for, and with a
         // name over every battler now there would be a great many of them.
-        bar:
-          actor.hp < actor.maxHp
-            ? { fraction: healthFraction(actor.hp, actor.maxHp) }
-            : undefined,
+        bar: actor.hp < actor.maxHp ? { fraction } : undefined,
       });
     }
   }
@@ -1086,9 +1097,16 @@ export class GameRenderer {
    *
    * The anchor is the *cell*, not the body: a killing blow deletes its target on
    * the same tick, so a number that followed the actor would vanish exactly when
-   * it mattered most. Computed fresh each frame rather than frozen the way a
-   * speech anchor is — a number lives under a second and rises out of the way,
-   * so it cannot outlive the ground beneath it in any way a viewer would notice.
+   * it mattered most.
+   *
+   * **And it is frozen the first frame the number is seen**, exactly as a speech
+   * anchor is. This used to be recomputed every frame, on the reasoning that a
+   * number lives under a second and so could not outlive the ground beneath it.
+   * That was wrong, and visibly so: the height comes from the *scenery* in the
+   * cell, so stepping out of the cell you were just hit in takes your own body
+   * out of that stack and the number you are still reading drops by your own
+   * height. The damage happened at a height, and a receipt for it has no
+   * business riding later edits to the floor it was printed over.
    *
    * Filtered to the floors this client is drawing, because the wire carries every
    * blow struck anywhere in the world: without this a fight two storeys down
@@ -1104,26 +1122,57 @@ export class GameRenderer {
     for (const hit of snap.damage) {
       if (!this.isVisibleLevel(snap, hit.z, hideLevelsAbove)) continue;
 
-      const ground = this.cellWorldCenter(
-        hit.x,
-        hit.y,
-        hit.z,
-        snap.map,
-        hit.stackIndex,
-      );
-      const head = elevationScreenOffset(
-        this.movingTileHeight(snap.map, hit, hit.stackIndex),
-      );
+      const at = this.damageAnchor(hit, snap.map);
       out.push({
         id: hit.id,
-        x: ground.x + head.x,
-        y: ground.y + head.y,
+        x: at.x,
+        y: at.y,
         amount: hit.amount,
         own: hit.targetId === snap.self.id,
         elapsedMs: hit.elapsedMs,
       });
     }
+    this.forgetStaleDamageAnchors(snap);
     return out;
+  }
+
+  /**
+   * Where a damage number hangs, worked out once and then held.
+   *
+   * Read at the height the blow landed at — the ground in that cell plus the
+   * struck body's own height, so the figure comes off the head of whatever took
+   * it — and then never asked again. Both halves of that matter; see
+   * {@link damageFor} for what recomputing it did.
+   */
+  private damageAnchor(
+    hit: DamageNumber,
+    map: MapFile,
+  ): { x: number; y: number } {
+    const held = this.damageAnchors.get(hit.id);
+    if (held) return held;
+
+    const ground = this.cellWorldCenter(
+      hit.x,
+      hit.y,
+      hit.z,
+      map,
+      hit.stackIndex,
+    );
+    const head = elevationScreenOffset(
+      this.movingTileHeight(map, hit, hit.stackIndex),
+    );
+    const at = { x: ground.x + head.x, y: ground.y + head.y };
+    this.damageAnchors.set(hit.id, at);
+    return at;
+  }
+
+  /** Drop held anchors for numbers that have finished rising. */
+  private forgetStaleDamageAnchors(snap: GameSnapshot) {
+    if (this.damageAnchors.size === 0) return;
+    const live = new Set(snap.damage.map((hit) => hit.id));
+    for (const id of this.damageAnchors.keys()) {
+      if (!live.has(id)) this.damageAnchors.delete(id);
+    }
   }
 
   /**

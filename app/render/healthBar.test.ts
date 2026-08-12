@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+  HEALTH_BAR_BRICKS,
   HEALTH_BAR_STOPS,
   healthBarColor,
-  healthBarFillPercent,
+  healthBarFillBricks,
   healthFraction,
 } from "./healthBar";
 
@@ -58,34 +59,47 @@ describe("the colour ramp", () => {
 });
 
 describe("the fill", () => {
-  it("spans the whole bar at full health and none of it at zero", () => {
-    expect(healthBarFillPercent(1)).toBe(100);
-    expect(healthBarFillPercent(0)).toBe(0);
+  it("spans the whole track at full health and none of it at zero", () => {
+    expect(healthBarFillBricks(1)).toBe(HEALTH_BAR_BRICKS);
+    expect(healthBarFillBricks(0)).toBe(0);
   });
 
   /**
-   * The one thing rounding must not do. A creature on its last hit point out of
-   * five hundred is a creature you can still kill, and an empty bar over it says
-   * the opposite.
+   * The one thing rounding must not do downward. A creature on its last hit
+   * point out of five hundred is one you can still kill, and an empty bar over
+   * it says the opposite.
    */
-  it("keeps a visible sliver for the last hit point of a big pool", () => {
-    expect(healthBarFillPercent(healthFraction(1, 500))).toBeGreaterThan(1);
+  it("keeps a brick for the last hit point of a big pool", () => {
+    expect(healthBarFillBricks(healthFraction(1, 500))).toBe(1);
   });
 
-  it("never overflows its own track", () => {
+  /**
+   * And the one it must not do upward. A bar is only drawn once something has
+   * been taken off, so rounding 99% to a completely full track would hide the
+   * very thing the bar appeared to say.
+   */
+  it("never reads as full while anything is missing", () => {
+    expect(healthBarFillBricks(0.999)).toBeLessThan(HEALTH_BAR_BRICKS);
+    expect(healthBarFillBricks(healthFraction(499, 500))).toBeLessThan(
+      HEALTH_BAR_BRICKS,
+    );
+  });
+
+  it("stays on the brick grid, and inside the track", () => {
     for (let hp = 0; hp <= 20; hp++) {
-      expect(healthBarFillPercent(healthFraction(hp, 20))).toBeLessThanOrEqual(
-        100,
-      );
+      const bricks = healthBarFillBricks(healthFraction(hp, 20));
+      expect(Number.isInteger(bricks)).toBe(true);
+      expect(bricks).toBeGreaterThanOrEqual(0);
+      expect(bricks).toBeLessThanOrEqual(HEALTH_BAR_BRICKS);
     }
   });
 
   it("grows as health does", () => {
     let previous = -1;
-    for (let hp = 1; hp <= 20; hp++) {
-      const fill = healthBarFillPercent(healthFraction(hp, 20));
-      expect(fill).toBeGreaterThanOrEqual(previous);
-      previous = fill;
+    for (let hp = 0; hp <= 20; hp++) {
+      const bricks = healthBarFillBricks(healthFraction(hp, 20));
+      expect(bricks).toBeGreaterThanOrEqual(previous);
+      previous = bricks;
     }
   });
 });
