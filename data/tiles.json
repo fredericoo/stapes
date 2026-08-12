@@ -1752,9 +1752,34 @@
                 "action": "hold"
               }
             ]
+          },
+          "fighting": {
+            "do": [
+              {
+                "action": "attack",
+                "of": "$foe"
+              },
+              {
+                "action": "step_toward",
+                "of": "$foe"
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
+          {
+            "from": "any",
+            "if": {
+              "cond": "attacked"
+            },
+            "bind": {
+              "foe": "attacker"
+            },
+            "to": "fighting"
+          },
           {
             "from": "any",
             "if": {
@@ -1799,8 +1824,25 @@
               "cells": 8
             },
             "to": "idle"
+          },
+          {
+            "from": "fighting",
+            "if": {
+              "cond": "out_of_range",
+              "of": "$foe",
+              "cells": 10
+            },
+            "to": "idle"
           }
         ]
+      },
+      "battler": {
+        "maxHp": 22,
+        "atk": 4,
+        "def": 0,
+        "acc": 60,
+        "flee": 40,
+        "spd": 65
       }
     },
     "sprite": {
@@ -1839,6 +1881,14 @@
       "push": {
         "climb": "none",
         "moveOnTileIds": []
+      },
+      "battler": {
+        "maxHp": 40,
+        "atk": 6,
+        "def": 1,
+        "acc": 70,
+        "flee": 25,
+        "spd": 55
       }
     },
     "sprites": {
@@ -3580,6 +3630,16 @@
           {
             "from": "any",
             "if": {
+              "cond": "attacked"
+            },
+            "bind": {
+              "spooked": "attacker"
+            },
+            "to": "flee"
+          },
+          {
+            "from": "any",
+            "if": {
               "cond": "in_range",
               "of": "nearest_player",
               "cells": 4
@@ -3630,6 +3690,14 @@
             "to": "graze"
           }
         ]
+      },
+      "battler": {
+        "maxHp": 18,
+        "atk": 0,
+        "def": 0,
+        "acc": 50,
+        "flee": 60,
+        "spd": 30
       }
     },
     "sprites": {

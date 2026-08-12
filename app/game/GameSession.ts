@@ -35,12 +35,15 @@ import {
 import { findEntryCell } from "./entry";
 import {
   BRAIN_TICK_MS,
+  DAMAGE_NUMBER_LIFETIME_MS,
   FALL_MS_PER_HEIGHT,
   MAX_CLIMB_HEIGHT,
   PUSH_STEP_MS,
   TICK_MS,
   WALK_DURATION_MS,
 } from "./constants";
+import { resolveBattler, type BattlerDef } from "../lib/battler";
+import { attackIntervalMs, inAttackRange, rollAttack } from "./combat";
 import {
   cellForFeetAbs,
   cellHasLooseGravity,
@@ -165,6 +168,42 @@ export type ActorSnapshot = {
   fallProgress: number;
   slide: SlideSnapshot | null;
   slideProgress: number;
+  /**
+   * Hit points right now, or null for a body with none — a crate, a sign, a
+   * creature nobody has given stats to.
+   *
+   * Null rather than zero for "not a battler", because zero is a real and very
+   * different answer: it means dead, and a body that hits zero is off the board
+   * on the same tick. Anything drawing a health bar keys off the null.
+   */
+  hp: number | null;
+  /** What {@link hp} is measured against; null exactly when `hp` is. */
+  maxHp: number | null;
+};
+
+/**
+ * A number floating off somebody who was just hit.
+ *
+ * Kept alive with its own clock rather than fired and forgotten, for the same
+ * reason a chat bubble is: it has to outlive the tick that produced it, and
+ * often outlives the body it came off — a killing blow deletes its target
+ * immediately, and the number is the only thing left saying what happened.
+ *
+ * Which is why the cell travels rather than the actor id alone. By the time this
+ * is drawn there may be nobody by that name to ask where they were standing.
+ */
+export type DamageNumber = {
+  /** Distinct per blow, so two hits on one tick are two numbers. */
+  id: string;
+  /** Who took it. Compared against the viewer's own id to colour the number. */
+  targetId: string;
+  amount: number;
+  x: number;
+  y: number;
+  z: number;
+  /** Where the target stood in that cell's stack, so the number starts at them. */
+  stackIndex: number;
+  elapsedMs: number;
 };
 
 /**
@@ -212,6 +251,23 @@ export type GameSnapshot = {
   /** Object under the viewer's pointer that they can act on right now. */
   hover: ObjectRef | null;
   /**
+   * Who the viewer has picked a fight with, or null.
+   *
+   * The viewer's own, like {@link hover} and for the same reason: a target is
+   * an affordance for whoever is looking, not a property of the board. It is
+   * what the auto-attack swings at, and it survives until they clear it, walk
+   * out of sight of it, or it dies.
+   */
+  targetId: string | null;
+  /**
+   * Damage still floating, oldest first.
+   *
+   * Present in every session, unlike {@link chats}: a blow landing is something
+   * the local simulation very much does have to say, and `/play` shows numbers
+   * exactly as the online client does.
+   */
+  damage: DamageNumber[];
+  /**
    * Speech still on screen, on this viewer's level only.
    *
    * Always present rather than optional so the renderer's contract stays total;
@@ -222,6 +278,28 @@ export type GameSnapshot = {
 
 /** The id the single local actor takes when nobody names one. */
 export const LOCAL_ACTOR_ID = "local";
+
+/**
+ * Shared empty list for the overwhelmingly common "nobody hit me" answer, so
+ * asking costs a map lookup rather than an allocation per creature per tick.
+ */
+const EMPTY_ATTACKERS: readonly string[] = [];
+
+/**
+ * Which way to turn to face a neighbouring cell.
+ *
+ * The dominant axis wins, so a diagonal foe is faced along whichever side of the
+ * square is longer — and a tie, which is every true diagonal, resolves
+ * north/south. Null only when the two are in the same cell, which nothing solid
+ * can be.
+ */
+function facingToward(from: Coord, to: Coord): Direction | null {
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  if (dx === 0 && dy === 0) return null;
+  if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? "e" : "w";
+  return dy > 0 ? "s" : "n";
+}
 
 /**
  * What the renderer needs from whatever is driving it.
@@ -240,6 +318,14 @@ export interface PlaySession {
   getSnapshot(): GameSnapshot;
   getMap(): MapFile;
   setHoveredObject(ref: ObjectRef | null): void;
+  /**
+   * Pick a fight, or call it off with null.
+   *
+   * The client decides *who*, because choosing a target is pointing at something
+   * on a screen; this side decides *whether and how often*, because that is the
+   * board's business and a client cannot be trusted with its own attack speed.
+   */
+  setTarget(actorId: string | null): void;
   canInteract(ref: ObjectRef): boolean;
   interact(ref: ObjectRef): boolean;
 }
@@ -280,6 +366,23 @@ type ActorRuntime = {
    * state resets on load" free: a fresh runtime has no memory to restore.
    */
   brain: BrainMemory | null;
+  /**
+   * Hit points, or null for a body that has never had any read.
+   *
+   * Filled on first use rather than at creation, which is what makes it free:
+   * the stats live on the tile the actor *is*, and at creation the body may not
+   * be on the board yet. Null therefore means "ask the tile", and a body with no
+   * battler block leaves it null forever. See {@link GameSession.hpOf}.
+   *
+   * Deliberately absent from the checkpoint, exactly like {@link brain}: a world
+   * nobody is looking at owes no continuity, and the alternative is a saved
+   * number that has to survive somebody editing the tile's max.
+   */
+  hp: number | null;
+  /** Milliseconds until this body may swing again. See `./combat`. */
+  attackCooldownMs: number;
+  /** Who this actor is set on, for a body driven by somebody pointing at things. */
+  targetId: string | null;
   input: GameInput;
   walk: WalkState | null;
   fall: FallState | null;
@@ -365,6 +468,43 @@ export class GameSession implements PlaySession {
    * lying here would be heard again by whoever ticks next.
    */
   private pendingHeard: Utterance[] = [];
+  /**
+   * Who has hit whom since the brains last had a turn, as `target -> attackers`.
+   *
+   * The exact counterpart of {@link pendingHeard}, cleared on the same slower
+   * clock and for the same reason: a brain gets one chance to notice a blow, and
+   * a blow left lying here would be noticed again by whoever ticks next. Indexed
+   * by target because that is the only question ever asked of it — "was I hit,
+   * and by whom" — and a flat list would mean every creature walking every blow
+   * struck anywhere in the world.
+   */
+  private pendingHurt = new Map<string, string[]>();
+  /**
+   * Damage dealt this tick, waiting to be broadcast. Drained by the server
+   * exactly as {@link pendingSpeech} is, and emptied at the top of every tick so
+   * a session with no wire cannot accumulate it.
+   */
+  private pendingDamage: DamageNumber[] = [];
+  /**
+   * Damage still on screen, aged down by the tick loop.
+   *
+   * Separate from {@link pendingDamage} because the two answer different
+   * questions: that one is "what happened in the last tick", which the wire
+   * wants once, and this is "what a viewer should still be able to see", which
+   * outlives it by a couple of seconds. Both are fed by the same blow.
+   */
+  private liveDamage: DamageNumber[] = [];
+  /** Ticks up per blow, so two hits in one tick are two numbers. */
+  private nextDamageId = 0;
+  /**
+   * Who died this tick, waiting to be noticed.
+   *
+   * The session cannot act on a death beyond removing the body — whether the
+   * connection behind it is kept out of the world afterwards is the server's
+   * question, and this is how it hears about one. Drained like speech and
+   * damage; a session with no wire never asks.
+   */
+  private pendingDeaths: string[] = [];
   /**
    * The creature-driven emitters the last settle pass saw, as a signature.
    *
@@ -471,6 +611,9 @@ export class GameSession implements PlaySession {
       id,
       resident: opts.resident === true,
       brain: null,
+      hp: null,
+      attackCooldownMs: 0,
+      targetId: null,
       input: { directions: [] },
       walk: null,
       fall: null,
@@ -727,10 +870,21 @@ export class GameSession implements PlaySession {
     // Last tick's speech has been broadcast or discarded; this tick starts with
     // an empty page, so anything left undrained cannot pile up.
     this.pendingSpeech = [];
+    this.pendingDamage = [];
+    this.ageDamageNumbers(tickMs);
+
+    // Before anything swings, so a body whose cooldown expires on this tick can
+    // spend it on this tick — whether the swing comes from a brain below or from
+    // somebody's target above.
+    this.advanceCooldowns(tickMs);
 
     // Before the bodies move, so a decision taken now starts its walk on this
     // tick rather than the next.
     this.tickBrains(tickMs);
+
+    // After the brains, so a creature that decided to close the distance this
+    // tick is not also hit by a player's auto-attack before it has moved.
+    this.runAutoAttacks();
 
     for (const actor of this.actors.values()) {
       // Independent of the actor: a shoved object keeps travelling whatever
@@ -779,6 +933,7 @@ export class GameSession implements PlaySession {
       // page rather than keeping it is what stops a word shouted on the way out
       // of the door from greeting the next person to walk in.
       this.pendingHeard = [];
+      this.pendingHurt.clear();
       return;
     }
 
@@ -796,6 +951,10 @@ export class GameSession implements PlaySession {
     // reach every ear at once — and clearing at all is what keeps it an event
     // instead of a standing fact about the world.
     this.pendingHeard = [];
+    // And its one chance to notice being hit, on the same terms: a blow is an
+    // event, so a creature that was struck reacts once rather than reacting
+    // forever to a fact that never goes away.
+    this.pendingHurt.clear();
   }
 
   /**
@@ -841,6 +1000,8 @@ export class GameSession implements PlaySession {
           at,
         ),
       heard: () => this.pendingHeard,
+      hurtBy: () => this.pendingHurt.get(actor.id) ?? EMPTY_ATTACKERS,
+      attack: (id) => this.tryAttack(actor, id),
     });
   }
 
@@ -882,6 +1043,245 @@ export class GameSession implements PlaySession {
     const said = this.pendingSpeech;
     this.pendingSpeech = [];
     return said;
+  }
+
+  /**
+   * Everything that took a blow this tick, handed over and forgotten.
+   *
+   * The server's to call, right after {@link tick}, exactly as
+   * {@link drainSpeech} is. A session with no wire — offline `/play` — never
+   * drains it, and the per-tick reset keeps that from leaking; the numbers a
+   * local viewer sees come from {@link getSnapshot} instead.
+   */
+  drainDamage(): DamageNumber[] {
+    const dealt = this.pendingDamage;
+    this.pendingDamage = [];
+    return dealt;
+  }
+
+  /**
+   * Everybody whose body ran out of hit points this tick, handed over once.
+   *
+   * Not cleared by the next tick, unlike speech and damage: a death is the one
+   * thing here the caller *must* not miss — a server that dropped one would put
+   * the actor back on the board at the next wake, undoing it.
+   */
+  drainDeaths(): string[] {
+    const died = this.pendingDeaths;
+    this.pendingDeaths = [];
+    return died;
+  }
+
+  /** Wind every cooldown down towards its next swing. */
+  private advanceCooldowns(tickMs: number) {
+    for (const actor of this.actors.values()) {
+      if (actor.attackCooldownMs > 0) {
+        actor.attackCooldownMs = Math.max(0, actor.attackCooldownMs - tickMs);
+      }
+    }
+  }
+
+  /**
+   * Swing for everybody who has picked a fight and is standing close enough.
+   *
+   * Auto rather than per click, because {@link BattlerDef.spd} is what decides
+   * how often a body swings. A client that had to ask for each blow would be
+   * asking for permission it is going to be refused most of the time, and a
+   * client that asked *faster* would gain nothing — which is precisely the
+   * property worth having on a wire anybody can write to.
+   *
+   * Failing quietly is the whole behaviour here: out of reach, on cooldown, or
+   * aimed at something with no hit points all simply do not swing. Only a target
+   * that has left the world is worth clearing, because a slot pointing at
+   * nobody would keep this looking them up forever.
+   */
+  private runAutoAttacks() {
+    for (const actor of this.actors.values()) {
+      const targetId = actor.targetId;
+      if (targetId === null) continue;
+      if (!this.actors.has(targetId)) {
+        actor.targetId = null;
+        continue;
+      }
+      this.tryAttack(actor, targetId);
+    }
+  }
+
+  /**
+   * One body swings at another, if every reason not to is absent.
+   *
+   * The single path from "somebody wants to attack" to a blow, whether the
+   * wanting came from a brain's `attack` action or from a player's standing
+   * target. Returning false rather than throwing at each refusal is what lets
+   * the brain's priority list fall through — see the `attack` action.
+   */
+  private tryAttack(attacker: ActorRuntime, targetId: string): boolean {
+    if (attacker.attackCooldownMs > 0) return false;
+    if (targetId === attacker.id) return false;
+
+    const target = this.actors.get(targetId);
+    if (!target) return false;
+
+    // Both ends have to be battlers, and reading it off the body is what makes
+    // "attack anything, fail graciously" true: swinging at a crate is a lookup
+    // that comes back null, not a special case anybody had to write.
+    const attackerStats = this.battlerOf(attacker);
+    const targetStats = this.battlerOf(target);
+    if (!attackerStats || !targetStats) return false;
+
+    const from = this.tryLocate(attacker);
+    const to = this.tryLocate(target);
+    if (!from || !to) return false;
+    if (!inAttackRange(from, to)) return false;
+
+    // Spent whether or not the blow connects: the swing happened, and a dodge
+    // that cost the attacker nothing would let a fast creature flail for free.
+    attacker.attackCooldownMs = attackIntervalMs(attackerStats.spd);
+
+    // Turning into the blow, so a creature that fights while cornered is facing
+    // what it is fighting. Free when it already is — `setEntityDirection` guards
+    // the no-op, which matters because this runs on every swing.
+    const facing = facingToward(from, to);
+    if (facing) {
+      this.map = setEntityDirection(
+        this.map,
+        from.x,
+        from.y,
+        from.z,
+        from.stackIndex,
+        facing,
+      );
+    }
+
+    const outcome = rollAttack(attackerStats, targetStats, this.rng);
+    // Noted even on a dodge: what a creature reacts to is being swung at, and a
+    // cat that only fought back when a blow landed would stand there being
+    // missed. Before the damage, so a killing blow still tells the room.
+    this.notePendingHurt(target.id, attacker.id);
+    if (outcome.dodged) return true;
+
+    this.applyDamage(target, outcome.damage);
+    return true;
+  }
+
+  /** Remember who hit whom, for the brains' next round of decisions. */
+  private notePendingHurt(targetId: string, attackerId: string) {
+    const attackers = this.pendingHurt.get(targetId);
+    if (attackers) attackers.push(attackerId);
+    else this.pendingHurt.set(targetId, [attackerId]);
+  }
+
+  /**
+   * Take hit points off a body, and take the body off the board if that empties
+   * it.
+   *
+   * The number is recorded before the death, and carries the cell rather than
+   * relying on the actor still being findable: by the time anything draws it,
+   * the body it came off may be gone.
+   */
+  private applyDamage(target: ActorRuntime, amount: number) {
+    const before = this.hpOf(target);
+    if (before === null) return;
+
+    const loc = this.tryLocate(target);
+    if (loc) {
+      const number: DamageNumber = {
+        id: `hit-${this.nextDamageId++}`,
+        targetId: target.id,
+        amount,
+        x: loc.x,
+        y: loc.y,
+        z: loc.z,
+        stackIndex: loc.stackIndex,
+        elapsedMs: 0,
+      };
+      this.pendingDamage.push(number);
+      this.liveDamage.push(number);
+    }
+
+    const after = before - amount;
+    target.hp = Math.max(0, after);
+    if (target.hp === 0) this.kill(target);
+  }
+
+  /**
+   * Take a body off the board for good.
+   *
+   * The tile goes and so does the runtime, which for a player is exactly the
+   * intent: with no actor by that name the server ignores everything their
+   * socket sends, so a dead player can sit there connected and do nothing until
+   * they reload and are handed a fresh body. There is no respawn.
+   *
+   * Everyone aiming at them is released here rather than discovering it later,
+   * so nothing is left swinging at a slot that can never be filled again.
+   */
+  private kill(target: ActorRuntime) {
+    this.actors.delete(target.id);
+    this.pendingDeaths.push(target.id);
+    this.map = despawnActor(this.map, target.id);
+    this.pendingHurt.delete(target.id);
+    for (const actor of this.actors.values()) {
+      if (actor.targetId === target.id) actor.targetId = null;
+    }
+    // The cell they were standing in has one fewer thing in it, which is a real
+    // change to what rests on a plate and to what is holding a crate up.
+    const loc = target.memo?.loc;
+    if (loc) this.reindexCells([{ x: loc.x, y: loc.y, z: loc.z }]);
+  }
+
+  /** Age the floating numbers out, on the tick clock like every other timer. */
+  private ageDamageNumbers(tickMs: number) {
+    if (this.liveDamage.length === 0) return;
+    let expired = false;
+    for (const number of this.liveDamage) {
+      number.elapsedMs += tickMs;
+      if (number.elapsedMs >= DAMAGE_NUMBER_LIFETIME_MS) expired = true;
+    }
+    if (expired) {
+      this.liveDamage = this.liveDamage.filter(
+        (number) => number.elapsedMs < DAMAGE_NUMBER_LIFETIME_MS,
+      );
+    }
+  }
+
+  /** The stat block of whatever body this actor is in, or null for none. */
+  private battlerOf(actor: ActorRuntime): BattlerDef | null {
+    const loc = this.tryLocate(actor);
+    if (!loc) return null;
+    const def = this.tilesById[loc.placed.tileId];
+    return def ? resolveBattler(def) : null;
+  }
+
+  /**
+   * Hit points as they stand, filling them in from the tile the first time
+   * anybody asks.
+   *
+   * Lazy because that is the only way it can be cheap *and* right: the stats
+   * live on the body, a body can be swapped underneath an actor, and at the
+   * moment an actor is created it may have no body at all. Null means the body
+   * has none to give.
+   */
+  private hpOf(actor: ActorRuntime): number | null {
+    const stats = this.battlerOf(actor);
+    if (!stats) return null;
+    actor.hp ??= stats.maxHp;
+    // Clamped on read rather than on edit, so lowering a tile's maximum in the
+    // editor cannot leave a creature standing there overfull.
+    return Math.min(actor.hp, stats.maxHp);
+  }
+
+  /**
+   * Point an actor at somebody, or at nobody.
+   *
+   * Nothing is validated here beyond the id being a string: whether the target
+   * can actually be hit is decided every time a swing is attempted, and it has
+   * to be, because reach changes as both parties walk. A target that is merely
+   * out of range is a target being kept, not a bad one.
+   */
+  setTarget(actorId: string | null, id: string = LOCAL_ACTOR_ID) {
+    const actor = this.actors.get(id);
+    if (!actor) return;
+    actor.targetId = actorId === actor.id ? null : actorId;
   }
 
   /**
@@ -1152,6 +1552,8 @@ export class GameSession implements PlaySession {
       slideProgress: actor.slide
         ? Math.min(1, (actor.slide.elapsedMs + visualExtra) / PUSH_STEP_MS)
         : 0,
+      hp: this.hpOf(actor),
+      maxHp: this.battlerOf(actor)?.maxHp ?? null,
     };
   }
 
@@ -1173,9 +1575,11 @@ export class GameSession implements PlaySession {
       actors,
       hover:
         self.hovered && this.canInteract(self.hovered, id) ? self.hovered : null,
+      targetId: self.targetId,
       // Nobody to talk to: the local simulation has no wire and no other actors
       // worth naming, so speech is a thing only the online client carries.
       chats: [],
+      damage: this.liveDamage,
     };
   }
 
@@ -1195,12 +1599,20 @@ export class GameSession implements PlaySession {
     // next tick clears the page. A world with nothing else to do stays awake
     // for one brain tick and settles again.
     if (this.pendingHeard.length > 0) return false;
+    // A blow nobody has had a turn to notice, on exactly the same grounds: the
+    // next brain tick is what delivers it, and stopping the clock now would drop
+    // it entirely rather than merely delay it.
+    if (this.pendingHurt.size > 0) return false;
 
     let observed = false;
     let thinking = false;
     for (const actor of this.actors.values()) {
       if (actor.walk || actor.fall || actor.slide) return false;
       if (actor.input.directions.length > 0) return false;
+      // Somebody standing still next to the thing they are fighting is not an
+      // idle world: the next swing is on a cooldown that only this loop winds
+      // down, so resting here would end the fight by falling asleep in it.
+      if (actor.targetId !== null) return false;
       if (!actor.resident) {
         observed = true;
       } else if (!thinking) {

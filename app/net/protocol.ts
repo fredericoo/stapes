@@ -51,12 +51,43 @@ const objectRefSchema = v.object({
 
 const directionSchema = v.picklist(["n", "e", "s", "w"] as const);
 
+/**
+ * Cap on an actor id crossing the wire inbound.
+ *
+ * Ids are minted by the `/online` loader as cookie values, so a real one is far
+ * under this; the bound exists because the only inbound message carrying one is
+ * a target, and a target is *kept* — an unbounded string would be held in an
+ * actor slot for as long as the client cared to keep pointing at it.
+ */
+const MAX_ACTOR_ID_LENGTH = 128;
+
+const hpPatchSchema = v.object({
+  actorId: v.string(),
+  hp: v.number(),
+  maxHp: v.number(),
+});
+
 /** One cell's whole stack, replacing whatever the client had there. */
 export type CellPatch = {
   x: number;
   y: number;
   z: number;
   stack: PlacedTile[];
+};
+
+/**
+ * One actor's hit points, as the server last saw them.
+ *
+ * State rather than an event, and it travels on the same terms cell patches do:
+ * a whole current value replacing whatever the client had, sent only for the
+ * actors whose reading actually changed. A client that added up damage events
+ * instead would drift the moment one was missed, and the bar over somebody's
+ * head would go on being wrong with nothing to correct it.
+ */
+export type HpPatch = {
+  actorId: string;
+  hp: number;
+  maxHp: number;
 };
 
 export type MotionEvent =
@@ -90,7 +121,30 @@ export type MotionEvent =
    * cannot drift.
    */
   | { kind: "joined"; actorId: string; playerCount: number }
-  | { kind: "left"; actorId: string; playerCount: number };
+  | { kind: "left"; actorId: string; playerCount: number }
+  /**
+   * A blow landed, worth this much.
+   *
+   * An event rather than state, unlike {@link HpPatch}, and the pair is the same
+   * split the whole protocol is built on: the bar over a head is a fact about
+   * the world right now, while the number floating off it is something that
+   * *happened* and cannot be recovered by comparing two readings — three hits in
+   * one tick are three numbers and one new total.
+   *
+   * The cell travels rather than only the actor id, because a killing blow takes
+   * its target off the board on the same tick: by the time this is drawn there
+   * may be nobody by that name left to ask where they were standing.
+   */
+  | {
+      kind: "damage";
+      id: string;
+      targetId: string;
+      amount: number;
+      x: number;
+      y: number;
+      z: number;
+      stackIndex: number;
+    };
 
 export type ServerMessage =
   /** Full state, on join and after the world restarts. */
@@ -114,11 +168,21 @@ export type ServerMessage =
        * their own, so everyone is standing in the same hour.
        */
       minutesOfDay: number;
+      /**
+       * Everybody's hit points as of this moment.
+       *
+       * Sent in full here and only as a diff afterwards, exactly like the map:
+       * a joiner has nothing to patch against, and health bars have to be right
+       * on the first frame rather than on the first blow.
+       */
+      hps: HpPatch[];
     }
   | {
       type: "patch";
       cells: CellPatch[];
       events: MotionEvent[];
+      /** Only the actors whose hit points changed since the last patch. */
+      hps: HpPatch[];
     }
   /**
    * Something somebody said, pinned to the cell they said it in.
@@ -187,7 +251,16 @@ export type ClientMessage =
   /** Turning on the spot: shift-facing, or pressing into a wall. */
   | { type: "face"; direction: "n" | "e" | "s" | "w" }
   | { type: "interact"; ref: { x: number; y: number; z: number; stackIndex: number } }
-  | { type: "say"; text: string };
+  | { type: "say"; text: string }
+  /**
+   * "This is who I am fighting" — or null, for nobody.
+   *
+   * The client picks the target because picking one is pointing at something on
+   * a screen; it does not get to say when a blow lands, which is why there is no
+   * `attack` message here at all. The server swings on its own clock at whoever
+   * this names, so a client cannot attack faster by asking more often.
+   */
+  | { type: "target"; actorId: string | null };
 
 /**
  * Inbound from the browser. Held to a tighter standard than outbound: a client
@@ -224,6 +297,13 @@ const clientMessageSchema = v.variant("type", [
     // unbounded to walk.
     text: v.pipe(v.string(), v.maxLength(MAX_CHAT_RAW_LENGTH)),
   }),
+  v.object({
+    type: v.literal("target"),
+    // Bounded so a client cannot hand the server an unbounded string to carry
+    // around in an actor slot. Whether it names anybody real is not this
+    // schema's business — the session looks it up on every swing regardless.
+    actorId: v.nullable(v.pipe(v.string(), v.maxLength(MAX_ACTOR_ID_LENGTH))),
+  }),
 ]);
 
 /** Parse an inbound frame, or null when it is not something we accept. */
@@ -246,6 +326,7 @@ const serverMessageSchema = v.variant("type", [
     actorIds: v.array(v.string()),
     playerCount: v.number(),
     minutesOfDay: v.number(),
+    hps: v.array(hpPatchSchema),
   }),
   v.object({
     type: v.literal("patch"),
@@ -288,8 +369,19 @@ const serverMessageSchema = v.variant("type", [
           actorId: v.string(),
           playerCount: v.number(),
         }),
+        v.object({
+          kind: v.literal("damage"),
+          id: v.string(),
+          targetId: v.string(),
+          amount: v.number(),
+          x: v.number(),
+          y: v.number(),
+          z: v.number(),
+          stackIndex: v.number(),
+        }),
       ]),
     ),
+    hps: v.array(hpPatchSchema),
   }),
   v.object({
     type: v.literal("chat"),

@@ -100,6 +100,12 @@ export const CONDITIONS: Record<
     ],
     make: () => ({ cond: "heard", text: "ps", cells: 5, los: true }),
   },
+  attacked: {
+    label: "attacked",
+    hint: "Somebody swung at this creature since its last turn. Bind the attacker selector to remember who.",
+    params: [],
+    make: () => ({ cond: "attacked" }),
+  },
   stuck: {
     label: "stuck",
     hint: "Every action in this state failed last turn. A state ending in hold can never be stuck.",
@@ -156,6 +162,12 @@ export const ACTIONS: Record<
       { key: "allowDrops", kind: "boolean", label: "allow drops" },
     ],
     make: () => ({ action: "walk_n_steps", steps: 3 }),
+  },
+  attack: {
+    label: "attack",
+    hint: "Swing at a target in an adjacent cell. Fails when out of reach, still recovering, or aimed at something with no hit points.",
+    params: [{ key: "of", kind: "selector", label: "of" }],
+    make: () => ({ action: "attack", of: LIVE_SELECTOR }),
   },
 };
 

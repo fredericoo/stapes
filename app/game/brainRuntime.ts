@@ -1,5 +1,6 @@
 import {
   ANY_STATE,
+  ATTACKER_SELECTOR,
   SPEAKER_SELECTOR,
   slotOf,
   type BrainActionDef,
@@ -91,6 +92,16 @@ export type BrainMemory = {
    * which is a decision the author makes and can see in the table.
    */
   heardFrom: string | null;
+  /**
+   * Who hit this creature since its last turn, for the length of one transition.
+   *
+   * The plumbing behind the `attacker` selector, and it lives beside
+   * {@link heardFrom} for the same reason and on the same terms: cleared at the
+   * top of every tick, so a `bind` on a transition where nobody swung writes
+   * nothing. Holding a grudge is done by *binding* it to a slot, which is a
+   * decision the author makes and can see in the table.
+   */
+  hurtBy: string | null;
 };
 
 /**
@@ -160,6 +171,21 @@ export type BrainContext = {
    * happened to fall.
    */
   heard(): readonly Utterance[];
+  /**
+   * Everybody who has hit this creature since it last had a turn, oldest first.
+   *
+   * The mirror of {@link heard}, and a list for the same reason: two things can
+   * land a blow between one brain tick and the next, and dropping one of them
+   * would make who a creature turns on depend on where the brain clock happened
+   * to fall. Empty on almost every tick.
+   */
+  hurtBy(): readonly string[];
+  /**
+   * Swing at somebody. False when there was nothing to swing at, when they are
+   * out of reach, or when this creature is still recovering from its last blow
+   * — the three ways the `attack` action falls through to the next line.
+   */
+  attack(actorId: string): boolean;
 };
 
 /** Something somebody said, as a listening brain sees it. */
@@ -179,6 +205,7 @@ export function initialMemory(brain: BrainDef): BrainMemory {
     scratch: {},
     started: false,
     heardFrom: null,
+    hurtBy: null,
   };
 }
 
@@ -210,6 +237,7 @@ function identify(
   const slot = slotOf(selector);
   if (slot !== null) return memory.blackboard[slot] ?? null;
   if (selector === SPEAKER_SELECTOR) return memory.heardFrom;
+  if (selector === ATTACKER_SELECTOR) return memory.hurtBy;
   return ctx.nearestPlayerId();
 }
 
@@ -301,7 +329,25 @@ function holds(
       return !inSight(locate(condition.of, memory, ctx), condition.cells, ctx);
     case "heard":
       return heardFrom(condition, memory, ctx);
+    case "attacked":
+      return struckBy(memory, ctx);
   }
+}
+
+/**
+ * Was this creature hit, and by whom?
+ *
+ * The first attacker wins when several landed between two ticks, on the same
+ * grounds `heard` resolves two callers by who spoke first: it is a real race,
+ * and oldest-first is the only tie-break that does not smuggle in an iteration
+ * order from somewhere else. Whoever it was is remembered for the length of the
+ * tick so a `bind: { foe: "attacker" }` on this transition has an id to write.
+ */
+function struckBy(memory: BrainMemory, ctx: BrainContext): boolean {
+  const [first] = ctx.hurtBy();
+  if (first === undefined) return false;
+  memory.hurtBy = first;
+  return true;
 }
 
 /**
@@ -403,6 +449,13 @@ function runAction(
       // Running even on the last step, because that step is still in flight.
       // The tick after it lands is the one that falls through.
       return "running";
+    }
+    case "attack": {
+      const id = identify(action.of, memory, ctx);
+      // Nobody in the slot. A failure rather than a stand-still, so a state can
+      // read "hit them, else chase them, else hold" straight down the list.
+      if (id === null) return "failure";
+      return ctx.attack(id) ? "success" : "failure";
     }
     case "step_toward":
     case "step_away_from": {
@@ -515,6 +568,7 @@ export function stepBrain(
   // let a later `bind: { caller: "speaker" }` write down somebody who has not
   // said a word since.
   memory.heardFrom = null;
+  memory.hurtBy = null;
 
   memory.msInState += tickMs;
 

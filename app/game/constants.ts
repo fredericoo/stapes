@@ -42,3 +42,13 @@ export const SIGHT_LEVEL_SLACK = 1;
 
 /** Max climb up in absolute height units when walking into a cell (half a level). */
 export const MAX_CLIMB_HEIGHT = 1;
+
+/**
+ * How long a damage number stays on screen.
+ *
+ * Long enough to read a two-digit number and see which way it drifted, short
+ * enough that a fast exchange does not stack a column of them over one head.
+ * Shared by the simulation and the online client so a number lives the same
+ * length either side of a wire.
+ */
+export const DAMAGE_NUMBER_LIFETIME_MS = 900;

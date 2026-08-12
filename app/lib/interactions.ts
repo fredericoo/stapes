@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import type { BattlerDef } from "./battler";
 import type { BrainDef } from "./brain";
 import type { TileDef } from "./types";
 import { HEIGHT_PER_LEVEL, resolveActor } from "./types";
@@ -141,6 +142,16 @@ export type TileInteractions = {
    * block in here.
    */
   brain?: BrainDef;
+  /**
+   * Hit points and the numbers that spend them. See `./battler`, which owns the
+   * shape and the parsing.
+   *
+   * Independent of {@link brain} and of {@link TileDef.actor}: hit points are a
+   * property of a body, not of what drives one. The player is a battler with no
+   * brain, a deer is a battler with one, and a crate could be a battler with
+   * neither.
+   */
+  battler?: BattlerDef;
   push?: PushInteraction;
   switch?: SwitchInteraction;
   pressurePlate?: PressurePlateInteraction;
@@ -374,6 +385,7 @@ export function hasAnyInteraction(
 ): boolean {
   return Boolean(
     interactions?.brain ||
+      interactions?.battler ||
       interactions?.push ||
       interactions?.switch ||
       interactions?.pressurePlate ||
@@ -415,8 +427,23 @@ export function interactionsForSave(
   // through the tile dialog is untouched. Rebuilding it would also mean this
   // function knowing the whole state-machine shape, which is `./brain`'s job.
   const savedBrain = interactions?.brain;
+  // Rebuilt field by field, unlike the brain: the shape is six numbers and
+  // naming them here is what keeps a stray key an editor draft carried in from
+  // ever reaching the file.
+  const battler = interactions?.battler;
+  const savedBattler = battler
+    ? {
+        maxHp: battler.maxHp,
+        atk: battler.atk,
+        def: battler.def,
+        acc: battler.acc,
+        flee: battler.flee,
+        spd: battler.spd,
+      }
+    : undefined;
   if (
     !savedBrain &&
+    !savedBattler &&
     !savedPush &&
     !savedSwitch &&
     !savedPlate &&
@@ -427,6 +454,7 @@ export function interactionsForSave(
   }
   return {
     ...(savedBrain ? { brain: savedBrain } : {}),
+    ...(savedBattler ? { battler: savedBattler } : {}),
     ...(savedPush ? { push: savedPush } : {}),
     ...(savedSwitch ? { switch: savedSwitch } : {}),
     ...(savedPlate ? { pressurePlate: savedPlate } : {}),

@@ -24,12 +24,23 @@ import { CHAT_MIN_INTERVAL_MS, sanitizeChatText } from "../app/net/chat";
 import {
   parseClientMessage,
   type CellPatch,
+  type HpPatch,
   type MotionEvent,
   type ServerMessage,
 } from "../app/net/protocol";
 
 /** Key under which the running world is checkpointed when it goes idle. */
 const CHECKPOINT_KEY = "world";
+
+/** Everybody's hit points right now, for a client that has nothing to diff. */
+function currentHps(actors: ActorSnapshot[]): HpPatch[] {
+  const out: HpPatch[] = [];
+  for (const actor of actors) {
+    if (actor.hp === null || actor.maxHp === null) continue;
+    out.push({ actorId: actor.id, hp: actor.hp, maxHp: actor.maxHp });
+  }
+  return out;
+}
 
 /**
  * How many messages the log keeps.
@@ -119,6 +130,18 @@ type Checkpoint = {
    * one; those worlds simply start rolling from the default.
    */
   seed?: number;
+  /**
+   * Whose bodies were killed and must not be handed back.
+   *
+   * Carried for the same reason the spawn point is — it cannot be recovered from
+   * the map, because the whole evidence of a death is a tile that is *not*
+   * there. Without it the first hibernation wake would look at a dead player's
+   * still-open socket, find them missing from the board, and seat them again:
+   * every death undone by an eviction nobody noticed.
+   *
+   * Optional because checkpoints written before combat existed have none.
+   */
+  dead?: string[];
 };
 
 /**
@@ -148,6 +171,12 @@ export class GameServer extends DurableObject<Env> {
   /** Map identity the last broadcast was diffed against. */
   private broadcastMap: MapFile | null = null;
   private sentMotion = new Map<string, SentMotion>();
+  /**
+   * The hit points each client has been told about, so an unchanged bar costs
+   * nothing on the wire. Same discipline as {@link broadcastMap}: everyone is at
+   * the same version, so one diff serves every socket.
+   */
+  private sentHp = new Map<string, number>();
   private events: MotionEvent[] = [];
   /** Steps clients say they have taken, oldest first, per actor. */
   private readonly queuedSteps = new Map<string, QueuedStep[]>();
@@ -161,6 +190,16 @@ export class GameServer extends DurableObject<Env> {
   private positionsSavedAt = 0;
   /** Whether the chat table has been created in this instance's lifetime. */
   private chatLogReady = false;
+  /**
+   * Actors whose bodies were killed, and who are therefore not to be given
+   * another one.
+   *
+   * There is no respawn, so a dead player sits there connected and inert until
+   * they reload — and reloading is what clears them from here, because a fresh
+   * socket is a fresh body by definition. Checkpointed, so an eviction in the
+   * meantime does not quietly resurrect them.
+   */
+  private dead = new Set<string>();
 
   /**
    * Find authored content.
@@ -229,6 +268,7 @@ export class GameServer extends DurableObject<Env> {
           checkpoint.seed,
         )
       : new GameSession(await store.readMap(), this.tiles, []);
+    this.dead = new Set(checkpoint?.dead ?? []);
     this.broadcastMap = this.session.getMap();
     await this.restoreActors();
     await this.prunePositions();
@@ -260,6 +300,10 @@ export class GameServer extends DurableObject<Env> {
     }
     this.session?.reapAbsentActors(live);
     for (const id of live) {
+      // A socket belonging to somebody who died stays open and stays empty.
+      // Seating them here is exactly the resurrection the checkpointed set of
+      // the dead exists to prevent.
+      if (this.dead.has(id)) continue;
       this.session?.spawn(id, await this.lastPositionOf(id));
     }
   }
@@ -391,6 +435,10 @@ export class GameServer extends DurableObject<Env> {
     await this.ensureLoaded();
 
     const session = this.session!;
+    // A new socket is a reload, and a reload is how somebody comes back from
+    // being killed: there is no respawn, so this is the only thing that hands a
+    // dead actor a body again.
+    this.dead.delete(actorId);
     // Rejoining with the same id keeps the actor already on the board; the
     // remembered position is for somebody whose body is gone — they left, or
     // their connection died while this object was evicted and they were reaped.
@@ -439,6 +487,7 @@ export class GameServer extends DurableObject<Env> {
       selfId: actorId,
       map: flattenMap(session.getMap()),
       actorIds: session.actorIds(),
+      hps: currentHps(session.actorSnapshots()),
       playerCount: this.playerCount(),
       // Read here rather than tracked: time of day is a function of the
       // server's clock, so it costs nothing to keep and cannot fall behind
@@ -485,6 +534,11 @@ export class GameServer extends DurableObject<Env> {
       this.queueStep(actorId, message);
     } else if (message.type === "face") {
       session.faceActor(actorId, message.direction);
+    } else if (message.type === "target") {
+      // Not validated here beyond the schema. Whether the named actor exists,
+      // is a battler, or is anywhere near is re-asked on every swing — it has to
+      // be, because all three change while both parties walk around.
+      session.setTarget(message.actorId, actorId);
     } else {
       // Re-validated against the board rather than trusted: the client decided
       // to offer this affordance from the same rules, but it decided on a map
@@ -796,6 +850,12 @@ export class GameServer extends DurableObject<Env> {
     this.session = session;
     this.broadcastMap = this.session.getMap();
     this.sentMotion.clear();
+    this.sentHp.clear();
+    // A new world is a clean slate for the dead as much as for the living:
+    // everyone still connected is seated in it below, so holding a grudge from
+    // the world that no longer exists would leave somebody permanently absent
+    // from one they never died in.
+    this.dead.clear();
     this.lastSaidAt.clear();
     // Every queued step was aimed at a board that no longer exists. They are
     // dropped rather than refused: the `hello` below resets each client's
@@ -853,6 +913,7 @@ export class GameServer extends DurableObject<Env> {
       map: flattenMap(session.getMap()),
       spawn: session.getSpawnPoint(),
       seed: session.getSeed(),
+      dead: [...this.dead],
     } satisfies Checkpoint);
   }
 
@@ -865,11 +926,14 @@ export class GameServer extends DurableObject<Env> {
 
     const actors = session.actorSnapshots();
     this.collectMotionEvents(actors);
+    this.collectDamageEvents(session);
+    this.noteDeaths(session);
     this.broadcastSpeech(session, actors);
 
     const cells = this.diffCells(session.getMap());
-    if (cells.length > 0 || this.events.length > 0) {
-      this.broadcast({ type: "patch", cells, events: this.events });
+    const hps = this.diffHps(actors);
+    if (cells.length > 0 || this.events.length > 0 || hps.length > 0) {
+      this.broadcast({ type: "patch", cells, events: this.events, hps });
       this.broadcastMap = session.getMap();
       this.events = [];
     }
@@ -926,6 +990,74 @@ export class GameServer extends DurableObject<Env> {
     for (const id of this.sentMotion.keys()) {
       if (!live.has(id)) this.sentMotion.delete(id);
     }
+  }
+
+  /**
+   * Note whoever was killed, and stop holding anything on their behalf.
+   *
+   * No event goes out: the cell patch that removes their tile is the whole of
+   * the news, and every client already draws an actor by finding their body on
+   * the board. What this is for is the *server's* own state — a queued step
+   * aimed by a body that no longer exists, and above all the record that keeps
+   * them off the board across a wake.
+   *
+   * Creatures land in the set too, harmlessly: nothing ever spawns one by id, so
+   * their entry is inert. Filtering them out would mean asking the session which
+   * of its actors was wildlife, to save a handful of strings.
+   */
+  private noteDeaths(session: GameSession) {
+    for (const actorId of session.drainDeaths()) {
+      this.dead.add(actorId);
+      this.sentMotion.delete(actorId);
+      this.sentHp.delete(actorId);
+      this.queuedSteps.delete(actorId);
+    }
+  }
+
+  /**
+   * Turn this tick's blows into events.
+   *
+   * Drained rather than diffed, unlike hit points: a blow is not recoverable
+   * from two readings of a health bar — three hits in one tick leave one new
+   * total and owe three numbers.
+   */
+  private collectDamageEvents(session: GameSession) {
+    for (const hit of session.drainDamage()) {
+      this.events.push({
+        kind: "damage",
+        id: hit.id,
+        targetId: hit.targetId,
+        amount: hit.amount,
+        x: hit.x,
+        y: hit.y,
+        z: hit.z,
+        stackIndex: hit.stackIndex,
+      });
+    }
+  }
+
+  /**
+   * Hit points that changed since the last broadcast.
+   *
+   * Only battlers are tracked, so a world of scenery costs one `null` check per
+   * actor. An actor who has left is forgotten here too — otherwise their entry
+   * would sit in the map forever, and a returning player would silently inherit
+   * the reading their previous body died on.
+   */
+  private diffHps(actors: ActorSnapshot[]): HpPatch[] {
+    const out: HpPatch[] = [];
+    const live = new Set<string>();
+    for (const actor of actors) {
+      if (actor.hp === null || actor.maxHp === null) continue;
+      live.add(actor.id);
+      if (this.sentHp.get(actor.id) === actor.hp) continue;
+      this.sentHp.set(actor.id, actor.hp);
+      out.push({ actorId: actor.id, hp: actor.hp, maxHp: actor.maxHp });
+    }
+    for (const id of this.sentHp.keys()) {
+      if (!live.has(id)) this.sentHp.delete(id);
+    }
+    return out;
   }
 
   /**

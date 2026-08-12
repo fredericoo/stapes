@@ -194,6 +194,57 @@ and deliberately stay single-anchor; `snap.actors` is what gets drawn and lerped
 `GameRenderer` is typed against `PlaySession`, not `GameSession`, so a remote
 session can drive it.
 
+## Fighting is stats on a tile, and nothing else
+
+A **battler** is any tile with an `interactions.battler` block (`app/lib/battler.ts`):
+six numbers, parsed rather than trusted like every other interaction. The player,
+the cat and the deer are battlers; a crate could be one. Being a battler is
+independent of `actor` and of `brain` — what a body can take is a separate
+question from what drives it, and keeping the three apart is what lets the player
+be a battler with no brain and a barrel be one with neither.
+
+**Hit points live on the runtime, never on the placement.** Putting `hp` on
+`PlacedTile` would broadcast itself for free through the existing cell patches,
+and that is exactly the trap: a map edit invalidates light chunks and rebuilds
+level geometry, so every blow landed would dirty the chunks around a creature.
+The wire carries hit points as their own diffed `hps` array instead, and damage
+as a motion event beside it. The split is the protocol's own: **a health bar is
+state, a damage number is an event.** Three hits in one tick leave one new total
+and owe three numbers, so neither can be derived from the other.
+
+Hit points are absent from the checkpoint, on the same terms brain memory is: a
+world nobody is looking at owes no continuity, and a saved number would have to
+survive somebody editing the tile's maximum. What *is* checkpointed is the set of
+**dead actors** — a death is a tile that is *not* on the board, so it leaves no
+evidence to recover, and without carrying it the first hibernation wake would
+find a dead player's socket still open, see no body, and seat them again.
+
+**The client picks the target; the server decides when a blow lands.** A `target`
+message names who, and that is all a client is trusted with. Attack speed is the
+`spd` stat, so a client sending a thousand attack requests swings at exactly the
+same rate as one sending none — which is why there is no attack message on the
+wire at all. Whether the target is a battler, alive, or in reach is re-asked on
+every swing, because all three change while both parties walk.
+
+The formulas live in `app/game/combat.ts`, kept pure so they can be asserted:
+
+- **`acc` widens a band downward; it never raises the ceiling.** Full damage is
+  always `atk`. Within the band the roll is triangular, so a middling blow is
+  common and both a glancing and a shattering one are rare.
+- **`flee` reads against half the attacker's `acc`**, which is what stops perfect
+  accuracy from erasing the stat.
+- **`spd` is geometric between 2 and 200 ticks.** Linear would make the whole
+  lower half of the stat indistinguishable from zero; on this curve 50 is twenty
+  ticks.
+- **A swing always costs three draws**, whatever the stats. The dice are seeded so
+  a world is reproducible, and a draw count that varied with accuracy would make
+  one creature's stats change what every creature after it rolled.
+
+**Zero hit points deletes the body.** For a player that also removes their actor,
+so the server ignores everything their socket sends — a dead player sits there
+connected and inert until they reload, which is the only thing that hands them a
+new body. There is no respawn.
+
 ## The save is the repair path, so it must not need a working world
 
 `replaceWorld` is the only way to change the world, which makes it the only way

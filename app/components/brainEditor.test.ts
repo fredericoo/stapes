@@ -70,9 +70,14 @@ describe("offering selectors", () => {
       states: { idle: { do: [] } },
       transitions: [],
     };
-    // Both are answerable without anything having been bound: one asks the
-    // board who is nearest, the other asks the transition who just spoke.
-    expect(selectorOptions(brain)).toEqual(["nearest_player", "speaker"]);
+    // All three are answerable without anything having been bound: one asks the
+    // board who is nearest, the other two ask the transition who just spoke and
+    // who just swung.
+    expect(selectorOptions(brain)).toEqual([
+      "nearest_player",
+      "speaker",
+      "attacker",
+    ]);
   });
 
   it("adds a slot for each thing a transition binds, as $name", () => {
@@ -91,6 +96,7 @@ describe("offering selectors", () => {
     expect(selectorOptions(brain)).toEqual([
       "nearest_player",
       "speaker",
+      "attacker",
       "$spooked",
     ]);
   });

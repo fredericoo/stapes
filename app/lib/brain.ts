@@ -46,7 +46,11 @@ export const ANY_STATE = "any";
  * jitter on the spot; binding on the way in means it commits to the one that
  * set it off, and keeps committing until something says otherwise.
  */
-export type Selector = "nearest_player" | "speaker" | `$${string}`;
+export type Selector =
+  | "nearest_player"
+  | "speaker"
+  | "attacker"
+  | `$${string}`;
 
 /**
  * Whoever the {@link BrainConditionDef} `heard` on this very transition matched.
@@ -61,6 +65,18 @@ export type Selector = "nearest_player" | "speaker" | `$${string}`;
  * writes it down, and the state that follows chases `$caller`.
  */
 export const SPEAKER_SELECTOR = "speaker";
+
+/**
+ * Whoever the {@link BrainConditionDef} `attacked` on this very transition
+ * matched — the one who just hit this creature.
+ *
+ * The same one-transition window {@link SPEAKER_SELECTOR} has, and for the same
+ * reason: being struck is an event, and "the one who hit me" answers nothing on
+ * a transition where nobody did. Meant to be bound — `bind: { foe: "attacker" }`
+ * writes it down, and the state that follows fights `$foe` rather than
+ * re-asking a question whose answer has already expired.
+ */
+export const ATTACKER_SELECTOR = "attacker";
 
 /** The bound-slot form, `$target`, as opposed to a live query. */
 export function slotOf(selector: Selector): string | null {
@@ -120,6 +136,19 @@ export type BrainConditionDef =
    */
   | { cond: "heard"; text: string; cells: number; los?: boolean }
   /**
+   * Somebody hit this creature since it last had a turn.
+   *
+   * Edge triggered, like {@link heard} and unlike everything else here: a blow
+   * is something that happened, not a state of the world that will still be
+   * true next tick. That is what makes "fight back" one transition rather than a
+   * standing comparison against a health value nobody has to re-earn.
+   *
+   * No distance and no sight test, deliberately. Whoever hit you was by
+   * definition close enough to, and a creature that had to *see* its attacker to
+   * react would stand there placidly while something behind it kept swinging.
+   */
+  | { cond: "attacked" }
+  /**
    * Every action in this state failed, last time it had a turn.
    *
    * How "cornered" is authored without a branch inside an action: blocked,
@@ -170,7 +199,22 @@ export type BrainActionDef =
   /** Stand still for a stretch, then get out of the way of the next line. */
   | { action: "wait"; ms: number }
   /** Wander a bounded distance, then get out of the way of the next line. */
-  | { action: "walk_n_steps"; steps: number; allowDrops?: boolean };
+  | { action: "walk_n_steps"; steps: number; allowDrops?: boolean }
+  /**
+   * Swing at somebody.
+   *
+   * Fails, rather than erroring, at every way this can be the wrong thing to
+   * ask for: nobody in the slot, out of reach, still catching its breath from
+   * the last blow, or a target with no hit points to take — a creature told to
+   * attack a wall simply has nothing to show for the line. Falling through is
+   * the whole point, because it is what lets one state read as "hit them if you
+   * can, otherwise close the distance, otherwise stand your ground".
+   *
+   * Deliberately not a move. Closing the distance is `step_toward`'s job, and
+   * keeping the two apart is what lets an author write a creature that swings
+   * but will not chase.
+   */
+  | { action: "attack"; of: Selector };
 
 /**
  * Something a state does the once, on the way in.
@@ -245,6 +289,7 @@ const stateName = v.pipe(v.string(), v.minLength(1));
 const selectorSchema = v.union([
   v.literal("nearest_player"),
   v.literal(SPEAKER_SELECTOR),
+  v.literal(ATTACKER_SELECTOR),
   v.pipe(v.string(), v.regex(/^\$[A-Za-z0-9_]+$/)),
 ]);
 
@@ -267,6 +312,7 @@ const conditionSchema = v.variant("cond", [
     los: v.optional(v.boolean()),
   }),
   v.object({ cond: v.literal("stuck") }),
+  v.object({ cond: v.literal("attacked") }),
 ]);
 
 const allowDrops = v.optional(v.boolean());
@@ -292,6 +338,7 @@ const actionSchema = v.variant("action", [
     steps: v.pipe(v.number(), v.integer(), v.minValue(1)),
     allowDrops,
   }),
+  v.object({ action: v.literal("attack"), of: selectorSchema }),
 ]);
 
 const effectSchema = v.variant("effect", [

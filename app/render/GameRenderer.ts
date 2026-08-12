@@ -41,12 +41,23 @@ import {
 } from "./WorldRenderer";
 import {
   type InteractiveIndex,
+  indexBattlers,
   indexInteractive,
   pickInteractiveAt,
   pickTileAt,
   probeSpanFor,
 } from "./pick";
+import { DamageNumberLayer, type DamageNumberView } from "./damageNumbers";
+import { HEALTH_BAR_LIFT_PX, healthFraction } from "./healthBar";
 import { fitViewport, VIEW_PX, type ViewportFit } from "./viewport";
+
+/** Do two references point at the same slot in the same cell? */
+function sameRef(a: ObjectRef | null, b: ObjectRef | null): boolean {
+  if (!a || !b) return false;
+  return (
+    a.x === b.x && a.y === b.y && a.z === b.z && a.stackIndex === b.stackIndex
+  );
+}
 
 /**
  * How the fixed square view maps onto this canvas right now.
@@ -63,6 +74,15 @@ function currentFit(canvas: HTMLCanvasElement): ViewportFit {
 
 /** Editor selection yellow — same affordance, same colour. */
 const HOVER_COLOR = 0xffcc00;
+
+/** A battler under the pointer: something that *could* be fought. */
+const TARGET_HOVER_COLOR = 0xffffff;
+
+/** The one you have actually picked. Red for the rest of the fight. */
+const TARGET_COLOR = 0xff3b30;
+
+/** Floors either side of the viewer whose damage numbers are worth drawing. */
+const DAMAGE_LEVEL_SLACK = 1;
 
 /**
  * Looking is blue, acting is yellow. Never both at once: two outlines in two
@@ -122,6 +142,20 @@ export class GameRenderer {
   private interactive: InteractiveIndex = [];
   private interactiveKey = "";
   private indexedMap: MapFile | null = null;
+  /** Battler placements on the viewer's level ±1, cached the same way. */
+  private battlers: InteractiveIndex = [];
+  private battlerKey = "";
+  private battlerMap: MapFile | null = null;
+  /**
+   * The battler under the pointer, outlined in white.
+   *
+   * Held rather than recomputed per frame for the same reason the look pick is,
+   * and refreshed on the same terms — see {@link repickTargetHover}.
+   */
+  private targetHover: ObjectRef | null = null;
+  private targetHoverKey = "";
+  private targetHoverMap: MapFile | null = null;
+  private damageLayer: DamageNumberLayer | null = null;
   private showNames = false;
   /** @see setLookMode */
   private lookMode = false;
@@ -169,8 +203,12 @@ export class GameRenderer {
     this.probeSpan = probeSpanFor(this.tilesById);
     this.world = new WorldRenderer(canvas);
     this.world.setAssets(tilesets, this.tilesById);
-    if (labelContainer) this.labelLayer = new WorldLabelLayer(labelContainer);
+    if (labelContainer) {
+      this.labelLayer = new WorldLabelLayer(labelContainer);
+      this.damageLayer = new DamageNumberLayer(labelContainer);
+    }
     this.attachPointer();
+    this.attachKeys();
   }
 
   /**
@@ -263,10 +301,39 @@ export class GameRenderer {
     this.onClock = null;
     this.stop();
     this.detachPointer();
+    this.detachKeys();
     this.labelLayer?.dispose();
     this.labelLayer = null;
+    this.damageLayer?.dispose();
+    this.damageLayer = null;
     this.world.dispose();
   }
+
+  /**
+   * Escape drops the target.
+   *
+   * On the window rather than the canvas, because a canvas cannot hold focus in
+   * any way a player would recognise: they click a creature, move the mouse, and
+   * press escape — and by then the pointer may be anywhere. Deliberately the
+   * only key this class listens for; movement belongs to whoever owns the page.
+   */
+  private attachKeys() {
+    if (typeof window === "undefined") return;
+    window.addEventListener("keydown", this.onKeyDown);
+  }
+
+  private detachKeys() {
+    if (typeof window === "undefined") return;
+    window.removeEventListener("keydown", this.onKeyDown);
+  }
+
+  private onKeyDown = (e: KeyboardEvent) => {
+    if (e.key !== "Escape") return;
+    // Nothing to call off, so nothing to swallow: a chat field or a dialog
+    // listening for the same key must still get it.
+    if (this.session.getSnapshot().targetId === null) return;
+    this.session.setTarget(null);
+  };
 
   private attachPointer() {
     this.canvas.addEventListener("pointermove", this.onPointerMove);
@@ -287,14 +354,19 @@ export class GameRenderer {
 
   private onPointerMove = (e: PointerEvent) => {
     this.lastPointer = this.localPoint(e);
+    const snap = this.session.getSnapshot();
     if (this.lookMode) {
-      this.lookedAt = this.lookAt(
-        this.lastPointer,
-        this.session.getSnapshot(),
-      );
+      this.lookedAt = this.lookAt(this.lastPointer, snap);
       return;
     }
-    this.session.setHoveredObject(this.pickAt(e, this.session.getSnapshot()));
+    this.targetHover = this.battlerAt(this.lastPointer, snap);
+    // A battler under the pointer takes the hover outright: only the player tile
+    // is both fightable and shovable, and asking somebody to distinguish two
+    // outlines on one body to find out which the click will do is worse than
+    // simply not being able to push people.
+    this.session.setHoveredObject(
+      this.targetHover ? null : this.pickAt(e, snap),
+    );
   };
 
   /** Interactive object drawn under the pointer, if any. */
@@ -325,22 +397,34 @@ export class GameRenderer {
   private onPointerDown = (e: PointerEvent) => {
     if (e.button !== 0) return;
 
+    const snap = this.session.getSnapshot();
+
     // Looking and acting cannot share a tap: a finger has no hover, so on touch
     // the mode *is* the distinction. A tap on a door while looking reads it and
     // leaves it shut.
     if (this.lookMode) {
       e.preventDefault();
       this.lastPointer = this.localPoint(e);
-      this.lookedAt = this.lookAt(
-        this.lastPointer,
-        this.session.getSnapshot(),
-      );
+      this.lookedAt = this.lookAt(this.lastPointer, snap);
       return;
     }
 
     // Resolved here rather than read off the last hover: touch has no hover
     // at all, and a press that outruns its move event would otherwise miss.
-    const target = this.pickAt(e, this.session.getSnapshot());
+    const point = this.localPoint(e);
+    const battler = this.battlerAt(point, snap);
+    if (battler) {
+      e.preventDefault();
+      this.targetHover = battler;
+      const id = this.actorIdAt(battler, snap);
+      // A cell that holds a battler tile with nobody driving it is not somebody
+      // you can fight — it is scenery with hit points authored on it, which is
+      // legal and simply not a target.
+      if (id) this.session.setTarget(id);
+      return;
+    }
+
+    const target = this.pickAt(e, snap);
     if (!target) return;
 
     e.preventDefault();
@@ -351,8 +435,76 @@ export class GameRenderer {
   private onPointerLeave = () => {
     this.lastPointer = null;
     this.lookedAt = null;
+    // Only the *hover* goes. A target is a commitment held until it is called
+    // off, killed, or walks out of view — moving the mouse away is none of
+    // those, and dropping it here would make a fight unwinnable one-handed.
+    this.targetHover = null;
     this.session.setHoveredObject(null);
   };
+
+  /**
+   * The battler drawn under a canvas-relative point, if any.
+   *
+   * Never the viewer's own body. It is a battler like everything else and the
+   * index has no way to know otherwise, but the camera is centred on it — so the
+   * pointer sits on top of it constantly, and an outline that lights up whenever
+   * the mouse crosses the middle of the screen is noise around something the
+   * session refuses to target anyway.
+   */
+  private battlerAt(
+    point: { x: number; y: number },
+    snap: GameSnapshot,
+  ): ObjectRef | null {
+    const found = pickInteractiveAt(
+      {
+        map: snap.map,
+        tilesById: this.tilesById,
+        assets: this.world.quadAssets(),
+        camera: this.cameraFor(snap),
+        zoom: currentFit(this.canvas).cssScale,
+      },
+      this.battlerIndex(snap),
+      point.x,
+      point.y,
+    );
+    if (!found) return null;
+    return this.actorIdAt(found, snap) === snap.self.id ? null : found;
+  }
+
+  /** Battler placements on the viewer's level ±1, cached per map + level. */
+  private battlerIndex(snap: GameSnapshot): InteractiveIndex {
+    const key = `${snap.self.z}`;
+    if (this.battlerMap === snap.map && this.battlerKey === key) {
+      return this.battlers;
+    }
+    this.battlerMap = snap.map;
+    this.battlerKey = key;
+    this.battlers = indexBattlers(snap.map, snap.self.z, this.tilesById, 1);
+    return this.battlers;
+  }
+
+  /**
+   * Who is standing at a cell reference, if it is anybody.
+   *
+   * Matched against the snapshot's actors rather than read off the placement's
+   * `owner`, because a target has to be an *actor* — that is what the session
+   * looks up when it swings, and what a health bar is drawn from. A body mid-step
+   * is the wrong answer here on purpose: its actor is still recorded at the cell
+   * it is walking out of, which is the same cell this pick found it in.
+   */
+  private actorIdAt(ref: ObjectRef, snap: GameSnapshot): string | null {
+    for (const actor of snap.actors) {
+      if (
+        actor.x === ref.x &&
+        actor.y === ref.y &&
+        actor.z === ref.z &&
+        actor.stackIndex === ref.stackIndex
+      ) {
+        return actor.id;
+      }
+    }
+    return null;
+  }
 
   /**
    * Enter or leave look mode: shift on a keyboard, the eye button on a touch
@@ -426,12 +578,83 @@ export class GameRenderer {
    */
   private overlaysFor(snap: GameSnapshot): OverlaySpec[] {
     if (this.lookMode) {
-      const target = this.lookTarget(snap);
-      if (!target) return [];
-      return [{ kind: "objectOutline", ...target.ref, color: LOOK_COLOR }];
+      const looked = this.lookTarget(snap);
+      // Health bars still go up. Looking is a different question from fighting,
+      // and hiding how hurt everything is the moment you read a sign would be a
+      // mode taking away information rather than adding it.
+      const bars = this.healthBarsFor(snap);
+      if (!looked) return bars;
+      return [
+        { kind: "objectOutline", ...looked.ref, color: LOOK_COLOR },
+        ...bars,
+      ];
     }
-    if (!snap.hover) return [];
-    return [{ kind: "objectOutline", ...snap.hover, color: HOVER_COLOR }];
+
+    const specs: OverlaySpec[] = [];
+    // Red first, so a hovered target that is *already* the target reads as
+    // committed rather than as merely hoverable — the later spec would otherwise
+    // draw its white outline over the top.
+    const target = this.targetOutline(snap);
+    if (target) {
+      specs.push({ kind: "objectOutline", ...target, color: TARGET_COLOR });
+    }
+    if (this.targetHover && !sameRef(this.targetHover, target)) {
+      specs.push({
+        kind: "objectOutline",
+        ...this.targetHover,
+        color: TARGET_HOVER_COLOR,
+      });
+    }
+    if (snap.hover) {
+      specs.push({ kind: "objectOutline", ...snap.hover, color: HOVER_COLOR });
+    }
+    specs.push(...this.healthBarsFor(snap));
+    return specs;
+  }
+
+  /** Where the actor being fought is standing right now, if they still are. */
+  private targetOutline(snap: GameSnapshot): ObjectRef | null {
+    if (snap.targetId === null) return null;
+    const actor = snap.actors.find((a) => a.id === snap.targetId);
+    if (!actor) return null;
+    return {
+      x: actor.x,
+      y: actor.y,
+      z: actor.z,
+      stackIndex: actor.stackIndex,
+    };
+  }
+
+  /**
+   * A bar over every battler that has taken a hit.
+   *
+   * Only the hurt ones, which is the one piece of judgement in here: a bar over
+   * everything at full health turns a quiet field into a status readout, and the
+   * information it carries — "this thing can be fought" — is already given by
+   * the outline the moment you point at it.
+   *
+   * Anchored on the sprite's live position and lifted by its own height, exactly
+   * as a name tag is, so a bar rides a walking creature instead of jumping a cell
+   * behind it.
+   */
+  private healthBarsFor(snap: GameSnapshot): OverlaySpec[] {
+    const bars: OverlaySpec[] = [];
+    for (const actor of snap.actors) {
+      if (actor.hp === null || actor.maxHp === null) continue;
+      if (actor.hp >= actor.maxHp) continue;
+
+      const visual = this.actorVisualWorld(snap.map, actor);
+      const height = this.movingTileHeight(snap.map, actor, actor.stackIndex);
+      const head = elevationScreenOffset(height);
+      bars.push({
+        kind: "healthBar",
+        id: actor.id,
+        x: visual.x + head.x,
+        y: visual.y + head.y - HEALTH_BAR_LIFT_PX,
+        fraction: healthFraction(actor.hp, actor.maxHp),
+      });
+    }
+    return bars;
   }
 
   /**
@@ -467,6 +690,55 @@ export class GameRenderer {
    * and looking at a rock costs nothing, and the probe only pays while
    * something is actually changing.
    */
+  /**
+   * Re-pick the battler under the pointer when the world has moved under it.
+   *
+   * The same argument {@link repickLook} makes, and it matters more here: the
+   * camera follows the viewer, so walking past a cat slides it out from under a
+   * cursor that never moved. Without this the white outline would stay stuck to
+   * a cell the creature has left, and a click would target whoever wandered into
+   * it. Keyed on camera and map so standing still costs nothing.
+   */
+  private repickTargetHover(
+    snap: GameSnapshot,
+    camera: { x: number; y: number },
+  ) {
+    if (this.lookMode || !this.lastPointer) return;
+    const key = `${camera.x},${camera.y}`;
+    if (key === this.targetHoverKey && snap.map === this.targetHoverMap) return;
+    this.targetHoverKey = key;
+    this.targetHoverMap = snap.map;
+    this.targetHover = this.battlerAt(this.lastPointer, snap);
+  }
+
+  /**
+   * Drop the target once it is no longer on screen.
+   *
+   * Two ways that happens and both are handled by the same rule: it walked out
+   * of the view, or it stopped existing — killed, disconnected, or dropped to a
+   * floor this client is not drawing. Checked against the drawn view rather than
+   * a radius in cells, because "on my screen" is what a player actually means,
+   * and the view is square and known.
+   */
+  private enforceTargetVisibility(
+    snap: GameSnapshot,
+    camera: { x: number; y: number },
+  ) {
+    if (snap.targetId === null) return;
+    const actor = snap.actors.find((a) => a.id === snap.targetId);
+    if (!actor) {
+      this.session.setTarget(null);
+      return;
+    }
+    const visual = this.actorVisualWorld(snap.map, actor);
+    const outside =
+      visual.x < camera.x ||
+      visual.y < camera.y ||
+      visual.x > camera.x + VIEW_PX ||
+      visual.y > camera.y + VIEW_PX;
+    if (outside) this.session.setTarget(null);
+  }
+
   private repickLook(snap: GameSnapshot, camera: { x: number; y: number }) {
     if (!this.lookMode || !this.lastPointer) return;
     const key = `${camera.x},${camera.y}`;
@@ -737,6 +1009,8 @@ export class GameRenderer {
     // Before the overlay and the label read it, so both describe the same
     // frame's answer rather than the previous one's.
     this.repickLook(snap, camera);
+    this.repickTargetHover(snap, camera);
+    this.enforceTargetVisibility(snap, camera);
 
     const anchor = viewAnchorFor(snap.self);
     const hideAbove = levelsAboveShouldHide(
@@ -761,9 +1035,52 @@ export class GameRenderer {
     // canvas paint land in the same commit — which is what stops DOM text from
     // trailing the sprite it belongs to.
     this.labelLayer?.set(this.labelsFor(snap), camera, fit.cssScale);
+    this.damageLayer?.set(this.damageFor(snap), camera, fit.cssScale);
     // Driven by the frame, not the pointer: walking away from an object
     // revokes the affordance without the pointer having moved at all.
     this.applyCursor(snap);
+  }
+
+  /**
+   * This frame's damage numbers, anchored where each blow landed.
+   *
+   * The anchor is the *cell*, not the body: a killing blow deletes its target on
+   * the same tick, so a number that followed the actor would vanish exactly when
+   * it mattered most. Computed fresh each frame rather than frozen the way a
+   * speech anchor is — a number lives under a second and rises out of the way,
+   * so it cannot outlive the ground beneath it in any way a viewer would notice.
+   *
+   * Filtered to the floors this client is drawing, because the wire carries every
+   * blow struck anywhere in the world: without this a fight two storeys down
+   * would rain numbers over the room you are standing in.
+   */
+  private damageFor(snap: GameSnapshot): DamageNumberView[] {
+    if (snap.damage.length === 0) return [];
+
+    const out: DamageNumberView[] = [];
+    for (const hit of snap.damage) {
+      if (Math.abs(hit.z - snap.self.z) > DAMAGE_LEVEL_SLACK) continue;
+
+      const ground = this.cellWorldCenter(
+        hit.x,
+        hit.y,
+        hit.z,
+        snap.map,
+        hit.stackIndex,
+      );
+      const head = elevationScreenOffset(
+        this.movingTileHeight(snap.map, hit, hit.stackIndex),
+      );
+      out.push({
+        id: hit.id,
+        x: ground.x + head.x,
+        y: ground.y + head.y,
+        amount: hit.amount,
+        own: hit.targetId === snap.self.id,
+        elapsedMs: hit.elapsedMs,
+      });
+    }
+    return out;
   }
 
   /**

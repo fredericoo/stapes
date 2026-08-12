@@ -207,6 +207,8 @@ describe("deciding", () => {
       // defaults are the empty room these cases are written about.
       canSee: () => true,
       heard: () => [],
+      hurtBy: () => [],
+      attack: vi.fn(() => false),
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
   }
@@ -642,6 +644,8 @@ describe("giving up", () => {
       say: () => {},
       canSee: () => true,
       heard: () => [],
+      hurtBy: () => [],
+      attack: () => false,
     };
 
     // One tick to try everything and fail; the verdict is read on the next.
@@ -772,6 +776,8 @@ describe("actions that take time", () => {
       // defaults are the empty room these cases are written about.
       canSee: () => true,
       heard: () => [],
+      hurtBy: () => [],
+      attack: vi.fn(() => false),
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
   }
@@ -1214,6 +1220,8 @@ describe("a deer that yelps", () => {
       say,
       canSee: () => true,
       heard: () => [],
+      hurtBy: () => [],
+      attack: () => false,
     };
 
     for (let tick = 0; tick < 5; tick++) stepBrain(brain, memory, BRAIN_TICK_MS, c);
@@ -1281,6 +1289,8 @@ describe("a deer that yelps", () => {
       say: vi.fn(),
       canSee: () => true,
       heard: () => [],
+      hurtBy: () => [],
+      attack: () => false,
     };
 
     stepBrain(brain, memory, BRAIN_TICK_MS, c);

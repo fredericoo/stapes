@@ -32,6 +32,7 @@ import {
   autotileSliceTitle,
 } from "./AutotileSlicePreview";
 import { InteractiveTab } from "./InteractiveTab";
+import { BattleTab } from "./BattleTab";
 import { BrainEditor } from "./BrainEditor";
 import { hasAnyInteraction, interactionsForSave } from "../lib/interactions";
 import { validateBrain, type BrainDef } from "../lib/brain";
@@ -167,6 +168,7 @@ type Props = {
 const TAB_TILE = "tile";
 const TAB_INTERACTIVE = "interactive";
 const TAB_BRAIN = "brain";
+const TAB_BATTLE = "battle";
 
 export function TileEditorDialog({
   open,
@@ -685,6 +687,10 @@ export function TileEditorDialog({
               value: TAB_BRAIN,
               label: impliedByBrain ? "Brain •" : "Brain",
             },
+            {
+              value: TAB_BATTLE,
+              label: draft.interactions?.battler ? "Battle •" : "Battle",
+            },
           ]}
         >
           <TabPanel value={TAB_INTERACTIVE}>
@@ -704,6 +710,10 @@ export function TileEditorDialog({
               standing still.
             </p>
             <BrainEditor brain={draft.interactions?.brain} onChange={setBrain} />
+          </TabPanel>
+
+          <TabPanel value={TAB_BATTLE}>
+            <BattleTab draft={draft} onChange={setDraft} />
           </TabPanel>
 
           <TabPanel value={TAB_TILE} className="flex flex-col gap-3">

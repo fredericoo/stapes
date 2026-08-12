@@ -104,6 +104,20 @@ textarea {
  * pass exists to prevent.
  */
 .world-label-layer {
+  /* 20px, which must stay a multiple of 10 — see the @font-face note. Two CSS
+     pixels per font pixel, and 20 specifically because it puts the x-height at
+     10 CSS pixels: exactly the height Silkscreen's letters were at 16px, so
+     swapping the font did not resize the world's chrome. Capitals are taller
+     than they used to be, which is what having a real lowercase to be taller
+     than buys. 10px is legible but thin next to art drawn at 5x; 30px shouts.
+
+     Declared on the layer rather than on the label so everything in world space
+     is one size — the damage numbers share it, and "the same font as the rest of
+     the world" has to mean the same size to be true. */
+  --world-label-size: 20px;
+  /* Exactly one of the font's own pixels, since the em is 10 of them. */
+  --world-label-brick: calc(var(--world-label-size) / 10);
+
   position: absolute;
   inset: 0;
   /* Clicks belong to the canvas underneath: a label must never eat the pointer
@@ -114,16 +128,6 @@ textarea {
 }
 
 .world-label {
-  /* 20px, which must stay a multiple of 10 — see the @font-face note. Two CSS
-     pixels per font pixel, and 20 specifically because it puts the x-height at
-     10 CSS pixels: exactly the height Silkscreen's letters were at 16px, so
-     swapping the font did not resize the world's chrome. Capitals are taller
-     than they used to be, which is what having a real lowercase to be taller
-     than buys. 10px is legible but thin next to art drawn at 5x; 30px shouts. */
-  --world-label-size: 20px;
-  /* Exactly one of the font's own pixels, since the em is 10 of them. */
-  --world-label-brick: calc(var(--world-label-size) / 10);
-
   /* Anchored at the layer's origin and moved entirely by the transform below.
      Not `left`/`top`: an absolutely positioned box only gets
      `containingBlockWidth - left` to lay out in, so positioning that way made a
@@ -186,6 +190,47 @@ textarea {
    of the outline drawn round the same object — one mode, one colour. */
 .world-label--look {
   color: #9ad8ff;
+}
+
+/*
+ * Damage, rising off whoever took it.
+ *
+ * Deliberately not a `.world-label`: it borrows the font and the outline, and
+ * nothing else. A label is placed by the layout pass, which measures it, keeps
+ * it clear of its neighbours and hides it when the view is crowded — every one
+ * of which would be wrong here. A number has to appear where the blow landed and
+ * stay there, so its position comes straight from its own anchor.
+ *
+ * One size, whatever the figure. A number that scaled with the damage would make
+ * a big hit occupy more of the screen than a small one, which is a second thing
+ * to read on top of the digits already saying it. Centred on the anchor for the
+ * same reason, so 1 and 100 rise up the same line.
+ */
+.damage-number {
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-family: "NF Pixels", monospace;
+  font-size: var(--world-label-size);
+  line-height: 1.2;
+  color: #fff;
+  /* Centred horizontally on the anchor. The -50% is this element's own doing
+     rather than a layout pass's, because unlike a label nobody measured it. */
+  transform: translate(var(--label-x, 0px), var(--label-y, 0px)) translateX(-50%);
+  /* Over the bubbles: a number is the newest thing that happened. */
+  z-index: 2;
+  text-shadow:
+    2px 0 0 #000,
+    -2px 0 0 #000,
+    0 2px 0 #000,
+    0 -2px 0 #000;
+}
+
+/* Damage the viewer took, as opposed to damage they dealt. The one distinction
+   worth a colour: everything hurting *you* is the thing you cannot afford to
+   miss while reading the numbers coming off your target. */
+.damage-number--own {
+  color: #ff4d4d;
 }
 
 /* Hard-edged checkbox — matches Input / Segmented chrome */

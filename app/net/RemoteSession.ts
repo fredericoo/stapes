@@ -1,4 +1,5 @@
 import {
+  DAMAGE_NUMBER_LIFETIME_MS,
   FALL_MS_PER_HEIGHT,
   PLAYER_TILE_ID,
   PUSH_STEP_MS,
@@ -20,6 +21,7 @@ import { chooseStep } from "../game/stepping";
 import type {
   ActorSnapshot,
   ChatBubble,
+  DamageNumber,
   FallState,
   GameInput,
   GameSnapshot,
@@ -46,6 +48,7 @@ import {
   parseServerMessage,
   type CellPatch,
   type ClientMessage,
+  type HpPatch,
   type MotionEvent,
 } from "./protocol";
 
@@ -145,6 +148,26 @@ export class RemoteSession implements PlaySession {
   /** Ticks up per message, so two lines from one actor are two bubbles. */
   private nextChatId = 0;
   private hovered: ObjectRef | null = null;
+  /**
+   * Hit points as the server last reported them, per actor.
+   *
+   * Kept beside the actors rather than folded into the map, because that is
+   * where the server keeps them too: a health bar changing must not rewrite a
+   * cell, or every blow would dirty the light and the geometry around it.
+   */
+  private readonly hps = new Map<string, { hp: number; maxHp: number }>();
+  /** Numbers still floating, with their own clocks. */
+  private damage: DamageNumber[] = [];
+  /** Who this client is fighting; echoed back in the snapshot for the outline. */
+  private targetId: string | null = null;
+  /**
+   * The last snapshot this client's own body produced.
+   *
+   * Kept so a death — which takes the body off the board entirely — leaves the
+   * camera where it happened instead of snapping to the map origin. See
+   * {@link getSnapshot}.
+   */
+  private lastSelf: ActorSnapshot | null = null;
   private ready = false;
   private onReady: (() => void) | null = null;
   /** How many people the server last said were here. */
@@ -223,11 +246,19 @@ export class RemoteSession implements PlaySession {
       this.pending = [];
       this.facing = null;
       this.serverSeen = null;
+      this.lastSelf = null;
       this.motions.clear();
       // And every bubble is pinned to a coordinate in a world that no longer
       // exists, which would leave them hanging over whatever is there now.
       this.chats = [];
+      this.damage = [];
+      // A target in the old world names nobody in this one, and the server has
+      // already dropped it — leaving it set here would draw a red outline
+      // around whoever happens to answer to that id next.
+      this.targetId = null;
+      this.hps.clear();
       for (const id of message.actorIds) this.motions.set(id, emptyMotion());
+      this.applyHps(message.hps);
       this.setPlayers(message.playerCount);
       this.ready = true;
       this.onReady?.();
@@ -258,9 +289,17 @@ export class RemoteSession implements PlaySession {
     }
 
     this.applyCells(message.cells);
+    this.applyHps(message.hps);
     for (const event of message.events) this.applyEvent(event);
     this.rebuildPredicted();
   };
+
+  /** Take the server's word for everybody's hit points. */
+  private applyHps(hps: HpPatch[]) {
+    for (const patch of hps) {
+      this.hps.set(patch.actorId, { hp: patch.hp, maxHp: patch.maxHp });
+    }
+  }
 
   /**
    * How fast whatever is standing at `at` walks.
@@ -299,7 +338,23 @@ export class RemoteSession implements PlaySession {
     }
     if (event.kind === "left") {
       this.motions.delete(event.actorId);
+      this.hps.delete(event.actorId);
+      if (this.targetId === event.actorId) this.targetId = null;
       this.setPlayers(event.playerCount);
+      return;
+    }
+
+    if (event.kind === "damage") {
+      this.damage.push({
+        id: event.id,
+        targetId: event.targetId,
+        amount: event.amount,
+        x: event.x,
+        y: event.y,
+        z: event.z,
+        stackIndex: event.stackIndex,
+        elapsedMs: 0,
+      });
       return;
     }
 
@@ -394,6 +449,29 @@ export class RemoteSession implements PlaySession {
     this.agePendingSteps(dtMs);
     this.advancePrediction();
     this.expireChats(dtMs);
+    this.expireDamage(dtMs);
+  }
+
+  /**
+   * Age the floating numbers out.
+   *
+   * Timed off the render loop's delta exactly as the bubbles are, so the server
+   * announces a blow once and never has to think about it again — no timer
+   * holding an idle world awake for the sake of something that is only being
+   * drawn.
+   */
+  private expireDamage(dtMs: number) {
+    if (this.damage.length === 0) return;
+    let expired = false;
+    for (const number of this.damage) {
+      number.elapsedMs += dtMs;
+      if (number.elapsedMs >= DAMAGE_NUMBER_LIFETIME_MS) expired = true;
+    }
+    if (expired) {
+      this.damage = this.damage.filter(
+        (number) => number.elapsedMs < DAMAGE_NUMBER_LIFETIME_MS,
+      );
+    }
   }
 
   /**
@@ -815,6 +893,11 @@ export class RemoteSession implements PlaySession {
     const loc = this.locate(id, motion);
     if (!loc) return null;
 
+    // Absent for anything the server has not reported hit points for, which is
+    // every body that is not a battler — the null is what tells the renderer
+    // there is no bar to draw.
+    const health = this.hps.get(id);
+
     return {
       id,
       tileId: loc.placed.tileId,
@@ -839,6 +922,8 @@ export class RemoteSession implements PlaySession {
       slideProgress: motion.slide
         ? Math.min(1, motion.slide.elapsedMs / PUSH_STEP_MS)
         : 0,
+      hp: health?.hp ?? null,
+      maxHp: health?.maxHp ?? null,
     };
   }
 
@@ -851,17 +936,42 @@ export class RemoteSession implements PlaySession {
       actors.push(snapshot);
       if (id === this.selfId) self = snapshot;
     }
+    if (self) this.lastSelf = self;
 
     return {
       map: this.map,
       // Before the first hello, or in the gap after a restart, there is nothing
       // to centre on. A placeholder keeps the renderer's contract total rather
       // than making every caller handle a null actor.
-      self: self ?? offscreenActor(this.selfId),
+      //
+      // Once there *has* been a body, the last one is a far better stand-in than
+      // the placeholder: being killed removes it from the board, and falling
+      // back to the origin would answer a player's death by throwing the camera
+      // to the corner of the map. Holding the last known cell leaves them
+      // looking at the place it happened, which is the only honest view of a
+      // world they are no longer in.
+      self: self ?? this.lastSelf ?? offscreenActor(this.selfId),
       actors,
       hover: this.hovered && this.canInteract(this.hovered) ? this.hovered : null,
+      targetId: this.targetId,
       chats: this.chats,
+      damage: this.damage,
     };
+  }
+
+  /**
+   * Pick a fight, or call it off.
+   *
+   * Held locally so the outline is drawn on the frame the player clicks, and
+   * sent so the server knows who to swing at — the same split every other
+   * decision here makes, except that this one is not a prediction: nothing is
+   * drawn as having happened, so there is nothing to roll back if the server
+   * disagrees about whether the target can be reached.
+   */
+  setTarget(actorId: string | null) {
+    if (actorId === this.targetId) return;
+    this.targetId = actorId;
+    this.send({ type: "target", actorId });
   }
 
   setHoveredObject(ref: ObjectRef | null) {
@@ -956,5 +1066,7 @@ function offscreenActor(id: string): ActorSnapshot {
     fallProgress: 0,
     slide: null,
     slideProgress: 0,
+    hp: null,
+    maxHp: null,
   };
 }

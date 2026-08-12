@@ -8,7 +8,7 @@ import type { FlatMapFile, PlacedTile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { CHAT_LIFETIME_MS } from "./chat";
 import { RemoteSession, STEP_CONFIRM_TIMEOUT_MS } from "./RemoteSession";
-import type { CellPatch, MotionEvent } from "./protocol";
+import type { CellPatch, HpPatch, MotionEvent } from "./protocol";
 
 /**
  * The client's half of the shared world: what it draws between the event that
@@ -108,12 +108,17 @@ function connected(): { socket: FakeSocket; session: RemoteSession } {
     actorIds: [SELF],
     playerCount: 1,
     minutesOfDay: SERVER_MINUTES,
+    hps: [],
   });
   return { socket, session };
 }
 
-function patch(cells: CellPatch[], events: MotionEvent[] = []) {
-  return { type: "patch", cells, events };
+function patch(
+  cells: CellPatch[],
+  events: MotionEvent[] = [],
+  hps: HpPatch[] = [],
+) {
+  return { type: "patch", cells, events, hps };
 }
 
 /** The step from (0,0,0) to (1,0,0), as the server announces it. */
@@ -237,6 +242,7 @@ function connectedAloft(): { socket: FakeSocket; session: RemoteSession } {
     actorIds: [SELF],
     playerCount: 1,
     minutesOfDay: SERVER_MINUTES,
+    hps: [],
   });
   return { socket, session };
 }
@@ -443,6 +449,7 @@ describe("RemoteSession chat", () => {
       actorIds: [SELF],
       playerCount: 1,
       minutesOfDay: SERVER_MINUTES,
+      hps: [],
     });
 
     expect(session.getSnapshot().chats).toHaveLength(0);

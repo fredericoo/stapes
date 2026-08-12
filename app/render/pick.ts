@@ -1,7 +1,8 @@
 import { absoluteElevation, drawOrder, screenToCoord } from "../lib/geometry";
 import type { ObjectRef } from "../game/GameSession";
+import { isBattler } from "../lib/battler";
 import { isInteractive } from "../lib/interactions";
-import { getStack, listCoords } from "../lib/mapData";
+import { getStack, listCoords, stackHeight } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import {
   MAX_LEVEL,
@@ -46,6 +47,48 @@ export function indexInteractive(
         if (stackIndex !== stack.length - 1) return;
         if (!def || !isInteractive(def)) return;
         out.push({ ref: { x, y, z, stackIndex }, elevation: drawnAt });
+      });
+    }
+  }
+
+  return out;
+}
+
+/**
+ * Every body with hit points near `centerZ`, as pick candidates.
+ *
+ * The same shape and the same discipline as {@link indexInteractive}, and a
+ * separate index rather than a widened one because the two questions have
+ * different answers: a crate is interactive and cannot be fought, a deer is a
+ * battler and cannot be shoved. Folding them together would mean every caller
+ * filtering the result back down to what it actually wanted.
+ *
+ * Only the top of a stack counts, for the same reason it does there: a buried
+ * body is not on screen, and you cannot point at what you cannot see. In
+ * practice a body is always on top anyway — it is the thing standing on the
+ * floor rather than under it.
+ */
+export function indexBattlers(
+  map: MapFile,
+  centerZ: number,
+  tilesById: Record<string, TileDef>,
+  levelSlack = 0,
+): InteractiveIndex {
+  const out: InteractiveIndex = [];
+  const zMin = Math.max(MIN_LEVEL, centerZ - levelSlack);
+  const zMax = Math.min(MAX_LEVEL, centerZ + levelSlack);
+
+  for (let z = zMin; z <= zMax; z++) {
+    for (const { x, y } of listCoords(map, z)) {
+      const stack = getStack(map, x, y, z);
+      const stackIndex = stack.length - 1;
+      const placed = stack[stackIndex];
+      if (!placed) continue;
+      const def = tilesById[placed.tileId];
+      if (!def || !isBattler(def)) continue;
+      out.push({
+        ref: { x, y, z, stackIndex },
+        elevation: stackHeight(stack.slice(0, stackIndex), tilesById),
       });
     }
   }
