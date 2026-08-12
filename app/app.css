@@ -207,6 +207,12 @@ textarea {
 
      Width is written from `HEALTH_BAR_BRICKS` when the element is built, so the
      track and the fill dividing it are one number in one place. */
+  /* Content-box, against Tailwind's global border-box, and it is load-bearing:
+     these lengths count *fill* bricks, which is what the width written from
+     `HEALTH_BAR_BRICKS` means. Under border-box the two-brick height was the
+     whole box, both borders ate it, and the fill was left exactly zero pixels
+     tall — a bar that rendered as a solid black sliver whatever the health. */
+  box-sizing: content-box;
   height: calc(var(--world-label-brick) * 2);
   border: var(--world-label-brick) solid #000;
   background: #1a1014;
