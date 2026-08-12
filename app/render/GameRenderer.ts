@@ -80,8 +80,14 @@ const TARGET_HOVER_COLOR = 0xffffff;
 /** The one you have actually picked. Red for the rest of the fight. */
 const TARGET_COLOR = 0xff3b30;
 
-/** Floors either side of the viewer whose damage numbers are worth drawing. */
-const DAMAGE_LEVEL_SLACK = 1;
+/**
+ * Floors either side of the viewer whose chrome is worth drawing.
+ *
+ * The same slack the look pick and sight already use. Beyond it a body is
+ * behind a floor or a ceiling, and chrome that reported it would be telling the
+ * player about something they cannot see.
+ */
+const CHROME_LEVEL_SLACK = 1;
 
 /**
  * Looking is blue, acting is yellow. Never both at once: two outlines in two
@@ -624,6 +630,32 @@ export class GameRenderer {
     return undefined;
   }
 
+  /**
+   * Is a floor one the viewer can actually see into?
+   *
+   * Chrome is drawn over the finished frame — a name tag and a damage number are
+   * elements above the canvas, owing nothing to depth — so without asking this
+   * they report bodies the world has hidden. That is exactly what went wrong when
+   * every battler started being named: the second cat lives two floors up, its
+   * sprite is cut away with the roof, and its name hung in the sky over an empty
+   * roofline. It reads as a ghost — an invisible thing that is plainly still
+   * alive, because it is: a real actor, ticking, just not on screen.
+   *
+   * Two rules, and both are needed. The roof-cut is the exact one: anything above
+   * the ceiling is not drawn at all. The slack is the honest approximation for
+   * everything below, where a body *is* drawn but the floor between you and it is
+   * drawn in front — there is no cheap per-pixel answer, and one floor is the
+   * distance the look pick and sight already treat as within reach.
+   */
+  private isVisibleLevel(
+    snap: GameSnapshot,
+    z: number,
+    hideLevelsAbove: number | undefined,
+  ): boolean {
+    if (hideLevelsAbove !== undefined && z > hideLevelsAbove) return false;
+    return Math.abs(z - snap.self.z) <= CHROME_LEVEL_SLACK;
+  }
+
   /** Where the actor being fought is standing right now, if they still are. */
   private targetOutline(snap: GameSnapshot): ObjectRef | null {
     if (snap.targetId === null) return null;
@@ -748,9 +780,12 @@ export class GameRenderer {
    * by actor and speech by message id, so the two can never collide in the
    * element cache.
    */
-  private labelsFor(snap: GameSnapshot): WorldLabel[] {
+  private labelsFor(
+    snap: GameSnapshot,
+    hideLevelsAbove: number | undefined,
+  ): WorldLabel[] {
     const labels: WorldLabel[] = [];
-    this.pushNameLabels(snap, labels);
+    this.pushNameLabels(snap, labels, hideLevelsAbove);
     this.pushSpeechLabels(snap, labels);
     this.pushLookLabel(snap, labels);
     return labels;
@@ -825,9 +860,14 @@ export class GameRenderer {
    * and, because that position already carries the walk lerp and the fall drop,
    * the name travels with the sprite instead of chasing it.
    */
-  private pushNameLabels(snap: GameSnapshot, into: WorldLabel[]) {
+  private pushNameLabels(
+    snap: GameSnapshot,
+    into: WorldLabel[],
+    hideLevelsAbove: number | undefined,
+  ) {
     for (const actor of snap.actors) {
       if (actor.hp === null || actor.maxHp === null) continue;
+      if (!this.isVisibleLevel(snap, actor.z, hideLevelsAbove)) continue;
 
       const visual = this.actorVisualWorld(snap.map, actor);
       const height = this.movingTileHeight(snap.map, actor, actor.stackIndex);
@@ -1029,8 +1069,13 @@ export class GameRenderer {
     // Written from inside the render loop's own rAF, so the style change and the
     // canvas paint land in the same commit — which is what stops DOM text from
     // trailing the sprite it belongs to.
-    this.labelLayer?.set(this.labelsFor(snap), camera, fit.cssScale);
-    this.damageLayer?.set(this.damageFor(snap), camera, fit.cssScale);
+    const ceiling = hideAbove ? anchor.z : undefined;
+    this.labelLayer?.set(this.labelsFor(snap, ceiling), camera, fit.cssScale);
+    this.damageLayer?.set(
+      this.damageFor(snap, ceiling),
+      camera,
+      fit.cssScale,
+    );
     // Driven by the frame, not the pointer: walking away from an object
     // revokes the affordance without the pointer having moved at all.
     this.applyCursor(snap);
@@ -1049,12 +1094,15 @@ export class GameRenderer {
    * blow struck anywhere in the world: without this a fight two storeys down
    * would rain numbers over the room you are standing in.
    */
-  private damageFor(snap: GameSnapshot): DamageNumberView[] {
+  private damageFor(
+    snap: GameSnapshot,
+    hideLevelsAbove: number | undefined,
+  ): DamageNumberView[] {
     if (snap.damage.length === 0) return [];
 
     const out: DamageNumberView[] = [];
     for (const hit of snap.damage) {
-      if (Math.abs(hit.z - snap.self.z) > DAMAGE_LEVEL_SLACK) continue;
+      if (!this.isVisibleLevel(snap, hit.z, hideLevelsAbove)) continue;
 
       const ground = this.cellWorldCenter(
         hit.x,
