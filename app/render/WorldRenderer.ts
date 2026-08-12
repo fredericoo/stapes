@@ -53,19 +53,7 @@ import {
   injectWorldShader,
   writeBoxAttr,
 } from "./worldQuads";
-import {
-  disposeGroupChildren,
-  makeFilledRect,
-  makeSpriteOutline,
-} from "./overlayMeshes";
-import {
-  HEALTH_BAR_BACKING,
-  HEALTH_BAR_BORDER_PX,
-  HEALTH_BAR_HEIGHT_PX,
-  HEALTH_BAR_WIDTH_PX,
-  healthBarColor,
-  healthBarFillPx,
-} from "./healthBar";
+import { disposeGroupChildren, makeSpriteOutline } from "./overlayMeshes";
 import { type SpriteQuadAssets, spriteQuadFor } from "./spriteQuad";
 
 type AnimatedInstance = {
@@ -170,35 +158,9 @@ export type ObjectOutlineOverlay = TileInstanceKey & {
   oy?: number;
 };
 
-/**
- * A health bar, placed in world pixels rather than at a cell.
- *
- * Explicit coordinates because the thing it hangs over is *moving*: an overlay
- * keyed to a tile slot is drawn where the map says the body is, and the map only
- * learns about a step when it lands. A bar placed that way would sit still for
- * 200ms and then jump a whole cell, once per step, which is exactly the twitch
- * the walk lerp exists to remove.
- */
-export type HealthBarOverlay = {
-  kind: "healthBar";
-  /** Identity for the frame signature — the actor this belongs to. */
-  id: string;
-  /** Centre of the bar, in world pixels. */
-  x: number;
-  y: number;
-  fraction: number;
-};
-
-export type OverlaySpec = ObjectOutlineOverlay | HealthBarOverlay;
+export type OverlaySpec = ObjectOutlineOverlay;
 
 function overlaySpecKey(spec: OverlaySpec): string {
-  if (spec.kind === "healthBar") {
-    // Rounded, because the bar is drawn on whole pixels anyway: a sprite lerping
-    // between two cells produces a new fractional position every frame, and
-    // keying on it would rebuild the whole overlay layer sixty times a second
-    // to place the bar in the same place twice.
-    return `h:${spec.id}:${Math.round(spec.x)},${Math.round(spec.y)}:${spec.fraction.toFixed(3)}`;
-  }
   // The offset is part of the identity: while a tile is walking it changes every
   // frame, and that is exactly when the outline has to be rebuilt to keep up.
   const at = spec.ox || spec.oy ? `@${Math.round(spec.ox ?? 0)},${Math.round(spec.oy ?? 0)}` : "";
@@ -520,10 +482,6 @@ export class WorldRenderer {
   }
 
   private addOverlay(spec: OverlaySpec) {
-    if (spec.kind === "healthBar") {
-      this.addHealthBar(spec);
-      return;
-    }
     const subject = this.overlaySubject(spec);
     if (!subject) return;
     const quad = spriteQuadFor(
@@ -542,42 +500,6 @@ export class WorldRenderer {
     this.overlays.add(makeSpriteOutline(quad, spec.color));
   }
 
-  /**
-   * Two rects: a dark backing that doubles as the border, and the fill on top.
-   *
-   * Snapped to whole world pixels for the same reason a lerping sprite is — the
-   * static world sits on that grid, and a bar between two of its pixels reads as
-   * blurred against everything around it.
-   */
-  private addHealthBar(spec: HealthBarOverlay) {
-    const width = HEALTH_BAR_WIDTH_PX;
-    const height = HEALTH_BAR_HEIGHT_PX;
-    const border = HEALTH_BAR_BORDER_PX;
-    const left = Math.round(spec.x - width / 2);
-    const top = Math.round(spec.y - height / 2);
-
-    this.overlays.add(
-      makeFilledRect(
-        left - border,
-        top - border,
-        width + border * 2,
-        height + border * 2,
-        HEALTH_BAR_BACKING,
-      ),
-    );
-    const fill = healthBarFillPx(spec.fraction, width);
-    if (fill > 0) {
-      this.overlays.add(
-        makeFilledRect(
-          left,
-          top,
-          fill,
-          height,
-          healthBarColor(spec.fraction),
-        ),
-      );
-    }
-  }
 
   /** Toggle whole level groups; no mesh rebuild. */
   private applyLevelVisibility(hideLevelsAbove?: number) {

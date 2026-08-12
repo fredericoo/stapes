@@ -19,7 +19,7 @@
  * ownership and speech are all keyed by id.
  *
  * None of the above applies to a creature, which is named after its tile —
- * see {@link speakerNameFor}.
+ * see {@link bodyNameFor}.
  */
 
 // Two word lists out of the eight in the package, and only two arrive in the
@@ -85,8 +85,12 @@ export function displayNameFor(actorId: string): string {
 }
 
 /**
- * What to call whoever said something — which is not the same question for a
- * person and for a deer.
+ * What to call a body — which is not the same question for a person and for a
+ * deer.
+ *
+ * Two callers now: attributing something said, and the name tag over every
+ * battler's head. They want the same answer, which is the reason this is a
+ * function rather than a line inside either of them.
  *
  * A person is behind a cookie, so their name has to be derived from it. A
  * creature is not: it *is* the tile, one of a handful an author wrote and named
@@ -99,12 +103,12 @@ export function displayNameFor(actorId: string): string {
  * implementation detail of how residents are keyed, and reading identity off
  * the shape of an id is how that detail becomes load-bearing.
  */
-export function speakerNameFor(
-  speaker: { actorId: string; tileId: string },
+export function bodyNameFor(
+  body: { actorId: string; tileId: string },
   tilesById: Record<string, TileDef>,
 ): string {
-  if (speaker.tileId === PLAYER_TILE_ID) return displayNameFor(speaker.actorId);
+  if (body.tileId === PLAYER_TILE_ID) return displayNameFor(body.actorId);
   // A tile the catalog has never heard of is a bug elsewhere — a map holding a
   // deleted tile id — and the words still have to be attributed to something.
-  return tilesById[speaker.tileId]?.name ?? displayNameFor(speaker.actorId);
+  return tilesById[body.tileId]?.name ?? displayNameFor(body.actorId);
 }

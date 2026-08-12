@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PLAYER_TILE_ID } from "../game/constants";
-import { displayNameFor, speakerNameFor } from "../game/displayName";
+import { displayNameFor, bodyNameFor } from "../game/displayName";
 import type { TileDef } from "../lib/types";
 import { labelScreenPosition } from "./textLabels";
 
@@ -143,7 +143,7 @@ describe("naming a speaker", () => {
 
   it("calls a person by their generated name", () => {
     expect(
-      speakerNameFor({ actorId: uuid, tileId: PLAYER_TILE_ID }, tilesById),
+      bodyNameFor({ actorId: uuid, tileId: PLAYER_TILE_ID }, tilesById),
     ).toBe(displayNameFor(uuid));
   });
 
@@ -153,12 +153,12 @@ describe("naming a speaker", () => {
    */
   it("does not call a person after the tile they stand up in", () => {
     expect(
-      speakerNameFor({ actorId: uuid, tileId: PLAYER_TILE_ID }, tilesById),
+      bodyNameFor({ actorId: uuid, tileId: PLAYER_TILE_ID }, tilesById),
     ).not.toBe("Player");
   });
 
   it("calls a creature what its tile is called", () => {
-    expect(speakerNameFor({ actorId: "npc:1,2,0,1", tileId: "deer" }, tilesById))
+    expect(bodyNameFor({ actorId: "npc:1,2,0,1", tileId: "deer" }, tilesById))
       .toBe("Deer");
   });
 
@@ -169,14 +169,14 @@ describe("naming a speaker", () => {
    */
   it("calls every creature of a kind the same thing", () => {
     expect(
-      speakerNameFor({ actorId: "npc:1,2,0,1", tileId: "deer" }, tilesById),
-    ).toBe(speakerNameFor({ actorId: "npc:8,4,0,1", tileId: "deer" }, tilesById));
+      bodyNameFor({ actorId: "npc:1,2,0,1", tileId: "deer" }, tilesById),
+    ).toBe(bodyNameFor({ actorId: "npc:8,4,0,1", tileId: "deer" }, tilesById));
   });
 
   /** A map holding a deleted tile id is a bug elsewhere, not a blank label. */
   it("still attributes the words when the tile is unknown", () => {
     expect(
-      speakerNameFor({ actorId: "npc:1,2,0,1", tileId: "ghost" }, tilesById),
+      bodyNameFor({ actorId: "npc:1,2,0,1", tileId: "ghost" }, tilesById),
     ).toBeTruthy();
   });
 });

@@ -10,8 +10,6 @@ export const OVERLAY_RENDER_ORDER = {
   spriteLift: 1_000_000_011,
   spriteOutline: 1_000_000_015,
   rect: 1_000_000_020,
-  /** Health bars, over every outline: a bar is read, not aimed at. */
-  bar: 1_000_000_025,
 } as const;
 
 /** Second inset line for a heavy outline; keeps 1px art readable at low zoom. */
@@ -73,39 +71,6 @@ export function makeRectOutline(
     );
   }
   return lines;
-}
-
-/**
- * A flat rectangle in world pixels — the whole of what a health bar is made of.
- *
- * World pixels rather than screen pixels, unlike the text in `./textLabels`. A
- * bar has no glyphs to keep crisp, and drawing it at the art's own scale is what
- * makes it look like part of the game rather than like a widget floating over
- * it: at 3× zoom a two-pixel bar is six screen pixels, exactly as a two-pixel
- * sprite detail is.
- */
-export function makeFilledRect(
-  x: number,
-  y: number,
-  w: number,
-  h: number,
-  color: number,
-): THREE.Mesh {
-  const mesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(w, h),
-    new THREE.MeshBasicMaterial({
-      color,
-      depthTest: false,
-      depthWrite: false,
-      side: THREE.DoubleSide,
-      toneMapped: false,
-    }),
-  );
-  mesh.position.set(x + w / 2, y + h / 2, 0);
-  mesh.renderOrder = OVERLAY_RENDER_ORDER.bar;
-  mesh.matrixAutoUpdate = false;
-  mesh.updateMatrix();
-  return mesh;
 }
 
 export type SpriteMeshOptions = {

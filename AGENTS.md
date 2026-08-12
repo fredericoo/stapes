@@ -245,6 +245,21 @@ so the server ignores everything their socket sends — a dead player sits there
 connected and inert until they reload, which is the only thing that hands them a
 new body. There is no respawn.
 
+**Being a battler is what earns a name tag**, and the health bar rides in the
+same label. Names used to be a mode the online route switched on, with a check
+for the player tile inside it — people were named and the wildlife was not, which
+was right while a creature was scenery and wrong the moment it became something
+you can pick a fight with. `bodyNameFor` answers it for both, exactly as it
+already did for speech.
+
+The bar is a DOM element in that label rather than a quad in the scene, and both
+halves of that matter. The world draws at whole world pixels — five or six screen
+pixels each at play zoom — so a bar built there has a border five pixels thick
+and a fill that steps in huge jumps; out here it gets the same screen-pixel
+crispness the type has. And because the bar and the name are two children of one
+flex column, "they must not overlap" is true by construction rather than by
+arrangement.
+
 ## The save is the repair path, so it must not need a working world
 
 `replaceWorld` is the only way to change the world, which makes it the only way

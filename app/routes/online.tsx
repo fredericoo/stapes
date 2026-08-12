@@ -174,8 +174,6 @@ export default function OnlinePage() {
           tiles,
           labelRef.current,
         );
-        // Shared world: everyone on screen is somebody, so everyone is named.
-        renderer.setShowNames(true);
         renderer.setLightingEnabled(lightingRef.current);
         renderer.setLookMode(lookingRef.current);
         renderer.setMinutesOfDay(remote.minutesOfDay());

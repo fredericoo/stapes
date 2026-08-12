@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   HEALTH_BAR_STOPS,
-  HEALTH_BAR_WIDTH_PX,
   healthBarColor,
-  healthBarFillPx,
+  healthBarFillPercent,
   healthFraction,
 } from "./healthBar";
 
@@ -11,8 +10,8 @@ import {
  * The ramp, asserted as an ordering rather than as four hex values.
  *
  * Pinning the exact colours would make this a change-detector: the point is not
- * that "hurt" is `0xd12d2d`, it is that a bar goes green, yellow, red, dark red
- * and never back the other way. The one number worth pinning is the last hit
+ * that "hurt" is `#d12d2d`, it is that a bar goes green, yellow, red, dark red
+ * and never back the other way. The one reading worth pinning is the last hit
  * point, because rounding it away is the failure a player actually notices.
  */
 
@@ -37,7 +36,7 @@ describe("the colour ramp", () => {
 
   it("only ever changes colour in one direction as health falls", () => {
     let previous = healthBarColor(1);
-    const changes: number[] = [];
+    const changes: string[] = [];
     for (let step = 100; step >= 0; step--) {
       const color = healthBarColor(step / 100);
       if (color !== previous) changes.push(color);
@@ -60,28 +59,33 @@ describe("the colour ramp", () => {
 
 describe("the fill", () => {
   it("spans the whole bar at full health and none of it at zero", () => {
-    expect(healthBarFillPx(1, HEALTH_BAR_WIDTH_PX)).toBe(HEALTH_BAR_WIDTH_PX);
-    expect(healthBarFillPx(0, HEALTH_BAR_WIDTH_PX)).toBe(0);
+    expect(healthBarFillPercent(1)).toBe(100);
+    expect(healthBarFillPercent(0)).toBe(0);
   });
 
   /**
    * The one thing rounding must not do. A creature on its last hit point out of
-   * fifty is a creature you can still kill, and an empty bar over it says the
-   * opposite.
+   * five hundred is a creature you can still kill, and an empty bar over it says
+   * the opposite.
    */
-  it("keeps a sliver for the last hit point of a big pool", () => {
-    expect(
-      healthBarFillPx(healthFraction(1, 500), HEALTH_BAR_WIDTH_PX),
-    ).toBeGreaterThan(0);
+  it("keeps a visible sliver for the last hit point of a big pool", () => {
+    expect(healthBarFillPercent(healthFraction(1, 500))).toBeGreaterThan(1);
   });
 
-  it("never overflows its own width", () => {
+  it("never overflows its own track", () => {
     for (let hp = 0; hp <= 20; hp++) {
-      const fill = healthBarFillPx(
-        healthFraction(hp, 20),
-        HEALTH_BAR_WIDTH_PX,
+      expect(healthBarFillPercent(healthFraction(hp, 20))).toBeLessThanOrEqual(
+        100,
       );
-      expect(fill).toBeLessThanOrEqual(HEALTH_BAR_WIDTH_PX);
+    }
+  });
+
+  it("grows as health does", () => {
+    let previous = -1;
+    for (let hp = 1; hp <= 20; hp++) {
+      const fill = healthBarFillPercent(healthFraction(hp, 20));
+      expect(fill).toBeGreaterThanOrEqual(previous);
+      previous = fill;
     }
   });
 });

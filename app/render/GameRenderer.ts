@@ -12,7 +12,7 @@ import type {
   PlaySession,
 } from "../game/GameSession";
 import { PLAYER_TILE_ID } from "../game/constants";
-import { displayNameFor, speakerNameFor } from "../game/displayName";
+import { bodyNameFor } from "../game/displayName";
 import { WorldLabelLayer, type WorldLabel } from "./textLabels";
 import { FrameProfiler, type FrameStats } from "./frameProfile";
 import { fallDropPx, fallFootAbs, standingFootAbs } from "./fallAnchor";
@@ -47,7 +47,7 @@ import {
   pickTileAt,
 } from "./pick";
 import { DamageNumberLayer, type DamageNumberView } from "./damageNumbers";
-import { HEALTH_BAR_LIFT_PX, healthFraction } from "./healthBar";
+import { healthFraction } from "./healthBar";
 import { fitViewport, VIEW_PX, type ViewportFit } from "./viewport";
 
 /** Do two references point at the same slot in the same cell? */
@@ -155,7 +155,6 @@ export class GameRenderer {
   private targetHoverKey = "";
   private targetHoverMap: MapFile | null = null;
   private damageLayer: DamageNumberLayer | null = null;
-  private showNames = false;
   /** @see setLookMode */
   private lookMode = false;
   private lookedAt: ObjectRef | null = null;
@@ -581,12 +580,7 @@ export class GameRenderer {
 
     if (this.lookMode) {
       const looked = this.lookTarget(snap);
-      // Health bars still go up. Looking is a different question from fighting,
-      // and hiding how hurt everything is the moment you read a sign would be a
-      // mode taking away information rather than adding it.
-      const bars = this.healthBarsFor(snap);
-      if (!looked) return bars;
-      return [outline(looked.ref, LOOK_COLOR), ...bars];
+      return looked ? [outline(looked.ref, LOOK_COLOR)] : [];
     }
 
     const specs: OverlaySpec[] = [];
@@ -599,7 +593,6 @@ export class GameRenderer {
       specs.push(outline(this.targetHover, TARGET_HOVER_COLOR));
     }
     if (snap.hover) specs.push(outline(snap.hover, HOVER_COLOR));
-    specs.push(...this.healthBarsFor(snap));
     return specs;
   }
 
@@ -644,37 +637,6 @@ export class GameRenderer {
     };
   }
 
-  /**
-   * A bar over every battler that has taken a hit.
-   *
-   * Only the hurt ones, which is the one piece of judgement in here: a bar over
-   * everything at full health turns a quiet field into a status readout, and the
-   * information it carries — "this thing can be fought" — is already given by
-   * the outline the moment you point at it.
-   *
-   * Anchored on the sprite's live position and lifted by its own height, exactly
-   * as a name tag is, so a bar rides a walking creature instead of jumping a cell
-   * behind it.
-   */
-  private healthBarsFor(snap: GameSnapshot): OverlaySpec[] {
-    const bars: OverlaySpec[] = [];
-    for (const actor of snap.actors) {
-      if (actor.hp === null || actor.maxHp === null) continue;
-      if (actor.hp >= actor.maxHp) continue;
-
-      const visual = this.actorVisualWorld(snap.map, actor);
-      const height = this.movingTileHeight(snap.map, actor, actor.stackIndex);
-      const head = elevationScreenOffset(height);
-      bars.push({
-        kind: "healthBar",
-        id: actor.id,
-        x: visual.x + head.x,
-        y: visual.y + head.y - HEALTH_BAR_LIFT_PX,
-        fraction: healthFraction(actor.hp, actor.maxHp),
-      });
-    }
-    return bars;
-  }
 
   /**
    * What is being looked at right now, resolved against the board.
@@ -768,17 +730,6 @@ export class GameRenderer {
   }
 
   /**
-   * A name over every actor's head, the viewer's own included.
-   *
-   * Off by default: alone in the single-player map there is nobody to tell
-   * apart, and a label over the only character on screen is noise. The online
-   * route turns it on.
-   */
-  setShowNames(show: boolean) {
-    this.showNames = show;
-  }
-
-  /**
    * Draw the world unlit. The renderer stops baking and uploading light (see
    * {@link WorldRenderer.setLightingEnabled}); this end stops producing the
    * per-actor emitter overrides that feed it, since nothing would read them.
@@ -851,34 +802,53 @@ export class GameRenderer {
   }
 
   /**
-   * Anchored on the top of the head rather than on the cell.
+   * A name over every battler, with its health under the name.
    *
-   * Height moves a tile up-*left* in this projection, 4px per unit, so a label
-   * placed straight above the feet would drift off the shoulder of anything
-   * tall. Taking the actor's own visual position and applying the same
-   * elevation shift its sprite gets puts the name over the head of a two-unit
-   * player and a ten-unit one alike — and, because that position already
-   * carries the walk lerp and the fall drop, the name travels with the sprite
-   * instead of chasing it.
+   * **Anything that can be fought says what it is.** That used to be a mode the
+   * online route turned on and a check for the player tile inside it, which drew
+   * handles over people and left the wildlife anonymous — fine while a creature
+   * was scenery you walked past, and wrong the moment it is something you can
+   * pick a fight with. What a thing is called is what you need before you decide
+   * to hit it, and "battler" is exactly the set of things that question is asked
+   * about. Everything else on the map stays unlabelled, which is what keeps a
+   * field of grass a field of grass.
+   *
+   * Naming is `bodyNameFor`'s job, which already answers it for speech: a person
+   * by the handle derived from their connection, a creature by what its tile is
+   * called.
+   *
+   * Anchored on the top of the head rather than on the cell. Height moves a tile
+   * up-*left* in this projection, 4px per unit, so a label placed straight above
+   * the feet would drift off the shoulder of anything tall. Taking the actor's
+   * own visual position and applying the same elevation shift its sprite gets
+   * puts the name over the head of a two-unit player and a ten-unit one alike —
+   * and, because that position already carries the walk lerp and the fall drop,
+   * the name travels with the sprite instead of chasing it.
    */
   private pushNameLabels(snap: GameSnapshot, into: WorldLabel[]) {
-    if (!this.showNames) return;
-
     for (const actor of snap.actors) {
-      // People are named; the wildlife is not. A handle is derived from the
-      // cookie behind a connection, so hanging one over a deer would be reading
-      // out an internal id and calling it a name.
-      if (actor.tileId !== PLAYER_TILE_ID) continue;
+      if (actor.hp === null || actor.maxHp === null) continue;
 
       const visual = this.actorVisualWorld(snap.map, actor);
       const height = this.movingTileHeight(snap.map, actor, actor.stackIndex);
       const head = elevationScreenOffset(height);
+      const name = bodyNameFor(
+        { actorId: actor.id, tileId: actor.tileId },
+        this.tilesById,
+      );
       into.push({
         id: `name:${actor.id}`,
         kind: "name",
         x: visual.x + head.x,
         y: visual.y + head.y,
-        lines: [{ id: actor.id, text: displayNameFor(actor.id) }],
+        lines: [{ id: actor.id, text: name }],
+        // Only once something has been taken off. A bar over a creature nobody
+        // has touched is a status readout the player did not ask for, and with a
+        // name over every battler now there would be a great many of them.
+        bar:
+          actor.hp < actor.maxHp
+            ? { fraction: healthFraction(actor.hp, actor.maxHp) }
+            : undefined,
       });
     }
   }
@@ -912,7 +882,7 @@ export class GameRenderer {
       const group = byCell.get(key);
       const line = {
         id: chat.id,
-        text: `${speakerNameFor(chat, this.tilesById)} says: ${chat.text}`,
+        text: `${bodyNameFor(chat, this.tilesById)} says: ${chat.text}`,
       };
       if (group) {
         group.lines.push(line);

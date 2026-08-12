@@ -182,6 +182,41 @@ textarea {
   z-index: 0;
 }
 
+/*
+ * A health bar, sitting in the name label's own column.
+ *
+ * Being an element rather than a quad in the scene is the whole point: the world
+ * is drawn at whole world pixels, five or six screen pixels each at play zoom,
+ * so a bar built there has a border five pixels thick and a fill that steps in
+ * huge jumps. Here it is measured in the same screen pixels the text is, which
+ * buys a real hairline border and a fill that moves smoothly — twice the
+ * resolution of the art it hangs over, exactly as the type is.
+ *
+ * Sized in ems so it tracks `--world-label-size`: the bar and the name it sits
+ * under are one piece of chrome and have to stay in proportion when that moves.
+ * And because it is a sibling of the name inside one flex column, no amount of
+ * shifting the group can ever bring the two together.
+ */
+.world-label__bar {
+  width: 2.4em;
+  height: 0.3em;
+  /* One screen pixel, against the font's two-pixel brick — the "thinner border"
+     that is only available out here. */
+  border: 1px solid #000;
+  background: #1a1014;
+  /* The fill starts at the left edge and grows right, like every health bar. */
+  display: flex;
+  /* Bars are chrome, not type: keep the line box from adding leading under it. */
+  line-height: 0;
+  margin-top: 0.15em;
+}
+
+.world-label__bar > div {
+  height: 100%;
+  /* Width and colour are written per frame from the health reading. */
+  width: 100%;
+}
+
 .world-label--speech {
   color: var(--color-paper);
 }
