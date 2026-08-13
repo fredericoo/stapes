@@ -61,6 +61,7 @@ export function GameViewport({
   onLookingChange,
   interactions = [],
   onInteract,
+  onHoverInteraction,
   tiles = [],
   tilesets = [],
 }: {
@@ -90,6 +91,11 @@ export function GameViewport({
    */
   interactions?: InteractionOption[];
   onInteract?: (option: InteractionOption) => void;
+  /**
+   * The row being pointed at, so the world can outline its subject. Wired only
+   * where there is a pointer that hovers — see the call site.
+   */
+  onHoverInteraction?: (optionId: string | null) => void;
   /** Catalogue behind the list's sprites. */
   tiles?: TileDef[];
   tilesets?: TilesetDef[];
@@ -108,6 +114,10 @@ export function GameViewport({
       tiles={tiles}
       tilesets={tilesets}
       onAct={(option) => onInteract?.(option)}
+      // Not on a finger. A touch browser synthesises a mouse-enter on tap and
+      // never sends the matching leave, so the outline it lit would stay lit
+      // over whatever the player did next.
+      onHover={coarse ? undefined : onHoverInteraction}
       className="min-h-0 w-full flex-1"
     />
   );

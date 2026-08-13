@@ -46,12 +46,24 @@ export function InteractionList({
   tiles,
   tilesets,
   onAct,
+  onHover,
   className = "",
 }: {
   options: InteractionOption[];
   tiles: TileDef[];
   tilesets: TilesetDef[];
   onAct: (option: InteractionOption) => void;
+  /**
+   * The row being pointed at, so the world can outline what it is talking
+   * about. By id rather than by option, because the thing moves and the
+   * renderer has to resolve it against the list as it stands — see
+   * `GameRenderer.setListHover`.
+   *
+   * Absent where there is no hover to have. Given by keyboard focus as well as
+   * by the mouse: tabbing through the list and watching the world light up is
+   * the same question being asked the same way.
+   */
+  onHover?: (optionId: string | null) => void;
   className?: string;
 }) {
   const tilesById = useMemo(() => tilesByIdFromList(tiles), [tiles]);
@@ -84,6 +96,7 @@ export function InteractionList({
             tile={tilesById[option.tileId] ?? null}
             tilesets={tilesets}
             onAct={onAct}
+            onHover={onHover}
           />
         ))
       )}
@@ -96,11 +109,13 @@ function InteractionRow({
   tile,
   tilesets,
   onAct,
+  onHover,
 }: {
   option: InteractionOption;
   tile: TileDef | null;
   tilesets: TilesetDef[];
   onAct: (option: InteractionOption) => void;
+  onHover?: (optionId: string | null) => void;
 }) {
   const Icon = ICONS[option.action];
 
@@ -108,6 +123,10 @@ function InteractionRow({
     <button
       type="button"
       onClick={() => onAct(option)}
+      onMouseEnter={() => onHover?.(option.id)}
+      onMouseLeave={() => onHover?.(null)}
+      onFocus={() => onHover?.(option.id)}
+      onBlur={() => onHover?.(null)}
       // Only a fight is a state you are in; a push happens and is over, and a
       // button that claimed otherwise would be announced as stuck on.
       aria-pressed={option.action === "attack" ? option.active : undefined}

@@ -57,6 +57,13 @@ export default function PlayPage() {
     (option: InteractionOption) => applyInteraction(sessionRef.current, option),
     [],
   );
+  // Straight at the renderer rather than through state: an outline is a frame's
+  // business, and routing it through React would re-render the page on every
+  // row the cursor crosses.
+  const hoverInteraction = useCallback(
+    (optionId: string | null) => rendererRef.current?.setListHover(optionId),
+    [],
+  );
   const [minutesOfDay, setMinutesOfDay] = useState<MinutesOfDay>(
     DEFAULT_PLAY_MINUTES,
   );
@@ -201,6 +208,7 @@ export default function PlayPage() {
         onLookingChange={setLooking}
         interactions={interactions}
         onInteract={act}
+        onHoverInteraction={hoverInteraction}
         tiles={tiles}
         tilesets={tilesets}
       />

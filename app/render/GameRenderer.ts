@@ -105,6 +105,19 @@ const LOOK_COLOR = 0x3fa9ff;
 const LOOK_LEVEL_SLACK = 1;
 
 /**
+ * What colour a hovered row paints its subject.
+ *
+ * The same two the pointer already uses, chosen the same way — white for a body
+ * that could be fought, yellow for an object that could be acted on. A row and
+ * the cursor are two ways of pointing at one thing, so pointing either way has
+ * to look identical; a third colour here would be a legend to learn for no new
+ * meaning.
+ */
+function listHoverColor(option: InteractionOption): number {
+  return option.action === "attack" ? TARGET_HOVER_COLOR : HOVER_COLOR;
+}
+
+/**
  * Land a lerped sprite on the same whole-pixel grid the static world sits on.
  *
  * Scenery is placed at integer world pixels, so a mover at a fractional offset
@@ -151,6 +164,13 @@ export class GameRenderer {
   private interactionsAt = "";
   /** Contents of the last list handed over, so an unchanged one is not re-sent. */
   private interactionsKey = "";
+  /**
+   * The list as it was last handed over, kept so a hovered row can be resolved
+   * back to a *current* reference. @see listHoverOption
+   */
+  private interactionsSent: InteractionOption[] = [];
+  /** @see setListHover */
+  private listHoverId: string | null = null;
   private profiler = new FrameProfiler();
   private disposed = false;
   private raf = 0;
@@ -292,6 +312,34 @@ export class GameRenderer {
     this.interactionsMap = null;
     this.interactionsAt = "";
     this.interactionsKey = "";
+    this.interactionsSent = [];
+  }
+
+  /**
+   * Outline what a hovered row is talking about.
+   *
+   * The list names things that are somewhere, and "which one is that" is a
+   * question the world can answer for free — so hovering a row lights its
+   * subject exactly as the cursor would if it were over the sprite instead.
+   *
+   * **Held by id rather than by option, and that is the whole trick.** A row's
+   * subject moves: the list is rebuilt on every commit, so the reference inside
+   * an option is stale 200ms later, and the element does not re-fire its enter
+   * event because it is the same row. Resolving the id against the list as it
+   * stands now keeps the outline on a walking deer rather than on the cell it
+   * left — and drops it for nothing when the row itself goes, which is the
+   * event a mouse leaving an unmounting element never reports.
+   */
+  setListHover(optionId: string | null) {
+    this.listHoverId = optionId;
+  }
+
+  /** The hovered row's option as it stands this frame, or null. */
+  private listHoverOption(): InteractionOption | null {
+    if (this.listHoverId === null) return null;
+    return (
+      this.interactionsSent.find((o) => o.id === this.listHoverId) ?? null
+    );
   }
 
   start() {
@@ -624,9 +672,16 @@ export class GameRenderer {
       ...this.motionOffsetFor(ref, motions),
     });
 
+    // The row under the cursor points into the world, whatever mode the canvas
+    // is in: the eye governs what a tap on the *canvas* means, and a hand on the
+    // list is already pointing at something explicitly.
+    const listed = this.listHoverOption();
+
     if (this.lookMode) {
       const looked = this.lookTarget(snap);
-      return looked ? [outline(looked.ref, LOOK_COLOR)] : [];
+      const specs = looked ? [outline(looked.ref, LOOK_COLOR)] : [];
+      if (listed) specs.push(outline(listed.ref, listHoverColor(listed)));
+      return specs;
     }
 
     const specs: OverlaySpec[] = [];
@@ -639,6 +694,12 @@ export class GameRenderer {
       specs.push(outline(this.targetHover, TARGET_HOVER_COLOR));
     }
     if (snap.hover) specs.push(outline(snap.hover, HOVER_COLOR));
+    // Last, so it draws over the pointer's own hover where the two land on one
+    // object — and skipped on the body being fought, for the same reason the
+    // white hover is: committed outranks hoverable.
+    if (listed && !sameRef(listed.ref, target)) {
+      specs.push(outline(listed.ref, listHoverColor(listed)));
+    }
     return specs;
   }
 
@@ -1183,6 +1244,10 @@ export class GameRenderer {
       this.targetableActors(snap, camera, hideLevelsAbove),
       snap.targetId,
     );
+    // Held whether or not it is handed on, because the *references* inside it go
+    // stale even when the list reads the same: a walking deer keeps its row and
+    // changes cell, and the hover outline follows the reference.
+    this.interactionsSent = options;
     const key = options.map((o) => `${o.id}/${o.active}`).join("|");
     if (key === this.interactionsKey) return;
     this.interactionsKey = key;
