@@ -149,8 +149,13 @@ export type CellOcclusion = {
    */
   opacity: number;
   /**
-   * Non-light-passing tiles present. Height-0 floors hard-seal vertical
-   * travel; positive-height blockers use {@link opacity} instead.
+   * A floor plate lies on this cell's bottom — a non-light-passing tile of
+   * height 0. That is what closes a cell against vertical travel, in either
+   * direction; positive-height blockers use {@link opacity} instead.
+   *
+   * Height is what decides this, not opacity. A cell holding a floor *and* a
+   * torch is opaque from the torch alone, and reading the seal off opacity let
+   * exactly that cell — a lit floor — pour light into the room below it.
    */
   sealsLevel: boolean;
 };
@@ -218,7 +223,8 @@ export function isSkyExposed(
  * - Light-passing tiles (water) ignored.
  * - Blocking height maps to opacity as `min(1, blockH / HEIGHT_PER_LEVEL)` —
  *   half-blocks decay light by half, full blocks seal.
- * - Height 0 floors still hard-seal vertically only (`sealsLevel`, opacity 0).
+ * - A height-0 floor hard-seals vertical travel whatever else shares its cell
+ *   (`sealsLevel`).
  */
 export function stackOcclusion(
   stack: PlacedTile[],
@@ -230,7 +236,7 @@ export function stackOcclusion(
     const def = tilesById[placed.tileId];
     if (!def) continue;
     if (resolveLightPassing(def)) continue;
-    sealsLevel = true;
+    if (def.height === 0) sealsLevel = true;
     blockH += def.height;
   }
   return {
@@ -263,6 +269,19 @@ export function emitterCenter(
  * Amanatides & Woo 3D DDA. Returns remaining transmission after intermediate
  * cells (endpoints excluded). Each cell multiplies by (1 - opacity).
  */
+/**
+ * The cell whose floor a vertical crossing has to pass through.
+ *
+ * A floor lies on the bottom of its own cell, so the boundary between `z` and
+ * `z+1` belongs to the upper of the pair: climbing, that is the cell being
+ * entered; falling, it is the one just left. Checking the entered cell either
+ * way let light fall straight through floors — including the floor an emitter
+ * is standing on, which the ray leaves on its very first step down.
+ */
+function upperOfCrossing(z: number, stepZ: number): number {
+  return stepZ > 0 ? z : z + 1;
+}
+
 export function rayTransmission(
   x0: number,
   y0: number,
@@ -320,17 +339,19 @@ export function rayTransmission(
       movedZ = true;
     }
 
+    // Height-0 floors hard-seal vertical *passage* past them; positive-height
+    // blockers use opacity decay instead. Checked on the crossing itself,
+    // before the endpoint bows out: neighbouring cells have no cell in
+    // between, so a floor between two of them would go unnoticed.
+    if (movedZ) {
+      const upper = occlusion.get(cellKey(x, y, upperOfCrossing(z, stepZ)));
+      if (upper?.sealsLevel) return 0;
+    }
+
     if (x === x1 && y === y1 && z === z1) break;
 
     const cell = occlusion.get(cellKey(x, y, z));
     if (!cell) continue;
-
-    // Height-0 floors hard-seal vertical *passage* past them (opacity 0).
-    // Positive-height blockers (half/full) use opacity decay instead.
-    if (movedZ && cell.sealsLevel && cell.opacity < TRANSMISSION_EPSILON) {
-      if (stepZ < 0 && z1 < z) return 0;
-      if (stepZ > 0 && z1 > z) return 0;
-    }
 
     if (cell.opacity > 0) {
       transmission *= 1 - cell.opacity;
@@ -381,7 +402,7 @@ function accumulateAt(
 
 /**
  * Cast one emitter into `floatsByZ` (player overlay / dynamic lights).
- * Floors (sealsLevel, opacity 0) accept light from above but refuse light
+ * Floors (sealsLevel) accept light from above but refuse light
  * climbing from below. Solids stay dark except the emitter's own cell.
  */
 function castEmitter(
@@ -404,13 +425,13 @@ function castEmitter(
   const xLo = Math.floor(e.x) - rCells;
   const xHi = Math.ceil(e.x) + rCells;
 
-  // The emitter's own cell must not shadow itself; restored below.
+  // The emitter's own cell must not shadow itself; restored below. Its seal
+  // stays, though — the floor a torch stands on is the floor of the room
+  // below, and clearing it let every torch light the level under its feet.
   const selfIndex = denseIndex(occlusion, e.lx, e.ly, e.lz);
   const savedSelfOpacity = selfIndex < 0 ? 0 : occlusion.opacity[selfIndex]!;
-  const savedSelfSeals = selfIndex < 0 ? 0 : occlusion.seals[selfIndex]!;
   if (selfIndex >= 0) {
     occlusion.opacity[selfIndex] = 0;
-    occlusion.seals[selfIndex] = 0;
   }
 
   for (let tz = zLo; tz <= zHi; tz++) {
@@ -434,7 +455,7 @@ function castEmitter(
         if (!isSelf) {
           if (targetOpacity >= 1) continue;
           // Height-0 floors refuse light climbing from below.
-          if (tz > sz && targetSeals && targetOpacity < TRANSMISSION_EPSILON) {
+          if (tz > sz && targetSeals) {
             continue;
           }
         }
@@ -467,7 +488,6 @@ function castEmitter(
 
   if (selfIndex >= 0) {
     occlusion.opacity[selfIndex] = savedSelfOpacity;
-    occlusion.seals[selfIndex] = savedSelfSeals;
   }
 }
 
@@ -596,8 +616,8 @@ export type DenseOcclusion = {
 };
 
 /**
- * Give every blocking cell the brightest light its visible faces look into —
- * east, south, or the cell above — the way the static bake does at the end of
+ * Give every blocking cell the brightest light of the cells its lit faces look
+ * into — east and south — the way the static bake does at the end of
  * `computeLightingFlood`. Without it a dynamic light leaves the walls around it
  * black while lighting the floor between them.
  *
@@ -613,32 +633,22 @@ function spreadIntoBlockers(
   h: number,
 ) {
   for (const [z, floats] of floatsByZ) {
-    const above = floatsByZ.get(z + 1);
     for (let ly = 0; ly < h; ly++) {
       for (let lx = 0; lx < w; lx++) {
         const solid = denseIndex(occlusion, x0 + lx, y0 + ly, z);
         if (solid < 0 || occlusion.opacity[solid]! < 1) continue;
         const i = (ly * w + lx) * 3;
-        const faces: Array<[Float32Array, number, number, number, number]> = [];
-        if (lx + 1 < w) faces.push([floats, (ly * w + lx + 1) * 3, x0 + lx + 1, y0 + ly, z]);
-        if (ly + 1 < h) faces.push([floats, ((ly + 1) * w + lx) * 3, x0 + lx, y0 + ly + 1, z]);
-        if (above) faces.push([above, i, x0 + lx, y0 + ly, z + 1]);
-        for (const [src, j, fx, fy, fz] of faces) {
-          const air = denseIndex(occlusion, fx, fy, fz);
+        for (const [fx, fy] of [
+          [lx + 1, ly],
+          [lx, ly + 1],
+        ]) {
+          if (fx! >= w || fy! >= h) continue;
+          const air = denseIndex(occlusion, x0 + fx!, y0 + fy!, z);
           if (air >= 0 && occlusion.opacity[air]! >= 1) continue;
-          // A floor on top covers the solid's top face — see the same rule in
-          // computeLightingFlood.
-          if (
-            air >= 0 &&
-            fz !== z &&
-            occlusion.seals[air]! &&
-            occlusion.opacity[air]! < TRANSMISSION_EPSILON
-          ) {
-            continue;
-          }
-          if (src[j]! > floats[i]!) floats[i] = src[j]!;
-          if (src[j + 1]! > floats[i + 1]!) floats[i + 1] = src[j + 1]!;
-          if (src[j + 2]! > floats[i + 2]!) floats[i + 2] = src[j + 2]!;
+          const j = (fy! * w + fx!) * 3;
+          if (floats[j]! > floats[i]!) floats[i] = floats[j]!;
+          if (floats[j + 1]! > floats[i + 1]!) floats[i + 1] = floats[j + 1]!;
+          if (floats[j + 2]! > floats[i + 2]!) floats[i + 2] = floats[j + 2]!;
         }
       }
     }
@@ -749,18 +759,17 @@ function denseRayTransmission(
       movedZ = true;
     }
 
+    // See rayTransmission: the crossing is checked before the endpoint bows out.
+    if (movedZ) {
+      const up = denseIndex(o, x, y, upperOfCrossing(z, stepZ));
+      if (up >= 0 && o.seals[up]!) return 0;
+    }
+
     if (x === x1 && y === y1 && z === z1) break;
 
     const i2 = denseIndex(o, x, y, z);
     if (i2 < 0) continue;
     const opacity = o.opacity[i2]!;
-    const seals = o.seals[i2]!;
-    if (!opacity && !seals) continue;
-
-    if (movedZ && seals && opacity < TRANSMISSION_EPSILON) {
-      if (stepZ < 0 && z1 < z) return 0;
-      if (stepZ > 0 && z1 > z) return 0;
-    }
     if (opacity > 0) {
       transmission *= 1 - opacity;
       if (transmission < TRANSMISSION_EPSILON) return 0;

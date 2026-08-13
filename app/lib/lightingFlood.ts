@@ -53,17 +53,20 @@ const SKY_EDGES = new Float64Array([
 const SKY_EDGE_COUNT = SKY_EDGES.length / SKY_EDGE_STRIDE;
 
 /**
- * The cells a solid's visible faces look into: east, south, and above.
+ * The cells a solid's lit faces look into: east and south.
  *
- * The projection never shows a tile's north, west or under side, so those are
- * the only three that can be lit. Same flattened `(dx, dy, dz)` layout as the
- * sky edges.
+ * The projection shows a tile's south and east sides and its top, and the top
+ * is not here on purpose — a fragment on it samples the air above directly, so
+ * carrying that light into the solid as well would hand it to the south and
+ * east faces too. That is light arriving over the wall from behind, which is
+ * exactly what should not reach the side you can see.
+ *
+ * Same flattened layout as the sky edges, minus the cost.
  */
-const FACE_STRIDE = 3;
+const FACE_STRIDE = 2;
 const FACE_NEIGHBOURS = new Int8Array([
-  1, 0, 0,
-  0, 1, 0,
-  0, 0, 1,
+  1, 0,
+  0, 1,
 ]);
 const FACE_COUNT = FACE_NEIGHBOURS.length / FACE_STRIDE;
 
@@ -105,7 +108,7 @@ function stackOcc(
     const def = tilesById[placed.tileId];
     if (!def) continue;
     if (resolveLightPassing(def)) continue;
-    seals = true;
+    if (def.height === 0) seals = true;
     blockH += def.height;
   }
   return {
@@ -200,19 +203,23 @@ function denseRayTransmission(
       tMaxZ += tDeltaZ;
       movedZ = true;
     }
-    if (x === x1 && y === y1 && z === z1) break;
     const lx = x - dom.x0;
     const ly = y - dom.y0;
     const lz = z - dom.z0;
-    if (lx < 0 || ly < 0 || lz < 0 || lx >= dom.w || ly >= dom.h || lz >= dom.d) {
-      continue;
+    if (lx < 0 || ly < 0 || lx >= dom.w || ly >= dom.h) continue;
+    // Height-0 floors hard-seal vertical passage; half/full use opacity. The
+    // floor that seals a crossing belongs to the upper of the two cells, and
+    // the crossing is checked before the endpoint bows out — see
+    // upperOfCrossing and rayTransmission in lighting.ts.
+    if (movedZ) {
+      const upperLz = (stepZ > 0 ? z : z + 1) - dom.z0;
+      if (upperLz >= 0 && upperLz < dom.d && seals[idx(dom, lx, ly, upperLz)]!) {
+        return 0;
+      }
     }
+    if (x === x1 && y === y1 && z === z1) break;
+    if (lz < 0 || lz >= dom.d) continue;
     const i = idx(dom, lx, ly, lz);
-    // Height-0 floors hard-seal vertical passage; half/full use opacity.
-    if (movedZ && seals[i]! && opacity[i]! < TRANSMISSION_EPSILON) {
-      if (stepZ < 0 && z1 < z) return 0;
-      if (stepZ > 0 && z1 > z) return 0;
-    }
     const op = opacity[i]!;
     if (op > 0) {
       transmission *= 1 - op;
@@ -460,12 +467,12 @@ export function computeLightingFlood(
         const i = idx(dom, lx, ly, lz);
         const op = opacity[i]!;
         sky[i] = shaft;
-        if (op >= 1) {
+        // The floor is checked first: it lies on the cell's bottom and closes
+        // the column outright, whatever else stands in the cell with it.
+        if (seals[i]! || op >= 1) {
           shaft = 0;
         } else if (op > 0) {
           shaft *= 1 - op;
-        } else if (seals[i]!) {
-          shaft = 0;
         }
       }
     }
@@ -509,7 +516,7 @@ export function computeLightingFlood(
       if (dz !== 0) {
         const upper = dz > 0 ? j : i;
         // Height-0 floors hard-seal vertical flood edges.
-        if (seals[upper]! && opacity[upper]! < TRANSMISSION_EPSILON) continue;
+        if (seals[upper]!) continue;
       }
       let next = s - cost;
       if (topOp > 0) next *= 1 - topOp;
@@ -535,7 +542,6 @@ export function computeLightingFlood(
     const selfLy = e.ly - dom.y0;
     const selfLz = e.lz - dom.z0;
     let savedSelfOp = 0;
-    let savedSelfSeal = 0;
     let hadSelf = false;
     if (
       selfLx >= 0 &&
@@ -547,9 +553,9 @@ export function computeLightingFlood(
     ) {
       const si = idx(dom, selfLx, selfLy, selfLz);
       savedSelfOp = opacity[si]!;
-      savedSelfSeal = seals[si]!;
+      // Opacity only: the seal is the floor the emitter stands on, which is
+      // the ceiling of the room below — see castEmitter in lighting.ts.
       opacity[si] = 0;
-      seals[si] = 0;
       hadSelf = true;
     }
 
@@ -623,7 +629,6 @@ export function computeLightingFlood(
     if (hadSelf) {
       const si = idx(dom, selfLx, selfLy, selfLz);
       opacity[si] = savedSelfOp;
-      seals[si] = savedSelfSeal;
     }
   }
 
@@ -631,9 +636,13 @@ export function computeLightingFlood(
   // while the air beside it is bright — and every surface would have to go
   // hunting for lit air at draw time, which lights each face off a different
   // cell and leaves a wall looking patched together. Give the solid the
-  // brightest of the cells its visible faces look into instead, and the field
-  // is continuous across the solid/air boundary: a wall face reads its own
-  // cell, like every other surface does.
+  // brightest of the cells its lit faces look into instead, and the field is
+  // continuous across the solid/air boundary: a wall face reads its own cell,
+  // like every other surface does.
+  //
+  // Only east and south, which is what makes a wall one-sided: a lamp north or
+  // west of it lights the face turned away from the camera, and that face is
+  // not the one being drawn. Light does not come round the wall.
   //
   // Writes land only on solids and reads come only from air, so no cell can
   // pass light on to the next and order does not matter.
@@ -646,15 +655,9 @@ export function computeLightingFlood(
           const f = fi * FACE_STRIDE;
           const tx = lx + FACE_NEIGHBOURS[f]!;
           const ty = ly + FACE_NEIGHBOURS[f + 1]!;
-          const tz = lz + FACE_NEIGHBOURS[f + 2]!;
-          if (tx >= dom.w || ty >= dom.h || tz >= dom.d) continue;
-          const j = idx(dom, tx, ty, tz);
+          if (tx >= dom.w || ty >= dom.h) continue;
+          const j = idx(dom, tx, ty, lz);
           if (opacity[j]! >= 1) continue;
-          // A floor laid on top of the solid covers its top face: no light
-          // gets through, and nothing of that face is left to see.
-          if (tz !== lz && seals[j]! && opacity[j]! < TRANSMISSION_EPSILON) {
-            continue;
-          }
           if (sky[j]! > sky[i]!) sky[i] = sky[j]!;
           if (blockR[j]! > blockR[i]!) blockR[i] = blockR[j]!;
           if (blockG[j]! > blockG[i]!) blockG[i] = blockG[j]!;

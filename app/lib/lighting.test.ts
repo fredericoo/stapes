@@ -66,6 +66,16 @@ const torch = tile({
   height: 0,
   light: { radius: 4, intensity: 1, color: "#ffffff" },
 });
+/**
+ * A lit tile with height, so it lays no floor plate on the cell it stands in —
+ * the difference between a lamp hanging in a shaft and a lamp lying on its
+ * ceiling.
+ */
+const sconce = tile({
+  id: "sconce",
+  height: 2,
+  light: { radius: 4, intensity: 1, color: "#ffffff" },
+});
 
 const tilesById: Record<string, TileDef> = {
   floor,
@@ -73,6 +83,7 @@ const tilesById: Record<string, TileDef> = {
   half,
   water,
   torch,
+  sconce,
 };
 
 describe("stackOcclusion", () => {
@@ -107,9 +118,11 @@ describe("stackOcclusion", () => {
       walkable: false,
     });
     const byId = { ...tilesById, "door-open": openDoor };
+    // Opaque from its own height, but it lays no floor plate — nothing of it
+    // sits on the cell's bottom to close it against vertical travel.
     expect(stackOcclusion([{ tileId: "door-open" }], byId)).toEqual({
       opacity: 1,
-      sealsLevel: true,
+      sealsLevel: false,
     });
   });
 });
@@ -156,9 +169,25 @@ describe("rayTransmission", () => {
 
   it("half-decays vertical travel through a half-block", () => {
     const occlusion = new Map([
-      ["1:0,0", { opacity: 0.5, sealsLevel: true }],
+      ["1:0,0", { opacity: 0.5, sealsLevel: false }],
     ]);
     expect(rayTransmission(0, 0, 0, 0, 0, 2, occlusion)).toBeCloseTo(0.5);
+  });
+
+  /** A floor sharing the half-block's cell closes it outright. */
+  it("hard-seals vertical travel when a floor shares the cell", () => {
+    const occlusion = new Map([
+      ["1:0,0", { opacity: 0.5, sealsLevel: true }],
+    ]);
+    expect(rayTransmission(0, 0, 0, 0, 0, 2, occlusion)).toBe(0);
+  });
+
+  /** The floor a torch stands on is the ceiling of the room below it. */
+  it("seals the step down out of a cell that has a floor", () => {
+    const occlusion = new Map([
+      ["0:0,0", { opacity: 0, sealsLevel: true }],
+    ]);
+    expect(rayTransmission(0, 0, 0, 0, 0, -1, occlusion)).toBe(0);
   });
 });
 
@@ -286,15 +315,16 @@ describe("computeLighting flood fill", () => {
 
   it("lights the floor below from a torch above (open shaft)", () => {
     const map = mapAt([
-      { x: 0, y: 0, z: 1, tiles: ["torch"] },
+      { x: 0, y: 0, z: 1, tiles: ["sconce"] },
       { x: 0, y: 0, z: 0, tiles: ["floor"] },
       { x: 1, y: 0, z: 0, tiles: ["floor"] },
     ]);
     const grid = computeLighting(map, tilesById, [0, 0, 0]);
-    // Lit, but well down from the torch's own cell: VERTICAL_FALLOFF charges
-    // the storey it fell its full height, so a shaft carries dimmer than the
-    // same reach sideways would. The sealed case above is a flat 0.
-    expect(sampleLevelLight(grid.levels.get(0)!, 0, 0)[0]).toBeGreaterThan(0.15);
+    // Dim, but lit: a storey of fall costs VERTICAL_FALLOFF cells of reach and
+    // the lamp emits from its own middle, which is most of a radius-4 sphere
+    // spent before it lands. What matters is that it arrives at all — put a
+    // floor in the way and it is a flat 0, as the sealed cases assert.
+    expect(sampleLevelLight(grid.levels.get(0)!, 0, 0)[0]).toBeGreaterThan(0.05);
   });
 
   it("daytime: sky-exposed walls, half-bricks, and trees get full daylight", () => {
