@@ -2,6 +2,7 @@ import * as THREE from "three";
 import {
   DEPTH_MAX,
   DEPTH_MIN,
+  DEPTH_OVERHANG_BIAS,
   DEPTH_PLANE_BIAS,
   DEPTH_PLANE_EAST_WEIGHT,
   DEPTH_STACK_BIAS,
@@ -9,7 +10,7 @@ import {
   PX_PER_HEIGHT,
   RAY_DEPTH_ELEV,
 } from "../lib/geometry";
-import { CELL_SIZE } from "../lib/types";
+import { CELL_SIZE, HEIGHT_PER_LEVEL } from "../lib/types";
 
 /**
  * One tile sprite: a screen-space rectangle of texture, plus the solid box it
@@ -52,7 +53,7 @@ const VERTS_PER_QUAD = 4;
 const BOX_COMPONENTS = 4;
 
 /** Both renderers must agree, or the same tile sorts differently in each. */
-export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v4";
+export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v6";
 
 function glsl(n: number): string {
   return Number.isInteger(n) ? `${n}.0` : `${n}`;
@@ -266,7 +267,9 @@ export function writeBoxAttr(
  * writes that point's ray depth, so a sprite is not forced to sit wholly in
  * front of or behind another. This is what lets a character mid-step be behind
  * the wall beside it while standing on the floor tile in front of it — two
- * orderings no single per-sprite depth can satisfy at once.
+ * orderings no single per-sprite depth can satisfy at once. Fragments whose ray
+ * misses the box — art drawn outside its own silhouette — fall back to the
+ * entry plane, which sorts them with the cell they hang over.
  *
  * Lighting: per-level light map sampled in cell space.
  */
@@ -341,13 +344,23 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
 }
 // Depth, at that same pixel centre, so a crossing between two sprites can only
 // ever land on a texel boundary.
-// Nearest box surface on this ray: each visible face caps how far the ray
-// climbs before leaving the box, so the highest point inside is the min.
-float faces = min(
-  (vBox.x - depthPx.x) / ${glsl(PX_PER_HEIGHT)},
-  (vBox.y - depthPx.y) / ${glsl(PX_PER_HEIGHT)}
-);
-float surfaceElev = clamp(min(faces, vBox.w), vBox.z, vBox.w);
+// Where the ray leaves the box: each visible (south/east/top) face caps how far
+// it climbs before getting out, so the highest point inside is the min.
+float eastFace = (vBox.x - depthPx.x) / ${glsl(PX_PER_HEIGHT)};
+float southFace = (vBox.y - depthPx.y) / ${glsl(PX_PER_HEIGHT)};
+float exitElev = min(min(eastFace, southFace), vBox.w);
+// The far (north/west) faces, one cell of ray climb behind the near ones.
+float farFaceElev =
+  max(eastFace, southFace) - ${glsl(HEIGHT_PER_LEVEL)};
+// Far face above exit means the ray missed up-left: art hanging over the cells
+// behind it, with no surface of its own. It takes the far-face plane, which is
+// where the neighbour's face already is, plus a nudge that settles that tie for
+// the art. Missing the other way (under the foot) is art hanging over ground
+// nearer the camera, which must stay behind it — foot plane, no nudge. See
+// boxSurface.
+float surfaceElev = max(max(exitElev, farFaceElev), vBox.z);
+float overhangBias =
+  farFaceElev > exitElev ? ${glsl(DEPTH_OVERHANG_BIAS)} : 0.0;
 // vBox.xy are the unshifted east/south edges of the base cell. When two flat
 // overhanging sprites share a pixel at the same elev, this restores S-then-E
 // painter order (merge draw order alone is not stable).
@@ -358,7 +371,8 @@ float rayDepth =
   (depthPx.x + depthPx.y) / ${glsl(CELL_SIZE)} +
   ${glsl(RAY_DEPTH_ELEV)} * surfaceElev +
   vStack * ${glsl(DEPTH_STACK_BIAS)} +
-  planeBias;
+  planeBias +
+  overhangBias;
 gl_FragDepth = clamp(
   (${glsl(DEPTH_MAX)} - rayDepth) / ${glsl(DEPTH_MAX - DEPTH_MIN)},
   0.0,

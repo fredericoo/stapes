@@ -19109,6 +19109,10 @@
         },
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "deer",
+          "direction": "s"
         }
       ],
       "17,-3": [
