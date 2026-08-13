@@ -5,6 +5,7 @@ import {
   type DepthBox,
   depthBox,
   depthStackBias,
+  spriteLightCells,
   spriteWorldOrigin,
 } from "../lib/geometry";
 import {
@@ -78,6 +79,11 @@ type BuildItem = Quad & {
 };
 
 const DEFAULT_BACKGROUND = sampleIllumination(12 * 60).background;
+/**
+ * Puts a cell's light value at its own integer coordinate: half a texel back
+ * lines texel centres up with cell coordinates rather than cell corners.
+ * `spriteLightCells` picks where on a sprite that value lands.
+ */
 const LIGHT_MAP_CELL_OFFSET = 0.5;
 
 /** Map cell + stack slot identifying a placed tile instance. */
@@ -1233,10 +1239,7 @@ export class WorldRenderer {
         box,
         stackBias: depthStackBias(z, stackIndex),
         texture,
-        lightX0: x,
-        lightY0: y,
-        lightX1: x + 1,
-        lightY1: y + 1,
+        ...spriteLightCells(x, y, first.sprite.base, rect, def.height),
         unlit: tileCanEmitLight(def),
         tileKey: separate ? instanceKey : undefined,
         anim: isAnimated && frames ? { frames, tileset, animKey } : undefined,

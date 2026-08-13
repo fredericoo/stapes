@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   absoluteElevation,
+  baseCellWorldOrigin,
   boxSurfaceElevation,
   depthBox,
   depthStackBias,
   drawOrder,
   fragDepth,
   PX_PER_HEIGHT,
+  spriteLightCells,
+  spriteWorldOrigin,
 } from "./geometry";
 import { CELL_SIZE, HEIGHT_PER_LEVEL } from "./types";
 
@@ -323,5 +326,91 @@ describe("fragDepth", () => {
       fragDepth(mover, overFloor.sx, overFloor.sy, moverBias),
       fragDepth(destFloor, overFloor.sx, overFloor.sy),
     );
+  });
+});
+
+describe("spriteLightCells", () => {
+  /**
+   * World pixel where the cell's own light value lands on the art, recovered
+   * the way the shader does it: light UVs are affine across the quad, so the
+   * value for cell `x` sits `(x - lightX0)` of the rect's width from its edge.
+   */
+  function lightAnchorPixel(
+    cellX: number,
+    cellY: number,
+    base: { x: number; y: number },
+    rect: { w: number; h: number },
+    height: number,
+    elevation = 0,
+  ) {
+    const light = spriteLightCells(cellX, cellY, base, rect, height);
+    const art = spriteWorldOrigin(
+      baseCellWorldOrigin(cellX, cellY, 0, elevation),
+      base,
+    );
+    return {
+      x: art.x + (cellX - light.lightX0) * rect.w * CELL_SIZE,
+      y: art.y + (cellY - light.lightY0) * rect.h * CELL_SIZE,
+    };
+  }
+
+  it("puts a flat floor's light on its own cell centre", () => {
+    const cellX = 3;
+    const cellY = 7;
+    const anchor = lightAnchorPixel(
+      cellX,
+      cellY,
+      { x: 0, y: 0 },
+      { w: 1, h: 1 },
+      0,
+    );
+    expect(anchor.x).toBeCloseTo(cellX * CELL_SIZE + CELL_SIZE / 2);
+    expect(anchor.y).toBeCloseTo(cellY * CELL_SIZE + CELL_SIZE / 2);
+  });
+
+  /**
+   * The half-cell the flat constant used to apply to every quad. It was only
+   * ever right for a tile this tall, which is why floors read half a tile off.
+   */
+  it("puts a full-level tile's light half a cell up-left, whatever its art", () => {
+    const cellX = 3;
+    const cellY = 7;
+    const centre = { x: cellX * CELL_SIZE + CELL_SIZE / 2, y: cellY * CELL_SIZE + CELL_SIZE / 2 };
+    for (const art of [
+      { base: { x: 0, y: 0 }, rect: { w: 1, h: 1 } },
+      { base: { x: 1, y: 1 }, rect: { w: 2, h: 2 } },
+      { base: { x: 1, y: 2 }, rect: { w: 2, h: 3 } },
+    ]) {
+      const anchor = lightAnchorPixel(
+        cellX,
+        cellY,
+        art.base,
+        art.rect,
+        HEIGHT_PER_LEVEL,
+      );
+      expect(anchor.x).toBeCloseTo(centre.x - CELL_SIZE / 2);
+      expect(anchor.y).toBeCloseTo(centre.y - CELL_SIZE / 2);
+    }
+  });
+
+  it("scales the shift with the tile's height", () => {
+    const halfBlock = lightAnchorPixel(0, 0, { x: 1, y: 1 }, { w: 2, h: 2 }, 1);
+    expect(halfBlock.x).toBeCloseTo(CELL_SIZE / 2 - PX_PER_HEIGHT / 2);
+    expect(halfBlock.y).toBeCloseTo(CELL_SIZE / 2 - PX_PER_HEIGHT / 2);
+  });
+
+  /** A tile stacked on top emits from where it stands, not from the floor. */
+  it("follows the tile up its stack", () => {
+    const elevation = 2;
+    const stacked = lightAnchorPixel(
+      0,
+      0,
+      { x: 0, y: 0 },
+      { w: 1, h: 1 },
+      0,
+      elevation,
+    );
+    expect(stacked.x).toBeCloseTo(CELL_SIZE / 2 - PX_PER_HEIGHT * elevation);
+    expect(stacked.y).toBeCloseTo(CELL_SIZE / 2 - PX_PER_HEIGHT * elevation);
   });
 });

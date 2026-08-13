@@ -169,7 +169,12 @@ describe("emitterCenter", () => {
     ).toEqual({ fx: 3.5, fy: 4.5, fz: 0 });
   });
 
-  it("raises Z by half the tile height", () => {
+  /**
+   * A full-height body's centre is drawn half a cell up-left of the cell it
+   * stands in, so that is where it lights from — otherwise the pool sits on the
+   * footprint and the tile reads as emitting from its feet.
+   */
+  it("raises Z by half the tile height, and emits from where that lands", () => {
     const tall = tile({
       id: "lamp",
       height: 2,
@@ -177,8 +182,8 @@ describe("emitterCenter", () => {
     });
     const byId = { ...tilesById, lamp: tall };
     expect(emitterCenter(0, 0, 0, [{ tileId: "lamp" }], 0, byId)).toEqual({
-      fx: 0.5,
-      fy: 0.5,
+      fx: 0,
+      fy: 0,
       fz: 0.5,
     });
   });
@@ -193,7 +198,7 @@ describe("emitterCenter", () => {
     const byId = { ...tilesById, "ghost-lamp": lamp };
     expect(
       emitterCenter(0, 0, 0, [{ tileId: "ghost-lamp" }], 0, byId),
-    ).toEqual({ fx: 0.5, fy: 0.5, fz: 0.5 });
+    ).toEqual({ fx: 0, fy: 0, fz: 0.5 });
   });
 
   it("accounts for standing on a half-block base", () => {
@@ -206,7 +211,20 @@ describe("emitterCenter", () => {
         1,
         tilesById,
       ),
-    ).toEqual({ fx: 0.5, fy: 0.5, fz: 0.5 });
+    ).toEqual({ fx: 0, fy: 0, fz: 0.5 });
+  });
+
+  /** The shift is against the emitter's own level, not the world floor. */
+  it("shifts by height above its own level, not absolute elevation", () => {
+    const upstairs = emitterCenter(
+      6,
+      6,
+      2,
+      [{ tileId: "half" }, { tileId: "torch" }],
+      1,
+      tilesById,
+    );
+    expect(upstairs).toEqual({ fx: 6, fy: 6, fz: 2.5 });
   });
 });
 

@@ -8,6 +8,7 @@ import {
   parseCoordKey,
   resolveLightPassing,
 } from "./types";
+import { emitterScreenXY } from "./geometry";
 import { elevationAt, getStack } from "./mapData";
 import { computeLightingFlood, MAX_LIGHT_LEVEL } from "./lightingFlood";
 import { resolveLight } from "./tileResolve";
@@ -231,8 +232,9 @@ export function stackOcclusion(
 }
 
 /**
- * Fractional cell-space emit position for a lit tile: XY at the cell centre,
- * Z at the tile's vertical centre (stack base elevation + half its height).
+ * Fractional cell-space emit position for a lit tile: Z at the tile's vertical
+ * centre (stack base elevation + half its height), XY where that centre is
+ * drawn (see {@link emitterScreenXY}).
  */
 export function emitterCenter(
   x: number,
@@ -245,11 +247,8 @@ export function emitterCenter(
   const def = tilesById[stack[stackIndex]?.tileId ?? ""];
   const height = def?.height ?? 0;
   const baseAbs = z * HEIGHT_PER_LEVEL + elevationAt(stack, stackIndex, tilesById);
-  return {
-    fx: x + 0.5,
-    fy: y + 0.5,
-    fz: (baseAbs + height / 2) / HEIGHT_PER_LEVEL,
-  };
+  const fz = (baseAbs + height / 2) / HEIGHT_PER_LEVEL;
+  return { ...emitterScreenXY(x, y, z, fz), fz };
 }
 
 /**

@@ -10,6 +10,7 @@ import {
   depthStackBias,
   drawOrder,
   screenToCoord,
+  spriteLightCells,
   spriteWorldOrigin,
 } from "../lib/geometry";
 import {
@@ -86,8 +87,9 @@ const MAX_GHOST_CELLS = 256;
 /** Debounce lighting recompute while painting. */
 const LIGHTING_DEBOUNCE_MS = 50;
 /**
- * Shift the sampled light map half a cell up-left so glow sits nearer the
- * visual middle of a tile (cabinet projection), not the base corner.
+ * Puts a cell's light value at its own integer coordinate: half a texel back
+ * lines texel centres up with cell coordinates rather than cell corners.
+ * `spriteLightCells` picks where on a sprite that value lands.
  */
 const LIGHT_MAP_CELL_OFFSET = 0.5;
 
@@ -1190,10 +1192,13 @@ export class EditorRenderer {
             box: depthBox(cell.x, cell.y, foot, foot),
             stackBias: depthStackBias(z, stackIndex),
             texture: this.magentaTex,
-            lightX0: cell.x,
-            lightY0: cell.y,
-            lightX1: cell.x + 1,
-            lightY1: cell.y + 1,
+            ...spriteLightCells(
+              cell.x,
+              cell.y,
+              { x: 0, y: 0 },
+              { w: 1, h: 1 },
+              0,
+            ),
             unlit: false,
           });
           return;
@@ -1223,10 +1228,13 @@ export class EditorRenderer {
         const v0 = 1 - ((rect.y + rect.h) * CELL_SIZE) / tileset.height;
         const texture = this.textures.get(tileset.id) ?? this.magentaTex;
         const isAnimated = (frames?.length ?? 0) > 1;
-        const lightX0 = cell.x;
-        const lightY0 = cell.y;
-        const lightX1 = cell.x + 1;
-        const lightY1 = cell.y + 1;
+        const light = spriteLightCells(
+          cell.x,
+          cell.y,
+          first.sprite.base,
+          rect,
+          def.height,
+        );
         const unlit = tileCanEmitLight(def);
         const animKey =
           def.type === "autotile"
@@ -1245,10 +1253,7 @@ export class EditorRenderer {
           box: depthBox(cell.x, cell.y, foot, foot + def.height),
           stackBias: depthStackBias(z, stackIndex),
           texture,
-          lightX0,
-          lightY0,
-          lightX1,
-          lightY1,
+          ...light,
           unlit,
           anim:
             isAnimated && frames

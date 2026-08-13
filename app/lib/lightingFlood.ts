@@ -16,6 +16,7 @@ import {
   parseCoordKey,
   resolveLightPassing,
 } from "./types";
+import { emitterScreenXY } from "./geometry";
 import { chunkIndexOf, chunkKeyAt, elevationAt } from "./mapData";
 import type { EmitterOverride, RawLightGrid, RawLevelLight } from "./lighting";
 import { resolveLight } from "./tileResolve";
@@ -97,7 +98,10 @@ function stackOcc(
   };
 }
 
-/** Mirrors {@link emitterCenter} — kept local to avoid a lighting↔flood cycle. */
+/**
+ * Mirrors {@link emitterCenter} — kept local to avoid a lighting↔flood cycle.
+ * The screen shift itself lives in `geometry`, which neither imports.
+ */
 function emitCenter(
   x: number,
   y: number,
@@ -110,11 +114,8 @@ function emitCenter(
   const height = def?.height ?? 0;
   const baseAbs =
     z * HEIGHT_PER_LEVEL + elevationAt(stack, stackIndex, tilesById);
-  return {
-    fx: x + 0.5,
-    fy: y + 0.5,
-    fz: (baseAbs + height / 2) / HEIGHT_PER_LEVEL,
-  };
+  const fz = (baseAbs + height / 2) / HEIGHT_PER_LEVEL;
+  return { ...emitterScreenXY(x, y, z, fz), fz };
 }
 
 type EmitterSeed = {

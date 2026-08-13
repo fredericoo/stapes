@@ -2,6 +2,7 @@ import {
   baseCellWorldOrigin,
   depthStackBias,
   elevationScreenOffset,
+  emitterScreenXY,
   PX_PER_HEIGHT,
 } from "../lib/geometry";
 import type {
@@ -1409,11 +1410,8 @@ export class GameRenderer {
       );
       // Destination stack does not hold the actor yet — centre above its surface.
       const destAbs = this.surfaceFootAbs(map, to.x, to.y, to.z);
-      const b = {
-        fx: to.x + 0.5,
-        fy: to.y + 0.5,
-        fz: (destAbs + actorHeight / 2) / HEIGHT_PER_LEVEL,
-      };
+      const destFz = (destAbs + actorHeight / 2) / HEIGHT_PER_LEVEL;
+      const b = { ...emitterScreenXY(to.x, to.y, to.z, destFz), fz: destFz };
       return {
         x: from.x,
         y: from.y,
@@ -1426,13 +1424,14 @@ export class GameRenderer {
 
     if (actor.fall) {
       const visualFeet = actor.fall.feetAbs - actor.fallProgress;
+      const fz = (visualFeet + actorHeight / 2) / HEIGHT_PER_LEVEL;
+      // Falling drops the sprite down-right, and the emit position with it.
       return {
         x: actor.x,
         y: actor.y,
         z: actor.z,
-        fx: actor.x + 0.5,
-        fy: actor.y + 0.5,
-        fz: (visualFeet + actorHeight / 2) / HEIGHT_PER_LEVEL,
+        ...emitterScreenXY(actor.x, actor.y, actor.z, fz),
+        fz,
       };
     }
 

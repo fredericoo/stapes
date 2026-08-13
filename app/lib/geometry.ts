@@ -61,6 +61,81 @@ export function spriteWorldOrigin(
   };
 }
 
+/** A cell's own midpoint, in cells. */
+const CELL_CENTRE_CELLS = 0.5;
+
+/**
+ * Cell-space corners at which a sprite's quad reads the light field.
+ *
+ * The light texture holds one value per cell and is sampled bilinearly, with a
+ * cell's value sitting at its integer coordinate (`LIGHT_MAP_CELL_OFFSET` in
+ * the renderers sets that convention up). One cell of light is stretched over
+ * the whole sprite rect, so these corners are what decides *where on the art*
+ * the tile's own value lands.
+ *
+ * That anchor is the tile's body centre. The projection draws a body
+ * {@link PX_PER_HEIGHT} px up-left per height unit, so a tall tile's art covers
+ * ground that is not its own cell: reading the cell value at the art's corner
+ * lights the art as if the body stood where its topmost pixel is drawn. Half
+ * the tile's height up-left of the cell centre is where the body actually is —
+ * for a full-level tile that works out to half a cell, which is the shift the
+ * flat constant used to apply to everything.
+ *
+ * A flat floor has no body, so it reads its own cell centre. That is what keeps
+ * light arriving through a hole *on* the hole instead of half a tile up-left of
+ * it, where a floor has no business being lit.
+ */
+export function spriteLightCells(
+  x: number,
+  y: number,
+  base: { x: number; y: number },
+  rect: { w: number; h: number },
+  height: number,
+): { lightX0: number; lightY0: number; lightX1: number; lightY1: number } {
+  const bodyCentreCells = height / 2 / HEIGHT_PER_LEVEL;
+  // Distance from the art's top-left corner to the anchor, in cells, then
+  // divided by the rect it is stretched across to land in light-UV units.
+  const anchorX = (base.x + CELL_CENTRE_CELLS - bodyCentreCells) / rect.w;
+  const anchorY = (base.y + CELL_CENTRE_CELLS - bodyCentreCells) / rect.h;
+  return {
+    lightX0: x - anchorX,
+    lightY0: y - anchorY,
+    lightX1: x - anchorX + 1,
+    lightY1: y - anchorY + 1,
+  };
+}
+
+/**
+ * Cell-space XY a body should emit light from, so its glow lands where its
+ * sprite is drawn.
+ *
+ * A pool of light centred on a cell is drawn on that cell, but the flame that
+ * casts it is drawn up-left by its own height — so a torch lit from its cell
+ * centre reads as a torch emitting from its feet. Shifting the emitter up-left
+ * by that same height closes the gap. This is the emitter-side twin of
+ * {@link spriteLightCells}: one moves the light to the art, the other reads the
+ * light where the art is.
+ *
+ * `fz` is a fractional *level* coordinate, so `fz - z` is the body's height
+ * above its own level's floor — and one level of climb is exactly one cell of
+ * up-left travel, which is why it converts straight to cells. Only that
+ * in-level part is compensated: the cell per level between an emitter and the
+ * floors below it is the diagonal a vertical shaft of light is drawn along, and
+ * light falling through a hole belongs at the bottom of that shaft.
+ */
+export function emitterScreenXY(
+  x: number,
+  y: number,
+  z: number,
+  fz: number,
+): { fx: number; fy: number } {
+  const upLeftCells = fz - z;
+  return {
+    fx: x + CELL_CENTRE_CELLS - upLeftCells,
+    fy: y + CELL_CENTRE_CELLS - upLeftCells,
+  };
+}
+
 /**
  * Invert projection for the current level:
  * worldPx = screen/zoom + cameraOffset
