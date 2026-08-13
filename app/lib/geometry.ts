@@ -145,23 +145,91 @@ export function rayDepth(screenX: number, screenY: number, elev: number): number
 }
 
 /**
- * Elevation of the box surface seen at a screen pixel — the box's three visible
- * faces (top, south, east) resolved as one value.
+ * Elevation at which a ray *leaves* the box — the near side, where its three
+ * visible faces (top, south, east) are.
  *
  * Along a view ray elevation rises as it travels away from the camera, so the
  * nearest surface is the *highest* elevation still inside the box: each face
- * caps it, hence the min. Rays that miss the box entirely (sprite art drawn
- * outside its logical footprint, e.g. a tree canopy) clamp to `foot`.
+ * caps it, hence the min.
  */
+function boxExitElevation(
+  box: DepthBox,
+  screenX: number,
+  screenY: number,
+): number {
+  return Math.min(
+    (box.eastPx - screenX) / PX_PER_HEIGHT,
+    (box.southPx - screenY) / PX_PER_HEIGHT,
+    box.top,
+  );
+}
+
+/**
+ * Elevation at which a ray reaches the box's far side — its north and west
+ * faces, where a ray travelling away from the camera goes in.
+ *
+ * One cell of screen travel is {@link HEIGHT_PER_LEVEL} height units of ray
+ * climb, so the far faces are the near ones a cell back.
+ */
+function boxFarFaceElevation(
+  box: DepthBox,
+  screenX: number,
+  screenY: number,
+): number {
+  return (
+    Math.max(
+      (box.eastPx - screenX) / PX_PER_HEIGHT,
+      (box.southPx - screenY) / PX_PER_HEIGHT,
+    ) - HEIGHT_PER_LEVEL
+  );
+}
+
+/**
+ * Elevation of the box surface seen at a screen pixel, and whether the ray
+ * found one at all.
+ *
+ * A ray that crosses the box exits through one of its visible faces, and that
+ * exit is the surface. A ray that *misses* — every sprite has some, because art
+ * is authored in a 2x2-cell slot while the box is one cell of footprint by its
+ * declared height — has no surface, and which way it missed decides what it
+ * gets instead:
+ *
+ * - past the far (north/west) faces, i.e. art hanging up-left, over the cells
+ *   *behind* it: the far-face plane, where the ray would have gone in had the
+ *   box been deep enough to catch it. That plane is exactly where the
+ *   neighbour's own face is, so the two tie — and `overhang` marks the fragment
+ *   so {@link DEPTH_OVERHANG_BIAS} can settle the tie for the art. Depth stays
+ *   continuous across the silhouette's edge, since the two agree there.
+ * - under the foot, i.e. art hanging down-right, over the cells *in front* of
+ *   it: the foot plane, and no bias. Art drawn over ground nearer the camera
+ *   has to stay behind that ground, which is what painter's order already says.
+ *
+ * Clamping to the box in both directions is what this replaces, and it lost
+ * art: overhang up-left claimed the top face, so a one-pixel outline sticking
+ * out past the silhouette was beaten by any neighbour whose real surface was
+ * there — the bite out of a crate's top edge — and a deer's head, drawn well
+ * outside its own footprint, sorted as if lying on the floor.
+ */
+export function boxSurface(
+  box: DepthBox,
+  screenX: number,
+  screenY: number,
+): { elevation: number; overhang: boolean } {
+  const exit = boxExitElevation(box, screenX, screenY);
+  const farFace = boxFarFaceElevation(box, screenX, screenY);
+  return {
+    elevation: Math.max(exit, farFace, box.foot),
+    overhang: farFace > exit,
+  };
+}
+
+/** The elevation half of {@link boxSurface}. */
 export function boxSurfaceElevation(
   box: DepthBox,
   screenX: number,
   screenY: number,
 ): number {
-  const eastFace = (box.eastPx - screenX) / PX_PER_HEIGHT;
-  const southFace = (box.southPx - screenY) / PX_PER_HEIGHT;
-  const surface = Math.min(eastFace, southFace, box.top);
-  return Math.max(box.foot, Math.min(surface, box.top));
+  return boxSurface(box, screenX, screenY).elevation;
 }
 
 /**
@@ -199,6 +267,30 @@ export const DEPTH_PLANE_BIAS = 0.0005;
 
 /** East contributes far less than south (south-major, matching {@link drawOrder}). */
 export const DEPTH_PLANE_EAST_WEIGHT = 1 / 1024;
+
+/** Widest a sprite's art reaches past its own cell, in cells. */
+const MAX_ART_OVERHANG_CELLS = 4;
+
+/**
+ * Forward nudge, in ray-depth units, for a fragment whose ray misses its box —
+ * art drawn outside its own silhouette.
+ *
+ * Overhanging art has no geometry to sort by, so {@link boxSurface} lands it on
+ * the plane between its cell and the next, which is exactly where the
+ * neighbour's own face is. The two then tie at every shared pixel and the plane
+ * bias settles it south-first, which loses the art whenever the neighbour is the
+ * more southern cell: a deer's head, drawn hanging over the wall corner it is
+ * standing beside, was swallowed by that corner.
+ *
+ * This decides such ties for the art instead. It sits between the two scales it
+ * has to separate — larger than the plane bias can accumulate across the widest
+ * art we allow, and far smaller than one art pixel of ray depth (1/CELL_SIZE) —
+ * so it can only ever break a tie, never reorder fragments that are genuinely
+ * apart. Two overhangs meeting both carry it, so they still settle by painter
+ * order between themselves.
+ */
+export const DEPTH_OVERHANG_BIAS =
+  MAX_ART_OVERHANG_CELLS * CELL_SIZE * DEPTH_PLANE_BIAS;
 
 /**
  * Per-level stride for {@link depthStackBias}. Must beat any in-level
@@ -249,11 +341,12 @@ export function fragDepth(
 ): number {
   const px = snapToPixelCenter(screenX);
   const py = snapToPixelCenter(screenY);
-  const elev = boxSurfaceElevation(box, px, py);
+  const surface = boxSurface(box, px, py);
   const d =
-    rayDepth(px, py, elev) +
+    rayDepth(px, py, surface.elevation) +
     stackBias * DEPTH_STACK_BIAS +
-    planeDepthBias(box);
+    planeDepthBias(box) +
+    (surface.overhang ? DEPTH_OVERHANG_BIAS : 0);
   const normalized = (DEPTH_MAX - d) / (DEPTH_MAX - DEPTH_MIN);
   return Math.max(0, Math.min(1, normalized));
 }

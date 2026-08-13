@@ -65,11 +65,40 @@ describe("boxSurfaceElevation", () => {
     expect(boxSurfaceElevation(column, 40 - 2 * PX_PER_HEIGHT, 40 - 3 * PX_PER_HEIGHT)).toBe(2);
   });
 
-  it("caps at the top face and never dips below the foot", () => {
+  it("caps at the top face over the footprint", () => {
     const column = depthBox(4, 4, 1, 3);
-    expect(boxSurfaceElevation(column, -1000, -1000)).toBe(3);
-    // Art drawn outside the footprint (tree canopy) clamps to the foot plane.
-    expect(boxSurfaceElevation(column, 1000, 1000)).toBe(1);
+    const { sx, sy } = footPixel(4, 4);
+    // Up-left by the top face's own shift: still over the box, reading its top.
+    expect(
+      boxSurfaceElevation(column, sx + 4 - 3 * PX_PER_HEIGHT, sy + 4 - 3 * PX_PER_HEIGHT),
+    ).toBe(3);
+  });
+
+  it("gives a missed ray the entry plane, not a face of the box", () => {
+    const box = depthBox(4, 4, 0, 2);
+    const { sx, sy } = footPixel(4, 4);
+
+    // A deer's antlers: art up and east of the footprint, so the ray passes the
+    // box on the outside. Reading the east face there would put them a hair off
+    // the floor and let anything nearby cut through them.
+    const antler = { sx: sx + CELL_SIZE - 0.5, sy: sy - CELL_SIZE + 1.5 };
+    expect(boxSurfaceElevation(box, antler.sx, antler.sy)).toBeGreaterThan(1);
+
+    // A crate's outline: one pixel up-left of the top face, i.e. just past the
+    // silhouette. Pinning it to the top face is what let a neighbour whose real
+    // surface reaches slightly higher there eat the outline.
+    const topFace = { sx: sx - 2 * PX_PER_HEIGHT, sy: sy - 2 * PX_PER_HEIGHT };
+    expect(boxSurfaceElevation(box, topFace.sx + 1, topFace.sy - 1)).toBeGreaterThan(2);
+  });
+
+  it("stays continuous across the edge of the silhouette", () => {
+    const column = depthBox(4, 4, 0, 2);
+    // Walk east across the pixel where the east face ends and the miss begins.
+    const sy = 4 * CELL_SIZE + 4;
+    const edge = 5 * CELL_SIZE;
+    const before = boxSurfaceElevation(column, edge - 0.5, sy);
+    const after = boxSurfaceElevation(column, edge + 0.5, sy);
+    expect(Math.abs(after - before)).toBeLessThanOrEqual(1 / PX_PER_HEIGHT);
   });
 });
 
@@ -125,15 +154,105 @@ describe("fragDepth", () => {
     expectInFront(fragDepth(east, sx, sy), fragDepth(west, sx, sy));
   });
 
-  it("still lets real elevation beat the south/east plane bias", () => {
+  it("hands the plane between two cells to the southern sprite", () => {
+    // A southern sprite's overhanging art enters its own box on exactly the
+    // plane the northern tile's south face occupies, so the two read the same
+    // elevation at every shared pixel and nothing in the geometry can separate
+    // them. The plane bias does, south first — which is what keeps a crate's
+    // top outline drawn over the wall standing behind it.
     const southFlat = depthBox(5, 11, 0, 0);
-    const northTall = depthBox(5, 10, 0, 2);
+    const northTall = depthBox(5, 10, 0, HEIGHT_PER_LEVEL);
     const sx = 5 * CELL_SIZE + 4;
     const sy = 10 * CELL_SIZE + 4;
     expectInFront(
+      fragDepth(southFlat, sx, sy),
       fragDepth(northTall, sx, sy),
+    );
+
+    // Real elevation still dominates: lift the northern tile a whole level and
+    // it beats the overhang and the bias together.
+    const northRaised = depthBox(
+      5,
+      10,
+      HEIGHT_PER_LEVEL,
+      HEIGHT_PER_LEVEL * 2,
+    );
+    expectInFront(
+      fragDepth(northRaised, sx, sy),
       fragDepth(southFlat, sx, sy),
     );
+  });
+
+  /**
+   * Art overhangs its box: sprites are authored in a 2x2-cell slot, while the
+   * box is one cell of footprint by the tile's declared height. The overhang is
+   * where the tile's outline lives, so losing it is immediately visible.
+   */
+  describe("art outside the silhouette", () => {
+    // A crate: height 1, so its silhouette is CELL_SIZE + PX_PER_HEIGHT square
+    // and the top row of its outline sits one pixel above that.
+    const crate = depthBox(0, 0, 0, 1);
+    const outline = { sx: -1, sy: -PX_PER_HEIGHT - 1 };
+
+    it("keeps an outline in front of the tall neighbour on its own diagonal", () => {
+      // (x+1, y-1) shares the crate's depth diagonal, and its south face climbs
+      // right through the crate's top edge on screen. Sampled where that face
+      // actually is — half a cell east, where the wall art starts.
+      const wall = depthBox(1, -1, 0, HEIGHT_PER_LEVEL);
+      const sx = outline.sx + CELL_SIZE / 2;
+      expectInFront(
+        fragDepth(crate, sx, outline.sy, depthStackBias(0, 1)),
+        fragDepth(wall, sx, outline.sy, depthStackBias(0, 1)),
+      );
+    });
+
+    it("keeps an outline in front of the tall neighbour due north", () => {
+      const wall = depthBox(0, -1, 0, HEIGHT_PER_LEVEL);
+      expectInFront(
+        fragDepth(crate, outline.sx, outline.sy, depthStackBias(0, 1)),
+        fragDepth(wall, outline.sx, outline.sy, depthStackBias(0, 1)),
+      );
+    });
+
+    it("keeps a tall sprite's overhang in front of what it hangs over", () => {
+      // The deer's antlers: drawn up and east of its footprint, over the cell
+      // north-east of it. Reading a face of the deer's own box there sorted
+      // them onto the floor, and the neighbour sliced straight through.
+      const deer = depthBox(0, 0, 0, HEIGHT_PER_LEVEL);
+      const wall = depthBox(1, -1, 0, HEIGHT_PER_LEVEL);
+      const antler = { sx: CELL_SIZE - 0.5, sy: -CELL_SIZE + 1.5 };
+      expectInFront(
+        fragDepth(deer, antler.sx, antler.sy, depthStackBias(0, 1)),
+        fragDepth(wall, antler.sx, antler.sy, depthStackBias(0, 1)),
+      );
+    });
+
+    it("keeps a head hanging over the wall corner it stands beside", () => {
+      // The deer's own frame draws its head down-left, over the cell to its
+      // south-west. That cell's wall is on the same depth diagonal, so its face
+      // and the head's entry plane are the same plane and tie at every shared
+      // pixel — and the plane bias hands ties to the more southern cell, which
+      // is the wall. The overhang bias is what keeps the head.
+      const deer = depthBox(0, 0, 0, HEIGHT_PER_LEVEL);
+      const wall = depthBox(-1, 1, 0, HEIGHT_PER_LEVEL);
+      const head = { sx: -CELL_SIZE + 0.5, sy: CELL_SIZE - 2.5 };
+      expectInFront(
+        fragDepth(deer, head.sx, head.sy, depthStackBias(0, 2)),
+        fragDepth(wall, head.sx, head.sy, depthStackBias(0, 1)),
+      );
+    });
+
+    it("still lets the neighbour in front win over the overhang", () => {
+      // Same overhang, but now the wall is due east — genuinely one step nearer
+      // the camera — so it must occlude the antlers.
+      const deer = depthBox(0, 0, 0, HEIGHT_PER_LEVEL);
+      const wall = depthBox(1, 0, 0, HEIGHT_PER_LEVEL);
+      const antler = { sx: CELL_SIZE - 0.5, sy: -CELL_SIZE + 1.5 };
+      expectInFront(
+        fragDepth(wall, antler.sx, antler.sy, depthStackBias(0, 1)),
+        fragDepth(deer, antler.sx, antler.sy, depthStackBias(0, 1)),
+      );
+    });
   });
 
   /**
