@@ -288,7 +288,9 @@ describe("computeLighting flood fill", () => {
       { x: 1, y: 0, z: 0, tiles: ["floor"] },
     ]);
     const grid = computeLighting(map, tilesById, [0, 0, 0]);
-    expect(sampleLevelLight(grid.levels.get(0)!, 0, 0)[0]).toBeGreaterThan(0.4);
+    // Comfortably lit rather than bright: the cell is half a cell off the
+    // emitter in Y, and Y_FALLOFF counts that distance double.
+    expect(sampleLevelLight(grid.levels.get(0)!, 0, 0)[0]).toBeGreaterThan(0.3);
   });
 
   it("daytime: sky-exposed walls, half-bricks, and trees get full daylight", () => {

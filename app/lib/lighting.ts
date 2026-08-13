@@ -18,6 +18,17 @@ export { MAX_LIGHT_LEVEL };
 /** 1 level of Z equals 1 cell of XY for spherical distance. */
 export const VERTICAL_FALLOFF = 1;
 
+/**
+ * Cells of Y a cell of reach buys — light spreads half as far north-south as
+ * it does east-west.
+ *
+ * A level of climb is drawn one cell up *and* one cell left, so screen Y
+ * carries both the world's Y and the world's height. A pool that is round in
+ * world space therefore reads as stretched down the screen, and squaring that
+ * up is a decision about how the light looks, not about where it is.
+ */
+export const Y_FALLOFF = 2;
+
 /** Below this transmission, treat the ray as fully blocked. */
 const TRANSMISSION_EPSILON = 1e-3;
 
@@ -411,11 +422,9 @@ function castEmitter(
     for (let ty = yLo; ty <= yHi; ty++) {
       for (let tx = xLo; tx <= xHi; tx++) {
         const dx = tx - e.x;
-        const dy = ty - e.y;
-        const dz = tz - e.z;
-        const dist = Math.sqrt(
-          dx * dx + dy * dy + (dz * VERTICAL_FALLOFF) * (dz * VERTICAL_FALLOFF),
-        );
+        const dy = (ty - e.y) * Y_FALLOFF;
+        const dz = (tz - e.z) * VERTICAL_FALLOFF;
+        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
         if (dist > e.radius) continue;
 
         const isSelf = tx === e.lx && ty === e.ly && tz === e.lz;

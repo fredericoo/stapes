@@ -26,6 +26,8 @@ export const MAX_LIGHT_LEVEL = 15;
 
 const TRANSMISSION_EPSILON = 1e-3;
 const VERTICAL_FALLOFF = 1;
+/** Mirrors {@link Y_FALLOFF} — kept local to avoid a lighting↔flood cycle. */
+const Y_FALLOFF = 2;
 
 /**
  * 6-face + 4 diagonal (XY) with Euclidean step cost — softens diamond shapes.
@@ -554,11 +556,9 @@ export function computeLightingFlood(
             continue;
           }
           const dx = tx - e.x;
-          const dy = ty - e.y;
-          const dz = tz - e.z;
-          const dist = Math.sqrt(
-            dx * dx + dy * dy + (dz * VERTICAL_FALLOFF) * (dz * VERTICAL_FALLOFF),
-          );
+          const dy = (ty - e.y) * Y_FALLOFF;
+          const dz = (tz - e.z) * VERTICAL_FALLOFF;
+          const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
           if (dist > e.radius) continue;
 
           const i = idx(dom, lx, ly, lz);
