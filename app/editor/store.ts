@@ -73,7 +73,10 @@ export type EditorStore = {
   mapVersion: number;
   currentLevel: number;
   showOtherLevels: boolean;
-  /** Every level at full opacity, no grid or selection chrome — how the game will look. */
+  /**
+   * Every level solid — negative ones included — and no grid or selection
+   * chrome: the same draw play makes, so it can be trusted to test against.
+   */
   previewMode: boolean;
   lighting: LightingSettings;
   tool: ToolId;

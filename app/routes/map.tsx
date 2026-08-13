@@ -230,7 +230,7 @@ export default function MapPage() {
             title={
               previewMode
                 ? "Preview shows every level"
-                : "Ghost related floors — above when on 0+, below when underground"
+                : "Ghost the floors above as one fade — capped at -1 underground"
             }
           >
             <input
@@ -244,7 +244,7 @@ export default function MapPage() {
             />
             Show other levels
           </label>
-          <Tooltip content="Preview (W) — every level at full opacity, no grid or selection">
+          <Tooltip content="Preview (W) — every level as play draws it, no grid or selection">
             <Switch
               checked={previewMode}
               onCheckedChange={(v) =>
@@ -254,9 +254,10 @@ export default function MapPage() {
               thumb={<IconEye size={12} stroke={2.5} aria-hidden="true" />}
             />
           </Tooltip>
-          {/* Nothing in the editor reads the hour once lighting is off — the
-              background here is a fixed paper colour, unlike in play — so the
-              slider goes with it rather than sitting there doing nothing. */}
+          {/* Nothing reads the hour once lighting is off — the authoring
+              background is a fixed paper colour, and preview only borrows play's
+              sky while there is light to go with it — so the slider goes with it
+              rather than sitting there doing nothing. */}
           <div
             className={[
               "flex items-center gap-2",

@@ -49,7 +49,7 @@ import {
   injectWorldShader,
 } from "../render/worldQuads";
 import {
-  createPaletteDitherCompositeMaterial,
+  createLevelFadeCompositeMaterial,
   PalettePass,
 } from "../render/palettePass";
 import {
@@ -91,43 +91,39 @@ const LIGHTING_DEBOUNCE_MS = 50;
  */
 const LIGHT_MAP_CELL_OFFSET = 0.5;
 
-/** Bayer keep-rate hits 0 at this |Δz| (max |Δz| in range is 16, but falloff stops earlier). */
-const GHOST_FADE_DISTANCE = 9;
-/** Keep-rate for the nearest non-current level (|Δz| === 1). */
-const GHOST_NEAR_KEEP = 0.5;
+/** Fade of the fused "other levels" image over the floor being edited. */
+const OTHER_LEVELS_OPACITY = 0.35;
+
+type LevelVisibility = "hidden" | "solid" | "ghost";
 
 /**
- * Visibility / Bayer keep-rate for a level when "show other levels" is on.
+ * How a level is drawn relative to the one being edited.
  *
- * Hard bands (always, including preview) so caves and surface never mix:
- * - current ≥ 0 (surface / 0 is above ground): only [0..MAX]
- * - current ≤ -1 (cave): only [MIN..-1] — never 0 or above
+ * Preview is the game: every floor, solid, no clipping — it is there to be
+ * looked at rather than painted into, and play draws the whole stack.
  *
- * Within the band: above → ghost (fade with Δz), at/below → full.
+ * Authoring keeps the same shape and only decides what to do with the floors
+ * you are standing *over*. Everything at or below the current level is solid,
+ * always, so a floor is edited in the context it will be played in. Everything
+ * above is either gone or one fused ghost.
+ *
+ * The ceiling on that ghost is the only asymmetry. Above ground it is the top
+ * of the world, because the sky is empty and whatever is up there is worth
+ * seeing. Underground it stops at -1: the surface sits over every cave, so
+ * without the clip a tunnel is edited under a whole town.
  */
-function opacityForLevel(
+function levelVisibility(
   z: number,
   current: number,
   showOther: boolean,
   preview: boolean,
-): number | null {
-  if (current < 0) {
-    if (z >= 0 || z < MIN_LEVEL) return null;
-  } else if (z < 0 || z > MAX_LEVEL) {
-    return null;
-  }
-
-  if (preview) return 1;
-  if (z === current) return 1;
-  if (!showOther) return null;
-  if (z < current) return 1;
-
-  // z > current — dithered ghost toward the sky / surface (still in-band).
-  const dist = z - current;
-  if (dist >= GHOST_FADE_DISTANCE) return null;
-  const linear = (GHOST_FADE_DISTANCE - dist) / GHOST_FADE_DISTANCE;
-  const nearLinear = (GHOST_FADE_DISTANCE - 1) / GHOST_FADE_DISTANCE;
-  return (linear / nearLinear) * GHOST_NEAR_KEEP;
+): LevelVisibility {
+  if (z < MIN_LEVEL || z > MAX_LEVEL) return "hidden";
+  if (preview) return "solid";
+  if (z <= current) return "solid";
+  if (!showOther) return "hidden";
+  const ghostCeiling = current < 0 ? -1 : MAX_LEVEL;
+  return z <= ghostCeiling ? "ghost" : "hidden";
 }
 
 function disposeObject3D(obj: THREE.Object3D) {
@@ -163,8 +159,6 @@ export class EditorRenderer {
   private tilesById: Record<string, TileDef> = {};
   private levelGroups = new Map<number, THREE.Group>();
   private levelTarget: THREE.WebGLRenderTarget | null = null;
-  /** Where world/grid/composite write before the palette pass. */
-  private outputTarget: THREE.WebGLRenderTarget | null = null;
   private compositeScene: THREE.Scene;
   private compositeCamera: THREE.Camera;
   private compositeMaterial: THREE.ShaderMaterial;
@@ -242,7 +236,7 @@ export class EditorRenderer {
     this.scene.add(this.grid);
     this.scene.add(this.overlays);
 
-    this.compositeMaterial = createPaletteDitherCompositeMaterial();
+    this.compositeMaterial = createLevelFadeCompositeMaterial();
     const quad = new THREE.Mesh(
       new THREE.PlaneGeometry(2, 2),
       this.compositeMaterial,
@@ -1455,18 +1449,35 @@ export class EditorRenderer {
   }
 
   /**
-   * Levels at full opacity are drawn straight to the canvas. A dimmed level is
-   * drawn opaque into an offscreen target first, then composited as one flat
-   * image so the whole level fades together rather than tile by tile.
+   * The clear colour behind the world.
+   *
+   * Preview is meant to be play, and play's sky moves with the hour, so it
+   * takes the same colour. Authoring keeps the flat paper colour — as does
+   * preview with lighting off, where the hour has stopped meaning anything and
+   * a midnight sky behind fully lit tiles is just confusing.
+   */
+  private backgroundFor(
+    s: ReturnType<typeof useEditorStore.getState>,
+  ): number {
+    if (!s.previewMode || !s.lighting.enabled) return BACKGROUND_COLOR;
+    return sampleIllumination(s.lighting.minutesOfDay).background;
+  }
+
+  /**
+   * Solid levels go down in one pass, exactly as play draws them: every quad
+   * writes its own depth, so a single render interleaves the floors correctly
+   * and nothing here has to sort them. The levels above — the ghosts — are
+   * drawn into an offscreen target together and faded in as one image.
    */
   private renderFrame(s: ReturnType<typeof useEditorStore.getState>) {
     const r = this.renderer;
     r.info.reset();
 
-    this.outputTarget = this.palettePass.sceneTarget(r);
+    const background = this.backgroundFor(s);
+    const output = this.palettePass.sceneTarget(r);
 
-    r.setRenderTarget(this.outputTarget);
-    r.setClearColor(BACKGROUND_COLOR, 1);
+    r.setRenderTarget(output);
+    r.setClearColor(background, 1);
     r.clear(true, true, false);
 
     this.world.visible = false;
@@ -1484,65 +1495,62 @@ export class EditorRenderer {
     renderChrome(this.grid);
 
     this.world.visible = true;
-    const levels = [...this.levelGroups.keys()].sort((a, b) => a - b);
-    let batch: THREE.Group[] = [];
-    const flush = () => {
-      if (batch.length === 0) return;
-      for (const g of batch) g.visible = true;
-      r.setRenderTarget(this.outputTarget);
-      r.setClearColor(BACKGROUND_COLOR, 1);
-      r.render(this.scene, this.camera);
-      for (const g of batch) g.visible = false;
-      batch = [];
-    };
-
-    for (const z of levels) {
-      const opacity = opacityForLevel(
+    const solid: THREE.Group[] = [];
+    const ghosts: THREE.Group[] = [];
+    for (const [z, group] of this.levelGroups) {
+      const visibility = levelVisibility(
         z,
         s.currentLevel,
         s.showOtherLevels,
         s.previewMode,
       );
-      if (opacity === null) continue;
-      const group = this.levelGroups.get(z)!;
-      if (opacity >= 1) {
-        batch.push(group);
-        continue;
-      }
-      // Anything below this level must already be on the canvas (or sceneTarget).
-      flush();
-
-      const target = this.levelRenderTarget();
-      group.visible = true;
-      r.setRenderTarget(target);
-      r.setClearColor(0x000000, 0);
-      r.clear(true, true, false);
-      r.render(this.scene, this.camera);
-      group.visible = false;
-
-      r.setRenderTarget(this.outputTarget);
-      r.setClearColor(BACKGROUND_COLOR, 1);
-      this.compositeMaterial.uniforms.tLevel!.value = target.texture;
-      this.compositeMaterial.uniforms.uOpacity!.value = opacity;
-      this.compositeMaterial.uniforms.uPixelScale!.value = s.zoom;
-      (this.compositeMaterial.uniforms.uCamera!.value as THREE.Vector2).set(
-        s.camera.x,
-        s.camera.y,
-      );
-      (this.compositeMaterial.uniforms.uCanvasSize!.value as THREE.Vector2).set(
-        this.canvasW,
-        this.canvasH,
-      );
-      r.render(this.compositeScene, this.compositeCamera);
+      if (visibility === "hidden") continue;
+      (visibility === "solid" ? solid : ghosts).push(group);
     }
-    flush();
+
+    if (solid.length > 0) {
+      for (const g of solid) g.visible = true;
+      r.setRenderTarget(output);
+      r.render(this.scene, this.camera);
+      for (const g of solid) g.visible = false;
+    }
+
+    if (ghosts.length > 0) this.compositeGhostLevels(ghosts, output);
     this.world.visible = false;
 
     // Quantise before chrome so selection outlines stay crisp.
-    this.outputTarget = null;
     this.palettePass.blitToCanvas(r);
 
     renderChrome(this.overlays);
+  }
+
+  /**
+   * Flatten every level above the current one into one faded image.
+   *
+   * Fusing them is the point. Composited a floor at a time, each ghost blends
+   * over the one below it, so a stack of rooms reads as every interior wall in
+   * the building at once and the fade compounds with depth. Drawn together into
+   * one depth-sorted target, only the surfaces you would actually see looking
+   * down are in the picture that gets faded.
+   */
+  private compositeGhostLevels(
+    groups: THREE.Group[],
+    output: THREE.WebGLRenderTarget,
+  ) {
+    const r = this.renderer;
+    const target = this.levelRenderTarget();
+
+    for (const g of groups) g.visible = true;
+    r.setRenderTarget(target);
+    r.setClearColor(0x000000, 0);
+    r.clear(true, true, false);
+    r.render(this.scene, this.camera);
+    for (const g of groups) g.visible = false;
+
+    r.setRenderTarget(output);
+    this.compositeMaterial.uniforms.tLevel!.value = target.texture;
+    this.compositeMaterial.uniforms.uOpacity!.value = OTHER_LEVELS_OPACITY;
+    r.render(this.compositeScene, this.compositeCamera);
   }
 
   private pointerToCoord(e: PointerEvent) {
