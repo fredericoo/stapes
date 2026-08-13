@@ -1,7 +1,10 @@
-import { useCallback, useSyncExternalStore } from "react";
-import type { Direction } from "../lib/types";
+import { useCallback } from "react";
+import type { InteractionOption } from "../game/interactionOptions";
+import type { Direction, TileDef, TilesetDef } from "../lib/types";
+import { useMediaQuery } from "../lib/useMediaQuery";
 import { ChatBar } from "./ChatBar";
 import { DirectionPad } from "./DirectionPad";
+import { InteractionList } from "./InteractionList";
 import { LookToggle } from "./LookToggle";
 
 /**
@@ -14,18 +17,23 @@ import { LookToggle } from "./LookToggle";
  *
  * Chrome added below the square takes its height from the game rather than
  * covering it, and needs no sizing work to do so: the canvas is `100cqmin` of a
- * `flex-1` container, so anything in the flow underneath simply leaves it less
- * to be the smaller edge of. That is the lever to keep pulling as more UI
- * arrives.
+ * box that is square by ratio and allowed to shrink, so anything in the flow
+ * underneath simply leaves it less to be the smaller edge of. Chrome added
+ * *beside* it — the interaction list on a desktop — works the same way round,
+ * narrowing the column the square measures itself against. That is the lever to
+ * keep pulling as more UI arrives.
  */
 
-const COARSE_POINTER = "(pointer: coarse)";
+/**
+ * Room for the interaction list beside the game, on a pointer that has hover.
+ *
+ * Fixed rather than fluid, and always present even while empty: it comes out of
+ * the square's width, so a column that appeared and vanished with its contents
+ * would resize the canvas every time the player walked past a crate.
+ */
+const INTERACTION_PANEL_WIDTH_PX = 224;
 
-function subscribeToPointerKind(onChange: () => void): () => void {
-  const query = window.matchMedia(COARSE_POINTER);
-  query.addEventListener("change", onChange);
-  return () => query.removeEventListener("change", onChange);
-}
+const COARSE_POINTER = "(pointer: coarse)";
 
 /**
  * Is the primary input a finger?
@@ -39,11 +47,7 @@ function subscribeToPointerKind(onChange: () => void): () => void {
  * gains a pad on hydration is a smaller lie than a pad that vanishes.
  */
 export function useCoarsePointer(): boolean {
-  return useSyncExternalStore(
-    subscribeToPointerKind,
-    () => window.matchMedia(COARSE_POINTER).matches,
-    () => false,
-  );
+  return useMediaQuery(COARSE_POINTER);
 }
 
 export function GameViewport({
@@ -55,6 +59,10 @@ export function GameViewport({
   onTypingChange,
   looking = false,
   onLookingChange,
+  interactions = [],
+  onInteract,
+  tiles = [],
+  tilesets = [],
 }: {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   /**
@@ -75,6 +83,16 @@ export function GameViewport({
    */
   looking?: boolean;
   onLookingChange?: (looking: boolean) => void;
+  /**
+   * What is within reach right now, worked out by whoever owns the session —
+   * see `../game/interactionOptions`. Empty by default so a route that has not
+   * wired it up shows the panel saying so rather than crashing.
+   */
+  interactions?: InteractionOption[];
+  onInteract?: (option: InteractionOption) => void;
+  /** Catalogue behind the list's sprites. */
+  tiles?: TileDef[];
+  tilesets?: TilesetDef[];
 }) {
   const coarse = useCoarsePointer();
   const press = useCallback(onDirectionPress, [onDirectionPress]);
@@ -84,58 +102,91 @@ export function GameViewport({
     [onTypingChange],
   );
 
+  const list = (
+    <InteractionList
+      options={interactions}
+      tiles={tiles}
+      tilesets={tilesets}
+      onAct={(option) => onInteract?.(option)}
+      className="min-h-0 w-full flex-1"
+    />
+  );
+
   return (
-    <div
-      className="flex h-full w-full touch-manipulation flex-col items-center bg-ink select-none"
-      style={{
-        // A double-tap on a control is a double-tap-to-select gesture as far as
-        // the browser is concerned, and dragging from it extends the selection.
-        // With nothing selectable under the finger it reaches for the nearest
-        // text that is — the chrome above — so the whole surface has to opt out,
-        // not just the buttons: the gaps between them are where a fast thumb
-        // actually lands. `touch-manipulation` drops the double-tap zoom that
-        // rides along with it, while leaving pinch zoom alone.
-        WebkitTouchCallout: "none",
-        WebkitTapHighlightColor: "transparent",
-      }}
-    >
+    <div className="flex h-full w-full bg-ink">
       <div
-        // Top-aligned, not centred: where the pane is taller than the square —
-        // a phone — the game belongs against the chrome with the controls
-        // under it, rather than floating in the middle of two letterboxes.
-        // Where the square is the taller way round it fills the pane and this
-        // makes no difference.
-        className="flex min-h-0 w-full flex-1 items-start justify-center overflow-hidden"
-        // Sized container so the square below can be stated in terms of the
-        // pane's shorter edge. `aspect-square` cannot do this on its own: a
-        // definite height wins over the ratio, so clamping the width just
-        // stretches the canvas instead of shrinking the box.
-        style={{ containerType: "size" }}
+        className="flex h-full min-w-0 flex-1 touch-manipulation flex-col items-center select-none"
+        style={{
+          // A double-tap on a control is a double-tap-to-select gesture as far as
+          // the browser is concerned, and dragging from it extends the selection.
+          // With nothing selectable under the finger it reaches for the nearest
+          // text that is — the chrome above — so the whole surface has to opt out,
+          // not just the buttons: the gaps between them are where a fast thumb
+          // actually lands. `touch-manipulation` drops the double-tap zoom that
+          // rides along with it, while leaving pinch zoom alone.
+          WebkitTouchCallout: "none",
+          WebkitTapHighlightColor: "transparent",
+        }}
       >
         <div
-          className="relative"
-          style={{ width: "100cqmin", height: "100cqmin" }}
+          // Square by ratio and allowed to shrink, rather than taking every
+          // pixel of free height. Both halves are what hands the leftover to
+          // the controls underneath: on a phone the game is bound by the *width*
+          // and everything below the square used to be dead space inside this
+          // box, which is precisely the room the interaction list wants. Shrink
+          // is what keeps a rotated phone honest — the box gives height back
+          // when there is not enough to be square in, and `100cqmin` letterboxes
+          // the game inside whatever is left.
+          className="flex w-full min-h-0 shrink aspect-square items-center justify-center overflow-hidden"
+          // Sized container so the square below can be stated in terms of the
+          // box's shorter edge. The ratio alone cannot do this: it is the box
+          // that is square, and a shrunk box is not.
+          style={{ containerType: "size" }}
         >
-          <canvas
-            ref={canvasRef}
-            className="block h-full w-full touch-none"
-            style={{ imageRendering: "pixelated" }}
-          />
-          {/* Sized and positioned by app.css; the render loop writes into it. */}
-          <div ref={labelRef} className="world-label-layer" />
+          <div
+            className="relative"
+            style={{ width: "100cqmin", height: "100cqmin" }}
+          >
+            <canvas
+              ref={canvasRef}
+              className="block h-full w-full touch-none"
+              style={{ imageRendering: "pixelated" }}
+            />
+            {/* Sized and positioned by app.css; the render loop writes into it. */}
+            <div ref={labelRef} className="world-label-layer" />
+          </div>
         </div>
+
+        {onSay ? <ChatBar onSay={onSay} onTypingChange={noteTyping} /> : null}
+
+        {coarse ? (
+          // Reading hand on the left, walking thumb on the right. The arrows go
+          // to the side most thumbs are, and the two things you *read* before
+          // acting — what is in reach, and whether you are looking rather than
+          // touching — sit together on the other, where they are out from under
+          // the hand that is steering.
+          <div className="flex w-full min-h-0 flex-1 items-stretch gap-3 px-3 py-3">
+            <div className="flex min-h-0 min-w-0 flex-1 flex-col items-start gap-2">
+              {list}
+              {onLookingChange ? (
+                <LookToggle looking={looking} onChange={onLookingChange} />
+              ) : null}
+            </div>
+            <div className="flex shrink-0 items-center">
+              <DirectionPad onPress={press} onRelease={release} />
+            </div>
+          </div>
+        ) : null}
       </div>
 
-      {onSay ? <ChatBar onSay={onSay} onTypingChange={noteTyping} /> : null}
-
-      {coarse ? (
-        <div className="flex shrink-0 items-center justify-center gap-6 py-4">
-          <DirectionPad onPress={press} onRelease={release} />
-          {onLookingChange ? (
-            <LookToggle looking={looking} onChange={onLookingChange} />
-          ) : null}
-        </div>
-      ) : null}
+      {coarse ? null : (
+        <aside
+          className="flex h-full shrink-0 flex-col border-l-2 border-paper/20 p-2"
+          style={{ width: INTERACTION_PANEL_WIDTH_PX }}
+        >
+          {list}
+        </aside>
+      )}
     </div>
   );
 }

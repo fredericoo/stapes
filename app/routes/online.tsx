@@ -10,6 +10,10 @@ import {
   bindLookKey,
   HeldDirections,
 } from "../game/heldDirections";
+import {
+  applyInteraction,
+  type InteractionOption,
+} from "../game/interactionOptions";
 import { dataStore } from "../context";
 import {
   DEFAULT_PLAY_MINUTES,
@@ -86,6 +90,10 @@ export default function OnlinePage() {
   // Through a ref for the same reason the directions are: a reconnect swaps the
   // session underneath while the page keeps the callback it was handed.
   const say = useCallback((text: string) => sessionRef.current?.say(text), []);
+  const act = useCallback(
+    (option: InteractionOption) => applyInteraction(sessionRef.current, option),
+    [],
+  );
   // Focus is what makes held keys unreachable, so it is what has to drop them.
   const noteTyping = useCallback((typing: boolean) => {
     if (typing) inputRef.current?.clear();
@@ -101,6 +109,7 @@ export default function OnlinePage() {
   // same as an empty world — an unknown headcount reads as a dash rather than
   // claiming nobody is here.
   const [players, setPlayers] = useState<number | null>(null);
+  const [interactions, setInteractions] = useState<InteractionOption[]>([]);
   const [lightingEnabled, setLightingEnabled] = useState(true);
   const [looking, setLooking] = useState(false);
   // Same reason as the lighting ref below: a reconnect builds a fresh renderer,
@@ -145,6 +154,10 @@ export default function OnlinePage() {
       session?.dispose();
       session = null;
       sessionRef.current = null;
+      // Emptied with the session that answered for it: a list of things to
+      // shove, left on screen across a reconnect, offers a board nobody is
+      // simulating any more.
+      setInteractions([]);
     };
 
     const connect = () => {
@@ -179,6 +192,7 @@ export default function OnlinePage() {
         renderer.setMinutesOfDay(remote.minutesOfDay());
         renderer.setOnClock(setMinutesOfDay);
         renderer.setOnStats(setStats);
+        renderer.setOnInteractions(setInteractions);
         rendererRef.current = renderer;
         renderer.start();
         // The fresh session knows nothing about keys held across the reconnect.
@@ -215,14 +229,28 @@ export default function OnlinePage() {
     };
   }, [tiles, tilesets, socketPath]);
 
+  // Held in a variable because it rides in one of two slots. A world that is
+  // simply connected is not news and folds away with everything else on a
+  // phone; a world that is *not* has to be on screen, because it is the only
+  // thing explaining why nothing is moving — and a player who has to open a
+  // menu to find that out has already concluded the game is broken.
+  const statusChip = (
+    <span
+      className="border-2 border-paper/40 px-1.5 py-0.5 text-xs uppercase text-paper"
+      role="status"
+    >
+      {status}
+    </span>
+  );
+
   return (
     <AppShell
-      trailing={
+      menuExtras={
         <>
           <div
             className="flex items-center gap-2"
-            // Announced, unlike the clock beside it: the headcount changes only
-            // when somebody actually arrives or leaves, which is worth hearing.
+            // Announced, unlike the clock: the headcount changes only when
+            // somebody actually arrives or leaves, which is worth hearing.
             role="status"
           >
             <span className="text-xs uppercase text-paper/70">Players</span>
@@ -231,27 +259,24 @@ export default function OnlinePage() {
             </span>
           </div>
           <FrameStatsReadout stats={stats} />
-          <span
-            className="border-2 border-paper/40 px-1.5 py-0.5 text-xs uppercase text-paper"
-            role="status"
-          >
-            {status}
-          </span>
+          {status === "live" ? statusChip : null}
           <LightingToggle
             enabled={lightingEnabled}
             onChange={setLightingEnabled}
           />
-          <div className="flex items-center gap-2">
-            <span className="text-xs uppercase text-paper/70">Time</span>
-            <span
-              className="border-2 border-paper/40 px-1.5 py-0.5 text-xs tabular-nums text-paper"
-              // Named rather than announced: the hour changes every second, so
-              // a live region here would talk over everything else.
-              aria-label={`Time of day, ${formatClock(minutesOfDay)}`}
-            >
-              {formatClock(minutesOfDay)}
-            </span>
-          </div>
+        </>
+      }
+      trailing={
+        <>
+          {status === "live" ? null : statusChip}
+          <span
+            className="border-2 border-paper/40 px-1.5 py-0.5 text-xs tabular-nums text-paper"
+            // Named rather than announced: the hour changes every second, so
+            // a live region here would talk over everything else.
+            aria-label={`Time of day, ${formatClock(minutesOfDay)}`}
+          >
+            {formatClock(minutesOfDay)}
+          </span>
         </>
       }
     >
@@ -264,6 +289,10 @@ export default function OnlinePage() {
         onTypingChange={noteTyping}
         looking={looking}
         onLookingChange={setLooking}
+        interactions={interactions}
+        onInteract={act}
+        tiles={tiles}
+        tilesets={tilesets}
       />
     </AppShell>
   );

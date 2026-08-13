@@ -11,6 +11,10 @@ import {
   HeldDirections,
 } from "../game/heldDirections";
 import {
+  applyInteraction,
+  type InteractionOption,
+} from "../game/interactionOptions";
+import {
   DEFAULT_PLAY_MINUTES,
   formatClock,
   MINUTES_PER_DAY,
@@ -40,12 +44,17 @@ export default function PlayPage() {
   const labelRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<GameRenderer | null>(null);
   const inputRef = useRef<HeldDirections | null>(null);
+  const sessionRef = useRef<GameSession | null>(null);
   const pressDirection = useCallback(
     (d: Direction) => inputRef.current?.press(d),
     [],
   );
   const releaseDirection = useCallback(
     (d: Direction) => inputRef.current?.release(d),
+    [],
+  );
+  const act = useCallback(
+    (option: InteractionOption) => applyInteraction(sessionRef.current, option),
     [],
   );
   const [minutesOfDay, setMinutesOfDay] = useState<MinutesOfDay>(
@@ -57,6 +66,7 @@ export default function PlayPage() {
   const [looking, setLooking] = useState(false);
   const [lightingEnabled, setLightingEnabled] = useState(true);
   const [stats, setStats] = useState<FrameStats | null>(null);
+  const [interactions, setInteractions] = useState<InteractionOption[]>([]);
   const minutesRef = useRef(minutesOfDay);
   minutesRef.current = minutesOfDay;
   const pausedRef = useRef(clockPaused);
@@ -77,6 +87,7 @@ export default function PlayPage() {
       console.error(err);
       return;
     }
+    sessionRef.current = session;
 
     const renderer = new GameRenderer(
       canvas,
@@ -90,6 +101,7 @@ export default function PlayPage() {
     renderer.setLightingEnabled(lightingRef.current);
     renderer.setOnClock(setMinutesOfDay);
     renderer.setOnStats(setStats);
+    renderer.setOnInteractions(setInteractions);
     rendererRef.current = renderer;
     renderer.start();
 
@@ -102,9 +114,11 @@ export default function PlayPage() {
       unbindLook();
       unbindKeyboard();
       inputRef.current = null;
+      sessionRef.current = null;
       rendererRef.current = null;
       renderer.dispose();
       setStats(null);
+      setInteractions([]);
     };
   }, [map, tiles, tilesets]);
 
@@ -127,7 +141,10 @@ export default function PlayPage() {
 
   return (
     <AppShell
-      trailing={
+      // Everything you reach for while *building* — the frame counter, the
+      // lighting switch, the hand on the clock. On a phone they fold away and
+      // the bar keeps one row for the game.
+      menuExtras={
         <>
           <FrameStatsReadout stats={stats} />
           <LightingToggle
@@ -147,9 +164,6 @@ export default function PlayPage() {
               aria-valuetext={formatClock(minutesOfDay)}
               className="hard-slider w-36"
             />
-            <span className="border-2 border-paper/40 px-1.5 py-0.5 text-xs tabular-nums text-paper">
-              {formatClock(minutesOfDay)}
-            </span>
             <label className="flex items-center gap-1.5 text-xs text-paper">
               <input
                 type="checkbox"
@@ -162,6 +176,21 @@ export default function PlayPage() {
           </div>
         </>
       }
+      // The hour stays out, on every screen. It is the one readout that is
+      // about the world rather than about working on it — it says whether the
+      // dark you are looking at is night or a roof — and a reading you have to
+      // open a menu to take is not a reading.
+      trailing={
+        <span
+          className="border-2 border-paper/40 px-1.5 py-0.5 text-xs tabular-nums text-paper"
+          // Named rather than announced: the hour changes every second, so a
+          // live region here would talk over everything else. The label is what
+          // the "Time" caption used to be, now that the caption folds away.
+          aria-label={`Time of day, ${formatClock(minutesOfDay)}`}
+        >
+          {formatClock(minutesOfDay)}
+        </span>
+      }
     >
       <GameViewport
         canvasRef={canvasRef}
@@ -170,6 +199,10 @@ export default function PlayPage() {
         onDirectionRelease={releaseDirection}
         looking={looking}
         onLookingChange={setLooking}
+        interactions={interactions}
+        onInteract={act}
+        tiles={tiles}
+        tilesets={tilesets}
       />
     </AppShell>
   );

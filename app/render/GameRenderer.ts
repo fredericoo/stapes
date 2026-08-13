@@ -14,6 +14,10 @@ import type {
 } from "../game/GameSession";
 import { PLAYER_TILE_ID } from "../game/constants";
 import { bodyNameFor } from "../game/displayName";
+import {
+  listInteractionOptions,
+  type InteractionOption,
+} from "../game/interactionOptions";
 import { WorldLabelLayer, type WorldLabel } from "./textLabels";
 import { FrameProfiler, type FrameStats } from "./frameProfile";
 import { fallDropPx, fallFootAbs, standingFootAbs } from "./fallAnchor";
@@ -139,6 +143,14 @@ export class GameRenderer {
   private clockPaused = false;
   private onClock: ((minutes: MinutesOfDay) => void) | null = null;
   private onStats: ((stats: FrameStats) => void) | null = null;
+  private onInteractions:
+    | ((options: InteractionOption[]) => void)
+    | null = null;
+  /** Board and cell the held list was derived from. @see pushInteractionOptions */
+  private interactionsMap: MapFile | null = null;
+  private interactionsAt = "";
+  /** Contents of the last list handed over, so an unchanged one is not re-sent. */
+  private interactionsKey = "";
   private profiler = new FrameProfiler();
   private disposed = false;
   private raf = 0;
@@ -263,6 +275,25 @@ export class GameRenderer {
     this.world.setProfiler(cb ? this.profiler : null);
   }
 
+  /**
+   * What the player could act on right now, whenever that changes.
+   *
+   * Derived here rather than polled from outside because this is the loop that
+   * already knows when the world moved, and the answer is only ever interesting
+   * at the moments it changes — a list rebuilt into React state thirty times a
+   * second would re-render the page for a frame nobody could tell apart from
+   * the last one. See {@link pushInteractionOptions} for the two gates.
+   */
+  setOnInteractions(cb: ((options: InteractionOption[]) => void) | null) {
+    this.onInteractions = cb;
+    // The next frame has to report to a fresh listener even if nothing has
+    // moved, so both gates are dropped rather than left holding an answer the
+    // new callback has never seen.
+    this.interactionsMap = null;
+    this.interactionsAt = "";
+    this.interactionsKey = "";
+  }
+
   start() {
     if (this.running || this.disposed) return;
     this.running = true;
@@ -308,6 +339,7 @@ export class GameRenderer {
     this.onStats = null;
     this.world.setProfiler(null);
     this.onClock = null;
+    this.onInteractions = null;
     this.stop();
     this.detachPointer();
     this.detachKeys();
@@ -751,13 +783,29 @@ export class GameRenderer {
       this.session.setTarget(null);
       return;
     }
-    const visual = this.actorVisualWorld(snap.map, actor);
-    const outside =
-      visual.x < camera.x ||
-      visual.y < camera.y ||
-      visual.x > camera.x + VIEW_PX ||
-      visual.y > camera.y + VIEW_PX;
-    if (outside) this.session.setTarget(null);
+    if (!this.isWithinView(snap.map, actor, camera)) this.session.setTarget(null);
+  }
+
+  /**
+   * Is this actor's sprite inside the drawn square?
+   *
+   * Measured against the view rather than a radius in cells, because "on my
+   * screen" is what a player actually means, and the view is square and known.
+   * Shared by the two questions that both mean exactly that: whether a target
+   * is still yours to fight, and whether a body is one you could pick.
+   */
+  private isWithinView(
+    map: MapFile,
+    actor: ActorSnapshot,
+    camera: { x: number; y: number },
+  ): boolean {
+    const visual = this.actorVisualWorld(map, actor);
+    return (
+      visual.x >= camera.x &&
+      visual.y >= camera.y &&
+      visual.x <= camera.x + VIEW_PX &&
+      visual.y <= camera.y + VIEW_PX
+    );
   }
 
   private repickLook(snap: GameSnapshot, camera: { x: number; y: number }) {
@@ -1079,6 +1127,11 @@ export class GameRenderer {
     });
 
     this.world.setOverlays(this.overlaysFor(snap, motions));
+    this.pushInteractionOptions(
+      snap,
+      camera,
+      hideAbove ? anchor.z : undefined,
+    );
     // Written from inside the render loop's own rAF, so the style change and the
     // canvas paint land in the same commit — which is what stops DOM text from
     // trailing the sprite it belongs to.
@@ -1092,6 +1145,71 @@ export class GameRenderer {
     // Driven by the frame, not the pointer: walking away from an object
     // revokes the affordance without the pointer having moved at all.
     this.applyCursor(snap);
+  }
+
+  /**
+   * Hand the list of available interactions out, when it has actually moved.
+   *
+   * Two gates, and they answer different questions. The first is whether the
+   * answer *could* have changed: everything in the list is a function of the
+   * board, the player's cell and who they are fighting, so identity on the
+   * first two and equality on the third make standing still free — which is
+   * most frames. The second is whether it *did*, because the map gets a new
+   * identity on every commit anywhere in the world, and somebody walking across
+   * the room must not re-render this page.
+   *
+   * The camera is not in the first gate even though the list depends on it,
+   * because it is derived from the player's own position: it slides during a
+   * walk and settles where the cell says. The cost is that a body crossing the
+   * edge of the view is listed at the next commit rather than the next frame,
+   * which is 200ms at the one place on screen nobody is looking.
+   */
+  private pushInteractionOptions(
+    snap: GameSnapshot,
+    camera: { x: number; y: number },
+    hideLevelsAbove: number | undefined,
+  ) {
+    if (!this.onInteractions) return;
+
+    const at = `${snap.self.x},${snap.self.y},${snap.self.z},${snap.targetId}`;
+    if (snap.map === this.interactionsMap && at === this.interactionsAt) return;
+    this.interactionsMap = snap.map;
+    this.interactionsAt = at;
+
+    const options = listInteractionOptions(
+      snap.map,
+      this.tilesById,
+      snap.self,
+      this.targetableActors(snap, camera, hideLevelsAbove),
+      snap.targetId,
+    );
+    const key = options.map((o) => `${o.id}/${o.active}`).join("|");
+    if (key === this.interactionsKey) return;
+    this.interactionsKey = key;
+    this.onInteractions(options);
+  }
+
+  /**
+   * Bodies the viewer could pick a fight with: the ones they can see.
+   *
+   * Picking a target is pointing at somebody, so the bound is what is drawn
+   * rather than what is in reach — the same two rules the name tags use, since
+   * a body worth naming is exactly a body worth choosing. Whoever is already
+   * being fought is kept regardless: they can step onto a floor the roof-cut
+   * hides, and dropping their row would leave a touch player in a fight with no
+   * way out of it.
+   */
+  private targetableActors(
+    snap: GameSnapshot,
+    camera: { x: number; y: number },
+    hideLevelsAbove: number | undefined,
+  ): ActorSnapshot[] {
+    return snap.actors.filter(
+      (actor) =>
+        actor.id === snap.targetId ||
+        (this.isVisibleLevel(snap, actor.z, hideLevelsAbove) &&
+          this.isWithinView(snap.map, actor, camera)),
+    );
   }
 
   /**

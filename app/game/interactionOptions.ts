@@ -1,0 +1,300 @@
+import { getStack } from "../lib/mapData";
+import type { InteractionKind } from "../lib/interactions";
+import { resolveSwitch } from "../lib/interactions";
+import type { MapFile, TileDef } from "../lib/types";
+import { DIRECTIONS, MAX_LEVEL, MIN_LEVEL } from "../lib/types";
+import {
+  canPushFrom,
+  canSwitchFrom,
+  INTERACT_LEVEL_SLACK,
+  type ObjectRef,
+} from "./affordances";
+import { bodyNameFor } from "./displayName";
+import type { ActorSnapshot, PlaySession } from "./GameSession";
+import { DIR_DELTA } from "./movement";
+
+/**
+ * Everything the player could do right now, as a list rather than as something
+ * to be found by pointing.
+ *
+ * The world already answers this question — the outline under the cursor is the
+ * same answer — but only for one object at a time, and only once you have aimed
+ * at it. A thumb has no hover to aim with, so on a phone the affordance was
+ * invisible until it was already being used. Reading the same rules out into a
+ * list makes what is reachable something you can *see* instead of something you
+ * discover, which is as useful with a mouse as it is with a finger.
+ *
+ * Pure, and deliberately in the same place and on the same terms as
+ * `./affordances`: it asks the identical questions the renderer's pick and the
+ * server's validation ask, so the list can never offer something a tap would
+ * refuse.
+ *
+ * **One entry per action, not per thing.** A body you can both shove and fight
+ * is two entries with one name between them, which is the shape a player reads:
+ * they are looking for the *verb*, and grouping buries it under a heading. It
+ * also keeps every entry the same size, which is what lets the list be scanned
+ * rather than parsed.
+ */
+
+/** What an entry does. The push/switch pair plus the one thing a body offers. */
+export type InteractionAction = InteractionKind | "attack";
+
+export type InteractionOption = {
+  /** Identity across frames, so the list can be diffed rather than compared. */
+  id: string;
+  action: InteractionAction;
+  /**
+   * What to call it. "Push" and "Attack" belong to the interaction and are the
+   * same everywhere; a switch is named by its author — see
+   * {@link SwitchInteraction.actionName} — because only they know whether this
+   * half of the door opens or shuts.
+   */
+  label: string;
+  /** The placement to act on. `attack` carries one too, for its sprite. */
+  ref: ObjectRef;
+  /** Who to fight, for `attack`; null for anything the board offers. */
+  actorId: string | null;
+  /** The tile standing for this entry — its front sprite is what gets drawn. */
+  tileId: string;
+  /** A person by their handle, anything else by what its tile is called. */
+  name: string;
+  /** Already the thing being fought. Only ever true of an `attack`. */
+  active: boolean;
+};
+
+const LABELS: Record<InteractionAction, string> = {
+  attack: "Attack",
+  push: "Push",
+  switch: "Switch",
+};
+
+/**
+ * How much a floor counts for when sorting by nearness.
+ *
+ * Big enough that anything on your own floor comes before anything that is not.
+ * A body one storey up is drawn a couple of cells away and is nowhere near you,
+ * and a list that interleaved the two by screen distance would put a creature
+ * through a ceiling between you and the crate at your feet.
+ */
+const LEVEL_DISTANCE_WEIGHT = 100;
+
+/**
+ * Everything the viewer can act on, nearest first.
+ *
+ * Bounded by construction: four neighbouring cells across three floors for the
+ * board's own affordances, plus whichever actors the caller has already decided
+ * are on screen. Nothing here sweeps the map — the list is rebuilt whenever the
+ * board or the player moves, which during a walk is every commit, and an O(map)
+ * answer at that rate is the mistake this codebase keeps having to un-make.
+ *
+ * Motion is not consulted. An actor mid-step cannot act, but an entry that
+ * disappeared for the 200ms of every stride would flicker its way through a
+ * walk and be unhittable at the end of one; the session re-asks on the tap, so
+ * the worst a stale entry can do is nothing at all.
+ *
+ * @param visibleActors actors the viewer can *see* — on a drawn floor and
+ *   inside the view. Attacking is picking a target rather than swinging, so it
+ *   is offered at any distance you can point at, and how far the view reaches
+ *   is the renderer's question rather than this one's.
+ */
+export function listInteractionOptions(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  self: ActorSnapshot,
+  visibleActors: readonly ActorSnapshot[],
+  targetId: string | null,
+): InteractionOption[] {
+  const bodies = bodiesByCell(self, visibleActors);
+
+  return [
+    ...attackOptions(tilesById, bodies, targetId),
+    ...objectOptions(map, tilesById, self, bodies),
+  ].sort(
+    (a, b) =>
+      distanceFrom(self, a.ref) - distanceFrom(self, b.ref) ||
+      // Whatever is left is settled by id, so two things equally far off never
+      // trade places between frames. It also happens to read the right way
+      // round on a body that is both: "attack" sorts before "push".
+      (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
+  );
+}
+
+/**
+ * Run what an entry says it does.
+ *
+ * Here rather than in the component because it is the one place that knows an
+ * entry is a session call, and both routes would otherwise write the same three
+ * lines against sessions they hold differently. The list itself knows nothing
+ * about pushing or fighting; it hands the option back and this decides.
+ *
+ * Tapping the fight you are already in calls it off. That is the only way to
+ * drop a target with a thumb — the keyboard has Escape and a touch screen has
+ * nothing — and it is why the entry says which one is active at all.
+ */
+export function applyInteraction(
+  session: PlaySession | null,
+  option: InteractionOption,
+) {
+  if (!session) return;
+  if (option.action === "attack") {
+    session.setTarget(option.active ? null : option.actorId);
+    return;
+  }
+  session.interact(option.ref);
+}
+
+function refKey(ref: ObjectRef): string {
+  return `${ref.x},${ref.y},${ref.z},${ref.stackIndex}`;
+}
+
+/**
+ * Who is standing where, so a shove and a swing at the same body agree on what
+ * to call it.
+ *
+ * Without this the push entry for another player would be named after their
+ * *tile* — "Player" — beside an attack entry naming the person in it. The body
+ * is what answers the question, exactly as it does for a name tag and for
+ * speech, so both entries ask it the same way.
+ *
+ * The viewer's own body is left out: they are neither somebody to fight nor,
+ * standing on themselves, somebody to shove.
+ */
+function bodiesByCell(
+  self: ActorSnapshot,
+  visibleActors: readonly ActorSnapshot[],
+): Map<string, ActorSnapshot> {
+  const bodies = new Map<string, ActorSnapshot>();
+  for (const actor of visibleActors) {
+    if (actor.id === self.id) continue;
+    bodies.set(refKey(actor), actor);
+  }
+  return bodies;
+}
+
+/** Squared plan distance, with a whole floor counting for far more than a cell. */
+function distanceFrom(self: ActorSnapshot, ref: ObjectRef): number {
+  const dx = ref.x - self.x;
+  const dy = ref.y - self.y;
+  const dz = (ref.z - self.z) * LEVEL_DISTANCE_WEIGHT;
+  return dx * dx + dy * dy + dz * dz;
+}
+
+/**
+ * One entry per reachable object, carrying what a tap would actually run.
+ *
+ * A tile can be authored with both a switch and a push, and `PlaySession.interact`
+ * tries the switch first — so listing both would put an entry on screen that does
+ * something other than what it says. The precedence is read here rather than
+ * restated: whichever the tap would take is the one named.
+ */
+function objectOptions(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  self: ActorSnapshot,
+  bodies: Map<string, ActorSnapshot>,
+): InteractionOption[] {
+  const out: InteractionOption[] = [];
+  const zMin = Math.max(MIN_LEVEL, self.z - INTERACT_LEVEL_SLACK);
+  const zMax = Math.min(MAX_LEVEL, self.z + INTERACT_LEVEL_SLACK);
+
+  for (const direction of DIRECTIONS) {
+    const { dx, dy } = DIR_DELTA[direction];
+    const x = self.x + dx;
+    const y = self.y + dy;
+
+    for (let z = zMin; z <= zMax; z++) {
+      const stack = getStack(map, x, y, z);
+      // Only the top of a stack can be acted on, exactly as the pick has it.
+      const stackIndex = stack.length - 1;
+      const placed = stack[stackIndex];
+      if (!placed) continue;
+
+      const ref: ObjectRef = { x, y, z, stackIndex };
+      const action = objectAction(map, tilesById, self, ref);
+      if (!action) continue;
+
+      const body = bodies.get(refKey(ref));
+      out.push({
+        id: `${action}:${refKey(ref)}`,
+        action,
+        label: objectActionLabel(action, tilesById[placed.tileId]),
+        ref,
+        actorId: null,
+        tileId: placed.tileId,
+        name: body
+          ? bodyNameFor({ actorId: body.id, tileId: body.tileId }, tilesById)
+          : (tilesById[placed.tileId]?.name ?? placed.tileId),
+        active: false,
+      });
+    }
+  }
+
+  return out;
+}
+
+function objectAction(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  self: ActorSnapshot,
+  ref: ObjectRef,
+): InteractionKind | null {
+  if (canSwitchFrom(map, tilesById, self, ref)) return "switch";
+  if (canPushFrom(map, tilesById, self, ref)) return "push";
+  return null;
+}
+
+function objectActionLabel(
+  action: InteractionKind,
+  def: TileDef | undefined,
+): string {
+  if (action !== "switch" || !def) return LABELS[action];
+  return resolveSwitch(def)?.actionName?.trim() || LABELS.switch;
+}
+
+/**
+ * One entry per body the viewer can see, and whoever is already being fought.
+ *
+ * **Range is deliberately not consulted.** Tapping a body does not swing at it —
+ * it marks it as the target, and the session decides when and whether a blow
+ * lands from there. So the question this answers is "who could I pick a fight
+ * with", and the honest bound on that is what is on screen, not what is already
+ * within arm's reach: choosing your target while walking towards it is the
+ * normal way a fight starts, and an entry that only appeared once you were
+ * beside them would arrive after the decision it exists for.
+ *
+ * A battler is anything with hit points, which the snapshot already says: `hp`
+ * is null for a body that has none.
+ */
+function attackOptions(
+  tilesById: Record<string, TileDef>,
+  bodies: Map<string, ActorSnapshot>,
+  targetId: string | null,
+): InteractionOption[] {
+  const out: InteractionOption[] = [];
+
+  for (const actor of bodies.values()) {
+    if (actor.hp === null) continue;
+
+    const ref: ObjectRef = {
+      x: actor.x,
+      y: actor.y,
+      z: actor.z,
+      stackIndex: actor.stackIndex,
+    };
+    out.push({
+      id: `attack:${actor.id}`,
+      action: "attack",
+      label: LABELS.attack,
+      ref,
+      actorId: actor.id,
+      tileId: actor.tileId,
+      name: bodyNameFor(
+        { actorId: actor.id, tileId: actor.tileId },
+        tilesById,
+      ),
+      active: actor.id === targetId,
+    });
+  }
+
+  return out;
+}
