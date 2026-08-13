@@ -305,6 +305,20 @@ export type ClientMessage =
   /** Turning on the spot: shift-facing, or pressing into a wall. */
   | { type: "face"; direction: "n" | "e" | "s" | "w" }
   | { type: "interact"; ref: { x: number; y: number; z: number; stackIndex: number } }
+  /**
+   * "I am taking that."
+   *
+   * Its own message rather than an `interact` on the same slot, because the row
+   * that sends it says "Pick up" by name: a tile authored as both an item and a
+   * switch would run the switch under `interact`'s precedence, and the player
+   * would have pressed a button that did something else.
+   *
+   * Every reason it might be refused — reach, a full bag, a bag already on your
+   * back — is re-asked on this side. The client asks the same questions to
+   * decide whether to offer the row at all, which is what stops it offering one
+   * the server will not honour, but it is not trusted with the answer.
+   */
+  | { type: "pickUp"; ref: { x: number; y: number; z: number; stackIndex: number } }
   | { type: "say"; text: string }
   /**
    * "This is who I am pointing at" — or null, for nobody.
@@ -346,6 +360,15 @@ const clientMessageSchema = v.variant("type", [
   }),
   v.object({
     type: v.literal("interact"),
+    ref: v.object({
+      x: v.pipe(v.number(), v.integer()),
+      y: v.pipe(v.number(), v.integer()),
+      z: v.pipe(v.number(), v.integer()),
+      stackIndex: v.pipe(v.number(), v.integer(), v.minValue(0)),
+    }),
+  }),
+  v.object({
+    type: v.literal("pickUp"),
     ref: v.object({
       x: v.pipe(v.number(), v.integer()),
       y: v.pipe(v.number(), v.integer()),

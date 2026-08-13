@@ -18,6 +18,8 @@ import {
   MINUTES_PER_DAY,
   type MinutesOfDay,
 } from "../lib/clock";
+import type { ObjectRef } from "../game/affordances";
+import type { ItemInstance } from "../lib/itemInstance";
 import type { Direction } from "../lib/types";
 import { dataStore } from "../context";
 import { GameRenderer } from "../render/GameRenderer";
@@ -74,6 +76,16 @@ export default function PlayPage() {
   const [stats, setStats] = useState<FrameStats | null>(null);
   const [interactions, setInteractions] = useState<InteractionOption[]>([]);
   const [equipment, setEquipment] = useState<Equipment>(emptyEquipment);
+  const [openedContainer, setOpenedContainer] = useState<ItemInstance | null>(
+    null,
+  );
+  // Straight at the renderer, like the hover outline: which box is open is a
+  // frame's business, and it is the render loop that knows when its contents
+  // changed or when the player walked out of reach of it.
+  const openContainer = useCallback(
+    (ref: ObjectRef | null) => rendererRef.current?.setOpenedContainer(ref),
+    [],
+  );
   const minutesRef = useRef(minutesOfDay);
   minutesRef.current = minutesOfDay;
   const pausedRef = useRef(clockPaused);
@@ -115,6 +127,7 @@ export default function PlayPage() {
     renderer.setOnStats(setStats);
     renderer.setOnInteractions(setInteractions);
     renderer.setOnEquipment(setEquipment);
+    renderer.setOnOpenedContainer(setOpenedContainer);
     rendererRef.current = renderer;
     renderer.start();
 
@@ -131,6 +144,7 @@ export default function PlayPage() {
       setStats(null);
       setInteractions([]);
       setEquipment(emptyEquipment());
+      setOpenedContainer(null);
     };
   }, [map, tiles, tilesets]);
 
@@ -224,6 +238,8 @@ export default function PlayPage() {
         onInteract={act}
         onHoverInteraction={hoverInteraction}
         equipment={equipment}
+        openedContainer={openedContainer}
+        onOpenContainer={openContainer}
         tiles={tiles}
         tilesets={tilesets}
       />

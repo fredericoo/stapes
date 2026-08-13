@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_CONTAINER } from "../lib/item";
-import { emptyMap, replaceStack } from "../lib/mapData";
+import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { STARTING_BAG_TILE_ID, TICK_MS } from "./constants";
@@ -84,6 +84,14 @@ const tiles: TileDef[] = [
     intangible: true,
     interactions: {
       item: { type: "weapon", atk: 10, def: 0, weight: 0, mastery: "blade" },
+    },
+  }),
+  tile({
+    id: "chest",
+    kind: "item",
+    intangible: true,
+    interactions: {
+      item: { ...DEFAULT_CONTAINER, size: 2, equippable: false },
     },
   }),
   tile({
@@ -275,5 +283,181 @@ describe("a weapon reaches the blow", () => {
   it("leaves a body with no weapon fighting exactly as its tile says", () => {
     const session = fightingSession();
     expect(damageOver(session, TICK_MS * 3)).toBe(5);
+  });
+});
+
+describe("picking things up", () => {
+  const SWORD = "light-sword";
+
+  /** Grass everywhere, the player at the origin, and one item beside them. */
+  function withItem(x: number, y: number, tileId: string): GameSession {
+    const map = replaceStack(field(), x, y, 0, [
+      { tileId: "grass" },
+      { tileId },
+    ]);
+    return new GameSession(map, tiles);
+  }
+
+  function refAt(session: GameSession, x: number, y: number) {
+    const stack = getStack(session.getMap(), x, y, 0);
+    return { x, y, z: 0, stackIndex: stack.length - 1 };
+  }
+
+  function bagOf(session: GameSession) {
+    return session.getSnapshot().equipment.bag!;
+  }
+
+  it("takes the thing off the board and into the bag", () => {
+    const session = withItem(1, 0, SWORD);
+    expect(session.pickUp(refAt(session, 1, 0))).toBe(true);
+
+    expect(getStack(session.getMap(), 1, 0, 0).map((p) => p.tileId)).toEqual([
+      "grass",
+    ]);
+    expect(bagOf(session).contents).toHaveLength(1);
+    expect(bagOf(session).contents![0].tileId).toBe(SWORD);
+  });
+
+  it("keeps the identity the world gave it", () => {
+    const session = withItem(1, 0, SWORD);
+    const onFloor = getStack(session.getMap(), 1, 0, 0)[1].itemId;
+    session.pickUp(refAt(session, 1, 0));
+
+    expect(onFloor).toMatch(/^itm_/);
+    expect(bagOf(session).contents![0].id).toBe(onFloor);
+  });
+
+  it("reaches a diagonal, where a push would not", () => {
+    const session = withItem(1, 1, SWORD);
+    expect(session.pickUp(refAt(session, 1, 1))).toBe(true);
+  });
+
+  it("refuses something two cells away", () => {
+    const session = withItem(2, 0, SWORD);
+    expect(session.pickUp(refAt(session, 2, 0))).toBe(false);
+    expect(bagOf(session).contents).toEqual([]);
+  });
+
+  it("fills slots in order", () => {
+    let map = field();
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: SWORD }]);
+    map = replaceStack(map, 0, 1, 0, [
+      { tileId: "grass" },
+      { tileId: "heavy-sword" },
+    ]);
+    const session = new GameSession(map, tiles);
+
+    session.pickUp(refAt(session, 1, 0));
+    session.pickUp(refAt(session, 0, 1));
+
+    expect(bagOf(session).contents!.map((i) => i.tileId)).toEqual([
+      SWORD,
+      "heavy-sword",
+    ]);
+  });
+
+  it("refuses once the bag is full", () => {
+    let map = field();
+    // Five items around the player, for a bag that holds four.
+    const cells: Array<[number, number]> = [
+      [1, 0],
+      [0, 1],
+      [-1, 0],
+      [0, -1],
+      [1, 1],
+    ];
+    for (const [x, y] of cells) {
+      map = replaceStack(map, x, y, 0, [{ tileId: "grass" }, { tileId: SWORD }]);
+    }
+    const session = new GameSession(map, tiles);
+
+    const taken = cells.map(([x, y]) => session.pickUp(refAt(session, x, y)));
+    expect(taken).toEqual([true, true, true, true, false]);
+    expect(bagOf(session).contents).toHaveLength(4);
+  });
+
+  /**
+   * Containers do not nest, so the only place a bag can go is a back with
+   * nothing on it — and every player starts with one already there.
+   */
+  it("refuses a second bag", () => {
+    const session = withItem(1, 0, STARTING_BAG_TILE_ID);
+    expect(session.pickUp(refAt(session, 1, 0))).toBe(false);
+  });
+
+  it("takes a bag onto a bare back, contents and all", () => {
+    let map = field();
+    map = replaceStack(map, 1, 0, 0, [
+      { tileId: "grass" },
+      {
+        tileId: STARTING_BAG_TILE_ID,
+        itemId: "itm_authored",
+        contents: [{ id: "itm_loot", tileId: SWORD }],
+      },
+    ]);
+    const session = new GameSession(map, tiles);
+    // Take the starting bag off first — there is no other way to bare a back.
+    session.equipmentOf(selfId(session))!.bag = null;
+
+    expect(session.pickUp(refAt(session, 1, 0))).toBe(true);
+    const bag = bagOf(session);
+    expect(bag.id).toBe("itm_authored");
+    expect(bag.contents).toEqual([{ id: "itm_loot", tileId: SWORD }]);
+  });
+
+  it("never picks up a chest, which is looted where it lies", () => {
+    const session = withItem(1, 0, "chest");
+    expect(session.pickUp(refAt(session, 1, 0))).toBe(false);
+    expect(getStack(session.getMap(), 1, 0, 0)).toHaveLength(2);
+  });
+
+  it("refuses something buried under another tile", () => {
+    let map = field();
+    map = replaceStack(map, 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: SWORD },
+      { tileId: "grass" },
+    ]);
+    const session = new GameSession(map, tiles);
+
+    expect(session.pickUp({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(false);
+  });
+
+  it("refuses a tile that is not an item at all", () => {
+    const session = withItem(1, 0, "dummy");
+    expect(session.pickUp(refAt(session, 1, 0))).toBe(false);
+  });
+
+  /**
+   * The renderer hands equipment to React only when the object identity
+   * changes, so a kit edited in place would leave the panels showing what the
+   * player was carrying a moment ago.
+   */
+  it("replaces the kit rather than mutating it", () => {
+    const session = withItem(1, 0, SWORD);
+    const before = session.getSnapshot().equipment;
+    session.pickUp(refAt(session, 1, 0));
+
+    expect(session.getSnapshot().equipment).not.toBe(before);
+    expect(before.bag!.contents).toEqual([]);
+  });
+
+  it("announces whose kit changed, once", () => {
+    const session = withItem(1, 0, SWORD);
+    const me = selfId(session);
+    session.drainEquipmentChanges();
+
+    session.pickUp(refAt(session, 1, 0));
+    expect(session.drainEquipmentChanges()).toEqual([me]);
+    // Drained, so a second flush has nothing left to send.
+    expect(session.drainEquipmentChanges()).toEqual([]);
+  });
+
+  it("says nothing when the pickup was refused", () => {
+    const session = withItem(2, 0, SWORD);
+    session.drainEquipmentChanges();
+
+    session.pickUp(refAt(session, 2, 0));
+    expect(session.drainEquipmentChanges()).toEqual([]);
   });
 });

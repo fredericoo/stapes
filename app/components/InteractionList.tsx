@@ -1,4 +1,10 @@
-import { IconHandMove, IconSwitch, IconTarget } from "@tabler/icons-react";
+import {
+  IconBoxSeam,
+  IconHandGrab,
+  IconHandMove,
+  IconSwitch,
+  IconTarget,
+} from "@tabler/icons-react";
 import { useMemo } from "react";
 import type {
   InteractionAction,
@@ -35,6 +41,10 @@ const FRONT: "s" = "s";
 
 const ICONS: Record<InteractionAction, typeof IconTarget> = {
   target: IconTarget,
+  open: IconBoxSeam,
+  // A closing hand against push's sliding one: both are hands, and the
+  // difference between taking a thing and shoving it is what the shape says.
+  pickUp: IconHandGrab,
   push: IconHandMove,
   switch: IconSwitch,
 };

@@ -2,7 +2,7 @@ import * as v from "valibot";
 import type { BattlerDef } from "./battler";
 import type { BrainDef } from "./brain";
 import type { ItemDef } from "./item";
-import { itemForSave } from "./item";
+import { itemForSave, resolveItem } from "./item";
 import type { TileDef } from "./types";
 import { HEIGHT_PER_LEVEL, resolveActor } from "./types";
 
@@ -355,19 +355,28 @@ export function receiveTriggers(
 
 /**
  * Kinds of interaction a tile offers the player, in the order the single
- * interact button tries them. Switch comes first: it is an explicit authored
- * swap, whereas a push is the fallback "just shove it" behaviour.
+ * interact button tries them.
  *
- * Pressure plates are deliberately absent — nothing about them answers to a
- * tap, and listing one here would outline a floor tile the player cannot act
- * on.
+ * Switch comes first: it is an explicit authored swap, and an author who put
+ * one on a tile meant it to be what happens. Pick-up comes next, because
+ * lifting a thing is a better guess at what somebody wants from a sword on the
+ * floor than shoving it further away. Push is last, the fallback "just move it"
+ * behaviour that anything can fall through to.
+ *
+ * Two things are deliberately *not* here. Pressure plates, because nothing
+ * about them answers to a tap — listing one would outline a floor tile the
+ * player cannot act on. And `open`, because opening a container is not
+ * something the server does: its contents are already on the client, riding on
+ * the placement, so looking inside is local panel state. It is an
+ * `InteractionAction` without being one of these, exactly as `target` is.
  */
-export type InteractionKind = "switch" | "push";
+export type InteractionKind = "switch" | "pickUp" | "push";
 
 /** Every player-activated interaction on this tile, in a stable order. */
 export function interactionKinds(def: TileDef): InteractionKind[] {
   const kinds: InteractionKind[] = [];
   if (resolveSwitch(def)) kinds.push("switch");
+  if (resolveItem(def)) kinds.push("pickUp");
   if (resolvePush(def)) kinds.push("push");
   return kinds;
 }

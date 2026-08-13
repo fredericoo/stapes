@@ -1,7 +1,9 @@
 import { getStack } from "../lib/mapData";
 import { isInteractive, resolvePush, resolveSwitch } from "../lib/interactions";
+import { resolveContainer, resolveItem } from "../lib/item";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
 import { canReplaceStack } from "../lib/validation";
+import type { Equipment } from "./equipment";
 import { pushDestination } from "./push";
 
 /** A specific placed tile in the map — cell plus slot in its stack. */
@@ -124,4 +126,126 @@ export function canPushFrom(
   ref: ObjectRef,
 ): boolean {
   return pushTargetFrom(map, tilesById, actor, ref) != null;
+}
+
+/**
+ * How far an actor can reach to touch something, in cells.
+ *
+ * **Round, and deliberately not push's rule.** A shove needs an unambiguous
+ * "one cell further away", so it is orthogonal and adjacent; reaching out to
+ * pick a thing up or look inside it has no such constraint, and a player who
+ * could not take the sword lying diagonally at their feet would read that as a
+ * bug rather than as a rule.
+ *
+ * 1.5 squares to `dx² + dy² ≤ 2.25`, which is the eight neighbours plus the
+ * cell you are standing in and nothing else — a diagonal is 2, and two cells
+ * out is 4.
+ */
+export const REACH_CELLS = 1.5;
+
+const REACH_CELLS_SQUARED = REACH_CELLS * REACH_CELLS;
+
+/** Is this object close enough to reach, in plan and in floors? */
+export function withinReach(actor: Actor, ref: ObjectRef): boolean {
+  if (Math.abs(ref.z - actor.z) > INTERACT_LEVEL_SLACK) return false;
+  const dx = ref.x - actor.x;
+  const dy = ref.y - actor.y;
+  return dx * dx + dy * dy <= REACH_CELLS_SQUARED;
+}
+
+/**
+ * The item at a stack slot, if it is one and the actor could reach it.
+ *
+ * Deliberately not routed through {@link interactiveDefAt}: that one gates on
+ * `isInteractive`, which asks whether the *tile* offers push or switch, and an
+ * item offers neither. What it does share is the top-of-stack rule — something
+ * buried under a crate is not something you can pick up.
+ */
+export function reachableItemDefAt(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  ref: ObjectRef,
+): TileDef | null {
+  if (!withinReach(actor, ref)) return null;
+  const stack = getStack(map, ref.x, ref.y, ref.z);
+  if (ref.stackIndex !== stack.length - 1) return null;
+  const placed = stack[ref.stackIndex];
+  if (!placed) return null;
+  const def = tilesById[placed.tileId];
+  if (!def || !resolveItem(def)) return null;
+  return def;
+}
+
+/**
+ * Where a thing would go if this actor picked it up, or null if nowhere.
+ *
+ * Three answers rather than a boolean, because "can I pick this up" and "where
+ * does it land" are the same question asked once — the caller that says yes is
+ * the caller that then has to put it somewhere, and deriving the destination a
+ * second time is how the two come to disagree.
+ *
+ * - `"bag-slot"` — an equippable container, and the actor's back is free.
+ * - `"contents"` — anything else, and there is room in the bag.
+ *
+ * A container that is *not* equippable can never be picked up, because no
+ * container may hold a container and the bag slot will not take it. A corpse or
+ * a chest is looted where it lies, which is what `open` is for.
+ */
+export type PickUpDestination = "bag-slot" | "contents";
+
+export function pickUpDestination(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  ref: ObjectRef,
+  equipment: Equipment,
+): PickUpDestination | null {
+  const def = reachableItemDefAt(map, tilesById, actor, ref);
+  if (!def) return null;
+
+  const container = resolveContainer(def);
+  if (container) {
+    // Never into a bag: containers do not nest, so the only place one can go is
+    // a back that has nothing on it yet.
+    if (!container.equippable) return null;
+    return equipment.bag ? null : "bag-slot";
+  }
+
+  const bag = equipment.bag;
+  if (!bag) return null;
+  const bagDef = tilesById[bag.tileId];
+  const size = bagDef ? (resolveContainer(bagDef)?.size ?? 0) : 0;
+  return (bag.contents?.length ?? 0) < size ? "contents" : null;
+}
+
+/** Could this actor pick the thing up right now? */
+export function canPickUpFrom(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  ref: ObjectRef,
+  equipment: Equipment,
+): boolean {
+  return pickUpDestination(map, tilesById, actor, ref, equipment) != null;
+}
+
+/**
+ * Could this actor look inside the thing?
+ *
+ * Every container in reach, whether or not it could be carried — a chest that
+ * can never leave the floor is precisely the one worth opening, and a backpack
+ * you have no room for is still worth rummaging in.
+ *
+ * Nothing about the actor's own kit is consulted, which is why this takes no
+ * equipment: opening is looking, and looking costs nothing.
+ */
+export function canOpenFrom(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  ref: ObjectRef,
+): boolean {
+  const def = reachableItemDefAt(map, tilesById, actor, ref);
+  return def != null && resolveContainer(def) != null;
 }

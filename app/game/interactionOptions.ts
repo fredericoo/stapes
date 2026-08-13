@@ -2,16 +2,18 @@ import { getStack } from "../lib/mapData";
 import type { InteractionKind } from "../lib/interactions";
 import { resolveSwitch } from "../lib/interactions";
 import type { MapFile, TileDef } from "../lib/types";
-import { DIRECTIONS, MAX_LEVEL, MIN_LEVEL } from "../lib/types";
+import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 import {
+  canOpenFrom,
+  canPickUpFrom,
   canPushFrom,
   canSwitchFrom,
   INTERACT_LEVEL_SLACK,
   type ObjectRef,
 } from "./affordances";
 import { bodyNameFor } from "./displayName";
+import type { Equipment } from "./equipment";
 import type { ActorSnapshot, PlaySession } from "./GameSession";
-import { DIR_DELTA } from "./movement";
 
 /**
  * Everything the player could do right now, as a list rather than as something
@@ -45,7 +47,7 @@ import { DIR_DELTA } from "./movement";
  * is the point: you choose who you are interested in once, and change your mind
  * about what to do with them without having to choose again.
  */
-export type InteractionAction = InteractionKind | "target";
+export type InteractionAction = InteractionKind | "target" | "open";
 
 export type InteractionOption = {
   /** Identity across frames, so the list can be diffed rather than compared. */
@@ -72,6 +74,8 @@ export type InteractionOption = {
 
 const LABELS: Record<InteractionAction, string> = {
   target: "Target",
+  open: "Open",
+  pickUp: "Pick up",
   push: "Push",
   switch: "Switch",
 };
@@ -89,7 +93,12 @@ const LABELS: Record<InteractionAction, string> = {
 const ACTION_ORDER: Record<InteractionAction, number> = {
   target: 0,
   switch: 1,
-  push: 2,
+  // Above pick-up on the same thing, because a bag on the floor is far more
+  // often something to look inside than something to hoist onto your back —
+  // and looking is free where taking it commits your only bag slot.
+  open: 2,
+  pickUp: 3,
+  push: 4,
 };
 
 /**
@@ -127,12 +136,13 @@ export function listInteractionOptions(
   self: ActorSnapshot,
   visibleActors: readonly ActorSnapshot[],
   targetId: string | null,
+  equipment: Equipment,
 ): InteractionOption[] {
   const bodies = bodiesByCell(self, visibleActors);
 
   return [
     ...targetOptions(tilesById, bodies, targetId),
-    ...objectOptions(map, tilesById, self, bodies),
+    ...objectOptions(map, tilesById, self, bodies, equipment),
   ].sort(
     (a, b) =>
       distanceFrom(self, a.ref) - distanceFrom(self, b.ref) ||
@@ -164,6 +174,16 @@ export function applyInteraction(
     session.setTarget(option.active ? null : option.actorId);
     return;
   }
+  // Named rather than left to `interact`'s precedence. The row says "Pick up",
+  // and a row that ran whatever the tap would have chosen would be lying on any
+  // tile that is both an item and something else.
+  if (option.action === "pickUp") {
+    session.pickUp(option.ref);
+    return;
+  }
+  // `open` never reaches here — it is panel state, and the view intercepts it
+  // before handing anything to the session. See `GameViewport`.
+  if (option.action === "open") return;
   session.interact(option.ref);
 }
 
@@ -216,40 +236,62 @@ function objectOptions(
   tilesById: Record<string, TileDef>,
   self: ActorSnapshot,
   bodies: Map<string, ActorSnapshot>,
+  equipment: Equipment,
 ): InteractionOption[] {
   const out: InteractionOption[] = [];
   const zMin = Math.max(MIN_LEVEL, self.z - INTERACT_LEVEL_SLACK);
   const zMax = Math.min(MAX_LEVEL, self.z + INTERACT_LEVEL_SLACK);
 
-  for (const direction of DIRECTIONS) {
-    const { dx, dy } = DIR_DELTA[direction];
-    const x = self.x + dx;
-    const y = self.y + dy;
+  // The 3×3 around the actor, their own cell included, because reaching for a
+  // thing is round (see `REACH_CELLS`) where a shove is orthogonal. Still
+  // bounded by construction — nine cells across three floors, and nothing here
+  // ever sweeps the map.
+  for (let dx = -1; dx <= 1; dx++) {
+    for (let dy = -1; dy <= 1; dy++) {
+      const x = self.x + dx;
+      const y = self.y + dy;
 
-    for (let z = zMin; z <= zMax; z++) {
-      const stack = getStack(map, x, y, z);
-      // Only the top of a stack can be acted on, exactly as the pick has it.
-      const stackIndex = stack.length - 1;
-      const placed = stack[stackIndex];
-      if (!placed) continue;
+      for (let z = zMin; z <= zMax; z++) {
+        const stack = getStack(map, x, y, z);
+        // Only the top of a stack can be acted on, exactly as the pick has it.
+        const stackIndex = stack.length - 1;
+        const placed = stack[stackIndex];
+        if (!placed) continue;
+        // The actor's own body is the top of their own cell. Offering to pick
+        // yourself up is not a thing, and the diagonal sweep is what newly
+        // makes it reachable.
+        if (placed.owner === self.id) continue;
 
-      const ref: ObjectRef = { x, y, z, stackIndex };
-      const action = objectAction(map, tilesById, self, ref);
-      if (!action) continue;
-
-      const body = bodies.get(refKey(ref));
-      out.push({
-        id: `${action}:${refKey(ref)}`,
-        action,
-        label: objectActionLabel(action, tilesById[placed.tileId]),
-        ref,
-        actorId: null,
-        tileId: placed.tileId,
-        name: body
+        const ref: ObjectRef = { x, y, z, stackIndex };
+        const body = bodies.get(refKey(ref));
+        const name = body
           ? bodyNameFor({ actorId: body.id, tileId: body.tileId }, tilesById)
-          : (tilesById[placed.tileId]?.name ?? placed.tileId),
-        active: false,
-      });
+          : (tilesById[placed.tileId]?.name ?? placed.tileId);
+
+        const add = (action: InteractionAction, label: string) => {
+          out.push({
+            id: `${action}:${refKey(ref)}`,
+            action,
+            label,
+            ref,
+            actorId: null,
+            tileId: placed.tileId,
+            name,
+            active: false,
+          });
+        };
+
+        // The one thing a tap would run, named by what it would actually be —
+        // the precedence is read out of the session's own order rather than
+        // restated here.
+        const action = objectAction(map, tilesById, self, ref, equipment);
+        if (action) add(action, objectActionLabel(action, tilesById[placed.tileId]));
+
+        // And, beside it, opening — which is not something a tap runs at all.
+        // A bag on the floor is therefore two rows, "Open" and "Pick up",
+        // which is the same one-row-per-verb rule bodies already follow.
+        if (canOpenFrom(map, tilesById, self, ref)) add("open", LABELS.open);
+      }
     }
   }
 
@@ -261,8 +303,10 @@ function objectAction(
   tilesById: Record<string, TileDef>,
   self: ActorSnapshot,
   ref: ObjectRef,
+  equipment: Equipment,
 ): InteractionKind | null {
   if (canSwitchFrom(map, tilesById, self, ref)) return "switch";
+  if (canPickUpFrom(map, tilesById, self, ref, equipment)) return "pickUp";
   if (canPushFrom(map, tilesById, self, ref)) return "push";
   return null;
 }

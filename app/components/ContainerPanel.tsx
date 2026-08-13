@@ -25,6 +25,7 @@ export function ContainerPanel({
   tiles,
   tilesets,
   title,
+  onClose,
   className = "",
 }: {
   /** The container being looked into, or null when there is none to look into. */
@@ -33,6 +34,14 @@ export function ContainerPanel({
   tilesets: TilesetDef[];
   /** What to call it — "Bag" on your own, the tile's name on a chest. */
   title: string;
+  /**
+   * Shut it by hand, for a container that was opened by hand.
+   *
+   * Only the ground ones get this. The bag on your back is closed by the button
+   * that opened it, which is always on screen; a chest has no such button, and
+   * walking away is the only other way out of it.
+   */
+  onClose?: () => void;
   className?: string;
 }) {
   const tilesById = useMemo(() => tilesByIdFromList(tiles), [tiles]);
@@ -61,14 +70,26 @@ export function ContainerPanel({
       className={["flex flex-col gap-1", className].filter(Boolean).join(" ")}
       aria-label={title}
     >
-      <h2 className="text-[11px] font-bold uppercase tracking-wide text-paper/50">
-        {title}
-        {container ? (
-          <span className="ml-1 tabular-nums text-paper/40">
-            {contents.length}/{size}
-          </span>
+      <div className="flex items-center gap-2">
+        <h2 className="text-[11px] font-bold uppercase tracking-wide text-paper/50">
+          {title}
+          {container ? (
+            <span className="ml-1 tabular-nums text-paper/40">
+              {contents.length}/{size}
+            </span>
+          ) : null}
+        </h2>
+        {onClose ? (
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label={`Close ${title}`}
+            className="ml-auto shrink-0 border-2 border-paper/40 px-1 text-[11px] leading-none text-paper/70 hover:border-paper hover:text-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          >
+            ✕
+          </button>
         ) : null}
-      </h2>
+      </div>
 
       {container ? (
         <div className="flex flex-wrap gap-1" role="list">

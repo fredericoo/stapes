@@ -548,6 +548,12 @@ export class GameServer extends DurableObject<Env> {
       // stays at rest while somebody merely points at a deer, and turning this
       // on beside them is exactly the moment the clock has to start again.
       session.setAttackMode(message.enabled, actorId);
+    } else if (message.type === "pickUp") {
+      // Re-validated against the board and against the actor's own kit, on the
+      // same terms as any other affordance: the client offered the row from
+      // these rules, but it decided on a map that may be a round trip old and a
+      // bag that may have filled up since.
+      session.pickUp(message.ref, actorId);
     } else {
       // Re-validated against the board rather than trusted: the client decided
       // to offer this affordance from the same rules, but it decided on a map
@@ -555,7 +561,41 @@ export class GameServer extends DurableObject<Env> {
       session.interact(message.ref, actorId);
     }
 
+    this.flushEquipment();
     this.wake();
+  }
+
+  /**
+   * Tell anybody whose kit changed what they are carrying now.
+   *
+   * One message per affected socket rather than a field on the broadcast patch,
+   * and that is what keeps the patch cheap: a patch is diffed once and
+   * serialized once for everybody, which only works because everybody is being
+   * told the same thing. Equipment differs per player, so folding it in would
+   * turn one serialization per tick into one per player — for something nobody
+   * else can see, since there is no paperdoll.
+   *
+   * Called wherever a kit can change rather than only on the tick, because a
+   * pickup happens *between* ticks: it is input, and the world may be asleep
+   * when it arrives. Draining is idempotent, so calling it twice costs a set
+   * lookup and sends nothing.
+   */
+  private flushEquipment() {
+    const session = this.session;
+    if (!session) return;
+    const changed = session.drainEquipmentChanges();
+    if (changed.length === 0) return;
+
+    const wanted = new Set(changed);
+    for (const ws of this.ctx.getWebSockets()) {
+      const attachment = ws.deserializeAttachment() as Attachment | null;
+      if (!attachment || !wanted.has(attachment.actorId)) continue;
+      const equipment = session.equipmentOf(attachment.actorId);
+      // Gone between the change and the flush — a body that died still had its
+      // kit changed, and there is nobody left to tell.
+      if (!equipment) continue;
+      ws.send(JSON.stringify({ type: "equipment", equipment } satisfies ServerMessage));
+    }
   }
 
   /**
@@ -947,6 +987,10 @@ export class GameServer extends DurableObject<Env> {
       this.events = [];
     }
 
+    // A kit can change on a tick as well as on input — nothing does that yet,
+    // but a brain that picks something up will, and the alternative is finding
+    // out by way of a panel that never updates.
+    this.flushEquipment();
     this.savePositionsIfDue();
     this.sleepIfIdle();
   }

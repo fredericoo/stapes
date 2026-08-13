@@ -18,6 +18,8 @@ import {
   formatClock,
   type MinutesOfDay,
 } from "../lib/clock";
+import type { ObjectRef } from "../game/affordances";
+import type { ItemInstance } from "../lib/itemInstance";
 import type { Direction } from "../lib/types";
 import { ACTOR_COOKIE, GAME_SOCKET_PATH } from "../net/protocol";
 import { RemoteSession } from "../net/RemoteSession";
@@ -116,6 +118,16 @@ export default function OnlinePage() {
   const [players, setPlayers] = useState<number | null>(null);
   const [interactions, setInteractions] = useState<InteractionOption[]>([]);
   const [equipment, setEquipment] = useState<Equipment>(emptyEquipment);
+  const [openedContainer, setOpenedContainer] = useState<ItemInstance | null>(
+    null,
+  );
+  // Straight at the renderer, like the hover outline: which box is open is a
+  // frame's business, and it is the render loop that knows when its contents
+  // changed or when the player walked out of reach of it.
+  const openContainer = useCallback(
+    (ref: ObjectRef | null) => rendererRef.current?.setOpenedContainer(ref),
+    [],
+  );
   const [lightingEnabled, setLightingEnabled] = useState(true);
   const { looking, attacking, setLookLatched, setAttacking } = usePlayModes();
   // Same reason as the lighting ref below: a reconnect builds a fresh renderer,
@@ -178,6 +190,7 @@ export default function OnlinePage() {
       // And a bag from the world that just went away, whose contents the next
       // `hello` is about to replace outright.
       setEquipment(emptyEquipment());
+      setOpenedContainer(null);
     };
 
     const connect = () => {
@@ -214,6 +227,8 @@ export default function OnlinePage() {
         renderer.setOnStats(setStats);
         renderer.setOnInteractions(setInteractions);
         renderer.setOnEquipment(setEquipment);
+        renderer.setOnOpenedContainer(setOpenedContainer);
+    renderer.setOnOpenedContainer(setOpenedContainer);
         rendererRef.current = renderer;
         renderer.start();
         // The fresh session knows nothing about keys held across the reconnect,
@@ -319,6 +334,8 @@ export default function OnlinePage() {
         onInteract={act}
         onHoverInteraction={hoverInteraction}
         equipment={equipment}
+        openedContainer={openedContainer}
+        onOpenContainer={openContainer}
         tiles={tiles}
         tilesets={tilesets}
       />

@@ -12607,6 +12607,15 @@
       "-1,-3": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "crate-chest",
+          "contents": [
+            {
+              "id": "itm_seed_sword",
+              "tileId": "rusty-sword"
+            }
+          ]
         }
       ],
       "-1,-2": [
@@ -12939,6 +12948,9 @@
       "0,-2": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "basic-bag"
         }
       ],
       "0,-1": [
@@ -13246,6 +13258,9 @@
       "1,-3": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "rusty-sword"
         }
       ],
       "1,-2": [

@@ -14,7 +14,10 @@ import type {
 } from "../game/GameSession";
 import { PLAYER_TILE_ID } from "../game/constants";
 import { bodyNameFor } from "../game/displayName";
+import { canOpenFrom } from "../game/affordances";
 import type { Equipment } from "../game/equipment";
+import type { ItemInstance } from "../lib/itemInstance";
+import { instanceFromPlacement } from "../lib/itemInstance";
 import {
   listInteractionOptions,
   type InteractionOption,
@@ -176,6 +179,16 @@ export class GameRenderer {
   private onEquipment: ((equipment: Equipment) => void) | null = null;
   /** Identity of the last equipment handed on, so an idle frame costs a compare. */
   private equipmentSent: Equipment | null = null;
+  /** Kit the interaction list was last built against. See the gate below. */
+  private interactionsEquipment: Equipment | null = null;
+  private onOpenedContainer: ((container: ItemInstance | null) => void) | null =
+    null;
+  /** Which floor container the panel is showing, if any. */
+  private openedRef: ObjectRef | null = null;
+  /** The placement last read for it — the copy-on-write gate. */
+  private openedPlacement: PlacedTile | null = null;
+  /** Last value handed on. `undefined` means "nothing said yet". */
+  private openedSent: ItemInstance | null | undefined = undefined;
   private onInteractions:
     | ((options: InteractionOption[]) => void)
     | null = null;
@@ -348,6 +361,61 @@ export class GameRenderer {
     this.onEquipment(snap.equipment);
   }
 
+  /**
+   * Which container on the floor the player is looking into, or null.
+   *
+   * The reference is held here rather than the contents, because a chest's
+   * contents live on its placement and arrive through the ordinary cell patch.
+   * Anything holding a copy would be a second version of what is in the box,
+   * going stale the moment somebody took something out of it.
+   */
+  setOpenedContainer(ref: ObjectRef | null) {
+    this.openedRef = ref;
+    // Dropped so the next frame reports even when the reference is unchanged —
+    // reopening the same chest must not be silent.
+    this.openedPlacement = null;
+    this.openedSent = undefined;
+  }
+
+  setOnOpenedContainer(cb: ((container: ItemInstance | null) => void) | null) {
+    this.onOpenedContainer = cb;
+    this.openedPlacement = null;
+    this.openedSent = undefined;
+  }
+
+  /**
+   * Read the opened container off the live board, once a frame.
+   *
+   * Gated on the *placement object*, which is exactly the right granularity:
+   * the map is copy-on-write, so the placement is a new object precisely when
+   * that cell changed and the same object on every frame it did not. A player
+   * standing over an open chest costs one stack read and one reference compare.
+   *
+   * Reports null the moment it stops being a container in reach — walked away
+   * from, emptied by somebody else, or picked up out from under the panel.
+   * Whoever opened it closes on that same answer, so there is one rule rather
+   * than a rule and a cleanup that can disagree.
+   */
+  private pushOpenedContainer(snap: GameSnapshot) {
+    if (!this.onOpenedContainer) return;
+
+    const ref = this.openedRef;
+    const placed = ref
+      ? getStack(snap.map, ref.x, ref.y, ref.z)[ref.stackIndex]
+      : undefined;
+    if (placed && placed === this.openedPlacement) return;
+    this.openedPlacement = placed ?? null;
+
+    const stillOpen =
+      ref != null &&
+      placed != null &&
+      canOpenFrom(snap.map, this.tilesById, snap.self, ref);
+    const container = stillOpen ? instanceFromPlacement(placed) : null;
+    if (container === null && this.openedSent === null) return;
+    this.openedSent = container;
+    this.onOpenedContainer(container);
+  }
+
   setOnInteractions(cb: ((options: InteractionOption[]) => void) | null) {
     this.onInteractions = cb;
     // The next frame has to report to a fresh listener even if nothing has
@@ -356,6 +424,7 @@ export class GameRenderer {
     this.interactionsMap = null;
     this.interactionsAt = "";
     this.interactionsKey = "";
+    this.interactionsEquipment = null;
     this.interactionsSent = [];
   }
 
@@ -432,6 +501,7 @@ export class GameRenderer {
     this.world.setProfiler(null);
     this.onClock = null;
     this.onEquipment = null;
+    this.onOpenedContainer = null;
     this.onInteractions = null;
     this.stop();
     this.detachPointer();
@@ -1247,6 +1317,7 @@ export class GameRenderer {
 
     this.world.setOverlays(this.overlaysFor(snap, motions));
     this.pushEquipment(snap);
+    this.pushOpenedContainer(snap);
     this.pushInteractionOptions(
       snap,
       camera,
@@ -1291,8 +1362,19 @@ export class GameRenderer {
   ) {
     if (!this.onInteractions) return;
 
+    // Equipment is in the key because a full bag and an empty one offer
+    // different rows on the same board from the same cell: pick-up is gated on
+    // having somewhere to put the thing. Identity, not contents — the session
+    // replaces the kit rather than mutating it, which is what makes that sound.
     const at = `${snap.self.x},${snap.self.y},${snap.self.z},${snap.targetId}`;
-    if (snap.map === this.interactionsMap && at === this.interactionsAt) return;
+    if (
+      snap.map === this.interactionsMap &&
+      at === this.interactionsAt &&
+      snap.equipment === this.interactionsEquipment
+    ) {
+      return;
+    }
+    this.interactionsEquipment = snap.equipment;
     this.interactionsMap = snap.map;
     this.interactionsAt = at;
 
@@ -1302,6 +1384,7 @@ export class GameRenderer {
       snap.self,
       this.targetableActors(snap, camera, hideLevelsAbove),
       snap.targetId,
+      snap.equipment,
     );
     // Held whether or not it is handed on, because the *references* inside it go
     // stale even when the list reads the same: a walking deer keeps its row and

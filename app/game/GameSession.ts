@@ -3,6 +3,7 @@ import {
   appendTile,
   getStack,
   isWalkableSurfaceAt,
+  removeTileAt,
   replaceStack,
 } from "../lib/mapData";
 import { resolveSwitch } from "../lib/interactions";
@@ -25,8 +26,10 @@ import {
   type ActorLocation,
 } from "./actors";
 import {
+  canPickUpFrom,
   canPushFrom,
   canSwitchFrom,
+  pickUpDestination,
   interactiveDefAt,
   pushDirectionFrom,
   pushTargetFrom,
@@ -52,6 +55,7 @@ import {
   startingEquipment,
 } from "./equipment";
 import { mintItemIds } from "./itemIds";
+import { instanceFromPlacement } from "../lib/itemInstance";
 import {
   cellForFeetAbs,
   cellHasLooseGravity,
@@ -362,6 +366,15 @@ export interface PlaySession {
   setAttackMode(enabled: boolean): void;
   canInteract(ref: ObjectRef): boolean;
   interact(ref: ObjectRef): boolean;
+  /**
+   * Take the thing at this slot into your kit.
+   *
+   * On the interface rather than left to {@link interact}, because the list
+   * offers pick-up as its own row and a row that named one action and ran
+   * whatever `interact` happened to choose would be lying about what a tap
+   * does.
+   */
+  pickUp(ref: ObjectRef): boolean;
 }
 
 /**
@@ -478,6 +491,15 @@ export class GameSession implements PlaySession {
    * {@link reindexCells} at the few sites that can relocate a plate; a stale
    * extra entry only costs a wasted stack read, a missing one is a dead plate.
    */
+  /**
+   * Actors whose kit has changed and whose owner has not been told yet.
+   *
+   * Ids rather than the kits themselves: by the time this is drained the
+   * equipment on the runtime is the current one, and holding a copy here would
+   * be a second version of the truth going stale between the tick that changed
+   * it and the flush that sends it.
+   */
+  private readonly equipmentChanged = new Set<string>();
   private readonly plateCells = new Map<string, Coord>();
   /**
    * Cells holding a placement wired to a signal channel — emitters and
@@ -1542,6 +1564,99 @@ export class GameSession implements PlaySession {
     return true;
   }
 
+  canPickUp(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
+    const actor = this.actor(id);
+    if (!this.idle(actor)) return false;
+    return canPickUpFrom(
+      this.map,
+      this.tilesById,
+      this.locate(actor),
+      ref,
+      actor.equipment,
+    );
+  }
+
+  /**
+   * Take the thing off the board and into this actor's kit.
+   *
+   * The placement becomes an instance and the map loses it, which is the whole
+   * operation — a container comes up with its `contents` intact because those
+   * ride on the placement, so nothing here has to know a bag from a sword.
+   *
+   * Returns false when the pickup is illegal, on the same terms a blocked push
+   * does: a refusal is a no-op, not an error state.
+   */
+  pickUp(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
+    const actor = this.actor(id);
+    if (!this.idle(actor)) return false;
+
+    const loc = this.locate(actor);
+    const destination = pickUpDestination(
+      this.map,
+      this.tilesById,
+      loc,
+      ref,
+      actor.equipment,
+    );
+    if (!destination) return false;
+
+    const placed = getStack(this.map, ref.x, ref.y, ref.z)[ref.stackIndex];
+    const instance = placed && instanceFromPlacement(placed);
+    // An item with no identity means something skipped the minting pass. Better
+    // a pickup that does nothing than one that puts an anonymous thing in a bag
+    // and loses track of it forever.
+    if (!instance) return false;
+
+    this.setEquipment(
+      actor,
+      destination === "bag-slot"
+        ? { ...actor.equipment, bag: instance }
+        : {
+            ...actor.equipment,
+            bag: {
+              ...actor.equipment.bag!,
+              contents: [...(actor.equipment.bag!.contents ?? []), instance],
+            },
+          },
+    );
+
+    this.map = removeTileAt(this.map, ref.x, ref.y, ref.z, ref.stackIndex);
+    // The cell has one fewer thing in it, which is a real change to what rests
+    // on a plate and to what was holding a crate up.
+    this.reindexCells([{ x: ref.x, y: ref.y, z: ref.z }]);
+    return true;
+  }
+
+  /**
+   * Put a whole new kit on an actor.
+   *
+   * **Replaces rather than mutates, and that is load-bearing.** The renderer
+   * hands equipment to React only when the object identity changes — see
+   * `GameRenderer.setOnEquipment` — so a kit edited in place would leave the
+   * panels showing what the player was carrying a moment ago, with nothing to
+   * correct it. Every change goes through here for that reason.
+   */
+  private setEquipment(actor: ActorRuntime, next: Equipment) {
+    actor.equipment = next;
+    this.equipmentChanged.add(actor.id);
+  }
+
+  /**
+   * Whose kit has changed since the last time anybody asked, and clears the
+   * list.
+   *
+   * Drained rather than read, because there is exactly one consumer: the server
+   * turning it into a message per socket. A second reader would silently get an
+   * empty answer, which is the right shape here — this is a queue of things to
+   * announce, not a record of what happened.
+   */
+  drainEquipmentChanges(): string[] {
+    if (this.equipmentChanged.size === 0) return [];
+    const changed = [...this.equipmentChanged];
+    this.equipmentChanged.clear();
+    return changed;
+  }
+
   canSwitch(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
     if (!this.idle(actor)) return false;
@@ -1589,7 +1704,8 @@ export class GameSession implements PlaySession {
    * open → channel disagrees → closed now happens with nothing in between.
    */
   interact(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
-    const acted = this.activateSwitch(ref, id) || this.push(ref, id);
+    const acted =
+      this.activateSwitch(ref, id) || this.pickUp(ref, id) || this.push(ref, id);
     if (acted) this.settleBoardNow();
     return acted;
   }
@@ -1606,7 +1722,9 @@ export class GameSession implements PlaySession {
 
   /** Is there anything a tap on this object would do right now? */
   canInteract(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
-    return this.canSwitch(ref, id) || this.canPush(ref, id);
+    return (
+      this.canSwitch(ref, id) || this.canPickUp(ref, id) || this.canPush(ref, id)
+    );
   }
 
   private tickSlide(actor: ActorRuntime, tickMs: number) {

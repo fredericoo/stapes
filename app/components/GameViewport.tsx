@@ -1,7 +1,9 @@
 import { useCallback, useMemo, useState } from "react";
+import type { ObjectRef } from "../game/affordances";
 import type { Equipment } from "../game/equipment";
 import { emptyEquipment } from "../game/equipment";
 import type { InteractionOption } from "../game/interactionOptions";
+import type { ItemInstance } from "../lib/itemInstance";
 import type { Direction, TileDef, TilesetDef } from "../lib/types";
 import { useMediaQuery } from "../lib/useMediaQuery";
 import { tilesByIdFromList } from "../lib/validation";
@@ -71,6 +73,8 @@ export function GameViewport({
   onInteract,
   onHoverInteraction,
   equipment = emptyEquipment(),
+  openedContainer = null,
+  onOpenContainer,
   tiles = [],
   tilesets = [],
 }: {
@@ -119,6 +123,19 @@ export function GameViewport({
    * crashing, exactly as `interactions` does.
    */
   equipment?: Equipment;
+  /**
+   * The container on the floor currently being looked into, resolved off the
+   * live board by whoever owns the renderer.
+   *
+   * The instance rather than a reference, and read fresh rather than remembered,
+   * because a chest's contents ride on its placement: anything holding a copy
+   * would go stale the moment somebody took something out of it. Null also means
+   * "no longer open" — walked away from, emptied, or picked up out from under
+   * the panel — so closing needs no separate rule.
+   */
+  openedContainer?: ItemInstance | null;
+  /** Look into a container on the floor, or stop. */
+  onOpenContainer?: (ref: ObjectRef | null) => void;
   /** Catalogue behind the list's sprites. */
   tiles?: TileDef[];
   tilesets?: TilesetDef[];
@@ -158,7 +175,8 @@ export function GameViewport({
   };
 
   /** A panel is covering the arrows and the list. Only ever true on a phone. */
-  const panelCoversMain = coarse && (showEquipment || showBag);
+  const panelCoversMain =
+    coarse && (showEquipment || showBag || openedContainer != null);
   const press = useCallback(onDirectionPress, [onDirectionPress]);
   const release = useCallback(onDirectionRelease, [onDirectionRelease]);
   const noteTyping = useCallback(
@@ -172,7 +190,16 @@ export function GameViewport({
       tiles={tiles}
       tilesets={tilesets}
       attacking={attacking}
-      onAct={(option) => onInteract?.(option)}
+      onAct={(option) => {
+        // Opening is the one row that never reaches the session: a container's
+        // contents are already here, riding on its placement, so looking inside
+        // is a panel and not a request. Everything else is the board's business.
+        if (option.action === "open") {
+          onOpenContainer?.(option.ref);
+          return;
+        }
+        onInteract?.(option);
+      }}
       // Not on a finger. A touch browser synthesises a mouse-enter on tap and
       // never sends the matching leave, so the outline it lit would stay lit
       // over whatever the player did next.
@@ -246,6 +273,19 @@ export function GameViewport({
           tiles={tiles}
           tilesets={tilesets}
           title="Bag"
+        />
+      ) : null}
+      {/* Whatever is on the floor, under whatever is on your back, so the two
+          read in the order you would move things between them. Titled by the
+          tile rather than "Container", because "Chest" and "Basic Bag" is the
+          only thing on screen saying which one you opened. */}
+      {openedContainer ? (
+        <ContainerPanel
+          container={openedContainer}
+          tiles={tiles}
+          tilesets={tilesets}
+          title={tilesById[openedContainer.tileId]?.name ?? "Container"}
+          onClose={() => onOpenContainer?.(null)}
         />
       ) : null}
     </>

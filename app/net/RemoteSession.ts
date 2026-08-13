@@ -12,6 +12,7 @@ import {
   type ActorLocation,
 } from "../game/actors";
 import {
+  canPickUpFrom,
   canPushFrom,
   canSwitchFrom,
   type ObjectRef,
@@ -1047,6 +1048,7 @@ export class RemoteSession implements PlaySession {
     if (!loc) return false;
     return (
       canSwitchFrom(this.map, this.tilesById, loc, ref) ||
+      canPickUpFrom(this.map, this.tilesById, loc, ref, this.equipment) ||
       canPushFrom(this.map, this.tilesById, loc, ref)
     );
   }
@@ -1055,6 +1057,33 @@ export class RemoteSession implements PlaySession {
     if (!this.canInteract(ref)) return false;
     this.send({ type: "interact", ref });
     // The board does not change here — it changes when the patch lands.
+    return true;
+  }
+
+  /**
+   * Ask for the thing at this slot.
+   *
+   * Not predicted, unlike a step. A step is drawn immediately because this side
+   * can re-run the rule that allows it and be right almost always; a pickup
+   * changes what is in a bag, and showing somebody an item they turn out not to
+   * have is a worse lie than a moment's delay. Both halves land together when
+   * the patch and the equipment message arrive — the cell losing the item and
+   * the bag gaining it.
+   *
+   * The local check is still worth running: it is the same question the server
+   * will ask, so a refusal costs no round trip at all.
+   */
+  pickUp(ref: ObjectRef): boolean {
+    const motion = this.motions.get(this.selfId);
+    if (!motion) return false;
+    if (motion.walk || motion.fall || motion.slide) return false;
+    if (this.pending.length > 0) return false;
+    const loc = this.locate(this.selfId, motion);
+    if (!loc) return false;
+    if (!canPickUpFrom(this.map, this.tilesById, loc, ref, this.equipment)) {
+      return false;
+    }
+    this.send({ type: "pickUp", ref });
     return true;
   }
 
