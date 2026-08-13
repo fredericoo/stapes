@@ -5,11 +5,8 @@ import { AppShell } from "../components/AppShell";
 import { FrameStatsReadout } from "../components/FrameStatsReadout";
 import { GameViewport } from "../components/GameViewport";
 import { LightingToggle } from "../components/LightingToggle";
-import {
-  bindKeyboard,
-  bindLookKey,
-  HeldDirections,
-} from "../game/heldDirections";
+import { bindKeyboard, HeldDirections } from "../game/heldDirections";
+import { usePlayModes } from "../components/usePlayModes";
 import {
   applyInteraction,
   type InteractionOption,
@@ -118,11 +115,17 @@ export default function OnlinePage() {
   const [players, setPlayers] = useState<number | null>(null);
   const [interactions, setInteractions] = useState<InteractionOption[]>([]);
   const [lightingEnabled, setLightingEnabled] = useState(true);
-  const [looking, setLooking] = useState(false);
+  const { looking, attacking, setLookLatched, setAttacking } = usePlayModes();
   // Same reason as the lighting ref below: a reconnect builds a fresh renderer,
   // and it has to come up in whatever mode the player is already in.
   const lookingRef = useRef(looking);
   lookingRef.current = looking;
+  // And a fresh *session*, which is where attack mode lives — the server seats a
+  // body that is not swinging at anybody, so the stance has to be said again on
+  // every connection. See `RemoteSession`'s handling of `hello` for the other
+  // half of this, when the world itself is replaced under a live socket.
+  const attackingRef = useRef(attacking);
+  attackingRef.current = attacking;
   // Through a ref because the renderer is built on `hello`, and a reconnect
   // builds another one — both must come up at whatever the toggle says now.
   const lightingRef = useRef(lightingEnabled);
@@ -135,6 +138,12 @@ export default function OnlinePage() {
   useEffect(() => {
     rendererRef.current?.setLookMode(looking);
   }, [looking]);
+
+  // At the session rather than the renderer: the server is what swings, and the
+  // outline colour comes back in the snapshot rather than being held twice.
+  useEffect(() => {
+    sessionRef.current?.setAttackMode(attacking);
+  }, [attacking]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -152,7 +161,6 @@ export default function OnlinePage() {
     const input = new HeldDirections((i) => session?.setInput(i));
     inputRef.current = input;
     const unbindKeyboard = bindKeyboard(input);
-    const unbindLook = bindLookKey(setLooking);
 
     const teardownRenderer = () => {
       rendererRef.current = null;
@@ -202,8 +210,12 @@ export default function OnlinePage() {
         renderer.setOnInteractions(setInteractions);
         rendererRef.current = renderer;
         renderer.start();
-        // The fresh session knows nothing about keys held across the reconnect.
+        // The fresh session knows nothing about keys held across the reconnect,
+        // nor about a sword that was already drawn. Both are said again here
+        // rather than when the socket was created, because until `hello` there
+        // is nothing at the other end listening.
         input.resend();
+        remote.setAttackMode(attackingRef.current);
       });
 
       socket.addEventListener("close", () => {
@@ -226,7 +238,6 @@ export default function OnlinePage() {
     return () => {
       disposed = true;
       if (retryTimer) clearTimeout(retryTimer);
-      unbindLook();
       unbindKeyboard();
       inputRef.current = null;
       teardownRenderer();
@@ -295,7 +306,9 @@ export default function OnlinePage() {
         onSay={say}
         onTypingChange={noteTyping}
         looking={looking}
-        onLookingChange={setLooking}
+        onLookingChange={setLookLatched}
+        attacking={attacking}
+        onAttackingChange={setAttacking}
         interactions={interactions}
         onInteract={act}
         onHoverInteraction={hoverInteraction}
