@@ -1,6 +1,8 @@
 import * as v from "valibot";
 import type { BattlerDef } from "./battler";
 import type { BrainDef } from "./brain";
+import type { ItemDef } from "./item";
+import { itemForSave } from "./item";
 import type { TileDef } from "./types";
 import { HEIGHT_PER_LEVEL, resolveActor } from "./types";
 
@@ -164,8 +166,21 @@ export type TileInteractions = {
    * property of a body, not of what drives one. The player is a battler with no
    * brain, a deer is a battler with one, and a crate could be a battler with
    * neither.
+   *
+   * Read only on a tile whose {@link TileDef.kind} is `battler` — see
+   * `resolveBattler`.
    */
   battler?: BattlerDef;
+  /**
+   * What it takes to be carried. See `./item`, which owns the shape and the
+   * parsing.
+   *
+   * Mutually exclusive with {@link battler}, unlike every other pair in here,
+   * and the exclusivity is stated by {@link TileDef.kind} rather than by this
+   * block's presence: both resolvers refuse a tile whose kind is not theirs, so
+   * a stale block is inert rather than in charge.
+   */
+  item?: ItemDef;
   push?: PushInteraction;
   switch?: SwitchInteraction;
   pressurePlate?: PressurePlateInteraction;
@@ -405,6 +420,7 @@ export function hasAnyInteraction(
   return Boolean(
     interactions?.brain ||
       interactions?.battler ||
+      interactions?.item ||
       interactions?.push ||
       interactions?.switch ||
       interactions?.pressurePlate ||
@@ -468,9 +484,14 @@ export function interactionsForSave(
         spd: battler.spd,
       }
     : undefined;
+  // Rebuilt field by field too, by the module that owns the union's arms —
+  // switching a weapon to a container and back leaves the draft carrying both
+  // sets of fields, and only `itemForSave` knows which ones belong.
+  const savedItem = itemForSave(interactions?.item);
   if (
     !savedBrain &&
     !savedBattler &&
+    !savedItem &&
     !savedPush &&
     !savedSwitch &&
     !savedPlate &&
@@ -482,6 +503,7 @@ export function interactionsForSave(
   return {
     ...(savedBrain ? { brain: savedBrain } : {}),
     ...(savedBattler ? { battler: savedBattler } : {}),
+    ...(savedItem ? { item: savedItem } : {}),
     ...(savedPush ? { push: savedPush } : {}),
     ...(savedSwitch ? { switch: savedSwitch } : {}),
     ...(savedPlate ? { pressurePlate: savedPlate } : {}),

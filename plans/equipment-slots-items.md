@@ -1,0 +1,616 @@
+# Plan: equipment slots and items
+
+> Source: design conversation, not a PRD. The requirements are the decisions
+> below; there are no user stories to trace to, so each phase states what it is
+> demoable as instead.
+
+Items are tiles. A weapon lying on the floor is a placement like any other — it
+has sprites, it can fall, it can be pushed — and picking it up moves it off the
+board and into somebody's bag. That is the animating idea, and it is what keeps
+the machinery small: no item registry, no second art pipeline, no parallel model
+of a thing in the world.
+
+The corollary is the whole of the data model:
+
+**An item instance is a placement without a position.**
+
+A `PlacedTile` is already `tileId` plus the metadata that belongs to the *slot*
+rather than to the tile def — `channel`, `description`, `direction`. An item
+carries exactly that, because a sign you pick up is still the sign that said what
+it said, and a wired lever in your bag is still wired to its channel when you put
+it down. So an item instance is that same record plus an identity, and picking
+something up is lifting the placement out of the map rather than translating it
+into some other shape.
+
+---
+
+## Architectural decisions
+
+Durable across every phase.
+
+### An item instance, and what makes it traceable
+
+```ts
+export type ItemInstance = {
+  /** Minted once, and kept for the life of the thing. */
+  id: string;
+  tileId: string;
+  direction?: Direction;
+  channel?: string;
+  description?: string;
+  /** Bags only. Nested instances, each with its own id. */
+  contents?: ItemInstance[];
+};
+```
+
+`PlacedTile` gains `itemId?: string` to carry that identity while the thing is on
+the board, joining `channel`, `description` and `owner` as a placement field —
+and for the same reason all three are placement fields: it belongs to the slot,
+not to the tile def filling it.
+
+The two shapes are deliberately convertible in both directions with nothing lost.
+Pick up reads a placement into an instance; drop writes an instance back into a
+placement. Anything added to one has to be added to the other, and that
+correspondence is the thing to protect as the model grows.
+
+**Ids are minted at world load**, in the same pass that already sweeps
+placements to adopt actors — so no new sweep, and every item in the world has an
+identity from the moment it exists rather than from the moment somebody first
+touches it. That is what "traceable" costs: an id minted on first pickup would
+leave everything nobody has handled anonymous, which is exactly the population
+you would want to follow.
+
+Not derived from position, unlike an NPC's `npc:12,3,0` owner id. That id names a
+*runtime*, which does not move; an item's names a thing whose whole purpose is to
+be carried around, and a coordinate baked into it would be a lie one tick after
+it was minted. A short random id (`itm_…`) says nothing it cannot keep saying.
+
+Load-time minting writes `itemId` into the runtime map, which the checkpoint
+persists and an editor save would write through into `data/map.json`. That is
+acceptable and arguably right — it is how an authored item keeps its identity
+across a world restart — but it does mean **a save can dirty the map file with
+ids nobody typed**, and that should be a deliberate decision rather than a
+surprise in a diff.
+
+### An item in a bag is off the board
+
+It drives nothing. `wiredCells` indexes placements, so an emitter in your pocket
+is not on the wire and a receiver in your pocket follows nothing. The `channel`
+is *preserved*, not *live*, and it works again the moment the thing is put down.
+
+Stated because the alternative is a genuine question — a remote detonator is a
+reasonable thing to want — and because the answer needs to be written down
+before somebody authors one and finds out.
+
+### A tile has a kind, and it is written down
+
+`TileDef.kind: "prop" | "battler" | "item"`, required, authored by a select at
+the top of the Interactive tab. It replaces the Battler on/off switch that
+currently lives on the Battle tab.
+
+- **Prop** is today's non-battler tile. It can still have a brain, a push, a
+  switch, a plate, a wire — being a prop says what it *is*, not what it does.
+- **Battler** shows the Battle tab. The tab loses its own switch; the six stats
+  are simply what a battler has.
+- **Item** shows a new Item tab.
+
+Stored rather than derived, which is the one place this plan departs from the
+codebase's usual instinct (`resolveActor`, `isMobileTile`). The reason is that
+the three are mutually exclusive and derivation cannot express that: with kind
+read off the blocks, "battler" and "item" are two booleans that can both be true,
+and the select would be lying about a state the model allows.
+
+**No migration code.** `data/tiles.json` is edited inline — thirty tiles, each
+gaining a `kind`. The field is required on `TileDef` rather than optional, so
+every construction site in the codebase has to say which it is and the compiler
+finds them all. A read-time fallback would be a second, quieter definition of
+what a tile is, kept alive for a file that can simply be corrected.
+
+The field is authoritative and the blocks are subordinate: `resolveBattler` and
+`resolveItem` gate on the kind, so a tile whose kind is not `battler` has no
+stats even if a stale block survives in the file. Switching kind in the editor
+clears the block being left behind, and `interactionsForSave` writes at most one
+of the two.
+
+`TileDef.actor` is untouched and orthogonal. A prop can be an actor with a brain;
+so, in principle, can a battler. The select is about what a tile is *for*, not
+about what drives it.
+
+### The item block
+
+```ts
+export type ItemMastery = "blade" | "ranged" | "blunt" | "magic";
+
+export type WeaponItem = {
+  type: "weapon";
+  /** Added to the wielder's base atk. */
+  atk: number;
+  /** Added to the wielder's base def. */
+  def: number;
+  /** Costs speed and accuracy — see `effectiveBattler`. */
+  weight: number;
+  mastery: ItemMastery;
+};
+
+export type ContainerItem = {
+  type: "container";
+  /** How many instances fit inside it. */
+  size: number;
+  /**
+   * Whether it can go in the bag slot. A backpack can; a corpse or a chest is
+   * a container you open where it lies.
+   */
+  equippable: boolean;
+};
+
+export type ItemDef = WeaponItem | ContainerItem;
+```
+
+**"Container" rather than "bag"** because a dead monster's body is one too — a
+corpse with a slot or two in it is the same thing as a backpack with four, and
+naming the general case now costs nothing while renaming it later would touch
+the wire, the panels and the authored file. A bag is a container that happens to
+be `equippable`; that flag is the whole of the difference.
+
+Corpse *generation* — what dies, what it leaves, which tile the body becomes —
+is out of scope. What is in scope is that the model has room for it.
+
+Lives at `app/lib/item.ts`, beside `battler.ts`, on the same terms as every other
+interaction block: a valibot `v.variant("type", …)` parsed rather than trusted,
+memoised on def identity in a `WeakMap`, and **a malformed block reads as "not an
+item" rather than as a crashed world**. `resolveItem(def)` is the only way in.
+
+A discriminated union rather than a flat bag of optional fields, so a weapon
+cannot have a size and a bag cannot have a mastery. `mastery: "magic"` is
+authorable now and does nothing yet — a slot in the model, deliberately, so the
+enum does not have to change when it starts mattering.
+
+Note the split: `ItemDef` is what every copy of a tile shares, `ItemInstance` is
+what one copy carries. A sword's `atk` is on the def; its `description` is on the
+instance.
+
+### Equipment lives on the runtime, never on the placement
+
+Same argument that keeps hit points off `PlacedTile`: a map edit invalidates
+light chunks and rebuilds level geometry, so equipping would dirty every chunk
+around the player. Equipment goes on `ActorRuntime`.
+
+```ts
+type Equipment = {
+  weapon: ItemInstance | null;
+  bag: ItemInstance | null;   // an equippable container; its `contents` is the inventory
+};
+```
+
+The bag slot holds an instance like any other, and the inventory *is* that
+instance's `contents`. No parallel array, no "the bag's tile id here and its
+contents there" — one thing, in one place, whether it is on your back or on the
+floor.
+
+**Slots are auto-filled in order.** `contents` is append-on-pickup,
+splice-on-remove. There is no reordering, so there are no holes and no need for a
+nullable array. Position in it is not meaningful and nothing may come to depend
+on that ordering.
+
+**Containers do not nest — at all.** Not "no nested backpacks": no container may
+hold a container, full stop. Depth is exactly one, everywhere, which is what
+makes `contents` a flat list rather than a tree and keeps every capacity check a
+single comparison. The consequence is that a corpse cannot be pocketed and
+carried off — you loot it where it fell — which is the behaviour you would have
+had to write a rule for anyway.
+
+### A container can be opened from the ground
+
+Walking up to a bag or a corpse and opening it shows the same panel the equipped
+bag shows. The panel takes a subject rather than being about one particular
+container:
+
+```ts
+type ContainerSubject =
+  | { kind: "equipped" }
+  | { kind: "placement"; ref: ObjectRef };
+```
+
+**Opening needs no server message.** A ground container's `contents` ride on its
+placement, so they are already on the client via the cell patch that put the
+thing there — opening is local panel state and nothing else. Only *moving* items
+talks to the server.
+
+Two things follow:
+
+- **Reach is pick-up's 1.5 cells**, and it is re-checked as the world moves under
+  it: walk out of range and the panel closes. The server re-validates on every
+  transfer regardless — the panel closing is a courtesy, not the guard.
+- **Looting dirties a cell.** Taking an item out of a ground container rewrites
+  its placement, which is a cell patch and a chunk invalidation, once per item
+  moved. That is the same cost a push already pays and it is bounded by how fast
+  somebody can click, so it is accepted rather than batched. A take-all button is
+  the lever if it ever matters.
+
+### Carried light does not dirty a chunk
+
+The light a carried torch throws is the reason to get this shape right now rather
+than later, and the good news is that the path already exists.
+
+An actor's own light is *never* in the static bake. `GameRenderer.emitterOverridesFor`
+builds one `EmitterOverride` per actor per frame, `paintDynamic` casts them into
+the packed grid additively, and `ChunkedLighting.syncTo` deliberately ignores
+tiles painted this way — which is precisely what stops a walking player from
+dirtying and rebaking the chunks they cross. **A carried emitter is the same
+problem and takes the same path**, so equipping a lantern costs a dynamic paint
+and not a rebake.
+
+One thing has to change to allow it. `collectOverrideEmitters` currently derives
+an override's light by reading the *placement stack* at that cell — and carried
+items are not on the board, by construction. So the override has to carry its
+lights explicitly rather than looking them up:
+
+```ts
+type EmitterOverride = {
+  …position as today…
+  /** Lights to cast here. Absent → read the stack, as today. */
+  lights?: LightDef[];
+};
+```
+
+Summing falls out for free: `castEmitter` already accumulates, so N carried
+lights at one position is N emitters pushed at the same `fx/fy/fz`, and the
+addition is the cast's own. There is no blending rule to invent.
+
+**This is what decides the wire.** Full equipment is *self-only* — nobody else's
+inventory is drawn, and sending everyone's to everyone would break the
+one-serialization-for-all property that makes patches cheap. But a carried light
+is visible to everybody, so a second, much smaller projection is broadcast:
+
+```ts
+/** Tile ids of the light-emitting things this actor is carrying. */
+carriedLights: string[];
+```
+
+Tile ids rather than `LightDef`s, because every client already holds the tile
+catalogue and `resolveLight` is right there. It is a pure function of `Equipment`
+(`carriedLightTileIds(equipment, tilesById)`, memo-friendly), it changes only
+when somebody equips something, and it is a handful of short strings.
+
+The *behaviour* is deferred — Phase 2 ships equipment with no light — but
+`Equipment`, the override shape, and the snapshot field are built for it from the
+start, because retrofitting the wire is the expensive half.
+
+### Effective stats
+
+```ts
+// app/game/equipment.ts
+export function effectiveBattler(base: BattlerDef, equipment: Equipment): BattlerDef;
+```
+
+Pure, so it can be asserted, and in `app/game/` beside `combat.ts` because it is
+a rule of a fight rather than a shape on disk.
+
+- `atk += weapon.atk`, `def += weapon.def`
+- `spd -= weight`, `acc -= weight / 2`, both rounded and clamped to 0–100
+
+Weight costs speed at full rate and accuracy at half: a heavy weapon slows how
+often you swing more than it spoils the blow.
+
+**Everything that reads stats reads them through this.** `GameSession`'s swing
+path calls `resolveBattler` today; it gains the actor's equipment on the way in.
+The two that must not be missed are the damage roll and `attackIntervalMs`, since
+`spd` is what sets the cooldown.
+
+The Battle tab's readouts keep describing the *base* tile, because that is what
+is being authored there. The Item tab gets its own readout saying what a weapon
+does to a wielder — read out of the same functions the simulation rolls with,
+the discipline `describeDamageBand` already follows.
+
+### Reach is two radii, and neither is push's
+
+Push and switch reach exactly one orthogonal neighbour, because a shove needs an
+unambiguous "one cell further away". Neither item action does.
+
+- **Pick up: 1.5 cells, round.** `dx² + dy² ≤ 2.25` — the eight neighbours plus
+  your own cell. Plus the existing `INTERACT_LEVEL_SLACK` and top-of-stack rules.
+- **Drop: 5 cells, round, and line of sight.** `dx² + dy² ≤ 25`, plus
+  `hasLineOfSight`, plus the target stack having room.
+
+Both go in `app/game/affordances.ts` as pure functions of board plus actor —
+`canPickUpFrom(map, tilesById, actor, ref)` and
+`canDropAt(map, tilesById, actor, coord, def)` — for the reason everything else
+in that module is there: **the client draws the affordance and the server
+validates the action from the same code**, so the client cannot offer something a
+tap would refuse.
+
+`objectOptions` currently scans four neighbouring cells across three floors.
+Pick-up widens that to a 3×3 across three floors — 27 stack reads, still bounded
+by construction, still not a sweep.
+
+### Pick up is a kind; open is only an action
+
+The existing split does the work here unchanged. An `InteractionKind` is
+something the `interact` message runs on the server; an `InteractionAction` is
+something the list offers — which is already `InteractionKind | "target"`,
+because targeting is a row without being a server-side interaction.
+
+- **`"pickUp"` is a kind.** It gets the hover outline, a row, and a server
+  message. The precedence `interactionKinds` returns becomes **switch → pickUp →
+  push**: an authored switch is an explicit intent and wins, and picking a thing
+  up is a better guess than shoving it.
+- **`"open"` is an action only**, joining `target` on the far side of that line,
+  for the reason above: opening is local panel state, so there is nothing for
+  `interact` to run.
+
+`objectOptions` keeps its shape — one kind row per cell, named by whatever a tap
+would actually run — and additionally emits an `open` row when the top placement
+is a container in reach. So a bag on the floor reads as two rows, **Open** and
+**Pick up**, which is the same "one row per verb" rule bodies already follow.
+
+The wrinkle worth naming: `interactionKinds(def)` is a function of the def alone,
+and pick-up's reach differs from the other two kinds'. The reach test already
+lives per-kind in `affordances`, so this costs nothing structurally — but
+`canPickUpFrom` must not be routed through `pushDirectionFrom`, which is where
+the orthogonal rule is hardcoded.
+
+### Equipment survives a disconnect
+
+Checkpointed with the world, and stored per actor under `equip:<id>` alongside
+`pos:<id>`, with the same cap-and-evict discipline.
+
+A dead player keeps their kit: death deletes the body, a reload hands them a new
+one at full health, and this store is what makes their bag still theirs when they
+come back. It is also what keeps the world's items conserved — floor items
+persist because they are map data, and an inventory that reset on every
+disconnect would mean a bag you dropped outlived the one on your back.
+
+Unlike positions, this write is not on a hot path — equipping is rare — so it
+needs neither `allowUnconfirmed` nor a throttled flush.
+
+### The wire
+
+Three new client messages, each parsed rather than cast, coordinates bounded to
+finite integers exactly as `interact`'s are:
+
+```ts
+type SlotRef =
+  | { kind: "weapon" }
+  | { kind: "bag"; index: number }
+  | { kind: "ground"; ref: ObjectRef; index: number };
+
+| { type: "pickUp"; ref: ObjectRef }
+| { type: "drop"; from: SlotRef; to: Coord }
+| { type: "moveItem"; from: SlotRef; to: SlotRef }
+```
+
+**The line is the board.** `pickUp` and `drop` cross it — a placement becomes an
+instance, or the reverse — and carry the world-shaped validation that goes with
+it: reach radius, line of sight, whether the target stack has room. `moveItem`
+never touches the board; it moves an instance between two slots and validates
+capacity and nesting. Equipping, unequipping and looting a corpse are all the
+same operation under that reading, so they are one message rather than three
+near-identical ones.
+
+A ground container's slots are reachable from `SlotRef` because its contents are
+slots like any other — but the `ref` in one is re-validated for reach on every
+call, since the panel that produced it may have been open while its owner walked
+away.
+
+Slots are addressed **by index, never by instance id**. A client naming an id
+would be naming a thing the server has to go looking for; an index is validated
+against a container whose size the server already knows. Ids exist for tracing,
+not for addressing.
+
+On `hello` and `patch`: `equipment` (self-only, sent when it changed) and
+`carriedLights` per actor (broadcast, same diffed-array treatment as `hps`).
+
+`pickUp` deliberately has no reply of its own: the cell patch removing the item
+from the board and the equipment patch adding it to the bag are both already
+being sent, and together they *are* the confirmation.
+
+### Drag and drop is pointer events, not HTML5 DnD
+
+The HTML5 drag API does not fire on touch, and half of this feature is a thumb
+dragging a sprite onto the world. One shared pointer-events hook, one drag layer
+above the canvas, used by every drag here: inventory → world, inventory → slot,
+slot → world.
+
+The drop ghost is the renderer's business, not React's. The page hands the
+renderer the dragged tile id and the pointer position; the renderer resolves
+screen → cell with the existing `pickTileAt`, asks `canDropAt`, and draws a
+translucent quad or nothing. Routing a ghost through React state would re-render
+the page on every pixel of the drag.
+
+---
+
+## Phases
+
+Vertical slices. Each is demoable on its own and leaves the build green.
+
+### Phase 1 — Kind, and an item you can author
+
+No play behaviour. The deliverable is that a weapon and a bag exist in
+`data/tiles.json`.
+
+- `TileDef.kind`, required. `data/tiles.json` edited inline; every `TileDef`
+  literal in app code and tests updated until it compiles.
+- `app/lib/item.ts`: the union, the schema, `resolveItem`, `DEFAULT_WEAPON`,
+  `DEFAULT_CONTAINER`.
+- `resolveBattler` gains its kind gate.
+- `InteractiveTab`: the Prop | Battler | Item select at the top, above Push.
+  Switching kind clears the block being left behind.
+- `BattleTab`: loses its switch; renders the six stats unconditionally.
+- New `ItemTab`: the type select (Weapon | Container), then the weapon fields
+  (atk, def, weight, mastery) or the container fields (size, equippable), with a
+  readout of what the weapon does to a wielder.
+- `TileEditorDialog`: Battle tab shown only for kind `battler`, Item tab only for
+  kind `item`.
+- `interactionsForSave` / `hasAnyInteraction` learn about `item`.
+- Authored content: a `rusty-sword` and a `basic-bag` (container, size 4,
+  equippable) with placeholder sprites off an existing tileset, both flat and
+  intangible so they lie on the floor without blocking it. A `crate-chest`
+  (container, size 2, not equippable) is worth authoring too — it is the cheapest
+  stand-in for a corpse and it exercises the non-equippable path before there is
+  any corpse to test against.
+
+Files: `app/lib/types.ts`, `app/lib/item.ts` (new), `app/lib/battler.ts`,
+`app/lib/interactions.ts`, `app/components/InteractiveTab.tsx`,
+`app/components/BattleTab.tsx`, `app/components/ItemTab.tsx` (new),
+`app/components/TileEditorDialog.tsx`, `data/tiles.json`.
+
+### Phase 2 — Instances, equipment, and two panels to see it in
+
+Still nothing to pick up. The deliverable is that you spawn with a bag on your
+back and can see it.
+
+- `ItemInstance`; `PlacedTile.itemId`; the placement ↔ instance conversion pair,
+  in one module so the correspondence is visible.
+- Id minting in the world-load adoption pass.
+- `Equipment` on `ActorRuntime`, seeded at spawn with an empty weapon slot and a
+  `basic-bag` instance. Named constants, not literals, in `app/game/constants.ts`.
+- `effectiveBattler` in `app/game/equipment.ts`, wired into the swing path and
+  `attackIntervalMs`.
+- `equipment` on `GameSnapshot` (self-only) and on `hello` / `patch`;
+  `RemoteSession` holds it. `carriedLightTileIds` written and unit-tested now,
+  broadcast wired now, *consumed* in Phase 6.
+- **Equipment panel**: the weapon slot, empty. **Container panel**: a contents
+  grid sized by its subject's `size`, built against `ContainerSubject` from the
+  start even though Phase 2 only ever passes `{ kind: "equipped" }` — the ground
+  case in Phase 3 should be a new caller, not a rewrite.
+- Action strip gains two buttons: a toggle-equipment button, and a backpack
+  button drawn as the *literal tile* of the equipped bag (`TilePreview`, which
+  already does this for interaction rows).
+- Layout. Desktop: both panels open by default, in the aside between the modes
+  row and the interaction list — the 224px aside will need to widen, or the grids
+  stay compact. Mobile: both closed by default; an open panel replaces the main
+  area (arrows + interaction list) but never the button row, so it can always be
+  closed again. **Opening one closes the other**, since they want the same space.
+
+Files: `app/lib/types.ts`, `app/lib/item.ts`, `app/game/GameSession.ts`,
+`app/game/equipment.ts` (new), `app/game/constants.ts`, `app/net/protocol.ts`,
+`app/net/RemoteSession.ts`, `workers/GameServer.ts`,
+`app/components/EquipmentPanel.tsx` (new), `app/components/BackpackPanel.tsx`
+(new), `app/components/GameViewport.tsx`, `app/routes/online.tsx`,
+`app/routes/play.tsx`.
+
+### Phase 3 — Pick up, and open from the ground
+
+The first end-to-end slice: an item on the map ends up in your bag, with its id
+and its metadata intact — and a chest on the floor can be looked into.
+
+- `canPickUpFrom` in `affordances.ts`: the 1.5-cell round radius, the level
+  slack, the top-of-stack rule, "is an item", and "there is somewhere to put
+  it" — which for an equippable container means *no bag currently equipped*, for
+  a non-equippable one means never (containers do not nest), and for anything
+  else means a free slot.
+- `canOpenFrom`, sharing the same radius.
+- `"pickUp"` in `InteractionKind` and `interactionKinds`; `"open"` in
+  `InteractionAction` only.
+- `objectOptions` widens to the 3×3, grows a `pickUp` row, and emits an `open`
+  row beside it for a container in reach. Two icons needed.
+- The container panel gains its `{ kind: "placement" }` subject and the
+  walked-out-of-range close.
+- `PlaySession.pickUp(ref)`; the `pickUp` client message; server validation
+  re-running the same affordance.
+- Picking up a container lifts the whole instance, `contents` and all.
+
+Files: `app/game/affordances.ts`, `app/lib/interactions.ts`,
+`app/game/interactionOptions.ts`, `app/components/InteractionList.tsx`,
+`app/components/ContainerPanel.tsx`, `app/game/GameSession.ts`,
+`app/net/protocol.ts`, `app/net/RemoteSession.ts`.
+
+### Phase 4 — Moving items between slots
+
+- The pointer-events drag hook and the drag layer.
+- Drag bag → weapon slot: a ghost when it would fit, nothing when it would not.
+- Drag weapon slot → bag as the unequip inverse.
+- Drag ground container → bag, which is looting, and the reverse, which is
+  stashing.
+- **No container may hold a container**, checked in one place that every one of
+  those directions goes through.
+- `moveItem` and its server-side validation: capacity, nesting, and — for a
+  `ground` endpoint — reach, re-asked rather than trusted.
+
+### Phase 5 — Drop
+
+- `canDropAt` in `affordances.ts`: 5-cell round radius, `hasLineOfSight`, and the
+  target stack having room.
+- Renderer: `setDropGhost(tileId, screenPoint)` resolving through `pickTileAt`,
+  drawing a translucent quad where the drop is legal and nothing where it is not.
+  No UI says why a drop is refused; the absent ghost is the whole answer.
+- `drop` message; the server writes the instance back to a placement on top of
+  the target stack and lets gravity settle it, exactly as any other placement.
+- Dropping a container writes the instance — contents and all — into the
+  placement, which is the exact inverse of the pickup in Phase 3 and should share
+  its conversion pair.
+- The backpack button in the action strip is a drag *source*, so a bag is dropped
+  by dragging it out of the strip onto the floor.
+
+### Phase 6 — Carried light, persistence, and the edges
+
+- `EmitterOverride.lights`; `collectOverrideEmitters` honouring it;
+  `emitterOverridesFor` folding an actor's `carriedLights` in beside their body's
+  own. Verify against the thing this is all shaped to avoid: **walking with a lit
+  torch must not rebake a single chunk.**
+- `equip:<id>` beside `pos:<id>`, capped and pruned; equipment in the checkpoint;
+  re-seated on spawn on the same "the map wins over the memory" terms positions
+  already follow.
+- Accessibility pass on both panels: a drag-only interface is unusable by
+  keyboard, so every drag needs a non-drag equivalent (a row action, or a
+  focus-then-activate two-step). This is not optional and it is far easier to
+  design in Phase 2 than to retrofit here.
+
+---
+
+## Testing
+
+Existing culture is pure modules asserted directly; this fits it.
+
+- `item.test.ts` — schema, malformed blocks reading as null, kind gating, and a
+  container's `equippable` surviving the round trip through `interactionsForSave`.
+- Instance round trip — placement → instance → placement preserves id, channel,
+  description, direction and nested contents. The test that catches the next
+  field somebody adds to one side only.
+- `equipment.test.ts` — `effectiveBattler` at the clamps, weight's asymmetric
+  cost to spd and acc; `carriedLightTileIds` over an empty bag, a lit weapon, and
+  a bag holding two lit things.
+- `affordances.test.ts` — pick-up radius includes diagonals and excludes 2 cells;
+  open shares that radius; drop radius, LoS blocked by a wall, stack with no room.
+- `interactionOptions.test.ts` — the pickUp row, its precedence against switch
+  and push, the open row appearing beside it for a ground container, and the 3×3
+  bound.
+- `GameSession.test.ts` — pick up removes the placement and fills a slot; drop
+  does the inverse; a container's contents survive the round trip; a second bag
+  is refused; a container inside a container is refused in every direction
+  `moveItem` allows; a full container refuses a pickup; looting a ground
+  container out of reach is refused; two instances of one tile keep distinct ids.
+- `protocol.test.ts` — the three new messages parse, malformed ones drop, an
+  out-of-range slot index is refused, and a `ground` slot ref with a
+  non-integer coordinate is refused.
+
+---
+
+## Open questions
+
+Not blocking Phase 1, but each needs an answer before the phase that hits it.
+
+1. **Does an editor save writing minted `itemId`s into `data/map.json` bother
+   you?** (Phase 2.) It is how an authored item keeps its identity across a
+   restart, but it means ids appear in a diff nobody typed. The alternative is
+   stripping them on serialize and re-minting each load, which costs traceability
+   across restarts.
+2. **Can a creature carry anything?** Nothing in the model prevents it — an
+   `ActorRuntime` is an `ActorRuntime`. This plan seeds equipment only for
+   players, and a deer with a sword is out of scope, but the door is open.
+3. **Should a bag's own weight matter?** Bags have only `size` per the scope. A
+   heavy full bag slowing you is the obvious next lever and would go in the same
+   `effectiveBattler`.
+4. **Does the desktop aside widen, or do the grids get compact?** (Phase 2.)
+   224px is currently sized so the game square does not resize as you walk;
+   whatever changes there has to preserve that.
+
+## Explicitly out of scope
+
+Named so they do not creep in: reordering items between slots, stacking or
+quantities, durability or charges, nested containers, armour or any slot beyond
+weapon and bag, anything `mastery` actually does, a visible weapon on a body,
+trading or giving items to another player, a live `channel` on a carried item,
+respawn behaviour, and **corpse generation** — what a death leaves behind, which
+tile the body becomes, and any notion of a loot table. The container model has
+room for a corpse; nothing in these phases creates one.

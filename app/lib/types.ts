@@ -46,6 +46,31 @@ export type TileType = "simple" | "directional" | "autotile";
 
 export const TILE_TYPES: TileType[] = ["simple", "directional", "autotile"];
 
+/**
+ * What a tile *is*, as opposed to what it does.
+ *
+ * The three are mutually exclusive, and that exclusivity is the whole reason
+ * this is a stored field rather than something read off the interaction blocks
+ * the way {@link resolveActor} reads actorhood. Derived from the blocks,
+ * "battler" and "item" would be two independent booleans that can both be true,
+ * and there would be no way to say which one a tile is — only which blocks it
+ * happens to carry.
+ *
+ * So the field is authoritative and the blocks are subordinate: `resolveBattler`
+ * and `resolveItem` both refuse a tile whose kind is not theirs, even when the
+ * block is sitting right there. A stale block left behind by a hand-edit is
+ * inert rather than quietly in charge.
+ *
+ * - `prop` — scenery and machinery. Everything the world is made of: a wall, a
+ *   crate, a door, a deer with a brain. Being a prop says nothing about whether
+ *   it moves or thinks; see {@link TileDef.actor}, which is orthogonal.
+ * - `battler` — has hit points. See `./battler`.
+ * - `item` — can be carried. See `./item`.
+ */
+export type TileKind = "prop" | "battler" | "item";
+
+export const TILE_KINDS: TileKind[] = ["prop", "battler", "item"];
+
 /** Climb / facing key: non-directional use `"default"`; directional use n/e/s/w. */
 export type VariantKey = "default" | Direction;
 
@@ -59,6 +84,8 @@ export type TileDef = {
   name: string;
   height: TileHeight;
   type: TileType;
+  /** What this tile is — see {@link TileKind}. Required; absent reads as prop. */
+  kind: TileKind;
   /** Reserved for flammable/wet/frozen/pushable later. */
   attributes: Record<string, never>;
   /**
@@ -387,6 +414,22 @@ function framesToSprite(frames: Frame[] | undefined, light?: LightDef): TileSpri
  * Migrate legacy `directional` + `variants` (+ tile-level `light`) to the
  * type → TileSprite model. Idempotent on already-new tiles.
  */
+/**
+ * The kind on the wire, or `prop` when there is not a valid one.
+ *
+ * A default rather than a migration: it does not look at the interaction blocks
+ * to guess, because guessing is the two-sources-of-truth problem {@link TileKind}
+ * exists to avoid. `data/tiles.json` states every kind outright, and a tile that
+ * somehow arrives without one is inert scenery — visibly wrong in the editor,
+ * rather than silently in charge of a fight.
+ */
+function readKind(raw: Record<string, unknown>): TileKind {
+  const kind = raw?.kind;
+  return typeof kind === "string" && TILE_KINDS.includes(kind as TileKind)
+    ? (kind as TileKind)
+    : "prop";
+}
+
 export function normalizeTileDef(raw: unknown): TileDef {
   const t = raw as Record<string, unknown>;
   if (t && typeof t.type === "string" && TILE_TYPES.includes(t.type as TileType)) {
@@ -394,6 +437,7 @@ export function normalizeTileDef(raw: unknown): TileDef {
     return {
       ...def,
       attributes: def.attributes ?? {},
+      kind: readKind(t),
     };
   }
 
@@ -424,11 +468,12 @@ export function normalizeTileDef(raw: unknown): TileDef {
   } = raw as Record<string, unknown>;
 
   const base: TileDef = {
-    ...(carried as Omit<TileDef, "type" | "attributes">),
+    ...(carried as Omit<TileDef, "type" | "attributes" | "kind">),
     id: legacy.id,
     name: legacy.name,
     height: legacy.height,
     type,
+    kind: readKind(raw as Record<string, unknown>),
     attributes: legacy.attributes ?? {},
   };
 

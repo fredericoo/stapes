@@ -281,6 +281,7 @@ describe("chunked lighting", () => {
         name: "Test lamp",
         height: 1,
         type: "simple",
+        kind: "prop",
         attributes: {},
         lightPassing: true,
         intangible: true,
