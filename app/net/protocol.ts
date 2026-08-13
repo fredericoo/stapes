@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import type { Equipment } from "../game/equipment";
 import type { PlacedTile } from "../lib/types";
 import { MAX_CHAT_RAW_LENGTH } from "./chat";
 
@@ -65,6 +66,37 @@ const hpPatchSchema = v.object({
   actorId: v.string(),
   hp: v.number(),
   maxHp: v.number(),
+});
+
+/**
+ * One carried thing, as it travels.
+ *
+ * Loose in `contents` rather than recursive, because a container may not hold a
+ * container — see `../lib/item`. Depth is exactly one, so a schema that recursed
+ * would be describing a shape the rules already forbid.
+ */
+const itemInstanceSchema = v.object({
+  id: v.string(),
+  tileId: v.string(),
+  direction: v.optional(directionSchema),
+  channel: v.optional(v.string()),
+  description: v.optional(v.string()),
+  contents: v.optional(
+    v.array(
+      v.object({
+        id: v.string(),
+        tileId: v.string(),
+        direction: v.optional(directionSchema),
+        channel: v.optional(v.string()),
+        description: v.optional(v.string()),
+      }),
+    ),
+  ),
+});
+
+const equipmentSchema = v.object({
+  weapon: v.nullable(itemInstanceSchema),
+  bag: v.nullable(itemInstanceSchema),
 });
 
 /** One cell's whole stack, replacing whatever the client had there. */
@@ -176,7 +208,29 @@ export type ServerMessage =
        * on the first frame rather than on the first blow.
        */
       hps: HpPatch[];
+      /** What this viewer is carrying. Theirs alone — see {@link Equipment}. */
+      equipment: Equipment;
     }
+  /**
+   * "Here is what you are carrying now."
+   *
+   * The second message addressed to a single client rather than to the world,
+   * and the reason is the same one that keeps patches cheap. A patch is diffed
+   * once and serialized once for everybody, which only works because everybody
+   * is being told the same thing. Equipment is *not* the same thing — it is
+   * different per socket, and folding it into the patch would turn one
+   * serialization per tick into one per player.
+   *
+   * So it rides alone, sent only to the owner and only when theirs changed.
+   * Nothing is lost by that: nobody else's inventory is drawn, because there is
+   * no paperdoll and a sword changes no sprite.
+   *
+   * Whole state replacing whatever the client had, on the same terms
+   * {@link HpPatch} is: an inventory rebuilt from a stream of add-and-remove
+   * events would drift the moment one was missed, and go on being wrong with
+   * nothing to correct it.
+   */
+  | { type: "equipment"; equipment: Equipment }
   | {
       type: "patch";
       cells: CellPatch[];
@@ -340,6 +394,11 @@ const serverMessageSchema = v.variant("type", [
     playerCount: v.number(),
     minutesOfDay: v.number(),
     hps: v.array(hpPatchSchema),
+    equipment: equipmentSchema,
+  }),
+  v.object({
+    type: v.literal("equipment"),
+    equipment: equipmentSchema,
   }),
   v.object({
     type: v.literal("patch"),

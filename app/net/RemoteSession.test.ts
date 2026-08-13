@@ -6,6 +6,7 @@ import {
 } from "../game/constants";
 import type { FlatMapFile, PlacedTile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
+import { emptyEquipment } from "../game/equipment";
 import { CHAT_LIFETIME_MS } from "./chat";
 import { RemoteSession, STEP_CONFIRM_TIMEOUT_MS } from "./RemoteSession";
 import type { CellPatch, HpPatch, MotionEvent } from "./protocol";
@@ -109,6 +110,7 @@ function connected(): { socket: FakeSocket; session: RemoteSession } {
     playerCount: 1,
     minutesOfDay: SERVER_MINUTES,
     hps: [],
+    equipment: emptyEquipment(),
   });
   return { socket, session };
 }
@@ -243,6 +245,7 @@ function connectedAloft(): { socket: FakeSocket; session: RemoteSession } {
     playerCount: 1,
     minutesOfDay: SERVER_MINUTES,
     hps: [],
+    equipment: emptyEquipment(),
   });
   return { socket, session };
 }
@@ -450,6 +453,7 @@ describe("RemoteSession chat", () => {
       playerCount: 1,
       minutesOfDay: SERVER_MINUTES,
       hps: [],
+    equipment: emptyEquipment(),
     });
 
     expect(session.getSnapshot().chats).toHaveLength(0);
@@ -778,6 +782,7 @@ describe("RemoteSession attack mode", () => {
       playerCount: 1,
       minutesOfDay: SERVER_MINUTES,
       hps: [],
+    equipment: emptyEquipment(),
     });
 
     expect(framesOfType(socket, "attackMode")).toEqual([
@@ -799,6 +804,7 @@ describe("RemoteSession attack mode", () => {
       playerCount: 1,
       minutesOfDay: SERVER_MINUTES,
       hps: [],
+    equipment: emptyEquipment(),
     });
 
     expect(framesOfType(socket, "attackMode")).toEqual([]);

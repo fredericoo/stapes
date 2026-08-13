@@ -5,6 +5,7 @@ import { AppShell } from "../components/AppShell";
 import { GameViewport } from "../components/GameViewport";
 import { LightingToggle } from "../components/LightingToggle";
 import { GameSession } from "../game/GameSession";
+import { type Equipment, emptyEquipment } from "../game/equipment";
 import { bindKeyboard, HeldDirections } from "../game/heldDirections";
 import { usePlayModes } from "../components/usePlayModes";
 import {
@@ -72,6 +73,7 @@ export default function PlayPage() {
   const [lightingEnabled, setLightingEnabled] = useState(true);
   const [stats, setStats] = useState<FrameStats | null>(null);
   const [interactions, setInteractions] = useState<InteractionOption[]>([]);
+  const [equipment, setEquipment] = useState<Equipment>(emptyEquipment);
   const minutesRef = useRef(minutesOfDay);
   minutesRef.current = minutesOfDay;
   const pausedRef = useRef(clockPaused);
@@ -112,6 +114,7 @@ export default function PlayPage() {
     renderer.setOnClock(setMinutesOfDay);
     renderer.setOnStats(setStats);
     renderer.setOnInteractions(setInteractions);
+    renderer.setOnEquipment(setEquipment);
     rendererRef.current = renderer;
     renderer.start();
 
@@ -127,6 +130,7 @@ export default function PlayPage() {
       renderer.dispose();
       setStats(null);
       setInteractions([]);
+      setEquipment(emptyEquipment());
     };
   }, [map, tiles, tilesets]);
 
@@ -219,6 +223,7 @@ export default function PlayPage() {
         interactions={interactions}
         onInteract={act}
         onHoverInteraction={hoverInteraction}
+        equipment={equipment}
         tiles={tiles}
         tilesets={tilesets}
       />

@@ -5,6 +5,7 @@ import { AppShell } from "../components/AppShell";
 import { FrameStatsReadout } from "../components/FrameStatsReadout";
 import { GameViewport } from "../components/GameViewport";
 import { LightingToggle } from "../components/LightingToggle";
+import { type Equipment, emptyEquipment } from "../game/equipment";
 import { bindKeyboard, HeldDirections } from "../game/heldDirections";
 import { usePlayModes } from "../components/usePlayModes";
 import {
@@ -114,6 +115,7 @@ export default function OnlinePage() {
   // claiming nobody is here.
   const [players, setPlayers] = useState<number | null>(null);
   const [interactions, setInteractions] = useState<InteractionOption[]>([]);
+  const [equipment, setEquipment] = useState<Equipment>(emptyEquipment);
   const [lightingEnabled, setLightingEnabled] = useState(true);
   const { looking, attacking, setLookLatched, setAttacking } = usePlayModes();
   // Same reason as the lighting ref below: a reconnect builds a fresh renderer,
@@ -173,6 +175,9 @@ export default function OnlinePage() {
       // shove, left on screen across a reconnect, offers a board nobody is
       // simulating any more.
       setInteractions([]);
+      // And a bag from the world that just went away, whose contents the next
+      // `hello` is about to replace outright.
+      setEquipment(emptyEquipment());
     };
 
     const connect = () => {
@@ -208,6 +213,7 @@ export default function OnlinePage() {
         renderer.setOnClock(setMinutesOfDay);
         renderer.setOnStats(setStats);
         renderer.setOnInteractions(setInteractions);
+        renderer.setOnEquipment(setEquipment);
         rendererRef.current = renderer;
         renderer.start();
         // The fresh session knows nothing about keys held across the reconnect,
@@ -312,6 +318,7 @@ export default function OnlinePage() {
         interactions={interactions}
         onInteract={act}
         onHoverInteraction={hoverInteraction}
+        equipment={equipment}
         tiles={tiles}
         tilesets={tilesets}
       />

@@ -15,6 +15,19 @@ export const PUSH_STEP_MS = WALK_DURATION_MS;
 export const PLAYER_TILE_ID = "player";
 
 /**
+ * The bag every player starts with on their back.
+ *
+ * A tile id rather than an authored placement, because the starting kit is not
+ * in the world: nobody dropped it and there is nowhere it came from. Named here
+ * beside the player's own tile since it is the same kind of fact — what a person
+ * *is* when the world first hands them a body.
+ *
+ * A world whose author has renamed or removed this tile seats players with
+ * nothing rather than refusing to start; see `startingEquipment`.
+ */
+export const STARTING_BAG_TILE_ID = "basic-bag";
+
+/**
  * How often a brain decides. Six simulation ticks — one decision per walk.
  *
  * A whole number of ticks, and that is load-bearing rather than tidy: a

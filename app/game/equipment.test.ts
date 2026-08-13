@@ -1,7 +1,20 @@
 import { describe, expect, it } from "vitest";
 import type { BattlerDef } from "../lib/battler";
 import { MAX_PERCENT_STAT, MIN_PERCENT_STAT } from "../lib/battler";
-import { accuracyCostOf, applyWeaponStats, speedCostOf } from "./equipment";
+import { DEFAULT_CONTAINER, DEFAULT_WEAPON } from "../lib/item";
+import type { TileDef } from "../lib/types";
+import { normalizeTileDef } from "../lib/types";
+import { tilesByIdFromList } from "../lib/validation";
+import {
+  accuracyCostOf,
+  applyWeaponStats,
+  carriedInstances,
+  carriedLightTileIds,
+  effectiveBattler,
+  emptyEquipment,
+  speedCostOf,
+  startingEquipment,
+} from "./equipment";
 
 const base: BattlerDef = {
   maxHp: 20,
@@ -79,5 +92,154 @@ describe("applyWeaponStats", () => {
     const snapshot = { ...base };
     applyWeaponStats(base, { atk: 3, def: 2, weight: 10 });
     expect(base).toEqual(snapshot);
+  });
+});
+
+const LIT = { radius: 5, intensity: 1, color: "#ffcc88" };
+
+function itemTile(id: string, item: unknown, light?: unknown): TileDef {
+  return normalizeTileDef({
+    id,
+    name: id,
+    height: 0,
+    type: "simple",
+    kind: "item",
+    attributes: {},
+    interactions: { item },
+    sprite: {
+      frames: [
+        {
+          sprite: {
+            tilesetId: "basic",
+            rect: { x: 0, y: 0, w: 1, h: 1 },
+            base: { x: 0, y: 0 },
+          },
+          durationMs: 200,
+          ...(light ? { light } : {}),
+        },
+      ],
+    },
+  });
+}
+
+const lightTiles = tilesByIdFromList([
+  itemTile("sword", DEFAULT_WEAPON),
+  itemTile("torch", DEFAULT_WEAPON, LIT),
+  itemTile("bag", DEFAULT_CONTAINER),
+  itemTile("lamp-bag", DEFAULT_CONTAINER, LIT),
+]);
+
+describe("startingEquipment", () => {
+  it("hands out the bag when the tile is an equippable container", () => {
+    const kit = startingEquipment(lightTiles, "bag");
+    expect(kit.bag?.tileId).toBe("bag");
+    expect(kit.bag?.contents).toEqual([]);
+    expect(kit.weapon).toBeNull();
+  });
+
+  it("hands out nothing when the tile is missing", () => {
+    expect(startingEquipment(lightTiles, "no-such-tile")).toEqual(emptyEquipment());
+  });
+
+  it("hands out nothing when the tile is not a container", () => {
+    expect(startingEquipment(lightTiles, "sword")).toEqual(emptyEquipment());
+  });
+
+  it("hands out nothing when the container cannot be worn", () => {
+    const tiles = tilesByIdFromList([
+      itemTile("chest", { ...DEFAULT_CONTAINER, equippable: false }),
+    ]);
+    expect(startingEquipment(tiles, "chest")).toEqual(emptyEquipment());
+  });
+});
+
+describe("carriedInstances", () => {
+  it("is empty for an empty kit", () => {
+    expect(carriedInstances(emptyEquipment())).toEqual([]);
+  });
+
+  it("counts the weapon, the bag, and what is in the bag", () => {
+    const ids = carriedInstances({
+      weapon: { id: "w", tileId: "sword" },
+      bag: {
+        id: "b",
+        tileId: "bag",
+        contents: [{ id: "c", tileId: "sword" }],
+      },
+    }).map((i) => i.id);
+    expect(ids).toEqual(["w", "b", "c"]);
+  });
+});
+
+describe("carriedLightTileIds", () => {
+  it("is empty when nothing carried gives off light", () => {
+    const kit = { weapon: { id: "w", tileId: "sword" }, bag: null };
+    expect(carriedLightTileIds(kit, lightTiles)).toEqual([]);
+  });
+
+  it("finds a light in the hand", () => {
+    const kit = { weapon: { id: "w", tileId: "torch" }, bag: null };
+    expect(carriedLightTileIds(kit, lightTiles)).toEqual(["torch"]);
+  });
+
+  it("finds a light inside a bag", () => {
+    const kit = {
+      weapon: null,
+      bag: { id: "b", tileId: "bag", contents: [{ id: "c", tileId: "torch" }] },
+    };
+    expect(carriedLightTileIds(kit, lightTiles)).toEqual(["torch"]);
+  });
+
+  /**
+   * Every carried light counts, and each is a separate entry — the cast
+   * accumulates emitters, so two torches at one position is two emitters and
+   * twice the light rather than one torch's worth.
+   */
+  it("lists every light separately, so they can be summed", () => {
+    const kit = {
+      weapon: { id: "w", tileId: "torch" },
+      bag: {
+        id: "b",
+        tileId: "lamp-bag",
+        contents: [{ id: "c", tileId: "torch" }, { id: "d", tileId: "sword" }],
+      },
+    };
+    expect(carriedLightTileIds(kit, lightTiles)).toEqual([
+      "torch",
+      "lamp-bag",
+      "torch",
+    ]);
+  });
+
+  it("ignores a tile the catalogue has never heard of", () => {
+    const kit = { weapon: { id: "w", tileId: "ghost" }, bag: null };
+    expect(carriedLightTileIds(kit, lightTiles)).toEqual([]);
+  });
+});
+
+describe("effectiveBattler", () => {
+  it("is the base stats with no equipment at all", () => {
+    expect(effectiveBattler(base, null, lightTiles)).toBe(base);
+    expect(effectiveBattler(base, emptyEquipment(), lightTiles)).toBe(base);
+  });
+
+  it("counts a weapon in the hand", () => {
+    const kit = { weapon: { id: "w", tileId: "sword" }, bag: null };
+    const out = effectiveBattler(base, kit, lightTiles);
+    expect(out.atk).toBe(base.atk + DEFAULT_WEAPON.atk);
+  });
+
+  /** The bag is carried, not wielded — nothing in it reaches a blow. */
+  it("ignores what is in the bag", () => {
+    const kit = {
+      weapon: null,
+      bag: { id: "b", tileId: "bag", contents: [{ id: "c", tileId: "sword" }] },
+    };
+    expect(effectiveBattler(base, kit, lightTiles)).toBe(base);
+  });
+
+  it("ignores a slot holding something that is not a weapon", () => {
+    const kit = { weapon: { id: "w", tileId: "bag" }, bag: null };
+    expect(effectiveBattler(base, kit, lightTiles)).toEqual(base);
   });
 });

@@ -14,6 +14,7 @@ import type {
 } from "../game/GameSession";
 import { PLAYER_TILE_ID } from "../game/constants";
 import { bodyNameFor } from "../game/displayName";
+import type { Equipment } from "../game/equipment";
 import {
   listInteractionOptions,
   type InteractionOption,
@@ -172,6 +173,9 @@ export class GameRenderer {
   private clockPaused = false;
   private onClock: ((minutes: MinutesOfDay) => void) | null = null;
   private onStats: ((stats: FrameStats) => void) | null = null;
+  private onEquipment: ((equipment: Equipment) => void) | null = null;
+  /** Identity of the last equipment handed on, so an idle frame costs a compare. */
+  private equipmentSent: Equipment | null = null;
   private onInteractions:
     | ((options: InteractionOption[]) => void)
     | null = null;
@@ -320,6 +324,30 @@ export class GameRenderer {
    * second would re-render the page for a frame nobody could tell apart from
    * the last one. See {@link pushInteractionOptions} for the two gates.
    */
+  /**
+   * What the viewer is carrying, whenever it changes.
+   *
+   * Routed through the render loop rather than read off the session by the page,
+   * for the same reason the interaction list is: this loop is already reading a
+   * snapshot every frame, and it is the only thing that knows when a new one
+   * arrived. The gate is object identity — the session replaces the whole
+   * equipment object when the server sends one and never mutates it in place —
+   * so a player standing still costs one reference compare per frame.
+   */
+  setOnEquipment(cb: ((equipment: Equipment) => void) | null) {
+    this.onEquipment = cb;
+    // Dropped so the next frame reports to a fresh listener even though nothing
+    // has changed, exactly as the interaction gates are.
+    this.equipmentSent = null;
+  }
+
+  private pushEquipment(snap: GameSnapshot) {
+    if (!this.onEquipment) return;
+    if (snap.equipment === this.equipmentSent) return;
+    this.equipmentSent = snap.equipment;
+    this.onEquipment(snap.equipment);
+  }
+
   setOnInteractions(cb: ((options: InteractionOption[]) => void) | null) {
     this.onInteractions = cb;
     // The next frame has to report to a fresh listener even if nothing has
@@ -403,6 +431,7 @@ export class GameRenderer {
     this.onStats = null;
     this.world.setProfiler(null);
     this.onClock = null;
+    this.onEquipment = null;
     this.onInteractions = null;
     this.stop();
     this.detachPointer();
@@ -1217,6 +1246,7 @@ export class GameRenderer {
     });
 
     this.world.setOverlays(this.overlaysFor(snap, motions));
+    this.pushEquipment(snap);
     this.pushInteractionOptions(
       snap,
       camera,

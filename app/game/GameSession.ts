@@ -39,11 +39,19 @@ import {
   FALL_MS_PER_HEIGHT,
   MAX_CLIMB_HEIGHT,
   PUSH_STEP_MS,
+  STARTING_BAG_TILE_ID,
   TICK_MS,
   WALK_DURATION_MS,
 } from "./constants";
 import { resolveBattler, type BattlerDef } from "../lib/battler";
 import { attackIntervalMs, inAttackRange, rollAttack } from "./combat";
+import type { Equipment } from "./equipment";
+import {
+  effectiveBattler,
+  emptyEquipment,
+  startingEquipment,
+} from "./equipment";
+import { mintItemIds } from "./itemIds";
 import {
   cellForFeetAbs,
   cellHasLooseGravity,
@@ -277,6 +285,19 @@ export type GameSnapshot = {
    */
   damage: DamageNumber[];
   /**
+   * What the viewer is carrying.
+   *
+   * The viewer's own, like {@link hover} and {@link targetId}, and for a
+   * stronger reason than either: nobody else's inventory is drawn. There is no
+   * paperdoll — a sword changes no sprite — so broadcasting everyone's kit to
+   * everyone would be paying fan-out for something no frame can show.
+   *
+   * The day a carried torch lights the room, that is *not* what changes this:
+   * light needs a per-actor projection of the equipment
+   * (`carriedLightTileIds`), not the equipment itself.
+   */
+  equipment: Equipment;
+  /**
    * Speech still on screen, on this viewer's level only.
    *
    * Always present rather than optional so the renderer's contract stays total;
@@ -372,6 +393,20 @@ type ActorRuntime = {
    * what kind of body this is, once per creature per tick.
    */
   readonly resident: boolean;
+  /**
+   * What this actor is wearing and carrying. See `./equipment`.
+   *
+   * On the runtime rather than on the placement, on exactly the terms {@link hp}
+   * is: a placement field would broadcast itself through cell patches, and every
+   * equip would dirty the light chunks and level geometry around the player for
+   * a change nothing in the world can see.
+   *
+   * Unlike `hp` and `brain` this is *not* something a fresh runtime can rebuild
+   * from the tile — it is the only state here that a world owes continuity for,
+   * because what somebody is carrying came from somewhere. Persisting it is
+   * Phase 6; until then a reconnect hands out a fresh kit.
+   */
+  equipment: Equipment;
   /**
    * Where this creature is in its state machine, or null for a body with no
    * brain — every player, and any creature whose authored brain did not parse.
@@ -592,6 +627,10 @@ export class GameSession implements PlaySession {
     // resident is on the map whether or not anybody is here to see it.
     this.adoptResidents();
 
+    // Before anything can pick one up, and idempotent against a resumed world
+    // whose items were minted the last time it loaded.
+    this.map = mintItemIds(this.map, this.tilesById);
+
     for (const cell of findPlateCells(this.map, this.tilesById)) {
       this.plateCells.set(cellKey(cell), cell);
     }
@@ -635,9 +674,17 @@ export class GameSession implements PlaySession {
     id: string,
     opts: { resident?: boolean } = {},
   ): ActorRuntime {
+    const resident = opts.resident === true;
     const actor: ActorRuntime = {
       id,
-      resident: opts.resident === true,
+      resident,
+      // Only people get a kit. A deer is an actor in every other respect, and
+      // could carry things the day something wants it to — but handing every
+      // creature in the world a backpack it will never open is a bag per body
+      // to seat, checkpoint and diff for nothing.
+      equipment: resident
+        ? emptyEquipment()
+        : startingEquipment(this.tilesById, STARTING_BAG_TILE_ID),
       brain: null,
       hp: null,
       attackCooldownMs: 0,
@@ -741,6 +788,18 @@ export class GameSession implements PlaySession {
 
   actorIds(): string[] {
     return [...this.actors.keys()];
+  }
+
+  /**
+   * What one actor is carrying, or null when nobody by that name is here.
+   *
+   * Null rather than an empty kit, because the two mean different things to the
+   * server: an actor with nothing is somebody to send an empty inventory to,
+   * and an actor who has died or never joined is somebody to send nothing at
+   * all. Only the server asks — a local viewer reads theirs off the snapshot.
+   */
+  equipmentOf(id: string): Equipment | null {
+    return this.actors.get(id)?.equipment ?? null;
   }
 
   /**
@@ -1276,12 +1335,23 @@ export class GameSession implements PlaySession {
     }
   }
 
-  /** The stat block of whatever body this actor is in, or null for none. */
+  /**
+   * The stat block of whatever body this actor is in, equipment counted, or
+   * null for a body with no stats at all.
+   *
+   * **The single place stats are answered**, which is what makes a weapon apply
+   * everywhere without anything else having to remember to ask: the swing reads
+   * it, the cooldown reads it, and the health bar's maximum reads it. A second
+   * caller of `resolveBattler` would be a body that fights with its sword and
+   * one that does not, depending on who asked.
+   */
   private battlerOf(actor: ActorRuntime): BattlerDef | null {
     const loc = this.tryLocate(actor);
     if (!loc) return null;
     const def = this.tilesById[loc.placed.tileId];
-    return def ? resolveBattler(def) : null;
+    const base = def ? resolveBattler(def) : null;
+    if (!base) return null;
+    return effectiveBattler(base, actor.equipment, this.tilesById);
   }
 
   /**
@@ -1625,6 +1695,7 @@ export class GameSession implements PlaySession {
         self.hovered && this.canInteract(self.hovered, id) ? self.hovered : null,
       targetId: self.targetId,
       attacking: self.attacking,
+      equipment: self.equipment,
       // Nobody to talk to: the local simulation has no wire and no other actors
       // worth naming, so speech is a thing only the online client carries.
       chats: [],

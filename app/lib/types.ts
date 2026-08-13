@@ -1,4 +1,5 @@
 import type { TileInteractions } from "./interactions";
+import type { ItemInstance } from "./itemInstance";
 
 export type Direction = "n" | "e" | "s" | "w";
 
@@ -314,6 +315,31 @@ export type PlacedTile = {
    * than rebuilding it field by field.
    */
   owner?: string;
+  /**
+   * Which particular item this placement is, for the placements that are one.
+   *
+   * A placement field on exactly the terms {@link channel} and
+   * {@link description} are: identity belongs to the slot, not to the tile def
+   * filling it, and two `rusty-sword` placements are two distinct swords. It is
+   * what lets the same thing be followed across being picked up and put down —
+   * see `./itemInstance`, which owns both directions of that trip.
+   *
+   * Minted once when the world loads and never again. Absent on everything that
+   * is not an item, which is almost every placement in a map.
+   */
+  itemId?: string;
+  /**
+   * What this container is holding, for the placements that hold anything.
+   *
+   * Here rather than on a session index because a container on the floor *is*
+   * its contents' address: the checkpoint stores the map, an editor save writes
+   * the map, and both keep a chest's contents with no second store to keep in
+   * step. It rides the cell patch the container itself travels on.
+   *
+   * Flat, never nested — a container may not hold a container, so this is a list
+   * and not a tree. See `./item`.
+   */
+  contents?: ItemInstance[];
 };
 
 /**

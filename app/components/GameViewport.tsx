@@ -1,11 +1,17 @@
-import { useCallback } from "react";
+import { useCallback, useMemo, useState } from "react";
+import type { Equipment } from "../game/equipment";
+import { emptyEquipment } from "../game/equipment";
 import type { InteractionOption } from "../game/interactionOptions";
 import type { Direction, TileDef, TilesetDef } from "../lib/types";
 import { useMediaQuery } from "../lib/useMediaQuery";
+import { tilesByIdFromList } from "../lib/validation";
 import { ChatBar, ChatButton } from "./ChatBar";
+import { ContainerPanel } from "./ContainerPanel";
 import { DirectionPad } from "./DirectionPad";
+import { EquipmentPanel } from "./EquipmentPanel";
 import { InteractionList } from "./InteractionList";
 import { AttackToggle, LookToggle, type ModeToggleSize } from "./ModeToggle";
+import { BagButton, EquipmentToggle } from "./PanelToggle";
 
 /**
  * The game as a fixed square, letterboxed into whatever space it is given.
@@ -64,6 +70,7 @@ export function GameViewport({
   interactions = [],
   onInteract,
   onHoverInteraction,
+  equipment = emptyEquipment(),
   tiles = [],
   tilesets = [],
 }: {
@@ -106,11 +113,52 @@ export function GameViewport({
    * where there is a pointer that hovers — see the call site.
    */
   onHoverInteraction?: (optionId: string | null) => void;
+  /**
+   * What the viewer is carrying — theirs alone; see `GameSnapshot.equipment`.
+   * Defaulted so a route that has not wired it up draws empty slots rather than
+   * crashing, exactly as `interactions` does.
+   */
+  equipment?: Equipment;
   /** Catalogue behind the list's sprites. */
   tiles?: TileDef[];
   tilesets?: TilesetDef[];
 }) {
   const coarse = useCoarsePointer();
+  const tilesById = useMemo(() => tilesByIdFromList(tiles), [tiles]);
+
+  /**
+   * Whether each panel is open, or null while nobody has said.
+   *
+   * Null rather than a boolean seeded from the device, because the device is not
+   * known on the server: {@link useCoarsePointer} answers false until hydration,
+   * so a phone seeded at construction would come up with both panels open and
+   * stay that way. Left null, the default *follows* the pointer until the player
+   * expresses a preference, and from then on it is theirs.
+   *
+   * Open by default with a mouse, closed with a thumb: a desktop has room beside
+   * the game and a phone does not, where an open panel costs the arrows.
+   */
+  const [equipmentOpen, setEquipmentOpen] = useState<boolean | null>(null);
+  const [bagOpen, setBagOpen] = useState<boolean | null>(null);
+  const showEquipment = equipmentOpen ?? !coarse;
+  const showBag = bagOpen ?? !coarse;
+
+  /**
+   * On a phone the two panels want the same space, so opening one closes the
+   * other. With a mouse they stack in the column beside the game and are
+   * genuinely independent.
+   */
+  const openEquipment = (open: boolean) => {
+    setEquipmentOpen(open);
+    if (open && coarse) setBagOpen(false);
+  };
+  const openBag = (open: boolean) => {
+    setBagOpen(open);
+    if (open && coarse) setEquipmentOpen(false);
+  };
+
+  /** A panel is covering the arrows and the list. Only ever true on a phone. */
+  const panelCoversMain = coarse && (showEquipment || showBag);
   const press = useCallback(onDirectionPress, [onDirectionPress]);
   const release = useCallback(onDirectionRelease, [onDirectionRelease]);
   const noteTyping = useCallback(
@@ -153,6 +201,51 @@ export function GameViewport({
           attacking={attacking}
           onChange={onAttackingChange}
           size={size}
+        />
+      ) : null}
+      {/* Ruled off from the modes beside them, because they are a different
+          kind of button: the two on the left change what a tap on the world
+          means, and these two only open something. */}
+      <span className="h-8 w-px shrink-0 bg-paper/20" aria-hidden="true" />
+      <EquipmentToggle
+        open={showEquipment}
+        onChange={openEquipment}
+        size={size}
+      />
+      <BagButton
+        bag={equipment.bag}
+        open={showBag}
+        onChange={openBag}
+        tilesById={tilesById}
+        tilesets={tilesets}
+        size={size}
+      />
+    </>
+  );
+
+  /**
+   * The panels, stacked in whatever space the device gives them.
+   *
+   * One definition for both layouts: on a desktop this sits in the column beside
+   * the game, on a phone it takes the main area over. Drawing them twice and
+   * hiding one copy would put two "Bag" headings in the page, which is a lie to
+   * anything reading it aloud.
+   */
+  const panels = (
+    <>
+      {showEquipment ? (
+        <EquipmentPanel
+          equipment={equipment}
+          tiles={tiles}
+          tilesets={tilesets}
+        />
+      ) : null}
+      {showBag ? (
+        <ContainerPanel
+          container={equipment.bag}
+          tiles={tiles}
+          tilesets={tilesets}
+          title="Bag"
         />
       ) : null}
     </>
@@ -218,7 +311,15 @@ export function GameViewport({
           <ChatBar onSay={onSay} onTypingChange={noteTyping} />
         ) : null}
 
-        {coarse ? (
+        {coarse && panelCoversMain ? (
+          // A panel takes the whole main area — the arrows and the list both go.
+          // The button row above it stays, which is the point: the thing that
+          // opened this is still under the thumb that opened it, so getting back
+          // to walking is one tap and never a hunt.
+          <div className="flex w-full min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-3 pb-3">
+            {panels}
+          </div>
+        ) : coarse ? (
           // Reading hand on the left, walking thumb on the right. The arrows go
           // to the side most thumbs are, and the list of what is in reach — the
           // thing you *read* before acting — sits on the other, out from under
@@ -243,8 +344,18 @@ export function GameViewport({
               different kind of thing: the rows below say what you could do to
               one particular object, and these say what doing anything means. */}
           {hasModes ? (
-            <div className="flex shrink-0 items-center gap-1 border-b-2 border-paper/20 pb-2">
+            <div className="flex shrink-0 flex-wrap items-center gap-1 border-b-2 border-paper/20 pb-2">
               {modes("compact")}
+            </div>
+          ) : null}
+          {/* Under the buttons that open them and above the list, so the column
+              reads top to bottom as: what a tap means, what you have, what is
+              in reach. `shrink-0` because the list below is the thing that
+              should give up room when the window is short — a panel that
+              squashed would lose slots off the bottom with nothing saying so. */}
+          {showEquipment || showBag ? (
+            <div className="flex shrink-0 flex-col gap-2 border-b-2 border-paper/20 pb-2">
+              {panels}
             </div>
           ) : null}
           {list}

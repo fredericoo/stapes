@@ -5,6 +5,7 @@ import {
   type ActorSnapshot,
 } from "../app/game/GameSession";
 import { TICK_MS, WALK_DURATION_MS } from "../app/game/constants";
+import { type Equipment, emptyEquipment } from "../app/game/equipment";
 import { minutesOfDayAt } from "../app/lib/clock";
 import {
   changedCellsOnLevel,
@@ -488,6 +489,9 @@ export class GameServer extends DurableObject<Env> {
       map: flattenMap(session.getMap()),
       actorIds: session.actorIds(),
       hps: currentHps(session.actorSnapshots()),
+      // Theirs alone, and sent in full here for the same reason the map and the
+      // hit points are: a joiner has nothing to patch against.
+      equipment: session.equipmentOf(actorId) ?? emptyEquipment(),
       playerCount: this.playerCount(),
       // Read here rather than tracked: time of day is a function of the
       // server's clock, so it costs nothing to keep and cannot fall behind

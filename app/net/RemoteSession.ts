@@ -16,6 +16,7 @@ import {
   canSwitchFrom,
   type ObjectRef,
 } from "../game/affordances";
+import { type Equipment, emptyEquipment } from "../game/equipment";
 import { moveEntity, setEntityDirection } from "../game/mapMutations";
 import { chooseStep } from "../game/stepping";
 import type {
@@ -156,6 +157,15 @@ export class RemoteSession implements PlaySession {
    * cell, or every blow would dirty the light and the geometry around it.
    */
   private readonly hps = new Map<string, { hp: number; maxHp: number }>();
+  /**
+   * What this viewer is carrying, as the server last said.
+   *
+   * Never predicted, unlike a step. A step is drawn immediately because the
+   * client can re-run the rule that allows it and be right almost always; what
+   * ends up in a bag depends on what else is in it and on a board the server
+   * owns, and a wrong guess would show somebody an item they do not have.
+   */
+  private equipment: Equipment = emptyEquipment();
   /** Numbers still floating, with their own clocks. */
   private damage: DamageNumber[] = [];
   /** Who this client is pointing at; echoed back in the snapshot for the outline. */
@@ -272,6 +282,10 @@ export class RemoteSession implements PlaySession {
       // has to be said again — the same resend the held directions do.
       if (this.attacking) this.send({ type: "attackMode", enabled: true });
       this.hps.clear();
+      // Replaced outright rather than kept: the body at the other end is a
+      // fresh one, and what it is carrying is whatever the server just said —
+      // not what the body in the previous world had on it.
+      this.equipment = message.equipment;
       for (const id of message.actorIds) this.motions.set(id, emptyMotion());
       this.applyHps(message.hps);
       this.setPlayers(message.playerCount);
@@ -300,6 +314,14 @@ export class RemoteSession implements PlaySession {
 
     if (message.type === "stepRejected") {
       this.rollBackFrom(message.seq);
+      return;
+    }
+
+    if (message.type === "equipment") {
+      // Whole state, replacing what was here — the same rule hit points follow,
+      // and for the same reason: an inventory rebuilt from a stream of adds and
+      // removes drifts the moment one is missed and never recovers.
+      this.equipment = message.equipment;
       return;
     }
 
@@ -970,6 +992,7 @@ export class RemoteSession implements PlaySession {
       hover: this.hovered && this.canInteract(this.hovered) ? this.hovered : null,
       targetId: this.targetId,
       attacking: this.attacking,
+      equipment: this.equipment,
       chats: this.chats,
       damage: this.damage,
     };
