@@ -257,8 +257,11 @@ describe("computeLighting flood fill", () => {
     const wallCell = sampleLevelLight(level, 2, 0)[0];
     const outside = sampleLevelLight(level, 3, 0)[0];
     expect(inside).toBeGreaterThan(0.5);
-    // Solid wall stays dark (sky ambient is 0 in this bake).
-    expect(wallCell).toBeLessThan(0.05);
+    // The wall is lit, not black: nothing covers its top face, so it takes the
+    // light of the open air above it. What it must not be is as bright as the
+    // floor it stands beside.
+    expect(wallCell).toBeGreaterThan(0);
+    expect(wallCell).toBeLessThan(inside);
     // Direct path through the wall is blocked — wrap-around is allowed but weaker.
     expect(outside).toBeLessThan(inside);
   });
@@ -288,9 +291,10 @@ describe("computeLighting flood fill", () => {
       { x: 1, y: 0, z: 0, tiles: ["floor"] },
     ]);
     const grid = computeLighting(map, tilesById, [0, 0, 0]);
-    // Comfortably lit rather than bright: the cell is half a cell off the
-    // emitter in Y, and Y_FALLOFF counts that distance double.
-    expect(sampleLevelLight(grid.levels.get(0)!, 0, 0)[0]).toBeGreaterThan(0.3);
+    // Lit, but well down from the torch's own cell: VERTICAL_FALLOFF charges
+    // the storey it fell its full height, so a shaft carries dimmer than the
+    // same reach sideways would. The sealed case above is a flat 0.
+    expect(sampleLevelLight(grid.levels.get(0)!, 0, 0)[0]).toBeGreaterThan(0.15);
   });
 
   it("daytime: sky-exposed walls, half-bricks, and trees get full daylight", () => {
@@ -309,14 +313,31 @@ describe("computeLighting flood fill", () => {
     expect(sampleLevelLight(level, 2, 0)[0]).toBeCloseTo(1, 1);
   });
 
+  /**
+   * Buried on every side a face could look out of — east, south, and the roof
+   * over its head. A solid takes the light of the air its visible faces see, so
+   * one with none stays black, while the roof over it takes full daylight.
+   */
   it("daytime: solid under a sealed roof stays dark (cave wall)", () => {
     const map = mapAt([
       { x: 0, y: 0, z: 0, tiles: ["wall"] },
+      { x: 1, y: 0, z: 0, tiles: ["wall"] },
+      { x: 0, y: 1, z: 0, tiles: ["wall"] },
       { x: 0, y: 0, z: 1, tiles: ["floor"] },
     ]);
     const grid = computeLighting(map, tilesById, AMBIENT_PRESETS.day);
     expect(sampleLevelLight(grid.levels.get(0)!, 0, 0)[0]).toBeLessThan(0.15);
     expect(sampleLevelLight(grid.levels.get(1)!, 0, 0)[0]).toBeCloseTo(1, 1);
+  });
+
+  /** The other side of that: a face with open sky beside it is daylit. */
+  it("daytime: a solid whose east face is open to the sky is lit", () => {
+    const map = mapAt([
+      { x: 0, y: 0, z: 0, tiles: ["wall"] },
+      { x: 0, y: 0, z: 1, tiles: ["floor"] },
+    ]);
+    const grid = computeLighting(map, tilesById, AMBIENT_PRESETS.day);
+    expect(sampleLevelLight(grid.levels.get(0)!, 0, 0)[0]).toBeGreaterThan(0.5);
   });
 
   it("daytime: open cells get full sky; sealed caves stay dark", () => {

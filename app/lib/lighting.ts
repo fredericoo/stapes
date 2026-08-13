@@ -15,19 +15,16 @@ import { resolveLight } from "./tileResolve";
 
 export { MAX_LIGHT_LEVEL };
 
-/** 1 level of Z equals 1 cell of XY for spherical distance. */
-export const VERTICAL_FALLOFF = 1;
-
 /**
- * Cells of Y a cell of reach buys — light spreads half as far north-south as
- * it does east-west.
+ * Cells of reach a level of climb costs — light spreads half as far up and
+ * down as it does sideways.
  *
- * A level of climb is drawn one cell up *and* one cell left, so screen Y
- * carries both the world's Y and the world's height. A pool that is round in
- * world space therefore reads as stretched down the screen, and squaring that
- * up is a decision about how the light looks, not about where it is.
+ * A level is {@link HEIGHT_PER_LEVEL} height units tall, so counting it as one
+ * cell let a pool climb a storey for the price of a step, and lit shafts read
+ * as stretched. Charging it its full height squares that up. This is about how
+ * far light *carries*, not about what stops it — occlusion is unaffected.
  */
-export const Y_FALLOFF = 2;
+export const VERTICAL_FALLOFF = HEIGHT_PER_LEVEL;
 
 /** Below this transmission, treat the ray as fully blocked. */
 const TRANSMISSION_EPSILON = 1e-3;
@@ -422,9 +419,11 @@ function castEmitter(
     for (let ty = yLo; ty <= yHi; ty++) {
       for (let tx = xLo; tx <= xHi; tx++) {
         const dx = tx - e.x;
-        const dy = (ty - e.y) * Y_FALLOFF;
-        const dz = (tz - e.z) * VERTICAL_FALLOFF;
-        const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        const dy = ty - e.y;
+        const dz = tz - e.z;
+        const dist = Math.sqrt(
+          dx * dx + dy * dy + (dz * VERTICAL_FALLOFF) * (dz * VERTICAL_FALLOFF),
+        );
         if (dist > e.radius) continue;
 
         const isSelf = tx === e.lx && ty === e.ly && tz === e.lz;
@@ -595,6 +594,56 @@ export type DenseOcclusion = {
   /** 1 where {@link CellOcclusion.sealsLevel}. */
   seals: Uint8Array;
 };
+
+/**
+ * Give every blocking cell the brightest light its visible faces look into —
+ * east, south, or the cell above — the way the static bake does at the end of
+ * `computeLightingFlood`. Without it a dynamic light leaves the walls around it
+ * black while lighting the floor between them.
+ *
+ * Writes land only on solids and reads come only from air, so no cell passes
+ * light on to the next and order does not matter.
+ */
+function spreadIntoBlockers(
+  occlusion: DenseOcclusion,
+  floatsByZ: Map<number, Float32Array>,
+  x0: number,
+  y0: number,
+  w: number,
+  h: number,
+) {
+  for (const [z, floats] of floatsByZ) {
+    const above = floatsByZ.get(z + 1);
+    for (let ly = 0; ly < h; ly++) {
+      for (let lx = 0; lx < w; lx++) {
+        const solid = denseIndex(occlusion, x0 + lx, y0 + ly, z);
+        if (solid < 0 || occlusion.opacity[solid]! < 1) continue;
+        const i = (ly * w + lx) * 3;
+        const faces: Array<[Float32Array, number, number, number, number]> = [];
+        if (lx + 1 < w) faces.push([floats, (ly * w + lx + 1) * 3, x0 + lx + 1, y0 + ly, z]);
+        if (ly + 1 < h) faces.push([floats, ((ly + 1) * w + lx) * 3, x0 + lx, y0 + ly + 1, z]);
+        if (above) faces.push([above, i, x0 + lx, y0 + ly, z + 1]);
+        for (const [src, j, fx, fy, fz] of faces) {
+          const air = denseIndex(occlusion, fx, fy, fz);
+          if (air >= 0 && occlusion.opacity[air]! >= 1) continue;
+          // A floor on top covers the solid's top face — see the same rule in
+          // computeLightingFlood.
+          if (
+            air >= 0 &&
+            fz !== z &&
+            occlusion.seals[air]! &&
+            occlusion.opacity[air]! < TRANSMISSION_EPSILON
+          ) {
+            continue;
+          }
+          if (src[j]! > floats[i]!) floats[i] = src[j]!;
+          if (src[j + 1]! > floats[i + 1]!) floats[i + 1] = src[j + 1]!;
+          if (src[j + 2]! > floats[i + 2]!) floats[i + 2] = src[j + 2]!;
+        }
+      }
+    }
+  }
+}
 
 function denseIndex(o: DenseOcclusion, x: number, y: number, z: number): number {
   const lx = x - o.reach.x0;
@@ -818,6 +867,7 @@ export function overlayEmitterOverridesPacked(
   for (const e of emitters) {
     castEmitter(e, occlusion, floatsByZ, reach.x0, reach.y0, w, h);
   }
+  spreadIntoBlockers(occlusion, floatsByZ, reach.x0, reach.y0, w, h);
 
   for (const [z, floats] of floatsByZ) {
     writeReachFloats(blockView(out.levels.get(z)!), floats, reach, w, h);
@@ -862,6 +912,7 @@ export function overlayEmitterOverrides(
   for (const e of emitters) {
     castEmitter(e, occlusion, floatsByZ, reach.x0, reach.y0, w, h);
   }
+  spreadIntoBlockers(occlusion, floatsByZ, reach.x0, reach.y0, w, h);
 
   for (const [z, floats] of floatsByZ) {
     writeReachFloats(rgbView(out.levels.get(z)!), floats, reach, w, h);

@@ -25,9 +25,8 @@ import { resolveLight } from "./tileResolve";
 export const MAX_LIGHT_LEVEL = 15;
 
 const TRANSMISSION_EPSILON = 1e-3;
-const VERTICAL_FALLOFF = 1;
-/** Mirrors {@link Y_FALLOFF} — kept local to avoid a lighting↔flood cycle. */
-const Y_FALLOFF = 2;
+/** Mirrors {@link VERTICAL_FALLOFF} — kept local to avoid a lighting↔flood cycle. */
+const VERTICAL_FALLOFF = HEIGHT_PER_LEVEL;
 
 /**
  * 6-face + 4 diagonal (XY) with Euclidean step cost — softens diamond shapes.
@@ -52,6 +51,21 @@ const SKY_EDGES = new Float64Array([
   -1, -1, 0, Math.SQRT2,
 ]);
 const SKY_EDGE_COUNT = SKY_EDGES.length / SKY_EDGE_STRIDE;
+
+/**
+ * The cells a solid's visible faces look into: east, south, and above.
+ *
+ * The projection never shows a tile's north, west or under side, so those are
+ * the only three that can be lit. Same flattened `(dx, dy, dz)` layout as the
+ * sky edges.
+ */
+const FACE_STRIDE = 3;
+const FACE_NEIGHBOURS = new Int8Array([
+  1, 0, 0,
+  0, 1, 0,
+  0, 0, 1,
+]);
+const FACE_COUNT = FACE_NEIGHBOURS.length / FACE_STRIDE;
 
 /**
  * Starting queue size as a multiple of the cell count. Relaxation revisits
@@ -556,9 +570,11 @@ export function computeLightingFlood(
             continue;
           }
           const dx = tx - e.x;
-          const dy = (ty - e.y) * Y_FALLOFF;
-          const dz = (tz - e.z) * VERTICAL_FALLOFF;
-          const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
+          const dy = ty - e.y;
+          const dz = tz - e.z;
+          const dist = Math.sqrt(
+            dx * dx + dy * dy + (dz * VERTICAL_FALLOFF) * (dz * VERTICAL_FALLOFF),
+          );
           if (dist > e.radius) continue;
 
           const i = idx(dom, lx, ly, lz);
@@ -608,6 +624,43 @@ export function computeLightingFlood(
       const si = idx(dom, selfLx, selfLy, selfLz);
       opacity[si] = savedSelfOp;
       seals[si] = savedSelfSeal;
+    }
+  }
+
+  // A blocking cell receives no light of its own, so a wall would bake black
+  // while the air beside it is bright — and every surface would have to go
+  // hunting for lit air at draw time, which lights each face off a different
+  // cell and leaves a wall looking patched together. Give the solid the
+  // brightest of the cells its visible faces look into instead, and the field
+  // is continuous across the solid/air boundary: a wall face reads its own
+  // cell, like every other surface does.
+  //
+  // Writes land only on solids and reads come only from air, so no cell can
+  // pass light on to the next and order does not matter.
+  for (let lz = 0; lz < dom.d; lz++) {
+    for (let ly = 0; ly < dom.h; ly++) {
+      for (let lx = 0; lx < dom.w; lx++) {
+        const i = idx(dom, lx, ly, lz);
+        if (opacity[i]! < 1) continue;
+        for (let fi = 0; fi < FACE_COUNT; fi++) {
+          const f = fi * FACE_STRIDE;
+          const tx = lx + FACE_NEIGHBOURS[f]!;
+          const ty = ly + FACE_NEIGHBOURS[f + 1]!;
+          const tz = lz + FACE_NEIGHBOURS[f + 2]!;
+          if (tx >= dom.w || ty >= dom.h || tz >= dom.d) continue;
+          const j = idx(dom, tx, ty, tz);
+          if (opacity[j]! >= 1) continue;
+          // A floor laid on top of the solid covers its top face: no light
+          // gets through, and nothing of that face is left to see.
+          if (tz !== lz && seals[j]! && opacity[j]! < TRANSMISSION_EPSILON) {
+            continue;
+          }
+          if (sky[j]! > sky[i]!) sky[i] = sky[j]!;
+          if (blockR[j]! > blockR[i]!) blockR[i] = blockR[j]!;
+          if (blockG[j]! > blockG[i]!) blockG[i] = blockG[j]!;
+          if (blockB[j]! > blockB[i]!) blockB[i] = blockB[j]!;
+        }
+      }
     }
   }
 

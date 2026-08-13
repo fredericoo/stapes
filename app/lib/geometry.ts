@@ -378,9 +378,9 @@ export function planeDepthBias(box: DepthBox): number {
  * a level coordinate whose integers land on cell centres.
  *
  * Mirrors the GLSL in `app/render/worldQuads.ts` — the reference the tests
- * assert against. Light is read out of the cell a surface *faces*, since a
- * blocking cell holds no torch light of its own; only the south, east and top
- * faces are ever visible, so those are the only directions to step into.
+ * assert against. Every surface reads its own cell; solids hold the light of
+ * the air their visible faces look into, handed to them by the bake. A top
+ * face is the exception, stepping up half a level to the air standing on it.
  */
 export function lightSample(
   box: DepthBox,
@@ -392,20 +392,16 @@ export function lightSample(
   const eastFace = (box.eastPx - px) / PX_PER_HEIGHT;
   const southFace = (box.southPx - py) / PX_PER_HEIGHT;
   const surface = boxSurface(box, px, py);
-
-  let outX = 0;
-  let outY = 0;
-  let outLevel = 0;
-  if (!surface.overhang) {
-    if (eastFace <= southFace && eastFace <= box.top) outX = HALF_CELL;
-    else if (southFace <= box.top) outY = HALF_CELL;
-    else outLevel = HALF_LEVEL;
-  }
+  const onTopFace =
+    !surface.overhang && box.top <= eastFace && box.top <= southFace;
 
   return {
-    cellX: (px + surface.elevation * PX_PER_HEIGHT) / CELL_SIZE + outX,
-    cellY: (py + surface.elevation * PX_PER_HEIGHT) / CELL_SIZE + outY,
-    level: surface.elevation / HEIGHT_PER_LEVEL - HALF_LEVEL + outLevel,
+    cellX: (px + surface.elevation * PX_PER_HEIGHT) / CELL_SIZE,
+    cellY: (py + surface.elevation * PX_PER_HEIGHT) / CELL_SIZE,
+    level:
+      surface.elevation / HEIGHT_PER_LEVEL -
+      HALF_LEVEL +
+      (onTopFace ? HALF_LEVEL : 0),
   };
 }
 

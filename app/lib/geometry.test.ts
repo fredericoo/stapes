@@ -380,16 +380,26 @@ describe("lightSample", () => {
     expect(s.level).toBeCloseTo(z);
   });
 
-  it("reads the cell a wall's east face looks into, not the wall itself", () => {
+  /**
+   * A face lands on the plane between its own cell and the one it looks into,
+   * so the two weigh equally. That only reads as one flat wall because the bake
+   * hands a solid the light of the air its faces see — otherwise this is half a
+   * lit cell and half a black one, which is the patchwork this replaced.
+   */
+  it("samples a wall's east face on the plane it stands on", () => {
     const cellX = 4;
     const cellY = 6;
     const box = depthBox(cellX, cellY, 0, HEIGHT_PER_LEVEL);
+    // Well north of the box's south plane, so the pixel is on the east face
+    // proper rather than the corner where the two faces meet.
     const s = lightSample(
       box,
       (cellX + 1) * CELL_SIZE - PX_PER_HEIGHT,
-      (cellY + 1) * CELL_SIZE - 4,
+      (cellY + 1) * CELL_SIZE - CELL_SIZE - 2,
     );
-    expect(Math.floor(s.cellX)).toBe(cellX + 1);
+    expect(s.cellX).toBeCloseTo(cellX + 1);
+    expect(s.cellY).toBeGreaterThan(cellY);
+    expect(s.cellY).toBeLessThan(cellY + 1);
   });
 
   /**

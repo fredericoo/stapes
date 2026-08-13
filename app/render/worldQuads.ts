@@ -319,29 +319,29 @@ if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
   // so light follows the wall the art is drawing rather than the rectangle
   // the art was authored in — no reset at each sprite's edge.
   //
-  // Read out of the air the surface faces, not the solid behind it. A blocking
-  // cell takes no torch light at all (see castEmitter), so a wall that reads
-  // its own cell shadows itself — which is what banded the faces of a stack.
-  // Only the south, east and top faces are ever visible, so those are the only
-  // three directions to step half a cell into. What is found there is a light
-  // value, never an occupancy test: a floor or a half-height stack next door
-  // carries light exactly as open air does.
-  vec3 faceOut = vec3(0.0);
-  if (farFaceElev <= exitElev) {
-    if (eastFace <= southFace && eastFace <= vBox.w) faceOut.x = 0.5;
-    else if (southFace <= vBox.w) faceOut.y = 0.5;
-    else faceOut.z = 0.5;
-  }
+  // A surface reads its own cell. A solid one holds no light of its own, but
+  // the bake has already handed it the brightest of the cells its visible
+  // faces look into, so the field is continuous across the solid/air boundary
+  // and a wall shades by cell rather than by face — hunting for lit air here
+  // instead lit each face off a different neighbour, and the wall came out
+  // looking patched together.
+  //
+  // A top face is the exception: what lights it is the air standing on it, so
+  // it steps up half a level. That is nothing for a floor, whose own cell is
+  // that air already, and a full level for a block, whose is the cell above.
+  float topFace =
+    farFaceElev <= exitElev && vBox.w <= eastFace && vBox.w <= southFace
+      ? 0.5
+      : 0.0;
   vec2 lightCell =
-    (depthPx + surfaceElev * ${glsl(PX_PER_HEIGHT)}) / ${glsl(CELL_SIZE)} +
-    faceOut.xy;
+    (depthPx + surfaceElev * ${glsl(PX_PER_HEIGHT)}) / ${glsl(CELL_SIZE)};
   // A cell's light belongs at the middle of its own slab, which is what keeps a
   // stack of blocks from sawtoothing: the middle of each face reads its
   // neighbouring cell outright, and the seams between blocks are the halfway
   // blends between one cell and the next. Anchoring at the slab floor instead
   // made every face climb a whole level and snap back at the block above it.
   float levelsFromSlab =
-    surfaceElev / ${glsl(HEIGHT_PER_LEVEL)} - 0.5 + faceOut.z - uLevelZ;
+    surfaceElev / ${glsl(HEIGHT_PER_LEVEL)} - 0.5 + topFace - uLevelZ;
   // RGB is block light, alpha is the sky factor, so the tint happens here
   // rather than on the CPU. Alpha 0 means "already composed" — a caller that
   // tints its own texture uploads it that way and this reduces to a passthrough.
