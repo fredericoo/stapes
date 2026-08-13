@@ -82,8 +82,10 @@ Two configs, because the codebase spans two runtimes:
 
 ## Third-party assets
 
-- **Silkscreen** by Jason Kottke, in `public/fonts/` under the SIL Open Font
+- **NF Pixels** by Steve Gigou, in `public/fonts/` under the SIL Open Font
   License 1.1 — the licence sits beside it, which is what the OFL asks for.
-  Subset to printable ASCII. It draws the names over players' heads, inside the
-  canvas rather than in the DOM, and it is used at **8px and only 8px**: its em
-  is 8 units, so that size puts every stroke on exactly one pixel.
+  Subset to printable ASCII. It draws the names, speech and damage over the
+  world, in the DOM rather than in the canvas, and it is used at **multiples of
+  10px**: its em is 10 design pixels, so those are the sizes that put every
+  stroke on a whole pixel. IBM Plex Mono, loaded from Google in `app/root.tsx`,
+  is the separate typeface the editor's chrome is set in.

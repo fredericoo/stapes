@@ -66,9 +66,10 @@ export function healthBarColor(fraction: number): string {
  * - **Anything above zero keeps at least one brick.** A creature on its last hit
  *   point out of five hundred is one you can still kill, and an empty bar says
  *   the opposite.
- * - **Anything below full loses at least one.** A bar only appears once
- *   something has been taken off, so a track that rounded up to completely full
- *   would be a bar whose whole reason for being on screen is invisible.
+ * - **Anything below full loses at least one.** Every battler carries a bar now,
+ *   full or not, so a completely full track is the one reading that means
+ *   "untouched" — and a scratch that rounded up to it would be the bar saying
+ *   nothing had happened.
  */
 export function healthBarFillBricks(fraction: number): number {
   if (fraction <= 0) return 0;

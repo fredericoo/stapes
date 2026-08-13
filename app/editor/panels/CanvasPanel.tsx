@@ -21,7 +21,7 @@ export function CanvasPanel() {
         {import.meta.env.DEV ? (
           <div
             data-editor-stats
-            className="relative z-10 shrink-0 empty:hidden [&_>div]:border-2 [&_>div]:border-border [&_>div]:bg-paper/90 [&_>div]:px-2 [&_>div]:py-1 [&_>div]:font-mono [&_>div]:text-[11px]/[&_>div]:leading-snug [&_>div]:text-accent [&_>div]:shadow-hard [&_>div]:whitespace-pre"
+            className="relative z-10 shrink-0 empty:hidden [&_>div]:border-2 [&_>div]:border-border [&_>div]:bg-paper/90 [&_>div]:px-2 [&_>div]:py-1 [&_>div]:font-mono [&_>div]:text-[11px] [&_>div]:leading-snug [&_>div]:text-accent [&_>div]:shadow-hard [&_>div]:whitespace-pre"
           />
         ) : null}
         <div className="relative min-h-0 w-full flex-1">

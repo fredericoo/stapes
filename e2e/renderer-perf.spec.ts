@@ -13,19 +13,43 @@ function frameMsBudget(): number | null {
   return PERF_BUDGETS.frameMsP95;
 }
 
+/**
+ * How long the app is allowed to take to exist, as opposed to to draw.
+ *
+ * None of this is a budget — the budgets are the assertions at the bottom, and
+ * they only measure frames taken after `ready()` resolves. Everything before
+ * that is the app booting, and on a cold Vite cache most of it is the module
+ * graph being transformed for the first time: a fresh clone, CI, the first run
+ * after touching a source file, or simply another dev server compiling on the
+ * same machine.
+ *
+ * These were 15s and 30s, which a cold compile beats on a quiet laptop and
+ * loses to badly under any contention. That failed the run on a timeout, which
+ * reads as a renderer regression and is nothing of the sort. Generous here
+ * costs a slow failure on a genuinely broken app and buys a test that only
+ * fails for the reason it exists.
+ */
+const BOOT_TIMEOUT_MS = 120_000;
+const READY_TIMEOUT_MS = 60_000;
+
 test.describe("editor renderer perf", () => {
   test("stays within draw-call / mesh / frame budgets", async ({ page }) => {
+    // Room for the boot allowances above, on top of the config's own budget.
+    test.setTimeout(BOOT_TIMEOUT_MS + READY_TIMEOUT_MS + 60_000);
+
     const pageErrors: string[] = [];
     page.on("pageerror", (err) => pageErrors.push(String(err)));
 
     await page.goto("/map", { waitUntil: "networkidle" });
-    await expect(page.locator("canvas").first()).toBeVisible({ timeout: 15_000 });
+    await expect(page.locator("canvas").first()).toBeVisible({
+      timeout: BOOT_TIMEOUT_MS,
+    });
 
     await page.waitForFunction(() => window.__editorPerf != null, null, {
-      timeout: 15_000,
+      timeout: BOOT_TIMEOUT_MS,
     });
     await page.waitForFunction(() => window.__editorPerf?.ready() === true, null, {
-      timeout: 30_000,
+      timeout: READY_TIMEOUT_MS,
     });
 
     expect(pageErrors, `page errors: ${pageErrors.join("\n")}`).toEqual([]);

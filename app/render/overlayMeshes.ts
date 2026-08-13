@@ -117,9 +117,25 @@ export function makeSpriteMesh(
 const OUTLINE_PAD_PX = 1;
 
 /**
- * 1px outer silhouette outline via alpha edge detect.
- * Mesh is padded 1 world-px; UVs outside the sprite rect count as
- * transparent so neighbouring atlas tiles never bleed in.
+ * 1px outer silhouette outline via alpha edge detect: four-connected, plus the
+ * corner tips four-connected leaves off.
+ *
+ * ```
+ * ####          # outline
+ * #•••#         • sprite
+ *  #•••#
+ *   ####
+ * ```
+ *
+ * The two tips at the ends are the whole difference. Four-connected alone leaves
+ * them open, so a sharp corner reads chamfered; eight-connected closes them and
+ * also doubles the width of every diagonal edge, which is worse. `cornerTip` in
+ * the shader is what tells the two apart.
+ *
+ * Mesh is padded 1 world-px; UVs outside the sprite rect count as transparent so
+ * neighbouring atlas tiles never bleed in. One pixel is all the padding needed:
+ * only texels within a pixel of the sprite are ever *shaded*, and the probes
+ * reaching two texels further are reads, which the rect test already guards.
  */
 export function makeSpriteOutline(quad: SpriteQuad, color: number): THREE.Mesh {
   const pad = OUTLINE_PAD_PX;
@@ -164,17 +180,44 @@ export function makeSpriteOutline(quad: SpriteQuad, color: number): THREE.Mesh {
         return texture2D(map, uv).a;
       }
 
+      // Is this texel the missing tip of a corner, or the crook of a staircase?
+      //
+      // Both look identical up close: an empty texel with the silhouette sitting
+      // diagonally across from it and nothing on either side. Filling every one
+      // of them is 8-connected, and that is what doubles a 45-degree edge —
+      // every step along the diagonal has a crook, so the band comes out two
+      // texels thick instead of one.
+      //
+      // What separates them is one texel further out. Walk two texels toward the
+      // silhouette along each axis: at a real corner you are walking away from
+      // the shape and find nothing, while in a crook the next step of the
+      // staircase has already come back around to meet you. So the diagonal only
+      // counts when both those probes come up empty.
+      float cornerTip(vec2 uv, vec2 d) {
+        if (sampleA(uv + d) < 0.5) return 0.0;
+        if (sampleA(uv + vec2(d.x * 2.0, 0.0)) >= 0.5) return 0.0;
+        if (sampleA(uv + vec2(0.0, d.y * 2.0)) >= 0.5) return 0.0;
+        return 1.0;
+      }
+
       void main() {
         // Outer ring only — opaque texels belong to the sprite itself.
         if (sampleA(vUv) >= 0.5) discard;
 
-        // 4-connected only: including diagonals fattens stair-step edges
-        // (corner-touch pixels fill the staircase and read as ~2px thick).
-        float n = max(
+        // The four sides. Every texel touching the silhouette edge-on is outline,
+        // and this alone is the whole outline everywhere except at a corner.
+        float orth = max(
           max(sampleA(vUv + vec2(-uPx.x, 0.0)), sampleA(vUv + vec2(uPx.x, 0.0))),
           max(sampleA(vUv + vec2(0.0, -uPx.y)), sampleA(vUv + vec2(0.0, uPx.y)))
         );
-        if (n < 0.5) discard;
+
+        if (orth < 0.5) {
+          float corner = max(
+            max(cornerTip(vUv, vec2(-uPx.x, -uPx.y)), cornerTip(vUv, vec2(uPx.x, -uPx.y))),
+            max(cornerTip(vUv, vec2(-uPx.x, uPx.y)), cornerTip(vUv, vec2(uPx.x, uPx.y)))
+          );
+          if (corner < 0.5) discard;
+        }
 
         gl_FragColor = vec4(uColor, 1.0);
         #include <colorspace_fragment>

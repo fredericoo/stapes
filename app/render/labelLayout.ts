@@ -34,6 +34,10 @@
  *   covered, and — crucially — it never pushes anything else out of the way. It
  *   is drawn behind the rest (see `.world-label--name` in `app/app.css`), so a
  *   sentence over a name reads as a sentence over a name, not as a collision.
+ *
+ * A health bar rides inside a name label but is placed on the anchor in its own
+ * right — see {@link barLeftFor}, which is the one part of a label allowed to
+ * disagree with where the rest of it ended up.
  */
 
 export type LabelKind = "name" | "speech" | "look";
@@ -74,10 +78,23 @@ export type LabelRequest = {
    * would otherwise never fix.
    */
   lift: number;
+  /**
+   * How wide the health bar in this label is, if it has one. Absent for labels
+   * that do not. @see barLeftFor
+   */
+  barWidth?: number;
 };
 
-/** Top left corner of a placed label, in CSS pixels from the view's top left. */
-export type LabelPlacement = { left: number; top: number };
+/**
+ * Top left corner of a placed label, in CSS pixels from the view's top left,
+ * and — for a label carrying a health bar — the left edge that bar was given.
+ */
+export type LabelPlacement = {
+  left: number;
+  top: number;
+  /** Absent unless the request asked for one. @see barLeftFor */
+  barLeft?: number;
+};
 
 /**
  * Answers, by label id.
@@ -111,8 +128,10 @@ export function layoutLabels(
     // a label pinned to the edge would be pointing at nothing.
     if (!wanted) continue;
 
+    const barLeft = barLeftFor(request, view);
+
     if (request.kind === "name") {
-      layout.set(request.id, { left: wanted.left, top: wanted.top });
+      layout.set(request.id, { left: wanted.left, top: wanted.top, barLeft });
       continue;
     }
 
@@ -124,7 +143,7 @@ export function layoutLabels(
       top,
       bottom: top + request.height,
     });
-    layout.set(request.id, { left: wanted.left, top });
+    layout.set(request.id, { left: wanted.left, top, barLeft });
   }
 
   return layout;
@@ -171,6 +190,35 @@ function wantedRect(
     view.height - height - VIEW_PADDING_PX,
   );
   return { left, right: left + width, top, bottom: top + height };
+}
+
+/**
+ * Where the health bar goes, decided on the anchor rather than on the box it
+ * happens to sit in.
+ *
+ * The bar is a child of the name label, so left alone it would ride along with
+ * whatever the text above it did — and the text is centred on a box as wide as
+ * the name, then dragged inside the view. A creature at the left edge of the
+ * square therefore had its bar sitting under the *middle* of a long name, a
+ * whole name's width away from the thing it was reporting on: at a glance the
+ * bar belonged to whatever was standing over there instead.
+ *
+ * So the bar is placed on the anchor directly, and pulled inside the view by its
+ * own width. Every reading is 24 bricks wide whoever it belongs to, which is why
+ * this can be true where it cannot be for the name: a bar has room to stay on
+ * its target long after a name has had to slide off it.
+ */
+function barLeftFor(
+  request: LabelRequest,
+  view: { width: number; height: number },
+): number | undefined {
+  const { barWidth } = request;
+  if (barWidth === undefined) return undefined;
+  return clamp(
+    Math.round(request.anchorX - barWidth / 2),
+    VIEW_PADDING_PX,
+    view.width - barWidth - VIEW_PADDING_PX,
+  );
 }
 
 /**

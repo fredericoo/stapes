@@ -117,6 +117,13 @@ textarea {
   --world-label-size: 20px;
   /* Exactly one of the font's own pixels, since the em is 10 of them. */
   --world-label-brick: calc(var(--world-label-size) / 10);
+  /* The four offsets the outline is built from, one and two bricks either way.
+     Named short because they are about to be written out two dozen times — see
+     `.world-label` for the shape they make and why it takes that many. */
+  --o1: var(--world-label-brick);
+  --o2: calc(var(--world-label-brick) * 2);
+  --o1n: calc(var(--world-label-brick) * -1);
+  --o2n: calc(var(--world-label-brick) * -2);
 
   position: absolute;
   inset: 0;
@@ -164,14 +171,79 @@ textarea {
   transform: translate(var(--label-x, 0px), var(--label-y, 0px));
   /* Above a name tag wherever the two meet, which they are allowed to. */
   z-index: 1;
-  /* An outline one brick wide, so it matches the glyph's own pixel size instead
-     of being a hairline beside it. Four offsets rather than eight: the font is
-     orthogonal, so the diagonals add nothing but weight. */
+}
+
+/**
+ * The outline. One brick by default, two for the things that have to interrupt.
+ *
+ * `text-shadow` does not grow a region, it *copies the glyph*: a copy pushed two
+ * bricks out lands two bricks out and covers nothing on the way. So an outline
+ * is not a stroke of a given width, it is the union of a set of translations,
+ * and the set has to be every offset the outline is meant to occupy — the whole
+ * square, corners included, not a ring at each distance.
+ *
+ * **One brick is the 3×3 square, two bricks is the 5×5, and the second is
+ * exactly the first applied twice.** Growing a shape by a 3×3 and then growing
+ * the result by another 3×3 gives a 5×5 in one go: dilation is associative and
+ * the sum of two squares is a square. Chaining `text-shadow` is impossible and
+ * unnecessary — the second pass has a closed form, and it is the list below.
+ *
+ * Getting that set wrong is what made ascenders and descenders spike. With the
+ * outer diagonals left out — 12 offsets instead of 24 — the outline above a
+ * one-brick stem was three bricks wide at one brick's distance and *one* brick
+ * wide at two, so every `y` tail and `m` shoulder tapered to a point instead of
+ * ending in a flat cap.
+ *
+ * A third brick would be a 7×7 square, 48 entries. At that point it wants
+ * generating rather than typing — or a chain of four `drop-shadow` filters per
+ * brick, which does compose, at the cost of putting every child of the label
+ * through the filter too.
+ */
+.world-label {
   text-shadow:
-    var(--world-label-brick) 0 0 #000,
-    calc(var(--world-label-brick) * -1) 0 0 #000,
-    0 var(--world-label-brick) 0 #000,
-    0 calc(var(--world-label-brick) * -1) 0 #000;
+    var(--o1n) var(--o1n) 0 #000, 0 var(--o1n) 0 #000,
+    var(--o1) var(--o1n) 0 #000,
+
+    var(--o1n) 0 0 #000, var(--o1) 0 0 #000,
+
+    var(--o1n) var(--o1) 0 #000, 0 var(--o1) 0 #000,
+    var(--o1) var(--o1) 0 #000;
+}
+
+/**
+ * Two bricks, for the two things that are saying something new.
+ *
+ * A name and a look label are always there — a name over every battler on
+ * screen, a look label under the pointer for as long as it rests. Weight spent
+ * on those is weight spent on the whole screen at once, and the world stops
+ * reading as art with text over it and starts reading as text with art behind
+ * it. Speech and damage are the opposite: they arrive, they matter for a second
+ * or five, and they have to win against whatever colour they happen to land on.
+ *
+ * Must stay after `.world-label` — same specificity, so it is source order that
+ * decides, and this replaces the property rather than adding to it.
+ */
+.world-label--speech,
+.damage-number {
+  text-shadow:
+    var(--o2n) var(--o2n) 0 #000, var(--o1n) var(--o2n) 0 #000,
+    0 var(--o2n) 0 #000, var(--o1) var(--o2n) 0 #000,
+    var(--o2) var(--o2n) 0 #000,
+
+    var(--o2n) var(--o1n) 0 #000, var(--o1n) var(--o1n) 0 #000,
+    0 var(--o1n) 0 #000, var(--o1) var(--o1n) 0 #000,
+    var(--o2) var(--o1n) 0 #000,
+
+    var(--o2n) 0 0 #000, var(--o1n) 0 0 #000,
+    var(--o1) 0 0 #000, var(--o2) 0 0 #000,
+
+    var(--o2n) var(--o1) 0 #000, var(--o1n) var(--o1) 0 #000,
+    0 var(--o1) 0 #000, var(--o1) var(--o1) 0 #000,
+    var(--o2) var(--o1) 0 #000,
+
+    var(--o2n) var(--o2) 0 #000, var(--o1n) var(--o2) 0 #000,
+    0 var(--o2) 0 #000, var(--o1) var(--o2) 0 #000,
+    var(--o2) var(--o2) 0 #000;
 }
 
 /* EarthBound's dialogue yellow, near enough. A tag, not a voice — which is why
@@ -209,11 +281,15 @@ textarea {
      track and the fill dividing it are one number in one place. */
   /* Content-box, against Tailwind's global border-box, and it is load-bearing:
      these lengths count *fill* bricks, which is what the width written from
-     `HEALTH_BAR_BRICKS` means. Under border-box the two-brick height was the
-     whole box, both borders ate it, and the fill was left exactly zero pixels
-     tall — a bar that rendered as a solid black sliver whatever the health. */
+     `HEALTH_BAR_BRICKS` means. Under border-box the height would be the whole
+     box, both borders would eat it, and the fill would be left with next to
+     nothing — a bar that renders as a solid black sliver whatever the health. */
   box-sizing: content-box;
-  height: calc(var(--world-label-brick) * 2);
+  /* Four bricks of fill rather than two, which is the height at which the fill
+     is thick enough to carry its colour — the entire job, since a player reads
+     "it went red" long before they read a length. Two read as a rule drawn under
+     the name rather than as a gauge. */
+  height: calc(var(--world-label-brick) * 4);
   border: var(--world-label-brick) solid #000;
   background: #1a1014;
   /* The fill starts at the left edge and grows right, like every health bar. */
@@ -221,6 +297,14 @@ textarea {
   /* Bars are chrome, not type: keep the line box from adding leading under it. */
   line-height: 0;
   margin-top: var(--world-label-brick);
+  /* Horizontally, the bar is not part of the column at all: the layout pass
+     puts it on the battler's own head and hands the distance from the group's
+     corner down as `--bar-x`, so a long name sliding away from the edge of the
+     view no longer drags the reading with it. Starting at that corner rather
+     than centred in the column is what keeps the offset a whole number of
+     pixels — half a pixel is the browser antialiasing a 1-bit border. */
+  align-self: start;
+  transform: translateX(var(--bar-x, 0px));
 }
 
 .world-label__bar > div {
@@ -266,11 +350,6 @@ textarea {
   transform: translate(var(--label-x, 0px), var(--label-y, 0px)) translateX(-50%);
   /* Over the bubbles: a number is the newest thing that happened. */
   z-index: 2;
-  text-shadow:
-    2px 0 0 #000,
-    -2px 0 0 #000,
-    0 2px 0 #000,
-    0 -2px 0 #000;
 }
 
 /* Damage the viewer took, as opposed to damage they dealt. The one distinction

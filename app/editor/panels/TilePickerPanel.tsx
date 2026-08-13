@@ -51,7 +51,10 @@ export function TilePickerPanel() {
             ].join(" ")}
           >
             <TilePreview tile={tile} tilesets={tilesets} size={40} />
-            <span className="truncate text-[10px]">{tile.name}</span>
+            {/* `max-w-full` is what makes `truncate` bite: the button centres
+                its children, so without it the span is free to size to its text
+                and spill into the neighbouring cell rather than ellipsing. */}
+            <span className="max-w-full truncate text-[10px]">{tile.name}</span>
           </button>
         ))}
       </div>

@@ -47,7 +47,11 @@ import {
   healthBarColor,
   healthBarFillBricks,
 } from "./healthBar";
-import { type LabelKind, layoutLabels } from "./labelLayout";
+import {
+  type LabelKind,
+  type LabelPlacement,
+  layoutLabels,
+} from "./labelLayout";
 
 /**
  * One anchor's worth of text, and the world-pixel point it hangs above.
@@ -78,9 +82,14 @@ export type WorldLabel = {
    * has — a real border a screen pixel wide, rather than a world pixel that is
    * five of them at this zoom.
    *
-   * Absent for everything that is not a battler, and for a battler at full
-   * health: a bar over a creature nobody has touched is a status readout the
-   * player did not ask for.
+   * Absent for everything that is not a battler, and present for every battler
+   * — full health included, so that a bar missing always means "not a thing you
+   * fight" rather than sometimes meaning "unhurt".
+   *
+   * Vertically it is part of the column; horizontally it is not. The layout pass
+   * places it on the anchor in its own right and answers with a `barLeft`, which
+   * is what keeps the reading over the creature when the name above it has been
+   * dragged inside the view. @see ./labelLayout
    */
   bar?: { fraction: number };
   /**
@@ -167,7 +176,13 @@ type LabelEntry = {
    * Null means "ask the browser". Text is the only thing that changes it — and
    * the width of the view, since a group wraps against a share of that.
    */
-  size: { width: number; height: number; lift: number } | null;
+  size: {
+    width: number;
+    height: number;
+    lift: number;
+    /** Undefined for a group with no bar in it. */
+    barWidth: number | undefined;
+  } | null;
   /** Whether the element is drawn, so an unchanged one is never rewritten. */
   shown: boolean;
   /** Last ink written, so an unchanged colour is not restyled every frame. */
@@ -217,30 +232,49 @@ export class WorldLabelLayer {
   }
 
   /**
-   * Keep the view size honest where nothing is watching it for us.
+   * Keep the view size honest, every frame, observer or no observer.
    *
-   * Only reached without a ResizeObserver, and then it is worth the layout read
-   * every frame: a stale size is not a slightly-wrong label, it is every label
-   * judged against a view that is the wrong shape — and a size still at its
-   * initial zero would hide all of them.
+   * This used to return early whenever a ResizeObserver existed, on the grounds
+   * that the observer already knew. The observer is not a thing you can bet a
+   * frame on: notifications go undelivered when a callback resizes something —
+   * the "ResizeObserver loop" case — and the layer has no way to find out it
+   * missed one. Nothing else here ever reads the container again, so a single
+   * skipped delivery left `view` stale until the *next* resize, which is a long
+   * time to be wrong.
+   *
+   * Being wrong here is not a slightly misplaced label. `../render/labelLayout`
+   * drops any label whose anchor falls outside the view, so a `view` smaller
+   * than the pane really is — which is what growing the window and missing the
+   * notification gives you — silently takes every name near the edge off the
+   * screen, and a size still at its initial zero takes all of them.
+   *
+   * The read costs nothing that was not already being paid. The frame that calls
+   * this has already asked the canvas for its box — `currentFit` in
+   * `./GameRenderer`, once per frame, to work out the scale — so the layout is
+   * read every frame either way, and a second box off a clean layout is a
+   * lookup rather than a reflow. The observer stays for the job only it can do:
+   * throwing away held measurements, since every group wraps against a share of
+   * the width.
    */
   private syncView() {
-    if (this.resize) return;
     this.view = {
       width: this.container.clientWidth,
       height: this.container.clientHeight,
     };
   }
 
+  /**
+   * Throw away held measurements when the pane changes shape.
+   *
+   * The one job the observer is actually needed for: every group wraps against a
+   * share of the width, so a resize makes every held measurement a claim about a
+   * box that no longer exists, and nothing else would ever notice. The view size
+   * is *not* read from here — see {@link syncView} for why that would be
+   * trusting a notification that is allowed to go missing.
+   */
   private watchSize(): ResizeObserver | null {
     if (typeof ResizeObserver === "undefined") return null;
     const observer = new ResizeObserver(() => {
-      this.view = {
-        width: this.container.clientWidth,
-        height: this.container.clientHeight,
-      };
-      // Every group wraps against a share of the width, so a resize makes every
-      // held measurement a claim about a box that no longer exists.
       for (const entry of this.entries.values()) entry.size = null;
     });
     observer.observe(this.container);
@@ -301,10 +335,7 @@ export class WorldLabelLayer {
    * to save nothing. `visibility` rather than `display` for the same reason —
    * the box stays measurable while it is out of sight.
    */
-  private place(
-    entry: LabelEntry,
-    at: { left: number; top: number } | undefined,
-  ) {
+  private place(entry: LabelEntry, at: LabelPlacement | undefined) {
     if (!at) {
       if (entry.shown) {
         entry.element.style.visibility = "hidden";
@@ -329,6 +360,15 @@ export class WorldLabelLayer {
     // invisible opinion about where the text goes.
     entry.element.style.setProperty("--label-x", `${at.left}px`);
     entry.element.style.setProperty("--label-y", `${at.top}px`);
+    // The bar's answer is an absolute position like the group's, but the
+    // element it lands on is a child, so it is written as the distance from the
+    // corner the group was put in. The bar starts at that corner —
+    // `align-self: start` in the stylesheet — precisely so this stays whole
+    // pixels: centred in the column it would begin at half a group width, and
+    // half a pixel of offset is the browser antialiasing a 1-bit border.
+    if (at.barLeft !== undefined) {
+      entry.element.style.setProperty("--bar-x", `${at.barLeft - at.left}px`);
+    }
   }
 
   /**
@@ -343,7 +383,12 @@ export class WorldLabelLayer {
   private measure(
     entry: LabelEntry,
     kind: WorldLabel["kind"],
-  ): { width: number; height: number; lift: number } {
+  ): {
+    width: number;
+    height: number;
+    lift: number;
+    barWidth: number | undefined;
+  } {
     if (entry.size) return entry.size;
 
     const { element } = entry;
@@ -353,6 +398,11 @@ export class WorldLabelLayer {
       height: element.offsetHeight,
       // A name is the thing being cleared, so it sits on the anchor itself.
       lift: kind === "name" ? 0 : Math.round(fontSize * ANCHOR_CLEARANCE_EMS),
+      // Measured rather than worked out from `HEALTH_BAR_BRICKS`, because the
+      // number the layout pass needs is the box the browser actually made:
+      // bricks, borders and the rounding of a fractional em all included. It is
+      // read here with the rest so it costs no extra layout flush.
+      barWidth: element.querySelector<HTMLElement>(`.${BAR_CLASS}`)?.offsetWidth,
     };
     entry.size = size;
     return size;

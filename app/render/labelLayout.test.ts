@@ -24,7 +24,12 @@ function request(
   kind: LabelKind,
   anchorX: number,
   anchorY: number,
-  size: { width?: number; height?: number; lift?: number } = {},
+  size: {
+    width?: number;
+    height?: number;
+    lift?: number;
+    barWidth?: number;
+  } = {},
 ): LabelRequest {
   return {
     id,
@@ -34,6 +39,7 @@ function request(
     width: size.width ?? 100,
     height: size.height ?? 24,
     lift: size.lift ?? 0,
+    barWidth: size.barWidth,
   };
 }
 
@@ -236,6 +242,62 @@ describe("names", () => {
     const layout = layoutLabels(requests, VIEW);
 
     expect(layout.get("a")).toEqual(layout.get("b"));
+  });
+});
+
+/**
+ * The bar is the reading, and a reading over the wrong body is worse than no
+ * reading — so it is placed on the anchor rather than on the label carrying it.
+ */
+describe("a health bar inside a name", () => {
+  const BAR = 52;
+
+  it("is centred on the anchor, not on the name above it", () => {
+    const requests = [
+      request("name", "name", 300, 400, { width: 200, barWidth: BAR }),
+    ];
+    const layout = layoutLabels(requests, VIEW);
+
+    expect(layout.get("name")?.barLeft).toBe(300 - BAR / 2);
+  });
+
+  /**
+   * The case from the edge of the square: a long name has to slide inward to
+   * stay readable, and the bar must not travel with it — half a name's width
+   * away it reads as belonging to whoever is standing over there.
+   */
+  it("stays on its target when the name has to slide inside the view", () => {
+    const requests = [
+      request("name", "name", 40, 400, { width: 300, barWidth: BAR }),
+    ];
+    const layout = layoutLabels(requests, VIEW);
+
+    // The name gave up its target to stay on screen; the bar did not have to.
+    expect(layout.get("name")?.left).toBe(2);
+    expect(layout.get("name")?.barLeft).toBe(40 - BAR / 2);
+  });
+
+  it("is pulled inside the view by its own width when it has to be", () => {
+    const requests = [
+      request("name", "name", 1, 400, { width: 300, barWidth: BAR }),
+    ];
+    const layout = layoutLabels(requests, VIEW);
+
+    // Never touching the edge, and never off it: the bar keeps the same two
+    // pixels of air every other label gets.
+    expect(layout.get("name")?.barLeft).toBe(2);
+    expect(
+      layoutLabels(
+        [request("name", "name", 599, 400, { width: 300, barWidth: BAR })],
+        VIEW,
+      ).get("name")?.barLeft,
+    ).toBe(VIEW.width - BAR - 2);
+  });
+
+  it("has no opinion at all for a label without one", () => {
+    const layout = layoutLabels([request("said", "speech", 300, 400)], VIEW);
+
+    expect(layout.get("said")?.barLeft).toBeUndefined();
   });
 });
 

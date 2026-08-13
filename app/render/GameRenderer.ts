@@ -892,14 +892,16 @@ export class GameRenderer {
         y: visual.y + head.y,
         lines: [{ id: actor.id, text: name }],
         // Tinted to match its own health, so the tag and the bar under it read
-        // as one reading of one thing. It also means a battler at full health
-        // says so in green with no bar drawn at all, which is the cheapest way
-        // to answer "how is that thing doing" at a glance across a room.
+        // as one reading of one thing rather than as a yellow label that happens
+        // to have a coloured strip beneath it.
         color: healthBarColor(fraction),
-        // Only once something has been taken off. A bar over a creature nobody
-        // has touched is a status readout the player did not ask for, and with a
-        // name over every battler now there would be a great many of them.
-        bar: actor.hp < actor.maxHp ? { fraction } : undefined,
+        // Always, even at full. A bar that appeared only once a creature had
+        // been hit made its *absence* carry the meaning "unhurt" — which is a
+        // thing you can only read if you already know the rule, and which looks
+        // identical to a battler whose bar has not been drawn yet. A full green
+        // track says the same thing to somebody seeing it for the first time,
+        // and it means every battler on screen is measured on the same ruler.
+        bar: { fraction },
       });
     }
   }
