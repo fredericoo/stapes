@@ -36,8 +36,16 @@ import { DIR_DELTA } from "./movement";
  * rather than parsed.
  */
 
-/** What an entry does. The push/switch pair plus the one thing a body offers. */
-export type InteractionAction = InteractionKind | "attack";
+/**
+ * What an entry does. The push/switch pair plus the one thing a body offers.
+ *
+ * `target` and not `attack`: picking somebody out is its own act now, and
+ * whether it turns into blows is attack mode's answer rather than this list's —
+ * see {@link GameSnapshot.attacking}. The row is the same row either way, which
+ * is the point: you choose who you are interested in once, and change your mind
+ * about what to do with them without having to choose again.
+ */
+export type InteractionAction = InteractionKind | "target";
 
 export type InteractionOption = {
   /** Identity across frames, so the list can be diffed rather than compared. */
@@ -50,22 +58,38 @@ export type InteractionOption = {
    * half of the door opens or shuts.
    */
   label: string;
-  /** The placement to act on. `attack` carries one too, for its sprite. */
+  /** The placement to act on. `target` carries one too, for its sprite. */
   ref: ObjectRef;
-  /** Who to fight, for `attack`; null for anything the board offers. */
+  /** Who to point at, for `target`; null for anything the board offers. */
   actorId: string | null;
   /** The tile standing for this entry — its front sprite is what gets drawn. */
   tileId: string;
   /** A person by their handle, anything else by what its tile is called. */
   name: string;
-  /** Already the thing being fought. Only ever true of an `attack`. */
+  /** Already the one being pointed at. Only ever true of a `target`. */
   active: boolean;
 };
 
 const LABELS: Record<InteractionAction, string> = {
-  attack: "Attack",
+  target: "Target",
   push: "Push",
   switch: "Switch",
+};
+
+/**
+ * Which verb comes first where two entries are the same distance away.
+ *
+ * Stated rather than left to the id's alphabet. It used to be exactly that
+ * accident — "attack" sorted before "push" — and renaming the verb to "target"
+ * silently reversed it, which is the whole argument for writing the order down:
+ * a body you can both point at and shove offers the fight first because that is
+ * the decision with consequences, and nothing about the spelling should be able
+ * to change that again.
+ */
+const ACTION_ORDER: Record<InteractionAction, number> = {
+  target: 0,
+  switch: 1,
+  push: 2,
 };
 
 /**
@@ -107,14 +131,14 @@ export function listInteractionOptions(
   const bodies = bodiesByCell(self, visibleActors);
 
   return [
-    ...attackOptions(tilesById, bodies, targetId),
+    ...targetOptions(tilesById, bodies, targetId),
     ...objectOptions(map, tilesById, self, bodies),
   ].sort(
     (a, b) =>
       distanceFrom(self, a.ref) - distanceFrom(self, b.ref) ||
+      ACTION_ORDER[a.action] - ACTION_ORDER[b.action] ||
       // Whatever is left is settled by id, so two things equally far off never
-      // trade places between frames. It also happens to read the right way
-      // round on a body that is both: "attack" sorts before "push".
+      // trade places between frames.
       (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
   );
 }
@@ -127,8 +151,8 @@ export function listInteractionOptions(
  * lines against sessions they hold differently. The list itself knows nothing
  * about pushing or fighting; it hands the option back and this decides.
  *
- * Tapping the fight you are already in calls it off. That is the only way to
- * drop a target with a thumb — the keyboard has Escape and a touch screen has
+ * Tapping the one you are already pointing at drops it. That is the only way to
+ * clear a target with a thumb — the keyboard has Escape and a touch screen has
  * nothing — and it is why the entry says which one is active at all.
  */
 export function applyInteraction(
@@ -136,7 +160,7 @@ export function applyInteraction(
   option: InteractionOption,
 ) {
   if (!session) return;
-  if (option.action === "attack") {
+  if (option.action === "target") {
     session.setTarget(option.active ? null : option.actorId);
     return;
   }
@@ -252,20 +276,21 @@ function objectActionLabel(
 }
 
 /**
- * One entry per body the viewer can see, and whoever is already being fought.
+ * One entry per body the viewer can see, and whoever is already being pointed
+ * at.
  *
  * **Range is deliberately not consulted.** Tapping a body does not swing at it —
- * it marks it as the target, and the session decides when and whether a blow
- * lands from there. So the question this answers is "who could I pick a fight
- * with", and the honest bound on that is what is on screen, not what is already
- * within arm's reach: choosing your target while walking towards it is the
- * normal way a fight starts, and an entry that only appeared once you were
+ * it marks it as the target, and attack mode plus the session decide when and
+ * whether a blow lands from there. So the question this answers is "who could I
+ * single out", and the honest bound on that is what is on screen, not what is
+ * already within arm's reach: choosing your target while walking towards it is
+ * the normal way a fight starts, and an entry that only appeared once you were
  * beside them would arrive after the decision it exists for.
  *
  * A battler is anything with hit points, which the snapshot already says: `hp`
  * is null for a body that has none.
  */
-function attackOptions(
+function targetOptions(
   tilesById: Record<string, TileDef>,
   bodies: Map<string, ActorSnapshot>,
   targetId: string | null,
@@ -282,9 +307,9 @@ function attackOptions(
       stackIndex: actor.stackIndex,
     };
     out.push({
-      id: `attack:${actor.id}`,
-      action: "attack",
-      label: LABELS.attack,
+      id: `target:${actor.id}`,
+      action: "target",
+      label: LABELS.target,
       ref,
       actorId: actor.id,
       tileId: actor.tileId,

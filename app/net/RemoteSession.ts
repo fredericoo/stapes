@@ -158,8 +158,17 @@ export class RemoteSession implements PlaySession {
   private readonly hps = new Map<string, { hp: number; maxHp: number }>();
   /** Numbers still floating, with their own clocks. */
   private damage: DamageNumber[] = [];
-  /** Who this client is fighting; echoed back in the snapshot for the outline. */
+  /** Who this client is pointing at; echoed back in the snapshot for the outline. */
   private targetId: string | null = null;
+  /**
+   * Whether that target is somebody to fight. Held locally for the same reason
+   * the target is — the outline changes colour on the frame the mode is flipped,
+   * not a round trip later — and sent, because the swinging is the server's.
+   *
+   * Starts off on a fresh session, which a reconnect is: the page re-applies
+   * whatever the player has the button set to once the socket is up.
+   */
+  private attacking = false;
   /**
    * The last snapshot this client's own body produced.
    *
@@ -256,6 +265,12 @@ export class RemoteSession implements PlaySession {
       // already dropped it — leaving it set here would draw a red outline
       // around whoever happens to answer to that id next.
       this.targetId = null;
+      // Attack mode is *not* cleared: it is this player's stance rather than a
+      // fact about the world that was replaced, and a fight interrupted by the
+      // editor saving a map should not quietly put your sword away. The body at
+      // the other end is new and comes up not swinging, though, so the stance
+      // has to be said again — the same resend the held directions do.
+      if (this.attacking) this.send({ type: "attackMode", enabled: true });
       this.hps.clear();
       for (const id of message.actorIds) this.motions.set(id, emptyMotion());
       this.applyHps(message.hps);
@@ -954,13 +969,14 @@ export class RemoteSession implements PlaySession {
       actors,
       hover: this.hovered && this.canInteract(this.hovered) ? this.hovered : null,
       targetId: this.targetId,
+      attacking: this.attacking,
       chats: this.chats,
       damage: this.damage,
     };
   }
 
   /**
-   * Pick a fight, or call it off.
+   * Point at somebody, or at nobody.
    *
    * Held locally so the outline is drawn on the frame the player clicks, and
    * sent so the server knows who to swing at — the same split every other
@@ -972,6 +988,13 @@ export class RemoteSession implements PlaySession {
     if (actorId === this.targetId) return;
     this.targetId = actorId;
     this.send({ type: "target", actorId });
+  }
+
+  /** Turn the target into a fight, or back into somebody being watched. */
+  setAttackMode(enabled: boolean) {
+    if (enabled === this.attacking) return;
+    this.attacking = enabled;
+    this.send({ type: "attackMode", enabled });
   }
 
   setHoveredObject(ref: ObjectRef | null) {

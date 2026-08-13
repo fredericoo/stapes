@@ -253,14 +253,23 @@ export type ClientMessage =
   | { type: "interact"; ref: { x: number; y: number; z: number; stackIndex: number } }
   | { type: "say"; text: string }
   /**
-   * "This is who I am fighting" — or null, for nobody.
+   * "This is who I am pointing at" — or null, for nobody.
    *
    * The client picks the target because picking one is pointing at something on
    * a screen; it does not get to say when a blow lands, which is why there is no
    * `attack` message here at all. The server swings on its own clock at whoever
    * this names, so a client cannot attack faster by asking more often.
    */
-  | { type: "target"; actorId: string | null };
+  | { type: "target"; actorId: string | null }
+  /**
+   * "I am fighting whoever I am pointing at" — or not.
+   *
+   * The other half of {@link ClientMessage} `target`, and still not a request to
+   * swing: it says which of the two things pointing at somebody means, and the
+   * server keeps its own clock either way. A client that flipped this a thousand
+   * times a second would land exactly as many blows as one that flipped it once.
+   */
+  | { type: "attackMode"; enabled: boolean };
 
 /**
  * Inbound from the browser. Held to a tighter standard than outbound: a client
@@ -303,6 +312,10 @@ const clientMessageSchema = v.variant("type", [
     // around in an actor slot. Whether it names anybody real is not this
     // schema's business — the session looks it up on every swing regardless.
     actorId: v.nullable(v.pipe(v.string(), v.maxLength(MAX_ACTOR_ID_LENGTH))),
+  }),
+  v.object({
+    type: v.literal("attackMode"),
+    enabled: v.boolean(),
   }),
 ]);
 

@@ -117,6 +117,31 @@ export function makeSpriteMesh(
 const OUTLINE_PAD_PX = 1;
 
 /**
+ * How a chosen outline breathes: seconds per cycle, and how far down it dips.
+ *
+ * Slow enough to read as deliberate rather than as a warning light, and it never
+ * goes out — a target that blinked away entirely would leave the player unsure
+ * for half a second each cycle whether they still had one.
+ */
+export const PULSE_PERIOD_MS = 1400;
+const PULSE_MIN_ALPHA = 0.35;
+
+/**
+ * The outline shader's alpha, named once so the renderer writing it every frame
+ * and the shader reading it cannot drift apart over a typo.
+ */
+export const OUTLINE_ALPHA_UNIFORM = "uAlpha";
+
+/** How lit an outline is this instant. Shared, so every one breathes together. */
+export function pulseAlphaAt(elapsedMs: number): number {
+  const phase = (elapsedMs % PULSE_PERIOD_MS) / PULSE_PERIOD_MS;
+  // Cosine rather than a triangle: the ends of a linear ramp read as two
+  // separate flicks rather than as one breath.
+  const wave = (1 - Math.cos(phase * Math.PI * 2)) / 2;
+  return PULSE_MIN_ALPHA + (1 - PULSE_MIN_ALPHA) * wave;
+}
+
+/**
  * 1px outer silhouette outline via alpha edge detect: four-connected, plus the
  * corner tips four-connected leaves off.
  *
@@ -136,6 +161,10 @@ const OUTLINE_PAD_PX = 1;
  * neighbouring atlas tiles never bleed in. One pixel is all the padding needed:
  * only texels within a pixel of the sprite are ever *shaded*, and the probes
  * reaching two texels further are reads, which the rect test already guards.
+ *
+ * The alpha is a uniform so a breathing outline costs a number written per frame
+ * rather than a mesh rebuilt per frame — see {@link OUTLINE_ALPHA_UNIFORM} and
+ * `WorldRenderer.tick`. A steady outline simply never has it written again.
  */
 export function makeSpriteOutline(quad: SpriteQuad, color: number): THREE.Mesh {
   const pad = OUTLINE_PAD_PX;
@@ -156,6 +185,7 @@ export function makeSpriteOutline(quad: SpriteQuad, color: number): THREE.Mesh {
       uUvMax: { value: new THREE.Vector2(quad.u1, quad.v1) },
       uPx: { value: new THREE.Vector2(du, dv) },
       uColor: { value: new THREE.Color(color) },
+      [OUTLINE_ALPHA_UNIFORM]: { value: 1 },
     },
     vertexShader: /* glsl */ `
       varying vec2 vUv;
@@ -170,6 +200,7 @@ export function makeSpriteOutline(quad: SpriteQuad, color: number): THREE.Mesh {
       uniform vec2 uUvMax;
       uniform vec2 uPx;
       uniform vec3 uColor;
+      uniform float uAlpha;
       varying vec2 vUv;
 
       float sampleA(vec2 uv) {
@@ -219,7 +250,7 @@ export function makeSpriteOutline(quad: SpriteQuad, color: number): THREE.Mesh {
           if (corner < 0.5) discard;
         }
 
-        gl_FragColor = vec4(uColor, 1.0);
+        gl_FragColor = vec4(uColor, uAlpha);
         #include <colorspace_fragment>
       }
     `,

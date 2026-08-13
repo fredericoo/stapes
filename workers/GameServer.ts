@@ -539,6 +539,11 @@ export class GameServer extends DurableObject<Env> {
       // is a battler, or is anywhere near is re-asked on every swing — it has to
       // be, because all three change while both parties walk around.
       session.setTarget(message.actorId, actorId);
+    } else if (message.type === "attackMode") {
+      // The wake below matters more here than for a target: a world at rest
+      // stays at rest while somebody merely points at a deer, and turning this
+      // on beside them is exactly the moment the clock has to start again.
+      session.setAttackMode(message.enabled, actorId);
     } else {
       // Re-validated against the board rather than trusted: the client decided
       // to offer this affordance from the same rules, but it decided on a map

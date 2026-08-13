@@ -255,10 +255,19 @@ export type GameSnapshot = {
    *
    * The viewer's own, like {@link hover} and for the same reason: a target is
    * an affordance for whoever is looking, not a property of the board. It is
-   * what the auto-attack swings at, and it survives until they clear it, walk
-   * out of sight of it, or it dies.
+   * what the auto-attack swings at *while {@link attacking}*, and it survives
+   * until they clear it, walk out of sight of it, or it dies.
    */
   targetId: string | null;
+  /**
+   * Whether the viewer is in attack mode — see {@link ActorRuntime.attacking}.
+   *
+   * Read off the session rather than held by the page that flips it, because the
+   * outline colour in the world and the state of the button are two readings of
+   * one fact, and a fight that carried on after the button said otherwise would
+   * be the client and the server disagreeing about something the player can see.
+   */
+  attacking: boolean;
   /**
    * Damage still floating, oldest first.
    *
@@ -319,13 +328,17 @@ export interface PlaySession {
   getMap(): MapFile;
   setHoveredObject(ref: ObjectRef | null): void;
   /**
-   * Pick a fight, or call it off with null.
+   * Point at somebody, or at nobody with null.
    *
    * The client decides *who*, because choosing a target is pointing at something
-   * on a screen; this side decides *whether and how often*, because that is the
-   * board's business and a client cannot be trusted with its own attack speed.
+   * on a screen; this side decides *whether and how often* a blow lands, because
+   * that is the board's business and a client cannot be trusted with its own
+   * attack speed. A target on its own is only a target — see
+   * {@link setAttackMode}.
    */
   setTarget(actorId: string | null): void;
+  /** Swing at the target, or merely keep it. @see GameSnapshot.attacking */
+  setAttackMode(enabled: boolean): void;
   canInteract(ref: ObjectRef): boolean;
   interact(ref: ObjectRef): boolean;
 }
@@ -383,6 +396,21 @@ type ActorRuntime = {
   attackCooldownMs: number;
   /** Who this actor is set on, for a body driven by somebody pointing at things. */
   targetId: string | null;
+  /**
+   * Whether a target is somebody to fight or merely somebody being watched.
+   *
+   * Off by default, and the two halves of what used to be one decision:
+   * {@link targetId} says *who*, this says *whether to swing*. Pointing at
+   * something is how a player asks about it — a name tag, a health bar, a row in
+   * the list — and before this the only way to look at a creature that closely
+   * was to start a fight with it.
+   *
+   * Per actor rather than per session because it arrives on a socket like every
+   * other thing a player asks for, and a brain never sets it: a creature's
+   * aggression is its brain's `attack` action, which goes straight to
+   * {@link GameSession.tryAttack} and never through a standing target.
+   */
+  attacking: boolean;
   input: GameInput;
   walk: WalkState | null;
   fall: FallState | null;
@@ -614,6 +642,7 @@ export class GameSession implements PlaySession {
       hp: null,
       attackCooldownMs: 0,
       targetId: null,
+      attacking: false,
       input: { directions: [] },
       walk: null,
       fall: null,
@@ -1082,7 +1111,8 @@ export class GameSession implements PlaySession {
   }
 
   /**
-   * Swing for everybody who has picked a fight and is standing close enough.
+   * Swing for everybody in attack mode who has picked a fight and is standing
+   * close enough.
    *
    * Auto rather than per click, because {@link BattlerDef.spd} is what decides
    * how often a body swings. A client that had to ask for each blow would be
@@ -1093,7 +1123,8 @@ export class GameSession implements PlaySession {
    * Failing quietly is the whole behaviour here: out of reach, on cooldown, or
    * aimed at something with no hit points all simply do not swing. Only a target
    * that has left the world is worth clearing, because a slot pointing at
-   * nobody would keep this looking them up forever.
+   * nobody would keep this looking them up forever — and that clearing happens
+   * whether or not anybody is swinging, since a target outlives the mode.
    */
   private runAutoAttacks() {
     for (const actor of this.actors.values()) {
@@ -1103,6 +1134,7 @@ export class GameSession implements PlaySession {
         actor.targetId = null;
         continue;
       }
+      if (!actor.attacking) continue;
       this.tryAttack(actor, targetId);
     }
   }
@@ -1282,6 +1314,22 @@ export class GameSession implements PlaySession {
     const actor = this.actors.get(id);
     if (!actor) return;
     actor.targetId = actorId === actor.id ? null : actorId;
+  }
+
+  /**
+   * Turn swinging on or off, leaving whoever is targeted targeted.
+   *
+   * The other half of {@link setTarget}, and separate from it because the two
+   * are separate decisions a player makes at different moments: they pick who
+   * they are interested in by pointing at them, and they decide whether they are
+   * fighting by flipping a mode that outlives any one target. Toggling it off
+   * mid-fight is how you back out of one without losing sight of what you were
+   * backing out of.
+   */
+  setAttackMode(enabled: boolean, id: string = LOCAL_ACTOR_ID) {
+    const actor = this.actors.get(id);
+    if (!actor) return;
+    actor.attacking = enabled;
   }
 
   /**
@@ -1576,6 +1624,7 @@ export class GameSession implements PlaySession {
       hover:
         self.hovered && this.canInteract(self.hovered, id) ? self.hovered : null,
       targetId: self.targetId,
+      attacking: self.attacking,
       // Nobody to talk to: the local simulation has no wire and no other actors
       // worth naming, so speech is a thing only the online client carries.
       chats: [],
@@ -1612,7 +1661,12 @@ export class GameSession implements PlaySession {
       // Somebody standing still next to the thing they are fighting is not an
       // idle world: the next swing is on a cooldown that only this loop winds
       // down, so resting here would end the fight by falling asleep in it.
-      if (actor.targetId !== null) return false;
+      //
+      // Gated on attack mode, and that gate is what keeps targeting free: a
+      // target held with the mode off produces no blows and no cooldowns, so a
+      // player standing there watching a deer must not hold the world awake for
+      // as long as they keep it in sight.
+      if (actor.attacking && actor.targetId !== null) return false;
       if (!actor.resident) {
         observed = true;
       } else if (!thinking) {

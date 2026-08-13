@@ -739,3 +739,68 @@ describe("RemoteSession headcount", () => {
     expect(seen).toEqual([1]);
   });
 });
+
+/**
+ * Attack mode, which is the client's stance rather than the world's state.
+ *
+ * The wire carries who you are pointing at and whether you mean it, and neither
+ * says when a blow lands — that stays the server's clock. What matters here is
+ * that the two survive the things that replace one end of the connection.
+ */
+describe("RemoteSession attack mode", () => {
+  it("puts the stance on the wire, once per change", () => {
+    const { socket, session } = connected();
+    session.setAttackMode(true);
+    session.setAttackMode(true);
+
+    expect(framesOfType(socket, "attackMode")).toEqual([
+      { type: "attackMode", enabled: true },
+    ]);
+    expect(session.getSnapshot().attacking).toBe(true);
+  });
+
+  /**
+   * A restart seats a fresh body that is not swinging at anybody, so a stance
+   * held here would be one the server never heard about — the button lit and
+   * nothing happening. The target is dropped in the same breath, because it
+   * names somebody in a world that no longer exists.
+   */
+  it("says it again when the world is replaced under it", () => {
+    const { socket, session } = connected();
+    session.setTarget("them");
+    session.setAttackMode(true);
+
+    socket.deliver({
+      type: "hello",
+      selfId: SELF,
+      map: flatMap(),
+      actorIds: [SELF],
+      playerCount: 1,
+      minutesOfDay: SERVER_MINUTES,
+      hps: [],
+    });
+
+    expect(framesOfType(socket, "attackMode")).toEqual([
+      { type: "attackMode", enabled: true },
+      { type: "attackMode", enabled: true },
+    ]);
+    expect(session.getSnapshot().attacking).toBe(true);
+    expect(session.getSnapshot().targetId).toBeNull();
+  });
+
+  it("says nothing again when it was never on", () => {
+    const { socket, session } = connected();
+
+    socket.deliver({
+      type: "hello",
+      selfId: SELF,
+      map: flatMap(),
+      actorIds: [SELF],
+      playerCount: 1,
+      minutesOfDay: SERVER_MINUTES,
+      hps: [],
+    });
+
+    expect(framesOfType(socket, "attackMode")).toEqual([]);
+  });
+});
