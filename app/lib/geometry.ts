@@ -65,47 +65,6 @@ export function spriteWorldOrigin(
 const CELL_CENTRE_CELLS = 0.5;
 
 /**
- * Cell-space corners at which a sprite's quad reads the light field.
- *
- * The light texture holds one value per cell and is sampled bilinearly, with a
- * cell's value sitting at its integer coordinate (`LIGHT_MAP_CELL_OFFSET` in
- * the renderers sets that convention up). One cell of light is stretched over
- * the whole sprite rect, so these corners are what decides *where on the art*
- * the tile's own value lands.
- *
- * That anchor is the tile's body centre. The projection draws a body
- * {@link PX_PER_HEIGHT} px up-left per height unit, so a tall tile's art covers
- * ground that is not its own cell: reading the cell value at the art's corner
- * lights the art as if the body stood where its topmost pixel is drawn. Half
- * the tile's height up-left of the cell centre is where the body actually is —
- * for a full-level tile that works out to half a cell, which is the shift the
- * flat constant used to apply to everything.
- *
- * A flat floor has no body, so it reads its own cell centre. That is what keeps
- * light arriving through a hole *on* the hole instead of half a tile up-left of
- * it, where a floor has no business being lit.
- */
-export function spriteLightCells(
-  x: number,
-  y: number,
-  base: { x: number; y: number },
-  rect: { w: number; h: number },
-  height: number,
-): { lightX0: number; lightY0: number; lightX1: number; lightY1: number } {
-  const bodyCentreCells = height / 2 / HEIGHT_PER_LEVEL;
-  // Distance from the art's top-left corner to the anchor, in cells, then
-  // divided by the rect it is stretched across to land in light-UV units.
-  const anchorX = (base.x + CELL_CENTRE_CELLS - bodyCentreCells) / rect.w;
-  const anchorY = (base.y + CELL_CENTRE_CELLS - bodyCentreCells) / rect.h;
-  return {
-    lightX0: x - anchorX,
-    lightY0: y - anchorY,
-    lightX1: x - anchorX + 1,
-    lightY1: y - anchorY + 1,
-  };
-}
-
-/**
  * Cell-space XY a body should emit light from, so its glow lands where its
  * sprite is drawn.
  *

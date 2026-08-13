@@ -10,7 +10,6 @@ import {
   depthStackBias,
   drawOrder,
   screenToCoord,
-  spriteLightCells,
   spriteWorldOrigin,
 } from "../lib/geometry";
 import {
@@ -86,12 +85,9 @@ const MAX_GHOST_CELLS = 256;
 
 /** Debounce lighting recompute while painting. */
 const LIGHTING_DEBOUNCE_MS = 50;
-/**
- * Puts a cell's light value at its own integer coordinate: half a texel back
- * lines texel centres up with cell coordinates rather than cell corners.
- * `spriteLightCells` picks where on a sprite that value lands.
- */
-const LIGHT_MAP_CELL_OFFSET = 0.5;
+/** Stand-ins for a level with no plane of its own — see `linkLevelNeighbours`. */
+const ORIGIN_2D = new THREE.Vector2(0, 0);
+const UNIT_SIZE_2D = new THREE.Vector2(1, 1);
 
 /** Bayer keep-rate hits 0 at this |Δz| (max |Δz| in range is 16, but falloff stops earlier). */
 const GHOST_FADE_DISTANCE = 9;
@@ -192,6 +188,7 @@ export class EditorRenderer {
   private disposed = false;
   private magentaTex: THREE.DataTexture;
   private whiteTex: THREE.DataTexture;
+  private darkTex: THREE.DataTexture;
   private lightTextures = new Map<number, THREE.DataTexture>();
   private lightUniformsByZ = new Map<number, LevelLightUniforms>();
   private lightGrid: LightGrid | null = null;
@@ -269,6 +266,15 @@ export class EditorRenderer {
     this.whiteTex.minFilter = THREE.LinearFilter;
     this.whiteTex.generateMipmaps = false;
     this.whiteTex.needsUpdate = true;
+
+    // Stands in for a level that has no light plane of its own — the one above
+    // the top of the world, or below its bottom.
+    const dark = new Uint8Array([0, 0, 0, 0]);
+    this.darkTex = new THREE.DataTexture(dark, 1, 1, THREE.RGBAFormat);
+    this.darkTex.magFilter = THREE.LinearFilter;
+    this.darkTex.minFilter = THREE.LinearFilter;
+    this.darkTex.generateMipmaps = false;
+    this.darkTex.needsUpdate = true;
 
     this.bindEvents();
     this.bindResize();
@@ -477,6 +483,13 @@ export class EditorRenderer {
         uLightMap: { value: this.whiteTex },
         uLightOrigin: { value: new THREE.Vector2(0, 0) },
         uLightSize: { value: new THREE.Vector2(1, 1) },
+        uLightMapUp: { value: this.darkTex },
+        uLightOriginUp: { value: new THREE.Vector2(0, 0) },
+        uLightSizeUp: { value: new THREE.Vector2(1, 1) },
+        uLightMapDown: { value: this.darkTex },
+        uLightOriginDown: { value: new THREE.Vector2(0, 0) },
+        uLightSizeDown: { value: new THREE.Vector2(1, 1) },
+        uLevelZ: { value: z },
         // A level whose materials appear while the toggle is off must arrive
         // unlit too, or it would be the one floor still shaded.
         uLightingEnabled: { value: this.lightingEnabled ? 1 : 0 },
@@ -571,14 +584,31 @@ export class EditorRenderer {
       }
       u.uLightMap.value = tex;
     }
+    this.linkLevelNeighbours();
+  }
+
+  /**
+   * Point each level's uniforms at the planes above and below it, so the shader
+   * can blend across a level boundary. Runs after every upload rather than
+   * inside it: a level's neighbour may not have been written yet — or may not
+   * exist at all, which is what the dark stand-in covers.
+   */
+  private linkLevelNeighbours() {
+    for (const [z, u] of this.lightUniformsByZ) {
+      const above = this.lightUniformsByZ.get(z + 1);
+      const below = this.lightUniformsByZ.get(z - 1);
+      u.uLightMapUp.value = above?.uLightMap.value ?? this.darkTex;
+      u.uLightOriginUp.value.copy(above?.uLightOrigin.value ?? ORIGIN_2D);
+      u.uLightSizeUp.value.copy(above?.uLightSize.value ?? UNIT_SIZE_2D);
+      u.uLightMapDown.value = below?.uLightMap.value ?? this.darkTex;
+      u.uLightOriginDown.value.copy(below?.uLightOrigin.value ?? ORIGIN_2D);
+      u.uLightSizeDown.value.copy(below?.uLightSize.value ?? UNIT_SIZE_2D);
+    }
   }
 
   private uploadLevelLight(z: number, level: LevelLightMap) {
     const u = this.ensureLightUniforms(z);
-    u.uLightOrigin.value.set(
-      level.x0 - LIGHT_MAP_CELL_OFFSET,
-      level.y0 - LIGHT_MAP_CELL_OFFSET,
-    );
+    u.uLightOrigin.value.set(level.x0, level.y0);
     u.uLightSize.value.set(level.w, level.h);
 
     const rgba = new Uint8Array(level.w * level.h * 4);
@@ -1192,13 +1222,6 @@ export class EditorRenderer {
             box: depthBox(cell.x, cell.y, foot, foot),
             stackBias: depthStackBias(z, stackIndex),
             texture: this.magentaTex,
-            ...spriteLightCells(
-              cell.x,
-              cell.y,
-              { x: 0, y: 0 },
-              { w: 1, h: 1 },
-              0,
-            ),
             unlit: false,
           });
           return;
@@ -1228,13 +1251,6 @@ export class EditorRenderer {
         const v0 = 1 - ((rect.y + rect.h) * CELL_SIZE) / tileset.height;
         const texture = this.textures.get(tileset.id) ?? this.magentaTex;
         const isAnimated = (frames?.length ?? 0) > 1;
-        const light = spriteLightCells(
-          cell.x,
-          cell.y,
-          first.sprite.base,
-          rect,
-          def.height,
-        );
         const unlit = tileCanEmitLight(def);
         const animKey =
           def.type === "autotile"
@@ -1253,7 +1269,6 @@ export class EditorRenderer {
           box: depthBox(cell.x, cell.y, foot, foot + def.height),
           stackBias: depthStackBias(z, stackIndex),
           texture,
-          ...light,
           unlit,
           anim:
             isAnimated && frames

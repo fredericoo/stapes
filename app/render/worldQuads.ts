@@ -29,17 +29,30 @@ export type Quad = {
   box: DepthBox;
   /** Breaks ties between coplanar surfaces; normally the tile's stack index. */
   stackBias: number;
-  lightX0: number;
-  lightY0: number;
-  lightX1: number;
-  lightY1: number;
   unlit: boolean;
 };
 
+/**
+ * One level's light map plus the two it sits between.
+ *
+ * A fragment lights from the world point it depicts, which is rarely at the
+ * height of its own level's slab — a wall face climbs a whole level across its
+ * art. Holding the neighbours here is what lets the shader cross that boundary
+ * smoothly instead of stepping at it. Each plane covers its own box, so each
+ * carries its own origin and size.
+ */
 export type LevelLightUniforms = {
   uLightMap: { value: THREE.Texture };
   uLightOrigin: { value: THREE.Vector2 };
   uLightSize: { value: THREE.Vector2 };
+  uLightMapUp: { value: THREE.Texture };
+  uLightOriginUp: { value: THREE.Vector2 };
+  uLightSizeUp: { value: THREE.Vector2 };
+  uLightMapDown: { value: THREE.Texture };
+  uLightOriginDown: { value: THREE.Vector2 };
+  uLightSizeDown: { value: THREE.Vector2 };
+  /** Which level this material draws, so the shader knows where its slab is. */
+  uLevelZ: { value: number };
   uLightingEnabled: { value: number };
   /**
    * Time-of-day tint, multiplied into the sky factor per fragment. Keeping this
@@ -53,25 +66,10 @@ const VERTS_PER_QUAD = 4;
 const BOX_COMPONENTS = 4;
 
 /** Both renderers must agree, or the same tile sorts differently in each. */
-export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v6";
+export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v7";
 
 function glsl(n: number): string {
   return Number.isInteger(n) ? `${n}.0` : `${n}`;
-}
-
-/**
- * Light-map cells covered per world pixel of this quad — the gradient of
- * `aLightUv` across it. Constant per quad, so the shader can re-evaluate the
- * light coordinate at any point on the quad from any other.
- */
-function lightCellsPerPixel(q: Pick<
-  Quad,
-  "w" | "h" | "lightX0" | "lightY0" | "lightX1" | "lightY1"
->): [number, number] {
-  return [
-    q.w === 0 ? 0 : (q.lightX1 - q.lightX0) / q.w,
-    q.h === 0 ? 0 : (q.lightY1 - q.lightY0) / q.h,
-  ];
 }
 
 function writeQuadBox(
@@ -100,11 +98,9 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
   const n = quads.length;
   const positions = new Float32Array(n * VERTS_PER_QUAD * 3);
   const uvs = new Float32Array(n * VERTS_PER_QUAD * 2);
-  const lightUvs = new Float32Array(n * VERTS_PER_QUAD * 2);
   const unlit = new Float32Array(n * VERTS_PER_QUAD);
   const boxes = new Float32Array(n * VERTS_PER_QUAD * BOX_COMPONENTS);
   const stacks = new Float32Array(n * VERTS_PER_QUAD);
-  const lightScales = new Float32Array(n * VERTS_PER_QUAD * 2);
   const indices =
     n * VERTS_PER_QUAD > 65535 ? new Uint32Array(n * 6) : new Uint16Array(n * 6);
 
@@ -139,16 +135,6 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
     uvs[ub + 6] = q.u1;
     uvs[ub + 7] = q.v1;
 
-    // Same vert order as UVs — cell-space corners for the light map.
-    lightUvs[ub] = q.lightX0;
-    lightUvs[ub + 1] = q.lightY1;
-    lightUvs[ub + 2] = q.lightX1;
-    lightUvs[ub + 3] = q.lightY1;
-    lightUvs[ub + 4] = q.lightX0;
-    lightUvs[ub + 5] = q.lightY0;
-    lightUvs[ub + 6] = q.lightX1;
-    lightUvs[ub + 7] = q.lightY0;
-
     const u = q.unlit ? 1 : 0;
     const vb = i * VERTS_PER_QUAD;
     unlit[vb] = u;
@@ -157,12 +143,6 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
     unlit[vb + 3] = u;
 
     writeQuadBox(boxes, stacks, i, q.box, q.stackBias);
-
-    const [lsx, lsy] = lightCellsPerPixel(q);
-    for (let v = 0; v < VERTS_PER_QUAD; v++) {
-      lightScales[ub + v * 2] = lsx;
-      lightScales[ub + v * 2 + 1] = lsy;
-    }
 
     const base = i * VERTS_PER_QUAD;
     const ib = i * 6;
@@ -178,14 +158,9 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
   geo.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
-  geo.setAttribute("aLightUv", new THREE.BufferAttribute(lightUvs, 2));
   geo.setAttribute("aUnlit", new THREE.BufferAttribute(unlit, 1));
   geo.setAttribute("aBox", new THREE.BufferAttribute(boxes, BOX_COMPONENTS));
   geo.setAttribute("aStack", new THREE.BufferAttribute(stacks, 1));
-  geo.setAttribute(
-    "aLightScale",
-    new THREE.BufferAttribute(lightScales, 2),
-  );
   geo.setIndex(new THREE.BufferAttribute(indices, 1));
   return geo;
 }
@@ -208,29 +183,16 @@ export function buildSingleQuadGeometry(
     hw, -hh, 0,
   ]);
   const uvs = new Float32Array([q.u0, q.v0, q.u1, q.v0, q.u0, q.v1, q.u1, q.v1]);
-  const lightUvs = new Float32Array([
-    q.lightX0, q.lightY1,
-    q.lightX1, q.lightY1,
-    q.lightX0, q.lightY0,
-    q.lightX1, q.lightY0,
-  ]);
   const unlit = new Float32Array(VERTS_PER_QUAD).fill(q.unlit ? 1 : 0);
   const boxes = new Float32Array(VERTS_PER_QUAD * BOX_COMPONENTS);
   const stacks = new Float32Array(VERTS_PER_QUAD);
   writeQuadBox(boxes, stacks, 0, q.box, q.stackBias);
-  const [lsx, lsy] = lightCellsPerPixel(q);
-  const lightScales = new Float32Array([lsx, lsy, lsx, lsy, lsx, lsy, lsx, lsy]);
 
   geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
   geo.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
-  geo.setAttribute("aLightUv", new THREE.BufferAttribute(lightUvs, 2));
   geo.setAttribute("aUnlit", new THREE.BufferAttribute(unlit, 1));
   geo.setAttribute("aBox", new THREE.BufferAttribute(boxes, BOX_COMPONENTS));
   geo.setAttribute("aStack", new THREE.BufferAttribute(stacks, 1));
-  geo.setAttribute(
-    "aLightScale",
-    new THREE.BufferAttribute(lightScales, 2),
-  );
   geo.setIndex(
     new THREE.BufferAttribute(new Uint16Array([0, 2, 1, 2, 3, 1]), 1),
   );
@@ -271,7 +233,11 @@ export function writeBoxAttr(
  * misses the box — art drawn outside its own silhouette — fall back to the
  * entry plane, which sorts them with the cell they hang over.
  *
- * Lighting: per-level light map sampled in cell space.
+ * Lighting: the same answer feeds the light. A fragment samples the light field
+ * at the world point it depicts — its pixel and the surface elevation found
+ * above — interpolated across the level planes it falls between, so a wall face
+ * is lit by the wall it draws rather than by the cell its sprite was authored
+ * over.
  */
 export function injectWorldShader(
   shader: { vertexShader: string; fragmentShader: string; uniforms: object },
@@ -282,26 +248,20 @@ export function injectWorldShader(
     .replace(
       "#include <common>",
       /* glsl */ `#include <common>
-attribute vec2 aLightUv;
 attribute float aUnlit;
 attribute vec4 aBox;
 attribute float aStack;
-attribute vec2 aLightScale;
-varying vec2 vLightUv;
 varying float vUnlit;
 varying vec4 vBox;
 varying float vStack;
-varying vec2 vWorldPx;
-varying vec2 vLightScale;`,
+varying vec2 vWorldPx;`,
     )
     .replace(
       "#include <uv_vertex>",
       /* glsl */ `#include <uv_vertex>
-vLightUv = aLightUv;
 vUnlit = aUnlit;
 vBox = aBox;
 vStack = aStack;
-vLightScale = aLightScale;
 vWorldPx = (modelMatrix * vec4(position, 1.0)).xy;`,
     );
 
@@ -312,14 +272,19 @@ vWorldPx = (modelMatrix * vec4(position, 1.0)).xy;`,
 uniform sampler2D uLightMap;
 uniform vec2 uLightOrigin;
 uniform vec2 uLightSize;
+uniform sampler2D uLightMapUp;
+uniform vec2 uLightOriginUp;
+uniform vec2 uLightSizeUp;
+uniform sampler2D uLightMapDown;
+uniform vec2 uLightOriginDown;
+uniform vec2 uLightSizeDown;
+uniform float uLevelZ;
 uniform float uLightingEnabled;
 uniform vec3 uAmbient;
-varying vec2 vLightUv;
 varying float vUnlit;
 varying vec4 vBox;
 varying float vStack;
-varying vec2 vWorldPx;
-varying vec2 vLightScale;`,
+varying vec2 vWorldPx;`,
     )
     .replace(
       "#include <map_fragment>",
@@ -330,20 +295,6 @@ varying vec2 vLightScale;`,
 // vary *inside* a pixel — which is how a smooth diagonal seam or a smooth
 // light gradient ends up drawn across art that should be flat per pixel.
 vec2 depthPx = floor(vWorldPx) + 0.5;
-if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
-  // vLightUv and vWorldPx are both affine across the quad, so stepping from the
-  // fragment to the pixel centre is just the constant per-quad gradient.
-  vec2 lightCell = vLightUv + (depthPx - vWorldPx) * vLightScale;
-  vec2 lightUv = (lightCell - uLightOrigin) / uLightSize;
-  // RGB is block light, alpha is the sky factor, so the tint happens here
-  // rather than on the CPU. Alpha 0 means "already composed" — a caller that
-  // tints its own texture uploads it that way and this reduces to a passthrough.
-  vec4 lightTexel = texture2D(uLightMap, lightUv);
-  vec3 light = min(vec3(1.0), lightTexel.a * uAmbient + lightTexel.rgb);
-  diffuseColor.rgb *= light;
-}
-// Depth, at that same pixel centre, so a crossing between two sprites can only
-// ever land on a texel boundary.
 // Where the ray leaves the box: each visible (south/east/top) face caps how far
 // it climbs before getting out, so the highest point inside is the min.
 float eastFace = (vBox.x - depthPx.x) / ${glsl(PX_PER_HEIGHT)};
@@ -361,6 +312,46 @@ float farFaceElev =
 float surfaceElev = max(max(exitElev, farFaceElev), vBox.z);
 float overhangBias =
   farFaceElev > exitElev ? ${glsl(DEPTH_OVERHANG_BIAS)} : 0.0;
+if (uLightingEnabled > 0.5 && vUnlit < 0.5) {
+  // Light the world point this fragment depicts, which the depth pass has
+  // already found: the pixel it lands on plus the elevation of the surface
+  // seen there. Inverting the projection off that pair recovers the cell,
+  // so light follows the wall the art is drawing rather than the rectangle
+  // the art was authored in — no reset at each sprite's edge.
+  //
+  // Read out of the air the surface faces, not the solid behind it. A blocking
+  // cell takes no torch light at all (see castEmitter), so a wall that reads
+  // its own cell shadows itself — which is what banded the faces of a stack.
+  // A side face steps half a cell out into the cell it looks into; a top face
+  // is already looking at the air above it, which its elevation lands in.
+  vec2 faceOut = vec2(0.0);
+  if (farFaceElev <= exitElev) {
+    if (eastFace <= southFace && eastFace <= vBox.w) faceOut.x = 0.5;
+    else if (southFace <= vBox.w) faceOut.y = 0.5;
+  }
+  vec2 lightCell =
+    (depthPx + surfaceElev * ${glsl(PX_PER_HEIGHT)}) / ${glsl(CELL_SIZE)} +
+    faceOut;
+  // A level's plane covers the slab standing on that level's floor, so its
+  // value belongs at the bottom of the slab: a floor reads its own level, a
+  // block's top face reads the air a level up, and a face between them
+  // crosses smoothly instead of stepping at the boundary.
+  float levelsFromSlab = surfaceElev / ${glsl(HEIGHT_PER_LEVEL)} - uLevelZ;
+  // RGB is block light, alpha is the sky factor, so the tint happens here
+  // rather than on the CPU. Alpha 0 means "already composed" — a caller that
+  // tints its own texture uploads it that way and this reduces to a passthrough.
+  vec4 own = texture2D(uLightMap, (lightCell - uLightOrigin) / uLightSize);
+  vec4 up = texture2D(uLightMapUp, (lightCell - uLightOriginUp) / uLightSizeUp);
+  vec4 down =
+    texture2D(uLightMapDown, (lightCell - uLightOriginDown) / uLightSizeDown);
+  vec4 lightTexel = mix(
+    own,
+    levelsFromSlab < 0.0 ? down : up,
+    clamp(abs(levelsFromSlab), 0.0, 1.0)
+  );
+  vec3 light = min(vec3(1.0), lightTexel.a * uAmbient + lightTexel.rgb);
+  diffuseColor.rgb *= light;
+}
 // vBox.xy are the unshifted east/south edges of the base cell. When two flat
 // overhanging sprites share a pixel at the same elev, this restores S-then-E
 // painter order (merge draw order alone is not stable).

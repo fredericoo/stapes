@@ -5,7 +5,6 @@ import {
   type DepthBox,
   depthBox,
   depthStackBias,
-  spriteLightCells,
   spriteWorldOrigin,
 } from "../lib/geometry";
 import {
@@ -79,12 +78,9 @@ type BuildItem = Quad & {
 };
 
 const DEFAULT_BACKGROUND = sampleIllumination(12 * 60).background;
-/**
- * Puts a cell's light value at its own integer coordinate: half a texel back
- * lines texel centres up with cell coordinates rather than cell corners.
- * `spriteLightCells` picks where on a sprite that value lands.
- */
-const LIGHT_MAP_CELL_OFFSET = 0.5;
+/** Stand-ins for a level with no plane of its own — see `linkLevelNeighbours`. */
+const ORIGIN_2D = new THREE.Vector2(0, 0);
+const UNIT_SIZE_2D = new THREE.Vector2(1, 1);
 
 /** Map cell + stack slot identifying a placed tile instance. */
 export type TileInstanceKey = {
@@ -294,6 +290,7 @@ export class WorldRenderer {
   private disposed = false;
   private magentaTex: THREE.DataTexture;
   private whiteTex: THREE.DataTexture;
+  private darkTex: THREE.DataTexture;
   private lightTextures = new Map<number, THREE.DataTexture>();
   private lightUniformsByZ = new Map<number, LevelLightUniforms>();
   private lightingKey = "";
@@ -359,6 +356,16 @@ export class WorldRenderer {
     this.whiteTex.minFilter = THREE.LinearFilter;
     this.whiteTex.generateMipmaps = false;
     this.whiteTex.needsUpdate = true;
+
+    // Stands in for a level that has no light plane of its own — the one above
+    // the top of the world, or below its bottom. Zero alpha as well as zero
+    // RGB, so blending toward it darkens instead of tinting to the sky.
+    const dark = new Uint8Array([0, 0, 0, 0]);
+    this.darkTex = new THREE.DataTexture(dark, 1, 1, THREE.RGBAFormat);
+    this.darkTex.magFilter = THREE.LinearFilter;
+    this.darkTex.minFilter = THREE.LinearFilter;
+    this.darkTex.generateMipmaps = false;
+    this.darkTex.needsUpdate = true;
 
     this.bindResize();
   }
@@ -792,6 +799,13 @@ export class WorldRenderer {
         uLightMap: { value: this.whiteTex },
         uLightOrigin: { value: new THREE.Vector2(0, 0) },
         uLightSize: { value: new THREE.Vector2(1, 1) },
+        uLightMapUp: { value: this.darkTex },
+        uLightOriginUp: { value: new THREE.Vector2(0, 0) },
+        uLightSizeUp: { value: new THREE.Vector2(1, 1) },
+        uLightMapDown: { value: this.darkTex },
+        uLightOriginDown: { value: new THREE.Vector2(0, 0) },
+        uLightSizeDown: { value: new THREE.Vector2(1, 1) },
+        uLevelZ: { value: z },
         // A level whose materials appear while the toggle is off must arrive
         // unlit too, or it would be the one floor still shaded.
         uLightingEnabled: { value: this.lightingEnabled ? 1 : 0 },
@@ -899,6 +913,26 @@ export class WorldRenderer {
       if (seen.has(z)) continue;
       this.uploadDarkLevel(z);
     }
+    this.linkLevelNeighbours();
+  }
+
+  /**
+   * Point each level's uniforms at the planes above and below it, so the shader
+   * can blend across a level boundary. Runs after every upload rather than
+   * inside it: a level's neighbour may not have been written yet — or may not
+   * exist at all, which is what the dark stand-in covers.
+   */
+  private linkLevelNeighbours() {
+    for (const [z, u] of this.lightUniformsByZ) {
+      const above = this.lightUniformsByZ.get(z + 1);
+      const below = this.lightUniformsByZ.get(z - 1);
+      u.uLightMapUp.value = above?.uLightMap.value ?? this.darkTex;
+      u.uLightOriginUp.value.copy(above?.uLightOrigin.value ?? ORIGIN_2D);
+      u.uLightSizeUp.value.copy(above?.uLightSize.value ?? UNIT_SIZE_2D);
+      u.uLightMapDown.value = below?.uLightMap.value ?? this.darkTex;
+      u.uLightOriginDown.value.copy(below?.uLightOrigin.value ?? ORIGIN_2D);
+      u.uLightSizeDown.value.copy(below?.uLightSize.value ?? UNIT_SIZE_2D);
+    }
   }
 
   /**
@@ -935,10 +969,7 @@ export class WorldRenderer {
       const a = this.pendingAmbient;
       u.uAmbient.value.set(a[0], a[1], a[2]);
     }
-    u.uLightOrigin.value.set(
-      level.x0 - LIGHT_MAP_CELL_OFFSET,
-      level.y0 - LIGHT_MAP_CELL_OFFSET,
-    );
+    u.uLightOrigin.value.set(level.x0, level.y0);
     u.uLightSize.value.set(level.w, level.h);
 
     let tex = this.lightTextures.get(z);
@@ -1239,7 +1270,6 @@ export class WorldRenderer {
         box,
         stackBias: depthStackBias(z, stackIndex),
         texture,
-        ...spriteLightCells(x, y, first.sprite.base, rect, def.height),
         unlit: tileCanEmitLight(def),
         tileKey: separate ? instanceKey : undefined,
         anim: isAnimated && frames ? { frames, tileset, animKey } : undefined,
