@@ -1468,6 +1468,13 @@ export class EditorRenderer {
    * writes its own depth, so a single render interleaves the floors correctly
    * and nothing here has to sort them. The levels above — the ghosts — are
    * drawn into an offscreen target together and faded in as one image.
+   *
+   * The fade lands *after* the palette quantise, and that ordering is the whole
+   * point of it: a ghost blended into the scene target would be quantised too,
+   * and quantising a translucent pixel does not give you a translucent pixel —
+   * it gives you whichever solid palette entry happens to sit nearest the
+   * blend. Composited onto the finished frame instead, a ghost is actually
+   * see-through, and is the one thing on screen deliberately off-palette.
    */
   private renderFrame(s: ReturnType<typeof useEditorStore.getState>) {
     const r = this.renderer;
@@ -1515,28 +1522,29 @@ export class EditorRenderer {
       for (const g of solid) g.visible = false;
     }
 
-    if (ghosts.length > 0) this.compositeGhostLevels(ghosts, output);
+    const ghostImage =
+      ghosts.length > 0 ? this.renderGhostImage(ghosts) : null;
     this.world.visible = false;
 
-    // Quantise before chrome so selection outlines stay crisp.
+    // Quantise before the ghosts and the chrome: outlines keep their exact
+    // colour, and a faded floor keeps its fade.
     this.palettePass.blitToCanvas(r);
+
+    if (ghostImage) this.fadeOntoCanvas(ghostImage);
 
     renderChrome(this.overlays);
   }
 
   /**
-   * Flatten every level above the current one into one faded image.
+   * Draw every level above the current one into one offscreen image.
    *
    * Fusing them is the point. Composited a floor at a time, each ghost blends
    * over the one below it, so a stack of rooms reads as every interior wall in
    * the building at once and the fade compounds with depth. Drawn together into
    * one depth-sorted target, only the surfaces you would actually see looking
-   * down are in the picture that gets faded.
+   * down survive into the picture that gets faded.
    */
-  private compositeGhostLevels(
-    groups: THREE.Group[],
-    output: THREE.WebGLRenderTarget,
-  ) {
+  private renderGhostImage(groups: THREE.Group[]): THREE.Texture {
     const r = this.renderer;
     const target = this.levelRenderTarget();
 
@@ -1547,8 +1555,14 @@ export class EditorRenderer {
     r.render(this.scene, this.camera);
     for (const g of groups) g.visible = false;
 
-    r.setRenderTarget(output);
-    this.compositeMaterial.uniforms.tLevel!.value = target.texture;
+    return target.texture;
+  }
+
+  /** Blend the ghost image over the finished frame, at real alpha. */
+  private fadeOntoCanvas(image: THREE.Texture) {
+    const r = this.renderer;
+    r.setRenderTarget(null);
+    this.compositeMaterial.uniforms.tLevel!.value = image;
     this.compositeMaterial.uniforms.uOpacity!.value = OTHER_LEVELS_OPACITY;
     r.render(this.compositeScene, this.compositeCamera);
   }
@@ -1640,6 +1654,11 @@ export class EditorRenderer {
     }
     if (e.code === "KeyW") {
       store.togglePreviewMode();
+    }
+    // Deliberately dead while previewing, matching its checkbox: preview shows
+    // every level, so there is no "other" for this to mean anything about.
+    if (e.code === "KeyL" && !store.previewMode) {
+      store.toggleShowOtherLevels();
     }
     if (e.key === ",") {
       store.setLevel(Math.max(MIN_LEVEL, store.currentLevel - 1));

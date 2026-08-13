@@ -113,9 +113,11 @@ export function createPaletteMaterial(): THREE.ShaderMaterial {
  * what fades is the silhouette of the stack — not each floor over the last,
  * which showed every interior wall in the building at once.
  *
- * Colour is left alone: this writes into the scene target and the fullscreen
- * quantise runs afterwards, so a blended pixel still lands on a real palette
- * entry rather than half way between two of them.
+ * Runs after the quantise, over the finished frame, and is the one thing in the
+ * editor allowed off the ramp. Blended into the scene target it would be
+ * quantised with everything else, and a quantised translucent pixel is not
+ * translucent — it is whichever solid palette entry sits nearest the blend,
+ * which is a colour that merely *looks* faded. Here the alpha survives.
  */
 export function createLevelFadeCompositeMaterial(): THREE.ShaderMaterial {
   return new THREE.ShaderMaterial({
@@ -151,9 +153,9 @@ export function createLevelFadeCompositeMaterial(): THREE.ShaderMaterial {
         vec4 texel = texture2D(tLevel, vUv);
         float alpha = texel.a * uOpacity;
         if (alpha < 0.004) discard;
-        // SRGBColorSpace RT samples as linear; the target it blends into holds
-        // sRGB bytes, so encode back before writing. Premultiplied for the
-        // CustomBlending below.
+        // The level target samples as linear; the canvas holds sRGB bytes, so
+        // encode back before writing. Premultiplied for the CustomBlending
+        // below.
         gl_FragColor = vec4(linearToSrgb(texel.rgb) * alpha, alpha);
       }
     `,

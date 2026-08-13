@@ -230,7 +230,7 @@ export default function MapPage() {
             title={
               previewMode
                 ? "Preview shows every level"
-                : "Ghost the floors above as one fade — capped at -1 underground"
+                : "Show other levels (L) — ghost the floors above as one fade, capped at -1 underground"
             }
           >
             <input

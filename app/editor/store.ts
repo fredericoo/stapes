@@ -106,6 +106,7 @@ export type EditorStore = {
   setTiles: (tiles: TileDef[]) => void;
   setLevel: (z: number) => void;
   setShowOtherLevels: (v: boolean) => void;
+  toggleShowOtherLevels: () => void;
   setPreviewMode: (v: boolean) => void;
   togglePreviewMode: () => void;
   setMinutesOfDay: (m: MinutesOfDay) => void;
@@ -203,6 +204,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
   setLevel: (z) => set({ currentLevel: z }),
   setShowOtherLevels: (v) => set({ showOtherLevels: v }),
+  toggleShowOtherLevels: () =>
+    set({ showOtherLevels: !get().showOtherLevels }),
   setPreviewMode: (v) => set({ previewMode: v }),
   togglePreviewMode: () => set({ previewMode: !get().previewMode }),
   setMinutesOfDay: (m) =>
