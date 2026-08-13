@@ -61,8 +61,14 @@ export function spriteWorldOrigin(
   };
 }
 
-/** A cell's own midpoint, in cells. */
-const CELL_CENTRE_CELLS = 0.5;
+/**
+ * Half a cell: the step from a cell's corner to its middle, and the step from
+ * a face plane out to the middle of the cell that face looks into.
+ */
+const HALF_CELL = 0.5;
+
+/** Half a level: the step from a level's floor up to the middle of its slab. */
+const HALF_LEVEL = 0.5;
 
 /**
  * Cell-space XY a body should emit light from, so its glow lands where its
@@ -72,8 +78,8 @@ const CELL_CENTRE_CELLS = 0.5;
  * casts it is drawn up-left by its own height — so a torch lit from its cell
  * centre reads as a torch emitting from its feet. Shifting the emitter up-left
  * by that same height closes the gap. This is the emitter-side twin of
- * {@link spriteLightCells}: one moves the light to the art, the other reads the
- * light where the art is.
+ * {@link lightSample}: one moves the light to where the art is, the other reads
+ * the light where the art is.
  *
  * `fz` is a fractional *level* coordinate, so `fz - z` is the body's height
  * above its own level's floor — and one level of climb is exactly one cell of
@@ -90,8 +96,8 @@ export function emitterScreenXY(
 ): { fx: number; fy: number } {
   const upLeftCells = fz - z;
   return {
-    fx: x + CELL_CENTRE_CELLS - upLeftCells,
-    fy: y + CELL_CENTRE_CELLS - upLeftCells,
+    fx: x + HALF_CELL - upLeftCells,
+    fy: y + HALF_CELL - upLeftCells,
   };
 }
 
@@ -365,6 +371,42 @@ export function planeDepthBias(box: DepthBox): number {
   return (
     (box.southPx + box.eastPx * DEPTH_PLANE_EAST_WEIGHT) * DEPTH_PLANE_BIAS
   );
+}
+
+/**
+ * Where a fragment reads the light field: a cell in fractional cell space, and
+ * a level coordinate whose integers land on cell centres.
+ *
+ * Mirrors the GLSL in `app/render/worldQuads.ts` — the reference the tests
+ * assert against. Light is read out of the cell a surface *faces*, since a
+ * blocking cell holds no torch light of its own; only the south, east and top
+ * faces are ever visible, so those are the only directions to step into.
+ */
+export function lightSample(
+  box: DepthBox,
+  screenX: number,
+  screenY: number,
+): { cellX: number; cellY: number; level: number } {
+  const px = snapToPixelCenter(screenX);
+  const py = snapToPixelCenter(screenY);
+  const eastFace = (box.eastPx - px) / PX_PER_HEIGHT;
+  const southFace = (box.southPx - py) / PX_PER_HEIGHT;
+  const surface = boxSurface(box, px, py);
+
+  let outX = 0;
+  let outY = 0;
+  let outLevel = 0;
+  if (!surface.overhang) {
+    if (eastFace <= southFace && eastFace <= box.top) outX = HALF_CELL;
+    else if (southFace <= box.top) outY = HALF_CELL;
+    else outLevel = HALF_LEVEL;
+  }
+
+  return {
+    cellX: (px + surface.elevation * PX_PER_HEIGHT) / CELL_SIZE + outX,
+    cellY: (py + surface.elevation * PX_PER_HEIGHT) / CELL_SIZE + outY,
+    level: surface.elevation / HEIGHT_PER_LEVEL - HALF_LEVEL + outLevel,
+  };
 }
 
 export function fragDepth(

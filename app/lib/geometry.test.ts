@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
   absoluteElevation,
+  baseCellWorldOrigin,
   boxSurfaceElevation,
   depthBox,
   depthStackBias,
   drawOrder,
   fragDepth,
+  lightSample,
   PX_PER_HEIGHT,
 } from "./geometry";
 import { CELL_SIZE, HEIGHT_PER_LEVEL } from "./types";
@@ -323,5 +325,98 @@ describe("fragDepth", () => {
       fragDepth(mover, overFloor.sx, overFloor.sy, moverBias),
       fragDepth(destFloor, overFloor.sx, overFloor.sy),
     );
+  });
+});
+
+describe("lightSample", () => {
+  const PX_PER_BLOCK = HEIGHT_PER_LEVEL * PX_PER_HEIGHT;
+  /** One pixel of climb, in levels — the finest the walk can land off centre. */
+  const perStepTol = 1 / PX_PER_BLOCK;
+
+  /**
+   * Pixels climbing the east faces of a stack of blocks, foot to top.
+   *
+   * Elevation runs up-left on screen, so a climb is a diagonal walk: one pixel
+   * west and one north per step, which is a quarter of a height unit. A block's
+   * face is {@link PX_PER_BLOCK} of those, and the block above it is drawn
+   * exactly where the walk arrives.
+   */
+  function faceWalk(cellX: number, cellY: number, blocks: number) {
+    const eastPx = (cellX + 1) * CELL_SIZE;
+    const southPx = (cellY + 1) * CELL_SIZE;
+    const samples: ReturnType<typeof lightSample>[] = [];
+    for (let z = 0; z < blocks; z++) {
+      const box = depthBox(
+        cellX,
+        cellY,
+        absoluteElevation(z, 0),
+        absoluteElevation(z + 1, 0),
+      );
+      for (let step = 0; step < PX_PER_BLOCK; step++) {
+        const walked = z * PX_PER_BLOCK + step;
+        samples.push(
+          lightSample(box, eastPx - 0.5 - walked, southPx - 4 - walked),
+        );
+      }
+    }
+    return samples;
+  }
+
+  it("reads a floor's own cell and level", () => {
+    const cellX = 4;
+    const cellY = 6;
+    const z = 2;
+    const floor = depthBox(
+      cellX,
+      cellY,
+      absoluteElevation(z, 0),
+      absoluteElevation(z, 0),
+    );
+    // Middle of the floor tile as drawn, level shift and all.
+    const origin = baseCellWorldOrigin(cellX, cellY, z, 0);
+    const s = lightSample(floor, origin.x + 4, origin.y + 4);
+    expect(Math.floor(s.cellX)).toBe(cellX);
+    expect(Math.floor(s.cellY)).toBe(cellY);
+    expect(s.level).toBeCloseTo(z);
+  });
+
+  it("reads the cell a wall's east face looks into, not the wall itself", () => {
+    const cellX = 4;
+    const cellY = 6;
+    const box = depthBox(cellX, cellY, 0, HEIGHT_PER_LEVEL);
+    const s = lightSample(
+      box,
+      (cellX + 1) * CELL_SIZE - PX_PER_HEIGHT,
+      (cellY + 1) * CELL_SIZE - 4,
+    );
+    expect(Math.floor(s.cellX)).toBe(cellX + 1);
+  });
+
+  /**
+   * The sawtooth this replaced: each sprite ramped a whole level across its own
+   * art and snapped back at the block above it. Climbing a stack must move the
+   * light coordinate one way only, a quarter height unit at a time, which is
+   * what makes a wall's shading continuous instead of banded.
+   */
+  it("climbs a stack without resetting at each block", () => {
+    const blocks = 3;
+    const levels = faceWalk(4, 6, blocks).map((s) => s.level);
+    const perStep = 1 / PX_PER_BLOCK;
+    for (let i = 1; i < levels.length; i++) {
+      expect(levels[i]! - levels[i - 1]!).toBeCloseTo(perStep, 5);
+    }
+    expect(levels[levels.length - 1]! - levels[0]!).toBeCloseTo(
+      blocks - perStep,
+      5,
+    );
+  });
+
+  it("puts a block's own cell at the middle of its face", () => {
+    const blocks = 3;
+    const samples = faceWalk(4, 6, blocks);
+    for (let block = 0; block < blocks; block++) {
+      const middle = samples[block * PX_PER_BLOCK + PX_PER_BLOCK / 2]!;
+      expect(Math.abs(middle.level - block)).toBeLessThanOrEqual(perStepTol);
+    }
   });
 });
