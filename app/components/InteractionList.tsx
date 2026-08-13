@@ -1,4 +1,4 @@
-import { IconHandMove, IconSwitch, IconSword } from "@tabler/icons-react";
+import { IconHandMove, IconSwitch, IconTarget } from "@tabler/icons-react";
 import { useMemo } from "react";
 import type {
   InteractionAction,
@@ -33,8 +33,8 @@ import { TilePreview } from "./TilePreview";
 /** Which sprite stands for a tile in a list — the one facing the reader. */
 const FRONT: "s" = "s";
 
-const ICONS: Record<InteractionAction, typeof IconSword> = {
-  attack: IconSword,
+const ICONS: Record<InteractionAction, typeof IconTarget> = {
+  target: IconTarget,
   push: IconHandMove,
   switch: IconSwitch,
 };
@@ -45,6 +45,7 @@ export function InteractionList({
   options,
   tiles,
   tilesets,
+  attacking = false,
   onAct,
   onHover,
   className = "",
@@ -52,6 +53,15 @@ export function InteractionList({
   options: InteractionOption[];
   tiles: TileDef[];
   tilesets: TilesetDef[];
+  /**
+   * Whether a target is a fight, which is what colours the chosen row.
+   *
+   * The row wears whatever its subject is wearing out in the world — red in
+   * attack mode, white otherwise — so the list and the canvas are never two
+   * separate things to learn. It is the only thing in here that knows about
+   * attack mode at all: what a row *does* is unchanged by it.
+   */
+  attacking?: boolean;
   onAct: (option: InteractionOption) => void;
   /**
    * The row being pointed at, so the world can outline what it is talking
@@ -95,6 +105,7 @@ export function InteractionList({
             option={option}
             tile={tilesById[option.tileId] ?? null}
             tilesets={tilesets}
+            attacking={attacking}
             onAct={onAct}
             onHover={onHover}
           />
@@ -108,12 +119,14 @@ function InteractionRow({
   option,
   tile,
   tilesets,
+  attacking,
   onAct,
   onHover,
 }: {
   option: InteractionOption;
   tile: TileDef | null;
   tilesets: TilesetDef[];
+  attacking: boolean;
   onAct: (option: InteractionOption) => void;
   onHover?: (optionId: string | null) => void;
 }) {
@@ -127,17 +140,20 @@ function InteractionRow({
       onMouseLeave={() => onHover?.(null)}
       onFocus={() => onHover?.(option.id)}
       onBlur={() => onHover?.(null)}
-      // Only a fight is a state you are in; a push happens and is over, and a
+      // Only a target is a state you are in; a push happens and is over, and a
       // button that claimed otherwise would be announced as stuck on.
-      aria-pressed={option.action === "attack" ? option.active : undefined}
+      aria-pressed={option.action === "target" ? option.active : undefined}
       className={[
         "flex w-full shrink-0 items-center gap-2 border-2 p-1 text-left",
         "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-        // Red while it is the fight you are in, which is the colour its outline
-        // is wearing out in the world — the same rule the look mode's blue
+        // Lit while it is the one you have chosen, in whatever colour its
+        // outline is wearing out in the world: red once that choice is a fight,
+        // white while it is only a choice. The same rule the look mode's blue
         // follows, so a row and the body it names are never separately learned.
         option.active
-          ? "border-danger bg-danger/20 text-paper"
+          ? attacking
+            ? "border-danger bg-danger/20 text-paper"
+            : "border-paper bg-paper/15 text-paper"
           : "border-paper/40 bg-ink text-paper hover:border-paper",
       ].join(" ")}
     >

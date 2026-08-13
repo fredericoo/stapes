@@ -53,7 +53,12 @@ import {
   injectWorldShader,
   writeBoxAttr,
 } from "./worldQuads";
-import { disposeGroupChildren, makeSpriteOutline } from "./overlayMeshes";
+import {
+  disposeGroupChildren,
+  makeSpriteOutline,
+  OUTLINE_ALPHA_UNIFORM,
+  pulseAlphaAt,
+} from "./overlayMeshes";
 import { type SpriteQuadAssets, spriteQuadFor } from "./spriteQuad";
 
 type AnimatedInstance = {
@@ -156,6 +161,15 @@ export type ObjectOutlineOverlay = TileInstanceKey & {
    */
   ox?: number;
   oy?: number;
+  /**
+   * Breathe rather than sit still, for an outline that marks a decision the
+   * player made rather than something the pointer happens to be over.
+   *
+   * A property of the outline and not of what it is around, because the same
+   * body is outlined both ways within a second of each other — hovered, then
+   * chosen — and the difference between those two readings is exactly this.
+   */
+  pulse?: boolean;
 };
 
 export type OverlaySpec = ObjectOutlineOverlay;
@@ -164,7 +178,10 @@ function overlaySpecKey(spec: OverlaySpec): string {
   // The offset is part of the identity: while a tile is walking it changes every
   // frame, and that is exactly when the outline has to be rebuilt to keep up.
   const at = spec.ox || spec.oy ? `@${Math.round(spec.ox ?? 0)},${Math.round(spec.oy ?? 0)}` : "";
-  return `o:${spec.x},${spec.y},${spec.z},${spec.stackIndex}:${spec.color}${at}`;
+  // The pulse is in the key but the *phase* deliberately is not: a breathing
+  // outline is one mesh whose uniform is written per frame, so keying on how lit
+  // it is right now would rebuild the whole chrome layer sixty times a second.
+  return `o:${spec.x},${spec.y},${spec.z},${spec.stackIndex}:${spec.color}${spec.pulse ? "~" : ""}${at}`;
 }
 
 /** Stable cache key for fractional emitter overrides (~0.01 cell). */
@@ -259,6 +276,16 @@ export class WorldRenderer {
   private overlays: THREE.Group;
   /** null forces a rebuild; "" is the valid signature of an empty overlay set. */
   private overlaySig: string | null = null;
+  /**
+   * Materials of the outlines that breathe, and the clock they breathe on.
+   *
+   * The clock is the renderer's rather than each mesh's, so a target replaced
+   * mid-cycle — a walking one is rebuilt on every frame it moves — picks the new
+   * outline up at the phase the old one was leaving, instead of snapping back to
+   * a full stop.
+   */
+  private pulsingOutlines: THREE.ShaderMaterial[] = [];
+  private pulseElapsedMs = 0;
   private textures = new Map<string, THREE.Texture>();
   private materials = new Map<string, THREE.MeshBasicMaterial>();
   private tilesets: TilesetDef[] = [];
@@ -458,11 +485,24 @@ export class WorldRenderer {
     this.overlaySig = sig;
 
     disposeGroupChildren(this.overlays);
+    this.pulsingOutlines = [];
     for (const spec of specs) this.addOverlay(spec);
+    // At the phase the clock is already at, so a rebuild is invisible rather
+    // than a flash back to full brightness.
+    this.applyPulse();
     // Scene has matrixWorldAutoUpdate=false — without this the meshes keep an
     // identity matrixWorld and all draw at the world origin.
     this.overlays.updateMatrixWorld(true);
     this.needsRender = true;
+  }
+
+  /** Write this instant's brightness into every breathing outline. */
+  private applyPulse() {
+    if (this.pulsingOutlines.length === 0) return;
+    const alpha = pulseAlphaAt(this.pulseElapsedMs);
+    for (const material of this.pulsingOutlines) {
+      material.uniforms[OUTLINE_ALPHA_UNIFORM]!.value = alpha;
+    }
   }
 
   /** The placed tile an overlay refers to, plus the elevation it is drawn at. */
@@ -497,7 +537,11 @@ export class WorldRenderer {
     // the sprite has actually been drawn this frame.
     quad.x += spec.ox ?? 0;
     quad.y += spec.oy ?? 0;
-    this.overlays.add(makeSpriteOutline(quad, spec.color));
+    const outline = makeSpriteOutline(quad, spec.color);
+    if (spec.pulse) {
+      this.pulsingOutlines.push(outline.material as THREE.ShaderMaterial);
+    }
+    this.overlays.add(outline);
   }
 
 
@@ -512,6 +556,14 @@ export class WorldRenderer {
 
   /** Advance sprite animations; call from the host rAF loop. */
   tick(dt: number) {
+    // Before the early return: a breathing outline is the one thing on screen
+    // that moves while the world is perfectly still, which is exactly the case
+    // `updateAnimations` says there is nothing to do in.
+    if (this.pulsingOutlines.length > 0) {
+      this.pulseElapsedMs += dt;
+      this.applyPulse();
+      this.needsRender = true;
+    }
     if (!this.updateAnimations(dt)) return;
     this.needsRender = true;
     // Outline quads are cut from the frame on screen, so a frame flip has to
@@ -578,6 +630,9 @@ export class WorldRenderer {
     this.resizeObserver?.disconnect();
     this.palettePass.dispose();
     disposeGroupChildren(this.overlays);
+    // Dropped with the meshes they belong to: a disposed material written to on
+    // a stray tick is a use-after-free as far as WebGL is concerned.
+    this.pulsingOutlines = [];
     this.renderer.dispose();
     for (const tex of this.textures.values()) tex.dispose();
     for (const mat of this.materials.values()) mat.dispose();

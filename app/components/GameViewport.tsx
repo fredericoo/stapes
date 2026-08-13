@@ -2,10 +2,10 @@ import { useCallback } from "react";
 import type { InteractionOption } from "../game/interactionOptions";
 import type { Direction, TileDef, TilesetDef } from "../lib/types";
 import { useMediaQuery } from "../lib/useMediaQuery";
-import { ChatBar } from "./ChatBar";
+import { ChatBar, ChatButton } from "./ChatBar";
 import { DirectionPad } from "./DirectionPad";
 import { InteractionList } from "./InteractionList";
-import { LookToggle } from "./LookToggle";
+import { AttackToggle, LookToggle, type ModeToggleSize } from "./ModeToggle";
 
 /**
  * The game as a fixed square, letterboxed into whatever space it is given.
@@ -59,6 +59,8 @@ export function GameViewport({
   onTypingChange,
   looking = false,
   onLookingChange,
+  attacking = false,
+  onAttackingChange,
   interactions = [],
   onInteract,
   onHoverInteraction,
@@ -78,12 +80,20 @@ export function GameViewport({
   onSay?: (text: string) => void;
   onTypingChange?: (typing: boolean) => void;
   /**
-   * Look mode, for input devices that have no shift key. The button is drawn
-   * only where the arrows are — a keyboard already has a better way to do this,
-   * and a second control saying the same thing is one more thing on screen.
+   * Look mode. Shift is still the fastest way to do this with a keyboard, but
+   * the button is drawn on every device now: a modifier is only discoverable to
+   * somebody who already knows about it, so the mode was effectively invisible
+   * on the machines that had the better way of reaching it.
    */
   looking?: boolean;
   onLookingChange?: (looking: boolean) => void;
+  /**
+   * Attack mode: whether the thing you are pointing at is somebody you are
+   * fighting. Same shape as look mode, and drawn beside it, because they are the
+   * same kind of thing — what a tap on the world means — and they can both be on.
+   */
+  attacking?: boolean;
+  onAttackingChange?: (attacking: boolean) => void;
   /**
    * What is within reach right now, worked out by whoever owns the session —
    * see `../game/interactionOptions`. Empty by default so a route that has not
@@ -113,6 +123,7 @@ export function GameViewport({
       options={interactions}
       tiles={tiles}
       tilesets={tilesets}
+      attacking={attacking}
       onAct={(option) => onInteract?.(option)}
       // Not on a finger. A touch browser synthesises a mouse-enter on tap and
       // never sends the matching leave, so the outline it lit would stay lit
@@ -120,6 +131,31 @@ export function GameViewport({
       onHover={coarse ? undefined : onHoverInteraction}
       className="min-h-0 w-full flex-1"
     />
+  );
+
+  /**
+   * The modes, in whichever size the hand reaching for them wants.
+   *
+   * One row on both devices and in the same order, so the thing you learned on
+   * a phone is where you left it on a desktop. What differs is only where the
+   * row sits: above the list on a desktop, and up under the game beside the
+   * talk button on a phone, where a thumb can reach it without crossing the
+   * arrows.
+   */
+  const hasModes = Boolean(onLookingChange || onAttackingChange);
+  const modes = (size: ModeToggleSize) => (
+    <>
+      {onLookingChange ? (
+        <LookToggle looking={looking} onChange={onLookingChange} size={size} />
+      ) : null}
+      {onAttackingChange ? (
+        <AttackToggle
+          attacking={attacking}
+          onChange={onAttackingChange}
+          size={size}
+        />
+      ) : null}
+    </>
   );
 
   return (
@@ -167,20 +203,29 @@ export function GameViewport({
           </div>
         </div>
 
-        {onSay ? <ChatBar onSay={onSay} onTypingChange={noteTyping} /> : null}
+        {coarse && (onSay || hasModes) ? (
+          // Everything a tap can mean, in one row directly under the world it
+          // applies to: say something, look at something, fight something. The
+          // field itself hides behind the button — it was a permanent row for
+          // something used in bursts, and on a phone that row is the game's.
+          <div className="flex w-full shrink-0 items-center gap-2 px-3 py-2">
+            {onSay ? (
+              <ChatButton onSay={onSay} onTypingChange={noteTyping} />
+            ) : null}
+            {modes("touch")}
+          </div>
+        ) : onSay ? (
+          <ChatBar onSay={onSay} onTypingChange={noteTyping} />
+        ) : null}
 
         {coarse ? (
           // Reading hand on the left, walking thumb on the right. The arrows go
-          // to the side most thumbs are, and the two things you *read* before
-          // acting — what is in reach, and whether you are looking rather than
-          // touching — sit together on the other, where they are out from under
+          // to the side most thumbs are, and the list of what is in reach — the
+          // thing you *read* before acting — sits on the other, out from under
           // the hand that is steering.
-          <div className="flex w-full min-h-0 flex-1 items-stretch gap-3 px-3 py-3">
+          <div className="flex w-full min-h-0 flex-1 items-stretch gap-3 px-3 pb-3">
             <div className="flex min-h-0 min-w-0 flex-1 flex-col items-start gap-2">
               {list}
-              {onLookingChange ? (
-                <LookToggle looking={looking} onChange={onLookingChange} />
-              ) : null}
             </div>
             <div className="flex shrink-0 items-center">
               <DirectionPad onPress={press} onRelease={release} />
@@ -191,9 +236,17 @@ export function GameViewport({
 
       {coarse ? null : (
         <aside
-          className="flex h-full shrink-0 flex-col border-l-2 border-paper/20 p-2"
+          className="flex h-full shrink-0 flex-col gap-2 border-l-2 border-paper/20 p-2"
           style={{ width: INTERACTION_PANEL_WIDTH_PX }}
         >
+          {/* Modes above the list and ruled off from it, because they are a
+              different kind of thing: the rows below say what you could do to
+              one particular object, and these say what doing anything means. */}
+          {hasModes ? (
+            <div className="flex shrink-0 items-center gap-1 border-b-2 border-paper/20 pb-2">
+              {modes("compact")}
+            </div>
+          ) : null}
           {list}
         </aside>
       )}

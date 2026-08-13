@@ -5,11 +5,8 @@ import { AppShell } from "../components/AppShell";
 import { GameViewport } from "../components/GameViewport";
 import { LightingToggle } from "../components/LightingToggle";
 import { GameSession } from "../game/GameSession";
-import {
-  bindKeyboard,
-  bindLookKey,
-  HeldDirections,
-} from "../game/heldDirections";
+import { bindKeyboard, HeldDirections } from "../game/heldDirections";
+import { usePlayModes } from "../components/usePlayModes";
 import {
   applyInteraction,
   type InteractionOption,
@@ -68,9 +65,10 @@ export default function PlayPage() {
     DEFAULT_PLAY_MINUTES,
   );
   const [clockPaused, setClockPaused] = useState(false);
-  // Held here rather than in the renderer alone because the on-screen eye has
-  // to show it: the keyboard and the button are two ways into one mode.
-  const [looking, setLooking] = useState(false);
+  // Held outside the renderer and the session because the buttons have to show
+  // it: a key and a button are two ways into one mode, and only one of them is
+  // in a position to know what the other did.
+  const { looking, attacking, setLookLatched, setAttacking } = usePlayModes();
   const [lightingEnabled, setLightingEnabled] = useState(true);
   const [stats, setStats] = useState<FrameStats | null>(null);
   const [interactions, setInteractions] = useState<InteractionOption[]>([]);
@@ -82,6 +80,10 @@ export default function PlayPage() {
   // toggle was flipped — a hot reload, a map change — must not come up lit.
   const lightingRef = useRef(lightingEnabled);
   lightingRef.current = lightingEnabled;
+  // Same, for the session: a map change builds a new one, and a player who had
+  // their sword out must not have it quietly put away by an editor save.
+  const attackingRef = useRef(attacking);
+  attackingRef.current = attacking;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -95,6 +97,7 @@ export default function PlayPage() {
       return;
     }
     sessionRef.current = session;
+    session.setAttackMode(attackingRef.current);
 
     const renderer = new GameRenderer(
       canvas,
@@ -115,10 +118,8 @@ export default function PlayPage() {
     const input = new HeldDirections((i) => session.setInput(i));
     inputRef.current = input;
     const unbindKeyboard = bindKeyboard(input);
-    const unbindLook = bindLookKey(setLooking);
 
     return () => {
-      unbindLook();
       unbindKeyboard();
       inputRef.current = null;
       sessionRef.current = null;
@@ -140,6 +141,13 @@ export default function PlayPage() {
   useEffect(() => {
     rendererRef.current?.setLookMode(looking);
   }, [looking]);
+
+  // At the session rather than the renderer, unlike looking: whether a blow
+  // lands is the simulation's business, and the outline colour follows from the
+  // snapshot it hands back rather than from a second copy held over here.
+  useEffect(() => {
+    sessionRef.current?.setAttackMode(attacking);
+  }, [attacking]);
 
   const scrubTime = (m: MinutesOfDay) => {
     setMinutesOfDay(m);
@@ -205,7 +213,9 @@ export default function PlayPage() {
         onDirectionPress={pressDirection}
         onDirectionRelease={releaseDirection}
         looking={looking}
-        onLookingChange={setLooking}
+        onLookingChange={setLookLatched}
+        attacking={attacking}
+        onAttackingChange={setAttacking}
         interactions={interactions}
         onInteract={act}
         onHoverInteraction={hoverInteraction}

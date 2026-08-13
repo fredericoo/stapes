@@ -149,6 +149,18 @@ function self(session: GameSession) {
   return session.getSnapshot().self;
 }
 
+/**
+ * Pick a fight: point at somebody *and* mean it.
+ *
+ * Two calls rather than one because they are two decisions — a target alone is
+ * somebody being watched, and attack mode is what turns it into blows. Nearly
+ * every test below wants both, and the ones that deliberately do not say so.
+ */
+function fight(session: GameSession, actorId: string | null) {
+  session.setTarget(actorId);
+  session.setAttackMode(true);
+}
+
 describe("hit points", () => {
   it("start full, and only exist on a body that has stats", () => {
     const session = new GameSession(
@@ -168,7 +180,7 @@ describe("hit points", () => {
 describe("swinging at a target", () => {
   it("takes hit points off somebody standing beside you", () => {
     const session = new GameSession(withBody(field(), 1, 0, "dummy"), tiles);
-    session.setTarget(bodyOf(session, "dummy")!.id);
+    fight(session, bodyOf(session, "dummy")!.id);
 
     session.tick(TICK_MS);
 
@@ -181,7 +193,7 @@ describe("swinging at a target", () => {
    */
   it("reaches a foe standing on the corner", () => {
     const session = new GameSession(withBody(field(), 1, 1, "dummy"), tiles);
-    session.setTarget(bodyOf(session, "dummy")!.id);
+    fight(session, bodyOf(session, "dummy")!.id);
 
     session.tick(TICK_MS);
 
@@ -190,7 +202,7 @@ describe("swinging at a target", () => {
 
   it("does nothing to somebody across the field", () => {
     const session = new GameSession(withBody(field(), 3, 3, "dummy"), tiles);
-    session.setTarget(bodyOf(session, "dummy")!.id);
+    fight(session, bodyOf(session, "dummy")!.id);
 
     advance(session, 1000);
 
@@ -213,7 +225,7 @@ describe("swinging at a target", () => {
       withBody(field(), 1, 0, "dummy"),
       slowPlayer,
     );
-    session.setTarget(bodyOf(session, "dummy")!.id);
+    fight(session, bodyOf(session, "dummy")!.id);
 
     const interval = attackIntervalMs(0);
     advance(session, interval - TICK_MS);
@@ -225,7 +237,7 @@ describe("swinging at a target", () => {
 
   it("turns to face what it is hitting", () => {
     const session = new GameSession(withBody(field(), 0, -1, "dummy"), tiles);
-    session.setTarget(bodyOf(session, "dummy")!.id);
+    fight(session, bodyOf(session, "dummy")!.id);
 
     session.tick(TICK_MS);
 
@@ -241,7 +253,7 @@ describe("swinging at a target", () => {
     ["armour it cannot get through", "anvil"],
   ])("fails quietly against %s", (_label, tileId) => {
     const session = new GameSession(withBody(field(), 1, 0, tileId), tiles);
-    session.setTarget(bodyOf(session, tileId)!.id);
+    fight(session, bodyOf(session, tileId)!.id);
 
     expect(() => advance(session, 1000)).not.toThrow();
     expect(bodyOf(session, tileId)).toBeDefined();
@@ -262,10 +274,78 @@ describe("swinging at a target", () => {
   });
 });
 
+/**
+ * A target is who; attack mode is whether. Pointing at a creature is how a
+ * player asks about one — its name, its health — and before these were separate
+ * the only way to look that closely was to start a fight.
+ */
+describe("targeting without attacking", () => {
+  it("keeps the target and never swings", () => {
+    const session = new GameSession(withBody(field(), 1, 0, "dummy"), tiles);
+    const dummyId = bodyOf(session, "dummy")!.id;
+    session.setTarget(dummyId);
+
+    advance(session, 1000);
+
+    expect(bodyOf(session, "dummy")!.hp).toBe(10);
+    expect(session.getSnapshot().targetId).toBe(dummyId);
+  });
+
+  /**
+   * And it costs the world nothing. A target used to hold the tick loop open on
+   * its own, because a fight is a cooldown counting down; standing there
+   * watching a deer must not keep a Durable Object awake for as long as you look
+   * at it.
+   */
+  it("leaves an idle world idle", () => {
+    const session = new GameSession(withBody(field(), 1, 0, "dummy"), tiles);
+    session.setTarget(bodyOf(session, "dummy")!.id);
+
+    advance(session, 1000);
+
+    expect(session.isAtRest()).toBe(true);
+  });
+
+  it("starts swinging the moment the mode goes on, at the same target", () => {
+    const session = new GameSession(withBody(field(), 1, 0, "dummy"), tiles);
+    session.setTarget(bodyOf(session, "dummy")!.id);
+    advance(session, 1000);
+
+    session.setAttackMode(true);
+    session.tick(TICK_MS);
+
+    expect(bodyOf(session, "dummy")!.hp).toBe(5);
+    expect(session.isAtRest()).toBe(false);
+  });
+
+  it("stops swinging when the mode goes off, and keeps the target", () => {
+    const session = new GameSession(withBody(field(), 1, 0, "dummy"), tiles);
+    const dummyId = bodyOf(session, "dummy")!.id;
+    fight(session, dummyId);
+    session.tick(TICK_MS);
+
+    session.setAttackMode(false);
+    advance(session, 1000);
+
+    expect(bodyOf(session, "dummy")!.hp).toBe(5);
+    expect(session.getSnapshot().targetId).toBe(dummyId);
+  });
+
+  /** What the outline colour is read from, and the world's answer rather than the page's. */
+  it("says which of the two it is in the snapshot", () => {
+    const session = new GameSession(withBody(field(), 1, 0, "dummy"), tiles);
+    expect(session.getSnapshot().attacking).toBe(false);
+
+    session.setAttackMode(true);
+
+    expect(session.getSnapshot().attacking).toBe(true);
+  });
+});
+
 describe("damage numbers", () => {
   it("come off the blow, once each, where it landed", () => {
     const session = new GameSession(withBody(field(), 1, 0, "dummy"), tiles);
-    session.setTarget(bodyOf(session, "dummy")!.id);
+    fight(session, bodyOf(session, "dummy")!.id);
 
     session.tick(TICK_MS);
     const dealt = session.drainDamage();
@@ -278,7 +358,7 @@ describe("damage numbers", () => {
 
   it("stay on screen for a viewer after the tick that produced them", () => {
     const session = new GameSession(withBody(field(), 1, 0, "dummy"), tiles);
-    session.setTarget(bodyOf(session, "dummy")!.id);
+    fight(session, bodyOf(session, "dummy")!.id);
 
     session.tick(TICK_MS);
     session.drainDamage();
@@ -292,7 +372,7 @@ describe("running out of hit points", () => {
   it("takes the body off the map for good", () => {
     const session = new GameSession(withBody(field(), 1, 0, "dummy"), tiles);
     const dummyId = bodyOf(session, "dummy")!.id;
-    session.setTarget(dummyId);
+    fight(session, dummyId);
 
     advance(session, 1000);
 
@@ -303,7 +383,7 @@ describe("running out of hit points", () => {
 
   it("releases whoever was fighting them", () => {
     const session = new GameSession(withBody(field(), 1, 0, "dummy"), tiles);
-    session.setTarget(bodyOf(session, "dummy")!.id);
+    fight(session, bodyOf(session, "dummy")!.id);
 
     advance(session, 1000);
 
@@ -318,7 +398,7 @@ describe("running out of hit points", () => {
   it("leaves nothing behind to drive", () => {
     const session = new GameSession(withBody(field(), 1, 0, "dummy"), tiles);
     const dummyId = bodyOf(session, "dummy")!.id;
-    session.setTarget(dummyId);
+    fight(session, dummyId);
 
     advance(session, 1000);
 
@@ -329,7 +409,7 @@ describe("running out of hit points", () => {
 describe("a creature that fights back", () => {
   it("turns on whoever hit it, and keeps swinging", () => {
     const session = new GameSession(withBody(field(), 1, 0, "brawler"), tiles);
-    session.setTarget(bodyOf(session, "brawler")!.id);
+    fight(session, bodyOf(session, "brawler")!.id);
 
     // Long enough for the blow to land, the brain to notice on its slower clock,
     // and the answer to come back.

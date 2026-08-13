@@ -163,10 +163,11 @@ target, which makes standing still free, and once on the resulting list's
 contents, because the map takes a new identity on every commit anywhere in the
 world and somebody walking across the room must not re-render the page.
 
-**Attack is bounded by the view, not by reach**, and that is not an
+**Targeting is bounded by the view, not by reach**, and that is not an
 inconsistency with `inAttackRange`. Tapping a body does not swing at it — it
-sets the target, and the server decides when a blow lands from there. So the
-question is "who could I pick a fight with", whose honest bound is what is on
+sets the target, and attack mode plus the server decide whether a blow lands
+from there. So the
+question is "who could I single out", whose honest bound is what is on
 screen: choosing your target while walking towards it is how a fight normally
 starts. `GameRenderer` owns that test, because the camera is its business —
 `targetableActors` applies the same two rules the name tags use (`isVisibleLevel`
@@ -187,12 +188,15 @@ for, so a body you can both shove and fight is two rows with one name between
 them rather than a heading to look inside, and every row is the same size. The
 sort is squared plan distance with a floor weighted far above a cell
 (`LEVEL_DISTANCE_WEIGHT`) so nothing through a ceiling comes between you and
-what is at your feet, and ties break on the entry id — which also happens to
-put "attack" above "push" on the body that offers both. Both entries for such a
+what is at your feet, then by `ACTION_ORDER` — which puts "target" above "push"
+on the body that offers both — and only then by the entry id. That middle rank
+is written down rather than left to the alphabet, which is what it used to be:
+"attack" happened to sort before "push", and renaming the verb to "target"
+silently reversed the list. Both entries for such a
 body are named through `bodyNameFor` (`bodiesByCell`), because reading the push
 row's name off the *placement* would announce a tile called "Player" beside a
 fight with somebody who has a name. And a switch is
-**named by its author** (`SwitchInteraction.actionName`): "Push" and "Attack"
+**named by its author** (`SwitchInteraction.actionName`): "Push" and "Target"
 belong to the interaction and are the same everywhere, but nothing derivable
 from two tiles pointing at each other says which half opens and which shuts. The
 field is optional and blank is legal — every switch in `data/` predates it — so
@@ -272,6 +276,32 @@ message names who, and that is all a client is trusted with. Attack speed is the
 same rate as one sending none — which is why there is no attack message on the
 wire at all. Whether the target is a battler, alive, or in reach is re-asked on
 every swing, because all three change while both parties walk.
+
+**A target is who; attack mode is whether**, and they are two decisions on two
+messages (`target` and `attackMode`). They used to be one, and that made pointing
+at a creature an act of violence: there was no way to read a name tag or a health
+bar without starting a fight. Three things follow from the split and all three
+are load-bearing.
+
+- **The mode lives on the actor** (`ActorRuntime.attacking`), not on the client,
+  because `runAutoAttacks` is what reads it. The client is still trusted with
+  neither the timing nor the range.
+- **`isAtRest` is gated on it.** A standing target used to hold the tick loop open
+  by itself — correctly, since a fight is a cooldown counting down — and with
+  targeting now free of intent, that would keep a Durable Object awake for as
+  long as somebody stood watching a deer. It is a target *and* the mode that
+  costs a world its sleep.
+- **The stance is re-sent, not remembered.** `hello` seats a fresh body that is
+  not swinging at anybody, so `RemoteSession` says the mode again on a world
+  replacement and the page says it again on a reconnect, exactly as held
+  directions are resent. The target is dropped instead of resent, because it
+  names somebody in a world that no longer exists.
+
+The colour of the outline follows from the mode rather than from having a target
+at all: white while you are only watching, red once it is a fight, and pulsing in
+both cases because the pulse is what separates a *chosen* body from one the
+cursor happens to be over. Attack mode and look mode are independent — you can
+look at things with your sword out.
 
 The formulas live in `app/game/combat.ts`, kept pure so they can be asserted:
 

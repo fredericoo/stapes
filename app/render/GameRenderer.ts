@@ -79,11 +79,27 @@ function currentFit(canvas: HTMLCanvasElement): ViewportFit {
 /** Editor selection yellow — same affordance, same colour. */
 const HOVER_COLOR = 0xffcc00;
 
-/** A battler under the pointer: something that *could* be fought. */
+/** A battler under the pointer: somebody who *could* be singled out. */
 const TARGET_HOVER_COLOR = 0xffffff;
 
-/** The one you have actually picked. Red for the rest of the fight. */
-const TARGET_COLOR = 0xff3b30;
+/**
+ * The one you have actually picked, while you are only watching them.
+ *
+ * The same white the hover wears, and told apart from it by the pulse rather
+ * than by a third colour: a target and a body you happen to be pointing at are
+ * the same *kind* of thing — somebody singled out — and the difference between
+ * them is that one is a decision you have made, which is what the pulse says.
+ */
+const TARGET_COLOR = 0xffffff;
+
+/**
+ * The one you have picked while in attack mode. Red for the rest of the fight.
+ *
+ * Colour carries the mode and nothing else, which is why the pulse is on both:
+ * red is not "this is your target", it is "this target is a fight", and turning
+ * attack mode off leaves the outline exactly where it was in white.
+ */
+const ATTACK_TARGET_COLOR = 0xff3b30;
 
 /**
  * Floors either side of the viewer whose chrome is worth drawing.
@@ -114,7 +130,7 @@ const LOOK_LEVEL_SLACK = 1;
  * meaning.
  */
 function listHoverColor(option: InteractionOption): number {
-  return option.action === "attack" ? TARGET_HOVER_COLOR : HOVER_COLOR;
+  return option.action === "target" ? TARGET_HOVER_COLOR : HOVER_COLOR;
 }
 
 /**
@@ -665,10 +681,15 @@ export class GameRenderer {
     snap: GameSnapshot,
     motions: TileMotion[],
   ): OverlaySpec[] {
-    const outline = (ref: ObjectRef, color: number): OverlaySpec => ({
+    const outline = (
+      ref: ObjectRef,
+      color: number,
+      pulse = false,
+    ): OverlaySpec => ({
       kind: "objectOutline",
       ...ref,
       color,
+      pulse,
       ...this.motionOffsetFor(ref, motions),
     });
 
@@ -685,18 +706,26 @@ export class GameRenderer {
     }
 
     const specs: OverlaySpec[] = [];
-    // Red first, so a hovered target that is *already* the target reads as
-    // committed rather than as merely hoverable — the later spec would otherwise
-    // draw its white outline over the top.
+    // The target first, so a hovered body that is *already* the target reads as
+    // chosen rather than as merely hoverable — the later spec would otherwise
+    // draw its steady outline over the pulsing one.
     const target = this.targetOutline(snap);
-    if (target) specs.push(outline(target, TARGET_COLOR));
+    if (target) {
+      specs.push(
+        outline(
+          target,
+          snap.attacking ? ATTACK_TARGET_COLOR : TARGET_COLOR,
+          true,
+        ),
+      );
+    }
     if (this.targetHover && !sameRef(this.targetHover, target)) {
       specs.push(outline(this.targetHover, TARGET_HOVER_COLOR));
     }
     if (snap.hover) specs.push(outline(snap.hover, HOVER_COLOR));
     // Last, so it draws over the pointer's own hover where the two land on one
-    // object — and skipped on the body being fought, for the same reason the
-    // white hover is: committed outranks hoverable.
+    // object — and skipped on the body already targeted, for the same reason the
+    // hover is: chosen outranks hoverable.
     if (listed && !sameRef(listed.ref, target)) {
       specs.push(outline(listed.ref, listHoverColor(listed)));
     }
@@ -757,7 +786,7 @@ export class GameRenderer {
     return Math.abs(z - snap.self.z) <= CHROME_LEVEL_SLACK;
   }
 
-  /** Where the actor being fought is standing right now, if they still are. */
+  /** Where the targeted actor is standing right now, if they still are. */
   private targetOutline(snap: GameSnapshot): ObjectRef | null {
     if (snap.targetId === null) return null;
     const actor = snap.actors.find((a) => a.id === snap.targetId);

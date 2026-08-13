@@ -253,7 +253,7 @@ describe("listInteractionOptions — objects", () => {
 });
 
 describe("listInteractionOptions — battlers", () => {
-  it("offers an attack on a body one cell away", () => {
+  it("offers a target on a body one cell away", () => {
     let map = field();
     map = place(map, 1, 0, ["grass", "deer"]);
     const me = playerAt(map);
@@ -263,12 +263,12 @@ describe("listInteractionOptions — battlers", () => {
 
     expect(targets).toHaveLength(1);
     expect(targets[0]!.name).toBe("Deer");
-    expect(targets[0]!.action).toBe("attack");
+    expect(targets[0]!.action).toBe("target");
     expect(targets[0]!.actorId).toBe("npc:deer");
     expect(targets[0]!.active).toBe(false);
   });
 
-  it("offers an attack on a body right across the view", () => {
+  it("offers a target on a body right across the view", () => {
     // Picking a target is pointing, not swinging: anything the caller says is
     // visible can be marked, however far off it is.
     let map = field();
@@ -278,7 +278,7 @@ describe("listInteractionOptions — battlers", () => {
 
     const targets = listInteractionOptions(map, tilesById, me, [me, deer], null);
 
-    expect(actionsIn(targets)).toEqual(["attack"]);
+    expect(actionsIn(targets)).toEqual(["target"]);
   });
 
   it("never offers the viewer their own body", () => {
@@ -288,7 +288,7 @@ describe("listInteractionOptions — battlers", () => {
     expect(listInteractionOptions(map, tilesById, me, [me], null)).toEqual([]);
   });
 
-  it("marks the body being fought", () => {
+  it("marks the body being pointed at", () => {
     let map = field();
     map = place(map, 1, 0, ["grass", "deer"]);
     const me = playerAt(map);
@@ -326,7 +326,7 @@ describe("listInteractionOptions — a body that is both", () => {
 
     const targets = listInteractionOptions(map, tilesById, me, [me, them], null);
 
-    expect(actionsIn(targets)).toEqual(["attack", "push"]);
+    expect(actionsIn(targets)).toEqual(["target", "push"]);
   });
 
   it("names both entries after whoever is in the body, not after its tile", () => {
