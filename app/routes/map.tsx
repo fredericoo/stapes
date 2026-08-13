@@ -170,6 +170,12 @@ export default function MapPage() {
 
   return (
     <AppShell
+      menuExtras={
+        <LightingToggle
+          enabled={lightingEnabled}
+          onChange={(v) => useEditorStore.getState().setLightingEnabled(v)}
+        />
+      }
       trailing={
         <>
           <div className="flex items-center gap-1">
@@ -248,10 +254,6 @@ export default function MapPage() {
               thumb={<IconEye size={12} stroke={2.5} aria-hidden="true" />}
             />
           </Tooltip>
-          <LightingToggle
-            enabled={lightingEnabled}
-            onChange={(v) => useEditorStore.getState().setLightingEnabled(v)}
-          />
           {/* Nothing in the editor reads the hour once lighting is off — the
               background here is a fixed paper colour, unlike in play — so the
               slider goes with it rather than sitting there doing nothing. */}

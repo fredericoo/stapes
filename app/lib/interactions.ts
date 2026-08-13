@@ -39,6 +39,20 @@ export type PushInteraction = {
  */
 export type SwitchInteraction = {
   targetTileId: string;
+  /**
+   * What doing it is called — "Open", "Close", "Light", "Pull".
+   *
+   * Authored per tile because only the author knows: the two halves of a door
+   * are the same mechanism pointing at each other, and nothing derivable from
+   * the tiles says which one opens and which one shuts. Everything else the
+   * player can do has one honest verb ("Push", "Attack") that belongs to the
+   * *interaction*; a switch is the one whose verb belongs to the tile.
+   *
+   * Optional, and blank is legal: `data/tiles.json` predates the field, and a
+   * switch with nothing written here is still a switch. Whatever offers the
+   * action falls back to naming the kind.
+   */
+  actionName?: string;
 };
 
 /** How a plate's authored {@link PressurePlateInteraction.height} reads its load. */
@@ -161,6 +175,7 @@ export type TileInteractions = {
 
 export const DEFAULT_SWITCH: SwitchInteraction = {
   targetTileId: "",
+  actionName: "",
 };
 
 export const DEFAULT_PUSH: PushInteraction = {
@@ -220,6 +235,10 @@ export function resolvePush(def: TileDef): PushInteraction | null {
 
 const switchSchema = v.object({
   targetTileId: v.pipe(v.string(), v.minLength(1)),
+  // Optional rather than required: every switch authored before this field
+  // existed is still a valid switch, and a stricter schema would silently
+  // demote all of them to "not switchable".
+  actionName: v.optional(v.string()),
 });
 
 const switchCache = new WeakMap<TileDef, SwitchInteraction | null>();
@@ -407,8 +426,16 @@ export function interactionsForSave(
         moveOnTileIds: [...push.moveOnTileIds].sort(),
       }
     : undefined;
-  const savedSwitch =
-    sw?.targetTileId.trim() ? { targetTileId: sw.targetTileId.trim() } : undefined;
+  // A blank verb is dropped rather than written as `""`: the file is
+  // hand-edited, and an empty string that means "no name" is a second way of
+  // saying what an absent key already says.
+  const switchActionName = sw?.actionName?.trim();
+  const savedSwitch = sw?.targetTileId.trim()
+    ? {
+        targetTileId: sw.targetTileId.trim(),
+        ...(switchActionName ? { actionName: switchActionName } : {}),
+      }
+    : undefined;
   const savedPlate = plate?.tileId.trim()
     ? { tileId: plate.tileId.trim(), type: plate.type, height: plate.height }
     : undefined;

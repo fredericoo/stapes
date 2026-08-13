@@ -151,6 +151,53 @@ of the session because both ends of the wire ask: the server to validate an
 interaction, the client to decide whether to draw one under the cursor. Same
 rules on both sides means the client cannot offer something the server refuses.
 
+`./interactionOptions` is the third caller, asking the same questions in the
+plural: everything actionable right now, rather than the one thing under the
+pointer. It is what the list beside the game is drawn from, and it exists
+because a thumb has no hover — before it, an affordance was invisible until it
+was already being used. Two things keep it cheap. It is **bounded by
+construction** — four neighbouring cells across three floors, plus the actors
+the snapshot already holds — so it never sweeps. And `GameRenderer` gates it
+twice before it reaches React: once on map identity plus the viewer's cell and
+target, which makes standing still free, and once on the resulting list's
+contents, because the map takes a new identity on every commit anywhere in the
+world and somebody walking across the room must not re-render the page.
+
+**Attack is bounded by the view, not by reach**, and that is not an
+inconsistency with `inAttackRange`. Tapping a body does not swing at it — it
+sets the target, and the server decides when a blow lands from there. So the
+question is "who could I pick a fight with", whose honest bound is what is on
+screen: choosing your target while walking towards it is how a fight normally
+starts. `GameRenderer` owns that test, because the camera is its business —
+`targetableActors` applies the same two rules the name tags use (`isVisibleLevel`
+plus `isWithinView`, shared with `enforceTargetVisibility`), and keeps whoever
+is already being fought regardless, since on a touch screen the list is the only
+way to call a fight off.
+
+**A row does not consult motion**, unlike `canInteract`. An actor mid-step
+cannot act, but a row that vanished for the 200ms of every stride would flicker
+its way through a walk; the session re-asks on the tap, so the worst a stale row
+can do is nothing at all. And where a tile is authored with both a switch and a
+push, the row names the one `interact` would actually run — the precedence is
+read from the same place rather than restated beside it.
+
+Two shaping rules, both about reading it rather than about correctness. It is
+**one entry per action, ordered by nearness**: the verb is what is being scanned
+for, so a body you can both shove and fight is two rows with one name between
+them rather than a heading to look inside, and every row is the same size. The
+sort is squared plan distance with a floor weighted far above a cell
+(`LEVEL_DISTANCE_WEIGHT`) so nothing through a ceiling comes between you and
+what is at your feet, and ties break on the entry id — which also happens to
+put "attack" above "push" on the body that offers both. Both entries for such a
+body are named through `bodyNameFor` (`bodiesByCell`), because reading the push
+row's name off the *placement* would announce a tile called "Player" beside a
+fight with somebody who has a name. And a switch is
+**named by its author** (`SwitchInteraction.actionName`): "Push" and "Attack"
+belong to the interaction and are the same everywhere, but nothing derivable
+from two tiles pointing at each other says which half opens and which shuts. The
+field is optional and blank is legal — every switch in `data/` predates it — so
+anything offering the action falls back to naming the kind.
+
 ## The wire is patches plus motion events
 
 Two kinds of thing travel, and keeping them apart is what makes it cheap.

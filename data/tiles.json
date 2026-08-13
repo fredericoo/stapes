@@ -3044,7 +3044,8 @@
     "walkable": false,
     "interactions": {
       "switch": {
-        "targetTileId": "door-open"
+        "targetTileId": "door-open",
+        "actionName": "Open"
       },
       "receive": {
         "tileId": "door-open",
@@ -3084,7 +3085,8 @@
     "walkable": false,
     "interactions": {
       "switch": {
-        "targetTileId": "door-closed"
+        "targetTileId": "door-closed",
+        "actionName": "Close"
       },
       "receive": {
         "tileId": "door-closed",
