@@ -193,6 +193,20 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets }: Props) {
               emptyHint="Pick the tile this becomes when switched."
               single
             />
+            <label className="flex flex-col gap-1 text-xs font-bold">
+              Action name
+              <Input
+                value={sw.actionName ?? ""}
+                onChange={(e) => patchSwitch({ actionName: e.target.value })}
+                placeholder="Switch"
+              />
+              <span className="text-[11px] font-normal leading-snug text-muted">
+                What the player is doing, as they would say it — “Open” on a
+                shut door and “Close” on an open one. Shown wherever the action
+                is offered by name rather than by pointing at it. Leave it blank
+                and it reads as “Switch”.
+              </span>
+            </label>
           </div>
         ) : null}
       </section>
