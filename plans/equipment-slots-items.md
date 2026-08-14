@@ -4,6 +4,20 @@
 > below; there are no user stories to trace to, so each phase states what it is
 > demoable as instead.
 
+> **Status: phases 1–4 are built; 5 and 6 are not.** Notes marked *As built*
+> record where the code and this document came apart, and why. They are written
+> where the original decision is rather than collected at the end, because the
+> reason a thing changed is only legible next to the reason it was that way.
+>
+> | | |
+> |---|---|
+> | 1 — Kind, and an item you can author | done |
+> | 2 — Instances, equipment, two panels | done |
+> | 3 — Pick up, and open from the ground | done |
+> | 4 — Moving items between slots | done |
+> | 5 — Drop | next |
+> | 6 — Carried light, persistence, edges | |
+
 Items are tiles. A weapon lying on the floor is a placement like any other — it
 has sprites, it can fall, it can be pushed — and picking it up moves it off the
 board and into somebody's bag. That is the animating idea, and it is what keeps
@@ -227,6 +241,36 @@ Two things follow:
   somebody can click, so it is accepted rather than batched. A take-all button is
   the lever if it ever matters.
 
+> **As built.** Three corrections, two of them from bugs this shape invited.
+>
+> `ContainerSubject` is `ContainerRef` in `game/itemMoves.ts` — the same two
+> cases, named for the container rather than for the panel, because the slot refs
+> a panel builds are derived from it (`slotIn`). Beside it, `OpenedContainer` is
+> the instance and its reference travelling *together*: a panel holding the
+> contents without the reference can show what is in a chest while being unable
+> to name a slot in it.
+>
+> **"Re-checked as the world moves under it" was too loose, and the first
+> implementation read it as "when the container's cell changes".** The map is
+> copy-on-write, so a chest nobody touches is the same object for as long as it
+> sits there, and walking away never re-asked — whether the panel closed depended
+> on whether anything happened to the box while you were gone. Two things can
+> change the answer and the gate now admits both: the placement, and the cell the
+> viewer is standing in.
+>
+> **Closing forgets the reference.** Walking back into range does not reopen a
+> panel — a window that appears without anybody asking for one is worse than one
+> you have to open twice. That also settles a leak the original shape allowed: a
+> reference names a *slot*, so a box carried off leaves its slot to whatever
+> comes next, and a kept reference would show the inside of it. **You must not
+> see what is in a bag somebody else has picked up.** The identity check
+> (`itemId`) stays regardless, because a box can be swapped while you stand right
+> over it — which is exactly when nobody walks anywhere to trigger a close.
+>
+> The rule is `game/openedContainer.ts`, pure and tested; the render loop only
+> decides when to ask it. It lives outside the loop because this was the second
+> defect in it and it was not reachable by a test where it was.
+
 ### Carried light does not dirty a chunk
 
 The light a carried torch throws is the reason to get this shape right now rather
@@ -312,6 +356,18 @@ unambiguous "one cell further away". Neither item action does.
 - **Drop: 5 cells, round, and line of sight.** `dx² + dy² ≤ 25`, plus
   `hasLineOfSight`, plus the target stack having room.
 
+> **As built: "plus the top-of-stack rules" was wrong, and it broke the case the
+> radius exists for.** The round reach takes in the cell you are standing in on
+> purpose — and that is exactly the cell your own body covers, so the sword at
+> your feet could not be picked up and the chest you had stepped onto could not
+> be opened.
+>
+> **A body is not a lid.** Cover is now anything without an `owner`, so a crate
+> buries a thing and a person standing on it does not — whoever that person is,
+> since "whoever stepped on it owns it" is a rule nothing else here plays by.
+> For items only: `interactiveDefAt` keeps the strict rule, so push and switch
+> are unchanged and a crate under a deer still cannot be shoved.
+
 Both go in `app/game/affordances.ts` as pure functions of board plus actor —
 `canPickUpFrom(map, tilesById, actor, ref)` and
 `canDropAt(map, tilesById, actor, coord, def)` — for the reason everything else
@@ -342,6 +398,23 @@ because targeting is a row without being a server-side interaction.
 would actually run — and additionally emits an `open` row when the top placement
 is a container in reach. So a bag on the floor reads as two rows, **Open** and
 **Pick up**, which is the same "one row per verb" rule bodies already follow.
+
+> **As built.** "The top placement" had the same body-is-a-lid bug, and could not
+> be fixed by skipping bodies: a body is a subject in its own right, since the
+> `player` tile is shovable. A cell therefore offers **at most two slots** — its
+> top, and, when that is a body, the topmost thing under it. Not the whole stack:
+> reaching under a body is reaching past something soft, and a cell of four
+> things does not offer four rows. "Never offer to pick yourself up" now falls
+> out of one skip rather than needing a rule of its own.
+>
+> **The open row is a toggle.** It reads *Close* and lights up while it names the
+> box you have open, rather than a second row beside the first — one row per verb
+> per thing. `active` was documented as only ever true of a `target`; it now means
+> "the state this row names is the one you are in", which is what makes the
+> shared lit style a rule rather than a coincidence. It is lit in
+> `--color-interact` (the yellow the world's hover outline already wears) and
+> **not** in the target's red, which belongs to a fight: a chest that went red
+> when you drew your sword would be saying something untrue.
 
 The wrinkle worth naming: `interactionKinds(def)` is a function of the def alone,
 and pick-up's reach differs from the other two kinds'. The reach test already
@@ -397,6 +470,35 @@ would be naming a thing the server has to go looking for; an index is validated
 against a container whose size the server already knows. Ids exist for tracing,
 not for addressing.
 
+> **As built.** `equipment` did not go on `hello`/`patch` as a field: a patch is
+> diffed once and serialized once for everybody, which only works because
+> everybody is told the same thing, and a kit differs per socket. It rides its
+> own `equipment` message to the owner alone. `hello` does carry one, since a
+> joiner has nothing to patch against.
+>
+> Three notes on `moveItem`, all of them about the index:
+>
+> - **A destination always appends.** Slots fill in order and position in a bag
+>   means nothing, so the index is meaningful at the *source* end only and is
+>   ignored at the far end. One type for both ends is worth the wart; two would
+>   be two schemas for one operation.
+> - **A move within one container is refused.** There is no reordering, so a drag
+>   from one square of a bag to another is asking for something the model does not
+>   have. This is also what makes the capacity check sound against the state
+>   *before* the source is emptied: two different containers cannot free each
+>   other's room.
+> - **The weapon slot takes weapons.** The nesting rule and this one live in a
+>   single gate (`slotAccepts`), which is what lets the test for "no container may
+>   hold a container" be exhaustive rather than hopeful — bag → chest, chest →
+>   bag and chest → chest all ask the same question.
+>
+> `moveItem` is **not** gated on the actor being idle, unlike `pickUp` and
+> `push`. Those move the board and are held against the actor so they cannot be
+> machine-gunned; this rearranges what somebody is carrying, and refusing to let
+> a walking player draw a sword would be a rule with nothing behind it. Reach for
+> a ground endpoint is re-asked regardless, against the cell the actor has
+> committed to.
+
 On `hello` and `patch`: `equipment` (self-only, sent when it changed) and
 `carriedLights` per actor (broadcast, same diffed-array treatment as `hps`).
 
@@ -417,13 +519,35 @@ screen → cell with the existing `pickTileAt`, asks `canDropAt`, and draws a
 translucent quad or nothing. Routing a ghost through React state would re-render
 the page on every pixel of the drag.
 
+> **As built** (`components/useItemDrag.ts`, `components/DragLayer.tsx`). The
+> same discipline applies inside the panels: the dragged sprite is positioned by
+> writing a transform onto its node, not through React state, so a drag re-renders
+> the page only when what it would land on changes.
+>
+> Slots register their elements with the hook and drops are hit-tested against
+> those rectangles. `@dnd-kit/react` is already a dependency — the editor's
+> sortables use it — and was not used here, because Phase 5 needs a ghost drawn
+> by the *renderer* over the canvas, which is outside its model. Worth
+> re-deciding before Phase 5 rather than after.
+>
+> **Every slot is also a button: press one to lift, press another to place.**
+> Pulled forward from Phase 6 deliberately (see there), and it is the same pair
+> of questions the drag asks — may this move, and do it — so there is one rule
+> and no second implementation to drift from it.
+>
+> The two nearly ate each other, and the bug is worth knowing before touching
+> this file. With something lifted, *every* subsequent press releases a pointer
+> somewhere; a release handler that assumed a drag was ending put the item down
+> before the click that was about to place it ever ran. The release turns on
+> whether a pointer is **carrying** the thing, not on whether anything is in hand.
+
 ---
 
 ## Phases
 
 Vertical slices. Each is demoable on its own and leaves the build green.
 
-### Phase 1 — Kind, and an item you can author
+### Phase 1 — Kind, and an item you can author  ✅
 
 No play behaviour. The deliverable is that a weapon and a bag exist in
 `data/tiles.json`.
@@ -454,7 +578,12 @@ Files: `app/lib/types.ts`, `app/lib/item.ts` (new), `app/lib/battler.ts`,
 `app/components/BattleTab.tsx`, `app/components/ItemTab.tsx` (new),
 `app/components/TileEditorDialog.tsx`, `data/tiles.json`.
 
-### Phase 2 — Instances, equipment, and two panels to see it in
+> **As built.** The placeholders are gone: the sword, the bag and the chest are
+> drawn in `tiny-ranch-tiles` beside everything else the world is built from. The
+> sword and bag are 1×1 where the chest is 2×2, which is the art's own call and
+> not a rule about items.
+
+### Phase 2 — Instances, equipment, and two panels to see it in  ✅
 
 Still nothing to pick up. The deliverable is that you spawn with a bag on your
 back and can see it.
@@ -489,7 +618,7 @@ Files: `app/lib/types.ts`, `app/lib/item.ts`, `app/game/GameSession.ts`,
 (new), `app/components/GameViewport.tsx`, `app/routes/online.tsx`,
 `app/routes/play.tsx`.
 
-### Phase 3 — Pick up, and open from the ground
+### Phase 3 — Pick up, and open from the ground  ✅
 
 The first end-to-end slice: an item on the map ends up in your bag, with its id
 and its metadata intact — and a chest on the floor can be looked into.
@@ -515,7 +644,7 @@ Files: `app/game/affordances.ts`, `app/lib/interactions.ts`,
 `app/components/ContainerPanel.tsx`, `app/game/GameSession.ts`,
 `app/net/protocol.ts`, `app/net/RemoteSession.ts`.
 
-### Phase 4 — Moving items between slots
+### Phase 4 — Moving items between slots  ✅
 
 - The pointer-events drag hook and the drag layer.
 - Drag bag → weapon slot: a ghost when it would fit, nothing when it would not.
@@ -526,6 +655,28 @@ Files: `app/game/affordances.ts`, `app/lib/interactions.ts`,
   those directions goes through.
 - `moveItem` and its server-side validation: capacity, nesting, and — for a
   `ground` endpoint — reach, re-asked rather than trusted.
+
+> **As built, plus four things this phase grew.**
+>
+> - **The keyboard two-step**, pulled forward from Phase 6. See there.
+> - **The bag button in the action strip is a drop target.** A bag you have to
+>   open before you can stash anything is two gestures for one intention, and on
+>   a phone the open panel covers the game — so the shortest path from a chest on
+>   the floor to your back should not go through a panel that hides the floor. It
+>   registers under its own key rather than the slot's, because the bag's first
+>   slot may already be on screen and two elements cannot share one registry
+>   entry; both resolve to the same append.
+> - **It also carries its own fullness**, as a `2/4` in the corner that inverts to
+>   paper when full — full is the state that stops the next pickup, and it should
+>   be read off the colour rather than by comparing two numbers.
+> - **Containers are drawn as containers**: walls and a floor around the whole
+>   panel, the tile's own sprite beside the name, and a square close button inside
+>   the walls that every container has — the bag on your back included, where it
+>   only puts the panel away.
+>
+> Not done here and worth knowing: **`/online` was never exercised end to end by
+> hand.** Every layer has tests and the client is verified in `/play`, but no
+> connected pair of browsers has moved an item between slots.
 
 ### Phase 5 — Drop
 
@@ -542,6 +693,21 @@ Files: `app/game/affordances.ts`, `app/lib/interactions.ts`,
 - The backpack button in the action strip is a drag *source*, so a bag is dropped
   by dragging it out of the strip onto the floor.
 
+> **Decide first: the backpack button now means three things.** Phase 4 made it a
+> drop target and a panel toggle; this makes it a drag source too, so one press
+> resolves to stash, open, or drop-my-bag depending on how it ends. That
+> precedence should be chosen deliberately rather than discovered.
+>
+> Two other notes for whoever starts this:
+>
+> - The drag hook hit-tests against *registered slot elements*. The world is not
+>   one, so dropping onto the canvas is the one structural addition — everything
+>   else about the gesture already exists.
+> - The keyboard path has no obvious equivalent for "drop at a cell". Placing
+>   into a slot is a second press; placing into the world is a coordinate. Worth
+>   an answer before the drag is built, on the same reasoning that put the
+>   two-step in Phase 4.
+
 ### Phase 6 — Carried light, persistence, and the edges
 
 - `EmitterOverride.lights`; `collectOverrideEmitters` honouring it;
@@ -555,6 +721,13 @@ Files: `app/game/affordances.ts`, `app/lib/interactions.ts`,
   keyboard, so every drag needs a non-drag equivalent (a row action, or a
   focus-then-activate two-step). This is not optional and it is far easier to
   design in Phase 2 than to retrofit here.
+
+> **Mostly done in Phase 4, on that advice.** Every slot is a button carrying a
+> lift-and-place two-step, announced through `aria-pressed` and a label that says
+> what pressing it would do. What is left here is an audit rather than a retrofit
+> — and two known gaps: the **bag button takes drops but not a lifted item** (it
+> toggles the panel instead, which reaches the slots in one extra press), and
+> **Phase 5 has no keyboard equivalent for dropping at a cell** at all.
 
 ---
 
@@ -584,6 +757,20 @@ Existing culture is pure modules asserted directly; this fits it.
   out-of-range slot index is refused, and a `ground` slot ref with a
   non-integer coordinate is refused.
 
+> **As built.** The session tests are in `sessionEquipment.test.ts` rather than a
+> `GameSession.test.ts`, and the move rules got their own file
+> (`itemMoves.test.ts`) because they are pure and shared by both ends of the
+> wire. `protocol.test.ts` did not exist before this and now does.
+>
+> One correction to the list above: an **out-of-range slot index is not refused
+> by the schema**. What an index may be depends on the size of the container it
+> is read against, which the session knows and a schema does not — so it parses,
+> reads as an empty slot, and is refused in the one place capacity is understood.
+> The schema's job is only to keep it a whole number that is not negative.
+>
+> `openedContainer.test.ts` is new and covers the rule that gave the most
+> trouble: in reach, out of reach, and the substitutions that must not be shown.
+
 ---
 
 ## Open questions
@@ -601,9 +788,21 @@ Not blocking Phase 1, but each needs an answer before the phase that hits it.
 3. **Should a bag's own weight matter?** Bags have only `size` per the scope. A
    heavy full bag slowing you is the obvious next lever and would go in the same
    `effectiveBattler`.
-4. **Does the desktop aside widen, or do the grids get compact?** (Phase 2.)
-   224px is currently sized so the game square does not resize as you walk;
-   whatever changes there has to preserve that.
+4. ~~**Does the desktop aside widen, or do the grids get compact?**~~ (Phase 2.)
+   **Settled:** the aside stayed at 224px and the grids are compact, so the game
+   square still does not resize as you walk.
+5. **Can you walk with a container open on a phone?** (Phase 5/6.) Today you
+   cannot: an open panel replaces the arrows, so the close-on-out-of-reach rule
+   is unreachable by thumb and the ✕ is the only way out. Either the panel shares
+   space with the arrows, or that rule is desktop-only in practice.
+6. **What colour is focus, and what colour is a drop target?** The vocabulary is
+   yellow acts, red fights, white singles out, blue looks — but focus outlines
+   and drag targets are both drawn in `accent`, which is green and means nothing
+   in that scheme.
+
+Question 1 is now the pressing one: looting and dropping both rewrite placements,
+so ids reach `data/map.json` through ordinary play rather than only through a
+load.
 
 ## Explicitly out of scope
 
