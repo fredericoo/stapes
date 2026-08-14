@@ -464,6 +464,15 @@ own `ACTION_ORDER` — so a chest opens rather than shoving, because that is the
 order the list already showed and there is no longer a second precedence able to
 disagree with the words on screen.
 
+**A panel is a thing you opened, and nothing else.** `ContainerPanel` used to
+take a nullable container and print "Nothing to carry things in" — so dropping
+the bag off your back left a window up explaining that it had no window to show,
+and the equipment slot went on wearing the yellow that means *open* over an empty
+square. Both are gone: the panel is not rendered without a bag, and a slot with
+nothing in it is never open, never a toggle, and says neither in its label. Same
+rule the drop ghost follows — an absent affordance is the whole answer, and
+nothing explains itself.
+
 **Pick up beats open**, which is a reversal of what this plan first settled and
 turns out not to be a trade-off at all. The two are almost never both on offer: a
 bag can only be picked up when your back is bare, and a bare back is exactly when

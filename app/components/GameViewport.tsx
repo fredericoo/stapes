@@ -364,7 +364,11 @@ export function GameViewport({
           drag={drag}
         />
       ) : null}
-      {showBag ? (
+      {/* A panel is a thing you opened, and a bag you are not wearing is not one:
+          drop it and the window goes with it, rather than staying up to say it
+          has nothing in it. The same rule the strip's button already followed by
+          being disabled. */}
+      {showBag && equipment.bag ? (
         <ContainerPanel
           container={equipment.bag}
           location={{ kind: "bag" }}

@@ -115,7 +115,11 @@ export function ItemSlot({
   const isSource = held != null && slotKey(held.from) === key;
   const wouldTake = drag.targets.has(key) && !isSource;
   const isOver = drag.over === key;
-  const pressHint = pressHintFor(instance, slot, tilesById, open);
+  // An empty square is not open and is not a toggle, whatever the panel beside
+  // it is doing: the state belongs to the *thing* in the slot, and a slot whose
+  // thing has been dropped has no state left to be in.
+  const isOpen = instance ? open : undefined;
+  const pressHint = pressHintFor(instance, slot, tilesById, isOpen);
 
   return (
     <button
@@ -138,7 +142,7 @@ export function ItemSlot({
               ? // Where it came from, dimmed rather than emptied: the thing is
                 // still yours until you let go of it somewhere.
                 "border-dashed border-paper/60 bg-paper/5 opacity-50"
-              : open
+              : isOpen
                 ? // Open, in the one colour the game uses for a thing you have
                   // acted on. Above `instance` in this chain because a thing
                   // being open is a louder fact than its merely being there.
@@ -168,7 +172,7 @@ export function ItemSlot({
       // or shut; wielding a sword is something you do, not somewhere it stays,
       // and a weapon slot claiming a pressed state would be describing a toggle
       // nobody can toggle back.
-      aria-pressed={open}
+      aria-pressed={isOpen}
     >
       {tile ? (
         <TilePreview

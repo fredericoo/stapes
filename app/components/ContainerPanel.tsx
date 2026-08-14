@@ -39,8 +39,15 @@ export function ContainerPanel({
   drag,
   className = "",
 }: {
-  /** The container being looked into, or null when there is none to look into. */
-  container: ItemInstance | null;
+  /**
+   * The container being looked into.
+   *
+   * Never null. A panel is a thing you opened, so there is no such state as one
+   * with nothing in it to look at — whoever renders this closes it instead. It
+   * used to take a null and print "Nothing to carry things in", which is a
+   * window explaining why it is not a window.
+   */
+  container: ItemInstance;
   /**
    * Which container this is, in the terms a move is expressed in.
    *
@@ -68,9 +75,9 @@ export function ContainerPanel({
 }) {
   const tilesById = useMemo(() => tilesByIdFromList(tiles), [tiles]);
 
-  const def = container ? tilesById[container.tileId] : undefined;
+  const def = tilesById[container.tileId];
   const size = def ? (resolveContainer(def)?.size ?? 0) : 0;
-  const contents = container?.contents ?? [];
+  const contents = container.contents ?? [];
 
   /**
    * One entry per slot the container *has*, not per thing in it.
@@ -120,11 +127,9 @@ export function ContainerPanel({
         ) : null}
         <h2 className="text-[11px] font-bold uppercase tracking-wide text-paper/50">
           {title}
-          {container ? (
-            <span className="ml-1 tabular-nums text-paper/40">
-              {contents.length}/{size}
-            </span>
-          ) : null}
+          <span className="ml-1 tabular-nums text-paper/40">
+            {contents.length}/{size}
+          </span>
         </h2>
         {/* Square, and always there. Every box shuts the same way — the one on
             your back included, where it only puts the panel away — because a
@@ -140,29 +145,23 @@ export function ContainerPanel({
         </button>
       </div>
 
-      {container ? (
-        <div className="flex flex-wrap gap-1">
-          {slots.map((instance, i) => (
-            <ItemSlot
-              // By position, because that is what a slot *is* here. Keying by
-              // instance id would be keying the container on its contents, and
-              // an empty slot has no id to key by at all.
-              key={i}
-              slot={slotIn(location, i)}
-              instance={instance}
-              tilesById={tilesById}
-              tilesets={tilesets}
-              label={`${title}, slot ${i + 1}`}
-              emptyHint="Empty"
-              drag={drag}
-            />
-          ))}
-        </div>
-      ) : (
-        // A sentence rather than an empty grid: with no bag there are no slots
-        // to draw, and a blank box reads as something that failed to load.
-        <p className="px-1 py-2 text-xs text-paper/50">Nothing to carry things in.</p>
-      )}
+      <div className="flex flex-wrap gap-1">
+        {slots.map((instance, i) => (
+          <ItemSlot
+            // By position, because that is what a slot *is* here. Keying by
+            // instance id would be keying the container on its contents, and
+            // an empty slot has no id to key by at all.
+            key={i}
+            slot={slotIn(location, i)}
+            instance={instance}
+            tilesById={tilesById}
+            tilesets={tilesets}
+            label={`${title}, slot ${i + 1}`}
+            emptyHint="Empty"
+            drag={drag}
+          />
+        ))}
+      </div>
     </section>
   );
 }
