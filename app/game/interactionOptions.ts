@@ -68,7 +68,11 @@ export type InteractionOption = {
   tileId: string;
   /** A person by their handle, anything else by what its tile is called. */
   name: string;
-  /** Already the one being pointed at. Only ever true of a `target`. */
+  /**
+   * The state this row names is the one you are already in — the body you are
+   * pointing at, or the box you have open. Rows for things that simply *happen*,
+   * like a shove, are never active: there is no state to be in afterwards.
+   */
   active: boolean;
 };
 
@@ -79,6 +83,16 @@ const LABELS: Record<InteractionAction, string> = {
   push: "Push",
   switch: "Switch",
 };
+
+/**
+ * What the open row says once the box it names is open.
+ *
+ * The row is a toggle, so it is named for what pressing it would *do* rather
+ * than for what the thing is — the same rule a switch follows, where the label
+ * is the authored verb and not the tile. A row that went on saying "Open" beside
+ * an open chest would be offering something already true.
+ */
+const CLOSE_LABEL = "Close";
 
 /**
  * Which verb comes first where two entries are the same distance away.
@@ -137,12 +151,13 @@ export function listInteractionOptions(
   visibleActors: readonly ActorSnapshot[],
   targetId: string | null,
   equipment: Equipment,
+  openedRef: ObjectRef | null = null,
 ): InteractionOption[] {
   const bodies = bodiesByCell(self, visibleActors);
 
   return [
     ...targetOptions(tilesById, bodies, targetId),
-    ...objectOptions(map, tilesById, self, bodies, equipment),
+    ...objectOptions(map, tilesById, self, bodies, equipment, openedRef),
   ].sort(
     (a, b) =>
       distanceFrom(self, a.ref) - distanceFrom(self, b.ref) ||
@@ -252,6 +267,7 @@ function objectOptions(
   self: ActorSnapshot,
   bodies: Map<string, ActorSnapshot>,
   equipment: Equipment,
+  openedRef: ObjectRef | null,
 ): InteractionOption[] {
   const out: InteractionOption[] = [];
   const zMin = Math.max(MIN_LEVEL, self.z - INTERACT_LEVEL_SLACK);
@@ -269,12 +285,15 @@ function objectOptions(
       for (let z = zMin; z <= zMax; z++) {
         for (const stackIndex of actionableSlotsIn(getStack(map, x, y, z))) {
           out.push(
-            ...slotOptions(map, tilesById, self, bodies, equipment, {
-              x,
-              y,
-              z,
-              stackIndex,
-            }),
+            ...slotOptions(
+              map,
+              tilesById,
+              self,
+              bodies,
+              equipment,
+              { x, y, z, stackIndex },
+              openedRef,
+            ),
           );
         }
       }
@@ -318,6 +337,7 @@ function slotOptions(
   bodies: Map<string, ActorSnapshot>,
   equipment: Equipment,
   ref: ObjectRef,
+  openedRef: ObjectRef | null,
 ): InteractionOption[] {
   const placed = getStack(map, ref.x, ref.y, ref.z)[ref.stackIndex];
   if (!placed) return [];
@@ -332,7 +352,7 @@ function slotOptions(
     : (tilesById[placed.tileId]?.name ?? placed.tileId);
 
   const out: InteractionOption[] = [];
-  const add = (action: InteractionAction, label: string) => {
+  const add = (action: InteractionAction, label: string, active = false) => {
     out.push({
       id: `${action}:${refKey(ref)}`,
       action,
@@ -341,7 +361,7 @@ function slotOptions(
       actorId: null,
       tileId: placed.tileId,
       name,
-      active: false,
+      active,
     });
   };
 
@@ -353,7 +373,15 @@ function slotOptions(
   // And, beside it, opening — which is not something a tap runs at all. A bag on
   // the floor is therefore two rows, "Open" and "Pick up", which is the same
   // one-row-per-verb rule bodies already follow.
-  if (canOpenFrom(map, tilesById, self, ref)) add("open", LABELS.open);
+  //
+  // One row for both halves of the toggle, lit and renamed while it is the box
+  // you have open. A second "Close" row beside the first would be two entries
+  // for one box, and the list's whole promise is that a row is a thing you can
+  // do to a thing you can see.
+  if (canOpenFrom(map, tilesById, self, ref)) {
+    const isOpen = openedRef != null && refKey(openedRef) === refKey(ref);
+    add("open", isOpen ? CLOSE_LABEL : LABELS.open, isOpen);
+  }
 
   return out;
 }

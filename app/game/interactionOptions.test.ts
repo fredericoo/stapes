@@ -733,3 +733,50 @@ describe("listInteractionOptions — standing on things", () => {
     ).toEqual(["push"]);
   });
 });
+
+/**
+ * The open row is a toggle, so it is named for what pressing it would do and
+ * lit while the box it names is the one you have open. One row for both halves:
+ * a separate "Close" entry beside the first would be two rows for one chest.
+ */
+describe("listInteractionOptions — a container already open", () => {
+  const REF = { x: 1, y: 0, z: 0, stackIndex: 1 };
+
+  function rows(openedRef: typeof REF | null) {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "chest"]);
+    const me = playerAt(map);
+    return listInteractionOptions(
+      map,
+      tilesById,
+      me,
+      [me],
+      null,
+      KIT,
+      openedRef,
+    );
+  }
+
+  it("says Open, unlit, when nothing is open", () => {
+    const open = rows(null).find((o) => o.action === "open")!;
+    expect(open.label).toBe("Open");
+    expect(open.active).toBe(false);
+  });
+
+  it("says Close and lights up for the box being looked into", () => {
+    const open = rows(REF).find((o) => o.action === "open")!;
+    expect(open.label).toBe("Close");
+    expect(open.active).toBe(true);
+  });
+
+  it("leaves a different box alone", () => {
+    const elsewhere = { x: -1, y: 0, z: 0, stackIndex: 1 };
+    const open = rows(elsewhere).find((o) => o.action === "open")!;
+    expect(open.label).toBe("Open");
+    expect(open.active).toBe(false);
+  });
+
+  it("is still one row, not two", () => {
+    expect(rows(REF).filter((o) => o.action === "open")).toHaveLength(1);
+  });
+});

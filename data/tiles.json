@@ -3979,18 +3979,21 @@
   {
     "id": "crate-chest",
     "name": "Chest",
-    "height": 0,
+    "height": 1,
     "type": "simple",
     "kind": "item",
     "attributes": {},
-    "intangible": true,
-    "affectedByGravity": true,
     "lightPassing": true,
+    "affectedByGravity": true,
     "interactions": {
       "item": {
         "type": "container",
         "size": 2,
         "equippable": false
+      },
+      "push": {
+        "climb": "none",
+        "moveOnTileIds": []
       }
     },
     "sprite": {

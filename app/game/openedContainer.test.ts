@@ -10,10 +10,11 @@ import { readOpenedContainer } from "./openedContainer";
 /**
  * Whether a box somebody opened is still theirs to look into.
  *
- * The three answers are the whole of this: in reach and the same box, too far
- * off but still that box, and not that box any more. The last one is the one
- * with teeth — a reference kept alive across a substitution would show the
- * inside of whatever took its place.
+ * Open or closed, with nothing in between: walking off closes it, and so does
+ * somebody carrying it away. The caller forgets the reference on a close (see
+ * `GameRenderer.pushOpenedContainer`), which is what stops a panel reopening on
+ * its own as you wander back past a chest — and, with nothing kept, stops a slot
+ * that has come to hold another bag being shown under the old panel.
  */
 
 function tile(partial: Record<string, unknown>): TileDef {
@@ -83,64 +84,62 @@ describe("a box in reach", () => {
 describe("walking away", () => {
   const FAR = { x: 4, y: 0, z: 0 };
 
-  it("closes the panel without forgetting which box it was", () => {
-    const read = readOpenedContainer(board(), tilesById, FAR, REF, CHEST_ID);
-
-    expect(read.kind).toBe("outOfReach");
-    expect(read.kind === "outOfReach" && read.itemId).toBe(CHEST_ID);
+  it("closes the panel", () => {
+    expect(readOpenedContainer(board(), tilesById, FAR, REF, CHEST_ID).kind).toBe(
+      "closed",
+    );
   });
 
-  it("opens again on the way back, being the same box", () => {
-    const map = board();
-    expect(readOpenedContainer(map, tilesById, FAR, REF, CHEST_ID).kind).toBe(
-      "outOfReach",
-    );
-    expect(readOpenedContainer(map, tilesById, ME, REF, CHEST_ID).kind).toBe(
-      "open",
+  it("closes on the floor below as readily as across the room", () => {
+    const below = { x: 1, y: 0, z: -2 };
+    expect(readOpenedContainer(board(), tilesById, below, REF, CHEST_ID).kind).toBe(
+      "closed",
     );
   });
 });
 
 /**
  * The case worth being strict about: what is in a bag belongs to whoever has
- * it, and a reference is a slot rather than a thing.
+ * it, and a reference is a slot rather than a thing. This matters even with the
+ * reference dropped on every close, because a box can be swapped while you are
+ * standing right over it — which is exactly when nobody is walking anywhere.
  */
 describe("a box that is not that box any more", () => {
-  it("is gone once somebody has taken it", () => {
+  it("is closed once somebody has taken it", () => {
     const taken = replaceStack(emptyMap(), 1, 0, 0, [{ tileId: "grass" }]);
     expect(readOpenedContainer(taken, tilesById, ME, REF, CHEST_ID).kind).toBe(
-      "gone",
+      "closed",
     );
   });
 
-  it("is gone when another container has taken its slot", () => {
+  it("is closed when another container has taken its slot", () => {
     const swapped = board("bag", "itm_somebody_elses");
     expect(readOpenedContainer(swapped, tilesById, ME, REF, CHEST_ID).kind).toBe(
-      "gone",
+      "closed",
     );
   });
 
-  it("is gone when the same kind of box with another identity is there", () => {
+  it("is closed when the same kind of box with another identity is there", () => {
     const twin = board("chest", "itm_other_chest");
     expect(readOpenedContainer(twin, tilesById, ME, REF, CHEST_ID).kind).toBe(
-      "gone",
+      "closed",
     );
   });
 
-  it("is gone when the slot holds something with no identity at all", () => {
+  it("is closed when the slot holds something with no identity at all", () => {
     const scenery = replaceStack(emptyMap(), 1, 0, 0, [
       { tileId: "grass" },
       { tileId: "rock" },
     ]);
     expect(readOpenedContainer(scenery, tilesById, ME, REF, CHEST_ID).kind).toBe(
-      "gone",
+      "closed",
     );
   });
 
-  it("is gone for an empty cell", () => {
+  it("is closed for an empty cell", () => {
     expect(
       readOpenedContainer(emptyMap(), tilesById, ME, REF, CHEST_ID).kind,
-    ).toBe("gone");
+    ).toBe("closed");
   });
 });
 
@@ -167,7 +166,7 @@ describe("a box that is covered", () => {
       { tileId: "rock" },
     ]);
     expect(readOpenedContainer(buried, tilesById, ME, REF, CHEST_ID).kind).toBe(
-      "outOfReach",
+      "closed",
     );
   });
 });

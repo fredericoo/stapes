@@ -150,9 +150,14 @@ function InteractionRow({
       onMouseLeave={() => onHover?.(null)}
       onFocus={() => onHover?.(option.id)}
       onBlur={() => onHover?.(null)}
-      // Only a target is a state you are in; a push happens and is over, and a
-      // button that claimed otherwise would be announced as stuck on.
-      aria-pressed={option.action === "target" ? option.active : undefined}
+      // Pointing at somebody and having a box open are states you are in, and
+      // both rows toggle out of them; a push happens and is over, and a button
+      // that claimed otherwise would be announced as stuck on.
+      aria-pressed={
+        option.action === "target" || option.action === "open"
+          ? option.active
+          : undefined
+      }
       className={[
         "flex w-full shrink-0 items-center gap-2 border-2 p-1 text-left",
         "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",

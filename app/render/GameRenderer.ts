@@ -439,10 +439,11 @@ export class GameRenderer {
       ref,
       this.openedItemId,
     );
-    if (read.kind === "gone") {
-      // The reference is dropped rather than merely reporting null: the slot it
-      // names may come to hold something else, and walking back into range must
-      // not open a stranger's bag under the panel that used to be a chest.
+    if (read.kind === "closed") {
+      // The reference is dropped rather than merely reporting null, which is
+      // what makes closed stay closed: walking back into range does not reopen
+      // a panel nobody asked for, and the slot cannot quietly come to hold
+      // somebody else's bag under the panel that used to be a chest.
       this.openedRef = null;
       this.openedItemId = null;
     } else {
@@ -1405,7 +1406,12 @@ export class GameRenderer {
     // different rows on the same board from the same cell: pick-up is gated on
     // having somewhere to put the thing. Identity, not contents — the session
     // replaces the kit rather than mutating it, which is what makes that sound.
-    const at = `${snap.self.x},${snap.self.y},${snap.self.z},${snap.targetId}`;
+    // The opened box is in the key for the same reason the target is: it is a
+    // state a row is *named* for, so opening one renames a row without anything
+    // on the board having moved.
+    const box = this.openedRef;
+    const opened = box ? `${box.x},${box.y},${box.z},${box.stackIndex}` : "";
+    const at = `${snap.self.x},${snap.self.y},${snap.self.z},${snap.targetId},${opened}`;
     if (
       snap.map === this.interactionsMap &&
       at === this.interactionsAt &&
@@ -1424,6 +1430,7 @@ export class GameRenderer {
       this.targetableActors(snap, camera, hideLevelsAbove),
       snap.targetId,
       snap.equipment,
+      this.openedRef,
     );
     // Held whether or not it is handed on, because the *references* inside it go
     // stale even when the list reads the same: a walking deer keeps its row and

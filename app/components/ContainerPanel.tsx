@@ -5,7 +5,14 @@ import type { ItemInstance } from "../lib/itemInstance";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { ItemSlot } from "./ItemSlot";
+import { TilePreview } from "./TilePreview";
 import type { ItemDrag } from "./useItemDrag";
+
+/** Which sprite stands for the container in its own heading. */
+const FRONT: "s" = "s";
+
+/** Big enough to tell a chest from a bag, small enough to sit in a heading. */
+const TITLE_SPRITE_SIZE_PX = 18;
 
 /**
  * What is inside a container.
@@ -47,13 +54,14 @@ export function ContainerPanel({
   /** What to call it — "Bag" on your own, the tile's name on a chest. */
   title: string;
   /**
-   * Shut it by hand, for a container that was opened by hand.
+   * Shut it.
    *
-   * Only the ground ones get this. The bag on your back is closed by the button
-   * that opened it, which is always on screen; a chest has no such button, and
-   * walking away is the only other way out of it.
+   * Required, and the same gesture for every container: a chest on the floor has
+   * no other way out, and the bag on your back gains one that is nearer than the
+   * button in the strip. What it *means* differs — a chest stops being watched,
+   * a bag is only put away — and neither of those is this component's business.
    */
-  onClose?: () => void;
+  onClose: () => void;
   /** The one move in progress, page-wide. See `./useItemDrag`. */
   drag: ItemDrag;
   className?: string;
@@ -81,10 +89,35 @@ export function ContainerPanel({
 
   return (
     <section
-      className={["flex flex-col gap-1", className].filter(Boolean).join(" ")}
+      // Walled and floored, name and all, so the panel reads as *being* the box
+      // rather than as a list that happens to be about one. The heading and the
+      // way out are inside it for the same reason: they belong to this
+      // container, and a title sitting outside the walls would be a label on a
+      // shelf rather than the lid of a chest.
+      className={[
+        "flex flex-col gap-1 border-2 border-paper/25 bg-paper/5 p-1.5",
+        className,
+      ]
+        .filter(Boolean)
+        .join(" ")}
       aria-label={title}
     >
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5">
+        {/* The thing itself, beside its name. Two chests and a backpack are
+            three panels that would otherwise differ only by a word, and the
+            sprite is how you know at a glance which box you are looking into —
+            the same reason the strip's button is the literal bag. */}
+        {def ? (
+          <TilePreview
+            tile={def}
+            tilesets={tilesets}
+            size={TITLE_SPRITE_SIZE_PX}
+            direction={FRONT}
+            still
+            chrome={false}
+            background={null}
+          />
+        ) : null}
         <h2 className="text-[11px] font-bold uppercase tracking-wide text-paper/50">
           {title}
           {container ? (
@@ -93,16 +126,18 @@ export function ContainerPanel({
             </span>
           ) : null}
         </h2>
-        {onClose ? (
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label={`Close ${title}`}
-            className="ml-auto shrink-0 border-2 border-paper/40 px-1 text-[11px] leading-none text-paper/70 hover:border-paper hover:text-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-          >
-            ✕
-          </button>
-        ) : null}
+        {/* Square, and always there. Every box shuts the same way — the one on
+            your back included, where it only puts the panel away — because a
+            close button that came and went by which container you were looking
+            at would be a control you have to find rather than one you know. */}
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label={`Close ${title}`}
+          className="ml-auto grid h-5 w-5 shrink-0 place-items-center border-2 border-paper/40 text-[11px] leading-none text-paper/70 hover:border-paper hover:text-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+        >
+          ✕
+        </button>
       </div>
 
       {container ? (

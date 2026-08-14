@@ -14,29 +14,29 @@ import type { OpenedContainer } from "./itemMoves";
  * the container's cell changes, and those are the only two things that can
  * change the answer.
  *
- * ## Three answers, not two
+ * ## Closed is closed
  *
- * Out of reach and gone are different, and collapsing them would be a leak
- * either way round. Something merely out of reach is still that thing: walk
- * back and it is the same box with the same contents. Something *gone* has left
- * the slot — taken by somebody else, shoved along, or buried — and the
- * reference that named it now names whatever took its place. Keeping that
- * reference alive would mean walking back into range and being shown the
- * inside of a different container entirely, which is the exact shape of the
- * problem worth avoiding: **you must not see what is in a bag somebody else
- * has picked up.**
+ * There is no "temporarily out of view" state to come back from. Anything that
+ * stops the panel — walking off, somebody carrying the box away, a crate landing
+ * on it — closes it for good, and opening it again is a deliberate act. The
+ * alternative reopens a panel on its own as you wander back past a chest, which
+ * is a window appearing without anybody asking for one.
  *
- * Identity is what tells the two apart. The item id on the placement is the
- * thing that was opened; a slot holding anything else is holding somebody
- * else's business.
+ * That also disposes of the case worth being strict about. A reference names a
+ * *slot*, not a thing, so a box that has been carried off leaves its slot to
+ * whatever comes next; a reference kept alive across that would show the inside
+ * of whatever took its place. **You must not see what is in a bag somebody else
+ * has picked up.** With nothing kept, there is nothing to substitute into.
+ *
+ * The identity check earns its keep even so: a box can be swapped while you are
+ * standing right over it, and that is precisely when nobody is walking anywhere
+ * to close the panel.
  */
 export type OpenedContainerRead =
   /** In reach and the same box. Here is what is in it. */
   | { kind: "open"; container: OpenedContainer; itemId: string }
-  /** Still there, still that box, too far to see into. Keep the reference. */
-  | { kind: "outOfReach"; itemId: string }
-  /** Not that box any more, if anything at all. Forget the reference. */
-  | { kind: "gone" };
+  /** Not something this viewer may look into. Forget the reference. */
+  | { kind: "closed" };
 
 /**
  * Look up what an opened reference is worth now.
@@ -55,23 +55,18 @@ export function readOpenedContainer(
 ): OpenedContainerRead {
   const placed = getStack(map, ref.x, ref.y, ref.z)[ref.stackIndex];
   const itemId = placed?.itemId;
-  if (!placed || !itemId) return { kind: "gone" };
+  if (!placed || !itemId) return { kind: "closed" };
   // Learnt on the first read, checked on every one after it.
-  if (openedItemId !== null && openedItemId !== itemId) return { kind: "gone" };
+  if (openedItemId !== null && openedItemId !== itemId) {
+    return { kind: "closed" };
+  }
 
   // Reach and "is this still a container at all" are one question, and it is
   // the same one that offered the row in the first place — so a box you can
   // open is a box you can go on looking into, with no second rule to disagree.
-  if (!canOpenFrom(map, tilesById, self, ref)) {
-    // A thing that stopped being a container while you were standing over it is
-    // gone in the sense that matters, but that cannot be told from being out of
-    // reach without asking twice. Asking twice is cheap and being wrong is not:
-    // treat it as merely far off, and the identity check above catches the
-    // substitution that would actually leak anything.
-    return { kind: "outOfReach", itemId };
-  }
+  if (!canOpenFrom(map, tilesById, self, ref)) return { kind: "closed" };
 
   const instance = instanceFromPlacement(placed);
-  if (!instance) return { kind: "gone" };
+  if (!instance) return { kind: "closed" };
   return { kind: "open", container: { instance, ref }, itemId };
 }

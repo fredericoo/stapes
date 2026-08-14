@@ -222,8 +222,11 @@ export function GameViewport({
         // Opening is the one row that never reaches the session: a container's
         // contents are already here, riding on its placement, so looking inside
         // is a panel and not a request. Everything else is the board's business.
+        //
+        // One row, both ways: it says "Close" and reads as lit while that box is
+        // the open one, so pressing it again is what shuts it.
         if (option.action === "open") {
-          onOpenContainer?.(option.ref);
+          onOpenContainer?.(option.active ? null : option.ref);
           return;
         }
         onInteract?.(option);
@@ -273,6 +276,7 @@ export function GameViewport({
         onChange={openBag}
         tilesById={tilesById}
         tilesets={tilesets}
+        drag={drag}
         size={size}
       />
     </>
@@ -303,6 +307,7 @@ export function GameViewport({
           tiles={tiles}
           tilesets={tilesets}
           title="Bag"
+          onClose={() => openBag(false)}
           drag={drag}
         />
       ) : null}
