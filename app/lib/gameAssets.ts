@@ -34,6 +34,12 @@ import type { TilesetDef } from "./types";
  * - **Every tileset**, including the ones this map never places. The set is
  *   small and authored by hand, and the alternative is deciding which tiles the
  *   map can reach — a question whose answer changes with an editor save.
+ *
+ * This is only the first of two waits the loading screen covers. The renderer
+ * fetches the tilesets a second time on its own account — it needs them as GPU
+ * textures, not as decoded images — and paints nothing until it has them, so a
+ * page holds its loading screen until `setOnFirstFrame` says there is a world
+ * on the canvas. What this gate buys is that the second fetch is served warm.
  */
 
 /**
@@ -114,13 +120,19 @@ async function loadGameAssets(tilesets: TilesetDef[]): Promise<void> {
   }
 }
 
+/**
+ * This one face, and deliberately not `document.fonts.ready`.
+ *
+ * `ready` waits for everything the page has in flight, which here includes the
+ * chrome's IBM Plex Mono — a third-party download that the world's labels do
+ * not depend on in any way. Waiting on it would put the game's first frame
+ * behind Google's CDN to no end. `load` resolves against the faces it matched,
+ * which is exactly the one thing measuring a label needs.
+ */
 async function loadLabelFont(): Promise<void> {
   if (typeof document === "undefined" || !document.fonts) return;
   // The explicit ask, without which nothing would have requested the face.
   await document.fonts.load(FONT_PROBE);
-  // And then whatever else the page had in flight, so the chrome around the
-  // game is not still reflowing behind the first frame.
-  await document.fonts.ready;
 }
 
 /**
