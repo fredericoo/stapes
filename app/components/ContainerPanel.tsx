@@ -1,3 +1,4 @@
+import { IconX } from "@tabler/icons-react";
 import { useMemo } from "react";
 import { slotIn, type ContainerRef } from "../game/itemMoves";
 import { resolveContainer } from "../lib/item";
@@ -10,6 +11,17 @@ import type { ItemDrag } from "./useItemDrag";
 
 /** Which sprite stands for the container in its own heading. */
 const FRONT: "s" = "s";
+
+/**
+ * How big the ✕ is drawn, inside a 20px button.
+ *
+ * An icon rather than the character, because the character could not be
+ * centred: `button { font: inherit }` in `app.css` is unlayered, so it beats
+ * every Tailwind `text-*` and `leading-*` utility a button carries — the glyph
+ * was laid out at 16px in a 24px line box and hung out of the bottom of a 20px
+ * square. An SVG has no line box to hang out of.
+ */
+const CLOSE_ICON_SIZE_PX = 12;
 
 /** Big enough to tell a chest from a bag, small enough to sit in a heading. */
 const TITLE_SPRITE_SIZE_PX = 18;
@@ -139,9 +151,9 @@ export function ContainerPanel({
           type="button"
           onClick={onClose}
           aria-label={`Close ${title}`}
-          className="ml-auto grid h-5 w-5 shrink-0 place-items-center border-2 border-paper/40 text-[11px] leading-none text-paper/70 hover:border-paper hover:text-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+          className="ml-auto grid h-5 w-5 shrink-0 place-items-center border-2 border-paper/40 text-paper/70 hover:border-paper hover:text-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
         >
-          ✕
+          <IconX size={CLOSE_ICON_SIZE_PX} stroke={3} aria-hidden="true" />
         </button>
       </div>
 
