@@ -452,6 +452,30 @@ type SlotRef =
 | { type: "moveItem"; from: SlotRef; to: SlotRef }
 ```
 
+> **Decided for Phase 5: the equipped bag needs a name of its own.** It is about
+> to become a thing you drag — out of an equipment slot, onto the floor — and
+> there is no `SlotRef` that means *the bag itself* rather than a position inside
+> it. The shape becomes:
+>
+> ```ts
+> type SlotRef =
+>   | { kind: "weapon" }
+>   | { kind: "bag" }                                    // the bag on your back
+>   | { kind: "contents"; index: number }                // inside that bag
+>   | { kind: "ground"; ref: ObjectRef; index: number };
+> ```
+>
+> A rename rather than a fourth case bolted on, because `weapon` and `bag` are
+> then exactly the two fields of `Equipment` and `contents` is exactly what it is
+> called on an `ItemInstance` — the names line up with the model instead of one of
+> them meaning "inside the thing the other one names". Nothing has shipped, so the
+> wire is free to change; the cost is mechanical churn through `itemMoves`, the
+> protocol schema, both panels and their tests.
+>
+> Through Phase 4's rules the bag slot is **source-only**: it holds a container,
+> and no container may go in a container or in the weapon hand, so nothing accepts
+> it until `drop` gives it the floor.
+
 **The line is the board.** `pickUp` and `drop` cross it — a placement becomes an
 instance, or the reverse — and carry the world-shaped validation that goes with
 it: reach radius, line of sight, whether the target stack has room. `moveItem`
@@ -605,6 +629,20 @@ back and can see it.
 - Action strip gains two buttons: a toggle-equipment button, and a backpack
   button drawn as the *literal tile* of the equipped bag (`TilePreview`, which
   already does this for interaction rows).
+
+> **Reversed in Phase 5, and the reason it was written is the reason it goes.**
+> The literal tile was there because bags differ from each other and a button
+> that looked the same whichever you wore would hide the only fact about it you
+> can see at a glance. The equipment panel is about to grow a **bag slot** beside
+> the weapon slot, drawn as that same literal tile — so the fact is on screen
+> either way, and the strip button no longer has to carry it. It becomes a plain
+> Tabler backpack glyph, matching the shirt beside it, and reads as *a button
+> that opens a thing* rather than as a small picture of your luggage.
+>
+> The fullness badge stays: that is a fact about the bag the slot does not show.
+> Phase 2's "the bag is deliberately not in the equipment panel" no longer holds
+> — it is worn, the panel is what you are wearing, and dragging it out of a slot
+> is how you take it off.
 - Layout. Desktop: both panels open by default, in the aside between the modes
   row and the interaction list — the 224px aside will need to widen, or the grids
   stay compact. Mobile: both closed by default; an open panel replaces the main
@@ -690,23 +728,35 @@ Files: `app/game/affordances.ts`, `app/lib/interactions.ts`,
 - Dropping a container writes the instance — contents and all — into the
   placement, which is the exact inverse of the pickup in Phase 3 and should share
   its conversion pair.
+- **Strip `itemId` and nested `contents` ids on the way to `data/map.json`**, and
+  re-mint them at load. See open question 1. It belongs to this phase because
+  this is the phase that makes a placement rewritten by *play* land in the
+  authored file.
 - The backpack button in the action strip is a drag *source*, so a bag is dropped
   by dragging it out of the strip onto the floor.
 
-> **Decide first: the backpack button now means three things.** Phase 4 made it a
-> drop target and a panel toggle; this makes it a drag source too, so one press
-> resolves to stash, open, or drop-my-bag depending on how it ends. That
-> precedence should be chosen deliberately rather than discovered.
+> **Decided before starting.** Three answers, and the first one changes the last
+> bullet above.
 >
-> Two other notes for whoever starts this:
+> **The backpack button stays two things, not three: tap opens, drop-on stashes.**
+> Dragging your bag out of the action strip is dropped entirely — instead the
+> **equipment panel gains a bag slot** beside the weapon slot, and the bag is
+> dragged out of it like any other item. One rule for taking things off, and the
+> most-tapped button in the strip keeps a single meaning. The strip icon becomes
+> a generic Tabler backpack, since the slot now carries the literal tile.
 >
-> - The drag hook hit-tests against *registered slot elements*. The world is not
->   one, so dropping onto the canvas is the one structural addition — everything
->   else about the gesture already exists.
-> - The keyboard path has no obvious equivalent for "drop at a cell". Placing
->   into a slot is a second press; placing into the world is a coordinate. Worth
->   an answer before the drag is built, on the same reasoning that put the
->   two-step in Phase 4.
+> **`SlotRef` is renamed to make room for it** — `bag` becomes the slot, the old
+> `bag` becomes `contents`. See *The wire*.
+>
+> **No keyboard equivalent for dropping at a cell, deliberately.** Placing into a
+> slot is a second press; placing into the world is a coordinate, and inventing
+> an aiming affordance for it is a bigger question than this phase. Phase 5 ships
+> drag-only for the world, which is a *known* gap rather than an oversight — see
+> Phase 6. Everything else stays keyboard-operable, including taking the bag off,
+> since that is a slot-to-slot move until the moment it leaves for the floor.
+>
+> Still true and still the one structural addition: the drag hook hit-tests
+> against registered slot *elements*, and the world is not one.
 
 ### Phase 6 — Carried light, persistence, and the edges
 
@@ -725,9 +775,14 @@ Files: `app/game/affordances.ts`, `app/lib/interactions.ts`,
 > **Mostly done in Phase 4, on that advice.** Every slot is a button carrying a
 > lift-and-place two-step, announced through `aria-pressed` and a label that says
 > what pressing it would do. What is left here is an audit rather than a retrofit
-> — and two known gaps: the **bag button takes drops but not a lifted item** (it
-> toggles the panel instead, which reaches the slots in one extra press), and
-> **Phase 5 has no keyboard equivalent for dropping at a cell** at all.
+> — and two known gaps, both deliberate:
+>
+> - **The strip's bag button takes drops but not a lifted item.** It toggles the
+>   panel instead, which reaches the slots in one extra press.
+> - **Dropping into the world is drag-only.** Decided in Phase 5 rather than
+>   discovered: aiming a cell without a pointer needs an affordance nobody has
+>   designed, and guessing at one is worse than naming the gap. Whatever it turns
+>   out to be — a "drop at your feet" row, a cell cursor — it belongs here.
 
 ---
 
@@ -777,11 +832,17 @@ Existing culture is pure modules asserted directly; this fits it.
 
 Not blocking Phase 1, but each needs an answer before the phase that hits it.
 
-1. **Does an editor save writing minted `itemId`s into `data/map.json` bother
-   you?** (Phase 2.) It is how an authored item keeps its identity across a
-   restart, but it means ids appear in a diff nobody typed. The alternative is
-   stripping them on serialize and re-minting each load, which costs traceability
-   across restarts.
+1. ~~**Does an editor save writing minted `itemId`s into `data/map.json` bother
+   you?**~~ (Phase 2.) **Settled: strip them on the way to disk, keep them in the
+   checkpoint.** `data/map.json` is authored content and its diffs have to stay
+   reviewable — the property the dev disk backend exists to preserve — and
+   looting a chest now rewrites placements through ordinary play, so ids were
+   about to arrive in that file by simply playing the game. A running world keeps
+   its ids across an eviction, because the checkpoint is runtime state and that is
+   what identity is; a world reloaded from the file re-mints, which costs
+   traceability across a from-disk restart that nothing currently reads.
+   Applies to nested `contents` ids too, on the same terms: a chest's contents are
+   authored by tile, not by identity.
 2. **Can a creature carry anything?** Nothing in the model prevents it — an
    `ActorRuntime` is an `ActorRuntime`. This plan seeds equipment only for
    players, and a deer with a sword is out of scope, but the door is open.
@@ -793,16 +854,19 @@ Not blocking Phase 1, but each needs an answer before the phase that hits it.
    square still does not resize as you walk.
 5. **Can you walk with a container open on a phone?** (Phase 5/6.) Today you
    cannot: an open panel replaces the arrows, so the close-on-out-of-reach rule
-   is unreachable by thumb and the ✕ is the only way out. Either the panel shares
-   space with the arrows, or that rule is desktop-only in practice.
-6. **What colour is focus, and what colour is a drop target?** The vocabulary is
-   yellow acts, red fights, white singles out, blue looks — but focus outlines
-   and drag targets are both drawn in `accent`, which is green and means nothing
-   in that scheme.
+   is unreachable by thumb and the ✕ is the only way out. Left alone for now —
+   the game square stays visible above the panel, so dragging an item from a bag
+   onto the world still works on touch, and only *walking* is blocked. Revisit if
+   it bites.
+6. ~~**What colour is focus, and what colour is a drop target?**~~ **Settled:
+   both stay green.** The four world colours say what a thing *is* — yellow acts,
+   red fights, white singles out, blue looks — and green is deliberately outside
+   them: it is chrome, worn by focus and by a drop target, neither of which is a
+   state the world has. Being a fifth colour is what keeps it from being mistaken
+   for one of the four.
 
-Question 1 is now the pressing one: looting and dropping both rewrite placements,
-so ids reach `data/map.json` through ordinary play rather than only through a
-load.
+Two and three are the only ones still open, and neither blocks anything: both
+are doors the model leaves ajar rather than decisions anybody is waiting on.
 
 ## Explicitly out of scope
 
