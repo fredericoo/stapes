@@ -19,7 +19,7 @@ import {
   type MinutesOfDay,
 } from "../lib/clock";
 import type { ObjectRef } from "../game/affordances";
-import type { ItemInstance } from "../lib/itemInstance";
+import type { OpenedContainer, SlotRef } from "../game/itemMoves";
 import type { Direction } from "../lib/types";
 import { dataStore } from "../context";
 import { GameRenderer } from "../render/GameRenderer";
@@ -76,9 +76,8 @@ export default function PlayPage() {
   const [stats, setStats] = useState<FrameStats | null>(null);
   const [interactions, setInteractions] = useState<InteractionOption[]>([]);
   const [equipment, setEquipment] = useState<Equipment>(emptyEquipment);
-  const [openedContainer, setOpenedContainer] = useState<ItemInstance | null>(
-    null,
-  );
+  const [openedContainer, setOpenedContainer] =
+    useState<OpenedContainer | null>(null);
   // Straight at the renderer, like the hover outline: which box is open is a
   // frame's business, and it is the render loop that knows when its contents
   // changed or when the player walked out of reach of it.
@@ -86,6 +85,18 @@ export default function PlayPage() {
     (ref: ObjectRef | null) => rendererRef.current?.setOpenedContainer(ref),
     [],
   );
+  // Both halves of a move go to the session, which owns the rules: one asks
+  // whether a slot would take the thing so the interface can light it, and the
+  // other carries it out. Two calls of the same question, so what is offered and
+  // what happens cannot disagree.
+  const canMoveItem = useCallback(
+    (from: SlotRef, to: SlotRef) =>
+      sessionRef.current?.canMoveItem(from, to) ?? false,
+    [],
+  );
+  const moveItem = useCallback((from: SlotRef, to: SlotRef) => {
+    sessionRef.current?.moveItem(from, to);
+  }, []);
   const minutesRef = useRef(minutesOfDay);
   minutesRef.current = minutesOfDay;
   const pausedRef = useRef(clockPaused);
@@ -240,6 +251,8 @@ export default function PlayPage() {
         equipment={equipment}
         openedContainer={openedContainer}
         onOpenContainer={openContainer}
+        canMoveItem={canMoveItem}
+        onMoveItem={moveItem}
         tiles={tiles}
         tilesets={tilesets}
       />

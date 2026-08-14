@@ -18,6 +18,7 @@ import {
   type ObjectRef,
 } from "../game/affordances";
 import { type Equipment, emptyEquipment } from "../game/equipment";
+import { canMoveItem, type SlotRef } from "../game/itemMoves";
 import { moveEntity, setEntityDirection } from "../game/mapMutations";
 import { chooseStep } from "../game/stepping";
 import type {
@@ -1084,6 +1085,48 @@ export class RemoteSession implements PlaySession {
       return false;
     }
     this.send({ type: "pickUp", ref });
+    return true;
+  }
+
+  /**
+   * Would this move land, as far as this side can tell?
+   *
+   * Answered locally so a drag can light its target the instant the pointer is
+   * over it, on exactly the terms {@link canInteract} is: the rules are shared,
+   * so an interface built on this cannot offer a move the server will refuse.
+   *
+   * Deliberately without the idle and unconfirmed-step gates a pickup carries.
+   * Those exist because the server refuses a board action from an actor
+   * mid-motion; a move is not a board action, so a client that hid the slots
+   * while somebody was walking would be inventing a rule the other end does not
+   * have.
+   */
+  canMoveItem(from: SlotRef, to: SlotRef): boolean {
+    const motion = this.motions.get(this.selfId);
+    const loc = motion && this.locate(this.selfId, motion);
+    if (!loc) return false;
+    return canMoveItem(
+      this.map,
+      this.tilesById,
+      loc,
+      this.equipment,
+      from,
+      to,
+    );
+  }
+
+  /**
+   * Ask for a thing to be moved from one slot to another.
+   *
+   * Not predicted, for the same reason a pickup is not: what somebody is
+   * carrying is the server's answer, and a bag that rearranged itself locally
+   * and then snapped back would be a worse thing to watch than one that took a
+   * round trip to change. The equipment message is the confirmation, and for a
+   * ground container the cell patch beside it.
+   */
+  moveItem(from: SlotRef, to: SlotRef): boolean {
+    if (!this.canMoveItem(from, to)) return false;
+    this.send({ type: "moveItem", from, to });
     return true;
   }
 

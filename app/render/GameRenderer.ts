@@ -16,8 +16,8 @@ import { PLAYER_TILE_ID } from "../game/constants";
 import { bodyNameFor } from "../game/displayName";
 import { canOpenFrom } from "../game/affordances";
 import type { Equipment } from "../game/equipment";
-import type { ItemInstance } from "../lib/itemInstance";
 import { instanceFromPlacement } from "../lib/itemInstance";
+import type { OpenedContainer } from "../game/itemMoves";
 import {
   listInteractionOptions,
   type InteractionOption,
@@ -181,14 +181,15 @@ export class GameRenderer {
   private equipmentSent: Equipment | null = null;
   /** Kit the interaction list was last built against. See the gate below. */
   private interactionsEquipment: Equipment | null = null;
-  private onOpenedContainer: ((container: ItemInstance | null) => void) | null =
-    null;
+  private onOpenedContainer:
+    | ((container: OpenedContainer | null) => void)
+    | null = null;
   /** Which floor container the panel is showing, if any. */
   private openedRef: ObjectRef | null = null;
   /** The placement last read for it — the copy-on-write gate. */
   private openedPlacement: PlacedTile | null = null;
   /** Last value handed on. `undefined` means "nothing said yet". */
-  private openedSent: ItemInstance | null | undefined = undefined;
+  private openedSent: OpenedContainer | null | undefined = undefined;
   private onInteractions:
     | ((options: InteractionOption[]) => void)
     | null = null;
@@ -377,7 +378,7 @@ export class GameRenderer {
     this.openedSent = undefined;
   }
 
-  setOnOpenedContainer(cb: ((container: ItemInstance | null) => void) | null) {
+  setOnOpenedContainer(cb: ((container: OpenedContainer | null) => void) | null) {
     this.onOpenedContainer = cb;
     this.openedPlacement = null;
     this.openedSent = undefined;
@@ -410,7 +411,12 @@ export class GameRenderer {
       ref != null &&
       placed != null &&
       canOpenFrom(snap.map, this.tilesById, snap.self, ref);
-    const container = stillOpen ? instanceFromPlacement(placed) : null;
+    const instance = stillOpen ? instanceFromPlacement(placed) : null;
+    // The reference travels with the contents rather than being remembered
+    // separately by whoever opened it: what is in the box and where the box is
+    // are one answer, and a page holding half of each could show the contents of
+    // a chest it has stopped being able to name.
+    const container = instance && ref ? { instance, ref } : null;
     if (container === null && this.openedSent === null) return;
     this.openedSent = container;
     this.onOpenedContainer(container);

@@ -55,6 +55,7 @@ import {
   startingEquipment,
 } from "./equipment";
 import { mintItemIds } from "./itemIds";
+import { applyItemMove, canMoveItem, type SlotRef } from "./itemMoves";
 import { instanceFromPlacement } from "../lib/itemInstance";
 import {
   cellForFeetAbs,
@@ -375,6 +376,16 @@ export interface PlaySession {
    * does.
    */
   pickUp(ref: ObjectRef): boolean;
+  /**
+   * Would this move be honoured right now?
+   *
+   * Asked by whatever is drawing the drag, so a slot lights up only where the
+   * thing would actually land. Same function the move itself runs, which is what
+   * stops the interface offering something a drop would refuse.
+   */
+  canMoveItem(from: SlotRef, to: SlotRef): boolean;
+  /** Move a carried thing from one slot to another. @see canMoveItem */
+  moveItem(from: SlotRef, to: SlotRef): boolean;
 }
 
 /**
@@ -1624,6 +1635,70 @@ export class GameSession implements PlaySession {
     // The cell has one fewer thing in it, which is a real change to what rests
     // on a plate and to what was holding a crate up.
     this.reindexCells([{ x: ref.x, y: ref.y, z: ref.z }]);
+    return true;
+  }
+
+  canMoveItem(
+    from: SlotRef,
+    to: SlotRef,
+    id: string = LOCAL_ACTOR_ID,
+  ): boolean {
+    const actor = this.actors.get(id);
+    if (!actor) return false;
+    const loc = this.tryLocate(actor);
+    if (!loc) return false;
+    return canMoveItem(
+      this.map,
+      this.tilesById,
+      loc,
+      actor.equipment,
+      from,
+      to,
+    );
+  }
+
+  /**
+   * Move one carried thing from one slot to another.
+   *
+   * Equipping, unequipping, looting a chest and stashing something into one are
+   * all this, read four ways — see `./itemMoves`, which owns every rule the move
+   * has to satisfy and is asked the same question by the client before it offers
+   * the drag.
+   *
+   * Not gated on {@link idle}, unlike a push or a pickup. Those two move the
+   * *board* and are held against the actor so they cannot be machine-gunned out
+   * faster than the result can be seen; this rearranges what somebody is
+   * carrying, and refusing to let a walking player put a sword in their hand
+   * would be a rule with nothing behind it. Reach for a ground endpoint is
+   * re-asked here regardless, against the cell the actor has committed to.
+   *
+   * No settle pass: a container's contents are not physics. Rewriting them
+   * changes what a placement *holds* and never its tile, so nothing rests
+   * differently on a plate and no wire has changed value — and the map identity
+   * has moved anyway, so the next tick's pass will not skip.
+   */
+  moveItem(from: SlotRef, to: SlotRef, id: string = LOCAL_ACTOR_ID): boolean {
+    const actor = this.actors.get(id);
+    if (!actor) return false;
+    const loc = this.tryLocate(actor);
+    if (!loc) return false;
+
+    const moved = applyItemMove(
+      this.map,
+      this.tilesById,
+      loc,
+      actor.equipment,
+      from,
+      to,
+    );
+    if (!moved) return false;
+
+    this.map = moved.map;
+    // Only when it actually changed: `setEquipment` is what tells the owner's
+    // socket, and a loot from one chest into another is nobody's kit changing.
+    if (moved.equipment !== actor.equipment) {
+      this.setEquipment(actor, moved.equipment);
+    }
     return true;
   }
 

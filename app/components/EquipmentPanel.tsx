@@ -3,6 +3,7 @@ import type { Equipment } from "../game/equipment";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { ItemSlot } from "./ItemSlot";
+import type { ItemDrag } from "./useItemDrag";
 
 /**
  * What you are wearing.
@@ -22,11 +23,14 @@ export function EquipmentPanel({
   equipment,
   tiles,
   tilesets,
+  drag,
   className = "",
 }: {
   equipment: Equipment;
   tiles: TileDef[];
   tilesets: TilesetDef[];
+  /** The one move in progress, page-wide. See `./useItemDrag`. */
+  drag: ItemDrag;
   className?: string;
 }) {
   const tilesById = useMemo(() => tilesByIdFromList(tiles), [tiles]);
@@ -39,13 +43,15 @@ export function EquipmentPanel({
       <h2 className="text-[11px] font-bold uppercase tracking-wide text-paper/50">
         Equipment
       </h2>
-      <div className="flex flex-wrap gap-1" role="list">
+      <div className="flex flex-wrap gap-1">
         <ItemSlot
+          slot={{ kind: "weapon" }}
           instance={equipment.weapon}
           tilesById={tilesById}
           tilesets={tilesets}
           label="Weapon"
           emptyHint="Weapon — nothing in hand"
+          drag={drag}
         />
       </div>
     </section>

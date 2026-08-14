@@ -1,9 +1,11 @@
 import { useMemo } from "react";
+import { slotIn, type ContainerRef } from "../game/itemMoves";
 import { resolveContainer } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { ItemSlot } from "./ItemSlot";
+import type { ItemDrag } from "./useItemDrag";
 
 /**
  * What is inside a container.
@@ -22,14 +24,24 @@ import { ItemSlot } from "./ItemSlot";
  */
 export function ContainerPanel({
   container,
+  location,
   tiles,
   tilesets,
   title,
   onClose,
+  drag,
   className = "",
 }: {
   /** The container being looked into, or null when there is none to look into. */
   container: ItemInstance | null;
+  /**
+   * Which container this is, in the terms a move is expressed in.
+   *
+   * The whole of the difference between the bag on your back and the chest at
+   * your feet: the panel draws the same either way, and this is what its slots
+   * are called when something is moved out of one of them.
+   */
+  location: ContainerRef;
   tiles: TileDef[];
   tilesets: TilesetDef[];
   /** What to call it — "Bag" on your own, the tile's name on a chest. */
@@ -42,6 +54,8 @@ export function ContainerPanel({
    * walking away is the only other way out of it.
    */
   onClose?: () => void;
+  /** The one move in progress, page-wide. See `./useItemDrag`. */
+  drag: ItemDrag;
   className?: string;
 }) {
   const tilesById = useMemo(() => tilesByIdFromList(tiles), [tiles]);
@@ -92,18 +106,20 @@ export function ContainerPanel({
       </div>
 
       {container ? (
-        <div className="flex flex-wrap gap-1" role="list">
+        <div className="flex flex-wrap gap-1">
           {slots.map((instance, i) => (
             <ItemSlot
               // By position, because that is what a slot *is* here. Keying by
               // instance id would be keying the container on its contents, and
               // an empty slot has no id to key by at all.
               key={i}
+              slot={slotIn(location, i)}
               instance={instance}
               tilesById={tilesById}
               tilesets={tilesets}
-              label={`Slot ${i + 1}`}
+              label={`${title}, slot ${i + 1}`}
               emptyHint="Empty"
+              drag={drag}
             />
           ))}
         </div>

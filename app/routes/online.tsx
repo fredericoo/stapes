@@ -19,7 +19,7 @@ import {
   type MinutesOfDay,
 } from "../lib/clock";
 import type { ObjectRef } from "../game/affordances";
-import type { ItemInstance } from "../lib/itemInstance";
+import type { OpenedContainer, SlotRef } from "../game/itemMoves";
 import type { Direction } from "../lib/types";
 import { ACTOR_COOKIE, GAME_SOCKET_PATH } from "../net/protocol";
 import { RemoteSession } from "../net/RemoteSession";
@@ -118,9 +118,8 @@ export default function OnlinePage() {
   const [players, setPlayers] = useState<number | null>(null);
   const [interactions, setInteractions] = useState<InteractionOption[]>([]);
   const [equipment, setEquipment] = useState<Equipment>(emptyEquipment);
-  const [openedContainer, setOpenedContainer] = useState<ItemInstance | null>(
-    null,
-  );
+  const [openedContainer, setOpenedContainer] =
+    useState<OpenedContainer | null>(null);
   // Straight at the renderer, like the hover outline: which box is open is a
   // frame's business, and it is the render loop that knows when its contents
   // changed or when the player walked out of reach of it.
@@ -128,6 +127,17 @@ export default function OnlinePage() {
     (ref: ObjectRef | null) => rendererRef.current?.setOpenedContainer(ref),
     [],
   );
+  // Asked of the session rather than answered here, and answered locally rather
+  // than by the server: both ends run the same rules, so a slot can light up the
+  // instant the pointer is over it instead of a round trip later.
+  const canMoveItem = useCallback(
+    (from: SlotRef, to: SlotRef) =>
+      sessionRef.current?.canMoveItem(from, to) ?? false,
+    [],
+  );
+  const moveItem = useCallback((from: SlotRef, to: SlotRef) => {
+    sessionRef.current?.moveItem(from, to);
+  }, []);
   const [lightingEnabled, setLightingEnabled] = useState(true);
   const { looking, attacking, setLookLatched, setAttacking } = usePlayModes();
   // Same reason as the lighting ref below: a reconnect builds a fresh renderer,
@@ -228,7 +238,6 @@ export default function OnlinePage() {
         renderer.setOnInteractions(setInteractions);
         renderer.setOnEquipment(setEquipment);
         renderer.setOnOpenedContainer(setOpenedContainer);
-    renderer.setOnOpenedContainer(setOpenedContainer);
         rendererRef.current = renderer;
         renderer.start();
         // The fresh session knows nothing about keys held across the reconnect,
@@ -336,6 +345,8 @@ export default function OnlinePage() {
         equipment={equipment}
         openedContainer={openedContainer}
         onOpenContainer={openContainer}
+        canMoveItem={canMoveItem}
+        onMoveItem={moveItem}
         tiles={tiles}
         tilesets={tilesets}
       />

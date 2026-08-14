@@ -554,6 +554,12 @@ export class GameServer extends DurableObject<Env> {
       // these rules, but it decided on a map that may be a round trip old and a
       // bag that may have filled up since.
       session.pickUp(message.ref, actorId);
+    } else if (message.type === "moveItem") {
+      // Every rule asked again here, reach above all: a ground endpoint names a
+      // container the client had a panel open on, and the panel may have been
+      // open while its owner walked away from it. The client offered the drag
+      // from these same rules, and is still not trusted with the answer.
+      session.moveItem(message.from, message.to, actorId);
     } else {
       // Re-validated against the board rather than trusted: the client decided
       // to offer this affordance from the same rules, but it decided on a map

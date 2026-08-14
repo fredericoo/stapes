@@ -3,7 +3,7 @@ import type { ObjectRef } from "../game/affordances";
 import type { Equipment } from "../game/equipment";
 import { emptyEquipment } from "../game/equipment";
 import type { InteractionOption } from "../game/interactionOptions";
-import type { ItemInstance } from "../lib/itemInstance";
+import type { OpenedContainer, SlotRef } from "../game/itemMoves";
 import type { Direction, TileDef, TilesetDef } from "../lib/types";
 import { useMediaQuery } from "../lib/useMediaQuery";
 import { tilesByIdFromList } from "../lib/validation";
@@ -11,9 +11,11 @@ import { ChatBar, ChatButton } from "./ChatBar";
 import { ContainerPanel } from "./ContainerPanel";
 import { DirectionPad } from "./DirectionPad";
 import { EquipmentPanel } from "./EquipmentPanel";
+import { DragLayer } from "./DragLayer";
 import { InteractionList } from "./InteractionList";
 import { AttackToggle, LookToggle, type ModeToggleSize } from "./ModeToggle";
 import { BagButton, EquipmentToggle } from "./PanelToggle";
+import { useItemDrag } from "./useItemDrag";
 
 /**
  * The game as a fixed square, letterboxed into whatever space it is given.
@@ -75,6 +77,8 @@ export function GameViewport({
   equipment = emptyEquipment(),
   openedContainer = null,
   onOpenContainer,
+  canMoveItem = () => false,
+  onMoveItem,
   tiles = [],
   tilesets = [],
 }: {
@@ -133,15 +137,39 @@ export function GameViewport({
    * "no longer open" — walked away from, emptied, or picked up out from under
    * the panel — so closing needs no separate rule.
    */
-  openedContainer?: ItemInstance | null;
+  openedContainer?: OpenedContainer | null;
   /** Look into a container on the floor, or stop. */
   onOpenContainer?: (ref: ObjectRef | null) => void;
+  /**
+   * Whether a move would be honoured, asked of whoever owns the session.
+   *
+   * Answered from the same rules the server validates with, which is what lets
+   * a slot light up before anything has been sent — see `../game/itemMoves`.
+   * Defaults to refusing everything, so a route that has not wired it up simply
+   * has no drop targets rather than offering moves nothing will carry out.
+   */
+  canMoveItem?: (from: SlotRef, to: SlotRef) => boolean;
+  /** Move a carried thing from one slot to another. */
+  onMoveItem?: (from: SlotRef, to: SlotRef) => void;
   /** Catalogue behind the list's sprites. */
   tiles?: TileDef[];
   tilesets?: TilesetDef[];
 }) {
   const coarse = useCoarsePointer();
   const tilesById = useMemo(() => tilesByIdFromList(tiles), [tiles]);
+
+  /**
+   * The one move in progress, page-wide.
+   *
+   * Here rather than in either panel because a move has two ends and they are in
+   * different panels: taking a sword out of a chest and putting it in your bag
+   * is one gesture crossing a boundary neither component can see across.
+   */
+  const move = useCallback(
+    (from: SlotRef, to: SlotRef) => onMoveItem?.(from, to),
+    [onMoveItem],
+  );
+  const drag = useItemDrag({ canMove: canMoveItem, onMove: move });
 
   /**
    * Whether each panel is open, or null while nobody has said.
@@ -265,14 +293,17 @@ export function GameViewport({
           equipment={equipment}
           tiles={tiles}
           tilesets={tilesets}
+          drag={drag}
         />
       ) : null}
       {showBag ? (
         <ContainerPanel
           container={equipment.bag}
+          location={{ kind: "bag" }}
           tiles={tiles}
           tilesets={tilesets}
           title="Bag"
+          drag={drag}
         />
       ) : null}
       {/* Whatever is on the floor, under whatever is on your back, so the two
@@ -281,11 +312,15 @@ export function GameViewport({
           only thing on screen saying which one you opened. */}
       {openedContainer ? (
         <ContainerPanel
-          container={openedContainer}
+          container={openedContainer.instance}
+          location={{ kind: "ground", ref: openedContainer.ref }}
           tiles={tiles}
           tilesets={tilesets}
-          title={tilesById[openedContainer.tileId]?.name ?? "Container"}
+          title={
+            tilesById[openedContainer.instance.tileId]?.name ?? "Container"
+          }
           onClose={() => onOpenContainer?.(null)}
+          drag={drag}
         />
       ) : null}
     </>
@@ -293,6 +328,7 @@ export function GameViewport({
 
   return (
     <div className="flex h-full w-full bg-ink">
+      <DragLayer drag={drag} tilesById={tilesById} tilesets={tilesets} />
       <div
         className="flex h-full min-w-0 flex-1 touch-manipulation flex-col items-center select-none"
         style={{

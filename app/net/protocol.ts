@@ -1,5 +1,6 @@
 import * as v from "valibot";
 import type { Equipment } from "../game/equipment";
+import type { SlotRef } from "../game/itemMoves";
 import type { PlacedTile } from "../lib/types";
 import { MAX_CHAT_RAW_LENGTH } from "./chat";
 
@@ -319,6 +320,26 @@ export type ClientMessage =
    * the server will not honour, but it is not trusted with the answer.
    */
   | { type: "pickUp"; ref: { x: number; y: number; z: number; stackIndex: number } }
+  /**
+   * "Put that there."
+   *
+   * One message for equipping, unequipping, looting and stashing, because under
+   * the model they are one operation: an instance leaves a slot and arrives in
+   * another, and the board's population is the same afterwards. Splitting them
+   * into four would be four schemas and four validations of the same three
+   * rules — capacity, nesting, and reach for an end that is on the floor.
+   *
+   * **This never crosses the line pickUp and drop cross.** Nothing is created
+   * and nothing is destroyed here, which is why it carries no coordinate of its
+   * own: a ground endpoint names a container that is already on the board, and
+   * the item stays in the world either way.
+   *
+   * Refusals are silent. The client asks the same question — see
+   * `../game/itemMoves` — before it offers the drag at all, so a move arriving
+   * here that cannot be honoured is a race with the board or a client making
+   * things up, and neither has a reply worth sending.
+   */
+  | { type: "moveItem"; from: SlotRef; to: SlotRef }
   | { type: "say"; text: string }
   /**
    * "This is who I am pointing at" — or null, for nobody.
@@ -344,6 +365,42 @@ export type ClientMessage =
  * can say anything, so directions are bounded and coordinates must be finite
  * numbers before they reach a map lookup.
  */
+/**
+ * A stack slot as a browser is allowed to name one: whole numbers, and an index
+ * that is at least somewhere in a stack.
+ *
+ * Whether it names anything real is not this schema's business — every reader
+ * looks the cell up and finds nothing, which is a refusal by the same path an
+ * out-of-reach one takes.
+ */
+const inboundRefSchema = v.object({
+  x: v.pipe(v.number(), v.integer()),
+  y: v.pipe(v.number(), v.integer()),
+  z: v.pipe(v.number(), v.integer()),
+  stackIndex: v.pipe(v.number(), v.integer(), v.minValue(0)),
+});
+
+/**
+ * A slot, inbound.
+ *
+ * The index is bounded below and left unbounded above on purpose: what an index
+ * may be is decided by the size of the container it is read against, which the
+ * server knows and this schema does not. An index past the end reads as an empty
+ * slot and is refused there, in the one place capacity is understood.
+ */
+const inboundSlotRefSchema = v.variant("kind", [
+  v.object({ kind: v.literal("weapon") }),
+  v.object({
+    kind: v.literal("bag"),
+    index: v.pipe(v.number(), v.integer(), v.minValue(0)),
+  }),
+  v.object({
+    kind: v.literal("ground"),
+    ref: inboundRefSchema,
+    index: v.pipe(v.number(), v.integer(), v.minValue(0)),
+  }),
+]);
+
 const clientMessageSchema = v.variant("type", [
   v.object({
     type: v.literal("step"),
@@ -360,21 +417,16 @@ const clientMessageSchema = v.variant("type", [
   }),
   v.object({
     type: v.literal("interact"),
-    ref: v.object({
-      x: v.pipe(v.number(), v.integer()),
-      y: v.pipe(v.number(), v.integer()),
-      z: v.pipe(v.number(), v.integer()),
-      stackIndex: v.pipe(v.number(), v.integer(), v.minValue(0)),
-    }),
+    ref: inboundRefSchema,
   }),
   v.object({
     type: v.literal("pickUp"),
-    ref: v.object({
-      x: v.pipe(v.number(), v.integer()),
-      y: v.pipe(v.number(), v.integer()),
-      z: v.pipe(v.number(), v.integer()),
-      stackIndex: v.pipe(v.number(), v.integer(), v.minValue(0)),
-    }),
+    ref: inboundRefSchema,
+  }),
+  v.object({
+    type: v.literal("moveItem"),
+    from: inboundSlotRefSchema,
+    to: inboundSlotRefSchema,
   }),
   v.object({
     type: v.literal("say"),
