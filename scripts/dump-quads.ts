@@ -13,10 +13,17 @@ import {
   depthBox,
   depthStackBias,
   spriteWorldOrigin,
+  type DepthBox,
 } from "../app/lib/geometry";
 import { getStack, parseMap, setStacks } from "../app/lib/mapData";
 import { getFrames } from "../app/lib/tileResolve";
-import type { MapFile, PlacedTile, TileDef, TilesetDef } from "../app/lib/types";
+import type {
+  CellRect,
+  MapFile,
+  PlacedTile,
+  TileDef,
+  TilesetDef,
+} from "../app/lib/types";
 import { CELL_SIZE, physicalHeight } from "../app/lib/types";
 
 const [x0, x1, y0, y1, zMin, zMax] = process.argv.slice(2, 8).map(Number) as number[];
@@ -41,7 +48,25 @@ for (const spec of extraArg ? extraArg.split(";") : []) {
   map = setStacks(map, [{ x, y, z, stack }]);
 }
 
-const quads = [];
+/**
+ * One sprite the renderer would draw, in the shape the offline compositor
+ * reads. Written down rather than inferred from the first `push`: the pushes
+ * happen inside a callback, which is exactly where TypeScript gives up on
+ * evolving an empty array's type and leaves it `any[]`.
+ */
+type Quad = {
+  id: string;
+  tilesetId: string;
+  rect: CellRect;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  box: DepthBox;
+  stackBias: number;
+};
+
+const quads: Quad[] = [];
 for (let z = zMin!; z <= zMax!; z++) {
   for (let y = y0!; y <= y1!; y++) {
     for (let x = x0!; x <= x1!; x++) {

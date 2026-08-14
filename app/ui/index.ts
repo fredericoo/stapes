@@ -7,5 +7,6 @@ export { Select } from "./Select";
 export { ToastProvider, useToast } from "./Toast";
 export { Segmented } from "./Segmented";
 export { Switch } from "./Switch";
+export { Toggle } from "./Toggle";
 export { Tooltip, TooltipProvider } from "./Tooltip";
 export { ScrollArea } from "./ScrollArea";

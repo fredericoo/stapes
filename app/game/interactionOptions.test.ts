@@ -382,6 +382,43 @@ describe("listInteractionOptions — battlers", () => {
   });
 });
 
+describe("listInteractionOptions — health", () => {
+  it("reports what a body has left, so two rats can be told apart", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "deer"]);
+    const me = playerAt(map);
+    const hurt = { ...actor("npc:deer", "deer", 1, 0, map, 10), hp: 3 };
+
+    const targets = listInteractionOptions(map, tilesById, me, [me, hurt], null, KIT);
+
+    expect(targets[0]!.health).toEqual({ hp: 3, maxHp: 10 });
+  });
+
+  it("reports it on a shove at the same body as well as on the fight", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "player"]);
+    const me = playerAt(map);
+    const them = actor("them", "player", 1, 0, map, 10);
+
+    const targets = listInteractionOptions(map, tilesById, me, [me, them], null, KIT);
+
+    expect(targets.map((o) => o.health)).toEqual([
+      { hp: 10, maxHp: 10 },
+      { hp: 10, maxHp: 10 },
+    ]);
+  });
+
+  it("leaves a thing with no hit points without a reading", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "crate"]);
+    const me = playerAt(map);
+
+    const targets = listInteractionOptions(map, tilesById, me, [me], null, KIT);
+
+    expect(targets[0]!.health).toBeNull();
+  });
+});
+
 describe("listInteractionOptions — a body that is both", () => {
   it("lists a shovable body's two verbs as two entries, fight first", () => {
     let map = field();

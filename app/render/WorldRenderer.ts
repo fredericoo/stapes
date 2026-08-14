@@ -376,7 +376,13 @@ export class WorldRenderer {
   private resizeObserver: ResizeObserver | null = null;
   /** Square buffer side in pixels, or null to track the element. */
   private fixedBufferPx: number | null = null;
+  /**
+   * Whether every tileset is on the GPU. Nothing is painted until it is —
+   * @see renderOnce.
+   */
   private assetsReady = false;
+  /** Fired once, after the first frame that actually reached the canvas. */
+  private onFirstFrame: (() => void) | null = null;
   private view: WorldView | null = null;
   private looping = false;
   private raf = 0;
@@ -669,8 +675,23 @@ export class WorldRenderer {
     cancelAnimationFrame(this.raf);
   }
 
+  /**
+   * Called the first time a frame reaches the canvas, so whoever owns the page
+   * can take its loading screen down against the world appearing rather than
+   * against a guess at when it will.
+   */
+  setOnFirstFrame(cb: (() => void) | null) {
+    this.onFirstFrame = cb;
+  }
+
   renderOnce() {
     if (this.disposed) return;
+    // Not one pixel until every tileset is on the GPU. A material whose texture
+    // has not arrived draws `magentaTex`, so painting early means a frame or
+    // more of magenta over the whole world — the placeholder is there to make a
+    // *missing* tileset obvious, and a tileset that is merely still in flight is
+    // not missing. `setAssets` flips this and asks for a frame.
+    if (!this.assetsReady) return;
     this.updateCanvasSize();
     if (this.view) {
       this.applyCamera(this.view.camera.x, this.view.camera.y, this.view.zoom);
@@ -693,6 +714,12 @@ export class WorldRenderer {
       r.render(this.overlayScene, this.camera);
       r.autoClear = true;
     }
+
+    // After the draw, never before: the callback's whole job is to say that
+    // there is something on the canvas now.
+    const first = this.onFirstFrame;
+    this.onFirstFrame = null;
+    first?.();
   }
 
   isReady(): boolean {
@@ -879,19 +906,32 @@ export class WorldRenderer {
     this.renderer.setSize(w, h, false);
   }
 
+  /**
+   * Every tileset onto the GPU, and a failure is one tileset's problem.
+   *
+   * Each load is caught on its own because the frame loop now waits on this
+   * whole pass finishing (@see renderOnce). Left to reject, a single 404 would
+   * mean `assetsReady` never flips and the world is never drawn at all —
+   * trading a magenta wall, which is the placeholder doing its job, for a black
+   * screen, which is the game not starting.
+   */
   private async preloadTextures() {
     await Promise.all(
       this.tilesets.map(async (ts) => {
         if (this.textures.has(ts.id)) return;
         const loader = new THREE.TextureLoader();
-        const tex = await loader.loadAsync(`/tilesets/${ts.file}`);
-        tex.magFilter = THREE.NearestFilter;
-        tex.minFilter = THREE.NearestFilter;
-        tex.generateMipmaps = false;
-        tex.colorSpace = THREE.SRGBColorSpace;
-        tex.flipY = true;
-        tex.needsUpdate = true;
-        this.textures.set(ts.id, tex);
+        try {
+          const tex = await loader.loadAsync(`/tilesets/${ts.file}`);
+          tex.magFilter = THREE.NearestFilter;
+          tex.minFilter = THREE.NearestFilter;
+          tex.generateMipmaps = false;
+          tex.colorSpace = THREE.SRGBColorSpace;
+          tex.flipY = true;
+          tex.needsUpdate = true;
+          this.textures.set(ts.id, tex);
+        } catch (err) {
+          console.warn(`tileset failed to load: ${ts.file}`, err);
+        }
       }),
     );
   }

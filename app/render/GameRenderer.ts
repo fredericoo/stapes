@@ -1,6 +1,7 @@
 import {
   baseCellWorldOrigin,
   depthStackBias,
+  drawOrder,
   elevationScreenOffset,
   PX_PER_HEIGHT,
 } from "../lib/geometry";
@@ -27,6 +28,7 @@ import {
 import { WorldLabelLayer, type WorldLabel } from "./textLabels";
 import { FrameProfiler, type FrameStats } from "./frameProfile";
 import { fallDropPx, fallFootAbs, standingFootAbs } from "./fallAnchor";
+import { labelHeadroomPx } from "./labelHeadroom";
 import { sceneryStack } from "../game/movement";
 import type { EmitterOverride } from "../lib/lighting";
 import {
@@ -197,6 +199,30 @@ type PointerLabel = {
 };
 
 /**
+ * A number that changes whenever anybody's health does.
+ *
+ * The interaction list is rebuilt from a gate that asks whether the answer
+ * *could* have moved, and every question in it — the board, the player's cell,
+ * who they are fighting — is blind to a blow landing: the map has no actors in
+ * it, and standing still exchanging hits changes none of the rest. This is the
+ * missing question, kept to one pass over a handful of bodies so the gate stays
+ * the cheap thing it is there to be.
+ *
+ * A rolling hash rather than a joined string because this runs every frame, and
+ * positional because two creatures trading a point between them is otherwise a
+ * sum that has not moved. Collisions cost nothing worse than a bar redrawn at
+ * the next commit instead of the next frame.
+ */
+function healthSignature(actors: readonly ActorSnapshot[]): number {
+  let signature = 0;
+  for (const actor of actors) {
+    if (actor.hp === null) continue;
+    signature = (signature * 31 + actor.hp) | 0;
+  }
+  return signature;
+}
+
+/**
  * Land a lerped sprite on the same whole-pixel grid the static world sits on.
  *
  * Scenery is placed at integer world pixels, so a mover at a fractional offset
@@ -265,6 +291,8 @@ export class GameRenderer {
   /** Board and cell the held list was derived from. @see pushInteractionOptions */
   private interactionsMap: MapFile | null = null;
   private interactionsAt = "";
+  /** Health of everybody on the board when it was. @see healthSignature */
+  private interactionsHealth = 0;
   /** Contents of the last list handed over, so an unchanged one is not re-sent. */
   private interactionsKey = "";
   /**
@@ -409,6 +437,17 @@ export class GameRenderer {
   }
 
   /**
+   * When there is a world on the canvas, so a page can hold its loading screen
+   * up until then. The world is not painted until its tilesets are on the GPU,
+   * and that lands some frames after the renderer is built — long enough that
+   * swapping to an empty canvas is a visible blank between the loading screen
+   * and the game.
+   */
+  setOnFirstFrame(cb: (() => void) | null) {
+    this.world.setOnFirstFrame(cb);
+  }
+
+  /**
    * Per-frame timings, roughly twice a second. Reports the worst frame in each
    * window as well as the median — a hitch on the frame a step commits is
    * invisible in an average but is the whole of what a player feels.
@@ -543,6 +582,7 @@ export class GameRenderer {
     // new callback has never seen.
     this.interactionsMap = null;
     this.interactionsAt = "";
+    this.interactionsHealth = 0;
     this.interactionsKey = "";
     this.interactionsEquipment = null;
     this.interactionsSent = [];
@@ -1381,6 +1421,12 @@ export class GameRenderer {
    * puts the name over the head of a two-unit player and a ten-unit one alike —
    * and, because that position already carries the walk lerp and the fall drop,
    * the name travels with the sprite instead of chasing it.
+   *
+   * Then lifted clear of the drawing by {@link labelHeadroomPx}, because a
+   * declared height is not where the art stops. Straight up rather than up-left
+   * with the elevation: the label is being moved off the sprite, not raised in
+   * the world, and only the vertical of that shift is what a bar sitting on a
+   * creature's back needs.
    */
   private pushNameLabels(
     snap: GameSnapshot,
@@ -1403,8 +1449,19 @@ export class GameRenderer {
         id: `name:${actor.id}`,
         kind: "name",
         x: visual.x + head.x,
-        y: visual.y + head.y,
+        y: visual.y + head.y - labelHeadroomPx(height),
         lines: [{ id: actor.id, text: name }],
+        // The same painter's key the world would sort these two bodies by, so a
+        // tag crossing another tag is stacked the way the creatures under them
+        // are. Two labels are whole boxes at one depth each, which is what
+        // `drawOrder` is for — the per-pixel depth the sprites get has no
+        // meaning for a box of text hanging above them both.
+        order: drawOrder(
+          actor.x,
+          actor.y,
+          standingFootAbs(snap.map, this.tilesById, actor, actor.stackIndex),
+          actor.stackIndex,
+        ),
         // Tinted to match its own health, so the tag and the bar under it read
         // as one reading of one thing rather than as a yellow label that happens
         // to have a coloured strip beneath it.
@@ -1631,6 +1688,11 @@ export class GameRenderer {
    * walk and settles where the cell says. The cost is that a body crossing the
    * edge of the view is listed at the next commit rather than the next frame,
    * which is 200ms at the one place on screen nobody is looking.
+   *
+   * Health *is* in the first gate, and has to be: a row carries the reading its
+   * subject's bar carries, and nothing else in that gate moves when somebody
+   * takes a hit. Standing still trading blows is exactly the case the list is
+   * being read in, and it is the one case the position gate calls free.
    */
   private pushInteractionOptions(
     snap: GameSnapshot,
@@ -1649,9 +1711,11 @@ export class GameRenderer {
     const box = this.openedRef;
     const opened = box ? `${box.x},${box.y},${box.z},${box.stackIndex}` : "";
     const at = `${snap.self.x},${snap.self.y},${snap.self.z},${snap.targetId},${opened}`;
+    const health = healthSignature(snap.actors);
     if (
       snap.map === this.interactionsMap &&
       at === this.interactionsAt &&
+      health === this.interactionsHealth &&
       snap.equipment === this.interactionsEquipment
     ) {
       return;
@@ -1659,6 +1723,7 @@ export class GameRenderer {
     this.interactionsEquipment = snap.equipment;
     this.interactionsMap = snap.map;
     this.interactionsAt = at;
+    this.interactionsHealth = health;
 
     const options = listInteractionOptions(
       snap.map,
@@ -1673,7 +1738,9 @@ export class GameRenderer {
     // stale even when the list reads the same: a walking deer keeps its row and
     // changes cell, and the hover outline follows the reference.
     this.interactionsSent = options;
-    const key = options.map((o) => `${o.id}/${o.active}`).join("|");
+    const key = options
+      .map((o) => `${o.id}/${o.active}/${o.health?.hp ?? ""}`)
+      .join("|");
     if (key === this.interactionsKey) return;
     this.interactionsKey = key;
     this.onInteractions(options);

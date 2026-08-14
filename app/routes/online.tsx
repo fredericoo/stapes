@@ -5,6 +5,7 @@ import { AppShell } from "../components/AppShell";
 import { FrameStatsReadout } from "../components/FrameStatsReadout";
 import { GameViewport } from "../components/GameViewport";
 import { LightingToggle } from "../components/LightingToggle";
+import { LoadingScreen } from "../components/LoadingScreen";
 import { type Equipment, emptyEquipment } from "../game/equipment";
 import { bindKeyboard, HeldDirections } from "../game/heldDirections";
 import { usePlayModes } from "../components/usePlayModes";
@@ -13,6 +14,7 @@ import {
   type InteractionOption,
 } from "../game/interactionOptions";
 import { dataStore } from "../context";
+import { useGameAssets } from "../lib/gameAssets";
 import {
   DEFAULT_PLAY_MINUTES,
   formatClock,
@@ -74,6 +76,14 @@ type Status = "connecting" | "live" | "reconnecting";
 
 export default function OnlinePage() {
   const { tiles, tilesets, socketPath } = useLoaderData<typeof loader>();
+  // No canvas until the assets are here, so no socket either: the connection is
+  // opened by the same effect the renderer is built in. @see ../lib/gameAssets
+  const assetsReady = useGameAssets(tilesets);
+  // And the loading screen stays up past that, until there is a world on the
+  // canvas. Here that covers a third wait as well as the renderer's textures:
+  // the renderer is not even built until `hello` arrives, since there is nobody
+  // to centre the camera on before it.
+  const [painted, setPainted] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const labelRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<GameRenderer | null>(null);
@@ -230,6 +240,9 @@ export default function OnlinePage() {
       // `hello` is about to replace outright.
       setEquipment(emptyEquipment());
       setOpenedContainer(null);
+      // And the loading screen comes back for the same reason: the next
+      // renderer starts with an empty canvas, and a reconnect can take a while.
+      setPainted(false);
     };
 
     const connect = () => {
@@ -267,6 +280,7 @@ export default function OnlinePage() {
         renderer.setOnInteractions(setInteractions);
         renderer.setOnEquipment(setEquipment);
         renderer.setOnOpenedContainer(setOpenedContainer);
+        renderer.setOnFirstFrame(() => setPainted(true));
         rendererRef.current = renderer;
         renderer.start();
         // The fresh session knows nothing about keys held across the reconnect,
@@ -304,7 +318,11 @@ export default function OnlinePage() {
       setStats(null);
       setPlayers(null);
     };
-  }, [tiles, tilesets, socketPath]);
+    // `assetsReady` is in here for the canvas rather than for itself — the
+    // element only exists once it is true. It also holds the socket back until
+    // then, which is right: a world being simulated for somebody who cannot see
+    // it yet is a walk they never asked for.
+  }, [tiles, tilesets, socketPath, assetsReady]);
 
   // Held in a variable because it rides in one of two slots. A world that is
   // simply connected is not news and folds away with everything else on a
@@ -357,30 +375,37 @@ export default function OnlinePage() {
         </>
       }
     >
-      <GameViewport
-        canvasRef={canvasRef}
-        labelRef={labelRef}
-        onDirectionPress={pressDirection}
-        onDirectionRelease={releaseDirection}
-        onSay={say}
-        onTypingChange={noteTyping}
-        looking={looking}
-        onLookingChange={setLookLatched}
-        attacking={attacking}
-        onAttackingChange={setAttacking}
-        interactions={interactions}
-        onInteract={act}
-        onHoverInteraction={hoverInteraction}
-        equipment={equipment}
-        openedContainer={openedContainer}
-        onOpenContainer={openContainer}
-        canMoveItem={canMoveItem}
-        onMoveItem={moveItem}
-        onDragOverWorld={dragOverWorld}
-        onDropOnWorld={dropOnWorld}
-        tiles={tiles}
-        tilesets={tilesets}
-      />
+      {/* The screen sits over the game rather than instead of it, because it
+          outlasts the moment the canvas mounts — see `painted`. */}
+      <div className="relative h-full w-full">
+        {assetsReady ? (
+          <GameViewport
+            canvasRef={canvasRef}
+            labelRef={labelRef}
+            onDirectionPress={pressDirection}
+            onDirectionRelease={releaseDirection}
+            onSay={say}
+            onTypingChange={noteTyping}
+            looking={looking}
+            onLookingChange={setLookLatched}
+            attacking={attacking}
+            onAttackingChange={setAttacking}
+            interactions={interactions}
+            onInteract={act}
+            onHoverInteraction={hoverInteraction}
+            equipment={equipment}
+            openedContainer={openedContainer}
+            onOpenContainer={openContainer}
+            canMoveItem={canMoveItem}
+            onMoveItem={moveItem}
+            onDragOverWorld={dragOverWorld}
+            onDropOnWorld={dropOnWorld}
+            tiles={tiles}
+            tilesets={tilesets}
+          />
+        ) : null}
+        {painted ? null : <LoadingScreen />}
+      </div>
     </AppShell>
   );
 }

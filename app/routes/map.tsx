@@ -3,9 +3,10 @@ import { useFetcher, useLoaderData } from "react-router";
 import {
   IconArrowBackUp,
   IconArrowForwardUp,
+  IconArrowDown,
+  IconArrowUp,
   IconEye,
-  IconMinus,
-  IconPlus,
+  IconStackBackward,
 } from "@tabler/icons-react";
 import type { Route } from "./+types/map";
 import { AppShell } from "../components/AppShell";
@@ -22,7 +23,7 @@ import { gameServer } from "../net/gameServer.server";
 import { formatClock, MINUTES_PER_DAY } from "../lib/clock";
 import type { MapFile } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL, clampLevel } from "../lib/types";
-import { Button, Input, Switch, Tooltip, useToast } from "../ui";
+import { Button, Input, Toggle, Tooltip, useToast } from "../ui";
 
 export async function loader({ context }: Route.LoaderArgs) {
   const store = dataStore(context);
@@ -170,17 +171,27 @@ export default function MapPage() {
 
   return (
     <AppShell
-      menuExtras={
-        <LightingToggle
-          enabled={lightingEnabled}
-          onChange={(v) => useEditorStore.getState().setLightingEnabled(v)}
-        />
-      }
       trailing={
         <>
           <div className="flex items-center gap-1">
-            <span className="text-xs uppercase text-paper/70">Level</span>
+            <Tooltip content="Level down ([)">
+              <Button
+                size="icon"
+                variant="ghost-inverse"
+                aria-label="Level down"
+                onClick={() =>
+                  useEditorStore
+                    .getState()
+                    .setLevel(Math.max(MIN_LEVEL, currentLevel - 1))
+                }
+              >
+                <IconArrowDown size={16} aria-hidden="true" />
+              </Button>
+            </Tooltip>
+            {/* The arrows either side say what the number is, so the word is
+                left to the things that cannot see them. */}
             <Input
+              aria-label="Level"
               className="w-14 bg-paper text-ink shadow-none"
               value={levelDraft}
               onChange={(e) => setLevelDraft(e.target.value)}
@@ -193,21 +204,7 @@ export default function MapPage() {
                 }
               }}
             />
-            <Tooltip content="Level down (,)">
-              <Button
-                size="icon"
-                variant="ghost-inverse"
-                aria-label="Level down"
-                onClick={() =>
-                  useEditorStore
-                    .getState()
-                    .setLevel(Math.max(MIN_LEVEL, currentLevel - 1))
-                }
-              >
-                <IconMinus size={16} aria-hidden="true" />
-              </Button>
-            </Tooltip>
-            <Tooltip content="Level up (.)">
+            <Tooltip content="Level up (])">
               <Button
                 size="icon"
                 variant="ghost-inverse"
@@ -218,45 +215,48 @@ export default function MapPage() {
                     .setLevel(Math.min(MAX_LEVEL, currentLevel + 1))
                 }
               >
-                <IconPlus size={16} aria-hidden="true" />
+                <IconArrowUp size={16} aria-hidden="true" />
               </Button>
             </Tooltip>
           </div>
-          <label
-            className={[
-              "flex items-center gap-1 text-xs text-paper",
-              previewMode ? "opacity-50" : "",
-            ].join(" ")}
-            title={
-              previewMode
-                ? "Preview shows every level"
-                : "Ghost related floors — above when on 0+, below when underground"
-            }
-          >
-            <input
-              type="checkbox"
-              checked={showOtherLevels}
-              disabled={previewMode}
-              onChange={(e) =>
-                useEditorStore.getState().setShowOtherLevels(e.target.checked)
-              }
-              className="hard-checkbox"
+          {/* Every switch in one place, with the lighting one at the end of the
+              run because the clock beside it is the other half of that control.
+              It rides here rather than in the header's menu — where /play and
+              /online keep theirs — so it can sit next to the hour it works
+              with; the cost is that on a narrow window it wraps with the rest
+              of the map's controls instead of folding away with the nav. */}
+          <div className="flex items-center gap-1">
+            <Tooltip content="Show other levels (L) — the floors above, ghosted into one fade. Underground it stops at -1">
+              <Toggle
+                pressed={showOtherLevels}
+                onPressedChange={(v) =>
+                  useEditorStore.getState().setShowOtherLevels(v)
+                }
+                ariaLabel="Show other levels"
+              >
+                <IconStackBackward size={16} stroke={2} aria-hidden="true" />
+              </Toggle>
+            </Tooltip>
+            <Tooltip content="Preview (W) — every level solid, as play draws it, with no grid or selection in the way">
+              <Toggle
+                pressed={previewMode}
+                onPressedChange={(v) =>
+                  useEditorStore.getState().setPreviewMode(v)
+                }
+                ariaLabel="Preview"
+              >
+                <IconEye size={16} stroke={2} aria-hidden="true" />
+              </Toggle>
+            </Tooltip>
+            <LightingToggle
+              enabled={lightingEnabled}
+              onChange={(v) => useEditorStore.getState().setLightingEnabled(v)}
             />
-            Show other levels
-          </label>
-          <Tooltip content="Preview (W) — every level at full opacity, no grid or selection">
-            <Switch
-              checked={previewMode}
-              onCheckedChange={(v) =>
-                useEditorStore.getState().setPreviewMode(v)
-              }
-              ariaLabel="Preview"
-              thumb={<IconEye size={12} stroke={2.5} aria-hidden="true" />}
-            />
-          </Tooltip>
-          {/* Nothing in the editor reads the hour once lighting is off — the
-              background here is a fixed paper colour, unlike in play — so the
-              slider goes with it rather than sitting there doing nothing. */}
+          </div>
+          {/* Nothing reads the hour once lighting is off — the authoring
+              background is a fixed paper colour, and preview only borrows play's
+              sky while there is light to go with it — so the slider goes with it
+              rather than sitting there doing nothing. */}
           <div
             className={[
               "flex items-center gap-2",

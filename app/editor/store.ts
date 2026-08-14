@@ -73,7 +73,10 @@ export type EditorStore = {
   mapVersion: number;
   currentLevel: number;
   showOtherLevels: boolean;
-  /** Every level at full opacity, no grid or selection chrome — how the game will look. */
+  /**
+   * Every level solid — negative ones included — and no grid or selection
+   * chrome: the same draw play makes, so it can be trusted to test against.
+   */
   previewMode: boolean;
   lighting: LightingSettings;
   tool: ToolId;
@@ -103,6 +106,7 @@ export type EditorStore = {
   setTiles: (tiles: TileDef[]) => void;
   setLevel: (z: number) => void;
   setShowOtherLevels: (v: boolean) => void;
+  toggleShowOtherLevels: () => void;
   setPreviewMode: (v: boolean) => void;
   togglePreviewMode: () => void;
   setMinutesOfDay: (m: MinutesOfDay) => void;
@@ -200,6 +204,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
   setLevel: (z) => set({ currentLevel: z }),
   setShowOtherLevels: (v) => set({ showOtherLevels: v }),
+  toggleShowOtherLevels: () =>
+    set({ showOtherLevels: !get().showOtherLevels }),
   setPreviewMode: (v) => set({ previewMode: v }),
   togglePreviewMode: () => set({ previewMode: !get().previewMode }),
   setMinutesOfDay: (m) =>

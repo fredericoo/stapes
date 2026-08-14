@@ -4,6 +4,7 @@ import type { Route } from "./+types/play";
 import { AppShell } from "../components/AppShell";
 import { GameViewport } from "../components/GameViewport";
 import { LightingToggle } from "../components/LightingToggle";
+import { LoadingScreen } from "../components/LoadingScreen";
 import { GameSession } from "../game/GameSession";
 import { type Equipment, emptyEquipment } from "../game/equipment";
 import { bindKeyboard, HeldDirections } from "../game/heldDirections";
@@ -20,6 +21,7 @@ import {
 } from "../lib/clock";
 import type { ObjectRef } from "../game/affordances";
 import type { OpenedContainer, SlotRef } from "../game/itemMoves";
+import { useGameAssets } from "../lib/gameAssets";
 import type { Direction } from "../lib/types";
 import { dataStore } from "../context";
 import { GameRenderer } from "../render/GameRenderer";
@@ -38,6 +40,14 @@ export async function loader({ context }: Route.LoaderArgs) {
 
 export default function PlayPage() {
   const { map, tiles, tilesets } = useLoaderData<typeof loader>();
+  // Nothing below runs against half-loaded assets: the canvas is not in the
+  // page until this is true, so the renderer cannot start early. @see
+  // ../lib/gameAssets
+  const assetsReady = useGameAssets(tilesets);
+  // And the loading screen stays up past that, until there is a world on the
+  // canvas: the renderer wants the tilesets as GPU textures, which is a second
+  // wait after the one above, and it paints nothing until it has them.
+  const [painted, setPainted] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // Single-player draws no names and hears no speech, but looking is in-world
   // text like the rest of it, so the layer has to exist here too.
@@ -168,6 +178,7 @@ export default function PlayPage() {
     renderer.setOnInteractions(setInteractions);
     renderer.setOnEquipment(setEquipment);
     renderer.setOnOpenedContainer(setOpenedContainer);
+    renderer.setOnFirstFrame(() => setPainted(true));
     rendererRef.current = renderer;
     renderer.start();
 
@@ -185,8 +196,14 @@ export default function PlayPage() {
       setInteractions([]);
       setEquipment(emptyEquipment());
       setOpenedContainer(null);
+      // A new renderer has a fresh canvas to fill — an editor save arrives here
+      // as a map change — so the screen goes back up until it has filled it.
+      setPainted(false);
     };
-  }, [map, tiles, tilesets]);
+    // `assetsReady` is in here for the canvas rather than for itself: the
+    // element only exists once it is true, so without it this effect would have
+    // run once against nothing and never again.
+  }, [map, tiles, tilesets, assetsReady]);
 
   useEffect(() => {
     rendererRef.current?.setClockPaused(clockPaused);
@@ -265,28 +282,35 @@ export default function PlayPage() {
         </span>
       }
     >
-      <GameViewport
-        canvasRef={canvasRef}
-        labelRef={labelRef}
-        onDirectionPress={pressDirection}
-        onDirectionRelease={releaseDirection}
-        looking={looking}
-        onLookingChange={setLookLatched}
-        attacking={attacking}
-        onAttackingChange={setAttacking}
-        interactions={interactions}
-        onInteract={act}
-        onHoverInteraction={hoverInteraction}
-        equipment={equipment}
-        openedContainer={openedContainer}
-        onOpenContainer={openContainer}
-        canMoveItem={canMoveItem}
-        onMoveItem={moveItem}
-        onDragOverWorld={dragOverWorld}
-        onDropOnWorld={dropOnWorld}
-        tiles={tiles}
-        tilesets={tilesets}
-      />
+      {/* The screen sits over the game rather than instead of it, because it
+          outlasts the moment the canvas mounts — see `painted`. */}
+      <div className="relative h-full w-full">
+        {assetsReady ? (
+          <GameViewport
+            canvasRef={canvasRef}
+            labelRef={labelRef}
+            onDirectionPress={pressDirection}
+            onDirectionRelease={releaseDirection}
+            looking={looking}
+            onLookingChange={setLookLatched}
+            attacking={attacking}
+            onAttackingChange={setAttacking}
+            interactions={interactions}
+            onInteract={act}
+            onHoverInteraction={hoverInteraction}
+            equipment={equipment}
+            openedContainer={openedContainer}
+            onOpenContainer={openContainer}
+            canMoveItem={canMoveItem}
+            onMoveItem={moveItem}
+            onDragOverWorld={dragOverWorld}
+            onDropOnWorld={dropOnWorld}
+            tiles={tiles}
+            tilesets={tilesets}
+          />
+        ) : null}
+        {painted ? null : <LoadingScreen />}
+      </div>
     </AppShell>
   );
 }
