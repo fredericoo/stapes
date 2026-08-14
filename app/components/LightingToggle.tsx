@@ -35,9 +35,9 @@ export function LightingToggle({
         ariaLabel="Lighting"
         thumb={
           enabled ? (
-            <IconBulb size={12} stroke={2.5} aria-hidden="true" />
+            <IconBulb size={16} stroke={2.5} aria-hidden="true" />
           ) : (
-            <IconBulbOff size={12} stroke={2.5} aria-hidden="true" />
+            <IconBulbOff size={16} stroke={2.5} aria-hidden="true" />
           )
         }
       />

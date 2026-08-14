@@ -3,9 +3,10 @@ import { useFetcher, useLoaderData } from "react-router";
 import {
   IconArrowBackUp,
   IconArrowForwardUp,
+  IconArrowDown,
+  IconArrowUp,
   IconEye,
-  IconMinus,
-  IconPlus,
+  IconStackBackward,
 } from "@tabler/icons-react";
 import type { Route } from "./+types/map";
 import { AppShell } from "../components/AppShell";
@@ -180,6 +181,20 @@ export default function MapPage() {
         <>
           <div className="flex items-center gap-1">
             <span className="text-xs uppercase text-paper/70">Level</span>
+            <Tooltip content="Level down ([)">
+              <Button
+                size="icon"
+                variant="ghost-inverse"
+                aria-label="Level down"
+                onClick={() =>
+                  useEditorStore
+                    .getState()
+                    .setLevel(Math.max(MIN_LEVEL, currentLevel - 1))
+                }
+              >
+                <IconArrowDown size={16} aria-hidden="true" />
+              </Button>
+            </Tooltip>
             <Input
               className="w-14 bg-paper text-ink shadow-none"
               value={levelDraft}
@@ -193,21 +208,7 @@ export default function MapPage() {
                 }
               }}
             />
-            <Tooltip content="Level down (,)">
-              <Button
-                size="icon"
-                variant="ghost-inverse"
-                aria-label="Level down"
-                onClick={() =>
-                  useEditorStore
-                    .getState()
-                    .setLevel(Math.max(MIN_LEVEL, currentLevel - 1))
-                }
-              >
-                <IconMinus size={16} aria-hidden="true" />
-              </Button>
-            </Tooltip>
-            <Tooltip content="Level up (.)">
+            <Tooltip content="Level up (])">
               <Button
                 size="icon"
                 variant="ghost-inverse"
@@ -218,32 +219,23 @@ export default function MapPage() {
                     .setLevel(Math.min(MAX_LEVEL, currentLevel + 1))
                 }
               >
-                <IconPlus size={16} aria-hidden="true" />
+                <IconArrowUp size={16} aria-hidden="true" />
               </Button>
             </Tooltip>
           </div>
-          <label
-            className={[
-              "flex items-center gap-1 text-xs text-paper",
-              previewMode ? "opacity-50" : "",
-            ].join(" ")}
-            title={
-              previewMode
-                ? "Preview shows every level"
-                : "Show other levels (L) — ghost the floors above as one fade, capped at -1 underground"
-            }
-          >
-            <input
-              type="checkbox"
+          <Tooltip content="Show other levels (L) — ghost the floors above as one fade, capped at -1 underground">
+            <Switch
               checked={showOtherLevels}
               disabled={previewMode}
-              onChange={(e) =>
-                useEditorStore.getState().setShowOtherLevels(e.target.checked)
+              onCheckedChange={(v) =>
+                useEditorStore.getState().setShowOtherLevels(v)
               }
-              className="hard-checkbox"
+              ariaLabel="Show other levels"
+              thumb={
+                <IconStackBackward size={16} stroke={2.5} aria-hidden="true" />
+              }
             />
-            Show other levels
-          </label>
+          </Tooltip>
           <Tooltip content="Preview (W) — every level as play draws it, no grid or selection">
             <Switch
               checked={previewMode}
@@ -251,7 +243,7 @@ export default function MapPage() {
                 useEditorStore.getState().setPreviewMode(v)
               }
               ariaLabel="Preview"
-              thumb={<IconEye size={12} stroke={2.5} aria-hidden="true" />}
+              thumb={<IconEye size={16} stroke={2.5} aria-hidden="true" />}
             />
           </Tooltip>
           {/* Nothing reads the hour once lighting is off — the authoring

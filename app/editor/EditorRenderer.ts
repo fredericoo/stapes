@@ -1660,10 +1660,12 @@ export class EditorRenderer {
     if (e.code === "KeyL" && !store.previewMode) {
       store.toggleShowOtherLevels();
     }
-    if (e.key === ",") {
+    // `[` / `]` are what the buttons say; `,` / `.` were the binding before
+    // them and still work, for the hands that already know it.
+    if (e.key === "[" || e.key === ",") {
       store.setLevel(Math.max(MIN_LEVEL, store.currentLevel - 1));
     }
-    if (e.key === ".") {
+    if (e.key === "]" || e.key === ".") {
       store.setLevel(Math.min(MAX_LEVEL, store.currentLevel + 1));
     }
   };
