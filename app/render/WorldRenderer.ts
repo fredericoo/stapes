@@ -35,6 +35,7 @@ import {
   levelKey,
   parseCoordKey,
   physicalHeight,
+  resolveActor,
   resolveLightPassing,
   tileCanEmitLight,
 } from "../lib/types";
@@ -237,20 +238,28 @@ function emitterOverridesKey(
  * hundred — is omitted automatically. A hardcoded `{player}` was correct only
  * for as long as exactly one thing moved.
  *
- * Both conditions are load-bearing. **Mobile** is why it is worth omitting: a
- * tile that changes cell would otherwise dirty the chunks around it on every
- * step. **Light-passing** is what makes omitting it *sound*: the overlay is
- * add-only, so it can paint a light the bake left out but cannot carve a shadow
- * the bake never knew about. Omitting an occluder would light straight through
- * it. A mobile tile that blocks light therefore stays baked and pays for its
- * movement — see the note in AGENTS.md before changing that.
+ * Both conditions are load-bearing, and both are *narrow*. **Actor** is the
+ * rule, not "mobile": the overlay paints an override per actor per frame, so an
+ * actor is exactly the population that gets painted back. **Light-passing** is
+ * what makes omitting it sound: the overlay is add-only, so it can paint a light
+ * the bake left out but cannot carve a shadow the bake never knew about.
+ * Omitting an occluder would light straight through it. A mobile tile that
+ * blocks light therefore stays baked and pays for its movement — see the note in
+ * AGENTS.md before changing that.
+ *
+ * **It used to say `isMobileTile`, and that let a lit thing vanish.** A lantern
+ * is affected by gravity and passes light, so it was omitted from the bake — and
+ * nothing paints an override at a cell nobody is standing in, so a lantern lying
+ * on the floor lit nothing at all. Omitting a tile is only ever worth it for
+ * something that moves *every frame*; a dropped item moves on the tick it lands
+ * and dirties a cell doing it, which is a cost it was always going to pay.
  */
 function dynamicLightTileIds(
   tilesById: Record<string, TileDef>,
 ): ReadonlySet<string> {
   const ids = new Set<string>();
   for (const def of Object.values(tilesById)) {
-    if (isMobileTile(def) && resolveLightPassing(def)) ids.add(def.id);
+    if (resolveActor(def) && resolveLightPassing(def)) ids.add(def.id);
   }
   return ids;
 }

@@ -25,6 +25,7 @@ import { WorldLabelLayer, type WorldLabel } from "./textLabels";
 import { FrameProfiler, type FrameStats } from "./frameProfile";
 import { fallDropPx, fallFootAbs, standingFootAbs } from "./fallAnchor";
 import { sceneryStack } from "../game/movement";
+import { resolveItem } from "../lib/item";
 import type { EmitterOverride } from "../lib/lighting";
 import {
   DEFAULT_PLAY_MINUTES,
@@ -144,6 +145,16 @@ const LOOK_COLOR = 0x3fa9ff;
 
 /** Floors above and below the viewer that a look can reach, as the pick does. */
 const LOOK_LEVEL_SLACK = 1;
+
+/**
+ * Ink for the name of a thing the pointer is over, outside look mode.
+ *
+ * The hover's own {@link HOVER_COLOR} lightened, exactly as the look label's
+ * `#9ad8ff` is {@link LOOK_COLOR} lightened: the label and the outline round the
+ * same object have to be the same colour, and a text weight of pure `#ffcc00` is
+ * a headline rather than a caption.
+ */
+const HOVER_LABEL_INK = "#ffe27a";
 
 /**
  * What colour a hovered row paints its subject.
@@ -1177,7 +1188,7 @@ export class GameRenderer {
     const labels: WorldLabel[] = [];
     this.pushNameLabels(snap, labels, hideLevelsAbove);
     this.pushSpeechLabels(snap, labels);
-    this.pushLookLabel(snap, labels);
+    this.pushPointerLabel(snap, labels);
     return labels;
   }
 
@@ -1190,17 +1201,23 @@ export class GameRenderer {
    * text directly beneath — the same stacking speech already uses, which is why
    * a look reads like a bubble rather than a tooltip.
    *
-   * One id for the whole mode, because there is only ever one looked-at thing:
-   * the layer then reuses a single element and refills it only when the words
-   * change, rather than churning a node per cell the pointer crosses.
+   * **Two modes, one label.** Look mode names whatever you point at, in blue.
+   * Outside it the pointer names *items* and nothing else, in the yellow of the
+   * outline already round them — because a rusty sword and a hand lantern are
+   * both a small thing on the floor, and which one you are about to bend down
+   * for is worth knowing before you do. They cannot both appear: entering look
+   * mode takes the interaction hover off the screen.
+   *
+   * One id for both, because there is only ever one thing under a pointer: the
+   * layer reuses a single element and refills it only when the words change,
+   * rather than churning a node per cell the cursor crosses.
    *
    * The anchor is the object's cell, so a described crate mid-shove has its
    * label at the cell it has already committed to while the sprite lerps in
    * behind. Accepted for now — see plans/looking-and-signs.md.
    */
-  private pushLookLabel(snap: GameSnapshot, into: WorldLabel[]) {
-    if (!this.lookMode) return;
-    const target = this.lookTarget(snap);
+  private pushPointerLabel(snap: GameSnapshot, into: WorldLabel[]) {
+    const target = this.lookMode ? this.lookTarget(snap) : this.hoveredItem(snap);
     if (!target) return;
     const { ref, placed, def } = target;
 
@@ -1223,7 +1240,36 @@ export class GameRenderer {
       x: ground.x + head.x,
       y: ground.y + head.y,
       lines,
+      // Blue when looking, yellow when pointing at something you could pick up.
+      // The kind is the same because the *placement* question is the same — one
+      // label, under the pointer, outranking everything else on screen — and
+      // only the ink says which of the two modes put it there.
+      ...(this.lookMode ? {} : { color: HOVER_LABEL_INK }),
     });
+  }
+
+  /**
+   * The item under the pointer, when there is one and the eye is off.
+   *
+   * **Items only, and that is the whole restriction.** A door, a crate and a
+   * lever are all hoverable and none of them wants a name floating over it —
+   * what they do is legible from the sprite and from the row that appears in the
+   * list. An item is the case where it is not: a rusty sword and a hand lantern
+   * are both a small object on the floor, and which one you are standing over is
+   * a thing you have to know *before* deciding to bend down. Look mode still
+   * names everything, and this does not step on it — the two are mutually
+   * exclusive by construction, because entering look mode takes the interaction
+   * hover off the screen.
+   */
+  private hoveredItem(
+    snap: GameSnapshot,
+  ): { ref: ObjectRef; placed: PlacedTile; def: TileDef } | null {
+    const ref = snap.hover;
+    if (!ref) return null;
+    const placed = getStack(snap.map, ref.x, ref.y, ref.z)[ref.stackIndex];
+    const def = placed && this.tilesById[placed.tileId];
+    if (!placed || !def || !resolveItem(def)) return null;
+    return { ref, placed, def };
   }
 
   /**

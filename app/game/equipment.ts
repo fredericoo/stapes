@@ -127,12 +127,32 @@ export function carriedInstances(equipment: Equipment): ItemInstance[] {
 }
 
 /**
- * The tiles of everything this actor is carrying that gives off light.
+ * Everything worn in a slot, which is what a light is read off.
+ *
+ * Deliberately *not* {@link carriedInstances}: what is in the bag is in the bag.
+ * The list is over the slots rather than over the two fields by name because
+ * there will be more of them — a lamp hook, an off hand — and a projection that
+ * had to be edited for each would be the wrong shape from the first one added.
+ */
+function wornInstances(equipment: Equipment): ItemInstance[] {
+  return [equipment.weapon, equipment.bag].filter(
+    (instance): instance is ItemInstance => instance != null,
+  );
+}
+
+/**
+ * The tiles of the things this actor is *wearing* that give off light.
  *
  * A projection of {@link Equipment} rather than a second thing to keep in step,
  * and tile ids rather than `LightDef`s because every client already holds the
  * tile catalogue — sending the resolved lights would be sending what the
  * receiver can already look up.
+ *
+ * **Slots only, and the bag's contents are not slots.** A lantern lights the
+ * room when you are holding it and not when it is buried in your pack, which is
+ * both what a player expects and what makes a lantern worth a slot at all: with
+ * a bag counting, carrying one cost nothing and there was no decision in it. The
+ * bag *itself* counts, because it is worn — a glowing pack glows.
  *
  * Why this exists at all: an actor's own light never enters the static bake —
  * `GameRenderer` paints it as a dynamic emitter every frame, which is precisely
@@ -150,7 +170,7 @@ export function carriedLightTileIds(
   tilesById: Record<string, TileDef>,
 ): string[] {
   const out: string[] = [];
-  for (const instance of carriedInstances(equipment)) {
+  for (const instance of wornInstances(equipment)) {
     const def = tilesById[instance.tileId];
     if (!def) continue;
     if (resolveLight(def, { direction: instance.direction })) {

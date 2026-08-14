@@ -178,20 +178,30 @@ describe("carriedLightTileIds", () => {
     expect(carriedLightTileIds(kit, lightTiles)).toEqual(["torch"]);
   });
 
-  it("finds a light inside a bag", () => {
+  it("finds a light in a bag that is itself lit, because a bag is worn", () => {
+    const kit = { weapon: null, bag: { id: "b", tileId: "lamp-bag" } };
+    expect(carriedLightTileIds(kit, lightTiles)).toEqual(["lamp-bag"]);
+  });
+
+  /**
+   * A torch in your pack lights nothing, and that is the point of a slot: with
+   * the bag counting, carrying a lantern cost nothing and there was no decision
+   * in whether to hold one.
+   */
+  it("ignores a light buried in the bag", () => {
     const kit = {
       weapon: null,
       bag: { id: "b", tileId: "bag", contents: [{ id: "c", tileId: "torch" }] },
     };
-    expect(carriedLightTileIds(kit, lightTiles)).toEqual(["torch"]);
+    expect(carriedLightTileIds(kit, lightTiles)).toEqual([]);
   });
 
   /**
-   * Every carried light counts, and each is a separate entry — the cast
-   * accumulates emitters, so two torches at one position is two emitters and
-   * twice the light rather than one torch's worth.
+   * Every worn light counts, and each is a separate entry — the cast
+   * accumulates emitters, so two lights at one position is two emitters and
+   * twice the light rather than one light's worth.
    */
-  it("lists every light separately, so they can be summed", () => {
+  it("lists every worn light separately, so they can be summed", () => {
     const kit = {
       weapon: { id: "w", tileId: "torch" },
       bag: {
@@ -200,11 +210,7 @@ describe("carriedLightTileIds", () => {
         contents: [{ id: "c", tileId: "torch" }, { id: "d", tileId: "sword" }],
       },
     };
-    expect(carriedLightTileIds(kit, lightTiles)).toEqual([
-      "torch",
-      "lamp-bag",
-      "torch",
-    ]);
+    expect(carriedLightTileIds(kit, lightTiles)).toEqual(["torch", "lamp-bag"]);
   });
 
   it("ignores a tile the catalogue has never heard of", () => {

@@ -864,11 +864,27 @@ Files: `app/game/affordances.ts`, `app/lib/interactions.ts`,
 > stack, as it always has. Summing needed no rule: N lights at one point is N
 > emitters and the cast accumulates.
 >
+> **Slots only, and the bag's contents are not slots.** A lantern lights the room
+> when you are holding it and goes dark in your pack. The plan said "the
+> light-emitting things this actor is carrying" and the first build read that
+> literally, which made carrying a lantern free: no slot spent, no decision in
+> it. The bag *itself* still counts, because it is worn — a glowing pack glows —
+> and the projection is written over the slots rather than over two named fields,
+> since there will be more of them.
+>
 > On the wire, `carriedLights` is a per-actor `CarriedLightsPatch` broadcast on
 > `hello` in full and diffed into `patch` afterwards, exactly as `hps` is. The
 > projection is cached on `ActorRuntime` beside the kit and re-derived only in
 > `setEquipment`, because it is read per actor per frame and changes when
 > somebody picks something up.
+>
+> **And it uncovered a bug older than this plan.** The bake omits tiles it
+> expects the overlay to paint back, and the predicate was `isMobileTile` — which
+> a lantern satisfies, being affected by gravity, so a lantern *on the floor* was
+> omitted and lit nothing at all. AGENTS.md had named this gap in the abstract
+> ("a second mobile, light-passing, light-emitting tile would go dark") before
+> there was one to find. The predicate is now `resolveActor`: omit only what
+> something actually paints back.
 >
 > Authored a `hand-lantern` to see it with — a weapon that fights like bare
 > hands and glows — lying one cell from the sword. Verified by walking with it:

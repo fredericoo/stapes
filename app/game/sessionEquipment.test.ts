@@ -797,30 +797,38 @@ describe("carried lights", () => {
     expect(lightsOf(new GameSession(field(), tiles))).toEqual([]);
   });
 
-  it("follows a lantern into the bag and back onto the floor", () => {
+  // Picking a lantern up puts it in the bag, and a bag is not a slot: it lights
+  // nothing until it is in your hand.
+  it("stays dark while the lantern is in the bag, and lights up when wielded", () => {
     const session = withLantern(1, 0);
     expect(lightsOf(session)).toEqual([]);
 
     session.pickUp(refAt(session, 1, 0));
+    expect(lightsOf(session)).toEqual([]);
+
+    session.moveItem({ kind: "contents", index: 0 }, { kind: "weapon" });
     expect(lightsOf(session)).toEqual([LANTERN]);
 
-    session.drop({ kind: "contents", index: 0 }, { x: 1, y: 0, z: 0 });
+    session.drop({ kind: "weapon" }, { x: 1, y: 0, z: 0 });
     expect(lightsOf(session)).toEqual([]);
   });
 
-  // Moving it from the bag to the hand changes nothing anybody outside can see,
-  // and the projection has to agree: a lantern is a lantern wherever it is on
-  // you. This is the case that would break if the cache were keyed on a slot.
-  it("is unchanged by moving the same lantern between slots", () => {
+  // The inverse, and worth its own case: the cache is written beside the kit, so
+  // a move that *removes* a light has to re-derive as surely as one that adds it.
+  it("goes out again when the lantern is put back in the bag", () => {
     const session = withLantern(1, 0);
     session.pickUp(refAt(session, 1, 0));
     session.moveItem({ kind: "contents", index: 0 }, { kind: "weapon" });
-
-    expect(session.getSnapshot().equipment.weapon?.tileId).toBe(LANTERN);
     expect(lightsOf(session)).toEqual([LANTERN]);
+
+    session.moveItem({ kind: "weapon" }, { kind: "contents", index: 0 });
+    expect(session.getSnapshot().equipment.weapon).toBeNull();
+    expect(lightsOf(session)).toEqual([]);
   });
 
-  it("counts two of them, because two lanterns are twice the light", () => {
+  // A second one in the pack adds nothing, which is what makes the slot the
+  // thing being spent rather than the carrying.
+  it("counts the one in hand and not the spare in the bag", () => {
     let map = field();
     map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: LANTERN }]);
     map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: LANTERN }]);
@@ -828,6 +836,8 @@ describe("carried lights", () => {
 
     session.pickUp(refAt(session, 1, 0));
     session.pickUp(refAt(session, 0, 1));
-    expect(lightsOf(session)).toEqual([LANTERN, LANTERN]);
+    session.moveItem({ kind: "contents", index: 0 }, { kind: "weapon" });
+
+    expect(lightsOf(session)).toEqual([LANTERN]);
   });
 });
