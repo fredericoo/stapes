@@ -15,8 +15,14 @@ import type {
 } from "../game/GameSession";
 import { PLAYER_TILE_ID } from "../game/constants";
 import { bodyNameFor } from "../game/displayName";
+import type { Equipment } from "../game/equipment";
+import type { OpenedContainer, SlotRef } from "../game/itemMoves";
+import { readOpenedContainer } from "../game/openedContainer";
 import {
+  applyInteraction,
+  interactionText,
   listInteractionOptions,
+  topInteractionAt,
   type InteractionOption,
 } from "../game/interactionOptions";
 import { WorldLabelLayer, type WorldLabel } from "./textLabels";
@@ -37,7 +43,14 @@ import {
   levelsAboveShouldHide,
   viewAnchorFor,
 } from "../lib/levelVisibility";
-import type { MapFile, PlacedTile, TileDef, TilesetDef } from "../lib/types";
+import type {
+  Coord,
+  LightDef,
+  MapFile,
+  PlacedTile,
+  TileDef,
+  TilesetDef,
+} from "../lib/types";
 import { HEIGHT_PER_LEVEL } from "../lib/types";
 import { resolveLight } from "../lib/tileResolve";
 import { tilesByIdFromList } from "../lib/validation";
@@ -78,7 +91,22 @@ function currentFit(canvas: HTMLCanvasElement): ViewportFit {
   return fitViewport(Math.min(canvas.clientWidth, canvas.clientHeight));
 }
 
-/** Editor selection yellow — same affordance, same colour. */
+/**
+ * How solid a thing being dragged onto the world looks before it is let go of.
+ *
+ * Enough to read the sprite and tell it is not there yet. A fainter ghost reads
+ * as a rendering fault on a busy floor, and a stronger one reads as a thing
+ * already dropped.
+ */
+const DROP_GHOST_ALPHA = 0.55;
+
+/**
+ * Editor selection yellow — same affordance, same colour.
+ *
+ * And the same yellow the DOM wears for it: `--color-interact` in `app.css` is
+ * this value, so a row lit in the list and the thing it names lit in the world
+ * are one state rather than two that happen to co-occur.
+ */
 const HOVER_COLOR = 0xffcc00;
 
 /** A battler under the pointer: somebody who *could* be singled out. */
@@ -123,17 +151,52 @@ const LOOK_COLOR = 0x3fa9ff;
 const LOOK_LEVEL_SLACK = 1;
 
 /**
- * What colour a hovered row paints its subject.
+ * Ink for the name of a thing the pointer is over, outside look mode.
  *
- * The same two the pointer already uses, chosen the same way — white for a body
- * that could be fought, yellow for an object that could be acted on. A row and
- * the cursor are two ways of pointing at one thing, so pointing either way has
- * to look identical; a third colour here would be a legend to learn for no new
- * meaning.
+ * The hover's own {@link HOVER_COLOR} lightened, exactly as the look label's
+ * `#9ad8ff` is {@link LOOK_COLOR} lightened: the label and the outline round the
+ * same object have to be the same colour, and a text weight of pure `#ffcc00` is
+ * a headline rather than a caption.
  */
-function listHoverColor(option: InteractionOption): number {
+const HOVER_LABEL_INK = "#ffe27a";
+
+/**
+ * What colour an option paints its subject, and what ink its words are in.
+ *
+ * Two of them and no more — white for a body that could be singled out, yellow
+ * for an object that could be acted on. A row under a finger and a sprite under
+ * a cursor are two ways of pointing at one thing, so pointing either way has to
+ * look identical; a third colour here would be a legend to learn for no new
+ * meaning.
+ *
+ * The ink is the outline lightened, exactly as the look label's `#9ad8ff` is
+ * {@link LOOK_COLOR} lightened: the words and the silhouette are one reading,
+ * and a text weight of pure `#ffcc00` is a headline rather than a caption.
+ */
+function interactionColor(option: InteractionOption): number {
   return option.action === "target" ? TARGET_HOVER_COLOR : HOVER_COLOR;
 }
+
+function interactionInk(option: InteractionOption): string {
+  return option.action === "target" ? "#ffffff" : HOVER_LABEL_INK;
+}
+
+/**
+ * The one label the pointer puts on the world, whichever mode produced it.
+ *
+ * Two modes fill it — look mode names a thing, and the interaction hover says
+ * what you could do to it — and they share a shape so the placement, the anchor
+ * and the element cache are written once. `height` rather than the tile itself
+ * because the anchor is all the caller needs: a label hangs over the top of the
+ * head, and how tall the head is is the whole of the question.
+ */
+type PointerLabel = {
+  ref: ObjectRef;
+  height: number;
+  lines: { id: string; text: string }[];
+  /** Absent leaves the stylesheet's blue in charge, which is look mode's own. */
+  color?: string;
+};
 
 /**
  * A number that changes whenever anybody's health does.
@@ -198,6 +261,30 @@ export class GameRenderer {
   private clockPaused = false;
   private onClock: ((minutes: MinutesOfDay) => void) | null = null;
   private onStats: ((stats: FrameStats) => void) | null = null;
+  private onEquipment: ((equipment: Equipment) => void) | null = null;
+  /** Identity of the last equipment handed on, so an idle frame costs a compare. */
+  private equipmentSent: Equipment | null = null;
+  /** Kit the interaction list was last built against. See the gate below. */
+  private interactionsEquipment: Equipment | null = null;
+  private onOpenedContainer:
+    | ((container: OpenedContainer | null) => void)
+    | null = null;
+  /** Which floor container the panel is showing, if any. */
+  private openedRef: ObjectRef | null = null;
+  /**
+   * Which particular thing that reference was opened on.
+   *
+   * Learnt on the first read and checked on every one after it, so a slot that
+   * comes to hold something else cannot be shown under the old panel — see
+   * `readOpenedContainer`. Null until the first read.
+   */
+  private openedItemId: string | null = null;
+  /** The placement last read for it — half of the gate below. */
+  private openedPlacement: PlacedTile | null = null;
+  /** Where the viewer stood when reach was last asked — the other half. */
+  private openedFrom = "";
+  /** Last value handed on. `undefined` means "nothing said yet". */
+  private openedSent: OpenedContainer | null | undefined = undefined;
   private onInteractions:
     | ((options: InteractionOption[]) => void)
     | null = null;
@@ -215,6 +302,18 @@ export class GameRenderer {
   private interactionsSent: InteractionOption[] = [];
   /** @see setListHover */
   private listHoverId: string | null = null;
+  /**
+   * What is being dragged over the world right now, and where the pointer is.
+   *
+   * Held here rather than in React because it changes with every pixel of a
+   * drag: the page hands over the thing and the point, and this loop — which is
+   * already reading a snapshot every frame — decides what that means and draws
+   * it. Routing a ghost through React state would re-render the page around the
+   * game to move one translucent sprite.
+   */
+  private dropDrag:
+    | { from: SlotRef; tileId: string; point: { x: number; y: number } }
+    | null = null;
   private profiler = new FrameProfiler();
   private disposed = false;
   private raf = 0;
@@ -229,14 +328,22 @@ export class GameRenderer {
   private battlerKey = "";
   private battlerMap: MapFile | null = null;
   /**
-   * The battler under the pointer, outlined in white.
+   * Which object the pointer is over — not what can be done to it.
    *
-   * Held rather than recomputed per frame for the same reason the look pick is,
-   * and refreshed on the same terms — see {@link repickTargetHover}.
+   * **The reference is held and the row is looked up every frame**, which is the
+   * same trick the list hover plays and for a sharper reason. A row changes
+   * under a still cursor: open the chest you are pointing at and its row is
+   * renamed "Close", walk until a crate is out of reach and its row goes. Held
+   * as an option, the label would go on saying "Open Chest" over an open chest
+   * until the mouse twitched.
+   *
+   * The *pick* is still held rather than run per frame, for the reason the look
+   * pick is — see {@link repickPointer}. What is cheap to redo is the lookup,
+   * not the hit test.
    */
-  private targetHover: ObjectRef | null = null;
-  private targetHoverKey = "";
-  private targetHoverMap: MapFile | null = null;
+  private pointerRef: ObjectRef | null = null;
+  private pointerPickKey = "";
+  private pointerPickMap: MapFile | null = null;
   private damageLayer: DamageNumberLayer | null = null;
   /** @see setLookMode */
   private lookMode = false;
@@ -359,6 +466,115 @@ export class GameRenderer {
    * second would re-render the page for a frame nobody could tell apart from
    * the last one. See {@link pushInteractionOptions} for the two gates.
    */
+  /**
+   * What the viewer is carrying, whenever it changes.
+   *
+   * Routed through the render loop rather than read off the session by the page,
+   * for the same reason the interaction list is: this loop is already reading a
+   * snapshot every frame, and it is the only thing that knows when a new one
+   * arrived. The gate is object identity — the session replaces the whole
+   * equipment object when the server sends one and never mutates it in place —
+   * so a player standing still costs one reference compare per frame.
+   */
+  setOnEquipment(cb: ((equipment: Equipment) => void) | null) {
+    this.onEquipment = cb;
+    // Dropped so the next frame reports to a fresh listener even though nothing
+    // has changed, exactly as the interaction gates are.
+    this.equipmentSent = null;
+  }
+
+  private pushEquipment(snap: GameSnapshot) {
+    if (!this.onEquipment) return;
+    if (snap.equipment === this.equipmentSent) return;
+    this.equipmentSent = snap.equipment;
+    this.onEquipment(snap.equipment);
+  }
+
+  /**
+   * Which container on the floor the player is looking into, or null.
+   *
+   * The reference is held here rather than the contents, because a chest's
+   * contents live on its placement and arrive through the ordinary cell patch.
+   * Anything holding a copy would be a second version of what is in the box,
+   * going stale the moment somebody took something out of it.
+   */
+  setOpenedContainer(ref: ObjectRef | null) {
+    this.openedRef = ref;
+    // Dropped so the next frame reports even when the reference is unchanged —
+    // reopening the same chest must not be silent.
+    this.openedItemId = null;
+    this.openedPlacement = null;
+    this.openedFrom = "";
+    this.openedSent = undefined;
+  }
+
+  setOnOpenedContainer(cb: ((container: OpenedContainer | null) => void) | null) {
+    this.onOpenedContainer = cb;
+    this.openedPlacement = null;
+    this.openedFrom = "";
+    this.openedSent = undefined;
+  }
+
+  /**
+   * Read the opened container off the live board, once a frame.
+   *
+   * **Two things can change the answer, and the gate has to admit both.** The
+   * container's cell can change — somebody takes something out, or takes the
+   * whole box — and the viewer can walk. Gating on the placement alone was a
+   * real bug: the map is copy-on-write, so a chest nobody touches is the same
+   * object for as long as it sits there, and walking out of range never
+   * re-asked the question. Whether it closed depended on whether anything
+   * happened to the box while you were away.
+   *
+   * So: the placement object, which is exactly the right granularity for "did
+   * that cell change", *and* the cell the viewer is standing in, which is the
+   * whole of what reach depends on. A player standing still over an open chest
+   * costs one stack read, one reference compare and one string compare.
+   *
+   * The rule itself is `readOpenedContainer`, which is pure and tested. All this
+   * does is decide when to ask and remember what it said.
+   */
+  private pushOpenedContainer(snap: GameSnapshot) {
+    if (!this.onOpenedContainer) return;
+
+    const ref = this.openedRef;
+    if (!ref) {
+      if (this.openedSent === null) return;
+      this.openedSent = null;
+      this.onOpenedContainer(null);
+      return;
+    }
+
+    const placed = getStack(snap.map, ref.x, ref.y, ref.z)[ref.stackIndex];
+    const from = `${snap.self.x},${snap.self.y},${snap.self.z}`;
+    if (placed === this.openedPlacement && from === this.openedFrom) return;
+    this.openedPlacement = placed ?? null;
+    this.openedFrom = from;
+
+    const read = readOpenedContainer(
+      snap.map,
+      this.tilesById,
+      snap.self,
+      ref,
+      this.openedItemId,
+    );
+    if (read.kind === "closed") {
+      // The reference is dropped rather than merely reporting null, which is
+      // what makes closed stay closed: walking back into range does not reopen
+      // a panel nobody asked for, and the slot cannot quietly come to hold
+      // somebody else's bag under the panel that used to be a chest.
+      this.openedRef = null;
+      this.openedItemId = null;
+    } else {
+      this.openedItemId = read.itemId;
+    }
+
+    const container = read.kind === "open" ? read.container : null;
+    if (container === null && this.openedSent === null) return;
+    this.openedSent = container;
+    this.onOpenedContainer(container);
+  }
+
   setOnInteractions(cb: ((options: InteractionOption[]) => void) | null) {
     this.onInteractions = cb;
     // The next frame has to report to a fresh listener even if nothing has
@@ -368,6 +584,7 @@ export class GameRenderer {
     this.interactionsAt = "";
     this.interactionsHealth = 0;
     this.interactionsKey = "";
+    this.interactionsEquipment = null;
     this.interactionsSent = [];
   }
 
@@ -443,6 +660,8 @@ export class GameRenderer {
     this.onStats = null;
     this.world.setProfiler(null);
     this.onClock = null;
+    this.onEquipment = null;
+    this.onOpenedContainer = null;
     this.onInteractions = null;
     this.stop();
     this.detachPointer();
@@ -504,19 +723,21 @@ export class GameRenderer {
       this.lookedAt = this.lookAt(this.lastPointer, snap);
       return;
     }
-    this.targetHover = this.battlerAt(this.lastPointer, snap);
-    // A battler under the pointer takes the hover outright: only the player tile
-    // is both fightable and shovable, and asking somebody to distinguish two
-    // outlines on one body to find out which the click will do is worse than
-    // simply not being able to push people.
-    this.session.setHoveredObject(
-      this.targetHover ? null : this.pickAt(e, snap),
-    );
+    this.pointerRef = this.pickRefAt(this.lastPointer, snap);
   };
 
-  /** Interactive object drawn under the pointer, if any. */
-  private pickAt(e: PointerEvent, snap: GameSnapshot): ObjectRef | null {
-    const p = this.localPoint(e);
+  /**
+   * Interactive object drawn under a canvas-relative point, if any.
+   *
+   * Gated on *having a row* rather than on the session's own precedence. A
+   * chest offers nothing that precedence knows about — opening is panel state,
+   * so `canInteract` says no — and gating on it left a box that the list was
+   * offering to open sitting in the world unclickable.
+   */
+  private pickAt(
+    point: { x: number; y: number },
+    snap: GameSnapshot,
+  ): ObjectRef | null {
     return pickInteractiveAt(
       {
         map: snap.map,
@@ -527,9 +748,9 @@ export class GameRenderer {
         zoom: currentFit(this.canvas).cssScale,
       },
       this.interactiveIndex(snap),
-      p.x,
-      p.y,
-      (ref) => this.session.canInteract(ref),
+      point.x,
+      point.y,
+      (ref) => topInteractionAt(this.interactionsSent, ref) !== null,
     );
   }
 
@@ -556,25 +777,34 @@ export class GameRenderer {
     // Resolved here rather than read off the last hover: touch has no hover
     // at all, and a press that outruns its move event would otherwise miss.
     const point = this.localPoint(e);
-    const battler = this.battlerAt(point, snap);
-    if (battler) {
-      e.preventDefault();
-      this.targetHover = battler;
-      const id = this.actorIdAt(battler, snap);
-      // A cell that holds a battler tile with nobody driving it is not somebody
-      // you can fight — it is scenery with hit points authored on it, which is
-      // legal and simply not a target.
-      if (id) this.session.setTarget(id);
-      return;
-    }
-
-    const target = this.pickAt(e, snap);
-    if (!target) return;
+    this.pointerRef = this.pickRefAt(point, snap);
+    const option = this.pointerOption();
+    if (!option) return;
 
     e.preventDefault();
-    this.session.setHoveredObject(target);
-    this.session.interact(target);
+    this.runOption(option);
   };
+
+  /**
+   * Do what the row under the pointer says.
+   *
+   * The one place a click on the world turns into an action, and it runs the
+   * *same* option the outline and the label were describing — so "Open Chest"
+   * opens, and there is no second precedence to disagree with the words on
+   * screen.
+   *
+   * Opening is handled here rather than in `applyInteraction` because it never
+   * reaches the session at all: a container's contents ride on its placement, so
+   * looking inside is this renderer's own state and the page hears about it the
+   * same way it does when a row is pressed.
+   */
+  private runOption(option: InteractionOption) {
+    if (option.action === "open") {
+      this.setOpenedContainer(option.active ? null : option.ref);
+      return;
+    }
+    applyInteraction(this.session, option);
+  }
 
   private onPointerLeave = () => {
     this.lastPointer = null;
@@ -582,8 +812,7 @@ export class GameRenderer {
     // Only the *hover* goes. A target is a commitment held until it is called
     // off, killed, or walks out of view — moving the mouse away is none of
     // those, and dropping it here would make a fight unwinnable one-handed.
-    this.targetHover = null;
-    this.session.setHoveredObject(null);
+    this.pointerRef = null;
   };
 
   /**
@@ -666,10 +895,56 @@ export class GameRenderer {
     }
     // Whatever the pointer was aimed at is no longer a hover target, and the
     // yellow outline has to go with the mode that owns it.
-    this.session.setHoveredObject(null);
+    this.pointerRef = null;
     if (this.lastPointer) {
       this.lookedAt = this.lookAt(this.lastPointer, this.session.getSnapshot());
     }
+  }
+
+  /**
+   * Show where a dragged thing would land, or stop showing it.
+   *
+   * Takes client coordinates because a drag is a window-level gesture — it
+   * starts on a panel and crosses the canvas — and this is the one place that
+   * already knows where the canvas is.
+   */
+  setDropGhost(
+    drag: { from: SlotRef; tileId: string; clientX: number; clientY: number } | null,
+  ) {
+    if (!drag) {
+      this.dropDrag = null;
+      return;
+    }
+    const point = this.canvasPoint(drag.clientX, drag.clientY);
+    this.dropDrag = point
+      ? { from: drag.from, tileId: drag.tileId, point }
+      : null;
+  }
+
+  /**
+   * The cell a client point is over, or null when it is over nothing.
+   *
+   * Exported for the drop itself: the page owns the gesture and the session
+   * call, and this owns the camera — so the page asks *where*, and does the rest
+   * with the answer.
+   */
+  dropCellAt(clientX: number, clientY: number): Coord | null {
+    const point = this.canvasPoint(clientX, clientY);
+    if (!point) return null;
+    const ref = this.lookAt(point, this.session.getSnapshot());
+    return ref ? { x: ref.x, y: ref.y, z: ref.z } : null;
+  }
+
+  /** Client point in canvas pixels, or null when it is not over the canvas. */
+  private canvasPoint(
+    clientX: number,
+    clientY: number,
+  ): { x: number; y: number } | null {
+    const rect = this.canvas.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    if (x < 0 || y < 0 || x > rect.width || y > rect.height) return null;
+    return { x, y };
   }
 
   /** Whatever tile is drawn under a point, interactive or not. */
@@ -692,6 +967,29 @@ export class GameRenderer {
       LOOK_LEVEL_SLACK,
       hidden ? anchor.z : undefined,
     );
+  }
+
+  /**
+   * The ghost for whatever is being dragged, or null.
+   *
+   * **Nothing is drawn where the drop would be refused, and nothing says why.**
+   * The absent ghost is the whole answer: a player learns the range by watching
+   * it appear, which is a thing you feel out in a second, where a message
+   * explaining a rule is a thing you have to read every time.
+   *
+   * Asked of the session rather than of `canDropAt` directly, so this goes
+   * through the same door the release will — a ghost drawn from one rule and a
+   * drop honoured by another is exactly the disagreement the shared affordances
+   * exist to prevent.
+   */
+  private dropGhostSpec(snap: GameSnapshot): OverlaySpec | null {
+    const drag = this.dropDrag;
+    if (!drag) return null;
+    const ref = this.lookAt(drag.point, snap);
+    if (!ref) return null;
+    const at = { x: ref.x, y: ref.y, z: ref.z };
+    if (!this.session.canDrop(drag.from, at)) return null;
+    return { kind: "ghost", tileId: drag.tileId, ...at, alpha: DROP_GHOST_ALPHA };
   }
 
   /** Interactive placements on the viewer's level ±1, cached per map + level. */
@@ -741,11 +1039,13 @@ export class GameRenderer {
     if (this.lookMode) {
       const looked = this.lookTarget(snap);
       const specs = looked ? [outline(looked.ref, LOOK_COLOR)] : [];
-      if (listed) specs.push(outline(listed.ref, listHoverColor(listed)));
+      if (listed) specs.push(outline(listed.ref, interactionColor(listed)));
       return specs;
     }
 
     const specs: OverlaySpec[] = [];
+    const ghost = this.dropGhostSpec(snap);
+    if (ghost) specs.push(ghost);
     // The target first, so a hovered body that is *already* the target reads as
     // chosen rather than as merely hoverable — the later spec would otherwise
     // draw its steady outline over the pulsing one.
@@ -759,15 +1059,18 @@ export class GameRenderer {
         ),
       );
     }
-    if (this.targetHover && !sameRef(this.targetHover, target)) {
-      specs.push(outline(this.targetHover, TARGET_HOVER_COLOR));
+    // One outline for the pointer, in the colour its own row wears — the same
+    // function the list hover uses, because a row lit under a finger and a
+    // sprite lit under a cursor are two ways of pointing at one thing.
+    const pointed = this.pointerOption();
+    if (pointed && !sameRef(pointed.ref, target)) {
+      specs.push(outline(pointed.ref, interactionColor(pointed)));
     }
-    if (snap.hover) specs.push(outline(snap.hover, HOVER_COLOR));
     // Last, so it draws over the pointer's own hover where the two land on one
     // object — and skipped on the body already targeted, for the same reason the
     // hover is: chosen outranks hoverable.
     if (listed && !sameRef(listed.ref, target)) {
-      specs.push(outline(listed.ref, listHoverColor(listed)));
+      specs.push(outline(listed.ref, interactionColor(listed)));
     }
     return specs;
   }
@@ -882,16 +1185,47 @@ export class GameRenderer {
    * a cell the creature has left, and a click would target whoever wandered into
    * it. Keyed on camera and map so standing still costs nothing.
    */
-  private repickTargetHover(
-    snap: GameSnapshot,
-    camera: { x: number; y: number },
-  ) {
+  private repickPointer(snap: GameSnapshot, camera: { x: number; y: number }) {
     if (this.lookMode || !this.lastPointer) return;
     const key = `${camera.x},${camera.y}`;
-    if (key === this.targetHoverKey && snap.map === this.targetHoverMap) return;
-    this.targetHoverKey = key;
-    this.targetHoverMap = snap.map;
-    this.targetHover = this.battlerAt(this.lastPointer, snap);
+    if (key === this.pointerPickKey && snap.map === this.pointerPickMap) return;
+    this.pointerPickKey = key;
+    this.pointerPickMap = snap.map;
+    this.pointerRef = this.pickRefAt(this.lastPointer, snap);
+  }
+
+  /**
+   * Whatever is drawn under a canvas-relative point and has something to offer.
+   *
+   * Two picks, and a body wins where they overlap — not by a rule stated here,
+   * but because a body is asked about first and the row it answers with is the
+   * one the list would put first anyway. Only the player tile is both fightable
+   * and shovable, and asking somebody to tell two outlines on one body apart to
+   * find out which the click will do is worse than not being able to push people.
+   *
+   * The object pick is skipped entirely when a body answered, which is the one
+   * place this saves work over asking both.
+   */
+  private pickRefAt(
+    point: { x: number; y: number },
+    snap: GameSnapshot,
+  ): ObjectRef | null {
+    const battler = this.battlerAt(point, snap);
+    if (battler && topInteractionAt(this.interactionsSent, battler)) {
+      return battler;
+    }
+    return this.pickAt(point, snap);
+  }
+
+  /**
+   * The row for whatever the pointer is over, as it stands this frame.
+   *
+   * Resolved rather than remembered, so the outline, the words and the click all
+   * describe the board as it is now — see {@link pointerRef}.
+   */
+  private pointerOption(): InteractionOption | null {
+    if (!this.pointerRef) return null;
+    return topInteractionAt(this.interactionsSent, this.pointerRef);
   }
 
   /**
@@ -973,7 +1307,7 @@ export class GameRenderer {
     const labels: WorldLabel[] = [];
     this.pushNameLabels(snap, labels, hideLevelsAbove);
     this.pushSpeechLabels(snap, labels);
-    this.pushLookLabel(snap, labels);
+    this.pushPointerLabel(snap, labels);
     return labels;
   }
 
@@ -986,20 +1320,28 @@ export class GameRenderer {
    * text directly beneath — the same stacking speech already uses, which is why
    * a look reads like a bubble rather than a tooltip.
    *
-   * One id for the whole mode, because there is only ever one looked-at thing:
-   * the layer then reuses a single element and refills it only when the words
-   * change, rather than churning a node per cell the pointer crosses.
+   * **Two modes, one label.** Look mode names whatever you point at, in blue.
+   * Outside it the pointer names *items* and nothing else, in the yellow of the
+   * outline already round them — because a rusty sword and a hand lantern are
+   * both a small thing on the floor, and which one you are about to bend down
+   * for is worth knowing before you do. They cannot both appear: entering look
+   * mode takes the interaction hover off the screen.
+   *
+   * One id for both, because there is only ever one thing under a pointer: the
+   * layer reuses a single element and refills it only when the words change,
+   * rather than churning a node per cell the cursor crosses.
    *
    * The anchor is the object's cell, so a described crate mid-shove has its
    * label at the cell it has already committed to while the sprite lerps in
    * behind. Accepted for now — see plans/looking-and-signs.md.
    */
-  private pushLookLabel(snap: GameSnapshot, into: WorldLabel[]) {
-    if (!this.lookMode) return;
-    const target = this.lookTarget(snap);
-    if (!target) return;
-    const { ref, placed, def } = target;
+  private pushPointerLabel(snap: GameSnapshot, into: WorldLabel[]) {
+    const said = this.lookMode
+      ? this.lookLines(snap)
+      : this.pointerLines(snap);
+    if (!said) return;
 
+    const { ref, height, lines, color } = said;
     const ground = this.cellWorldCenter(
       ref.x,
       ref.y,
@@ -1007,11 +1349,7 @@ export class GameRenderer {
       snap.map,
       ref.stackIndex,
     );
-    const head = elevationScreenOffset(def.height);
-    const lines = [{ id: "name", text: def.name }];
-    if (placed.description) {
-      lines.push({ id: "description", text: placed.description });
-    }
+    const head = elevationScreenOffset(height);
 
     into.push({
       id: "look",
@@ -1019,7 +1357,45 @@ export class GameRenderer {
       x: ground.x + head.x,
       y: ground.y + head.y,
       lines,
+      ...(color ? { color } : {}),
     });
+  }
+
+  /** What look mode says: the tile's name, and what the placement reads. */
+  private lookLines(snap: GameSnapshot): PointerLabel | null {
+    const target = this.lookTarget(snap);
+    if (!target) return null;
+    const { ref, placed, def } = target;
+    const lines = [{ id: "name", text: def.name }];
+    if (placed.description) {
+      lines.push({ id: "description", text: placed.description });
+    }
+    // No colour: the stylesheet's blue is the mode's own, and look mode is the
+    // only thing wearing it.
+    return { ref, height: def.height, lines };
+  }
+
+  /**
+   * What the pointer says outside look mode: the row it is over, as a sentence.
+   *
+   * "Push Box", "Pick up Rusty Sword", "Target Deer" — the verb first, because
+   * the verb is what you are deciding about. A sprite on the floor is a handful
+   * of pixels and a lantern and a sword are the same handful; a silhouette says
+   * *that* you could do something and this says what.
+   *
+   * Read off the same option the outline is drawn from and the click will run,
+   * so the words cannot describe an action other than the one that happens.
+   */
+  private pointerLines(snap: GameSnapshot): PointerLabel | null {
+    const option = this.pointerOption();
+    if (!option) return null;
+    const def = this.tilesById[option.tileId];
+    return {
+      ref: option.ref,
+      height: def?.height ?? 0,
+      lines: [{ id: "action", text: interactionText(option) }],
+      color: interactionInk(option),
+    };
   }
 
   /**
@@ -1209,12 +1585,12 @@ export class GameRenderer {
    * than `pointer`: the object is not going to do anything if you click it, and
    * a hand that promises otherwise is the cursor lying about the mode.
    */
-  private applyCursor(snap: GameSnapshot) {
+  private applyCursor() {
     if (this.lookMode) {
       this.setCursor(this.lookedAt ? "help" : "");
       return;
     }
-    this.setCursor(snap.hover ? "pointer" : "");
+    this.setCursor(this.pointerOption() ? "pointer" : "");
   }
 
   private setCursor(cursor: string) {
@@ -1246,7 +1622,6 @@ export class GameRenderer {
     // Before the overlay and the label read it, so both describe the same
     // frame's answer rather than the previous one's.
     this.repickLook(snap, camera);
-    this.repickTargetHover(snap, camera);
     this.enforceTargetVisibility(snap, camera);
 
     const anchor = viewAnchorFor(snap.self);
@@ -1255,6 +1630,12 @@ export class GameRenderer {
       this.tilesById,
       anchor,
     );
+
+    // The list is built first because the pointer is *read out of it*: what is
+    // under the cursor is a row, so resolving one against last frame's list
+    // would outline a deer by the row it had before it moved.
+    this.pushInteractionOptions(snap, camera, hideAbove ? anchor.z : undefined);
+    this.repickPointer(snap, camera);
 
     // Worked out once and handed to both: the sprites are drawn with these
     // offsets and the outlines have to be drawn with the same ones, so sharing
@@ -1274,11 +1655,8 @@ export class GameRenderer {
     });
 
     this.world.setOverlays(this.overlaysFor(snap, motions));
-    this.pushInteractionOptions(
-      snap,
-      camera,
-      hideAbove ? anchor.z : undefined,
-    );
+    this.pushEquipment(snap);
+    this.pushOpenedContainer(snap);
     // Written from inside the render loop's own rAF, so the style change and the
     // canvas paint land in the same commit — which is what stops DOM text from
     // trailing the sprite it belongs to.
@@ -1291,7 +1669,7 @@ export class GameRenderer {
     );
     // Driven by the frame, not the pointer: walking away from an object
     // revokes the affordance without the pointer having moved at all.
-    this.applyCursor(snap);
+    this.applyCursor();
   }
 
   /**
@@ -1323,15 +1701,26 @@ export class GameRenderer {
   ) {
     if (!this.onInteractions) return;
 
-    const at = `${snap.self.x},${snap.self.y},${snap.self.z},${snap.targetId}`;
+    // Equipment is in the key because a full bag and an empty one offer
+    // different rows on the same board from the same cell: pick-up is gated on
+    // having somewhere to put the thing. Identity, not contents — the session
+    // replaces the kit rather than mutating it, which is what makes that sound.
+    // The opened box is in the key for the same reason the target is: it is a
+    // state a row is *named* for, so opening one renames a row without anything
+    // on the board having moved.
+    const box = this.openedRef;
+    const opened = box ? `${box.x},${box.y},${box.z},${box.stackIndex}` : "";
+    const at = `${snap.self.x},${snap.self.y},${snap.self.z},${snap.targetId},${opened}`;
     const health = healthSignature(snap.actors);
     if (
       snap.map === this.interactionsMap &&
       at === this.interactionsAt &&
-      health === this.interactionsHealth
+      health === this.interactionsHealth &&
+      snap.equipment === this.interactionsEquipment
     ) {
       return;
     }
+    this.interactionsEquipment = snap.equipment;
     this.interactionsMap = snap.map;
     this.interactionsAt = at;
     this.interactionsHealth = health;
@@ -1342,6 +1731,8 @@ export class GameRenderer {
       snap.self,
       this.targetableActors(snap, camera, hideLevelsAbove),
       snap.targetId,
+      snap.equipment,
+      this.openedRef,
     );
     // Held whether or not it is handed on, because the *references* inside it go
     // stale even when the list reads the same: a walking deer keeps its row and
@@ -1480,11 +1871,39 @@ export class GameRenderer {
     // which is exactly the "goes dark" failure the bake omission warns about.
     const overrides: EmitterOverride[] = [];
     for (const actor of snap.actors) {
-      const light = resolveLight(playerDef, { direction: actor.direction });
-      if (!light) continue;
-      overrides.push(this.actorEmitter(snap.map, actor, playerDef.height ?? 0));
+      const body = resolveLight(playerDef, { direction: actor.direction });
+      const carried = this.carriedLightsFor(actor);
+      if (!body && !carried) continue;
+      const at = this.actorEmitter(snap.map, actor, playerDef.height ?? 0);
+      // The body's own light is found by reading the stack it is standing in,
+      // which is what an override has always meant. What is in the bag is not in
+      // any stack, so it travels on a second override at the same position — the
+      // cast accumulates, and one lantern at your hip lights exactly like one
+      // lantern at your hip.
+      if (body) overrides.push(at);
+      if (carried) overrides.push({ ...at, lights: carried });
     }
     return overrides.length > 0 ? overrides : undefined;
+  }
+
+  /**
+   * The lights this actor is carrying, or undefined for the usual case of none.
+   *
+   * Undefined rather than an empty array on purpose: this runs per actor per
+   * frame, and almost nobody is carrying a torch. Resolving the tile ids here
+   * rather than sending `LightDef`s over the wire is the same trade the whole
+   * protocol makes — every client already holds the catalogue.
+   */
+  private carriedLightsFor(actor: ActorSnapshot): LightDef[] | undefined {
+    if (actor.carriedLights.length === 0) return undefined;
+    const lights: LightDef[] = [];
+    for (const tileId of actor.carriedLights) {
+      const def = this.tilesById[tileId];
+      if (!def) continue;
+      const light = resolveLight(def, { direction: actor.direction });
+      if (light) lights.push(light);
+    }
+    return lights.length > 0 ? lights : undefined;
   }
 
   /**

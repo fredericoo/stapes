@@ -480,6 +480,75 @@ describe("computeLighting flood fill", () => {
     );
   });
 
+  // A torch in somebody's bag is not on the board — that is the whole item
+  // model — so there is no cell to look it up in and no tile for the bake to
+  // omit. The override has to carry the light itself, and this is the case that
+  // says so: an empty floor, lit by a lantern nothing is standing on.
+  it("overlayEmitterOverrides casts lights the override carries itself", () => {
+    const map = mapAt([
+      { x: 0, y: 0, tiles: ["floor"] },
+      { x: 1, y: 0, tiles: ["floor"] },
+    ]);
+    const staticGrid = computeLighting(map, tilesById, [0, 0, 0]);
+    expect(sampleLevelLight(staticGrid.levels.get(0)!, 0, 0)[0]).toBe(0);
+
+    const painted = overlayEmitterOverrides(staticGrid, map, tilesById, [
+      {
+        x: 0,
+        y: 0,
+        z: 0,
+        fx: 0.5,
+        fy: 0.5,
+        fz: 0,
+        lights: [{ radius: 4, intensity: 1, color: "#ffffff" }],
+      },
+    ]);
+    expect(sampleLevelLight(painted.levels.get(0)!, 0, 0)[0]).toBeGreaterThan(
+      0.5,
+    );
+    expect(sampleLevelLight(painted.levels.get(0)!, 1, 0)[0]).toBeGreaterThan(0);
+  });
+
+  // Two lanterns is twice the light, and it falls out of the cast accumulating
+  // rather than out of a blending rule anybody had to invent.
+  it("overlayEmitterOverrides sums several carried lights at one position", () => {
+    const map = mapAt([{ x: 0, y: 0, tiles: ["floor"] }]);
+    const staticGrid = computeLighting(map, tilesById, [0, 0, 0]);
+    const dim = { radius: 4, intensity: 0.2, color: "#ffffff" };
+    const at = { x: 0, y: 0, z: 0, fx: 0.5, fy: 0.5, fz: 0 };
+
+    const one = overlayEmitterOverrides(staticGrid, map, tilesById, [
+      { ...at, lights: [dim] },
+    ]);
+    const two = overlayEmitterOverrides(staticGrid, map, tilesById, [
+      { ...at, lights: [dim, dim] },
+    ]);
+    expect(sampleLevelLight(two.levels.get(0)!, 0, 0)[0]).toBeGreaterThan(
+      sampleLevelLight(one.levels.get(0)!, 0, 0)[0],
+    );
+  });
+
+  // The point of the whole path: a carried light is painted over the bake, so
+  // the map it is cast against is untouched and the chunks nobody edited stay
+  // the objects they were. That identity is what `ChunkedLighting` re-bakes on.
+  it("overlayEmitterOverrides leaves the map it lights alone", () => {
+    const map = mapAt([{ x: 0, y: 0, tiles: ["floor"] }]);
+    const staticGrid = computeLighting(map, tilesById, [0, 0, 0]);
+    const before = map.levels[levelKey(0)];
+    overlayEmitterOverrides(staticGrid, map, tilesById, [
+      {
+        x: 0,
+        y: 0,
+        z: 0,
+        fx: 0.5,
+        fy: 0.5,
+        fz: 0,
+        lights: [{ radius: 4, intensity: 1, color: "#ffffff" }],
+      },
+    ]);
+    expect(map.levels[levelKey(0)]).toBe(before);
+  });
+
   it(`uses MAX_LIGHT_LEVEL=${MAX_LIGHT_LEVEL}`, () => {
     expect(MAX_LIGHT_LEVEL).toBe(15);
   });

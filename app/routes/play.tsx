@@ -6,6 +6,7 @@ import { GameViewport } from "../components/GameViewport";
 import { LightingToggle } from "../components/LightingToggle";
 import { LoadingScreen } from "../components/LoadingScreen";
 import { GameSession } from "../game/GameSession";
+import { type Equipment, emptyEquipment } from "../game/equipment";
 import { bindKeyboard, HeldDirections } from "../game/heldDirections";
 import { usePlayModes } from "../components/usePlayModes";
 import {
@@ -18,6 +19,8 @@ import {
   MINUTES_PER_DAY,
   type MinutesOfDay,
 } from "../lib/clock";
+import type { ObjectRef } from "../game/affordances";
+import type { OpenedContainer, SlotRef } from "../game/itemMoves";
 import { useGameAssets } from "../lib/gameAssets";
 import type { Direction } from "../lib/types";
 import { dataStore } from "../context";
@@ -82,6 +85,57 @@ export default function PlayPage() {
   const [lightingEnabled, setLightingEnabled] = useState(true);
   const [stats, setStats] = useState<FrameStats | null>(null);
   const [interactions, setInteractions] = useState<InteractionOption[]>([]);
+  const [equipment, setEquipment] = useState<Equipment>(emptyEquipment);
+  const [openedContainer, setOpenedContainer] =
+    useState<OpenedContainer | null>(null);
+  // Straight at the renderer, like the hover outline: which box is open is a
+  // frame's business, and it is the render loop that knows when its contents
+  // changed or when the player walked out of reach of it.
+  const openContainer = useCallback(
+    (ref: ObjectRef | null) => rendererRef.current?.setOpenedContainer(ref),
+    [],
+  );
+  // Both halves of a move go to the session, which owns the rules: one asks
+  // whether a slot would take the thing so the interface can light it, and the
+  // other carries it out. Two calls of the same question, so what is offered and
+  // what happens cannot disagree.
+  const canMoveItem = useCallback(
+    (from: SlotRef, to: SlotRef) =>
+      sessionRef.current?.canMoveItem(from, to) ?? false,
+    [],
+  );
+  const moveItem = useCallback((from: SlotRef, to: SlotRef) => {
+    sessionRef.current?.moveItem(from, to);
+  }, []);
+  // Straight at the renderer, like the hover outline and for the same reason: a
+  // ghost follows the pointer, and a page that re-rendered to move it would be
+  // paying a frame's work per pixel of a drag.
+  const dragOverWorld = useCallback(
+    (drag: { from: SlotRef; tileId: string; x: number; y: number } | null) => {
+      rendererRef.current?.setDropGhost(
+        drag
+          ? {
+              from: drag.from,
+              tileId: drag.tileId,
+              clientX: drag.x,
+              clientY: drag.y,
+            }
+          : null,
+      );
+    },
+    [],
+  );
+  // Which cell a point is over is the renderer's question; what to do about it
+  // is the session's. Neither knows the other, so the page asks both.
+  const dropOnWorld = useCallback(
+    (from: SlotRef, point: { x: number; y: number }) => {
+      const cell = rendererRef.current?.dropCellAt(point.x, point.y);
+      if (cell) sessionRef.current?.drop(from, cell);
+      rendererRef.current?.setDropGhost(null);
+    },
+    [],
+  );
+
   const minutesRef = useRef(minutesOfDay);
   minutesRef.current = minutesOfDay;
   const pausedRef = useRef(clockPaused);
@@ -122,6 +176,8 @@ export default function PlayPage() {
     renderer.setOnClock(setMinutesOfDay);
     renderer.setOnStats(setStats);
     renderer.setOnInteractions(setInteractions);
+    renderer.setOnEquipment(setEquipment);
+    renderer.setOnOpenedContainer(setOpenedContainer);
     renderer.setOnFirstFrame(() => setPainted(true));
     rendererRef.current = renderer;
     renderer.start();
@@ -138,6 +194,8 @@ export default function PlayPage() {
       renderer.dispose();
       setStats(null);
       setInteractions([]);
+      setEquipment(emptyEquipment());
+      setOpenedContainer(null);
       // A new renderer has a fresh canvas to fill — an editor save arrives here
       // as a map change — so the screen goes back up until it has filled it.
       setPainted(false);
@@ -240,6 +298,13 @@ export default function PlayPage() {
             interactions={interactions}
             onInteract={act}
             onHoverInteraction={hoverInteraction}
+            equipment={equipment}
+            openedContainer={openedContainer}
+            onOpenContainer={openContainer}
+            canMoveItem={canMoveItem}
+            onMoveItem={moveItem}
+            onDragOverWorld={dragOverWorld}
+            onDropOnWorld={dropOnWorld}
             tiles={tiles}
             tilesets={tilesets}
           />

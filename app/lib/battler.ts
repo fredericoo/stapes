@@ -95,6 +95,12 @@ const battlerCache = new WeakMap<TileDef, BattlerDef | null>();
 /**
  * Parsed battler stats for a tile def, or null when it has none.
  *
+ * **Gated on the kind.** A tile whose kind is not `battler` has no stats however
+ * much of a block is sitting in the file — see {@link TileKind} for why the
+ * stored field wins over the block rather than the other way round. Without the
+ * gate, the select in the editor and the data on disk could disagree about what
+ * a tile is, and the disagreement would only surface as a fight nobody expected.
+ *
  * Memoised on def identity, like every other resolver here: this is asked once
  * per body per attack *and* once per body per frame by the renderer drawing
  * health bars, and re-validating six numbers at that rate would be the most
@@ -104,7 +110,7 @@ export function resolveBattler(def: TileDef): BattlerDef | null {
   const cached = battlerCache.get(def);
   if (cached !== undefined) return cached;
 
-  const raw = def.interactions?.battler;
+  const raw = def.kind === "battler" ? def.interactions?.battler : undefined;
   const parsed = raw == null ? null : v.safeParse(battlerSchema, raw);
   const battler = parsed?.success ? (parsed.output as BattlerDef) : null;
   battlerCache.set(def, battler);

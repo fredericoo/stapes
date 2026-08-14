@@ -6,6 +6,7 @@ import { FrameStatsReadout } from "../components/FrameStatsReadout";
 import { GameViewport } from "../components/GameViewport";
 import { LightingToggle } from "../components/LightingToggle";
 import { LoadingScreen } from "../components/LoadingScreen";
+import { type Equipment, emptyEquipment } from "../game/equipment";
 import { bindKeyboard, HeldDirections } from "../game/heldDirections";
 import { usePlayModes } from "../components/usePlayModes";
 import {
@@ -19,6 +20,8 @@ import {
   formatClock,
   type MinutesOfDay,
 } from "../lib/clock";
+import type { ObjectRef } from "../game/affordances";
+import type { OpenedContainer, SlotRef } from "../game/itemMoves";
 import type { Direction } from "../lib/types";
 import { ACTOR_COOKIE, GAME_SOCKET_PATH } from "../net/protocol";
 import { RemoteSession } from "../net/RemoteSession";
@@ -124,6 +127,56 @@ export default function OnlinePage() {
   // claiming nobody is here.
   const [players, setPlayers] = useState<number | null>(null);
   const [interactions, setInteractions] = useState<InteractionOption[]>([]);
+  const [equipment, setEquipment] = useState<Equipment>(emptyEquipment);
+  const [openedContainer, setOpenedContainer] =
+    useState<OpenedContainer | null>(null);
+  // Straight at the renderer, like the hover outline: which box is open is a
+  // frame's business, and it is the render loop that knows when its contents
+  // changed or when the player walked out of reach of it.
+  const openContainer = useCallback(
+    (ref: ObjectRef | null) => rendererRef.current?.setOpenedContainer(ref),
+    [],
+  );
+  // Asked of the session rather than answered here, and answered locally rather
+  // than by the server: both ends run the same rules, so a slot can light up the
+  // instant the pointer is over it instead of a round trip later.
+  const canMoveItem = useCallback(
+    (from: SlotRef, to: SlotRef) =>
+      sessionRef.current?.canMoveItem(from, to) ?? false,
+    [],
+  );
+  const moveItem = useCallback((from: SlotRef, to: SlotRef) => {
+    sessionRef.current?.moveItem(from, to);
+  }, []);
+  // Straight at the renderer, like the hover outline and for the same reason: a
+  // ghost follows the pointer, and a page that re-rendered to move it would be
+  // paying a frame's work per pixel of a drag.
+  const dragOverWorld = useCallback(
+    (drag: { from: SlotRef; tileId: string; x: number; y: number } | null) => {
+      rendererRef.current?.setDropGhost(
+        drag
+          ? {
+              from: drag.from,
+              tileId: drag.tileId,
+              clientX: drag.x,
+              clientY: drag.y,
+            }
+          : null,
+      );
+    },
+    [],
+  );
+  // Which cell a point is over is the renderer's question; what to do about it
+  // is the session's. Neither knows the other, so the page asks both.
+  const dropOnWorld = useCallback(
+    (from: SlotRef, point: { x: number; y: number }) => {
+      const cell = rendererRef.current?.dropCellAt(point.x, point.y);
+      if (cell) sessionRef.current?.drop(from, cell);
+      rendererRef.current?.setDropGhost(null);
+    },
+    [],
+  );
+
   const [lightingEnabled, setLightingEnabled] = useState(true);
   const { looking, attacking, setLookLatched, setAttacking } = usePlayModes();
   // Same reason as the lighting ref below: a reconnect builds a fresh renderer,
@@ -183,6 +236,10 @@ export default function OnlinePage() {
       // shove, left on screen across a reconnect, offers a board nobody is
       // simulating any more.
       setInteractions([]);
+      // And a bag from the world that just went away, whose contents the next
+      // `hello` is about to replace outright.
+      setEquipment(emptyEquipment());
+      setOpenedContainer(null);
       // And the loading screen comes back for the same reason: the next
       // renderer starts with an empty canvas, and a reconnect can take a while.
       setPainted(false);
@@ -221,6 +278,8 @@ export default function OnlinePage() {
         renderer.setOnClock(setMinutesOfDay);
         renderer.setOnStats(setStats);
         renderer.setOnInteractions(setInteractions);
+        renderer.setOnEquipment(setEquipment);
+        renderer.setOnOpenedContainer(setOpenedContainer);
         renderer.setOnFirstFrame(() => setPainted(true));
         rendererRef.current = renderer;
         renderer.start();
@@ -334,6 +393,13 @@ export default function OnlinePage() {
             interactions={interactions}
             onInteract={act}
             onHoverInteraction={hoverInteraction}
+            equipment={equipment}
+            openedContainer={openedContainer}
+            onOpenContainer={openContainer}
+            canMoveItem={canMoveItem}
+            onMoveItem={moveItem}
+            onDragOverWorld={dragOverWorld}
+            onDropOnWorld={dropOnWorld}
             tiles={tiles}
             tilesets={tilesets}
           />

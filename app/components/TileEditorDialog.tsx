@@ -33,6 +33,7 @@ import {
 } from "./AutotileSlicePreview";
 import { InteractiveTab } from "./InteractiveTab";
 import { BattleTab } from "./BattleTab";
+import { ItemTab } from "./ItemTab";
 import { BrainEditor } from "./BrainEditor";
 import { hasAnyInteraction, interactionsForSave } from "../lib/interactions";
 import { validateBrain, type BrainDef } from "../lib/brain";
@@ -63,6 +64,9 @@ function blankTile(tilesets: TilesetDef[]): TileDef {
     name: "New Tile",
     height: 0,
     type: "simple",
+    // Scenery until somebody says otherwise: the overwhelming majority of tiles
+    // are, and it is the one kind that opens no extra tab to be dismissed.
+    kind: "prop",
     attributes: {},
     lightPassing: false,
     intangible: false,
@@ -169,6 +173,7 @@ const TAB_TILE = "tile";
 const TAB_INTERACTIVE = "interactive";
 const TAB_BRAIN = "brain";
 const TAB_BATTLE = "battle";
+const TAB_ITEM = "item";
 
 export function TileEditorDialog({
   open,
@@ -396,6 +401,7 @@ export function TileEditorDialog({
       name: draft.name,
       height: draft.height,
       type: draft.type,
+      kind: draft.kind,
       attributes: {},
       lightPassing: draft.lightPassing ? true : undefined,
       intangible: draft.intangible ? true : undefined,
@@ -687,10 +693,17 @@ export function TileEditorDialog({
               value: TAB_BRAIN,
               label: impliedByBrain ? "Brain •" : "Brain",
             },
-            {
-              value: TAB_BATTLE,
-              label: draft.interactions?.battler ? "Battle •" : "Battle",
-            },
+            // Battle and Item are shown by the kind rather than by their block,
+            // so neither carries the "•" the others use to say it is configured:
+            // the tab being there at all is already that statement. Only the
+            // kind can add or remove them, which is why the select lives on the
+            // tab that is always present.
+            ...(draft.kind === "battler"
+              ? [{ value: TAB_BATTLE, label: "Battle" }]
+              : []),
+            ...(draft.kind === "item"
+              ? [{ value: TAB_ITEM, label: "Item" }]
+              : []),
           ]}
         >
           <TabPanel value={TAB_INTERACTIVE}>
@@ -714,6 +727,10 @@ export function TileEditorDialog({
 
           <TabPanel value={TAB_BATTLE}>
             <BattleTab draft={draft} onChange={setDraft} />
+          </TabPanel>
+
+          <TabPanel value={TAB_ITEM}>
+            <ItemTab draft={draft} onChange={setDraft} />
           </TabPanel>
 
           <TabPanel value={TAB_TILE} className="flex flex-col gap-3">

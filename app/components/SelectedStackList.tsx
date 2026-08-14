@@ -31,6 +31,7 @@ function missingTile(tileId: string): TileDef {
     name: "(missing)",
     height: 0,
     type: "simple",
+    kind: "prop",
     attributes: {},
     sprite: { frames: [] },
   };

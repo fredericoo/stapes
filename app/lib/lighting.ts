@@ -1,4 +1,10 @@
-import type { LevelChunks, MapFile, PlacedTile, TileDef } from "./types";
+import type {
+  LevelChunks,
+  LightDef,
+  MapFile,
+  PlacedTile,
+  TileDef,
+} from "./types";
 import {
   HEIGHT_PER_LEVEL,
   MAX_LEVEL,
@@ -157,6 +163,20 @@ export type EmitterOverride = {
   fx: number;
   fy: number;
   fz: number;
+  /**
+   * Lights to cast from here. Absent means "read the stack at `x,y,z`", which is
+   * how a body's own light has always been found.
+   *
+   * Present for the one kind of emitter that is *not* on the board: a torch in
+   * somebody's bag. Carried things are off the map by construction — that is the
+   * whole item model — so there is no cell to look them up in and the override
+   * has to carry them.
+   *
+   * Several at once, because carrying two lanterns is a thing a player may do
+   * and there is no blending rule to invent: each is pushed as its own emitter
+   * at the same position, and the cast already accumulates.
+   */
+  lights?: readonly LightDef[];
 };
 
 type Emitter = {
@@ -529,8 +549,12 @@ function emitterReach(emitters: readonly Emitter[]): Reach {
 
 /**
  * Emitters at the override cells, found by looking those cells up rather than
- * sweeping the map for them. There is one override in practice — the player —
- * so the old sweep read every cell in the world to find a single tile.
+ * sweeping the map for them. There is one override per actor in practice, so the
+ * old sweep read every cell in the world to find a single tile.
+ *
+ * An override that carries its own {@link EmitterOverride.lights} skips the
+ * lookup entirely — there is nothing at that cell to find, because what is being
+ * lit from there is in somebody's bag.
  */
 function collectOverrideEmitters(
   map: MapFile,
@@ -539,6 +563,10 @@ function collectOverrideEmitters(
 ): Emitter[] {
   const emitters: Emitter[] = [];
   for (const ov of overrides) {
+    if (ov.lights) {
+      for (const light of ov.lights) pushEmitter(emitters, ov, light);
+      continue;
+    }
     const stack = getStack(map, ov.x, ov.y, ov.z);
     if (!stack.length) continue;
     for (const placed of stack) {
@@ -550,23 +578,32 @@ function collectOverrideEmitters(
         0,
       );
       if (!light) continue;
-      const [cr, cg, cb] = parseHexColor(light.color);
-      emitters.push({
-        x: ov.fx,
-        y: ov.fy,
-        z: ov.fz,
-        lx: ov.x,
-        ly: ov.y,
-        lz: ov.z,
-        radius: light.radius,
-        intensity: light.intensity,
-        r: cr,
-        g: cg,
-        b: cb,
-      });
+      pushEmitter(emitters, ov, light);
     }
   }
   return emitters;
+}
+
+/** One light cast from an override's position, whatever it was found by. */
+function pushEmitter(
+  emitters: Emitter[],
+  ov: EmitterOverride,
+  light: LightDef,
+) {
+  const [cr, cg, cb] = parseHexColor(light.color);
+  emitters.push({
+    x: ov.fx,
+    y: ov.fy,
+    z: ov.fz,
+    lx: ov.x,
+    ly: ov.y,
+    lz: ov.z,
+    radius: light.radius,
+    intensity: light.intensity,
+    r: cr,
+    g: cg,
+    b: cb,
+  });
 }
 
 /**

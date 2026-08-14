@@ -1,17 +1,19 @@
 import { getStack } from "../lib/mapData";
 import type { InteractionKind } from "../lib/interactions";
 import { resolveSwitch } from "../lib/interactions";
-import type { MapFile, TileDef } from "../lib/types";
-import { DIRECTIONS, MAX_LEVEL, MIN_LEVEL } from "../lib/types";
+import type { MapFile, PlacedTile, TileDef } from "../lib/types";
+import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 import {
+  canOpenFrom,
+  canPickUpFrom,
   canPushFrom,
   canSwitchFrom,
   INTERACT_LEVEL_SLACK,
   type ObjectRef,
 } from "./affordances";
 import { bodyNameFor } from "./displayName";
+import type { Equipment } from "./equipment";
 import type { ActorSnapshot, PlaySession } from "./GameSession";
-import { DIR_DELTA } from "./movement";
 
 /**
  * Everything the player could do right now, as a list rather than as something
@@ -45,7 +47,7 @@ import { DIR_DELTA } from "./movement";
  * is the point: you choose who you are interested in once, and change your mind
  * about what to do with them without having to choose again.
  */
-export type InteractionAction = InteractionKind | "target";
+export type InteractionAction = InteractionKind | "target" | "open";
 
 export type InteractionOption = {
   /** Identity across frames, so the list can be diffed rather than compared. */
@@ -81,15 +83,43 @@ export type InteractionOption = {
    * bodies you could pick a fight with.
    */
   health: { hp: number; maxHp: number } | null;
-  /** Already the one being pointed at. Only ever true of a `target`. */
+  /**
+   * The state this row names is the one you are already in — the body you are
+   * pointing at, or the box you have open. Rows for things that simply *happen*,
+   * like a shove, are never active: there is no state to be in afterwards.
+   */
   active: boolean;
 };
 
 const LABELS: Record<InteractionAction, string> = {
   target: "Target",
+  open: "Open",
+  pickUp: "Pick up",
   push: "Push",
   switch: "Switch",
 };
+
+/**
+ * What the open row says once the box it names is open.
+ *
+ * The row is a toggle, so it is named for what pressing it would *do* rather
+ * than for what the thing is — the same rule a switch follows, where the label
+ * is the authored verb and not the tile. A row that went on saying "Open" beside
+ * an open chest would be offering something already true.
+ */
+const CLOSE_LABEL = "Close";
+
+/**
+ * One entry as a sentence: the verb and what it is about.
+ *
+ * The list draws these on two lines because it has a column to fill; anything
+ * with one line to say it in — the label under the pointer, a tooltip, anything
+ * read aloud — says it this way. Written once so "Pick up Rusty Sword" cannot
+ * come out as "Rusty Sword: pick up" somewhere else.
+ */
+export function interactionText(option: InteractionOption): string {
+  return `${option.label} ${option.name}`;
+}
 
 /**
  * Which verb comes first where two entries are the same distance away.
@@ -104,8 +134,45 @@ const LABELS: Record<InteractionAction, string> = {
 const ACTION_ORDER: Record<InteractionAction, number> = {
   target: 0,
   switch: 1,
-  push: 2,
+  // Above open, and the two are almost never both on offer anyway — which is
+  // what makes the order easy. A bag is only pick-up-able when your back is
+  // bare, and a bare back is exactly when you want the bag rather than a look
+  // inside it; the moment you are wearing one, pick-up stops being offered at
+  // all and open is the only thing left. A chest is never picked up, so it opens
+  // either way. The pair therefore reads: take it if you can, otherwise look in
+  // it.
+  pickUp: 2,
+  open: 3,
+  push: 4,
 };
+
+/**
+ * The row a tap on this object runs — the first one the list offers for it.
+ *
+ * **The pointer and the list are the same list.** Whatever is under the cursor
+ * is looked up here, and what comes back decides all three things at once: the
+ * colour of the outline, the words in the label over it, and what happens if you
+ * click. So a chest that reads "Open Chest" opens, and cannot quietly shove
+ * instead — there is no second precedence anywhere to disagree with this one.
+ *
+ * "First" is {@link ACTION_ORDER}, which is the order the list itself sorts by
+ * once distance has been settled — and distance is settled here by construction,
+ * since every candidate is the same object.
+ */
+export function topInteractionAt(
+  options: readonly InteractionOption[],
+  ref: ObjectRef,
+): InteractionOption | null {
+  let best: InteractionOption | null = null;
+  const key = refKey(ref);
+  for (const option of options) {
+    if (refKey(option.ref) !== key) continue;
+    if (!best || ACTION_ORDER[option.action] < ACTION_ORDER[best.action]) {
+      best = option;
+    }
+  }
+  return best;
+}
 
 /**
  * How much a floor counts for when sorting by nearness.
@@ -142,12 +209,14 @@ export function listInteractionOptions(
   self: ActorSnapshot,
   visibleActors: readonly ActorSnapshot[],
   targetId: string | null,
+  equipment: Equipment,
+  openedRef: ObjectRef | null = null,
 ): InteractionOption[] {
   const bodies = bodiesByCell(self, visibleActors);
 
   return [
     ...targetOptions(tilesById, bodies, targetId),
-    ...objectOptions(map, tilesById, self, bodies),
+    ...objectOptions(map, tilesById, self, bodies, equipment, openedRef),
   ].sort(
     (a, b) =>
       distanceFrom(self, a.ref) - distanceFrom(self, b.ref) ||
@@ -179,7 +248,32 @@ export function applyInteraction(
     session.setTarget(option.active ? null : option.actorId);
     return;
   }
+  // Named rather than left to `interact`'s precedence. The row says "Pick up",
+  // and a row that ran whatever the tap would have chosen would be lying on any
+  // tile that is both an item and something else.
+  if (option.action === "pickUp") {
+    session.pickUp(option.ref);
+    return;
+  }
+  // `open` never reaches here — it is panel state, and the view intercepts it
+  // before handing anything to the session. See `GameViewport`.
+  if (option.action === "open") return;
   session.interact(option.ref);
+}
+
+/**
+ * Where the top *thing* is in a stack, or -1 for a stack of nothing but bodies.
+ *
+ * The counterpart of `affordances`' own cover rule, and it has to agree with it:
+ * a cell whose rows were built from a slot that module considers buried would
+ * offer actions every one of which is refused, and a cell it can reach into but
+ * this one never looks at would offer none at all.
+ */
+function topmostThingIn(stack: readonly PlacedTile[]): number {
+  for (let i = stack.length - 1; i >= 0; i--) {
+    if (!stack[i]?.owner) return i;
+  }
+  return -1;
 }
 
 function refKey(ref: ObjectRef): string {
@@ -243,45 +337,125 @@ function objectOptions(
   tilesById: Record<string, TileDef>,
   self: ActorSnapshot,
   bodies: Map<string, ActorSnapshot>,
+  equipment: Equipment,
+  openedRef: ObjectRef | null,
 ): InteractionOption[] {
   const out: InteractionOption[] = [];
   const zMin = Math.max(MIN_LEVEL, self.z - INTERACT_LEVEL_SLACK);
   const zMax = Math.min(MAX_LEVEL, self.z + INTERACT_LEVEL_SLACK);
 
-  for (const direction of DIRECTIONS) {
-    const { dx, dy } = DIR_DELTA[direction];
-    const x = self.x + dx;
-    const y = self.y + dy;
+  // The 3×3 around the actor, their own cell included, because reaching for a
+  // thing is round (see `REACH_CELLS`) where a shove is orthogonal. Still
+  // bounded by construction — nine cells across three floors, and nothing here
+  // ever sweeps the map.
+  for (let dx = -1; dx <= 1; dx++) {
+    for (let dy = -1; dy <= 1; dy++) {
+      const x = self.x + dx;
+      const y = self.y + dy;
 
-    for (let z = zMin; z <= zMax; z++) {
-      const stack = getStack(map, x, y, z);
-      // Only the top of a stack can be acted on, exactly as the pick has it.
-      const stackIndex = stack.length - 1;
-      const placed = stack[stackIndex];
-      if (!placed) continue;
-
-      const ref: ObjectRef = { x, y, z, stackIndex };
-      const action = objectAction(map, tilesById, self, ref);
-      if (!action) continue;
-
-      const body = bodies.get(refKey(ref));
-      out.push({
-        id: `${action}:${refKey(ref)}`,
-        action,
-        label: objectActionLabel(action, tilesById[placed.tileId]),
-        ref,
-        actorId: null,
-        tileId: placed.tileId,
-        name: body
-          ? bodyNameFor({ actorId: body.id, tileId: body.tileId }, tilesById)
-          : (tilesById[placed.tileId]?.name ?? placed.tileId),
-        // A shove at a creature reports its health for the same reason the
-        // fight does: it is the same creature, and which of two identical rats
-        // this row means is the question a bar answers. A crate has none.
-        health: body ? healthOf(body) : null,
-        active: false,
-      });
+      for (let z = zMin; z <= zMax; z++) {
+        for (const stackIndex of actionableSlotsIn(getStack(map, x, y, z))) {
+          out.push(
+            ...slotOptions(
+              map,
+              tilesById,
+              self,
+              bodies,
+              equipment,
+              { x, y, z, stackIndex },
+              openedRef,
+            ),
+          );
+        }
+      }
     }
+  }
+
+  return out;
+}
+
+/**
+ * Which slots of one cell are worth asking about — at most two.
+ *
+ * The top of the stack, which is what a tap acts on, and *underneath a body*
+ * the topmost thing that is not one. A body is not a lid: standing on a sword
+ * does not bury it, and a chest with somebody on it is a chest you can still
+ * open. The cell this matters most in is the actor's own, which the round reach
+ * takes in on purpose and which their own body would otherwise cover
+ * completely.
+ *
+ * Both, rather than one or the other, because a body can be a subject in its own
+ * right — the `player` tile is shovable — so looking only underneath would take
+ * away the shove, and looking only on top is the bug this fixes.
+ *
+ * Deliberately not the whole stack. Reaching under a body is reaching past
+ * something soft; reaching under a crate is not, and a cell of four things does
+ * not offer four rows.
+ */
+function actionableSlotsIn(stack: readonly PlacedTile[]): number[] {
+  const top = stack.length - 1;
+  if (top < 0) return [];
+  if (!stack[top]?.owner) return [top];
+  const covered = topmostThingIn(stack);
+  return covered < 0 ? [top] : [top, covered];
+}
+
+/** Every row one slot of one cell offers. */
+function slotOptions(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  self: ActorSnapshot,
+  bodies: Map<string, ActorSnapshot>,
+  equipment: Equipment,
+  ref: ObjectRef,
+  openedRef: ObjectRef | null,
+): InteractionOption[] {
+  const placed = getStack(map, ref.x, ref.y, ref.z)[ref.stackIndex];
+  if (!placed) return [];
+  // Your own body is the one subject that is never worth a row: everything the
+  // list offers is something to do to something *else*, and the tile a player
+  // stands in happens to be shovable.
+  if (placed.owner === self.id) return [];
+
+  const body = bodies.get(refKey(ref));
+  const name = body
+    ? bodyNameFor({ actorId: body.id, tileId: body.tileId }, tilesById)
+    : (tilesById[placed.tileId]?.name ?? placed.tileId);
+
+  const out: InteractionOption[] = [];
+  const add = (action: InteractionAction, label: string, active = false) => {
+    out.push({
+      id: `${action}:${refKey(ref)}`,
+      action,
+      label,
+      ref,
+      actorId: null,
+      tileId: placed.tileId,
+      name,
+      // A shove at a creature reports its health for the same reason the fight
+      // does: it is the same creature, and which of two identical rats this row
+      // means is the question a bar answers. A crate has none.
+      health: body ? healthOf(body) : null,
+      active,
+    });
+  };
+
+  // The one thing a tap would run, named by what it would actually be — the
+  // precedence is read out of the session's own order rather than restated here.
+  const action = objectAction(map, tilesById, self, ref, equipment);
+  if (action) add(action, objectActionLabel(action, tilesById[placed.tileId]));
+
+  // And, beside it, opening — which is not something a tap runs at all. A bag on
+  // the floor is therefore two rows, "Open" and "Pick up", which is the same
+  // one-row-per-verb rule bodies already follow.
+  //
+  // One row for both halves of the toggle, lit and renamed while it is the box
+  // you have open. A second "Close" row beside the first would be two entries
+  // for one box, and the list's whole promise is that a row is a thing you can
+  // do to a thing you can see.
+  if (canOpenFrom(map, tilesById, self, ref)) {
+    const isOpen = openedRef != null && refKey(openedRef) === refKey(ref);
+    add("open", isOpen ? CLOSE_LABEL : LABELS.open, isOpen);
   }
 
   return out;
@@ -292,8 +466,10 @@ function objectAction(
   tilesById: Record<string, TileDef>,
   self: ActorSnapshot,
   ref: ObjectRef,
+  equipment: Equipment,
 ): InteractionKind | null {
   if (canSwitchFrom(map, tilesById, self, ref)) return "switch";
+  if (canPickUpFrom(map, tilesById, self, ref, equipment)) return "pickUp";
   if (canPushFrom(map, tilesById, self, ref)) return "push";
   return null;
 }
