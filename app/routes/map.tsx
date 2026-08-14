@@ -171,16 +171,9 @@ export default function MapPage() {
 
   return (
     <AppShell
-      menuExtras={
-        <LightingToggle
-          enabled={lightingEnabled}
-          onChange={(v) => useEditorStore.getState().setLightingEnabled(v)}
-        />
-      }
       trailing={
         <>
           <div className="flex items-center gap-1">
-            <span className="text-xs uppercase text-paper/70">Level</span>
             <Tooltip content="Level down ([)">
               <Button
                 size="icon"
@@ -195,7 +188,10 @@ export default function MapPage() {
                 <IconArrowDown size={16} aria-hidden="true" />
               </Button>
             </Tooltip>
+            {/* The arrows either side say what the number is, so the word is
+                left to the things that cannot see them. */}
             <Input
+              aria-label="Level"
               className="w-14 bg-paper text-ink shadow-none"
               value={levelDraft}
               onChange={(e) => setLevelDraft(e.target.value)}
@@ -223,29 +219,44 @@ export default function MapPage() {
               </Button>
             </Tooltip>
           </div>
-          <Tooltip content="Show other levels (L) — ghost the floors above as one fade, capped at -1 underground">
-            <Switch
-              checked={showOtherLevels}
-              disabled={previewMode}
-              onCheckedChange={(v) =>
-                useEditorStore.getState().setShowOtherLevels(v)
-              }
-              ariaLabel="Show other levels"
-              thumb={
-                <IconStackBackward size={16} stroke={2.5} aria-hidden="true" />
-              }
+          {/* Every switch in one place, with the lighting one at the end of the
+              run because the clock beside it is the other half of that control.
+              It rides here rather than in the header's menu — where /play and
+              /online keep theirs — so it can sit next to the hour it works
+              with; the cost is that on a narrow window it wraps with the rest
+              of the map's controls instead of folding away with the nav. */}
+          <div className="flex items-center gap-1">
+            <Tooltip content="Show other levels (L) — ghost the floors above as one fade, capped at -1 underground">
+              <Switch
+                checked={showOtherLevels}
+                onCheckedChange={(v) =>
+                  useEditorStore.getState().setShowOtherLevels(v)
+                }
+                ariaLabel="Show other levels"
+                thumb={
+                  <IconStackBackward
+                    size={16}
+                    stroke={2.5}
+                    aria-hidden="true"
+                  />
+                }
+              />
+            </Tooltip>
+            <Tooltip content="Preview (W) — every level as play draws it, no grid or selection">
+              <Switch
+                checked={previewMode}
+                onCheckedChange={(v) =>
+                  useEditorStore.getState().setPreviewMode(v)
+                }
+                ariaLabel="Preview"
+                thumb={<IconEye size={16} stroke={2.5} aria-hidden="true" />}
+              />
+            </Tooltip>
+            <LightingToggle
+              enabled={lightingEnabled}
+              onChange={(v) => useEditorStore.getState().setLightingEnabled(v)}
             />
-          </Tooltip>
-          <Tooltip content="Preview (W) — every level as play draws it, no grid or selection">
-            <Switch
-              checked={previewMode}
-              onCheckedChange={(v) =>
-                useEditorStore.getState().setPreviewMode(v)
-              }
-              ariaLabel="Preview"
-              thumb={<IconEye size={16} stroke={2.5} aria-hidden="true" />}
-            />
-          </Tooltip>
+          </div>
           {/* Nothing reads the hour once lighting is off — the authoring
               background is a fixed paper colour, and preview only borrows play's
               sky while there is light to go with it — so the slider goes with it
