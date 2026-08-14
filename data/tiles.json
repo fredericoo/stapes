@@ -3921,16 +3921,16 @@
       "frames": [
         {
           "sprite": {
-            "tilesetId": "ultima-vi",
+            "tilesetId": "tiny-ranch-tiles",
             "rect": {
-              "x": 30,
-              "y": 34,
-              "w": 2,
-              "h": 2
+              "x": 16,
+              "y": 10,
+              "w": 1,
+              "h": 1
             },
             "base": {
-              "x": 1,
-              "y": 1
+              "x": 0,
+              "y": 0
             }
           },
           "durationMs": 200
@@ -3959,16 +3959,16 @@
       "frames": [
         {
           "sprite": {
-            "tilesetId": "ultima-vi",
+            "tilesetId": "tiny-ranch-tiles",
             "rect": {
-              "x": 30,
-              "y": 38,
-              "w": 2,
-              "h": 2
+              "x": 17,
+              "y": 10,
+              "w": 1,
+              "h": 1
             },
             "base": {
-              "x": 1,
-              "y": 1
+              "x": 0,
+              "y": 0
             }
           },
           "durationMs": 200
@@ -4000,10 +4000,10 @@
       "frames": [
         {
           "sprite": {
-            "tilesetId": "ultima-vi",
+            "tilesetId": "tiny-ranch-tiles",
             "rect": {
-              "x": 24,
-              "y": 38,
+              "x": 14,
+              "y": 10,
               "w": 2,
               "h": 2
             },
