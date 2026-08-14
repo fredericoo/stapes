@@ -21,6 +21,7 @@ import {
 import { WorldLabelLayer, type WorldLabel } from "./textLabels";
 import { FrameProfiler, type FrameStats } from "./frameProfile";
 import { fallDropPx, fallFootAbs, standingFootAbs } from "./fallAnchor";
+import { labelHeadroomPx } from "./labelHeadroom";
 import { sceneryStack } from "../game/movement";
 import type { EmitterOverride } from "../lib/lighting";
 import {
@@ -1005,6 +1006,12 @@ export class GameRenderer {
    * puts the name over the head of a two-unit player and a ten-unit one alike —
    * and, because that position already carries the walk lerp and the fall drop,
    * the name travels with the sprite instead of chasing it.
+   *
+   * Then lifted clear of the drawing by {@link labelHeadroomPx}, because a
+   * declared height is not where the art stops. Straight up rather than up-left
+   * with the elevation: the label is being moved off the sprite, not raised in
+   * the world, and only the vertical of that shift is what a bar sitting on a
+   * creature's back needs.
    */
   private pushNameLabels(
     snap: GameSnapshot,
@@ -1027,7 +1034,7 @@ export class GameRenderer {
         id: `name:${actor.id}`,
         kind: "name",
         x: visual.x + head.x,
-        y: visual.y + head.y,
+        y: visual.y + head.y - labelHeadroomPx(height),
         lines: [{ id: actor.id, text: name }],
         // Tinted to match its own health, so the tag and the bar under it read
         // as one reading of one thing rather than as a yellow label that happens

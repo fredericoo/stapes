@@ -329,6 +329,15 @@ was right while a creature was scenery and wrong the moment it became something
 you can pick a fight with. `bodyNameFor` answers it for both, exactly as it
 already did for speech.
 
+**A name hangs above the art, not above the height.** A tile's `height` is a
+gameplay figure — what you stand on, what you see over — while its sprite is
+authored to a cell box and usually fills it: the cat and the player are the same
+2×2 drawing and differ only in declaring one height unit against two. Anchored
+on height alone the cat's bar landed inside its own fur, so `labelHeadroomPx`
+lifts a label by whatever the tile is short of a full level, plus a pixel that
+everything gets. World pixels, because what is being cleared is the drawing and
+the drawing scales with the zoom.
+
 The bar is a DOM element in that label rather than a quad in the scene, and both
 halves of that matter. The world draws at whole world pixels — five or six screen
 pixels each at play zoom — so a bar built there has a border five pixels thick
@@ -336,6 +345,20 @@ and a fill that steps in huge jumps; out here it gets the same screen-pixel
 crispness the type has. And because the bar and the name are two children of one
 flex column, "they must not overlap" is true by construction rather than by
 arrangement.
+
+**Nothing is drawn until the assets are all here** (`app/lib/gameAssets.ts`).
+`/play` and `/online` hold the canvas out of the page behind a loading screen,
+which is what makes the renderer unable to start early, and the label font is
+part of what is waited for. It has to be asked for by name: `document.fonts`
+only knows about faces something has tried to typeset in, and in this page the
+only thing in that font is the world's own text — so `fonts.ready` on its own
+resolves immediately and proves nothing. That was a real bug, and a
+well-disguised one: a name tag sat a few pixels left of its head on a cold load
+and correctly on every reload after, because a group's measured box is *held*
+and the first measurement had been taken in the fallback face. There is a
+timeout on the wait, so `WorldLabelLayer` also drops its measurements on
+`loadingdone` — a font that lands after the deadline still gets its labels
+re-measured rather than staying wrong for the session.
 
 ## The save is the repair path, so it must not need a working world
 
