@@ -15,7 +15,7 @@ import type {
 import { PLAYER_TILE_ID } from "../game/constants";
 import { bodyNameFor } from "../game/displayName";
 import type { Equipment } from "../game/equipment";
-import type { OpenedContainer } from "../game/itemMoves";
+import type { OpenedContainer, SlotRef } from "../game/itemMoves";
 import { readOpenedContainer } from "../game/openedContainer";
 import {
   listInteractionOptions,
@@ -38,7 +38,7 @@ import {
   levelsAboveShouldHide,
   viewAnchorFor,
 } from "../lib/levelVisibility";
-import type { MapFile, PlacedTile, TileDef, TilesetDef } from "../lib/types";
+import type { Coord, MapFile, PlacedTile, TileDef, TilesetDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL } from "../lib/types";
 import { resolveLight } from "../lib/tileResolve";
 import { tilesByIdFromList } from "../lib/validation";
@@ -78,6 +78,15 @@ function currentFit(canvas: HTMLCanvasElement): ViewportFit {
   // mis-sized pane showing the whole view rather than cropping it.
   return fitViewport(Math.min(canvas.clientWidth, canvas.clientHeight));
 }
+
+/**
+ * How solid a thing being dragged onto the world looks before it is let go of.
+ *
+ * Enough to read the sprite and tell it is not there yet. A fainter ghost reads
+ * as a rendering fault on a busy floor, and a stronger one reads as a thing
+ * already dropped.
+ */
+const DROP_GHOST_ALPHA = 0.55;
 
 /**
  * Editor selection yellow — same affordance, same colour.
@@ -220,6 +229,18 @@ export class GameRenderer {
   private interactionsSent: InteractionOption[] = [];
   /** @see setListHover */
   private listHoverId: string | null = null;
+  /**
+   * What is being dragged over the world right now, and where the pointer is.
+   *
+   * Held here rather than in React because it changes with every pixel of a
+   * drag: the page hands over the thing and the point, and this loop — which is
+   * already reading a snapshot every frame — decides what that means and draws
+   * it. Routing a ghost through React state would re-render the page around the
+   * game to move one translucent sprite.
+   */
+  private dropDrag:
+    | { from: SlotRef; tileId: string; point: { x: number; y: number } }
+    | null = null;
   private profiler = new FrameProfiler();
   private disposed = false;
   private raf = 0;
@@ -777,6 +798,52 @@ export class GameRenderer {
     }
   }
 
+  /**
+   * Show where a dragged thing would land, or stop showing it.
+   *
+   * Takes client coordinates because a drag is a window-level gesture — it
+   * starts on a panel and crosses the canvas — and this is the one place that
+   * already knows where the canvas is.
+   */
+  setDropGhost(
+    drag: { from: SlotRef; tileId: string; clientX: number; clientY: number } | null,
+  ) {
+    if (!drag) {
+      this.dropDrag = null;
+      return;
+    }
+    const point = this.canvasPoint(drag.clientX, drag.clientY);
+    this.dropDrag = point
+      ? { from: drag.from, tileId: drag.tileId, point }
+      : null;
+  }
+
+  /**
+   * The cell a client point is over, or null when it is over nothing.
+   *
+   * Exported for the drop itself: the page owns the gesture and the session
+   * call, and this owns the camera — so the page asks *where*, and does the rest
+   * with the answer.
+   */
+  dropCellAt(clientX: number, clientY: number): Coord | null {
+    const point = this.canvasPoint(clientX, clientY);
+    if (!point) return null;
+    const ref = this.lookAt(point, this.session.getSnapshot());
+    return ref ? { x: ref.x, y: ref.y, z: ref.z } : null;
+  }
+
+  /** Client point in canvas pixels, or null when it is not over the canvas. */
+  private canvasPoint(
+    clientX: number,
+    clientY: number,
+  ): { x: number; y: number } | null {
+    const rect = this.canvas.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const y = clientY - rect.top;
+    if (x < 0 || y < 0 || x > rect.width || y > rect.height) return null;
+    return { x, y };
+  }
+
   /** Whatever tile is drawn under a point, interactive or not. */
   private lookAt(
     point: { x: number; y: number },
@@ -797,6 +864,29 @@ export class GameRenderer {
       LOOK_LEVEL_SLACK,
       hidden ? anchor.z : undefined,
     );
+  }
+
+  /**
+   * The ghost for whatever is being dragged, or null.
+   *
+   * **Nothing is drawn where the drop would be refused, and nothing says why.**
+   * The absent ghost is the whole answer: a player learns the range by watching
+   * it appear, which is a thing you feel out in a second, where a message
+   * explaining a rule is a thing you have to read every time.
+   *
+   * Asked of the session rather than of `canDropAt` directly, so this goes
+   * through the same door the release will — a ghost drawn from one rule and a
+   * drop honoured by another is exactly the disagreement the shared affordances
+   * exist to prevent.
+   */
+  private dropGhostSpec(snap: GameSnapshot): OverlaySpec | null {
+    const drag = this.dropDrag;
+    if (!drag) return null;
+    const ref = this.lookAt(drag.point, snap);
+    if (!ref) return null;
+    const at = { x: ref.x, y: ref.y, z: ref.z };
+    if (!this.session.canDrop(drag.from, at)) return null;
+    return { kind: "ghost", tileId: drag.tileId, ...at, alpha: DROP_GHOST_ALPHA };
   }
 
   /** Interactive placements on the viewer's level ±1, cached per map + level. */
@@ -851,6 +941,8 @@ export class GameRenderer {
     }
 
     const specs: OverlaySpec[] = [];
+    const ghost = this.dropGhostSpec(snap);
+    if (ghost) specs.push(ghost);
     // The target first, so a hovered body that is *already* the target reads as
     // chosen rather than as merely hoverable — the later spec would otherwise
     // draw its steady outline over the pulsing one.

@@ -280,3 +280,40 @@ export function disposeGroupChildren(group: THREE.Group) {
     else mat?.dispose?.();
   }
 }
+
+/**
+ * A tile drawn where it *would* land, see-through so it reads as a proposal.
+ *
+ * Deliberately the sprite itself rather than a coloured box: what a player is
+ * deciding is where this particular thing goes, and a shape standing in for it
+ * would make them imagine the answer the picture could simply show. Half
+ * transparent is the whole of "not there yet".
+ *
+ * `depthWrite` is off so the ghost never occludes the world it is a proposal
+ * about, and the geometry is the quad's own footprint with the atlas rect on it
+ * — no padding, unlike an outline, since nothing here is probing neighbouring
+ * texels.
+ */
+export function makeSpriteGhost(quad: SpriteQuad, alpha: number): THREE.Mesh {
+  const geo = new THREE.PlaneGeometry(quad.w, quad.h);
+  const uvs = geo.attributes.uv!;
+  uvs.setXY(0, quad.u0, quad.v0);
+  uvs.setXY(1, quad.u1, quad.v0);
+  uvs.setXY(2, quad.u0, quad.v1);
+  uvs.setXY(3, quad.u1, quad.v1);
+  uvs.needsUpdate = true;
+
+  const mat = new THREE.MeshBasicMaterial({
+    map: quad.texture,
+    transparent: true,
+    opacity: alpha,
+    depthWrite: false,
+  });
+
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(quad.x + quad.w / 2, quad.y + quad.h / 2, 0);
+  mesh.renderOrder = OVERLAY_RENDER_ORDER.spriteOutline;
+  mesh.matrixAutoUpdate = false;
+  mesh.updateMatrix();
+  return mesh;
+}

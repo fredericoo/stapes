@@ -4,6 +4,7 @@ import type { Equipment } from "../game/equipment";
 import { emptyEquipment } from "../game/equipment";
 import type { InteractionOption } from "../game/interactionOptions";
 import type { OpenedContainer, SlotRef } from "../game/itemMoves";
+import type { ItemInstance } from "../lib/itemInstance";
 import type { Direction, TileDef, TilesetDef } from "../lib/types";
 import { useMediaQuery } from "../lib/useMediaQuery";
 import { tilesByIdFromList } from "../lib/validation";
@@ -79,6 +80,8 @@ export function GameViewport({
   onOpenContainer,
   canMoveItem = () => false,
   onMoveItem,
+  onDragOverWorld,
+  onDropOnWorld,
   tiles = [],
   tilesets = [],
 }: {
@@ -151,6 +154,18 @@ export function GameViewport({
   canMoveItem?: (from: SlotRef, to: SlotRef) => boolean;
   /** Move a carried thing from one slot to another. */
   onMoveItem?: (from: SlotRef, to: SlotRef) => void;
+  /**
+   * A drag is out over the world, carrying this — or null, for no longer.
+   *
+   * Only the pointer position travels, because which *cell* that is depends on
+   * the camera and this component has no view of it. Whoever owns the renderer
+   * resolves it, and draws the ghost.
+   */
+  onDragOverWorld?: (
+    drag: { from: SlotRef; tileId: string; x: number; y: number } | null,
+  ) => void;
+  /** A drag was let go over the world at this point. */
+  onDropOnWorld?: (from: SlotRef, point: { x: number; y: number }) => void;
   /** Catalogue behind the list's sprites. */
   tiles?: TileDef[];
   tilesets?: TilesetDef[];
@@ -169,7 +184,29 @@ export function GameViewport({
     (from: SlotRef, to: SlotRef) => onMoveItem?.(from, to),
     [onMoveItem],
   );
-  const drag = useItemDrag({ canMove: canMoveItem, onMove: move });
+  const world = useMemo(
+    () => ({
+      over: (
+        over: { held: { instance: ItemInstance; from: SlotRef }; point: { x: number; y: number } } | null,
+      ) =>
+        onDragOverWorld?.(
+          over
+            ? {
+                from: over.held.from,
+                tileId: over.held.instance.tileId,
+                x: over.point.x,
+                y: over.point.y,
+              }
+            : null,
+        ),
+      drop: (
+        held: { instance: ItemInstance; from: SlotRef },
+        point: { x: number; y: number },
+      ) => onDropOnWorld?.(held.from, point),
+    }),
+    [onDragOverWorld, onDropOnWorld],
+  );
+  const drag = useItemDrag({ canMove: canMoveItem, onMove: move, world });
 
   /**
    * Whether each panel is open, or null while nobody has said.

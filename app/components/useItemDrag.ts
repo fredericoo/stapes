@@ -84,9 +84,26 @@ export type ItemDrag = {
 export function useItemDrag({
   canMove,
   onMove,
+  world,
 }: {
   canMove: (from: SlotRef, to: SlotRef) => boolean;
   onMove: (from: SlotRef, to: SlotRef) => void;
+  /**
+   * The one drop target that is not a slot.
+   *
+   * Handled apart from the registry because the world is not an element with a
+   * rectangle — which cell a point is over is a question about a camera, and the
+   * renderer is the only thing that knows the answer. So this hook reports "the
+   * pointer is out here, carrying this" and lets the page decide what that
+   * means; `over(null)` says the pointer has gone back to a slot, or let go.
+   */
+  world?: {
+    /** Carrying this, out here — or null for "no longer over the world". */
+    over: (
+      drag: { held: HeldItem; point: { x: number; y: number } } | null,
+    ) => void;
+    drop: (held: HeldItem, point: { x: number; y: number }) => void;
+  };
 }): ItemDrag {
   const [held, setHeld] = useState<HeldItem | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -119,6 +136,11 @@ export function useItemDrag({
    * about to place it ever ran.
    */
   const draggingRef = useRef(false);
+  /** Where the pointer was last seen, for a release that lands on the world. */
+  const pointRef = useRef<{ x: number; y: number } | null>(null);
+  /** Read by the window listeners, which are bound once. */
+  const worldRef = useRef(world);
+  worldRef.current = world;
   /**
    * A drag ended on this element, so the click it is about to fire is the tail
    * of that drag rather than a tap. Without it, dropping a sword back where it
@@ -164,6 +186,8 @@ export function useItemDrag({
     overRef.current = null;
     acceptingRef.current = new Set();
     draggingRef.current = false;
+    pointRef.current = null;
+    worldRef.current?.over(null);
     setHeld(null);
     setDragging(false);
     setTargets(new Set());
@@ -249,15 +273,24 @@ export function useItemDrag({
         if (travelled < DRAG_THRESHOLD_PX) return;
         armed.current = null;
         const accepting = findTargets(pending.held.from);
+        const point = { x: event.clientX, y: event.clientY };
         heldRef.current = pending.held;
         draggingRef.current = true;
         acceptingRef.current = accepting;
-        overRef.current = targetAt(event.clientX, event.clientY, accepting);
-        moveLayerTo(event.clientX, event.clientY);
+        // Recorded here as well as below, because a flick can be one single
+        // event: the press promotes to a drag and is let go of before another
+        // move ever arrives, and a release with no position to release *at* used
+        // to fall through to nothing.
+        pointRef.current = point;
+        overRef.current = targetAt(point.x, point.y, accepting);
+        moveLayerTo(point.x, point.y);
         setHeld(pending.held);
         setDragging(true);
         setTargets(accepting);
         setOver(overRef.current);
+        if (!overRef.current) {
+          worldRef.current?.over({ held: pending.held, point });
+        }
         return;
       }
 
@@ -265,12 +298,20 @@ export function useItemDrag({
       // where the keyboard left it: moving the mouse across the panels must not
       // start lighting slots up under a cursor nobody is dragging with.
       if (!draggingRef.current) return;
-      moveLayerTo(event.clientX, event.clientY);
-      const next = targetAt(event.clientX, event.clientY, acceptingRef.current);
+      const point = { x: event.clientX, y: event.clientY };
+      pointRef.current = point;
+      moveLayerTo(point.x, point.y);
+      const next = targetAt(point.x, point.y, acceptingRef.current);
       if (next !== overRef.current) {
         overRef.current = next;
         setOver(next);
       }
+      // A slot wins wherever the two overlap, so the world only ever hears about
+      // a pointer that is over none of them. Panels sit above the canvas and a
+      // ghost drawn under an open bag would be a promise about a cell nobody can
+      // see.
+      const held = heldRef.current;
+      if (held) worldRef.current?.over(next ? null : { held, point });
     };
 
     const onPointerUp = () => {
@@ -285,7 +326,12 @@ export function useItemDrag({
       if (!inHand) return;
       const landing = overRef.current;
       const target = landing ? slots.current.get(landing)?.slot : null;
+      const point = pointRef.current;
       if (target) onMove(inHand.from, target);
+      // Nowhere else to land means the world, which decides for itself whether
+      // there is anything there — the same question the ghost was answering all
+      // the way in.
+      else if (point) worldRef.current?.drop(inHand, point);
       // Whether it landed or not, the press is over — a drop into nothing puts
       // the thing back where it came from, which is the gesture's own undo.
       swallowClick.current = true;

@@ -97,6 +97,35 @@ export default function PlayPage() {
   const moveItem = useCallback((from: SlotRef, to: SlotRef) => {
     sessionRef.current?.moveItem(from, to);
   }, []);
+  // Straight at the renderer, like the hover outline and for the same reason: a
+  // ghost follows the pointer, and a page that re-rendered to move it would be
+  // paying a frame's work per pixel of a drag.
+  const dragOverWorld = useCallback(
+    (drag: { from: SlotRef; tileId: string; x: number; y: number } | null) => {
+      rendererRef.current?.setDropGhost(
+        drag
+          ? {
+              from: drag.from,
+              tileId: drag.tileId,
+              clientX: drag.x,
+              clientY: drag.y,
+            }
+          : null,
+      );
+    },
+    [],
+  );
+  // Which cell a point is over is the renderer's question; what to do about it
+  // is the session's. Neither knows the other, so the page asks both.
+  const dropOnWorld = useCallback(
+    (from: SlotRef, point: { x: number; y: number }) => {
+      const cell = rendererRef.current?.dropCellAt(point.x, point.y);
+      if (cell) sessionRef.current?.drop(from, cell);
+      rendererRef.current?.setDropGhost(null);
+    },
+    [],
+  );
+
   const minutesRef = useRef(minutesOfDay);
   minutesRef.current = minutesOfDay;
   const pausedRef = useRef(clockPaused);
@@ -253,6 +282,8 @@ export default function PlayPage() {
         onOpenContainer={openContainer}
         canMoveItem={canMoveItem}
         onMoveItem={moveItem}
+        onDragOverWorld={dragOverWorld}
+        onDropOnWorld={dropOnWorld}
         tiles={tiles}
         tilesets={tilesets}
       />

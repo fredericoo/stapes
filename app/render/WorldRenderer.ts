@@ -55,6 +55,7 @@ import {
 } from "./worldQuads";
 import {
   disposeGroupChildren,
+  makeSpriteGhost,
   makeSpriteOutline,
   OUTLINE_ALPHA_UNIFORM,
   pulseAlphaAt,
@@ -172,9 +173,31 @@ export type ObjectOutlineOverlay = TileInstanceKey & {
   pulse?: boolean;
 };
 
-export type OverlaySpec = ObjectOutlineOverlay;
+/**
+ * A tile drawn where it *would* go, translucent, over a cell it is not in.
+ *
+ * The one overlay that is not about something already on the board, which is
+ * why it names a tile rather than a stack slot: there is no placement to point
+ * at yet, and the whole question is whether there is about to be one.
+ *
+ * It lands on top of whatever is in the cell, because that is where a dropped
+ * thing goes — the ghost is drawn by the same rule that will place it.
+ */
+export type TileGhostOverlay = {
+  kind: "ghost";
+  tileId: string;
+  x: number;
+  y: number;
+  z: number;
+  alpha: number;
+};
+
+export type OverlaySpec = ObjectOutlineOverlay | TileGhostOverlay;
 
 function overlaySpecKey(spec: OverlaySpec): string {
+  if (spec.kind === "ghost") {
+    return `g:${spec.tileId}@${spec.x},${spec.y},${spec.z}:${spec.alpha}`;
+  }
   // The offset is part of the identity: while a tile is walking it changes every
   // frame, and that is exactly when the outline has to be rebuilt to keep up.
   const at = spec.ox || spec.oy ? `@${Math.round(spec.ox ?? 0)},${Math.round(spec.oy ?? 0)}` : "";
@@ -522,6 +545,10 @@ export class WorldRenderer {
   }
 
   private addOverlay(spec: OverlaySpec) {
+    if (spec.kind === "ghost") {
+      this.addGhost(spec);
+      return;
+    }
     const subject = this.overlaySubject(spec);
     if (!subject) return;
     const quad = spriteQuadFor(
@@ -544,6 +571,35 @@ export class WorldRenderer {
     this.overlays.add(outline);
   }
 
+
+  /**
+   * Draw a tile that is not there, on top of the cell it would land in.
+   *
+   * The elevation is the *whole* stack's height rather than a slice of it,
+   * which is the one difference from an outline: an outline is cut around
+   * something already in the stack, and this is drawn above everything in it.
+   */
+  private addGhost(spec: TileGhostOverlay) {
+    const map = this.view?.map;
+    const def = this.tilesById[spec.tileId];
+    if (!map || !def) return;
+
+    const stack = getStack(map, spec.x, spec.y, spec.z);
+    const quad = spriteQuadFor(
+      this.quadAssets(),
+      map,
+      {
+        x: spec.x,
+        y: spec.y,
+        z: spec.z,
+        elevation: stackHeight(stack, this.tilesById),
+      },
+      { tileId: spec.tileId },
+      def,
+    );
+    if (!quad) return;
+    this.overlays.add(makeSpriteGhost(quad, spec.alpha));
+  }
 
   /** Toggle whole level groups; no mesh rebuild. */
   private applyLevelVisibility(hideLevelsAbove?: number) {
