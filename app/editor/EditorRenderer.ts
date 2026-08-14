@@ -99,18 +99,18 @@ type LevelVisibility = "hidden" | "solid" | "ghost";
 /**
  * How a level is drawn relative to the one being edited.
  *
- * Preview is the game: every floor, solid, no clipping — it is there to be
- * looked at rather than painted into, and play draws the whole stack.
+ * Underground the surface is a lid, and it is a lid in both modes: from -1 down,
+ * nothing at 0 or above is drawn at all. The world over a cave is a whole town,
+ * and neither previewing a tunnel nor painting one is helped by having it
+ * overhead — which is also why the roof-cut exists in play.
+ *
+ * Under that lid, preview is the game: every remaining floor, solid, because it
+ * is there to be looked at rather than painted into.
  *
  * Authoring keeps the same shape and only decides what to do with the floors
  * you are standing *over*. Everything at or below the current level is solid,
  * always, so a floor is edited in the context it will be played in. Everything
  * above is either gone or one fused ghost.
- *
- * The ceiling on that ghost is the only asymmetry. Above ground it is the top
- * of the world, because the sky is empty and whatever is up there is worth
- * seeing. Underground it stops at -1: the surface sits over every cave, so
- * without the clip a tunnel is edited under a whole town.
  */
 function levelVisibility(
   z: number,
@@ -119,11 +119,11 @@ function levelVisibility(
   preview: boolean,
 ): LevelVisibility {
   if (z < MIN_LEVEL || z > MAX_LEVEL) return "hidden";
+  if (current < 0 && z >= 0) return "hidden";
   if (preview) return "solid";
   if (z <= current) return "solid";
   if (!showOther) return "hidden";
-  const ghostCeiling = current < 0 ? -1 : MAX_LEVEL;
-  return z <= ghostCeiling ? "ghost" : "hidden";
+  return "ghost";
 }
 
 function disposeObject3D(obj: THREE.Object3D) {
