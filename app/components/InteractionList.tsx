@@ -125,6 +125,27 @@ export function InteractionList({
   );
 }
 
+/**
+ * What a lit row wears, and it is the colour its subject wears in the world.
+ *
+ * The vocabulary is four colours and each one means one thing: **yellow acts on
+ * something, red fights it, white singles it out, blue looks at it.** A row and
+ * the outline under the cursor are two ways of pointing at one thing, so the row
+ * cannot invent a fifth or borrow one of the other four.
+ *
+ * Which is why an open box is not red. The red belongs to a *fight*, and it is
+ * worn by a target once attack mode has turned pointing at somebody into
+ * swinging at them; a chest you have open has nothing to do with that mode, and
+ * a panel that went red the moment you drew your sword would be saying so.
+ */
+function litClass(option: InteractionOption, attacking: boolean): string {
+  if (option.action === "open") {
+    return "border-interact bg-interact/20 text-paper";
+  }
+  if (attacking) return "border-danger bg-danger/20 text-paper";
+  return "border-paper bg-paper/15 text-paper";
+}
+
 function InteractionRow({
   option,
   tile,
@@ -161,14 +182,8 @@ function InteractionRow({
       className={[
         "flex w-full shrink-0 items-center gap-2 border-2 p-1 text-left",
         "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-        // Lit while it is the one you have chosen, in whatever colour its
-        // outline is wearing out in the world: red once that choice is a fight,
-        // white while it is only a choice. The same rule the look mode's blue
-        // follows, so a row and the body it names are never separately learned.
         option.active
-          ? attacking
-            ? "border-danger bg-danger/20 text-paper"
-            : "border-paper bg-paper/15 text-paper"
+          ? litClass(option, attacking)
           : "border-paper/40 bg-ink text-paper hover:border-paper",
       ].join(" ")}
     >

@@ -79,7 +79,13 @@ function currentFit(canvas: HTMLCanvasElement): ViewportFit {
   return fitViewport(Math.min(canvas.clientWidth, canvas.clientHeight));
 }
 
-/** Editor selection yellow — same affordance, same colour. */
+/**
+ * Editor selection yellow — same affordance, same colour.
+ *
+ * And the same yellow the DOM wears for it: `--color-interact` in `app.css` is
+ * this value, so a row lit in the list and the thing it names lit in the world
+ * are one state rather than two that happen to co-occur.
+ */
 const HOVER_COLOR = 0xffcc00;
 
 /** A battler under the pointer: somebody who *could* be singled out. */

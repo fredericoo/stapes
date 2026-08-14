@@ -42,6 +42,15 @@
   --color-muted: #7a7568;
   --color-accent: #2d6a4f;
   --color-danger: #9b2226;
+  /* Acting on a thing. The same yellow the outline in the world wears when the
+     pointer is over something you could act on — see `HOVER_COLOR` in
+     `render/GameRenderer.ts`, which must be this value. A row and the cursor are
+     two ways of pointing at one thing, so a state named in the list and the same
+     state drawn in the world cannot be two different colours.
+
+     It is one of four, and the four are the whole vocabulary: yellow acts on
+     something, red fights it, white singles it out, blue looks at it. */
+  --color-interact: #ffcc00;
   /* Looking. The same blue as the outline in the world and the label above it,
      so the button, the silhouette and the text are visibly one mode. */
   --color-look: #3fa9ff;
