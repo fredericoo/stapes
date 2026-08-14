@@ -6,18 +6,18 @@ import { ItemSlot } from "./ItemSlot";
 import type { ItemDrag } from "./useItemDrag";
 
 /**
- * What you are wearing.
+ * What you are wearing: what is in your hand, and what is on your back.
  *
- * The bag is deliberately not here. It has its own panel and its own opener in
- * the action strip, drawn as the literal tile of the bag on your back — a
- * backpack is the thing you reach for constantly and the thing you drag onto the
- * floor, and burying it a panel deep would put the most-used slot behind the
- * least-used one.
+ * The bag was deliberately *not* here for a while — it had its own opener in the
+ * action strip, and burying the most-used slot behind the least-used panel would
+ * have been backwards. What changed is that a bag became something you take
+ * *off*: dragging a thing out of its slot is how everything else is removed, and
+ * a bag that needed its own gesture would be the one exception. So it is a slot,
+ * beside the hand, and the strip button went back to being only an opener.
  *
- * So this is the weapon slot and, in time, whatever else is worn rather than
- * carried. One slot is a thin panel, and that is the honest state of the game
- * rather than a placeholder: armour is out of scope, and a panel pretending to
- * more slots than exist would be describing a game nobody can play yet.
+ * Two slots is a thin panel, and that is the honest state of the game rather
+ * than a placeholder: armour is out of scope, and a panel pretending to more
+ * slots than exist would be describing a game nobody can play yet.
  */
 export function EquipmentPanel({
   equipment,
@@ -51,6 +51,15 @@ export function EquipmentPanel({
           tilesets={tilesets}
           label="Weapon"
           emptyHint="Weapon — nothing in hand"
+          drag={drag}
+        />
+        <ItemSlot
+          slot={{ kind: "bag" }}
+          instance={equipment.bag}
+          tilesById={tilesById}
+          tilesets={tilesets}
+          label="Bag"
+          emptyHint="Bag — nothing on your back"
           drag={drag}
         />
       </div>

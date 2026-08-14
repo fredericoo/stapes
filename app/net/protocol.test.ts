@@ -18,10 +18,12 @@ function parsed(message: unknown) {
 describe("moveItem", () => {
   it("takes a move between two slots on the body", () => {
     expect(
-      parsed({ type: "moveItem", from: { kind: "bag", index: 0 }, to: { kind: "weapon" } }),
+      parsed({ type: "moveItem", from: { kind: "contents",
+index: 0 }, to: { kind: "weapon" } }),
     ).toEqual({
       type: "moveItem",
-      from: { kind: "bag", index: 0 },
+      from: { kind: "contents",
+index: 0 },
       to: { kind: "weapon" },
     });
   });
@@ -32,10 +34,12 @@ describe("moveItem", () => {
       ref: { x: -3, y: 4, z: 0, stackIndex: 1 },
       index: 2,
     };
-    expect(parsed({ type: "moveItem", from, to: { kind: "bag", index: 0 } })).toEqual({
+    expect(parsed({ type: "moveItem", from, to: { kind: "contents",
+index: 0 } })).toEqual({
       type: "moveItem",
       from,
-      to: { kind: "bag", index: 0 },
+      to: { kind: "contents",
+index: 0 },
     });
   });
 
@@ -47,10 +51,12 @@ describe("moveItem", () => {
 
   it("drops a negative or fractional index", () => {
     expect(
-      parsed({ type: "moveItem", from: { kind: "bag", index: -1 }, to: { kind: "weapon" } }),
+      parsed({ type: "moveItem", from: { kind: "contents",
+index: -1 }, to: { kind: "weapon" } }),
     ).toBeNull();
     expect(
-      parsed({ type: "moveItem", from: { kind: "bag", index: 1.5 }, to: { kind: "weapon" } }),
+      parsed({ type: "moveItem", from: { kind: "contents",
+index: 1.5 }, to: { kind: "weapon" } }),
     ).toBeNull();
   });
 
@@ -62,7 +68,8 @@ describe("moveItem", () => {
    */
   it("takes an index that is merely too big, and leaves the refusal to the board", () => {
     expect(
-      parsed({ type: "moveItem", from: { kind: "bag", index: 9999 }, to: { kind: "weapon" } }),
+      parsed({ type: "moveItem", from: { kind: "contents",
+index: 9999 }, to: { kind: "weapon" } }),
     ).not.toBeNull();
   });
 
@@ -72,7 +79,8 @@ describe("moveItem", () => {
       ref: { x: 0.5, y: 0, z: 0, stackIndex: 0 },
       index: 0,
     };
-    expect(parsed({ type: "moveItem", from, to: { kind: "bag", index: 0 } })).toBeNull();
+    expect(parsed({ type: "moveItem", from, to: { kind: "contents",
+index: 0 } })).toBeNull();
   });
 
   it("drops a ground reference with a negative stack index", () => {
@@ -81,7 +89,8 @@ describe("moveItem", () => {
       ref: { x: 0, y: 0, z: 0, stackIndex: -1 },
       index: 0,
     };
-    expect(parsed({ type: "moveItem", from, to: { kind: "bag", index: 0 } })).toBeNull();
+    expect(parsed({ type: "moveItem", from, to: { kind: "contents",
+index: 0 } })).toBeNull();
   });
 
   it("drops one missing an end", () => {

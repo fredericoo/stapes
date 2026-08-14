@@ -78,8 +78,10 @@ describe("slotKey", () => {
     const there: ObjectRef = { x: 2, y: 0, z: 0, stackIndex: 1 };
     const keys = [
       slotKey({ kind: "weapon" }),
-      slotKey({ kind: "bag", index: 0 }),
-      slotKey({ kind: "bag", index: 1 }),
+      slotKey({ kind: "contents",
+index: 0 }),
+      slotKey({ kind: "contents",
+index: 1 }),
       slotKey({ kind: "ground", ref: here, index: 0 }),
       slotKey({ kind: "ground", ref: there, index: 0 }),
     ];
@@ -101,7 +103,8 @@ describe("equipping and unequipping", () => {
       tilesById,
       ME,
       kit([sword("itm_a")]),
-      { kind: "bag", index: 0 },
+      { kind: "contents",
+index: 0 },
       { kind: "weapon" },
     );
     expect(moved?.equipment.weapon).toEqual(sword("itm_a"));
@@ -115,7 +118,8 @@ describe("equipping and unequipping", () => {
       ME,
       kit([], sword("itm_a")),
       { kind: "weapon" },
-      { kind: "bag", index: 0 },
+      { kind: "contents",
+index: 0 },
     );
     expect(moved?.equipment.weapon).toBeNull();
     expect(moved?.equipment.bag?.contents).toEqual([sword("itm_a")]);
@@ -129,7 +133,8 @@ describe("equipping and unequipping", () => {
         tilesById,
         ME,
         held,
-        { kind: "bag", index: 0 },
+        { kind: "contents",
+index: 0 },
         { kind: "weapon" },
       ),
     ).toBe(false);
@@ -143,7 +148,8 @@ describe("equipping and unequipping", () => {
         tilesById,
         ME,
         held,
-        { kind: "bag", index: 0 },
+        { kind: "contents",
+index: 0 },
         { kind: "weapon" },
       ),
     ).toBe(false);
@@ -152,9 +158,10 @@ describe("equipping and unequipping", () => {
   it("refuses to move a slot onto itself, and any move inside one bag", () => {
     const held = kit([sword("itm_a"), sword("itm_b")]);
     expect(
-      canMoveItem(emptyMap(), tilesById, ME, held, { kind: "bag", index: 0 }, {
-        kind: "bag",
-        index: 1,
+      canMoveItem(emptyMap(), tilesById, ME, held, { kind: "contents",
+index: 0 }, {
+        kind: "contents",
+index: 1,
       }),
     ).toBe(false);
     expect(
@@ -166,7 +173,8 @@ describe("equipping and unequipping", () => {
 
   it("refuses to move an empty slot", () => {
     expect(
-      canMoveItem(emptyMap(), tilesById, ME, kit([]), { kind: "bag", index: 0 }, {
+      canMoveItem(emptyMap(), tilesById, ME, kit([]), { kind: "contents",
+index: 0 }, {
         kind: "weapon",
       }),
     ).toBe(false);
@@ -179,7 +187,8 @@ describe("equipping and unequipping", () => {
       tilesById,
       ME,
       held,
-      { kind: "bag", index: 1 },
+      { kind: "contents",
+index: 1 },
       { kind: "weapon" },
     );
     expect(moved?.equipment.bag?.contents).toEqual([
@@ -198,7 +207,8 @@ describe("looting and stashing", () => {
       ME,
       kit([]),
       { kind: "ground", ref, index: 0 },
-      { kind: "bag", index: 0 },
+      { kind: "contents",
+index: 0 },
     );
     expect(moved?.equipment.bag?.contents).toEqual([sword("itm_a")]);
     expect(groundContents(moved!.map, ref)).toEqual([]);
@@ -211,7 +221,8 @@ describe("looting and stashing", () => {
       tilesById,
       ME,
       kit([sword("itm_a")]),
-      { kind: "bag", index: 0 },
+      { kind: "contents",
+index: 0 },
       { kind: "ground", ref, index: 0 },
     );
     expect(groundContents(moved!.map, ref)).toEqual([sword("itm_a")]);
@@ -224,8 +235,8 @@ describe("looting and stashing", () => {
     const { map, ref } = chestAt(4, [sword("itm_a")]);
     expect(
       canMoveItem(map, tilesById, ME, kit([]), { kind: "ground", ref, index: 0 }, {
-        kind: "bag",
-        index: 0,
+        kind: "contents",
+index: 0,
       }),
     ).toBe(false);
   });
@@ -234,8 +245,8 @@ describe("looting and stashing", () => {
     const { map, ref } = chestAt(4);
     expect(
       canMoveItem(map, tilesById, ME, kit([sword("itm_a")]), {
-        kind: "bag",
-        index: 0,
+        kind: "contents",
+index: 0,
       }, { kind: "ground", ref, index: 0 }),
     ).toBe(false);
   });
@@ -249,8 +260,8 @@ describe("looting and stashing", () => {
     const ref: ObjectRef = { x: 1, y: 0, z: 0, stackIndex: 1 };
     expect(
       canMoveItem(buried, tilesById, ME, kit([]), { kind: "ground", ref, index: 0 }, {
-        kind: "bag",
-        index: 0,
+        kind: "contents",
+index: 0,
       }),
     ).toBe(false);
   });
@@ -259,8 +270,8 @@ describe("looting and stashing", () => {
     const full = chestAt(1, [sword("itm_a"), sword("itm_b")]);
     expect(
       canMoveItem(full.map, tilesById, ME, kit([sword("itm_c")]), {
-        kind: "bag",
-        index: 0,
+        kind: "contents",
+index: 0,
       }, { kind: "ground", ref: full.ref, index: 0 }),
     ).toBe(false);
 
@@ -273,7 +284,8 @@ describe("looting and stashing", () => {
         kind: "ground",
         ref,
         index: 0,
-      }, { kind: "bag", index: 0 }),
+      }, { kind: "contents",
+index: 0 }),
     ).toBe(false);
   });
 
@@ -311,14 +323,14 @@ describe("looting and stashing", () => {
     const { map, ref } = chestAt(1, [sword("itm_a")]);
     expect(
       canMoveItem(map, tilesById, ME, kit([]), { kind: "ground", ref, index: 7 }, {
-        kind: "bag",
-        index: 0,
+        kind: "contents",
+index: 0,
       }),
     ).toBe(false);
     expect(
       canMoveItem(map, tilesById, ME, kit([sword("itm_a")]), {
-        kind: "bag",
-        index: 7,
+        kind: "contents",
+index: 7,
       }, { kind: "ground", ref, index: 0 }),
     ).toBe(false);
   });
@@ -337,8 +349,8 @@ describe("containers do not nest", () => {
     // Chest → bag: a spare backpack may not be pocketed.
     expect(
       canMoveItem(map, tilesById, ME, kit([]), { kind: "ground", ref, index: 0 }, {
-        kind: "bag",
-        index: 0,
+        kind: "contents",
+index: 0,
       }),
     ).toBe(false);
 
@@ -346,14 +358,15 @@ describe("containers do not nest", () => {
     const holding = kit([spare]);
     expect(
       canMoveItem(chestAt(1).map, tilesById, ME, holding, {
-        kind: "bag",
-        index: 0,
+        kind: "contents",
+index: 0,
       }, { kind: "ground", ref, index: 0 }),
     ).toBe(false);
 
     // Nor worn in the hand, which the weapon gate refuses for its own reason.
     expect(
-      canMoveItem(emptyMap(), tilesById, ME, holding, { kind: "bag", index: 0 }, {
+      canMoveItem(emptyMap(), tilesById, ME, holding, { kind: "contents",
+index: 0 }, {
         kind: "weapon",
       }),
     ).toBe(false);
@@ -368,7 +381,8 @@ describe("what a move leaves alone", () => {
       tilesById,
       ME,
       kit([sword("itm_a")]),
-      { kind: "bag", index: 0 },
+      { kind: "contents",
+index: 0 },
       { kind: "weapon" },
     );
     expect(moved?.map).toBe(map);
@@ -407,7 +421,8 @@ describe("what a move leaves alone", () => {
       ME,
       kit([]),
       { kind: "ground", ref, index: 0 },
-      { kind: "bag", index: 0 },
+      { kind: "contents",
+index: 0 },
     );
     expect(moved?.equipment.bag?.contents?.[0]).toEqual(lever);
   });
@@ -416,8 +431,8 @@ describe("what a move leaves alone", () => {
     const { map, ref } = chestAt(1, [sword("itm_a")], "sword");
     expect(
       canMoveItem(map, tilesById, ME, kit([]), { kind: "ground", ref, index: 0 }, {
-        kind: "bag",
-        index: 0,
+        kind: "contents",
+index: 0,
       }),
     ).toBe(false);
   });
@@ -427,9 +442,66 @@ describe("what a move leaves alone", () => {
     const { map, ref } = chestAt(1, [sword("itm_a")]);
     expect(
       canMoveItem(map, tilesById, ME, bagless, { kind: "ground", ref, index: 0 }, {
-        kind: "bag",
+        kind: "contents",
+index: 0,
+      }),
+    ).toBe(false);
+  });
+});
+
+/**
+ * The bag is a thing you wear, so it has a slot like anything else worn — and
+ * taking it off is the same gesture as taking a sword out of your hand.
+ */
+describe("the bag slot", () => {
+  it("is where the bag is read from", () => {
+    const held = kit([]);
+    const moved = applyItemMove(
+      emptyMap(),
+      tilesById,
+      ME,
+      held,
+      { kind: "bag" },
+      { kind: "weapon" },
+    );
+    // Refused, since a bag is not a weapon — but the source was found, which is
+    // the half this pins. The other half is `drop`.
+    expect(moved).toBeNull();
+    expect(held.bag).not.toBeNull();
+  });
+
+  it("refuses to take a container off into its own contents", () => {
+    expect(
+      canMoveItem(emptyMap(), tilesById, ME, kit([]), { kind: "bag" }, {
+        kind: "contents",
         index: 0,
       }),
     ).toBe(false);
+  });
+
+  it("refuses to stash the bag in a chest, which would nest containers", () => {
+    const { map, ref } = chestAt(1);
+    expect(
+      canMoveItem(map, tilesById, ME, kit([]), { kind: "bag" }, {
+        kind: "ground",
+        ref,
+        index: 0,
+      }),
+    ).toBe(false);
+  });
+
+  it("is empty, and refuses everything, on a bare back", () => {
+    const bagless: Equipment = { weapon: null, bag: null };
+    expect(
+      canMoveItem(emptyMap(), tilesById, ME, bagless, { kind: "bag" }, {
+        kind: "weapon",
+      }),
+    ).toBe(false);
+  });
+
+  it("has a key of its own, distinct from the slots inside it", () => {
+    expect(slotKey({ kind: "bag" })).not.toBe(
+      slotKey({ kind: "contents", index: 0 }),
+    );
   });
 });

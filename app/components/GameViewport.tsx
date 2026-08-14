@@ -275,7 +275,6 @@ export function GameViewport({
         open={showBag}
         onChange={openBag}
         tilesById={tilesById}
-        tilesets={tilesets}
         drag={drag}
         size={size}
       />

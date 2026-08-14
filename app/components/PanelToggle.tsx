@@ -1,11 +1,10 @@
-import { IconShirt } from "@tabler/icons-react";
+import { IconBackpack, IconShirt } from "@tabler/icons-react";
 import { useCallback } from "react";
 import { resolveContainer } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { Tooltip } from "../ui/Tooltip";
 import { MODE_TOGGLE_SIZE_CLASS, type ModeToggleSize } from "./ModeToggle";
-import { TilePreview } from "./TilePreview";
 import type { ItemDrag } from "./useItemDrag";
 
 /**
@@ -17,14 +16,6 @@ import type { ItemDrag } from "./useItemDrag";
  * panel changes nothing out there. So on is plain paper — clearly a state, and
  * clearly not one of the two modes.
  */
-
-/** Which sprite stands for a tile on a button — the one facing the reader. */
-const FRONT: "s" = "s";
-
-const BAG_SPRITE_SIZE_PX: Record<ModeToggleSize, number> = {
-  touch: 34,
-  compact: 24,
-};
 
 function toggleClass(on: boolean, size: ModeToggleSize): string {
   return [
@@ -83,34 +74,35 @@ const BAG_BUTTON_TARGET_KEY = "bag-button";
  * appends: slots fill in order, so the index at the far end of a move is ignored
  * and any of them names the same operation. See `../game/itemMoves`.
  */
-const BAG_BUTTON_SLOT = { kind: "bag", index: 0 } as const;
+const BAG_BUTTON_SLOT = { kind: "contents", index: 0 } as const;
 
 /**
- * Open the bag on your back, drawn as the bag on your back.
+ * Open the bag on your back.
  *
- * The icon is the literal tile rather than a generic rucksack glyph, which is
- * the one place in this UI where that is worth the trouble: bags differ from
- * each other, the difference is the whole reason to swap one, and a button that
- * looked the same whichever you were wearing would hide the only fact about it
- * you can see at a glance.
+ * **A plain glyph, not the bag's own sprite.** It was the literal tile for a
+ * while, on the grounds that bags differ from each other and a button that
+ * looked the same whichever you wore would hide the only fact about it you can
+ * see at a glance. The equipment panel's bag slot carries that now — the tile is
+ * on screen either way — so this went back to matching the shirt beside it and
+ * reads as *a button that opens a thing* rather than as a small picture of your
+ * luggage.
  *
- * It is also a place to *put* things. A bag you have to open before you can
- * stash anything in it is two gestures for one intention, and on a phone the
- * open panel covers the game — so the shortest path from a chest on the floor to
- * your back should not go through a panel that hides the floor. Dropping here
- * appends, exactly as dropping on an empty slot does.
+ * What it does keep is the count, which the slot does not show, and being a
+ * place to *put* things. A bag you have to open before you can stash anything in
+ * it is two gestures for one intention, and on a phone the open panel covers the
+ * game — so the shortest path from a chest on the floor to your back should not
+ * go through a panel that hides the floor. Dropping here appends, exactly as
+ * dropping on an empty slot does.
  *
- * Rendered disabled with no sprite when there is no bag. Absent would be
- * tidier and would also make the row jump by a button's width the moment
- * somebody drops their pack, in a strip whose other buttons a thumb has learned
- * the position of.
+ * Rendered disabled when there is no bag. Absent would be tidier and would also
+ * make the row jump by a button's width the moment somebody drops their pack, in
+ * a strip whose other buttons a thumb has learned the position of.
  */
 export function BagButton({
   bag,
   open,
   onChange,
   tilesById,
-  tilesets,
   drag,
   size = "touch",
 }: {
@@ -118,7 +110,6 @@ export function BagButton({
   open: boolean;
   onChange: (open: boolean) => void;
   tilesById: Record<string, TileDef>;
-  tilesets: TilesetDef[];
   /** The one move in progress, page-wide. See `./useItemDrag`. */
   drag: ItemDrag;
   size?: ModeToggleSize;
@@ -162,17 +153,11 @@ export function BagButton({
         // instead, and the moves stop arriving — the same reason a slot sets it.
         style={{ touchAction: "none" }}
       >
-        {tile ? (
-          <TilePreview
-            tile={tile}
-            tilesets={tilesets}
-            size={BAG_SPRITE_SIZE_PX[size]}
-            direction={FRONT}
-            still
-            chrome={false}
-            background={null}
-          />
-        ) : null}
+        <IconBackpack
+          size={size === "touch" ? 24 : 18}
+          stroke={2}
+          aria-hidden="true"
+        />
         {/* How full it is, in the corner rather than beside it: the strip is a
             row of equal squares and a button that grew a caption would break
             that rank. Hidden from the reader, who has it in the label above,

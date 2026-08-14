@@ -390,8 +390,9 @@ const inboundRefSchema = v.object({
  */
 const inboundSlotRefSchema = v.variant("kind", [
   v.object({ kind: v.literal("weapon") }),
+  v.object({ kind: v.literal("bag") }),
   v.object({
-    kind: v.literal("bag"),
+    kind: v.literal("contents"),
     index: v.pipe(v.number(), v.integer(), v.minValue(0)),
   }),
   v.object({

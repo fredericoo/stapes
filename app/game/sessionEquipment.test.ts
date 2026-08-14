@@ -518,13 +518,15 @@ describe("moving things between slots", () => {
 
   it("draws a weapon out of the bag, and puts it back again", () => {
     const session = stocked();
-    expect(session.moveItem({ kind: "bag", index: 0 }, { kind: "weapon" })).toBe(
+    expect(session.moveItem({ kind: "contents",
+index: 0 }, { kind: "weapon" })).toBe(
       true,
     );
     expect(kitOf(session).weapon?.tileId).toBe(SWORD);
     expect(kitOf(session).bag?.contents).toEqual([]);
 
-    expect(session.moveItem({ kind: "weapon" }, { kind: "bag", index: 0 })).toBe(
+    expect(session.moveItem({ kind: "weapon" }, { kind: "contents",
+index: 0 })).toBe(
       true,
     );
     expect(kitOf(session).weapon).toBeNull();
@@ -538,7 +540,8 @@ describe("moving things between slots", () => {
       tiles,
     );
     session.pickUp(refAt(session, 1, 1));
-    session.moveItem({ kind: "bag", index: 0 }, { kind: "weapon" });
+    session.moveItem({ kind: "contents",
+index: 0 }, { kind: "weapon" });
 
     const dummy = session.actorSnapshots().find((a) => a.tileId === "dummy")!;
     session.setTarget(dummy.id);
@@ -559,8 +562,8 @@ describe("moving things between slots", () => {
     const chest = refAt(session, 1, 0);
     expect(
       session.moveItem({ kind: "ground", ref: chest, index: 0 }, {
-        kind: "bag",
-        index: 0,
+        kind: "contents",
+index: 0,
       }),
     ).toBe(true);
 
@@ -572,7 +575,8 @@ describe("moving things between slots", () => {
     const session = stocked();
     const chest = refAt(session, 1, 0);
     expect(
-      session.moveItem({ kind: "bag", index: 0 }, {
+      session.moveItem({ kind: "contents",
+index: 0 }, {
         kind: "ground",
         ref: chest,
         index: 0,
@@ -588,8 +592,8 @@ describe("moving things between slots", () => {
     const chest = refAt(session, 3, 0);
     expect(
       session.moveItem({ kind: "ground", ref: chest, index: 0 }, {
-        kind: "bag",
-        index: 0,
+        kind: "contents",
+index: 0,
       }),
     ).toBe(false);
     expect(kitOf(session).bag?.contents).toHaveLength(1);
@@ -600,32 +604,38 @@ describe("moving things between slots", () => {
     const me = selfId(session);
     session.drainEquipmentChanges();
 
-    session.moveItem({ kind: "bag", index: 0 }, { kind: "weapon" });
+    session.moveItem({ kind: "contents",
+index: 0 }, { kind: "weapon" });
     expect(session.drainEquipmentChanges()).toEqual([me]);
 
     // A refused move is nobody's kit changing, and neither is one that only
     // rearranged a box on the floor.
-    session.moveItem({ kind: "bag", index: 0 }, { kind: "weapon" });
+    session.moveItem({ kind: "contents",
+index: 0 }, { kind: "weapon" });
     expect(session.drainEquipmentChanges()).toEqual([]);
   });
 
   it("has nothing to say for an actor who is not here", () => {
     const session = stocked();
     expect(
-      session.moveItem({ kind: "bag", index: 0 }, { kind: "weapon" }, "nobody"),
+      session.moveItem({ kind: "contents",
+index: 0 }, { kind: "weapon" }, "nobody"),
     ).toBe(false);
     expect(
-      session.canMoveItem({ kind: "bag", index: 0 }, { kind: "weapon" }, "nobody"),
+      session.canMoveItem({ kind: "contents",
+index: 0 }, { kind: "weapon" }, "nobody"),
     ).toBe(false);
   });
 
   it("answers the same question the move runs", () => {
     const session = stocked();
     expect(
-      session.canMoveItem({ kind: "bag", index: 0 }, { kind: "weapon" }),
+      session.canMoveItem({ kind: "contents",
+index: 0 }, { kind: "weapon" }),
     ).toBe(true);
     expect(
-      session.canMoveItem({ kind: "bag", index: 3 }, { kind: "weapon" }),
+      session.canMoveItem({ kind: "contents",
+index: 3 }, { kind: "weapon" }),
     ).toBe(false);
   });
 });
