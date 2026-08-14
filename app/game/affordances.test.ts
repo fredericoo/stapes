@@ -5,6 +5,7 @@ import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import {
+  canDropAt,
   canOpenFrom,
   canPickUpFrom,
   pickUpDestination,
@@ -38,6 +39,9 @@ function tile(partial: Record<string, unknown>): TileDef {
 const tiles = [
   tile({ id: "grass" }),
   tile({ id: "rock", height: 1 }),
+  // Full height and light-blocking, so it stops a line of sight — see `./sight`,
+  // where sight is light and you see over anything shorter than a level.
+  tile({ id: "wall", height: 2 }),
   tile({ id: "sword", kind: "item", interactions: { item: DEFAULT_WEAPON } }),
   tile({ id: "bag", kind: "item", interactions: { item: DEFAULT_CONTAINER } }),
   tile({
@@ -275,5 +279,80 @@ describe("a body is not a lid", () => {
     ]);
     expect(pickUpDestination(buried, tilesById, ME, ref(0, 0), KIT)).toBeNull();
     expect(canOpenFrom(buried, tilesById, ME, ref(0, 0))).toBe(false);
+  });
+});
+
+/**
+ * Putting a thing down.
+ *
+ * A much longer reach than taking one, and the only affordance here that asks
+ * about sight — which is what the length makes necessary: five cells is far
+ * enough to reach through a wall if nothing stops it.
+ */
+describe("canDropAt", () => {
+  /** Open ground, eleven by eleven, with the actor at the origin. */
+  function field(): MapFile {
+    let map = emptyMap();
+    for (let x = -5; x <= 5; x++) {
+      for (let y = -5; y <= 5; y++) {
+        map = replaceStack(map, x, y, 0, [{ tileId: "grass" }]);
+      }
+    }
+    return map;
+  }
+
+  const sword = tilesById.sword!;
+
+  it("drops at your own feet", () => {
+    expect(canDropAt(field(), tilesById, ME, { x: 0, y: 0, z: 0 }, sword)).toBe(
+      true,
+    );
+  });
+
+  it("reaches five cells out, and no further", () => {
+    const map = field();
+    expect(canDropAt(map, tilesById, ME, { x: 5, y: 0, z: 0 }, sword)).toBe(true);
+    expect(canDropAt(map, tilesById, ME, { x: -5, y: 0, z: 0 }, sword)).toBe(
+      true,
+    );
+    expect(canDropAt(map, tilesById, ME, { x: 6, y: 0, z: 0 }, sword)).toBe(
+      false,
+    );
+  });
+
+  /** Round, like every other item reach — `3,4` is exactly five away. */
+  it("measures the radius round rather than square", () => {
+    const map = field();
+    expect(canDropAt(map, tilesById, ME, { x: 3, y: 4, z: 0 }, sword)).toBe(true);
+    expect(canDropAt(map, tilesById, ME, { x: 4, y: 4, z: 0 }, sword)).toBe(
+      false,
+    );
+  });
+
+  it("will not throw through a wall", () => {
+    const walled = replaceStack(field(), 2, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "wall" },
+    ]);
+    expect(canDropAt(walled, tilesById, ME, { x: 4, y: 0, z: 0 }, sword)).toBe(
+      false,
+    );
+    // The same distance the other way, with nothing in between.
+    expect(canDropAt(walled, tilesById, ME, { x: -4, y: 0, z: 0 }, sword)).toBe(
+      true,
+    );
+  });
+
+  it("refuses a cell with nothing to stand the thing on", () => {
+    expect(
+      canDropAt(emptyMap(), tilesById, ME, { x: 1, y: 0, z: 0 }, sword),
+    ).toBe(false);
+  });
+
+  it("refuses a floor further off than a reach can follow", () => {
+    const map = field();
+    expect(canDropAt(map, tilesById, ME, { x: 1, y: 0, z: 3 }, sword)).toBe(
+      false,
+    );
   });
 });

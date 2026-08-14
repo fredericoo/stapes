@@ -168,8 +168,15 @@ function slotAccepts(
   return resolveContainer(def) == null;
 }
 
-/** What is in a slot right now, or null when it is empty or unreachable. */
-function readSlot(
+/**
+ * What is in a slot right now, or null when it is empty or unreachable.
+ *
+ * Exported because `drop` needs the same answer: a thing leaving for the floor
+ * comes out of a slot exactly as a thing moving between slots does, and reading
+ * one two ways is how the two rules would come to disagree about what a slot
+ * holds.
+ */
+export function itemInSlot(
   map: MapFile,
   tilesById: Record<string, TileDef>,
   actor: Actor,
@@ -251,7 +258,7 @@ export function applyItemMove(
 ): ItemMoveResult | null {
   if (sameContainer(from, to)) return null;
 
-  const instance = readSlot(map, tilesById, actor, equipment, from);
+  const instance = itemInSlot(map, tilesById, actor, equipment, from);
   if (!instance) return null;
   if (!slotAccepts(to, instance, tilesById)) return null;
   if (!slotHasRoom(map, tilesById, actor, equipment, to)) return null;
@@ -280,8 +287,13 @@ export function canMoveItem(
   return applyItemMove(map, tilesById, actor, equipment, from, to) != null;
 }
 
-/** Take whatever is at a slot out of it. Null when there was nothing to take. */
-function clearSlot(
+/**
+ * Take whatever is at a slot out of it. Null when there was nothing to take.
+ *
+ * Shared with `drop` for the reason {@link itemInSlot} is: emptying a slot is
+ * emptying a slot, whether what comes out lands in another one or on the floor.
+ */
+export function clearSlot(
   map: MapFile,
   tilesById: Record<string, TileDef>,
   actor: Actor,

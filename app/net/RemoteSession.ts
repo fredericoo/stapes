@@ -12,13 +12,14 @@ import {
   type ActorLocation,
 } from "../game/actors";
 import {
+  canDropAt,
   canPickUpFrom,
   canPushFrom,
   canSwitchFrom,
   type ObjectRef,
 } from "../game/affordances";
 import { type Equipment, emptyEquipment } from "../game/equipment";
-import { canMoveItem, type SlotRef } from "../game/itemMoves";
+import { canMoveItem, itemInSlot, type SlotRef } from "../game/itemMoves";
 import { moveEntity, setEntityDirection } from "../game/mapMutations";
 import { chooseStep } from "../game/stepping";
 import type {
@@ -1127,6 +1128,43 @@ export class RemoteSession implements PlaySession {
   moveItem(from: SlotRef, to: SlotRef): boolean {
     if (!this.canMoveItem(from, to)) return false;
     this.send({ type: "moveItem", from, to });
+    return true;
+  }
+
+  /**
+   * Would this land there, as far as this side can tell?
+   *
+   * Asked once per pointer move while a drag is over the world, which is why it
+   * has to be answered here rather than across the wire: a ghost that arrived a
+   * round trip after the cursor would be drawing where the pointer *was*.
+   */
+  canDrop(from: SlotRef, to: Coord): boolean {
+    const motion = this.motions.get(this.selfId);
+    const loc = motion && this.locate(this.selfId, motion);
+    if (!loc) return false;
+    const instance = itemInSlot(
+      this.map,
+      this.tilesById,
+      loc,
+      this.equipment,
+      from,
+    );
+    const def = instance && this.tilesById[instance.tileId];
+    if (!def) return false;
+    return canDropAt(this.map, this.tilesById, loc, to, def);
+  }
+
+  /**
+   * Ask for a thing to be put down.
+   *
+   * Not predicted, on the same terms as every other item action: the board is
+   * the server's, and a sword drawn onto the floor that turned out not to be
+   * there is a worse thing to watch than a moment's delay. The cell patch is the
+   * confirmation, and the equipment message beside it.
+   */
+  drop(from: SlotRef, to: Coord): boolean {
+    if (!this.canDrop(from, to)) return false;
+    this.send({ type: "drop", from, to });
     return true;
   }
 

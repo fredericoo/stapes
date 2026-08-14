@@ -114,3 +114,59 @@ describe("the frame itself", () => {
     expect(parsed({ type: "interact", ref: { x: 1.5, y: 0, z: 0, stackIndex: 0 } })).toBeNull();
   });
 });
+
+describe("drop", () => {
+  it("takes a slot and a cell", () => {
+    expect(
+      parsed({
+        type: "drop",
+        from: { kind: "contents", index: 1 },
+        to: { x: -2, y: 3, z: 0 },
+      }),
+    ).toEqual({
+      type: "drop",
+      from: { kind: "contents", index: 1 },
+      to: { x: -2, y: 3, z: 0 },
+    });
+  });
+
+  it("takes the bag off your back", () => {
+    expect(
+      parsed({ type: "drop", from: { kind: "bag" }, to: { x: 0, y: 0, z: 0 } }),
+    ).not.toBeNull();
+  });
+
+  it("drops a cell that is not whole numbers", () => {
+    expect(
+      parsed({
+        type: "drop",
+        from: { kind: "weapon" },
+        to: { x: 0.5, y: 0, z: 0 },
+      }),
+    ).toBeNull();
+  });
+
+  /**
+   * A cell, never a stack slot: you choose where, and gravity chooses how high.
+   * An extra field is *stripped* rather than refused — these are `v.object`
+   * throughout, which is the standard this protocol already holds itself to, and
+   * the parsed message is the cell with nothing else riding along.
+   */
+  it("keeps a stray stack index out of the cell it parses", () => {
+    expect(
+      parsed({
+        type: "drop",
+        from: { kind: "weapon" },
+        to: { x: 0, y: 0, z: 0, stackIndex: 2 },
+      }),
+    ).toEqual({
+      type: "drop",
+      from: { kind: "weapon" },
+      to: { x: 0, y: 0, z: 0 },
+    });
+  });
+
+  it("drops one missing its destination", () => {
+    expect(parsed({ type: "drop", from: { kind: "weapon" } })).toBeNull();
+  });
+});

@@ -560,6 +560,11 @@ export class GameServer extends DurableObject<Env> {
       // open while its owner walked away from it. The client offered the drag
       // from these same rules, and is still not trusted with the answer.
       session.moveItem(message.from, message.to, actorId);
+    } else if (message.type === "drop") {
+      // Range, sight and room in the stack, all re-asked. The client drew a
+      // ghost from these same rules, but it drew it on a board that may be a
+      // round trip old — and somebody else may have filled that cell since.
+      session.drop(message.from, message.to, actorId);
     } else {
       // Re-validated against the board rather than trusted: the client decided
       // to offer this affordance from the same rules, but it decided on a map

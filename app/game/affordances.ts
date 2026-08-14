@@ -1,4 +1,5 @@
 import { getStack } from "../lib/mapData";
+import { hasLineOfSight } from "./sight";
 import { isInteractive, resolvePush, resolveSwitch } from "../lib/interactions";
 import { resolveContainer, resolveItem } from "../lib/item";
 import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
@@ -250,6 +251,57 @@ export function canPickUpFrom(
   equipment: Equipment,
 ): boolean {
   return pickUpDestination(map, tilesById, actor, ref, equipment) != null;
+}
+
+/**
+ * How far an actor can throw something down, in cells.
+ *
+ * Deliberately much further than {@link REACH_CELLS}, and the difference is the
+ * point: taking a thing requires touching it, while putting one down is an
+ * underarm toss at somewhere you can see. Five cells is far enough to place a
+ * torch across a room and near enough that you are still furnishing the space
+ * you are standing in.
+ */
+export const DROP_CELLS = 5;
+
+const DROP_CELLS_SQUARED = DROP_CELLS * DROP_CELLS;
+
+/**
+ * Can this actor put a thing down at this cell?
+ *
+ * Three questions, and each rules out a different way of cheating. **Range**,
+ * because a drop is a throw and not a teleport. **Line of sight**, because the
+ * range is long enough to reach through a wall otherwise — the one rule pick-up
+ * has no need of, since everything within arm's length is already in the open.
+ * And **room in the stack**, asked through `canReplaceStack`, which is the same
+ * question the editor asks when it places a tile: a cell that cannot hold
+ * another thing cannot hold this one either.
+ *
+ * The tile rather than the instance, because none of this depends on which
+ * particular sword it is — only on how tall it is and what it is made of.
+ */
+export function canDropAt(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  to: Coord,
+  def: TileDef,
+): boolean {
+  const dx = to.x - actor.x;
+  const dy = to.y - actor.y;
+  if (dx * dx + dy * dy > DROP_CELLS_SQUARED) return false;
+  if (Math.abs(to.z - actor.z) > INTERACT_LEVEL_SLACK) return false;
+  if (!hasLineOfSight(map, tilesById, actor, to)) return false;
+
+  // Something has to be there already. An empty cell is not "room" — it is a
+  // hole in the world, and a sword thrown into one is a sword nobody gets back.
+  // Every playable cell has at least a floor, so this reads as "somewhere that
+  // exists" rather than as a rule anybody has to think about.
+  const stack = getStack(map, to.x, to.y, to.z);
+  if (stack.length === 0) return false;
+
+  const next = [...stack, { tileId: def.id }];
+  return canReplaceStack(map, to.x, to.y, to.z, next, tilesById).ok;
 }
 
 /**

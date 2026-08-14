@@ -340,6 +340,20 @@ export type ClientMessage =
    * things up, and neither has a reply worth sending.
    */
   | { type: "moveItem"; from: SlotRef; to: SlotRef }
+  /**
+   * "I am putting that down there."
+   *
+   * The other message that crosses the line, and the inverse of `pickUp`: an
+   * instance becomes a placement, contents and all. It carries the world-shaped
+   * validation that goes with crossing — a throw's range, line of sight so the
+   * range cannot reach through a wall, and whether the target stack has room —
+   * none of which `moveItem` has any use for.
+   *
+   * A cell rather than a stack slot, because you are not choosing a *height*:
+   * the thing lands on top of whatever is there and gravity takes it from
+   * there, exactly as a shoved crate does.
+   */
+  | { type: "drop"; from: SlotRef; to: { x: number; y: number; z: number } }
   | { type: "say"; text: string }
   /**
    * "This is who I am pointing at" — or null, for nobody.
@@ -428,6 +442,15 @@ const clientMessageSchema = v.variant("type", [
     type: v.literal("moveItem"),
     from: inboundSlotRefSchema,
     to: inboundSlotRefSchema,
+  }),
+  v.object({
+    type: v.literal("drop"),
+    from: inboundSlotRefSchema,
+    to: v.object({
+      x: v.pipe(v.number(), v.integer()),
+      y: v.pipe(v.number(), v.integer()),
+      z: v.pipe(v.number(), v.integer()),
+    }),
   }),
   v.object({
     type: v.literal("say"),

@@ -639,3 +639,116 @@ index: 3 }, { kind: "weapon" }),
     ).toBe(false);
   });
 });
+
+describe("putting things down", () => {
+  const SWORD = "light-sword";
+
+  function refAt(session: GameSession, x: number, y: number) {
+    const stack = getStack(session.getMap(), x, y, 0);
+    return { x, y, z: 0, stackIndex: stack.length - 1 };
+  }
+
+  /** A player at the origin carrying one sword, taken off the floor beside them. */
+  function armed(): GameSession {
+    const map = replaceStack(field(), 1, 1, 0, [
+      { tileId: "grass" },
+      { tileId: SWORD },
+    ]);
+    const session = new GameSession(map, tiles);
+    session.pickUp(refAt(session, 1, 1));
+    return session;
+  }
+
+  function tilesAt(session: GameSession, x: number, y: number): string[] {
+    return getStack(session.getMap(), x, y, 0).map((p) => p.tileId);
+  }
+
+  it("puts the thing on the board and takes it out of the bag", () => {
+    const session = armed();
+    expect(session.drop({ kind: "contents", index: 0 }, { x: 2, y: 0, z: 0 })).toBe(
+      true,
+    );
+
+    expect(tilesAt(session, 2, 0)).toEqual(["grass", SWORD]);
+    expect(session.getSnapshot().equipment.bag?.contents).toEqual([]);
+  });
+
+  it("keeps the identity it was carrying", () => {
+    const session = armed();
+    const id = session.getSnapshot().equipment.bag!.contents![0]!.id;
+    session.drop({ kind: "contents", index: 0 }, { x: 2, y: 0, z: 0 });
+
+    expect(getStack(session.getMap(), 2, 0, 0)[1]!.itemId).toBe(id);
+  });
+
+  it("throws further than it can reach, and no further than five", () => {
+    const near = armed();
+    expect(near.drop({ kind: "contents", index: 0 }, { x: 3, y: 0, z: 0 })).toBe(
+      true,
+    );
+    const far = armed();
+    expect(far.drop({ kind: "contents", index: 0 }, { x: 6, y: 0, z: 0 })).toBe(
+      false,
+    );
+    expect(far.getSnapshot().equipment.bag?.contents).toHaveLength(1);
+  });
+
+  /**
+   * The whole reason the bag is a slot: taking it off is dropping it, and what
+   * is inside comes with it because contents ride on the placement.
+   */
+  it("drops the bag off your back, contents and all", () => {
+    const session = armed();
+    const bagId = session.getSnapshot().equipment.bag!.id;
+
+    expect(session.drop({ kind: "bag" }, { x: 1, y: 0, z: 0 })).toBe(true);
+
+    const placed = getStack(session.getMap(), 1, 0, 0)[1]!;
+    expect(placed.tileId).toBe(STARTING_BAG_TILE_ID);
+    expect(placed.itemId).toBe(bagId);
+    expect(placed.contents?.map((i) => i.tileId)).toEqual([SWORD]);
+    expect(session.getSnapshot().equipment.bag).toBeNull();
+  });
+
+  it("can be picked straight back up, which is the round trip", () => {
+    const session = armed();
+    session.drop({ kind: "bag" }, { x: 1, y: 0, z: 0 });
+    const bagRef = refAt(session, 1, 0);
+
+    expect(session.pickUp(bagRef)).toBe(true);
+    const bag = session.getSnapshot().equipment.bag!;
+    expect(bag.contents?.map((i) => i.tileId)).toEqual([SWORD]);
+    expect(tilesAt(session, 1, 0)).toEqual(["grass"]);
+  });
+
+  it("refuses an empty slot, and says so rather than dropping nothing", () => {
+    const session = armed();
+    expect(session.drop({ kind: "weapon" }, { x: 1, y: 0, z: 0 })).toBe(false);
+    expect(tilesAt(session, 1, 0)).toEqual(["grass"]);
+  });
+
+  it("refuses a cell with no ground in it", () => {
+    const session = armed();
+    expect(session.drop({ kind: "contents", index: 0 }, { x: 0, y: 4, z: 0 })).toBe(
+      false,
+    );
+  });
+
+  it("tells the owner their kit changed", () => {
+    const session = armed();
+    session.drainEquipmentChanges();
+    session.drop({ kind: "contents", index: 0 }, { x: 2, y: 0, z: 0 });
+    expect(session.drainEquipmentChanges()).toEqual([selfId(session)]);
+  });
+
+  it("answers the same question the drop runs", () => {
+    const session = armed();
+    expect(session.canDrop({ kind: "contents", index: 0 }, { x: 2, y: 0, z: 0 })).toBe(
+      true,
+    );
+    expect(session.canDrop({ kind: "contents", index: 0 }, { x: 9, y: 0, z: 0 })).toBe(
+      false,
+    );
+    expect(session.canDrop({ kind: "weapon" }, { x: 2, y: 0, z: 0 })).toBe(false);
+  });
+});

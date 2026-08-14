@@ -26,6 +26,7 @@ import {
   type ActorLocation,
 } from "./actors";
 import {
+  canDropAt,
   canPickUpFrom,
   canPushFrom,
   canSwitchFrom,
@@ -55,8 +56,18 @@ import {
   startingEquipment,
 } from "./equipment";
 import { mintItemIds } from "./itemIds";
-import { applyItemMove, canMoveItem, type SlotRef } from "./itemMoves";
-import { instanceFromPlacement } from "../lib/itemInstance";
+import {
+  applyItemMove,
+  canMoveItem,
+  clearSlot,
+  itemInSlot,
+  type SlotRef,
+} from "./itemMoves";
+import type { ItemInstance } from "../lib/itemInstance";
+import {
+  instanceFromPlacement,
+  placementFromInstance,
+} from "../lib/itemInstance";
 import {
   cellForFeetAbs,
   cellHasLooseGravity,
@@ -386,6 +397,17 @@ export interface PlaySession {
   canMoveItem(from: SlotRef, to: SlotRef): boolean;
   /** Move a carried thing from one slot to another. @see canMoveItem */
   moveItem(from: SlotRef, to: SlotRef): boolean;
+  /**
+   * Would this thing land on this cell?
+   *
+   * Asked once per pointer move while a drag is over the world, so the ghost
+   * under the cursor is drawn only where the drop would be honoured — the same
+   * rule the server re-runs, which is what stops the ghost promising something a
+   * release would refuse.
+   */
+  canDrop(from: SlotRef, to: Coord): boolean;
+  /** Put a carried thing down on the board. @see canDrop */
+  drop(from: SlotRef, to: Coord): boolean;
 }
 
 /**
@@ -1699,6 +1721,91 @@ export class GameSession implements PlaySession {
     if (moved.equipment !== actor.equipment) {
       this.setEquipment(actor, moved.equipment);
     }
+    return true;
+  }
+
+  canDrop(
+    from: SlotRef,
+    to: Coord,
+    id: string = LOCAL_ACTOR_ID,
+  ): boolean {
+    return this.dropCandidate(from, to, id) != null;
+  }
+
+  /**
+   * What a drop would put down, and whether it may go there.
+   *
+   * One question rather than two, for the reason `pickUpDestination` is: the
+   * caller that says yes is the caller that then has to write the placement, and
+   * finding the instance a second time is how the two come to disagree.
+   */
+  private dropCandidate(
+    from: SlotRef,
+    to: Coord,
+    id: string,
+  ): { actor: ActorRuntime; instance: ItemInstance } | null {
+    const actor = this.actors.get(id);
+    if (!actor) return null;
+    const loc = this.tryLocate(actor);
+    if (!loc) return null;
+
+    const instance = itemInSlot(
+      this.map,
+      this.tilesById,
+      loc,
+      actor.equipment,
+      from,
+    );
+    if (!instance) return null;
+
+    const def = this.tilesById[instance.tileId];
+    if (!def) return null;
+    if (!canDropAt(this.map, this.tilesById, loc, to, def)) return null;
+    return { actor, instance };
+  }
+
+  /**
+   * Put a carried thing down on the board.
+   *
+   * The exact inverse of {@link pickUp}, and it shares that trip's conversion
+   * pair: an instance becomes a placement, contents and all, so a bag put on the
+   * floor is still full and a chest looted half-empty stays half-empty. Nothing
+   * here knows a bag from a sword.
+   *
+   * Landing on *top* of the target stack rather than at a chosen height, and
+   * then settling: a thing dropped over a hole falls into it, which is the same
+   * rule a shoved crate follows and needs no special case here.
+   */
+  drop(from: SlotRef, to: Coord, id: string = LOCAL_ACTOR_ID): boolean {
+    const candidate = this.dropCandidate(from, to, id);
+    if (!candidate) return false;
+    const { actor, instance } = candidate;
+
+    const emptied = clearSlot(
+      this.map,
+      this.tilesById,
+      this.locate(actor),
+      actor.equipment,
+      from,
+    );
+    if (!emptied) return false;
+
+    this.map = appendTile(
+      emptied.map,
+      to.x,
+      to.y,
+      to.z,
+      placementFromInstance(instance),
+    );
+    if (emptied.equipment !== actor.equipment) {
+      this.setEquipment(actor, emptied.equipment);
+    }
+
+    // The thing that just landed may be a plate, may be wired, and is almost
+    // certainly subject to gravity — and the cell it came *out of*, for a drop
+    // taken from a container on the floor, has changed too.
+    this.reindexCells([to]);
+    this.settleBoardNow();
     return true;
   }
 
