@@ -1,10 +1,16 @@
 /** Shared perf budgets — Playwright asserts these; tune when the map grows on purpose. */
 export const PERF_BUDGETS = {
   /**
-   * Draw calls with showOtherLevels on (grid + dimmed RT/composite passes +
-   * current level + overlays). Lighting must not push this without raising it.
+   * Draw calls with showOtherLevels on (grid + every solid level in one pass +
+   * one fused ghost RT and its composite + overlays). Lighting must not push
+   * this without raising it.
+   *
+   * Was 48 against a measured 42, when the editor hid the underworld while you
+   * stood on the surface. It draws it now — like play does — and the cave under
+   * the fixture map brings a torch per draw call with it: 50 measured. Fusing
+   * the ghosts into one composite paid seven of those back.
    */
-  maxDrawCalls: 48,
+  maxDrawCalls: 60,
   /** ~3k quads × 2 tris ≈ 6k; leave headroom for overlays/ghosts. */
   maxTriangles: 40_000,
   /**
