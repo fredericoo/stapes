@@ -213,6 +213,16 @@ single comparison. The consequence is that a corpse cannot be pocketed and
 carried off — you loot it where it fell — which is the behaviour you would have
 had to write a rule for anyway.
 
+**And it is what lets carrying be measured in slots rather than in weight.** With
+depth fixed at one, what a person can carry is bounded by the bag on their back
+and nothing else, so `size` is the whole of the limit — no carry capacity, no
+arithmetic at the moment of picking something up, and a bag whose own weight is
+never a number anybody has to think about. Four squares is a fact you can see. A
+capacity figure is a fact you have to compute, and computing it is a tax on every
+pickup rather than a decision worth making. See open question 3, which also
+disposes of the reading that would strip `WeaponItem.weight` — swing cost and
+carry cost are different questions sharing a word.
+
 ### A container can be opened from the ground
 
 Walking up to a bag or a corpse and opening it shows the same panel the equipped
@@ -843,12 +853,27 @@ Not blocking Phase 1, but each needs an answer before the phase that hits it.
    traceability across a from-disk restart that nothing currently reads.
    Applies to nested `contents` ids too, on the same terms: a chest's contents are
    authored by tile, not by identity.
-2. **Can a creature carry anything?** Nothing in the model prevents it — an
-   `ActorRuntime` is an `ActorRuntime`. This plan seeds equipment only for
-   players, and a deer with a sword is out of scope, but the door is open.
-3. **Should a bag's own weight matter?** Bags have only `size` per the scope. A
-   heavy full bag slowing you is the obvious next lever and would go in the same
-   `effectiveBattler`.
+2. ~~**Can a creature carry anything?**~~ **Settled: no, and the door stays
+   shut for now.** Only players are seeded with a kit — `addActor` gives a
+   resident nothing — which is current behaviour and is now deliberate rather
+   than incidental. What creatures get *later* is equipment and storage **in
+   their bodies**, which is the container model this plan already describes: a
+   corpse with a slot or two in it is a backpack with fewer slots, and the thing
+   that makes it lootable is the placement it becomes. So the eventual answer is
+   not "give every deer a runtime inventory" — it is the corpse work named in
+   *Explicitly out of scope*, arriving through a door the model already has.
+3. ~~**Should a bag's own weight matter?**~~ **Settled: no. Carrying is measured
+   in slots and never in weight.** A capacity number you have to do arithmetic
+   against is a tax on every pickup, and it is not fun; four squares is a fact
+   you can see. The reason it works here is the nesting rule — with depth fixed
+   at one, what you can carry is bounded by the bag on your back and nothing
+   else, so `size` is the whole of the limit and there is nothing for a second
+   mechanism to catch.
+
+   **This is not about `WeaponItem.weight`, which stays.** That is what a weapon
+   costs you to *swing* — speed at full rate, accuracy at half — and it is the
+   reason a heavy weapon is worth less than its attack says. Carry capacity and
+   swing cost are different questions that happen to share an English word.
 4. ~~**Does the desktop aside widen, or do the grids get compact?**~~ (Phase 2.)
    **Settled:** the aside stayed at 224px and the grids are compact, so the game
    square still does not resize as you walk.
@@ -865,14 +890,16 @@ Not blocking Phase 1, but each needs an answer before the phase that hits it.
    state the world has. Being a fifth colour is what keeps it from being mistaken
    for one of the four.
 
-Two and three are the only ones still open, and neither blocks anything: both
-are doors the model leaves ajar rather than decisions anybody is waiting on.
+Five are settled and the sixth is deliberately left where it is. Anything that
+reopens one belongs in a new plan rather than in an edit to this list — the
+reasoning above is what the code was built against.
 
 ## Explicitly out of scope
 
 Named so they do not creep in: reordering items between slots, stacking or
-quantities, durability or charges, nested containers, armour or any slot beyond
-weapon and bag, anything `mastery` actually does, a visible weapon on a body,
+quantities, **carry weight or any capacity measured in anything but slots**,
+durability or charges, nested containers, creatures with inventories of their
+own, armour or any slot beyond weapon and bag, anything `mastery` actually does, a visible weapon on a body,
 trading or giving items to another player, a live `channel` on a carried item,
 respawn behaviour, and **corpse generation** — what a death leaves behind, which
 tile the body becomes, and any notion of a loot table. The container model has
