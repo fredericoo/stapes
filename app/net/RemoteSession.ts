@@ -52,6 +52,7 @@ import {
   parseServerMessage,
   type CellPatch,
   type ClientMessage,
+  type CarriedLightsPatch,
   type HpPatch,
   type MotionEvent,
 } from "./protocol";
@@ -160,6 +161,16 @@ export class RemoteSession implements PlaySession {
    * cell, or every blow would dirty the light and the geometry around it.
    */
   private readonly hps = new Map<string, { hp: number; maxHp: number }>();
+  /**
+   * The lit things each actor is carrying, as the server last reported them.
+   *
+   * Beside the actors for the same reason hit points are, and it is the sharper
+   * case of the two: a carried light is painted as a dynamic emitter every
+   * frame, so putting it on the board would dirty and re-bake the light chunks
+   * around anybody walking with a lantern — the exact cost this whole path
+   * exists to avoid.
+   */
+  private readonly carriedLights = new Map<string, string[]>();
   /**
    * What this viewer is carrying, as the server last said.
    *
@@ -285,12 +296,14 @@ export class RemoteSession implements PlaySession {
       // has to be said again — the same resend the held directions do.
       if (this.attacking) this.send({ type: "attackMode", enabled: true });
       this.hps.clear();
+      this.carriedLights.clear();
       // Replaced outright rather than kept: the body at the other end is a
       // fresh one, and what it is carrying is whatever the server just said —
       // not what the body in the previous world had on it.
       this.equipment = message.equipment;
       for (const id of message.actorIds) this.motions.set(id, emptyMotion());
       this.applyHps(message.hps);
+      this.applyCarriedLights(message.carriedLights);
       this.setPlayers(message.playerCount);
       this.ready = true;
       this.onReady?.();
@@ -330,6 +343,7 @@ export class RemoteSession implements PlaySession {
 
     this.applyCells(message.cells);
     this.applyHps(message.hps);
+    this.applyCarriedLights(message.carriedLights);
     for (const event of message.events) this.applyEvent(event);
     this.rebuildPredicted();
   };
@@ -338,6 +352,19 @@ export class RemoteSession implements PlaySession {
   private applyHps(hps: HpPatch[]) {
     for (const patch of hps) {
       this.hps.set(patch.actorId, { hp: patch.hp, maxHp: patch.maxHp });
+    }
+  }
+
+  /**
+   * Take the server's word for what everybody is carrying that glows.
+   *
+   * An empty list is stored rather than deleted: it is the server saying "this
+   * one put their lantern away", and dropping the entry instead would be
+   * indistinguishable from never having heard about them.
+   */
+  private applyCarriedLights(patches: CarriedLightsPatch[]) {
+    for (const patch of patches) {
+      this.carriedLights.set(patch.actorId, patch.tileIds);
     }
   }
 
@@ -379,6 +406,7 @@ export class RemoteSession implements PlaySession {
     if (event.kind === "left") {
       this.motions.delete(event.actorId);
       this.hps.delete(event.actorId);
+      this.carriedLights.delete(event.actorId);
       if (this.targetId === event.actorId) this.targetId = null;
       this.setPlayers(event.playerCount);
       return;
@@ -964,6 +992,11 @@ export class RemoteSession implements PlaySession {
         : 0,
       hp: health?.hp ?? null,
       maxHp: health?.maxHp ?? null,
+      // Shared by reference and never mutated in place, exactly as it is on the
+      // simulation side: the array the server sent *is* the answer, and copying
+      // it per actor per frame would be an allocation for a list that is almost
+      // always empty.
+      carriedLights: this.carriedLights.get(id) ?? NO_CARRIED_LIGHTS,
     };
   }
 
@@ -1200,6 +1233,15 @@ export class RemoteSession implements PlaySession {
   }
 }
 
+/**
+ * The empty list every actor without a lantern shares.
+ *
+ * One object rather than a fresh `[]` per actor per frame. It is never written
+ * to — carried lights arrive whole from the server and replace the entry — so
+ * sharing it is safe in the way sharing a mutable default never is.
+ */
+const NO_CARRIED_LIGHTS: string[] = [];
+
 function emptyMotion(): RemoteMotion {
   return { walk: null, fall: null, slide: null, lastSeen: null };
 }
@@ -1224,5 +1266,6 @@ function offscreenActor(id: string): ActorSnapshot {
     slideProgress: 0,
     hp: null,
     maxHp: null,
+    carriedLights: NO_CARRIED_LIGHTS,
   };
 }

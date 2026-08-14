@@ -24,6 +24,7 @@ import { MAX_LEVEL, MIN_LEVEL, parseCoordKey } from "../app/lib/types";
 import { CHAT_MIN_INTERVAL_MS, sanitizeChatText } from "../app/net/chat";
 import {
   parseClientMessage,
+  type CarriedLightsPatch,
   type CellPatch,
   type HpPatch,
   type MotionEvent,
@@ -39,6 +40,22 @@ function currentHps(actors: ActorSnapshot[]): HpPatch[] {
   for (const actor of actors) {
     if (actor.hp === null || actor.maxHp === null) continue;
     out.push({ actorId: actor.id, hp: actor.hp, maxHp: actor.maxHp });
+  }
+  return out;
+}
+
+/**
+ * Everybody's carried lights right now, for a client that has nothing to diff.
+ *
+ * Only the actors carrying one, which is almost nobody: an empty list is the
+ * absence of an entry, and saying so for every deer in the world would be the
+ * one part of `hello` that grew with the population for no reason.
+ */
+function currentCarriedLights(actors: ActorSnapshot[]): CarriedLightsPatch[] {
+  const out: CarriedLightsPatch[] = [];
+  for (const actor of actors) {
+    if (actor.carriedLights.length === 0) continue;
+    out.push({ actorId: actor.id, tileIds: actor.carriedLights });
   }
   return out;
 }
@@ -178,6 +195,16 @@ export class GameServer extends DurableObject<Env> {
    * the same version, so one diff serves every socket.
    */
   private sentHp = new Map<string, number>();
+  /**
+   * The carried lights each client has been told about, joined into one string
+   * per actor.
+   *
+   * A string rather than the array, because what is compared here is "is this
+   * the same answer as last time" and the arrays are rebuilt whenever a kit
+   * changes. Comparing by identity would re-broadcast a lantern every time
+   * somebody moved a sword between two pockets.
+   */
+  private sentCarriedLights = new Map<string, string>();
   private events: MotionEvent[] = [];
   /** Steps clients say they have taken, oldest first, per actor. */
   private readonly queuedSteps = new Map<string, QueuedStep[]>();
@@ -483,12 +510,14 @@ export class GameServer extends DurableObject<Env> {
 
   private sendHello(ws: WebSocket, actorId: string) {
     const session = this.session!;
+    const actors = session.actorSnapshots();
     const message: ServerMessage = {
       type: "hello",
       selfId: actorId,
       map: flattenMap(session.getMap()),
       actorIds: session.actorIds(),
-      hps: currentHps(session.actorSnapshots()),
+      hps: currentHps(actors),
+      carriedLights: currentCarriedLights(actors),
       // Theirs alone, and sent in full here for the same reason the map and the
       // hit points are: a joiner has nothing to patch against.
       equipment: session.equipmentOf(actorId) ?? emptyEquipment(),
@@ -992,8 +1021,20 @@ export class GameServer extends DurableObject<Env> {
 
     const cells = this.diffCells(session.getMap());
     const hps = this.diffHps(actors);
-    if (cells.length > 0 || this.events.length > 0 || hps.length > 0) {
-      this.broadcast({ type: "patch", cells, events: this.events, hps });
+    const carriedLights = this.diffCarriedLights(actors);
+    if (
+      cells.length > 0 ||
+      this.events.length > 0 ||
+      hps.length > 0 ||
+      carriedLights.length > 0
+    ) {
+      this.broadcast({
+        type: "patch",
+        cells,
+        events: this.events,
+        hps,
+        carriedLights,
+      });
       this.broadcastMap = session.getMap();
       this.events = [];
     }
@@ -1120,6 +1161,31 @@ export class GameServer extends DurableObject<Env> {
     }
     for (const id of this.sentHp.keys()) {
       if (!live.has(id)) this.sentHp.delete(id);
+    }
+    return out;
+  }
+
+  /**
+   * Carried lights that changed since the last broadcast.
+   *
+   * Almost always empty, and that is the shape to protect: this runs on every
+   * tick of every world, and a torch is picked up once. Forgetting an actor who
+   * has left matters here for the same reason it does for hit points — a
+   * returning player with a fresh kit would otherwise be diffed against the
+   * lantern their last body was holding, and the room would stay lit by nothing.
+   */
+  private diffCarriedLights(actors: ActorSnapshot[]): CarriedLightsPatch[] {
+    const out: CarriedLightsPatch[] = [];
+    const live = new Set<string>();
+    for (const actor of actors) {
+      live.add(actor.id);
+      const joined = actor.carriedLights.join(",");
+      if ((this.sentCarriedLights.get(actor.id) ?? "") === joined) continue;
+      this.sentCarriedLights.set(actor.id, joined);
+      out.push({ actorId: actor.id, tileIds: actor.carriedLights });
+    }
+    for (const id of this.sentCarriedLights.keys()) {
+      if (!live.has(id)) this.sentCarriedLights.delete(id);
     }
     return out;
   }

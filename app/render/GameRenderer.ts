@@ -38,7 +38,14 @@ import {
   levelsAboveShouldHide,
   viewAnchorFor,
 } from "../lib/levelVisibility";
-import type { Coord, MapFile, PlacedTile, TileDef, TilesetDef } from "../lib/types";
+import type {
+  Coord,
+  LightDef,
+  MapFile,
+  PlacedTile,
+  TileDef,
+  TilesetDef,
+} from "../lib/types";
 import { HEIGHT_PER_LEVEL } from "../lib/types";
 import { resolveLight } from "../lib/tileResolve";
 import { tilesByIdFromList } from "../lib/validation";
@@ -1665,11 +1672,39 @@ export class GameRenderer {
     // which is exactly the "goes dark" failure the bake omission warns about.
     const overrides: EmitterOverride[] = [];
     for (const actor of snap.actors) {
-      const light = resolveLight(playerDef, { direction: actor.direction });
-      if (!light) continue;
-      overrides.push(this.actorEmitter(snap.map, actor, playerDef.height ?? 0));
+      const body = resolveLight(playerDef, { direction: actor.direction });
+      const carried = this.carriedLightsFor(actor);
+      if (!body && !carried) continue;
+      const at = this.actorEmitter(snap.map, actor, playerDef.height ?? 0);
+      // The body's own light is found by reading the stack it is standing in,
+      // which is what an override has always meant. What is in the bag is not in
+      // any stack, so it travels on a second override at the same position — the
+      // cast accumulates, and one lantern at your hip lights exactly like one
+      // lantern at your hip.
+      if (body) overrides.push(at);
+      if (carried) overrides.push({ ...at, lights: carried });
     }
     return overrides.length > 0 ? overrides : undefined;
+  }
+
+  /**
+   * The lights this actor is carrying, or undefined for the usual case of none.
+   *
+   * Undefined rather than an empty array on purpose: this runs per actor per
+   * frame, and almost nobody is carrying a torch. Resolving the tile ids here
+   * rather than sending `LightDef`s over the wire is the same trade the whole
+   * protocol makes — every client already holds the catalogue.
+   */
+  private carriedLightsFor(actor: ActorSnapshot): LightDef[] | undefined {
+    if (actor.carriedLights.length === 0) return undefined;
+    const lights: LightDef[] = [];
+    for (const tileId of actor.carriedLights) {
+      const def = this.tilesById[tileId];
+      if (!def) continue;
+      const light = resolveLight(def, { direction: actor.direction });
+      if (light) lights.push(light);
+    }
+    return lights.length > 0 ? lights : undefined;
   }
 
   /**

@@ -51,6 +51,7 @@ import { resolveBattler, type BattlerDef } from "../lib/battler";
 import { attackIntervalMs, inAttackRange, rollAttack } from "./combat";
 import type { Equipment } from "./equipment";
 import {
+  carriedLightTileIds,
   effectiveBattler,
   emptyEquipment,
   startingEquipment,
@@ -203,6 +204,18 @@ export type ActorSnapshot = {
   hp: number | null;
   /** What {@link hp} is measured against; null exactly when `hp` is. */
   maxHp: number | null;
+  /**
+   * The tiles of the lit things this actor is carrying.
+   *
+   * The one part of a kit everybody can see, and therefore the one part that is
+   * broadcast: a torch in your bag lights the room for the people in it. The
+   * rest of what you are carrying is yours alone — see {@link GameSnapshot.equipment}.
+   *
+   * Tile ids rather than resolved lights, because every client already holds the
+   * catalogue. Empty for almost everybody, which is the case the renderer is
+   * built around.
+   */
+  carriedLights: string[];
 };
 
 /**
@@ -449,10 +462,22 @@ type ActorRuntime = {
    *
    * Unlike `hp` and `brain` this is *not* something a fresh runtime can rebuild
    * from the tile — it is the only state here that a world owes continuity for,
-   * because what somebody is carrying came from somewhere. Persisting it is
-   * Phase 6; until then a reconnect hands out a fresh kit.
+   * because what somebody is carrying came from somewhere.
    */
   equipment: Equipment;
+  /**
+   * The tiles of the lit things in that kit, kept in step with it.
+   *
+   * Derived, and cached here rather than computed where it is read, because it
+   * is read *every frame per actor* and changes only when somebody equips
+   * something. Walking a bag looking for lanterns sixty times a second to find
+   * the same empty list would be the whole cost of a feature almost nobody is
+   * using at any moment.
+   *
+   * The one rule: it is written only beside {@link GameSession.setEquipment}, so
+   * there is no way to change a kit without this following.
+   */
+  carriedLights: string[];
   /**
    * Where this creature is in its state machine, or null for a body with no
    * brain — every player, and any creature whose authored brain did not parse.
@@ -730,16 +755,18 @@ export class GameSession implements PlaySession {
     opts: { resident?: boolean } = {},
   ): ActorRuntime {
     const resident = opts.resident === true;
+    // Only people get a kit. A deer is an actor in every other respect, and
+    // could carry things the day something wants it to — but handing every
+    // creature in the world a backpack it will never open is a bag per body to
+    // seat, checkpoint and diff for nothing.
+    const equipment = resident
+      ? emptyEquipment()
+      : startingEquipment(this.tilesById, STARTING_BAG_TILE_ID);
     const actor: ActorRuntime = {
       id,
       resident,
-      // Only people get a kit. A deer is an actor in every other respect, and
-      // could carry things the day something wants it to — but handing every
-      // creature in the world a backpack it will never open is a bag per body
-      // to seat, checkpoint and diff for nothing.
-      equipment: resident
-        ? emptyEquipment()
-        : startingEquipment(this.tilesById, STARTING_BAG_TILE_ID),
+      equipment,
+      carriedLights: carriedLightTileIds(equipment, this.tilesById),
       brain: null,
       hp: null,
       attackCooldownMs: 0,
@@ -1820,6 +1847,11 @@ export class GameSession implements PlaySession {
    */
   private setEquipment(actor: ActorRuntime, next: Equipment) {
     actor.equipment = next;
+    // Re-derived here and nowhere else. It is the one moment the answer can have
+    // changed, and doing it beside the assignment is what makes "the cache
+    // cannot go stale" a fact about this function rather than a discipline
+    // spread over every caller.
+    actor.carriedLights = carriedLightTileIds(next, this.tilesById);
     this.equipmentChanged.add(actor.id);
   }
 
@@ -1972,6 +2004,10 @@ export class GameSession implements PlaySession {
         : 0,
       hp: this.hpOf(actor),
       maxHp: this.battlerOf(actor)?.maxHp ?? null,
+      // By reference, like `walk` and `fall`: it is replaced wholesale whenever
+      // a kit changes, so the same array across two ticks is the same answer and
+      // nothing downstream has to copy it to be safe.
+      carriedLights: actor.carriedLights,
     };
   }
 

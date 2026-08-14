@@ -207,16 +207,26 @@ function overlaySpecKey(spec: OverlaySpec): string {
   return `o:${spec.x},${spec.y},${spec.z},${spec.stackIndex}:${spec.color}${spec.pulse ? "~" : ""}${at}`;
 }
 
-/** Stable cache key for fractional emitter overrides (~0.01 cell). */
+/**
+ * Stable cache key for fractional emitter overrides (~0.01 cell).
+ *
+ * The lights are in it because an override that carries its own is not
+ * answerable from the map: two people standing in one spot, one of them holding
+ * a lantern, are the same six numbers and a different room.
+ */
 function emitterOverridesKey(
   overrides: EmitterOverride[] | undefined,
 ): string {
   if (!overrides?.length) return "";
   return overrides
-    .map(
-      (o) =>
-        `${o.x},${o.y},${o.z}:${o.fx.toFixed(2)},${o.fy.toFixed(2)},${o.fz.toFixed(2)}`,
-    )
+    .map((o) => {
+      const at = `${o.x},${o.y},${o.z}:${o.fx.toFixed(2)},${o.fy.toFixed(2)},${o.fz.toFixed(2)}`;
+      if (!o.lights) return at;
+      const lit = o.lights
+        .map((l) => `${l.radius},${l.intensity},${l.color}`)
+        .join(",");
+      return `${at}*${lit}`;
+    })
     .join("|");
 }
 

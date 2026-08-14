@@ -110,6 +110,7 @@ function connected(): { socket: FakeSocket; session: RemoteSession } {
     playerCount: 1,
     minutesOfDay: SERVER_MINUTES,
     hps: [],
+    carriedLights: [],
     equipment: emptyEquipment(),
   });
   return { socket, session };
@@ -120,7 +121,7 @@ function patch(
   events: MotionEvent[] = [],
   hps: HpPatch[] = [],
 ) {
-  return { type: "patch", cells, events, hps };
+  return { type: "patch", cells, events, hps, carriedLights: [] };
 }
 
 /** The step from (0,0,0) to (1,0,0), as the server announces it. */
@@ -245,6 +246,7 @@ function connectedAloft(): { socket: FakeSocket; session: RemoteSession } {
     playerCount: 1,
     minutesOfDay: SERVER_MINUTES,
     hps: [],
+    carriedLights: [],
     equipment: emptyEquipment(),
   });
   return { socket, session };
@@ -453,6 +455,7 @@ describe("RemoteSession chat", () => {
       playerCount: 1,
       minutesOfDay: SERVER_MINUTES,
       hps: [],
+      carriedLights: [],
     equipment: emptyEquipment(),
     });
 
@@ -782,6 +785,7 @@ describe("RemoteSession attack mode", () => {
       playerCount: 1,
       minutesOfDay: SERVER_MINUTES,
       hps: [],
+      carriedLights: [],
     equipment: emptyEquipment(),
     });
 
@@ -804,6 +808,7 @@ describe("RemoteSession attack mode", () => {
       playerCount: 1,
       minutesOfDay: SERVER_MINUTES,
       hps: [],
+      carriedLights: [],
     equipment: emptyEquipment(),
     });
 

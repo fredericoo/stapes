@@ -94,6 +94,17 @@ const tiles: TileDef[] = [
       item: { ...DEFAULT_CONTAINER, size: 2, equippable: false },
     },
   }),
+  // A weapon that is really a light. It fights like bare hands on purpose: the
+  // only thing being asserted with it is that carrying it lights the room.
+  tile({
+    id: "lantern",
+    kind: "item",
+    intangible: true,
+    light: { radius: 6, intensity: 1, color: "#ffcc88" },
+    interactions: {
+      item: { type: "weapon", atk: 0, def: 0, acc: 0, spd: 0, mastery: "blunt" },
+    },
+  }),
   // Slow and clumsy in the two ways a weapon can now be told to be.
   tile({
     id: "heavy-sword",
@@ -750,5 +761,73 @@ describe("putting things down", () => {
       false,
     );
     expect(session.canDrop({ kind: "weapon" }, { x: 2, y: 0, z: 0 })).toBe(false);
+  });
+});
+
+/**
+ * What everybody else can see of a kit.
+ *
+ * The rest of an inventory is private and changes nothing observable; a lantern
+ * lights the room for whoever is standing in it, so it is world state and it is
+ * broadcast. What is asserted here is that the projection follows the kit —
+ * because it is cached on the runtime, and a cache that can go stale would leave
+ * somebody walking around lit by a torch they put down.
+ */
+describe("carried lights", () => {
+  const LANTERN = "lantern";
+
+  function withLantern(x: number, y: number): GameSession {
+    const map = replaceStack(field(), x, y, 0, [
+      { tileId: "grass" },
+      { tileId: LANTERN },
+    ]);
+    return new GameSession(map, tiles);
+  }
+
+  function lightsOf(session: GameSession): string[] {
+    return session.getSnapshot().self.carriedLights;
+  }
+
+  function refAt(session: GameSession, x: number, y: number) {
+    const stack = getStack(session.getMap(), x, y, 0);
+    return { x, y, z: 0, stackIndex: stack.length - 1 };
+  }
+
+  it("is empty for somebody carrying nothing that glows", () => {
+    expect(lightsOf(new GameSession(field(), tiles))).toEqual([]);
+  });
+
+  it("follows a lantern into the bag and back onto the floor", () => {
+    const session = withLantern(1, 0);
+    expect(lightsOf(session)).toEqual([]);
+
+    session.pickUp(refAt(session, 1, 0));
+    expect(lightsOf(session)).toEqual([LANTERN]);
+
+    session.drop({ kind: "contents", index: 0 }, { x: 1, y: 0, z: 0 });
+    expect(lightsOf(session)).toEqual([]);
+  });
+
+  // Moving it from the bag to the hand changes nothing anybody outside can see,
+  // and the projection has to agree: a lantern is a lantern wherever it is on
+  // you. This is the case that would break if the cache were keyed on a slot.
+  it("is unchanged by moving the same lantern between slots", () => {
+    const session = withLantern(1, 0);
+    session.pickUp(refAt(session, 1, 0));
+    session.moveItem({ kind: "contents", index: 0 }, { kind: "weapon" });
+
+    expect(session.getSnapshot().equipment.weapon?.tileId).toBe(LANTERN);
+    expect(lightsOf(session)).toEqual([LANTERN]);
+  });
+
+  it("counts two of them, because two lanterns are twice the light", () => {
+    let map = field();
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: LANTERN }]);
+    map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: LANTERN }]);
+    const session = new GameSession(map, tiles);
+
+    session.pickUp(refAt(session, 1, 0));
+    session.pickUp(refAt(session, 0, 1));
+    expect(lightsOf(session)).toEqual([LANTERN, LANTERN]);
   });
 });

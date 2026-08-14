@@ -69,6 +69,11 @@ const hpPatchSchema = v.object({
   maxHp: v.number(),
 });
 
+const carriedLightsPatchSchema = v.object({
+  actorId: v.string(),
+  tileIds: v.array(v.string()),
+});
+
 /**
  * One carried thing, as it travels.
  *
@@ -121,6 +126,30 @@ export type HpPatch = {
   actorId: string;
   hp: number;
   maxHp: number;
+};
+
+/**
+ * The lit things one actor is carrying, as the server last saw them.
+ *
+ * The one part of a kit that is broadcast rather than sent to its owner alone,
+ * and the split is not arbitrary: **everybody can see a torch.** The rest of an
+ * inventory changes nothing anybody else can observe — there is no paperdoll and
+ * a drawn sword is not a different sprite — but a lantern lights the room for
+ * whoever is standing in it, so its existence is world state.
+ *
+ * Tile ids rather than resolved lights, for the reason the protocol sends tile
+ * ids everywhere: the catalogue is already on every client, and sending what the
+ * receiver can look up would be sending the same three numbers per torch per
+ * change.
+ *
+ * State, diffed exactly as {@link HpPatch} is — a whole current list replacing
+ * whatever the client had, sent only for the actors whose list changed. It
+ * changes when somebody equips something and never on a tick of walking, so in
+ * practice it is absent from almost every patch.
+ */
+export type CarriedLightsPatch = {
+  actorId: string;
+  tileIds: string[];
 };
 
 export type MotionEvent =
@@ -209,6 +238,13 @@ export type ServerMessage =
        * on the first frame rather than on the first blow.
        */
       hps: HpPatch[];
+      /**
+       * Everybody's carried lights as of this moment, on the same terms
+       * {@link hps} is sent in full here: a joiner has nothing to patch against,
+       * and a room lit by somebody else's lantern has to be lit on the first
+       * frame rather than on the next time they pick something up.
+       */
+      carriedLights: CarriedLightsPatch[];
       /** What this viewer is carrying. Theirs alone — see {@link Equipment}. */
       equipment: Equipment;
     }
@@ -238,6 +274,8 @@ export type ServerMessage =
       events: MotionEvent[];
       /** Only the actors whose hit points changed since the last patch. */
       hps: HpPatch[];
+      /** Only the actors whose carried lights changed since the last patch. */
+      carriedLights: CarriedLightsPatch[];
     }
   /**
    * Something somebody said, pinned to the cell they said it in.
@@ -493,6 +531,7 @@ const serverMessageSchema = v.variant("type", [
     playerCount: v.number(),
     minutesOfDay: v.number(),
     hps: v.array(hpPatchSchema),
+    carriedLights: v.array(carriedLightsPatchSchema),
     equipment: equipmentSchema,
   }),
   v.object({
@@ -553,6 +592,7 @@ const serverMessageSchema = v.variant("type", [
       ]),
     ),
     hps: v.array(hpPatchSchema),
+    carriedLights: v.array(carriedLightsPatchSchema),
   }),
   v.object({
     type: v.literal("chat"),

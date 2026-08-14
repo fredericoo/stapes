@@ -13266,6 +13266,9 @@
       "1,-2": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "hand-lantern"
         }
       ],
       "1,-1": [
