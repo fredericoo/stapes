@@ -411,6 +411,28 @@ describe("picking things up", () => {
     expect(getStack(session.getMap(), 1, 0, 0)).toHaveLength(2);
   });
 
+  /**
+   * The player tile stands *in* the cell it occupies, so an item on the floor
+   * beneath somebody is covered by their own body — and the round reach takes
+   * that cell in on purpose.
+   */
+  it("takes the thing under its own feet", () => {
+    const map = replaceStack(field(), 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: SWORD },
+      { tileId: "player", direction: "e" },
+    ]);
+    const session = new GameSession(map, tiles);
+
+    expect(session.pickUp({ x: 0, y: 0, z: 0, stackIndex: 1 })).toBe(true);
+    expect(bagOf(session).contents).toHaveLength(1);
+    // And the body it was under is still standing there, one slot lower.
+    expect(getStack(session.getMap(), 0, 0, 0).map((p) => p.tileId)).toEqual([
+      "grass",
+      "player",
+    ]);
+  });
+
   it("refuses something buried under another tile", () => {
     let map = field();
     map = replaceStack(map, 1, 0, 0, [

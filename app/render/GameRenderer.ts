@@ -14,10 +14,9 @@ import type {
 } from "../game/GameSession";
 import { PLAYER_TILE_ID } from "../game/constants";
 import { bodyNameFor } from "../game/displayName";
-import { canOpenFrom } from "../game/affordances";
 import type { Equipment } from "../game/equipment";
-import { instanceFromPlacement } from "../lib/itemInstance";
 import type { OpenedContainer } from "../game/itemMoves";
+import { readOpenedContainer } from "../game/openedContainer";
 import {
   listInteractionOptions,
   type InteractionOption,
@@ -186,8 +185,18 @@ export class GameRenderer {
     | null = null;
   /** Which floor container the panel is showing, if any. */
   private openedRef: ObjectRef | null = null;
-  /** The placement last read for it — the copy-on-write gate. */
+  /**
+   * Which particular thing that reference was opened on.
+   *
+   * Learnt on the first read and checked on every one after it, so a slot that
+   * comes to hold something else cannot be shown under the old panel — see
+   * `readOpenedContainer`. Null until the first read.
+   */
+  private openedItemId: string | null = null;
+  /** The placement last read for it — half of the gate below. */
   private openedPlacement: PlacedTile | null = null;
+  /** Where the viewer stood when reach was last asked — the other half. */
+  private openedFrom = "";
   /** Last value handed on. `undefined` means "nothing said yet". */
   private openedSent: OpenedContainer | null | undefined = undefined;
   private onInteractions:
@@ -374,49 +383,73 @@ export class GameRenderer {
     this.openedRef = ref;
     // Dropped so the next frame reports even when the reference is unchanged —
     // reopening the same chest must not be silent.
+    this.openedItemId = null;
     this.openedPlacement = null;
+    this.openedFrom = "";
     this.openedSent = undefined;
   }
 
   setOnOpenedContainer(cb: ((container: OpenedContainer | null) => void) | null) {
     this.onOpenedContainer = cb;
     this.openedPlacement = null;
+    this.openedFrom = "";
     this.openedSent = undefined;
   }
 
   /**
    * Read the opened container off the live board, once a frame.
    *
-   * Gated on the *placement object*, which is exactly the right granularity:
-   * the map is copy-on-write, so the placement is a new object precisely when
-   * that cell changed and the same object on every frame it did not. A player
-   * standing over an open chest costs one stack read and one reference compare.
+   * **Two things can change the answer, and the gate has to admit both.** The
+   * container's cell can change — somebody takes something out, or takes the
+   * whole box — and the viewer can walk. Gating on the placement alone was a
+   * real bug: the map is copy-on-write, so a chest nobody touches is the same
+   * object for as long as it sits there, and walking out of range never
+   * re-asked the question. Whether it closed depended on whether anything
+   * happened to the box while you were away.
    *
-   * Reports null the moment it stops being a container in reach — walked away
-   * from, emptied by somebody else, or picked up out from under the panel.
-   * Whoever opened it closes on that same answer, so there is one rule rather
-   * than a rule and a cleanup that can disagree.
+   * So: the placement object, which is exactly the right granularity for "did
+   * that cell change", *and* the cell the viewer is standing in, which is the
+   * whole of what reach depends on. A player standing still over an open chest
+   * costs one stack read, one reference compare and one string compare.
+   *
+   * The rule itself is `readOpenedContainer`, which is pure and tested. All this
+   * does is decide when to ask and remember what it said.
    */
   private pushOpenedContainer(snap: GameSnapshot) {
     if (!this.onOpenedContainer) return;
 
     const ref = this.openedRef;
-    const placed = ref
-      ? getStack(snap.map, ref.x, ref.y, ref.z)[ref.stackIndex]
-      : undefined;
-    if (placed && placed === this.openedPlacement) return;
-    this.openedPlacement = placed ?? null;
+    if (!ref) {
+      if (this.openedSent === null) return;
+      this.openedSent = null;
+      this.onOpenedContainer(null);
+      return;
+    }
 
-    const stillOpen =
-      ref != null &&
-      placed != null &&
-      canOpenFrom(snap.map, this.tilesById, snap.self, ref);
-    const instance = stillOpen ? instanceFromPlacement(placed) : null;
-    // The reference travels with the contents rather than being remembered
-    // separately by whoever opened it: what is in the box and where the box is
-    // are one answer, and a page holding half of each could show the contents of
-    // a chest it has stopped being able to name.
-    const container = instance && ref ? { instance, ref } : null;
+    const placed = getStack(snap.map, ref.x, ref.y, ref.z)[ref.stackIndex];
+    const from = `${snap.self.x},${snap.self.y},${snap.self.z}`;
+    if (placed === this.openedPlacement && from === this.openedFrom) return;
+    this.openedPlacement = placed ?? null;
+    this.openedFrom = from;
+
+    const read = readOpenedContainer(
+      snap.map,
+      this.tilesById,
+      snap.self,
+      ref,
+      this.openedItemId,
+    );
+    if (read.kind === "gone") {
+      // The reference is dropped rather than merely reporting null: the slot it
+      // names may come to hold something else, and walking back into range must
+      // not open a stranger's bag under the panel that used to be a chest.
+      this.openedRef = null;
+      this.openedItemId = null;
+    } else {
+      this.openedItemId = read.itemId;
+    }
+
+    const container = read.kind === "open" ? read.container : null;
     if (container === null && this.openedSent === null) return;
     this.openedSent = container;
     this.onOpenedContainer(container);

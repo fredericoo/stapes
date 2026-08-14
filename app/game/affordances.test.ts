@@ -225,3 +225,55 @@ describe("canOpenFrom", () => {
     );
   });
 });
+
+/**
+ * What counts as being buried.
+ *
+ * The round reach takes in the cell the actor is standing in, so the commonest
+ * thing on top of a reachable item is the actor's own body — and a rule that
+ * counted that as cover would make the most obvious case in the game
+ * impossible.
+ */
+describe("a body is not a lid", () => {
+  function under(tileId: string, above: string[]): MapFile {
+    return replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId, itemId: "itm_target" },
+      ...above.map((t) => ({ tileId: t, owner: "somebody" })),
+    ]);
+  }
+
+  it("picks up a sword from under your own feet", () => {
+    expect(
+      pickUpDestination(under("sword", ["rock"]), tilesById, ME, ref(0, 0), KIT),
+    ).toBe("contents");
+  });
+
+  it("opens a chest you are standing on", () => {
+    expect(canOpenFrom(under("chest", ["rock"]), tilesById, ME, ref(0, 0))).toBe(
+      true,
+    );
+  });
+
+  it("reaches under two bodies as readily as one", () => {
+    expect(
+      pickUpDestination(
+        under("sword", ["rock", "rock"]),
+        tilesById,
+        ME,
+        ref(0, 0),
+        KIT,
+      ),
+    ).toBe("contents");
+  });
+
+  it("is still buried under something nobody is driving", () => {
+    const buried = replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "sword", itemId: "itm_target" },
+      { tileId: "rock" },
+    ]);
+    expect(pickUpDestination(buried, tilesById, ME, ref(0, 0), KIT)).toBeNull();
+    expect(canOpenFrom(buried, tilesById, ME, ref(0, 0))).toBe(false);
+  });
+});

@@ -1,7 +1,7 @@
 import { getStack } from "../lib/mapData";
 import { isInteractive, resolvePush, resolveSwitch } from "../lib/interactions";
 import { resolveContainer, resolveItem } from "../lib/item";
-import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
+import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { canReplaceStack } from "../lib/validation";
 import type { Equipment } from "./equipment";
 import { pushDestination } from "./push";
@@ -154,12 +154,34 @@ export function withinReach(actor: Actor, ref: ObjectRef): boolean {
 }
 
 /**
+ * Is anything actually lying on top of this slot?
+ *
+ * **A body is not a lid.** Standing on a sword does not bury it, and a chest
+ * with somebody on top of it is a chest you can still open — the rule exists to
+ * stop you reaching a thing under a *crate*, and a person who walked over it is
+ * not one. Without this the round pick-up radius would contradict itself: it
+ * takes in the cell you are standing in on purpose, and that is exactly the cell
+ * your own body would otherwise cover.
+ *
+ * Any body, not only your own. Two people standing over one sword either both
+ * reach it or neither does, and "whoever stepped on it owns it" is a rule
+ * nothing else in the game plays by.
+ */
+function coveredBySomething(stack: PlacedTile[], index: number): boolean {
+  for (let above = index + 1; above < stack.length; above++) {
+    if (!stack[above]?.owner) return true;
+  }
+  return false;
+}
+
+/**
  * The item at a stack slot, if it is one and the actor could reach it.
  *
  * Deliberately not routed through {@link interactiveDefAt}: that one gates on
  * `isInteractive`, which asks whether the *tile* offers push or switch, and an
- * item offers neither. What it does share is the top-of-stack rule — something
- * buried under a crate is not something you can pick up.
+ * item offers neither. What it does share is the spirit of the top-of-stack
+ * rule — something under a crate is not something you can pick up — but read
+ * through {@link coveredBySomething}, which does not count a body as cover.
  */
 export function reachableItemDefAt(
   map: MapFile,
@@ -169,7 +191,7 @@ export function reachableItemDefAt(
 ): TileDef | null {
   if (!withinReach(actor, ref)) return null;
   const stack = getStack(map, ref.x, ref.y, ref.z);
-  if (ref.stackIndex !== stack.length - 1) return null;
+  if (coveredBySomething(stack, ref.stackIndex)) return null;
   const placed = stack[ref.stackIndex];
   if (!placed) return null;
   const def = tilesById[placed.tileId];

@@ -1,7 +1,7 @@
 import { getStack } from "../lib/mapData";
 import type { InteractionKind } from "../lib/interactions";
 import { resolveSwitch } from "../lib/interactions";
-import type { MapFile, TileDef } from "../lib/types";
+import type { MapFile, PlacedTile, TileDef } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 import {
   canOpenFrom,
@@ -187,6 +187,21 @@ export function applyInteraction(
   session.interact(option.ref);
 }
 
+/**
+ * Where the top *thing* is in a stack, or -1 for a stack of nothing but bodies.
+ *
+ * The counterpart of `affordances`' own cover rule, and it has to agree with it:
+ * a cell whose rows were built from a slot that module considers buried would
+ * offer actions every one of which is refused, and a cell it can reach into but
+ * this one never looks at would offer none at all.
+ */
+function topmostThingIn(stack: readonly PlacedTile[]): number {
+  for (let i = stack.length - 1; i >= 0; i--) {
+    if (!stack[i]?.owner) return i;
+  }
+  return -1;
+}
+
 function refKey(ref: ObjectRef): string {
   return `${ref.x},${ref.y},${ref.z},${ref.stackIndex}`;
 }
@@ -252,48 +267,93 @@ function objectOptions(
       const y = self.y + dy;
 
       for (let z = zMin; z <= zMax; z++) {
-        const stack = getStack(map, x, y, z);
-        // Only the top of a stack can be acted on, exactly as the pick has it.
-        const stackIndex = stack.length - 1;
-        const placed = stack[stackIndex];
-        if (!placed) continue;
-        // The actor's own body is the top of their own cell. Offering to pick
-        // yourself up is not a thing, and the diagonal sweep is what newly
-        // makes it reachable.
-        if (placed.owner === self.id) continue;
-
-        const ref: ObjectRef = { x, y, z, stackIndex };
-        const body = bodies.get(refKey(ref));
-        const name = body
-          ? bodyNameFor({ actorId: body.id, tileId: body.tileId }, tilesById)
-          : (tilesById[placed.tileId]?.name ?? placed.tileId);
-
-        const add = (action: InteractionAction, label: string) => {
-          out.push({
-            id: `${action}:${refKey(ref)}`,
-            action,
-            label,
-            ref,
-            actorId: null,
-            tileId: placed.tileId,
-            name,
-            active: false,
-          });
-        };
-
-        // The one thing a tap would run, named by what it would actually be —
-        // the precedence is read out of the session's own order rather than
-        // restated here.
-        const action = objectAction(map, tilesById, self, ref, equipment);
-        if (action) add(action, objectActionLabel(action, tilesById[placed.tileId]));
-
-        // And, beside it, opening — which is not something a tap runs at all.
-        // A bag on the floor is therefore two rows, "Open" and "Pick up",
-        // which is the same one-row-per-verb rule bodies already follow.
-        if (canOpenFrom(map, tilesById, self, ref)) add("open", LABELS.open);
+        for (const stackIndex of actionableSlotsIn(getStack(map, x, y, z))) {
+          out.push(
+            ...slotOptions(map, tilesById, self, bodies, equipment, {
+              x,
+              y,
+              z,
+              stackIndex,
+            }),
+          );
+        }
       }
     }
   }
+
+  return out;
+}
+
+/**
+ * Which slots of one cell are worth asking about — at most two.
+ *
+ * The top of the stack, which is what a tap acts on, and *underneath a body*
+ * the topmost thing that is not one. A body is not a lid: standing on a sword
+ * does not bury it, and a chest with somebody on it is a chest you can still
+ * open. The cell this matters most in is the actor's own, which the round reach
+ * takes in on purpose and which their own body would otherwise cover
+ * completely.
+ *
+ * Both, rather than one or the other, because a body can be a subject in its own
+ * right — the `player` tile is shovable — so looking only underneath would take
+ * away the shove, and looking only on top is the bug this fixes.
+ *
+ * Deliberately not the whole stack. Reaching under a body is reaching past
+ * something soft; reaching under a crate is not, and a cell of four things does
+ * not offer four rows.
+ */
+function actionableSlotsIn(stack: readonly PlacedTile[]): number[] {
+  const top = stack.length - 1;
+  if (top < 0) return [];
+  if (!stack[top]?.owner) return [top];
+  const covered = topmostThingIn(stack);
+  return covered < 0 ? [top] : [top, covered];
+}
+
+/** Every row one slot of one cell offers. */
+function slotOptions(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  self: ActorSnapshot,
+  bodies: Map<string, ActorSnapshot>,
+  equipment: Equipment,
+  ref: ObjectRef,
+): InteractionOption[] {
+  const placed = getStack(map, ref.x, ref.y, ref.z)[ref.stackIndex];
+  if (!placed) return [];
+  // Your own body is the one subject that is never worth a row: everything the
+  // list offers is something to do to something *else*, and the tile a player
+  // stands in happens to be shovable.
+  if (placed.owner === self.id) return [];
+
+  const body = bodies.get(refKey(ref));
+  const name = body
+    ? bodyNameFor({ actorId: body.id, tileId: body.tileId }, tilesById)
+    : (tilesById[placed.tileId]?.name ?? placed.tileId);
+
+  const out: InteractionOption[] = [];
+  const add = (action: InteractionAction, label: string) => {
+    out.push({
+      id: `${action}:${refKey(ref)}`,
+      action,
+      label,
+      ref,
+      actorId: null,
+      tileId: placed.tileId,
+      name,
+      active: false,
+    });
+  };
+
+  // The one thing a tap would run, named by what it would actually be — the
+  // precedence is read out of the session's own order rather than restated here.
+  const action = objectAction(map, tilesById, self, ref, equipment);
+  if (action) add(action, objectActionLabel(action, tilesById[placed.tileId]));
+
+  // And, beside it, opening — which is not something a tap runs at all. A bag on
+  // the floor is therefore two rows, "Open" and "Pick up", which is the same
+  // one-row-per-verb rule bodies already follow.
+  if (canOpenFrom(map, tilesById, self, ref)) add("open", LABELS.open);
 
   return out;
 }

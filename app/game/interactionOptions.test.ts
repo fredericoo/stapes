@@ -646,3 +646,90 @@ describe("listInteractionOptions — bags on the floor", () => {
     ).toEqual(["pickUp"]);
   });
 });
+
+/**
+ * A body is not a lid.
+ *
+ * The round pick-up reach takes in the cell you are standing in on purpose, and
+ * that is exactly the cell your own body covers — so a rule that read "top of
+ * the stack" literally made the most obvious case in the game impossible: you
+ * could not take the sword you were standing on, and could not open the chest
+ * you had walked onto.
+ */
+describe("listInteractionOptions — standing on things", () => {
+  /**
+   * A body on the map carries the actor driving it, which is what makes it a
+   * body rather than scenery — see `PlacedTile.owner`.
+   */
+  function withBodyOver(
+    map: MapFile,
+    x: number,
+    y: number,
+    under: string[],
+    owner: string,
+  ): MapFile {
+    return replaceStack(map, x, y, 0, [
+      ...under.map((tileId) => ({ tileId })),
+      { tileId: "player", owner },
+    ]);
+  }
+
+  it("picks up the sword under your own feet", () => {
+    const map = withBodyOver(field(), 0, 0, ["grass", "sword"], "me");
+    const me = actor("me", "player", 0, 0, map);
+
+    const options = listInteractionOptions(map, tilesById, me, [me], null, KIT);
+
+    expect(actionsIn(options)).toEqual(["pickUp"]);
+    expect(options[0]!.ref).toEqual({ x: 0, y: 0, z: 0, stackIndex: 1 });
+  });
+
+  it("opens the chest you are standing on", () => {
+    const map = withBodyOver(field(), 0, 0, ["grass", "chest"], "me");
+    const me = actor("me", "player", 0, 0, map);
+
+    expect(
+      actionsIn(listInteractionOptions(map, tilesById, me, [me], null, KIT)),
+    ).toEqual(["open"]);
+  });
+
+  it("still offers nothing for the body itself", () => {
+    const map = withBodyOver(field(), 0, 0, ["grass"], "me");
+    const me = actor("me", "player", 0, 0, map);
+
+    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual(
+      [],
+    );
+  });
+
+  /**
+   * Somebody else standing on a thing does not own it. The alternative rule —
+   * whoever stepped on it gets it — is one nothing else in the game plays by.
+   */
+  it("reaches under somebody else, and still offers the shove for them", () => {
+    const map = withBodyOver(field(), 1, 0, ["grass", "sword"], "them");
+    const me = playerAt(map, 0, 0);
+    const them = actor("them", "player", 1, 0, map, 10);
+
+    const options = listInteractionOptions(
+      map,
+      tilesById,
+      me,
+      [me, them],
+      null,
+      KIT,
+    );
+
+    expect(actionsIn(options).sort()).toEqual(["pickUp", "push", "target"]);
+  });
+
+  it("does not reach under a crate, which is a lid", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "sword", "crate"]);
+    const me = playerAt(map);
+
+    expect(
+      actionsIn(listInteractionOptions(map, tilesById, me, [me], null, KIT)),
+    ).toEqual(["push"]);
+  });
+});
