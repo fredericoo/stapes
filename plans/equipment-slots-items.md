@@ -448,6 +448,40 @@ lives per-kind in `affordances`, so this costs nothing structurally — but
 `canPickUpFrom` must not be routed through `pushDirectionFrom`, which is where
 the orthogonal rule is hardcoded.
 
+### Revised: the pointer is a row, and the world says the verb
+
+"`open` is an action and not a kind" was right about the *wire* and wrong about
+the pointer, and the gap between those was visible: a chest was listed a foot
+away as **Open Chest** and could not be clicked in the world at all. The hover
+was gated on `canInteract`, which is the server-side precedence — switch, pickUp,
+push — and knows nothing about a row that never reaches the session.
+
+So the pointer now reads out of the list rather than out of that precedence.
+**Whatever is under the cursor is looked up as an `InteractionOption`, and that
+one row decides all three things at once**: the colour of the outline, the words
+drawn over it, and what a click runs. `topInteractionAt` picks it, by the list's
+own `ACTION_ORDER` — so a chest opens rather than shoving, because that is the
+order the list already showed and there is no longer a second precedence able to
+disagree with the words on screen.
+
+Three things follow, and each removes something:
+
+- **The hover left the session.** `setHoveredObject`, `ActorRuntime.hovered` and
+  `GameSnapshot.hover` are gone from both `GameSession` and `RemoteSession`. A
+  hover is where a pointer is, and the session has no pointer; what it was really
+  being asked was `canInteract`, which stays and which the tests that used to go
+  through the hover now ask directly.
+- **The pointer says what it would do.** Not the tile's name — "Push Box", "Pick
+  up Rusty Sword", "Target Deer", in the colour of the outline around them. A
+  sprite on the floor is a handful of pixels and a lantern and a sword are the
+  same handful; the silhouette says *that* you could act and the label says what.
+  Look mode is unchanged and still names everything, in blue, and the two cannot
+  both appear.
+- **The row is resolved every frame, never held.** The same trick the list hover
+  already played, for a sharper reason: open the chest you are pointing at and
+  its row is renamed *Close*. Holding the option meant the label went on offering
+  to open an open chest until the mouse twitched.
+
 ### Equipment survives a disconnect
 
 Checkpointed with the world, and stored per actor under `equip:<id>` alongside

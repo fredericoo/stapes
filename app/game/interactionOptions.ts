@@ -95,6 +95,18 @@ const LABELS: Record<InteractionAction, string> = {
 const CLOSE_LABEL = "Close";
 
 /**
+ * One entry as a sentence: the verb and what it is about.
+ *
+ * The list draws these on two lines because it has a column to fill; anything
+ * with one line to say it in — the label under the pointer, a tooltip, anything
+ * read aloud — says it this way. Written once so "Pick up Rusty Sword" cannot
+ * come out as "Rusty Sword: pick up" somewhere else.
+ */
+export function interactionText(option: InteractionOption): string {
+  return `${option.label} ${option.name}`;
+}
+
+/**
  * Which verb comes first where two entries are the same distance away.
  *
  * Stated rather than left to the id's alphabet. It used to be exactly that
@@ -114,6 +126,34 @@ const ACTION_ORDER: Record<InteractionAction, number> = {
   pickUp: 3,
   push: 4,
 };
+
+/**
+ * The row a tap on this object runs — the first one the list offers for it.
+ *
+ * **The pointer and the list are the same list.** Whatever is under the cursor
+ * is looked up here, and what comes back decides all three things at once: the
+ * colour of the outline, the words in the label over it, and what happens if you
+ * click. So a chest that reads "Open Chest" opens, and cannot quietly shove
+ * instead — there is no second precedence anywhere to disagree with this one.
+ *
+ * "First" is {@link ACTION_ORDER}, which is the order the list itself sorts by
+ * once distance has been settled — and distance is settled here by construction,
+ * since every candidate is the same object.
+ */
+export function topInteractionAt(
+  options: readonly InteractionOption[],
+  ref: ObjectRef,
+): InteractionOption | null {
+  let best: InteractionOption | null = null;
+  const key = refKey(ref);
+  for (const option of options) {
+    if (refKey(option.ref) !== key) continue;
+    if (!best || ACTION_ORDER[option.action] < ACTION_ORDER[best.action]) {
+      best = option;
+    }
+  }
+  return best;
+}
 
 /**
  * How much a floor counts for when sorting by nearness.

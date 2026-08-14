@@ -278,20 +278,18 @@ export type ChatBubble = {
 export type GameSnapshot = {
   map: MapFile;
   /**
-   * The viewer's own actor. Camera, roof-cut and hover follow this one and only
-   * this one — they are affordances for whoever is looking, not properties of
-   * the board.
+   * The viewer's own actor. Camera and roof-cut follow this one and only this
+   * one — they are affordances for whoever is looking, not properties of the
+   * board.
    */
   self: ActorSnapshot;
   /** Every actor on the board, self included, in stable id order. */
   actors: ActorSnapshot[];
-  /** Object under the viewer's pointer that they can act on right now. */
-  hover: ObjectRef | null;
   /**
    * Who the viewer has picked a fight with, or null.
    *
-   * The viewer's own, like {@link hover} and for the same reason: a target is
-   * an affordance for whoever is looking, not a property of the board. It is
+   * The viewer's own, and that is the point: a target is an affordance for
+   * whoever is looking, not a property of the board. It is
    * what the auto-attack swings at *while {@link attacking}*, and it survives
    * until they clear it, walk out of sight of it, or it dies.
    */
@@ -316,8 +314,8 @@ export type GameSnapshot = {
   /**
    * What the viewer is carrying.
    *
-   * The viewer's own, like {@link hover} and {@link targetId}, and for a
-   * stronger reason than either: nobody else's inventory is drawn. There is no
+   * The viewer's own, like {@link targetId}, and for a stronger reason than it:
+   * nobody else's inventory is drawn. There is no
    * paperdoll — a sword changes no sprite — so broadcasting everyone's kit to
    * everyone would be paying fan-out for something no frame can show.
    *
@@ -376,7 +374,6 @@ export interface PlaySession {
   update(dtMs: number): void;
   getSnapshot(): GameSnapshot;
   getMap(): MapFile;
-  setHoveredObject(ref: ObjectRef | null): void;
   /**
    * Point at somebody, or at nobody with null.
    *
@@ -521,7 +518,6 @@ type ActorRuntime = {
   walk: WalkState | null;
   fall: FallState | null;
   slide: SlideState | null;
-  hovered: ObjectRef | null;
   /**
    * Location memo, keyed on the map object it was read from.
    *
@@ -783,7 +779,6 @@ export class GameSession implements PlaySession {
       walk: null,
       fall: null,
       slide: null,
-      hovered: null,
       memo: null,
     };
     this.actors.set(id, actor);
@@ -1938,16 +1933,6 @@ export class GameSession implements PlaySession {
     return acted;
   }
 
-  /**
-   * Renderer reports what the pointer is over; whether it counts is decided on
-   * read, not here. Reach changes as the actor walks and as objects settle,
-   * and a pointer that has not moved must not keep an outline alive that the
-   * actor can no longer act on.
-   */
-  setHoveredObject(ref: ObjectRef | null, id: string = LOCAL_ACTOR_ID) {
-    this.actor(id).hovered = ref;
-  }
-
   /** Is there anything a tap on this object would do right now? */
   canInteract(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     return (
@@ -2041,8 +2026,6 @@ export class GameSession implements PlaySession {
       map: this.map,
       self: mine,
       actors,
-      hover:
-        self.hovered && this.canInteract(self.hovered, id) ? self.hovered : null,
       targetId: self.targetId,
       attacking: self.attacking,
       equipment: self.equipment,

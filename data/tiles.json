@@ -1896,10 +1896,6 @@
     "affectedByGravity": true,
     "walkable": false,
     "interactions": {
-      "push": {
-        "climb": "none",
-        "moveOnTileIds": []
-      },
       "battler": {
         "maxHp": 40,
         "atk": 6,
@@ -1907,6 +1903,10 @@
         "acc": 70,
         "flee": 25,
         "spd": 55
+      },
+      "push": {
+        "climb": "none",
+        "moveOnTileIds": []
       }
     },
     "sprites": {
@@ -1926,12 +1926,7 @@
                 "y": 1
               }
             },
-            "durationMs": 200,
-            "light": {
-              "radius": 5,
-              "intensity": 1,
-              "color": "#ffcc88"
-            }
+            "durationMs": 200
           }
         ]
       },
@@ -1951,12 +1946,7 @@
                 "y": 1
               }
             },
-            "durationMs": 200,
-            "light": {
-              "radius": 5,
-              "intensity": 1,
-              "color": "#ffcc88"
-            }
+            "durationMs": 200
           }
         ]
       },
@@ -1976,12 +1966,7 @@
                 "y": 1
               }
             },
-            "durationMs": 200,
-            "light": {
-              "radius": 5,
-              "intensity": 1,
-              "color": "#ffcc88"
-            }
+            "durationMs": 200
           }
         ]
       },
@@ -2001,12 +1986,7 @@
                 "y": 1
               }
             },
-            "durationMs": 200,
-            "light": {
-              "radius": 5,
-              "intensity": 1,
-              "color": "#ffcc88"
-            }
+            "durationMs": 200
           }
         ]
       }

@@ -152,7 +152,6 @@ export class RemoteSession implements PlaySession {
   private chats: LiveChat[] = [];
   /** Ticks up per message, so two lines from one actor are two bubbles. */
   private nextChatId = 0;
-  private hovered: ObjectRef | null = null;
   /**
    * Hit points as the server last reported them, per actor.
    *
@@ -1025,7 +1024,6 @@ export class RemoteSession implements PlaySession {
       // world they are no longer in.
       self: self ?? this.lastSelf ?? offscreenActor(this.selfId),
       actors,
-      hover: this.hovered && this.canInteract(this.hovered) ? this.hovered : null,
       targetId: this.targetId,
       attacking: this.attacking,
       equipment: this.equipment,
@@ -1054,10 +1052,6 @@ export class RemoteSession implements PlaySession {
     if (enabled === this.attacking) return;
     this.attacking = enabled;
     this.send({ type: "attackMode", enabled });
-  }
-
-  setHoveredObject(ref: ObjectRef | null) {
-    this.hovered = ref;
   }
 
   /**

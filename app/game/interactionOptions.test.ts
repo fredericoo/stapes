@@ -9,7 +9,9 @@ import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import type { ActorSnapshot } from "./GameSession";
 import {
+  interactionText,
   listInteractionOptions,
+  topInteractionAt,
   type InteractionOption,
 } from "./interactionOptions";
 
@@ -779,5 +781,80 @@ describe("listInteractionOptions — a container already open", () => {
 
   it("is still one row, not two", () => {
     expect(rows(REF).filter((o) => o.action === "open")).toHaveLength(1);
+  });
+});
+
+/**
+ * What the pointer does with the list.
+ *
+ * The cursor and the list are the same list: whatever is under it is looked up
+ * as a row, and that one row decides the outline, the words drawn over it and
+ * what a click runs. So these are about the *choice* — which row wins when an
+ * object offers more than one — because a chest that reads "Open Chest" and
+ * shoves instead is the failure this is here to prevent.
+ */
+describe("topInteractionAt", () => {
+  function optionsAround(map: MapFile, kit: Equipment = KIT) {
+    const me = playerAt(map);
+    return listInteractionOptions(map, tilesById, me, [me], null, kit);
+  }
+
+  it("takes open over pick up on a bag, which is the order the list shows", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "bag"]);
+    const ref = { x: 1, y: 0, z: 0, stackIndex: 1 };
+
+    const top = topInteractionAt(optionsAround(map, NO_BAG), ref);
+    expect(top?.action).toBe("open");
+  });
+
+  it("takes the one thing a crate offers", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "crate"]);
+    const top = topInteractionAt(optionsAround(map), {
+      x: 1,
+      y: 0,
+      z: 0,
+      stackIndex: 1,
+    });
+    expect(top?.action).toBe("push");
+  });
+
+  it("has nothing to say about a cell with no rows", () => {
+    const map = field();
+    const top = topInteractionAt(optionsAround(map), {
+      x: 1,
+      y: 0,
+      z: 0,
+      stackIndex: 0,
+    });
+    expect(top).toBeNull();
+  });
+
+  // Rows for other objects are not candidates, however near they are — the
+  // pointer is over one thing.
+  it("ignores rows belonging to a different object", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "crate"]);
+    map = place(map, 0, 1, ["grass", "sword"]);
+
+    const top = topInteractionAt(optionsAround(map), {
+      x: 0,
+      y: 1,
+      z: 0,
+      stackIndex: 1,
+    });
+    expect(top?.action).toBe("pickUp");
+  });
+});
+
+describe("interactionText", () => {
+  it("puts the verb first, then what it is about", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "sword"]);
+    const me = playerAt(map);
+    const options = listInteractionOptions(map, tilesById, me, [me], null, KIT);
+
+    expect(options.map(interactionText)).toContain("Pick up Sword");
   });
 });
