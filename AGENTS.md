@@ -360,6 +360,27 @@ timeout on the wait, so `WorldLabelLayer` also drops its measurements on
 `loadingdone` — a font that lands after the deadline still gets its labels
 re-measured rather than staying wrong for the session.
 
+**There are two waits, and the loading screen covers both.** The gate above
+hands the renderer decoded images; the renderer needs GPU textures and fetches
+them again on its own account, so `WorldRenderer.renderOnce` paints nothing
+until `assetsReady` — a material whose texture has not landed draws
+`magentaTex`, and the placeholder is there to make a *missing* tileset obvious,
+not one that is still in flight. `setOnFirstFrame` is what takes the screen
+down, so it comes off against the world appearing rather than against a guess.
+That also makes `preloadTextures` catch per tileset: left to reject, one 404
+would mean the flag never flips and the world is never drawn at all.
+
+The loading screen itself is set in a **system** font. Both of the page's own
+faces are downloads — the pixel font and the chrome's IBM Plex Mono — and a
+loading message that cannot be read until the download lands is a blank screen.
+
+**Name tags stack in the world's own painter order** (`drawOrder`, the
+whole-sprite key). Two crossing tags used to be settled by which element was
+created first, so a cat that had been on screen longer had its tag over the
+player standing in front of it. `WorldLabelLayer` orders the *elements* rather
+than writing z-indexes, so the stylesheet's bands — name under speech under
+damage — keep deciding everything they already decided.
+
 ## The save is the repair path, so it must not need a working world
 
 `replaceWorld` is the only way to change the world, which makes it the only way

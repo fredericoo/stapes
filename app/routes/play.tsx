@@ -41,6 +41,10 @@ export default function PlayPage() {
   // page until this is true, so the renderer cannot start early. @see
   // ../lib/gameAssets
   const assetsReady = useGameAssets(tilesets);
+  // And the loading screen stays up past that, until there is a world on the
+  // canvas: the renderer wants the tilesets as GPU textures, which is a second
+  // wait after the one above, and it paints nothing until it has them.
+  const [painted, setPainted] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // Single-player draws no names and hears no speech, but looking is in-world
   // text like the rest of it, so the layer has to exist here too.
@@ -118,6 +122,7 @@ export default function PlayPage() {
     renderer.setOnClock(setMinutesOfDay);
     renderer.setOnStats(setStats);
     renderer.setOnInteractions(setInteractions);
+    renderer.setOnFirstFrame(() => setPainted(true));
     rendererRef.current = renderer;
     renderer.start();
 
@@ -133,6 +138,9 @@ export default function PlayPage() {
       renderer.dispose();
       setStats(null);
       setInteractions([]);
+      // A new renderer has a fresh canvas to fill — an editor save arrives here
+      // as a map change — so the screen goes back up until it has filled it.
+      setPainted(false);
     };
     // `assetsReady` is in here for the canvas rather than for itself: the
     // element only exists once it is true, so without it this effect would have
@@ -216,25 +224,28 @@ export default function PlayPage() {
         </span>
       }
     >
-      {assetsReady ? (
-        <GameViewport
-          canvasRef={canvasRef}
-          labelRef={labelRef}
-          onDirectionPress={pressDirection}
-          onDirectionRelease={releaseDirection}
-          looking={looking}
-          onLookingChange={setLookLatched}
-          attacking={attacking}
-          onAttackingChange={setAttacking}
-          interactions={interactions}
-          onInteract={act}
-          onHoverInteraction={hoverInteraction}
-          tiles={tiles}
-          tilesets={tilesets}
-        />
-      ) : (
-        <LoadingScreen />
-      )}
+      {/* The screen sits over the game rather than instead of it, because it
+          outlasts the moment the canvas mounts — see `painted`. */}
+      <div className="relative h-full w-full">
+        {assetsReady ? (
+          <GameViewport
+            canvasRef={canvasRef}
+            labelRef={labelRef}
+            onDirectionPress={pressDirection}
+            onDirectionRelease={releaseDirection}
+            looking={looking}
+            onLookingChange={setLookLatched}
+            attacking={attacking}
+            onAttackingChange={setAttacking}
+            interactions={interactions}
+            onInteract={act}
+            onHoverInteraction={hoverInteraction}
+            tiles={tiles}
+            tilesets={tilesets}
+          />
+        ) : null}
+        {painted ? null : <LoadingScreen />}
+      </div>
     </AppShell>
   );
 }

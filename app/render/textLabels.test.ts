@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { PLAYER_TILE_ID } from "../game/constants";
 import { displayNameFor, bodyNameFor } from "../game/displayName";
 import type { TileDef } from "../lib/types";
-import { labelScreenPosition } from "./textLabels";
+import { labelScreenPosition, stackingOrder } from "./textLabels";
 
 /**
  * Where a label lands, without a browser.
@@ -62,6 +62,46 @@ describe("label placement", () => {
       left: -200,
       top: -400,
     });
+  });
+});
+
+/**
+ * Which name is on top when two of them cross.
+ *
+ * It used to be whoever's element was created first, so a cat that had been on
+ * screen longer had its tag drawn over the player standing in front of it —
+ * chrome contradicting the very sprites it is attached to. The key comes from
+ * `drawOrder`, the same painter's key the world sorts bodies by; what is
+ * asserted here is only that the layer honours it.
+ */
+describe("stacking order", () => {
+  it("puts the nearer label last, so it paints on top", () => {
+    expect(
+      stackingOrder([
+        { id: "far", order: 10 },
+        { id: "near", order: 20 },
+        { id: "middle", order: 15 },
+      ]),
+    ).toEqual(["far", "middle", "near"]);
+  });
+
+  /** Speech and looks say nothing about depth, and are drawn over names anyway. */
+  it("leaves a label with no order on top", () => {
+    expect(
+      stackingOrder([
+        { id: "speech" },
+        { id: "name", order: 10 },
+      ]),
+    ).toEqual(["name", "speech"]);
+  });
+
+  it("keeps the caller's order where two labels tie", () => {
+    expect(
+      stackingOrder([
+        { id: "a", order: 5 },
+        { id: "b", order: 5 },
+      ]),
+    ).toEqual(["a", "b"]);
   });
 });
 
