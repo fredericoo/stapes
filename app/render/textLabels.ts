@@ -93,6 +93,18 @@ export type WorldLabel = {
    */
   bar?: { fraction: number };
   /**
+   * Painter's-order key for labels that overlap each other, larger drawn on
+   * top. Absent leaves a label wherever it happens to fall.
+   *
+   * A name is chrome for a body in the world, so when two of them cross, the
+   * one belonging to the body in front has to be the one you can read —
+   * otherwise the tag on a creature standing behind you is drawn over the tag
+   * on your own. The caller decides the order (see `drawOrder` in
+   * `../lib/geometry`), because it is the same question the world answers about
+   * the sprites underneath and must be answered the same way.
+   */
+  order?: number;
+  /**
    * Ink for the whole group, overriding whatever the kind's class says.
    *
    * A battler's name is tinted to match its own health, so the tag and the bar
@@ -166,6 +178,31 @@ function brickWidth(bricks: number): string {
   return `calc(var(--world-label-brick) * ${bricks})`;
 }
 
+/**
+ * Label ids back to front, which is the order their elements have to sit in.
+ *
+ * Kept apart from the layer, and pure, for the same reason the health ramp is:
+ * "which of these two names is on top" is a question about two numbers, and
+ * answering it by looking at a screenshot is how an order quietly stops
+ * matching the world underneath it.
+ *
+ * A label with no `order` sorts last — drawn over everything — because that is
+ * where it already was: the layer appends new elements, and nothing that
+ * declines to say where it belongs has an opinion worth honouring over one that
+ * does. The sort is stable, so labels that tie keep the caller's order.
+ */
+export function stackingOrder(
+  labels: readonly { id: string; order?: number }[],
+): string[] {
+  return [...labels]
+    .sort(
+      (a, b) =>
+        (a.order ?? Number.POSITIVE_INFINITY) -
+        (b.order ?? Number.POSITIVE_INFINITY),
+    )
+    .map((label) => label.id);
+}
+
 type LabelEntry = {
   /** What the group currently holds, so an unchanged group is never re-laid. */
   signature: string;
@@ -221,6 +258,8 @@ export class WorldLabelLayer {
    * tells us.
    */
   private view: { width: number; height: number };
+  /** Ids in the order they are currently stacked. @see restack */
+  private stacking = "";
   private readonly resize: ResizeObserver | null;
   /**
    * Every held measurement is a claim about a box drawn in a particular face,
@@ -340,6 +379,35 @@ export class WorldLabelLayer {
     const layout = layoutLabels(requests, this.view);
     for (const { label, entry } of entries) {
       this.place(entry, layout.get(label.id));
+    }
+    this.restack(labels);
+  }
+
+  /**
+   * Put the elements in painter's order, back to front.
+   *
+   * Order is the *document's*, not a `z-index`, and that is what keeps this from
+   * fighting the stylesheet: siblings at one z-index paint in tree order, so
+   * moving elements settles which name is on top while the classes go on
+   * deciding that every name is under every bubble and every bubble under a
+   * damage number. Writing z-indexes here would mean choosing numbers that stay
+   * inside the band the stylesheet gave names, for a crowd whose size is not
+   * known in advance.
+   *
+   * Only when the order actually changed. Two bodies cross a few times a minute
+   * at most while this runs sixty times a second, and moving a node the browser
+   * already has in that position is still a DOM mutation.
+   */
+  private restack(labels: WorldLabel[]) {
+    const order = stackingOrder(labels);
+    const stacking = order.join("\n");
+    if (stacking === this.stacking) return;
+    this.stacking = stacking;
+    // Appending a node the container already holds moves it, so one pass in
+    // painter's order leaves the children in exactly that order.
+    for (const id of order) {
+      const entry = this.entries.get(id);
+      if (entry) this.container.appendChild(entry.element);
     }
   }
 

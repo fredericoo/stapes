@@ -1,6 +1,7 @@
 import {
   baseCellWorldOrigin,
   depthStackBias,
+  drawOrder,
   elevationScreenOffset,
   PX_PER_HEIGHT,
 } from "../lib/geometry";
@@ -300,6 +301,17 @@ export class GameRenderer {
 
   setOnClock(cb: ((minutes: MinutesOfDay) => void) | null) {
     this.onClock = cb;
+  }
+
+  /**
+   * When there is a world on the canvas, so a page can hold its loading screen
+   * up until then. The world is not painted until its tilesets are on the GPU,
+   * and that lands some frames after the renderer is built — long enough that
+   * swapping to an empty canvas is a visible blank between the loading screen
+   * and the game.
+   */
+  setOnFirstFrame(cb: (() => void) | null) {
+    this.world.setOnFirstFrame(cb);
   }
 
   /**
@@ -1036,6 +1048,17 @@ export class GameRenderer {
         x: visual.x + head.x,
         y: visual.y + head.y - labelHeadroomPx(height),
         lines: [{ id: actor.id, text: name }],
+        // The same painter's key the world would sort these two bodies by, so a
+        // tag crossing another tag is stacked the way the creatures under them
+        // are. Two labels are whole boxes at one depth each, which is what
+        // `drawOrder` is for — the per-pixel depth the sprites get has no
+        // meaning for a box of text hanging above them both.
+        order: drawOrder(
+          actor.x,
+          actor.y,
+          standingFootAbs(snap.map, this.tilesById, actor, actor.stackIndex),
+          actor.stackIndex,
+        ),
         // Tinted to match its own health, so the tag and the bar under it read
         // as one reading of one thing rather than as a yellow label that happens
         // to have a coloured strip beneath it.

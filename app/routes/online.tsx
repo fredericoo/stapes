@@ -76,6 +76,11 @@ export default function OnlinePage() {
   // No canvas until the assets are here, so no socket either: the connection is
   // opened by the same effect the renderer is built in. @see ../lib/gameAssets
   const assetsReady = useGameAssets(tilesets);
+  // And the loading screen stays up past that, until there is a world on the
+  // canvas. Here that covers a third wait as well as the renderer's textures:
+  // the renderer is not even built until `hello` arrives, since there is nobody
+  // to centre the camera on before it.
+  const [painted, setPainted] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const labelRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<GameRenderer | null>(null);
@@ -178,6 +183,9 @@ export default function OnlinePage() {
       // shove, left on screen across a reconnect, offers a board nobody is
       // simulating any more.
       setInteractions([]);
+      // And the loading screen comes back for the same reason: the next
+      // renderer starts with an empty canvas, and a reconnect can take a while.
+      setPainted(false);
     };
 
     const connect = () => {
@@ -213,6 +221,7 @@ export default function OnlinePage() {
         renderer.setOnClock(setMinutesOfDay);
         renderer.setOnStats(setStats);
         renderer.setOnInteractions(setInteractions);
+        renderer.setOnFirstFrame(() => setPainted(true));
         rendererRef.current = renderer;
         renderer.start();
         // The fresh session knows nothing about keys held across the reconnect,
@@ -307,27 +316,30 @@ export default function OnlinePage() {
         </>
       }
     >
-      {assetsReady ? (
-        <GameViewport
-          canvasRef={canvasRef}
-          labelRef={labelRef}
-          onDirectionPress={pressDirection}
-          onDirectionRelease={releaseDirection}
-          onSay={say}
-          onTypingChange={noteTyping}
-          looking={looking}
-          onLookingChange={setLookLatched}
-          attacking={attacking}
-          onAttackingChange={setAttacking}
-          interactions={interactions}
-          onInteract={act}
-          onHoverInteraction={hoverInteraction}
-          tiles={tiles}
-          tilesets={tilesets}
-        />
-      ) : (
-        <LoadingScreen />
-      )}
+      {/* The screen sits over the game rather than instead of it, because it
+          outlasts the moment the canvas mounts — see `painted`. */}
+      <div className="relative h-full w-full">
+        {assetsReady ? (
+          <GameViewport
+            canvasRef={canvasRef}
+            labelRef={labelRef}
+            onDirectionPress={pressDirection}
+            onDirectionRelease={releaseDirection}
+            onSay={say}
+            onTypingChange={noteTyping}
+            looking={looking}
+            onLookingChange={setLookLatched}
+            attacking={attacking}
+            onAttackingChange={setAttacking}
+            interactions={interactions}
+            onInteract={act}
+            onHoverInteraction={hoverInteraction}
+            tiles={tiles}
+            tilesets={tilesets}
+          />
+        ) : null}
+        {painted ? null : <LoadingScreen />}
+      </div>
     </AppShell>
   );
 }
