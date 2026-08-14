@@ -4,7 +4,7 @@
 > below; there are no user stories to trace to, so each phase states what it is
 > demoable as instead.
 
-> **Status: phases 1–4 are built; 5 and 6 are not.** Notes marked *As built*
+> **Status: phases 1–5 are built; 6 is not.** Notes marked *As built*
 > record where the code and this document came apart, and why. They are written
 > where the original decision is rather than collected at the end, because the
 > reason a thing changed is only legible next to the reason it was that way.
@@ -15,8 +15,8 @@
 > | 2 — Instances, equipment, two panels | done |
 > | 3 — Pick up, and open from the ground | done |
 > | 4 — Moving items between slots | done |
-> | 5 — Drop | next |
-> | 6 — Carried light, persistence, edges | |
+> | 5 — Drop | done |
+> | 6 — Carried light, persistence, edges | next |
 
 Items are tiles. A weapon lying on the floor is a placement like any other — it
 has sprites, it can fall, it can be pushed — and picking it up moves it off the
@@ -741,7 +741,7 @@ Files: `app/game/affordances.ts`, `app/lib/interactions.ts`,
 > hand.** Every layer has tests and the client is verified in `/play`, but no
 > connected pair of browsers has moved an item between slots.
 
-### Phase 5 — Drop
+### Phase 5 — Drop  ✅
 
 - `canDropAt` in `affordances.ts`: 5-cell round radius, `hasLineOfSight`, and the
   target stack having room.
@@ -782,6 +782,18 @@ Files: `app/game/affordances.ts`, `app/lib/interactions.ts`,
 >
 > Still true and still the one structural addition: the drag hook hit-tests
 > against registered slot *elements*, and the world is not one.
+>
+> **Built.** The world stayed outside the registry — which cell a point is over
+> is a question about a camera, not about a rectangle — so the hook reports "the
+> pointer is out here, carrying this" and the page asks the renderer where that
+> is and the session what to do about it. A slot wins wherever the two overlap.
+>
+> Two things worth knowing before touching this again. `canDropAt` refuses an
+> **empty cell**: `canReplaceStack` would allow one, since that is how the editor
+> builds, but a cell with nothing in it is a hole rather than room in a stack.
+> And a **flick can be a single `pointermove`** — the press promotes to a drag
+> and is released before another arrives, which is a case the slot-to-slot drags
+> hid because promotion already hit-tests the slots at the end point.
 
 ### Phase 6 — Carried light, persistence, and the edges
 
