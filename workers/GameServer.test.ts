@@ -14,7 +14,7 @@ import type { FlatMapFile, MapFile } from "../app/lib/types";
 import { CHAT_MIN_INTERVAL_MS } from "../app/net/chat";
 import {
   CHAT_LOG_MAX_ROWS,
-  MAX_SAVED_POSITIONS,
+  MAX_REMEMBERED_ACTORS,
   type GameServer,
 } from "./GameServer";
 
@@ -1065,13 +1065,29 @@ function freshPlayer(): string {
 /** Keys a single storage.put will take. */
 const BACKFILL_BATCH = 128;
 
-/** Every position key the object is holding. */
-async function storedPositionKeys(): Promise<string[]> {
+/** Every key the object is holding under one prefix. */
+async function storedKeys(prefix: string): Promise<string[]> {
   let keys: string[] = [];
   await runInDurableObject(stub(), async (_instance, state) => {
-    keys = [...(await state.storage.list({ prefix: "pos:" })).keys()];
+    keys = [...(await state.storage.list({ prefix })).keys()];
   });
   return keys;
+}
+
+/** What the object wrote down about one player's kit, if anything. */
+async function savedEquipment(
+  actorId: string,
+): Promise<Record<string, unknown> | undefined> {
+  let found: Record<string, unknown> | undefined;
+  await runInDurableObject(stub(), async (_instance, state) => {
+    found = await state.storage.get<Record<string, unknown>>(`equip:${actorId}`);
+  });
+  return found;
+}
+
+/** The kit a `hello` handed over, in the shape the assertions want it. */
+function kitOf(hello: Record<string, unknown>): { bag: { id: string } } {
+  return hello.equipment as { bag: { id: string } };
 }
 
 /** Where one step east from the fixture's spawn cell lands. */
@@ -1179,9 +1195,9 @@ describe("player permanence", () => {
     // Backfilled directly: reaching the cap over the wire means a thousand
     // connections, and the prune is what is under test rather than the saving.
     await runInDurableObject(stub(), async (_instance, state) => {
-      for (let i = 0; i < MAX_SAVED_POSITIONS + overflow; i += BACKFILL_BATCH) {
+      for (let i = 0; i < MAX_REMEMBERED_ACTORS + overflow; i += BACKFILL_BATCH) {
         const batch: Record<string, unknown> = {};
-        const end = Math.min(i + BACKFILL_BATCH, MAX_SAVED_POSITIONS + overflow);
+        const end = Math.min(i + BACKFILL_BATCH, MAX_REMEMBERED_ACTORS + overflow);
         for (let n = i; n < end; n++) {
           // savedAt ascending with n, so the lowest-numbered are the oldest.
           batch[`pos:backfill-${n}`] = { x: 0, y: 0, z: 0, direction: "s", savedAt: n };
@@ -1194,10 +1210,93 @@ describe("player permanence", () => {
     await simulateEviction();
     await connect(freshPlayer());
 
-    const kept = await storedPositionKeys();
-    expect(kept).toHaveLength(MAX_SAVED_POSITIONS);
+    const kept = await storedKeys("pos:");
+    expect(kept).toHaveLength(MAX_REMEMBERED_ACTORS);
     expect(kept).not.toContain("pos:backfill-0");
-    expect(kept).toContain(`pos:backfill-${MAX_SAVED_POSITIONS + overflow - 1}`);
+    expect(kept).toContain(`pos:backfill-${MAX_REMEMBERED_ACTORS + overflow - 1}`);
+  });
+
+  /**
+   * A kit is the one thing a fresh runtime cannot rebuild from the tile it is
+   * standing in — it came from somewhere, and the world owes continuity for it.
+   *
+   * Asserted on the bag's *identity* rather than on its shape, because a fresh
+   * starting kit has the same shape: same tile, same four empty slots. Only the
+   * id tells "we remembered yours" from "we minted you another one".
+   */
+  it("hands a returning player back the same bag they left with", async () => {
+    const who = freshPlayer();
+    const first = await connect(who);
+    const bagId = kitOf(first.hello).bag.id;
+    expect(bagId).toMatch(/^itm_/);
+    await leave(first.ws);
+
+    const again = await connect(who);
+
+    expect(kitOf(again.hello).bag.id).toBe(bagId);
+  });
+
+  it("gives somebody the world has never met a bag of their own", async () => {
+    const one = await connect(freshPlayer());
+    const other = await connect(freshPlayer());
+
+    expect(kitOf(other.hello).bag.id).not.toBe(kitOf(one.hello).bag.id);
+  });
+
+  /** Same reason positions are written down: an idle object is evicted. */
+  it("remembers a kit across an eviction", async () => {
+    const who = freshPlayer();
+    const first = await connect(who);
+    const bagId = kitOf(first.hello).bag.id;
+    await leave(first.ws);
+    await simulateEviction();
+
+    const again = await connect(who);
+
+    expect(kitOf(again.hello).bag.id).toBe(bagId);
+  });
+
+  /** A crash is not a close — the same case the position flush covers. */
+  it("writes a connected player's kit down as the world settles", async () => {
+    const who = freshPlayer();
+    const { ws, hello } = await connect(who);
+    await walkEast(ws);
+    await new Promise((resolve) => setTimeout(resolve, QUIET_MS));
+
+    const saved = await savedEquipment(who);
+    expect((saved?.equipment as { bag: { id: string } }).bag.id).toBe(
+      kitOf(hello).bag.id,
+    );
+  });
+
+  /**
+   * The kit keys are capped on the same terms the positions are, and for the
+   * same reason: identity is a cookie anybody can mint, so one entry per visitor
+   * is a slow leak with a hostile version of itself.
+   */
+  it("drops the least recently saved kits once the store is full", async () => {
+    const overflow = 5;
+    await runInDurableObject(stub(), async (_instance, state) => {
+      for (let i = 0; i < MAX_REMEMBERED_ACTORS + overflow; i += BACKFILL_BATCH) {
+        const batch: Record<string, unknown> = {};
+        const end = Math.min(i + BACKFILL_BATCH, MAX_REMEMBERED_ACTORS + overflow);
+        for (let n = i; n < end; n++) {
+          batch[`equip:backfill-${n}`] = {
+            equipment: { weapon: null, bag: null },
+            savedAt: n,
+          };
+        }
+        await state.storage.put(batch);
+      }
+    });
+
+    await simulateEviction();
+    await connect(freshPlayer());
+
+    const kept = await storedKeys("equip:");
+    expect(kept).toHaveLength(MAX_REMEMBERED_ACTORS);
+    expect(kept).not.toContain("equip:backfill-0");
+    expect(kept).toContain(`equip:backfill-${MAX_REMEMBERED_ACTORS + overflow - 1}`);
   });
 
   /**

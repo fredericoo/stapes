@@ -2,7 +2,7 @@ import type { BattlerDef } from "../lib/battler";
 import { MAX_PERCENT_STAT, MIN_PERCENT_STAT } from "../lib/battler";
 import type { ItemInstance } from "../lib/itemInstance";
 import { mintItemId } from "../lib/itemInstance";
-import { resolveContainer, resolveWeapon } from "../lib/item";
+import { resolveContainer, resolveItem, resolveWeapon } from "../lib/item";
 import { resolveLight } from "../lib/tileResolve";
 import type { TileDef } from "../lib/types";
 
@@ -67,6 +67,50 @@ export function startingEquipment(
     weapon: null,
     bag: { id: mintItemId(), tileId: bagTileId, contents: [] },
   };
+}
+
+/**
+ * A kit handed back by the world's memory, checked against the world as it is
+ * now.
+ *
+ * The same terms a remembered *position* is honoured on: it is a wish, and the
+ * board decides. A position is offered to `findEntryCell`, which declines it if
+ * somebody has built there since; a kit is offered here, and every part of it
+ * that the tile catalogue no longer agrees with is dropped.
+ *
+ * What can have changed while somebody was away is the authored content: a tile
+ * renamed, a sword made into a prop, a bag shrunk. None of those are corruption
+ * and none should refuse a returning player their world — they are simply facts
+ * the memory is out of date about.
+ *
+ * Never a throw and never a null: the worst case is somebody comes back with
+ * nothing, which is where they started.
+ */
+export function restoredEquipment(
+  saved: Equipment,
+  tilesById: Record<string, TileDef>,
+): Equipment {
+  const weaponDef = saved.weapon ? tilesById[saved.weapon.tileId] : undefined;
+  const weapon =
+    saved.weapon && weaponDef && resolveWeapon(weaponDef) ? saved.weapon : null;
+
+  const bagDef = saved.bag ? tilesById[saved.bag.tileId] : undefined;
+  const container = bagDef ? resolveContainer(bagDef) : null;
+  if (!saved.bag || !container?.equippable) return { weapon, bag: null };
+
+  // Truncated to what the bag holds *now*, because an author who shrank it did
+  // so knowing what was in the world — and a bag reporting 6/4 is a state no
+  // capacity check downstream has an answer for.
+  const contents = (saved.bag.contents ?? [])
+    .filter((instance) => {
+      const def = tilesById[instance.tileId];
+      // Not a container, on the nesting rule: a chest that became equippable
+      // while somebody was away must not come back inside their backpack.
+      return def != null && resolveItem(def) != null && !resolveContainer(def);
+    })
+    .slice(0, container.size);
+
+  return { weapon, bag: { ...saved.bag, contents } };
 }
 
 /** Everything worn or carried, slots and bag contents alike, in a flat list. */

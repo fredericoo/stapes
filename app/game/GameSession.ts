@@ -752,16 +752,23 @@ export class GameSession implements PlaySession {
 
   private addActor(
     id: string,
-    opts: { resident?: boolean } = {},
+    opts: { resident?: boolean; carrying?: Equipment } = {},
   ): ActorRuntime {
     const resident = opts.resident === true;
     // Only people get a kit. A deer is an actor in every other respect, and
     // could carry things the day something wants it to — but handing every
     // creature in the world a backpack it will never open is a bag per body to
     // seat, checkpoint and diff for nothing.
-    const equipment = resident
-      ? emptyEquipment()
-      : startingEquipment(this.tilesById, STARTING_BAG_TILE_ID);
+    //
+    // A returning player brings their own, already checked against the tiles
+    // this world has now — see `restoredEquipment`. It is not merged with the
+    // starting kit: coming back with a bag *and* a fresh one is a bag from
+    // nowhere, once per reconnect.
+    const equipment =
+      opts.carrying ??
+      (resident
+        ? emptyEquipment()
+        : startingEquipment(this.tilesById, STARTING_BAG_TILE_ID));
     const actor: ActorRuntime = {
       id,
       resident,
@@ -801,8 +808,15 @@ export class GameSession implements PlaySession {
    *   the map is more recent than any memory of one — and honoured only if it
    *   still has room for them; see {@link findEntryCell}. Omit for an actor the
    *   world has never met, who enters at the spawn point.
+   * @param carrying what this actor had on them the last time anyone saw them,
+   *   already checked against this world's tiles — see `restoredEquipment`.
+   *   Omit for somebody new, who gets the starting kit.
    */
-  spawn(id: string, at?: Coord & { direction?: Direction }) {
+  spawn(
+    id: string,
+    at?: Coord & { direction?: Direction },
+    carrying?: Equipment,
+  ) {
     if (this.actors.has(id)) return;
     if (!findActorAnywhere(this.map, id)) {
       const cell = at
@@ -810,7 +824,7 @@ export class GameSession implements PlaySession {
         : this.spawnAt;
       this.map = spawnActor(this.map, id, cell, at?.direction);
     }
-    this.addActor(id);
+    this.addActor(id, { carrying });
   }
 
   /**

@@ -4,7 +4,7 @@
 > below; there are no user stories to trace to, so each phase states what it is
 > demoable as instead.
 
-> **Status: phases 1–5 are built; 6 is not.** Notes marked *As built*
+> **Status: phases 1–5 are built, and 6 all but its last bullet.** Notes marked *As built*
 > record where the code and this document came apart, and why. They are written
 > where the original decision is rather than collected at the end, because the
 > reason a thing changed is only legible next to the reason it was that way.
@@ -16,7 +16,7 @@
 > | 3 — Pick up, and open from the ground | done |
 > | 4 — Moving items between slots | done |
 > | 5 — Drop | done |
-> | 6 — Carried light, persistence, edges | next |
+> | 6 — Carried light, persistence, edges | light and persistence done; the keyboard question is open |
 
 Items are tiles. A weapon lying on the floor is a placement like any other — it
 has sprites, it can fall, it can be pushed — and picking it up moves it off the
@@ -851,6 +851,57 @@ Files: `app/game/affordances.ts`, `app/lib/interactions.ts`,
   keyboard, so every drag needs a non-drag equivalent (a row action, or a
   focus-then-activate two-step). This is not optional and it is far easier to
   design in Phase 2 than to retrofit here.
+
+> **As built: the first two are done; the third is open and is a design
+> question rather than a task.**
+>
+> **Carried light.** `EmitterOverride.lights` is optional and means "cast these
+> rather than reading the stack at this cell", which is the whole of what a
+> carried thing needs: it is off the board by construction, so there is nothing
+> to look up. An actor contributes a *second* override at their own position
+> holding whatever glows in their bag — the body's light still comes from the
+> stack, as it always has. Summing needed no rule: N lights at one point is N
+> emitters and the cast accumulates.
+>
+> On the wire, `carriedLights` is a per-actor `CarriedLightsPatch` broadcast on
+> `hello` in full and diffed into `patch` afterwards, exactly as `hps` is. The
+> projection is cached on `ActorRuntime` beside the kit and re-derived only in
+> `setEquipment`, because it is read per actor per frame and changes when
+> somebody picks something up.
+>
+> Authored a `hand-lantern` to see it with — a weapon that fights like bare
+> hands and glows — lying one cell from the sword. Verified by walking with it:
+> the pool of light follows and the worst frame stayed at 3.6ms, which is the
+> "must not rebake a chunk" assertion in the only form that actually proves it.
+>
+> **Persistence.** `equip:<id>` is written in the *same* `storage.put` as
+> `pos:<id>`, so the two facts about a player cannot land in different batches
+> and disagree about which moment they describe. Only a kit with something in it
+> is written, or every deer in the world would hold a key saying it is still
+> carrying nothing. Both prefixes are capped at `MAX_REMEMBERED_ACTORS`
+> independently — they hold different populations, and pairing them would mean
+> deciding what a kit with no position means.
+>
+> "The map wins over the memory" turned out to have a precise meaning here:
+> `restoredEquipment` checks a remembered kit against the tiles the world has
+> *now* and drops whatever they no longer agree with — a renamed tile, a sword
+> that became a prop, a bag that was shrunk, a container that has somehow ended
+> up inside another. None of those are corruption; they are authored content
+> moving on while somebody was away, and none of them should cost a player their
+> world. A returning player gets what is left; somebody new gets the starting
+> kit.
+>
+> **Not restored on a map change.** An editor save rebuilds the world and
+> everybody re-enters at spawn — positions are not honoured there either, and a
+> kit is state about a world that no longer exists.
+>
+> **One thing this leaves, named rather than hidden.** A kit is durable within
+> five seconds; the map is durable only when the world settles. An object that
+> died between the two would reload a floor still holding an item a saved bag
+> also claims. The window is bounded, it cannot be triggered on demand, and the
+> alternative — writing kits only at the checkpoint — loses a whole session's
+> looting on any crash busy enough to prevent one. Worth revisiting the day items
+> can be traded, which is when duplicating one stops being a curiosity.
 
 > **Reopened, and it is now the bigger half of this phase.** Phase 4 answered it
 > with lift-and-place, and the interaction revision above deleted that: a tap

@@ -11,6 +11,7 @@ import {
   carriedLightTileIds,
   effectiveBattler,
   emptyEquipment,
+  restoredEquipment,
   startingEquipment,
 } from "./equipment";
 
@@ -236,5 +237,114 @@ describe("effectiveBattler", () => {
   it("ignores a slot holding something that is not a weapon", () => {
     const kit = { weapon: { id: "w", tileId: "bag" }, bag: null };
     expect(effectiveBattler(base, kit, lightTiles)).toEqual(base);
+  });
+});
+
+/**
+ * A kit coming back out of the world's memory.
+ *
+ * Everything here is about the authored content having moved on while somebody
+ * was away, which is not corruption and must not cost them their world: what the
+ * tiles no longer agree with is dropped, and the rest is handed back.
+ */
+describe("restoredEquipment", () => {
+  const tiles = tilesByIdFromList([
+    itemTile("sword", DEFAULT_WEAPON),
+    itemTile("bag", DEFAULT_CONTAINER),
+    itemTile("chest", { ...DEFAULT_CONTAINER, size: 2, equippable: false }),
+    // Two slots, for the case where an author has shrunk the pack.
+    itemTile("small-bag", { ...DEFAULT_CONTAINER, size: 2 }),
+  ]);
+
+  function bag(tileId: string, contents: Array<{ id: string; tileId: string }>) {
+    return { id: "itm_bag", tileId, contents };
+  }
+
+  it("hands back a kit the world still agrees with", () => {
+    const saved = {
+      weapon: { id: "itm_w", tileId: "sword" },
+      bag: bag("bag", [{ id: "itm_a", tileId: "sword" }]),
+    };
+    expect(restoredEquipment(saved, tiles)).toEqual(saved);
+  });
+
+  it("drops a weapon whose tile has left the world", () => {
+    const restored = restoredEquipment(
+      { weapon: { id: "itm_w", tileId: "gone" }, bag: null },
+      tiles,
+    );
+    expect(restored.weapon).toBeNull();
+  });
+
+  it("drops a weapon whose tile is no longer a weapon", () => {
+    const restored = restoredEquipment(
+      { weapon: { id: "itm_w", tileId: "bag" }, bag: null },
+      tiles,
+    );
+    expect(restored.weapon).toBeNull();
+  });
+
+  // The bag goes and its contents go with it. There is nowhere else for them:
+  // the inventory *is* the bag's `contents`, so a kit with things in no bag is
+  // a shape the model does not have.
+  it("drops the whole bag when its tile is no longer wearable", () => {
+    const restored = restoredEquipment(
+      { weapon: null, bag: bag("chest", [{ id: "itm_a", tileId: "sword" }]) },
+      tiles,
+    );
+    expect(restored.bag).toBeNull();
+  });
+
+  it("keeps a weapon whose bag went", () => {
+    const restored = restoredEquipment(
+      { weapon: { id: "itm_w", tileId: "sword" }, bag: bag("gone", []) },
+      tiles,
+    );
+    expect(restored.weapon?.tileId).toBe("sword");
+    expect(restored.bag).toBeNull();
+  });
+
+  it("drops contents whose tiles have left the world", () => {
+    const restored = restoredEquipment(
+      {
+        weapon: null,
+        bag: bag("bag", [
+          { id: "itm_a", tileId: "sword" },
+          { id: "itm_b", tileId: "gone" },
+        ]),
+      },
+      tiles,
+    );
+    expect(restored.bag?.contents?.map((i) => i.id)).toEqual(["itm_a"]);
+  });
+
+  // The nesting rule, arriving from the one direction that bypasses every gate
+  // in `itemMoves`: not a move at all, but a memory of a world where that thing
+  // was something else.
+  it("drops a container that has found its way inside a bag", () => {
+    const restored = restoredEquipment(
+      { weapon: null, bag: bag("bag", [{ id: "itm_a", tileId: "chest" }]) },
+      tiles,
+    );
+    expect(restored.bag?.contents).toEqual([]);
+  });
+
+  it("truncates to a bag that has been made smaller", () => {
+    const restored = restoredEquipment(
+      {
+        weapon: null,
+        bag: bag("small-bag", [
+          { id: "itm_a", tileId: "sword" },
+          { id: "itm_b", tileId: "sword" },
+          { id: "itm_c", tileId: "sword" },
+        ]),
+      },
+      tiles,
+    );
+    expect(restored.bag?.contents?.map((i) => i.id)).toEqual(["itm_a", "itm_b"]);
+  });
+
+  it("hands back nothing at all for a kit of nothing", () => {
+    expect(restoredEquipment(emptyEquipment(), tiles)).toEqual(emptyEquipment());
   });
 });
