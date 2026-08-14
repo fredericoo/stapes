@@ -142,14 +142,14 @@ type SavedPosition = ActorPosition & { savedAt: number };
  * and saving them at different moments would be the way to lose one without the
  * other.
  *
- * **The window this leaves is worth knowing.** A kit is written every few
- * seconds while the map is only made durable when the world settles, so an
- * object that died between the two would reload a floor still holding an item
- * somebody's saved bag also claims. Bounded by the flush interval, unrepeatable
- * on purpose, and cheap compared to the alternative — which is losing a whole
- * session's looting on any crash busy enough to prevent a checkpoint. Revisit if
- * items ever become tradeable, which is the point at which duplicating one stops
- * being a curiosity.
+ * **And in the same batch as the board.** Picking something up takes it off the
+ * map and puts it in a bag, so a kit made durable against a map that was not
+ * would come back to a floor still holding the very thing it claims. That is an
+ * item existing twice, which is a bug with no natural ceiling, so the checkpoint
+ * rides along in {@link GameServer.saveActors} rather than waiting for the world
+ * to settle. It costs a map serialization per flush in a world where something
+ * is happening — and nothing at all in one where the map has not changed, which
+ * copy-on-write makes a reference compare.
  */
 type SavedEquipment = { equipment: Equipment; savedAt: number };
 
@@ -249,6 +249,16 @@ export class GameServer extends DurableObject<Env> {
   private lastSaidAt = new Map<string, number>();
   /** When positions were last written out. See {@link saveActorsIfDue}. */
   private actorsSavedAt = 0;
+  /**
+   * The map the last checkpoint was taken of, by identity.
+   *
+   * The map is copy-on-write, so a world nobody has touched is the same object
+   * and there is nothing to re-flatten — which is what keeps a five-second flush
+   * from serializing thousands of cells for a room where everyone is standing
+   * still. Sound because storage writes are ordered: a later batch cannot be
+   * durable while the batch holding the map it was read against is not.
+   */
+  private checkpointedMap: MapFile | null = null;
   /** Whether the chat table has been created in this instance's lifetime. */
   private chatLogReady = false;
   /**
@@ -417,17 +427,21 @@ export class GameServer extends DurableObject<Env> {
   }
 
   /**
-   * Write down where some actors are standing, without the tick waiting on it.
+   * Write down where everybody is, what they are carrying and the board they
+   * are standing on — in one batch, without the tick waiting on it.
    *
-   * `allowUnconfirmed` is the load-bearing part. A Durable Object normally
+   * **One batch is the point**, not an economy. A kit and the map are two halves
+   * of the same fact once picking something up moves it between them, and making
+   * one durable without the other is how an item comes to exist twice.
+   *
+   * `allowUnconfirmed` is the other load-bearing part. A Durable Object normally
    * holds every outgoing message until the writes that preceded it are durable,
    * so that nobody can observe state that a failed write would roll back — and
    * that is the right default for anything the world's consistency rests on.
-   * This is not that. A position is a convenience, and the failure it guards
-   * against is losing a few seconds of walking on a crash that has already lost
-   * the tick. Paying for it with the whole world's broadcast latency, thirty
-   * times a second, would be the wrong trade in the one place this object
-   * cannot afford one.
+   * This is not that: what is written here is *behind* what has already been
+   * broadcast either way, so gating output on it would buy nothing and cost the
+   * whole world's latency thirty times a second. What matters is that these
+   * entries land together, which one `put` guarantees regardless.
    *
    * The rejection is swallowed for the same reason: there is nothing useful to
    * do about a position that did not stick, and an unhandled rejection here
@@ -438,7 +452,8 @@ export class GameServer extends DurableObject<Env> {
     if (!session) return;
 
     const savedAt = Date.now();
-    const entries: Record<string, SavedPosition | SavedEquipment> = {};
+    const entries: Record<string, SavedPosition | SavedEquipment | Checkpoint> =
+      {};
     for (const actorId of actorIds) {
       const at = session.actorPosition(actorId);
       if (!at) continue;
@@ -455,6 +470,23 @@ export class GameServer extends DurableObject<Env> {
         entries[this.equipmentKey(actorId)] = { equipment, savedAt };
       }
     }
+
+    // The board, in the same batch as the kits read off it. **This is what
+    // stops an item existing twice.** Picking something up takes it off the map
+    // and puts it in a bag, so a kit made durable against a map that was not
+    // would come back to a floor still holding the thing it claims. One write,
+    // one moment, and the two cannot disagree.
+    const map = session.getMap();
+    if (map !== this.checkpointedMap) {
+      entries[CHECKPOINT_KEY] = {
+        map: flattenMap(map),
+        spawn: session.getSpawnPoint(),
+        seed: session.getSeed(),
+        dead: [...this.dead],
+      };
+      this.checkpointedMap = map;
+    }
+
     if (Object.keys(entries).length === 0) return;
 
     this.ctx.storage.put(entries, { allowUnconfirmed: true }).catch(() => {});
@@ -1088,12 +1120,6 @@ export class GameServer extends DurableObject<Env> {
     // connection that dies during hibernation runs no close, so the wake reaps
     // its body without ever hearing about it.
     this.saveActors(session.actorIds());
-    void this.ctx.storage.put(CHECKPOINT_KEY, {
-      map: flattenMap(session.getMap()),
-      spawn: session.getSpawnPoint(),
-      seed: session.getSeed(),
-      dead: [...this.dead],
-    } satisfies Checkpoint);
   }
 
   private tick() {

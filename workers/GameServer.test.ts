@@ -1300,6 +1300,31 @@ describe("player permanence", () => {
   });
 
   /**
+   * The one rule that stops an item existing twice.
+   *
+   * Picking something up takes it off the map and puts it in a bag, so the two
+   * are halves of one fact from then on. A kit made durable against a board that
+   * was not would come back to a floor still holding the very thing it claims —
+   * so the checkpoint rides in the same write, and what this asserts is that a
+   * kit is never on disk ahead of the board it was read from.
+   */
+  it("never writes a kit down without the board it was read from", async () => {
+    const who = freshPlayer();
+    const { ws } = await connect(who);
+    await walkEast(ws);
+    await new Promise((resolve) => setTimeout(resolve, QUIET_MS));
+
+    const saved = await savedEquipment(who);
+    expect(saved).toBeDefined();
+    // Same batch, so the checkpoint cannot be older than the kit — and the
+    // strongest observable form of that is simply that it is there at all by
+    // the time a kit is.
+    await runInDurableObject(stub(), async (_instance, state) => {
+      expect(await state.storage.get("world")).toBeDefined();
+    });
+  });
+
+  /**
    * The world keeps moving while somebody is away, so a remembered position is
    * a wish rather than a promise: the map they come back to may have no room
    * for them where they were standing.

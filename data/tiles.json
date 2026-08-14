@@ -3946,9 +3946,9 @@
     "type": "simple",
     "kind": "item",
     "attributes": {},
+    "lightPassing": true,
     "intangible": true,
     "affectedByGravity": true,
-    "lightPassing": true,
     "interactions": {
       "item": {
         "type": "weapon",
@@ -3965,41 +3965,20 @@
           "sprite": {
             "tilesetId": "tiny-ranch-tiles",
             "rect": {
-              "x": 12,
+              "x": 10,
               "y": 0,
-              "w": 2,
-              "h": 2
+              "w": 1,
+              "h": 1
             },
             "base": {
-              "x": 1,
-              "y": 1
+              "x": 0,
+              "y": 0
             }
           },
           "durationMs": 180,
           "light": {
             "radius": 6,
             "intensity": 1,
-            "color": "#ffcc88"
-          }
-        },
-        {
-          "sprite": {
-            "tilesetId": "tiny-ranch-tiles",
-            "rect": {
-              "x": 12,
-              "y": 0,
-              "w": 2,
-              "h": 2
-            },
-            "base": {
-              "x": 1,
-              "y": 1
-            }
-          },
-          "durationMs": 180,
-          "light": {
-            "radius": 6,
-            "intensity": 0.5,
             "color": "#ffcc88"
           }
         }

@@ -4,7 +4,8 @@
 > below; there are no user stories to trace to, so each phase states what it is
 > demoable as instead.
 
-> **Status: phases 1–5 are built, and 6 all but its last bullet.** Notes marked *As built*
+> **Status: phases 1–5 are built, and 6 all but its last bullet — which is
+> deferred by decision rather than unfinished.** Notes marked *As built*
 > record where the code and this document came apart, and why. They are written
 > where the original decision is rather than collected at the end, because the
 > reason a thing changed is only legible next to the reason it was that way.
@@ -16,7 +17,7 @@
 > | 3 — Pick up, and open from the ground | done |
 > | 4 — Moving items between slots | done |
 > | 5 — Drop | done |
-> | 6 — Carried light, persistence, edges | light and persistence done; the keyboard question is open |
+> | 6 — Carried light, persistence, edges | light and persistence done; moving without a pointer is deliberately left open |
 
 Items are tiles. A weapon lying on the floor is a placement like any other — it
 has sprites, it can fall, it can be pushed — and picking it up moves it off the
@@ -895,13 +896,23 @@ Files: `app/game/affordances.ts`, `app/lib/interactions.ts`,
 > everybody re-enters at spawn — positions are not honoured there either, and a
 > kit is state about a world that no longer exists.
 >
-> **One thing this leaves, named rather than hidden.** A kit is durable within
-> five seconds; the map is durable only when the world settles. An object that
-> died between the two would reload a floor still holding an item a saved bag
-> also claims. The window is bounded, it cannot be triggered on demand, and the
-> alternative — writing kits only at the checkpoint — loses a whole session's
-> looting on any crash busy enough to prevent one. Worth revisiting the day items
-> can be traded, which is when duplicating one stops being a curiosity.
+> **The checkpoint moved, and that is the most consequential thing here.** It
+> used to be written only when the world settled, which was fine while a kit was
+> not persisted — and became an item duplication bug the moment one was. Picking
+> something up takes it off the map and puts it in a bag, so a kit made durable
+> against a board that was not comes back to a floor still holding the very thing
+> it claims, and a busy world never settles to correct it.
+>
+> So **the checkpoint rides in the same `storage.put` as the positions and the
+> kits**: one batch, one moment, and the halves of that fact cannot disagree. It
+> costs a map serialization per five-second flush in a world where something is
+> happening, and nothing at all in one where the map has not changed — the map is
+> copy-on-write, so "has anything happened" is a reference compare. Sound against
+> the skipped write too, because storage batches are ordered: a later one cannot
+> be durable while the one holding the map it was read against is lost.
+>
+> `sleepIfIdle` no longer writes a checkpoint of its own; it calls the same
+> saver, which is now the only place the world is written down.
 
 > **Reopened, and it is now the bigger half of this phase.** Phase 4 answered it
 > with lift-and-place, and the interaction revision above deleted that: a tap
@@ -914,7 +925,12 @@ Files: `app/game/affordances.ts`, `app/lib/interactions.ts`,
 > whatever affordance lets somebody name a destination will have to name a *cell*
 > as well as a slot, since a bag going onto the floor is the same sentence with a
 > different object. A row of destinations on a focused slot, a cell cursor, or a
-> "drop at your feet" action — it is one design, and it belongs here.
+> "drop at your feet" action — it is one design.
+>
+> **Deliberately left open, and left out of Phase 6.** The other two bullets are
+> built; this one is a design nobody has settled, and guessing at it while the
+> tap change is a day old would be inventing an interface to close a ticket. It
+> is the whole content of whatever comes next, rather than a loose end of this.
 >
 > - **The strip's bag button takes drops but not a keyboard.** It toggles the
 >   panel, which reaches the slots in one extra press.
