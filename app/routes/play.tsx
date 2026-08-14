@@ -4,6 +4,7 @@ import type { Route } from "./+types/play";
 import { AppShell } from "../components/AppShell";
 import { GameViewport } from "../components/GameViewport";
 import { LightingToggle } from "../components/LightingToggle";
+import { LoadingScreen } from "../components/LoadingScreen";
 import { GameSession } from "../game/GameSession";
 import { bindKeyboard, HeldDirections } from "../game/heldDirections";
 import { usePlayModes } from "../components/usePlayModes";
@@ -17,6 +18,7 @@ import {
   MINUTES_PER_DAY,
   type MinutesOfDay,
 } from "../lib/clock";
+import { useGameAssets } from "../lib/gameAssets";
 import type { Direction } from "../lib/types";
 import { dataStore } from "../context";
 import { GameRenderer } from "../render/GameRenderer";
@@ -35,6 +37,10 @@ export async function loader({ context }: Route.LoaderArgs) {
 
 export default function PlayPage() {
   const { map, tiles, tilesets } = useLoaderData<typeof loader>();
+  // Nothing below runs against half-loaded assets: the canvas is not in the
+  // page until this is true, so the renderer cannot start early. @see
+  // ../lib/gameAssets
+  const assetsReady = useGameAssets(tilesets);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // Single-player draws no names and hears no speech, but looking is in-world
   // text like the rest of it, so the layer has to exist here too.
@@ -128,7 +134,10 @@ export default function PlayPage() {
       setStats(null);
       setInteractions([]);
     };
-  }, [map, tiles, tilesets]);
+    // `assetsReady` is in here for the canvas rather than for itself: the
+    // element only exists once it is true, so without it this effect would have
+    // run once against nothing and never again.
+  }, [map, tiles, tilesets, assetsReady]);
 
   useEffect(() => {
     rendererRef.current?.setClockPaused(clockPaused);
@@ -207,21 +216,25 @@ export default function PlayPage() {
         </span>
       }
     >
-      <GameViewport
-        canvasRef={canvasRef}
-        labelRef={labelRef}
-        onDirectionPress={pressDirection}
-        onDirectionRelease={releaseDirection}
-        looking={looking}
-        onLookingChange={setLookLatched}
-        attacking={attacking}
-        onAttackingChange={setAttacking}
-        interactions={interactions}
-        onInteract={act}
-        onHoverInteraction={hoverInteraction}
-        tiles={tiles}
-        tilesets={tilesets}
-      />
+      {assetsReady ? (
+        <GameViewport
+          canvasRef={canvasRef}
+          labelRef={labelRef}
+          onDirectionPress={pressDirection}
+          onDirectionRelease={releaseDirection}
+          looking={looking}
+          onLookingChange={setLookLatched}
+          attacking={attacking}
+          onAttackingChange={setAttacking}
+          interactions={interactions}
+          onInteract={act}
+          onHoverInteraction={hoverInteraction}
+          tiles={tiles}
+          tilesets={tilesets}
+        />
+      ) : (
+        <LoadingScreen />
+      )}
     </AppShell>
   );
 }

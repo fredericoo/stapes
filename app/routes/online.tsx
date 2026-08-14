@@ -5,6 +5,7 @@ import { AppShell } from "../components/AppShell";
 import { FrameStatsReadout } from "../components/FrameStatsReadout";
 import { GameViewport } from "../components/GameViewport";
 import { LightingToggle } from "../components/LightingToggle";
+import { LoadingScreen } from "../components/LoadingScreen";
 import { bindKeyboard, HeldDirections } from "../game/heldDirections";
 import { usePlayModes } from "../components/usePlayModes";
 import {
@@ -12,6 +13,7 @@ import {
   type InteractionOption,
 } from "../game/interactionOptions";
 import { dataStore } from "../context";
+import { useGameAssets } from "../lib/gameAssets";
 import {
   DEFAULT_PLAY_MINUTES,
   formatClock,
@@ -71,6 +73,9 @@ type Status = "connecting" | "live" | "reconnecting";
 
 export default function OnlinePage() {
   const { tiles, tilesets, socketPath } = useLoaderData<typeof loader>();
+  // No canvas until the assets are here, so no socket either: the connection is
+  // opened by the same effect the renderer is built in. @see ../lib/gameAssets
+  const assetsReady = useGameAssets(tilesets);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const labelRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<GameRenderer | null>(null);
@@ -245,7 +250,11 @@ export default function OnlinePage() {
       setStats(null);
       setPlayers(null);
     };
-  }, [tiles, tilesets, socketPath]);
+    // `assetsReady` is in here for the canvas rather than for itself — the
+    // element only exists once it is true. It also holds the socket back until
+    // then, which is right: a world being simulated for somebody who cannot see
+    // it yet is a walk they never asked for.
+  }, [tiles, tilesets, socketPath, assetsReady]);
 
   // Held in a variable because it rides in one of two slots. A world that is
   // simply connected is not news and folds away with everything else on a
@@ -298,23 +307,27 @@ export default function OnlinePage() {
         </>
       }
     >
-      <GameViewport
-        canvasRef={canvasRef}
-        labelRef={labelRef}
-        onDirectionPress={pressDirection}
-        onDirectionRelease={releaseDirection}
-        onSay={say}
-        onTypingChange={noteTyping}
-        looking={looking}
-        onLookingChange={setLookLatched}
-        attacking={attacking}
-        onAttackingChange={setAttacking}
-        interactions={interactions}
-        onInteract={act}
-        onHoverInteraction={hoverInteraction}
-        tiles={tiles}
-        tilesets={tilesets}
-      />
+      {assetsReady ? (
+        <GameViewport
+          canvasRef={canvasRef}
+          labelRef={labelRef}
+          onDirectionPress={pressDirection}
+          onDirectionRelease={releaseDirection}
+          onSay={say}
+          onTypingChange={noteTyping}
+          looking={looking}
+          onLookingChange={setLookLatched}
+          attacking={attacking}
+          onAttackingChange={setAttacking}
+          interactions={interactions}
+          onInteract={act}
+          onHoverInteraction={hoverInteraction}
+          tiles={tiles}
+          tilesets={tilesets}
+        />
+      ) : (
+        <LoadingScreen />
+      )}
     </AppShell>
   );
 }

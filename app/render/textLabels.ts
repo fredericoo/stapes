@@ -222,6 +222,22 @@ export class WorldLabelLayer {
    */
   private view: { width: number; height: number };
   private readonly resize: ResizeObserver | null;
+  /**
+   * Every held measurement is a claim about a box drawn in a particular face,
+   * so a font arriving after one was taken makes it a lie — the group is the
+   * same words at a different width, and `./labelLayout` centres it on the
+   * width. A name tag a few pixels off its head is exactly what that looks
+   * like.
+   *
+   * The world is normally not drawn until its font is here (`../lib/gameAssets`
+   * holds the canvas out of the page until then), so this should never fire in
+   * a healthy load. It is what makes that gate's timeout survivable rather than
+   * permanent: a font that misses the deadline and lands a moment later still
+   * gets its labels re-measured, instead of leaving them wrong for the session.
+   */
+  private readonly onFontsLoaded = () => {
+    for (const entry of this.entries.values()) entry.size = null;
+  };
 
   constructor(private readonly container: HTMLElement) {
     this.view = {
@@ -229,6 +245,7 @@ export class WorldLabelLayer {
       height: container.clientHeight,
     };
     this.resize = this.watchSize();
+    document.fonts?.addEventListener("loadingdone", this.onFontsLoaded);
   }
 
   /**
@@ -486,6 +503,7 @@ export class WorldLabelLayer {
 
   dispose() {
     this.resize?.disconnect();
+    document.fonts?.removeEventListener("loadingdone", this.onFontsLoaded);
     for (const entry of this.entries.values()) entry.element.remove();
     this.entries.clear();
   }
