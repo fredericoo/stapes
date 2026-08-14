@@ -9,9 +9,8 @@ import {
   DEFAULT_CONTAINER,
   DEFAULT_WEAPON,
   MAX_CONTAINER_SIZE,
-  MAX_ITEM_WEIGHT,
+  MAX_WEAPON_STAT_SHIFT,
 } from "../lib/item";
-import { accuracyCostOf, speedCostOf } from "../game/equipment";
 import { hasAnyInteraction, type TileInteractions } from "../lib/interactions";
 import type { TileDef } from "../lib/types";
 import { Input, Segmented, Switch } from "../ui";
@@ -165,13 +164,22 @@ export function ItemTab({ draft, onChange }: Props) {
                 onChange={(def) => patchWeapon({ def })}
               />
               <ItemField
-                label="Weight"
-                hint="What carrying it costs. Spends speed at full rate and accuracy at half."
-                value={item.weight}
-                min={0}
-                max={MAX_ITEM_WEIGHT}
-                onChange={(weight) => patchWeapon({ weight })}
-                readout={describeWeight(item.weight)}
+                label="Acc"
+                hint="Added to the wielder's accuracy. Negative is harder to land."
+                value={item.acc}
+                min={-MAX_WEAPON_STAT_SHIFT}
+                max={MAX_WEAPON_STAT_SHIFT}
+                onChange={(acc) => patchWeapon({ acc })}
+                readout={describeShift(item.acc, "More accurate", "Less accurate")}
+              />
+              <ItemField
+                label="Spd"
+                hint="Added to the wielder's speed. Negative is slower to swing."
+                value={item.spd}
+                min={-MAX_WEAPON_STAT_SHIFT}
+                max={MAX_WEAPON_STAT_SHIFT}
+                onChange={(spd) => patchWeapon({ spd })}
+                readout={describeShift(item.spd, "Faster", "Slower")}
               />
             </div>
 
@@ -230,11 +238,17 @@ export function ItemTab({ draft, onChange }: Props) {
 }
 
 /**
- * What this weight costs a wielder, read out of the same functions the
- * simulation subtracts with rather than restated here — a readout that could
- * disagree with the formula is worse than none.
+ * What one of the signed stats does to a wielder, in words.
+ *
+ * There is no arithmetic left to read out of the simulation — the number *is*
+ * what happens, which is the point of the change that removed `weight` — so this
+ * only has to say which direction it goes and stay quiet at zero.
+ *
+ * Both words are passed in whole rather than built from a stem, because English
+ * does not conjugate them alike: accuracy goes more and less, speed goes faster
+ * and slower, and "less fast" is what you get from pretending otherwise.
  */
-function describeWeight(weight: number): string {
-  if (weight <= 0) return "Costs nothing to carry.";
-  return `Costs ${speedCostOf(weight)} speed and ${accuracyCostOf(weight)} accuracy.`;
+function describeShift(value: number, up: string, down: string): string {
+  if (value === 0) return "No effect.";
+  return `${value > 0 ? up : down} by ${Math.abs(value)}.`;
 }

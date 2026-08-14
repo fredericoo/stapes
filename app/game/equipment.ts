@@ -116,35 +116,19 @@ export function carriedLightTileIds(
   return out;
 }
 
-/**
- * How much of a weapon's weight comes off speed, and how much off accuracy.
- *
- * Full rate against speed and half against accuracy, so a heavy weapon slows how
- * often you swing more than it spoils the blow you land — the two are different
- * complaints and a single rate would make them the same one. Named rather than
- * written as a `/ 2` at the call site, because the ratio is a balance decision
- * and the next person to change it should find one number.
- */
-const SPEED_COST_PER_WEIGHT = 1;
-const ACCURACY_COST_PER_WEIGHT = 0.5;
-
-/** Speed this much weight costs, as a whole number of stat points. */
-export function speedCostOf(weight: number): number {
-  return Math.round(Math.max(0, weight) * SPEED_COST_PER_WEIGHT);
-}
-
-/** Accuracy this much weight costs, as a whole number of stat points. */
-export function accuracyCostOf(weight: number): number {
-  return Math.round(Math.max(0, weight) * ACCURACY_COST_PER_WEIGHT);
-}
-
-/** Hold a 0–100 stat inside its range after equipment has been spent against it. */
+/** Hold a 0–100 stat inside its range once equipment has been counted into it. */
 function clampPercent(value: number): number {
   return Math.max(MIN_PERCENT_STAT, Math.min(MAX_PERCENT_STAT, value));
 }
 
 /**
  * The stats a body actually fights with, once what it is carrying is counted.
+ *
+ * Every field is a sum, and that is the whole rule: a weapon says what it adds,
+ * zero adds nothing, and a negative number takes away. Nothing here decides how
+ * much a weapon *costs* — it used to spend one `weight` against speed at full
+ * rate and accuracy at half, which made the ratio between those a balance
+ * decision hidden in this function rather than a number an author could see.
  *
  * `atk` and `def` are unbounded above, exactly as the authored stats are — a
  * weapon is meant to make you hit harder than the tile says. The percent stats
@@ -153,15 +137,15 @@ function clampPercent(value: number): number {
  */
 export function applyWeaponStats(
   base: BattlerDef,
-  weapon: { atk: number; def: number; weight: number } | null,
+  weapon: { atk: number; def: number; acc: number; spd: number } | null,
 ): BattlerDef {
   if (!weapon) return base;
   return {
     ...base,
     atk: base.atk + weapon.atk,
     def: base.def + weapon.def,
-    spd: clampPercent(base.spd - speedCostOf(weapon.weight)),
-    acc: clampPercent(base.acc - accuracyCostOf(weapon.weight)),
+    spd: clampPercent(base.spd + weapon.spd),
+    acc: clampPercent(base.acc + weapon.acc),
   };
 }
 

@@ -3913,7 +3913,8 @@
         "type": "weapon",
         "atk": 3,
         "def": 0,
-        "weight": 10,
+        "acc": -5,
+        "spd": -10,
         "mastery": "blade"
       }
     },

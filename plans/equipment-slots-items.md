@@ -141,8 +141,10 @@ export type WeaponItem = {
   atk: number;
   /** Added to the wielder's base def. */
   def: number;
-  /** Costs speed and accuracy — see `effectiveBattler`. */
-  weight: number;
+  /** Added to the wielder's accuracy. Negative is harder to land. */
+  acc: number;
+  /** Added to the wielder's speed. Negative is slower to swing. */
+  spd: number;
   mastery: ItemMastery;
 };
 
@@ -220,8 +222,8 @@ arithmetic at the moment of picking something up, and a bag whose own weight is
 never a number anybody has to think about. Four squares is a fact you can see. A
 capacity figure is a fact you have to compute, and computing it is a tax on every
 pickup rather than a decision worth making. See open question 3, which also
-disposes of the reading that would strip `WeaponItem.weight` — swing cost and
-carry cost are different questions sharing a word.
+settled the other half of the word: weapons no longer carry a `weight` either,
+and state their `acc` and `spd` directly instead.
 
 ### A container can be opened from the ground
 
@@ -341,10 +343,23 @@ Pure, so it can be asserted, and in `app/game/` beside `combat.ts` because it is
 a rule of a fight rather than a shape on disk.
 
 - `atk += weapon.atk`, `def += weapon.def`
-- `spd -= weight`, `acc -= weight / 2`, both rounded and clamped to 0–100
+- `spd += weapon.spd`, `acc += weapon.acc`, both clamped to 0–100
 
-Weight costs speed at full rate and accuracy at half: a heavy weapon slows how
-often you swing more than it spoils the blow.
+> **Revised: `weight` is gone; a weapon says what it does.** It used to carry one
+> number spent against speed at full rate and accuracy at half, and every part of
+> that was a decision hiding in arithmetic. An author who wanted a fast clumsy
+> weapon could not have one — the two effects were welded together — and the
+> ratio between them lived in this function rather than in the file anybody
+> balancing the game would read.
+>
+> Now `acc` and `spd` are added like `atk` and `def`, **zero is no effect, and
+> both may be negative or positive**. A rapier that makes you faster is
+> authorable; "negative weight" would have been a nonsense nobody could read.
+> Nothing is rounded any more, because there is no rate left to multiply by.
+>
+> The stats keep their clamp, for the reason they always had it: they are read as
+> probabilities downstream and a negative accuracy is not a worse accuracy, it is
+> a broken one. `atk` and `def` stay unbounded above.
 
 **Everything that reads stats reads them through this.** `GameSession`'s swing
 path calls `resolveBattler` today; it gains the actor's equipment on the way in.
@@ -595,7 +610,7 @@ No play behaviour. The deliverable is that a weapon and a bag exist in
   Switching kind clears the block being left behind.
 - `BattleTab`: loses its switch; renders the six stats unconditionally.
 - New `ItemTab`: the type select (Weapon | Container), then the weapon fields
-  (atk, def, weight, mastery) or the container fields (size, equippable), with a
+  (atk, def, acc, spd, mastery) or the container fields (size, equippable), with a
   readout of what the weapon does to a wielder.
 - `TileEditorDialog`: Battle tab shown only for kind `battler`, Item tab only for
   kind `item`.
@@ -805,9 +820,9 @@ Existing culture is pure modules asserted directly; this fits it.
 - Instance round trip — placement → instance → placement preserves id, channel,
   description, direction and nested contents. The test that catches the next
   field somebody adds to one side only.
-- `equipment.test.ts` — `effectiveBattler` at the clamps, weight's asymmetric
-  cost to spd and acc; `carriedLightTileIds` over an empty bag, a lit weapon, and
-  a bag holding two lit things.
+- `equipment.test.ts` — `effectiveBattler` at both clamps, and `acc` and `spd`
+  moving independently in either direction; `carriedLightTileIds` over an empty
+  bag, a lit weapon, and a bag holding two lit things.
 - `affordances.test.ts` — pick-up radius includes diagonals and excludes 2 cells;
   open shares that radius; drop radius, LoS blocked by a wall, stack with no room.
 - `interactionOptions.test.ts` — the pickUp row, its precedence against switch
@@ -870,10 +885,11 @@ Not blocking Phase 1, but each needs an answer before the phase that hits it.
    else, so `size` is the whole of the limit and there is nothing for a second
    mechanism to catch.
 
-   **This is not about `WeaponItem.weight`, which stays.** That is what a weapon
-   costs you to *swing* — speed at full rate, accuracy at half — and it is the
-   reason a heavy weapon is worth less than its attack says. Carry capacity and
-   swing cost are different questions that happen to share an English word.
+   **And weapons no longer carry a `weight` either** — see *Effective stats*.
+   That number was about what a weapon costs to *swing* rather than to carry, but
+   sharing the word with capacity was exactly the confusion this question came
+   out of. A weapon now states its `acc` and `spd` outright, so nothing in the
+   model is measured in weight at all.
 4. ~~**Does the desktop aside widen, or do the grids get compact?**~~ (Phase 2.)
    **Settled:** the aside stayed at 224px and the grids are compact, so the game
    square still does not resize as you walk.

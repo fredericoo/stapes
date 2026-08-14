@@ -42,17 +42,31 @@ export const ITEM_MASTERIES: ItemMastery[] = [
   "magic",
 ];
 
+/**
+ * Every number on a weapon is added to the wielder's own, and may be negative.
+ *
+ * **Zero is no effect**, which makes a weapon's block read as a list of what it
+ * changes rather than as four settings that all mean something. A blade that is
+ * slower and less accurate than bare hands says exactly that, in the units the
+ * fight is fought in.
+ *
+ * This replaced a single `weight` that was spent against speed at full rate and
+ * accuracy at half. One number encoding two effects meant an author who wanted a
+ * fast inaccurate weapon could not have one, and the ratio between the two costs
+ * was a balance decision buried in arithmetic. Two numbers say it outright, and
+ * they can go up: a rapier that makes you *faster* is now authorable, where
+ * "negative weight" would have been a nonsense nobody could read.
+ */
 export type WeaponItem = {
   type: "weapon";
   /** Added to the wielder's base atk. */
   atk: number;
   /** Added to the wielder's base def. */
   def: number;
-  /**
-   * What carrying it costs. Spends speed at full rate and accuracy at half —
-   * see `../game/equipment`, which owns the arithmetic.
-   */
-  weight: number;
+  /** Added to the wielder's accuracy. Negative makes it harder to land. */
+  acc: number;
+  /** Added to the wielder's speed. Negative makes it slower to swing. */
+  spd: number;
   mastery: ItemMastery;
 };
 
@@ -93,13 +107,14 @@ export type ItemType = ItemDef["type"];
 export const ITEM_TYPES: ItemType[] = ["weapon", "container"];
 
 /**
- * Heaviest a weapon may be.
+ * Furthest a weapon may push a percent stat, in either direction.
  *
- * Bounded because weight is spent against the 0–100 stats, and a weapon heavier
- * than the whole range is not a heavier weapon — it is the same weapon as one at
- * the cap, with a number that reads as if it did something.
+ * Bounded because `acc` and `spd` are spent against 0–100 stats, and a weapon
+ * that moves one further than the whole range is not a stronger weapon — it is
+ * the same weapon as one at the cap, wearing a number that reads as if it did
+ * something.
  */
-export const MAX_ITEM_WEIGHT = 100;
+export const MAX_WEAPON_STAT_SHIFT = 100;
 
 /** Widest a container may be, so a contents grid stays a grid. */
 export const MAX_CONTAINER_SIZE = 12;
@@ -108,7 +123,11 @@ export const DEFAULT_WEAPON: WeaponItem = {
   type: "weapon",
   atk: 3,
   def: 0,
-  weight: 10,
+  // A little slower to swing than bare hands, and no harder to aim. Something
+  // rather than nothing, so a fresh weapon demonstrates that these can be
+  // negative — but small, since a default is a starting point and not a design.
+  acc: 0,
+  spd: -5,
   mastery: "blade",
 };
 
@@ -123,11 +142,19 @@ const weaponSchema = v.object({
   type: v.literal("weapon"),
   atk: v.pipe(v.number(), v.integer(), v.minValue(0)),
   def: v.pipe(v.number(), v.integer(), v.minValue(0)),
-  weight: v.pipe(
+  // Signed, unlike atk and def: a weapon may make you worse at swinging it, and
+  // that is most of what tells two weapons apart.
+  acc: v.pipe(
     v.number(),
     v.integer(),
-    v.minValue(0),
-    v.maxValue(MAX_ITEM_WEIGHT),
+    v.minValue(-MAX_WEAPON_STAT_SHIFT),
+    v.maxValue(MAX_WEAPON_STAT_SHIFT),
+  ),
+  spd: v.pipe(
+    v.number(),
+    v.integer(),
+    v.minValue(-MAX_WEAPON_STAT_SHIFT),
+    v.maxValue(MAX_WEAPON_STAT_SHIFT),
   ),
   mastery: v.picklist(ITEM_MASTERIES),
 });
@@ -206,7 +233,8 @@ export function itemForSave(item: ItemDef | undefined): ItemDef | undefined {
       type: "weapon",
       atk: item.atk,
       def: item.def,
-      weight: item.weight,
+      acc: item.acc,
+      spd: item.spd,
       mastery: item.mastery,
     };
   }

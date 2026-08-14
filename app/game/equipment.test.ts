@@ -6,13 +6,11 @@ import type { TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import {
-  accuracyCostOf,
   applyWeaponStats,
   carriedInstances,
   carriedLightTileIds,
   effectiveBattler,
   emptyEquipment,
-  speedCostOf,
   startingEquipment,
 } from "./equipment";
 
@@ -25,64 +23,61 @@ const base: BattlerDef = {
   spd: 40,
 };
 
-describe("weight costs", () => {
-  it("spends speed at full rate", () => {
-    expect(speedCostOf(10)).toBe(10);
-  });
-
-  it("spends accuracy at half rate", () => {
-    expect(accuracyCostOf(10)).toBe(5);
-  });
-
-  it("rounds a half point rather than leaking a fraction into a stat", () => {
-    expect(accuracyCostOf(5)).toBe(3);
-    expect(Number.isInteger(accuracyCostOf(7))).toBe(true);
-  });
-
-  it("costs nothing at zero", () => {
-    expect(speedCostOf(0)).toBe(0);
-    expect(accuracyCostOf(0)).toBe(0);
-  });
-
-  it("treats a negative weight as free rather than as a bonus", () => {
-    expect(speedCostOf(-20)).toBe(0);
-    expect(accuracyCostOf(-20)).toBe(0);
-  });
-});
-
 describe("applyWeaponStats", () => {
   it("is the base stats with no weapon", () => {
     expect(applyWeaponStats(base, null)).toEqual(base);
   });
 
   it("adds attack and defence", () => {
-    const out = applyWeaponStats(base, { atk: 3, def: 2, weight: 0 });
+    const out = applyWeaponStats(base, { atk: 3, def: 2, acc: 0, spd: 0 });
     expect(out.atk).toBe(8);
     expect(out.def).toBe(3);
   });
 
-  it("takes weight off speed and accuracy asymmetrically", () => {
-    const out = applyWeaponStats(base, { atk: 0, def: 0, weight: 10 });
+  it("adds nothing at all when every field is zero", () => {
+    expect(applyWeaponStats(base, { atk: 0, def: 0, acc: 0, spd: 0 })).toEqual(
+      base,
+    );
+  });
+
+  /**
+   * The whole point of the two signed stats: a weapon may be slower *and* more
+   * accurate, which one `weight` spent against both could never say.
+   */
+  it("moves speed and accuracy independently, in either direction", () => {
+    const out = applyWeaponStats(base, { atk: 0, def: 0, acc: 12, spd: -10 });
+    expect(out.acc).toBe(62);
     expect(out.spd).toBe(30);
-    expect(out.acc).toBe(45);
+  });
+
+  it("takes a positive shift as a bonus rather than as free", () => {
+    const out = applyWeaponStats(base, { atk: 0, def: 0, acc: 5, spd: 5 });
+    expect(out.acc).toBe(55);
+    expect(out.spd).toBe(45);
   });
 
   it("leaves max hp and flee alone", () => {
-    const out = applyWeaponStats(base, { atk: 9, def: 9, weight: 30 });
+    const out = applyWeaponStats(base, { atk: 9, def: 9, acc: -30, spd: -30 });
     expect(out.maxHp).toBe(base.maxHp);
     expect(out.flee).toBe(base.flee);
   });
 
   it("clamps the percent stats at the floor rather than going negative", () => {
-    const out = applyWeaponStats(base, { atk: 0, def: 0, weight: 100 });
+    const out = applyWeaponStats(base, { atk: 0, def: 0, acc: -100, spd: -100 });
     expect(out.spd).toBe(MIN_PERCENT_STAT);
     expect(out.acc).toBe(MIN_PERCENT_STAT);
+  });
+
+  it("clamps at the ceiling too, since a shift may be a bonus", () => {
+    const out = applyWeaponStats(base, { atk: 0, def: 0, acc: 100, spd: 100 });
+    expect(out.acc).toBe(MAX_PERCENT_STAT);
+    expect(out.spd).toBe(MAX_PERCENT_STAT);
   });
 
   it("leaves attack and defence unbounded above, unlike the percent stats", () => {
     const out = applyWeaponStats(
       { ...base, acc: MAX_PERCENT_STAT },
-      { atk: 500, def: 500, weight: 0 },
+      { atk: 500, def: 500, acc: 10, spd: 0 },
     );
     expect(out.atk).toBe(505);
     expect(out.acc).toBe(MAX_PERCENT_STAT);
@@ -90,7 +85,7 @@ describe("applyWeaponStats", () => {
 
   it("does not mutate the base stats", () => {
     const snapshot = { ...base };
-    applyWeaponStats(base, { atk: 3, def: 2, weight: 10 });
+    applyWeaponStats(base, { atk: 3, def: 2, acc: -5, spd: -10 });
     expect(base).toEqual(snapshot);
   });
 });

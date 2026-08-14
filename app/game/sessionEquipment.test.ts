@@ -75,15 +75,15 @@ const tiles: TileDef[] = [
     intangible: true,
     interactions: { item: { ...DEFAULT_CONTAINER } },
   }),
-  // Weightless, so what it changes is attack and nothing else. Weight lowers
-  // accuracy, and accuracy widens the damage band — so a heavy weapon cannot
-  // be used to assert an exact number of hit points.
+  // Shifts nothing but attack, so it can be used to assert an exact number of
+  // hit points: a weapon that lowered accuracy would widen the damage band and
+  // make the blow a range rather than a number.
   tile({
     id: "light-sword",
     kind: "item",
     intangible: true,
     interactions: {
-      item: { type: "weapon", atk: 10, def: 0, weight: 0, mastery: "blade" },
+      item: { type: "weapon", atk: 10, def: 0, acc: 0, spd: 0, mastery: "blade" },
     },
   }),
   tile({
@@ -94,12 +94,13 @@ const tiles: TileDef[] = [
       item: { ...DEFAULT_CONTAINER, size: 2, equippable: false },
     },
   }),
+  // Slow and clumsy in the two ways a weapon can now be told to be.
   tile({
     id: "heavy-sword",
     kind: "item",
     intangible: true,
     interactions: {
-      item: { type: "weapon", atk: 10, def: 2, weight: 40, mastery: "blade" },
+      item: { type: "weapon", atk: 10, def: 2, acc: -20, spd: -40, mastery: "blade" },
     },
   }),
 ];
@@ -242,9 +243,9 @@ describe("a weapon reaches the blow", () => {
     const armed = fightingSession();
     arm(armed, "light-sword");
 
-    // One swing each. The player's acc is 100 and the sword is weightless, so
-    // the damage is exactly `atk` on both sides and the difference between them
-    // is the weapon and nothing else.
+    // One swing each. The player's acc is 100 and the sword shifts nothing but
+    // attack, so the damage is exactly `atk` on both sides and the difference
+    // between them is the weapon and nothing else.
     const bareHit = damageOver(bare, TICK_MS * 3);
     const armedHit = damageOver(armed, TICK_MS * 3);
 
@@ -253,11 +254,11 @@ describe("a weapon reaches the blow", () => {
   });
 
   /**
-   * Weight is spent against accuracy as well as speed, and accuracy widens the
-   * damage band downward — so a heavy weapon is worth *less* than its attack
-   * says, and the shortfall is the whole reason weight is a stat.
+   * Accuracy widens the damage band downward, so a weapon that costs accuracy
+   * is worth *less* than its attack says — which is the whole reason a weapon
+   * can be authored to cost it.
    */
-  it("blunts its own attack by being heavy", () => {
+  it("blunts its own attack by being inaccurate", () => {
     const heavy = fightingSession();
     arm(heavy, "heavy-sword");
     const hit = damageOver(heavy, TICK_MS * 3);
@@ -266,7 +267,7 @@ describe("a weapon reaches the blow", () => {
     expect(hit).toBeLessThan(15);
   });
 
-  it("slows the swing by its weight", () => {
+  it("slows the swing by its speed shift", () => {
     const light = fightingSession();
     const heavy = fightingSession();
     arm(light, "light-sword");
