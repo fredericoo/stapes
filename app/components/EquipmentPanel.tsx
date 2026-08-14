@@ -21,12 +21,22 @@ import type { ItemDrag } from "./useItemDrag";
  */
 export function EquipmentPanel({
   equipment,
+  bagOpen,
   tiles,
   tilesets,
   drag,
   className = "",
 }: {
   equipment: Equipment;
+  /**
+   * Whether the panel showing the inside of that bag is on screen.
+   *
+   * Here because tapping the bag slot is what opens it, and a slot that opened
+   * something without ever saying so would be a control with an invisible
+   * effect — the panel it opens is somewhere else on the page, and on a phone it
+   * has replaced this one entirely.
+   */
+  bagOpen: boolean;
   tiles: TileDef[];
   tilesets: TilesetDef[];
   /** The one move in progress, page-wide. See `./useItemDrag`. */
@@ -60,6 +70,7 @@ export function EquipmentPanel({
           tilesets={tilesets}
           label="Bag"
           emptyHint="Bag — nothing on your back"
+          open={bagOpen}
           drag={drag}
         />
       </div>

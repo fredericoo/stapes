@@ -590,6 +590,49 @@ the page on every pixel of the drag.
 > before the click that was about to place it ever ran. The release turns on
 > whether a pointer is **carrying** the thing, not on whether anything is in hand.
 
+### Revised: a tap uses a thing, and moving is drag-only
+
+Lift-and-place is **gone**. Moving an item is a drag, on a mouse and on a thumb
+alike, and the press that is left over means something else entirely:
+
+**A tap uses the item.** Not "lifts it a bit" — uses it, in whatever terms the
+item itself is in. A container is for looking inside, so a tap opens it. A weapon
+is for holding, so a tap puts it in your hand, and a tap on the one in your hand
+puts it back in your bag.
+
+The reason is what is coming rather than what is here. Items that are drunk,
+eaten and read are the next thing this model grows, and **the single most obvious
+gesture on the screen has to be the one that uses them**. Spending it on a
+two-step for moving would mean inventing a worse gesture for the interesting
+case, forever — and it is misleading on its own terms today, because tapping a
+thing you are carrying means *use it* in every game a player has ever held.
+
+The rule is `game/itemUse.ts`: pure, one function, `(instance, slot, tiles) →
+open | move | nothing`. It is deliberately *not* a fourth kind of operation —
+wielding a sword resolves to the `moveItem` that already exists, validated by the
+rules that already say what a slot will take. A refused use does nothing, which
+is the honest outcome when your hand is already full: the model has no swap, and
+inventing one at the moment of a tap would be inventing it in the wrong place.
+
+Two things follow, and both are the point rather than a cost:
+
+- **The bag slot is a tap target, and yellow while it is open.** Yellow because
+  that is what the world outlines an opened box in, and a bag reported open in
+  two colours in two places would be two states as far as a player is concerned.
+  The slot and the strip's button both toggle the one panel.
+- **Moving an item is no longer reachable from a keyboard.** Lift-and-place was
+  the accessible path and taking it away leaves a real gap — named here, owned by
+  Phase 6, and *not* the same gap as before: using an item still works from a
+  keyboard, because a tap is a button's click. What is missing is a way to say
+  "put this over there" without a pointer, which now needs an affordance of its
+  own beside the one dropping into the world was already waiting for.
+
+The gesture split that made the two-step work is what makes this work, unchanged:
+a press that travels past the drag threshold promotes to a drag, and one that
+does not is a tap. The swallowed click survives too, for a nearer reason than
+before — a drag let go of where it started would otherwise move the thing nowhere
+and then use it.
+
 ---
 
 ## Phases
@@ -809,17 +852,24 @@ Files: `app/game/affordances.ts`, `app/lib/interactions.ts`,
   focus-then-activate two-step). This is not optional and it is far easier to
   design in Phase 2 than to retrofit here.
 
-> **Mostly done in Phase 4, on that advice.** Every slot is a button carrying a
-> lift-and-place two-step, announced through `aria-pressed` and a label that says
-> what pressing it would do. What is left here is an audit rather than a retrofit
-> — and two known gaps, both deliberate:
+> **Reopened, and it is now the bigger half of this phase.** Phase 4 answered it
+> with lift-and-place, and the interaction revision above deleted that: a tap
+> uses an item, so **moving one is drag-only for everybody**, keyboard included.
+> Every slot is still a button and still says what pressing it would do — using a
+> thing works without a pointer — but there is no way left to say "put this over
+> there" without one.
 >
-> - **The strip's bag button takes drops but not a lifted item.** It toggles the
->   panel instead, which reaches the slots in one extra press.
+> That collapses the two gaps below into one question rather than leaving two:
+> whatever affordance lets somebody name a destination will have to name a *cell*
+> as well as a slot, since a bag going onto the floor is the same sentence with a
+> different object. A row of destinations on a focused slot, a cell cursor, or a
+> "drop at your feet" action — it is one design, and it belongs here.
+>
+> - **The strip's bag button takes drops but not a keyboard.** It toggles the
+>   panel, which reaches the slots in one extra press.
 > - **Dropping into the world is drag-only.** Decided in Phase 5 rather than
 >   discovered: aiming a cell without a pointer needs an affordance nobody has
->   designed, and guessing at one is worse than naming the gap. Whatever it turns
->   out to be — a "drop at your feet" row, a cell cursor — it belongs here.
+>   designed, and guessing at one is worse than naming the gap.
 
 ---
 
@@ -862,6 +912,11 @@ Existing culture is pure modules asserted directly; this fits it.
 >
 > `openedContainer.test.ts` is new and covers the rule that gave the most
 > trouble: in reach, out of reach, and the substitutions that must not be shown.
+>
+> `itemUse.test.ts` covers what a tap does, which is a rule about the *item* and
+> not about the square it is in: a weapon wields from anywhere and puts away from
+> the hand, a container opens only where a container can be, and everything else
+> does nothing at all rather than guessing.
 
 ---
 

@@ -4,6 +4,7 @@ import type { Equipment } from "../game/equipment";
 import { emptyEquipment } from "../game/equipment";
 import type { InteractionOption } from "../game/interactionOptions";
 import type { OpenedContainer, SlotRef } from "../game/itemMoves";
+import { itemUseFor } from "../game/itemUse";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { Direction, TileDef, TilesetDef } from "../lib/types";
 import { useMediaQuery } from "../lib/useMediaQuery";
@@ -206,8 +207,6 @@ export function GameViewport({
     }),
     [onDragOverWorld, onDropOnWorld],
   );
-  const drag = useItemDrag({ canMove: canMoveItem, onMove: move, world });
-
   /**
    * Whether each panel is open, or null while nobody has said.
    *
@@ -238,6 +237,34 @@ export function GameViewport({
     setBagOpen(open);
     if (open && coarse) setEquipmentOpen(false);
   };
+
+  /**
+   * A tap on a slot, which uses what is in it.
+   *
+   * Here rather than in a panel because the two things a use can be land in two
+   * different places: opening a bag is this component's own state, and wielding
+   * a sword is a move that goes all the way to the server. What each item is
+   * *for* is neither of those — it is `../game/itemUse`, asked once, so a tap and
+   * the label describing that tap cannot come to disagree.
+   */
+  const runItemUse = (slot: SlotRef, instance: ItemInstance) => {
+    const use = itemUseFor(instance, slot, tilesById);
+    if (!use) return;
+    // Shut it if it is open: the same press, both ways, because a bag is
+    // somewhere you look into rather than something you switch on.
+    if (use.type === "open") openBag(!showBag);
+    // Refused moves simply do nothing — your hand is full, or your bag is — and
+    // the rules that refuse them are the ones the drag asks. There is no second
+    // opinion here to drift from them.
+    else move(slot, use.to);
+  };
+
+  const drag = useItemDrag({
+    canMove: canMoveItem,
+    onMove: move,
+    onUse: runItemUse,
+    world,
+  });
 
   /** A panel is covering the arrows and the list. Only ever true on a phone. */
   const panelCoversMain =
@@ -331,6 +358,7 @@ export function GameViewport({
       {showEquipment ? (
         <EquipmentPanel
           equipment={equipment}
+          bagOpen={showBag}
           tiles={tiles}
           tilesets={tilesets}
           drag={drag}

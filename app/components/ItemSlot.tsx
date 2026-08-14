@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { slotKey, type SlotRef } from "../game/itemMoves";
+import { itemUseFor } from "../game/itemUse";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { TileDef, TilesetDef } from "../lib/types";
 import type { ItemDrag } from "./useItemDrag";
@@ -27,6 +28,29 @@ export const ITEM_SLOT_SIZE_PX = 44;
 
 const SPRITE_SIZE_PX = 32;
 
+/**
+ * What a press on this would do, in a sentence.
+ *
+ * Read off the same function the press itself runs through, so a slot cannot
+ * promise something a tap would not do. Null where a tap does nothing — a sign
+ * in your bag is not *for* anything yet, and a button that announced an action
+ * it does not have would be worse than one that stays quiet about it.
+ */
+function pressHintFor(
+  instance: ItemInstance | null,
+  slot: SlotRef,
+  tilesById: Record<string, TileDef>,
+  open: boolean | undefined,
+): string | null {
+  if (!instance) return null;
+  const use = itemUseFor(instance, slot, tilesById);
+  if (!use) return null;
+  if (use.type === "open") return open ? "Press to close it." : "Press to open it.";
+  return use.to.kind === "weapon"
+    ? "Press to wield it."
+    : "Press to put it away.";
+}
+
 export function ItemSlot({
   slot,
   instance,
@@ -34,6 +58,7 @@ export function ItemSlot({
   tilesets,
   label,
   emptyHint,
+  open,
   drag,
 }: {
   /** Where this square is, in the terms a move is expressed in. */
@@ -50,6 +75,15 @@ export function ItemSlot({
   /** Shown in the tooltip of an empty slot — what belongs here. */
   emptyHint?: string;
   /**
+   * This thing is currently open, and the panel showing its insides is on
+   * screen.
+   *
+   * Yellow, and yellow is not decoration: it is the colour the outline in the
+   * world wears on a box you have opened, and a bag open in two places at once
+   * would be two colours for one state.
+   */
+  open?: boolean | undefined;
+  /**
    * The one drag in progress, page-wide.
    *
    * Passed in rather than owned here because a move has two ends: a square has
@@ -64,7 +98,7 @@ export function ItemSlot({
     : "empty";
 
   const key = slotKey(slot);
-  const { register, startDrag, activate } = drag;
+  const { register, startDrag, tap } = drag;
   // Keyed on the string rather than the slot object, which is rebuilt every
   // render: a ref callback whose identity changed each time would be torn down
   // and re-attached on every frame the panel drew.
@@ -77,10 +111,11 @@ export function ItemSlot({
   );
 
   const held = drag.held;
-  /** Lifted out of this very square, so it is drawn as somewhere to put it back. */
+  /** Being dragged out of this very square, so it is drawn as where it came from. */
   const isSource = held != null && slotKey(held.from) === key;
   const wouldTake = drag.targets.has(key) && !isSource;
   const isOver = drag.over === key;
+  const pressHint = pressHintFor(instance, slot, tilesById, open);
 
   return (
     <button
@@ -89,7 +124,7 @@ export function ItemSlot({
       onPointerDown={(event) => {
         if (instance) startDrag(event, slot, instance);
       }}
-      onClick={() => activate(slot, instance)}
+      onClick={() => tap(slot, instance)}
       className={[
         "flex shrink-0 items-center justify-center border-2 transition-colors",
         "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
@@ -103,11 +138,16 @@ export function ItemSlot({
               ? // Where it came from, dimmed rather than emptied: the thing is
                 // still yours until you let go of it somewhere.
                 "border-dashed border-paper/60 bg-paper/5 opacity-50"
-              : instance
-                ? "border-paper/60 bg-paper/10 hover:border-paper"
-                : // A dashed empty slot reads as a place something goes, where a
-                  // solid one reads as a thing that is simply blank.
-                  "border-dashed border-paper/25 bg-transparent",
+              : open
+                ? // Open, in the one colour the game uses for a thing you have
+                  // acted on. Above `instance` in this chain because a thing
+                  // being open is a louder fact than its merely being there.
+                  "border-interact bg-interact/20"
+                : instance
+                  ? "border-paper/60 bg-paper/10 hover:border-paper"
+                  : // A dashed empty slot reads as a place something goes, where
+                    // a solid one reads as a thing that is simply blank.
+                    "border-dashed border-paper/25 bg-transparent",
       ].join(" ")}
       style={{
         width: ITEM_SLOT_SIZE_PX,
@@ -117,20 +157,18 @@ export function ItemSlot({
         touchAction: "none",
       }}
       title={instance ? name : emptyHint}
-      // The highlight says "this one would take it" to somebody who can see it;
-      // this is the same sentence for somebody who cannot. Written into the
-      // label rather than left to the colour, because with something in hand the
-      // only question a slot is answering is whether it is a place to put it.
+      // What is here, and what pressing it would do. The second half is the
+      // whole of the label's job now that a press uses a thing rather than
+      // moving it: "Rusty Sword" says what you are on, and only the hint says
+      // what happens if you commit to it.
       aria-label={
-        isSource
-          ? `${label}: ${name}, lifted. Press again to put it back.`
-          : held && wouldTake
-            ? `${label}: ${name}. Press to place here.`
-            : `${label}: ${name}`
+        pressHint ? `${label}: ${name}. ${pressHint}` : `${label}: ${name}`
       }
-      // Said rather than implied by the dimming, so the two-step is followable
-      // without seeing it: pressing a slot announces that it is now lifted.
-      aria-pressed={isSource}
+      // Only where being pressed is a state the slot can be *in*. A bag is open
+      // or shut; wielding a sword is something you do, not somewhere it stays,
+      // and a weapon slot claiming a pressed state would be describing a toggle
+      // nobody can toggle back.
+      aria-pressed={open}
     >
       {tile ? (
         <TilePreview

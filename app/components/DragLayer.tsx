@@ -33,7 +33,7 @@ export function DragLayer({
   tilesById: Record<string, TileDef>;
   tilesets: TilesetDef[];
 }) {
-  const held = drag.dragging ? drag.held : null;
+  const held = drag.held;
   const tile = held ? (tilesById[held.instance.tileId] ?? null) : null;
 
   return (
