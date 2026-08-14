@@ -136,6 +136,30 @@ function listHoverColor(option: InteractionOption): number {
 }
 
 /**
+ * A number that changes whenever anybody's health does.
+ *
+ * The interaction list is rebuilt from a gate that asks whether the answer
+ * *could* have moved, and every question in it — the board, the player's cell,
+ * who they are fighting — is blind to a blow landing: the map has no actors in
+ * it, and standing still exchanging hits changes none of the rest. This is the
+ * missing question, kept to one pass over a handful of bodies so the gate stays
+ * the cheap thing it is there to be.
+ *
+ * A rolling hash rather than a joined string because this runs every frame, and
+ * positional because two creatures trading a point between them is otherwise a
+ * sum that has not moved. Collisions cost nothing worse than a bar redrawn at
+ * the next commit instead of the next frame.
+ */
+function healthSignature(actors: readonly ActorSnapshot[]): number {
+  let signature = 0;
+  for (const actor of actors) {
+    if (actor.hp === null) continue;
+    signature = (signature * 31 + actor.hp) | 0;
+  }
+  return signature;
+}
+
+/**
  * Land a lerped sprite on the same whole-pixel grid the static world sits on.
  *
  * Scenery is placed at integer world pixels, so a mover at a fractional offset
@@ -180,6 +204,8 @@ export class GameRenderer {
   /** Board and cell the held list was derived from. @see pushInteractionOptions */
   private interactionsMap: MapFile | null = null;
   private interactionsAt = "";
+  /** Health of everybody on the board when it was. @see healthSignature */
+  private interactionsHealth = 0;
   /** Contents of the last list handed over, so an unchanged one is not re-sent. */
   private interactionsKey = "";
   /**
@@ -340,6 +366,7 @@ export class GameRenderer {
     // new callback has never seen.
     this.interactionsMap = null;
     this.interactionsAt = "";
+    this.interactionsHealth = 0;
     this.interactionsKey = "";
     this.interactionsSent = [];
   }
@@ -1283,6 +1310,11 @@ export class GameRenderer {
    * walk and settles where the cell says. The cost is that a body crossing the
    * edge of the view is listed at the next commit rather than the next frame,
    * which is 200ms at the one place on screen nobody is looking.
+   *
+   * Health *is* in the first gate, and has to be: a row carries the reading its
+   * subject's bar carries, and nothing else in that gate moves when somebody
+   * takes a hit. Standing still trading blows is exactly the case the list is
+   * being read in, and it is the one case the position gate calls free.
    */
   private pushInteractionOptions(
     snap: GameSnapshot,
@@ -1292,9 +1324,17 @@ export class GameRenderer {
     if (!this.onInteractions) return;
 
     const at = `${snap.self.x},${snap.self.y},${snap.self.z},${snap.targetId}`;
-    if (snap.map === this.interactionsMap && at === this.interactionsAt) return;
+    const health = healthSignature(snap.actors);
+    if (
+      snap.map === this.interactionsMap &&
+      at === this.interactionsAt &&
+      health === this.interactionsHealth
+    ) {
+      return;
+    }
     this.interactionsMap = snap.map;
     this.interactionsAt = at;
+    this.interactionsHealth = health;
 
     const options = listInteractionOptions(
       snap.map,
@@ -1307,7 +1347,9 @@ export class GameRenderer {
     // stale even when the list reads the same: a walking deer keeps its row and
     // changes cell, and the hover outline follows the reference.
     this.interactionsSent = options;
-    const key = options.map((o) => `${o.id}/${o.active}`).join("|");
+    const key = options
+      .map((o) => `${o.id}/${o.active}/${o.health?.hp ?? ""}`)
+      .join("|");
     if (key === this.interactionsKey) return;
     this.interactionsKey = key;
     this.onInteractions(options);

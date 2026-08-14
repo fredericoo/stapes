@@ -66,6 +66,21 @@ export type InteractionOption = {
   tileId: string;
   /** A person by their handle, anything else by what its tile is called. */
   name: string;
+  /**
+   * How hurt the body this entry acts on is, or null where there is no body —
+   * a crate has no health to report.
+   *
+   * Carried on the entry rather than looked up again by whoever draws it: the
+   * list is the one place that already holds the actor, and a second lookup
+   * from a component would be a second answer that can disagree with this one.
+   *
+   * The reading is the same reading the bar over the creature's head is drawn
+   * from, which is the point of showing it here at all: a row that says only
+   * *what* something is cannot answer "the rat I have nearly killed, or the one
+   * that just walked in", and that is the question being asked of a list of
+   * bodies you could pick a fight with.
+   */
+  health: { hp: number; maxHp: number } | null;
   /** Already the one being pointed at. Only ever true of a `target`. */
   active: boolean;
 };
@@ -195,6 +210,18 @@ function bodiesByCell(
   return bodies;
 }
 
+/**
+ * What a body has left, or null for one that has none to lose.
+ *
+ * Both halves or neither: the snapshot promises `maxHp` is null exactly when
+ * `hp` is, and reading them as a pair here means nothing downstream has to
+ * carry a half-answer it cannot draw.
+ */
+function healthOf(actor: ActorSnapshot): { hp: number; maxHp: number } | null {
+  if (actor.hp === null || actor.maxHp === null) return null;
+  return { hp: actor.hp, maxHp: actor.maxHp };
+}
+
 /** Squared plan distance, with a whole floor counting for far more than a cell. */
 function distanceFrom(self: ActorSnapshot, ref: ObjectRef): number {
   const dx = ref.x - self.x;
@@ -248,6 +275,10 @@ function objectOptions(
         name: body
           ? bodyNameFor({ actorId: body.id, tileId: body.tileId }, tilesById)
           : (tilesById[placed.tileId]?.name ?? placed.tileId),
+        // A shove at a creature reports its health for the same reason the
+        // fight does: it is the same creature, and which of two identical rats
+        // this row means is the question a bar answers. A crate has none.
+        health: body ? healthOf(body) : null,
         active: false,
       });
     }
@@ -317,6 +348,7 @@ function targetOptions(
         { actorId: actor.id, tileId: actor.tileId },
         tilesById,
       ),
+      health: healthOf(actor),
       active: actor.id === targetId,
     });
   }

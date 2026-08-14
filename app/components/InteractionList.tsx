@@ -6,6 +6,12 @@ import type {
 } from "../game/interactionOptions";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
+import {
+  HEALTH_BAR_BRICKS,
+  healthBarColor,
+  healthBarFillBricks,
+  healthFraction,
+} from "../render/healthBar";
 import { TilePreview } from "./TilePreview";
 
 /**
@@ -25,6 +31,11 @@ import { TilePreview } from "./TilePreview";
  * is. A body you can both shove and fight is two rows, because the verb is what
  * is being scanned for and there is nothing to be gained by making the reader
  * find it inside a group.
+ *
+ * A row about a body carries its health under the name, on the same ramp the
+ * bar over its head is drawn on. Two rats read as two identical rows otherwise,
+ * and the one thing you want to know before swinging is which of them is the
+ * one you have nearly finished and which just walked into view.
  *
  * Rows carry the option and nothing else; {@link onAct} hands it back to
  * whoever owns the session. Nothing in here knows what a push is.
@@ -167,13 +178,49 @@ function InteractionRow({
         background={null}
         className="shrink-0"
       />
-      <span className="flex min-w-0 flex-col">
+      <span className="flex min-w-0 flex-1 flex-col">
         <span className="flex items-center gap-1 text-xs font-medium uppercase">
           <Icon size={14} stroke={2} aria-hidden="true" />
           {option.label}
         </span>
         <span className="truncate text-xs text-paper/70">{option.name}</span>
+        {option.health ? <RowHealth health={option.health} /> : null}
       </span>
     </button>
+  );
+}
+
+/**
+ * How much of a body is left, under the name of it.
+ *
+ * The reading and its colour come from `../render/healthBar`, which is the same
+ * arithmetic the bar over the creature's head runs: a row that went red at a
+ * different moment than the world did would be two gauges to learn instead of
+ * one. The fill is stated in that module's bricks and turned into a percentage
+ * here — what the bricks are buying is the rounding, not the pixels. A creature
+ * on its last hit point keeps a visible sliver, and one that has taken a
+ * scratch never rounds back up to a full track.
+ *
+ * Named for a screen reader rather than left as decoration, because the bar is
+ * the only place this number appears. It is a label rather than text on purpose:
+ * the list around it is a live region, and a reading that changed as text would
+ * have every blow in a fight read out over the fight.
+ */
+function RowHealth({ health }: { health: { hp: number; maxHp: number } }) {
+  const fraction = healthFraction(health.hp, health.maxHp);
+
+  return (
+    <span
+      role="img"
+      aria-label={`${health.hp} of ${health.maxHp} health`}
+      className="mt-1 flex h-1 w-full border border-paper/40 bg-ink"
+    >
+      <span
+        style={{
+          width: `${(healthBarFillBricks(fraction) / HEALTH_BAR_BRICKS) * 100}%`,
+          backgroundColor: healthBarColor(fraction),
+        }}
+      />
+    </span>
   );
 }
