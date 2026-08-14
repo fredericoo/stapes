@@ -119,11 +119,15 @@ export function interactionText(option: InteractionOption): string {
 const ACTION_ORDER: Record<InteractionAction, number> = {
   target: 0,
   switch: 1,
-  // Above pick-up on the same thing, because a bag on the floor is far more
-  // often something to look inside than something to hoist onto your back —
-  // and looking is free where taking it commits your only bag slot.
-  open: 2,
-  pickUp: 3,
+  // Above open, and the two are almost never both on offer anyway — which is
+  // what makes the order easy. A bag is only pick-up-able when your back is
+  // bare, and a bare back is exactly when you want the bag rather than a look
+  // inside it; the moment you are wearing one, pick-up stops being offered at
+  // all and open is the only thing left. A chest is never picked up, so it opens
+  // either way. The pair therefore reads: take it if you can, otherwise look in
+  // it.
+  pickUp: 2,
+  open: 3,
   push: 4,
 };
 

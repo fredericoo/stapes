@@ -582,7 +582,7 @@ describe("listInteractionOptions — picking things up", () => {
 });
 
 describe("listInteractionOptions — bags on the floor", () => {
-  it("offers a bag as two rows, open before pick up", () => {
+  it("offers a bag as two rows, pick up before open", () => {
     let map = field();
     map = place(map, 1, 0, ["grass", "bag"]);
     const me = playerAt(map);
@@ -597,9 +597,9 @@ describe("listInteractionOptions — bags on the floor", () => {
       NO_BAG,
     );
 
-    // Open comes first: looking is free, where taking it commits the one bag
-    // slot there is.
-    expect(actionsIn(options)).toEqual(["open", "pickUp"]);
+    // Taking it comes first. The only time both are offered is when your back
+    // is bare, which is exactly when you want the bag itself.
+    expect(actionsIn(options)).toEqual(["pickUp", "open"]);
     expect(options.every((o) => o.name === "Bag")).toBe(true);
   });
 
@@ -799,12 +799,36 @@ describe("topInteractionAt", () => {
     return listInteractionOptions(map, tilesById, me, [me], null, kit);
   }
 
-  it("takes open over pick up on a bag, which is the order the list shows", () => {
+  it("takes pick up over open on a bag, when there is a back to put it on", () => {
     let map = field();
     map = place(map, 1, 0, ["grass", "bag"]);
     const ref = { x: 1, y: 0, z: 0, stackIndex: 1 };
 
     const top = topInteractionAt(optionsAround(map, NO_BAG), ref);
+    expect(top?.action).toBe("pickUp");
+  });
+
+  // The other half of the same rule, and the reason the order is easy: wearing
+  // a bag takes pick-up off the table entirely, so the row that is left is the
+  // one that was always going to be wanted.
+  it("takes open on a bag once one is already worn", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "bag"]);
+    const ref = { x: 1, y: 0, z: 0, stackIndex: 1 };
+
+    expect(topInteractionAt(optionsAround(map, KIT), ref)?.action).toBe("open");
+  });
+
+  // Never picked up, whatever your back is doing, so it opens either way.
+  it("takes open on a chest", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "chest"]);
+    const top = topInteractionAt(optionsAround(map, NO_BAG), {
+      x: 1,
+      y: 0,
+      z: 0,
+      stackIndex: 1,
+    });
     expect(top?.action).toBe("open");
   });
 

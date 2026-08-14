@@ -422,8 +422,8 @@ because targeting is a row without being a server-side interaction.
 
 `objectOptions` keeps its shape — one kind row per cell, named by whatever a tap
 would actually run — and additionally emits an `open` row when the top placement
-is a container in reach. So a bag on the floor reads as two rows, **Open** and
-**Pick up**, which is the same "one row per verb" rule bodies already follow.
+is a container in reach. So a bag on the floor reads as two rows, **Pick up** and
+**Open**, which is the same "one row per verb" rule bodies already follow.
 
 > **As built.** "The top placement" had the same body-is-a-lid bug, and could not
 > be fixed by skipping bodies: a body is a subject in its own right, since the
@@ -463,6 +463,15 @@ drawn over it, and what a click runs. `topInteractionAt` picks it, by the list's
 own `ACTION_ORDER` — so a chest opens rather than shoving, because that is the
 order the list already showed and there is no longer a second precedence able to
 disagree with the words on screen.
+
+**Pick up beats open**, which is a reversal of what this plan first settled and
+turns out not to be a trade-off at all. The two are almost never both on offer: a
+bag can only be picked up when your back is bare, and a bare back is exactly when
+you want the bag rather than a look inside it — the moment you are wearing one,
+pick-up stops being offered and open is all that is left. A chest is never picked
+up, so it opens either way. The pair reads *take it if you can, otherwise look in
+it*, and the earlier ordering was answering a question ("is looking cheaper than
+taking?") that the reach rules had already made moot.
 
 Three things follow, and each removes something:
 

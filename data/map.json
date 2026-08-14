@@ -12612,7 +12612,6 @@
           "tileId": "crate-chest",
           "contents": [
             {
-              "id": "itm_seed_sword",
               "tileId": "rusty-sword"
             }
           ]
