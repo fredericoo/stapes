@@ -1,5 +1,5 @@
 import { IconBulb, IconBulbOff } from "@tabler/icons-react";
-import { Switch, Tooltip } from "../ui";
+import { Toggle, Tooltip } from "../ui";
 
 /**
  * Turn the world's lighting off.
@@ -25,22 +25,17 @@ export function LightingToggle({
     <Tooltip
       content={
         enabled
-          ? "Lighting on — turn off to draw unlit and skip the bake"
-          : "Lighting off — nothing is baked or uploaded"
+          ? "Lighting on — turn it off to draw the art unlit and skip the bake"
+          : "Lighting off — the art is drawn as authored, nothing is baked"
       }
     >
-      <Switch
-        checked={enabled}
-        onCheckedChange={onChange}
-        ariaLabel="Lighting"
-        thumb={
-          enabled ? (
-            <IconBulb size={16} stroke={2.5} aria-hidden="true" />
-          ) : (
-            <IconBulbOff size={16} stroke={2.5} aria-hidden="true" />
-          )
-        }
-      />
+      <Toggle pressed={enabled} onPressedChange={onChange} ariaLabel="Lighting">
+        {enabled ? (
+          <IconBulb size={16} stroke={2} aria-hidden="true" />
+        ) : (
+          <IconBulbOff size={16} stroke={2} aria-hidden="true" />
+        )}
+      </Toggle>
     </Tooltip>
   );
 }

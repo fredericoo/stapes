@@ -23,7 +23,7 @@ import { gameServer } from "../net/gameServer.server";
 import { formatClock, MINUTES_PER_DAY } from "../lib/clock";
 import type { MapFile } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL, clampLevel } from "../lib/types";
-import { Button, Input, Switch, Tooltip, useToast } from "../ui";
+import { Button, Input, Toggle, Tooltip, useToast } from "../ui";
 
 export async function loader({ context }: Route.LoaderArgs) {
   const store = dataStore(context);
@@ -226,31 +226,27 @@ export default function MapPage() {
               with; the cost is that on a narrow window it wraps with the rest
               of the map's controls instead of folding away with the nav. */}
           <div className="flex items-center gap-1">
-            <Tooltip content="Show other levels (L) — ghost the floors above as one fade, capped at -1 underground">
-              <Switch
-                checked={showOtherLevels}
-                onCheckedChange={(v) =>
+            <Tooltip content="Show other levels (L) — the floors above, ghosted into one fade. Underground it stops at -1">
+              <Toggle
+                pressed={showOtherLevels}
+                onPressedChange={(v) =>
                   useEditorStore.getState().setShowOtherLevels(v)
                 }
                 ariaLabel="Show other levels"
-                thumb={
-                  <IconStackBackward
-                    size={16}
-                    stroke={2.5}
-                    aria-hidden="true"
-                  />
-                }
-              />
+              >
+                <IconStackBackward size={16} stroke={2} aria-hidden="true" />
+              </Toggle>
             </Tooltip>
-            <Tooltip content="Preview (W) — every level as play draws it, no grid or selection">
-              <Switch
-                checked={previewMode}
-                onCheckedChange={(v) =>
+            <Tooltip content="Preview (W) — every level solid, as play draws it, with no grid or selection in the way">
+              <Toggle
+                pressed={previewMode}
+                onPressedChange={(v) =>
                   useEditorStore.getState().setPreviewMode(v)
                 }
                 ariaLabel="Preview"
-                thumb={<IconEye size={16} stroke={2.5} aria-hidden="true" />}
-              />
+              >
+                <IconEye size={16} stroke={2} aria-hidden="true" />
+              </Toggle>
             </Tooltip>
             <LightingToggle
               enabled={lightingEnabled}
