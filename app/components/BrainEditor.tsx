@@ -63,22 +63,30 @@ const EMPTY_BRAIN: BrainDef = {
 };
 
 /**
- * Tiles worth offering as a `nearest` target — the ones a body can actually be.
+ * Every tile a `nearest` can name, bodies first.
  *
- * Every tile in the library would be a picker with a hundred walls and floors in
- * it, none of which anything is ever standing on. The player is named explicitly
- * because it is a body by virtue of somebody connecting to it rather than by an
- * authored flag, so {@link resolveActor} does not see it.
+ * All of them, because a selector can now point at scenery as readily as at a
+ * creature — the nearest oak is as answerable as the nearest rat. The ordering
+ * is the whole of the help the picker can offer: the handful of things that
+ * move are what a brain almost always wants, so they sit at the top rather than
+ * somewhere inside an alphabet of walls and floors.
  *
- * Sorted so the picker does not reshuffle when the library is reordered, with the
- * player first because it is the target nearly every brain wants.
+ * The player leads, being the target nearly every brain wants, and is named
+ * explicitly because it is a body by virtue of somebody connecting to it rather
+ * than by an authored flag — {@link resolveActor} does not see it. The rest are
+ * sorted, so the picker does not reshuffle when the library is reordered.
  */
 export function bodyTileIds(tiles: TileDef[]): string[] {
-  const ids = tiles
+  const bodies = tiles
     .filter((tile) => tile.id !== PLAYER_TILE_ID && resolveActor(tile))
     .map((tile) => tile.id)
     .sort();
-  return [PLAYER_TILE_ID, ...ids];
+  const body = new Set([PLAYER_TILE_ID, ...bodies]);
+  const scenery = tiles
+    .map((tile) => tile.id)
+    .filter((id) => !body.has(id))
+    .sort();
+  return [PLAYER_TILE_ID, ...bodies, ...scenery];
 }
 
 /**
