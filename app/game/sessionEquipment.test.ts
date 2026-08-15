@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_CONTAINER } from "../lib/item";
-import { emptyMap, getStack, replaceStack } from "../lib/mapData";
+import { emptyMap, getStack, parseMap, replaceStack, serializeMap } from "../lib/mapData";
+import { parseServerMessage } from "../net/protocol";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { STARTING_BAG_TILE_ID, TICK_MS } from "./constants";
@@ -580,6 +581,98 @@ index: 0,
 
     expect(kitOf(session).bag?.contents).toHaveLength(2);
     expect(getStack(session.getMap(), 1, 0, 0)[1].contents).toEqual([]);
+  });
+
+  /**
+   * The shape a map file actually arrives in, which is not the shape the tests
+   * above build. `serializeMap` strips a content's `id` on the way to disk, so
+   * an authored chest holds `{ tileId }` and nothing else — and every test here
+   * that wrote `itm_loot` by hand was quietly testing a world that had already
+   * been minted.
+   *
+   * What it cost: the sword came out of the crate with no identity, went into
+   * the bag, and the `equipment` frame announcing it failed its own schema on
+   * the way out. The client dropped the message, so the sword was gone from the
+   * chest and absent from the bag at once — and the `hello` on the next refresh
+   * carried the same kit and was dropped the same way, which is a player who
+   * can never finish joining again.
+   */
+  it("loots a chest authored with no ids in it, and the kit still crosses the wire", () => {
+    let map = replaceStack(field(), 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "chest", contents: [{ tileId: SWORD }] as never },
+    ]);
+    const session = new GameSession(map, tiles);
+    const chest = refAt(session, 1, 0);
+
+    expect(
+      session.moveItem(
+        { kind: "ground", ref: chest, index: 0 },
+        { kind: "contents", index: 0 },
+      ),
+    ).toBe(true);
+
+    const equipment = kitOf(session);
+    expect(equipment.bag?.contents?.[0].id).toMatch(/^itm_/);
+    expect(
+      parseServerMessage(JSON.stringify({ type: "equipment", equipment })),
+    ).not.toBeNull();
+  });
+
+  /**
+   * The general shape of the bug the authored chest was one instance of, and
+   * the one that reaches items nobody authored into a container at all.
+   *
+   * `serializeMap` strips a content's id every time the editor saves. So *any*
+   * item that is inside *any* container when the map is saved — a torch stashed
+   * in a crate, a bag full of things put down on the floor — comes back
+   * anonymous on the next load, and unusable the moment somebody takes it out.
+   * Which container, and whether a human authored it, makes no difference.
+   */
+  it("survives a map save while it is inside a container on the floor", () => {
+    let map = replaceStack(field(), 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "chest", itemId: "itm_chest", contents: [{ id: "itm_loot", tileId: "lantern" }] },
+    ]);
+    // The editor's save button, and the load that follows it.
+    const saved = new GameSession(parseMap(serializeMap(map)), tiles);
+    const chest = refAt(saved, 1, 0);
+
+    expect(
+      saved.moveItem(
+        { kind: "ground", ref: chest, index: 0 },
+        { kind: "contents", index: 0 },
+      ),
+    ).toBe(true);
+
+    const equipment = kitOf(saved);
+    expect(equipment.bag?.contents?.[0].tileId).toBe("lantern");
+    expect(equipment.bag?.contents?.[0].id).toMatch(/^itm_/);
+    expect(
+      parseServerMessage(JSON.stringify({ type: "equipment", equipment })),
+    ).not.toBeNull();
+  });
+
+  /**
+   * The counterpart, and the reason this was so hard to place: a bare item on
+   * the floor was never affected. It is minted by the same pass that always
+   * worked, so a torch lying in the open picks up and travels fine — which is
+   * why "it happened with a torch too" pointed away from containers rather than
+   * at them.
+   */
+  it("was never a problem for a bare item lying on the floor", () => {
+    const map = replaceStack(field(), 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "lantern" },
+    ]);
+    const session = new GameSession(parseMap(serializeMap(map)), tiles);
+    expect(session.pickUp(refAt(session, 1, 0))).toBe(true);
+
+    const equipment = kitOf(session);
+    expect(equipment.bag?.contents?.[0].id).toMatch(/^itm_/);
+    expect(
+      parseServerMessage(JSON.stringify({ type: "equipment", equipment })),
+    ).not.toBeNull();
   });
 
   it("stashes into it, which is the same move the other way round", () => {

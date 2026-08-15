@@ -89,6 +89,59 @@ describe("mintItemIds", () => {
     expect(mintItemIds(map, tilesById)).toBe(map);
   });
 
+  /**
+   * The one an authored chest depends on. `serializeMap` strips a content's id
+   * on the way to disk because this pass is meant to hand it a fresh one on the
+   * way back — and while it did not, taking the sword out of the crate put an
+   * instance with no `id` in somebody's bag, which is a shape the protocol's own
+   * schema refuses. The kit stopped crossing the wire, and the `hello` carrying
+   * it stopped crossing too: a player who touched that sword could never finish
+   * joining again.
+   */
+  it("gives an item inside a container an identity", () => {
+    const map = mapWith([
+      {
+        x: 0,
+        y: 0,
+        stack: [{ tileId: "basic-bag", contents: [{ tileId: "rusty-sword" }] as never }],
+      },
+    ]);
+    const placed = getStack(mintItemIds(map, tilesById), 0, 0, 0)[0];
+    expect(placed.contents?.[0].id).toMatch(/^itm_/);
+  });
+
+  it("gives a chest and the sword in it two different identities", () => {
+    const map = mapWith([
+      {
+        x: 0,
+        y: 0,
+        stack: [{ tileId: "basic-bag", contents: [{ tileId: "rusty-sword" }] as never }],
+      },
+    ]);
+    const placed = getStack(mintItemIds(map, tilesById), 0, 0, 0)[0];
+    expect(placed.itemId).not.toBe(placed.contents?.[0].id);
+  });
+
+  it("leaves an identity a content already had alone", () => {
+    const map = mapWith([
+      {
+        x: 0,
+        y: 0,
+        stack: [
+          {
+            tileId: "basic-bag",
+            itemId: "itm_bag",
+            contents: [{ id: "itm_known", tileId: "rusty-sword" }] as never,
+          },
+        ],
+      },
+    ]);
+    const next = mintItemIds(map, tilesById);
+    expect(getStack(next, 0, 0, 0)[0].contents?.[0].id).toBe("itm_known");
+    // Nothing needed minting, so nothing was copied.
+    expect(next).toBe(map);
+  });
+
   it("leaves the placement's other fields untouched", () => {
     const map = mapWith([
       {

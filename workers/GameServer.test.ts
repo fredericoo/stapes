@@ -497,6 +497,100 @@ describe("replacing the world", () => {
     expect(text).not.toContain('"owner"');
   });
 
+  /**
+   * A save re-creates the world. It does not re-create the people in it.
+   *
+   * Items on the floor coming back is the point of authoring them there — the
+   * map is the map, and saving it is how an author puts a sword back. What is in
+   * somebody's bag is not the map: nobody authored it, and nothing in the file
+   * that was just written says anything about it.
+   *
+   * Everyone connected used to be re-seated with the starting kit, so every save
+   * emptied every open pocket — and the flush five seconds later wrote that
+   * emptiness over the only record of what they had, which put it beyond a
+   * reconnect to recover.
+   */
+  it("leaves a connected player carrying what they were carrying", async () => {
+    const withSword = authoredMap();
+    withSword.levels["0"]!["1,0"] = [
+      { tileId: "grass" },
+      { tileId: "rusty-sword" },
+    ];
+    await env.DATA.put("map.json", JSON.stringify(withSword));
+
+    const alice = await connect("alice");
+    const bagId = kitOf(alice.hello).bag.id;
+
+    send(alice.ws, { type: "pickUp", ref: { x: 1, y: 0, z: 0, stackIndex: 1 } });
+    const armed = (await equipmentWithin(alice.ws))!;
+    expect(contentsOf(armed).map((i) => i.tileId)).toEqual(["rusty-sword"]);
+
+    const fresh = nextMessage(alice.ws);
+    await stub().replaceWorld(withSword);
+    const hello = await fresh;
+
+    expect(hello.type).toBe("hello");
+    // The same bag, holding the same sword. Not a new one that happens to look
+    // like it: a reset kit mints a fresh bag, so the id is what tells them apart.
+    expect(kitOf(hello).bag.id).toBe(bagId);
+    expect(contentsOf(hello).map((i) => i.tileId)).toEqual(["rusty-sword"]);
+  });
+
+  /**
+   * The other half of the same rule, and the reason this is not simply "keep
+   * everything": the floor is the map's to decide. An authored sword comes back
+   * when the map does, whoever happens to be holding one.
+   */
+  it("puts the authored floor items back regardless", async () => {
+    const withSword = authoredMap();
+    withSword.levels["0"]!["1,0"] = [
+      { tileId: "grass" },
+      { tileId: "rusty-sword" },
+    ];
+    await env.DATA.put("map.json", JSON.stringify(withSword));
+
+    const alice = await connect("alice");
+    send(alice.ws, { type: "pickUp", ref: { x: 1, y: 0, z: 0, stackIndex: 1 } });
+    await equipmentWithin(alice.ws);
+
+    const fresh = nextMessage(alice.ws);
+    await stub().replaceWorld(withSword);
+    const hello = await fresh;
+
+    const stack = (hello.map as FlatMapFile).levels["0"]!["1,0"]!;
+    expect(stack.map((p) => p.tileId)).toContain("rusty-sword");
+  });
+
+  it("checks the kit it carries over against the catalogue the save brought", async () => {
+    const withSword = authoredMap();
+    withSword.levels["0"]!["1,0"] = [
+      { tileId: "grass" },
+      { tileId: "rusty-sword" },
+    ];
+    await env.DATA.put("map.json", JSON.stringify(withSword));
+
+    const alice = await connect("alice");
+    const bagId = kitOf(alice.hello).bag.id;
+    send(alice.ws, { type: "pickUp", ref: { x: 1, y: 0, z: 0, stackIndex: 1 } });
+    await equipmentWithin(alice.ws);
+
+    // The save brings a catalogue in which the sword is scenery. A kit this
+    // world no longer agrees with is dropped, exactly as a remembered one is.
+    const asProps = (tilesJson as Array<Record<string, unknown>>).map((t) =>
+      t.id === "rusty-sword" ? { ...t, kind: "prop" } : t,
+    );
+    await env.DATA.put("tiles.json", JSON.stringify(asProps));
+
+    const fresh = nextMessage(alice.ws);
+    await stub().replaceWorld(withSword);
+    const hello = await fresh;
+
+    // Carried over — same bag, so this is not the kit simply being reset...
+    expect(kitOf(hello).bag.id).toBe(bagId);
+    // ...and the sword is gone from it, because this world says it is scenery.
+    expect(contentsOf(hello)).toEqual([]);
+  });
+
   it("drops the previous world's checkpoint", async () => {
     await putCheckpoint(checkpointWith(["ghost"]));
     await stub().replaceWorld(authoredMap());
@@ -901,6 +995,23 @@ describe("calling a creature", () => {
  * be thrown away, and one the board refuses has to come back with its number so
  * the client can put itself back.
  */
+
+function send(ws: WebSocket, message: unknown) {
+  ws.send(JSON.stringify(message));
+}
+
+/** Wait for the kit the server sends its owner alone. */
+function equipmentWithin(ws: WebSocket) {
+  return messageWithin(ws, "equipment", 1000);
+}
+
+/** What is in the bag of whichever message carries a kit. */
+function contentsOf(message: Record<string, unknown>): Array<{ tileId: string }> {
+  const equipment = message.equipment as {
+    bag: { contents?: Array<{ tileId: string }> } | null;
+  };
+  return equipment.bag?.contents ?? [];
+}
 
 function step(ws: WebSocket, seq: number, direction: string) {
   ws.send(JSON.stringify({ type: "step", seq, direction, preferDescend: false }));
