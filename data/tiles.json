@@ -1141,7 +1141,7 @@
             "durationMs": 180,
             "light": {
               "radius": 8,
-              "intensity": 0.5,
+              "intensity": 0.95,
               "color": "#ffcc88"
             }
           }
@@ -1187,7 +1187,7 @@
             "durationMs": 180,
             "light": {
               "radius": 8,
-              "intensity": 0.5,
+              "intensity": 0.95,
               "color": "#ffcc88"
             }
           }
@@ -1233,7 +1233,7 @@
             "durationMs": 180,
             "light": {
               "radius": 8,
-              "intensity": 0.5,
+              "intensity": 0.95,
               "color": "#ffcc88"
             }
           }
@@ -1279,7 +1279,7 @@
             "durationMs": 180,
             "light": {
               "radius": 8,
-              "intensity": 0.5,
+              "intensity": 0.95,
               "color": "#ffcc88"
             }
           }
@@ -4126,11 +4126,11 @@
                 "x": 0,
                 "y": 2,
                 "w": 1,
-                "h": 3
+                "h": 2
               },
               "base": {
                 "x": 0,
-                "y": 1
+                "y": 0
               }
             },
             "durationMs": 200
@@ -4142,11 +4142,11 @@
                 "x": 1,
                 "y": 2,
                 "w": 1,
-                "h": 3
+                "h": 2
               },
               "base": {
                 "x": 0,
-                "y": 1
+                "y": 0
               }
             },
             "durationMs": 200
@@ -4161,7 +4161,7 @@
               "rect": {
                 "x": 2,
                 "y": 2,
-                "w": 3,
+                "w": 2,
                 "h": 1
               },
               "base": {
@@ -4177,7 +4177,7 @@
               "rect": {
                 "x": 2,
                 "y": 3,
-                "w": 3,
+                "w": 2,
                 "h": 1
               },
               "base": {
@@ -4195,10 +4195,10 @@
             "sprite": {
               "tilesetId": "animals",
               "rect": {
-                "x": 5,
+                "x": 4,
                 "y": 2,
                 "w": 1,
-                "h": 3
+                "h": 2
               },
               "base": {
                 "x": 0,
@@ -4211,10 +4211,10 @@
             "sprite": {
               "tilesetId": "animals",
               "rect": {
-                "x": 6,
+                "x": 5,
                 "y": 2,
                 "w": 1,
-                "h": 3
+                "h": 2
               },
               "base": {
                 "x": 0,
@@ -4231,13 +4231,13 @@
             "sprite": {
               "tilesetId": "animals",
               "rect": {
-                "x": 7,
+                "x": 6,
                 "y": 2,
-                "w": 3,
+                "w": 2,
                 "h": 1
               },
               "base": {
-                "x": 1,
+                "x": 0,
                 "y": 0
               }
             },
@@ -4247,13 +4247,13 @@
             "sprite": {
               "tilesetId": "animals",
               "rect": {
-                "x": 7,
+                "x": 6,
                 "y": 3,
-                "w": 3,
+                "w": 2,
                 "h": 1
               },
               "base": {
-                "x": 1,
+                "x": 0,
                 "y": 0
               }
             },
