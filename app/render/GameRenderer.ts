@@ -51,7 +51,7 @@ import type {
   TileDef,
   TilesetDef,
 } from "../lib/types";
-import { HEIGHT_PER_LEVEL } from "../lib/types";
+import { HEIGHT_PER_LEVEL, tileCanEmitLight } from "../lib/types";
 import { resolveLight } from "../lib/tileResolve";
 import { tilesByIdFromList } from "../lib/validation";
 import {
@@ -1869,18 +1869,25 @@ export class GameRenderer {
     // miss the cache every frame. Emitting only the viewer's own would leave
     // every other actor's light omitted from the bake and never painted back,
     // which is exactly the "goes dark" failure the bake omission warns about.
+    //
+    // The body asks whether the tile can *ever* emit, not what it is emitting
+    // this instant: that override is a position, and the light itself is
+    // resolved from the stack against the animation clock when it is painted.
+    // Asking for the live frame's light would drop the override on the dark
+    // half of a flicker and stop the light coming back. It is also no longer a
+    // per-actor question, since facing does not change whether a tile emits.
+    const bodyEmits = tileCanEmitLight(playerDef);
     const overrides: EmitterOverride[] = [];
     for (const actor of snap.actors) {
-      const body = resolveLight(playerDef, { direction: actor.direction });
       const carried = this.carriedLightsFor(actor);
-      if (!body && !carried) continue;
+      if (!bodyEmits && !carried) continue;
       const at = this.actorEmitter(snap.map, actor, playerDef.height ?? 0);
       // The body's own light is found by reading the stack it is standing in,
       // which is what an override has always meant. What is in the bag is not in
       // any stack, so it travels on a second override at the same position — the
       // cast accumulates, and one lantern at your hip lights exactly like one
       // lantern at your hip.
-      if (body) overrides.push(at);
+      if (bodyEmits) overrides.push(at);
       if (carried) overrides.push({ ...at, lights: carried });
     }
     return overrides.length > 0 ? overrides : undefined;
@@ -1893,6 +1900,11 @@ export class GameRenderer {
    * frame, and almost nobody is carrying a torch. Resolving the tile ids here
    * rather than sending `LightDef`s over the wire is the same trade the whole
    * protocol makes — every client already holds the catalogue.
+   *
+   * Resolved against the renderer's animation clock, like every other light.
+   * Carried lights are the one kind that arrives at the cast already resolved —
+   * there is no cell to read them from later — so if this took frame 0 a torch
+   * would flicker on the floor and burn flat the moment it went in a bag.
    */
   private carriedLightsFor(actor: ActorSnapshot): LightDef[] | undefined {
     if (actor.carriedLights.length === 0) return undefined;
@@ -1900,7 +1912,11 @@ export class GameRenderer {
     for (const tileId of actor.carriedLights) {
       const def = this.tilesById[tileId];
       if (!def) continue;
-      const light = resolveLight(def, { direction: actor.direction });
+      const light = resolveLight(
+        def,
+        { direction: actor.direction },
+        this.world.animTimeMs,
+      );
       if (light) lights.push(light);
     }
     return lights.length > 0 ? lights : undefined;

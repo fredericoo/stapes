@@ -15,6 +15,7 @@
  * chunk — see the parity test.
  */
 import type {
+  AnimatedEmitter,
   LightGrid,
   LevelLightMap,
   PackedLevelLight,
@@ -38,6 +39,7 @@ import {
   physicalHeight,
   resolveLightPassing,
   tileCanEmitLight,
+  tileEmissionPhase,
 } from "./types";
 
 /**
@@ -72,9 +74,11 @@ export const PREFETCH_RING_CHUNKS = 1;
 export const PREFETCH_CHUNKS_PER_CALL = 1;
 
 /**
- * Chunks held before the coldest are dropped. ~68 KiB each (RGBA raw), so this
- * caps the cache near 17 MiB. Must comfortably exceed the window's chunk count
- * or the window would evict itself and rebake every frame.
+ * Baked chunk-phases held before the coldest chunks are dropped. ~68 KiB each
+ * (RGBA raw), so this caps the cache near 17 MiB. A chunk no flicker reaches
+ * counts once; one a torch reaches counts once per phase of that torch's cycle.
+ * Must comfortably exceed the window's chunk count or the window would evict
+ * itself and rebake every frame.
  */
 export const DEFAULT_MAX_CACHED_CHUNKS = 256;
 
@@ -85,9 +89,29 @@ export const DEFAULT_MAX_CACHED_CHUNKS = 256;
 type ChunkLight = Map<number, Uint8Array>;
 
 type CachedChunk = {
-  planes: ChunkLight;
+  /**
+   * Baked light per emission phase — one lone `""` entry for the overwhelming
+   * majority of chunks, which no flicker reaches.
+   *
+   * Holding every phase rather than the latest is the whole trick: a torch's
+   * cycle is short and repeats for ever, so after one turn of it every phase is
+   * baked and the flicker costs a map lookup a frame instead of a bake several
+   * times a second.
+   */
+  byPhase: Map<string, ChunkLight>;
+  /**
+   * Ids of clock-driven emitters that reach this chunk, sorted and deduped.
+   * Empty means the chunk's light does not depend on the clock at all.
+   */
+  animated: string[];
   /** Tick this chunk was last drawn from — the LRU's recency stamp. */
   usedAt: number;
+};
+
+/** One chunk's slice of a bake, plus what it will go stale with. */
+type BakedChunk = {
+  planes: ChunkLight;
+  animated: string[];
 };
 
 /** Copy a chunk's RGBA plane straight into the window plane — no per-pixel work. */
@@ -193,16 +217,48 @@ function sliceChunk(level: RawLevelLight, rect: WorldRect): Uint8Array {
 }
 
 /**
- * Bake every chunk covering `rect` in one pass. Batching matters: the apron is
- * per-bake, not per-chunk, so filling nine chunks together costs far less than
- * nine separate bakes of the same chunks.
+ * Which chunks each clock-driven emitter can reach, keyed the same way as the
+ * cache.
+ *
+ * Attributed by reach rather than by presence: a torch two cells outside a
+ * chunk still lights into it, and a chunk that missed that would hold its first
+ * phase for ever while the torch next door flickered. Attribution the other way
+ * round — charging every chunk in the bake — would work too, and would expire
+ * the whole window on every tick of a single torch's cycle.
+ */
+function animatedByChunk(
+  emitters: readonly AnimatedEmitter[],
+): Map<string, Set<string>> {
+  const out = new Map<string, Set<string>>();
+  for (const e of emitters) {
+    const reach = Math.ceil(e.radius);
+    for (let cy = chunkOf(e.y - reach); cy <= chunkOf(e.y + reach); cy++) {
+      for (let cx = chunkOf(e.x - reach); cx <= chunkOf(e.x + reach); cx++) {
+        const key = chunkCacheKey(cx, cy);
+        let ids = out.get(key);
+        if (!ids) {
+          ids = new Set();
+          out.set(key, ids);
+        }
+        ids.add(e.tileId);
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * Bake every chunk covering `rect` in one pass, as of `timeMs` on the animation
+ * clock. Batching matters: the apron is per-bake, not per-chunk, so filling nine
+ * chunks together costs far less than nine separate bakes of the same chunks.
  */
 function bakeRegion(
   map: MapFile,
   tilesById: Record<string, TileDef>,
   omitLightTileIds: ReadonlySet<string> | undefined,
   rect: WorldRect,
-): Map<string, ChunkLight> {
+  timeMs: number,
+): Map<string, BakedChunk> {
   const padded: WorldRect = {
     x0: rect.x0 - LIGHT_APRON,
     y0: rect.y0 - LIGHT_APRON,
@@ -219,15 +275,21 @@ function bakeRegion(
     undefined,
     omitLightTileIds,
     { ...padded, z0: MIN_LEVEL, z1: MAX_LEVEL },
+    timeMs,
   );
+  const animated = animatedByChunk(grid.animated);
 
-  const out = new Map<string, ChunkLight>();
+  const out = new Map<string, BakedChunk>();
   for (let cy = chunkOf(rect.y0); cy <= chunkOf(rect.y1); cy++) {
     for (let cx = chunkOf(rect.x0); cx <= chunkOf(rect.x1); cx++) {
       const cr = chunkRect(cx, cy);
       const planes: ChunkLight = new Map();
       for (const [z, level] of grid.levels) planes.set(z, sliceChunk(level, cr));
-      out.set(chunkCacheKey(cx, cy), planes);
+      const key = chunkCacheKey(cx, cy);
+      out.set(key, {
+        planes,
+        animated: [...(animated.get(key) ?? [])].sort(),
+      });
     }
   }
   return out;
@@ -253,6 +315,9 @@ export class ChunkedLighting {
   private packed: { key: string; grid: PackedLightGrid } | null = null;
   /** Monotonic call counter; the LRU's clock. */
   private tick = 0;
+  /** @see defPhase */
+  private phaseMemo: { timeMs: number; byDef: Map<string, string> } | null =
+    null;
   /** Window centre last call, for inferring which way to prefetch. */
   private lastCentre: { x: number; y: number } | null = null;
 
@@ -269,6 +334,71 @@ export class ChunkedLighting {
 
   get cachedChunks(): number {
     return this.cache.size;
+  }
+
+  /**
+   * Where the clock-driven emitters reaching this chunk are in their cycles.
+   *
+   * The empty string — every chunk no flicker reaches — is the common case by a
+   * wide margin, and it is what makes the clock free for the rest of the world:
+   * a chunk with no animated emitter has one baked phase and never leaves it.
+   */
+  private phaseOf(animated: readonly string[], timeMs: number): string {
+    if (!animated.length) return "";
+    let phase = "";
+    for (const id of animated) phase += `${id}@${this.defPhase(id, timeMs)}|`;
+    return phase;
+  }
+
+  /**
+   * One tile's phase at this clock reading, memoised for the reading.
+   *
+   * A frame asks the same question of the same handful of tiles once per chunk
+   * of the window, and up to three times over — the fill, the phase key and the
+   * stitch each want it. Answering it means walking a tile's frames, so without
+   * this the window's chunk count multiplies work that has exactly one answer
+   * per frame.
+   */
+  private defPhase(id: string, timeMs: number): string {
+    if (this.phaseMemo?.timeMs !== timeMs) {
+      this.phaseMemo = { timeMs, byDef: new Map() };
+    }
+    const cached = this.phaseMemo.byDef.get(id);
+    if (cached != null) return cached;
+    const def = this.tilesById[id];
+    const phase = def ? tileEmissionPhase(def, timeMs) : "";
+    this.phaseMemo.byDef.set(id, phase);
+    return phase;
+  }
+
+  /** This chunk's light for the phase the clock is at, if it is baked. */
+  private cachedPlanes(
+    cx: number,
+    cy: number,
+    timeMs: number,
+  ): ChunkLight | undefined {
+    const entry = this.cache.get(chunkCacheKey(cx, cy));
+    if (!entry) return undefined;
+    return entry.byPhase.get(this.phaseOf(entry.animated, timeMs));
+  }
+
+  /** File a freshly baked chunk under the phase it was baked at. */
+  private store(key: string, baked: BakedChunk, timeMs: number) {
+    const entry = this.cache.get(key) ?? {
+      byPhase: new Map<string, ChunkLight>(),
+      animated: baked.animated,
+      usedAt: this.tick,
+    };
+    // A rebake is the authority on what reaches this chunk — a torch may have
+    // been placed or removed since — and phases keyed off the old answer would
+    // no longer be addressable, so they go with it.
+    if (entry.animated.join() !== baked.animated.join()) {
+      entry.byPhase.clear();
+      entry.animated = baked.animated;
+    }
+    entry.byPhase.set(this.phaseOf(baked.animated, timeMs), baked.planes);
+    entry.usedAt = this.tick;
+    this.cache.set(key, entry);
   }
 
   /**
@@ -499,22 +629,47 @@ export class ChunkedLighting {
     map: MapFile,
     ambient: [number, number, number],
     rect: WorldRect,
+    timeMs = 0,
   ): LightGrid {
     this.tick++;
-    this.fillMissing(map, rect);
-    if (this.lastBakedChunks === 0) this.prefetchRing(map, rect);
+    this.fillMissing(map, rect, timeMs);
+    if (this.lastBakedChunks === 0) this.prefetchRing(map, rect, timeMs);
 
     const ambientKey = ambient.map((c) => c.toFixed(4)).join(",");
-    const key = `${chunkSpanKey(rect)}|${this.version}|${ambientKey}`;
+    const key = [
+      chunkSpanKey(rect),
+      this.version,
+      ambientKey,
+      this.windowPhaseKey(rect, timeMs),
+    ].join("|");
     if (this.assembled?.key === key) {
       this.touchWindow(rect);
       this.evictColdest();
       return this.assembled.grid;
     }
-    const grid = this.assemble(rect, ambient);
+    const grid = this.assemble(rect, ambient, timeMs);
     this.assembled = { key, grid };
     this.evictColdest();
     return grid;
+  }
+
+  /**
+   * Where every flicker the window can see is in its cycle.
+   *
+   * Part of the assemble key, and only the window's own chunks contribute: a
+   * torch burning three streets away must not re-stitch and re-upload the grid
+   * in front of the player several times a second.
+   */
+  private windowPhaseKey(rect: WorldRect, timeMs: number): string {
+    let key = "";
+    for (let cy = chunkOf(rect.y0); cy <= chunkOf(rect.y1); cy++) {
+      for (let cx = chunkOf(rect.x0); cx <= chunkOf(rect.x1); cx++) {
+        const entry = this.cache.get(chunkCacheKey(cx, cy));
+        if (!entry?.animated.length) continue;
+        key += this.phaseOf(entry.animated, timeMs);
+      }
+    }
+    return key;
   }
 
   /**
@@ -523,14 +678,14 @@ export class ChunkedLighting {
    * no coupling to the player — a camera panning in the editor gets the same
    * treatment as a character walking.
    */
-  private prefetchRing(map: MapFile, rect: WorldRect) {
+  private prefetchRing(map: MapFile, rect: WorldRect, timeMs: number) {
     const centre = { x: (rect.x0 + rect.x1) / 2, y: (rect.y0 + rect.y1) / 2 };
     const drift = this.lastCentre
       ? { x: centre.x - this.lastCentre.x, y: centre.y - this.lastCentre.y }
       : { x: 0, y: 0 };
     this.lastCentre = centre;
 
-    const missing = this.ringCandidates(rect);
+    const missing = this.ringCandidates(rect, timeMs);
     if (!missing.length) return;
 
     // Ahead of the window first; distance only breaks ties, so a stationary
@@ -550,20 +705,22 @@ export class ChunkedLighting {
         this.tilesById,
         this.omitLightTileIds,
         chunkRect(c.cx, c.cy),
+        timeMs,
       );
-      for (const [key, planes] of baked) {
-        this.cache.set(key, { planes, usedAt: this.tick });
-      }
+      for (const [key, chunk] of baked) this.store(key, chunk, timeMs);
     }
   }
 
   /** Uncached chunks in the ring around the window. */
-  private ringCandidates(rect: WorldRect): Array<{ cx: number; cy: number }> {
+  private ringCandidates(
+    rect: WorldRect,
+    timeMs: number,
+  ): Array<{ cx: number; cy: number }> {
     const out: Array<{ cx: number; cy: number }> = [];
     const r = PREFETCH_RING_CHUNKS;
     for (let cy = chunkOf(rect.y0) - r; cy <= chunkOf(rect.y1) + r; cy++) {
       for (let cx = chunkOf(rect.x0) - r; cx <= chunkOf(rect.x1) + r; cx++) {
-        if (this.cache.has(chunkCacheKey(cx, cy))) continue;
+        if (this.cachedPlanes(cx, cy, timeMs)) continue;
         out.push({ cx, cy });
       }
     }
@@ -580,20 +737,31 @@ export class ChunkedLighting {
     }
   }
 
+  /** Baked planes held, counting a chunk once per phase it has been baked at. */
+  private cachedVariants(): number {
+    let n = 0;
+    for (const entry of this.cache.values()) n += entry.byPhase.size;
+    return n;
+  }
+
   /**
    * Drop the coldest chunks once over budget, never one the window is using —
    * evicting those would rebake them on the very next call.
+   *
+   * The budget is spent in *baked planes*, not chunks: a chunk a torch flickers
+   * into holds one set per phase of the flicker, and counting it as one would
+   * quietly let the cache grow past the memory it is supposed to bound.
    */
   private evictColdest() {
-    if (this.cache.size <= this.maxChunks) return;
+    let over = this.cachedVariants() - this.maxChunks;
+    if (over <= 0) return;
     const evictable = [...this.cache.entries()]
       .filter(([, entry]) => entry.usedAt !== this.tick)
       .sort((a, b) => a[1].usedAt - b[1].usedAt);
-    let over = this.cache.size - this.maxChunks;
-    for (const [key] of evictable) {
+    for (const [key, entry] of evictable) {
       if (over <= 0) break;
       this.cache.delete(key);
-      over--;
+      over -= entry.byPhase.size;
     }
   }
 
@@ -601,14 +769,14 @@ export class ChunkedLighting {
    * Bake the chunks in `rect` that are absent, batched into one pass over their
    * bounding box. Filling the union costs a single apron rather than one each.
    */
-  private fillMissing(map: MapFile, rect: WorldRect) {
+  private fillMissing(map: MapFile, rect: WorldRect, timeMs: number) {
     let x0 = Infinity;
     let y0 = Infinity;
     let x1 = -Infinity;
     let y1 = -Infinity;
     for (let cy = chunkOf(rect.y0); cy <= chunkOf(rect.y1); cy++) {
       for (let cx = chunkOf(rect.x0); cx <= chunkOf(rect.x1); cx++) {
-        if (this.cache.has(chunkCacheKey(cx, cy))) continue;
+        if (this.cachedPlanes(cx, cy, timeMs)) continue;
         const cr = chunkRect(cx, cy);
         if (cr.x0 < x0) x0 = cr.x0;
         if (cr.y0 < y0) y0 = cr.y0;
@@ -627,10 +795,9 @@ export class ChunkedLighting {
       this.tilesById,
       this.omitLightTileIds,
       { x0, y0, x1, y1 },
+      timeMs,
     );
-    for (const [key, planes] of baked) {
-      this.cache.set(key, { planes, usedAt: this.tick });
-    }
+    for (const [key, chunk] of baked) this.store(key, chunk, timeMs);
     this.lastBakedChunks = baked.size;
     this.version++;
   }
@@ -643,24 +810,33 @@ export class ChunkedLighting {
    * the path a continuously moving clock should use — changing time of day
    * touches a uniform and nothing else.
    */
-  packedGridFor(map: MapFile, rect: WorldRect): PackedLightGrid {
+  packedGridFor(
+    map: MapFile,
+    rect: WorldRect,
+    timeMs = 0,
+  ): PackedLightGrid {
     this.tick++;
-    this.fillMissing(map, rect);
-    if (this.lastBakedChunks === 0) this.prefetchRing(map, rect);
+    this.fillMissing(map, rect, timeMs);
+    if (this.lastBakedChunks === 0) this.prefetchRing(map, rect, timeMs);
 
-    const key = `packed|${chunkSpanKey(rect)}|${this.version}`;
+    const key = [
+      "packed",
+      chunkSpanKey(rect),
+      this.version,
+      this.windowPhaseKey(rect, timeMs),
+    ].join("|");
     if (this.packed?.key === key) {
       this.touchWindow(rect);
       this.evictColdest();
       return this.packed.grid;
     }
-    const grid = this.assemblePacked(rect);
+    const grid = this.assemblePacked(rect, timeMs);
     this.packed = { key, grid };
     this.evictColdest();
     return grid;
   }
 
-  private assemblePacked(rect: WorldRect): PackedLightGrid {
+  private assemblePacked(rect: WorldRect, timeMs: number): PackedLightGrid {
     const cx0 = chunkOf(rect.x0);
     const cy0 = chunkOf(rect.y0);
     const cx1 = chunkOf(rect.x1);
@@ -673,10 +849,10 @@ export class ChunkedLighting {
     const planesByZ = new Map<number, Uint8Array>();
     for (let cy = cy0; cy <= cy1; cy++) {
       for (let cx = cx0; cx <= cx1; cx++) {
-        const chunk = this.cache.get(chunkCacheKey(cx, cy));
-        if (!chunk) continue;
-        chunk.usedAt = this.tick;
-        blitPacked(planesByZ, chunk.planes, cx - cx0, cy - cy0, w, h);
+        const planes = this.cachedPlanes(cx, cy, timeMs);
+        if (!planes) continue;
+        this.cache.get(chunkCacheKey(cx, cy))!.usedAt = this.tick;
+        blitPacked(planesByZ, planes, cx - cx0, cy - cy0, w, h);
       }
     }
 
@@ -689,6 +865,7 @@ export class ChunkedLighting {
   private assemble(
     rect: WorldRect,
     ambient: [number, number, number],
+    timeMs: number,
   ): LightGrid {
     const cx0 = chunkOf(rect.x0);
     const cy0 = chunkOf(rect.y0);
@@ -702,10 +879,10 @@ export class ChunkedLighting {
     const rawByZ = new Map<number, { sky: Uint8Array; block: Uint8Array }>();
     for (let cy = cy0; cy <= cy1; cy++) {
       for (let cx = cx0; cx <= cx1; cx++) {
-        const chunk = this.cache.get(chunkCacheKey(cx, cy));
-        if (!chunk) continue;
-        chunk.usedAt = this.tick;
-        this.blitChunk(rawByZ, chunk.planes, cx - cx0, cy - cy0, w, h);
+        const planes = this.cachedPlanes(cx, cy, timeMs);
+        if (!planes) continue;
+        this.cache.get(chunkCacheKey(cx, cy))!.usedAt = this.tick;
+        this.blitChunk(rawByZ, planes, cx - cx0, cy - cy0, w, h);
       }
     }
 
