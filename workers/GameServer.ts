@@ -630,6 +630,23 @@ export class GameServer extends DurableObject<Env> {
     return ids.size;
   }
 
+  /**
+   * Whether this actor is still connected by some other socket.
+   *
+   * The closing socket is still listed by `getWebSockets` while its close is
+   * being handled — same as in {@link playerCount} — so it has to be excluded
+   * by identity rather than by its attachment, which is indistinguishable from
+   * the ones that are staying.
+   */
+  private hasOtherSocket(closing: WebSocket, actorId: string): boolean {
+    for (const ws of this.ctx.getWebSockets()) {
+      if (ws === closing) continue;
+      const attachment = ws.deserializeAttachment() as Attachment | null;
+      if (attachment?.actorId === actorId) return true;
+    }
+    return false;
+  }
+
   private sendHello(ws: WebSocket, actorId: string) {
     const session = this.session!;
     const actors = session.actorSnapshots();
@@ -998,6 +1015,24 @@ export class GameServer extends DurableObject<Env> {
     const attachment = ws.deserializeAttachment() as Attachment | null;
     if (!attachment) return;
     await this.ensureLoaded();
+
+    // Somebody is still driving this actor, so nothing here applies to them:
+    // their body stays, their queued steps stay, and nobody is told they left.
+    //
+    // **This is what a reload looks like from in here.** A closing socket is
+    // not the same event as a person leaving, and the two come apart in the one
+    // moment that matters most: a browser opening its new connection before the
+    // old one's close has been delivered. Despawning on the socket rather than
+    // on the actor took the body out from under the connection that had just
+    // replaced it — leaving a client that was told it had a body, watching a
+    // world it was no longer in, with every message it sent dropped by the
+    // `actorIds` gate in {@link webSocketMessage}. There is no recovery from
+    // that short of another reload, which races exactly the same way.
+    //
+    // Two tabs are the ordinary version of the same thing: identity is a
+    // cookie, so they are one person with one body, and shutting one must not
+    // take the body away from the other.
+    if (this.hasOtherSocket(ws, attachment.actorId)) return;
 
     // Before the despawn, which is what takes their tile — and with it the only
     // record of where they were — off the board.

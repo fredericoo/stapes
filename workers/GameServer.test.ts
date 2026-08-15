@@ -255,6 +255,42 @@ describe("joining and leaving", () => {
     expect(owners).toEqual(["bob", "carol"]);
     expect(hello.actorIds).not.toContain("alice");
   });
+
+  /**
+   * A reload, in the order the runtime actually delivers it: the new socket
+   * arrives while the old one's close is still in flight.
+   *
+   * The body has to survive that, and the socket the close belongs to is no
+   * guide — despawning on it took the board out from under the connection that
+   * had just replaced it, leaving a client that had been told it had a body
+   * watching a world it was not in, with every message it sent dropped.
+   */
+  it("keeps the body when one of an actor's two sockets closes", async () => {
+    const first = await connect("alice");
+    await connect("alice");
+
+    first.ws.close();
+    // A third join reads the board back out.
+    const { hello } = await connect("carol");
+
+    expect(playerOwners(hello.map as FlatMapFile).sort()).toEqual([
+      "alice",
+      "carol",
+    ]);
+    expect(hello.actorIds).toContain("alice");
+  });
+
+  it("still takes an actor off the board when their last socket closes", async () => {
+    const first = await connect("alice");
+    const second = await connect("alice");
+
+    first.ws.close();
+    second.ws.close();
+    const { hello } = await connect("carol");
+
+    expect(playerOwners(hello.map as FlatMapFile)).toEqual(["carol"]);
+    expect(hello.actorIds).not.toContain("alice");
+  });
 });
 
 /**
