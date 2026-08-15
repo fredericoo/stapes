@@ -260,6 +260,12 @@ export function applyItemMove(
 
   const instance = itemInSlot(map, tilesById, actor, equipment, from);
   if (!instance) return null;
+  // The same refusal `pickUp` makes, for the same reason and one slot further
+  // in: an anonymous instance means something skipped the minting pass, and a
+  // move that honoured it would put a thing the protocol cannot describe into a
+  // kit — which does not fail here, it fails on the socket, as a message the
+  // owner's own client throws away.
+  if (!instance.id) return null;
   if (!slotAccepts(to, instance, tilesById)) return null;
   if (!slotHasRoom(map, tilesById, actor, equipment, to)) return null;
 

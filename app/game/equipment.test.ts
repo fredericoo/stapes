@@ -350,6 +350,41 @@ describe("restoredEquipment", () => {
     expect(restored.bag?.contents?.map((i) => i.id)).toEqual(["itm_a", "itm_b"]);
   });
 
+  /**
+   * Storage is where a shape from an older build arrives from, and this one was
+   * written by a build that let an anonymous sword out of a chest. The kit is
+   * unusable rather than merely odd: `id` is required on the wire, so one saved
+   * item without one is a `hello` that fails to parse and a player stuck on
+   * "Connecting" forever, with no way to put down the thing that did it.
+   */
+  it("gives a saved item with no identity one, rather than leaving it unsendable", () => {
+    const restored = restoredEquipment(
+      {
+        weapon: null,
+        bag: {
+          id: "itm_bag",
+          tileId: "bag",
+          contents: [{ tileId: "sword" }] as never,
+        },
+      },
+      tiles,
+    );
+    expect(restored.bag?.contents?.[0].id).toMatch(/^itm_/);
+    expect(restored.bag?.contents?.[0].tileId).toBe("sword");
+  });
+
+  it("gives an anonymous weapon and an anonymous bag one too", () => {
+    const restored = restoredEquipment(
+      {
+        weapon: { tileId: "sword" } as never,
+        bag: { tileId: "bag", contents: [] } as never,
+      },
+      tiles,
+    );
+    expect(restored.weapon?.id).toMatch(/^itm_/);
+    expect(restored.bag?.id).toMatch(/^itm_/);
+  });
+
   it("hands back nothing at all for a kit of nothing", () => {
     expect(restoredEquipment(emptyEquipment(), tiles)).toEqual(emptyEquipment());
   });

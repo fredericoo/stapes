@@ -92,7 +92,9 @@ export function restoredEquipment(
 ): Equipment {
   const weaponDef = saved.weapon ? tilesById[saved.weapon.tileId] : undefined;
   const weapon =
-    saved.weapon && weaponDef && resolveWeapon(weaponDef) ? saved.weapon : null;
+    saved.weapon && weaponDef && resolveWeapon(weaponDef)
+      ? identified(saved.weapon)
+      : null;
 
   const bagDef = saved.bag ? tilesById[saved.bag.tileId] : undefined;
   const container = bagDef ? resolveContainer(bagDef) : null;
@@ -108,9 +110,28 @@ export function restoredEquipment(
       // while somebody was away must not come back inside their backpack.
       return def != null && resolveItem(def) != null && !resolveContainer(def);
     })
-    .slice(0, container.size);
+    .slice(0, container.size)
+    .map(identified);
 
-  return { weapon, bag: { ...saved.bag, contents } };
+  return { weapon, bag: { ...identified(saved.bag), contents } };
+}
+
+/**
+ * The same thing, certain to have a name to be called by.
+ *
+ * A repair rather than a rule, and it exists because a kit outlives the code
+ * that wrote it. An instance with no id is a thing the wire cannot describe —
+ * `id` is required in the protocol's schema, so one saved kit carrying an
+ * anonymous item is a `hello` that fails to parse and a player who can never
+ * finish joining again. Storage is the one place a shape from an older build
+ * arrives from, so it is the one place worth being suspicious in.
+ *
+ * Minted rather than dropped, on the terms the rest of this function restores
+ * on: what is wrong here is the bookkeeping, not the sword, and somebody coming
+ * back should find their sword.
+ */
+function identified(instance: ItemInstance): ItemInstance {
+  return instance.id ? instance : { ...instance, id: mintItemId() };
 }
 
 /** Everything worn or carried, slots and bag contents alike, in a flat list. */
