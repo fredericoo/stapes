@@ -106,12 +106,14 @@ describe("offering selectors", () => {
       transitions: [],
     };
     // Every one of these is answerable without anything having been bound: one
-    // `nearest` per tile a body can be, then the two that ask the transition who
-    // just spoke and who just swung.
+    // `nearest` per tile in the library — scenery included, since the nearest
+    // wall is as answerable as the nearest rat — then the two that ask the
+    // transition who just spoke and who just swung.
     expect(selectorOptions(brain, LIBRARY).map((o) => o.key)).toEqual([
       "nearest:player",
       "nearest:cat",
       "nearest:rat",
+      "nearest:stone-wall",
       "speaker",
       "attacker",
     ]);
@@ -134,6 +136,7 @@ describe("offering selectors", () => {
       "nearest:player",
       "nearest:cat",
       "nearest:rat",
+      "nearest:stone-wall",
       "speaker",
       "attacker",
       "$spooked",
@@ -168,11 +171,16 @@ describe("offering selectors", () => {
   });
 
   /**
-   * The picker names bodies, not tiles. Offering the whole library would bury
-   * the four things anything can be standing on under a hundred walls and floors.
+   * Everything is offerable, but the ordering is the help: the few things that
+   * move come first, rather than sitting somewhere inside an alphabet of walls.
    */
-  it("offers only tiles a body can be, player first", () => {
-    expect(bodyTileIds(LIBRARY)).toEqual(["player", "cat", "rat"]);
+  it("puts the bodies first and the scenery after", () => {
+    expect(bodyTileIds(LIBRARY)).toEqual([
+      "player",
+      "cat",
+      "rat",
+      "stone-wall",
+    ]);
   });
 
   /**
@@ -184,15 +192,23 @@ describe("offering selectors", () => {
   });
 
   /**
-   * Against the library we actually ship, because the picker being *short* is the
-   * point: a list with every wall and floor in it would be unusable, and nothing
-   * about the filter says so until it meets a real tiles.json.
+   * Against the library we actually ship, because the ordering is the whole of
+   * what makes a list this long usable, and nothing about the rule says so until
+   * it meets a real tiles.json.
    */
-  it("stays short against the shipped library", () => {
+  it("leads with the five bodies we ship, then everything else", () => {
     const authored = normalizeTiles(tilesJson as unknown[]);
     const offered = bodyTileIds(authored);
 
-    expect(offered).toEqual(["player", "cat", "deer", "rat", "snake"]);
-    expect(offered.length).toBeLessThan(authored.length / 4);
+    expect(offered.slice(0, 5)).toEqual([
+      "player",
+      "cat",
+      "deer",
+      "rat",
+      "snake",
+    ]);
+    // Every tile is reachable — the nearest oak has to be nameable too.
+    expect(offered).toHaveLength(authored.length);
+    expect(new Set(offered).size).toBe(authored.length);
   });
 });

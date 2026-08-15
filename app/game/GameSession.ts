@@ -8,7 +8,7 @@ import {
 } from "../lib/mapData";
 import { resolveSwitch } from "../lib/interactions";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
-import { MIN_LEVEL } from "../lib/types";
+import { MIN_LEVEL, resolveActor } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import {
   actorDirection,
@@ -38,11 +38,21 @@ import {
 } from "./affordances";
 import { findEntryCell } from "./entry";
 import {
+  cellRefId,
+  cellRefStillHolds,
+  indexTileCells,
+  parseCellRef,
+  reindexTileCell,
+  type TileCellIndex,
+} from "./tileIndex";
+import {
   BRAIN_TICK_MS,
   DAMAGE_NUMBER_LIFETIME_MS,
   FALL_MS_PER_HEIGHT,
   MAX_CLIMB_HEIGHT,
+  PLAYER_TILE_ID,
   PUSH_STEP_MS,
+  SIGHT_LEVEL_SLACK,
   STARTING_BAG_TILE_ID,
   TICK_MS,
   WALK_DURATION_MS,
@@ -567,6 +577,12 @@ export class GameSession implements PlaySession {
    * its owner. Same index discipline as {@link plateCells}.
    */
   private readonly looseGravityCells = new Map<string, Coord>();
+  /**
+   * Where every kind of tile is standing, so a brain asking for the nearest oak
+   * is a lookup rather than a map sweep. Same index discipline as
+   * {@link plateCells}, and nothing about it is authored. @see ./tileIndex
+   */
+  private tileCells: TileCellIndex = new Map();
   /** Map identity the last settle pass read. See {@link settleBoardNow}. */
   private settledMap: MapFile | null = null;
   private accumulatorMs = 0;
@@ -716,6 +732,7 @@ export class GameSession implements PlaySession {
     for (const cell of findLooseGravityCells(this.map, this.tilesById)) {
       this.looseGravityCells.set(cellKey(cell), cell);
     }
+    this.tileCells = indexTileCells(this.map);
     // An authored map opens in the state its load implies — a boulder already
     // sitting on a plate means that plate starts pressed, not pressed one tick
     // after the player first sees it, and the door that plate drives starts
@@ -937,6 +954,7 @@ export class GameSession implements PlaySession {
       } else {
         this.looseGravityCells.delete(key);
       }
+      reindexTileCell(this.tileCells, this.map, cell);
     }
   }
 
@@ -1575,6 +1593,22 @@ export class GameSession implements PlaySession {
     from: Coord,
     tileId: string,
   ): string | null {
+    const def = this.tilesById[tileId];
+    if (!def) return null;
+    // A body or a thing. The two are exclusive rather than overlapping — every
+    // placement of an actor tile is adopted when the world loads — so asking
+    // which of the two this is decides where to look, and neither answer can
+    // double-count the same oak or hand a rat its own cell as a target.
+    return resolveActor(def) || tileId === PLAYER_TILE_ID
+      ? this.nearestBodyOnTile(selfId, from, tileId)
+      : this.nearestSceneryOnTile(from, tileId);
+  }
+
+  private nearestBodyOnTile(
+    selfId: string,
+    from: Coord,
+    tileId: string,
+  ): string | null {
     let best: string | null = null;
     let bestSteps = Infinity;
     for (const actor of this.actors.values()) {
@@ -1590,8 +1624,40 @@ export class GameSession implements PlaySession {
     return best;
   }
 
-  /** Where an actor is standing, or null once they are off the board. */
+  /**
+   * The nearest cell holding this tile, named by where it is.
+   *
+   * Read off the index rather than swept for, which is the whole reason the
+   * index exists: a hundred oaks is a hundred cells to compare, not a board to
+   * walk, on every brain tick of every creature that cares. @see ./tileIndex
+   */
+  private nearestSceneryOnTile(from: Coord, tileId: string): string | null {
+    let best: Coord | null = null;
+    let bestSteps = Infinity;
+    for (const cell of this.tileCells.get(tileId)?.values() ?? []) {
+      if (Math.abs(cell.z - from.z) > SIGHT_LEVEL_SLACK) continue;
+      const steps = Math.abs(cell.x - from.x) + Math.abs(cell.y - from.y);
+      if (steps < bestSteps) {
+        bestSteps = steps;
+        best = cell;
+      }
+    }
+    return best === null ? null : cellRefId(tileId, best);
+  }
+
+  /**
+   * Where the thing with this id is, or null once it is off the board.
+   *
+   * Two kinds of id arrive here, and the split is invisible to everything above:
+   * an actor's, and a cell ref standing in for a piece of scenery. A ref whose
+   * tile is no longer in that stack — the oak got chopped — answers null on
+   * exactly the terms an actor who left the world does, so `out_of_range` holds
+   * and a creature stops walking towards a memory. @see ./tileIndex
+   */
   private actorCell(id: string): Coord | null {
+    const ref = parseCellRef(id);
+    if (ref) return cellRefStillHolds(this.map, ref) ? ref.cell : null;
+
     const actor = this.actors.get(id);
     if (!actor) return null;
     const loc = this.tryLocate(actor);
