@@ -436,13 +436,22 @@ export function computeLightingFlood(
   // Sky column seed. Full solids still receive the shaft that hits their top —
   // otherwise outdoor bricks bake black. Half-blocks attenuate the shaft by
   // half; height-0 floors seal it. Flood spreads through non-full cells.
+  //
+  // The seed also records a heightmap, `fullFrom`: the lowest local z in each
+  // column whose cell still has the whole shaft. The shaft only ever decreases
+  // on the way down and a cell is painted before it attenuates, so the cells
+  // holding {@link MAX_LIGHT_LEVEL} are exactly the run from `fullFrom` to the
+  // top of the domain. That fact is what the frontier seeding below rests on.
+  const fullFrom = new Int32Array(slice);
   for (let ly = 0; ly < dom.h; ly++) {
     for (let lx = 0; lx < dom.w; lx++) {
       let shaft = MAX_LIGHT_LEVEL;
+      let full = dom.d - 1;
       for (let lz = dom.d - 1; lz >= 0; lz--) {
         const i = idx(dom, lx, ly, lz);
         const op = opacity[i]!;
         sky[i] = shaft;
+        if (shaft >= MAX_LIGHT_LEVEL) full = lz;
         if (op >= 1) {
           shaft = 0;
         } else if (op > 0) {
@@ -451,6 +460,7 @@ export function computeLightingFlood(
           shaft = 0;
         }
       }
+      fullFrom[ly * dom.w + lx] = full;
     }
   }
 
@@ -461,9 +471,45 @@ export function computeLightingFlood(
   // undersized queue drops propagations and bakes those cells too dark.
   let skyQ = new Int32Array(n * SKY_QUEUE_HEADROOM);
   let skyLen = 0;
-  for (let i = 0; i < n; i++) {
-    if (opacity[i]! >= 1) continue;
-    if (sky[i]! > 0.5) skyQ[skyLen++] = i;
+
+  // Only the frontier is seeded, not every lit cell.
+  //
+  // Every step costs at least 1 and MAX_LIGHT_LEVEL is the ceiling, so a cell
+  // holding the full shaft can never raise a neighbour that is also holding it.
+  // Queueing open sky was therefore queueing work that was guaranteed to fail:
+  // on the fixture map 78% of cells sat at the ceiling, each dequeued to relax
+  // ten neighbours already at it, and that alone was most of the bake.
+  //
+  // A cell can be skipped when every one of its neighbours is at the ceiling
+  // too. `fullFrom` answers that per column without touching a single
+  // neighbouring cell: the eight lateral neighbours are short of the ceiling at
+  // this height exactly when their column's own `fullFrom` sits above it, and
+  // the cell below is exactly when it is under this column's. The highest of
+  // those is where the open sky stops being able to do anything, so scanning
+  // below it is the whole of the work — the interior is never visited at all.
+  //
+  // Skipped conservatively rather than exactly: a neighbouring column whose
+  // `fullFrom` rests on an opaque cell seeds a few cells that turn out to have
+  // nowhere to push. Cheap, and it keeps the rule one line.
+  for (let ly = 0; ly < dom.h; ly++) {
+    for (let lx = 0; lx < dom.w; lx++) {
+      const col = ly * dom.w + lx;
+      let frontier = fullFrom[col]! + 1;
+      const ny1 = Math.min(dom.h - 1, ly + 1);
+      const nx1 = Math.min(dom.w - 1, lx + 1);
+      for (let ny = Math.max(0, ly - 1); ny <= ny1; ny++) {
+        for (let nx = Math.max(0, lx - 1); nx <= nx1; nx++) {
+          const nf = fullFrom[ny * dom.w + nx]!;
+          if (nf > frontier) frontier = nf;
+        }
+      }
+      if (frontier > dom.d) frontier = dom.d;
+      for (let lz = 0; lz < frontier; lz++) {
+        const i = idx(dom, lx, ly, lz);
+        if (opacity[i]! >= 1) continue;
+        if (sky[i]! > 0.5) skyQ[skyLen++] = i;
+      }
+    }
   }
   let skyHead = 0;
   while (skyHead < skyLen) {
