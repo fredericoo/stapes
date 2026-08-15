@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import tilesJson from "../../data/tiles.json";
-import type { BrainDef } from "../lib/brain";
+import { nearest, slot, type BrainDef } from "../lib/brain";
 import { normalizeTileDef, normalizeTiles, type TileDef } from "../lib/types";
 import {
   arrayMove,
@@ -61,7 +61,7 @@ describe("renaming a state", () => {
     initial: "idle",
     states: {
       idle: { do: [{ action: "hold" }] },
-      flee: { do: [{ action: "step_away_from", of: "$spooked" }] },
+      flee: { do: [{ action: "step_away_from", of: slot("spooked") }] },
     },
     transitions: [
       { from: "idle", if: { cond: "stuck" }, to: "flee" },
@@ -106,9 +106,9 @@ describe("offering selectors", () => {
       transitions: [],
     };
     // Every one of these is answerable without anything having been bound: one
-    // `nearest:` per tile a body can be, then the two that ask the transition who
+    // `nearest` per tile a body can be, then the two that ask the transition who
     // just spoke and who just swung.
-    expect(selectorOptions(brain, LIBRARY)).toEqual([
+    expect(selectorOptions(brain, LIBRARY).map((o) => o.key)).toEqual([
       "nearest:player",
       "nearest:cat",
       "nearest:rat",
@@ -124,13 +124,13 @@ describe("offering selectors", () => {
       transitions: [
         {
           from: "idle",
-          if: { cond: "in_range", of: "nearest:player", cells: 3 },
-          bind: { spooked: "nearest:player" },
+          if: { cond: "in_range", of: nearest("player"), cells: 3 },
+          bind: { spooked: nearest("player") },
           to: "idle",
         },
       ],
     };
-    expect(selectorOptions(brain, LIBRARY)).toEqual([
+    expect(selectorOptions(brain, LIBRARY).map((o) => o.key)).toEqual([
       "nearest:player",
       "nearest:cat",
       "nearest:rat",
@@ -138,6 +138,33 @@ describe("offering selectors", () => {
       "attacker",
       "$spooked",
     ]);
+  });
+
+  /** The value behind each option is the object the brain actually stores. */
+  it("carries the selector itself, not a string to be parsed back", () => {
+    const brain: BrainDef = {
+      initial: "idle",
+      states: { idle: { do: [] } },
+      transitions: [
+        {
+          from: "idle",
+          if: { cond: "stuck" },
+          bind: { spooked: nearest("player") },
+          to: "idle",
+        },
+      ],
+    };
+    const options = selectorOptions(brain, LIBRARY);
+
+    expect(options[0]!.selector).toEqual(nearest("player"));
+    expect(options.at(-1)!.selector).toEqual(slot("spooked"));
+  });
+
+  /** A tile's own name, so the picker reads as the world does. */
+  it("labels each nearest option with the tile name", () => {
+    const named = [tile({ id: "player", height: 2, name: "Player" })];
+    expect(selectorOptions({ initial: "i", states: { i: { do: [] } }, transitions: [] }, named)[0])
+      .toMatchObject({ key: "nearest:player", label: "nearest Player" });
   });
 
   /**

@@ -1752,7 +1752,12 @@
             "do": [
               {
                 "action": "step_toward",
-                "of": "$caller"
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "caller"
+                  }
+                }
               },
               {
                 "action": "hold"
@@ -1763,7 +1768,12 @@
             "do": [
               {
                 "action": "step_toward",
-                "of": "$caller"
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "caller"
+                  }
+                }
               },
               {
                 "action": "hold"
@@ -1774,11 +1784,21 @@
             "do": [
               {
                 "action": "attack",
-                "of": "$foe"
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "foe"
+                  }
+                }
               },
               {
                 "action": "step_toward",
-                "of": "$foe"
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "foe"
+                  }
+                }
               },
               {
                 "action": "hold"
@@ -1793,7 +1813,9 @@
               "cond": "attacked"
             },
             "bind": {
-              "foe": "attacker"
+              "foe": {
+                "type": "attacker"
+              }
             },
             "to": "fighting"
           },
@@ -1806,7 +1828,9 @@
               "los": true
             },
             "bind": {
-              "caller": "speaker"
+              "caller": {
+                "type": "speaker"
+              }
             },
             "to": "answering"
           },
@@ -1837,7 +1861,12 @@
             "from": "following",
             "if": {
               "cond": "out_of_los",
-              "of": "$caller",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "caller"
+                }
+              },
               "cells": 8
             },
             "to": "idle"
@@ -1846,7 +1875,12 @@
             "from": "fighting",
             "if": {
               "cond": "out_of_range",
-              "of": "$foe",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "foe"
+                }
+              },
               "cells": 10
             },
             "to": "idle"
@@ -3644,7 +3678,12 @@
             "do": [
               {
                 "action": "step_away_from",
-                "of": "$spooked",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "spooked"
+                  }
+                },
                 "allowDrops": true
               }
             ]
@@ -3664,7 +3703,9 @@
               "cond": "attacked"
             },
             "bind": {
-              "spooked": "attacker"
+              "spooked": {
+                "type": "attacker"
+              }
             },
             "to": "flee"
           },
@@ -3672,11 +3713,21 @@
             "from": "any",
             "if": {
               "cond": "in_range",
-              "of": "nearest:player",
+              "of": {
+                "type": "nearest",
+                "data": {
+                  "tileId": "player"
+                }
+              },
               "cells": 4
             },
             "bind": {
-              "spooked": "nearest:player"
+              "spooked": {
+                "type": "nearest",
+                "data": {
+                  "tileId": "player"
+                }
+              }
             },
             "to": "flee"
           },
@@ -3691,7 +3742,12 @@
             "from": "flee",
             "if": {
               "cond": "out_of_range",
-              "of": "$spooked",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "spooked"
+                }
+              },
               "cells": 8
             },
             "to": "graze"
@@ -3700,7 +3756,12 @@
             "from": "cornered",
             "if": {
               "cond": "out_of_range",
-              "of": "$spooked",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "spooked"
+                }
+              },
               "cells": 8
             },
             "to": "graze"
@@ -4225,7 +4286,12 @@
             "do": [
               {
                 "action": "step_toward",
-                "of": "$pack"
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "pack"
+                  }
+                }
               },
               {
                 "action": "walk_n_steps",
@@ -4237,11 +4303,21 @@
             "do": [
               {
                 "action": "attack",
-                "of": "$prey"
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
               },
               {
                 "action": "step_toward",
-                "of": "$prey"
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
               },
               {
                 "action": "hold"
@@ -4264,7 +4340,9 @@
               "cond": "attacked"
             },
             "bind": {
-              "prey": "attacker"
+              "prey": {
+                "type": "attacker"
+              }
             },
             "to": "gnawing"
           },
@@ -4272,11 +4350,21 @@
             "from": "any",
             "if": {
               "cond": "in_los",
-              "of": "nearest:player",
+              "of": {
+                "type": "nearest",
+                "data": {
+                  "tileId": "player"
+                }
+              },
               "cells": 7
             },
             "bind": {
-              "prey": "nearest:player"
+              "prey": {
+                "type": "nearest",
+                "data": {
+                  "tileId": "player"
+                }
+              }
             },
             "to": "gnawing"
           },
@@ -4284,7 +4372,12 @@
             "from": "gnawing",
             "if": {
               "cond": "out_of_range",
-              "of": "$prey",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "prey"
+                }
+              },
               "cells": 10
             },
             "to": "scurry"
@@ -4293,11 +4386,21 @@
             "from": "scurry",
             "if": {
               "cond": "in_los",
-              "of": "nearest:rat",
+              "of": {
+                "type": "nearest",
+                "data": {
+                  "tileId": "rat"
+                }
+              },
               "cells": 6
             },
             "bind": {
-              "pack": "nearest:rat"
+              "pack": {
+                "type": "nearest",
+                "data": {
+                  "tileId": "rat"
+                }
+              }
             },
             "to": "following"
           },
@@ -4305,7 +4408,12 @@
             "from": "following",
             "if": {
               "cond": "out_of_los",
-              "of": "$pack",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "pack"
+                }
+              },
               "cells": 8
             },
             "to": "scurry"
@@ -4314,7 +4422,12 @@
             "from": "following",
             "if": {
               "cond": "in_range",
-              "of": "$pack",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "pack"
+                }
+              },
               "cells": 2
             },
             "to": "loitering"
@@ -4323,7 +4436,12 @@
             "from": "loitering",
             "if": {
               "cond": "out_of_range",
-              "of": "$pack",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "pack"
+                }
+              },
               "cells": 5
             },
             "to": "following"
@@ -4555,11 +4673,21 @@
             "do": [
               {
                 "action": "attack",
-                "of": "$prey"
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
               },
               {
                 "action": "step_toward",
-                "of": "$prey"
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
               },
               {
                 "action": "hold"
@@ -4574,7 +4702,9 @@
               "cond": "attacked"
             },
             "bind": {
-              "prey": "attacker"
+              "prey": {
+                "type": "attacker"
+              }
             },
             "to": "striking"
           },
@@ -4582,11 +4712,21 @@
             "from": "any",
             "if": {
               "cond": "in_los",
-              "of": "nearest:player",
+              "of": {
+                "type": "nearest",
+                "data": {
+                  "tileId": "player"
+                }
+              },
               "cells": 7
             },
             "bind": {
-              "prey": "nearest:player"
+              "prey": {
+                "type": "nearest",
+                "data": {
+                  "tileId": "player"
+                }
+              }
             },
             "to": "striking"
           },
@@ -4594,7 +4734,12 @@
             "from": "striking",
             "if": {
               "cond": "out_of_range",
-              "of": "$prey",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "prey"
+                }
+              },
               "cells": 10
             },
             "to": "coiled"

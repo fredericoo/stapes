@@ -37,9 +37,22 @@ export const ANY_STATE = "any";
 /**
  * How a brain names somebody other than itself.
  *
- * Two forms, and the difference between them is the whole reason a blackboard
- * exists. `nearest:player` is a question asked fresh — whoever is closest right
- * now. `$slot` is a name written down earlier, by the transition that bound it.
+ * A tagged union — `{ type, data }` — rather than an encoded string, and the
+ * reason is room to grow. Every one of these answers "which body do you mean",
+ * but the *question* each asks is a different shape: `nearest` needs to know
+ * which tile, `slot` needs a name, and the two event forms need nothing at all.
+ * A string had to smuggle those parameters into its own text, which meant a
+ * parser, an escaping question nobody had answered, and a hard ceiling on any
+ * selector wanting two parameters rather than one.
+ *
+ * Adding a kind is now a variant here, an arm in `identify`, and an entry in the
+ * editor's catalog — the same three places a condition or an action is added,
+ * which is the point. Nothing has to agree on a syntax.
+ *
+ * The split that matters is between the *live* queries and the *remembered*
+ * one, and it is the whole reason a blackboard exists. `nearest` is asked fresh
+ * every time it is read. `slot` is a name written down earlier, by the
+ * transition that bound it.
  *
  * A state that chases has to use the second. Re-asking "who is nearest" every
  * tick makes a creature standing between two people flip between them and
@@ -47,77 +60,97 @@ export const ANY_STATE = "any";
  * set it off, and keeps committing until something says otherwise.
  */
 export type Selector =
-  | `nearest:${string}`
-  | "speaker"
-  | "attacker"
-  | `$${string}`;
+  /**
+   * The nearest body standing on a named tile.
+   *
+   * The tile id is the whole of the test, and that one fact covers every
+   * relationship authored so far. `player` is the threat everything reacts to;
+   * a rat naming `rat` is a flock, because the animal a rat wants to be beside
+   * is another rat; a wolf naming `wolf-alpha` is a pack with a leader. None of
+   * those needed a notion of factions or herds — the world already says what
+   * each body *is*, and that turns out to be the only relation any of them need.
+   *
+   * A creature is never its own answer. Without that, a rat naming `rat` would
+   * resolve to the rat asking and follow itself in circles.
+   *
+   * No sight test: whether the answer is in view is `in_los`'s question, asked
+   * separately by whoever cares. That leaves one authored edge — the nearest rat
+   * behind a wall answers an `in_los` no even with a second one in plain view —
+   * and it is inherent to answering "nearest" before "visible", so it is written
+   * down rather than special-cased.
+   *
+   * Naming a tile nothing is standing on answers nobody, exactly as an unbound
+   * slot does. That is what makes a brain authored against a creature the world
+   * has not placed yet inert rather than broken.
+   */
+  | { type: "nearest"; data: { tileId: string } }
+  /** Whoever a transition wrote down earlier, under this name. */
+  | { type: "slot"; data: { name: string } }
+  /**
+   * Whoever the {@link BrainConditionDef} `heard` on this very transition
+   * matched.
+   *
+   * A live query, but one with a window of exactly one transition: it is how a
+   * `heard` names the person who spoke, and it answers nothing on a transition
+   * that did not just hear something. That is the point of it — "the one who
+   * called me" is not "the one standing nearest", and a room with two people in
+   * it is precisely where the difference shows.
+   *
+   * Meant to be bound rather than read from a state: binding it to `caller`
+   * writes it down, and the state that follows chases that slot.
+   */
+  | { type: "speaker" }
+  /**
+   * Whoever the {@link BrainConditionDef} `attacked` on this very transition
+   * matched — the one who just hit this creature.
+   *
+   * The same one-transition window `speaker` has, and for the same reason: being
+   * struck is an event, and "the one who hit me" answers nothing on a transition
+   * where nobody did. Meant to be bound, so the state that follows fights a slot
+   * rather than re-asking a question whose answer has already expired.
+   */
+  | { type: "attacker" };
 
-/**
- * Whoever the {@link BrainConditionDef} `heard` on this very transition matched.
- *
- * A live query like `nearest:player`, but one with a window of exactly one
- * transition: it is how a `heard` names the person who spoke, and it answers
- * nothing on a transition that did not just hear something. That is the point of
- * it — "the one who called me" is not "the one standing nearest", and a room
- * with two people in it is precisely where the difference shows.
- *
- * Meant to be bound rather than read from a state: `bind: { caller: "speaker" }`
- * writes it down, and the state that follows chases `$caller`.
- */
-export const SPEAKER_SELECTOR = "speaker";
+export const SPEAKER_SELECTOR: Selector = { type: "speaker" };
+export const ATTACKER_SELECTOR: Selector = { type: "attacker" };
 
-/**
- * The live-query form: the nearest body standing on a named tile.
- *
- * One selector rather than one per relationship, and the tile id is the whole of
- * the test. `nearest:player` is the threat every creature here reacts to;
- * `nearest:rat` on a rat is a flock, because the animal a rat wants to be beside
- * is another rat; `nearest:wolf-alpha` on a wolf is a pack with a leader. None of
- * those needed a notion of factions or herds — the world already says what each
- * body *is*, and that turns out to be the only relation any of them need.
- *
- * A creature is never its own answer. Without that, `nearest:rat` on a rat would
- * resolve to the rat asking and it would follow itself in circles.
- *
- * No sight test: whether the answer is in view is `in_los`'s question, asked
- * separately by whoever cares. That leaves one authored edge — the nearest rat
- * behind a wall answers an `in_los` no even with a second one in plain view — and
- * it is inherent to answering "nearest" before "visible", so it is written down
- * rather than special-cased.
- *
- * Naming a tile nothing is standing on answers nobody, exactly as an unbound
- * `$slot` does. That is what makes a brain authored against a creature the world
- * has not placed yet inert rather than broken.
- */
-export const NEAREST_PREFIX = "nearest:";
-
-/** The tile a `nearest:` selector names, or null for the other forms. */
-export function nearestTileId(selector: Selector): string | null {
-  return selector.startsWith(NEAREST_PREFIX)
-    ? selector.slice(NEAREST_PREFIX.length)
-    : null;
-}
-
-/** The selector naming the nearest body on `tileId`. @see NEAREST_PREFIX */
+/** The selector naming the nearest body on `tileId`. */
 export function nearest(tileId: string): Selector {
-  return `${NEAREST_PREFIX}${tileId}`;
+  return { type: "nearest", data: { tileId } };
+}
+
+/** The selector reading back whatever a transition bound under `name`. */
+export function slot(name: string): Selector {
+  return { type: "slot", data: { name } };
+}
+
+/** The tile a `nearest` selector names, or null for the other kinds. */
+export function nearestTileId(selector: Selector): string | null {
+  return selector.type === "nearest" ? selector.data.tileId : null;
+}
+
+/** The slot a `slot` selector reads, or null for the other kinds. */
+export function slotOf(selector: Selector): string | null {
+  return selector.type === "slot" ? selector.data.name : null;
 }
 
 /**
- * Whoever the {@link BrainConditionDef} `attacked` on this very transition
- * matched — the one who just hit this creature.
+ * A short stable string for one selector — a React key, a dropdown value, a
+ * line in a test failure.
  *
- * The same one-transition window {@link SPEAKER_SELECTOR} has, and for the same
- * reason: being struck is an event, and "the one who hit me" answers nothing on
- * a transition where nobody did. Meant to be bound — `bind: { foe: "attacker" }`
- * writes it down, and the state that follows fights `$foe` rather than
- * re-asking a question whose answer has already expired.
+ * Presentation only, and deliberately not a format anything parses back: the
+ * authored shape is the object, and a second encoding that round-trips would be
+ * the string selector growing back with extra steps.
  */
-export const ATTACKER_SELECTOR = "attacker";
-
-/** The bound-slot form, `$target`, as opposed to a live query. */
-export function slotOf(selector: Selector): string | null {
-  return selector.startsWith("$") ? selector.slice(1) : null;
+export function selectorKey(selector: Selector): string {
+  switch (selector.type) {
+    case "nearest":
+      return `nearest:${selector.data.tileId}`;
+    case "slot":
+      return `$${selector.data.name}`;
+    default:
+      return selector.type;
+  }
 }
 
 export type BrainConditionDef =
@@ -323,20 +356,27 @@ export type BrainDef = {
 const stateName = v.pipe(v.string(), v.minLength(1));
 
 /**
- * A live query, or `$` and a slot name. Anything else is not a selector.
+ * One tagged selector. Anything else — including the old encoded strings — is
+ * not a selector, and a brain carrying one is inert rather than half-understood.
  *
- * The tile a `nearest:` names is only required to be non-empty, rather than
+ * The tile a `nearest` names is only required to be non-empty, rather than
  * matched against a charset the way a slot name is. A slot name is invented by
  * whoever authors the brain, so the editor can insist on a shape; a tile id is an
  * identifier from elsewhere in the world, and a brain that stopped parsing
  * because somebody named a tile with a dot in it would be this schema inventing a
  * rule the tiles themselves do not have.
  */
-const selectorSchema = v.union([
-  v.pipe(v.string(), v.regex(/^nearest:.+$/)),
-  v.literal(SPEAKER_SELECTOR),
-  v.literal(ATTACKER_SELECTOR),
-  v.pipe(v.string(), v.regex(/^\$[A-Za-z0-9_]+$/)),
+const selectorSchema = v.variant("type", [
+  v.object({
+    type: v.literal("nearest"),
+    data: v.object({ tileId: v.pipe(v.string(), v.minLength(1)) }),
+  }),
+  v.object({
+    type: v.literal("slot"),
+    data: v.object({ name: v.pipe(v.string(), v.regex(/^[A-Za-z0-9_]+$/)) }),
+  }),
+  v.object({ type: v.literal("speaker") }),
+  v.object({ type: v.literal("attacker") }),
 ]);
 
 const cells = v.pipe(v.number(), v.integer(), v.minValue(0));
@@ -360,6 +400,18 @@ const conditionSchema = v.variant("cond", [
   v.object({ cond: v.literal("stuck") }),
   v.object({ cond: v.literal("attacked") }),
 ]);
+
+/**
+ * Is this a selector?
+ *
+ * Asked by the editor of a value it pulled out of a half-authored condition,
+ * where the field may still be whatever the previous verb left behind. Answered
+ * by the schema rather than by a hand-written shape test, so there is one
+ * definition of the word and the guard cannot drift from what actually parses.
+ */
+export function isSelector(value: unknown): value is Selector {
+  return v.safeParse(selectorSchema, value).success;
+}
 
 const allowDrops = v.optional(v.boolean());
 

@@ -5,6 +5,7 @@ import {
   SPEAKER_SELECTOR,
   nearest,
   resolveBrain,
+  slot,
   type BrainDef,
 } from "../lib/brain";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
@@ -401,19 +402,19 @@ function followBrain(): BrainDef {
     states: {
       idle: { do: [{ action: "hold" }] },
       follow: {
-        do: [{ action: "step_toward", of: "$friend" }, { action: "hold" }],
+        do: [{ action: "step_toward", of: slot("friend") }, { action: "hold" }],
       },
     },
     transitions: [
       {
         from: "idle",
-        if: { cond: "in_range", of: "nearest:player", cells: NOTICE_CELLS },
-        bind: { friend: "nearest:player" },
+        if: { cond: "in_range", of: nearest("player"), cells: NOTICE_CELLS },
+        bind: { friend: nearest("player") },
         to: "follow",
       },
       {
         from: "follow",
-        if: { cond: "out_of_range", of: "$friend", cells: NOTICE_CELLS },
+        if: { cond: "out_of_range", of: slot("friend"), cells: NOTICE_CELLS },
         to: "idle",
       },
     ],
@@ -443,7 +444,7 @@ const noticing: TileDef[] = [
           idle: { do: [{ action: "hold" }] },
           follow: {
             do: [
-              { action: "step_away_from", of: "$friend" },
+              { action: "step_away_from", of: slot("friend") },
               { action: "hold" },
             ],
           },
@@ -586,7 +587,7 @@ describe("picking out a tile to follow", () => {
       states: {
         idle: { do: [{ action: "hold" }] },
         follow: {
-          do: [{ action: "step_toward", of: "$pack" }, { action: "hold" }],
+          do: [{ action: "step_toward", of: slot("pack") }, { action: "hold" }],
         },
       },
       transitions: [
@@ -1030,7 +1031,7 @@ describe("actions that take time", () => {
       states: {
         stroll: {
           do: [
-            { action: "step_toward", of: "$friend" },
+            { action: "step_toward", of: slot("friend") },
             { action: "walk_n_steps", steps: STROLL_STEPS },
           ],
         },
@@ -1262,13 +1263,13 @@ describe("a deer that yelps", () => {
       transitions: [
         {
           from: "calm",
-          if: { cond: "in_range", of: "nearest:player", cells: 3 },
-          bind: { who: "nearest:player" },
+          if: { cond: "in_range", of: nearest("player"), cells: 3 },
+          bind: { who: nearest("player") },
           to: "alarm",
         },
         {
           from: "alarm",
-          if: { cond: "out_of_range", of: "$who", cells: 3 },
+          if: { cond: "out_of_range", of: slot("who"), cells: 3 },
           to: "calm",
         },
       ],
@@ -1600,10 +1601,10 @@ describe("hearing", () => {
         idle: { do: [{ action: "hold" }] },
         answering: {
           onEnter: [{ effect: "say", text: "meow" }],
-          do: [{ action: "step_toward", of: "$caller" }, { action: "hold" }],
+          do: [{ action: "step_toward", of: slot("caller") }, { action: "hold" }],
         },
         following: {
-          do: [{ action: "step_toward", of: "$caller" }, { action: "hold" }],
+          do: [{ action: "step_toward", of: slot("caller") }, { action: "hold" }],
         },
       },
       transitions: [
