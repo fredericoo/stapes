@@ -57,6 +57,57 @@ export type SwitchInteraction = {
   actionName?: string;
 };
 
+/**
+ * Become another tile — or stop existing — once this one has been on the board
+ * long enough.
+ *
+ * A {@link SwitchInteraction} whose input is time rather than a tap, and the
+ * same one-way swap: blood dries to a stain because the blood tile says so, and
+ * the stain fades because the stain tile says so in turn. Nothing here counts
+ * down twice.
+ *
+ * The clock is the session's, not the wall's, and the deadline is held beside
+ * the map rather than written onto the placement — see `../game/decay` for why
+ * both of those matter.
+ */
+export type DecayInteraction = {
+  /**
+   * Tile this becomes when its time is up. **Blank removes the placement**,
+   * which is the common case: there is no `air` tile to name, and a splash of
+   * blood that has finished drying is simply not there any more.
+   *
+   * Unlike every other block in here a blank target is therefore meaningful
+   * rather than malformed, so {@link afterMs} is what says whether a tile
+   * decays at all.
+   */
+  tileId: string;
+  /**
+   * Shortest a placement of this tile can last, in milliseconds of simulated
+   * time.
+   *
+   * Simulated rather than real: it advances with the tick loop, so a world
+   * nobody is in does not quietly age. It is also what a decaying tile costs —
+   * pending decay keeps the world ticking (see `GameSession.isAtRest`), so this
+   * is a few seconds for blood, not an hour for a monument.
+   */
+  fromMs: number;
+  /**
+   * Longest it can last. A lifetime is drawn from the range once, when the
+   * placement is first seen, and never redrawn.
+   *
+   * A range rather than a number because the motivating case spawns in bursts:
+   * every splash of blood from one fight would otherwise be placed within a few
+   * ticks of its neighbours and vanish with them, and a floor that clears itself
+   * all at once reads as a bug rather than as drying. Equal ends are legal and
+   * mean exactly what a single lifetime meant.
+   *
+   * Must be at least {@link fromMs}. An inverted range is malformed rather than
+   * silently swapped, on the same terms as every other block here: it reads as
+   * "does not decay".
+   */
+  toMs: number;
+};
+
 /** How a plate's authored {@link PressurePlateInteraction.height} reads its load. */
 export type PlateComparison = "eq" | "neq" | "gt" | "gte" | "lt" | "lte";
 
@@ -183,6 +234,7 @@ export type TileInteractions = {
   item?: ItemDef;
   push?: PushInteraction;
   switch?: SwitchInteraction;
+  decay?: DecayInteraction;
   pressurePlate?: PressurePlateInteraction;
   emit?: EmitInteraction;
   receive?: ReceiveInteraction;
@@ -191,6 +243,20 @@ export type TileInteractions = {
 export const DEFAULT_SWITCH: SwitchInteraction = {
   targetTileId: "",
   actionName: "",
+};
+
+/**
+ * Long enough to read as an aftermath rather than a glitch, short enough that a
+ * fight's worth of blood is gone before the next one starts — and spread wide
+ * enough that a burst of it does not clear in one frame.
+ */
+const DEFAULT_DECAY_FROM_MS = 20_000;
+const DEFAULT_DECAY_TO_MS = 40_000;
+
+export const DEFAULT_DECAY: DecayInteraction = {
+  tileId: "",
+  fromMs: DEFAULT_DECAY_FROM_MS,
+  toMs: DEFAULT_DECAY_TO_MS,
 };
 
 export const DEFAULT_PUSH: PushInteraction = {
@@ -271,6 +337,42 @@ export function resolveSwitch(def: TileDef): SwitchInteraction | null {
   const sw = parsed?.success ? parsed.output : null;
   switchCache.set(def, sw);
   return sw;
+}
+
+const decaySchema = v.pipe(
+  v.object({
+    // Permissive where every other target is `minLength(1)`, because blank is
+    // this block's "remove me" and refusing it would make vanishing
+    // unauthorable.
+    tileId: v.string(),
+    // The real gate. A tile with no positive lifetime does not decay, so a
+    // half-authored block is inert rather than a placement that disappears on
+    // the first tick.
+    fromMs: v.pipe(v.number(), v.integer(), v.minValue(1)),
+    toMs: v.pipe(v.number(), v.integer(), v.minValue(1)),
+  }),
+  // Checked rather than repaired by swapping the two, because a range nobody
+  // meant should read as the inert block it is — silently reversing it would
+  // make a typo into a behaviour, and the editor keeps the pair ordered so
+  // nothing authored through it can land here.
+  v.check((d) => d.toMs >= d.fromMs, "decay toMs must be at least fromMs"),
+);
+
+const decayCache = new WeakMap<TileDef, DecayInteraction | null>();
+
+/**
+ * Parsed decay config per tile def. Same trust model as {@link resolvePush}:
+ * malformed, or with no lifetime to count down, → does not decay.
+ */
+export function resolveDecay(def: TileDef): DecayInteraction | null {
+  const cached = decayCache.get(def);
+  if (cached !== undefined) return cached;
+
+  const raw = def.interactions?.decay;
+  const parsed = raw == null ? null : v.safeParse(decaySchema, raw);
+  const decay = parsed?.success ? parsed.output : null;
+  decayCache.set(def, decay);
+  return decay;
 }
 
 const pressurePlateSchema = v.object({
@@ -363,9 +465,9 @@ export function receiveTriggers(
  * floor than shoving it further away. Push is last, the fallback "just move it"
  * behaviour that anything can fall through to.
  *
- * Two things are deliberately *not* here. Pressure plates, because nothing
- * about them answers to a tap — listing one would outline a floor tile the
- * player cannot act on. And `open`, because opening a container is not
+ * Three things are deliberately *not* here. Pressure plates and decay, because
+ * nothing about either answers to a tap — listing one would outline a floor
+ * tile the player cannot act on. And `open`, because opening a container is not
  * something the server does: its contents are already on the client, riding on
  * the placement, so looking inside is local panel state. It is an
  * `InteractionAction` without being one of these, exactly as `target` is.
@@ -432,6 +534,7 @@ export function hasAnyInteraction(
       interactions?.item ||
       interactions?.push ||
       interactions?.switch ||
+      interactions?.decay ||
       interactions?.pressurePlate ||
       interactions?.emit ||
       interactions?.receive,
@@ -464,6 +567,20 @@ export function interactionsForSave(
   const savedPlate = plate?.tileId.trim()
     ? { tileId: plate.tileId.trim(), type: plate.type, height: plate.height }
     : undefined;
+  // Gated on the lifetime rather than on the target, unlike every other block
+  // here: a blank target is how a tile says it vanishes, and dropping the block
+  // for it would silently un-author exactly the case blood is.
+  const decay = interactions?.decay;
+  const decayFromMs = decay ? Math.round(decay.fromMs) : 0;
+  const decayToMs = decay ? Math.round(decay.toMs) : 0;
+  const savedDecay =
+    decayFromMs > 0 && decayToMs >= decayFromMs
+      ? {
+          tileId: decay!.tileId.trim(),
+          fromMs: decayFromMs,
+          toMs: decayToMs,
+        }
+      : undefined;
   const emit = interactions?.emit;
   const receive = interactions?.receive;
   const savedEmit = emit ? { value: emit.value } : undefined;
@@ -503,6 +620,7 @@ export function interactionsForSave(
     !savedItem &&
     !savedPush &&
     !savedSwitch &&
+    !savedDecay &&
     !savedPlate &&
     !savedEmit &&
     !savedReceive
@@ -515,6 +633,7 @@ export function interactionsForSave(
     ...(savedItem ? { item: savedItem } : {}),
     ...(savedPush ? { push: savedPush } : {}),
     ...(savedSwitch ? { switch: savedSwitch } : {}),
+    ...(savedDecay ? { decay: savedDecay } : {}),
     ...(savedPlate ? { pressurePlate: savedPlate } : {}),
     ...(savedEmit ? { emit: savedEmit } : {}),
     ...(savedReceive ? { receive: savedReceive } : {}),

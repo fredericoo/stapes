@@ -308,7 +308,7 @@ export function TileEditorDialog({
   // Whether the Interactive tab has anything, brain aside — its own tab now.
   const i = draft.interactions;
   const hasNonBrainInteraction = Boolean(
-    i?.push || i?.switch || i?.pressurePlate || i?.emit || i?.receive,
+    i?.push || i?.switch || i?.decay || i?.pressurePlate || i?.emit || i?.receive,
   );
 
   const climbVariant: VariantKey = isDirectional(draft) ? dir : "default";

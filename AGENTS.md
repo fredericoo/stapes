@@ -381,6 +381,75 @@ player standing in front of it. `WorldLabelLayer` orders the *elements* rather
 than writing z-indexes, so the stylesheet's bands — name under speech under
 damage — keep deciding everything they already decided.
 
+## Decay is a switch whose input is time
+
+`DecayInteraction` turns a placement into another tile, or into nothing, once it
+has been on the board long enough. Any tile can carry one; it exists for blood
+and bodies, which are spawned constantly and must not accumulate. The swap
+itself is the same one plates and receivers make — `canReplaceStack`, refuse
+rather than force — and everything interesting is in *where the deadline lives*.
+
+**A lifetime is a range, drawn once per placement.** `fromMs`/`toMs` rather than
+one number, because the motivating case spawns in bursts: a fight's worth of
+blood is placed within a few ticks and would otherwise vanish on a single frame,
+which reads as a bug rather than as drying. The draw happens where the placement
+is first armed — rolling at expiry would be rolling to decide whether it had
+already expired, and rolling on each re-arm would let a busy cell keep winning
+itself a longer life. Equal ends are legal and mean an exact lifetime; an
+inverted range is malformed and reads as "does not decay", with the editor
+keeping the pair ordered so nothing authored through it can land there.
+
+The dice are the world's own (`GameSession.rng`), not a generator of decay's
+own — two worlds on one seed must agree about when the blood dried as well as
+about where the deer walked. And **a lifetime always costs exactly one draw**,
+even where both ends are equal and the answer was never in doubt, on the same
+grounds a swing always costs three: a draw count that varied with what an author
+typed would mean widening one tile's range by a millisecond changed what every
+creature in the world rolled after it.
+
+**Beside the map, never on it** (`DecayIndex`, `app/game/decay.ts`). A `decayAt`
+written onto the placement would ride the existing cell patches and the
+checkpoint for free, which is precisely the trap: it would also land in
+`data/map.json` the first time somebody saved from the editor, and that file is
+hand-edited and version-controlled — `flattenMap` goes out of its way to keep a
+one-cell edit a one-line diff. Held out here, decay costs the map format
+nothing, the protocol nothing and the checkpoint nothing.
+
+What that gives up is continuity across an eviction: a resumed world re-arms
+whatever it finds with a full fresh lifetime. Same bargain hit points and brain
+memory already take, and bounded by one lifetime.
+
+**The clock is simulated, not wall time.** `DecayIndex` sums the ticks the
+session actually ran, so a decay is reproducible from a seed and a tick count
+exactly as a fight is; `Date.now()` in `GameSession` would make a test's outcome
+depend on how fast the test ran. Three things follow:
+
+- **`isAtRest` is gated on it**, because this loop is the only clock a countdown
+  has. A world with anything decaying in it keeps ticking until that lifetime is
+  up — half a minute of blood after a fight is the intended cost, an hour-long
+  lifetime would be an hour of Durable Object, and it is the *longest* end of
+  the range that sets it. Lifetimes are authored in seconds so that cost is
+  visible while writing one.
+- **A placement is keyed by cell plus tile id**, not by stack index: an index
+  shifts the moment anything is placed under it, and blood in a doorway would
+  forget its age every time somebody walked over it. Two placements of the same
+  decaying tile in one cell therefore share a deadline and go together.
+- **Arming is additive, and that is load-bearing.** `reindexCells` runs whenever
+  a cell's stack changes, so re-stamping there would reset the timer of every
+  splash somebody stepped on — blood in a corridor would never dry. An entry
+  whose placement has since gone is left to expire and dropped when the stack
+  read finds nothing to turn, which is the same "a stale extra entry costs one
+  wasted stack read" the plate index runs on.
+
+Cost per tick is one comparison against the soonest deadline. Only a tick that
+actually has something due walks the index, and that walk serves everything due
+at once — which is the shape that survives a fight's worth of blood.
+
+**Nothing spawns blood yet.** Decay is the half that removes it; whatever puts
+it under a damage receiver has to place the tile *and* `reindexCells` its cell,
+or that tile never ages. That is the same index discipline plates and wires
+already require.
+
 ## The save is the repair path, so it must not need a working world
 
 `replaceWorld` is the only way to change the world, which makes it the only way
