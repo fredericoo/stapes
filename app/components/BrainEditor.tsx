@@ -2,6 +2,7 @@ import {
   ANY_STATE,
   ATTACKER_SELECTOR,
   SPEAKER_SELECTOR,
+  nearest,
   validateBrain,
   type BrainActionDef,
   type BrainConditionDef,
@@ -16,11 +17,13 @@ import {
   ACTION_NAMES,
   CONDITIONS,
   CONDITION_NAMES,
+  DEFAULT_SELECTOR,
   EFFECTS,
   EFFECT_NAMES,
-  LIVE_SELECTOR,
   type ParamSpec,
 } from "../lib/brainCatalog";
+import { PLAYER_TILE_ID } from "../game/constants";
+import { resolveActor, type TileDef } from "../lib/types";
 import { DragDropProvider } from "@dnd-kit/react";
 import { isSortable, useSortable } from "@dnd-kit/react/sortable";
 import { Button, Input, Segmented, Select, Switch } from "../ui";
@@ -45,6 +48,8 @@ import { Button, Input, Segmented, Select, Switch } from "../ui";
 type Props = {
   /** The brain, or undefined on a tile that has none yet. */
   brain: BrainDef | undefined;
+  /** Whole library — the `nearest:` picker names bodies out of it. */
+  tiles: TileDef[];
   onChange: (next: BrainDef | undefined) => void;
 };
 
@@ -55,19 +60,48 @@ const EMPTY_BRAIN: BrainDef = {
 };
 
 /**
+ * Tiles worth offering as a `nearest:` target — the ones a body can actually be.
+ *
+ * Every tile in the library would be a picker with a hundred walls and floors in
+ * it, none of which anything is ever standing on. The player is named explicitly
+ * because it is a body by virtue of somebody connecting to it rather than by an
+ * authored flag, so {@link resolveActor} does not see it.
+ *
+ * Sorted so the picker does not reshuffle when the library is reordered, with the
+ * player first because it is the target nearly every brain wants.
+ */
+export function bodyTileIds(tiles: TileDef[]): string[] {
+  const ids = tiles
+    .filter((tile) => tile.id !== PLAYER_TILE_ID && resolveActor(tile))
+    .map((tile) => tile.id)
+    .sort();
+  return [PLAYER_TILE_ID, ...ids];
+}
+
+/**
  * The live queries, plus every slot the brain's transitions bind.
+ *
+ * One `nearest:` per tile something can be standing on, which is what turns the
+ * picker into the whole vocabulary of relationships: the player to hunt, the
+ * creature's own tile to flock with, some third one to follow. The editor cannot
+ * know which a brain means, so it offers all of them.
  *
  * `speaker` and `attacker` are offered everywhere rather than only on the
  * transitions that hear or are hit, because the editor would have to know which
  * condition a bind sits beside to say otherwise — and a selector that answers
  * nobody is already the documented behaviour, not a broken brain.
  */
-export function selectorOptions(brain: BrainDef): string[] {
+export function selectorOptions(brain: BrainDef, tiles: TileDef[]): string[] {
   const slots = new Set<string>();
   for (const t of brain.transitions) {
     for (const slot of Object.keys(t.bind ?? {})) slots.add(`$${slot}`);
   }
-  return [LIVE_SELECTOR, SPEAKER_SELECTOR, ATTACKER_SELECTOR, ...slots];
+  return [
+    ...bodyTileIds(tiles).map(nearest),
+    SPEAKER_SELECTOR,
+    ATTACKER_SELECTOR,
+    ...slots,
+  ];
 }
 
 /** Pull the item at `from` out and drop it back in at `to`. */
@@ -127,7 +161,7 @@ export function renamedState(brain: BrainDef, oldName: string, newName: string):
   };
 }
 
-export function BrainEditor({ brain, onChange }: Props) {
+export function BrainEditor({ brain, tiles, onChange }: Props) {
   if (!brain) {
     return (
       <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
@@ -144,7 +178,7 @@ export function BrainEditor({ brain, onChange }: Props) {
   }
 
   const stateNames = Object.keys(brain.states);
-  const selectors = selectorOptions(brain);
+  const selectors = selectorOptions(brain, tiles);
   const issues = validateBrain(brain);
 
   const setState = (name: string, next: BrainStateDef) => {
@@ -609,7 +643,7 @@ function BindField({
 }) {
   const entry = Object.entries(transition.bind ?? {})[0];
   const slot = entry?.[0] ?? "";
-  const source = entry?.[1] ?? LIVE_SELECTOR;
+  const source = entry?.[1] ?? DEFAULT_SELECTOR;
 
   const set = (nextSlot: string, nextSource: string) => {
     const clean = nextSlot.trim();
@@ -704,7 +738,7 @@ function ParamField({
   if (spec.kind === "selector") {
     return (
       <Select
-        value={typeof value === "string" ? value : LIVE_SELECTOR}
+        value={typeof value === "string" ? value : DEFAULT_SELECTOR}
         onValueChange={(v) => v && onChange(v)}
         options={selectors.map((s) => ({ value: s, label: s }))}
         className="min-w-[7rem]"

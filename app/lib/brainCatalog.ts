@@ -1,8 +1,10 @@
-import type {
-  BrainActionDef,
-  BrainConditionDef,
-  BrainEffectDef,
+import {
+  nearest,
+  type BrainActionDef,
+  type BrainConditionDef,
+  type BrainEffectDef,
 } from "./brain";
+import { PLAYER_TILE_ID } from "../game/constants";
 
 /**
  * The authorable vocabulary of a brain, as data the editor reads.
@@ -38,11 +40,15 @@ type CatalogEntry<T> = {
 };
 
 /**
- * Selectors are values rather than registered names, but the editor still
- * offers a bounded set: the live query, plus whatever slots the brain's own
- * transitions have bound. A creature can only read a slot something wrote.
+ * What a freshly picked condition or action points at until the author says
+ * otherwise.
+ *
+ * The player rather than any other tile, because every verb this is a default for
+ * — notice, chase, swing — is overwhelmingly authored about the person. A flock
+ * or a pack is the interesting case, and interesting cases are the ones somebody
+ * is already choosing deliberately.
  */
-export const LIVE_SELECTOR = "nearest_player";
+export const DEFAULT_SELECTOR = nearest(PLAYER_TILE_ID);
 
 export const CONDITIONS: Record<
   BrainConditionDef["cond"],
@@ -61,7 +67,7 @@ export const CONDITIONS: Record<
       { key: "of", kind: "selector", label: "of" },
       { key: "cells", kind: "number", label: "cells", min: 0 },
     ],
-    make: () => ({ cond: "in_range", of: LIVE_SELECTOR, cells: 3 }),
+    make: () => ({ cond: "in_range", of: DEFAULT_SELECTOR, cells: 3 }),
   },
   out_of_range: {
     label: "out of range",
@@ -70,7 +76,7 @@ export const CONDITIONS: Record<
       { key: "of", kind: "selector", label: "of" },
       { key: "cells", kind: "number", label: "cells", min: 0 },
     ],
-    make: () => ({ cond: "out_of_range", of: LIVE_SELECTOR, cells: 3 }),
+    make: () => ({ cond: "out_of_range", of: DEFAULT_SELECTOR, cells: 3 }),
   },
   in_los: {
     label: "in sight",
@@ -79,7 +85,7 @@ export const CONDITIONS: Record<
       { key: "of", kind: "selector", label: "of" },
       { key: "cells", kind: "number", label: "cells", min: 0 },
     ],
-    make: () => ({ cond: "in_los", of: LIVE_SELECTOR, cells: 5 }),
+    make: () => ({ cond: "in_los", of: DEFAULT_SELECTOR, cells: 5 }),
   },
   out_of_los: {
     label: "out of sight",
@@ -88,7 +94,7 @@ export const CONDITIONS: Record<
       { key: "of", kind: "selector", label: "of" },
       { key: "cells", kind: "number", label: "cells", min: 0 },
     ],
-    make: () => ({ cond: "out_of_los", of: LIVE_SELECTOR, cells: 5 }),
+    make: () => ({ cond: "out_of_los", of: DEFAULT_SELECTOR, cells: 5 }),
   },
   heard: {
     label: "heard",
@@ -137,7 +143,7 @@ export const ACTIONS: Record<
       { key: "of", kind: "selector", label: "of" },
       { key: "allowDrops", kind: "boolean", label: "allow drops" },
     ],
-    make: () => ({ action: "step_toward", of: LIVE_SELECTOR }),
+    make: () => ({ action: "step_toward", of: DEFAULT_SELECTOR }),
   },
   step_away_from: {
     label: "step away from",
@@ -146,7 +152,7 @@ export const ACTIONS: Record<
       { key: "of", kind: "selector", label: "of" },
       { key: "allowDrops", kind: "boolean", label: "allow drops" },
     ],
-    make: () => ({ action: "step_away_from", of: LIVE_SELECTOR }),
+    make: () => ({ action: "step_away_from", of: DEFAULT_SELECTOR }),
   },
   wait: {
     label: "wait",
@@ -167,7 +173,7 @@ export const ACTIONS: Record<
     label: "attack",
     hint: "Swing at a target in an adjacent cell. Fails when out of reach, still recovering, or aimed at something with no hit points.",
     params: [{ key: "of", kind: "selector", label: "of" }],
-    make: () => ({ action: "attack", of: LIVE_SELECTOR }),
+    make: () => ({ action: "attack", of: DEFAULT_SELECTOR }),
   },
 };
 

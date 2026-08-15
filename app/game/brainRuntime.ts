@@ -2,6 +2,7 @@ import {
   ANY_STATE,
   ATTACKER_SELECTOR,
   SPEAKER_SELECTOR,
+  nearestTileId,
   slotOf,
   type BrainActionDef,
   type BrainConditionDef,
@@ -128,8 +129,12 @@ export type BrainContext = {
   rng: Rng;
   /** Where this creature is standing. */
   self: Coord;
-  /** Nearest connected player, or null in a world with nobody in it. */
-  nearestPlayerId(): string | null;
+  /**
+   * Nearest other body standing on `tileId`, or null when there is none — a
+   * world with nobody in it, or a creature that is the last of its kind. Never
+   * this creature itself. @see NEAREST_PREFIX
+   */
+  nearestOnTile(tileId: string): string | null;
   /** Where an actor is, or null once they are off the board. */
   positionOf(actorId: string): Coord | null;
   /**
@@ -238,7 +243,8 @@ function identify(
   if (slot !== null) return memory.blackboard[slot] ?? null;
   if (selector === SPEAKER_SELECTOR) return memory.heardFrom;
   if (selector === ATTACKER_SELECTOR) return memory.hurtBy;
-  return ctx.nearestPlayerId();
+  const tileId = nearestTileId(selector);
+  return tileId === null ? null : ctx.nearestOnTile(tileId);
 }
 
 /** Where a selector's subject is, or null when there is nobody to point at. */

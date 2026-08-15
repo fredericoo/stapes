@@ -38,7 +38,7 @@ export const ANY_STATE = "any";
  * How a brain names somebody other than itself.
  *
  * Two forms, and the difference between them is the whole reason a blackboard
- * exists. `nearest_player` is a question asked fresh — whoever is closest right
+ * exists. `nearest:player` is a question asked fresh — whoever is closest right
  * now. `$slot` is a name written down earlier, by the transition that bound it.
  *
  * A state that chases has to use the second. Re-asking "who is nearest" every
@@ -47,7 +47,7 @@ export const ANY_STATE = "any";
  * set it off, and keeps committing until something says otherwise.
  */
 export type Selector =
-  | "nearest_player"
+  | `nearest:${string}`
   | "speaker"
   | "attacker"
   | `$${string}`;
@@ -55,7 +55,7 @@ export type Selector =
 /**
  * Whoever the {@link BrainConditionDef} `heard` on this very transition matched.
  *
- * A live query like `nearest_player`, but one with a window of exactly one
+ * A live query like `nearest:player`, but one with a window of exactly one
  * transition: it is how a `heard` names the person who spoke, and it answers
  * nothing on a transition that did not just hear something. That is the point of
  * it — "the one who called me" is not "the one standing nearest", and a room
@@ -65,6 +65,43 @@ export type Selector =
  * writes it down, and the state that follows chases `$caller`.
  */
 export const SPEAKER_SELECTOR = "speaker";
+
+/**
+ * The live-query form: the nearest body standing on a named tile.
+ *
+ * One selector rather than one per relationship, and the tile id is the whole of
+ * the test. `nearest:player` is the threat every creature here reacts to;
+ * `nearest:rat` on a rat is a flock, because the animal a rat wants to be beside
+ * is another rat; `nearest:wolf-alpha` on a wolf is a pack with a leader. None of
+ * those needed a notion of factions or herds — the world already says what each
+ * body *is*, and that turns out to be the only relation any of them need.
+ *
+ * A creature is never its own answer. Without that, `nearest:rat` on a rat would
+ * resolve to the rat asking and it would follow itself in circles.
+ *
+ * No sight test: whether the answer is in view is `in_los`'s question, asked
+ * separately by whoever cares. That leaves one authored edge — the nearest rat
+ * behind a wall answers an `in_los` no even with a second one in plain view — and
+ * it is inherent to answering "nearest" before "visible", so it is written down
+ * rather than special-cased.
+ *
+ * Naming a tile nothing is standing on answers nobody, exactly as an unbound
+ * `$slot` does. That is what makes a brain authored against a creature the world
+ * has not placed yet inert rather than broken.
+ */
+export const NEAREST_PREFIX = "nearest:";
+
+/** The tile a `nearest:` selector names, or null for the other forms. */
+export function nearestTileId(selector: Selector): string | null {
+  return selector.startsWith(NEAREST_PREFIX)
+    ? selector.slice(NEAREST_PREFIX.length)
+    : null;
+}
+
+/** The selector naming the nearest body on `tileId`. @see NEAREST_PREFIX */
+export function nearest(tileId: string): Selector {
+  return `${NEAREST_PREFIX}${tileId}`;
+}
 
 /**
  * Whoever the {@link BrainConditionDef} `attacked` on this very transition
@@ -285,9 +322,18 @@ export type BrainDef = {
 
 const stateName = v.pipe(v.string(), v.minLength(1));
 
-/** `nearest_player`, or `$` and a slot name. Anything else is not a selector. */
+/**
+ * A live query, or `$` and a slot name. Anything else is not a selector.
+ *
+ * The tile a `nearest:` names is only required to be non-empty, rather than
+ * matched against a charset the way a slot name is. A slot name is invented by
+ * whoever authors the brain, so the editor can insist on a shape; a tile id is an
+ * identifier from elsewhere in the world, and a brain that stopped parsing
+ * because somebody named a tile with a dot in it would be this schema inventing a
+ * rule the tiles themselves do not have.
+ */
 const selectorSchema = v.union([
-  v.literal("nearest_player"),
+  v.pipe(v.string(), v.regex(/^nearest:.+$/)),
   v.literal(SPEAKER_SELECTOR),
   v.literal(ATTACKER_SELECTOR),
   v.pipe(v.string(), v.regex(/^\$[A-Za-z0-9_]+$/)),

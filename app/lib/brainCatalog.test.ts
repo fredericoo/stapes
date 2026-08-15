@@ -81,7 +81,7 @@ describe("the authoring catalog", () => {
         {
           from: "any",
           if: CONDITIONS.in_range.make(),
-          bind: { spooked: "nearest_player" },
+          bind: { spooked: "nearest:player" },
           to: "flee",
         },
         { from: "flee", if: CONDITIONS.out_of_range.make(), to: "idle" },

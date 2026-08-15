@@ -3,6 +3,7 @@ import tilesJson from "../../data/tiles.json";
 import {
   ANY_STATE,
   SPEAKER_SELECTOR,
+  nearest,
   resolveBrain,
   type BrainDef,
 } from "../lib/brain";
@@ -10,6 +11,7 @@ import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef, normalizeTiles } from "../lib/types";
 import { initialMemory, stepBrain } from "./brainRuntime";
+import { attackIntervalMs } from "./combat";
 import { BRAIN_TICK_MS, TICK_MS, WALK_DURATION_MS } from "./constants";
 import { GameSession } from "./GameSession";
 import { Rng } from "./rng";
@@ -198,7 +200,7 @@ describe("deciding", () => {
       busy: false,
       rng: new Rng(1),
       self: { x: 0, y: 0, z: 0 },
-      nearestPlayerId: () => null,
+      nearestOnTile: () => null,
       positionOf: () => null,
       wouldDrop: () => false,
       step: vi.fn(() => true),
@@ -405,8 +407,8 @@ function followBrain(): BrainDef {
     transitions: [
       {
         from: "idle",
-        if: { cond: "in_range", of: "nearest_player", cells: NOTICE_CELLS },
-        bind: { friend: "nearest_player" },
+        if: { cond: "in_range", of: "nearest:player", cells: NOTICE_CELLS },
+        bind: { friend: "nearest:player" },
         to: "follow",
       },
       {
@@ -569,6 +571,162 @@ describe("noticing you", () => {
   });
 });
 
+/**
+ * Flocking, which is a creature named as somebody else's `nearest:`.
+ *
+ * Tested through the session rather than a stub, because the whole of a
+ * `nearest:` is a question about the board — who is standing on that tile — and a
+ * stub that answered it would be testing the answer it was handed.
+ */
+describe("picking out a tile to follow", () => {
+  /** Follow whichever body on `of` is nearest, and keep following that one. */
+  function flockBrain(of: string): BrainDef {
+    return {
+      initial: "idle",
+      states: {
+        idle: { do: [{ action: "hold" }] },
+        follow: {
+          do: [{ action: "step_toward", of: "$pack" }, { action: "hold" }],
+        },
+      },
+      transitions: [
+        {
+          from: "idle",
+          if: { cond: "in_los", of: nearest(of), cells: NOTICE_CELLS },
+          bind: { pack: nearest(of) },
+          to: "follow",
+        },
+      ],
+    };
+  }
+
+  const flocking: TileDef[] = [
+    ...tiles,
+    // Each looks for its own kind, which is the flock. Two species rather than
+    // one because the selector naming a tile — rather than meaning "same as me"
+    // — is the thing worth pinning down: a mouse hunting for mice must walk past
+    // a rat standing closer.
+    tile({
+      id: "rat",
+      height: 1,
+      actor: true,
+      affectedByGravity: true,
+      walkable: false,
+      interactions: { brain: flockBrain("rat") },
+    }),
+    tile({
+      id: "mouse",
+      height: 1,
+      actor: true,
+      affectedByGravity: true,
+      walkable: false,
+      interactions: { brain: flockBrain("mouse") },
+    }),
+    // Follows rats without being one — the leader case, and the thing a
+    // same-tile-only rule could not express at all.
+    tile({
+      id: "ratcatcher",
+      height: 1,
+      actor: true,
+      affectedByGravity: true,
+      walkable: false,
+      interactions: { brain: flockBrain("rat") },
+    }),
+  ];
+
+  /** An open field with a creature at each of the given cells. */
+  function warren(...bodies: [string, number, number][]): GameSession {
+    let map = field(9);
+    map = replaceStack(map, -9, -9, 0, [{ tileId: "grass" }]);
+    for (const [tileId, x, y] of bodies) map = withDeer(map, x, y, tileId);
+    return new GameSession(map, flocking, ["alice"], {
+      x: -9,
+      y: -9,
+      z: 0,
+      stackIndex: 1,
+    });
+  }
+
+  function cellOf(session: GameSession, tileId: string, nth = 0) {
+    const found = session
+      .actorSnapshots()
+      .filter((actor) => actor.tileId === tileId);
+    return found[nth]!;
+  }
+
+  /** Every body of one kind, so the player standing off in the corner is not one. */
+  function kindOf(session: GameSession, tileId: string) {
+    return session.actorSnapshots().filter((actor) => actor.tileId === tileId);
+  }
+
+  it("closes on another of the same tile", () => {
+    const session = warren(["rat", 0, 0], ["rat", NOTICE_CELLS, 0]);
+
+    advance(session, BRAIN_TICK_MS * 4);
+
+    const [a, b] = kindOf(session, "rat");
+    expect(Math.abs(a!.x - b!.x) + Math.abs(a!.y - b!.y)).toBeLessThan(
+      NOTICE_CELLS,
+    );
+  });
+
+  it("walks past an animal that is not the tile it named", () => {
+    const session = warren(["mouse", 0, 0], ["rat", 2, 0]);
+    const before = cellOf(session, "mouse");
+
+    advance(session, BRAIN_TICK_MS * 6);
+
+    const after = cellOf(session, "mouse");
+    expect(`${after.x},${after.y}`).toBe(`${before.x},${before.y}`);
+  });
+
+  /**
+   * The whole reason this names a tile rather than meaning "one of me": a
+   * follower need not be the thing it follows, which is a pack with a leader.
+   */
+  it("follows a tile it is not itself", () => {
+    const session = warren(["ratcatcher", 0, 0], ["rat", NOTICE_CELLS, 0]);
+    const rat = cellOf(session, "rat");
+
+    advance(session, BRAIN_TICK_MS * 4);
+
+    const chaser = cellOf(session, "ratcatcher");
+    expect(Math.abs(chaser.x - rat.x) + Math.abs(chaser.y - rat.y)).toBeLessThan(
+      NOTICE_CELLS,
+    );
+  });
+
+  /** The one that would make a lone creature chase itself around the board. */
+  it("is nobody at all when it is the last of its kind", () => {
+    const session = warren(["rat", 0, 0]);
+    const before = cellOf(session, "rat");
+
+    advance(session, BRAIN_TICK_MS * 6);
+
+    const after = cellOf(session, "rat");
+    expect(`${after.x},${after.y}`).toBe(`${before.x},${before.y}`);
+  });
+
+  /**
+   * Three in a row, the far one out of everybody's sight. A creature that took
+   * whichever body the board listed first rather than the nearest would drag the
+   * middle of the row apart instead of closing it up.
+   */
+  it("takes the nearest of several, and leaves the rest alone", () => {
+    const session = warren(["rat", 0, 0], ["rat", 2, 0], ["rat", 9, 0]);
+
+    advance(session, BRAIN_TICK_MS * 4);
+
+    const xs = kindOf(session, "rat")
+      .map((rat) => rat.x)
+      .sort((a, b) => a - b);
+    // The near two have closed up on each other…
+    expect(xs[1]! - xs[0]!).toBe(1);
+    // …and the far one, with nobody inside its three cells, never moved.
+    expect(xs[2]).toBe(9);
+  });
+});
+
 describe("giving up", () => {
   /**
    * "Cornered" without a branch inside an action: blocked, nowhere to run and
@@ -637,7 +795,7 @@ describe("giving up", () => {
       busy: false,
       rng: new Rng(1),
       self: { x: 0, y: 0, z: 0 },
-      nearestPlayerId: () => null,
+      nearestOnTile: () => null,
       positionOf: () => null,
       wouldDrop: () => false,
       step: () => false,
@@ -767,7 +925,7 @@ describe("actions that take time", () => {
       busy: false,
       rng: new Rng(1),
       self: { x: 0, y: 0, z: 0 },
-      nearestPlayerId: () => null,
+      nearestOnTile: () => null,
       positionOf: () => null,
       wouldDrop: () => false,
       step: vi.fn(() => true),
@@ -1104,8 +1262,8 @@ describe("a deer that yelps", () => {
       transitions: [
         {
           from: "calm",
-          if: { cond: "in_range", of: "nearest_player", cells: 3 },
-          bind: { who: "nearest_player" },
+          if: { cond: "in_range", of: "nearest:player", cells: 3 },
+          bind: { who: "nearest:player" },
           to: "alarm",
         },
         {
@@ -1213,7 +1371,7 @@ describe("a deer that yelps", () => {
       busy: false,
       rng: new Rng(1),
       self: { x: 0, y: 0, z: 0 },
-      nearestPlayerId: () => null,
+      nearestOnTile: () => null,
       positionOf: () => null,
       wouldDrop: () => false,
       step: () => true,
@@ -1282,7 +1440,7 @@ describe("a deer that yelps", () => {
       busy: false,
       rng: new Rng(1),
       self: { x: 0, y: 0, z: 0 },
-      nearestPlayerId: () => null,
+      nearestOnTile: () => null,
       positionOf: () => null,
       wouldDrop: () => false,
       step: () => false,
@@ -1591,7 +1749,7 @@ describe("hearing", () => {
   });
 
   /**
-   * `nearest_player` would answer "whoever is closest", which is exactly the
+   * `nearest:player` would answer "whoever is closest", which is exactly the
    * wrong answer in a room with two people in it: the one who called is not
    * necessarily the one standing nearest.
    */
@@ -1606,7 +1764,7 @@ describe("hearing", () => {
     advance(session, BRAIN_TICK_MS * 4);
 
     // Alice called from five cells east. Bob is two cells north and silent —
-    // and is who `nearest_player` would have named.
+    // and is who `nearest:player` would have named.
     const creature = session
       .actorSnapshots()
       .find((actor) => actor.tileId === "listener")!;
@@ -1760,5 +1918,159 @@ describe("the cat we ship", () => {
     advance(session, 6000);
 
     expect(`${catAt(session).x},${catAt(session).y}`).not.toBe(before);
+  });
+});
+
+/**
+ * The two things in the world that want to hurt you, as authored.
+ *
+ * Here for the same reason the cat is: the machinery being right and the content
+ * being right are separate ways to end up with a snake that watches you walk
+ * past. Both are written against the one number a player can feel — the seven
+ * cells at which being seen becomes being attacked.
+ */
+describe("the vermin we ship", () => {
+  const authored = normalizeTiles(tilesJson as unknown[]);
+
+  /** The sight range both of them are authored to notice you at. */
+  const SIGHT_CELLS = 7;
+
+  /**
+   * Somewhere for a creature nobody is meant to notice to stand: far enough that
+   * no brain here can see it, and *present*, because a world with nobody
+   * connected freezes every brain in it. @see GameSession.tickBrains
+   */
+  const OFF_IN_THE_CORNER = { x: -12, y: -12 };
+
+  /**
+   * A walled yard: open dirt inside, with the option of a full-height wall
+   * standing between the creature at the origin and whoever is east of it.
+   */
+  function yard(
+    creatures: [string, number, number][],
+    player: { x: number; y: number } = OFF_IN_THE_CORNER,
+    wallAtX?: number,
+  ): GameSession {
+    let map = emptyMap();
+    for (let x = -12; x <= 12; x++) {
+      for (let y = -12; y <= 12; y++) {
+        map = replaceStack(map, x, y, 0, [{ tileId: "dirt" }]);
+      }
+    }
+    for (const [tileId, x, y] of creatures) {
+      map = replaceStack(map, x, y, 0, [{ tileId: "dirt" }, { tileId }]);
+    }
+    if (wallAtX !== undefined) {
+      for (let y = -12; y <= 12; y++) {
+        map = replaceStack(map, wallAtX, y, 0, [
+          { tileId: "dirt" },
+          { tileId: "stone-wall" },
+        ]);
+      }
+    }
+    map = replaceStack(map, player.x, player.y, 0, [
+      { tileId: "dirt" },
+      { tileId: "player", direction: "e", owner: "alice" },
+    ]);
+    return new GameSession(map, authored, ["alice"], {
+      x: 12,
+      y: 12,
+      z: 0,
+      stackIndex: 1,
+    });
+  }
+
+  function bodies(session: GameSession, tileId: string) {
+    return session.actorSnapshots().filter((actor) => actor.tileId === tileId);
+  }
+
+  function gapToPlayer(session: GameSession, tileId: string): number {
+    const creature = bodies(session, tileId)[0]!;
+    const player = session.actorSnapshots().find((a) => a.tileId === "player")!;
+    return Math.abs(creature.x - player.x) + Math.abs(creature.y - player.y);
+  }
+
+  it.each(["rat", "snake"])("has a brain that holds together: %s", (id) => {
+    const def = authored.find((tile) => tile.id === id)!;
+    expect(resolveBrain(def)).not.toBeNull();
+  });
+
+  it.each(["rat", "snake"])("closes on you from seven cells: %s", (id) => {
+    const session = yard([[id, 0, 0]], { x: SIGHT_CELLS, y: 0 });
+
+    advance(session, BRAIN_TICK_MS * 6);
+
+    expect(gapToPlayer(session, id)).toBeLessThan(SIGHT_CELLS);
+  });
+
+  it.each(["rat", "snake"])("ignores you from eight: %s", (id) => {
+    const session = yard([[id, 0, 0]], { x: SIGHT_CELLS + 1, y: 0 });
+
+    advance(session, BRAIN_TICK_MS * 2);
+
+    expect(gapToPlayer(session, id)).toBeGreaterThanOrEqual(SIGHT_CELLS + 1);
+  });
+
+  /**
+   * Line of sight, not proximity: the whole difference between an animal that
+   * notices you and a trigger you tripped through a wall.
+   */
+  it.each(["rat", "snake"])("does not see you through a wall: %s", (id) => {
+    const session = yard([[id, 0, 0]], { x: 4, y: 0 }, 2);
+    const before = gapToPlayer(session, id);
+
+    advance(session, BRAIN_TICK_MS * 3);
+
+    expect(gapToPlayer(session, id)).toBeGreaterThanOrEqual(before);
+  });
+
+  it("hisses when it strikes, once", () => {
+    const session = yard([["snake", 0, 0]], { x: SIGHT_CELLS, y: 0 });
+    const said: string[] = [];
+    for (let elapsed = 0; elapsed < BRAIN_TICK_MS * 4; elapsed += TICK_MS) {
+      session.tick(TICK_MS);
+      for (const bubble of session.drainSpeech()) said.push(bubble.text);
+    }
+    expect(said).toEqual(["sss"]);
+  });
+
+  it("is weaker than the snake, and quicker off the mark", () => {
+    const rat = authored.find((tile) => tile.id === "rat")!;
+    const snake = authored.find((tile) => tile.id === "snake")!;
+    const stats = (def: typeof rat) => def.interactions!.battler!;
+
+    expect(stats(rat).maxHp).toBeLessThan(stats(snake).maxHp);
+    expect(stats(rat).atk).toBeLessThan(stats(snake).atk);
+    // Higher spd is a shorter wait between blows — see `./combat`.
+    expect(attackIntervalMs(stats(rat).spd)).toBeLessThan(
+      attackIntervalMs(stats(snake).spd),
+    );
+  });
+
+  /**
+   * The flock, which is the one thing about a rat that is not about you: with
+   * nobody around to hunt, they should end up together rather than scattered.
+   */
+  it("gathers with the nearest rat while nothing else is going on", () => {
+    const spread = 5;
+    const session = yard([
+      ["rat", 0, 0],
+      ["rat", spread, 0],
+    ]);
+
+    advance(session, BRAIN_TICK_MS * 8);
+
+    const [a, b] = bodies(session, "rat");
+    expect(Math.abs(a!.x - b!.x) + Math.abs(a!.y - b!.y)).toBeLessThan(spread);
+  });
+
+  it("wanders on its own when there is no other rat to join", () => {
+    const session = yard([["rat", 0, 0]]);
+    const before = `${bodies(session, "rat")[0]!.x},${bodies(session, "rat")[0]!.y}`;
+
+    advance(session, BRAIN_TICK_MS * 8);
+
+    const after = bodies(session, "rat")[0]!;
+    expect(`${after.x},${after.y}`).not.toBe(before);
   });
 });
