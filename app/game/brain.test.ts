@@ -2051,6 +2051,13 @@ describe("the vermin we ship", () => {
    * The flock, which is the one thing about a rat that is not about you: with
    * nobody around to hunt, they should end up together rather than scattered.
    */
+  /**
+   * Asked of the whole stretch rather than of one moment, because a settled
+   * flock breathes: a rat lets go of its mate once it is near and does not take
+   * hold again until it has drifted several cells off, so the gap between two of
+   * them is a range rather than a resting value. Sampling a single beat would be
+   * asking where in that cycle the clock happened to stop.
+   */
   it("gathers with the nearest rat while nothing else is going on", () => {
     const spread = 5;
     const session = yard([
@@ -2058,10 +2065,82 @@ describe("the vermin we ship", () => {
       ["rat", spread, 0],
     ]);
 
-    advance(session, BRAIN_TICK_MS * 8);
+    let closest = Infinity;
+    for (let beat = 0; beat < 20; beat++) {
+      advance(session, BRAIN_TICK_MS);
+      const [a, b] = bodies(session, "rat");
+      closest = Math.min(closest, Math.abs(a!.x - b!.x) + Math.abs(a!.y - b!.y));
+    }
 
-    const [a, b] = bodies(session, "rat");
-    expect(Math.abs(a!.x - b!.x) + Math.abs(a!.y - b!.y)).toBeLessThan(spread);
+    // They found each other, rather than each keeping its own corner.
+    expect(closest).toBeLessThan(spread);
+  });
+
+  /**
+   * A flock is not a heap.
+   *
+   * `step_toward` already gives up once nothing gets a rat any nearer, so a rat
+   * never walks *into* its pack-mate — but that alone left four of them packed
+   * against each other on 70% of beats in this very yard, because each was still
+   * being pulled in by a bond it had no way to let go of. `loitering` is that
+   * release: once a mate is near the attraction is dropped entirely and the rat
+   * just potters, and it is not picked up again until the mate has drifted five
+   * cells off.
+   *
+   * **Two cells, not one, and that is the whole rule.** Distance here is counted
+   * in steps, so a rat standing diagonally touching another is two away, not one
+   * — and releasing at one left every diagonal pair still bound, still shuffling
+   * at each other, locked in a chain that jittered on the spot without ever
+   * going anywhere. Four rats spent 76% of their life in that formation.
+   * Releasing at two takes it to 4%.
+   *
+   * The gap between those two thresholds is doing real work. Releasing and
+   * re-acquiring at the same distance would put a rat on the boundary into a
+   * chase it abandons every other tick, which reads as a twitch rather than as
+   * an animal.
+   *
+   * Measured once the pack has formed: two rats closing from opposite ends of a
+   * row do brush past on the way in, and holding a settled flock to a standard
+   * the act of gathering cannot meet would be a test about the first second of a
+   * rat's life.
+   */
+  it("gathers without piling up", () => {
+    const session = yard([
+      ["rat", 0, 0],
+      ["rat", 3, 0],
+      ["rat", 6, 0],
+      ["rat", 9, 0],
+    ]);
+    advance(session, BRAIN_TICK_MS * 30);
+
+    let crowdedBeats = 0;
+    let lockedBeats = 0;
+    const beats = 60;
+    const stepsApart = (a: { x: number; y: number }, b: { x: number; y: number }) =>
+      Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+
+    for (let beat = 0; beat < beats; beat++) {
+      advance(session, BRAIN_TICK_MS);
+      const rats = bodies(session, "rat");
+      if (rats.some((a) => rats.some((b) => a !== b && stepsApart(a, b) <= 1))) {
+        crowdedBeats++;
+      }
+      // The zigzag: every rat diagonally glued to another, the whole chain
+      // shuffling in place. Rare now; it used to be three beats in four.
+      if (rats.every((a) => rats.some((b) => a !== b && stepsApart(a, b) === 2))) {
+        lockedBeats++;
+      }
+    }
+
+    // Still a flock — nobody was left behind at the far end of the row…
+    const xs = bodies(session, "rat").map((rat) => rat.x);
+    expect(Math.max(...xs) - Math.min(...xs)).toBeLessThan(9);
+    // …much less of a pile. Pitched between the two measurements rather than
+    // against the current one, so this fails if the release stops working and
+    // does not fail on a rat that wandered slightly differently.
+    expect(crowdedBeats / beats).toBeLessThan(0.55);
+    // …and not locked in the diagonal chain that releasing at one cell left.
+    expect(lockedBeats / beats).toBeLessThan(0.4);
   });
 
   it("wanders on its own when there is no other rat to join", () => {

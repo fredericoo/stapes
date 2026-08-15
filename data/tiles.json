@@ -4247,6 +4247,14 @@
                 "action": "hold"
               }
             ]
+          },
+          "loitering": {
+            "do": [
+              {
+                "action": "walk_n_steps",
+                "steps": 3
+              }
+            ]
           }
         },
         "transitions": [
@@ -4301,6 +4309,31 @@
               "cells": 8
             },
             "to": "scurry"
+          },
+          {
+            "from": "following",
+            "if": {
+              "cond": "in_range",
+              "of": "$pack",
+              "cells": 2
+            },
+            "to": "loitering"
+          },
+          {
+            "from": "loitering",
+            "if": {
+              "cond": "out_of_range",
+              "of": "$pack",
+              "cells": 5
+            },
+            "to": "following"
+          },
+          {
+            "from": "loitering",
+            "if": {
+              "cond": "stuck"
+            },
+            "to": "sniffing"
           },
           {
             "from": "scurry",
