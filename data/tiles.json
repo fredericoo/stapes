@@ -1722,6 +1722,7 @@
     "type": "simple",
     "kind": "battler",
     "attributes": {},
+    "lightPassing": true,
     "affectedByGravity": true,
     "interactions": {
       "brain": {
@@ -3604,6 +3605,7 @@
     "type": "directional",
     "kind": "battler",
     "attributes": {},
+    "lightPassing": true,
     "affectedByGravity": true,
     "walkable": false,
     "walkDurationMs": 170,
