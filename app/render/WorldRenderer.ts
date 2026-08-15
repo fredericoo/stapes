@@ -62,6 +62,7 @@ import {
   pulseAlphaAt,
 } from "./overlayMeshes";
 import { type SpriteQuadAssets, spriteQuadFor } from "./spriteQuad";
+import { PLAYER_TILE_ID } from "../game/constants";
 
 type AnimatedInstance = {
   mesh: THREE.Mesh;
@@ -253,13 +254,23 @@ function emitterOverridesKey(
  * on the floor lit nothing at all. Omitting a tile is only ever worth it for
  * something that moves *every frame*; a dropped item moves on the tick it lands
  * and dirties a cell doing it, which is a cost it was always going to pay.
+ *
+ * **The player is named rather than derived, and it has to be.** It is driven by
+ * a connection and adopted by tile id, so {@link resolveActor} deliberately
+ * refuses it — see the note there. Deriving this set from actorhood alone
+ * therefore returned an empty set on the shipped tile catalogue and quietly
+ * stopped omitting the one body that moves every single frame, which put a ~22ms
+ * rebake on every step the player took.
  */
-function dynamicLightTileIds(
+export function dynamicLightTileIds(
   tilesById: Record<string, TileDef>,
 ): ReadonlySet<string> {
   const ids = new Set<string>();
   for (const def of Object.values(tilesById)) {
-    if (resolveActor(def) && resolveLightPassing(def)) ids.add(def.id);
+    // Light-passing is the load-bearing half and is checked first: omitting an
+    // occluder would light straight through it, whoever it belongs to.
+    if (!resolveLightPassing(def)) continue;
+    if (resolveActor(def) || def.id === PLAYER_TILE_ID) ids.add(def.id);
   }
   return ids;
 }
