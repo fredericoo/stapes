@@ -1092,6 +1092,18 @@ export class GameServer extends DurableObject<Env> {
     await store.writeMap(map);
     await this.ctx.storage.delete(CHECKPOINT_KEY);
 
+    // Read off the outgoing session, and read *here* — this is the last moment
+    // it exists, and it holds the only copy of anybody's kit that is newer than
+    // the last five-second flush. A player who picked something up four seconds
+    // before somebody hit save is carrying it only in memory.
+    const carried = new Map<string, Equipment>();
+    for (const ws of this.ctx.getWebSockets()) {
+      const attachment = ws.deserializeAttachment() as Attachment | null;
+      if (!attachment) continue;
+      const kit = this.session?.equipmentOf(attachment.actorId);
+      if (kit) carried.set(attachment.actorId, kit);
+    }
+
     this.tiles = tiles;
     this.session = session;
     this.broadcastMap = this.session.getMap();
@@ -1109,11 +1121,35 @@ export class GameServer extends DurableObject<Env> {
     this.queuedSteps.clear();
     this.events = [];
 
-    // Everyone still connected re-enters the new world at its spawn point.
+    // Everyone still connected re-enters the new world at its spawn point,
+    // carrying what they were carrying.
+    //
+    // **A save re-creates the world, not the people in it.** Items on the floor
+    // coming back is the whole point of authoring them there — the map is the
+    // map, and saving it is how an author puts a sword back. What is in
+    // somebody's bag is not the map: nobody authored it, it is not in the file
+    // that was just written, and there is nothing in a save that says anything
+    // about it. Seating them with the starting kit read the one as the other and
+    // emptied every connected player's pockets, and the flush five seconds later
+    // wrote that emptiness over the only record of what they had.
+    //
+    // Checked against the new tiles on the way in, on the same terms
+    // {@link lastEquipmentOf} checks a remembered one: the save may have brought
+    // a new catalogue with it, and a sword that has become a prop in it is a kit
+    // this world no longer agrees with. Storage is the fallback for the world
+    // that was too broken to have a session at all.
+    const tilesById = tilesByIdFromList(tiles);
     for (const ws of this.ctx.getWebSockets()) {
       const attachment = ws.deserializeAttachment() as Attachment | null;
       if (!attachment) continue;
-      this.session.spawn(attachment.actorId);
+      const kit = carried.get(attachment.actorId);
+      this.session.spawn(
+        attachment.actorId,
+        undefined,
+        kit
+          ? restoredEquipment(kit, tilesById)
+          : await this.lastEquipmentOf(attachment.actorId),
+      );
     }
     for (const ws of this.ctx.getWebSockets()) {
       const attachment = ws.deserializeAttachment() as Attachment | null;
