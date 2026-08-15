@@ -2,7 +2,7 @@ import * as v from "valibot";
 import type { BattlerDef } from "./battler";
 import type { BrainDef } from "./brain";
 import type { ItemDef } from "./item";
-import { itemForSave, resolveItem } from "./item";
+import { itemForSave, MAX_CONTAINER_SIZE, resolveItem } from "./item";
 import type { TileDef } from "./types";
 import { HEIGHT_PER_LEVEL, resolveActor } from "./types";
 
@@ -149,6 +149,67 @@ export type ReceiveInteraction = {
   mode: SignalMode;
 };
 
+/**
+ * Hand the player a set of items, once ever, and mark them so it cannot happen
+ * again.
+ *
+ * A quest chest, an NPC with a starter kit, a shrine that gives you a torch —
+ * all one mechanism, and what separates them is only {@link actionName}.
+ *
+ * **The tile never changes, and that is the whole design.** Every other authored
+ * swap in this file — switch, plate, receive — edits the board, which is what
+ * makes it the same for everybody looking at it. "Once per player" cannot be
+ * that: the chest has to still be there for the next person who walks in. So
+ * what a reward changes is the *taker* ({@link ActorRuntime.tags}), exactly as
+ * hit points and equipment are per-actor state that no cell patch carries, and
+ * a chest somebody has emptied looks untouched to the room.
+ *
+ * **One tag, granted and gating.** Taking it writes {@link tag} onto the player,
+ * and holding {@link tag} is what stops them taking it — one field rather than a
+ * pair, so a reward cannot be authored repeatable by accident. Two placements
+ * sharing a tag are therefore a *choice*: give the left chest and the right
+ * chest both `chest-42` and opening either closes the other.
+ *
+ * Which also means the tag is authored on the **tile**, not the placement, so
+ * two copies of one chest tile across a map are one reward between them. Author
+ * a tile per choice, which is what the tag naming is for.
+ */
+export type RewardInteraction = {
+  /**
+   * What taking it is called — "Open" on a chest, "Receive" from a person.
+   *
+   * Authored for the same reason {@link SwitchInteraction.actionName} is: the
+   * verb belongs to the fiction rather than to the mechanism, and nothing
+   * derivable from a tile that hands over a sword says whether you are prising
+   * it out of a box or being given it. Optional, and blank reads as "Take".
+   */
+  actionName?: string;
+  /**
+   * What the taker is marked with, and what stops them taking it again.
+   *
+   * Free text, because the author is the only one who knows which rewards
+   * belong to the same decision. `chest-42`, `chose-left`, `met-the-smith`.
+   */
+  tag: string;
+  /**
+   * The tiles handed over, one item each.
+   *
+   * Tile ids rather than instances: an instance is minted at the moment of
+   * giving, so two players who open the same chest come away with two distinct
+   * swords rather than one sword that exists twice.
+   */
+  itemTileIds: string[];
+};
+
+/**
+ * Most items one reward may hand over.
+ *
+ * The largest bag there is, because the taker needs room for *all* of them at
+ * once — see `rewardFits`. A reward authored bigger than any container in the
+ * game is not a generous reward, it is one nobody can ever take.
+ */
+export const MAX_REWARD_ITEMS = MAX_CONTAINER_SIZE;
+
 /** Ways a placed object can behave in play. Grows over time. */
 export type TileInteractions = {
   /**
@@ -183,6 +244,7 @@ export type TileInteractions = {
   item?: ItemDef;
   push?: PushInteraction;
   switch?: SwitchInteraction;
+  reward?: RewardInteraction;
   pressurePlate?: PressurePlateInteraction;
   emit?: EmitInteraction;
   receive?: ReceiveInteraction;
@@ -191,6 +253,12 @@ export type TileInteractions = {
 export const DEFAULT_SWITCH: SwitchInteraction = {
   targetTileId: "",
   actionName: "",
+};
+
+export const DEFAULT_REWARD: RewardInteraction = {
+  actionName: "",
+  tag: "",
+  itemTileIds: [],
 };
 
 export const DEFAULT_PUSH: PushInteraction = {
@@ -271,6 +339,43 @@ export function resolveSwitch(def: TileDef): SwitchInteraction | null {
   const sw = parsed?.success ? parsed.output : null;
   switchCache.set(def, sw);
   return sw;
+}
+
+const rewardSchema = v.object({
+  actionName: v.optional(v.string()),
+  // Both required, and both are what makes it a reward rather than a mistake. A
+  // tagless one could be taken for ever, which is the one thing this exists to
+  // prevent; an empty one hands over nothing and would sit on the board offering
+  // a verb that does not do anything.
+  tag: v.pipe(v.string(), v.minLength(1)),
+  itemTileIds: v.pipe(
+    v.array(v.string()),
+    v.minLength(1),
+    v.maxLength(MAX_REWARD_ITEMS),
+  ),
+});
+
+const rewardCache = new WeakMap<TileDef, RewardInteraction | null>();
+
+/**
+ * Parsed reward config per tile def. Same trust model as {@link resolvePush}:
+ * malformed, tagless or empty → not a reward, rather than a crashed world.
+ *
+ * Note this says nothing about whether the *items* are items — a tile id that
+ * names a wall would parse fine here. That is checked where the reward is
+ * actually offered, against the catalogue this world has now, on the same terms
+ * `restoredEquipment` checks a kit: authored content moves, and a reward whose
+ * sword became a prop is a fact this module has no way to know.
+ */
+export function resolveReward(def: TileDef): RewardInteraction | null {
+  const cached = rewardCache.get(def);
+  if (cached !== undefined) return cached;
+
+  const raw = def.interactions?.reward;
+  const parsed = raw == null ? null : v.safeParse(rewardSchema, raw);
+  const reward = parsed?.success ? parsed.output : null;
+  rewardCache.set(def, reward);
+  return reward;
 }
 
 const pressurePlateSchema = v.object({
@@ -357,8 +462,15 @@ export function receiveTriggers(
  * Kinds of interaction a tile offers the player, in the order the single
  * interact button tries them.
  *
- * Switch comes first: it is an explicit authored swap, and an author who put
- * one on a tile meant it to be what happens. Pick-up comes next, because
+ * Reward comes first, ahead of even a switch, because it is the only one of
+ * these that can happen to a given player *once*. A chest authored to both hand
+ * over its contents and swing open would otherwise spend its one chance on the
+ * hinge. And it falls through cleanly: a reward already taken is not on offer at
+ * all, so the second tap on that chest is the switch, with nothing here having
+ * to know it is the second.
+ *
+ * Switch comes next: it is an explicit authored swap, and an author who put
+ * one on a tile meant it to be what happens. Pick-up comes after, because
  * lifting a thing is a better guess at what somebody wants from a sword on the
  * floor than shoving it further away. Push is last, the fallback "just move it"
  * behaviour that anything can fall through to.
@@ -370,11 +482,12 @@ export function receiveTriggers(
  * the placement, so looking inside is local panel state. It is an
  * `InteractionAction` without being one of these, exactly as `target` is.
  */
-export type InteractionKind = "switch" | "pickUp" | "push";
+export type InteractionKind = "reward" | "switch" | "pickUp" | "push";
 
 /** Every player-activated interaction on this tile, in a stable order. */
 export function interactionKinds(def: TileDef): InteractionKind[] {
   const kinds: InteractionKind[] = [];
+  if (resolveReward(def)) kinds.push("reward");
   if (resolveSwitch(def)) kinds.push("switch");
   if (resolveItem(def)) kinds.push("pickUp");
   if (resolvePush(def)) kinds.push("push");
@@ -432,6 +545,7 @@ export function hasAnyInteraction(
       interactions?.item ||
       interactions?.push ||
       interactions?.switch ||
+      interactions?.reward ||
       interactions?.pressurePlate ||
       interactions?.emit ||
       interactions?.receive,
@@ -464,6 +578,24 @@ export function interactionsForSave(
   const savedPlate = plate?.tileId.trim()
     ? { tileId: plate.tileId.trim(), type: plate.type, height: plate.height }
     : undefined;
+  // Dropped whole unless both halves are there, rather than written half-formed:
+  // the resolver refuses a tagless or empty reward anyway, so persisting one
+  // would put a block in `data/tiles.json` that reads as authored and is inert.
+  const reward = interactions?.reward;
+  const rewardTag = reward?.tag.trim();
+  const rewardItems = reward?.itemTileIds.filter((id) => id.trim()) ?? [];
+  const rewardActionName = reward?.actionName?.trim();
+  const savedReward =
+    rewardTag && rewardItems.length > 0
+      ? {
+          tag: rewardTag,
+          // Authored order, not sorted, unlike `moveOnTileIds`: that one is a
+          // set being matched against, and this is a list being handed over —
+          // which thing lands in the bag first is the author's to decide.
+          itemTileIds: rewardItems,
+          ...(rewardActionName ? { actionName: rewardActionName } : {}),
+        }
+      : undefined;
   const emit = interactions?.emit;
   const receive = interactions?.receive;
   const savedEmit = emit ? { value: emit.value } : undefined;
@@ -503,6 +635,7 @@ export function interactionsForSave(
     !savedItem &&
     !savedPush &&
     !savedSwitch &&
+    !savedReward &&
     !savedPlate &&
     !savedEmit &&
     !savedReceive
@@ -515,6 +648,7 @@ export function interactionsForSave(
     ...(savedItem ? { item: savedItem } : {}),
     ...(savedPush ? { push: savedPush } : {}),
     ...(savedSwitch ? { switch: savedSwitch } : {}),
+    ...(savedReward ? { reward: savedReward } : {}),
     ...(savedPlate ? { pressurePlate: savedPlate } : {}),
     ...(savedEmit ? { emit: savedEmit } : {}),
     ...(savedReceive ? { receive: savedReceive } : {}),

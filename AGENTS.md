@@ -381,6 +381,52 @@ player standing in front of it. `WorldLabelLayer` orders the *elements* rather
 than writing z-indexes, so the stylesheet's bands — name under speech under
 damage — keep deciding everything they already decided.
 
+## A reward happens to the player, not to the board
+
+`interactions.reward` hands over a list of items once per player — a quest
+chest, or a person you click and are given something. Every other authored swap
+in `app/lib/interactions.ts` edits the map, which is exactly what it cannot do
+here: the chest has to still be there, still full, for the next person who walks
+in. So **nothing on the board changes at all**. What changes is the taker.
+
+- **The tag is the whole mechanism, and it is one field.** Taking a reward
+  writes `RewardInteraction.tag` onto the actor, and holding that tag is what
+  hides it. One field rather than a granted/blocking pair, so a reward cannot be
+  authored repeatable by accident — and so that two tiles *sharing* a tag are a
+  choice: open the left chest and the right one closes. It is on the tile rather
+  than the placement, so two copies of one chest tile are one reward between
+  them.
+- **`ActorRuntime.tags` sits beside `equipment`, and is written with it.** The
+  items go in the bag and the tag goes on the actor in the same call, because a
+  reward whose items landed without its tag is an item with no ceiling on how
+  many exist. `saveActors` puts `tags:` in the same storage batch as `equip:`
+  and the checkpoint for the same reason the kit rides with the map.
+- **A tag is never checked against the world, unlike a kit.**
+  `restoredEquipment` exists to drop a sword the catalogue no longer agrees with;
+  a tag records that something *happened*, which stays true however the authored
+  content moves. Checking one would refill a chest whose reward tile got renamed.
+- **`replaceWorld` re-seats everybody with their tags and without their kit**,
+  and the asymmetry is deliberate: a kit names objects from a world that has just
+  been thrown away, while a tag names something that happened to the person. The
+  editor saves constantly, and dropping them would refill every chest in the map
+  once per save.
+- **All or nothing on space.** `rewardFits` needs room for every item at once,
+  because a reward is taken once and half of one is half of it lost. Containers
+  are refused outright — nothing nests, so a bag could only go on a back the
+  reward's own items need occupied.
+- **Purple is a fifth colour and it says something the other four cannot.**
+  Yellow, red, white and blue all name what you would be *doing*; `REWARD_COLOR`
+  / `--color-reward` says the offer is finite, which is the one thing neither the
+  verb nor the sprite can tell you before you walk away from it. The list row
+  wears it unlit, unlike every other row, because "only once" is a property of
+  the offer rather than a state you are in.
+
+Reward is first in `interactionKinds`, ahead of even a switch, because it is the
+only one that can happen to a given player once — a chest authored to both give
+its contents and swing open would otherwise spend its one chance on the hinge.
+It falls through cleanly: a reward already taken is not on offer, so the second
+tap is the switch without anything having to know it is the second.
+
 ## The save is the repair path, so it must not need a working world
 
 `replaceWorld` is the only way to change the world, which makes it the only way

@@ -112,6 +112,7 @@ function connected(): { socket: FakeSocket; session: RemoteSession } {
     hps: [],
     carriedLights: [],
     equipment: emptyEquipment(),
+    tags: [],
   });
   return { socket, session };
 }
@@ -248,6 +249,7 @@ function connectedAloft(): { socket: FakeSocket; session: RemoteSession } {
     hps: [],
     carriedLights: [],
     equipment: emptyEquipment(),
+    tags: [],
   });
   return { socket, session };
 }
@@ -457,6 +459,7 @@ describe("RemoteSession chat", () => {
       hps: [],
       carriedLights: [],
     equipment: emptyEquipment(),
+    tags: [],
     });
 
     expect(session.getSnapshot().chats).toHaveLength(0);
@@ -787,6 +790,7 @@ describe("RemoteSession attack mode", () => {
       hps: [],
       carriedLights: [],
     equipment: emptyEquipment(),
+    tags: [],
     });
 
     expect(framesOfType(socket, "attackMode")).toEqual([
@@ -810,6 +814,7 @@ describe("RemoteSession attack mode", () => {
       hps: [],
       carriedLights: [],
     equipment: emptyEquipment(),
+    tags: [],
     });
 
     expect(framesOfType(socket, "attackMode")).toEqual([]);

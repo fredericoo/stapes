@@ -1,6 +1,12 @@
 import { getStack } from "../lib/mapData";
 import { hasLineOfSight } from "./sight";
-import { isInteractive, resolvePush, resolveSwitch } from "../lib/interactions";
+import type { RewardInteraction } from "../lib/interactions";
+import {
+  isInteractive,
+  resolvePush,
+  resolveReward,
+  resolveSwitch,
+} from "../lib/interactions";
 import { resolveContainer, resolveItem } from "../lib/item";
 import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { canReplaceStack } from "../lib/validation";
@@ -302,6 +308,94 @@ export function canDropAt(
 
   const next = [...stack, { tileId: def.id }];
   return canReplaceStack(map, to.x, to.y, to.z, next, tilesById).ok;
+}
+
+/**
+ * The reward at a stack slot, if it is one and the actor could reach it.
+ *
+ * Reach is the round {@link REACH_CELLS} rather than push's orthogonal step, on
+ * the same grounds pick-up and open take it: being handed a thing needs no
+ * unambiguous "one cell further away", and an NPC standing diagonally who could
+ * not give you the sword would read as a bug.
+ *
+ * Routed through the same cover rule pick-up uses — a chest under a crate is out
+ * of reach, a chest with somebody standing on it is not. Which matters more here
+ * than anywhere: the giver is very often a *body*, and every body has somebody
+ * in it.
+ */
+export function reachableRewardAt(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  ref: ObjectRef,
+): RewardInteraction | null {
+  if (!withinReach(actor, ref)) return null;
+  const stack = getStack(map, ref.x, ref.y, ref.z);
+  if (coveredBySomething(stack, ref.stackIndex)) return null;
+  const placed = stack[ref.stackIndex];
+  if (!placed) return null;
+  const def = tilesById[placed.tileId];
+  return def ? resolveReward(def) : null;
+}
+
+/**
+ * Is there room for every last thing in this reward?
+ *
+ * **All or nothing**, and that is the rule the whole affordance rests on: a
+ * reward is taken once, so half of one is half of it lost for ever. A player
+ * with one free slot standing at a two-item chest is told no and can go and make
+ * room, which is the only outcome that leaves the sword still in the box.
+ *
+ * Containers are refused outright rather than routed to the bag slot. A
+ * container cannot go in a bag — nothing nests — so its only home is a back that
+ * is bare, and a reward that quietly meant "and also I am taking your backpack
+ * off" is not something an author can see themselves writing. A reward tile id
+ * that names a container, or a wall, or nothing at all, therefore makes the
+ * whole reward untakeable and visibly so.
+ */
+export function rewardFits(
+  reward: RewardInteraction,
+  tilesById: Record<string, TileDef>,
+  equipment: Equipment,
+): boolean {
+  const bag = equipment.bag;
+  if (!bag) return false;
+  const bagDef = tilesById[bag.tileId];
+  const size = bagDef ? (resolveContainer(bagDef)?.size ?? 0) : 0;
+  const free = size - (bag.contents?.length ?? 0);
+  if (reward.itemTileIds.length > free) return false;
+
+  return reward.itemTileIds.every((tileId) => {
+    const def = tilesById[tileId];
+    if (!def) return false;
+    return resolveItem(def) != null && resolveContainer(def) == null;
+  });
+}
+
+/**
+ * Could this actor take the reward right now?
+ *
+ * Three refusals, and they are deliberately not distinguished: already taken, no
+ * room, badly authored. Whichever it is, there is no row and no outline — a
+ * reward is either on offer or it is not there, which is what makes an emptied
+ * chest read as scenery rather than as something withholding.
+ *
+ * @param tags what this actor has already been marked with. Holding the
+ *   reward's own tag is what closes it, and that is the whole of "once per
+ *   player" — see {@link RewardInteraction.tag}.
+ */
+export function canRewardFrom(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  ref: ObjectRef,
+  equipment: Equipment,
+  tags: readonly string[],
+): boolean {
+  const reward = reachableRewardAt(map, tilesById, actor, ref);
+  if (!reward) return false;
+  if (tags.includes(reward.tag)) return false;
+  return rewardFits(reward, tilesById, equipment);
 }
 
 /**

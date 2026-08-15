@@ -161,24 +161,45 @@ const LOOK_LEVEL_SLACK = 1;
 const HOVER_LABEL_INK = "#ffe27a";
 
 /**
+ * A reward, which is the one thing on the board you can only take once.
+ *
+ * `--color-reward` in `app.css` is this value, on the same terms
+ * {@link HOVER_COLOR} and `--color-interact` are one colour: the row in the list
+ * and the silhouette in the world are one state.
+ *
+ * The third colour a pointer can produce, where two was the rule for a long
+ * time — and the rule was about not making the player decode a legend for
+ * something they already knew. This one is different in kind: nothing about the
+ * verb, the sprite or the outline says whether a chest is one you can come back
+ * to, and that is exactly the thing worth knowing before you walk away from it.
+ */
+const REWARD_COLOR = 0xb15cff;
+
+/** The reward outline lightened, as every other label ink here is. */
+const REWARD_LABEL_INK = "#d9a9ff";
+
+/**
  * What colour an option paints its subject, and what ink its words are in.
  *
- * Two of them and no more — white for a body that could be singled out, yellow
- * for an object that could be acted on. A row under a finger and a sprite under
- * a cursor are two ways of pointing at one thing, so pointing either way has to
- * look identical; a third colour here would be a legend to learn for no new
- * meaning.
+ * Three of them — white for a body that could be singled out, purple for
+ * something you can be given once, yellow for everything else you could act on.
+ * A row under a finger and a sprite under a cursor are two ways of pointing at
+ * one thing, so pointing either way has to look identical.
  *
  * The ink is the outline lightened, exactly as the look label's `#9ad8ff` is
  * {@link LOOK_COLOR} lightened: the words and the silhouette are one reading,
  * and a text weight of pure `#ffcc00` is a headline rather than a caption.
  */
 function interactionColor(option: InteractionOption): number {
-  return option.action === "target" ? TARGET_HOVER_COLOR : HOVER_COLOR;
+  if (option.action === "target") return TARGET_HOVER_COLOR;
+  if (option.action === "reward") return REWARD_COLOR;
+  return HOVER_COLOR;
 }
 
 function interactionInk(option: InteractionOption): string {
-  return option.action === "target" ? "#ffffff" : HOVER_LABEL_INK;
+  if (option.action === "target") return "#ffffff";
+  if (option.action === "reward") return REWARD_LABEL_INK;
+  return HOVER_LABEL_INK;
 }
 
 /**
@@ -266,6 +287,15 @@ export class GameRenderer {
   private equipmentSent: Equipment | null = null;
   /** Kit the interaction list was last built against. See the gate below. */
   private interactionsEquipment: Equipment | null = null;
+  /**
+   * Tags the interaction list was last built against.
+   *
+   * In the gate for the same reason the kit is, and it is the one signal that a
+   * reward row going away has: taking one changes nothing on the board, so the
+   * map keeps its identity and the player has not moved. Without this the chest
+   * would go on offering itself until something else happened.
+   */
+  private interactionsTags: readonly string[] | null = null;
   private onOpenedContainer:
     | ((container: OpenedContainer | null) => void)
     | null = null;
@@ -585,6 +615,7 @@ export class GameRenderer {
     this.interactionsHealth = 0;
     this.interactionsKey = "";
     this.interactionsEquipment = null;
+    this.interactionsTags = null;
     this.interactionsSent = [];
   }
 
@@ -1716,11 +1747,13 @@ export class GameRenderer {
       snap.map === this.interactionsMap &&
       at === this.interactionsAt &&
       health === this.interactionsHealth &&
-      snap.equipment === this.interactionsEquipment
+      snap.equipment === this.interactionsEquipment &&
+      snap.tags === this.interactionsTags
     ) {
       return;
     }
     this.interactionsEquipment = snap.equipment;
+    this.interactionsTags = snap.tags;
     this.interactionsMap = snap.map;
     this.interactionsAt = at;
     this.interactionsHealth = health;
@@ -1733,6 +1766,7 @@ export class GameRenderer {
       snap.targetId,
       snap.equipment,
       this.openedRef,
+      snap.tags,
     );
     // Held whether or not it is handed on, because the *references* inside it go
     // stale even when the list reads the same: a walking deer keeps its row and

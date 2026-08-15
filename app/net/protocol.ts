@@ -247,6 +247,15 @@ export type ServerMessage =
       carriedLights: CarriedLightsPatch[];
       /** What this viewer is carrying. Theirs alone — see {@link Equipment}. */
       equipment: Equipment;
+      /**
+       * Which rewards this viewer has already taken.
+       *
+       * Sent in full on arrival like {@link hps}, and for a sharper reason: a
+       * client with no tags yet offers every chest in the world, so a joiner
+       * missing this would be shown a room full of things it turns out they
+       * cannot have.
+       */
+      tags: string[];
     }
   /**
    * "Here is what you are carrying now."
@@ -268,6 +277,16 @@ export type ServerMessage =
    * nothing to correct it.
    */
   | { type: "equipment"; equipment: Equipment }
+  /**
+   * "Here is everything you have taken."
+   *
+   * Addressed to one socket for the same reason equipment is — it differs per
+   * player, and folding it into the patch would turn one serialization per tick
+   * into one per player — and whole rather than incremental for the same reason
+   * too: a list rebuilt from "you also got this" events drifts the moment one is
+   * missed, and a dropped tag is a chest that can be opened twice.
+   */
+  | { type: "tags"; tags: string[] }
   | {
       type: "patch";
       cells: CellPatch[];
@@ -533,10 +552,15 @@ const serverMessageSchema = v.variant("type", [
     hps: v.array(hpPatchSchema),
     carriedLights: v.array(carriedLightsPatchSchema),
     equipment: equipmentSchema,
+    tags: v.array(v.string()),
   }),
   v.object({
     type: v.literal("equipment"),
     equipment: equipmentSchema,
+  }),
+  v.object({
+    type: v.literal("tags"),
+    tags: v.array(v.string()),
   }),
   v.object({
     type: v.literal("patch"),

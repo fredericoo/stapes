@@ -1336,6 +1336,79 @@ describe("player permanence", () => {
   });
 
   /**
+   * A tag records that something already happened, so it is the one piece of
+   * per-actor state that must survive everything.
+   *
+   * Seeded straight into storage rather than earned by opening a chest: what is
+   * under test is the load path — `lastTagsOf` → `spawn` → `hello` — which only
+   * runs when the object is built from disk, and the fixture map has no reward
+   * tile to earn one from. It is exactly the shape of bug a node test cannot
+   * see, which is what this file is for.
+   */
+  it("hands a returning player back the rewards they have taken", async () => {
+    const who = freshPlayer();
+    await runInDurableObject(stub(), async (_instance, state) => {
+      await state.storage.put(`tags:${who}`, {
+        tags: ["chest-42"],
+        savedAt: Date.now(),
+      });
+    });
+    await simulateEviction();
+
+    const { hello } = await connect(who);
+
+    expect(hello.tags).toEqual(["chest-42"]);
+  });
+
+  /**
+   * The editor saves constantly, and a save re-seats everybody.
+   *
+   * Their *kit* is not carried across — it named things in a world that has just
+   * been thrown away — but a tag names something that happened to the person,
+   * and dropping it would refill every chest in the map for everybody standing
+   * in it, once per save.
+   */
+  it("keeps taken rewards across a world replacement", async () => {
+    const who = freshPlayer();
+    await runInDurableObject(stub(), async (_instance, state) => {
+      await state.storage.put(`tags:${who}`, {
+        tags: ["chest-42"],
+        savedAt: Date.now(),
+      });
+    });
+    await simulateEviction();
+    await connect(who);
+
+    await stub().replaceWorld(authoredMap());
+
+    const { hello } = await connect(who);
+    expect(hello.tags).toEqual(["chest-42"]);
+  });
+
+  /** Capped on the same terms the kits and positions are, and separately. */
+  it("drops the least recently saved tags once the store is full", async () => {
+    const overflow = 5;
+    await runInDurableObject(stub(), async (_instance, state) => {
+      for (let i = 0; i < MAX_REMEMBERED_ACTORS + overflow; i += BACKFILL_BATCH) {
+        const batch: Record<string, unknown> = {};
+        const end = Math.min(i + BACKFILL_BATCH, MAX_REMEMBERED_ACTORS + overflow);
+        for (let n = i; n < end; n++) {
+          batch[`tags:backfill-${n}`] = { tags: ["seen"], savedAt: n };
+        }
+        await state.storage.put(batch);
+      }
+    });
+
+    await simulateEviction();
+    await connect(freshPlayer());
+
+    const kept = await storedKeys("tags:");
+    expect(kept).toHaveLength(MAX_REMEMBERED_ACTORS);
+    expect(kept).not.toContain("tags:backfill-0");
+    expect(kept).toContain(`tags:backfill-${MAX_REMEMBERED_ACTORS + overflow - 1}`);
+  });
+
+  /**
    * The one rule that stops an item existing twice.
    *
    * Picking something up takes it off the map and puts it in a bag, so the two

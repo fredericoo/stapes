@@ -105,6 +105,20 @@ const POSITION_KEY_PREFIX = "pos:";
 const EQUIPMENT_KEY_PREFIX = "equip:";
 
 /**
+ * Key prefix under which one actor's taken rewards are kept.
+ *
+ * A third key rather than a field on the kit, though the two are written
+ * together and almost always change together. What they mean is different in
+ * kind: a kit is a list of things that must still exist in the world to be worth
+ * restoring, and a tag is a record that something already happened, which stays
+ * true however the authored content moves. `restoredEquipment` exists precisely
+ * to check the one against the world; a tag must never be checked against
+ * anything, or a chest whose sword was renamed becomes a chest you can open
+ * again.
+ */
+const TAGS_KEY_PREFIX = "tags:";
+
+/**
  * How many actors the world remembers the whereabouts of.
  *
  * One entry per player who has ever connected — it grows with *visitors*, not
@@ -152,6 +166,9 @@ type SavedPosition = ActorPosition & { savedAt: number };
  * copy-on-write makes a reference compare.
  */
 type SavedEquipment = { equipment: Equipment; savedAt: number };
+
+/** Which rewards somebody has taken, kept against their return. */
+type SavedTags = { tags: string[]; savedAt: number };
 
 type Attachment = { actorId: string };
 
@@ -379,6 +396,7 @@ export class GameServer extends DurableObject<Env> {
         id,
         await this.lastPositionOf(id),
         await this.lastEquipmentOf(id),
+        await this.lastTagsOf(id),
       );
     }
   }
@@ -389,6 +407,22 @@ export class GameServer extends DurableObject<Env> {
 
   private equipmentKey(actorId: string): string {
     return `${EQUIPMENT_KEY_PREFIX}${actorId}`;
+  }
+
+  private tagsKey(actorId: string): string {
+    return `${TAGS_KEY_PREFIX}${actorId}`;
+  }
+
+  /**
+   * Which rewards this actor has already taken, if the world remembers.
+   *
+   * Handed to the session as it was written, unlike a kit: see
+   * {@link TAGS_KEY_PREFIX} for why a tag is not checked against the world.
+   * Undefined for somebody new, who is owed everything.
+   */
+  private async lastTagsOf(actorId: string): Promise<string[] | undefined> {
+    const saved = await this.ctx.storage.get<SavedTags>(this.tagsKey(actorId));
+    return saved?.tags;
   }
 
   /**
@@ -452,8 +486,10 @@ export class GameServer extends DurableObject<Env> {
     if (!session) return;
 
     const savedAt = Date.now();
-    const entries: Record<string, SavedPosition | SavedEquipment | Checkpoint> =
-      {};
+    const entries: Record<
+      string,
+      SavedPosition | SavedEquipment | SavedTags | Checkpoint
+    > = {};
     for (const actorId of actorIds) {
       const at = session.actorPosition(actorId);
       if (!at) continue;
@@ -468,6 +504,18 @@ export class GameServer extends DurableObject<Env> {
       const equipment = session.equipmentOf(actorId);
       if (equipment?.weapon || equipment?.bag) {
         entries[this.equipmentKey(actorId)] = { equipment, savedAt };
+      }
+      // In the same batch again, and here the pairing is not merely tidy: the
+      // items of a reward land in the kit and its tag lands here, so a batch
+      // that carried one without the other would either hand somebody a second
+      // copy of the reward or charge them for one they never got.
+      //
+      // Only a non-empty list, on the same terms the kit is: everybody starts
+      // with none, and a key per creature per world would spend the ceiling
+      // below on remembering that a deer has opened no chests.
+      const tags = session.tagsOf(actorId);
+      if (tags && tags.length > 0) {
+        entries[this.tagsKey(actorId)] = { tags: [...tags], savedAt };
       }
     }
 
@@ -527,6 +575,7 @@ export class GameServer extends DurableObject<Env> {
   private async pruneRemembered() {
     await this.pruneOldest(POSITION_KEY_PREFIX);
     await this.pruneOldest(EQUIPMENT_KEY_PREFIX);
+    await this.pruneOldest(TAGS_KEY_PREFIX);
   }
 
   /**
@@ -592,6 +641,7 @@ export class GameServer extends DurableObject<Env> {
       actorId,
       await this.lastPositionOf(actorId),
       await this.lastEquipmentOf(actorId),
+      await this.lastTagsOf(actorId),
     );
     this.events.push({
       kind: "joined",
@@ -660,6 +710,10 @@ export class GameServer extends DurableObject<Env> {
       // Theirs alone, and sent in full here for the same reason the map and the
       // hit points are: a joiner has nothing to patch against.
       equipment: session.equipmentOf(actorId) ?? emptyEquipment(),
+      // Beside the kit, and needed before the first frame for a sharper reason:
+      // a client with no tags offers every reward in the room, so a joiner
+      // without this is shown chests it will be refused at.
+      tags: [...(session.tagsOf(actorId) ?? [])],
       playerCount: this.playerCount(),
       // Read here rather than tracked: time of day is a function of the
       // server's clock, so it costs nothing to keep and cannot fall behind
@@ -741,6 +795,7 @@ export class GameServer extends DurableObject<Env> {
     }
 
     this.flushEquipment();
+    this.flushTags();
     this.wake();
   }
 
@@ -774,6 +829,35 @@ export class GameServer extends DurableObject<Env> {
       // kit changed, and there is nobody left to tell.
       if (!equipment) continue;
       ws.send(JSON.stringify({ type: "equipment", equipment } satisfies ServerMessage));
+    }
+  }
+
+  /**
+   * Tell anybody whose tags changed what they have taken now.
+   *
+   * Its own drain and its own message, sent from the same places the kit is —
+   * they change together today, and the two queues are what keeps that a fact
+   * about rewards rather than an assumption in the plumbing.
+   */
+  private flushTags() {
+    const session = this.session;
+    if (!session) return;
+    const changed = session.drainTagChanges();
+    if (changed.length === 0) return;
+
+    const wanted = new Set(changed);
+    for (const ws of this.ctx.getWebSockets()) {
+      const attachment = ws.deserializeAttachment() as Attachment | null;
+      if (!attachment || !wanted.has(attachment.actorId)) continue;
+      const tags = session.tagsOf(attachment.actorId);
+      // Gone between the change and the flush, exactly as a kit can be.
+      if (!tags) continue;
+      ws.send(
+        JSON.stringify({
+          type: "tags",
+          tags: [...tags],
+        } satisfies ServerMessage),
+      );
     }
   }
 
@@ -1110,10 +1194,24 @@ export class GameServer extends DurableObject<Env> {
     this.events = [];
 
     // Everyone still connected re-enters the new world at its spawn point.
+    //
+    // With their tags, and *without* the kit they had — which is not an
+    // oversight in one of the two. A kit names things that were in the world
+    // that has just been thrown away, and re-seating it would carry objects
+    // across from a map that no longer exists. A tag names something that
+    // happened to the *player*, and the one thing it exists to guarantee is
+    // that it does not happen twice. Dropping them here would hand everybody
+    // standing in the room every reward in the map again, once per save — and
+    // the editor saves constantly.
     for (const ws of this.ctx.getWebSockets()) {
       const attachment = ws.deserializeAttachment() as Attachment | null;
       if (!attachment) continue;
-      this.session.spawn(attachment.actorId);
+      this.session.spawn(
+        attachment.actorId,
+        undefined,
+        undefined,
+        await this.lastTagsOf(attachment.actorId),
+      );
     }
     for (const ws of this.ctx.getWebSockets()) {
       const attachment = ws.deserializeAttachment() as Attachment | null;
@@ -1194,6 +1292,7 @@ export class GameServer extends DurableObject<Env> {
     // but a brain that picks something up will, and the alternative is finding
     // out by way of a panel that never updates.
     this.flushEquipment();
+    this.flushTags();
     this.saveActorsIfDue();
     this.sleepIfIdle();
   }
