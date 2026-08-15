@@ -4043,5 +4043,317 @@
         }
       ]
     }
+  },
+  {
+    "id": "rat",
+    "name": "Rat",
+    "height": 1,
+    "type": "directional",
+    "kind": "prop",
+    "attributes": {},
+    "lightPassing": true,
+    "walkable": false,
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 0,
+                "y": 2,
+                "w": 1,
+                "h": 3
+              },
+              "base": {
+                "x": 0,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          },
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 1,
+                "y": 2,
+                "w": 1,
+                "h": 3
+              },
+              "base": {
+                "x": 0,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 2,
+                "y": 2,
+                "w": 3,
+                "h": 1
+              },
+              "base": {
+                "x": 1,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          },
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 2,
+                "y": 3,
+                "w": 3,
+                "h": 1
+              },
+              "base": {
+                "x": 1,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 5,
+                "y": 2,
+                "w": 1,
+                "h": 3
+              },
+              "base": {
+                "x": 0,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          },
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 6,
+                "y": 2,
+                "w": 1,
+                "h": 3
+              },
+              "base": {
+                "x": 0,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 7,
+                "y": 2,
+                "w": 3,
+                "h": 1
+              },
+              "base": {
+                "x": 1,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          },
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 7,
+                "y": 3,
+                "w": 3,
+                "h": 1
+              },
+              "base": {
+                "x": 1,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "snake",
+    "name": "Snake",
+    "height": 1,
+    "type": "directional",
+    "kind": "prop",
+    "attributes": {},
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 0,
+                "y": 5,
+                "w": 1,
+                "h": 3
+              },
+              "base": {
+                "x": 0,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          },
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 1,
+                "y": 5,
+                "w": 1,
+                "h": 3
+              },
+              "base": {
+                "x": 0,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 2,
+                "y": 5,
+                "w": 3,
+                "h": 1
+              },
+              "base": {
+                "x": 1,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          },
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 2,
+                "y": 6,
+                "w": 3,
+                "h": 1
+              },
+              "base": {
+                "x": 1,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 5,
+                "y": 5,
+                "w": 1,
+                "h": 3
+              },
+              "base": {
+                "x": 0,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          },
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 6,
+                "y": 5,
+                "w": 1,
+                "h": 3
+              },
+              "base": {
+                "x": 0,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 7,
+                "y": 5,
+                "w": 3,
+                "h": 1
+              },
+              "base": {
+                "x": 1,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          },
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 7,
+                "y": 6,
+                "w": 3,
+                "h": 1
+              },
+              "base": {
+                "x": 1,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
   }
 ]
