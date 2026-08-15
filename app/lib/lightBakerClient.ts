@@ -5,7 +5,7 @@
  * that a worker is involved — attach one and edits stop costing frames, attach
  * nothing and everything bakes inline exactly as it always did.
  */
-import type { ChunkBaker, ChunkLight, WorldRect } from "./lightingChunks";
+import type { BakedChunk, ChunkBaker, WorldRect } from "./lightingChunks";
 import {
   type BakerRequest,
   type BakerResponse,
@@ -26,7 +26,7 @@ export function canBakeOffThread(): boolean {
 }
 
 type Pending = {
-  resolve: (chunks: Map<string, ChunkLight>) => void;
+  resolve: (chunks: Map<string, BakedChunk>) => void;
   reject: (err: Error) => void;
 };
 
@@ -70,12 +70,12 @@ export class WorkerChunkBaker implements ChunkBaker {
     if (patch) this.post({ type: "patch", patch });
   }
 
-  bake(rect: WorldRect): Promise<Map<string, ChunkLight>> {
+  bake(rect: WorldRect, timeMs: number): Promise<Map<string, BakedChunk>> {
     if (this.disposed) return Promise.reject(new Error("baker disposed"));
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
-      this.post({ type: "bake", id, rect });
+      this.post({ type: "bake", id, rect, timeMs });
     });
   }
 
@@ -98,9 +98,9 @@ export class WorkerChunkBaker implements ChunkBaker {
       entry.reject(new Error(message.message));
       return;
     }
-    const chunks = new Map<string, ChunkLight>();
+    const chunks = new Map<string, BakedChunk>();
     for (const [key, wire] of message.chunks) {
-      chunks.set(key, new Map(wire));
+      chunks.set(key, { planes: new Map(wire.planes), animated: wire.animated });
     }
     entry.resolve(chunks);
   }

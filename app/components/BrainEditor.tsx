@@ -2,6 +2,10 @@ import {
   ANY_STATE,
   ATTACKER_SELECTOR,
   SPEAKER_SELECTOR,
+  isSelector,
+  nearest,
+  selectorKey,
+  slot,
   validateBrain,
   type BrainActionDef,
   type BrainConditionDef,
@@ -16,11 +20,13 @@ import {
   ACTION_NAMES,
   CONDITIONS,
   CONDITION_NAMES,
+  DEFAULT_SELECTOR,
   EFFECTS,
   EFFECT_NAMES,
-  LIVE_SELECTOR,
   type ParamSpec,
 } from "../lib/brainCatalog";
+import { PLAYER_TILE_ID } from "../game/constants";
+import { resolveActor, type TileDef } from "../lib/types";
 import { DragDropProvider } from "@dnd-kit/react";
 import { isSortable, useSortable } from "@dnd-kit/react/sortable";
 import { Button, Input, Segmented, Select, Switch } from "../ui";
@@ -45,6 +51,8 @@ import { Button, Input, Segmented, Select, Switch } from "../ui";
 type Props = {
   /** The brain, or undefined on a tile that has none yet. */
   brain: BrainDef | undefined;
+  /** Whole library — the `nearest:` picker names bodies out of it. */
+  tiles: TileDef[];
   onChange: (next: BrainDef | undefined) => void;
 };
 
@@ -55,19 +63,76 @@ const EMPTY_BRAIN: BrainDef = {
 };
 
 /**
+ * Tiles worth offering as a `nearest` target — the ones a body can actually be.
+ *
+ * Every tile in the library would be a picker with a hundred walls and floors in
+ * it, none of which anything is ever standing on. The player is named explicitly
+ * because it is a body by virtue of somebody connecting to it rather than by an
+ * authored flag, so {@link resolveActor} does not see it.
+ *
+ * Sorted so the picker does not reshuffle when the library is reordered, with the
+ * player first because it is the target nearly every brain wants.
+ */
+export function bodyTileIds(tiles: TileDef[]): string[] {
+  const ids = tiles
+    .filter((tile) => tile.id !== PLAYER_TILE_ID && resolveActor(tile))
+    .map((tile) => tile.id)
+    .sort();
+  return [PLAYER_TILE_ID, ...ids];
+}
+
+/**
+ * One offerable selector: the value itself, a stable id for the `<select>`, and
+ * what to call it on screen.
+ *
+ * The key exists because a dropdown trades in strings and a selector is an
+ * object — it is how a chosen option is matched back to the thing it stands for,
+ * and nothing else reads it.
+ */
+export type SelectorOption = {
+  key: string;
+  label: string;
+  selector: Selector;
+};
+
+/**
  * The live queries, plus every slot the brain's transitions bind.
+ *
+ * One `nearest` per tile something can be standing on, which is what turns the
+ * picker into the whole vocabulary of relationships: the player to hunt, the
+ * creature's own tile to flock with, some third one to follow. The editor cannot
+ * know which a brain means, so it offers all of them.
  *
  * `speaker` and `attacker` are offered everywhere rather than only on the
  * transitions that hear or are hit, because the editor would have to know which
  * condition a bind sits beside to say otherwise — and a selector that answers
  * nobody is already the documented behaviour, not a broken brain.
  */
-export function selectorOptions(brain: BrainDef): string[] {
+export function selectorOptions(
+  brain: BrainDef,
+  tiles: TileDef[],
+): SelectorOption[] {
+  const named = new Map(tiles.map((tile) => [tile.id, tile.name || tile.id]));
+  const options: SelectorOption[] = bodyTileIds(tiles).map((tileId) => ({
+    key: `nearest:${tileId}`,
+    label: `nearest ${named.get(tileId) ?? tileId}`,
+    selector: nearest(tileId),
+  }));
+
+  options.push(
+    { key: "speaker", label: "speaker", selector: SPEAKER_SELECTOR },
+    { key: "attacker", label: "attacker", selector: ATTACKER_SELECTOR },
+  );
+
   const slots = new Set<string>();
   for (const t of brain.transitions) {
-    for (const slot of Object.keys(t.bind ?? {})) slots.add(`$${slot}`);
+    for (const name of Object.keys(t.bind ?? {})) slots.add(name);
   }
-  return [LIVE_SELECTOR, SPEAKER_SELECTOR, ATTACKER_SELECTOR, ...slots];
+  for (const name of slots) {
+    options.push({ key: `$${name}`, label: `$${name}`, selector: slot(name) });
+  }
+
+  return options;
 }
 
 /** Pull the item at `from` out and drop it back in at `to`. */
@@ -127,7 +192,7 @@ export function renamedState(brain: BrainDef, oldName: string, newName: string):
   };
 }
 
-export function BrainEditor({ brain, onChange }: Props) {
+export function BrainEditor({ brain, tiles, onChange }: Props) {
   if (!brain) {
     return (
       <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
@@ -144,7 +209,7 @@ export function BrainEditor({ brain, onChange }: Props) {
   }
 
   const stateNames = Object.keys(brain.states);
-  const selectors = selectorOptions(brain);
+  const selectors = selectorOptions(brain, tiles);
   const issues = validateBrain(brain);
 
   const setState = (name: string, next: BrainStateDef) => {
@@ -250,7 +315,7 @@ function StateCard({
 }: {
   name: string;
   state: BrainStateDef;
-  selectors: string[];
+  selectors: SelectorOption[];
   taken: string[];
   onRename: (next: string) => void;
   onChange: (next: BrainStateDef) => void;
@@ -372,7 +437,7 @@ function VerbList<T extends BrainActionDef | BrainEffectDef>({
   names: string[];
   registry: Record<string, { label: string; hint: string; params: ParamSpec[]; make: () => T }>;
   discriminant: "action" | "effect";
-  selectors: string[];
+  selectors: SelectorOption[];
   onChange: (next: T[]) => void;
 }) {
   const add = () => onChange([...items, registry[names[0]!]!.make()]);
@@ -425,7 +490,7 @@ function VerbRow<T extends BrainActionDef | BrainEffectDef>({
   names: string[];
   registry: Record<string, { label: string; hint: string; params: ParamSpec[]; make: () => T }>;
   discriminant: "action" | "effect";
-  selectors: string[];
+  selectors: SelectorOption[];
   onChange: (next: T) => void;
   onRemove: () => void;
 }) {
@@ -472,7 +537,7 @@ function TransitionsTable({
 }: {
   brain: BrainDef;
   stateNames: string[];
-  selectors: string[];
+  selectors: SelectorOption[];
   onChange: (next: BrainTransitionDef[]) => void;
 }) {
   const items = brain.transitions;
@@ -527,7 +592,7 @@ function TransitionRow({
   index: number;
   transition: BrainTransitionDef;
   stateNames: string[];
-  selectors: string[];
+  selectors: SelectorOption[];
   onChange: (next: BrainTransitionDef) => void;
   onRemove: () => void;
 }) {
@@ -604,42 +669,84 @@ function BindField({
   onChange,
 }: {
   transition: BrainTransitionDef;
-  selectors: string[];
+  selectors: SelectorOption[];
   onChange: (next: BrainTransitionDef) => void;
 }) {
   const entry = Object.entries(transition.bind ?? {})[0];
-  const slot = entry?.[0] ?? "";
-  const source = entry?.[1] ?? LIVE_SELECTOR;
+  const slotName = entry?.[0] ?? "";
+  const source = entry?.[1] ?? DEFAULT_SELECTOR;
 
-  const set = (nextSlot: string, nextSource: string) => {
+  const set = (nextSlot: string, nextSource: Selector) => {
     const clean = nextSlot.trim();
     const { bind: _drop, ...rest } = transition;
     if (!clean) {
       onChange(rest);
       return;
     }
-    onChange({ ...rest, bind: { [clean]: nextSource as Selector } });
+    onChange({ ...rest, bind: { [clean]: nextSource } });
   };
 
   return (
     <label className="flex items-center gap-1 text-[10px] uppercase text-muted">
       bind
       <Input
-        value={slot}
+        value={slotName}
         onChange={(e) => set(e.target.value, source)}
         className="w-20"
         placeholder="(none)"
         aria-label="Bind slot name"
       />
-      {slot ? (
-        <Select
+      {slotName ? (
+        <SelectorPicker
           value={source}
-          onValueChange={(v) => v && set(slot, v)}
-          options={selectors.map((s) => ({ value: s, label: s }))}
+          selectors={selectors}
+          onChange={(next) => set(slotName, next)}
           className="min-w-[6rem]"
         />
       ) : null}
     </label>
+  );
+}
+
+/**
+ * A selector as a dropdown.
+ *
+ * The one place the object/string boundary is crossed: options are keyed for the
+ * `<select>` and mapped straight back to the selector they stand for, so nothing
+ * downstream ever sees the key. A value the brain carries but the library no
+ * longer offers — a tile since renamed — still shows, rather than silently
+ * reading as whatever happens to sit first in the list.
+ */
+function SelectorPicker({
+  value,
+  selectors,
+  onChange,
+  className,
+}: {
+  value: Selector;
+  selectors: SelectorOption[];
+  onChange: (next: Selector) => void;
+  className?: string;
+}) {
+  const key = selectorKey(value);
+  const known = selectors.some((option) => option.key === key);
+  const options = known
+    ? selectors
+    : [{ key, label: `${key} (missing)`, selector: value }, ...selectors];
+
+  return (
+    <Select
+      value={key}
+      onValueChange={(next) => {
+        const picked = options.find((option) => option.key === next);
+        if (picked) onChange(picked.selector);
+      }}
+      options={options.map((option) => ({
+        value: option.key,
+        label: option.label,
+      }))}
+      className={className}
+    />
   );
 }
 
@@ -651,7 +758,7 @@ function ParamFields({
 }: {
   item: Record<string, unknown>;
   params: ParamSpec[];
-  selectors: string[];
+  selectors: SelectorOption[];
   onChange: (next: Record<string, unknown>) => void;
 }) {
   const write = (spec: ParamSpec, value: unknown) => {
@@ -686,7 +793,7 @@ function ParamField({
 }: {
   spec: ParamSpec;
   value: unknown;
-  selectors: string[];
+  selectors: SelectorOption[];
   onChange: (value: unknown) => void;
 }) {
   if (spec.kind === "boolean") {
@@ -703,10 +810,10 @@ function ParamField({
   }
   if (spec.kind === "selector") {
     return (
-      <Select
-        value={typeof value === "string" ? value : LIVE_SELECTOR}
-        onValueChange={(v) => v && onChange(v)}
-        options={selectors.map((s) => ({ value: s, label: s }))}
+      <SelectorPicker
+        value={isSelector(value) ? value : DEFAULT_SELECTOR}
+        selectors={selectors}
+        onChange={onChange}
         className="min-w-[7rem]"
       />
     );

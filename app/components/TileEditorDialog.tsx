@@ -722,7 +722,11 @@ export function TileEditorDialog({
               <strong>Actor</strong>; a malformed brain leaves the creature
               standing still.
             </p>
-            <BrainEditor brain={draft.interactions?.brain} onChange={setBrain} />
+            <BrainEditor
+              brain={draft.interactions?.brain}
+              tiles={tiles}
+              onChange={setBrain}
+            />
           </TabPanel>
 
           <TabPanel value={TAB_BATTLE}>

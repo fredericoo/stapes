@@ -625,6 +625,60 @@ occlusion when its light changes — so that test builds a synthetic lamp pair.
 Verify by starving each reach independently and confirming the matching test
 goes red.
 
+### A flicker is cached per phase, never rebaked per frame
+
+Light is authored per animation *frame* (`Frame.light`), so a torch can burn
+bright on one frame and low on the next. The bake therefore takes the animation
+clock — `WorldRenderer.animClock`, the same one the sprites read, so the light
+cannot drift out of step with the art.
+
+The clock being a bake input is the dangerous part, and the shape that makes it
+affordable is worth keeping:
+
+- **A chunk holds one bake per emission phase**, not one bake. A cycle is short
+  and repeats for ever, so after one turn of it every phase is cached and a
+  flicker costs a map lookup a frame. Rebaking on each flip would cost a full
+  chunk bake (~4.7ms) several times a second, for as long as the torch burns.
+- **Only chunks a flicker actually reaches pay anything.** `computeLightingFlood`
+  reports the varying emitters it passed (`RawLightGrid.animated`) with their
+  widest radius, and `ChunkedLighting` attributes each to the chunks within that
+  reach. Everywhere else keys on `""` and never notices the clock — that is what
+  keeps an empty field from re-stitching and re-uploading five times a second.
+- **`tileLightVaries` is what separates the two.** A lamp whose frames all emit
+  the same is not a flicker and must stay single-phase; treating every animated
+  emitter as varying doubles the bakes and the memory for no visible change.
+- The cache budget is spent in baked *planes*, not chunks, since a chunk near a
+  torch holds several.
+- **Collecting the varying emitters is its own pass, and must stay one.** Those
+  few lines started out folded into the emitter gather, where they cost the
+  whole bake ~6ms — not every run, which is what made it confusing: the flood
+  compiled at either ~23ms or ~29ms depending on the process. Walking the cells
+  a second time is far cheaper than the bake losing its compilation. Measure
+  before folding anything else into that loop.
+- **Phase lookups are memoised per clock reading** (`ChunkedLighting.defPhase`).
+  A frame asks for the same tile's phase once per chunk of the window, up to
+  three times over; answering it walks the tile's frames. Without the memo a
+  quiet frame cost ~17µs instead of ~5µs.
+
+Emission that varies per frame reaches the dynamic overlay too, and the two
+kinds of override take it differently:
+
+- **A body override is a position.** Its light is read from the stack at paint
+  time, so `timeMs` threaded through `overlayEmitterOverridesPacked` is what
+  animates it — and whether to emit an override at all asks whether the tile can
+  *ever* emit (`tileCanEmitLight`), not what it is emitting this instant.
+  Resolving the live frame there drops the override on the dark half of a
+  flicker and the light never comes back.
+- **A carried light arrives already resolved**, since it is on no cell for the
+  cast to read. It is therefore resolved against `WorldRenderer.animTimeMs`
+  where it is put on the override, or a torch would flicker on the floor and
+  burn flat the moment it went in a bag. `emitterOverridesKey` hashes its
+  values, so the overlay repaints when it changes.
+
+The editor (`EditorRenderer`) is unchunked and bakes the whole map on a
+debounce, so it deliberately stays at frame 0 — animating it would rebake
+everything several times a second. Flicker is a play-mode effect.
+
 ### Bound the light cache, do not thrash it
 
 `ChunkedLighting` caches baked chunks in world space, prefetches one ring chunk

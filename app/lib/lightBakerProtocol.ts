@@ -27,13 +27,28 @@ export type MapPatch = {
 export type BakerRequest =
   | { type: "init"; tiles: TileDef[]; omit: string[]; map: MapFile }
   | { type: "patch"; patch: MapPatch }
-  | { type: "bake"; id: number; rect: WorldRect };
+  /**
+   * `timeMs` is the animation clock the bake should read emitters at. It is
+   * carried rather than read on arrival because the clock will have moved by
+   * then, and the caller files the result under the phase it *asked* for.
+   */
+  | { type: "bake"; id: number; rect: WorldRect; timeMs: number };
 
 /** One chunk's planes, flattened for the wire: `[z, rgba]` per level. */
 export type WirePlanes = Array<[number, Uint8Array]>;
 
+/**
+ * One chunk as it crosses back. `animated` travels with the planes because it
+ * is the bake — not the caller — that knows which clock-driven emitters reach
+ * this chunk, and the cache keys its phases off exactly that list.
+ */
+export type WireChunk = {
+  planes: WirePlanes;
+  animated: string[];
+};
+
 export type BakerResponse =
-  | { type: "baked"; id: number; chunks: Array<[string, WirePlanes]> }
+  | { type: "baked"; id: number; chunks: Array<[string, WireChunk]> }
   | { type: "failed"; id: number; message: string };
 
 /**

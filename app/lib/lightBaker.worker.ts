@@ -12,6 +12,7 @@ import {
   applyMapPatch,
   type BakerRequest,
   type BakerResponse,
+  type WireChunk,
   type WirePlanes,
 } from "./lightBakerProtocol";
 import type { MapFile, TileDef } from "./types";
@@ -52,19 +53,19 @@ self.onmessage = (event: MessageEvent<BakerRequest>) => {
   }
 
   try {
-    const baked = bakeRegion(map, tilesById, omit, msg.rect);
-    const chunks: Array<[string, WirePlanes]> = [];
+    const baked = bakeRegion(map, tilesById, omit, msg.rect, msg.timeMs);
+    const chunks: Array<[string, WireChunk]> = [];
     // Every plane is freshly allocated by the bake and read by nobody here, so
     // they go across by transfer rather than by copy — the buffers are simply
     // handed over and this side is left with detached views it never touches.
     const transfer: Transferable[] = [];
-    for (const [key, planes] of baked) {
+    for (const [key, chunk] of baked) {
       const wire: WirePlanes = [];
-      for (const [z, rgba] of planes) {
+      for (const [z, rgba] of chunk.planes) {
         wire.push([z, rgba]);
         transfer.push(rgba.buffer);
       }
-      chunks.push([key, wire]);
+      chunks.push([key, { planes: wire, animated: chunk.animated }]);
     }
     reply({ type: "baked", id: msg.id, chunks }, transfer);
   } catch (err) {

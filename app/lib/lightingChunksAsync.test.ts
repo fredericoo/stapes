@@ -11,9 +11,9 @@ import mapJson from "../../data/map.json";
 import tilesJson from "../../data/tiles.json";
 import { chunkifyMap, getStack, replaceStack } from "./mapData";
 import {
+  type BakedChunk,
   bakeRegion,
   type ChunkBaker,
-  type ChunkLight,
   ChunkedLighting,
   type WorldRect,
 } from "./lightingChunks";
@@ -39,11 +39,11 @@ class ManualBaker implements ChunkBaker {
   /** Map each queued bake reads from — set before the bake is released. */
   map: MapFile = base;
 
-  bake(rect: WorldRect): Promise<Map<string, ChunkLight>> {
+  bake(rect: WorldRect, timeMs: number): Promise<Map<string, BakedChunk>> {
     this.asked.push(rect);
     return new Promise((resolve) => {
       this.queue.push(() =>
-        resolve(bakeRegion(this.map, tilesById, omit, rect)),
+        resolve(bakeRegion(this.map, tilesById, omit, rect, timeMs)),
       );
     });
   }
@@ -52,13 +52,19 @@ class ManualBaker implements ChunkBaker {
     return this.queue.length;
   }
 
-  /** Release everything queued and let the promise callbacks run. */
+  /**
+   * Release everything queued and let the promise callbacks run to the end.
+   *
+   * A macrotask, not a couple of microtasks. The cache hangs its bookkeeping off
+   * `.then().catch().finally()`, so the slot it counts requests against is only
+   * given back on the third tick — awaiting two left it permanently held, and
+   * every later refresh was silently declined for want of it.
+   */
   async flush() {
     const queued = this.queue;
     this.queue = [];
     for (const run of queued) run();
-    await Promise.resolve();
-    await Promise.resolve();
+    await new Promise((resolve) => setTimeout(resolve, 0));
   }
 }
 
@@ -73,6 +79,15 @@ function putTorch(m: MapFile): MapFile {
 function planeOf(grid: { levels: Map<number, { rgba: Uint8Array }> }) {
   return Array.from(grid.levels.get(EDIT.z)!.rgba);
 }
+
+/**
+ * Two clock readings the fixture torch shows different light at. Its frames run
+ * 180ms each and differ only in intensity, so these are its bright half and its
+ * dim one — a real flicker rather than a synthetic one, which matters because
+ * the phase key is built from the tile's own frames.
+ */
+const BRIGHT_MS = 0;
+const DIM_MS = 200;
 
 describe("off-thread chunk refresh", () => {
   it("keeps drawing the old light instead of baking in the frame", async () => {
@@ -209,5 +224,99 @@ describe("off-thread chunk refresh", () => {
     // asks, and nothing is ever left stale.
     expect(lighting.bakedLastCall).toBeGreaterThan(0);
     expect(lighting.staleChunks).toBe(0);
+  });
+});
+
+describe("off-thread refresh and the animation clock", () => {
+  it("fetches the phase it is missing without stopping to bake it", async () => {
+    const baker = new ManualBaker();
+    const lighting = new ChunkedLighting(tilesById, omit);
+    lighting.setBaker(baker);
+    const lit = putTorch(base);
+    baker.map = lit;
+
+    lighting.syncTo(null, lit);
+    const bright = planeOf(lighting.packedGridFor(lit, WINDOW, BRIGHT_MS));
+    await baker.flush();
+
+    // The clock moves to the torch's other frame. That phase has never been
+    // baked, and baking it here is exactly what the worker exists to avoid.
+    const first = lighting.packedGridFor(lit, WINDOW, DIM_MS);
+    expect(lighting.bakedLastCall).toBe(0);
+    // Drawn from the phase it does have, so the chunk is lit rather than black.
+    expect(planeOf(first)).toEqual(bright);
+
+    await baker.flush();
+
+    const settled = planeOf(lighting.packedGridFor(lit, WINDOW, DIM_MS));
+    expect(settled).not.toEqual(bright);
+    // And the phase it fell back to is still there to return to.
+    expect(planeOf(lighting.packedGridFor(lit, WINDOW, BRIGHT_MS))).toEqual(
+      bright,
+    );
+  });
+
+  it("settles on the same light the synchronous cache bakes", async () => {
+    const baker = new ManualBaker();
+    const lit = putTorch(base);
+    baker.map = lit;
+
+    const async_ = new ChunkedLighting(tilesById, omit);
+    async_.setBaker(baker);
+    async_.syncTo(null, lit);
+    const sync = new ChunkedLighting(tilesById, omit);
+    sync.syncTo(null, lit);
+
+    // Turn the cycle a few times. Each pass asks for one phase and lands the
+    // one asked for last, which is exactly how it warms up in a running frame
+    // loop — a phase is a bake behind until its turn comes round again.
+    for (let turn = 0; turn < 3; turn++) {
+      for (const timeMs of [BRIGHT_MS, DIM_MS]) {
+        async_.packedGridFor(lit, WINDOW, timeMs);
+        await baker.flush();
+      }
+    }
+
+    for (const timeMs of [BRIGHT_MS, DIM_MS]) {
+      expect(
+        planeOf(async_.packedGridFor(lit, WINDOW, timeMs)),
+        `phase at ${timeMs}ms`,
+      ).toEqual(planeOf(sync.packedGridFor(lit, WINDOW, timeMs)));
+    }
+  });
+
+  it("throws away every phase of a chunk an edit reached", async () => {
+    const baker = new ManualBaker();
+    const lighting = new ChunkedLighting(tilesById, omit);
+    lighting.setBaker(baker);
+    const lit = putTorch(base);
+    baker.map = lit;
+
+    lighting.syncTo(null, lit);
+    for (let turn = 0; turn < 3; turn++) {
+      for (const timeMs of [BRIGHT_MS, DIM_MS]) {
+        lighting.packedGridFor(lit, WINDOW, timeMs);
+        await baker.flush();
+      }
+    }
+    const beforeEdit = planeOf(lighting.packedGridFor(lit, WINDOW, BRIGHT_MS));
+    // Reading a phase kicks off a speculative prefetch; let it land so the edit
+    // below is not queued behind it.
+    await baker.flush();
+
+    // A second torch goes up nearby. Both phases are wrong now, not just the
+    // one the clock happens to be at, so the other must not survive to be drawn
+    // when the flicker comes back round to it.
+    const brighter = replaceStack(lit, EDIT.x + 2, EDIT.y, EDIT.z, [
+      { tileId: "torch" },
+    ]);
+    baker.map = brighter;
+    lighting.syncTo(lit, brighter);
+    lighting.packedGridFor(brighter, WINDOW, DIM_MS);
+    await baker.flush();
+
+    expect(
+      planeOf(lighting.packedGridFor(brighter, WINDOW, BRIGHT_MS)),
+    ).not.toEqual(beforeEdit);
   });
 });
