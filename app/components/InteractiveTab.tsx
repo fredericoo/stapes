@@ -1,5 +1,6 @@
 import type {
   ClimbAbility,
+  DecayInteraction,
   EmitInteraction,
   PlateComparison,
   PressurePlateInteraction,
@@ -11,6 +12,7 @@ import type {
   TileInteractions,
 } from "../lib/interactions";
 import {
+  DEFAULT_DECAY,
   DEFAULT_EMIT,
   DEFAULT_PRESSURE_PLATE,
   DEFAULT_PUSH,
@@ -37,6 +39,22 @@ const COMPARISON_OPTIONS: Array<{ value: PlateComparison; label: string }> = [
 
 /** Deepest a plate can be buried: a stack may overflow one level into the next. */
 const MAX_PLATE_HEIGHT = HEIGHT_PER_LEVEL * 2;
+
+const MS_PER_SECOND = 1000;
+
+/**
+ * Authored in seconds and stored in milliseconds. A lifetime keeps a world
+ * ticking for its whole length (see `GameSession.isAtRest`), so the unit the
+ * author types in is the one that makes that cost obvious — "30" reads as a
+ * spell of blood on the floor where "30000" reads as a number.
+ */
+const MAX_DECAY_SECONDS = 3600;
+
+/** A cleared number field reads as the shortest legal lifetime, not as NaN. */
+function secondsFromInput(raw: string): number {
+  const parsed = Number.parseFloat(raw);
+  return Number.isNaN(parsed) ? 1 : parsed;
+}
 
 const KIND_OPTIONS: Array<{ value: TileKind; label: string }> = [
   { value: "prop", label: "Prop" },
@@ -65,6 +83,7 @@ type Props = {
 export function InteractiveTab({ draft, onChange, tiles, tilesets }: Props) {
   const push = draft.interactions?.push;
   const sw = draft.interactions?.switch;
+  const decay = draft.interactions?.decay;
   const plate = draft.interactions?.pressurePlate;
   const emit = draft.interactions?.emit;
   const receive = draft.interactions?.receive;
@@ -126,6 +145,37 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets }: Props) {
   const patchSwitch = (patch: Partial<SwitchInteraction>) => {
     if (!sw) return;
     setSwitch({ ...sw, ...patch });
+  };
+
+  const setDecay = (next: DecayInteraction | undefined) => {
+    patchKind("decay", next ?? null);
+  };
+
+  const patchDecay = (patch: Partial<DecayInteraction>) => {
+    if (!decay) return;
+    setDecay({ ...decay, ...patch });
+  };
+
+  /**
+   * Move one end of the lifetime range, carrying the other with it rather than
+   * letting it be crossed.
+   *
+   * An inverted range parses as "does not decay", so a tile whose shortest
+   * lifetime was dragged past its longest would go quietly inert with both
+   * numbers still sitting there — the one failure the author could not see. The
+   * pair is kept ordered here so nothing authored through this dialog can reach
+   * that state.
+   */
+  const patchDecayBound = (end: "fromMs" | "toMs", seconds: number) => {
+    if (!decay) return;
+    const ms = Math.round(
+      Math.min(MAX_DECAY_SECONDS, Math.max(1, seconds)) * MS_PER_SECOND,
+    );
+    setDecay(
+      end === "fromMs"
+        ? { ...decay, fromMs: ms, toMs: Math.max(ms, decay.toMs) }
+        : { ...decay, toMs: ms, fromMs: Math.min(ms, decay.fromMs) },
+    );
   };
 
   const setPlate = (next: PressurePlateInteraction | undefined) => {
@@ -272,6 +322,83 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets }: Props) {
                 and it reads as “Switch”.
               </span>
             </label>
+          </div>
+        ) : null}
+      </section>
+
+      <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
+        <label className="flex items-center gap-2 text-sm font-bold">
+          <Switch
+            checked={Boolean(decay)}
+            onCheckedChange={(on) =>
+              setDecay(on ? { ...DEFAULT_DECAY } : undefined)
+            }
+            ariaLabel="Decays over time"
+          />
+          Decay
+        </label>
+        <p className="text-[11px] leading-snug text-muted">
+          Switch, but the input is time rather than a click. After its lifetime
+          the placement becomes another tile — or goes away, if you leave the
+          target blank. Chain it by giving that tile a decay of its own (blood →
+          stain → nothing). The swap is refused when the target would not fit
+          under whatever has been stacked on it, and a placement somebody is
+          driving is left alone.
+        </p>
+
+        {decay ? (
+          <div className="flex flex-col gap-3 border-t-2 border-border pt-3">
+            <div className="flex flex-col gap-1 text-xs">
+              <span className="font-bold uppercase text-muted">Lifetime</span>
+              <span className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={1}
+                  max={MAX_DECAY_SECONDS}
+                  step={1}
+                  value={decay.fromMs / MS_PER_SECOND}
+                  onChange={(e) =>
+                    patchDecayBound("fromMs", secondsFromInput(e.target.value))
+                  }
+                  className="w-20"
+                  aria-label="Shortest lifetime in seconds"
+                />
+                <span className="font-normal text-muted">to</span>
+                <Input
+                  type="number"
+                  min={1}
+                  max={MAX_DECAY_SECONDS}
+                  step={1}
+                  value={decay.toMs / MS_PER_SECOND}
+                  onChange={(e) =>
+                    patchDecayBound("toMs", secondsFromInput(e.target.value))
+                  }
+                  className="w-20"
+                  aria-label="Longest lifetime in seconds"
+                />
+                <span className="font-normal text-muted">seconds</span>
+              </span>
+              <span className="text-[11px] font-normal leading-snug text-muted">
+                Each placement draws its own lifetime from this range when it
+                appears, and keeps it. A spread is what stops a burst of blood
+                from one fight vanishing all on the same frame — set both ends
+                the same for an exact lifetime. Counted in simulated time, so it
+                does not run on while the world is empty, and a world with
+                anything decaying in it keeps ticking until the longest of these
+                is up. Keep it short: this is meant for blood and bodies, not
+                for weathering a wall.
+              </span>
+            </div>
+
+            <TileIdMultiSelect
+              tiles={tiles.filter((t) => t.id !== draft.id)}
+              tilesets={tilesets}
+              selectedIds={decay.tileId ? [decay.tileId] : []}
+              onChange={(ids) => patchDecay({ tileId: ids[0] ?? "" })}
+              label="Becomes"
+              emptyHint="Nothing — the placement is removed when its time is up. Pick a tile to leave something behind instead."
+              single
+            />
           </div>
         ) : null}
       </section>

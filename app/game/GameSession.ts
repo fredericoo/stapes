@@ -113,6 +113,7 @@ import {
   settleSignals,
   type ExtraEmitter,
 } from "./signals";
+import { DecayIndex, applyDecay, findDecayCells } from "./decay";
 import { sanitizeChatText } from "../net/chat";
 
 export type { ObjectRef } from "./affordances";
@@ -567,6 +568,19 @@ export class GameSession implements PlaySession {
    * its owner. Same index discipline as {@link plateCells}.
    */
   private readonly looseGravityCells = new Map<string, Coord>();
+  /**
+   * Placements counting down to becoming something else, or to nothing.
+   *
+   * Its own object rather than another cell index beside the three above,
+   * because it is the one that carries a *clock*: the others answer "which
+   * cells are worth re-reading" and this one also answers "when". Same index
+   * discipline all the same — {@link reindexCells} is what arms it, so any new
+   * site that places a tile has to reindex the cell or that tile never ages.
+   *
+   * Assigned in the constructor rather than here, because it draws its lifetimes
+   * from {@link rng} and a field initialiser would run before that exists.
+   */
+  private readonly decay: DecayIndex;
   /** Map identity the last settle pass read. See {@link settleBoardNow}. */
   private settledMap: MapFile | null = null;
   private accumulatorMs = 0;
@@ -679,6 +693,7 @@ export class GameSession implements PlaySession {
     this.map = structuredClone(map);
     this.tilesById = tilesByIdFromList(tiles);
     this.rng = new Rng(seed);
+    this.decay = new DecayIndex(this.rng);
 
     if (spawnAt) {
       this.spawnAt = spawnAt;
@@ -715,6 +730,12 @@ export class GameSession implements PlaySession {
     }
     for (const cell of findLooseGravityCells(this.map, this.tilesById)) {
       this.looseGravityCells.set(cellKey(cell), cell);
+    }
+    // Authored decay starts counting from the moment the world opens, which is
+    // also how a resumed one recovers: the deadlines were never checkpointed,
+    // so whatever is on the board gets a fresh lifetime rather than none.
+    for (const cell of findDecayCells(this.map, this.tilesById)) {
+      this.decay.armCell(this.map, cell, this.tilesById);
     }
     // An authored map opens in the state its load implies — a boulder already
     // sitting on a plate means that plate starts pressed, not pressed one tick
@@ -918,10 +939,14 @@ export class GameSession implements PlaySession {
     return actor;
   }
 
-  /** Keep both indexes true for cells whose stack just changed. */
+  /** Keep every cell index true for cells whose stack just changed. */
   private reindexCells(cells: Iterable<Coord>) {
     for (const cell of cells) {
       const key = cellKey(cell);
+      // Before the membership checks, and additive rather than a set/delete
+      // pair like the rest: the index holds a deadline, not a fact about the
+      // board, and the ones already in it are the ones that must not be reset.
+      this.decay.armCell(this.map, cell, this.tilesById);
       if (cellHasPlate(this.map, cell, this.tilesById)) {
         this.plateCells.set(key, cell);
       } else {
@@ -1071,10 +1096,28 @@ export class GameSession implements PlaySession {
       this.tickSlide(actor, tickMs);
       this.tickMotion(actor, tickMs);
     }
+    // Before the settle, so a body that rots away this tick drops whatever was
+    // resting on it and releases whatever plate it held on the same frame,
+    // rather than one settle bleeding into the next.
+    this.decay.advance(tickMs);
+    this.applyDueDecay();
+
     // Last, and once for the whole board: plates and channels answer to the
     // board the tick leaves behind, not to any particular actor having caused
     // it. Running this per actor would settle the same plates N times.
     this.settleBoardNow();
+  }
+
+  /** Turn everything whose time is up, and re-arm what it turned into. */
+  private applyDueDecay() {
+    const due = this.decay.takeDue();
+    if (due.length === 0) return;
+    const { map, changed } = applyDecay(this.map, due, this.tilesById);
+    this.map = map;
+    // Which also starts the next countdown where a tile decayed into another
+    // that decays in turn — blood to a stain to nothing, with no chain to
+    // author beyond each tile naming the next.
+    this.reindexCells(changed);
   }
 
   /**
@@ -2070,6 +2113,13 @@ export class GameSession implements PlaySession {
     // next brain tick is what delivers it, and stopping the clock now would drop
     // it entirely rather than merely delay it.
     if (this.pendingHurt.size > 0) return false;
+    // Something is counting down, and this loop is the only clock it has. The
+    // world therefore stays awake for as long as the longest lifetime on the
+    // board — which is the price of decay being simulated rather than read off
+    // the wall, and why a lifetime is authored in seconds. Blood keeps a world
+    // ticking for half a minute after the last blow; a tile authored to decay
+    // in an hour would keep it ticking for an hour.
+    if (this.decay.pending()) return false;
 
     let observed = false;
     let thinking = false;
