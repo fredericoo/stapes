@@ -1,8 +1,5 @@
 import {
   ANY_STATE,
-  ATTACKER_SELECTOR,
-  SPEAKER_SELECTOR,
-  slotOf,
   type BrainActionDef,
   type BrainConditionDef,
   type BrainDef,
@@ -128,8 +125,12 @@ export type BrainContext = {
   rng: Rng;
   /** Where this creature is standing. */
   self: Coord;
-  /** Nearest connected player, or null in a world with nobody in it. */
-  nearestPlayerId(): string | null;
+  /**
+   * Nearest other body standing on `tileId`, or null when there is none — a
+   * world with nobody in it, or a creature that is the last of its kind. Never
+   * this creature itself. @see NEAREST_PREFIX
+   */
+  nearestOnTile(tileId: string): string | null;
   /** Where an actor is, or null once they are off the board. */
   positionOf(actorId: string): Coord | null;
   /**
@@ -228,17 +229,28 @@ function footing(
   return directions.filter((direction) => !ctx.wouldDrop(direction));
 }
 
-/** Who a selector names, right now. */
+/**
+ * Who a selector names, right now.
+ *
+ * One arm per kind, exhaustively — which is the half of the tagged shape that
+ * pays off here: a new kind added to the union is a type error in this switch
+ * rather than a selector that silently answers nobody.
+ */
 function identify(
   selector: Selector,
   memory: BrainMemory,
   ctx: BrainContext,
 ): string | null {
-  const slot = slotOf(selector);
-  if (slot !== null) return memory.blackboard[slot] ?? null;
-  if (selector === SPEAKER_SELECTOR) return memory.heardFrom;
-  if (selector === ATTACKER_SELECTOR) return memory.hurtBy;
-  return ctx.nearestPlayerId();
+  switch (selector.type) {
+    case "slot":
+      return memory.blackboard[selector.data.name] ?? null;
+    case "speaker":
+      return memory.heardFrom;
+    case "attacker":
+      return memory.hurtBy;
+    case "nearest":
+      return ctx.nearestOnTile(selector.data.tileId);
+  }
 }
 
 /** Where a selector's subject is, or null when there is nobody to point at. */

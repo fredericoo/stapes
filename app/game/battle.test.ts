@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import tilesJson from "../../data/tiles.json";
 import { resolveBattler } from "../lib/battler";
-import { resolveBrain } from "../lib/brain";
+import { ATTACKER_SELECTOR, resolveBrain, slot } from "../lib/brain";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef, normalizeTiles } from "../lib/types";
@@ -68,7 +68,7 @@ const brawlerBrain = {
     idle: { do: [{ action: "hold" as const }] },
     fighting: {
       do: [
-        { action: "attack" as const, of: "$foe" as const },
+        { action: "attack" as const, of: slot("foe") },
         { action: "hold" as const },
       ],
     },
@@ -77,7 +77,7 @@ const brawlerBrain = {
     {
       from: "any",
       if: { cond: "attacked" as const },
-      bind: { foe: "attacker" as const },
+      bind: { foe: ATTACKER_SELECTOR },
       to: "fighting",
     },
   ],
@@ -472,17 +472,17 @@ describe("the authored creatures", () => {
     const retaliation = brain.transitions.find(
       (t) => t.if.cond === "attacked",
     );
-    expect(retaliation?.bind).toEqual({ foe: "attacker" });
+    expect(retaliation?.bind).toEqual({ foe: ATTACKER_SELECTOR });
     expect(brain.states[retaliation!.to]?.do[0]).toEqual({
       action: "attack",
-      of: "$foe",
+      of: slot("foe"),
     });
   });
 
   it("spooks the deer at whoever hit it", () => {
     const brain = resolveBrain(byId.deer!)!;
     const spook = brain.transitions.find((t) => t.if.cond === "attacked");
-    expect(spook?.bind).toEqual({ spooked: "attacker" });
+    expect(spook?.bind).toEqual({ spooked: ATTACKER_SELECTOR });
     expect(spook?.to).toBe("flee");
   });
 });

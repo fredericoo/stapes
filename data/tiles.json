@@ -1753,7 +1753,12 @@
             "do": [
               {
                 "action": "step_toward",
-                "of": "$caller"
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "caller"
+                  }
+                }
               },
               {
                 "action": "hold"
@@ -1764,7 +1769,12 @@
             "do": [
               {
                 "action": "step_toward",
-                "of": "$caller"
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "caller"
+                  }
+                }
               },
               {
                 "action": "hold"
@@ -1775,11 +1785,21 @@
             "do": [
               {
                 "action": "attack",
-                "of": "$foe"
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "foe"
+                  }
+                }
               },
               {
                 "action": "step_toward",
-                "of": "$foe"
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "foe"
+                  }
+                }
               },
               {
                 "action": "hold"
@@ -1794,7 +1814,9 @@
               "cond": "attacked"
             },
             "bind": {
-              "foe": "attacker"
+              "foe": {
+                "type": "attacker"
+              }
             },
             "to": "fighting"
           },
@@ -1807,7 +1829,9 @@
               "los": true
             },
             "bind": {
-              "caller": "speaker"
+              "caller": {
+                "type": "speaker"
+              }
             },
             "to": "answering"
           },
@@ -1838,7 +1862,12 @@
             "from": "following",
             "if": {
               "cond": "out_of_los",
-              "of": "$caller",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "caller"
+                }
+              },
               "cells": 8
             },
             "to": "idle"
@@ -1847,7 +1876,12 @@
             "from": "fighting",
             "if": {
               "cond": "out_of_range",
-              "of": "$foe",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "foe"
+                }
+              },
               "cells": 10
             },
             "to": "idle"
@@ -3646,7 +3680,12 @@
             "do": [
               {
                 "action": "step_away_from",
-                "of": "$spooked",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "spooked"
+                  }
+                },
                 "allowDrops": true
               }
             ]
@@ -3666,7 +3705,9 @@
               "cond": "attacked"
             },
             "bind": {
-              "spooked": "attacker"
+              "spooked": {
+                "type": "attacker"
+              }
             },
             "to": "flee"
           },
@@ -3674,11 +3715,21 @@
             "from": "any",
             "if": {
               "cond": "in_range",
-              "of": "nearest_player",
+              "of": {
+                "type": "nearest",
+                "data": {
+                  "tileId": "player"
+                }
+              },
               "cells": 4
             },
             "bind": {
-              "spooked": "nearest_player"
+              "spooked": {
+                "type": "nearest",
+                "data": {
+                  "tileId": "player"
+                }
+              }
             },
             "to": "flee"
           },
@@ -3693,7 +3744,12 @@
             "from": "flee",
             "if": {
               "cond": "out_of_range",
-              "of": "$spooked",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "spooked"
+                }
+              },
               "cells": 8
             },
             "to": "graze"
@@ -3702,7 +3758,12 @@
             "from": "cornered",
             "if": {
               "cond": "out_of_range",
-              "of": "$spooked",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "spooked"
+                }
+              },
               "cells": 8
             },
             "to": "graze"
@@ -4051,7 +4112,7 @@
     "name": "Rat",
     "height": 1,
     "type": "directional",
-    "kind": "prop",
+    "kind": "battler",
     "attributes": {},
     "lightPassing": true,
     "walkable": false,
@@ -4200,6 +4261,232 @@
           }
         ]
       }
+    },
+    "affectedByGravity": true,
+    "walkDurationMs": 150,
+    "interactions": {
+      "brain": {
+        "initial": "scurry",
+        "states": {
+          "scurry": {
+            "do": [
+              {
+                "action": "walk_n_steps",
+                "steps": 3
+              }
+            ]
+          },
+          "sniffing": {
+            "do": [
+              {
+                "action": "walk_n_steps",
+                "steps": 1
+              }
+            ]
+          },
+          "following": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "pack"
+                  }
+                }
+              },
+              {
+                "action": "walk_n_steps",
+                "steps": 2
+              }
+            ]
+          },
+          "gnawing": {
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "loitering": {
+            "do": [
+              {
+                "action": "walk_n_steps",
+                "steps": 3
+              }
+            ]
+          }
+        },
+        "transitions": [
+          {
+            "from": "any",
+            "if": {
+              "cond": "attacked"
+            },
+            "bind": {
+              "prey": {
+                "type": "attacker"
+              }
+            },
+            "to": "gnawing"
+          },
+          {
+            "from": "any",
+            "if": {
+              "cond": "in_los",
+              "of": {
+                "type": "nearest",
+                "data": {
+                  "tileId": "player"
+                }
+              },
+              "cells": 7
+            },
+            "bind": {
+              "prey": {
+                "type": "nearest",
+                "data": {
+                  "tileId": "player"
+                }
+              }
+            },
+            "to": "gnawing"
+          },
+          {
+            "from": "gnawing",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "prey"
+                }
+              },
+              "cells": 10
+            },
+            "to": "scurry"
+          },
+          {
+            "from": "scurry",
+            "if": {
+              "cond": "in_los",
+              "of": {
+                "type": "nearest",
+                "data": {
+                  "tileId": "rat"
+                }
+              },
+              "cells": 6
+            },
+            "bind": {
+              "pack": {
+                "type": "nearest",
+                "data": {
+                  "tileId": "rat"
+                }
+              }
+            },
+            "to": "following"
+          },
+          {
+            "from": "following",
+            "if": {
+              "cond": "out_of_los",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "pack"
+                }
+              },
+              "cells": 8
+            },
+            "to": "scurry"
+          },
+          {
+            "from": "following",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "pack"
+                }
+              },
+              "cells": 2
+            },
+            "to": "loitering"
+          },
+          {
+            "from": "loitering",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "pack"
+                }
+              },
+              "cells": 5
+            },
+            "to": "following"
+          },
+          {
+            "from": "loitering",
+            "if": {
+              "cond": "stuck"
+            },
+            "to": "sniffing"
+          },
+          {
+            "from": "scurry",
+            "if": {
+              "cond": "stuck"
+            },
+            "to": "sniffing"
+          },
+          {
+            "from": "following",
+            "if": {
+              "cond": "stuck"
+            },
+            "to": "sniffing"
+          },
+          {
+            "from": "sniffing",
+            "if": {
+              "cond": "after",
+              "ms": 900
+            },
+            "to": "scurry"
+          }
+        ]
+      },
+      "battler": {
+        "maxHp": 8,
+        "atk": 4,
+        "def": 0,
+        "acc": 55,
+        "flee": 45,
+        "spd": 68
+      }
     }
   },
   {
@@ -4207,7 +4494,7 @@
     "name": "Snake",
     "height": 1,
     "type": "directional",
-    "kind": "prop",
+    "kind": "battler",
     "attributes": {},
     "lightPassing": true,
     "affectedByGravity": true,
@@ -4355,6 +4642,134 @@
             "durationMs": 200
           }
         ]
+      }
+    },
+    "walkable": false,
+    "walkDurationMs": 320,
+    "interactions": {
+      "brain": {
+        "initial": "coiled",
+        "states": {
+          "coiled": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "slither": {
+            "do": [
+              {
+                "action": "walk_n_steps",
+                "steps": 2
+              }
+            ]
+          },
+          "striking": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "sss"
+              }
+            ],
+            "do": [
+              {
+                "action": "attack",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "prey"
+                  }
+                }
+              },
+              {
+                "action": "hold"
+              }
+            ]
+          }
+        },
+        "transitions": [
+          {
+            "from": "any",
+            "if": {
+              "cond": "attacked"
+            },
+            "bind": {
+              "prey": {
+                "type": "attacker"
+              }
+            },
+            "to": "striking"
+          },
+          {
+            "from": "any",
+            "if": {
+              "cond": "in_los",
+              "of": {
+                "type": "nearest",
+                "data": {
+                  "tileId": "player"
+                }
+              },
+              "cells": 7
+            },
+            "bind": {
+              "prey": {
+                "type": "nearest",
+                "data": {
+                  "tileId": "player"
+                }
+              }
+            },
+            "to": "striking"
+          },
+          {
+            "from": "striking",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "prey"
+                }
+              },
+              "cells": 10
+            },
+            "to": "coiled"
+          },
+          {
+            "from": "coiled",
+            "if": {
+              "cond": "after",
+              "ms": 2500
+            },
+            "to": "slither"
+          },
+          {
+            "from": "slither",
+            "if": {
+              "cond": "stuck"
+            },
+            "to": "coiled"
+          }
+        ]
+      },
+      "battler": {
+        "maxHp": 24,
+        "atk": 9,
+        "def": 1,
+        "acc": 70,
+        "flee": 20,
+        "spd": 45
       }
     }
   }

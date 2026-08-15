@@ -1165,7 +1165,7 @@ export class GameSession implements PlaySession {
       busy: !this.idle(actor),
       rng: this.rng,
       self: { x: loc.x, y: loc.y, z: loc.z },
-      nearestPlayerId: () => this.nearestPlayerId(loc),
+      nearestOnTile: (tileId) => this.nearestOnTile(actor.id, loc, tileId),
       positionOf: (id) => this.actorCell(id),
       wouldDrop: (direction) => this.stepLeavesGround(loc, direction),
       step: (direction) =>
@@ -1553,20 +1553,34 @@ export class GameSession implements PlaySession {
   }
 
   /**
-   * Whichever connected player is fewest steps away, or null in an empty world.
+   * Whichever other body standing on `tileId` is fewest steps away, or null when
+   * there is none.
    *
-   * Residents are skipped, so this is "the nearest *person*" — a deer does not
-   * flee another deer. Ties break on insertion order, the same order that
-   * already decides who wins a contested cell, which keeps the answer
-   * reproducible rather than dependent on a map sweep's traversal.
+   * The tile is the whole test, which is what lets one selector cover every
+   * relationship a creature has: `player` is the person it hunts, its own tile is
+   * a flock, and some third tile is a leader it follows. Nothing here knows which
+   * of those an author meant, and it does not need to.
+   *
+   * Asking for `player` is asking for a connected person, because the player tile
+   * is the one thing a resident can never be wearing — {@link listResidentBodies}
+   * skips it, and a connection is the only way a body comes to have it.
+   *
+   * Self is excluded, without which a creature asking for its own tile would
+   * answer itself and follow itself in circles. Ties break on insertion order,
+   * the same order that already decides who wins a contested cell, which keeps
+   * the answer reproducible rather than dependent on a map sweep's traversal.
    */
-  private nearestPlayerId(from: Coord): string | null {
+  private nearestOnTile(
+    selfId: string,
+    from: Coord,
+    tileId: string,
+  ): string | null {
     let best: string | null = null;
     let bestSteps = Infinity;
     for (const actor of this.actors.values()) {
-      if (actor.resident) continue;
+      if (actor.id === selfId) continue;
       const loc = this.tryLocate(actor);
-      if (!loc) continue;
+      if (!loc || loc.placed.tileId !== tileId) continue;
       const steps = Math.abs(loc.x - from.x) + Math.abs(loc.y - from.y);
       if (steps < bestSteps) {
         bestSteps = steps;
