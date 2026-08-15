@@ -15,6 +15,7 @@ import {
   levelKey,
   parseCoordKey,
   resolveLightPassing,
+  tileCanEmitLight,
 } from "./types";
 import { chunkIndexOf, chunkKeyAt, elevationAt } from "./mapData";
 import type { EmitterOverride, RawLightGrid, RawLevelLight } from "./lighting";
@@ -56,6 +57,25 @@ const SKY_EDGE_COUNT = SKY_EDGES.length / SKY_EDGE_STRIDE;
  * needs ~1.25×. It grows on demand; this only sets how often that happens.
  */
 const SKY_QUEUE_HEADROOM = 2;
+
+/**
+ * Whether this tile emits at all, memoised per def.
+ *
+ * {@link tileCanEmitLight} walks every sprite variant and every frame and
+ * allocates as it goes, which is fine once per tile and wasteful once per
+ * placement. Keyed on the def object rather than the id so an edited catalogue
+ * is a new object and simply misses, with the old entry collected behind it.
+ */
+const canEmitByDef = new WeakMap<TileDef, boolean>();
+
+function canEmit(def: TileDef): boolean {
+  let known = canEmitByDef.get(def);
+  if (known === undefined) {
+    known = tileCanEmitLight(def);
+    canEmitByDef.set(def, known);
+  }
+  return known;
+}
 
 function parseHexColor(hex: string): [number, number, number] {
   const m = /^#([0-9a-fA-F]{6})$/.exec(hex.trim());
@@ -226,7 +246,10 @@ export type FloodDomain = {
 type FloodCell = { x: number; y: number; z: number; stack: PlacedTile[] };
 
 function collectLevelCells(chunk: ChunkCells, z: number, into: FloodCell[]) {
-  for (const [ck, stack] of Object.entries(chunk)) {
+  // `for..in` rather than `Object.entries`, which builds an array of `[key,
+  // value]` pairs — one throwaway array per cell — before the first one is read.
+  for (const ck in chunk) {
+    const stack = chunk[ck]!;
     if (!stack.length) continue;
     const { x, y } = parseCoordKey(ck);
     into.push({ x, y, z, stack });
@@ -255,7 +278,8 @@ function collectLevelCellsIn(
       const chunk = level[chunkKeyAt(cx, cy)];
       if (!chunk) continue;
       // Edge chunks straddle the rect, so cells still need the bounds test.
-      for (const [ck, stack] of Object.entries(chunk)) {
+      for (const ck in chunk) {
+        const stack = chunk[ck]!;
         if (!stack.length) continue;
         const { x, y } = parseCoordKey(ck);
         if (x < rect.x0 || x > rect.x1 || y < rect.y0 || y > rect.y1) continue;
@@ -345,12 +369,24 @@ export function computeLightingFlood(
   const emitters: EmitterSeed[] = [];
   let maxRadius = 0;
   for (const c of cells) {
-    const ov = overrideByCell.get(`${c.z}:${coordKey(c.x, c.y)}`);
+    // Only built when there is something to find. The key is a fresh string per
+    // cell, and this loop runs over every stack in the domain — on a windowed
+    // bake with no overrides at all that was thousands of throwaway strings to
+    // probe an empty map.
+    const ov = overrideByCell.size
+      ? overrideByCell.get(`${c.z}:${coordKey(c.x, c.y)}`)
+      : undefined;
     for (let si = 0; si < c.stack.length; si++) {
       const placed = c.stack[si]!;
       if (omitLightTileIds?.has(placed.tileId)) continue;
       const def = tilesById[placed.tileId];
       if (!def) continue;
+      // Asked of the tile before the placement, because almost nothing emits:
+      // `resolveLight` has to pick the variant and the frame before it can say
+      // no, and it was being made to say no for every wall and floor tile in
+      // the domain. Whether a tile *can* emit is a property of the def alone,
+      // so it is answered once per catalogue rather than once per placement.
+      if (!canEmit(def)) continue;
       const light = resolveLight(
         def,
         {
