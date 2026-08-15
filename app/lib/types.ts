@@ -478,6 +478,50 @@ export function tileCanEmitLight(tile: TileDef): boolean {
   );
 }
 
+function frameLightKey(light: LightDef | undefined): string {
+  return light ? `${light.radius},${light.intensity},${light.color}` : "";
+}
+
+/** True if a sprite emits differently from one frame to the next. */
+function spriteLightVaries(sprite: TileSprite): boolean {
+  if (sprite.frames.length < 2) return false;
+  const first = frameLightKey(sprite.frames[0]!.light);
+  return sprite.frames.some((f) => frameLightKey(f.light) !== first);
+}
+
+/**
+ * True when this tile's emission changes as it animates — a torch that
+ * flickers rather than a lamp that simply burns.
+ *
+ * The bake keys off this, and the distinction is what keeps flicker affordable:
+ * a tile whose frames all emit the same is baked once and holds for good, while
+ * this one has to be baked once per phase of its cycle. Treating every animated
+ * emitter as varying would charge that to ordinary lamps for no visible change.
+ */
+export function tileLightVaries(tile: TileDef): boolean {
+  return allTileSprites(tile).some(spriteLightVaries);
+}
+
+/**
+ * Where in its emission cycle this tile is at `timeMs`, as a comparable string.
+ *
+ * Two placements of a tile with the same phase emit the same light, so this is
+ * what a cache can hold baked light against — a flicker returning to a phase it
+ * has already been at costs a lookup rather than a bake.
+ *
+ * Only variants whose light actually varies contribute: a directional torch
+ * that flickers facing south and burns steadily facing north should not have
+ * the south frames re-baked because the north sprite ticked over.
+ */
+export function tileEmissionPhase(tile: TileDef, timeMs: number): string {
+  let phase = "";
+  for (const sprite of allTileSprites(tile)) {
+    if (!spriteLightVaries(sprite)) continue;
+    phase += `${frameIndexAtTime(sprite.frames, timeMs)},`;
+  }
+  return phase;
+}
+
 /**
  * Furthest this tile's light can reach, in cells, over every variant and frame.
  *

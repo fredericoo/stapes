@@ -13,11 +13,18 @@ import {
   MIN_LEVEL,
   coordKey,
   levelKey,
+  maxLightRadius,
   parseCoordKey,
   resolveLightPassing,
+  tileLightVaries,
 } from "./types";
 import { chunkIndexOf, chunkKeyAt, elevationAt } from "./mapData";
-import type { EmitterOverride, RawLightGrid, RawLevelLight } from "./lighting";
+import type {
+  AnimatedEmitter,
+  EmitterOverride,
+  RawLightGrid,
+  RawLevelLight,
+} from "./lighting";
 import { resolveLight } from "./tileResolve";
 
 /** Max sky level after column seed. Tune to widen/narrow sky spill. */
@@ -225,6 +232,49 @@ export type FloodDomain = {
 
 type FloodCell = { x: number; y: number; z: number; stack: PlacedTile[] };
 
+/**
+ * Emitters among `cells` whose light follows the animation clock.
+ *
+ * A pass of its own rather than a branch inside the emitter gather, and the
+ * separation is load-bearing rather than tidy: folding these few lines into
+ * that loop left the whole bake compiling to ~29ms instead of ~23ms on some
+ * runs and not others. A second walk over the cells costs a fraction of a
+ * millisecond and leaves the hot loop exactly as it was.
+ *
+ * Tiles the caller paints dynamically are skipped for the same reason they are
+ * skipped as emitters: their light is not in this bake, so it cannot stale it.
+ */
+function collectAnimatedEmitters(
+  cells: readonly FloodCell[],
+  tilesById: Record<string, TileDef>,
+  omitLightTileIds: ReadonlySet<string> | undefined,
+): AnimatedEmitter[] {
+  const varying = new Set<string>();
+  for (const def of Object.values(tilesById)) {
+    if (tileLightVaries(def)) varying.add(def.id);
+  }
+  // Nothing in this world flickers — the overwhelmingly common case, and it
+  // costs one branch rather than a walk over every placed tile.
+  if (!varying.size) return [];
+
+  const out: AnimatedEmitter[] = [];
+  for (const c of cells) {
+    for (const placed of c.stack) {
+      if (!varying.has(placed.tileId)) continue;
+      if (omitLightTileIds?.has(placed.tileId)) continue;
+      const def = tilesById[placed.tileId];
+      if (!def) continue;
+      out.push({
+        tileId: def.id,
+        x: c.x,
+        y: c.y,
+        radius: maxLightRadius(def),
+      });
+    }
+  }
+  return out;
+}
+
 function collectLevelCells(chunk: ChunkCells, z: number, into: FloodCell[]) {
   for (const [ck, stack] of Object.entries(chunk)) {
     if (!stack.length) continue;
@@ -275,6 +325,12 @@ function collectLevelCellsIn(
  * Pass `domain` to bake a fixed region — cells outside it are still read for
  * occlusion and emitters, so a caller wanting a correct window must hand in a
  * map cropped no tighter than the window plus {@link MAX_LIGHT_LEVEL}.
+ *
+ * `timeMs` is the animation clock: emitters are read from the frame live at
+ * that moment, so a torch that flickers bakes the light it is showing rather
+ * than the light it showed on frame 0. Callers that hold the result across
+ * frames must also read {@link RawLightGrid.animated} — that is the list of
+ * emitters this bake goes stale with.
  */
 export function computeLightingFlood(
   map: MapFile,
@@ -282,6 +338,7 @@ export function computeLightingFlood(
   overrides?: ReadonlyArray<EmitterOverride>,
   omitLightTileIds?: ReadonlySet<string>,
   domain?: FloodDomain,
+  timeMs = 0,
 ): RawLightGrid {
   const levels = new Map<number, RawLevelLight>();
 
@@ -332,8 +389,10 @@ export function computeLightingFlood(
     minZ = domain.z0;
     maxZ = domain.z1;
   } else if (!Number.isFinite(minX)) {
-    return { levels };
+    return { levels, animated: [] };
   }
+
+  const animated = collectAnimatedEmitters(cells, tilesById, omitLightTileIds);
 
   const overrideByCell = new Map<string, EmitterOverride>();
   if (overrides) {
@@ -360,7 +419,7 @@ export function computeLightingFlood(
           z: c.z,
           direction: placed.direction,
         },
-        0,
+        timeMs,
       );
       if (!light) continue;
       const [cr, cg, cb] = parseHexColor(light.color);
@@ -654,5 +713,5 @@ export function computeLightingFlood(
     });
   }
 
-  return { levels };
+  return { levels, animated };
 }

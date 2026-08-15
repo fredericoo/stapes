@@ -54,8 +54,27 @@ export type RawLevelLight = {
   block: Uint8Array;
 };
 
+/**
+ * An emitter in a bake whose light follows the animation clock, and the cells
+ * it can reach at any point in its cycle.
+ *
+ * Reported by the bake because the bake is already walking past it. A cache can
+ * then work out which of its results depend on the clock and — far more
+ * usefully — which do not, so a flicker in one corner of the map does not
+ * expire the light everywhere else.
+ */
+export type AnimatedEmitter = {
+  tileId: string;
+  x: number;
+  y: number;
+  /** Widest radius over the tile's whole cycle, so reach holds at every phase. */
+  radius: number;
+};
+
 export type RawLightGrid = {
   levels: Map<number, RawLevelLight>;
+  /** Empty unless the bake passed a tile whose emission varies per frame. */
+  animated: AnimatedEmitter[];
 };
 
 /**
@@ -536,6 +555,7 @@ function collectOverrideEmitters(
   map: MapFile,
   tilesById: Record<string, TileDef>,
   overrides: ReadonlyArray<EmitterOverride>,
+  timeMs: number,
 ): Emitter[] {
   const emitters: Emitter[] = [];
   for (const ov of overrides) {
@@ -547,7 +567,7 @@ function collectOverrideEmitters(
       const light = resolveLight(
         def,
         { map, x: ov.x, y: ov.y, z: ov.z, direction: placed.direction },
-        0,
+        timeMs,
       );
       if (!light) continue;
       const [cr, cg, cb] = parseHexColor(light.color);
@@ -787,10 +807,11 @@ export function overlayEmitterOverridesPacked(
   map: MapFile,
   tilesById: Record<string, TileDef>,
   overrides: ReadonlyArray<EmitterOverride>,
+  timeMs = 0,
 ): PackedLightGrid {
   if (!overrides.length) return clonePackedLightGrid(base);
 
-  const emitters = collectOverrideEmitters(map, tilesById, overrides);
+  const emitters = collectOverrideEmitters(map, tilesById, overrides, timeMs);
   if (!emitters.length) return clonePackedLightGrid(base);
 
   const reach = emitterReach(emitters);
@@ -831,10 +852,11 @@ export function overlayEmitterOverrides(
   map: MapFile,
   tilesById: Record<string, TileDef>,
   overrides: ReadonlyArray<EmitterOverride>,
+  timeMs = 0,
 ): LightGrid {
   if (!overrides.length) return cloneLightGrid(base);
 
-  const emitters = collectOverrideEmitters(map, tilesById, overrides);
+  const emitters = collectOverrideEmitters(map, tilesById, overrides, timeMs);
   if (!emitters.length) return cloneLightGrid(base);
 
   const reach = emitterReach(emitters);

@@ -38,8 +38,7 @@ import {
   viewAnchorFor,
 } from "../lib/levelVisibility";
 import type { MapFile, PlacedTile, TileDef, TilesetDef } from "../lib/types";
-import { HEIGHT_PER_LEVEL } from "../lib/types";
-import { resolveLight } from "../lib/tileResolve";
+import { HEIGHT_PER_LEVEL, tileCanEmitLight } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import {
   type OverlaySpec,
@@ -1478,12 +1477,16 @@ export class GameRenderer {
     // miss the cache every frame. Emitting only the viewer's own would leave
     // every other actor's light omitted from the bake and never painted back,
     // which is exactly the "goes dark" failure the bake omission warns about.
-    const overrides: EmitterOverride[] = [];
-    for (const actor of snap.actors) {
-      const light = resolveLight(playerDef, { direction: actor.direction });
-      if (!light) continue;
-      overrides.push(this.actorEmitter(snap.map, actor, playerDef.height ?? 0));
-    }
+    //
+    // The question here is whether the tile *ever* emits, not what it is
+    // emitting this instant: an override is a position, and the light itself is
+    // resolved against the animation clock when it is painted. Asking for the
+    // live frame's light would drop the override on the dark half of a flicker
+    // and stop the light coming back.
+    if (!tileCanEmitLight(playerDef)) return undefined;
+    const overrides = snap.actors.map((actor) =>
+      this.actorEmitter(snap.map, actor, playerDef.height ?? 0),
+    );
     return overrides.length > 0 ? overrides : undefined;
   }
 

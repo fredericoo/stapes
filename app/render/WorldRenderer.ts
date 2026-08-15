@@ -37,6 +37,8 @@ import {
   physicalHeight,
   resolveLightPassing,
   tileCanEmitLight,
+  tileEmissionPhase,
+  tileLightVaries,
 } from "../lib/types";
 import { isMobileTile } from "../lib/interactions";
 import { getFrames } from "../lib/tileResolve";
@@ -325,6 +327,13 @@ export class WorldRenderer {
   private lighting = new ChunkedLighting({}, dynamicLightTileIds({}));
   /** Tile defs the light cache was built against; new defs void every chunk. */
   private lightingTilesById: Record<string, TileDef> | null = null;
+  /**
+   * Painted-not-baked emitters whose light changes as they animate — a torch
+   * carried by something that walks. Empty in every map so far, and cheap to
+   * keep that way: their phase joins the overlay's cache key, and an empty list
+   * contributes nothing to it.
+   */
+  private flickeringDynamicDefs: TileDef[] = [];
   /** @see setLightingEnabled */
   private lightingEnabled = true;
   private prevMap: MapFile | null = null;
@@ -570,7 +579,12 @@ export class WorldRenderer {
       this.applyPulse();
       this.needsRender = true;
     }
-    if (!this.updateAnimations(dt)) return;
+    // Kept outside `updateAnimations`, which has nothing to do — and used to
+    // return before advancing this — when no animated sprite is on screen. The
+    // light bake reads the same clock, and an emitter can sit outside the built
+    // geometry while its light still reaches inside the window.
+    this.animClock += dt;
+    if (!this.updateAnimations()) return;
     this.needsRender = true;
     // Outline quads are cut from the frame on screen, so a frame flip has to
     // rebuild them even though the overlay spec itself has not changed.
@@ -938,10 +952,11 @@ export class WorldRenderer {
 
   private updateLighting(view: WorldView) {
     if (view.tilesById !== this.lightingTilesById) {
-      this.lighting = new ChunkedLighting(
-        view.tilesById,
-        dynamicLightTileIds(view.tilesById),
-      );
+      const dynamicIds = dynamicLightTileIds(view.tilesById);
+      this.lighting = new ChunkedLighting(view.tilesById, dynamicIds);
+      this.flickeringDynamicDefs = [...dynamicIds]
+        .map((id) => view.tilesById[id])
+        .filter((def): def is TileDef => def != null && tileLightVaries(def));
       this.lightingTilesById = view.tilesById;
       this.staticLightGrid = null;
     }
@@ -958,9 +973,25 @@ export class WorldRenderer {
     // grid object while nothing has changed — so identity, not a content hash,
     // is what decides whether the textures need rewriting. This is what
     // replaced hashing every cell in the map on every frame.
-    const base = this.lighting.packedGridFor(view.map, this.lightWindow(view));
+    //
+    // The animation clock is a bake input: a torch that flickers emits what its
+    // live frame says it does, not what frame 0 said. Chunks no flicker reaches
+    // are unaffected by it, so the clock alone never causes a bake.
+    const base = this.lighting.packedGridFor(
+      view.map,
+      this.lightWindow(view),
+      this.animClock,
+    );
 
-    const overridesKey = emitterOverridesKey(view.emitterOverrides);
+    // The dynamic emitters' own phase belongs in the key as well as the static
+    // one. Their light is painted, not baked, so nothing about the grid or the
+    // override positions would change as their frames tick over.
+    const overridesKey = [
+      emitterOverridesKey(view.emitterOverrides),
+      ...this.flickeringDynamicDefs.map((def) =>
+        tileEmissionPhase(def, this.animClock),
+      ),
+    ].join("|");
     if (base === this.staticLightGrid && overridesKey === this.lightingKey) {
       return;
     }
@@ -974,7 +1005,13 @@ export class WorldRenderer {
     }
 
     this.uploadPackedGrid(
-      overlayEmitterOverridesPacked(base, view.map, view.tilesById, overrides),
+      overlayEmitterOverridesPacked(
+        base,
+        view.map,
+        view.tilesById,
+        overrides,
+        this.animClock,
+      ),
     );
   }
 
@@ -1439,9 +1476,8 @@ export class WorldRenderer {
     return mesh;
   }
 
-  private updateAnimations(dt: number): boolean {
+  private updateAnimations(): boolean {
     if (this.animatedByKey.size === 0) return false;
-    this.animClock += dt;
     let changed = false;
 
     for (const [key, instances] of this.animatedByKey) {

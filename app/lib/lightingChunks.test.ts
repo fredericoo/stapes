@@ -3,7 +3,13 @@ import { chunkifyMap, getStack, listCoords, replaceStack } from "./mapData";
 import type { FlatMapFile } from "./types";
 import map from "../../data/map.json";
 import tiles from "../../data/tiles.json";
-import { AMBIENT_PRESETS, computeLighting, sampleLevelLight } from "./lighting";
+import {
+  AMBIENT_PRESETS,
+  composeLightGrid,
+  computeLighting,
+  sampleLevelLight,
+} from "./lighting";
+import { computeLightingFlood } from "./lightingFlood";
 import {
   ChunkedLighting,
   LIGHT_APRON,
@@ -573,5 +579,112 @@ describe("packed grid matches CPU-composed output", () => {
     // the clock invalidating anything.
     expect(again).toBe(first);
     expect(c.bakedLastCall).toBe(0);
+  });
+});
+
+/**
+ * The fixture `torch` is two frames of identical art at different intensities —
+ * authored to flicker its light and nothing else, which is exactly the case a
+ * bake keyed on frame 0 threw away.
+ */
+describe("a flickering emitter", () => {
+  const ambient = [...AMBIENT_PRESETS.night] as [number, number, number];
+  const FLICKER_FRAME_MS = 180;
+  /** A window over chunk (0,0), which the fixture puts three torches in. */
+  const lit: WorldRect = { x0: 8, y0: 4, x1: 24, y1: 20 };
+
+  function rgbOf(grid: ReturnType<ChunkedLighting["gridFor"]>): string {
+    return [...grid.levels.entries()]
+      .sort((a, b) => a[0] - b[0])
+      .map(([z, level]) => `${z}:${[...level.rgb].join(",")}`)
+      .join("|");
+  }
+
+  it("bakes the light the live frame emits", () => {
+    const dim = new ChunkedLighting(tilesById, omit).gridFor(
+      mapFile,
+      ambient,
+      lit,
+      FLICKER_FRAME_MS,
+    );
+    const bright = new ChunkedLighting(tilesById, omit).gridFor(
+      mapFile,
+      ambient,
+      lit,
+      0,
+    );
+    expect(rgbOf(dim)).not.toEqual(rgbOf(bright));
+  });
+
+  it("matches the monolithic bake at the same point in the cycle", () => {
+    // Parity, but off frame 0 — a chunk bakes with an apron, so an emitter one
+    // cell outside the window has to reach in at the phase the window is at.
+    const mono = composeLightGrid(
+      computeLightingFlood(
+        mapFile,
+        tilesById,
+        undefined,
+        omit,
+        undefined,
+        FLICKER_FRAME_MS,
+      ),
+      ambient,
+    );
+    const chunked = new ChunkedLighting(tilesById, omit).gridFor(
+      mapFile,
+      ambient,
+      lit,
+      FLICKER_FRAME_MS,
+    );
+
+    let compared = 0;
+    let differing = 0;
+    for (const [z, chunkLevel] of chunked.levels) {
+      const monoLevel = mono.levels.get(z);
+      if (!monoLevel) continue;
+      for (let y = lit.y0; y <= lit.y1; y++) {
+        for (let x = lit.x0; x <= lit.x1; x++) {
+          const a = sampleLevelLight(monoLevel, x, y);
+          const b = sampleLevelLight(chunkLevel, x, y);
+          for (let c = 0; c < 3; c++) {
+            compared++;
+            if (Math.abs(a[c]! - b[c]!) * 255 > 0.5) differing++;
+          }
+        }
+      }
+    }
+    expect(compared).toBeGreaterThan(1000);
+    expect(differing, `${differing}/${compared} samples differ`).toBe(0);
+  });
+
+  it("costs one bake per phase, not one per flicker", () => {
+    const chunked = new ChunkedLighting(tilesById, omit);
+    chunked.gridFor(mapFile, ambient, lit, 0);
+    chunked.gridFor(mapFile, ambient, lit, FLICKER_FRAME_MS);
+    expect(
+      chunked.bakedLastCall,
+      "the other half of the cycle has never been baked",
+    ).toBeGreaterThan(0);
+
+    // Round the cycle and back. A torch burns for the whole game, so anything
+    // that rebakes per flicker rebakes several times a second, for ever.
+    chunked.gridFor(mapFile, ambient, lit, FLICKER_FRAME_MS * 2);
+    expect(chunked.bakedLastCall).toBe(0);
+    chunked.gridFor(mapFile, ambient, lit, FLICKER_FRAME_MS * 3);
+    expect(chunked.bakedLastCall).toBe(0);
+  });
+
+  it("leaves light no flicker reaches untouched", () => {
+    // Far from any fixture torch: the clock moving must not bake, re-stitch or
+    // hand back a new grid, or every empty field in the world would re-upload
+    // its textures five times a second.
+    const far: WorldRect = { x0: 200, y0: 200, x1: 230, y1: 230 };
+    const chunked = new ChunkedLighting(tilesById, omit);
+    const first = chunked.packedGridFor(mapFile, far, 0);
+    expect(chunked.bakedLastCall).toBeGreaterThan(0);
+
+    const later = chunked.packedGridFor(mapFile, far, FLICKER_FRAME_MS);
+    expect(chunked.bakedLastCall).toBe(0);
+    expect(later).toBe(first);
   });
 });
