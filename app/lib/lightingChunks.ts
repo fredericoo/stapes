@@ -86,7 +86,7 @@ export const DEFAULT_MAX_CACHED_CHUNKS = 256;
  * Per-chunk light: one plane per level, `LIGHT_CHUNK_SIZE` square.
  * Layout is RGBA: block R,G,B + sky factor — ambient is applied at assemble.
  */
-type ChunkLight = Map<number, Uint8Array>;
+export type ChunkLight = Map<number, Uint8Array>;
 
 type CachedChunk = {
   /**
@@ -106,13 +106,58 @@ type CachedChunk = {
   animated: string[];
   /** Tick this chunk was last drawn from — the LRU's recency stamp. */
   usedAt: number;
+  /**
+   * These pixels predate an edit near them, and a refresh is wanted.
+   *
+   * Only ever set when there is a {@link ChunkBaker} to do that refreshing.
+   * Without one there is nothing to wait for, so an edit drops the chunk
+   * outright and the next call rebakes it in the frame that asked.
+   */
+  stale: boolean;
+  /**
+   * Value of the cache's dirty counter when this chunk was last invalidated.
+   *
+   * The whole of the race guard: a bake in flight was computed against the map
+   * as it stood when it was asked for, so its result may already be out of date
+   * by the time it lands. Comparing this against the counter the request
+   * captured says whether anything has happened since — if it has, the pixels
+   * are still an improvement and are kept, but the chunk stays stale so the
+   * next call asks again.
+   */
+  dirtyAt: number;
 };
 
 /** One chunk's slice of a bake, plus what it will go stale with. */
-type BakedChunk = {
+export type BakedChunk = {
   planes: ChunkLight;
   animated: string[];
 };
+
+/**
+ * Somewhere to send a bake that is not this thread.
+ *
+ * Deliberately this small. The cache does not care whether the other side is a
+ * worker, a queue or a test double, only that a rect and a clock reading go in
+ * and chunks come back later — which is what makes the whole async path
+ * optional: with no baker the cache behaves exactly as it did when a bake was
+ * a function call.
+ *
+ * `timeMs` travels with the rect rather than being read on arrival, because the
+ * clock will have moved by then and the result is filed under the phase it was
+ * baked at. Asking for "now" and filing under "now, later" would put a torch's
+ * bright frame in the slot its dim one is looked up from.
+ */
+export type ChunkBaker = {
+  bake(rect: WorldRect, timeMs: number): Promise<Map<string, BakedChunk>>;
+};
+
+/**
+ * Bakes allowed in flight at once. One, because the far side is a single
+ * thread: a second request would queue behind the first rather than finish any
+ * sooner, and holding it here instead means it is re-formed against whatever
+ * the map looks like when the first lands rather than against a stale rect.
+ */
+const MAX_INFLIGHT_BAKES = 1;
 
 /** Copy a chunk's RGBA plane straight into the window plane — no per-pixel work. */
 function blitPacked(
@@ -252,7 +297,7 @@ function animatedByChunk(
  * clock. Batching matters: the apron is per-bake, not per-chunk, so filling nine
  * chunks together costs far less than nine separate bakes of the same chunks.
  */
-function bakeRegion(
+export function bakeRegion(
   map: MapFile,
   tilesById: Record<string, TileDef>,
   omitLightTileIds: ReadonlySet<string> | undefined,
@@ -320,12 +365,41 @@ export class ChunkedLighting {
     null;
   /** Window centre last call, for inferring which way to prefetch. */
   private lastCentre: { x: number; y: number } | null = null;
+  /** Monotonic edit counter, stamped onto chunks as {@link CachedChunk.dirtyAt}. */
+  private dirtySeq = 0;
+  private inFlight = 0;
+  private baker: ChunkBaker | null = null;
+  /**
+   * A chunk the window is drawing is out of date. Set by {@link refreshStale}
+   * whether or not it managed to act, so the prefetch can stand aside for it.
+   */
+  private refreshWanted = false;
 
   constructor(
     private readonly tilesById: Record<string, TileDef>,
     private readonly omitLightTileIds?: ReadonlySet<string>,
     private readonly maxChunks: number = DEFAULT_MAX_CACHED_CHUNKS,
   ) {}
+
+  /**
+   * Send bakes somewhere else from now on, keeping stale light on screen until
+   * they land. Null to go back to baking in the calling frame.
+   *
+   * Set rather than injected because the thing on the other end is a worker,
+   * which cannot be built during SSR or under a test runner — so a caller that
+   * has one attaches it, and everything else gets the synchronous cache it
+   * always had.
+   */
+  setBaker(baker: ChunkBaker | null) {
+    this.baker = baker;
+  }
+
+  /** Chunks holding pixels from before an edit, waiting on a refresh. */
+  get staleChunks(): number {
+    let n = 0;
+    for (const entry of this.cache.values()) if (entry.stale) n++;
+    return n;
+  }
 
   /** Chunks baked during the most recent {@link gridFor} — for tests and probes. */
   get bakedLastCall(): number {
@@ -382,12 +456,51 @@ export class ChunkedLighting {
     return entry.byPhase.get(this.phaseOf(entry.animated, timeMs));
   }
 
-  /** File a freshly baked chunk under the phase it was baked at. */
-  private store(key: string, baked: BakedChunk, timeMs: number) {
+  /**
+   * The planes this chunk will actually be drawn from, and the phase they were
+   * baked at.
+   *
+   * The phase the clock is at when it is held, and any phase at all when it is
+   * not. That fallback only ever comes up with a {@link ChunkBaker} attached —
+   * without one a missing phase is baked in this very call — and it is what
+   * lets a torch's *first* turn of its cycle happen off-thread too: a frame
+   * showing last phase's light beats a frame stalling to bake this one.
+   *
+   * The phase comes back with the planes because the caller has to key its
+   * cache on what was drawn rather than on what was wanted. Keying on the want
+   * would hold the assembled grid steady while the fallback was on screen, and
+   * the exact phase would land into a cache that had no reason to re-stitch.
+   */
+  private drawable(
+    cx: number,
+    cy: number,
+    timeMs: number,
+  ): { phase: string; planes: ChunkLight } | undefined {
+    const entry = this.cache.get(chunkCacheKey(cx, cy));
+    if (!entry) return undefined;
+    const want = this.phaseOf(entry.animated, timeMs);
+    const exact = entry.byPhase.get(want);
+    if (exact) return { phase: want, planes: exact };
+    const any = entry.byPhase.entries().next();
+    if (any.done) return undefined;
+    return { phase: any.value[0], planes: any.value[1] };
+  }
+
+  /**
+   * File a freshly baked chunk under the phase it was baked at.
+   *
+   * `at` is the dirty counter as it stood when this bake was *asked for*; see
+   * {@link CachedChunk.dirtyAt}. Only meaningful for a bake that went somewhere
+   * else and came back — a synchronous one passes the counter as it is now,
+   * which can never be behind.
+   */
+  private store(key: string, baked: BakedChunk, timeMs: number, at: number) {
     const entry = this.cache.get(key) ?? {
       byPhase: new Map<string, ChunkLight>(),
       animated: baked.animated,
       usedAt: this.tick,
+      stale: false,
+      dirtyAt: at,
     };
     // A rebake is the authority on what reaches this chunk — a torch may have
     // been placed or removed since — and phases keyed off the old answer would
@@ -396,9 +509,24 @@ export class ChunkedLighting {
       entry.byPhase.clear();
       entry.animated = baked.animated;
     }
+    // Every phase held by a stale chunk predates the edit, not just the one
+    // being replaced, so a flicker must not be left alternating between the
+    // world before and the world after. This bake is newer than all of them
+    // whether or not it caught the latest edit, so it replaces the lot.
+    if (entry.stale) entry.byPhase.clear();
     entry.byPhase.set(this.phaseOf(baked.animated, timeMs), baked.planes);
     entry.usedAt = this.tick;
+    if (entry.dirtyAt <= at) entry.stale = false;
     this.cache.set(key, entry);
+  }
+
+  /** File a whole region's worth, all baked at the same clock reading. */
+  private storeAll(
+    baked: Map<string, BakedChunk>,
+    timeMs: number,
+    at: number,
+  ) {
+    for (const [key, chunk] of baked) this.store(key, chunk, timeMs, at);
   }
 
   /**
@@ -415,7 +543,20 @@ export class ChunkedLighting {
     const hi = { cx: chunkOf(x + reach), cy: chunkOf(y + reach) };
     for (let cy = lo.cy; cy <= hi.cy; cy++) {
       for (let cx = lo.cx; cx <= hi.cx; cx++) {
-        if (this.cache.delete(chunkCacheKey(cx, cy))) this.version++;
+        const key = chunkCacheKey(cx, cy);
+        if (!this.baker) {
+          if (this.cache.delete(key)) this.version++;
+          continue;
+        }
+        // Marked, not dropped, and deliberately without a version bump: the
+        // pixels have not changed, so nothing needs re-stitching or re-uploading
+        // until the refresh actually lands. A frame or two of light from just
+        // before the edit is invisible; the hole left by dropping the chunk
+        // would not be.
+        const entry = this.cache.get(key);
+        if (!entry) continue;
+        entry.stale = true;
+        entry.dirtyAt = ++this.dirtySeq;
       }
     }
   }
@@ -633,7 +774,10 @@ export class ChunkedLighting {
   ): LightGrid {
     this.tick++;
     this.fillMissing(map, rect, timeMs);
-    if (this.lastBakedChunks === 0) this.prefetchRing(map, rect, timeMs);
+    // Nothing on screen is waiting, so it is worth warming what might be.
+    if (this.lastBakedChunks === 0 && !this.refreshWanted) {
+      this.prefetchRing(map, rect, timeMs);
+    }
 
     const ambientKey = ambient.map((c) => c.toFixed(4)).join(",");
     const key = [
@@ -666,7 +810,17 @@ export class ChunkedLighting {
       for (let cx = chunkOf(rect.x0); cx <= chunkOf(rect.x1); cx++) {
         const entry = this.cache.get(chunkCacheKey(cx, cy));
         if (!entry?.animated.length) continue;
-        key += this.phaseOf(entry.animated, timeMs);
+        // The phase on screen, not the phase the clock is at. The two differ
+        // only while a chunk is waiting on a bake of the phase it wants, and
+        // keying on the want would then describe a grid that was never
+        // assembled.
+        //
+        // Belt and braces today: the refresh that ends that gap bumps
+        // `version`, which is in this key too, so the re-stitch would happen
+        // either way. Written from what was drawn regardless, because the
+        // alternative is a cache key that is only accidentally right and a
+        // caller using grid identity to decide whether to re-upload.
+        key += this.drawable(cx, cy, timeMs)?.phase ?? "";
       }
     }
     return key;
@@ -700,14 +854,28 @@ export class ChunkedLighting {
     // covered — so the assembled grid is unaffected, and bumping would force a
     // pointless re-stitch and texture upload on every quiet frame.
     for (const c of missing.slice(0, PREFETCH_CHUNKS_PER_CALL)) {
-      const baked = bakeRegion(
-        map,
-        this.tilesById,
-        this.omitLightTileIds,
-        chunkRect(c.cx, c.cy),
+      const rect = chunkRect(c.cx, c.cy);
+      // Nothing is drawing this chunk yet, so there is no reason at all to bake
+      // it here — and every reason not to, since this runs on quiet frames and
+      // was the one thing still costing them.
+      if (this.baker) {
+        if (this.inFlight >= MAX_INFLIGHT_BAKES) continue;
+        const at = this.dirtySeq;
+        this.inFlight++;
+        void this.baker
+          .bake(rect, timeMs)
+          .then((baked) => this.storeAll(baked, timeMs, at))
+          .catch(() => {})
+          .finally(() => {
+            this.inFlight--;
+          });
+        continue;
+      }
+      this.storeAll(
+        bakeRegion(map, this.tilesById, this.omitLightTileIds, rect, timeMs),
         timeMs,
+        this.dirtySeq,
       );
-      for (const [key, chunk] of baked) this.store(key, chunk, timeMs);
     }
   }
 
@@ -766,8 +934,15 @@ export class ChunkedLighting {
   }
 
   /**
-   * Bake the chunks in `rect` that are absent, batched into one pass over their
-   * bounding box. Filling the union costs a single apron rather than one each.
+   * Bake the chunks in `rect` there is nothing at all to draw for, batched into
+   * one pass over their bounding box. Filling the union costs a single apron
+   * rather than one each.
+   *
+   * What counts as nothing depends on whether there is a baker. Without one,
+   * a chunk missing the phase the clock is at is missing, full stop — the bake
+   * has to happen here or the flicker is wrong. With one, any phase will do to
+   * draw from for a frame or two, so only a chunk with no phase at all is worth
+   * stopping for, and the exact phase is fetched off-thread.
    */
   private fillMissing(map: MapFile, rect: WorldRect, timeMs: number) {
     let x0 = Infinity;
@@ -776,7 +951,10 @@ export class ChunkedLighting {
     let y1 = -Infinity;
     for (let cy = chunkOf(rect.y0); cy <= chunkOf(rect.y1); cy++) {
       for (let cx = chunkOf(rect.x0); cx <= chunkOf(rect.x1); cx++) {
-        if (this.cachedPlanes(cx, cy, timeMs)) continue;
+        const held = this.baker
+          ? this.drawable(cx, cy, timeMs)
+          : this.cachedPlanes(cx, cy, timeMs);
+        if (held) continue;
         const cr = chunkRect(cx, cy);
         if (cr.x0 < x0) x0 = cr.x0;
         if (cr.y0 < y0) y0 = cr.y0;
@@ -787,9 +965,15 @@ export class ChunkedLighting {
 
     if (!Number.isFinite(x0)) {
       this.lastBakedChunks = 0;
+      this.refreshStale(rect, timeMs);
       return;
     }
 
+    // Absent, not merely out of date: there are no pixels to show for this
+    // chunk at all, so waiting on another thread would mean drawing a hole
+    // where the world is. Baked here, in this frame, whether or not there is a
+    // baker — which confines the synchronous cost to a cold window, and leaves
+    // every edit after it to {@link refreshStale}.
     const baked = bakeRegion(
       map,
       this.tilesById,
@@ -797,10 +981,74 @@ export class ChunkedLighting {
       { x0, y0, x1, y1 },
       timeMs,
     );
-    for (const [key, chunk] of baked) this.store(key, chunk, timeMs);
+    this.storeAll(baked, timeMs, this.dirtySeq);
     this.lastBakedChunks = baked.size;
     this.version++;
+    this.refreshStale(rect, timeMs);
   }
+
+  /**
+   * Ask the baker to redo the window's chunks that are showing the wrong thing.
+   *
+   * Two kinds, and they are the same kind: a chunk left stale by an edit, and a
+   * chunk drawing one phase of a flicker while the clock is at another. Both
+   * have pixels good enough to keep for now and both want a bake nobody is
+   * waiting on.
+   *
+   * One request covering their bounding box rather than one each, for the same
+   * reason {@link fillMissing} batches: the apron is per-bake, so a region costs
+   * far less than its chunks do separately.
+   */
+  private refreshStale(rect: WorldRect, timeMs: number) {
+    const baker = this.baker;
+
+    // Scanned before the guards rather than after, so `refreshWanted` is set
+    // even on the calls that cannot act on it. That flag is what keeps the
+    // prefetch — speculative work for chunks nobody is looking at — from taking
+    // the one in-flight slot while something on screen is out of date. Without
+    // it a quiet frame's prefetch could sit in front of the refresh for an
+    // edit, and the light would wait a frame on work for a chunk off-screen.
+    let x0 = Infinity;
+    let y0 = Infinity;
+    let x1 = -Infinity;
+    let y1 = -Infinity;
+    for (let cy = chunkOf(rect.y0); cy <= chunkOf(rect.y1); cy++) {
+      for (let cx = chunkOf(rect.x0); cx <= chunkOf(rect.x1); cx++) {
+        const entry = this.cache.get(chunkCacheKey(cx, cy));
+        if (!entry) continue;
+        const wanted = this.phaseOf(entry.animated, timeMs);
+        if (!entry.stale && entry.byPhase.has(wanted)) continue;
+        const cr = chunkRect(cx, cy);
+        if (cr.x0 < x0) x0 = cr.x0;
+        if (cr.y0 < y0) y0 = cr.y0;
+        if (cr.x1 > x1) x1 = cr.x1;
+        if (cr.y1 > y1) y1 = cr.y1;
+      }
+    }
+    this.refreshWanted = Number.isFinite(x0);
+    if (!this.refreshWanted) return;
+    if (!baker || this.inFlight >= MAX_INFLIGHT_BAKES) return;
+
+    // Captured before the request goes out, and compared when it comes back:
+    // anything invalidated in between leaves its chunk stale so the next call
+    // asks again. See {@link CachedChunk.dirtyAt}.
+    const at = this.dirtySeq;
+    this.inFlight++;
+    void baker
+      .bake({ x0, y0, x1, y1 }, timeMs)
+      .then((baked) => {
+        this.storeAll(baked, timeMs, at);
+        this.version++;
+      })
+      .catch(() => {
+        // A refusal is survivable — the chunks are stale, not missing, so the
+        // world keeps its slightly-old light and the next call asks again.
+      })
+      .finally(() => {
+        this.inFlight--;
+      });
+  }
+
 
   /**
    * Light covering `rect` in the GPU's own layout, untinted.
@@ -817,7 +1065,10 @@ export class ChunkedLighting {
   ): PackedLightGrid {
     this.tick++;
     this.fillMissing(map, rect, timeMs);
-    if (this.lastBakedChunks === 0) this.prefetchRing(map, rect, timeMs);
+    // Nothing on screen is waiting, so it is worth warming what might be.
+    if (this.lastBakedChunks === 0 && !this.refreshWanted) {
+      this.prefetchRing(map, rect, timeMs);
+    }
 
     const key = [
       "packed",
@@ -849,10 +1100,10 @@ export class ChunkedLighting {
     const planesByZ = new Map<number, Uint8Array>();
     for (let cy = cy0; cy <= cy1; cy++) {
       for (let cx = cx0; cx <= cx1; cx++) {
-        const planes = this.cachedPlanes(cx, cy, timeMs);
-        if (!planes) continue;
+        const held = this.drawable(cx, cy, timeMs);
+        if (!held) continue;
         this.cache.get(chunkCacheKey(cx, cy))!.usedAt = this.tick;
-        blitPacked(planesByZ, planes, cx - cx0, cy - cy0, w, h);
+        blitPacked(planesByZ, held.planes, cx - cx0, cy - cy0, w, h);
       }
     }
 
@@ -879,10 +1130,10 @@ export class ChunkedLighting {
     const rawByZ = new Map<number, { sky: Uint8Array; block: Uint8Array }>();
     for (let cy = cy0; cy <= cy1; cy++) {
       for (let cx = cx0; cx <= cx1; cx++) {
-        const planes = this.cachedPlanes(cx, cy, timeMs);
-        if (!planes) continue;
+        const held = this.drawable(cx, cy, timeMs);
+        if (!held) continue;
         this.cache.get(chunkCacheKey(cx, cy))!.usedAt = this.tick;
-        this.blitChunk(rawByZ, planes, cx - cx0, cy - cy0, w, h);
+        this.blitChunk(rawByZ, held.planes, cx - cx0, cy - cy0, w, h);
       }
     }
 

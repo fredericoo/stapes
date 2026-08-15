@@ -31,12 +31,16 @@ export const PERF_BUDGETS = {
    *
    * This runs synchronously on any non-player map change — a push landing, a
    * door switching — so the budget is counted in dropped frames, not in "does
-   * it finish". Measures ~23ms p50 / ~46ms p95 today. The old 200ms ceiling
+   * it finish". Measures ~14ms p50 / ~19ms p95 today. The old 200ms ceiling
    * was wide enough to hide a 147ms stall, so keep this tight to the real
    * number and treat a regression as a visible hitch rather than a warning.
+   *
+   * Was 60/110 against ~23ms p50 / ~46ms p95, before the sky flood learned to
+   * seed only its frontier and the gather stopped asking every wall tile
+   * whether it was a lamp.
    */
-  lightingBakeMsP95: 60,
-  lightingBakeMsP95Ci: 110,
+  lightingBakeMsP95: 30,
+  lightingBakeMsP95Ci: 55,
   /** Player light overlay atop cached bake. */
   lightingOverlayMsP95: 15,
   lightingOverlayMsP95Ci: 25,

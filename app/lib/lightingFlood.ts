@@ -16,6 +16,7 @@ import {
   maxLightRadius,
   parseCoordKey,
   resolveLightPassing,
+  tileCanEmitLight,
   tileLightVaries,
 } from "./types";
 import { chunkIndexOf, chunkKeyAt, elevationAt } from "./mapData";
@@ -63,6 +64,25 @@ const SKY_EDGE_COUNT = SKY_EDGES.length / SKY_EDGE_STRIDE;
  * needs ~1.25×. It grows on demand; this only sets how often that happens.
  */
 const SKY_QUEUE_HEADROOM = 2;
+
+/**
+ * Whether this tile emits at all, memoised per def.
+ *
+ * {@link tileCanEmitLight} walks every sprite variant and every frame and
+ * allocates as it goes, which is fine once per tile and wasteful once per
+ * placement. Keyed on the def object rather than the id so an edited catalogue
+ * is a new object and simply misses, with the old entry collected behind it.
+ */
+const canEmitByDef = new WeakMap<TileDef, boolean>();
+
+function canEmit(def: TileDef): boolean {
+  let known = canEmitByDef.get(def);
+  if (known === undefined) {
+    known = tileCanEmitLight(def);
+    canEmitByDef.set(def, known);
+  }
+  return known;
+}
 
 function parseHexColor(hex: string): [number, number, number] {
   const m = /^#([0-9a-fA-F]{6})$/.exec(hex.trim());
@@ -276,7 +296,10 @@ function collectAnimatedEmitters(
 }
 
 function collectLevelCells(chunk: ChunkCells, z: number, into: FloodCell[]) {
-  for (const [ck, stack] of Object.entries(chunk)) {
+  // `for..in` rather than `Object.entries`, which builds an array of `[key,
+  // value]` pairs — one throwaway array per cell — before the first one is read.
+  for (const ck in chunk) {
+    const stack = chunk[ck]!;
     if (!stack.length) continue;
     const { x, y } = parseCoordKey(ck);
     into.push({ x, y, z, stack });
@@ -305,7 +328,8 @@ function collectLevelCellsIn(
       const chunk = level[chunkKeyAt(cx, cy)];
       if (!chunk) continue;
       // Edge chunks straddle the rect, so cells still need the bounds test.
-      for (const [ck, stack] of Object.entries(chunk)) {
+      for (const ck in chunk) {
+        const stack = chunk[ck]!;
         if (!stack.length) continue;
         const { x, y } = parseCoordKey(ck);
         if (x < rect.x0 || x > rect.x1 || y < rect.y0 || y > rect.y1) continue;
@@ -404,12 +428,24 @@ export function computeLightingFlood(
   const emitters: EmitterSeed[] = [];
   let maxRadius = 0;
   for (const c of cells) {
-    const ov = overrideByCell.get(`${c.z}:${coordKey(c.x, c.y)}`);
+    // Only built when there is something to find. The key is a fresh string per
+    // cell, and this loop runs over every stack in the domain — on a windowed
+    // bake with no overrides at all that was thousands of throwaway strings to
+    // probe an empty map.
+    const ov = overrideByCell.size
+      ? overrideByCell.get(`${c.z}:${coordKey(c.x, c.y)}`)
+      : undefined;
     for (let si = 0; si < c.stack.length; si++) {
       const placed = c.stack[si]!;
       if (omitLightTileIds?.has(placed.tileId)) continue;
       const def = tilesById[placed.tileId];
       if (!def) continue;
+      // Asked of the tile before the placement, because almost nothing emits:
+      // `resolveLight` has to pick the variant and the frame before it can say
+      // no, and it was being made to say no for every wall and floor tile in
+      // the domain. Whether a tile *can* emit is a property of the def alone,
+      // so it is answered once per catalogue rather than once per placement.
+      if (!canEmit(def)) continue;
       const light = resolveLight(
         def,
         {
@@ -495,13 +531,22 @@ export function computeLightingFlood(
   // Sky column seed. Full solids still receive the shaft that hits their top —
   // otherwise outdoor bricks bake black. Half-blocks attenuate the shaft by
   // half; height-0 floors seal it. Flood spreads through non-full cells.
+  //
+  // The seed also records a heightmap, `fullFrom`: the lowest local z in each
+  // column whose cell still has the whole shaft. The shaft only ever decreases
+  // on the way down and a cell is painted before it attenuates, so the cells
+  // holding {@link MAX_LIGHT_LEVEL} are exactly the run from `fullFrom` to the
+  // top of the domain. That fact is what the frontier seeding below rests on.
+  const fullFrom = new Int32Array(slice);
   for (let ly = 0; ly < dom.h; ly++) {
     for (let lx = 0; lx < dom.w; lx++) {
       let shaft = MAX_LIGHT_LEVEL;
+      let full = dom.d - 1;
       for (let lz = dom.d - 1; lz >= 0; lz--) {
         const i = idx(dom, lx, ly, lz);
         const op = opacity[i]!;
         sky[i] = shaft;
+        if (shaft >= MAX_LIGHT_LEVEL) full = lz;
         if (op >= 1) {
           shaft = 0;
         } else if (op > 0) {
@@ -510,6 +555,7 @@ export function computeLightingFlood(
           shaft = 0;
         }
       }
+      fullFrom[ly * dom.w + lx] = full;
     }
   }
 
@@ -520,9 +566,45 @@ export function computeLightingFlood(
   // undersized queue drops propagations and bakes those cells too dark.
   let skyQ = new Int32Array(n * SKY_QUEUE_HEADROOM);
   let skyLen = 0;
-  for (let i = 0; i < n; i++) {
-    if (opacity[i]! >= 1) continue;
-    if (sky[i]! > 0.5) skyQ[skyLen++] = i;
+
+  // Only the frontier is seeded, not every lit cell.
+  //
+  // Every step costs at least 1 and MAX_LIGHT_LEVEL is the ceiling, so a cell
+  // holding the full shaft can never raise a neighbour that is also holding it.
+  // Queueing open sky was therefore queueing work that was guaranteed to fail:
+  // on the fixture map 78% of cells sat at the ceiling, each dequeued to relax
+  // ten neighbours already at it, and that alone was most of the bake.
+  //
+  // A cell can be skipped when every one of its neighbours is at the ceiling
+  // too. `fullFrom` answers that per column without touching a single
+  // neighbouring cell: the eight lateral neighbours are short of the ceiling at
+  // this height exactly when their column's own `fullFrom` sits above it, and
+  // the cell below is exactly when it is under this column's. The highest of
+  // those is where the open sky stops being able to do anything, so scanning
+  // below it is the whole of the work — the interior is never visited at all.
+  //
+  // Skipped conservatively rather than exactly: a neighbouring column whose
+  // `fullFrom` rests on an opaque cell seeds a few cells that turn out to have
+  // nowhere to push. Cheap, and it keeps the rule one line.
+  for (let ly = 0; ly < dom.h; ly++) {
+    for (let lx = 0; lx < dom.w; lx++) {
+      const col = ly * dom.w + lx;
+      let frontier = fullFrom[col]! + 1;
+      const ny1 = Math.min(dom.h - 1, ly + 1);
+      const nx1 = Math.min(dom.w - 1, lx + 1);
+      for (let ny = Math.max(0, ly - 1); ny <= ny1; ny++) {
+        for (let nx = Math.max(0, lx - 1); nx <= nx1; nx++) {
+          const nf = fullFrom[ny * dom.w + nx]!;
+          if (nf > frontier) frontier = nf;
+        }
+      }
+      if (frontier > dom.d) frontier = dom.d;
+      for (let lz = 0; lz < frontier; lz++) {
+        const i = idx(dom, lx, ly, lz);
+        if (opacity[i]! >= 1) continue;
+        if (sky[i]! > 0.5) skyQ[skyLen++] = i;
+      }
+    }
   }
   let skyHead = 0;
   while (skyHead < skyLen) {

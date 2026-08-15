@@ -44,6 +44,10 @@ import {
 import { isMobileTile } from "../lib/interactions";
 import { getFrames } from "../lib/tileResolve";
 import { ChunkedLighting, type WorldRect } from "../lib/lightingChunks";
+import {
+  canBakeOffThread,
+  WorkerChunkBaker,
+} from "../lib/lightBakerClient";
 import type { FramePhase, FrameProfiler } from "./frameProfile";
 import { GpuLighting } from "./gpuLighting";
 import { PalettePass } from "./palettePass";
@@ -378,6 +382,8 @@ export class WorldRenderer {
   private pendingAmbient: [number, number, number] | null = null;
   private gpuLighting = new GpuLighting();
   private lighting = new ChunkedLighting({}, dynamicLightTileIds({}));
+  /** Null under SSR and tests, where the bake stays on the calling thread. */
+  private lightBaker: WorkerChunkBaker | null = null;
   /** Tile defs the light cache was built against; new defs void every chunk. */
   private lightingTilesById: Record<string, TileDef> | null = null;
   /**
@@ -777,6 +783,8 @@ export class WorldRenderer {
     // a stray tick is a use-after-free as far as WebGL is concerned.
     this.pulsingOutlines = [];
     this.renderer.dispose();
+    this.lightBaker?.dispose();
+    this.lightBaker = null;
     for (const tex of this.textures.values()) tex.dispose();
     for (const mat of this.materials.values()) mat.dispose();
     for (const tex of this.lightTextures.values()) tex.dispose();
@@ -1061,7 +1069,25 @@ export class WorldRenderer {
         .filter((def): def is TileDef => def != null && tileLightVaries(def));
       this.lightingTilesById = view.tilesById;
       this.staticLightGrid = null;
+      // The worker holds the catalogue it bakes against, so a new catalogue is
+      // a new worker rather than a message — there is no correct light to make
+      // from the old one while the new one is being adopted.
+      this.lightBaker?.dispose();
+      this.lightBaker = null;
+      if (canBakeOffThread()) {
+        this.lightBaker = new WorkerChunkBaker(
+          Object.values(view.tilesById),
+          dynamicIds,
+          view.map,
+        );
+        this.lighting.setBaker(this.lightBaker);
+      }
     }
+
+    // Before anything can ask for a bake, and that order is the whole of the
+    // consistency argument: messages are delivered in order, so a map the
+    // worker is told about here cannot be older than a request sent below.
+    this.lightBaker?.syncMap(view.map);
 
     // Ambient is a uniform, not a bake input. Moving the clock now costs one
     // vector write per level — no re-tint, no re-upload, nothing invalidated.
