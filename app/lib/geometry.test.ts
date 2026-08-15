@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   absoluteElevation,
+  boxSurface,
   boxSurfaceElevation,
   depthBox,
   depthStackBias,
@@ -252,6 +253,74 @@ describe("fragDepth", () => {
         fragDepth(wall, antler.sx, antler.sy, depthStackBias(0, 1)),
         fragDepth(deer, antler.sx, antler.sy, depthStackBias(0, 1)),
       );
+    });
+
+    /**
+     * The mirror image: art hanging *down-right*, over the cells in front. A
+     * rat is drawn with its body either side of the cell it stands in, so a
+     * cell of tail falls past the box's foot.
+     *
+     * These assert over the whole overhanging cell rather than one pixel,
+     * because the failure was never all-or-nothing: the foot plane and the
+     * floor's top face tie everywhere, and the plane bias decided the tie one
+     * way above the cell's diagonal and the other way below it, biting the tail
+     * in half along a 45° line.
+     */
+    describe("art hanging into the cell in front", () => {
+      const rat = depthBox(0, 0, 0, 1);
+      const tailCell = { x: 0, y: 1 };
+
+      /** Every pixel of the cell the tail hangs into. */
+      function tailPixels() {
+        const { sx, sy } = footPixel(tailCell.x, tailCell.y);
+        return Array.from({ length: CELL_SIZE * CELL_SIZE }, (_, i) => ({
+          sx: sx + (i % CELL_SIZE),
+          sy: sy + Math.floor(i / CELL_SIZE),
+        }));
+      }
+
+      function pixelsWhereRatWins(neighbour: ReturnType<typeof depthBox>) {
+        return tailPixels().filter(
+          ({ sx, sy }) =>
+            fragDepth(rat, sx, sy, depthStackBias(0, 1)) <
+            fragDepth(neighbour, sx, sy, depthStackBias(0, 0)),
+        ).length;
+      }
+
+      it("keeps the whole tail in front of the flat floor it hangs over", () => {
+        const floor = depthBox(tailCell.x, tailCell.y, 0, 0);
+        expect(pixelsWhereRatWins(floor)).toBe(CELL_SIZE * CELL_SIZE);
+      });
+
+      it("still hides the tail behind a wall in that cell", () => {
+        const wall = depthBox(tailCell.x, tailCell.y, 0, HEIGHT_PER_LEVEL);
+        expect(pixelsWhereRatWins(wall)).toBe(0);
+      });
+
+      it("still hides the tail behind a low prop in that cell", () => {
+        // Grass is only half a level tall — the smallest thing that stands
+        // above the foot plane, and it must still win everywhere.
+        const grass = depthBox(tailCell.x, tailCell.y, 0, 1);
+        expect(pixelsWhereRatWins(grass)).toBe(0);
+      });
+
+      it("leaves the floor two cells in front in front of the tail", () => {
+        const beyond = depthBox(tailCell.x, tailCell.y + 1, 0, 0);
+        expect(pixelsWhereRatWins(beyond)).toBe(0);
+      });
+
+      it("rescues a body's near side there, but not a flat sprite's", () => {
+        // Sampled in the down-right half of the cell, where the ray misses
+        // under the foot; the up-left half misses past the far faces instead
+        // and is rescued for any box, flat or not.
+        const underFoot = { sx: 6, sy: CELL_SIZE + 2 };
+        const body = depthBox(0, 0, 0, 1);
+        const decal = depthBox(0, 0, 0, 0);
+        expect(boxSurface(body, underFoot.sx, underFoot.sy).overhang).toBe(true);
+        expect(boxSurface(decal, underFoot.sx, underFoot.sy).overhang).toBe(
+          false,
+        );
+      });
     });
   });
 

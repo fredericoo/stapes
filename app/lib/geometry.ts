@@ -190,19 +190,37 @@ function boxFarFaceElevation(
  *
  * A ray that crosses the box exits through one of its visible faces, and that
  * exit is the surface. A ray that *misses* — every sprite has some, because art
- * is authored in a 2x2-cell slot while the box is one cell of footprint by its
- * declared height — has no surface, and which way it missed decides what it
- * gets instead:
+ * is authored in a multi-cell slot while the box is one cell of footprint by
+ * its declared height — has no surface of its own, and falls back to the
+ * nearest plane the box does define. Which way it missed decides which:
  *
  * - past the far (north/west) faces, i.e. art hanging up-left, over the cells
  *   *behind* it: the far-face plane, where the ray would have gone in had the
- *   box been deep enough to catch it. That plane is exactly where the
- *   neighbour's own face is, so the two tie — and `overhang` marks the fragment
- *   so {@link DEPTH_OVERHANG_BIAS} can settle the tie for the art. Depth stays
- *   continuous across the silhouette's edge, since the two agree there.
+ *   box been deep enough to catch it.
  * - under the foot, i.e. art hanging down-right, over the cells *in front* of
- *   it: the foot plane, and no bias. Art drawn over ground nearer the camera
- *   has to stay behind that ground, which is what painter's order already says.
+ *   it: the foot plane.
+ *
+ * Either plane is exactly where some neighbouring cell's own face already is,
+ * so the art ties with that neighbour at every shared pixel, and the tie is
+ * settled per pixel by {@link planeDepthBias} — which loses the art along a
+ * diagonal rather than losing it cleanly. `overhang` marks both kinds of miss
+ * so {@link DEPTH_OVERHANG_BIAS} can settle those ties for the art instead.
+ * Depth stays continuous across the silhouette's edge, since box and plane
+ * agree there.
+ *
+ * Deciding the down-right tie for the art is safe because the bias only ever
+ * settles ties: art on the foot plane still loses to anything in the cell in
+ * front whose surface stands above the foot — a wall, a crate, a tuft of grass,
+ * a raised floor. What it now wins is the coplanar case, and a surface coplanar
+ * with the foot one cell nearer is the same flat ground the tile is standing
+ * on. A rat's tail hanging into that cell belongs in front of it.
+ *
+ * That last argument needs the box to have a body, so the down-right rescue is
+ * only for boxes that have one. A flat tile declares no volume above the floor,
+ * so art it draws past its own foot is more floor, and two coplanar floors are
+ * exactly what painter order is for — the more southern one is nearer. Flat
+ * tiles are therefore left exactly as they were: rescued where they miss past
+ * the far faces, losing the tie where they miss under the foot.
  *
  * Clamping to the box in both directions is what this replaces, and it lost
  * art: overhang up-left claimed the top face, so a one-pixel outline sticking
@@ -217,10 +235,14 @@ export function boxSurface(
 ): { elevation: number; overhang: boolean } {
   const exit = boxExitElevation(box, screenX, screenY);
   const farFace = boxFarFaceElevation(box, screenX, screenY);
-  return {
-    elevation: Math.max(exit, farFace, box.foot),
-    overhang: farFace > exit,
-  };
+  const elevation = Math.max(exit, farFace, box.foot);
+  // A ray that left through a face lands *on* its exit elevation, so anything
+  // higher means no face was crossed and a fallback plane won. Which plane
+  // decides whether the art gets rescued: the far face always, the foot only
+  // for a box with volume.
+  const missed = elevation > exit;
+  const hasVolume = box.top > box.foot;
+  return { elevation, overhang: missed && (farFace > exit || hasVolume) };
 }
 
 /** The elevation half of {@link boxSurface}. */
@@ -280,7 +302,9 @@ const MAX_ART_OVERHANG_CELLS = 4;
  * neighbour's own face is. The two then tie at every shared pixel and the plane
  * bias settles it south-first, which loses the art whenever the neighbour is the
  * more southern cell: a deer's head, drawn hanging over the wall corner it is
- * standing beside, was swallowed by that corner.
+ * standing beside, was swallowed by that corner, and a rat's tail, drawn
+ * hanging into the cell in front, was bitten diagonally in half by the floor
+ * there.
  *
  * This decides such ties for the art instead. It sits between the two scales it
  * has to separate — larger than the plane bias can accumulate across the widest

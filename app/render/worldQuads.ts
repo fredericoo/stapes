@@ -53,7 +53,7 @@ const VERTS_PER_QUAD = 4;
 const BOX_COMPONENTS = 4;
 
 /** Both renderers must agree, or the same tile sorts differently in each. */
-export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v6";
+export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v7";
 
 function glsl(n: number): string {
   return Number.isInteger(n) ? `${n}.0` : `${n}`;
@@ -352,15 +352,18 @@ float exitElev = min(min(eastFace, southFace), vBox.w);
 // The far (north/west) faces, one cell of ray climb behind the near ones.
 float farFaceElev =
   max(eastFace, southFace) - ${glsl(HEIGHT_PER_LEVEL)};
-// Far face above exit means the ray missed up-left: art hanging over the cells
-// behind it, with no surface of its own. It takes the far-face plane, which is
-// where the neighbour's face already is, plus a nudge that settles that tie for
-// the art. Missing the other way (under the foot) is art hanging over ground
-// nearer the camera, which must stay behind it — foot plane, no nudge. See
-// boxSurface.
+// A surface above the exit means no face was crossed: art drawn outside its own
+// silhouette, landing on a fallback plane — the far face when it hangs up-left
+// over the cells behind it, the foot when it hangs down-right over the cells in
+// front. Either plane is where a neighbour's own face already is, so the nudge
+// settles that tie for the art. The foot case needs the box to have volume: a
+// flat tile's art past its own foot is more floor, and coplanar floors keep
+// painter order. See boxSurface.
 float surfaceElev = max(max(exitElev, farFaceElev), vBox.z);
 float overhangBias =
-  farFaceElev > exitElev ? ${glsl(DEPTH_OVERHANG_BIAS)} : 0.0;
+  surfaceElev > exitElev && (farFaceElev > exitElev || vBox.w > vBox.z)
+    ? ${glsl(DEPTH_OVERHANG_BIAS)}
+    : 0.0;
 // vBox.xy are the unshifted east/south edges of the base cell. When two flat
 // overhanging sprites share a pixel at the same elev, this restores S-then-E
 // painter order (merge draw order alone is not stable).
