@@ -18,7 +18,9 @@ import {
   DEFAULT_SWITCH,
   hasAnyInteraction,
 } from "../lib/interactions";
-import type { TileDef, TilesetDef } from "../lib/types";
+import { DEFAULT_BATTLER } from "../lib/battler";
+import { DEFAULT_WEAPON } from "../lib/item";
+import type { TileDef, TileKind, TilesetDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL } from "../lib/types";
 import { Input, Segmented, Switch } from "../ui";
 import { TileIdMultiSelect } from "./TileIdMultiSelect";
@@ -35,6 +37,19 @@ const COMPARISON_OPTIONS: Array<{ value: PlateComparison; label: string }> = [
 
 /** Deepest a plate can be buried: a stack may overflow one level into the next. */
 const MAX_PLATE_HEIGHT = HEIGHT_PER_LEVEL * 2;
+
+const KIND_OPTIONS: Array<{ value: TileKind; label: string }> = [
+  { value: "prop", label: "Prop" },
+  { value: "battler", label: "Battler" },
+  { value: "item", label: "Item" },
+];
+
+/** What choosing each kind gets you, in one line under the select. */
+const KIND_HINTS: Record<TileKind, string> = {
+  prop: "Scenery and machinery — everything the world is made of. It can still be pushed, switched, wired, and driven by a brain.",
+  battler: "It has hit points, and can be targeted, hurt and killed. Stats are on the Battle tab.",
+  item: "It can be picked up and carried. What it does in a bag or a hand is on the Item tab.",
+};
 
 type Props = {
   draft: TileDef;
@@ -56,6 +71,32 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets }: Props) {
 
   const setInteractions = (next: TileInteractions | undefined) => {
     onChange({ ...draft, interactions: next });
+  };
+
+  /**
+   * Move the tile between kinds, seeding the block it is arriving at and
+   * clearing the one it is leaving.
+   *
+   * Clearing is what keeps the stored kind and the blocks from telling different
+   * stories. Both resolvers already refuse a block that does not match the kind,
+   * so a leftover would be inert — but it would also be invisible, sitting in
+   * `data/tiles.json` waiting for somebody to flip the select back and find
+   * stats they never authored.
+   *
+   * Seeding is the other half of the Battler switch going away: the tab is now
+   * shown *because* the tile is a battler, so it must never open onto nothing.
+   */
+  const setKind = (kind: TileKind) => {
+    const merged: TileInteractions = { ...draft.interactions };
+    delete merged.battler;
+    delete merged.item;
+    if (kind === "battler") merged.battler = { ...DEFAULT_BATTLER };
+    if (kind === "item") merged.item = { ...DEFAULT_WEAPON };
+    onChange({
+      ...draft,
+      kind,
+      interactions: hasAnyInteraction(merged) ? merged : undefined,
+    });
   };
 
   /** Patch one kind without clobbering the others. `null` clears that kind. */
@@ -111,6 +152,30 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets }: Props) {
 
   return (
     <div className="flex flex-col gap-4">
+      <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
+        <div className="flex flex-col gap-1 text-xs">
+          <span className="text-sm font-bold">Kind</span>
+          <p className="text-[11px] leading-snug text-muted">
+            What this tile <em>is</em>, as opposed to what it does. The three are
+            exclusive, and each opens the tab that configures it. Everything
+            below — push, switch, plates, wires — is available whichever you
+            pick.
+          </p>
+          <div className="pt-1">
+            <Segmented<TileKind>
+              value={draft.kind}
+              onChange={setKind}
+              options={KIND_OPTIONS}
+              size="sm"
+              ariaLabel="Tile kind"
+            />
+          </div>
+          <span className="text-[11px] leading-snug text-muted">
+            {KIND_HINTS[draft.kind]}
+          </span>
+        </div>
+      </section>
+
       <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
         <label className="flex items-center gap-2 text-sm font-bold">
           <Switch

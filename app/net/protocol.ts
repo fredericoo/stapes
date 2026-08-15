@@ -1,4 +1,6 @@
 import * as v from "valibot";
+import type { Equipment } from "../game/equipment";
+import type { SlotRef } from "../game/itemMoves";
 import type { PlacedTile } from "../lib/types";
 import { MAX_CHAT_RAW_LENGTH } from "./chat";
 
@@ -67,6 +69,42 @@ const hpPatchSchema = v.object({
   maxHp: v.number(),
 });
 
+const carriedLightsPatchSchema = v.object({
+  actorId: v.string(),
+  tileIds: v.array(v.string()),
+});
+
+/**
+ * One carried thing, as it travels.
+ *
+ * Loose in `contents` rather than recursive, because a container may not hold a
+ * container — see `../lib/item`. Depth is exactly one, so a schema that recursed
+ * would be describing a shape the rules already forbid.
+ */
+const itemInstanceSchema = v.object({
+  id: v.string(),
+  tileId: v.string(),
+  direction: v.optional(directionSchema),
+  channel: v.optional(v.string()),
+  description: v.optional(v.string()),
+  contents: v.optional(
+    v.array(
+      v.object({
+        id: v.string(),
+        tileId: v.string(),
+        direction: v.optional(directionSchema),
+        channel: v.optional(v.string()),
+        description: v.optional(v.string()),
+      }),
+    ),
+  ),
+});
+
+const equipmentSchema = v.object({
+  weapon: v.nullable(itemInstanceSchema),
+  bag: v.nullable(itemInstanceSchema),
+});
+
 /** One cell's whole stack, replacing whatever the client had there. */
 export type CellPatch = {
   x: number;
@@ -88,6 +126,30 @@ export type HpPatch = {
   actorId: string;
   hp: number;
   maxHp: number;
+};
+
+/**
+ * The lit things one actor is carrying, as the server last saw them.
+ *
+ * The one part of a kit that is broadcast rather than sent to its owner alone,
+ * and the split is not arbitrary: **everybody can see a torch.** The rest of an
+ * inventory changes nothing anybody else can observe — there is no paperdoll and
+ * a drawn sword is not a different sprite — but a lantern lights the room for
+ * whoever is standing in it, so its existence is world state.
+ *
+ * Tile ids rather than resolved lights, for the reason the protocol sends tile
+ * ids everywhere: the catalogue is already on every client, and sending what the
+ * receiver can look up would be sending the same three numbers per torch per
+ * change.
+ *
+ * State, diffed exactly as {@link HpPatch} is — a whole current list replacing
+ * whatever the client had, sent only for the actors whose list changed. It
+ * changes when somebody equips something and never on a tick of walking, so in
+ * practice it is absent from almost every patch.
+ */
+export type CarriedLightsPatch = {
+  actorId: string;
+  tileIds: string[];
 };
 
 export type MotionEvent =
@@ -176,13 +238,44 @@ export type ServerMessage =
        * on the first frame rather than on the first blow.
        */
       hps: HpPatch[];
+      /**
+       * Everybody's carried lights as of this moment, on the same terms
+       * {@link hps} is sent in full here: a joiner has nothing to patch against,
+       * and a room lit by somebody else's lantern has to be lit on the first
+       * frame rather than on the next time they pick something up.
+       */
+      carriedLights: CarriedLightsPatch[];
+      /** What this viewer is carrying. Theirs alone — see {@link Equipment}. */
+      equipment: Equipment;
     }
+  /**
+   * "Here is what you are carrying now."
+   *
+   * The second message addressed to a single client rather than to the world,
+   * and the reason is the same one that keeps patches cheap. A patch is diffed
+   * once and serialized once for everybody, which only works because everybody
+   * is being told the same thing. Equipment is *not* the same thing — it is
+   * different per socket, and folding it into the patch would turn one
+   * serialization per tick into one per player.
+   *
+   * So it rides alone, sent only to the owner and only when theirs changed.
+   * Nothing is lost by that: nobody else's inventory is drawn, because there is
+   * no paperdoll and a sword changes no sprite.
+   *
+   * Whole state replacing whatever the client had, on the same terms
+   * {@link HpPatch} is: an inventory rebuilt from a stream of add-and-remove
+   * events would drift the moment one was missed, and go on being wrong with
+   * nothing to correct it.
+   */
+  | { type: "equipment"; equipment: Equipment }
   | {
       type: "patch";
       cells: CellPatch[];
       events: MotionEvent[];
       /** Only the actors whose hit points changed since the last patch. */
       hps: HpPatch[];
+      /** Only the actors whose carried lights changed since the last patch. */
+      carriedLights: CarriedLightsPatch[];
     }
   /**
    * Something somebody said, pinned to the cell they said it in.
@@ -251,6 +344,54 @@ export type ClientMessage =
   /** Turning on the spot: shift-facing, or pressing into a wall. */
   | { type: "face"; direction: "n" | "e" | "s" | "w" }
   | { type: "interact"; ref: { x: number; y: number; z: number; stackIndex: number } }
+  /**
+   * "I am taking that."
+   *
+   * Its own message rather than an `interact` on the same slot, because the row
+   * that sends it says "Pick up" by name: a tile authored as both an item and a
+   * switch would run the switch under `interact`'s precedence, and the player
+   * would have pressed a button that did something else.
+   *
+   * Every reason it might be refused — reach, a full bag, a bag already on your
+   * back — is re-asked on this side. The client asks the same questions to
+   * decide whether to offer the row at all, which is what stops it offering one
+   * the server will not honour, but it is not trusted with the answer.
+   */
+  | { type: "pickUp"; ref: { x: number; y: number; z: number; stackIndex: number } }
+  /**
+   * "Put that there."
+   *
+   * One message for equipping, unequipping, looting and stashing, because under
+   * the model they are one operation: an instance leaves a slot and arrives in
+   * another, and the board's population is the same afterwards. Splitting them
+   * into four would be four schemas and four validations of the same three
+   * rules — capacity, nesting, and reach for an end that is on the floor.
+   *
+   * **This never crosses the line pickUp and drop cross.** Nothing is created
+   * and nothing is destroyed here, which is why it carries no coordinate of its
+   * own: a ground endpoint names a container that is already on the board, and
+   * the item stays in the world either way.
+   *
+   * Refusals are silent. The client asks the same question — see
+   * `../game/itemMoves` — before it offers the drag at all, so a move arriving
+   * here that cannot be honoured is a race with the board or a client making
+   * things up, and neither has a reply worth sending.
+   */
+  | { type: "moveItem"; from: SlotRef; to: SlotRef }
+  /**
+   * "I am putting that down there."
+   *
+   * The other message that crosses the line, and the inverse of `pickUp`: an
+   * instance becomes a placement, contents and all. It carries the world-shaped
+   * validation that goes with crossing — a throw's range, line of sight so the
+   * range cannot reach through a wall, and whether the target stack has room —
+   * none of which `moveItem` has any use for.
+   *
+   * A cell rather than a stack slot, because you are not choosing a *height*:
+   * the thing lands on top of whatever is there and gravity takes it from
+   * there, exactly as a shoved crate does.
+   */
+  | { type: "drop"; from: SlotRef; to: { x: number; y: number; z: number } }
   | { type: "say"; text: string }
   /**
    * "This is who I am pointing at" — or null, for nobody.
@@ -276,6 +417,43 @@ export type ClientMessage =
  * can say anything, so directions are bounded and coordinates must be finite
  * numbers before they reach a map lookup.
  */
+/**
+ * A stack slot as a browser is allowed to name one: whole numbers, and an index
+ * that is at least somewhere in a stack.
+ *
+ * Whether it names anything real is not this schema's business — every reader
+ * looks the cell up and finds nothing, which is a refusal by the same path an
+ * out-of-reach one takes.
+ */
+const inboundRefSchema = v.object({
+  x: v.pipe(v.number(), v.integer()),
+  y: v.pipe(v.number(), v.integer()),
+  z: v.pipe(v.number(), v.integer()),
+  stackIndex: v.pipe(v.number(), v.integer(), v.minValue(0)),
+});
+
+/**
+ * A slot, inbound.
+ *
+ * The index is bounded below and left unbounded above on purpose: what an index
+ * may be is decided by the size of the container it is read against, which the
+ * server knows and this schema does not. An index past the end reads as an empty
+ * slot and is refused there, in the one place capacity is understood.
+ */
+const inboundSlotRefSchema = v.variant("kind", [
+  v.object({ kind: v.literal("weapon") }),
+  v.object({ kind: v.literal("bag") }),
+  v.object({
+    kind: v.literal("contents"),
+    index: v.pipe(v.number(), v.integer(), v.minValue(0)),
+  }),
+  v.object({
+    kind: v.literal("ground"),
+    ref: inboundRefSchema,
+    index: v.pipe(v.number(), v.integer(), v.minValue(0)),
+  }),
+]);
+
 const clientMessageSchema = v.variant("type", [
   v.object({
     type: v.literal("step"),
@@ -292,11 +470,24 @@ const clientMessageSchema = v.variant("type", [
   }),
   v.object({
     type: v.literal("interact"),
-    ref: v.object({
+    ref: inboundRefSchema,
+  }),
+  v.object({
+    type: v.literal("pickUp"),
+    ref: inboundRefSchema,
+  }),
+  v.object({
+    type: v.literal("moveItem"),
+    from: inboundSlotRefSchema,
+    to: inboundSlotRefSchema,
+  }),
+  v.object({
+    type: v.literal("drop"),
+    from: inboundSlotRefSchema,
+    to: v.object({
       x: v.pipe(v.number(), v.integer()),
       y: v.pipe(v.number(), v.integer()),
       z: v.pipe(v.number(), v.integer()),
-      stackIndex: v.pipe(v.number(), v.integer(), v.minValue(0)),
     }),
   }),
   v.object({
@@ -340,6 +531,12 @@ const serverMessageSchema = v.variant("type", [
     playerCount: v.number(),
     minutesOfDay: v.number(),
     hps: v.array(hpPatchSchema),
+    carriedLights: v.array(carriedLightsPatchSchema),
+    equipment: equipmentSchema,
+  }),
+  v.object({
+    type: v.literal("equipment"),
+    equipment: equipmentSchema,
   }),
   v.object({
     type: v.literal("patch"),
@@ -395,6 +592,7 @@ const serverMessageSchema = v.variant("type", [
       ]),
     ),
     hps: v.array(hpPatchSchema),
+    carriedLights: v.array(carriedLightsPatchSchema),
   }),
   v.object({
     type: v.literal("chat"),

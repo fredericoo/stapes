@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   clearStack,
+  flattenMap,
+  serializeMap,
   getStack,
   listCoords,
   replaceStack,
@@ -285,5 +287,63 @@ describe("intangible physical height", () => {
     expect(
       fitsTile(map, 0, 0, 0, tilesById["door-open"]!, tilesById).ok,
     ).toBe(true);
+  });
+});
+
+/**
+ * The file is authored content; ids are not.
+ *
+ * `itemId` is minted at load and rewritten by play — picking a sword up,
+ * looting a chest, dropping a bag — so without stripping, a save after a few
+ * minutes in the world would arrive full of identities nobody typed. Everything
+ * that keeps them uses `flattenMap` directly.
+ */
+describe("serializeMap and the ids that do not belong on disk", () => {
+  const withItems = replaceStack(emptyMap(), 1, 2, 0, [
+    { tileId: "grass" },
+    {
+      tileId: "chest",
+      itemId: "itm_minted",
+      description: "the one by the door",
+      contents: [
+        { id: "itm_inside", tileId: "sword" },
+        { id: "itm_other", tileId: "bag", channel: "gate" },
+      ],
+    },
+  ]);
+
+  const saved = JSON.parse(serializeMap(withItems)) as {
+    levels: Record<string, Record<string, Array<Record<string, unknown>>>>;
+  };
+  const placed = saved.levels["0"]!["1,2"]![1]!;
+
+  it("writes no itemId", () => {
+    expect(placed.itemId).toBeUndefined();
+  });
+
+  it("writes no ids inside a container either", () => {
+    const contents = placed.contents as Array<Record<string, unknown>>;
+    expect(contents.map((c) => c.id)).toEqual([undefined, undefined]);
+  });
+
+  it("keeps everything an author actually wrote", () => {
+    expect(placed.tileId).toBe("chest");
+    expect(placed.description).toBe("the one by the door");
+    const contents = placed.contents as Array<Record<string, unknown>>;
+    expect(contents.map((c) => c.tileId)).toEqual(["sword", "bag"]);
+    expect(contents[1]!.channel).toBe("gate");
+  });
+
+  it("leaves the played map alone, ids and all", () => {
+    serializeMap(withItems);
+    expect(getStack(withItems, 1, 2, 0)[1]!.itemId).toBe("itm_minted");
+  });
+
+  /** The wire and the checkpoint go this way, and a running world needs them. */
+  it("keeps them in the flat shape everything else uses", () => {
+    const flat = flattenMap(withItems);
+    const kept = flat.levels["0"]!["1,2"]![1]!;
+    expect(kept.itemId).toBe("itm_minted");
+    expect(kept.contents?.[0]?.id).toBe("itm_inside");
   });
 });

@@ -66,6 +66,7 @@ describe("normalizeTileDef", () => {
       name: "G",
       height: 0,
       type: "simple",
+      kind: "prop",
       attributes: {},
       sprite: {
         frames: [

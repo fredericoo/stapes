@@ -109,6 +109,7 @@ describe("pickAutotileSprite", () => {
     name: "Auto",
     height: 0,
     type: "autotile",
+    kind: "prop",
     attributes: {},
     slices: {
       0: { frames: [frame("#000000")] },

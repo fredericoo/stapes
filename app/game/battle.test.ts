@@ -26,14 +26,31 @@ const frame = {
   durationMs: 200,
 };
 
+/**
+ * A tile for a fight.
+ *
+ * Stats imply the kind here, which is the one place that inference is allowed:
+ * `resolveBattler` gates on `kind` so the production path can never read a block
+ * the select did not authorise, but a fixture that hands this function six stats
+ * has said what it is as plainly as a fixture can. Spelling `kind: "battler"`
+ * beside every `interactions.battler` in this file would be ceremony, not
+ * coverage — the gate itself is asserted in `battler.test.ts`.
+ *
+ * Still overridable: a test that wants a stat block the kind refuses passes its
+ * own `kind` and gets exactly that.
+ */
 function tile(
   partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
 ): TileDef {
+  const interactions = partial.interactions as
+    | { battler?: unknown }
+    | undefined;
   return normalizeTileDef({
     name: partial.id,
     directional: false,
     variants: { default: [frame] },
     attributes: {},
+    kind: interactions?.battler ? "battler" : "prop",
     ...partial,
   });
 }

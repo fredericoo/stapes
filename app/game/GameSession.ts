@@ -3,6 +3,7 @@ import {
   appendTile,
   getStack,
   isWalkableSurfaceAt,
+  removeTileAt,
   replaceStack,
 } from "../lib/mapData";
 import { resolveSwitch } from "../lib/interactions";
@@ -25,8 +26,11 @@ import {
   type ActorLocation,
 } from "./actors";
 import {
+  canDropAt,
+  canPickUpFrom,
   canPushFrom,
   canSwitchFrom,
+  pickUpDestination,
   interactiveDefAt,
   pushDirectionFrom,
   pushTargetFrom,
@@ -39,11 +43,32 @@ import {
   FALL_MS_PER_HEIGHT,
   MAX_CLIMB_HEIGHT,
   PUSH_STEP_MS,
+  STARTING_BAG_TILE_ID,
   TICK_MS,
   WALK_DURATION_MS,
 } from "./constants";
 import { resolveBattler, type BattlerDef } from "../lib/battler";
 import { attackIntervalMs, inAttackRange, rollAttack } from "./combat";
+import type { Equipment } from "./equipment";
+import {
+  carriedLightTileIds,
+  effectiveBattler,
+  emptyEquipment,
+  startingEquipment,
+} from "./equipment";
+import { mintItemIds } from "./itemIds";
+import {
+  applyItemMove,
+  canMoveItem,
+  clearSlot,
+  itemInSlot,
+  type SlotRef,
+} from "./itemMoves";
+import type { ItemInstance } from "../lib/itemInstance";
+import {
+  instanceFromPlacement,
+  placementFromInstance,
+} from "../lib/itemInstance";
 import {
   cellForFeetAbs,
   cellHasLooseGravity,
@@ -179,6 +204,18 @@ export type ActorSnapshot = {
   hp: number | null;
   /** What {@link hp} is measured against; null exactly when `hp` is. */
   maxHp: number | null;
+  /**
+   * The tiles of the lit things this actor is carrying.
+   *
+   * The one part of a kit everybody can see, and therefore the one part that is
+   * broadcast: a torch in your bag lights the room for the people in it. The
+   * rest of what you are carrying is yours alone — see {@link GameSnapshot.equipment}.
+   *
+   * Tile ids rather than resolved lights, because every client already holds the
+   * catalogue. Empty for almost everybody, which is the case the renderer is
+   * built around.
+   */
+  carriedLights: string[];
 };
 
 /**
@@ -241,20 +278,18 @@ export type ChatBubble = {
 export type GameSnapshot = {
   map: MapFile;
   /**
-   * The viewer's own actor. Camera, roof-cut and hover follow this one and only
-   * this one — they are affordances for whoever is looking, not properties of
-   * the board.
+   * The viewer's own actor. Camera and roof-cut follow this one and only this
+   * one — they are affordances for whoever is looking, not properties of the
+   * board.
    */
   self: ActorSnapshot;
   /** Every actor on the board, self included, in stable id order. */
   actors: ActorSnapshot[];
-  /** Object under the viewer's pointer that they can act on right now. */
-  hover: ObjectRef | null;
   /**
    * Who the viewer has picked a fight with, or null.
    *
-   * The viewer's own, like {@link hover} and for the same reason: a target is
-   * an affordance for whoever is looking, not a property of the board. It is
+   * The viewer's own, and that is the point: a target is an affordance for
+   * whoever is looking, not a property of the board. It is
    * what the auto-attack swings at *while {@link attacking}*, and it survives
    * until they clear it, walk out of sight of it, or it dies.
    */
@@ -276,6 +311,19 @@ export type GameSnapshot = {
    * exactly as the online client does.
    */
   damage: DamageNumber[];
+  /**
+   * What the viewer is carrying.
+   *
+   * The viewer's own, like {@link targetId}, and for a stronger reason than it:
+   * nobody else's inventory is drawn. There is no
+   * paperdoll — a sword changes no sprite — so broadcasting everyone's kit to
+   * everyone would be paying fan-out for something no frame can show.
+   *
+   * The day a carried torch lights the room, that is *not* what changes this:
+   * light needs a per-actor projection of the equipment
+   * (`carriedLightTileIds`), not the equipment itself.
+   */
+  equipment: Equipment;
   /**
    * Speech still on screen, on this viewer's level only.
    *
@@ -326,7 +374,6 @@ export interface PlaySession {
   update(dtMs: number): void;
   getSnapshot(): GameSnapshot;
   getMap(): MapFile;
-  setHoveredObject(ref: ObjectRef | null): void;
   /**
    * Point at somebody, or at nobody with null.
    *
@@ -341,6 +388,36 @@ export interface PlaySession {
   setAttackMode(enabled: boolean): void;
   canInteract(ref: ObjectRef): boolean;
   interact(ref: ObjectRef): boolean;
+  /**
+   * Take the thing at this slot into your kit.
+   *
+   * On the interface rather than left to {@link interact}, because the list
+   * offers pick-up as its own row and a row that named one action and ran
+   * whatever `interact` happened to choose would be lying about what a tap
+   * does.
+   */
+  pickUp(ref: ObjectRef): boolean;
+  /**
+   * Would this move be honoured right now?
+   *
+   * Asked by whatever is drawing the drag, so a slot lights up only where the
+   * thing would actually land. Same function the move itself runs, which is what
+   * stops the interface offering something a drop would refuse.
+   */
+  canMoveItem(from: SlotRef, to: SlotRef): boolean;
+  /** Move a carried thing from one slot to another. @see canMoveItem */
+  moveItem(from: SlotRef, to: SlotRef): boolean;
+  /**
+   * Would this thing land on this cell?
+   *
+   * Asked once per pointer move while a drag is over the world, so the ghost
+   * under the cursor is drawn only where the drop would be honoured — the same
+   * rule the server re-runs, which is what stops the ghost promising something a
+   * release would refuse.
+   */
+  canDrop(from: SlotRef, to: Coord): boolean;
+  /** Put a carried thing down on the board. @see canDrop */
+  drop(from: SlotRef, to: Coord): boolean;
 }
 
 /**
@@ -372,6 +449,32 @@ type ActorRuntime = {
    * what kind of body this is, once per creature per tick.
    */
   readonly resident: boolean;
+  /**
+   * What this actor is wearing and carrying. See `./equipment`.
+   *
+   * On the runtime rather than on the placement, on exactly the terms {@link hp}
+   * is: a placement field would broadcast itself through cell patches, and every
+   * equip would dirty the light chunks and level geometry around the player for
+   * a change nothing in the world can see.
+   *
+   * Unlike `hp` and `brain` this is *not* something a fresh runtime can rebuild
+   * from the tile — it is the only state here that a world owes continuity for,
+   * because what somebody is carrying came from somewhere.
+   */
+  equipment: Equipment;
+  /**
+   * The tiles of the lit things in that kit, kept in step with it.
+   *
+   * Derived, and cached here rather than computed where it is read, because it
+   * is read *every frame per actor* and changes only when somebody equips
+   * something. Walking a bag looking for lanterns sixty times a second to find
+   * the same empty list would be the whole cost of a feature almost nobody is
+   * using at any moment.
+   *
+   * The one rule: it is written only beside {@link GameSession.setEquipment}, so
+   * there is no way to change a kit without this following.
+   */
+  carriedLights: string[];
   /**
    * Where this creature is in its state machine, or null for a body with no
    * brain — every player, and any creature whose authored brain did not parse.
@@ -415,7 +518,6 @@ type ActorRuntime = {
   walk: WalkState | null;
   fall: FallState | null;
   slide: SlideState | null;
-  hovered: ObjectRef | null;
   /**
    * Location memo, keyed on the map object it was read from.
    *
@@ -443,6 +545,15 @@ export class GameSession implements PlaySession {
    * {@link reindexCells} at the few sites that can relocate a plate; a stale
    * extra entry only costs a wasted stack read, a missing one is a dead plate.
    */
+  /**
+   * Actors whose kit has changed and whose owner has not been told yet.
+   *
+   * Ids rather than the kits themselves: by the time this is drained the
+   * equipment on the runtime is the current one, and holding a copy here would
+   * be a second version of the truth going stale between the tick that changed
+   * it and the flush that sends it.
+   */
+  private readonly equipmentChanged = new Set<string>();
   private readonly plateCells = new Map<string, Coord>();
   /**
    * Cells holding a placement wired to a signal channel — emitters and
@@ -592,6 +703,10 @@ export class GameSession implements PlaySession {
     // resident is on the map whether or not anybody is here to see it.
     this.adoptResidents();
 
+    // Before anything can pick one up, and idempotent against a resumed world
+    // whose items were minted the last time it loaded.
+    this.map = mintItemIds(this.map, this.tilesById);
+
     for (const cell of findPlateCells(this.map, this.tilesById)) {
       this.plateCells.set(cellKey(cell), cell);
     }
@@ -633,11 +748,28 @@ export class GameSession implements PlaySession {
 
   private addActor(
     id: string,
-    opts: { resident?: boolean } = {},
+    opts: { resident?: boolean; carrying?: Equipment } = {},
   ): ActorRuntime {
+    const resident = opts.resident === true;
+    // Only people get a kit. A deer is an actor in every other respect, and
+    // could carry things the day something wants it to — but handing every
+    // creature in the world a backpack it will never open is a bag per body to
+    // seat, checkpoint and diff for nothing.
+    //
+    // A returning player brings their own, already checked against the tiles
+    // this world has now — see `restoredEquipment`. It is not merged with the
+    // starting kit: coming back with a bag *and* a fresh one is a bag from
+    // nowhere, once per reconnect.
+    const equipment =
+      opts.carrying ??
+      (resident
+        ? emptyEquipment()
+        : startingEquipment(this.tilesById, STARTING_BAG_TILE_ID));
     const actor: ActorRuntime = {
       id,
-      resident: opts.resident === true,
+      resident,
+      equipment,
+      carriedLights: carriedLightTileIds(equipment, this.tilesById),
       brain: null,
       hp: null,
       attackCooldownMs: 0,
@@ -647,7 +779,6 @@ export class GameSession implements PlaySession {
       walk: null,
       fall: null,
       slide: null,
-      hovered: null,
       memo: null,
     };
     this.actors.set(id, actor);
@@ -672,8 +803,15 @@ export class GameSession implements PlaySession {
    *   the map is more recent than any memory of one — and honoured only if it
    *   still has room for them; see {@link findEntryCell}. Omit for an actor the
    *   world has never met, who enters at the spawn point.
+   * @param carrying what this actor had on them the last time anyone saw them,
+   *   already checked against this world's tiles — see `restoredEquipment`.
+   *   Omit for somebody new, who gets the starting kit.
    */
-  spawn(id: string, at?: Coord & { direction?: Direction }) {
+  spawn(
+    id: string,
+    at?: Coord & { direction?: Direction },
+    carrying?: Equipment,
+  ) {
     if (this.actors.has(id)) return;
     if (!findActorAnywhere(this.map, id)) {
       const cell = at
@@ -681,7 +819,7 @@ export class GameSession implements PlaySession {
         : this.spawnAt;
       this.map = spawnActor(this.map, id, cell, at?.direction);
     }
-    this.addActor(id);
+    this.addActor(id, { carrying });
   }
 
   /**
@@ -741,6 +879,18 @@ export class GameSession implements PlaySession {
 
   actorIds(): string[] {
     return [...this.actors.keys()];
+  }
+
+  /**
+   * What one actor is carrying, or null when nobody by that name is here.
+   *
+   * Null rather than an empty kit, because the two mean different things to the
+   * server: an actor with nothing is somebody to send an empty inventory to,
+   * and an actor who has died or never joined is somebody to send nothing at
+   * all. Only the server asks — a local viewer reads theirs off the snapshot.
+   */
+  equipmentOf(id: string): Equipment | null {
+    return this.actors.get(id)?.equipment ?? null;
   }
 
   /**
@@ -1276,12 +1426,23 @@ export class GameSession implements PlaySession {
     }
   }
 
-  /** The stat block of whatever body this actor is in, or null for none. */
+  /**
+   * The stat block of whatever body this actor is in, equipment counted, or
+   * null for a body with no stats at all.
+   *
+   * **The single place stats are answered**, which is what makes a weapon apply
+   * everywhere without anything else having to remember to ask: the swing reads
+   * it, the cooldown reads it, and the health bar's maximum reads it. A second
+   * caller of `resolveBattler` would be a body that fights with its sword and
+   * one that does not, depending on who asked.
+   */
   private battlerOf(actor: ActorRuntime): BattlerDef | null {
     const loc = this.tryLocate(actor);
     if (!loc) return null;
     const def = this.tilesById[loc.placed.tileId];
-    return def ? resolveBattler(def) : null;
+    const base = def ? resolveBattler(def) : null;
+    if (!base) return null;
+    return effectiveBattler(base, actor.equipment, this.tilesById);
   }
 
   /**
@@ -1472,6 +1633,253 @@ export class GameSession implements PlaySession {
     return true;
   }
 
+  canPickUp(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
+    const actor = this.actor(id);
+    if (!this.idle(actor)) return false;
+    return canPickUpFrom(
+      this.map,
+      this.tilesById,
+      this.locate(actor),
+      ref,
+      actor.equipment,
+    );
+  }
+
+  /**
+   * Take the thing off the board and into this actor's kit.
+   *
+   * The placement becomes an instance and the map loses it, which is the whole
+   * operation — a container comes up with its `contents` intact because those
+   * ride on the placement, so nothing here has to know a bag from a sword.
+   *
+   * Returns false when the pickup is illegal, on the same terms a blocked push
+   * does: a refusal is a no-op, not an error state.
+   */
+  pickUp(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
+    const actor = this.actor(id);
+    if (!this.idle(actor)) return false;
+
+    const loc = this.locate(actor);
+    const destination = pickUpDestination(
+      this.map,
+      this.tilesById,
+      loc,
+      ref,
+      actor.equipment,
+    );
+    if (!destination) return false;
+
+    const placed = getStack(this.map, ref.x, ref.y, ref.z)[ref.stackIndex];
+    const instance = placed && instanceFromPlacement(placed);
+    // An item with no identity means something skipped the minting pass. Better
+    // a pickup that does nothing than one that puts an anonymous thing in a bag
+    // and loses track of it forever.
+    if (!instance) return false;
+
+    this.setEquipment(
+      actor,
+      destination === "bag-slot"
+        ? { ...actor.equipment, bag: instance }
+        : {
+            ...actor.equipment,
+            bag: {
+              ...actor.equipment.bag!,
+              contents: [...(actor.equipment.bag!.contents ?? []), instance],
+            },
+          },
+    );
+
+    this.map = removeTileAt(this.map, ref.x, ref.y, ref.z, ref.stackIndex);
+    // The cell has one fewer thing in it, which is a real change to what rests
+    // on a plate and to what was holding a crate up.
+    this.reindexCells([{ x: ref.x, y: ref.y, z: ref.z }]);
+    return true;
+  }
+
+  canMoveItem(
+    from: SlotRef,
+    to: SlotRef,
+    id: string = LOCAL_ACTOR_ID,
+  ): boolean {
+    const actor = this.actors.get(id);
+    if (!actor) return false;
+    const loc = this.tryLocate(actor);
+    if (!loc) return false;
+    return canMoveItem(
+      this.map,
+      this.tilesById,
+      loc,
+      actor.equipment,
+      from,
+      to,
+    );
+  }
+
+  /**
+   * Move one carried thing from one slot to another.
+   *
+   * Equipping, unequipping, looting a chest and stashing something into one are
+   * all this, read four ways — see `./itemMoves`, which owns every rule the move
+   * has to satisfy and is asked the same question by the client before it offers
+   * the drag.
+   *
+   * Not gated on {@link idle}, unlike a push or a pickup. Those two move the
+   * *board* and are held against the actor so they cannot be machine-gunned out
+   * faster than the result can be seen; this rearranges what somebody is
+   * carrying, and refusing to let a walking player put a sword in their hand
+   * would be a rule with nothing behind it. Reach for a ground endpoint is
+   * re-asked here regardless, against the cell the actor has committed to.
+   *
+   * No settle pass: a container's contents are not physics. Rewriting them
+   * changes what a placement *holds* and never its tile, so nothing rests
+   * differently on a plate and no wire has changed value — and the map identity
+   * has moved anyway, so the next tick's pass will not skip.
+   */
+  moveItem(from: SlotRef, to: SlotRef, id: string = LOCAL_ACTOR_ID): boolean {
+    const actor = this.actors.get(id);
+    if (!actor) return false;
+    const loc = this.tryLocate(actor);
+    if (!loc) return false;
+
+    const moved = applyItemMove(
+      this.map,
+      this.tilesById,
+      loc,
+      actor.equipment,
+      from,
+      to,
+    );
+    if (!moved) return false;
+
+    this.map = moved.map;
+    // Only when it actually changed: `setEquipment` is what tells the owner's
+    // socket, and a loot from one chest into another is nobody's kit changing.
+    if (moved.equipment !== actor.equipment) {
+      this.setEquipment(actor, moved.equipment);
+    }
+    return true;
+  }
+
+  canDrop(
+    from: SlotRef,
+    to: Coord,
+    id: string = LOCAL_ACTOR_ID,
+  ): boolean {
+    return this.dropCandidate(from, to, id) != null;
+  }
+
+  /**
+   * What a drop would put down, and whether it may go there.
+   *
+   * One question rather than two, for the reason `pickUpDestination` is: the
+   * caller that says yes is the caller that then has to write the placement, and
+   * finding the instance a second time is how the two come to disagree.
+   */
+  private dropCandidate(
+    from: SlotRef,
+    to: Coord,
+    id: string,
+  ): { actor: ActorRuntime; instance: ItemInstance } | null {
+    const actor = this.actors.get(id);
+    if (!actor) return null;
+    const loc = this.tryLocate(actor);
+    if (!loc) return null;
+
+    const instance = itemInSlot(
+      this.map,
+      this.tilesById,
+      loc,
+      actor.equipment,
+      from,
+    );
+    if (!instance) return null;
+
+    const def = this.tilesById[instance.tileId];
+    if (!def) return null;
+    if (!canDropAt(this.map, this.tilesById, loc, to, def)) return null;
+    return { actor, instance };
+  }
+
+  /**
+   * Put a carried thing down on the board.
+   *
+   * The exact inverse of {@link pickUp}, and it shares that trip's conversion
+   * pair: an instance becomes a placement, contents and all, so a bag put on the
+   * floor is still full and a chest looted half-empty stays half-empty. Nothing
+   * here knows a bag from a sword.
+   *
+   * Landing on *top* of the target stack rather than at a chosen height, and
+   * then settling: a thing dropped over a hole falls into it, which is the same
+   * rule a shoved crate follows and needs no special case here.
+   */
+  drop(from: SlotRef, to: Coord, id: string = LOCAL_ACTOR_ID): boolean {
+    const candidate = this.dropCandidate(from, to, id);
+    if (!candidate) return false;
+    const { actor, instance } = candidate;
+
+    const emptied = clearSlot(
+      this.map,
+      this.tilesById,
+      this.locate(actor),
+      actor.equipment,
+      from,
+    );
+    if (!emptied) return false;
+
+    this.map = appendTile(
+      emptied.map,
+      to.x,
+      to.y,
+      to.z,
+      placementFromInstance(instance),
+    );
+    if (emptied.equipment !== actor.equipment) {
+      this.setEquipment(actor, emptied.equipment);
+    }
+
+    // The thing that just landed may be a plate, may be wired, and is almost
+    // certainly subject to gravity — and the cell it came *out of*, for a drop
+    // taken from a container on the floor, has changed too.
+    this.reindexCells([to]);
+    this.settleBoardNow();
+    return true;
+  }
+
+  /**
+   * Put a whole new kit on an actor.
+   *
+   * **Replaces rather than mutates, and that is load-bearing.** The renderer
+   * hands equipment to React only when the object identity changes — see
+   * `GameRenderer.setOnEquipment` — so a kit edited in place would leave the
+   * panels showing what the player was carrying a moment ago, with nothing to
+   * correct it. Every change goes through here for that reason.
+   */
+  private setEquipment(actor: ActorRuntime, next: Equipment) {
+    actor.equipment = next;
+    // Re-derived here and nowhere else. It is the one moment the answer can have
+    // changed, and doing it beside the assignment is what makes "the cache
+    // cannot go stale" a fact about this function rather than a discipline
+    // spread over every caller.
+    actor.carriedLights = carriedLightTileIds(next, this.tilesById);
+    this.equipmentChanged.add(actor.id);
+  }
+
+  /**
+   * Whose kit has changed since the last time anybody asked, and clears the
+   * list.
+   *
+   * Drained rather than read, because there is exactly one consumer: the server
+   * turning it into a message per socket. A second reader would silently get an
+   * empty answer, which is the right shape here — this is a queue of things to
+   * announce, not a record of what happened.
+   */
+  drainEquipmentChanges(): string[] {
+    if (this.equipmentChanged.size === 0) return [];
+    const changed = [...this.equipmentChanged];
+    this.equipmentChanged.clear();
+    return changed;
+  }
+
   canSwitch(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
     if (!this.idle(actor)) return false;
@@ -1519,24 +1927,17 @@ export class GameSession implements PlaySession {
    * open → channel disagrees → closed now happens with nothing in between.
    */
   interact(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
-    const acted = this.activateSwitch(ref, id) || this.push(ref, id);
+    const acted =
+      this.activateSwitch(ref, id) || this.pickUp(ref, id) || this.push(ref, id);
     if (acted) this.settleBoardNow();
     return acted;
   }
 
-  /**
-   * Renderer reports what the pointer is over; whether it counts is decided on
-   * read, not here. Reach changes as the actor walks and as objects settle,
-   * and a pointer that has not moved must not keep an outline alive that the
-   * actor can no longer act on.
-   */
-  setHoveredObject(ref: ObjectRef | null, id: string = LOCAL_ACTOR_ID) {
-    this.actor(id).hovered = ref;
-  }
-
   /** Is there anything a tap on this object would do right now? */
   canInteract(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
-    return this.canSwitch(ref, id) || this.canPush(ref, id);
+    return (
+      this.canSwitch(ref, id) || this.canPickUp(ref, id) || this.canPush(ref, id)
+    );
   }
 
   private tickSlide(actor: ActorRuntime, tickMs: number) {
@@ -1602,6 +2003,10 @@ export class GameSession implements PlaySession {
         : 0,
       hp: this.hpOf(actor),
       maxHp: this.battlerOf(actor)?.maxHp ?? null,
+      // By reference, like `walk` and `fall`: it is replaced wholesale whenever
+      // a kit changes, so the same array across two ticks is the same answer and
+      // nothing downstream has to copy it to be safe.
+      carriedLights: actor.carriedLights,
     };
   }
 
@@ -1621,10 +2026,9 @@ export class GameSession implements PlaySession {
       map: this.map,
       self: mine,
       actors,
-      hover:
-        self.hovered && this.canInteract(self.hovered, id) ? self.hovered : null,
       targetId: self.targetId,
       attacking: self.attacking,
+      equipment: self.equipment,
       // Nobody to talk to: the local simulation has no wire and no other actors
       // worth naming, so speech is a thing only the online client carries.
       chats: [],

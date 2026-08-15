@@ -1,12 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_PUSH } from "../lib/interactions";
+import { DEFAULT_CONTAINER, DEFAULT_WEAPON } from "../lib/item";
+import type { Equipment } from "./equipment";
+import { emptyEquipment } from "./equipment";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import type { ActorSnapshot } from "./GameSession";
 import {
+  interactionText,
   listInteractionOptions,
+  topInteractionAt,
   type InteractionOption,
 } from "./interactionOptions";
 
@@ -53,6 +58,42 @@ const tiles: TileDef[] = [
     },
   }),
   tile({ id: "door_open", name: "Open door", height: 2 }),
+  tile({
+    id: "sword",
+    name: "Sword",
+    height: 0,
+    kind: "item",
+    intangible: true,
+    interactions: { item: DEFAULT_WEAPON },
+  }),
+  tile({
+    id: "bag",
+    name: "Bag",
+    height: 0,
+    kind: "item",
+    intangible: true,
+    interactions: { item: DEFAULT_CONTAINER },
+  }),
+  tile({
+    id: "chest",
+    name: "Chest",
+    height: 0,
+    kind: "item",
+    intangible: true,
+    interactions: { item: { ...DEFAULT_CONTAINER, size: 2, equippable: false } },
+  }),
+  // Authored as both, so the switch → pickUp precedence has something to bite.
+  tile({
+    id: "switch_sword",
+    name: "Switch sword",
+    height: 0,
+    kind: "item",
+    intangible: true,
+    interactions: {
+      item: DEFAULT_WEAPON,
+      switch: { targetTileId: "door_open", actionName: "Pull" },
+    },
+  }),
   // A switch with no verb authored on it, which every switch in `data/` was
   // before the field existed.
   tile({
@@ -138,6 +179,7 @@ function actor(
     slideProgress: 0,
     hp,
     maxHp: hp === null ? null : 10,
+    carriedLights: [],
   };
 }
 
@@ -145,6 +187,28 @@ function actor(
 function playerAt(map: MapFile, x = 0, y = 0): ActorSnapshot {
   return actor("me", "player", x, y, map);
 }
+
+/** A player with an empty four-slot bag on their back — the starting kit. */
+const KIT: Equipment = {
+  weapon: null,
+  bag: { id: "itm_bag", tileId: "bag", contents: [] },
+};
+
+/** Same bag, with nothing left to put in it. */
+const FULL_KIT: Equipment = {
+  weapon: null,
+  bag: {
+    id: "itm_bag",
+    tileId: "bag",
+    contents: Array.from({ length: DEFAULT_CONTAINER.size }, (_, i) => ({
+      id: `itm_${i}`,
+      tileId: "sword",
+    })),
+  },
+};
+
+/** Carrying nothing at all — no bag to put anything into. */
+const NO_BAG: Equipment = emptyEquipment();
 
 /** Just the verbs, for tests that do not care about the rest of an entry. */
 function actionsIn(options: InteractionOption[]): string[] {
@@ -157,7 +221,7 @@ describe("listInteractionOptions — objects", () => {
     map = place(map, 1, 0, ["grass", "crate"]);
     const me = playerAt(map);
 
-    const targets = listInteractionOptions(map, tilesById, me, [me], null);
+    const targets = listInteractionOptions(map, tilesById, me, [me], null, KIT);
 
     expect(targets).toHaveLength(1);
     expect(targets[0]!.name).toBe("Crate");
@@ -176,7 +240,7 @@ describe("listInteractionOptions — objects", () => {
     map = place(map, 2, 0, ["grass", "crate"]);
     const me = playerAt(map);
 
-    expect(listInteractionOptions(map, tilesById, me, [me], null)).toEqual([]);
+    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
   });
 
   it("says nothing about a crate on the diagonal", () => {
@@ -184,7 +248,7 @@ describe("listInteractionOptions — objects", () => {
     map = place(map, 1, 1, ["grass", "crate"]);
     const me = playerAt(map);
 
-    expect(listInteractionOptions(map, tilesById, me, [me], null)).toEqual([]);
+    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
   });
 
   it("drops a push with nowhere to go", () => {
@@ -194,7 +258,7 @@ describe("listInteractionOptions — objects", () => {
     map = place(map, 2, 0, []);
     const me = playerAt(map);
 
-    expect(listInteractionOptions(map, tilesById, me, [me], null)).toEqual([]);
+    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
   });
 
   it("names a switch by its authored verb", () => {
@@ -202,7 +266,7 @@ describe("listInteractionOptions — objects", () => {
     map = place(map, 0, -1, ["grass", "door_shut"]);
     const me = playerAt(map);
 
-    const targets = listInteractionOptions(map, tilesById, me, [me], null);
+    const targets = listInteractionOptions(map, tilesById, me, [me], null, KIT);
 
     expect(targets[0]!.action).toBe("switch");
     expect(targets[0]!.label).toBe("Open");
@@ -213,7 +277,7 @@ describe("listInteractionOptions — objects", () => {
     map = place(map, 0, -1, ["grass", "lever"]);
     const me = playerAt(map);
 
-    const targets = listInteractionOptions(map, tilesById, me, [me], null);
+    const targets = listInteractionOptions(map, tilesById, me, [me], null, KIT);
 
     expect(targets[0]!.label).toBe("Switch");
   });
@@ -223,7 +287,7 @@ describe("listInteractionOptions — objects", () => {
     map = place(map, 0, -1, ["grass", "lever_crate"]);
     const me = playerAt(map);
 
-    const targets = listInteractionOptions(map, tilesById, me, [me], null);
+    const targets = listInteractionOptions(map, tilesById, me, [me], null, KIT);
 
     // One button, because one tap does one thing — and it does the switch,
     // which is the order `PlaySession.interact` tries them in.
@@ -235,7 +299,7 @@ describe("listInteractionOptions — objects", () => {
     map = place(map, 1, 0, ["grass", "crate", "rock"]);
     const me = playerAt(map);
 
-    expect(listInteractionOptions(map, tilesById, me, [me], null)).toEqual([]);
+    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
   });
 
   it("lists every reachable object at once", () => {
@@ -245,7 +309,7 @@ describe("listInteractionOptions — objects", () => {
     map = place(map, 0, -1, ["grass", "door_shut"]);
     const me = playerAt(map);
 
-    const targets = listInteractionOptions(map, tilesById, me, [me], null);
+    const targets = listInteractionOptions(map, tilesById, me, [me], null, KIT);
 
     expect(targets).toHaveLength(3);
     expect(actionsIn(targets).sort()).toEqual(["push", "push", "switch"]);
@@ -259,7 +323,7 @@ describe("listInteractionOptions — battlers", () => {
     const me = playerAt(map);
     const deer = actor("npc:deer", "deer", 1, 0, map, 10);
 
-    const targets = listInteractionOptions(map, tilesById, me, [me, deer], null);
+    const targets = listInteractionOptions(map, tilesById, me, [me, deer], null, KIT);
 
     expect(targets).toHaveLength(1);
     expect(targets[0]!.name).toBe("Deer");
@@ -276,7 +340,7 @@ describe("listInteractionOptions — battlers", () => {
     const me = playerAt(map);
     const deer = actor("npc:deer", "deer", 4, -4, map, 10);
 
-    const targets = listInteractionOptions(map, tilesById, me, [me, deer], null);
+    const targets = listInteractionOptions(map, tilesById, me, [me, deer], null, KIT);
 
     expect(actionsIn(targets)).toEqual(["target"]);
   });
@@ -285,7 +349,7 @@ describe("listInteractionOptions — battlers", () => {
     const map = field();
     const me = playerAt(map);
 
-    expect(listInteractionOptions(map, tilesById, me, [me], null)).toEqual([]);
+    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
   });
 
   it("marks the body being pointed at", () => {
@@ -300,6 +364,7 @@ describe("listInteractionOptions — battlers", () => {
       me,
       [me, deer],
       "npc:deer",
+      KIT,
     );
 
     expect(targets[0]!.active).toBe(true);
@@ -312,7 +377,7 @@ describe("listInteractionOptions — battlers", () => {
     const inert = actor("npc:deer", "deer", 1, 0, map, null);
 
     expect(
-      listInteractionOptions(map, tilesById, me, [me, inert], null),
+      listInteractionOptions(map, tilesById, me, [me, inert], null, KIT),
     ).toEqual([]);
   });
 });
@@ -324,7 +389,7 @@ describe("listInteractionOptions — health", () => {
     const me = playerAt(map);
     const hurt = { ...actor("npc:deer", "deer", 1, 0, map, 10), hp: 3 };
 
-    const targets = listInteractionOptions(map, tilesById, me, [me, hurt], null);
+    const targets = listInteractionOptions(map, tilesById, me, [me, hurt], null, KIT);
 
     expect(targets[0]!.health).toEqual({ hp: 3, maxHp: 10 });
   });
@@ -335,7 +400,7 @@ describe("listInteractionOptions — health", () => {
     const me = playerAt(map);
     const them = actor("them", "player", 1, 0, map, 10);
 
-    const targets = listInteractionOptions(map, tilesById, me, [me, them], null);
+    const targets = listInteractionOptions(map, tilesById, me, [me, them], null, KIT);
 
     expect(targets.map((o) => o.health)).toEqual([
       { hp: 10, maxHp: 10 },
@@ -348,7 +413,7 @@ describe("listInteractionOptions — health", () => {
     map = place(map, 1, 0, ["grass", "crate"]);
     const me = playerAt(map);
 
-    const targets = listInteractionOptions(map, tilesById, me, [me], null);
+    const targets = listInteractionOptions(map, tilesById, me, [me], null, KIT);
 
     expect(targets[0]!.health).toBeNull();
   });
@@ -361,7 +426,7 @@ describe("listInteractionOptions — a body that is both", () => {
     const me = playerAt(map);
     const them = actor("them", "player", 1, 0, map, 10);
 
-    const targets = listInteractionOptions(map, tilesById, me, [me, them], null);
+    const targets = listInteractionOptions(map, tilesById, me, [me, them], null, KIT);
 
     expect(actionsIn(targets)).toEqual(["target", "push"]);
   });
@@ -372,7 +437,7 @@ describe("listInteractionOptions — a body that is both", () => {
     const me = playerAt(map);
     const them = actor("them", "player", 1, 0, map, 10);
 
-    const targets = listInteractionOptions(map, tilesById, me, [me, them], null);
+    const targets = listInteractionOptions(map, tilesById, me, [me, them], null, KIT);
 
     // A person is behind a cookie, so their name is derived from it; reading it
     // off the placement would have the shove announcing a tile called "Player"
@@ -390,7 +455,7 @@ describe("listInteractionOptions — ordering", () => {
     const me = playerAt(map);
     const deer = actor("npc:deer", "deer", 3, 3, map, 10);
 
-    const targets = listInteractionOptions(map, tilesById, me, [me, deer], null);
+    const targets = listInteractionOptions(map, tilesById, me, [me, deer], null, KIT);
 
     expect(targets.map((o) => o.name)).toEqual(["Crate", "Deer"]);
   });
@@ -415,6 +480,7 @@ describe("listInteractionOptions — ordering", () => {
       me,
       [me, far, mid, near],
       null,
+      KIT,
     );
 
     expect(targets.map((o) => o.actorId)).toEqual([
@@ -439,11 +505,417 @@ describe("listInteractionOptions — ordering", () => {
       me,
       [me, nearButUpstairs, farButHere],
       null,
+      KIT,
     );
 
     expect(targets.map((o) => o.actorId)).toEqual([
       "npc:here",
       "npc:up",
     ]);
+  });
+});
+
+describe("listInteractionOptions — picking things up", () => {
+  it("offers a pick-up for an item in the next cell", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "sword"]);
+    const me = playerAt(map);
+
+    const options = listInteractionOptions(map, tilesById, me, [me], null, KIT);
+
+    expect(options).toHaveLength(1);
+    expect(options[0]!.action).toBe("pickUp");
+    expect(options[0]!.label).toBe("Pick up");
+    expect(options[0]!.name).toBe("Sword");
+  });
+
+  /**
+   * The reach is round, unlike a push. A player who could not take the sword
+   * lying at their own feet, or one step diagonally, would read that as a bug
+   * rather than as a rule.
+   */
+  it("reaches diagonally, where a push does not", () => {
+    let map = field();
+    map = place(map, 1, 1, ["grass", "sword"]);
+    const me = playerAt(map);
+
+    expect(
+      actionsIn(listInteractionOptions(map, tilesById, me, [me], null, KIT)),
+    ).toEqual(["pickUp"]);
+  });
+
+  it("reaches the cell the player is standing in", () => {
+    let map = field();
+    map = place(map, 0, 0, ["grass", "sword"]);
+    const me = playerAt(map);
+
+    expect(
+      actionsIn(listInteractionOptions(map, tilesById, me, [me], null, KIT)),
+    ).toEqual(["pickUp"]);
+  });
+
+  it("does not reach two cells out", () => {
+    let map = field();
+    map = place(map, 2, 0, ["grass", "sword"]);
+    const me = playerAt(map);
+
+    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual(
+      [],
+    );
+  });
+
+  it("says nothing about an item buried under something else", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "sword", "rock"]);
+    const me = playerAt(map);
+
+    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual(
+      [],
+    );
+  });
+
+  it("says nothing when the bag is full", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "sword"]);
+    const me = playerAt(map);
+
+    expect(
+      listInteractionOptions(map, tilesById, me, [me], null, FULL_KIT),
+    ).toEqual([]);
+  });
+
+  it("says nothing when there is no bag to put it in", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "sword"]);
+    const me = playerAt(map);
+
+    expect(
+      listInteractionOptions(map, tilesById, me, [me], null, NO_BAG),
+    ).toEqual([]);
+  });
+
+  /** An authored switch is an explicit intent, and wins over lifting the thing. */
+  it("lets a switch win over a pick-up on the same tile", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "switch_sword"]);
+    const me = playerAt(map);
+
+    const options = listInteractionOptions(map, tilesById, me, [me], null, KIT);
+    const kinds = options.filter((o) => o.action !== "open");
+
+    expect(kinds).toHaveLength(1);
+    expect(kinds[0]!.action).toBe("switch");
+    expect(kinds[0]!.label).toBe("Pull");
+  });
+
+  it("never offers the viewer their own body, now that the sweep is round", () => {
+    const map = field();
+    const me = playerAt(map);
+
+    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual(
+      [],
+    );
+  });
+});
+
+describe("listInteractionOptions — bags on the floor", () => {
+  it("offers a bag as two rows, pick up before open", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "bag"]);
+    const me = playerAt(map);
+
+    // Bare-backed, so the bag on the floor is genuinely takeable.
+    const options = listInteractionOptions(
+      map,
+      tilesById,
+      me,
+      [me],
+      null,
+      NO_BAG,
+    );
+
+    // Taking it comes first. The only time both are offered is when your back
+    // is bare, which is exactly when you want the bag itself.
+    expect(actionsIn(options)).toEqual(["pickUp", "open"]);
+    expect(options.every((o) => o.name === "Bag")).toBe(true);
+  });
+
+  /**
+   * Containers do not nest, so a bag can only ever go on a back that is free.
+   * With one already there, opening is the only thing left to do with it — and
+   * a bag with room inside it changes nothing, because a bag is not something
+   * that goes *in* a bag.
+   */
+  it("offers only open for a bag when one is already worn", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "bag"]);
+    const me = playerAt(map);
+
+    expect(
+      actionsIn(listInteractionOptions(map, tilesById, me, [me], null, KIT)),
+    ).toEqual(["open"]);
+  });
+
+  it("never offers to pick up a chest, however much room there is", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "chest"]);
+    const me = playerAt(map);
+
+    expect(
+      actionsIn(listInteractionOptions(map, tilesById, me, [me], null, NO_BAG)),
+    ).toEqual(["open"]);
+  });
+
+  it("offers open even with a full bag, since looking costs nothing", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "chest"]);
+    const me = playerAt(map);
+
+    expect(
+      actionsIn(listInteractionOptions(map, tilesById, me, [me], null, FULL_KIT)),
+    ).toEqual(["open"]);
+  });
+
+  it("does not offer open for something that is not a container", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "sword"]);
+    const me = playerAt(map);
+
+    expect(
+      actionsIn(listInteractionOptions(map, tilesById, me, [me], null, KIT)),
+    ).toEqual(["pickUp"]);
+  });
+});
+
+/**
+ * A body is not a lid.
+ *
+ * The round pick-up reach takes in the cell you are standing in on purpose, and
+ * that is exactly the cell your own body covers — so a rule that read "top of
+ * the stack" literally made the most obvious case in the game impossible: you
+ * could not take the sword you were standing on, and could not open the chest
+ * you had walked onto.
+ */
+describe("listInteractionOptions — standing on things", () => {
+  /**
+   * A body on the map carries the actor driving it, which is what makes it a
+   * body rather than scenery — see `PlacedTile.owner`.
+   */
+  function withBodyOver(
+    map: MapFile,
+    x: number,
+    y: number,
+    under: string[],
+    owner: string,
+  ): MapFile {
+    return replaceStack(map, x, y, 0, [
+      ...under.map((tileId) => ({ tileId })),
+      { tileId: "player", owner },
+    ]);
+  }
+
+  it("picks up the sword under your own feet", () => {
+    const map = withBodyOver(field(), 0, 0, ["grass", "sword"], "me");
+    const me = actor("me", "player", 0, 0, map);
+
+    const options = listInteractionOptions(map, tilesById, me, [me], null, KIT);
+
+    expect(actionsIn(options)).toEqual(["pickUp"]);
+    expect(options[0]!.ref).toEqual({ x: 0, y: 0, z: 0, stackIndex: 1 });
+  });
+
+  it("opens the chest you are standing on", () => {
+    const map = withBodyOver(field(), 0, 0, ["grass", "chest"], "me");
+    const me = actor("me", "player", 0, 0, map);
+
+    expect(
+      actionsIn(listInteractionOptions(map, tilesById, me, [me], null, KIT)),
+    ).toEqual(["open"]);
+  });
+
+  it("still offers nothing for the body itself", () => {
+    const map = withBodyOver(field(), 0, 0, ["grass"], "me");
+    const me = actor("me", "player", 0, 0, map);
+
+    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual(
+      [],
+    );
+  });
+
+  /**
+   * Somebody else standing on a thing does not own it. The alternative rule —
+   * whoever stepped on it gets it — is one nothing else in the game plays by.
+   */
+  it("reaches under somebody else, and still offers the shove for them", () => {
+    const map = withBodyOver(field(), 1, 0, ["grass", "sword"], "them");
+    const me = playerAt(map, 0, 0);
+    const them = actor("them", "player", 1, 0, map, 10);
+
+    const options = listInteractionOptions(
+      map,
+      tilesById,
+      me,
+      [me, them],
+      null,
+      KIT,
+    );
+
+    expect(actionsIn(options).sort()).toEqual(["pickUp", "push", "target"]);
+  });
+
+  it("does not reach under a crate, which is a lid", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "sword", "crate"]);
+    const me = playerAt(map);
+
+    expect(
+      actionsIn(listInteractionOptions(map, tilesById, me, [me], null, KIT)),
+    ).toEqual(["push"]);
+  });
+});
+
+/**
+ * The open row is a toggle, so it is named for what pressing it would do and
+ * lit while the box it names is the one you have open. One row for both halves:
+ * a separate "Close" entry beside the first would be two rows for one chest.
+ */
+describe("listInteractionOptions — a container already open", () => {
+  const REF = { x: 1, y: 0, z: 0, stackIndex: 1 };
+
+  function rows(openedRef: typeof REF | null) {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "chest"]);
+    const me = playerAt(map);
+    return listInteractionOptions(
+      map,
+      tilesById,
+      me,
+      [me],
+      null,
+      KIT,
+      openedRef,
+    );
+  }
+
+  it("says Open, unlit, when nothing is open", () => {
+    const open = rows(null).find((o) => o.action === "open")!;
+    expect(open.label).toBe("Open");
+    expect(open.active).toBe(false);
+  });
+
+  it("says Close and lights up for the box being looked into", () => {
+    const open = rows(REF).find((o) => o.action === "open")!;
+    expect(open.label).toBe("Close");
+    expect(open.active).toBe(true);
+  });
+
+  it("leaves a different box alone", () => {
+    const elsewhere = { x: -1, y: 0, z: 0, stackIndex: 1 };
+    const open = rows(elsewhere).find((o) => o.action === "open")!;
+    expect(open.label).toBe("Open");
+    expect(open.active).toBe(false);
+  });
+
+  it("is still one row, not two", () => {
+    expect(rows(REF).filter((o) => o.action === "open")).toHaveLength(1);
+  });
+});
+
+/**
+ * What the pointer does with the list.
+ *
+ * The cursor and the list are the same list: whatever is under it is looked up
+ * as a row, and that one row decides the outline, the words drawn over it and
+ * what a click runs. So these are about the *choice* — which row wins when an
+ * object offers more than one — because a chest that reads "Open Chest" and
+ * shoves instead is the failure this is here to prevent.
+ */
+describe("topInteractionAt", () => {
+  function optionsAround(map: MapFile, kit: Equipment = KIT) {
+    const me = playerAt(map);
+    return listInteractionOptions(map, tilesById, me, [me], null, kit);
+  }
+
+  it("takes pick up over open on a bag, when there is a back to put it on", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "bag"]);
+    const ref = { x: 1, y: 0, z: 0, stackIndex: 1 };
+
+    const top = topInteractionAt(optionsAround(map, NO_BAG), ref);
+    expect(top?.action).toBe("pickUp");
+  });
+
+  // The other half of the same rule, and the reason the order is easy: wearing
+  // a bag takes pick-up off the table entirely, so the row that is left is the
+  // one that was always going to be wanted.
+  it("takes open on a bag once one is already worn", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "bag"]);
+    const ref = { x: 1, y: 0, z: 0, stackIndex: 1 };
+
+    expect(topInteractionAt(optionsAround(map, KIT), ref)?.action).toBe("open");
+  });
+
+  // Never picked up, whatever your back is doing, so it opens either way.
+  it("takes open on a chest", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "chest"]);
+    const top = topInteractionAt(optionsAround(map, NO_BAG), {
+      x: 1,
+      y: 0,
+      z: 0,
+      stackIndex: 1,
+    });
+    expect(top?.action).toBe("open");
+  });
+
+  it("takes the one thing a crate offers", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "crate"]);
+    const top = topInteractionAt(optionsAround(map), {
+      x: 1,
+      y: 0,
+      z: 0,
+      stackIndex: 1,
+    });
+    expect(top?.action).toBe("push");
+  });
+
+  it("has nothing to say about a cell with no rows", () => {
+    const map = field();
+    const top = topInteractionAt(optionsAround(map), {
+      x: 1,
+      y: 0,
+      z: 0,
+      stackIndex: 0,
+    });
+    expect(top).toBeNull();
+  });
+
+  // Rows for other objects are not candidates, however near they are — the
+  // pointer is over one thing.
+  it("ignores rows belonging to a different object", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "crate"]);
+    map = place(map, 0, 1, ["grass", "sword"]);
+
+    const top = topInteractionAt(optionsAround(map), {
+      x: 0,
+      y: 1,
+      z: 0,
+      stackIndex: 1,
+    });
+    expect(top?.action).toBe("pickUp");
+  });
+});
+
+describe("interactionText", () => {
+  it("puts the verb first, then what it is about", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "sword"]);
+    const me = playerAt(map);
+    const options = listInteractionOptions(map, tilesById, me, [me], null, KIT);
+
+    expect(options.map(interactionText)).toContain("Pick up Sword");
   });
 });

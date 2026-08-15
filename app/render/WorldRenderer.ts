@@ -35,6 +35,7 @@ import {
   levelKey,
   parseCoordKey,
   physicalHeight,
+  resolveActor,
   resolveLightPassing,
   tileCanEmitLight,
   tileEmissionPhase,
@@ -57,6 +58,7 @@ import {
 } from "./worldQuads";
 import {
   disposeGroupChildren,
+  makeSpriteGhost,
   makeSpriteOutline,
   OUTLINE_ALPHA_UNIFORM,
   pulseAlphaAt,
@@ -174,9 +176,31 @@ export type ObjectOutlineOverlay = TileInstanceKey & {
   pulse?: boolean;
 };
 
-export type OverlaySpec = ObjectOutlineOverlay;
+/**
+ * A tile drawn where it *would* go, translucent, over a cell it is not in.
+ *
+ * The one overlay that is not about something already on the board, which is
+ * why it names a tile rather than a stack slot: there is no placement to point
+ * at yet, and the whole question is whether there is about to be one.
+ *
+ * It lands on top of whatever is in the cell, because that is where a dropped
+ * thing goes — the ghost is drawn by the same rule that will place it.
+ */
+export type TileGhostOverlay = {
+  kind: "ghost";
+  tileId: string;
+  x: number;
+  y: number;
+  z: number;
+  alpha: number;
+};
+
+export type OverlaySpec = ObjectOutlineOverlay | TileGhostOverlay;
 
 function overlaySpecKey(spec: OverlaySpec): string {
+  if (spec.kind === "ghost") {
+    return `g:${spec.tileId}@${spec.x},${spec.y},${spec.z}:${spec.alpha}`;
+  }
   // The offset is part of the identity: while a tile is walking it changes every
   // frame, and that is exactly when the outline has to be rebuilt to keep up.
   const at = spec.ox || spec.oy ? `@${Math.round(spec.ox ?? 0)},${Math.round(spec.oy ?? 0)}` : "";
@@ -186,16 +210,26 @@ function overlaySpecKey(spec: OverlaySpec): string {
   return `o:${spec.x},${spec.y},${spec.z},${spec.stackIndex}:${spec.color}${spec.pulse ? "~" : ""}${at}`;
 }
 
-/** Stable cache key for fractional emitter overrides (~0.01 cell). */
+/**
+ * Stable cache key for fractional emitter overrides (~0.01 cell).
+ *
+ * The lights are in it because an override that carries its own is not
+ * answerable from the map: two people standing in one spot, one of them holding
+ * a lantern, are the same six numbers and a different room.
+ */
 function emitterOverridesKey(
   overrides: EmitterOverride[] | undefined,
 ): string {
   if (!overrides?.length) return "";
   return overrides
-    .map(
-      (o) =>
-        `${o.x},${o.y},${o.z}:${o.fx.toFixed(2)},${o.fy.toFixed(2)},${o.fz.toFixed(2)}`,
-    )
+    .map((o) => {
+      const at = `${o.x},${o.y},${o.z}:${o.fx.toFixed(2)},${o.fy.toFixed(2)},${o.fz.toFixed(2)}`;
+      if (!o.lights) return at;
+      const lit = o.lights
+        .map((l) => `${l.radius},${l.intensity},${l.color}`)
+        .join(",");
+      return `${at}*${lit}`;
+    })
     .join("|");
 }
 
@@ -206,20 +240,28 @@ function emitterOverridesKey(
  * hundred — is omitted automatically. A hardcoded `{player}` was correct only
  * for as long as exactly one thing moved.
  *
- * Both conditions are load-bearing. **Mobile** is why it is worth omitting: a
- * tile that changes cell would otherwise dirty the chunks around it on every
- * step. **Light-passing** is what makes omitting it *sound*: the overlay is
- * add-only, so it can paint a light the bake left out but cannot carve a shadow
- * the bake never knew about. Omitting an occluder would light straight through
- * it. A mobile tile that blocks light therefore stays baked and pays for its
- * movement — see the note in AGENTS.md before changing that.
+ * Both conditions are load-bearing, and both are *narrow*. **Actor** is the
+ * rule, not "mobile": the overlay paints an override per actor per frame, so an
+ * actor is exactly the population that gets painted back. **Light-passing** is
+ * what makes omitting it sound: the overlay is add-only, so it can paint a light
+ * the bake left out but cannot carve a shadow the bake never knew about.
+ * Omitting an occluder would light straight through it. A mobile tile that
+ * blocks light therefore stays baked and pays for its movement — see the note in
+ * AGENTS.md before changing that.
+ *
+ * **It used to say `isMobileTile`, and that let a lit thing vanish.** A lantern
+ * is affected by gravity and passes light, so it was omitted from the bake — and
+ * nothing paints an override at a cell nobody is standing in, so a lantern lying
+ * on the floor lit nothing at all. Omitting a tile is only ever worth it for
+ * something that moves *every frame*; a dropped item moves on the tick it lands
+ * and dirties a cell doing it, which is a cost it was always going to pay.
  */
 function dynamicLightTileIds(
   tilesById: Record<string, TileDef>,
 ): ReadonlySet<string> {
   const ids = new Set<string>();
   for (const def of Object.values(tilesById)) {
-    if (isMobileTile(def) && resolveLightPassing(def)) ids.add(def.id);
+    if (resolveActor(def) && resolveLightPassing(def)) ids.add(def.id);
   }
   return ids;
 }
@@ -328,10 +370,14 @@ export class WorldRenderer {
   /** Tile defs the light cache was built against; new defs void every chunk. */
   private lightingTilesById: Record<string, TileDef> | null = null;
   /**
-   * Painted-not-baked emitters whose light changes as they animate — a torch
-   * carried by something that walks. Empty in every map so far, and cheap to
-   * keep that way: their phase joins the overlay's cache key, and an empty list
-   * contributes nothing to it.
+   * Actor bodies whose *own* light changes as they animate — a creature that
+   * glows in pulses rather than steadily. Empty in every map so far, and cheap
+   * to keep that way: their phase joins the overlay's cache key, and an empty
+   * list contributes nothing to it.
+   *
+   * Only bodies. A light in somebody's bag is resolved before it ever reaches
+   * this renderer and travels by value on the override, so
+   * {@link emitterOverridesKey} already sees it change.
    */
   private flickeringDynamicDefs: TileDef[] = [];
   /** @see setLightingEnabled */
@@ -537,6 +583,10 @@ export class WorldRenderer {
   }
 
   private addOverlay(spec: OverlaySpec) {
+    if (spec.kind === "ghost") {
+      this.addGhost(spec);
+      return;
+    }
     const subject = this.overlaySubject(spec);
     if (!subject) return;
     const quad = spriteQuadFor(
@@ -560,6 +610,35 @@ export class WorldRenderer {
   }
 
 
+  /**
+   * Draw a tile that is not there, on top of the cell it would land in.
+   *
+   * The elevation is the *whole* stack's height rather than a slice of it,
+   * which is the one difference from an outline: an outline is cut around
+   * something already in the stack, and this is drawn above everything in it.
+   */
+  private addGhost(spec: TileGhostOverlay) {
+    const map = this.view?.map;
+    const def = this.tilesById[spec.tileId];
+    if (!map || !def) return;
+
+    const stack = getStack(map, spec.x, spec.y, spec.z);
+    const quad = spriteQuadFor(
+      this.quadAssets(),
+      map,
+      {
+        x: spec.x,
+        y: spec.y,
+        z: spec.z,
+        elevation: stackHeight(stack, this.tilesById),
+      },
+      { tileId: spec.tileId },
+      def,
+    );
+    if (!quad) return;
+    this.overlays.add(makeSpriteGhost(quad, spec.alpha));
+  }
+
   /** Toggle whole level groups; no mesh rebuild. */
   private applyLevelVisibility(hideLevelsAbove?: number) {
     this.hideLevelsAbove = hideLevelsAbove;
@@ -567,6 +646,18 @@ export class WorldRenderer {
       group.visible =
         hideLevelsAbove === undefined || z <= hideLevelsAbove;
     }
+  }
+
+  /**
+   * The clock every animation is read against, in milliseconds.
+   *
+   * Exposed because emission is authored per frame, and a light resolved
+   * anywhere else — a lantern in a bag, which is on no cell for the bake to
+   * find — has to be read against the same clock as the sprite it belongs to,
+   * or the two tell different stories about the same object.
+   */
+  get animTimeMs(): number {
+    return this.animClock;
   }
 
   /** Advance sprite animations; call from the host rAF loop. */

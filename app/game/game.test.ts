@@ -836,19 +836,25 @@ function mapWithCrate(crateX: number, width = 5): MapFile {
   return map;
 }
 
-describe("GameSession hover", () => {
+/**
+ * Whether a tap on an object would do anything, and what "reachable" means.
+ *
+ * These used to go through a hover the session held: the renderer reported what
+ * the pointer was over and this re-validated it on read. The hover moved into
+ * the renderer — where the pointer is — and what was always being tested here is
+ * the rule underneath it, so they ask it directly now.
+ */
+describe("GameSession canInteract", () => {
   const crateRef = (x: number) => ({ x, y: 0, z: 0, stackIndex: 1 });
 
   it("hovers an object the player can push", () => {
     const session = new GameSession(mapWithCrate(1), tiles);
-    session.setHoveredObject(crateRef(1));
-    expect(session.getSnapshot().hover).toEqual(crateRef(1));
+    expect(session.canInteract(crateRef(1))).toBe(true);
   });
 
-  it("ignores a hover on a non-interactive tile", () => {
+  it("says no to a tile with nothing to do", () => {
     const session = new GameSession(mapWithCrate(1), tiles);
-    session.setHoveredObject({ x: 2, y: 0, z: 0, stackIndex: 0 });
-    expect(session.getSnapshot().hover).toBeNull();
+    expect(session.canInteract({ x: 2, y: 0, z: 0, stackIndex: 0 })).toBe(false);
   });
 
   it("ignores a hover on a buried interactive object", () => {
@@ -859,51 +865,40 @@ describe("GameSession hover", () => {
       { tileId: "slab" },
     ]);
     const session = new GameSession(map, tiles);
-    session.setHoveredObject({ x: 1, y: 0, z: 0, stackIndex: 1 });
-    expect(session.getSnapshot().hover).toBeNull();
+    expect(session.canInteract({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(false);
   });
 
   it("hovers an interactive object one floor above", () => {
     let map = mapWithCrate(3);
     map = replaceStack(map, 1, 0, 1, [{ tileId: "grass" }, { tileId: "crate" }]);
     const session = new GameSession(map, tiles);
-    session.setHoveredObject({ x: 1, y: 0, z: 1, stackIndex: 1 });
-    expect(session.getSnapshot().hover).toEqual({
-      x: 1,
-      y: 0,
-      z: 1,
-      stackIndex: 1,
-    });
+    expect(session.canInteract({ x: 1, y: 0, z: 1, stackIndex: 1 })).toBe(true);
   });
 
   it("ignores a hover two floors away", () => {
     let map = mapWithCrate(3);
     map = replaceStack(map, 1, 0, 2, [{ tileId: "grass" }, { tileId: "crate" }]);
     const session = new GameSession(map, tiles);
-    session.setHoveredObject({ x: 1, y: 0, z: 2, stackIndex: 1 });
-    expect(session.getSnapshot().hover).toBeNull();
+    expect(session.canInteract({ x: 1, y: 0, z: 2, stackIndex: 1 })).toBe(false);
   });
 
   it("ignores an object that is out of push range", () => {
     const session = new GameSession(mapWithCrate(2), tiles);
-    session.setHoveredObject(crateRef(2));
-    expect(session.getSnapshot().hover).toBeNull();
+    expect(session.canInteract(crateRef(2))).toBe(false);
   });
 
   it("ignores an object on the diagonal", () => {
     let map = mapWithCrate(3);
     map = replaceStack(map, 1, 1, 0, [{ tileId: "grass" }, { tileId: "crate" }]);
     const session = new GameSession(map, tiles);
-    session.setHoveredObject({ x: 1, y: 1, z: 0, stackIndex: 1 });
-    expect(session.getSnapshot().hover).toBeNull();
+    expect(session.canInteract({ x: 1, y: 1, z: 0, stackIndex: 1 })).toBe(false);
   });
 
   it("ignores an adjacent object that has nowhere to go", () => {
     let map = mapWithCrate(1);
     map = replaceStack(map, 2, 0, 0, [{ tileId: "grass" }, { tileId: "tree" }]);
     const session = new GameSession(map, tiles);
-    session.setHoveredObject(crateRef(1));
-    expect(session.getSnapshot().hover).toBeNull();
+    expect(session.canInteract(crateRef(1))).toBe(false);
   });
 
   it("hovers an adjacent switch", () => {
@@ -913,18 +908,17 @@ describe("GameSession hover", () => {
       { tileId: "door-closed" },
     ]);
     const session = new GameSession(map, tiles);
-    session.setHoveredObject(crateRef(1));
-    expect(session.getSnapshot().hover).toEqual(crateRef(1));
+    expect(session.canInteract(crateRef(1))).toBe(true);
   });
 
   /**
-   * The pointer does not move when the player walks, so a hover that is only
-   * validated on the way in would keep outlining an object left behind.
+   * Asked afresh every time rather than answered once. The pointer does not
+   * move when the player walks, so an answer cached on the way in would keep an
+   * outline alive around something now out of reach.
    */
-  it("drops a hover the player has walked away from", () => {
+  it("says no once the player has walked away", () => {
     const session = new GameSession(mapWithCrate(1), tiles);
-    session.setHoveredObject(crateRef(1));
-    expect(session.getSnapshot().hover).not.toBeNull();
+    expect(session.canInteract(crateRef(1))).toBe(true);
 
     session.setInput({ directions: ["s"] });
     let elapsed = 0;
@@ -933,14 +927,13 @@ describe("GameSession hover", () => {
       elapsed += 1000 / 30;
     }
     expect(session.getSnapshot().self).toMatchObject({ x: 0, y: 1 });
-    expect(session.getSnapshot().hover).toBeNull();
+    expect(session.canInteract(crateRef(1))).toBe(false);
   });
 
-  it("drops the hover while the object is still travelling", () => {
+  it("says no while the object is still travelling", () => {
     const session = new GameSession(mapWithCrate(1), tiles);
-    session.setHoveredObject(crateRef(1));
     session.push(crateRef(1));
-    expect(session.getSnapshot().hover).toBeNull();
+    expect(session.canInteract(crateRef(1))).toBe(false);
   });
 });
 
@@ -1135,14 +1128,13 @@ describe("GameSession push", () => {
     expect(session.push(crateRef(1))).toBe(false);
   });
 
-  it("leaves the object unhovered once it lands out of range", () => {
+  it("leaves the object beyond reach once it lands out of range", () => {
     const session = new GameSession(mapWithCrate(1), tiles);
-    session.setHoveredObject(crateRef(1));
     session.push(crateRef(1));
     runSlide(session);
 
     // Two cells away now — nothing a tap could do to it from here.
-    expect(session.getSnapshot().hover).toBeNull();
+    expect(session.canInteract(crateRef(1))).toBe(false);
   });
 
   it("lets the player walk while the object is still travelling", () => {

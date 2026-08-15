@@ -299,13 +299,4 @@ describe("actors and shared objects", () => {
     );
     expect(session.push({ x: 3, y: 0, z: 0, stackIndex: 1 }, "b")).toBe(false);
   });
-
-  it("keeps hover per actor", () => {
-    const session = new GameSession(withCrate(1), tiles, ["a", "b"]);
-    const crate = { x: 1, y: 0, z: 0, stackIndex: 1 };
-    session.setHoveredObject(crate, "a");
-
-    expect(session.getSnapshot("a").hover).toEqual(crate);
-    expect(session.getSnapshot("b").hover).toBeNull();
-  });
 });

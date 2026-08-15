@@ -560,27 +560,37 @@ subsystems key off it and both must keep using the same answer:
   not only while they are moving. Membership used to follow the live motion set,
   so a tile joined and left the batch as it started and stopped, and changing
   membership rebuilds the whole floor. That was a full rebuild per step.
-- The light cache keeps mobile tiles **out of the static bake**, so a step does
-  not dirty the chunks around them. The overlay paints them per frame instead.
+- The light cache keeps **actors** out of the static bake, so a step does not
+  dirty the chunks around them. The overlay paints them per frame instead.
 
 Never reintroduce a hardcoded `player` check for either. It was true while
 exactly one thing moved and silently wrong afterwards.
 
-**The light omission has a second condition, and it is not optional.** A tile is
-omitted from the bake only when it is mobile *and* light-passing. The overlay is
-add-only: it can paint a light the bake left out, but it cannot carve a shadow
-the bake never knew about, so omitting an occluder would light straight through
-it. A mobile tile that blocks light therefore stays baked and pays for its
-movement — the cat is exactly this today. Giving mobile occluders dynamic
-shadows means teaching the overlay to subtract, which is a much bigger change
-than widening the predicate.
+**The two predicates are deliberately different, and the light one is the
+narrower.** Geometry batching asks `isMobileTile`; the bake omission asks
+`resolveActor`. The rule for the bake is: **omit only what something paints
+back.** `GameRenderer.emitterOverridesFor` produces one override per actor per
+frame, so actors are exactly that population — and anything else omitted has its
+light vanish outright, because nothing emits an override at a cell nobody is
+standing in.
 
-There is one gap left. Anything omitted from the bake needs a matching emitter
-override each frame or its light simply vanishes, and today `GameRenderer`
-produces overrides only for the player it knows about. A second mobile,
-light-passing, light-emitting tile would go dark. Closing that means collecting
-omitted emitters in view — the bake already walks past them and could record
-them per chunk — rather than naming them at the call site.
+That is not hypothetical. The predicate used to be `isMobileTile`, and a hand
+lantern is affected by gravity and passes light, so a lantern lying on the floor
+was omitted from the bake and lit nothing at all. Omitting is only ever worth it
+for something that moves *every frame*; a dropped item moves on the tick it lands
+and dirties a cell doing it, which is a cost it was always going to pay.
+
+**The light omission has a second condition, and it is not optional.** An actor
+is omitted only when it is also light-passing. The overlay is add-only: it can
+paint a light the bake left out, but it cannot carve a shadow the bake never knew
+about, so omitting an occluder would light straight through it. An actor that
+blocks light therefore stays baked and pays for its movement — the cat is exactly
+this today. Giving mobile occluders dynamic shadows means teaching the overlay to
+subtract, which is a much bigger change than widening the predicate.
+
+A carried light takes the same path from the other end: it is on no cell at all,
+so its override carries its `lights` explicitly rather than looking them up. See
+`EmitterOverride.lights`.
 
 ### Size an invalidation by what actually changed
 
@@ -650,12 +660,20 @@ affordable is worth keeping:
   three times over; answering it walks the tile's frames. Without the memo a
   quiet frame cost ~17µs instead of ~5µs.
 
-Emission that varies per frame reaches the dynamic overlay too — `timeMs` is
-threaded through `overlayEmitterOverridesPacked`. One consequence to keep in
-mind: an emitter override is a *position*, so whether to emit one asks whether
-the tile can ever emit (`tileCanEmitLight`), not what it is emitting this
-instant. Resolving the live frame there drops the override on the dark half of a
-flicker and the light never comes back.
+Emission that varies per frame reaches the dynamic overlay too, and the two
+kinds of override take it differently:
+
+- **A body override is a position.** Its light is read from the stack at paint
+  time, so `timeMs` threaded through `overlayEmitterOverridesPacked` is what
+  animates it — and whether to emit an override at all asks whether the tile can
+  *ever* emit (`tileCanEmitLight`), not what it is emitting this instant.
+  Resolving the live frame there drops the override on the dark half of a
+  flicker and the light never comes back.
+- **A carried light arrives already resolved**, since it is on no cell for the
+  cast to read. It is therefore resolved against `WorldRenderer.animTimeMs`
+  where it is put on the override, or a torch would flicker on the floor and
+  burn flat the moment it went in a bag. `emitterOverridesKey` hashes its
+  values, so the overlay repaints when it changes.
 
 The editor (`EditorRenderer`) is unchunked and bakes the whole map on a
 debounce, so it deliberately stays at frame 0 — animating it would rebake

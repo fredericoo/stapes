@@ -5,6 +5,11 @@ import {
   type ActorSnapshot,
 } from "../app/game/GameSession";
 import { TICK_MS, WALK_DURATION_MS } from "../app/game/constants";
+import {
+  type Equipment,
+  emptyEquipment,
+  restoredEquipment,
+} from "../app/game/equipment";
 import { minutesOfDayAt } from "../app/lib/clock";
 import {
   changedCellsOnLevel,
@@ -13,6 +18,7 @@ import {
   getStack,
 } from "../app/lib/mapData";
 import { dataStoreFor, type DataStore } from "../app/lib/storage.server";
+import { tilesByIdFromList } from "../app/lib/validation";
 import type {
   Direction,
   FlatMapFile,
@@ -23,6 +29,7 @@ import { MAX_LEVEL, MIN_LEVEL, parseCoordKey } from "../app/lib/types";
 import { CHAT_MIN_INTERVAL_MS, sanitizeChatText } from "../app/net/chat";
 import {
   parseClientMessage,
+  type CarriedLightsPatch,
   type CellPatch,
   type HpPatch,
   type MotionEvent,
@@ -38,6 +45,22 @@ function currentHps(actors: ActorSnapshot[]): HpPatch[] {
   for (const actor of actors) {
     if (actor.hp === null || actor.maxHp === null) continue;
     out.push({ actorId: actor.id, hp: actor.hp, maxHp: actor.maxHp });
+  }
+  return out;
+}
+
+/**
+ * Everybody's carried lights right now, for a client that has nothing to diff.
+ *
+ * Only the actors carrying one, which is almost nobody: an empty list is the
+ * absence of an entry, and saying so for every deer in the world would be the
+ * one part of `hello` that grew with the population for no reason.
+ */
+function currentCarriedLights(actors: ActorSnapshot[]): CarriedLightsPatch[] {
+  const out: CarriedLightsPatch[] = [];
+  for (const actor of actors) {
+    if (actor.carriedLights.length === 0) continue;
+    out.push({ actorId: actor.id, tileIds: actor.carriedLights });
   }
   return out;
 }
@@ -73,6 +96,15 @@ const MAX_QUEUED_STEPS = 2;
 const POSITION_KEY_PREFIX = "pos:";
 
 /**
+ * Key prefix under which one actor's last known kit is kept.
+ *
+ * Its own key rather than a field on the position, because the two are not the
+ * same fact and are not always both there: a creature has a position and no kit,
+ * and the ceiling below prunes them independently.
+ */
+const EQUIPMENT_KEY_PREFIX = "equip:";
+
+/**
  * How many actors the world remembers the whereabouts of.
  *
  * One entry per player who has ever connected — it grows with *visitors*, not
@@ -82,7 +114,7 @@ const POSITION_KEY_PREFIX = "pos:";
  * first: the entries being dropped are the ones whose owner has not been seen
  * in longest, which is the closest thing here to "will not be missed".
  */
-export const MAX_SAVED_POSITIONS = 1_000;
+export const MAX_REMEMBERED_ACTORS = 1_000;
 
 /**
  * How often positions are written out while the world is being played.
@@ -92,15 +124,34 @@ export const MAX_SAVED_POSITIONS = 1_000;
  * object that died mid-session would hand everybody back the position they had
  * when the room was last empty. Five seconds is a couple of rooms' walking.
  */
-const POSITION_FLUSH_INTERVAL_MS = 5_000;
+const ACTOR_FLUSH_INTERVAL_MS = 5_000;
 
 /**
  * Where somebody was standing, kept against their return.
  *
  * `savedAt` is here for the ceiling rather than for gameplay — see
- * {@link MAX_SAVED_POSITIONS}.
+ * {@link MAX_REMEMBERED_ACTORS}.
  */
 type SavedPosition = ActorPosition & { savedAt: number };
+
+/**
+ * What somebody was carrying, kept against their return.
+ *
+ * Written wherever a position is, and that pairing is deliberate rather than
+ * convenient: the two are one answer to "who was here and what did they have",
+ * and saving them at different moments would be the way to lose one without the
+ * other.
+ *
+ * **And in the same batch as the board.** Picking something up takes it off the
+ * map and puts it in a bag, so a kit made durable against a map that was not
+ * would come back to a floor still holding the very thing it claims. That is an
+ * item existing twice, which is a bug with no natural ceiling, so the checkpoint
+ * rides along in {@link GameServer.saveActors} rather than waiting for the world
+ * to settle. It costs a map serialization per flush in a world where something
+ * is happening — and nothing at all in one where the map has not changed, which
+ * copy-on-write makes a reference compare.
+ */
+type SavedEquipment = { equipment: Equipment; savedAt: number };
 
 type Attachment = { actorId: string };
 
@@ -177,6 +228,16 @@ export class GameServer extends DurableObject<Env> {
    * the same version, so one diff serves every socket.
    */
   private sentHp = new Map<string, number>();
+  /**
+   * The carried lights each client has been told about, joined into one string
+   * per actor.
+   *
+   * A string rather than the array, because what is compared here is "is this
+   * the same answer as last time" and the arrays are rebuilt whenever a kit
+   * changes. Comparing by identity would re-broadcast a lantern every time
+   * somebody moved a sword between two pockets.
+   */
+  private sentCarriedLights = new Map<string, string>();
   private events: MotionEvent[] = [];
   /** Steps clients say they have taken, oldest first, per actor. */
   private readonly queuedSteps = new Map<string, QueuedStep[]>();
@@ -186,8 +247,18 @@ export class GameServer extends DurableObject<Env> {
   private dataOrigin: string | null = null;
   /** When each actor last said something, for the rate limit. */
   private lastSaidAt = new Map<string, number>();
-  /** When positions were last written out. See {@link savePositionsIfDue}. */
-  private positionsSavedAt = 0;
+  /** When positions were last written out. See {@link saveActorsIfDue}. */
+  private actorsSavedAt = 0;
+  /**
+   * The map the last checkpoint was taken of, by identity.
+   *
+   * The map is copy-on-write, so a world nobody has touched is the same object
+   * and there is nothing to re-flatten — which is what keeps a five-second flush
+   * from serializing thousands of cells for a room where everyone is standing
+   * still. Sound because storage writes are ordered: a later batch cannot be
+   * durable while the batch holding the map it was read against is not.
+   */
+  private checkpointedMap: MapFile | null = null;
   /** Whether the chat table has been created in this instance's lifetime. */
   private chatLogReady = false;
   /**
@@ -271,7 +342,7 @@ export class GameServer extends DurableObject<Env> {
     this.dead = new Set(checkpoint?.dead ?? []);
     this.broadcastMap = this.session.getMap();
     await this.restoreActors();
-    await this.prunePositions();
+    await this.pruneRemembered();
   }
 
   /**
@@ -304,12 +375,39 @@ export class GameServer extends DurableObject<Env> {
       // Seating them here is exactly the resurrection the checkpointed set of
       // the dead exists to prevent.
       if (this.dead.has(id)) continue;
-      this.session?.spawn(id, await this.lastPositionOf(id));
+      this.session?.spawn(
+        id,
+        await this.lastPositionOf(id),
+        await this.lastEquipmentOf(id),
+      );
     }
   }
 
   private positionKey(actorId: string): string {
     return `${POSITION_KEY_PREFIX}${actorId}`;
+  }
+
+  private equipmentKey(actorId: string): string {
+    return `${EQUIPMENT_KEY_PREFIX}${actorId}`;
+  }
+
+  /**
+   * What this actor had on them when the world last saw them, if it remembers.
+   *
+   * Checked against the tiles this world has *now* rather than trusted: what was
+   * written is a kit from some earlier version of the authored content, and a
+   * sword that has since become a prop is a memory the board no longer agrees
+   * with. Undefined for somebody new, which {@link GameSession.spawn} reads as
+   * "give them the starting kit".
+   */
+  private async lastEquipmentOf(
+    actorId: string,
+  ): Promise<Equipment | undefined> {
+    const saved = await this.ctx.storage.get<SavedEquipment>(
+      this.equipmentKey(actorId),
+    );
+    if (!saved?.equipment) return undefined;
+    return restoredEquipment(saved.equipment, tilesByIdFromList(this.tiles));
   }
 
   /**
@@ -329,76 +427,124 @@ export class GameServer extends DurableObject<Env> {
   }
 
   /**
-   * Write down where some actors are standing, without the tick waiting on it.
+   * Write down where everybody is, what they are carrying and the board they
+   * are standing on — in one batch, without the tick waiting on it.
    *
-   * `allowUnconfirmed` is the load-bearing part. A Durable Object normally
+   * **One batch is the point**, not an economy. A kit and the map are two halves
+   * of the same fact once picking something up moves it between them, and making
+   * one durable without the other is how an item comes to exist twice.
+   *
+   * `allowUnconfirmed` is the other load-bearing part. A Durable Object normally
    * holds every outgoing message until the writes that preceded it are durable,
    * so that nobody can observe state that a failed write would roll back — and
    * that is the right default for anything the world's consistency rests on.
-   * This is not that. A position is a convenience, and the failure it guards
-   * against is losing a few seconds of walking on a crash that has already lost
-   * the tick. Paying for it with the whole world's broadcast latency, thirty
-   * times a second, would be the wrong trade in the one place this object
-   * cannot afford one.
+   * This is not that: what is written here is *behind* what has already been
+   * broadcast either way, so gating output on it would buy nothing and cost the
+   * whole world's latency thirty times a second. What matters is that these
+   * entries land together, which one `put` guarantees regardless.
    *
    * The rejection is swallowed for the same reason: there is nothing useful to
    * do about a position that did not stick, and an unhandled rejection here
    * would take the world down over it.
    */
-  private savePositions(actorIds: Iterable<string>) {
+  private saveActors(actorIds: Iterable<string>) {
     const session = this.session;
     if (!session) return;
 
     const savedAt = Date.now();
-    const entries: Record<string, SavedPosition> = {};
+    const entries: Record<string, SavedPosition | SavedEquipment | Checkpoint> =
+      {};
     for (const actorId of actorIds) {
       const at = session.actorPosition(actorId);
       if (!at) continue;
       entries[this.positionKey(actorId)] = { ...at, savedAt };
+      // In the same write as the position, so the two facts about a player
+      // cannot land in different storage batches and disagree about which
+      // moment they describe.
+      //
+      // Only a kit with something in it. Every deer in the world has an empty
+      // one, and a key per creature per world would be the ceiling below spent
+      // on remembering that a deer is still carrying nothing.
+      const equipment = session.equipmentOf(actorId);
+      if (equipment?.weapon || equipment?.bag) {
+        entries[this.equipmentKey(actorId)] = { equipment, savedAt };
+      }
     }
+
+    // The board, in the same batch as the kits read off it. **This is what
+    // stops an item existing twice.** Picking something up takes it off the map
+    // and puts it in a bag, so a kit made durable against a map that was not
+    // would come back to a floor still holding the thing it claims. One write,
+    // one moment, and the two cannot disagree.
+    const map = session.getMap();
+    if (map !== this.checkpointedMap) {
+      entries[CHECKPOINT_KEY] = {
+        map: flattenMap(map),
+        spawn: session.getSpawnPoint(),
+        seed: session.getSeed(),
+        dead: [...this.dead],
+      };
+      this.checkpointedMap = map;
+    }
+
     if (Object.keys(entries).length === 0) return;
 
     this.ctx.storage.put(entries, { allowUnconfirmed: true }).catch(() => {});
   }
 
   /**
-   * Save everyone, at most once every {@link POSITION_FLUSH_INTERVAL_MS}.
+   * Save everyone, at most once every {@link ACTOR_FLUSH_INTERVAL_MS}.
    *
    * Throttled rather than per-tick because the position of a walking actor
    * changes on a tick that already has a diff and a broadcast to pay for, and
    * writing it there would put a storage call on the busiest frames to record
    * something that will be superseded 200ms later.
    */
-  private savePositionsIfDue() {
+  private saveActorsIfDue() {
     const session = this.session;
     if (!session) return;
     const now = Date.now();
-    if (now - this.positionsSavedAt < POSITION_FLUSH_INTERVAL_MS) return;
+    if (now - this.actorsSavedAt < ACTOR_FLUSH_INTERVAL_MS) return;
     // Stamped whether or not anything was written, so an empty world costs one
     // comparison per tick rather than a walk of its actor table.
-    this.positionsSavedAt = now;
-    this.savePositions(session.actorIds());
+    this.actorsSavedAt = now;
+    this.saveActors(session.actorIds());
   }
 
   /**
-   * Drop the positions of people the world has not seen in longest.
+   * Drop what the world remembers about the people it has not seen in longest.
    *
    * On load, because that is the one moment this object is already doing async
    * I/O with nothing waiting on a tick — and it runs once per instance rather
    * than once per wake, since an object that is already in memory does not
    * reload.
+   *
+   * Each prefix is capped on its own rather than the two being reconciled. They
+   * hold different populations — everybody has a position and only players have
+   * a kit — so pairing them would mean deciding what a kit with no position
+   * means, for a saving that is one comparison.
    */
-  private async prunePositions() {
-    const stored = await this.ctx.storage.list<SavedPosition>({
-      prefix: POSITION_KEY_PREFIX,
-    });
-    if (stored.size <= MAX_SAVED_POSITIONS) return;
+  private async pruneRemembered() {
+    await this.pruneOldest(POSITION_KEY_PREFIX);
+    await this.pruneOldest(EQUIPMENT_KEY_PREFIX);
+  }
+
+  /**
+   * Keep the {@link MAX_REMEMBERED_ACTORS} most recently saved of one prefix.
+   *
+   * Least-recently-saved goes first: the entries being dropped belong to whoever
+   * has not been seen in longest, which is the closest thing here to "will not
+   * be missed".
+   */
+  private async pruneOldest(prefix: string) {
+    const stored = await this.ctx.storage.list<{ savedAt: number }>({ prefix });
+    if (stored.size <= MAX_REMEMBERED_ACTORS) return;
 
     const oldestFirst = [...stored].sort(
       ([, a], [, b]) => a.savedAt - b.savedAt,
     );
     const doomed = oldestFirst
-      .slice(0, stored.size - MAX_SAVED_POSITIONS)
+      .slice(0, stored.size - MAX_REMEMBERED_ACTORS)
       .map(([key]) => key);
     await this.ctx.storage.delete(doomed);
   }
@@ -442,7 +588,11 @@ export class GameServer extends DurableObject<Env> {
     // Rejoining with the same id keeps the actor already on the board; the
     // remembered position is for somebody whose body is gone — they left, or
     // their connection died while this object was evicted and they were reaped.
-    session.spawn(actorId, await this.lastPositionOf(actorId));
+    session.spawn(
+      actorId,
+      await this.lastPositionOf(actorId),
+      await this.lastEquipmentOf(actorId),
+    );
     this.events.push({
       kind: "joined",
       actorId,
@@ -480,14 +630,36 @@ export class GameServer extends DurableObject<Env> {
     return ids.size;
   }
 
+  /**
+   * Whether this actor is still connected by some other socket.
+   *
+   * The closing socket is still listed by `getWebSockets` while its close is
+   * being handled — same as in {@link playerCount} — so it has to be excluded
+   * by identity rather than by its attachment, which is indistinguishable from
+   * the ones that are staying.
+   */
+  private hasOtherSocket(closing: WebSocket, actorId: string): boolean {
+    for (const ws of this.ctx.getWebSockets()) {
+      if (ws === closing) continue;
+      const attachment = ws.deserializeAttachment() as Attachment | null;
+      if (attachment?.actorId === actorId) return true;
+    }
+    return false;
+  }
+
   private sendHello(ws: WebSocket, actorId: string) {
     const session = this.session!;
+    const actors = session.actorSnapshots();
     const message: ServerMessage = {
       type: "hello",
       selfId: actorId,
       map: flattenMap(session.getMap()),
       actorIds: session.actorIds(),
-      hps: currentHps(session.actorSnapshots()),
+      hps: currentHps(actors),
+      carriedLights: currentCarriedLights(actors),
+      // Theirs alone, and sent in full here for the same reason the map and the
+      // hit points are: a joiner has nothing to patch against.
+      equipment: session.equipmentOf(actorId) ?? emptyEquipment(),
       playerCount: this.playerCount(),
       // Read here rather than tracked: time of day is a function of the
       // server's clock, so it costs nothing to keep and cannot fall behind
@@ -544,6 +716,23 @@ export class GameServer extends DurableObject<Env> {
       // stays at rest while somebody merely points at a deer, and turning this
       // on beside them is exactly the moment the clock has to start again.
       session.setAttackMode(message.enabled, actorId);
+    } else if (message.type === "pickUp") {
+      // Re-validated against the board and against the actor's own kit, on the
+      // same terms as any other affordance: the client offered the row from
+      // these rules, but it decided on a map that may be a round trip old and a
+      // bag that may have filled up since.
+      session.pickUp(message.ref, actorId);
+    } else if (message.type === "moveItem") {
+      // Every rule asked again here, reach above all: a ground endpoint names a
+      // container the client had a panel open on, and the panel may have been
+      // open while its owner walked away from it. The client offered the drag
+      // from these same rules, and is still not trusted with the answer.
+      session.moveItem(message.from, message.to, actorId);
+    } else if (message.type === "drop") {
+      // Range, sight and room in the stack, all re-asked. The client drew a
+      // ghost from these same rules, but it drew it on a board that may be a
+      // round trip old — and somebody else may have filled that cell since.
+      session.drop(message.from, message.to, actorId);
     } else {
       // Re-validated against the board rather than trusted: the client decided
       // to offer this affordance from the same rules, but it decided on a map
@@ -551,7 +740,41 @@ export class GameServer extends DurableObject<Env> {
       session.interact(message.ref, actorId);
     }
 
+    this.flushEquipment();
     this.wake();
+  }
+
+  /**
+   * Tell anybody whose kit changed what they are carrying now.
+   *
+   * One message per affected socket rather than a field on the broadcast patch,
+   * and that is what keeps the patch cheap: a patch is diffed once and
+   * serialized once for everybody, which only works because everybody is being
+   * told the same thing. Equipment differs per player, so folding it in would
+   * turn one serialization per tick into one per player — for something nobody
+   * else can see, since there is no paperdoll.
+   *
+   * Called wherever a kit can change rather than only on the tick, because a
+   * pickup happens *between* ticks: it is input, and the world may be asleep
+   * when it arrives. Draining is idempotent, so calling it twice costs a set
+   * lookup and sends nothing.
+   */
+  private flushEquipment() {
+    const session = this.session;
+    if (!session) return;
+    const changed = session.drainEquipmentChanges();
+    if (changed.length === 0) return;
+
+    const wanted = new Set(changed);
+    for (const ws of this.ctx.getWebSockets()) {
+      const attachment = ws.deserializeAttachment() as Attachment | null;
+      if (!attachment || !wanted.has(attachment.actorId)) continue;
+      const equipment = session.equipmentOf(attachment.actorId);
+      // Gone between the change and the flush — a body that died still had its
+      // kit changed, and there is nobody left to tell.
+      if (!equipment) continue;
+      ws.send(JSON.stringify({ type: "equipment", equipment } satisfies ServerMessage));
+    }
   }
 
   /**
@@ -793,9 +1016,27 @@ export class GameServer extends DurableObject<Env> {
     if (!attachment) return;
     await this.ensureLoaded();
 
+    // Somebody is still driving this actor, so nothing here applies to them:
+    // their body stays, their queued steps stay, and nobody is told they left.
+    //
+    // **This is what a reload looks like from in here.** A closing socket is
+    // not the same event as a person leaving, and the two come apart in the one
+    // moment that matters most: a browser opening its new connection before the
+    // old one's close has been delivered. Despawning on the socket rather than
+    // on the actor took the body out from under the connection that had just
+    // replaced it — leaving a client that was told it had a body, watching a
+    // world it was no longer in, with every message it sent dropped by the
+    // `actorIds` gate in {@link webSocketMessage}. There is no recovery from
+    // that short of another reload, which races exactly the same way.
+    //
+    // Two tabs are the ordinary version of the same thing: identity is a
+    // cookie, so they are one person with one body, and shutting one must not
+    // take the body away from the other.
+    if (this.hasOtherSocket(ws, attachment.actorId)) return;
+
     // Before the despawn, which is what takes their tile — and with it the only
     // record of where they were — off the board.
-    this.savePositions([attachment.actorId]);
+    this.saveActors([attachment.actorId]);
     this.session?.despawn(attachment.actorId);
     this.sentMotion.delete(attachment.actorId);
     this.queuedSteps.delete(attachment.actorId);
@@ -913,13 +1154,7 @@ export class GameServer extends DurableObject<Env> {
     // only chance to record the people whose sockets will not survive it: a
     // connection that dies during hibernation runs no close, so the wake reaps
     // its body without ever hearing about it.
-    this.savePositions(session.actorIds());
-    void this.ctx.storage.put(CHECKPOINT_KEY, {
-      map: flattenMap(session.getMap()),
-      spawn: session.getSpawnPoint(),
-      seed: session.getSeed(),
-      dead: [...this.dead],
-    } satisfies Checkpoint);
+    this.saveActors(session.actorIds());
   }
 
   private tick() {
@@ -937,13 +1172,29 @@ export class GameServer extends DurableObject<Env> {
 
     const cells = this.diffCells(session.getMap());
     const hps = this.diffHps(actors);
-    if (cells.length > 0 || this.events.length > 0 || hps.length > 0) {
-      this.broadcast({ type: "patch", cells, events: this.events, hps });
+    const carriedLights = this.diffCarriedLights(actors);
+    if (
+      cells.length > 0 ||
+      this.events.length > 0 ||
+      hps.length > 0 ||
+      carriedLights.length > 0
+    ) {
+      this.broadcast({
+        type: "patch",
+        cells,
+        events: this.events,
+        hps,
+        carriedLights,
+      });
       this.broadcastMap = session.getMap();
       this.events = [];
     }
 
-    this.savePositionsIfDue();
+    // A kit can change on a tick as well as on input — nothing does that yet,
+    // but a brain that picks something up will, and the alternative is finding
+    // out by way of a panel that never updates.
+    this.flushEquipment();
+    this.saveActorsIfDue();
     this.sleepIfIdle();
   }
 
@@ -1061,6 +1312,31 @@ export class GameServer extends DurableObject<Env> {
     }
     for (const id of this.sentHp.keys()) {
       if (!live.has(id)) this.sentHp.delete(id);
+    }
+    return out;
+  }
+
+  /**
+   * Carried lights that changed since the last broadcast.
+   *
+   * Almost always empty, and that is the shape to protect: this runs on every
+   * tick of every world, and a torch is picked up once. Forgetting an actor who
+   * has left matters here for the same reason it does for hit points — a
+   * returning player with a fresh kit would otherwise be diffed against the
+   * lantern their last body was holding, and the room would stay lit by nothing.
+   */
+  private diffCarriedLights(actors: ActorSnapshot[]): CarriedLightsPatch[] {
+    const out: CarriedLightsPatch[] = [];
+    const live = new Set<string>();
+    for (const actor of actors) {
+      live.add(actor.id);
+      const joined = actor.carriedLights.join(",");
+      if ((this.sentCarriedLights.get(actor.id) ?? "") === joined) continue;
+      this.sentCarriedLights.set(actor.id, joined);
+      out.push({ actorId: actor.id, tileIds: actor.carriedLights });
+    }
+    for (const id of this.sentCarriedLights.keys()) {
+      if (!live.has(id)) this.sentCarriedLights.delete(id);
     }
     return out;
   }

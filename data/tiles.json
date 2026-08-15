@@ -4,6 +4,7 @@
     "name": "Grass",
     "height": 0,
     "type": "simple",
+    "kind": "prop",
     "attributes": {},
     "sprite": {
       "frames": [
@@ -31,6 +32,7 @@
     "name": "Dirt",
     "height": 0,
     "type": "autotile",
+    "kind": "prop",
     "attributes": {},
     "slices": {
       "0": {
@@ -980,6 +982,7 @@
     "name": "Water",
     "height": 0,
     "type": "simple",
+    "kind": "prop",
     "attributes": {},
     "lightPassing": true,
     "intangible": true,
@@ -1009,6 +1012,7 @@
     "name": "Half Stone",
     "height": 1,
     "type": "simple",
+    "kind": "prop",
     "attributes": {},
     "sprite": {
       "frames": [
@@ -1036,6 +1040,7 @@
     "name": "Stone Wall",
     "height": 2,
     "type": "simple",
+    "kind": "prop",
     "attributes": {},
     "sprite": {
       "frames": [
@@ -1063,6 +1068,7 @@
     "name": "Tree",
     "height": 2,
     "type": "simple",
+    "kind": "prop",
     "attributes": {},
     "walkable": false,
     "sprite": {
@@ -1091,6 +1097,7 @@
     "name": "Wall Torch",
     "height": 2,
     "type": "directional",
+    "kind": "prop",
     "attributes": {},
     "intangible": true,
     "sprites": {
@@ -1285,6 +1292,7 @@
     "name": "Grass",
     "height": 0,
     "type": "simple",
+    "kind": "prop",
     "attributes": {},
     "sprite": {
       "frames": [
@@ -1312,6 +1320,7 @@
     "name": "Cobblestone",
     "height": 0,
     "type": "simple",
+    "kind": "prop",
     "attributes": {},
     "sprite": {
       "frames": [
@@ -1339,6 +1348,7 @@
     "name": "Roof",
     "height": 2,
     "type": "simple",
+    "kind": "prop",
     "attributes": {},
     "sprite": {
       "frames": [
@@ -1366,6 +1376,7 @@
     "name": "Roof",
     "height": 2,
     "type": "simple",
+    "kind": "prop",
     "attributes": {},
     "sprite": {
       "frames": [
@@ -1393,6 +1404,7 @@
     "name": "Roof",
     "height": 1,
     "type": "simple",
+    "kind": "prop",
     "attributes": {},
     "sprite": {
       "frames": [
@@ -1420,6 +1432,7 @@
     "name": "Plaster",
     "height": 1,
     "type": "simple",
+    "kind": "prop",
     "attributes": {},
     "sprite": {
       "frames": [
@@ -1447,6 +1460,7 @@
     "name": "Ramp",
     "height": 1,
     "type": "directional",
+    "kind": "prop",
     "attributes": {},
     "climbFrom": {
       "n": {
@@ -1562,6 +1576,7 @@
     "name": "Stone Stairs",
     "height": 1,
     "type": "directional",
+    "kind": "prop",
     "attributes": {},
     "climbFrom": {
       "n": {
@@ -1677,6 +1692,7 @@
     "name": "Brick Slab",
     "height": 1,
     "type": "simple",
+    "kind": "prop",
     "attributes": {},
     "sprite": {
       "frames": [
@@ -1704,6 +1720,7 @@
     "name": "Cat",
     "height": 1,
     "type": "simple",
+    "kind": "battler",
     "attributes": {},
     "affectedByGravity": true,
     "interactions": {
@@ -1873,15 +1890,12 @@
     "name": "Player",
     "height": 2,
     "type": "directional",
+    "kind": "battler",
     "attributes": {},
     "lightPassing": true,
     "affectedByGravity": true,
     "walkable": false,
     "interactions": {
-      "push": {
-        "climb": "none",
-        "moveOnTileIds": []
-      },
       "battler": {
         "maxHp": 40,
         "atk": 6,
@@ -1889,6 +1903,10 @@
         "acc": 70,
         "flee": 25,
         "spd": 55
+      },
+      "push": {
+        "climb": "none",
+        "moveOnTileIds": []
       }
     },
     "sprites": {
@@ -1908,12 +1926,7 @@
                 "y": 1
               }
             },
-            "durationMs": 200,
-            "light": {
-              "radius": 5,
-              "intensity": 1,
-              "color": "#ffcc88"
-            }
+            "durationMs": 200
           }
         ]
       },
@@ -1933,12 +1946,7 @@
                 "y": 1
               }
             },
-            "durationMs": 200,
-            "light": {
-              "radius": 5,
-              "intensity": 1,
-              "color": "#ffcc88"
-            }
+            "durationMs": 200
           }
         ]
       },
@@ -1958,12 +1966,7 @@
                 "y": 1
               }
             },
-            "durationMs": 200,
-            "light": {
-              "radius": 5,
-              "intensity": 1,
-              "color": "#ffcc88"
-            }
+            "durationMs": 200
           }
         ]
       },
@@ -1983,12 +1986,7 @@
                 "y": 1
               }
             },
-            "durationMs": 200,
-            "light": {
-              "radius": 5,
-              "intensity": 1,
-              "color": "#ffcc88"
-            }
+            "durationMs": 200
           }
         ]
       }
@@ -1999,6 +1997,7 @@
     "name": "Wall",
     "height": 2,
     "type": "autotile",
+    "kind": "prop",
     "attributes": {},
     "walkable": false,
     "slices": {
@@ -2949,6 +2948,7 @@
     "name": "Window",
     "height": 2,
     "type": "directional",
+    "kind": "prop",
     "attributes": {},
     "lightPassing": true,
     "walkable": false,
@@ -3040,6 +3040,7 @@
     "name": "Closed door",
     "height": 2,
     "type": "simple",
+    "kind": "prop",
     "attributes": {},
     "walkable": false,
     "interactions": {
@@ -3079,6 +3080,7 @@
     "name": "Open door",
     "height": 2,
     "type": "simple",
+    "kind": "prop",
     "attributes": {},
     "lightPassing": true,
     "intangible": true,
@@ -3120,6 +3122,7 @@
     "name": "Pressure Plate",
     "height": 0,
     "type": "simple",
+    "kind": "prop",
     "attributes": {},
     "interactions": {
       "pressurePlate": {
@@ -3157,6 +3160,7 @@
     "name": "Pressure Plate (Pressed)",
     "height": 0,
     "type": "simple",
+    "kind": "prop",
     "attributes": {},
     "interactions": {
       "pressurePlate": {
@@ -3194,6 +3198,7 @@
     "name": "Wooden Box",
     "height": 1,
     "type": "simple",
+    "kind": "prop",
     "attributes": {},
     "affectedByGravity": true,
     "interactions": {
@@ -3228,6 +3233,7 @@
     "name": "Wooden floor",
     "height": 0,
     "type": "autotile",
+    "kind": "prop",
     "attributes": {},
     "slices": {
       "0": {
@@ -3477,6 +3483,7 @@
     "name": "Sign",
     "height": 1,
     "type": "directional",
+    "kind": "prop",
     "attributes": {},
     "walkable": false,
     "sprites": {
@@ -3567,6 +3574,7 @@
     "name": "Barrel",
     "height": 1,
     "type": "simple",
+    "kind": "prop",
     "attributes": {},
     "sprite": {
       "frames": [
@@ -3594,6 +3602,7 @@
     "name": "Deer",
     "height": 2,
     "type": "directional",
+    "kind": "battler",
     "attributes": {},
     "affectedByGravity": true,
     "walkable": false,
@@ -3861,6 +3870,484 @@
               "base": {
                 "x": 1,
                 "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "rusty-sword",
+    "name": "Rusty Sword",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "intangible": true,
+    "affectedByGravity": true,
+    "lightPassing": true,
+    "interactions": {
+      "item": {
+        "type": "weapon",
+        "atk": 3,
+        "def": 0,
+        "acc": -5,
+        "spd": -10,
+        "mastery": "blade"
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 16,
+              "y": 10,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "hand-lantern",
+    "name": "Hand Lantern",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "weapon",
+        "atk": 0,
+        "def": 0,
+        "acc": 0,
+        "spd": 0,
+        "mastery": "blunt"
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 10,
+              "y": 0,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 6,
+            "intensity": 1,
+            "color": "#ffcc88"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "basic-bag",
+    "name": "Basic Bag",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "intangible": true,
+    "affectedByGravity": true,
+    "lightPassing": true,
+    "interactions": {
+      "item": {
+        "type": "container",
+        "size": 4,
+        "equippable": true
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 17,
+              "y": 10,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "crate-chest",
+    "name": "Chest",
+    "height": 1,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "container",
+        "size": 2,
+        "equippable": false
+      },
+      "push": {
+        "climb": "none",
+        "moveOnTileIds": []
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 14,
+              "y": 10,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "rat",
+    "name": "Rat",
+    "height": 1,
+    "type": "directional",
+    "kind": "prop",
+    "attributes": {},
+    "lightPassing": true,
+    "walkable": false,
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 0,
+                "y": 2,
+                "w": 1,
+                "h": 3
+              },
+              "base": {
+                "x": 0,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          },
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 1,
+                "y": 2,
+                "w": 1,
+                "h": 3
+              },
+              "base": {
+                "x": 0,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 2,
+                "y": 2,
+                "w": 3,
+                "h": 1
+              },
+              "base": {
+                "x": 1,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          },
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 2,
+                "y": 3,
+                "w": 3,
+                "h": 1
+              },
+              "base": {
+                "x": 1,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 5,
+                "y": 2,
+                "w": 1,
+                "h": 3
+              },
+              "base": {
+                "x": 0,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          },
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 6,
+                "y": 2,
+                "w": 1,
+                "h": 3
+              },
+              "base": {
+                "x": 0,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 7,
+                "y": 2,
+                "w": 3,
+                "h": 1
+              },
+              "base": {
+                "x": 1,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          },
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 7,
+                "y": 3,
+                "w": 3,
+                "h": 1
+              },
+              "base": {
+                "x": 1,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "snake",
+    "name": "Snake",
+    "height": 1,
+    "type": "directional",
+    "kind": "prop",
+    "attributes": {},
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 0,
+                "y": 5,
+                "w": 1,
+                "h": 3
+              },
+              "base": {
+                "x": 0,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          },
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 1,
+                "y": 5,
+                "w": 1,
+                "h": 3
+              },
+              "base": {
+                "x": 0,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 2,
+                "y": 5,
+                "w": 3,
+                "h": 1
+              },
+              "base": {
+                "x": 1,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          },
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 2,
+                "y": 6,
+                "w": 3,
+                "h": 1
+              },
+              "base": {
+                "x": 1,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 5,
+                "y": 5,
+                "w": 1,
+                "h": 3
+              },
+              "base": {
+                "x": 0,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          },
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 6,
+                "y": 5,
+                "w": 1,
+                "h": 3
+              },
+              "base": {
+                "x": 0,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 7,
+                "y": 5,
+                "w": 3,
+                "h": 1
+              },
+              "base": {
+                "x": 1,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          },
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 7,
+                "y": 6,
+                "w": 3,
+                "h": 1
+              },
+              "base": {
+                "x": 1,
+                "y": 0
               }
             },
             "durationMs": 200

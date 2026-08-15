@@ -14,7 +14,7 @@ import {
 import { TICK_MS } from "../game/constants";
 import { hasAnyInteraction, type TileInteractions } from "../lib/interactions";
 import type { TileDef } from "../lib/types";
-import { Input, Switch } from "../ui";
+import { Input } from "../ui";
 
 type Props = {
   draft: TileDef;
@@ -85,14 +85,18 @@ function describeInterval(ms: number): string {
  * A tab of its own rather than another section on Interactive, because being a
  * battler is not something the player *does* to a tile — it is something the
  * tile is. The brain earned its own tab on the same grounds.
+ *
+ * There is no switch in here any more. Whether a tile is a battler is the Kind
+ * select's answer, and this tab is only shown when that answer is yes — so a
+ * battler always has stats, and the "on but empty" state this used to be able to
+ * reach no longer exists. `battler` can still read as absent for one render
+ * while a draft is being rebuilt, which is the only reason for the guard.
  */
 export function BattleTab({ draft, onChange }: Props) {
-  const battler = draft.interactions?.battler;
+  const battler = draft.interactions?.battler ?? DEFAULT_BATTLER;
 
-  const setBattler = (next: BattlerDef | undefined) => {
-    const merged: TileInteractions = { ...draft.interactions };
-    if (next == null) delete merged.battler;
-    else merged.battler = next;
+  const setBattler = (next: BattlerDef) => {
+    const merged: TileInteractions = { ...draft.interactions, battler: next };
     onChange({
       ...draft,
       interactions: hasAnyInteraction(merged) ? merged : undefined,
@@ -100,23 +104,13 @@ export function BattleTab({ draft, onChange }: Props) {
   };
 
   const patch = (fields: Partial<BattlerDef>) => {
-    if (!battler) return;
     setBattler({ ...battler, ...fields });
   };
 
   return (
     <div className="flex flex-col gap-4">
       <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
-        <label className="flex items-center gap-2 text-sm font-bold">
-          <Switch
-            checked={Boolean(battler)}
-            onCheckedChange={(on) =>
-              setBattler(on ? { ...DEFAULT_BATTLER } : undefined)
-            }
-            ariaLabel="Battler"
-          />
-          Battler
-        </label>
+        <span className="text-sm font-bold">Battler</span>
         <p className="text-[11px] leading-snug text-muted">
           This tile has hit points. Every placement starts at full health, can be
           targeted and attacked, and is <strong>deleted from the map</strong> the
@@ -125,8 +119,7 @@ export function BattleTab({ draft, onChange }: Props) {
           separate question from what drives it.
         </p>
 
-        {battler ? (
-          <div className="flex flex-wrap gap-4 border-t-2 border-border pt-3">
+        <div className="flex flex-wrap gap-4 border-t-2 border-border pt-3">
             <StatField
               label="Max HP"
               hint="Hit points a fresh placement starts at."
@@ -175,8 +168,7 @@ export function BattleTab({ draft, onChange }: Props) {
               onChange={(spd) => patch({ spd })}
               readout={describeInterval(attackIntervalMs(battler.spd))}
             />
-          </div>
-        ) : null}
+        </div>
       </section>
     </div>
   );

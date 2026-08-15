@@ -1,3 +1,4 @@
+import type { ItemInstance } from "./itemInstance";
 import type {
   ChunkCells,
   Direction,
@@ -651,8 +652,46 @@ export function flattenMap(map: MapFile): FlatMapFile {
   return { version: 1, levels };
 }
 
+/**
+ * A placement as it is *authored*, with the runtime's bookkeeping taken off.
+ *
+ * `itemId` is minted when a world loads and is an identity for a thing while it
+ * is being played with — not something anybody typed, and not something worth
+ * carrying in a file people read diffs of. Picking a sword up, looting a chest
+ * and dropping a bag all rewrite placements, so without this an editor save
+ * after a few minutes of play would arrive full of ids nobody chose.
+ *
+ * Recursive into `contents` for the same reason: a chest is authored by what is
+ * *in* it, and each of those gets a fresh identity on the next load.
+ */
+function authoredPlacement(placed: PlacedTile): PlacedTile {
+  const { itemId: _itemId, contents, ...rest } = placed;
+  if (!contents) return rest;
+  return {
+    ...rest,
+    contents: contents.map(({ id: _id, ...item }) => item as ItemInstance),
+  };
+}
+
+/**
+ * The map as a file, which is not quite the map as it is played.
+ *
+ * The one place the two shapes are allowed to differ, and the difference is
+ * exactly the identities above. Everything that keeps them — the wire, the
+ * checkpoint — uses {@link flattenMap} directly, because a running world very
+ * much does need to know which sword is which.
+ */
 export function serializeMap(map: MapFile): string {
-  return `${JSON.stringify(flattenMap(map), null, 2)}\n`;
+  const flat = flattenMap(map);
+  const levels: FlatMapFile["levels"] = {};
+  for (const [zk, cells] of Object.entries(flat.levels)) {
+    const out: Record<string, PlacedTile[]> = {};
+    for (const [ck, stack] of Object.entries(cells)) {
+      out[ck] = stack.map(authoredPlacement);
+    }
+    levels[zk] = out;
+  }
+  return `${JSON.stringify({ ...flat, levels }, null, 2)}\n`;
 }
 
 export function parseMap(json: string): MapFile {

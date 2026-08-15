@@ -835,6 +835,9 @@ function buildTileDef(
     name: project.name,
     height: Number(tileHeight) as TileHeight,
     type: sheet.type,
+    // The voxel editor makes art, not behaviour: whatever it exports is scenery
+    // until somebody opens it in the tile editor and says otherwise.
+    kind: "prop",
     attributes: {},
     sprite: sheet.sprite,
     sprites: sheet.sprites,
