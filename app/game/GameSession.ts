@@ -7,6 +7,7 @@ import {
   replaceStack,
 } from "../lib/mapData";
 import { resolveSwitch } from "../lib/interactions";
+import { resolveConsumable, type ConsumableItem } from "../lib/item";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
 import { MIN_LEVEL } from "../lib/types";
 import { canPlace, tilesByIdFromList } from "../lib/validation";
@@ -26,6 +27,7 @@ import {
   type ActorLocation,
 } from "./actors";
 import {
+  canConsumeFrom,
   canDropAt,
   canPickUpFrom,
   canPushFrom,
@@ -44,6 +46,7 @@ import {
   BRAIN_TICK_MS,
   DAMAGE_NUMBER_LIFETIME_MS,
   FALL_MS_PER_HEIGHT,
+  NOISE_LIFETIME_MS,
   MAX_CLIMB_HEIGHT,
   PUSH_STEP_MS,
   STARTING_BAG_TILE_ID,
@@ -103,6 +106,7 @@ import {
   type BrainMemory,
   type Utterance,
 } from "./brainRuntime";
+import type { ConsumeSource } from "./itemUse";
 import { hasLineOfSight } from "./sight";
 import { Rng } from "./rng";
 import { chooseStep, type StepRequest } from "./stepping";
@@ -235,6 +239,30 @@ export type ActorSnapshot = {
  * Which is why the cell travels rather than the actor id alone. By the time this
  * is drawn there may be nobody by that name to ask where they were standing.
  */
+/**
+ * A noise something made, and where it was made.
+ *
+ * **Not speech, and deliberately not shaped like it.** A noise carries no
+ * speaker and no body: nothing here can name who made it, because naming is the
+ * thing that would turn "crunch" into "Amethyst Piranha says: crunch". A snake's
+ * hiss and a bitten apple are the same kind of event — a sound the room heard —
+ * and neither is a sentence anybody uttered.
+ *
+ * Pinned to a cell like a bubble, and aged like a damage number: it is a thing
+ * that happened at a place, not a thing a body is carrying around.
+ */
+export type NoiseEmission = {
+  /** Distinct per noise, so two in one tick are two labels. */
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  z: number;
+  /** Where the maker stood in that cell's stack, so it starts at them. */
+  stackIndex: number;
+  elapsedMs: number;
+};
+
 export type DamageNumber = {
   /** Distinct per blow, so two hits on one tick are two numbers. */
   id: string;
@@ -348,6 +376,14 @@ export type GameSnapshot = {
    * the local simulation has nobody to talk to and returns an empty list.
    */
   chats: ChatBubble[];
+  /**
+   * Noises still hanging in the air, on this viewer's level only.
+   *
+   * Unlike {@link chats} this *is* filled in by the local simulation: a noise
+   * needs no second person to have made it, so a single-player world hears
+   * every hiss and crunch in it. @see NoiseEmission
+   */
+  noises: NoiseEmission[];
 };
 
 /** The id the single local actor takes when nobody names one. */
@@ -424,6 +460,15 @@ export interface PlaySession {
    * does.
    */
   pickUp(ref: ObjectRef): boolean;
+  /**
+   * Eat or drink a consumable, from a slot in your kit or off the floor.
+   *
+   * On the interface for the reason {@link pickUp} is: both the inventory tap
+   * and the "Eat" row name the act, and a row that named one action and ran
+   * whatever `interact` happened to choose would be lying about what a tap
+   * does.
+   */
+  consume(from: ConsumeSource): boolean;
   /**
    * Would this move be honoured right now?
    *
@@ -694,6 +739,23 @@ export class GameSession implements PlaySession {
   private liveDamage: DamageNumber[] = [];
   /** Ticks up per blow, so two hits in one tick are two numbers. */
   private nextDamageId = 0;
+  /**
+   * Noises made this tick, waiting to be broadcast. Drained by the server
+   * exactly as {@link pendingDamage} is.
+   */
+  private pendingNoise: NoiseEmission[] = [];
+  /**
+   * Noises still on screen, aged down by the tick loop.
+   *
+   * The pair works the way damage's does rather than the way speech's does, and
+   * the difference is the point: speech is broadcast and forgotten by the
+   * session, so it never appears offline, while a noise is world-legible the
+   * way a damage number is and a single-player world has every right to hear
+   * one. A snake hissing in `/play` is the case that settles it.
+   */
+  private liveNoise: NoiseEmission[] = [];
+  /** Ticks up per noise, so two in one tick are two labels. */
+  private nextNoiseId = 0;
   /**
    * Who died this tick, waiting to be noticed.
    *
@@ -1184,7 +1246,9 @@ export class GameSession implements PlaySession {
     // an empty page, so anything left undrained cannot pile up.
     this.pendingSpeech = [];
     this.pendingDamage = [];
+    this.pendingNoise = [];
     this.ageDamageNumbers(tickMs);
+    this.ageNoises(tickMs);
 
     // Before anything swings, so a body whose cooldown expires on this tick can
     // spend it on this tick — whether the swing comes from a brain below or from
@@ -1323,6 +1387,7 @@ export class GameSession implements PlaySession {
       step: (direction) =>
         this.applyStepRequest(actor, { directions: [direction] }),
       say: (text) => this.recordSpeech(actor, loc, text),
+      noise: (text) => this.recordNoise(loc, text),
       canSee: (at) =>
         hasLineOfSight(
           this.map,
@@ -1360,6 +1425,63 @@ export class GameSession implements PlaySession {
       z: loc.z,
       stackIndex: loc.stackIndex,
     });
+  }
+
+  /**
+   * Note a noise something made, at the cell it was made in.
+   *
+   * Sanitised on exactly the terms speech is — a noise is drawn text, and text
+   * that cannot be drawn is a hole rather than a character somebody is missing.
+   * A line that survives to nothing is simply not recorded.
+   *
+   * Pushed to both lists at once, the way a blow is: the pending one is what the
+   * wire wants once, and the live one is what a viewer should still be able to
+   * see two seconds from now. That second list is what makes a noise audible in
+   * a single-player world, where speech never has been.
+   */
+  private recordNoise(loc: ActorLocation, raw: string) {
+    const text = sanitizeChatText(raw);
+    if (!text) return;
+    const noise: NoiseEmission = {
+      id: `noise-${this.nextNoiseId++}`,
+      text,
+      x: loc.x,
+      y: loc.y,
+      z: loc.z,
+      stackIndex: loc.stackIndex,
+      elapsedMs: 0,
+    };
+    this.pendingNoise.push(noise);
+    this.liveNoise.push(noise);
+  }
+
+  /** Age the noises out, on the tick clock like every other timer. */
+  private ageNoises(tickMs: number) {
+    if (this.liveNoise.length === 0) return;
+    let expired = false;
+    for (const noise of this.liveNoise) {
+      noise.elapsedMs += tickMs;
+      if (noise.elapsedMs >= NOISE_LIFETIME_MS) expired = true;
+    }
+    if (expired) {
+      this.liveNoise = this.liveNoise.filter(
+        (noise) => noise.elapsedMs < NOISE_LIFETIME_MS,
+      );
+    }
+  }
+
+  /**
+   * Every noise made this tick, handed over and forgotten.
+   *
+   * The server's to call, right after {@link tick} and alongside
+   * {@link drainSpeech}. Unlike speech, not draining it is harmless beyond the
+   * wire: the live list is what a local viewer reads, and it ages out on its
+   * own.
+   */
+  drainNoise(): NoiseEmission[] {
+    const made = this.pendingNoise;
+    this.pendingNoise = [];
+    return made;
   }
 
   /**
@@ -1862,6 +1984,129 @@ export class GameSession implements PlaySession {
     return true;
   }
 
+  /**
+   * Use a consumable up: the thing is destroyed and its `hp` lands on the
+   * eater.
+   *
+   * The two sources cross different lines and are validated on their own
+   * terms. A floor consume is a board action — reach, cover and idleness, the
+   * gates a pickup runs — and takes a placement off the map without it ever
+   * entering a kit. A slot consume is a kit action, gated the way a move is
+   * (not on idleness: refusing to let a walking player drink would be a rule
+   * with nothing behind it), and reach for a ground container slot is re-asked
+   * inside `itemInSlot`.
+   *
+   * The eater must have hit points to change, asked *before* anything is
+   * destroyed: a body with none — a session with no battler tile — refuses
+   * rather than wasting the item on nothing.
+   */
+  consume(from: ConsumeSource, id: string = LOCAL_ACTOR_ID): boolean {
+    const actor = this.actors.get(id);
+    if (!actor) return false;
+    if (this.hpOf(actor) === null) return false;
+
+    const consumable =
+      from.kind === "floor"
+        ? this.consumeFromFloor(actor, from.ref)
+        : this.consumeFromSlot(actor, from.slot);
+    if (!consumable) return false;
+
+    // Before the hit points land, on exactly the terms `notePendingHurt` is
+    // noted before its damage: a fatal drink still tells the room, because by
+    // the time the number has been applied the body may be off the board and
+    // there is nowhere left to hang a bubble.
+    this.recordConsumeSound(actor, consumable);
+
+    if (consumable.hp < 0) {
+      // Through the damage path rather than a bare subtraction, so a poison
+      // apple shows its number, tells the brains, and can kill — a death by
+      // poison and a death by blows must not be two codepaths to keep alive.
+      this.applyDamage(actor, -consumable.hp);
+    } else if (consumable.hp > 0) {
+      const stats = this.battlerOf(actor);
+      const before = this.hpOf(actor);
+      if (stats && before !== null) {
+        actor.hp = Math.min(stats.maxHp, before + consumable.hp);
+      }
+    }
+    return true;
+  }
+
+  /**
+   * Make the noise a consumable makes, where it was used.
+   *
+   * A noise rather than speech, and that is the whole distinction the channel
+   * exists for: biting an apple is not the eater *saying* anything, so it must
+   * not arrive attributed to them. See {@link NoiseEmission}.
+   *
+   * Deliberately not handed to {@link hear}, matching what {@link recordSpeech}
+   * already decided for creatures: a crunch setting off every brain in earshot
+   * is a world's worth of behaviour to think about rather than a side effect of
+   * eating an apple.
+   */
+  private recordConsumeSound(actor: ActorRuntime, consumable: ConsumableItem) {
+    if (!consumable.sound?.trim()) return;
+    // Re-located rather than taken from the consume: a floor meal has already
+    // rewritten the cell it came out of, and a stale slot index would hang the
+    // noise on nothing.
+    const loc = this.tryLocate(actor);
+    if (!loc) return;
+    this.recordNoise(loc, consumable.sound);
+  }
+
+  /** Take a consumable placement off the board. Null when refused. */
+  private consumeFromFloor(
+    actor: ActorRuntime,
+    ref: ObjectRef,
+  ): ConsumableItem | null {
+    if (!this.idle(actor)) return null;
+    const loc = this.tryLocate(actor);
+    if (!loc) return null;
+    if (!canConsumeFrom(this.map, this.tilesById, loc, ref)) return null;
+
+    const placed = getStack(this.map, ref.x, ref.y, ref.z)[ref.stackIndex];
+    const def = placed && this.tilesById[placed.tileId];
+    const consumable = def ? resolveConsumable(def) : null;
+    if (!consumable) return null;
+
+    this.map = removeTileAt(this.map, ref.x, ref.y, ref.z, ref.stackIndex);
+    // The cell has one fewer thing in it — the same reindex a pickup owes, for
+    // the same plates and the same unsupported crates.
+    this.reindexCells([{ x: ref.x, y: ref.y, z: ref.z }]);
+    return consumable;
+  }
+
+  /** Take a consumable out of a slot and destroy it. Null when refused. */
+  private consumeFromSlot(
+    actor: ActorRuntime,
+    slot: SlotRef,
+  ): ConsumableItem | null {
+    const loc = this.tryLocate(actor);
+    if (!loc) return null;
+
+    const instance = itemInSlot(
+      this.map,
+      this.tilesById,
+      loc,
+      actor.equipment,
+      slot,
+    );
+    const def = instance && this.tilesById[instance.tileId];
+    const consumable = def ? resolveConsumable(def) : null;
+    if (!consumable) return null;
+
+    const emptied = clearSlot(this.map, this.tilesById, loc, actor.equipment, slot);
+    if (!emptied) return null;
+
+    this.map = emptied.map;
+    // Only when it actually changed, exactly as a move does: eating out of a
+    // chest is the chest's placement changing and nobody's kit.
+    if (emptied.equipment !== actor.equipment) {
+      this.setEquipment(actor, emptied.equipment);
+    }
+    return consumable;
+  }
+
   canMoveItem(
     from: SlotRef,
     to: SlotRef,
@@ -2285,6 +2530,10 @@ export class GameSession implements PlaySession {
       // Nobody to talk to: the local simulation has no wire and no other actors
       // worth naming, so speech is a thing only the online client carries.
       chats: [],
+      // Unlike speech, which needs somebody to have said it to somebody: a
+      // noise is a thing that happened, and a world with one player in it still
+      // has snakes in it.
+      noises: this.liveNoise,
       damage: this.liveDamage,
     };
   }

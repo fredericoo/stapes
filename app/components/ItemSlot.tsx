@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { slotKey, type SlotRef } from "../game/itemMoves";
 import { itemUseFor } from "../game/itemUse";
+import { consumeVerb, resolveConsumable } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { TileDef, TilesetDef } from "../lib/types";
 import type { ItemDrag } from "./useItemDrag";
@@ -46,6 +47,14 @@ function pressHintFor(
   const use = itemUseFor(instance, slot, tilesById);
   if (!use) return null;
   if (use.type === "open") return open ? "Press to close it." : "Press to open it.";
+  if (use.type === "consume") {
+    // The author's verb, in the middle of a sentence: "Eat" reads back as
+    // "Press to eat it", so the hint and the row in the world use one word.
+    const def = tilesById[instance.tileId];
+    const consumable = def ? resolveConsumable(def) : null;
+    const verb = consumable ? consumeVerb(consumable) : null;
+    return verb ? `Press to ${verb.toLocaleLowerCase()} it.` : null;
+  }
   return use.to.kind === "weapon"
     ? "Press to wield it."
     : "Press to put it away.";

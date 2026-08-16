@@ -1746,7 +1746,7 @@
           "answering": {
             "onEnter": [
               {
-                "effect": "say",
+                "effect": "noise",
                 "text": "meow"
               }
             ],
@@ -3669,7 +3669,7 @@
           "flee": {
             "onEnter": [
               {
-                "effect": "say",
+                "effect": "noise",
                 "text": "!"
               }
             ],
@@ -4668,7 +4668,7 @@
           "striking": {
             "onEnter": [
               {
-                "effect": "say",
+                "effect": "noise",
                 "text": "sss"
               }
             ],
@@ -4801,6 +4801,43 @@
             "base": {
               "x": 1,
               "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "berry",
+    "name": "Berry",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "interactions": {
+      "item": {
+        "type": "consumable",
+        "label": "Eat",
+        "sound": "crunch",
+        "hp": 5
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "ultima-vi",
+            "rect": {
+              "x": 48,
+              "y": 20,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
             }
           },
           "durationMs": 200

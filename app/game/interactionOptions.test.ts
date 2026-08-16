@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_PUSH } from "../lib/interactions";
-import { DEFAULT_CONTAINER, DEFAULT_WEAPON } from "../lib/item";
+import {
+  DEFAULT_CONSUMABLE,
+  DEFAULT_CONTAINER,
+  DEFAULT_WEAPON,
+} from "../lib/item";
 import type { Equipment } from "./equipment";
 import { emptyEquipment } from "./equipment";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
@@ -81,6 +85,23 @@ const tiles: TileDef[] = [
     kind: "item",
     intangible: true,
     interactions: { item: { ...DEFAULT_CONTAINER, size: 2, equippable: false } },
+  }),
+  tile({
+    id: "cherry",
+    name: "Cherry",
+    height: 0,
+    kind: "item",
+    intangible: true,
+    interactions: { item: { ...DEFAULT_CONSUMABLE } },
+  }),
+  tile({
+    id: "mystery-snack",
+    name: "Mystery snack",
+    height: 0,
+    kind: "item",
+    intangible: true,
+    // No verb authored, which every consumable written by hand could be.
+    interactions: { item: { type: "consumable", hp: 1 } },
   }),
   // Authored as both, so the switch → pickUp precedence has something to bite.
   tile({
@@ -684,6 +705,76 @@ describe("listInteractionOptions — bags on the floor", () => {
     expect(
       actionsIn(listInteractionOptions(map, tilesById, me, [me], null, KIT)),
     ).toEqual(["pickUp"]);
+  });
+});
+
+describe("listInteractionOptions — consumables on the floor", () => {
+  it("offers a cherry as two rows, pick up before eat", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "cherry"]);
+    const me = playerAt(map);
+
+    const options = listInteractionOptions(map, tilesById, me, [me], null, KIT);
+
+    // Taking it first: lifting is reversible where eating is not, so the tap's
+    // default is the safe verb and the destructive one is a row you choose.
+    expect(actionsIn(options)).toEqual(["pickUp", "consume"]);
+    expect(options.every((o) => o.name === "Cherry")).toBe(true);
+  });
+
+  it("names the row by the authored verb", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "cherry"]);
+    const me = playerAt(map);
+
+    const eat = listInteractionOptions(map, tilesById, me, [me], null, KIT).find(
+      (o) => o.action === "consume",
+    );
+    expect(eat?.label).toBe("Eat");
+    expect(interactionText(eat!)).toBe("Eat Cherry");
+  });
+
+  it("falls back to a generic verb when none is authored", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "mystery-snack"]);
+    const me = playerAt(map);
+
+    const eat = listInteractionOptions(map, tilesById, me, [me], null, KIT).find(
+      (o) => o.action === "consume",
+    );
+    expect(eat?.label).toBe("Use");
+  });
+
+  // A full bag refuses the pickup and not the meal — eating it off the ground
+  // is exactly what a player with no room left wants to do with a cherry.
+  it("still offers the meal when the bag is full", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "cherry"]);
+    const me = playerAt(map);
+
+    expect(
+      actionsIn(listInteractionOptions(map, tilesById, me, [me], null, FULL_KIT)),
+    ).toEqual(["consume"]);
+  });
+
+  it("does not reach two cells out", () => {
+    let map = field();
+    map = place(map, 2, 0, ["grass", "cherry"]);
+    const me = playerAt(map);
+
+    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual(
+      [],
+    );
+  });
+
+  it("says nothing about one buried under something else", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "cherry", "rock"]);
+    const me = playerAt(map);
+
+    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual(
+      [],
+    );
   });
 });
 

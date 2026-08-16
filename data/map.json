@@ -11502,6 +11502,12 @@
       "-4,-9": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "berry"
+        },
+        {
+          "tileId": "berry"
         }
       ],
       "-4,-8": [
@@ -11892,6 +11898,12 @@
       "-3,-9": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "berry"
+        },
+        {
+          "tileId": "berry"
         }
       ],
       "-3,-8": [

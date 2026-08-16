@@ -1,6 +1,7 @@
 import * as v from "valibot";
 import type { Equipment } from "../game/equipment";
 import type { SlotRef } from "../game/itemMoves";
+import type { ConsumeSource } from "../game/itemUse";
 import type { PlacedTile } from "../lib/types";
 import { MAX_CHAT_RAW_LENGTH } from "./chat";
 
@@ -358,6 +359,29 @@ export type ServerMessage =
       stackIndex: number;
     }
   /**
+   * A noise something made, pinned to the cell it was made in.
+   *
+   * **Carries no speaker and no body**, which is the entire difference between
+   * this and `chat` and the reason it is a message of its own rather than a flag
+   * on that one. A noise is not attributable: "crunch" is what the room heard,
+   * not what somebody said, so there is nobody to name and the client is given
+   * nothing it could use to name one.
+   *
+   * A message rather than an event inside the patch, unlike a damage number,
+   * because a noise can happen *between* ticks — eating something is input, and
+   * the patch is the tick's. It is level-scoped like chat for the same reason
+   * chat is: a sound two floors up is not one you heard.
+   */
+  | {
+      type: "noise";
+      id: string;
+      text: string;
+      x: number;
+      y: number;
+      z: number;
+      stackIndex: number;
+    }
+  /**
    * "That step of yours never happened."
    *
    * The one message here addressed to a single client rather than to the world,
@@ -441,6 +465,17 @@ export type ClientMessage =
    * there, exactly as a shoved crate does.
    */
   | { type: "drop"; from: SlotRef; to: { x: number; y: number; z: number } }
+  /**
+   * "I am eating that" — out of a slot in my kit, or straight off the floor.
+   *
+   * The third message that changes the board's population, and the only one
+   * where a thing stops existing entirely. Both arms are re-validated on the
+   * server's terms: the floor arm runs a pickup's gates (reach, cover,
+   * idleness), the slot arm a move's, and either way the thing must actually
+   * be a consumable — the client offered the row from these same rules and is
+   * not trusted with the answer.
+   */
+  | { type: "consume"; from: ConsumeSource }
   | { type: "say"; text: string }
   /**
    * "This is who I am pointing at" — or null, for nobody.
@@ -538,6 +573,13 @@ const clientMessageSchema = v.variant("type", [
       y: v.pipe(v.number(), v.integer()),
       z: v.pipe(v.number(), v.integer()),
     }),
+  }),
+  v.object({
+    type: v.literal("consume"),
+    from: v.variant("kind", [
+      v.object({ kind: v.literal("slot"), slot: inboundSlotRefSchema }),
+      v.object({ kind: v.literal("floor"), ref: inboundRefSchema }),
+    ]),
   }),
   v.object({
     type: v.literal("say"),
@@ -652,6 +694,15 @@ const serverMessageSchema = v.variant("type", [
     type: v.literal("chat"),
     actorId: v.string(),
     tileId: v.string(),
+    text: v.string(),
+    x: v.number(),
+    y: v.number(),
+    z: v.number(),
+    stackIndex: v.number(),
+  }),
+  v.object({
+    type: v.literal("noise"),
+    id: v.string(),
     text: v.string(),
     x: v.number(),
     y: v.number(),

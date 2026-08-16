@@ -1,4 +1,5 @@
 import type {
+  ConsumableItem,
   ContainerItem,
   ItemDef,
   ItemMastery,
@@ -6,8 +7,12 @@ import type {
   WeaponItem,
 } from "../lib/item";
 import {
+  CONSUME_FALLBACK_VERB,
+  DEFAULT_CONSUMABLE,
   DEFAULT_CONTAINER,
   DEFAULT_WEAPON,
+  MAX_CONSUMABLE_HP_SHIFT,
+  MAX_CONSUMABLE_SOUND_LENGTH,
   MAX_CONTAINER_SIZE,
   MAX_WEAPON_STAT_SHIFT,
 } from "../lib/item";
@@ -22,6 +27,7 @@ type Props = {
 
 const TYPE_OPTIONS: Array<{ value: ItemType; label: string }> = [
   { value: "weapon", label: "Weapon" },
+  { value: "consumable", label: "Consumable" },
   { value: "container", label: "Container" },
 ];
 
@@ -108,11 +114,18 @@ export function ItemTab({ draft, onChange }: Props) {
    */
   const setType = (type: ItemType) => {
     if (type === item.type) return;
-    setItem(type === "weapon" ? { ...DEFAULT_WEAPON } : { ...DEFAULT_CONTAINER });
+    if (type === "weapon") setItem({ ...DEFAULT_WEAPON });
+    else if (type === "consumable") setItem({ ...DEFAULT_CONSUMABLE });
+    else setItem({ ...DEFAULT_CONTAINER });
   };
 
   const patchWeapon = (fields: Partial<WeaponItem>) => {
     if (item.type !== "weapon") return;
+    setItem({ ...item, ...fields });
+  };
+
+  const patchConsumable = (fields: Partial<ConsumableItem>) => {
+    if (item.type !== "consumable") return;
     setItem({ ...item, ...fields });
   };
 
@@ -200,6 +213,51 @@ export function ItemTab({ draft, onChange }: Props) {
                 when something does.
               </span>
             </div>
+          </div>
+        ) : item.type === "consumable" ? (
+          <div className="flex flex-col gap-3">
+            <label className="flex flex-col gap-1 text-xs">
+              <span className="font-bold uppercase text-muted">Label</span>
+              <Input
+                type="text"
+                className="w-32"
+                value={item.label ?? ""}
+                placeholder={CONSUME_FALLBACK_VERB}
+                onChange={(e) => patchConsumable({ label: e.target.value })}
+              />
+              <span className="max-w-64 text-[11px] leading-snug text-muted">
+                What using it is called — &ldquo;Eat&rdquo; for a cherry,
+                &ldquo;Drink&rdquo; for a potion. Shown beside the tile&rsquo;s
+                name wherever the action is offered. Blank falls back to
+                &ldquo;{CONSUME_FALLBACK_VERB}&rdquo;.
+              </span>
+            </label>
+
+            <label className="flex flex-col gap-1 text-xs">
+              <span className="font-bold uppercase text-muted">Sound</span>
+              <Input
+                type="text"
+                className="w-32"
+                maxLength={MAX_CONSUMABLE_SOUND_LENGTH}
+                value={item.sound ?? ""}
+                placeholder="crunch"
+                onChange={(e) => patchConsumable({ sound: e.target.value })}
+              />
+              <span className="max-w-64 text-[11px] leading-snug text-muted">
+                The noise using it makes, called out over whoever used it — the
+                comic-book kind, since the game has no audio. Blank is silent.
+              </span>
+            </label>
+
+            <ItemField
+              label="HP"
+              hint="Added to the eater's hit points. Negative poisons."
+              value={item.hp}
+              min={-MAX_CONSUMABLE_HP_SHIFT}
+              max={MAX_CONSUMABLE_HP_SHIFT}
+              onChange={(hp) => patchConsumable({ hp })}
+              readout={describeShift(item.hp, "Heals", "Harms")}
+            />
           </div>
         ) : (
           <div className="flex flex-col gap-3">

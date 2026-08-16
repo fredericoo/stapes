@@ -953,18 +953,6 @@ describe("calling a creature", () => {
     };
   }
 
-  /** The next chat on this socket whose text is not the one just sent. */
-  async function replyWithin(ws: WebSocket, ms: number, sent: string) {
-    const deadline = Date.now() + ms;
-    for (;;) {
-      const left = deadline - Date.now();
-      if (left <= 0) return null;
-      const message = await chatWithin(ws, left);
-      if (!message) return null;
-      if (message.text !== sent) return message;
-    }
-  }
-
   async function withCat() {
     const alice = await connect("alice");
     await putCheckpoint(checkpointWithCat());
@@ -972,13 +960,21 @@ describe("calling a creature", () => {
     return alice;
   }
 
+  /**
+   * A meow is a noise, not an answer in words, so it comes back on the other
+   * channel — which is also what lets this simply wait for one. It used to have
+   * to read the chat stream and skip past the echo of the caller's own line;
+   * with the two apart there is nothing of the caller's on this channel at all.
+   */
   it("answers somebody who calls it", async () => {
     const alice = await withCat();
 
     say(alice.ws, "psps");
 
-    const reply = await replyWithin(alice.ws, 2000, "psps");
-    expect(reply).toMatchObject({ type: "chat", text: "meow", tileId: "cat" });
+    expect(await noiseWithin(alice.ws, 2000)).toMatchObject({
+      type: "noise",
+      text: "meow",
+    });
   });
 
   it("says nothing back to a line that was not a call", async () => {
@@ -986,7 +982,7 @@ describe("calling a creature", () => {
 
     say(alice.ws, "hello there");
 
-    expect(await replyWithin(alice.ws, QUIET_MS * 4, "hello there")).toBeNull();
+    expect(await noiseWithin(alice.ws, QUIET_MS * 4)).toBeNull();
   });
 });
 
@@ -1020,6 +1016,11 @@ function contentsOf(message: Record<string, unknown>): Array<{ tileId: string }>
 
 function step(ws: WebSocket, seq: number, direction: string) {
   ws.send(JSON.stringify({ type: "step", seq, direction, preferDescend: false }));
+}
+
+/** Wait for a noise, which carries no speaker. @see ServerMessage `noise` */
+function noiseWithin(ws: WebSocket, ms: number) {
+  return messageWithin(ws, "noise", ms);
 }
 
 /** Wait for the first message of a type, or null if it never comes. */
@@ -1753,6 +1754,103 @@ describe("saving a map that cannot start", () => {
     await wedged.replaceWorld(authoredMap());
 
     expect(playerCells(await storedMap())).toEqual([0]);
+  });
+});
+
+/**
+ * Eating something, all the way through the socket.
+ *
+ * Worth a Durable Object test rather than only a session one because the two
+ * halves that can go wrong live out here: the message has to reach
+ * `session.consume` at all, and the noise it makes has to be drained *before*
+ * the next tick clears the speech page. A consume arrives between ticks, so
+ * nothing on the clock would have flushed it — see `GameServer.flushSpeech`.
+ *
+ * `berry` is a real tile out of `data/tiles.json`, which is the catalogue this
+ * suite loads, so this is the authored consumable and not a fixture.
+ */
+describe("consuming", () => {
+  const BERRY = "berry";
+
+  /** The strip of grass, with a berry lying in the cell east of spawn. */
+  function mapWithBerry(): FlatMapFile {
+    const map = authoredMap();
+    map.levels["0"]!["1,0"] = [{ tileId: "grass" }, { tileId: BERRY }];
+    return map;
+  }
+
+  const BERRY_REF = { x: 1, y: 0, z: 0, stackIndex: 1 };
+
+  /**
+   * The live board rather than `storedMap`: play never writes back to
+   * `data/map.json` — only an editor save does — so the authored file still
+   * has the berry in it however thoroughly it has been eaten.
+   */
+  async function liveTilesAt(x: number, y: number, z: number) {
+    let found: string[] = [];
+    await runInDurableObject(stub(), (instance: GameServer) => {
+      const session = (instance as unknown as { session: { getMap(): MapFile } })
+        .session;
+      found = getStack(session.getMap(), x, y, z).map((p) => p.tileId);
+    });
+    return found;
+  }
+
+  it("takes the berry off the board", async () => {
+    await env.DATA.put("map.json", JSON.stringify(mapWithBerry()));
+    const alice = await connect("alice");
+    expect(await liveTilesAt(1, 0, 0)).toEqual(["grass", BERRY]);
+
+    send(alice.ws, { type: "consume", from: { kind: "floor", ref: BERRY_REF } });
+    await noiseWithin(alice.ws, 1000);
+
+    expect(await liveTilesAt(1, 0, 0)).toEqual(["grass"]);
+  });
+
+  /**
+   * The regression the flush exists for. Without it the crunch is recorded
+   * between ticks and wiped by the next `tick` before anything drains it, so
+   * this waits for a sound that never comes.
+   */
+  it("makes the noise it makes, to the floor it was eaten on", async () => {
+    await env.DATA.put("map.json", JSON.stringify(mapWithBerry()));
+    const alice = await connect("alice");
+
+    send(alice.ws, { type: "consume", from: { kind: "floor", ref: BERRY_REF } });
+
+    expect(await noiseWithin(alice.ws, 1000)).toMatchObject({
+      type: "noise",
+      text: "crunch",
+      z: 0,
+    });
+  });
+
+  /**
+   * The point of the channel, asserted where a client would actually see it: a
+   * crunch must not arrive as something somebody *said*, because that is what
+   * puts a name in front of it.
+   */
+  it("never sends it as chat, which would name a speaker", async () => {
+    await env.DATA.put("map.json", JSON.stringify(mapWithBerry()));
+    const alice = await connect("alice");
+
+    send(alice.ws, { type: "consume", from: { kind: "floor", ref: BERRY_REF } });
+
+    const noise = await noiseWithin(alice.ws, 1000);
+    expect(noise).not.toBeNull();
+    expect(noise).not.toHaveProperty("actorId");
+    expect(await chatWithin(alice.ws, QUIET_MS)).toBeNull();
+  });
+
+  it("makes none when there is nothing there to eat", async () => {
+    const alice = await connect("alice");
+
+    send(alice.ws, {
+      type: "consume",
+      from: { kind: "floor", ref: { x: 3, y: 0, z: 0, stackIndex: 1 } },
+    });
+
+    expect(await noiseWithin(alice.ws, QUIET_MS)).toBeNull();
   });
 });
 

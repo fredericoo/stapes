@@ -71,6 +71,45 @@ export type WeaponItem = {
 };
 
 /**
+ * Something used up in one go, and what using it does.
+ *
+ * The scope is deliberately narrow: a consumable changes the eater's hit
+ * points, and that is all it does. Signed for the reason a weapon's `spd` is —
+ * a poison apple is the same mechanism as a cherry with the number pointing the
+ * other way, and two blocks for the two directions would be one block with a
+ * flag hidden in its name.
+ */
+export type ConsumableItem = {
+  type: "consumable";
+  /**
+   * The verb doing it is called by — "Eat", "Drink", "Read".
+   *
+   * A consumable's verb belongs to the tile on exactly the terms a switch's
+   * {@link SwitchInteraction.actionName} does: nothing derivable from the def
+   * says whether this is drunk or eaten, and only the author knows. Optional on
+   * the same grounds too — blank falls back to {@link CONSUME_FALLBACK_VERB}
+   * wherever the action is offered.
+   */
+  label?: string;
+  /** Added to the eater's hit points. Negative poisons; the cap still holds. */
+  hp: number;
+  /**
+   * The noise using it makes — "crunch", "glug" — called out by whoever used
+   * it, where they used it.
+   *
+   * Text rather than a file, because there is no audio in this game: a sound
+   * here is the comic-book kind, drawn over the eater's head on exactly the
+   * path a spoken line takes. That is also why it is authored per tile and not
+   * derived from the verb — "Eat" is what the button says to the player, and
+   * "crunch" is what the room hears.
+   *
+   * Optional like {@link label}. Blank is silent, and silence is the honest
+   * default: a potion that says nothing is a potion nobody heard.
+   */
+  sound?: string;
+};
+
+/**
  * Something that holds other things.
  *
  * "Container" rather than "bag" because a corpse is one too: a body with a slot
@@ -100,11 +139,11 @@ export type ContainerItem = {
  * cannot have a size and a container cannot have a mastery. The editor picks the
  * arm and the schema refuses anything else.
  */
-export type ItemDef = WeaponItem | ContainerItem;
+export type ItemDef = WeaponItem | ConsumableItem | ContainerItem;
 
 export type ItemType = ItemDef["type"];
 
-export const ITEM_TYPES: ItemType[] = ["weapon", "container"];
+export const ITEM_TYPES: ItemType[] = ["weapon", "consumable", "container"];
 
 /**
  * Furthest a weapon may push a percent stat, in either direction.
@@ -119,6 +158,38 @@ export const MAX_WEAPON_STAT_SHIFT = 100;
 /** Widest a container may be, so a contents grid stays a grid. */
 export const MAX_CONTAINER_SIZE = 12;
 
+/**
+ * Furthest a consumable may move hit points, in either direction.
+ *
+ * Hit points have no authored ceiling the way percent stats do, so this is a
+ * sanity bound rather than a balance one: wider than any body's health needs to
+ * be, and narrow enough that a typo'd extra digit reads as malformed instead of
+ * as an instant-kill nobody meant to write.
+ */
+export const MAX_CONSUMABLE_HP_SHIFT = 999;
+
+/**
+ * What doing it is called when the author left {@link ConsumableItem.label}
+ * blank. Honest about knowing nothing: "Use" claims neither eating nor
+ * drinking, only that the thing is spent.
+ */
+export const CONSUME_FALLBACK_VERB = "Use";
+
+/**
+ * Longest noise a consumable may make.
+ *
+ * Short on purpose, and the shortness is the documentation: this field is for
+ * "crunch", not for a line of dialogue. The drawn text is capped again by the
+ * chat rules it is rendered through, which is the looser of the two — so this
+ * is the bound that actually decides, and it decides in favour of a noise.
+ */
+export const MAX_CONSUMABLE_SOUND_LENGTH = 32;
+
+/** The authored verb, or the fallback where there is none to read. */
+export function consumeVerb(consumable: ConsumableItem): string {
+  return consumable.label?.trim() || CONSUME_FALLBACK_VERB;
+}
+
 export const DEFAULT_WEAPON: WeaponItem = {
   type: "weapon",
   atk: 3,
@@ -129,6 +200,20 @@ export const DEFAULT_WEAPON: WeaponItem = {
   acc: 0,
   spd: -5,
   mastery: "blade",
+};
+
+export const DEFAULT_CONSUMABLE: ConsumableItem = {
+  type: "consumable",
+  // The commonest verb, not a guess at the tile: an author who wants "Drink"
+  // is one word away, and a default of the fallback "Use" would make the field
+  // look optional-in-spirit rather than worth writing.
+  label: "Eat",
+  // Positive and small, so a fresh consumable demonstrates the ordinary case —
+  // food — and poisoning is the deliberate act of flipping the sign.
+  hp: 5,
+  // Something rather than nothing, so a fresh consumable shows what the field
+  // is for the moment it is used. It goes with the "Eat" above.
+  sound: "crunch",
 };
 
 /** The starting backpack's shape, and what a fresh container tile gets. */
@@ -159,6 +244,25 @@ const weaponSchema = v.object({
   mastery: v.picklist(ITEM_MASTERIES),
 });
 
+const consumableSchema = v.object({
+  type: v.literal("consumable"),
+  // Optional on the same grounds as a switch's actionName: a consumable with
+  // no verb written on it is still a consumable, and whoever offers the action
+  // falls back to the generic verb.
+  label: v.optional(v.string()),
+  // Bounded where the verb is not: a verb is a word by construction, and this
+  // is free text that ends up drawn over somebody's head.
+  sound: v.optional(v.pipe(v.string(), v.maxLength(MAX_CONSUMABLE_SOUND_LENGTH))),
+  // Signed, unlike a battler's own numbers: harming is authored with the same
+  // field healing is.
+  hp: v.pipe(
+    v.number(),
+    v.integer(),
+    v.minValue(-MAX_CONSUMABLE_HP_SHIFT),
+    v.maxValue(MAX_CONSUMABLE_HP_SHIFT),
+  ),
+});
+
 const containerSchema = v.object({
   type: v.literal("container"),
   // At least one, because a container nothing fits in is not a container
@@ -172,7 +276,11 @@ const containerSchema = v.object({
   equippable: v.boolean(),
 });
 
-const itemSchema = v.variant("type", [weaponSchema, containerSchema]);
+const itemSchema = v.variant("type", [
+  weaponSchema,
+  consumableSchema,
+  containerSchema,
+]);
 
 const itemCache = new WeakMap<TileDef, ItemDef | null>();
 
@@ -216,6 +324,12 @@ export function resolveWeapon(def: TileDef): WeaponItem | null {
   return item?.type === "weapon" ? item : null;
 }
 
+/** Parsed consumable config, or null when this tile is not one. */
+export function resolveConsumable(def: TileDef): ConsumableItem | null {
+  const item = resolveItem(def);
+  return item?.type === "consumable" ? item : null;
+}
+
 /**
  * Persist an item block, field by field.
  *
@@ -236,6 +350,19 @@ export function itemForSave(item: ItemDef | undefined): ItemDef | undefined {
       acc: item.acc,
       spd: item.spd,
       mastery: item.mastery,
+    };
+  }
+  if (item.type === "consumable") {
+    // A blank verb is dropped rather than written as `""`, exactly as a
+    // switch's actionName is: an empty string that means "no name" is a second
+    // way of saying what an absent key already says.
+    const label = item.label?.trim();
+    const sound = item.sound?.trim();
+    return {
+      type: "consumable",
+      ...(label ? { label } : {}),
+      ...(sound ? { sound } : {}),
+      hp: item.hp,
     };
   }
   return {

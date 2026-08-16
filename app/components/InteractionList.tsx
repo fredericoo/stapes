@@ -1,4 +1,5 @@
 import {
+  IconApple,
   IconBoxSeam,
   IconGift,
   IconHandGrab,
@@ -59,6 +60,9 @@ const ICONS: Record<InteractionAction, typeof IconTarget> = {
   pickUp: IconHandGrab,
   push: IconHandMove,
   switch: IconSwitch,
+  // An apple for every consumable, drink included: the icon says "this gets
+  // used up", and the authored verb beside it says how.
+  consume: IconApple,
   // Being handed something, whoever is doing the handing. A gift rather than a
   // chest, because half of these are people.
   reward: IconGift,

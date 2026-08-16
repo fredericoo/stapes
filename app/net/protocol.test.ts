@@ -98,6 +98,52 @@ index: 0 } })).toBeNull();
   });
 });
 
+describe("consume", () => {
+  it("takes a slot source", () => {
+    const message = {
+      type: "consume",
+      from: { kind: "slot", slot: { kind: "contents", index: 1 } },
+    };
+    expect(parsed(message)).toEqual(message);
+  });
+
+  it("takes a floor source with its whole reference", () => {
+    const message = {
+      type: "consume",
+      from: { kind: "floor", ref: { x: -2, y: 3, z: 1, stackIndex: 1 } },
+    };
+    expect(parsed(message)).toEqual(message);
+  });
+
+  it("drops a source kind nobody defined", () => {
+    expect(
+      parsed({ type: "consume", from: { kind: "mouth" } }),
+    ).toBeNull();
+  });
+
+  it("drops a floor reference with a coordinate that is not a whole number", () => {
+    expect(
+      parsed({
+        type: "consume",
+        from: { kind: "floor", ref: { x: 0.5, y: 0, z: 0, stackIndex: 0 } },
+      }),
+    ).toBeNull();
+  });
+
+  it("drops a slot source with a negative index", () => {
+    expect(
+      parsed({
+        type: "consume",
+        from: { kind: "slot", slot: { kind: "contents", index: -1 } },
+      }),
+    ).toBeNull();
+  });
+
+  it("drops one missing its source", () => {
+    expect(parsed({ type: "consume" })).toBeNull();
+  });
+});
+
 describe("the frame itself", () => {
   it("drops something that is not JSON at all", () => {
     expect(parseClientMessage("{not json")).toBeNull();

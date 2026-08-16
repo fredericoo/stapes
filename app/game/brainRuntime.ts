@@ -153,6 +153,14 @@ export type BrainContext = {
    */
   say(text: string): void;
   /**
+   * Make a noise, which is not the same as saying something.
+   *
+   * The sibling of {@link say} and the one most creatures want: a hiss or a
+   * meow is a sound the room heard, not a line anybody uttered, so it goes out
+   * unattributed rather than as "Snake says: sss". @see NoiseEmission
+   */
+  noise(text: string): void;
+  /**
    * Is there a clear line from here to there?
    *
    * A question about the board, so it belongs to whoever holds the board — this
@@ -216,6 +224,7 @@ function runOnEnter(brain: BrainDef, memory: BrainMemory, ctx: BrainContext) {
   if (!onEnter) return;
   for (const effect of onEnter) {
     if (effect.effect === "say") ctx.say(effect.text);
+    else ctx.noise(effect.text);
   }
 }
 

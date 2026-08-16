@@ -295,11 +295,19 @@ export type BrainActionDef =
  * that list would give it a success or failure to contribute, and "the deer
  * yelped" is neither — so effects run first, once, and stay out of it.
  *
- * One kind for now. `say` reuses the chat a player already sends: a bubble
- * pinned to the cell, sanitised and capped on the same terms, no new wire
- * message and nothing new for the renderer to learn.
+ * Two kinds, and the difference between them is whether a body is *talking*.
+ *
+ * `say` reuses the chat a player already sends: a bubble pinned to the cell,
+ * attributed to whoever said it, sanitised and capped on the same terms.
+ *
+ * `noise` is the one to reach for by default, because most of what a creature
+ * emits is not language. A hiss is not a sentence a snake uttered, and drawing
+ * it as one — "Snake says: sss" — puts words in a mouth that has none. It goes
+ * out on its own channel, unattributed. @see NoiseEmission
  */
-export type BrainEffectDef = { effect: "say"; text: string };
+export type BrainEffectDef =
+  | { effect: "say"; text: string }
+  | { effect: "noise"; text: string };
 
 /**
  * The two states a channel drive can be in — the same pair a torch or a plate
@@ -441,6 +449,10 @@ const actionSchema = v.variant("action", [
 
 const effectSchema = v.variant("effect", [
   v.object({ effect: v.literal("say"), text: v.pipe(v.string(), v.minLength(1)) }),
+  v.object({
+    effect: v.literal("noise"),
+    text: v.pipe(v.string(), v.minLength(1)),
+  }),
 ]);
 
 const emitSchema = v.object({

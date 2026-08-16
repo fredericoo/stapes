@@ -7,7 +7,7 @@ import {
   resolveReward,
   resolveSwitch,
 } from "../lib/interactions";
-import { resolveContainer, resolveItem } from "../lib/item";
+import { resolveConsumable, resolveContainer, resolveItem } from "../lib/item";
 import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { canReplaceStack } from "../lib/validation";
 import type { Equipment } from "./equipment";
@@ -308,6 +308,24 @@ export function canDropAt(
 
   const next = [...stack, { tileId: def.id }];
   return canReplaceStack(map, to.x, to.y, to.z, next, tilesById).ok;
+}
+
+/**
+ * Could this actor eat or drink the thing where it lies?
+ *
+ * The same reach a pickup has and nothing more: nothing about the actor's own
+ * kit is consulted, because a consumable used from the floor never enters it —
+ * a full bag is exactly when eating the cherry off the ground is the thing you
+ * want.
+ */
+export function canConsumeFrom(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  ref: ObjectRef,
+): boolean {
+  const def = reachableItemDefAt(map, tilesById, actor, ref);
+  return def != null && resolveConsumable(def) != null;
 }
 
 /**
