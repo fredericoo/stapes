@@ -108,6 +108,39 @@ export type DecayInteraction = {
   toMs: number;
 };
 
+/**
+ * Come back once a placement of this tile is gone — the mirror of
+ * {@link DecayInteraction}, with the arrow reversed: decay counts down while a
+ * placement exists, respawn counts down while one is missing.
+ *
+ * Configured on the tile def, tracked per authored placement: each spot this
+ * tile was placed at in the editor is its own spawn point, and each comes back
+ * on its own clock. A creature is tracked by the identity it was adopted under
+ * (see `../game/actors.residentOwnerId`), so one that wandered off is still
+ * alive wherever it stands; an object is tracked by its authored cell, so one
+ * carried away reads as gone and grows back — taking the sword is what makes
+ * the sword worth authoring a respawn on.
+ *
+ * Unlike decay this clock is the wall's, not the session's: the deadline is
+ * held by the server and survives the world going quiet, so a world nobody
+ * visited for an hour comes back repopulated rather than owing an hour of
+ * ticking. See `workers/GameServer` for the machinery.
+ */
+export type RespawnInteraction = {
+  /** Shortest a spawn point can sit empty, in wall-clock milliseconds. */
+  fromMs: number;
+  /**
+   * Longest it can sit empty. The wait is drawn from the range once per
+   * disappearance. A range for the same reason decay's lifetime is one: a camp
+   * cleared in one fight coming back all on the same second reads as a bug
+   * rather than as the world recovering. Equal ends are legal.
+   *
+   * Must be at least {@link fromMs}; an inverted range reads as "does not
+   * respawn", on the same terms as every other malformed block here.
+   */
+  toMs: number;
+};
+
 /** How a plate's authored {@link PressurePlateInteraction.height} reads its load. */
 export type PlateComparison = "eq" | "neq" | "gt" | "gte" | "lt" | "lte";
 
@@ -235,6 +268,7 @@ export type TileInteractions = {
   push?: PushInteraction;
   switch?: SwitchInteraction;
   decay?: DecayInteraction;
+  respawn?: RespawnInteraction;
   pressurePlate?: PressurePlateInteraction;
   emit?: EmitInteraction;
   receive?: ReceiveInteraction;
@@ -257,6 +291,20 @@ export const DEFAULT_DECAY: DecayInteraction = {
   tileId: "",
   fromMs: DEFAULT_DECAY_FROM_MS,
   toMs: DEFAULT_DECAY_TO_MS,
+};
+
+/**
+ * Long enough that clearing a spot feels like it happened, short enough that a
+ * player who came back for the creature does not find the world permanently
+ * poorer — and spread so a cleared camp trickles back rather than reappearing
+ * in one frame.
+ */
+const DEFAULT_RESPAWN_FROM_MS = 30_000;
+const DEFAULT_RESPAWN_TO_MS = 60_000;
+
+export const DEFAULT_RESPAWN: RespawnInteraction = {
+  fromMs: DEFAULT_RESPAWN_FROM_MS,
+  toMs: DEFAULT_RESPAWN_TO_MS,
 };
 
 export const DEFAULT_PUSH: PushInteraction = {
@@ -373,6 +421,34 @@ export function resolveDecay(def: TileDef): DecayInteraction | null {
   const decay = parsed?.success ? parsed.output : null;
   decayCache.set(def, decay);
   return decay;
+}
+
+const respawnSchema = v.pipe(
+  v.object({
+    // The same gate decay's lifetime is behind: no positive wait means no
+    // respawn, so a half-authored block is inert rather than a spawn point
+    // that refills the instant it empties.
+    fromMs: v.pipe(v.number(), v.integer(), v.minValue(1)),
+    toMs: v.pipe(v.number(), v.integer(), v.minValue(1)),
+  }),
+  v.check((r) => r.toMs >= r.fromMs, "respawn toMs must be at least fromMs"),
+);
+
+const respawnCache = new WeakMap<TileDef, RespawnInteraction | null>();
+
+/**
+ * Parsed respawn config per tile def. Same trust model as {@link resolvePush}:
+ * malformed, or with no wait to count down, → does not respawn.
+ */
+export function resolveRespawn(def: TileDef): RespawnInteraction | null {
+  const cached = respawnCache.get(def);
+  if (cached !== undefined) return cached;
+
+  const raw = def.interactions?.respawn;
+  const parsed = raw == null ? null : v.safeParse(respawnSchema, raw);
+  const respawn = parsed?.success ? parsed.output : null;
+  respawnCache.set(def, respawn);
+  return respawn;
 }
 
 const pressurePlateSchema = v.object({
@@ -535,6 +611,7 @@ export function hasAnyInteraction(
       interactions?.push ||
       interactions?.switch ||
       interactions?.decay ||
+      interactions?.respawn ||
       interactions?.pressurePlate ||
       interactions?.emit ||
       interactions?.receive,
@@ -581,6 +658,15 @@ export function interactionsForSave(
           toMs: decayToMs,
         }
       : undefined;
+  // Same gate as decay's, minus the target it does not have: a respawn with no
+  // positive wait was never authored, whatever else is in the block.
+  const respawn = interactions?.respawn;
+  const respawnFromMs = respawn ? Math.round(respawn.fromMs) : 0;
+  const respawnToMs = respawn ? Math.round(respawn.toMs) : 0;
+  const savedRespawn =
+    respawnFromMs > 0 && respawnToMs >= respawnFromMs
+      ? { fromMs: respawnFromMs, toMs: respawnToMs }
+      : undefined;
   const emit = interactions?.emit;
   const receive = interactions?.receive;
   const savedEmit = emit ? { value: emit.value } : undefined;
@@ -621,6 +707,7 @@ export function interactionsForSave(
     !savedPush &&
     !savedSwitch &&
     !savedDecay &&
+    !savedRespawn &&
     !savedPlate &&
     !savedEmit &&
     !savedReceive
@@ -634,6 +721,7 @@ export function interactionsForSave(
     ...(savedPush ? { push: savedPush } : {}),
     ...(savedSwitch ? { switch: savedSwitch } : {}),
     ...(savedDecay ? { decay: savedDecay } : {}),
+    ...(savedRespawn ? { respawn: savedRespawn } : {}),
     ...(savedPlate ? { pressurePlate: savedPlate } : {}),
     ...(savedEmit ? { emit: savedEmit } : {}),
     ...(savedReceive ? { receive: savedReceive } : {}),
