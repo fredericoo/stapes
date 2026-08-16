@@ -1,6 +1,7 @@
 import {
   DAMAGE_NUMBER_LIFETIME_MS,
   FALL_MS_PER_HEIGHT,
+  NOISE_LIFETIME_MS,
   PLAYER_TILE_ID,
   PUSH_STEP_MS,
   WALK_DURATION_MS,
@@ -30,6 +31,7 @@ import type {
   ChatBubble,
   DamageNumber,
   FallState,
+  NoiseEmission,
   GameInput,
   GameSnapshot,
   PlaySession,
@@ -155,6 +157,14 @@ export class RemoteSession implements PlaySession {
   private chats: LiveChat[] = [];
   /** Ticks up per message, so two lines from one actor are two bubbles. */
   private nextChatId = 0;
+  /**
+   * Noises hanging in the air, with the clock that will take them away.
+   *
+   * No local id counter, unlike {@link chats}: a noise arrives already carrying
+   * one, because the session that made it had to name it for its own live list
+   * anyway. One name for one sound on both sides of the wire.
+   */
+  private noises: NoiseEmission[] = [];
   /**
    * Hit points as the server last reported them, per actor.
    *
@@ -327,6 +337,21 @@ export class RemoteSession implements PlaySession {
         elapsedMs: 0,
       });
       this.evictOldestAtCell(message);
+      return;
+    }
+
+    if (message.type === "noise") {
+      // Scoped to this viewer's level by the server, like chat, so there is
+      // nothing to filter here either.
+      this.noises.push({
+        id: message.id,
+        text: message.text,
+        x: message.x,
+        y: message.y,
+        z: message.z,
+        stackIndex: message.stackIndex,
+        elapsedMs: 0,
+      });
       return;
     }
 
@@ -519,6 +544,7 @@ export class RemoteSession implements PlaySession {
     this.agePendingSteps(dtMs);
     this.advancePrediction();
     this.expireChats(dtMs);
+    this.expireNoises(dtMs);
     this.expireDamage(dtMs);
   }
 
@@ -877,6 +903,27 @@ export class RemoteSession implements PlaySession {
   }
 
   /**
+   * Age the noises out, on the render loop's clock like the bubbles above.
+   *
+   * No per-cell eviction, unlike chat: a noise is short by construction — the
+   * field it comes from is capped at a word — so a stack of them cannot wall
+   * off the view the way a stack of sentences can.
+   */
+  private expireNoises(dtMs: number) {
+    if (this.noises.length === 0) return;
+    let expired = false;
+    for (const noise of this.noises) {
+      noise.elapsedMs += dtMs;
+      if (noise.elapsedMs >= NOISE_LIFETIME_MS) expired = true;
+    }
+    if (expired) {
+      this.noises = this.noises.filter(
+        (noise) => noise.elapsedMs < NOISE_LIFETIME_MS,
+      );
+    }
+  }
+
+  /**
    * Say something.
    *
    * No local echo. The author is on their own level, so the server's copy comes
@@ -1031,6 +1078,7 @@ export class RemoteSession implements PlaySession {
       attacking: this.attacking,
       equipment: this.equipment,
       chats: this.chats,
+      noises: this.noises,
       damage: this.damage,
     };
   }

@@ -3,7 +3,7 @@ import { DEFAULT_CONTAINER } from "../lib/item";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
-import { STARTING_BAG_TILE_ID } from "./constants";
+import { NOISE_LIFETIME_MS, STARTING_BAG_TILE_ID, TICK_MS } from "./constants";
 import { GameSession } from "./GameSession";
 
 /**
@@ -316,42 +316,54 @@ describe("eating out of a slot", () => {
 /**
  * The noise it makes, and who hears it.
  *
- * A sound is drawn as a bubble over the eater on exactly the path a creature's
- * speech takes, so what is asserted here is that it reaches that path — and
- * that it reaches it *before* the hit points do, since a fatal drink still has
- * something to say.
+ * A sound goes out on the noise channel and never on the speech one, which is
+ * the distinction the channel exists for: biting an apple is not the eater
+ * saying anything, so nothing may arrive attributed to them.
  */
 describe("the noise a consumable makes", () => {
-  it("calls it out from the eater, where they ate it", () => {
+  it("makes it where it was eaten, with nobody's name on it", () => {
     const session = withItem(1, 0, "cherry");
     session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
 
-    const said = session.drainSpeech();
-    expect(said).toHaveLength(1);
-    expect(said[0]!.text).toBe("crunch");
-    // Hung over the eater's own cell, not over the cell the berry was in.
-    expect(said[0]!.actorId).toBe(session.getSnapshot().self.id);
-    expect({ x: said[0]!.x, y: said[0]!.y, z: said[0]!.z }).toEqual({
+    const heard = session.drainNoise();
+    expect(heard).toHaveLength(1);
+    expect(heard[0]!.text).toBe("crunch");
+    // Made at the eater's own cell, not at the cell the cherry was in.
+    expect({ x: heard[0]!.x, y: heard[0]!.y, z: heard[0]!.z }).toEqual({
       x: 0,
       y: 0,
       z: 0,
     });
+    // Nothing on the channel that names a speaker. This is the assertion the
+    // whole feature turns on: a crunch must never become "somebody says:
+    // crunch", and the only way to guarantee that is for speech to stay empty.
+    expect(session.drainSpeech()).toEqual([]);
   });
 
-  it("says it when the meal came out of a bag too", () => {
+  /** No speaker to carry, so the shape has no room for one. */
+  it("carries no actor or tile to be named by", () => {
+    const session = withItem(1, 0, "cherry");
+    session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
+
+    const noise = session.drainNoise()[0]!;
+    expect(noise).not.toHaveProperty("actorId");
+    expect(noise).not.toHaveProperty("tileId");
+  });
+
+  it("makes it when the meal came out of a bag too", () => {
     const session = withItem(1, 0, "cherry");
     session.pickUp(refAt(session, 1, 0));
-    session.drainSpeech();
+    session.drainNoise();
 
     session.consume({ kind: "slot", slot: { kind: "contents", index: 0 } });
-    expect(session.drainSpeech().map((s) => s.text)).toEqual(["crunch"]);
+    expect(session.drainNoise().map((s) => s.text)).toEqual(["crunch"]);
   });
 
   it("stays silent for one with no noise authored on it", () => {
     const session = withItem(1, 0, "quiet-cherry");
     session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
 
-    expect(session.drainSpeech()).toEqual([]);
+    expect(session.drainNoise()).toEqual([]);
   });
 
   /**
@@ -359,36 +371,59 @@ describe("the noise a consumable makes", () => {
    * recorded after the hit points would have nowhere to hang and would be
    * dropped. Recorded first, a last gulp still reaches the room.
    */
-  it("still speaks when the drink is the one that kills you", () => {
+  it("still sounds when the drink is the one that kills you", () => {
     const session = withItem(1, 0, "hemlock");
     session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
 
     expect(session.actorSnapshots()).toEqual([]);
-    expect(session.drainSpeech().map((s) => s.text)).toEqual(["glug"]);
+    expect(session.drainNoise().map((s) => s.text)).toEqual(["glug"]);
   });
 
-  it("says nothing when the consume was refused", () => {
+  it("makes none when the consume was refused", () => {
     const session = withItem(2, 0, "cherry");
     session.consume({ kind: "floor", ref: refAt(session, 2, 0) });
 
-    expect(session.drainSpeech()).toEqual([]);
+    expect(session.drainNoise()).toEqual([]);
   });
 
   /**
-   * Why the server flushes speech on input rather than only on the clock.
+   * Why the server flushes on input rather than only on the clock.
    *
-   * A consume arrives *between* ticks, and `tick` empties the speech page at
+   * A consume arrives *between* ticks, and `tick` empties the pending page at
    * its top — so anything recorded by one and not drained before the next tick
-   * is simply gone. `GameServer.flushSpeech` is what drains it in time; this
-   * pins the hazard that makes it necessary, so removing it fails here rather
-   * than going quiet in production.
+   * never reaches the wire. `GameServer.flushSounds` is what drains it in time;
+   * this pins the hazard that makes it necessary, so removing it fails here
+   * rather than going quiet in production.
    */
-  it("is cleared by the next tick, which is what the server drains ahead of", () => {
+  it("leaves the wire's copy behind at the next tick", () => {
     const session = withItem(1, 0, "cherry");
     session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
 
     session.tick();
-    expect(session.drainSpeech()).toEqual([]);
+    expect(session.drainNoise()).toEqual([]);
+  });
+
+  /**
+   * The half a local viewer reads, which outlives the wire's copy on purpose:
+   * a single-player world has nobody to broadcast to and still has to hear its
+   * own snakes. This is the gap speech has never closed.
+   */
+  it("is still on screen after the tick that cleared the wire's copy", () => {
+    const session = withItem(1, 0, "cherry");
+    session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
+
+    session.tick();
+    expect(session.getSnapshot().noises.map((n) => n.text)).toEqual(["crunch"]);
+  });
+
+  it("fades out of the snapshot once its time is up", () => {
+    const session = withItem(1, 0, "cherry");
+    session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
+
+    for (let elapsed = 0; elapsed <= NOISE_LIFETIME_MS; elapsed += TICK_MS) {
+      session.tick(TICK_MS);
+    }
+    expect(session.getSnapshot().noises).toEqual([]);
   });
 });
 

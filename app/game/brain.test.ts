@@ -206,6 +206,7 @@ describe("deciding", () => {
       wouldDrop: () => false,
       step: vi.fn(() => true),
       say: vi.fn(),
+      noise: vi.fn(),
       // Nothing in the way and nothing said, unless a test says otherwise: the
       // defaults are the empty room these cases are written about.
       canSee: () => true,
@@ -801,6 +802,7 @@ describe("giving up", () => {
       wouldDrop: () => false,
       step: () => false,
       say: () => {},
+      noise: () => {},
       canSee: () => true,
       heard: () => [],
       hurtBy: () => [],
@@ -931,6 +933,7 @@ describe("actions that take time", () => {
       wouldDrop: () => false,
       step: vi.fn(() => true),
       say: vi.fn(),
+      noise: vi.fn(),
       // Nothing in the way and nothing said, unless a test says otherwise: the
       // defaults are the empty room these cases are written about.
       canSee: () => true,
@@ -1377,6 +1380,7 @@ describe("a deer that yelps", () => {
       wouldDrop: () => false,
       step: () => true,
       say,
+      noise: vi.fn(),
       canSee: () => true,
       heard: () => [],
       hurtBy: () => [],
@@ -1446,6 +1450,7 @@ describe("a deer that yelps", () => {
       wouldDrop: () => false,
       step: () => false,
       say: vi.fn(),
+      noise: vi.fn(),
       canSee: () => true,
       heard: () => [],
       hurtBy: () => [],
@@ -1881,11 +1886,18 @@ describe("the cat we ship", () => {
     return session.actorSnapshots().find((actor) => actor.tileId === "cat")!;
   }
 
-  function saidDuring(session: GameSession, ms: number): string[] {
+  /**
+   * Everything *heard* over a stretch of ticks — noise, not speech.
+   *
+   * A meow is a sound a cat makes, not a word it says, so the shipped cat emits
+   * on the noise channel and this reads that one. The test-local cats elsewhere
+   * in this file still `say`, which is what keeps both effects covered.
+   */
+  function noisesDuring(session: GameSession, ms: number): string[] {
     const heard: string[] = [];
     for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) {
       session.tick(TICK_MS);
-      for (const bubble of session.drainSpeech()) heard.push(bubble.text);
+      for (const noise of session.drainNoise()) heard.push(noise.text);
     }
     return heard;
   }
@@ -1899,7 +1911,7 @@ describe("the cat we ship", () => {
     const session = yard(4);
     session.hear("alice", "psps");
 
-    expect(saidDuring(session, BRAIN_TICK_MS * 2)).toEqual(["meow"]);
+    expect(noisesDuring(session, BRAIN_TICK_MS * 2)).toEqual(["meow"]);
     advance(session, BRAIN_TICK_MS * 6);
     expect(catAt(session).x).toBeGreaterThan(0);
   });
@@ -1908,7 +1920,7 @@ describe("the cat we ship", () => {
     const session = yard(7);
     session.hear("alice", "psps");
 
-    expect(saidDuring(session, BRAIN_TICK_MS * 4)).toEqual([]);
+    expect(noisesDuring(session, BRAIN_TICK_MS * 4)).toEqual([]);
   });
 
   /** Its own wandering, which the call has to be able to interrupt. */
@@ -2025,14 +2037,18 @@ describe("the vermin we ship", () => {
     expect(gapToPlayer(session, id)).toBeGreaterThanOrEqual(before);
   });
 
+  // A hiss on the noise channel, not the speech one: it is a sound, not a
+  // sentence, so nothing anywhere writes "Snake says: sss".
   it("hisses when it strikes, once", () => {
     const session = yard([["snake", 0, 0]], { x: SIGHT_CELLS, y: 0 });
-    const said: string[] = [];
+    const heard: string[] = [];
     for (let elapsed = 0; elapsed < BRAIN_TICK_MS * 4; elapsed += TICK_MS) {
       session.tick(TICK_MS);
-      for (const bubble of session.drainSpeech()) said.push(bubble.text);
+      for (const noise of session.drainNoise()) heard.push(noise.text);
     }
-    expect(said).toEqual(["sss"]);
+    expect(heard).toEqual(["sss"]);
+    // And nothing at all on the channel that would have named a speaker.
+    expect(session.drainSpeech()).toEqual([]);
   });
 
   it("is weaker than the snake, and quicker off the mark", () => {

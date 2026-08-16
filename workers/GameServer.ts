@@ -746,30 +746,48 @@ export class GameServer extends DurableObject<Env> {
     }
 
     this.flushEquipment();
-    this.flushSpeech();
+    this.flushSounds();
     this.wake();
   }
 
   /**
-   * Say anything a message caused, before the next tick can swallow it.
+   * Send anything a message caused to be heard, before the next tick swallows
+   * it.
    *
-   * Input arrives *between* ticks, and {@link GameSession.tick} empties the
-   * speech page at its top — so a noise recorded by a consume would be cleared
+   * Input arrives *between* ticks, and {@link GameSession.tick} empties both
+   * pages at its top — so a crunch recorded by a consume would be cleared
    * before the tick's own drain ever saw it, and nobody would hear a thing.
    * Drained here instead, onto the identical fan-out, for the same reason
    * {@link flushEquipment} exists beside it: a kit and a crunch both change on
    * input rather than on the clock.
    *
-   * Draining is idempotent, so calling it after a message that said nothing
-   * costs an empty array and sends nothing.
+   * Both channels rather than only noise, though only noise can reach it today.
+   * A message that makes somebody speak is an obvious next thing to want, and a
+   * flush that quietly covered one of the two would be a trap laid for it.
+   *
+   * Draining is idempotent, so a message that made no sound costs two empty
+   * arrays and sends nothing.
    */
-  private flushSpeech() {
+  private flushSounds() {
     const session = this.session;
     if (!session) return;
     const said = session.drainSpeech();
-    if (said.length === 0) return;
+    const made = session.drainNoise();
+    if (said.length === 0 && made.length === 0) return;
     const actors = session.actorSnapshots();
     for (const bubble of said) this.broadcastChat(actors, bubble);
+    for (const noise of made) {
+      const { id, text, x, y, z, stackIndex } = noise;
+      this.sendToLevel(z, actors, {
+        type: "noise",
+        id,
+        text,
+        x,
+        y,
+        z,
+        stackIndex,
+      });
+    }
   }
 
   /**
@@ -935,6 +953,29 @@ export class GameServer extends DurableObject<Env> {
   private broadcastSpeech(session: GameSession, actors: ActorSnapshot[]) {
     for (const bubble of session.drainSpeech()) {
       this.broadcastChat(actors, bubble);
+    }
+  }
+
+  /**
+   * Make the noises anything made, to the floor they were made on.
+   *
+   * Beside {@link broadcastSpeech} and deliberately not folded into it: what
+   * goes out is a different message carrying different fields, because a noise
+   * has no speaker to name. Not logged either — the chat log is a record of
+   * what people *said*, and a hiss is not testimony.
+   */
+  private broadcastNoise(session: GameSession, actors: ActorSnapshot[]) {
+    for (const noise of session.drainNoise()) {
+      const { id, text, x, y, z, stackIndex } = noise;
+      this.sendToLevel(z, actors, {
+        type: "noise",
+        id,
+        text,
+        x,
+        y,
+        z,
+        stackIndex,
+      });
     }
   }
 
@@ -1233,6 +1274,7 @@ export class GameServer extends DurableObject<Env> {
     this.collectDamageEvents(session);
     this.noteDeaths(session);
     this.broadcastSpeech(session, actors);
+    this.broadcastNoise(session, actors);
 
     const cells = this.diffCells(session.getMap());
     const hps = this.diffHps(actors);

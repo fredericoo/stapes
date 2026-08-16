@@ -1307,6 +1307,8 @@ export class GameRenderer {
     const labels: WorldLabel[] = [];
     this.pushNameLabels(snap, labels, hideLevelsAbove);
     this.pushSpeechLabels(snap, labels);
+    this.pushNoiseLabels(snap, labels);
+    this.forgetStaleAnchors(snap);
     this.pushPointerLabel(snap, labels);
     return labels;
   }
@@ -1492,10 +1494,10 @@ export class GameRenderer {
    * measured in world pixels would close at low zoom and yawn at high.
    */
   private pushSpeechLabels(snap: GameSnapshot, into: WorldLabel[]) {
-    if (snap.chats.length === 0) {
-      if (this.speechAnchors.size > 0) this.speechAnchors.clear();
-      return;
-    }
+    // No clearing of the anchor map here, though this used to: it is shared
+    // with noises now, and a frame with nothing being said still has hisses in
+    // it. Both are swept together by `forgetStaleAnchors` instead.
+    if (snap.chats.length === 0) return;
 
     // Grouped by cell, in the order they arrived: the map preserves insertion
     // order, so the oldest at a cell is first and ends up at the top of the
@@ -1522,7 +1524,42 @@ export class GameRenderer {
       });
     }
 
-    this.forgetStaleSpeechAnchors(snap);
+    for (const group of byCell.values()) into.push(group);
+  }
+
+  /**
+   * Noises, hung where they were made and belonging to nobody.
+   *
+   * The one visible difference from speech, and the whole point of the channel:
+   * **no name is written**. A bubble reads "Amethyst Piranha says: crunch"
+   * because somebody said it; a noise is just the word, because the room heard
+   * it and there is nobody to attribute it to. What is left is the same
+   * cell-anchored, frozen, stacking column speech uses — so the two cannot drift
+   * apart in how they sit in the world, only in what they claim.
+   */
+  private pushNoiseLabels(snap: GameSnapshot, into: WorldLabel[]) {
+    if (snap.noises.length === 0) return;
+
+    const byCell = new Map<string, WorldLabel>();
+    for (const noise of snap.noises) {
+      const key = `${noise.x},${noise.y},${noise.z}`;
+      const group = byCell.get(key);
+      // The text and nothing else. No `bodyNameFor`, no "says".
+      const line = { id: noise.id, text: noise.text };
+      if (group) {
+        group.lines.push(line);
+        continue;
+      }
+      const at = this.speechAnchor(noise, snap.map);
+      byCell.set(key, {
+        id: `noise:${key}`,
+        kind: "noise",
+        x: at.x,
+        y: at.y,
+        lines: [line],
+      });
+    }
+
     for (const group of byCell.values()) into.push(group);
   }
 
@@ -1544,7 +1581,7 @@ export class GameRenderer {
    * is read once, at the level and elevation of that moment, and kept.
    */
   private speechAnchor(
-    chat: ChatBubble,
+    chat: { id: string; x: number; y: number; z: number; stackIndex: number },
     map: MapFile,
   ): { x: number; y: number } {
     const held = this.speechAnchors.get(chat.id);
@@ -1566,15 +1603,23 @@ export class GameRenderer {
   }
 
   /**
-   * Drop held anchors for messages that have expired.
+   * Drop held anchors for anything that has expired — said or merely heard.
    *
-   * No size-based early-out: one message expiring as another arrives leaves the
-   * count unchanged while the contents differ, and a cheap guard that is right
-   * only most of the time is worse than no guard at a handful of entries.
+   * Both channels in one sweep, because they share the map: keeping two of them
+   * would be two chances to leak, and a sweep that knew about only one would
+   * delete the other's anchors every frame the other was quiet. Run once a
+   * frame, after both kinds have been collected.
+   *
+   * No size-based early-out beyond the empty case: one message expiring as
+   * another arrives leaves the count unchanged while the contents differ, and a
+   * cheap guard that is right only most of the time is worse than no guard at a
+   * handful of entries.
    */
-  private forgetStaleSpeechAnchors(snap: GameSnapshot) {
+  private forgetStaleAnchors(snap: GameSnapshot) {
     if (this.speechAnchors.size === 0) return;
-    const live = new Set(snap.chats.map((chat) => chat.id));
+    const live = new Set<string>();
+    for (const chat of snap.chats) live.add(chat.id);
+    for (const noise of snap.noises) live.add(noise.id);
     for (const id of this.speechAnchors.keys()) {
       if (!live.has(id)) this.speechAnchors.delete(id);
     }

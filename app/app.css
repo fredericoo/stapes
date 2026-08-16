@@ -124,6 +124,9 @@ textarea {
      is one size — the damage numbers share it, and "the same font as the rest of
      the world" has to mean the same size to be true. */
   --world-label-size: 20px;
+  /* EarthBound's dialogue yellow. Shared by the name tag and by noises, so the
+     two cannot drift apart into two nearly-identical yellows. */
+  --label-yellow: #ffd23f;
   /* Exactly one of the font's own pixels, since the em is 10 of them. */
   --world-label-brick: calc(var(--world-label-size) / 10);
   /* The four offsets the outline is built from, one and two bricks either way.
@@ -233,6 +236,7 @@ textarea {
  * decides, and this replaces the property rather than adding to it.
  */
 .world-label--speech,
+.world-label--noise,
 .damage-number {
   text-shadow:
     var(--o2n) var(--o2n) 0 #000, var(--o1n) var(--o2n) 0 #000,
@@ -259,8 +263,26 @@ textarea {
    it is the one label allowed to be covered, and so the one drawn underneath:
    a sentence over a name has to read as a sentence, not as a collision. */
 .world-label--name {
-  color: #ffd23f;
+  color: var(--label-yellow);
   z-index: 0;
+}
+
+/*
+ * A noise, in the same yellow and with speech's heavy outline.
+ *
+ * Yellow rather than a colour of its own, and shared with the name tag rather
+ * than a second hex that happens to match: the palette here is small on purpose,
+ * and a noise is world chrome in the way a tag is rather than something a person
+ * chose to say. What tells the two apart is not hue — it is that a tag sits
+ * under a body and stays, while a noise lands where it happened and is gone in
+ * two seconds.
+ *
+ * The two-brick outline it inherits above is doing the real work: a noise has to
+ * win against whatever it lands on, exactly as speech and damage do, because it
+ * arrives unannounced and is read at a glance or not at all.
+ */
+.world-label--noise {
+  color: var(--label-yellow);
 }
 
 /*

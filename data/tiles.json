@@ -1746,7 +1746,7 @@
           "answering": {
             "onEnter": [
               {
-                "effect": "say",
+                "effect": "noise",
                 "text": "meow"
               }
             ],
@@ -3669,7 +3669,7 @@
           "flee": {
             "onEnter": [
               {
-                "effect": "say",
+                "effect": "noise",
                 "text": "!"
               }
             ],
@@ -4668,7 +4668,7 @@
           "striking": {
             "onEnter": [
               {
-                "effect": "say",
+                "effect": "noise",
                 "text": "sss"
               }
             ],

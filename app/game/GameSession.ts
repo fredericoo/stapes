@@ -43,6 +43,7 @@ import {
   BRAIN_TICK_MS,
   DAMAGE_NUMBER_LIFETIME_MS,
   FALL_MS_PER_HEIGHT,
+  NOISE_LIFETIME_MS,
   MAX_CLIMB_HEIGHT,
   PUSH_STEP_MS,
   STARTING_BAG_TILE_ID,
@@ -233,6 +234,30 @@ export type ActorSnapshot = {
  * Which is why the cell travels rather than the actor id alone. By the time this
  * is drawn there may be nobody by that name to ask where they were standing.
  */
+/**
+ * A noise something made, and where it was made.
+ *
+ * **Not speech, and deliberately not shaped like it.** A noise carries no
+ * speaker and no body: nothing here can name who made it, because naming is the
+ * thing that would turn "crunch" into "Amethyst Piranha says: crunch". A snake's
+ * hiss and a bitten apple are the same kind of event — a sound the room heard —
+ * and neither is a sentence anybody uttered.
+ *
+ * Pinned to a cell like a bubble, and aged like a damage number: it is a thing
+ * that happened at a place, not a thing a body is carrying around.
+ */
+export type NoiseEmission = {
+  /** Distinct per noise, so two in one tick are two labels. */
+  id: string;
+  text: string;
+  x: number;
+  y: number;
+  z: number;
+  /** Where the maker stood in that cell's stack, so it starts at them. */
+  stackIndex: number;
+  elapsedMs: number;
+};
+
 export type DamageNumber = {
   /** Distinct per blow, so two hits on one tick are two numbers. */
   id: string;
@@ -335,6 +360,14 @@ export type GameSnapshot = {
    * the local simulation has nobody to talk to and returns an empty list.
    */
   chats: ChatBubble[];
+  /**
+   * Noises still hanging in the air, on this viewer's level only.
+   *
+   * Unlike {@link chats} this *is* filled in by the local simulation: a noise
+   * needs no second person to have made it, so a single-player world hears
+   * every hiss and crunch in it. @see NoiseEmission
+   */
+  noises: NoiseEmission[];
 };
 
 /** The id the single local actor takes when nobody names one. */
@@ -661,6 +694,23 @@ export class GameSession implements PlaySession {
   private liveDamage: DamageNumber[] = [];
   /** Ticks up per blow, so two hits in one tick are two numbers. */
   private nextDamageId = 0;
+  /**
+   * Noises made this tick, waiting to be broadcast. Drained by the server
+   * exactly as {@link pendingDamage} is.
+   */
+  private pendingNoise: NoiseEmission[] = [];
+  /**
+   * Noises still on screen, aged down by the tick loop.
+   *
+   * The pair works the way damage's does rather than the way speech's does, and
+   * the difference is the point: speech is broadcast and forgotten by the
+   * session, so it never appears offline, while a noise is world-legible the
+   * way a damage number is and a single-player world has every right to hear
+   * one. A snake hissing in `/play` is the case that settles it.
+   */
+  private liveNoise: NoiseEmission[] = [];
+  /** Ticks up per noise, so two in one tick are two labels. */
+  private nextNoiseId = 0;
   /**
    * Who died this tick, waiting to be noticed.
    *
@@ -1087,7 +1137,9 @@ export class GameSession implements PlaySession {
     // an empty page, so anything left undrained cannot pile up.
     this.pendingSpeech = [];
     this.pendingDamage = [];
+    this.pendingNoise = [];
     this.ageDamageNumbers(tickMs);
+    this.ageNoises(tickMs);
 
     // Before anything swings, so a body whose cooldown expires on this tick can
     // spend it on this tick — whether the swing comes from a brain below or from
@@ -1226,6 +1278,7 @@ export class GameSession implements PlaySession {
       step: (direction) =>
         this.applyStepRequest(actor, { directions: [direction] }),
       say: (text) => this.recordSpeech(actor, loc, text),
+      noise: (text) => this.recordNoise(loc, text),
       canSee: (at) =>
         hasLineOfSight(
           this.map,
@@ -1263,6 +1316,63 @@ export class GameSession implements PlaySession {
       z: loc.z,
       stackIndex: loc.stackIndex,
     });
+  }
+
+  /**
+   * Note a noise something made, at the cell it was made in.
+   *
+   * Sanitised on exactly the terms speech is — a noise is drawn text, and text
+   * that cannot be drawn is a hole rather than a character somebody is missing.
+   * A line that survives to nothing is simply not recorded.
+   *
+   * Pushed to both lists at once, the way a blow is: the pending one is what the
+   * wire wants once, and the live one is what a viewer should still be able to
+   * see two seconds from now. That second list is what makes a noise audible in
+   * a single-player world, where speech never has been.
+   */
+  private recordNoise(loc: ActorLocation, raw: string) {
+    const text = sanitizeChatText(raw);
+    if (!text) return;
+    const noise: NoiseEmission = {
+      id: `noise-${this.nextNoiseId++}`,
+      text,
+      x: loc.x,
+      y: loc.y,
+      z: loc.z,
+      stackIndex: loc.stackIndex,
+      elapsedMs: 0,
+    };
+    this.pendingNoise.push(noise);
+    this.liveNoise.push(noise);
+  }
+
+  /** Age the noises out, on the tick clock like every other timer. */
+  private ageNoises(tickMs: number) {
+    if (this.liveNoise.length === 0) return;
+    let expired = false;
+    for (const noise of this.liveNoise) {
+      noise.elapsedMs += tickMs;
+      if (noise.elapsedMs >= NOISE_LIFETIME_MS) expired = true;
+    }
+    if (expired) {
+      this.liveNoise = this.liveNoise.filter(
+        (noise) => noise.elapsedMs < NOISE_LIFETIME_MS,
+      );
+    }
+  }
+
+  /**
+   * Every noise made this tick, handed over and forgotten.
+   *
+   * The server's to call, right after {@link tick} and alongside
+   * {@link drainSpeech}. Unlike speech, not draining it is harmless beyond the
+   * wire: the live list is what a local viewer reads, and it ages out on its
+   * own.
+   */
+  drainNoise(): NoiseEmission[] {
+    const made = this.pendingNoise;
+    this.pendingNoise = [];
+    return made;
   }
 
   /**
@@ -1814,11 +1924,11 @@ export class GameSession implements PlaySession {
   }
 
   /**
-   * Call out the noise a consumable makes, from whoever used it.
+   * Make the noise a consumable makes, where it was used.
    *
-   * Down the same path a creature's speech takes, so a crunch is sanitised,
-   * capped and hung over the ground exactly as anything else anybody says —
-   * there is no second kind of bubble here to keep in step with the first.
+   * A noise rather than speech, and that is the whole distinction the channel
+   * exists for: biting an apple is not the eater *saying* anything, so it must
+   * not arrive attributed to them. See {@link NoiseEmission}.
    *
    * Deliberately not handed to {@link hear}, matching what {@link recordSpeech}
    * already decided for creatures: a crunch setting off every brain in earshot
@@ -1829,10 +1939,10 @@ export class GameSession implements PlaySession {
     if (!consumable.sound?.trim()) return;
     // Re-located rather than taken from the consume: a floor meal has already
     // rewritten the cell it came out of, and a stale slot index would hang the
-    // bubble on nothing.
+    // noise on nothing.
     const loc = this.tryLocate(actor);
     if (!loc) return;
-    this.recordSpeech(actor, loc, consumable.sound);
+    this.recordNoise(loc, consumable.sound);
   }
 
   /** Take a consumable placement off the board. Null when refused. */
@@ -2224,6 +2334,10 @@ export class GameSession implements PlaySession {
       // Nobody to talk to: the local simulation has no wire and no other actors
       // worth naming, so speech is a thing only the online client carries.
       chats: [],
+      // Unlike speech, which needs somebody to have said it to somebody: a
+      // noise is a thing that happened, and a world with one player in it still
+      // has snakes in it.
+      noises: this.liveNoise,
       damage: this.liveDamage,
     };
   }

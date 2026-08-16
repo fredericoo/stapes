@@ -40,7 +40,7 @@
  * disagree with where the rest of it ended up.
  */
 
-export type LabelKind = "name" | "speech" | "look";
+export type LabelKind = "name" | "speech" | "noise" | "look";
 
 /**
  * Gap left between two labels that would otherwise touch, in CSS pixels.
@@ -112,7 +112,11 @@ type Rect = { left: number; right: number; top: number; bottom: number };
 const PLACEMENT_ORDER: Record<LabelKind, number> = {
   look: 0,
   speech: 1,
-  name: 2,
+  // After speech, because words somebody chose to type are worth more of the
+  // screen than a noise the world made on its own — a crunch giving way to a
+  // sentence is the right way round when the two land on one cell.
+  noise: 2,
+  name: 3,
 };
 
 export function layoutLabels(

@@ -183,9 +183,15 @@ export const EFFECTS: Record<
 > = {
   say: {
     label: "say",
-    hint: "A speech bubble over the creature's head, once on entry.",
+    hint: "A speech bubble over the creature's head, once on entry. Named as its speaker — use noise for anything that is not language.",
     params: [{ key: "text", kind: "text", label: "text" }],
-    make: () => ({ effect: "say", text: "!" }),
+    make: () => ({ effect: "say", text: "hello" }),
+  },
+  noise: {
+    label: "noise",
+    hint: "A sound the room heard, once on entry — hissing, barking, a rustle. Written where it happened, with nobody's name on it.",
+    params: [{ key: "text", kind: "text", label: "text" }],
+    make: () => ({ effect: "noise", text: "sss" }),
   },
 };
 

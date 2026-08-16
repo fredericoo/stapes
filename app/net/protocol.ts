@@ -340,6 +340,29 @@ export type ServerMessage =
       stackIndex: number;
     }
   /**
+   * A noise something made, pinned to the cell it was made in.
+   *
+   * **Carries no speaker and no body**, which is the entire difference between
+   * this and `chat` and the reason it is a message of its own rather than a flag
+   * on that one. A noise is not attributable: "crunch" is what the room heard,
+   * not what somebody said, so there is nobody to name and the client is given
+   * nothing it could use to name one.
+   *
+   * A message rather than an event inside the patch, unlike a damage number,
+   * because a noise can happen *between* ticks — eating something is input, and
+   * the patch is the tick's. It is level-scoped like chat for the same reason
+   * chat is: a sound two floors up is not one you heard.
+   */
+  | {
+      type: "noise";
+      id: string;
+      text: string;
+      x: number;
+      y: number;
+      z: number;
+      stackIndex: number;
+    }
+  /**
    * "That step of yours never happened."
    *
    * The one message here addressed to a single client rather than to the world,
@@ -647,6 +670,15 @@ const serverMessageSchema = v.variant("type", [
     type: v.literal("chat"),
     actorId: v.string(),
     tileId: v.string(),
+    text: v.string(),
+    x: v.number(),
+    y: v.number(),
+    z: v.number(),
+    stackIndex: v.number(),
+  }),
+  v.object({
+    type: v.literal("noise"),
+    id: v.string(),
     text: v.string(),
     x: v.number(),
     y: v.number(),

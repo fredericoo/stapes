@@ -948,18 +948,6 @@ describe("calling a creature", () => {
     };
   }
 
-  /** The next chat on this socket whose text is not the one just sent. */
-  async function replyWithin(ws: WebSocket, ms: number, sent: string) {
-    const deadline = Date.now() + ms;
-    for (;;) {
-      const left = deadline - Date.now();
-      if (left <= 0) return null;
-      const message = await chatWithin(ws, left);
-      if (!message) return null;
-      if (message.text !== sent) return message;
-    }
-  }
-
   async function withCat() {
     const alice = await connect("alice");
     await putCheckpoint(checkpointWithCat());
@@ -967,13 +955,21 @@ describe("calling a creature", () => {
     return alice;
   }
 
+  /**
+   * A meow is a noise, not an answer in words, so it comes back on the other
+   * channel — which is also what lets this simply wait for one. It used to have
+   * to read the chat stream and skip past the echo of the caller's own line;
+   * with the two apart there is nothing of the caller's on this channel at all.
+   */
   it("answers somebody who calls it", async () => {
     const alice = await withCat();
 
     say(alice.ws, "psps");
 
-    const reply = await replyWithin(alice.ws, 2000, "psps");
-    expect(reply).toMatchObject({ type: "chat", text: "meow", tileId: "cat" });
+    expect(await noiseWithin(alice.ws, 2000)).toMatchObject({
+      type: "noise",
+      text: "meow",
+    });
   });
 
   it("says nothing back to a line that was not a call", async () => {
@@ -981,7 +977,7 @@ describe("calling a creature", () => {
 
     say(alice.ws, "hello there");
 
-    expect(await replyWithin(alice.ws, QUIET_MS * 4, "hello there")).toBeNull();
+    expect(await noiseWithin(alice.ws, QUIET_MS * 4)).toBeNull();
   });
 });
 
@@ -1015,6 +1011,11 @@ function contentsOf(message: Record<string, unknown>): Array<{ tileId: string }>
 
 function step(ws: WebSocket, seq: number, direction: string) {
   ws.send(JSON.stringify({ type: "step", seq, direction, preferDescend: false }));
+}
+
+/** Wait for a noise, which carries no speaker. @see ServerMessage `noise` */
+function noiseWithin(ws: WebSocket, ms: number) {
+  return messageWithin(ws, "noise", ms);
 }
 
 /** Wait for the first message of a type, or null if it never comes. */
@@ -1723,7 +1724,7 @@ describe("consuming", () => {
     expect(await liveTilesAt(1, 0, 0)).toEqual(["grass", BERRY]);
 
     send(alice.ws, { type: "consume", from: { kind: "floor", ref: BERRY_REF } });
-    await chatWithin(alice.ws, 1000);
+    await noiseWithin(alice.ws, 1000);
 
     expect(await liveTilesAt(1, 0, 0)).toEqual(["grass"]);
   });
@@ -1731,23 +1732,39 @@ describe("consuming", () => {
   /**
    * The regression the flush exists for. Without it the crunch is recorded
    * between ticks and wiped by the next `tick` before anything drains it, so
-   * this waits for a bubble that never comes.
+   * this waits for a sound that never comes.
    */
-  it("calls out the noise it makes, to the floor it was eaten on", async () => {
+  it("makes the noise it makes, to the floor it was eaten on", async () => {
     await env.DATA.put("map.json", JSON.stringify(mapWithBerry()));
     const alice = await connect("alice");
 
     send(alice.ws, { type: "consume", from: { kind: "floor", ref: BERRY_REF } });
 
-    expect(await chatWithin(alice.ws, 1000)).toMatchObject({
-      type: "chat",
-      actorId: "alice",
+    expect(await noiseWithin(alice.ws, 1000)).toMatchObject({
+      type: "noise",
       text: "crunch",
-      tileId: PLAYER_TILE_ID,
+      z: 0,
     });
   });
 
-  it("says nothing when there is nothing there to eat", async () => {
+  /**
+   * The point of the channel, asserted where a client would actually see it: a
+   * crunch must not arrive as something somebody *said*, because that is what
+   * puts a name in front of it.
+   */
+  it("never sends it as chat, which would name a speaker", async () => {
+    await env.DATA.put("map.json", JSON.stringify(mapWithBerry()));
+    const alice = await connect("alice");
+
+    send(alice.ws, { type: "consume", from: { kind: "floor", ref: BERRY_REF } });
+
+    const noise = await noiseWithin(alice.ws, 1000);
+    expect(noise).not.toBeNull();
+    expect(noise).not.toHaveProperty("actorId");
+    expect(await chatWithin(alice.ws, QUIET_MS)).toBeNull();
+  });
+
+  it("makes none when there is nothing there to eat", async () => {
     const alice = await connect("alice");
 
     send(alice.ws, {
@@ -1755,6 +1772,6 @@ describe("consuming", () => {
       from: { kind: "floor", ref: { x: 3, y: 0, z: 0, stackIndex: 1 } },
     });
 
-    expect(await chatWithin(alice.ws, 500)).toBeNull();
+    expect(await noiseWithin(alice.ws, QUIET_MS)).toBeNull();
   });
 });

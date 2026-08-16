@@ -65,3 +65,16 @@ export const MAX_CLIMB_HEIGHT = 1;
  * length either side of a wire.
  */
 export const DAMAGE_NUMBER_LIFETIME_MS = 900;
+
+/**
+ * How long a noise hangs in the air.
+ *
+ * Between the two neighbours it sits between, because it is between them in
+ * kind. Longer than a damage number, since a word takes longer to read than two
+ * digits; far shorter than speech, because nobody is waiting to reply to a hiss
+ * and a noise that outstayed the moment it belongs to would read as dialogue.
+ *
+ * Shared by the simulation and the online client, exactly as the damage
+ * lifetime is, so a noise lives the same length either side of a wire.
+ */
+export const NOISE_LIFETIME_MS = 2_000;
