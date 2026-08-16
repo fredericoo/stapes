@@ -34,6 +34,7 @@ import {
 import { InteractiveTab } from "./InteractiveTab";
 import { BattleTab } from "./BattleTab";
 import { ItemTab } from "./ItemTab";
+import { RespawnTab } from "./RespawnTab";
 import { BrainEditor } from "./BrainEditor";
 import { hasAnyInteraction, interactionsForSave } from "../lib/interactions";
 import { validateBrain, type BrainDef } from "../lib/brain";
@@ -174,6 +175,7 @@ const TAB_INTERACTIVE = "interactive";
 const TAB_BRAIN = "brain";
 const TAB_BATTLE = "battle";
 const TAB_ITEM = "item";
+const TAB_RESPAWN = "respawn";
 
 export function TileEditorDialog({
   open,
@@ -704,6 +706,10 @@ export function TileEditorDialog({
             ...(draft.kind === "item"
               ? [{ value: TAB_ITEM, label: "Item" }]
               : []),
+            {
+              value: TAB_RESPAWN,
+              label: draft.interactions?.respawn ? "Respawn •" : "Respawn",
+            },
           ]}
         >
           <TabPanel value={TAB_INTERACTIVE}>
@@ -735,6 +741,10 @@ export function TileEditorDialog({
 
           <TabPanel value={TAB_ITEM}>
             <ItemTab draft={draft} onChange={setDraft} />
+          </TabPanel>
+
+          <TabPanel value={TAB_RESPAWN}>
+            <RespawnTab draft={draft} onChange={setDraft} />
           </TabPanel>
 
           <TabPanel value={TAB_TILE} className="flex flex-col gap-3">

@@ -9,7 +9,7 @@ import {
 import { resolveSwitch } from "../lib/interactions";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
 import { MIN_LEVEL } from "../lib/types";
-import { tilesByIdFromList } from "../lib/validation";
+import { canPlace, tilesByIdFromList } from "../lib/validation";
 import {
   actorDirection,
   adoptAuthoredPlayer,
@@ -57,6 +57,7 @@ import {
   startingEquipment,
 } from "./equipment";
 import { mintItemIds } from "./itemIds";
+import { isSpawnFilled, type SpawnPoint } from "./respawn";
 import {
   applyItemMove,
   canMoveItem,
@@ -896,6 +897,47 @@ export class GameSession implements PlaySession {
   despawn(id: string) {
     if (!this.actors.delete(id)) return;
     this.map = despawnActor(this.map, id);
+  }
+
+  /**
+   * Grow back what was authored at a spawn point, if it is still owed.
+   *
+   * True means this deadline is spent — the point is filled, something grew,
+   * or nothing ever will — and the server can drop it. One call grows one
+   * placement, so a point authored with several identical objects refills one
+   * per window: the growth itself changes the cell, and the server's
+   * changed-cell sweep is what notices the count is still short and arms the
+   * next.
+   * False means "not now": the placement no longer fits under whatever has
+   * been stacked in its cell, and the server retries rather than abandons,
+   * because unlike a decay that cannot happen, a monster that never comes back
+   * is a hole in the world rather than a mess left un-tidied.
+   *
+   * A tile that has left the catalogue reads as settled, not as a retry: no
+   * amount of waiting authors it back, and the registry is rebuilt from the
+   * catalogue on the next save anyway.
+   */
+  respawnAt(point: SpawnPoint): boolean {
+    if (isSpawnFilled(this.map, point)) return true;
+    const def = this.tilesById[point.placed.tileId];
+    if (!def) return true;
+    const { x, y, z } = point.cell;
+    if (!canPlace(this.map, x, y, z, def, this.tilesById).ok) return false;
+
+    this.map = appendTile(this.map, x, y, z, {
+      ...point.placed,
+      ...(point.ownerId ? { owner: point.ownerId } : {}),
+    });
+    // A respawned item is a new item — the authored placement carries no ids
+    // (see `authoredPlacement`), and this is what stamps fresh ones on.
+    this.map = mintItemIds(this.map, this.tilesById);
+    if (point.ownerId && !this.actors.has(point.ownerId)) {
+      this.addActor(point.ownerId, { resident: true });
+    }
+    // What grew back may be a plate's load, a wire's emitter or a decaying
+    // tile, so the cell's indexes are rebuilt exactly as they are after a kill.
+    this.reindexCells([point.cell]);
+    return true;
   }
 
   actorIds(): string[] {
