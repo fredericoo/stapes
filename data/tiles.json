@@ -4772,5 +4772,42 @@
         "spd": 45
       }
     }
+  },
+  {
+    "id": "berry",
+    "name": "Berry",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "interactions": {
+      "item": {
+        "type": "consumable",
+        "label": "Eat",
+        "sound": "crunch",
+        "hp": 5
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "ultima-vi",
+            "rect": {
+              "x": 48,
+              "y": 20,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
   }
 ]

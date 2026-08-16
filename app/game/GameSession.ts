@@ -7,7 +7,7 @@ import {
   replaceStack,
 } from "../lib/mapData";
 import { resolveSwitch } from "../lib/interactions";
-import { resolveConsumable } from "../lib/item";
+import { resolveConsumable, type ConsumableItem } from "../lib/item";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
 import { MIN_LEVEL } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
@@ -1786,32 +1786,60 @@ export class GameSession implements PlaySession {
     if (!actor) return false;
     if (this.hpOf(actor) === null) return false;
 
-    const hpShift =
+    const consumable =
       from.kind === "floor"
         ? this.consumeFromFloor(actor, from.ref)
         : this.consumeFromSlot(actor, from.slot);
-    if (hpShift === null) return false;
+    if (!consumable) return false;
 
-    if (hpShift < 0) {
+    // Before the hit points land, on exactly the terms `notePendingHurt` is
+    // noted before its damage: a fatal drink still tells the room, because by
+    // the time the number has been applied the body may be off the board and
+    // there is nowhere left to hang a bubble.
+    this.recordConsumeSound(actor, consumable);
+
+    if (consumable.hp < 0) {
       // Through the damage path rather than a bare subtraction, so a poison
       // apple shows its number, tells the brains, and can kill — a death by
       // poison and a death by blows must not be two codepaths to keep alive.
-      this.applyDamage(actor, -hpShift);
-    } else if (hpShift > 0) {
+      this.applyDamage(actor, -consumable.hp);
+    } else if (consumable.hp > 0) {
       const stats = this.battlerOf(actor);
       const before = this.hpOf(actor);
       if (stats && before !== null) {
-        actor.hp = Math.min(stats.maxHp, before + hpShift);
+        actor.hp = Math.min(stats.maxHp, before + consumable.hp);
       }
     }
     return true;
+  }
+
+  /**
+   * Call out the noise a consumable makes, from whoever used it.
+   *
+   * Down the same path a creature's speech takes, so a crunch is sanitised,
+   * capped and hung over the ground exactly as anything else anybody says —
+   * there is no second kind of bubble here to keep in step with the first.
+   *
+   * Deliberately not handed to {@link hear}, matching what {@link recordSpeech}
+   * already decided for creatures: a crunch setting off every brain in earshot
+   * is a world's worth of behaviour to think about rather than a side effect of
+   * eating an apple.
+   */
+  private recordConsumeSound(actor: ActorRuntime, consumable: ConsumableItem) {
+    if (!consumable.sound?.trim()) return;
+    // Re-located rather than taken from the consume: a floor meal has already
+    // rewritten the cell it came out of, and a stale slot index would hang the
+    // bubble on nothing.
+    const loc = this.tryLocate(actor);
+    if (!loc) return;
+    this.recordSpeech(actor, loc, consumable.sound);
   }
 
   /** Take a consumable placement off the board. Null when refused. */
   private consumeFromFloor(
     actor: ActorRuntime,
     ref: ObjectRef,
-  ): number | null {
+  ): ConsumableItem | null {
     if (!this.idle(actor)) return null;
     const loc = this.tryLocate(actor);
     if (!loc) return null;
@@ -1826,11 +1854,14 @@ export class GameSession implements PlaySession {
     // The cell has one fewer thing in it — the same reindex a pickup owes, for
     // the same plates and the same unsupported crates.
     this.reindexCells([{ x: ref.x, y: ref.y, z: ref.z }]);
-    return consumable.hp;
+    return consumable;
   }
 
   /** Take a consumable out of a slot and destroy it. Null when refused. */
-  private consumeFromSlot(actor: ActorRuntime, slot: SlotRef): number | null {
+  private consumeFromSlot(
+    actor: ActorRuntime,
+    slot: SlotRef,
+  ): ConsumableItem | null {
     const loc = this.tryLocate(actor);
     if (!loc) return null;
 
@@ -1854,7 +1885,7 @@ export class GameSession implements PlaySession {
     if (emptied.equipment !== actor.equipment) {
       this.setEquipment(actor, emptied.equipment);
     }
-    return consumable.hp;
+    return consumable;
   }
 
   canMoveItem(

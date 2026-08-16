@@ -746,7 +746,30 @@ export class GameServer extends DurableObject<Env> {
     }
 
     this.flushEquipment();
+    this.flushSpeech();
     this.wake();
+  }
+
+  /**
+   * Say anything a message caused, before the next tick can swallow it.
+   *
+   * Input arrives *between* ticks, and {@link GameSession.tick} empties the
+   * speech page at its top — so a noise recorded by a consume would be cleared
+   * before the tick's own drain ever saw it, and nobody would hear a thing.
+   * Drained here instead, onto the identical fan-out, for the same reason
+   * {@link flushEquipment} exists beside it: a kit and a crunch both change on
+   * input rather than on the clock.
+   *
+   * Draining is idempotent, so calling it after a message that said nothing
+   * costs an empty array and sends nothing.
+   */
+  private flushSpeech() {
+    const session = this.session;
+    if (!session) return;
+    const said = session.drainSpeech();
+    if (said.length === 0) return;
+    const actors = session.actorSnapshots();
+    for (const bubble of said) this.broadcastChat(actors, bubble);
   }
 
   /**

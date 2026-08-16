@@ -37,12 +37,14 @@ function tile(partial: Record<string, unknown>): TileDef {
 
 const PLAYER_MAX_HP = 100;
 
-function consumable(id: string, hp: number): TileDef {
+function consumable(id: string, hp: number, sound?: string): TileDef {
   return tile({
     id,
     kind: "item",
     intangible: true,
-    interactions: { item: { type: "consumable", label: "Eat", hp } },
+    interactions: {
+      item: { type: "consumable", label: "Eat", hp, ...(sound ? { sound } : {}) },
+    },
   });
 }
 
@@ -65,9 +67,11 @@ const tiles: TileDef[] = [
     intangible: true,
     interactions: { item: { ...DEFAULT_CONTAINER } },
   }),
-  consumable("cherry", 5),
-  consumable("poison", -10),
-  consumable("hemlock", -PLAYER_MAX_HP),
+  consumable("cherry", 5, "crunch"),
+  consumable("poison", -10, "glug"),
+  consumable("hemlock", -PLAYER_MAX_HP, "glug"),
+  // Authored with no noise, which is every consumable until somebody writes one.
+  consumable("quiet-cherry", 5),
   tile({
     id: "sword",
     kind: "item",
@@ -306,6 +310,85 @@ describe("eating out of a slot", () => {
     expect(
       session.consume({ kind: "slot", slot: { kind: "contents", index: 0 } }),
     ).toBe(false);
+  });
+});
+
+/**
+ * The noise it makes, and who hears it.
+ *
+ * A sound is drawn as a bubble over the eater on exactly the path a creature's
+ * speech takes, so what is asserted here is that it reaches that path — and
+ * that it reaches it *before* the hit points do, since a fatal drink still has
+ * something to say.
+ */
+describe("the noise a consumable makes", () => {
+  it("calls it out from the eater, where they ate it", () => {
+    const session = withItem(1, 0, "cherry");
+    session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
+
+    const said = session.drainSpeech();
+    expect(said).toHaveLength(1);
+    expect(said[0]!.text).toBe("crunch");
+    // Hung over the eater's own cell, not over the cell the berry was in.
+    expect(said[0]!.actorId).toBe(session.getSnapshot().self.id);
+    expect({ x: said[0]!.x, y: said[0]!.y, z: said[0]!.z }).toEqual({
+      x: 0,
+      y: 0,
+      z: 0,
+    });
+  });
+
+  it("says it when the meal came out of a bag too", () => {
+    const session = withItem(1, 0, "cherry");
+    session.pickUp(refAt(session, 1, 0));
+    session.drainSpeech();
+
+    session.consume({ kind: "slot", slot: { kind: "contents", index: 0 } });
+    expect(session.drainSpeech().map((s) => s.text)).toEqual(["crunch"]);
+  });
+
+  it("stays silent for one with no noise authored on it", () => {
+    const session = withItem(1, 0, "quiet-cherry");
+    session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
+
+    expect(session.drainSpeech()).toEqual([]);
+  });
+
+  /**
+   * The ordering that matters: `kill` takes the body off the board, so a sound
+   * recorded after the hit points would have nowhere to hang and would be
+   * dropped. Recorded first, a last gulp still reaches the room.
+   */
+  it("still speaks when the drink is the one that kills you", () => {
+    const session = withItem(1, 0, "hemlock");
+    session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
+
+    expect(session.actorSnapshots()).toEqual([]);
+    expect(session.drainSpeech().map((s) => s.text)).toEqual(["glug"]);
+  });
+
+  it("says nothing when the consume was refused", () => {
+    const session = withItem(2, 0, "cherry");
+    session.consume({ kind: "floor", ref: refAt(session, 2, 0) });
+
+    expect(session.drainSpeech()).toEqual([]);
+  });
+
+  /**
+   * Why the server flushes speech on input rather than only on the clock.
+   *
+   * A consume arrives *between* ticks, and `tick` empties the speech page at
+   * its top — so anything recorded by one and not drained before the next tick
+   * is simply gone. `GameServer.flushSpeech` is what drains it in time; this
+   * pins the hazard that makes it necessary, so removing it fails here rather
+   * than going quiet in production.
+   */
+  it("is cleared by the next tick, which is what the server drains ahead of", () => {
+    const session = withItem(1, 0, "cherry");
+    session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
+
+    session.tick();
+    expect(session.drainSpeech()).toEqual([]);
   });
 });
 

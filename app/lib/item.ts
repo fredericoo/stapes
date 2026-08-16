@@ -93,6 +93,20 @@ export type ConsumableItem = {
   label?: string;
   /** Added to the eater's hit points. Negative poisons; the cap still holds. */
   hp: number;
+  /**
+   * The noise using it makes — "crunch", "glug" — called out by whoever used
+   * it, where they used it.
+   *
+   * Text rather than a file, because there is no audio in this game: a sound
+   * here is the comic-book kind, drawn over the eater's head on exactly the
+   * path a spoken line takes. That is also why it is authored per tile and not
+   * derived from the verb — "Eat" is what the button says to the player, and
+   * "crunch" is what the room hears.
+   *
+   * Optional like {@link label}. Blank is silent, and silence is the honest
+   * default: a potion that says nothing is a potion nobody heard.
+   */
+  sound?: string;
 };
 
 /**
@@ -161,6 +175,16 @@ export const MAX_CONSUMABLE_HP_SHIFT = 999;
  */
 export const CONSUME_FALLBACK_VERB = "Use";
 
+/**
+ * Longest noise a consumable may make.
+ *
+ * Short on purpose, and the shortness is the documentation: this field is for
+ * "crunch", not for a line of dialogue. The drawn text is capped again by the
+ * chat rules it is rendered through, which is the looser of the two — so this
+ * is the bound that actually decides, and it decides in favour of a noise.
+ */
+export const MAX_CONSUMABLE_SOUND_LENGTH = 32;
+
 /** The authored verb, or the fallback where there is none to read. */
 export function consumeVerb(consumable: ConsumableItem): string {
   return consumable.label?.trim() || CONSUME_FALLBACK_VERB;
@@ -187,6 +211,9 @@ export const DEFAULT_CONSUMABLE: ConsumableItem = {
   // Positive and small, so a fresh consumable demonstrates the ordinary case —
   // food — and poisoning is the deliberate act of flipping the sign.
   hp: 5,
+  // Something rather than nothing, so a fresh consumable shows what the field
+  // is for the moment it is used. It goes with the "Eat" above.
+  sound: "crunch",
 };
 
 /** The starting backpack's shape, and what a fresh container tile gets. */
@@ -223,6 +250,9 @@ const consumableSchema = v.object({
   // no verb written on it is still a consumable, and whoever offers the action
   // falls back to the generic verb.
   label: v.optional(v.string()),
+  // Bounded where the verb is not: a verb is a word by construction, and this
+  // is free text that ends up drawn over somebody's head.
+  sound: v.optional(v.pipe(v.string(), v.maxLength(MAX_CONSUMABLE_SOUND_LENGTH))),
   // Signed, unlike a battler's own numbers: harming is authored with the same
   // field healing is.
   hp: v.pipe(
@@ -327,9 +357,11 @@ export function itemForSave(item: ItemDef | undefined): ItemDef | undefined {
     // switch's actionName is: an empty string that means "no name" is a second
     // way of saying what an absent key already says.
     const label = item.label?.trim();
+    const sound = item.sound?.trim();
     return {
       type: "consumable",
       ...(label ? { label } : {}),
+      ...(sound ? { sound } : {}),
       hp: item.hp,
     };
   }

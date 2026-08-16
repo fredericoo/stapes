@@ -5,6 +5,7 @@ import {
   DEFAULT_CONTAINER,
   DEFAULT_WEAPON,
   MAX_CONSUMABLE_HP_SHIFT,
+  MAX_CONSUMABLE_SOUND_LENGTH,
   MAX_CONTAINER_SIZE,
   MAX_WEAPON_STAT_SHIFT,
   consumeVerb,
@@ -62,6 +63,20 @@ describe("resolveItem", () => {
     expect(resolveConsumable(tile("item", { item: poison }))).toEqual(poison);
   });
 
+  it("reads the noise it makes", () => {
+    const berry = { type: "consumable", label: "Eat", sound: "crunch", hp: 5 };
+    expect(resolveConsumable(tile("item", { item: berry }))).toEqual(berry);
+  });
+
+  // Silence is a legal consumable, and the commonest one before anybody thinks
+  // to author a noise.
+  it("reads one that makes no noise at all", () => {
+    const quiet = { type: "consumable", hp: 1 };
+    const parsed = resolveConsumable(tile("item", { item: quiet }));
+    expect(parsed).toEqual(quiet);
+    expect(parsed?.sound).toBeUndefined();
+  });
+
   it("reads a consumable with no verb authored on it", () => {
     const plain = { type: "consumable", hp: 3 };
     const parsed = resolveConsumable(tile("item", { item: plain }));
@@ -108,6 +123,10 @@ describe("resolveItem", () => {
       ["a fractional shift", { ...DEFAULT_WEAPON, acc: -0.5 }],
       ["a weapon missing its accuracy", { type: "weapon", atk: 1, def: 1, spd: 0, mastery: "blade" }],
       ["a consumable with no hp at all", { type: "consumable", label: "Eat" }],
+      [
+        "a noise longer than the cap",
+        { ...DEFAULT_CONSUMABLE, sound: "z".repeat(MAX_CONSUMABLE_SOUND_LENGTH + 1) },
+      ],
       ["a fractional hp", { ...DEFAULT_CONSUMABLE, hp: 2.5 }],
       ["an hp past the cap", { ...DEFAULT_CONSUMABLE, hp: MAX_CONSUMABLE_HP_SHIFT + 1 }],
       ["an hp past the floor", { ...DEFAULT_CONSUMABLE, hp: -MAX_CONSUMABLE_HP_SHIFT - 1 }],
@@ -177,6 +196,15 @@ describe("itemForSave", () => {
       type: "consumable",
       hp: 2,
     });
+  });
+
+  it("keeps a consumable's noise and drops a blank one", () => {
+    expect(
+      itemForSave({ type: "consumable", label: "Drink", sound: "glug", hp: 1 }),
+    ).toEqual({ type: "consumable", label: "Drink", sound: "glug", hp: 1 });
+    expect(
+      itemForSave({ type: "consumable", sound: "   ", hp: 1 }),
+    ).toEqual({ type: "consumable", hp: 1 });
   });
 
   it("drops weapon fields a draft carried into a consumable", () => {
