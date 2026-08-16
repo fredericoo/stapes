@@ -1,8 +1,37 @@
 import { isItem } from "../lib/item";
+import type { ItemInstance } from "../lib/itemInstance";
 import { mintItemId } from "../lib/itemInstance";
 import { listCoords, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
+
+/**
+ * Everything a container is holding, each with an identity.
+ *
+ * Contents are minted on exactly the terms the placements holding them are, and
+ * for a reason that is not symmetry: `serializeMap` strips a content's `id` on
+ * the way to disk precisely *because* this pass hands it a fresh one on the way
+ * back — see `authoredPlacement`. An authored chest therefore arrives full of
+ * anonymous items every single load, and they are anonymous in a shape whose
+ * `id` is required rather than optional. One taken out of the chest is an
+ * `ItemInstance` with no id, which is a frame the client's own protocol refuses
+ * to parse.
+ *
+ * One level deep and never recursive, because a container may not hold a
+ * container — see `../lib/item`.
+ *
+ * Returns the same array when every item already had one, so the caller can
+ * tell a chest that needed nothing from one that did by identity.
+ */
+function mintContentIds(contents: ItemInstance[]): ItemInstance[] {
+  let touched = false;
+  const next = contents.map((instance) => {
+    if (instance.id) return instance;
+    touched = true;
+    return { ...instance, id: mintItemId() };
+  });
+  return touched ? next : contents;
+}
 
 /**
  * Give every item in the world an identity, once, when it loads.
@@ -12,6 +41,10 @@ import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
  * nobody has handled anonymous — which is precisely the population you would
  * want to follow, and precisely the one a dropped-and-forgotten sword belongs
  * to.
+ *
+ * "Every item" includes the ones inside chests, which are reached through
+ * {@link mintContentIds}: a sword in a crate is as much a thing somebody can
+ * carry off as one lying on the floor beside it.
  *
  * Idempotent, on the same terms `adoptResidents` is: a placement that already
  * carries an id keeps it, because a resumed world's items have been minted
@@ -38,11 +71,22 @@ export function mintItemIds(
     for (const { x, y, stack } of listCoords(map, z)) {
       let touched = false;
       const replaced = stack.map((placed) => {
-        if (placed.itemId) return placed;
-        const def = tilesById[placed.tileId];
-        if (!def || !isItem(def)) return placed;
+        // Contents are minted whatever the holder turns out to be, and before
+        // the item gate rather than behind it: what is in a chest needs an
+        // identity because somebody can take it out, which stays true of a
+        // chest whose own tile has since been authored into scenery.
+        const contents = placed.contents && mintContentIds(placed.contents);
+        const withContents =
+          contents && contents !== placed.contents
+            ? { ...placed, contents }
+            : placed;
+        if (withContents !== placed) touched = true;
+
+        if (withContents.itemId) return withContents;
+        const def = tilesById[withContents.tileId];
+        if (!def || !isItem(def)) return withContents;
         touched = true;
-        return { ...placed, itemId: mintItemId() };
+        return { ...withContents, itemId: mintItemId() };
       });
       if (touched) next = replaceStack(next, x, y, z, replaced);
     }

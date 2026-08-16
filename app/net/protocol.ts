@@ -105,6 +105,36 @@ const equipmentSchema = v.object({
   bag: v.nullable(itemInstanceSchema),
 });
 
+/**
+ * A kit, or nothing at all — never a reason to throw the message away.
+ *
+ * The one field on this wire that is allowed to fail on its own, and the
+ * asymmetry is the point. Every other part of a `hello` describes the world, and
+ * a client that could not read it has nothing to draw; equipment describes one
+ * player's pockets, and a client that cannot read *that* can still stand in the
+ * world and walk around in it.
+ *
+ * Without this the two were one fate. An instance the schema would not accept —
+ * an item minted by a build that did not exist yet, or one that missed a minting
+ * pass — took the whole `hello` down with it, and `RemoteSession` drops an
+ * unparseable frame silently. The result was a tab that connected, streamed
+ * patches for as long as you left it open, and never finished joining, with no
+ * way in the game to put down the thing that was doing it. A kit is not worth a
+ * world.
+ *
+ * **Empty rather than partial**, which is also what keeps this from becoming a
+ * duplication bug. The server is the only authority on who is holding what; a
+ * client that salvaged the half of a kit it could read would be inventing the
+ * other half, and two clients inventing differently about the same contested
+ * item is how one sword becomes two on the screen. Showing nothing is a client
+ * that is visibly out of date, which is a thing a player can see and a refresh
+ * can mend — and the server's next `equipment` message corrects it outright.
+ */
+const tolerantEquipmentSchema = v.fallback(equipmentSchema, {
+  weapon: null,
+  bag: null,
+});
+
 /** One cell's whole stack, replacing whatever the client had there. */
 export type CellPatch = {
   x: number;
@@ -551,12 +581,12 @@ const serverMessageSchema = v.variant("type", [
     minutesOfDay: v.number(),
     hps: v.array(hpPatchSchema),
     carriedLights: v.array(carriedLightsPatchSchema),
-    equipment: equipmentSchema,
+    equipment: tolerantEquipmentSchema,
     tags: v.array(v.string()),
   }),
   v.object({
     type: v.literal("equipment"),
-    equipment: equipmentSchema,
+    equipment: tolerantEquipmentSchema,
   }),
   v.object({
     type: v.literal("tags"),

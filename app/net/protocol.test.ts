@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseClientMessage } from "./protocol";
+import { parseClientMessage, parseServerMessage } from "./protocol";
 
 /**
  * What a browser is allowed to say.
@@ -168,5 +168,83 @@ describe("drop", () => {
 
   it("drops one missing its destination", () => {
     expect(parsed({ type: "drop", from: { kind: "weapon" } })).toBeNull();
+  });
+});
+
+/**
+ * A kit the client cannot read must cost the client its kit, and nothing else.
+ *
+ * The failure this replaces was total: `hello` carries the map, and one item in
+ * one pocket that did not satisfy the schema took the whole message with it —
+ * so a player who had touched the wrong sword connected, streamed patches, and
+ * never finished joining, with nothing in the game they could do about it.
+ */
+describe("a kit that will not parse", () => {
+  const badItem = { tileId: "rusty-sword" };
+
+  function helloWith(equipment: unknown) {
+    return JSON.stringify({
+      type: "hello",
+      selfId: "a",
+      map: { version: 1, levels: {} },
+      actorIds: ["a"],
+      playerCount: 1,
+      minutesOfDay: 480,
+      hps: [],
+      carriedLights: [],
+      equipment,
+      tags: [],
+    });
+  }
+
+  it("still lets the world through, and hands back an empty kit", () => {
+    const message = parseServerMessage(
+      helloWith({ weapon: null, bag: { id: "itm_bag", tileId: "basic-bag", contents: [badItem] } }),
+    );
+    expect(message).not.toBeNull();
+    expect(message).toMatchObject({ type: "hello", selfId: "a", playerCount: 1 });
+    expect(message?.type === "hello" && message.equipment).toEqual({
+      weapon: null,
+      bag: null,
+    });
+  });
+
+  it("empties the kit rather than salvaging the half it could read", () => {
+    // A readable weapon beside an unreadable bag. Keeping the weapon would be
+    // the client deciding what somebody is holding, which is the server's to
+    // say — and two clients deciding differently is how one sword becomes two.
+    const message = parseServerMessage(
+      helloWith({
+        weapon: { id: "itm_w", tileId: "rusty-sword" },
+        bag: { id: "itm_bag", tileId: "basic-bag", contents: [badItem] },
+      }),
+    );
+    expect(message?.type === "hello" && message.equipment.weapon).toBeNull();
+  });
+
+  it("does the same for the equipment message on its own", () => {
+    const message = parseServerMessage(
+      JSON.stringify({ type: "equipment", equipment: { weapon: badItem, bag: null } }),
+    );
+    expect(message).not.toBeNull();
+    expect(message?.type === "equipment" && message.equipment).toEqual({
+      weapon: null,
+      bag: null,
+    });
+  });
+
+  it("still takes a kit it can read", () => {
+    const equipment = {
+      weapon: { id: "itm_w", tileId: "rusty-sword" },
+      bag: { id: "itm_b", tileId: "basic-bag", contents: [{ id: "itm_c", tileId: "hand-lantern" }] },
+    };
+    const message = parseServerMessage(JSON.stringify({ type: "equipment", equipment }));
+    expect(message?.type === "equipment" && message.equipment).toEqual(equipment);
+  });
+
+  // The tolerance is the equipment field's alone: a `hello` whose *world* cannot
+  // be read is still a message with nothing to draw.
+  it("is not a licence for the rest of the message", () => {
+    expect(parseServerMessage(helloWith({ weapon: null, bag: null }).replace('"playerCount":1', '"playerCount":"lots"'))).toBeNull();
   });
 });

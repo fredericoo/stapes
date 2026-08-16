@@ -1176,6 +1176,24 @@ export class GameServer extends DurableObject<Env> {
     await store.writeMap(map);
     await this.ctx.storage.delete(CHECKPOINT_KEY);
 
+    // Read off the outgoing session, and read *here* — this is the last moment
+    // it exists, and it holds the only copy of anybody's kit that is newer than
+    // the last five-second flush. A player who picked something up four seconds
+    // before somebody hit save is carrying it only in memory.
+    const carried = new Map<string, Equipment>();
+    const taken = new Map<string, string[]>();
+    for (const ws of this.ctx.getWebSockets()) {
+      const attachment = ws.deserializeAttachment() as Attachment | null;
+      if (!attachment) continue;
+      const kit = this.session?.equipmentOf(attachment.actorId);
+      if (kit) carried.set(attachment.actorId, kit);
+      // Read here rather than from storage alone, for the reason the kit is: a
+      // reward taken since the last flush is on the runtime and nowhere else,
+      // and the world it was taken in is about to be replaced.
+      const tags = this.session?.tagsOf(attachment.actorId);
+      if (tags?.length) taken.set(attachment.actorId, [...tags]);
+    }
+
     this.tiles = tiles;
     this.session = session;
     this.broadcastMap = this.session.getMap();
@@ -1193,24 +1211,43 @@ export class GameServer extends DurableObject<Env> {
     this.queuedSteps.clear();
     this.events = [];
 
-    // Everyone still connected re-enters the new world at its spawn point.
+    // Everyone still connected re-enters the new world at its spawn point,
+    // carrying what they were carrying and everything they have already taken.
     //
-    // With their tags, and *without* the kit they had — which is not an
-    // oversight in one of the two. A kit names things that were in the world
-    // that has just been thrown away, and re-seating it would carry objects
-    // across from a map that no longer exists. A tag names something that
-    // happened to the *player*, and the one thing it exists to guarantee is
-    // that it does not happen twice. Dropping them here would hand everybody
-    // standing in the room every reward in the map again, once per save — and
-    // the editor saves constantly.
+    // **A save re-creates the world, not the people in it.** Items on the floor
+    // coming back is the whole point of authoring them there — the map is the
+    // map, and saving it is how an author puts a sword back. What is in
+    // somebody's bag is not the map: nobody authored it, it is not in the file
+    // that was just written, and there is nothing in a save that says anything
+    // about it. Seating them with the starting kit read the one as the other and
+    // emptied every connected player's pockets, and the flush five seconds later
+    // wrote that emptiness over the only record of what they had.
+    //
+    // Their tags travel for the same reason and with less to argue about: a tag
+    // records something that happened to the *player*, so a new map has nothing
+    // to say about it at all. Dropping them would refill every reward in the
+    // world for everybody standing in it, once per save — and the editor saves
+    // constantly.
+    //
+    // The kit is checked against the new tiles on the way in, on the same terms
+    // {@link lastEquipmentOf} checks a remembered one: the save may have brought
+    // a new catalogue with it, and a sword that has become a prop in it is a kit
+    // this world no longer agrees with. A tag is never checked against anything
+    // — see {@link TAGS_KEY_PREFIX}. Storage is the fallback for the world that
+    // was too broken to have a session at all.
+    const tilesById = tilesByIdFromList(tiles);
     for (const ws of this.ctx.getWebSockets()) {
       const attachment = ws.deserializeAttachment() as Attachment | null;
       if (!attachment) continue;
+      const kit = carried.get(attachment.actorId);
       this.session.spawn(
         attachment.actorId,
         undefined,
-        undefined,
-        await this.lastTagsOf(attachment.actorId),
+        kit
+          ? restoredEquipment(kit, tilesById)
+          : await this.lastEquipmentOf(attachment.actorId),
+        taken.get(attachment.actorId) ??
+          (await this.lastTagsOf(attachment.actorId)),
       );
     }
     for (const ws of this.ctx.getWebSockets()) {
