@@ -6,6 +6,7 @@ import type {
   PressurePlateInteraction,
   PushInteraction,
   ReceiveInteraction,
+  RewardInteraction,
   SignalMode,
   SignalValue,
   SwitchInteraction,
@@ -17,11 +18,13 @@ import {
   DEFAULT_PRESSURE_PLATE,
   DEFAULT_PUSH,
   DEFAULT_RECEIVE,
+  DEFAULT_REWARD,
   DEFAULT_SWITCH,
+  MAX_REWARD_ITEMS,
   hasAnyInteraction,
 } from "../lib/interactions";
 import { DEFAULT_BATTLER } from "../lib/battler";
-import { DEFAULT_WEAPON } from "../lib/item";
+import { DEFAULT_WEAPON, resolveContainer, resolveItem } from "../lib/item";
 import type { TileDef, TileKind, TilesetDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL } from "../lib/types";
 import { Input, Segmented, Switch } from "../ui";
@@ -69,6 +72,16 @@ const KIND_HINTS: Record<TileKind, string> = {
   item: "It can be picked up and carried. What it does in a bag or a hand is on the Item tab.",
 };
 
+/**
+ * What a reward may hand over — the same rule `rewardFits` enforces in play,
+ * asked here so the picker cannot offer a tile that would make the whole reward
+ * untakeable. A container is excluded because nothing nests, so it could only go
+ * on a back that is already occupied by the bag the items need.
+ */
+function isGiveable(tile: TileDef): boolean {
+  return resolveItem(tile) != null && resolveContainer(tile) == null;
+}
+
 type Props = {
   draft: TileDef;
   onChange: (next: TileDef) => void;
@@ -83,6 +96,7 @@ type Props = {
 export function InteractiveTab({ draft, onChange, tiles, tilesets }: Props) {
   const push = draft.interactions?.push;
   const sw = draft.interactions?.switch;
+  const reward = draft.interactions?.reward;
   const decay = draft.interactions?.decay;
   const plate = draft.interactions?.pressurePlate;
   const emit = draft.interactions?.emit;
@@ -145,6 +159,15 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets }: Props) {
   const patchSwitch = (patch: Partial<SwitchInteraction>) => {
     if (!sw) return;
     setSwitch({ ...sw, ...patch });
+  };
+
+  const setReward = (next: RewardInteraction | undefined) => {
+    patchKind("reward", next ?? null);
+  };
+
+  const patchReward = (patch: Partial<RewardInteraction>) => {
+    if (!reward) return;
+    setReward({ ...reward, ...patch });
   };
 
   const setDecay = (next: DecayInteraction | undefined) => {
@@ -320,6 +343,52 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets }: Props) {
                 shut door and “Close” on an open one. Shown wherever the action
                 is offered by name rather than by pointing at it. Leave it blank
                 and it reads as “Switch”.
+              </span>
+            </label>
+          </div>
+        ) : null}
+      </section>
+
+      <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
+        <label className="flex items-center gap-2 text-sm font-bold">
+          <Switch
+            checked={Boolean(reward)}
+            onCheckedChange={(on) =>
+              setReward(on ? { ...DEFAULT_REWARD } : undefined)
+            }
+            ariaLabel="Gives a reward"
+          />
+          Reward
+        </label>
+        <p className="text-[11px] leading-snug text-muted">
+          Hands the player items, <strong>once each</strong>. A quest chest, or
+          a person who gives you something. The tile itself never changes — it
+          is still there, still full, for everybody else — so what stops a
+          second helping is a tag written on the player. Offered in purple, and
+          refused outright when the bag has no room for all of it.
+        </p>
+        <p className="text-[11px] leading-snug text-muted">
+          <strong>What it gives is set per placement</strong>, not here — the
+          same way a signal channel is. One chest tile can be every chest in the
+          world, each with its own loot and its own tag. Select a placement in
+          the map editor and open its settings.
+        </p>
+
+        {reward ? (
+          <div className="flex flex-col gap-3 border-t-2 border-border pt-3">
+            <label className="flex flex-col gap-1 text-xs font-bold">
+              Action name
+              <Input
+                value={reward.actionName ?? ""}
+                onChange={(e) => patchReward({ actionName: e.target.value })}
+                placeholder="Take"
+              />
+              <span className="text-[11px] font-normal leading-snug text-muted">
+                What the player is doing, as they would say it — “Open” on a
+                chest, “Receive” from a person. The one part that belongs to the
+                tile rather than to the spot: every chest cut from this tile is
+                opened, whatever is inside them. Leave it blank and it reads as
+                “Take”.
               </span>
             </label>
           </div>

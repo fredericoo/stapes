@@ -12634,6 +12634,14 @@
       "-1,-4": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "quest-chest",
+          "rewardTag": "left-or-right",
+          "rewardTileIds": [
+            "rusty-sword"
+          ],
+          "description": "Has a big number 1 carved on it."
         }
       ],
       "-1,-3": [
@@ -12965,6 +12973,15 @@
       "0,-4": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "quest-chest",
+          "rewardTag": "the-hoard",
+          "rewardTileIds": [
+            "rusty-sword",
+            "hand-lantern"
+          ],
+          "description": "Heavier than the others. Something rattles inside."
         }
       ],
       "0,-3": [
@@ -13284,6 +13301,14 @@
       "1,-4": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "quest-chest",
+          "rewardTag": "left-or-right",
+          "rewardTileIds": [
+            "hand-lantern"
+          ],
+          "description": "Has a big number 2 carved on it."
         }
       ],
       "1,-3": [

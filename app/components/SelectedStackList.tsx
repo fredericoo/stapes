@@ -4,7 +4,12 @@ import { DragDropProvider } from "@dnd-kit/react";
 import { isSortable, useSortable } from "@dnd-kit/react/sortable";
 import type { Direction, PlacedTile, TileDef, TilesetDef } from "../lib/types";
 import { getStack, listChannels } from "../lib/mapData";
-import { resolveEmit, resolveReceive } from "../lib/interactions";
+import {
+  resolveEmit,
+  resolveReceive,
+  resolveRewardDef,
+} from "../lib/interactions";
+import { resolveContainer, resolveItem } from "../lib/item";
 import { useEditorStore } from "../editor/store";
 import { Button, Segmented, Tooltip } from "../ui";
 import { PlacementSettingsDialog } from "./PlacementSettingsDialog";
@@ -65,6 +70,25 @@ function isWired(def: TileDef): boolean {
   return resolveEmit(def) != null || resolveReceive(def) != null;
 }
 
+/**
+ * Does this tile hand things over? Only a giver gets the reward fields, on the
+ * same grounds only a wired tile gets a channel: a tag on a rock is a control
+ * that can never do anything.
+ */
+function isGiver(def: TileDef): boolean {
+  return resolveRewardDef(def) != null;
+}
+
+/**
+ * What a reward may hand over — the same rule `rewardFits` enforces in play,
+ * asked here so the picker cannot offer a tile that would make the whole reward
+ * untakeable. A container is excluded because nothing nests, so it could only go
+ * on a back the reward's own items need occupied.
+ */
+function isGiveable(def: TileDef): boolean {
+  return resolveItem(def) != null && resolveContainer(def) == null;
+}
+
 /** Display is top-first; store reorder uses bottom-first stack indices. */
 function displayIndexToStackIndex(displayIndex: number, length: number): number {
   return length - 1 - displayIndex;
@@ -77,6 +101,7 @@ function SortableStackItem({
   stackIndex,
   placed,
   def,
+  giveable,
   tilesets,
   listRef,
 }: {
@@ -86,6 +111,7 @@ function SortableStackItem({
   stackIndex: number;
   placed: PlacedTile;
   def: TileDef;
+  giveable: TileDef[];
   tilesets: TilesetDef[];
   listRef: RefObject<HTMLUListElement | null>;
 }) {
@@ -150,13 +176,24 @@ function SortableStackItem({
         {/* What the placement carries, rather than the fields themselves: the
             row says a wire and a description are set, and the dialog is where
             they are read and changed. */}
-        {placed.channel || placed.description ? (
+        {placed.channel || placed.rewardTag || placed.description ? (
           <div className="mt-1 flex items-center gap-2 text-[10px] text-muted">
             {/* The channel keeps its width and the description gives way: a
                 wire name truncated to "⌁…" tells you nothing, while a clipped
                 first few words of prose still says which sign this is. */}
             {placed.channel ? (
               <span className="shrink-0">⌁ {placed.channel}</span>
+            ) : null}
+            {/* Kept at full width beside the wire and for the same reason: a
+                truncated tag names nothing, and which reward this is is the
+                whole question when two chests sit side by side. */}
+            {placed.rewardTag ? (
+              <span className="shrink-0">
+                ⛁ {placed.rewardTag}
+                {placed.rewardTileIds?.length
+                  ? ` ×${placed.rewardTileIds.length}`
+                  : ""}
+              </span>
             ) : null}
             {placed.description ? (
               <span className="min-w-0 truncate" title={placed.description}>
@@ -199,6 +236,9 @@ function SortableStackItem({
           def={def}
           stackIndex={stackIndex}
           wired={isWired(def)}
+          gives={isGiver(def)}
+          giveable={giveable}
+          tilesets={tilesets}
           channelListId={CHANNEL_LIST_ID}
           onClose={() => setSettingsOpen(false)}
         />
@@ -213,6 +253,13 @@ export function SelectedStackList({ stack, tilesById, tilesets }: Props) {
   const stackLengthAtRender = stack.length;
   const map = useEditorStore((s) => s.map);
   const channels = useMemo(() => listChannels(map), [map]);
+  // Once for the whole panel rather than per row: every giver in a stack offers
+  // the same catalogue, and filtering it per row would walk the tile list once
+  // per placement on every render.
+  const giveable = useMemo(
+    () => Object.values(tilesById).filter(isGiveable),
+    [tilesById],
+  );
 
   return (
     <DragDropProvider
@@ -259,6 +306,7 @@ export function SelectedStackList({ stack, tilesById, tilesets }: Props) {
               stackIndex={row.stackIndex}
               placed={row.placed}
               def={def}
+              giveable={giveable}
               tilesets={tilesets}
               listRef={listRef}
             />

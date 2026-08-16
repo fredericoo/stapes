@@ -51,6 +51,16 @@
      It is one of four, and the four are the whole vocabulary: yellow acts on
      something, red fights it, white singles it out, blue looks at it. */
   --color-interact: #ffcc00;
+  /* Taking something you can only ever take once. The same purple the outline
+     in the world wears over a reward — see `REWARD_COLOR` in
+     `render/GameRenderer.ts`, which must be this value.
+
+     A fifth colour, and it earns its place by naming a different *kind* of
+     thing rather than another way of acting. Yellow, red, white and blue all
+     say what you would be doing; this one says the offer is finite. A chest you
+     can open for ever and a chest you can open once are the same tap and the
+     same verb, and the only honest place to put the difference is the colour. */
+  --color-reward: #b15cff;
   /* Looking. The same blue as the outline in the world and the label above it,
      so the button, the silhouette and the text are visibly one mode. */
   --color-look: #3fa9ff;

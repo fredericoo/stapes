@@ -4772,5 +4772,40 @@
         "spd": 45
       }
     }
+  },
+  {
+    "id": "quest-chest",
+    "name": "Quest Chest",
+    "height": 1,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "reward": {
+        "actionName": "Open"
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 18,
+              "y": 12,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
   }
 ]

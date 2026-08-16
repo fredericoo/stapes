@@ -193,6 +193,7 @@ describe("a kit that will not parse", () => {
       hps: [],
       carriedLights: [],
       equipment,
+      tags: [],
     });
   }
 

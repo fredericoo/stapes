@@ -15,6 +15,7 @@ import {
   serializeMap,
   updatePlacedChannel,
   updatePlacedDescription,
+  updatePlacedReward,
   updatePlacedDirection,
 } from "../lib/mapData";
 import { canPlace, canReplaceStack, tilesByIdFromList } from "../lib/validation";
@@ -144,6 +145,11 @@ export type EditorStore = {
   setStackDirection: (stackIndex: number, direction: Direction) => void;
   setStackChannel: (stackIndex: number, channel: string) => void;
   setStackDescription: (stackIndex: number, description: string) => void;
+  setStackReward: (
+    stackIndex: number,
+    tag: string,
+    tileIds: readonly string[],
+  ) => void;
 };
 
 export const useEditorStore = create<EditorStore>((set, get) => ({
@@ -509,6 +515,22 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         currentLevel,
         stackIndex,
         description,
+      ),
+    );
+  },
+
+  setStackReward: (stackIndex, tag, tileIds) => {
+    const { map, selected, currentLevel } = get();
+    if (!selected) return;
+    get().commitMap(
+      updatePlacedReward(
+        map,
+        selected.x,
+        selected.y,
+        currentLevel,
+        stackIndex,
+        tag,
+        tileIds,
       ),
     );
   },
