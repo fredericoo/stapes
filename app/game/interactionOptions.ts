@@ -1,6 +1,6 @@
 import { getStack } from "../lib/mapData";
 import type { InteractionKind } from "../lib/interactions";
-import { resolveReward, resolveSwitch } from "../lib/interactions";
+import { resolveRewardDef, resolveSwitch } from "../lib/interactions";
 import type { MapFile, PlacedTile, TileDef } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 import {
@@ -504,7 +504,10 @@ function objectActionLabel(
     return resolveSwitch(def)?.actionName?.trim() || LABELS.switch;
   }
   if (action === "reward") {
-    return resolveReward(def)?.actionName?.trim() || LABELS.reward;
+    // The def's half, because the verb is the only part of a reward that lives
+    // on the tile — what this particular chest gives is on its placement, and
+    // the row does not name it.
+    return resolveRewardDef(def)?.actionName?.trim() || LABELS.reward;
   }
   return LABELS[action];
 }

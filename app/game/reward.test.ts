@@ -1,7 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { interactionsForSave, resolveReward } from "../lib/interactions";
+import {
+  interactionsForSave,
+  resolveReward,
+  resolveRewardDef,
+} from "../lib/interactions";
 import { DEFAULT_CONTAINER, DEFAULT_WEAPON } from "../lib/item";
-import { emptyMap, getStack, replaceStack } from "../lib/mapData";
+import {
+  emptyMap,
+  getStack,
+  parseMap,
+  replaceStack,
+  serializeMap,
+  updatePlacedReward,
+} from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
@@ -43,30 +54,13 @@ const tiles = [
     kind: "item",
     interactions: { item: { ...DEFAULT_CONTAINER, size: 4 } },
   }),
+  // One giver tile, used by every chest in these tests — which is the point of
+  // the split: what each chest gives is on its placement.
   tile({
     id: "quest-chest",
-    interactions: {
-      reward: {
-        tag: REWARD_TAG,
-        actionName: "Open",
-        itemTileIds: ["torch", "sword"],
-      },
-    },
+    interactions: { reward: { actionName: "Open" } },
   }),
-  // The other half of a choice: a different tile, the same tag. Taking one is
-  // what closes the other, and nothing but the shared tag says so.
-  tile({
-    id: "other-chest",
-    interactions: {
-      reward: { tag: REWARD_TAG, actionName: "Open", itemTileIds: ["sword"] },
-    },
-  }),
-  tile({
-    id: "bag-giver",
-    interactions: {
-      reward: { tag: "free-bag", itemTileIds: [STARTING_BAG_TILE_ID] },
-    },
-  }),
+  tile({ id: "plain-chest", interactions: { reward: {} } }),
 ];
 const tilesById = tilesByIdFromList(tiles);
 
@@ -74,8 +68,18 @@ const ME = { x: 0, y: 0, z: 0 };
 const CHEST: ObjectRef = { x: 1, y: 0, z: 0, stackIndex: 1 };
 const OTHER: ObjectRef = { x: 1, y: 1, z: 0, stackIndex: 1 };
 
-/** Somewhere to stand, with a chest beside it and its twin diagonally on. */
-function board(chestTileId = "quest-chest"): MapFile {
+/**
+ * Somewhere to stand, with a chest beside it and its twin diagonally on.
+ *
+ * Both are the *same tile*, and they differ only in what is written on the
+ * placement — which is the arrangement this whole split exists to make possible.
+ * They share a tag, so they are a choice.
+ */
+function board(
+  chestTileId = "quest-chest",
+  chestTag: string | undefined = REWARD_TAG,
+  chestItems: string[] | undefined = ["torch", "sword"],
+): MapFile {
   let map = emptyMap();
   for (const [x, y] of [
     [0, 0],
@@ -91,13 +95,23 @@ function board(chestTileId = "quest-chest"): MapFile {
   ]);
   map = replaceStack(map, 1, 0, 0, [
     { tileId: "grass" },
-    { tileId: chestTileId },
+    {
+      tileId: chestTileId,
+      ...(chestTag ? { rewardTag: chestTag } : {}),
+      ...(chestItems ? { rewardTileIds: chestItems } : {}),
+    },
   ]);
   map = replaceStack(map, 1, 1, 0, [
     { tileId: "grass" },
-    { tileId: "other-chest" },
+    { tileId: "quest-chest", rewardTag: REWARD_TAG, rewardTileIds: ["sword"] },
   ]);
   return map;
+}
+
+/** The reward one cell of a board actually offers, for the resolver tests. */
+function rewardAt(map: MapFile, x: number, y: number) {
+  const placed = getStack(map, x, y, 0)[1]!;
+  return resolveReward(placed, tilesById[placed.tileId]);
 }
 
 function bagWith(count: number): Equipment {
@@ -114,47 +128,71 @@ function bagWith(count: number): Equipment {
   };
 }
 
-describe("a reward tile", () => {
-  it("is not one without a tag, however many items it lists", () => {
-    const untagged = tile({
-      id: "broken",
-      interactions: { reward: { tag: "", itemTileIds: ["sword"] } },
-    });
+describe("resolving a reward", () => {
+  it("is nothing on a tile that is not a giver, however the placement is written", () => {
+    const map = replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "grass", rewardTag: "t", rewardTileIds: ["sword"] },
+    ]);
+    const placed = getStack(map, 0, 0, 0)[0]!;
 
-    expect(resolveReward(untagged)).toBeNull();
+    expect(resolveReward(placed, tilesById.grass)).toBeNull();
   });
 
-  it("is not one with nothing to give", () => {
-    const empty = tile({
-      id: "empty",
-      interactions: { reward: { tag: "t", itemTileIds: [] } },
-    });
+  it("is nothing on a giver whose placement says nothing", () => {
+    const map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "quest-chest" }]);
+    const placed = getStack(map, 0, 0, 0)[0]!;
 
-    expect(resolveReward(empty)).toBeNull();
+    expect(resolveReward(placed, tilesById["quest-chest"])).toBeNull();
   });
 
-  it("keeps the authored order of its items when saved", () => {
-    const saved = interactionsForSave({
-      reward: { tag: " t ", actionName: " Receive ", itemTileIds: ["torch", "sword"] },
-    });
+  it("is nothing without a tag, however many items the placement lists", () => {
+    expect(rewardAt(board("quest-chest", ""), 1, 0)).toBeNull();
+  });
 
-    expect(saved?.reward).toEqual({
-      tag: "t",
-      actionName: "Receive",
+  it("is nothing with nothing to give", () => {
+    expect(rewardAt(board("quest-chest", REWARD_TAG, []), 1, 0)).toBeNull();
+  });
+
+  it("joins the tile's verb to the placement's contents", () => {
+    expect(rewardAt(board(), 1, 0)).toEqual({
+      actionName: "Open",
+      tag: REWARD_TAG,
       itemTileIds: ["torch", "sword"],
     });
   });
 
-  it("is dropped from the file when half-authored", () => {
+  it("keeps the authored order of the items", () => {
+    // Not sorted, unlike `moveOnTileIds`: which thing lands in the bag first is
+    // the author's to decide.
     expect(
-      interactionsForSave({ reward: { tag: "t", itemTileIds: [] } }),
-    ).toBeUndefined();
+      rewardAt(board("quest-chest", REWARD_TAG, ["sword", "torch"]), 1, 0)
+        ?.itemTileIds,
+    ).toEqual(["sword", "torch"]);
+  });
+
+  it("carries no verb from a tile that authored none", () => {
+    expect(rewardAt(board("plain-chest"), 1, 0)?.actionName).toBeUndefined();
+  });
+});
+
+describe("a reward tile def", () => {
+  it("is a giver on an empty block, because the block's presence is the claim", () => {
+    expect(resolveRewardDef(tilesById["plain-chest"]!)).toEqual({});
+  });
+
+  it("keeps an empty block through a save, rather than un-authoring the tile", () => {
+    expect(interactionsForSave({ reward: {} })?.reward).toEqual({});
+  });
+
+  it("keeps the verb, trimmed", () => {
+    expect(interactionsForSave({ reward: { actionName: " Receive " } })?.reward)
+      .toEqual({ actionName: "Receive" });
   });
 });
 
 describe("whether a reward fits", () => {
   it("needs room for every item at once, not merely for one", () => {
-    const reward = resolveReward(tilesById["quest-chest"]!)!;
+    const reward = rewardAt(board(), 1, 0)!;
 
     expect(rewardFits(reward, tilesById, bagWith(2))).toBe(true);
     // One slot free and two things to put in it. Half a reward is half of it
@@ -163,19 +201,23 @@ describe("whether a reward fits", () => {
   });
 
   it("is refused outright with no bag to put it in", () => {
-    const reward = resolveReward(tilesById["quest-chest"]!)!;
+    const reward = rewardAt(board(), 1, 0)!;
 
     expect(rewardFits(reward, tilesById, emptyEquipment())).toBe(false);
   });
 
   it("is refused when it would hand over a container", () => {
-    const reward = resolveReward(tilesById["bag-giver"]!)!;
+    const reward = rewardAt(
+      board("quest-chest", "free-bag", [STARTING_BAG_TILE_ID]),
+      1,
+      0,
+    )!;
 
     expect(rewardFits(reward, tilesById, bagWith(0))).toBe(false);
   });
 
   it("is refused when an item tile has been renamed out of the world", () => {
-    const reward = resolveReward(tilesById["quest-chest"]!)!;
+    const reward = rewardAt(board(), 1, 0)!;
     const withoutSword = tilesByIdFromList(
       tiles.filter((t) => t.id !== "sword"),
     );
@@ -312,5 +354,53 @@ describe("a reward the actor cannot reach", () => {
     expect(canRewardFrom(map, tilesById, ME, CHEST, bagWith(0), [])).toBe(
       false,
     );
+  });
+});
+
+/**
+ * The authoring mutation, which the placement settings dialog commits on close —
+ * so it runs whether or not anything was typed, and has to behave when nothing
+ * was.
+ */
+describe("writing a reward onto a placement", () => {
+  const at = (map: MapFile) => getStack(map, 1, 0, 0)[1]!;
+
+  it("writes the pair together", () => {
+    const next = updatePlacedReward(board("quest-chest", ""), 1, 0, 0, 1, "t", [
+      "sword",
+    ]);
+
+    expect(at(next).rewardTag).toBe("t");
+    expect(at(next).rewardTileIds).toEqual(["sword"]);
+  });
+
+  it("returns the same map when nothing changed", () => {
+    const before = board();
+    // The dialog commits on every close, so an author who opened it and pressed
+    // Done must not mint a map identity, an undo entry and a geometry diff.
+    expect(
+      updatePlacedReward(before, 1, 0, 0, 1, REWARD_TAG, ["torch", "sword"]),
+    ).toBe(before);
+  });
+
+  it("clears both halves when either is emptied", () => {
+    // Half of one is inert — a tagless reward could be taken for ever, an empty
+    // one offers a verb that does nothing — so a placement must never be left
+    // looking authored and doing nothing.
+    const cleared = updatePlacedReward(board(), 1, 0, 0, 1, "", ["sword"]);
+
+    expect(at(cleared).rewardTag).toBeUndefined();
+    expect(at(cleared).rewardTileIds).toBeUndefined();
+  });
+
+  it("survives a trip through the file", () => {
+    const parsed = parseMap(serializeMap(board()));
+    const placed = getStack(parsed, 1, 0, 0)[1]!;
+
+    expect(resolveReward(placed, tilesById[placed.tileId])).toEqual({
+      actionName: "Open",
+      tag: REWARD_TAG,
+      itemTileIds: ["torch", "sword"],
+    });
   });
 });

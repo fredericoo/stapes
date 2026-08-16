@@ -1,8 +1,10 @@
 import { useState } from "react";
-import type { PlacedTile, TileDef } from "../lib/types";
+import type { PlacedTile, TileDef, TilesetDef } from "../lib/types";
 import { MAX_DESCRIPTION_LENGTH } from "../lib/types";
+import { MAX_REWARD_ITEMS } from "../lib/interactions";
 import { useEditorStore } from "../editor/store";
 import { Button, Dialog, Input, Textarea } from "../ui";
+import { TileIdMultiSelect } from "./TileIdMultiSelect";
 
 /**
  * Everything that belongs to one *placement* rather than to its tile.
@@ -23,6 +25,9 @@ export function PlacementSettingsDialog({
   def,
   stackIndex,
   wired,
+  gives,
+  giveable,
+  tilesets,
   channelListId,
   onClose,
 }: {
@@ -31,6 +36,11 @@ export function PlacementSettingsDialog({
   stackIndex: number;
   /** Only wired tiles get a channel; see `isWired` in ./SelectedStackList. */
   wired: boolean;
+  /** Only giver tiles get a reward; see `isGiver` in ./SelectedStackList. */
+  gives: boolean;
+  /** What a reward may hand over — plain items, never a container. */
+  giveable: TileDef[];
+  tilesets: TilesetDef[];
   channelListId: string;
   onClose: () => void;
 }) {
@@ -39,10 +49,15 @@ export function PlacementSettingsDialog({
   // re-sync after an undo or a different cell being selected into the row.
   const [channel, setChannel] = useState(placed.channel ?? "");
   const [description, setDescription] = useState(placed.description ?? "");
+  const [rewardTag, setRewardTag] = useState(placed.rewardTag ?? "");
+  const [rewardTileIds, setRewardTileIds] = useState<string[]>(
+    placed.rewardTileIds ?? [],
+  );
 
   const commitAndClose = () => {
     const store = useEditorStore.getState();
     if (wired) store.setStackChannel(stackIndex, channel);
+    if (gives) store.setStackReward(stackIndex, rewardTag, rewardTileIds);
     store.setStackDescription(stackIndex, description);
     onClose();
   };
@@ -98,6 +113,41 @@ export function PlacementSettingsDialog({
               is the whole of the wiring.
             </span>
           </label>
+        ) : null}
+
+        {gives ? (
+          <div className="flex flex-col gap-3 border-t-2 border-border pt-4">
+            <label className="flex flex-col gap-1 text-xs">
+              <span className="font-bold uppercase text-muted">Reward tag</span>
+              <Input
+                placeholder="chest-42"
+                value={rewardTag}
+                onChange={(e) => setRewardTag(e.target.value)}
+              />
+              <span className="text-[11px] leading-snug text-muted">
+                Written on the player when they take it, and what hides it from
+                them afterwards. Give two placements the <em>same</em> tag to
+                make them a choice: take the left chest and the right one
+                closes. Sharing a tag is the whole of the binding, exactly as it
+                is for a channel.
+              </span>
+            </label>
+
+            <TileIdMultiSelect
+              tiles={giveable}
+              tilesets={tilesets}
+              selectedIds={rewardTileIds}
+              onChange={(ids) => setRewardTileIds(ids.slice(0, MAX_REWARD_ITEMS))}
+              label="Items given"
+              emptyHint="Pick what this one hands over. A tag with nothing to give is not offered at all."
+            />
+            <span className="text-[11px] leading-snug text-muted">
+              Items only, never a container: a bag cannot go inside a bag, so
+              there would be nowhere to put it. At most {MAX_REWARD_ITEMS},
+              which is the biggest bag there is — the player needs room for the
+              lot at once or they are refused.
+            </span>
+          </div>
         ) : null}
       </div>
     </Dialog>

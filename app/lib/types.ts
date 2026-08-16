@@ -303,6 +303,31 @@ export type PlacedTile = {
    */
   description?: string;
   /**
+   * What taking this placement's reward marks the player with, and what stops
+   * them taking it twice. See `../lib/interactions`'s `RewardInteraction`.
+   *
+   * A placement field on exactly the terms {@link channel} is, and for the same
+   * argument: the tile says *what kind of thing this is* — a chest you open, a
+   * person you receive from — and the slot says which particular one. One
+   * `quest-chest` tile therefore furnishes a whole map, where a tag on the def
+   * would make every chest in the world one reward between them.
+   *
+   * Sharing a tag between two placements is the whole of making them a choice,
+   * exactly as sharing a channel is the whole of wiring two tiles together.
+   * There is no quest registry and nothing to keep alive.
+   */
+  rewardTag?: string;
+  /**
+   * The tiles this placement hands over, one item each.
+   *
+   * Beside {@link rewardTag} because they are one authored fact — this chest
+   * gives *these* things and marks you *this* way — and neither is any use
+   * without the other. Tile ids rather than instances: an instance is minted at
+   * the moment of giving, so two players who open one chest come away with two
+   * distinct swords rather than one sword that exists twice.
+   */
+  rewardTileIds?: string[];
+  /**
    * Which actor drives this placement, for the handful of tiles that are
    * somebody's avatar rather than scenery.
    *

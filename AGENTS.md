@@ -389,13 +389,19 @@ in `app/lib/interactions.ts` edits the map, which is exactly what it cannot do
 here: the chest has to still be there, still full, for the next person who walks
 in. So **nothing on the board changes at all**. What changes is the taker.
 
-- **The tag is the whole mechanism, and it is one field.** Taking a reward
-  writes `RewardInteraction.tag` onto the actor, and holding that tag is what
-  hides it. One field rather than a granted/blocking pair, so a reward cannot be
-  authored repeatable by accident — and so that two tiles *sharing* a tag are a
-  choice: open the left chest and the right one closes. It is on the tile rather
-  than the placement, so two copies of one chest tile are one reward between
-  them.
+- **The tile is the kind of thing; the placement is which one.** The def block
+  carries only `actionName` — the gesture, which is a property of what the thing
+  is — and `PlacedTile.rewardTag` / `PlacedTile.rewardTileIds` carry what this
+  particular chest gives and marks you with. The same split `EmitInteraction`
+  makes with `channel`, and for the same reason: one `quest-chest` tile furnishes
+  a whole map. `resolveReward(placed, def)` is the only join, so nothing
+  downstream ever holds half of one.
+- **The tag is the whole mechanism, and it is one field.** Taking a reward writes
+  the tag onto the actor, and holding it is what hides it. One field rather than
+  a granted/blocking pair, so a reward cannot be authored repeatable by accident
+  — and so that two placements *sharing* a tag are a choice: open the left chest
+  and the right one closes. Sharing a tag is the whole of the binding, exactly as
+  sharing a channel is the whole of the wiring.
 - **`ActorRuntime.tags` sits beside `equipment`, and is written with it.** The
   items go in the bag and the tag goes on the actor in the same call, because a
   reward whose items landed without its tag is an item with no ceiling on how
@@ -404,13 +410,12 @@ in. So **nothing on the board changes at all**. What changes is the taker.
 - **A tag is never checked against the world, unlike a kit.**
   `restoredEquipment` exists to drop a sword the catalogue no longer agrees with;
   a tag records that something *happened*, which stays true however the authored
-  content moves. Checking one would refill a chest whose reward tile got renamed.
+  content moves. Checking one would refill a chest whose loot got renamed.
 - **`replaceWorld` re-seats everybody with their tags**, beside the kit it now
   carries across for its own reasons. A save re-creates the world, not the people
-  in it, and a tag has even less to do with the map than a kit does: it records
-  something that happened to the *player*. The editor saves constantly, and
-  dropping them would refill every reward in the world for everybody standing in
-  it, once per save.
+  in it, and a tag has even less to do with the map than a kit does. The editor
+  saves constantly, and dropping them would refill every reward in the world for
+  everybody standing in it, once per save.
 - **All or nothing on space.** `rewardFits` needs room for every item at once,
   because a reward is taken once and half of one is half of it lost. Containers
   are refused outright — nothing nests, so a bag could only go on a back the
@@ -422,11 +427,12 @@ in. So **nothing on the board changes at all**. What changes is the taker.
   wears it unlit, unlike every other row, because "only once" is a property of
   the offer rather than a state you are in.
 
-Reward is first in `interactionKinds`, ahead of even a switch, because it is the
-only one that can happen to a given player once — a chest authored to both give
-its contents and swing open would otherwise spend its one chance on the hinge.
-It falls through cleanly: a reward already taken is not on offer, so the second
-tap is the switch without anything having to know it is the second.
+`interactionKinds` asks `resolveRewardDef` — the def's half — because it is a
+question about tiles, and whether a given *slot* gives anything is what the
+affordances ask. Reward is first in that order, ahead of even a switch, because
+it is the only one that can happen to a given player once: a chest authored to
+both give its contents and swing open would otherwise spend its one chance on the
+hinge. It falls through cleanly, since a reward already taken is not on offer.
 
 ## Decay is a switch whose input is time
 

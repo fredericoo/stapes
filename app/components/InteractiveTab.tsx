@@ -364,26 +364,18 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets }: Props) {
           Hands the player items, <strong>once each</strong>. A quest chest, or
           a person who gives you something. The tile itself never changes — it
           is still there, still full, for everybody else — so what stops a
-          second helping is the tag below. Offered in purple, and refused
-          outright when the bag has no room for all of it.
+          second helping is a tag written on the player. Offered in purple, and
+          refused outright when the bag has no room for all of it.
+        </p>
+        <p className="text-[11px] leading-snug text-muted">
+          <strong>What it gives is set per placement</strong>, not here — the
+          same way a signal channel is. One chest tile can be every chest in the
+          world, each with its own loot and its own tag. Select a placement in
+          the map editor and open its settings.
         </p>
 
         {reward ? (
           <div className="flex flex-col gap-3 border-t-2 border-border pt-3">
-            <label className="flex flex-col gap-1 text-xs font-bold">
-              Tag
-              <Input
-                value={reward.tag}
-                onChange={(e) => patchReward({ tag: e.target.value })}
-                placeholder="chest-42"
-              />
-              <span className="text-[11px] font-normal leading-snug text-muted">
-                Written on the player when they take it, and what hides it from
-                them afterwards. Give two tiles the <em>same</em> tag to make
-                them a choice: take the left chest and the right one closes.
-              </span>
-            </label>
-
             <label className="flex flex-col gap-1 text-xs font-bold">
               Action name
               <Input
@@ -393,27 +385,12 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets }: Props) {
               />
               <span className="text-[11px] font-normal leading-snug text-muted">
                 What the player is doing, as they would say it — “Open” on a
-                chest, “Receive” from a person. Leave it blank and it reads as
+                chest, “Receive” from a person. The one part that belongs to the
+                tile rather than to the spot: every chest cut from this tile is
+                opened, whatever is inside them. Leave it blank and it reads as
                 “Take”.
               </span>
             </label>
-
-            <TileIdMultiSelect
-              tiles={tiles.filter(isGiveable)}
-              tilesets={tilesets}
-              selectedIds={reward.itemTileIds}
-              onChange={(itemTileIds) =>
-                patchReward({ itemTileIds: itemTileIds.slice(0, MAX_REWARD_ITEMS) })
-              }
-              label="Items given"
-              emptyHint="Pick what this hands over. Nothing here means nothing happens — a reward with no items is not offered at all."
-            />
-            <span className="text-[11px] leading-snug text-muted">
-              Items only, and never a container: a bag cannot go inside a bag,
-              so there would be nowhere to put it. At most {MAX_REWARD_ITEMS},
-              which is the biggest bag there is — the player needs room for the
-              lot at once or they are refused.
-            </span>
           </div>
         ) : null}
       </section>

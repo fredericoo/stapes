@@ -3,7 +3,7 @@ import type { BattlerDef } from "./battler";
 import type { BrainDef } from "./brain";
 import type { ItemDef } from "./item";
 import { itemForSave, MAX_CONTAINER_SIZE, resolveItem } from "./item";
-import type { TileDef } from "./types";
+import type { PlacedTile, TileDef } from "./types";
 import { HEIGHT_PER_LEVEL, resolveActor } from "./types";
 
 /**
@@ -201,11 +201,15 @@ export type ReceiveInteraction = {
 };
 
 /**
- * Hand the player a set of items, once ever, and mark them so it cannot happen
- * again.
+ * This tile hands things over — a chest you open, a person you receive from.
  *
- * A quest chest, an NPC with a starter kit, a shrine that gives you a torch —
- * all one mechanism, and what separates them is only {@link actionName}.
+ * **The block is a marker, and almost everything about the reward is on the
+ * placement** ({@link PlacedTile.rewardTag} and
+ * {@link PlacedTile.rewardTileIds}). Exactly the split {@link EmitInteraction}
+ * makes: the tile is the kind of thing, the slot is which particular one. One
+ * `quest-chest` tile can furnish a whole map, and the three chests in a dungeon
+ * differ by what is written on their placements rather than by being three tile
+ * defs that happen to look alike.
  *
  * **The tile never changes, and that is the whole design.** Every other authored
  * swap in this file — switch, plate, receive — edits the board, which is what
@@ -215,45 +219,46 @@ export type ReceiveInteraction = {
  * hit points and equipment are per-actor state that no cell patch carries, and
  * a chest somebody has emptied looks untouched to the room.
  *
- * **One tag, granted and gating.** Taking it writes {@link tag} onto the player,
- * and holding {@link tag} is what stops them taking it — one field rather than a
- * pair, so a reward cannot be authored repeatable by accident. Two placements
- * sharing a tag are therefore a *choice*: give the left chest and the right
- * chest both `chest-42` and opening either closes the other.
- *
- * Which also means the tag is authored on the **tile**, not the placement, so
- * two copies of one chest tile across a map are one reward between them. Author
- * a tile per choice, which is what the tag naming is for.
+ * **One tag, granted and gating.** Taking it writes the placement's tag onto the
+ * player, and holding that tag is what stops them taking it — one field rather
+ * than a granted/blocking pair, so a reward cannot be authored repeatable by
+ * accident. Two placements sharing a tag are therefore a *choice*: give the left
+ * chest and the right chest both `chest-42` and opening either closes the other.
  */
 export type RewardInteraction = {
   /**
    * What taking it is called — "Open" on a chest, "Receive" from a person.
    *
-   * Authored for the same reason {@link SwitchInteraction.actionName} is: the
-   * verb belongs to the fiction rather than to the mechanism, and nothing
-   * derivable from a tile that hands over a sword says whether you are prising
-   * it out of a box or being given it. Optional, and blank reads as "Take".
+   * The one field that genuinely belongs to the tile rather than to the slot: it
+   * describes the *gesture*, which is a property of what the thing is. Every
+   * chest cut from one tile is opened; what is inside them differs.
+   *
+   * Authored for the same reason {@link SwitchInteraction.actionName} is —
+   * nothing derivable from a tile that hands over a sword says whether you are
+   * prising it out of a box or being given it. Optional, and blank reads as
+   * "Take".
    */
   actionName?: string;
-  /**
-   * What the taker is marked with, and what stops them taking it again.
-   *
-   * Free text, because the author is the only one who knows which rewards
-   * belong to the same decision. `chest-42`, `chose-left`, `met-the-smith`.
-   */
+};
+
+/**
+ * A reward as it is actually offered: the tile's half and the slot's half, read
+ * together.
+ *
+ * Nothing consumes the two separately, because neither is a reward on its own —
+ * a chest tile with nothing written on this placement gives nothing, and a tag
+ * on a placement of a tile that is not a giver is a note nobody reads. So the
+ * halves are joined once, in {@link resolveReward}, and everything downstream
+ * takes this.
+ */
+export type PlacedReward = {
+  actionName?: string;
   tag: string;
-  /**
-   * The tiles handed over, one item each.
-   *
-   * Tile ids rather than instances: an instance is minted at the moment of
-   * giving, so two players who open the same chest come away with two distinct
-   * swords rather than one sword that exists twice.
-   */
   itemTileIds: string[];
 };
 
 /**
- * Most items one reward may hand over.
+ * Most items one placement may hand over.
  *
  * The largest bag there is, because the taker needs room for *all* of them at
  * once — see `rewardFits`. A reward authored bigger than any container in the
@@ -309,8 +314,6 @@ export const DEFAULT_SWITCH: SwitchInteraction = {
 
 export const DEFAULT_REWARD: RewardInteraction = {
   actionName: "",
-  tag: "",
-  itemTileIds: [],
 };
 
 /**
@@ -409,31 +412,19 @@ export function resolveSwitch(def: TileDef): SwitchInteraction | null {
 
 const rewardSchema = v.object({
   actionName: v.optional(v.string()),
-  // Both required, and both are what makes it a reward rather than a mistake. A
-  // tagless one could be taken for ever, which is the one thing this exists to
-  // prevent; an empty one hands over nothing and would sit on the board offering
-  // a verb that does not do anything.
-  tag: v.pipe(v.string(), v.minLength(1)),
-  itemTileIds: v.pipe(
-    v.array(v.string()),
-    v.minLength(1),
-    v.maxLength(MAX_REWARD_ITEMS),
-  ),
 });
 
 const rewardCache = new WeakMap<TileDef, RewardInteraction | null>();
 
 /**
- * Parsed reward config per tile def. Same trust model as {@link resolvePush}:
- * malformed, tagless or empty → not a reward, rather than a crashed world.
+ * Parsed reward config for a tile def — whether this tile is a giver at all,
+ * and what the gesture is called.
  *
- * Note this says nothing about whether the *items* are items — a tile id that
- * names a wall would parse fine here. That is checked where the reward is
- * actually offered, against the catalogue this world has now, on the same terms
- * `restoredEquipment` checks a kit: authored content moves, and a reward whose
- * sword became a prop is a fact this module has no way to know.
+ * Same trust model as {@link resolvePush}: malformed → not a giver. An *empty*
+ * block is entirely valid and is the common case, because the block's presence
+ * is the whole statement; what is given is on the placement.
  */
-export function resolveReward(def: TileDef): RewardInteraction | null {
+export function resolveRewardDef(def: TileDef): RewardInteraction | null {
   const cached = rewardCache.get(def);
   if (cached !== undefined) return cached;
 
@@ -442,6 +433,62 @@ export function resolveReward(def: TileDef): RewardInteraction | null {
   const reward = parsed?.success ? parsed.output : null;
   rewardCache.set(def, reward);
   return reward;
+}
+
+/**
+ * What one placement of a giver tile actually hands over, or null when it hands
+ * over nothing.
+ *
+ * Both halves are required and neither is repairable. A tagless reward could be
+ * taken for ever, which is the one thing this exists to prevent; an empty one
+ * offers a verb that does nothing. Either way the answer is null, which reads
+ * downstream as "there is no reward here" — the same shape a malformed switch
+ * takes, and it means a half-authored chest is scenery rather than a trap.
+ *
+ * Parsed rather than trusted, like every other block: `data/map.json` is
+ * hand-editable, so these two fields arrive from a file somebody typed.
+ *
+ * Memoised on placement identity, on the same grounds the def resolvers are
+ * memoised on def identity: the map is copy-on-write, so a placement object is
+ * stable until that cell is edited, and this is asked per reachable cell on
+ * every pointer move.
+ */
+const placedRewardCache = new WeakMap<PlacedTile, PlacedReward | null>();
+
+export function resolveReward(
+  placed: PlacedTile,
+  def: TileDef | undefined,
+): PlacedReward | null {
+  const cached = placedRewardCache.get(placed);
+  if (cached !== undefined) return cached;
+
+  const reward = def ? readPlacedReward(placed, def) : null;
+  placedRewardCache.set(placed, reward);
+  return reward;
+}
+
+const placedRewardSchema = v.object({
+  rewardTag: v.pipe(v.string(), v.trim(), v.minLength(1)),
+  rewardTileIds: v.pipe(
+    v.array(v.string()),
+    v.minLength(1),
+    v.maxLength(MAX_REWARD_ITEMS),
+  ),
+});
+
+function readPlacedReward(
+  placed: PlacedTile,
+  def: TileDef,
+): PlacedReward | null {
+  const gesture = resolveRewardDef(def);
+  if (!gesture) return null;
+  const parsed = v.safeParse(placedRewardSchema, placed);
+  if (!parsed.success) return null;
+  return {
+    ...gesture,
+    tag: parsed.output.rewardTag,
+    itemTileIds: parsed.output.rewardTileIds,
+  };
 }
 
 const decaySchema = v.pipe(
@@ -589,7 +636,10 @@ export type InteractionKind = "reward" | "switch" | "pickUp" | "push";
 /** Every player-activated interaction on this tile, in a stable order. */
 export function interactionKinds(def: TileDef): InteractionKind[] {
   const kinds: InteractionKind[] = [];
-  if (resolveReward(def)) kinds.push("reward");
+  // The def's half only. Whether *this placement* actually gives anything is a
+  // question about a slot, and `interactionKinds` is asked about tiles — see
+  // `resolveReward`, which is what the affordances ask.
+  if (resolveRewardDef(def)) kinds.push("reward");
   if (resolveSwitch(def)) kinds.push("switch");
   if (resolveItem(def)) kinds.push("pickUp");
   if (resolvePush(def)) kinds.push("push");
@@ -681,24 +731,15 @@ export function interactionsForSave(
   const savedPlate = plate?.tileId.trim()
     ? { tileId: plate.tileId.trim(), type: plate.type, height: plate.height }
     : undefined;
-  // Dropped whole unless both halves are there, rather than written half-formed:
-  // the resolver refuses a tagless or empty reward anyway, so persisting one
-  // would put a block in `data/tiles.json` that reads as authored and is inert.
+  // Kept even when it is empty, unlike every other block here, because an empty
+  // one is the whole point: `reward: {}` says "this tile is a giver", and what
+  // it gives is written on each placement. Dropping it for having no fields set
+  // would un-author the tile.
   const reward = interactions?.reward;
-  const rewardTag = reward?.tag.trim();
-  const rewardItems = reward?.itemTileIds.filter((id) => id.trim()) ?? [];
   const rewardActionName = reward?.actionName?.trim();
-  const savedReward =
-    rewardTag && rewardItems.length > 0
-      ? {
-          tag: rewardTag,
-          // Authored order, not sorted, unlike `moveOnTileIds`: that one is a
-          // set being matched against, and this is a list being handed over —
-          // which thing lands in the bag first is the author's to decide.
-          itemTileIds: rewardItems,
-          ...(rewardActionName ? { actionName: rewardActionName } : {}),
-        }
-      : undefined;
+  const savedReward = reward
+    ? { ...(rewardActionName ? { actionName: rewardActionName } : {}) }
+    : undefined;
   // Gated on the lifetime rather than on the target, unlike every other block
   // here: a blank target is how a tile says it vanishes, and dropping the block
   // for it would silently un-author exactly the case blood is.

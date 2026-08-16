@@ -1,6 +1,6 @@
 import { getStack } from "../lib/mapData";
 import { hasLineOfSight } from "./sight";
-import type { RewardInteraction } from "../lib/interactions";
+import type { PlacedReward } from "../lib/interactions";
 import {
   isInteractive,
   resolvePush,
@@ -311,7 +311,12 @@ export function canDropAt(
 }
 
 /**
- * The reward at a stack slot, if it is one and the actor could reach it.
+ * The reward at a stack slot, if there is one and the actor could reach it.
+ *
+ * Read off the *placement* and the tile together — see `resolveReward`, which
+ * owns that join. The tile says whether this kind of thing gives anything at
+ * all; the slot says what and under which tag, so the same chest tile can be a
+ * dozen different rewards across a map.
  *
  * Reach is the round {@link REACH_CELLS} rather than push's orthogonal step, on
  * the same grounds pick-up and open take it: being handed a thing needs no
@@ -328,14 +333,13 @@ export function reachableRewardAt(
   tilesById: Record<string, TileDef>,
   actor: Actor,
   ref: ObjectRef,
-): RewardInteraction | null {
+): PlacedReward | null {
   if (!withinReach(actor, ref)) return null;
   const stack = getStack(map, ref.x, ref.y, ref.z);
   if (coveredBySomething(stack, ref.stackIndex)) return null;
   const placed = stack[ref.stackIndex];
   if (!placed) return null;
-  const def = tilesById[placed.tileId];
-  return def ? resolveReward(def) : null;
+  return resolveReward(placed, tilesById[placed.tileId]);
 }
 
 /**
@@ -354,7 +358,7 @@ export function reachableRewardAt(
  * whole reward untakeable and visibly so.
  */
 export function rewardFits(
-  reward: RewardInteraction,
+  reward: PlacedReward,
   tilesById: Record<string, TileDef>,
   equipment: Equipment,
 ): boolean {

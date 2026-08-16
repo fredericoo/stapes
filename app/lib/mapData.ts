@@ -576,6 +576,63 @@ export function updatePlacedDescription(
   return updatePlacedText(map, x, y, z, stackIndex, "description", description);
 }
 
+/**
+ * Set what one placement hands over, and under which tag. Empty clears both.
+ *
+ * The pair moves together and is never half-written, because half of it is
+ * inert: a tagless reward could be taken for ever and an empty one offers a verb
+ * that does nothing, so `resolveReward` refuses either. Clearing one from the
+ * dialog therefore clears both rather than leaving a placement whose settings
+ * look authored and whose chest does nothing.
+ *
+ * **Returns the same map when nothing changes**, on exactly the terms
+ * {@link updatePlacedText} does, and for the same reason: this commits when a
+ * dialog closes, which happens whether or not anything was typed.
+ */
+export function updatePlacedReward(
+  map: MapFile,
+  x: number,
+  y: number,
+  z: number,
+  stackIndex: number,
+  tag: string,
+  tileIds: readonly string[],
+): MapFile {
+  const current = getStack(map, x, y, z);
+  const placed = current[stackIndex];
+  if (!placed) return map;
+
+  const trimmedTag = tag.trim();
+  const kept = tileIds.filter((id) => id.trim());
+  const live = trimmedTag !== "" && kept.length > 0;
+  const nextTag = live ? trimmedTag : undefined;
+  const nextIds = live ? kept : undefined;
+
+  if (
+    placed.rewardTag === nextTag &&
+    sameIds(placed.rewardTileIds, nextIds)
+  ) {
+    return map;
+  }
+
+  const stack = current.map((p, i) => {
+    if (i !== stackIndex) return { ...p };
+    const { rewardTag: _tag, rewardTileIds: _ids, ...rest } = p;
+    return live ? { ...rest, rewardTag: nextTag, rewardTileIds: nextIds } : rest;
+  });
+  return setStack(map, x, y, z, stack);
+}
+
+/** Two id lists, either of which may be absent, holding the same ids in order. */
+function sameIds(
+  a: readonly string[] | undefined,
+  b: readonly string[] | undefined,
+): boolean {
+  if (a === b) return true;
+  if (!a || !b || a.length !== b.length) return false;
+  return a.every((id, i) => id === b[i]);
+}
+
 export function chunkKey(cx: number, cy: number): string {
   return `${cx},${cy}`;
 }
