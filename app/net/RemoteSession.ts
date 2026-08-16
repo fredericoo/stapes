@@ -12,6 +12,7 @@ import {
   type ActorLocation,
 } from "../game/actors";
 import {
+  canConsumeFrom,
   canDropAt,
   canPickUpFrom,
   canPushFrom,
@@ -20,6 +21,8 @@ import {
 } from "../game/affordances";
 import { type Equipment, emptyEquipment } from "../game/equipment";
 import { canMoveItem, itemInSlot, type SlotRef } from "../game/itemMoves";
+import type { ConsumeSource } from "../game/itemUse";
+import { resolveConsumable } from "../lib/item";
 import { moveEntity, setEntityDirection } from "../game/mapMutations";
 import { chooseStep } from "../game/stepping";
 import type {
@@ -1113,6 +1116,42 @@ export class RemoteSession implements PlaySession {
       return false;
     }
     this.send({ type: "pickUp", ref });
+    return true;
+  }
+
+  /**
+   * Ask for the thing to be eaten or drunk.
+   *
+   * Not predicted, on the same terms as a pickup and more so: it changes hit
+   * points as well as what exists, and both are the server's answers. The local
+   * check mirrors the server's gates — a pickup's for the floor arm, a move's
+   * for the slot arm — so a refusal costs no round trip at all.
+   */
+  consume(from: ConsumeSource): boolean {
+    const motion = this.motions.get(this.selfId);
+    if (!motion) return false;
+    const loc = this.locate(this.selfId, motion);
+    if (!loc) return false;
+
+    if (from.kind === "floor") {
+      // A board action, gated like a pickup: not mid-motion, and not while a
+      // step the server has yet to confirm would put reach in doubt.
+      if (motion.walk || motion.fall || motion.slide) return false;
+      if (this.pending.length > 0) return false;
+      if (!canConsumeFrom(this.map, this.tilesById, loc, from.ref)) return false;
+    } else {
+      const instance = itemInSlot(
+        this.map,
+        this.tilesById,
+        loc,
+        this.equipment,
+        from.slot,
+      );
+      const def = instance && this.tilesById[instance.tileId];
+      if (!def || !resolveConsumable(def)) return false;
+    }
+
+    this.send({ type: "consume", from });
     return true;
   }
 

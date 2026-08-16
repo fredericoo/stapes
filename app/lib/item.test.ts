@@ -1,11 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
+  CONSUME_FALLBACK_VERB,
+  DEFAULT_CONSUMABLE,
   DEFAULT_CONTAINER,
   DEFAULT_WEAPON,
+  MAX_CONSUMABLE_HP_SHIFT,
   MAX_CONTAINER_SIZE,
   MAX_WEAPON_STAT_SHIFT,
+  consumeVerb,
   isItem,
   itemForSave,
+  resolveConsumable,
   resolveContainer,
   resolveItem,
   resolveWeapon,
@@ -42,6 +47,38 @@ describe("resolveItem", () => {
     expect(resolveWeapon(def)).toBeNull();
   });
 
+  it("reads a consumable block", () => {
+    const def = tile("item", { item: { ...DEFAULT_CONSUMABLE } });
+    expect(resolveConsumable(def)).toEqual(DEFAULT_CONSUMABLE);
+    expect(resolveWeapon(def)).toBeNull();
+    expect(resolveContainer(def)).toBeNull();
+    expect(isItem(def)).toBe(true);
+  });
+
+  // Poison is the same block with the sign flipped, so the floor of the range
+  // is as legal as the ceiling.
+  it("reads a consumable that harms", () => {
+    const poison = { type: "consumable", label: "Eat", hp: -10 };
+    expect(resolveConsumable(tile("item", { item: poison }))).toEqual(poison);
+  });
+
+  it("reads a consumable with no verb authored on it", () => {
+    const plain = { type: "consumable", hp: 3 };
+    const parsed = resolveConsumable(tile("item", { item: plain }));
+    expect(parsed).toEqual(plain);
+    expect(consumeVerb(parsed!)).toBe(CONSUME_FALLBACK_VERB);
+  });
+
+  it("answers the authored verb where there is one", () => {
+    expect(consumeVerb({ type: "consumable", label: "Drink", hp: 1 })).toBe(
+      "Drink",
+    );
+    // Whitespace is not a verb.
+    expect(consumeVerb({ type: "consumable", label: "  ", hp: 1 })).toBe(
+      CONSUME_FALLBACK_VERB,
+    );
+  });
+
   it("is null for a tile with no block at all", () => {
     expect(resolveItem(tile("item"))).toBeNull();
     expect(isItem(tile("prop"))).toBe(false);
@@ -70,6 +107,10 @@ describe("resolveItem", () => {
       ["a shift past the floor", { ...DEFAULT_WEAPON, acc: -MAX_WEAPON_STAT_SHIFT - 1 }],
       ["a fractional shift", { ...DEFAULT_WEAPON, acc: -0.5 }],
       ["a weapon missing its accuracy", { type: "weapon", atk: 1, def: 1, spd: 0, mastery: "blade" }],
+      ["a consumable with no hp at all", { type: "consumable", label: "Eat" }],
+      ["a fractional hp", { ...DEFAULT_CONSUMABLE, hp: 2.5 }],
+      ["an hp past the cap", { ...DEFAULT_CONSUMABLE, hp: MAX_CONSUMABLE_HP_SHIFT + 1 }],
+      ["an hp past the floor", { ...DEFAULT_CONSUMABLE, hp: -MAX_CONSUMABLE_HP_SHIFT - 1 }],
       ["a container with no room", { ...DEFAULT_CONTAINER, size: 0 }],
       ["a container past the cap", { ...DEFAULT_CONTAINER, size: MAX_CONTAINER_SIZE + 1 }],
       ["a container missing equippable", { type: "container", size: 2 }],
@@ -123,6 +164,24 @@ describe("itemForSave", () => {
 
   it("is undefined for no item", () => {
     expect(itemForSave(undefined)).toBeUndefined();
+  });
+
+  it("keeps a consumable's verb and drops a blank one", () => {
+    expect(itemForSave({ type: "consumable", label: "Drink", hp: -2 })).toEqual({
+      type: "consumable",
+      label: "Drink",
+      hp: -2,
+    });
+    // A blank verb is an absent key, not an empty string in the file.
+    expect(itemForSave({ type: "consumable", label: "  ", hp: 2 })).toEqual({
+      type: "consumable",
+      hp: 2,
+    });
+  });
+
+  it("drops weapon fields a draft carried into a consumable", () => {
+    const draft = { ...DEFAULT_CONSUMABLE, atk: 3, size: 4 } as never;
+    expect(itemForSave(draft)).toEqual(DEFAULT_CONSUMABLE);
   });
 
   it("round-trips through the resolver", () => {

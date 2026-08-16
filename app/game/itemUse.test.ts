@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_CONTAINER, DEFAULT_WEAPON } from "../lib/item";
+import {
+  DEFAULT_CONSUMABLE,
+  DEFAULT_CONTAINER,
+  DEFAULT_WEAPON,
+} from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
@@ -36,6 +40,11 @@ const tiles = [
     interactions: {
       item: { ...DEFAULT_CONTAINER, size: 2, equippable: false },
     },
+  }),
+  tile({
+    id: "cherry",
+    kind: "item",
+    interactions: { item: DEFAULT_CONSUMABLE },
   }),
   tile({ id: "sign" }),
 ];
@@ -83,6 +92,19 @@ describe("itemUseFor", () => {
         tilesById,
       ),
     ).toBeNull();
+  });
+
+  // The case this module said it was waiting to gain: a consumable is for
+  // being eaten, from any square it can be sitting in.
+  it("consumes a consumable from wherever it is", () => {
+    for (const slot of [
+      { kind: "contents", index: 1 } as const,
+      { kind: "ground", ref: GROUND, index: 0 } as const,
+    ]) {
+      expect(itemUseFor(instance("cherry"), slot, tilesById)).toEqual({
+        type: "consume",
+      });
+    }
   });
 
   it("does nothing with a thing that is not for anything yet", () => {

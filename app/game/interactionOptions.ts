@@ -1,9 +1,11 @@
 import { getStack } from "../lib/mapData";
 import type { InteractionKind } from "../lib/interactions";
 import { resolveSwitch } from "../lib/interactions";
+import { consumeVerb, resolveConsumable } from "../lib/item";
 import type { MapFile, PlacedTile, TileDef } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 import {
+  canConsumeFrom,
   canOpenFrom,
   canPickUpFrom,
   canPushFrom,
@@ -47,7 +49,7 @@ import type { ActorSnapshot, PlaySession } from "./GameSession";
  * is the point: you choose who you are interested in once, and change your mind
  * about what to do with them without having to choose again.
  */
-export type InteractionAction = InteractionKind | "target" | "open";
+export type InteractionAction = InteractionKind | "target" | "open" | "consume";
 
 export type InteractionOption = {
   /** Identity across frames, so the list can be diffed rather than compared. */
@@ -97,6 +99,9 @@ const LABELS: Record<InteractionAction, string> = {
   pickUp: "Pick up",
   push: "Push",
   switch: "Switch",
+  // The fallback only — a consumable's row is named by its author ("Eat",
+  // "Drink"), on the same terms a switch's is. See `consumeVerb`.
+  consume: "Use",
 };
 
 /**
@@ -143,7 +148,12 @@ const ACTION_ORDER: Record<InteractionAction, number> = {
   // it.
   pickUp: 2,
   open: 3,
-  push: 4,
+  // Below pick-up on purpose, and pick-up is what a plain tap on the tile runs:
+  // eating destroys the thing where lifting it is reversible, so the row you
+  // have to *find* is the destructive one and the gesture you can fire by
+  // accident is the safe one.
+  consume: 4,
+  push: 5,
 };
 
 /**
@@ -253,6 +263,12 @@ export function applyInteraction(
   // tile that is both an item and something else.
   if (option.action === "pickUp") {
     session.pickUp(option.ref);
+    return;
+  }
+  // Named for the same reason pick-up is: the row says "Eat", and `interact`'s
+  // precedence would have the tap lift the thing into a bag instead.
+  if (option.action === "consume") {
+    session.consume({ kind: "floor", ref: option.ref });
     return;
   }
   // `open` never reaches here — it is panel state, and the view intercepts it
@@ -456,6 +472,16 @@ function slotOptions(
   if (canOpenFrom(map, tilesById, self, ref)) {
     const isOpen = openedRef != null && refKey(openedRef) === refKey(ref);
     add("open", isOpen ? CLOSE_LABEL : LABELS.open, isOpen);
+  }
+
+  // The other beside-a-tap row: a cherry on the floor is "Pick up" and "Eat",
+  // one row per verb exactly as a bag on the floor is. The verb is the
+  // author's — see `ConsumableItem.label` — because nothing derivable from the
+  // tile says whether this is drunk or eaten.
+  if (canConsumeFrom(map, tilesById, self, ref)) {
+    const def = tilesById[placed.tileId];
+    const consumable = def ? resolveConsumable(def) : null;
+    add("consume", consumable ? consumeVerb(consumable) : LABELS.consume);
   }
 
   return out;

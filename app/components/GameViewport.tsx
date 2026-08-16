@@ -81,6 +81,7 @@ export function GameViewport({
   onOpenContainer,
   canMoveItem = () => false,
   onMoveItem,
+  onConsumeItem,
   onDragOverWorld,
   onDropOnWorld,
   tiles = [],
@@ -155,6 +156,8 @@ export function GameViewport({
   canMoveItem?: (from: SlotRef, to: SlotRef) => boolean;
   /** Move a carried thing from one slot to another. */
   onMoveItem?: (from: SlotRef, to: SlotRef) => void;
+  /** Eat or drink the consumable in this slot. */
+  onConsumeItem?: (slot: SlotRef) => void;
   /**
    * A drag is out over the world, carrying this — or null, for no longer.
    *
@@ -253,6 +256,9 @@ export function GameViewport({
     // Shut it if it is open: the same press, both ways, because a bag is
     // somewhere you look into rather than something you switch on.
     if (use.type === "open") openBag(!showBag);
+    // All the way to the server, like a move: what it does to your hit points
+    // and to the thing itself are both the session's answers.
+    else if (use.type === "consume") onConsumeItem?.(slot);
     // Refused moves simply do nothing — your hand is full, or your bag is — and
     // the rules that refuse them are the ones the drag asks. There is no second
     // opinion here to drift from them.

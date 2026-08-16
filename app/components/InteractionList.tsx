@@ -1,4 +1,5 @@
 import {
+  IconApple,
   IconBoxSeam,
   IconHandGrab,
   IconHandMove,
@@ -58,6 +59,9 @@ const ICONS: Record<InteractionAction, typeof IconTarget> = {
   pickUp: IconHandGrab,
   push: IconHandMove,
   switch: IconSwitch,
+  // An apple for every consumable, drink included: the icon says "this gets
+  // used up", and the authored verb beside it says how.
+  consume: IconApple,
 };
 
 const SPRITE_SIZE_PX = 32;

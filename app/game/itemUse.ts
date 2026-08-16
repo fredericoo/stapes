@@ -1,6 +1,7 @@
-import { resolveContainer, resolveWeapon } from "../lib/item";
+import { resolveConsumable, resolveContainer, resolveWeapon } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { TileDef } from "../lib/types";
+import type { ObjectRef } from "./affordances";
 import type { SlotRef } from "./itemMoves";
 
 /**
@@ -19,10 +20,9 @@ import type { SlotRef } from "./itemMoves";
  * - a container is for looking inside, so a tap opens it;
  * - a weapon is for holding, so a tap puts it in your hand — and taps the one in
  *   your hand back into your bag, because the inverse of a use is the same
- *   gesture again.
- *
- * A future consumable answers it by being drunk. Nothing here has to change for
- * that; it gains a case.
+ *   gesture again;
+ * - a consumable is for eating or drinking, so a tap spends it — the case this
+ *   module was written expecting to gain.
  *
  * Pure and separate from the panels, because the answer belongs to the item
  * rather than to the square it happens to be sitting in — and because the two
@@ -34,6 +34,11 @@ export type ItemUse =
   /** Look inside it. Panel state, and no business of the board's. */
   | { type: "open" }
   /**
+   * Use it up. Goes all the way to the server, because it changes hit points
+   * and destroys the thing — both the board's business, neither predictable.
+   */
+  | { type: "consume" }
+  /**
    * Put it somewhere, in the terms every other move is expressed in.
    *
    * Deliberately not a use of its own: wielding a sword is `moveItem` and
@@ -43,6 +48,22 @@ export type ItemUse =
    * and inventing one here would be inventing it in the wrong place.
    */
   | { type: "move"; to: SlotRef };
+
+/**
+ * Where the thing being consumed is: a slot in somebody's kit, or a placement
+ * still lying on the board.
+ *
+ * A union rather than a widened {@link SlotRef}, because the two are different
+ * acts with different validation: a floor consume is a board action — reach,
+ * cover, idleness — where a slot consume is a kit action, and a `SlotRef` with
+ * a floor arm would offer every mover in the game a place nothing can be moved
+ * to. This is the one shape the wire, the session and both taps share, so the
+ * two ends cannot come to hold different ideas of where a cherry can be eaten
+ * from.
+ */
+export type ConsumeSource =
+  | { kind: "slot"; slot: SlotRef }
+  | { kind: "floor"; ref: ObjectRef };
 
 /**
  * Where a weapon goes when it is put away.
@@ -67,6 +88,11 @@ export function itemUseFor(
       ? { type: "move", to: FIRST_BAG_SLOT }
       : { type: "move", to: { kind: "weapon" } };
   }
+
+  // From any slot it can be sitting in — your bag or a box on the floor. The
+  // slot rules already keep one out of the weapon and bag slots, so there is no
+  // square left where the answer should differ.
+  if (resolveConsumable(def)) return { type: "consume" };
 
   // Only the bag on your back, and that is not a special case — no container may
   // hold a container, so the bag slot is the one square in the game a container

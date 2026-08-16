@@ -728,6 +728,11 @@ export class GameServer extends DurableObject<Env> {
       // open while its owner walked away from it. The client offered the drag
       // from these same rules, and is still not trusted with the answer.
       session.moveItem(message.from, message.to, actorId);
+    } else if (message.type === "consume") {
+      // Both arms re-validated in the session on the same terms as a pickup or
+      // a move: the client offered "Eat" from these rules, on a board a round
+      // trip old, and is not trusted with the answer.
+      session.consume(message.from, actorId);
     } else if (message.type === "drop") {
       // Range, sight and room in the stack, all re-asked. The client drew a
       // ghost from these same rules, but it drew it on a board that may be a

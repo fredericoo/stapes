@@ -7,6 +7,7 @@ import {
   replaceStack,
 } from "../lib/mapData";
 import { resolveSwitch } from "../lib/interactions";
+import { resolveConsumable } from "../lib/item";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
 import { MIN_LEVEL } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
@@ -26,6 +27,7 @@ import {
   type ActorLocation,
 } from "./actors";
 import {
+  canConsumeFrom,
   canDropAt,
   canPickUpFrom,
   canPushFrom,
@@ -98,6 +100,7 @@ import {
   type BrainMemory,
   type Utterance,
 } from "./brainRuntime";
+import type { ConsumeSource } from "./itemUse";
 import { hasLineOfSight } from "./sight";
 import { Rng } from "./rng";
 import { chooseStep, type StepRequest } from "./stepping";
@@ -398,6 +401,15 @@ export interface PlaySession {
    * does.
    */
   pickUp(ref: ObjectRef): boolean;
+  /**
+   * Eat or drink a consumable, from a slot in your kit or off the floor.
+   *
+   * On the interface for the reason {@link pickUp} is: both the inventory tap
+   * and the "Eat" row name the act, and a row that named one action and ran
+   * whatever `interact` happened to choose would be lying about what a tap
+   * does.
+   */
+  consume(from: ConsumeSource): boolean;
   /**
    * Would this move be honoured right now?
    *
@@ -1751,6 +1763,98 @@ export class GameSession implements PlaySession {
     // on a plate and to what was holding a crate up.
     this.reindexCells([{ x: ref.x, y: ref.y, z: ref.z }]);
     return true;
+  }
+
+  /**
+   * Use a consumable up: the thing is destroyed and its `hp` lands on the
+   * eater.
+   *
+   * The two sources cross different lines and are validated on their own
+   * terms. A floor consume is a board action — reach, cover and idleness, the
+   * gates a pickup runs — and takes a placement off the map without it ever
+   * entering a kit. A slot consume is a kit action, gated the way a move is
+   * (not on idleness: refusing to let a walking player drink would be a rule
+   * with nothing behind it), and reach for a ground container slot is re-asked
+   * inside `itemInSlot`.
+   *
+   * The eater must have hit points to change, asked *before* anything is
+   * destroyed: a body with none — a session with no battler tile — refuses
+   * rather than wasting the item on nothing.
+   */
+  consume(from: ConsumeSource, id: string = LOCAL_ACTOR_ID): boolean {
+    const actor = this.actors.get(id);
+    if (!actor) return false;
+    if (this.hpOf(actor) === null) return false;
+
+    const hpShift =
+      from.kind === "floor"
+        ? this.consumeFromFloor(actor, from.ref)
+        : this.consumeFromSlot(actor, from.slot);
+    if (hpShift === null) return false;
+
+    if (hpShift < 0) {
+      // Through the damage path rather than a bare subtraction, so a poison
+      // apple shows its number, tells the brains, and can kill — a death by
+      // poison and a death by blows must not be two codepaths to keep alive.
+      this.applyDamage(actor, -hpShift);
+    } else if (hpShift > 0) {
+      const stats = this.battlerOf(actor);
+      const before = this.hpOf(actor);
+      if (stats && before !== null) {
+        actor.hp = Math.min(stats.maxHp, before + hpShift);
+      }
+    }
+    return true;
+  }
+
+  /** Take a consumable placement off the board. Null when refused. */
+  private consumeFromFloor(
+    actor: ActorRuntime,
+    ref: ObjectRef,
+  ): number | null {
+    if (!this.idle(actor)) return null;
+    const loc = this.tryLocate(actor);
+    if (!loc) return null;
+    if (!canConsumeFrom(this.map, this.tilesById, loc, ref)) return null;
+
+    const placed = getStack(this.map, ref.x, ref.y, ref.z)[ref.stackIndex];
+    const def = placed && this.tilesById[placed.tileId];
+    const consumable = def ? resolveConsumable(def) : null;
+    if (!consumable) return null;
+
+    this.map = removeTileAt(this.map, ref.x, ref.y, ref.z, ref.stackIndex);
+    // The cell has one fewer thing in it — the same reindex a pickup owes, for
+    // the same plates and the same unsupported crates.
+    this.reindexCells([{ x: ref.x, y: ref.y, z: ref.z }]);
+    return consumable.hp;
+  }
+
+  /** Take a consumable out of a slot and destroy it. Null when refused. */
+  private consumeFromSlot(actor: ActorRuntime, slot: SlotRef): number | null {
+    const loc = this.tryLocate(actor);
+    if (!loc) return null;
+
+    const instance = itemInSlot(
+      this.map,
+      this.tilesById,
+      loc,
+      actor.equipment,
+      slot,
+    );
+    const def = instance && this.tilesById[instance.tileId];
+    const consumable = def ? resolveConsumable(def) : null;
+    if (!consumable) return null;
+
+    const emptied = clearSlot(this.map, this.tilesById, loc, actor.equipment, slot);
+    if (!emptied) return null;
+
+    this.map = emptied.map;
+    // Only when it actually changed, exactly as a move does: eating out of a
+    // chest is the chest's placement changing and nobody's kit.
+    if (emptied.equipment !== actor.equipment) {
+      this.setEquipment(actor, emptied.equipment);
+    }
+    return consumable.hp;
   }
 
   canMoveItem(

@@ -148,6 +148,9 @@ export default function OnlinePage() {
   const moveItem = useCallback((from: SlotRef, to: SlotRef) => {
     sessionRef.current?.moveItem(from, to);
   }, []);
+  const consumeItem = useCallback((slot: SlotRef) => {
+    sessionRef.current?.consume({ kind: "slot", slot });
+  }, []);
   // Straight at the renderer, like the hover outline and for the same reason: a
   // ghost follows the pointer, and a page that re-rendered to move it would be
   // paying a frame's work per pixel of a drag.
@@ -398,6 +401,7 @@ export default function OnlinePage() {
             onOpenContainer={openContainer}
             canMoveItem={canMoveItem}
             onMoveItem={moveItem}
+            onConsumeItem={consumeItem}
             onDragOverWorld={dragOverWorld}
             onDropOnWorld={dropOnWorld}
             tiles={tiles}
