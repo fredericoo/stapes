@@ -1,6 +1,6 @@
 import { getStack } from "../lib/mapData";
 import type { InteractionKind } from "../lib/interactions";
-import { resolveSwitch } from "../lib/interactions";
+import { resolveRewardDef, resolveSwitch } from "../lib/interactions";
 import { consumeVerb, resolveConsumable } from "../lib/item";
 import type { MapFile, PlacedTile, TileDef } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
@@ -9,6 +9,7 @@ import {
   canOpenFrom,
   canPickUpFrom,
   canPushFrom,
+  canRewardFrom,
   canSwitchFrom,
   INTERACT_LEVEL_SLACK,
   type ObjectRef,
@@ -102,6 +103,10 @@ const LABELS: Record<InteractionAction, string> = {
   // The fallback only — a consumable's row is named by its author ("Eat",
   // "Drink"), on the same terms a switch's is. See `consumeVerb`.
   consume: "Use",
+  // What an unnamed reward reads as. "Take" rather than "Reward", because the
+  // fallback has to name what the *player* does, and every other label here
+  // does: the tile being a reward is the author's word for it, not theirs.
+  reward: "Take",
 };
 
 /**
@@ -138,7 +143,11 @@ export function interactionText(option: InteractionOption): string {
  */
 const ACTION_ORDER: Record<InteractionAction, number> = {
   target: 0,
-  switch: 1,
+  // Above everything the board offers, and above `open` in particular: a chest
+  // authored as both a reward and a container is one you are meant to be *given*
+  // the contents of, and rummaging in it is the lesser reading of the same tap.
+  reward: 1,
+  switch: 2,
   // Above open, and the two are almost never both on offer anyway — which is
   // what makes the order easy. A bag is only pick-up-able when your back is
   // bare, and a bare back is exactly when you want the bag rather than a look
@@ -146,14 +155,14 @@ const ACTION_ORDER: Record<InteractionAction, number> = {
   // all and open is the only thing left. A chest is never picked up, so it opens
   // either way. The pair therefore reads: take it if you can, otherwise look in
   // it.
-  pickUp: 2,
-  open: 3,
+  pickUp: 3,
+  open: 4,
   // Below pick-up on purpose, and pick-up is what a plain tap on the tile runs:
   // eating destroys the thing where lifting it is reversible, so the row you
   // have to *find* is the destructive one and the gesture you can fire by
   // accident is the safe one.
-  consume: 4,
-  push: 5,
+  consume: 5,
+  push: 6,
 };
 
 /**
@@ -221,12 +230,13 @@ export function listInteractionOptions(
   targetId: string | null,
   equipment: Equipment,
   openedRef: ObjectRef | null = null,
+  tags: readonly string[] = [],
 ): InteractionOption[] {
   const bodies = bodiesByCell(self, visibleActors);
 
   return [
     ...targetOptions(tilesById, bodies, targetId),
-    ...objectOptions(map, tilesById, self, bodies, equipment, openedRef),
+    ...objectOptions(map, tilesById, self, bodies, equipment, openedRef, tags),
   ].sort(
     (a, b) =>
       distanceFrom(self, a.ref) - distanceFrom(self, b.ref) ||
@@ -355,6 +365,7 @@ function objectOptions(
   bodies: Map<string, ActorSnapshot>,
   equipment: Equipment,
   openedRef: ObjectRef | null,
+  tags: readonly string[],
 ): InteractionOption[] {
   const out: InteractionOption[] = [];
   const zMin = Math.max(MIN_LEVEL, self.z - INTERACT_LEVEL_SLACK);
@@ -380,6 +391,7 @@ function objectOptions(
               equipment,
               { x, y, z, stackIndex },
               openedRef,
+              tags,
             ),
           );
         }
@@ -425,6 +437,7 @@ function slotOptions(
   equipment: Equipment,
   ref: ObjectRef,
   openedRef: ObjectRef | null,
+  tags: readonly string[],
 ): InteractionOption[] {
   const placed = getStack(map, ref.x, ref.y, ref.z)[ref.stackIndex];
   if (!placed) return [];
@@ -458,7 +471,7 @@ function slotOptions(
 
   // The one thing a tap would run, named by what it would actually be — the
   // precedence is read out of the session's own order rather than restated here.
-  const action = objectAction(map, tilesById, self, ref, equipment);
+  const action = objectAction(map, tilesById, self, ref, equipment, tags);
   if (action) add(action, objectActionLabel(action, tilesById[placed.tileId]));
 
   // And, beside it, opening — which is not something a tap runs at all. A bag on
@@ -493,19 +506,36 @@ function objectAction(
   self: ActorSnapshot,
   ref: ObjectRef,
   equipment: Equipment,
+  tags: readonly string[],
 ): InteractionKind | null {
+  if (canRewardFrom(map, tilesById, self, ref, equipment, tags)) return "reward";
   if (canSwitchFrom(map, tilesById, self, ref)) return "switch";
   if (canPickUpFrom(map, tilesById, self, ref, equipment)) return "pickUp";
   if (canPushFrom(map, tilesById, self, ref)) return "push";
   return null;
 }
 
+/**
+ * The two actions whose verb is the author's rather than the mechanism's, and
+ * they are the same case: a switch is "Open" or "Pull" because only the author
+ * knows which half of the door this is, and a reward is "Open" or "Receive"
+ * because only they know whether it is a box or a person.
+ */
 function objectActionLabel(
   action: InteractionKind,
   def: TileDef | undefined,
 ): string {
-  if (action !== "switch" || !def) return LABELS[action];
-  return resolveSwitch(def)?.actionName?.trim() || LABELS.switch;
+  if (!def) return LABELS[action];
+  if (action === "switch") {
+    return resolveSwitch(def)?.actionName?.trim() || LABELS.switch;
+  }
+  if (action === "reward") {
+    // The def's half, because the verb is the only part of a reward that lives
+    // on the tile — what this particular chest gives is on its placement, and
+    // the row does not name it.
+    return resolveRewardDef(def)?.actionName?.trim() || LABELS.reward;
+  }
+  return LABELS[action];
 }
 
 /**

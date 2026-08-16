@@ -5,11 +5,19 @@ import {
   type ActorSnapshot,
 } from "../app/game/GameSession";
 import { TICK_MS, WALK_DURATION_MS } from "../app/game/constants";
+import { cellKey } from "../app/game/pressurePlates";
+import {
+  findSpawnPoints,
+  isSpawnFilled,
+  rollRespawnDelayMs,
+  type SpawnPoint,
+} from "../app/game/respawn";
 import {
   type Equipment,
   emptyEquipment,
   restoredEquipment,
 } from "../app/game/equipment";
+import { resolveRespawn } from "../app/lib/interactions";
 import { minutesOfDayAt } from "../app/lib/clock";
 import {
   changedCellsOnLevel,
@@ -38,6 +46,41 @@ import {
 
 /** Key under which the running world is checkpointed when it goes idle. */
 const CHECKPOINT_KEY = "world";
+
+/**
+ * Key under which the world's spawn points are kept.
+ *
+ * Stored rather than re-derived because only a *fresh* world can answer the
+ * question: deriving spawn points needs a map every one of them is filled in,
+ * and a resumed checkpoint is missing exactly the placements that have died —
+ * the ones a derivation would silently forget. Written when a world first
+ * loads from the authored map and whenever the editor saves one; read on every
+ * resume.
+ */
+const RESPAWN_POINTS_KEY = "respawnPoints";
+
+/**
+ * Key under which pending respawn deadlines are kept, as spawn-point key →
+ * epoch ms.
+ *
+ * Wall-clock and durable where decay's deadlines are simulated and in-memory,
+ * because the two make opposite promises: decay swears a world nobody visits
+ * does not age, respawn swears a world nobody visits *recovers*. A deadline
+ * that only advanced while somebody was connected would leave a cleared camp
+ * cleared until someone stood around waiting for it — the alarm below is what
+ * lets the world repopulate in its sleep.
+ */
+const RESPAWN_PENDING_KEY = "respawnPending";
+
+/**
+ * How long a blocked respawn waits before trying its cell again.
+ *
+ * Blocked means the authored placement no longer fits — somebody has stacked a
+ * crate to the ceiling, say. Unlike a blocked decay this is retried rather
+ * than abandoned: a mess left un-tidied is a smaller wrong than a monster that
+ * never comes back.
+ */
+const RESPAWN_RETRY_MS = 5_000;
 
 /** Everybody's hit points right now, for a client that has nothing to diff. */
 function currentHps(actors: ActorSnapshot[]): HpPatch[] {
@@ -105,6 +148,20 @@ const POSITION_KEY_PREFIX = "pos:";
 const EQUIPMENT_KEY_PREFIX = "equip:";
 
 /**
+ * Key prefix under which one actor's taken rewards are kept.
+ *
+ * A third key rather than a field on the kit, though the two are written
+ * together and almost always change together. What they mean is different in
+ * kind: a kit is a list of things that must still exist in the world to be worth
+ * restoring, and a tag is a record that something already happened, which stays
+ * true however the authored content moves. `restoredEquipment` exists precisely
+ * to check the one against the world; a tag must never be checked against
+ * anything, or a chest whose sword was renamed becomes a chest you can open
+ * again.
+ */
+const TAGS_KEY_PREFIX = "tags:";
+
+/**
  * How many actors the world remembers the whereabouts of.
  *
  * One entry per player who has ever connected — it grows with *visitors*, not
@@ -152,6 +209,9 @@ type SavedPosition = ActorPosition & { savedAt: number };
  * copy-on-write makes a reference compare.
  */
 type SavedEquipment = { equipment: Equipment; savedAt: number };
+
+/** Which rewards somebody has taken, kept against their return. */
+type SavedTags = { tags: string[]; savedAt: number };
 
 type Attachment = { actorId: string };
 
@@ -271,6 +331,19 @@ export class GameServer extends DurableObject<Env> {
    * meantime does not quietly resurrect them.
    */
   private dead = new Set<string>();
+  /** Where the world grows things back, by spawn-point key. */
+  private respawnPoints = new Map<string, SpawnPoint>();
+  /**
+   * Object spawn points by their authored cell, for the changed-cell sweep.
+   *
+   * Objects only: a creature's disappearance is a death and arrives through
+   * {@link noteDeaths}, while an object's is a pickup and arrives as nothing
+   * but a changed cell. Indexed so a busy tick pays per changed cell rather
+   * than per spawn point.
+   */
+  private respawnPointsByCell = new Map<string, SpawnPoint[]>();
+  /** Spawn points waiting to refill, as key → wall-clock deadline. */
+  private respawnPending = new Map<string, number>();
 
   /**
    * Find authored content.
@@ -343,6 +416,204 @@ export class GameServer extends DurableObject<Env> {
     this.broadcastMap = this.session.getMap();
     await this.restoreActors();
     await this.pruneRemembered();
+    await this.loadRespawnState(checkpoint != null);
+  }
+
+  /**
+   * Bring the spawn points and their deadlines into memory, and make sure
+   * every empty point owes something.
+   *
+   * A fresh world derives its points from the map it just opened — the one
+   * map every point is guaranteed filled in — and writes them down; a resumed
+   * one reads them back, because its own map is missing exactly the placements
+   * that died. A resumed world written before respawn existed has nothing
+   * stored and derives from the live map as the best available truth: points
+   * whose tenant was already dead are lost until the next editor save, but
+   * nothing is ever invented, which is the failure mode that matters — a
+   * misderived point would grow a duplicate.
+   *
+   * The arming pass at the end is what makes the whole system self-healing: a
+   * death or pickup whose deadline never reached storage — the object was
+   * evicted in between — reads here as "empty, owing nothing" and is simply
+   * armed afresh, at the cost of one extra wait.
+   */
+  private async loadRespawnState(resumed: boolean) {
+    const session = this.session;
+    if (!session) return;
+    const tilesById = tilesByIdFromList(this.tiles);
+
+    const stored = resumed
+      ? await this.ctx.storage.get<SpawnPoint[]>(RESPAWN_POINTS_KEY)
+      : undefined;
+    // A stored point whose tile has left the catalogue, or stopped respawning,
+    // is the author changing their mind — honoured here because the registry
+    // outlives the tiles it was derived against.
+    const points = (
+      stored ?? findSpawnPoints(session.getMap(), tilesById)
+    ).filter((point) => {
+      const def = tilesById[point.placed.tileId];
+      return def != null && resolveRespawn(def) != null;
+    });
+    this.setRespawnPoints(points);
+    if (!stored) this.persistRespawnPoints();
+
+    const pending = await this.ctx.storage.get<Record<string, number>>(
+      RESPAWN_PENDING_KEY,
+    );
+    this.respawnPending = new Map(
+      Object.entries(pending ?? {}).filter(([key]) =>
+        this.respawnPoints.has(key),
+      ),
+    );
+
+    const nowMs = Date.now();
+    for (const point of this.respawnPoints.values()) {
+      if (this.respawnPending.has(point.key)) continue;
+      if (isSpawnFilled(session.getMap(), point)) continue;
+      this.respawnPending.set(
+        point.key,
+        nowMs + rollRespawnDelayMs(point.respawn),
+      );
+    }
+    this.persistRespawnPending();
+    this.scheduleRespawnAlarm();
+  }
+
+  /** Adopt a fresh registry, rebuilding the per-cell index beside it. */
+  private setRespawnPoints(points: SpawnPoint[]) {
+    this.respawnPoints = new Map(points.map((point) => [point.key, point]));
+    this.respawnPointsByCell = new Map();
+    for (const point of points) {
+      if (point.ownerId) continue;
+      const key = cellKey(point.cell);
+      const list = this.respawnPointsByCell.get(key) ?? [];
+      list.push(point);
+      this.respawnPointsByCell.set(key, list);
+    }
+  }
+
+  private persistRespawnPoints() {
+    this.ctx.storage
+      .put(RESPAWN_POINTS_KEY, [...this.respawnPoints.values()], {
+        allowUnconfirmed: true,
+      })
+      .catch(() => {});
+  }
+
+  private persistRespawnPending() {
+    this.ctx.storage
+      .put(RESPAWN_PENDING_KEY, Object.fromEntries(this.respawnPending), {
+        allowUnconfirmed: true,
+      })
+      .catch(() => {});
+  }
+
+  /**
+   * Keep the Durable Object alarm pointed at the soonest deadline.
+   *
+   * The alarm is what divorces respawn from the tick loop: it fires with the
+   * world hibernated and nobody connected, which is exactly when a wall-clock
+   * promise has to be kept. While the world *is* ticking the tick gets there
+   * first and the alarm wakes to nothing owed, which is harmless.
+   */
+  private scheduleRespawnAlarm() {
+    if (this.respawnPending.size === 0) {
+      this.ctx.storage.deleteAlarm().catch(() => {});
+      return;
+    }
+    this.ctx.storage
+      .setAlarm(Math.min(...this.respawnPending.values()))
+      .catch(() => {});
+  }
+
+  /**
+   * Start a deadline for an emptied spawn point, if none is running.
+   *
+   * The wait is drawn when the point empties and kept — same discipline as a
+   * decay lifetime, and for the same reason: re-rolling on every look would
+   * let a busy cell keep re-drawing its future.
+   */
+  private armRespawn(point: SpawnPoint, nowMs: number) {
+    if (this.respawnPending.has(point.key)) return;
+    this.respawnPending.set(point.key, nowMs + rollRespawnDelayMs(point.respawn));
+    this.persistRespawnPending();
+    this.scheduleRespawnAlarm();
+  }
+
+  /**
+   * Refill every spawn point whose time has come.
+   *
+   * Runs on the tick while the world is awake and from {@link alarm} while it
+   * is not; both paths are idempotent because a settled debt leaves the
+   * pending map. A refused refill — the cell no longer has room — is pushed
+   * back {@link RESPAWN_RETRY_MS} rather than dropped.
+   */
+  private processDueRespawns(nowMs: number) {
+    const session = this.session;
+    if (!session || this.respawnPending.size === 0) return;
+
+    let dirty = false;
+    for (const [key, dueAtMs] of this.respawnPending) {
+      if (dueAtMs > nowMs) continue;
+      dirty = true;
+      const point = this.respawnPoints.get(key);
+      if (!point) {
+        this.respawnPending.delete(key);
+        continue;
+      }
+      if (session.respawnAt(point)) {
+        this.respawnPending.delete(key);
+        // The old death is spent the moment a new body exists. Left in place
+        // it would only be a leak — nothing seats a creature by id — but the
+        // set is checkpointed, and a record that no longer records anything
+        // has no business surviving the world that wrote it.
+        this.dead.delete(key);
+      } else {
+        this.respawnPending.set(key, nowMs + RESPAWN_RETRY_MS);
+      }
+    }
+    if (dirty) {
+      this.persistRespawnPending();
+      this.scheduleRespawnAlarm();
+    }
+  }
+
+  /**
+   * Notice objects that have left their authored cell.
+   *
+   * Creatures announce their deaths; a picked-up sword announces nothing but a
+   * changed cell, so the cells this tick changed are checked against the
+   * object spawn points that live in them. Bounded by the tick's own diff —
+   * a quiet tick checks nothing.
+   */
+  private sweepRespawnCells(cells: CellPatch[]) {
+    const session = this.session;
+    if (!session || this.respawnPointsByCell.size === 0) return;
+    const nowMs = Date.now();
+    for (const cell of cells) {
+      const points = this.respawnPointsByCell.get(cellKey(cell));
+      if (!points) continue;
+      for (const point of points) {
+        if (this.respawnPending.has(point.key)) continue;
+        if (isSpawnFilled(session.getMap(), point)) continue;
+        this.armRespawn(point, nowMs);
+      }
+    }
+  }
+
+  /**
+   * The wall-clock half of respawn: fires at the soonest deadline, however
+   * long the world has been asleep.
+   *
+   * Waking the tick loop is deliberate rather than lazy — the loop already
+   * knows how to diff the board, broadcast the patch, settle plates under
+   * whatever just appeared and checkpoint the result, and a world with nobody
+   * in it settles and goes straight back to sleep.
+   */
+  async alarm() {
+    await this.ensureLoaded();
+    this.processDueRespawns(Date.now());
+    this.wake();
   }
 
   /**
@@ -379,6 +650,7 @@ export class GameServer extends DurableObject<Env> {
         id,
         await this.lastPositionOf(id),
         await this.lastEquipmentOf(id),
+        await this.lastTagsOf(id),
       );
     }
   }
@@ -389,6 +661,22 @@ export class GameServer extends DurableObject<Env> {
 
   private equipmentKey(actorId: string): string {
     return `${EQUIPMENT_KEY_PREFIX}${actorId}`;
+  }
+
+  private tagsKey(actorId: string): string {
+    return `${TAGS_KEY_PREFIX}${actorId}`;
+  }
+
+  /**
+   * Which rewards this actor has already taken, if the world remembers.
+   *
+   * Handed to the session as it was written, unlike a kit: see
+   * {@link TAGS_KEY_PREFIX} for why a tag is not checked against the world.
+   * Undefined for somebody new, who is owed everything.
+   */
+  private async lastTagsOf(actorId: string): Promise<string[] | undefined> {
+    const saved = await this.ctx.storage.get<SavedTags>(this.tagsKey(actorId));
+    return saved?.tags;
   }
 
   /**
@@ -452,8 +740,10 @@ export class GameServer extends DurableObject<Env> {
     if (!session) return;
 
     const savedAt = Date.now();
-    const entries: Record<string, SavedPosition | SavedEquipment | Checkpoint> =
-      {};
+    const entries: Record<
+      string,
+      SavedPosition | SavedEquipment | SavedTags | Checkpoint
+    > = {};
     for (const actorId of actorIds) {
       const at = session.actorPosition(actorId);
       if (!at) continue;
@@ -468,6 +758,18 @@ export class GameServer extends DurableObject<Env> {
       const equipment = session.equipmentOf(actorId);
       if (equipment?.weapon || equipment?.bag) {
         entries[this.equipmentKey(actorId)] = { equipment, savedAt };
+      }
+      // In the same batch again, and here the pairing is not merely tidy: the
+      // items of a reward land in the kit and its tag lands here, so a batch
+      // that carried one without the other would either hand somebody a second
+      // copy of the reward or charge them for one they never got.
+      //
+      // Only a non-empty list, on the same terms the kit is: everybody starts
+      // with none, and a key per creature per world would spend the ceiling
+      // below on remembering that a deer has opened no chests.
+      const tags = session.tagsOf(actorId);
+      if (tags && tags.length > 0) {
+        entries[this.tagsKey(actorId)] = { tags: [...tags], savedAt };
       }
     }
 
@@ -527,6 +829,7 @@ export class GameServer extends DurableObject<Env> {
   private async pruneRemembered() {
     await this.pruneOldest(POSITION_KEY_PREFIX);
     await this.pruneOldest(EQUIPMENT_KEY_PREFIX);
+    await this.pruneOldest(TAGS_KEY_PREFIX);
   }
 
   /**
@@ -592,6 +895,7 @@ export class GameServer extends DurableObject<Env> {
       actorId,
       await this.lastPositionOf(actorId),
       await this.lastEquipmentOf(actorId),
+      await this.lastTagsOf(actorId),
     );
     this.events.push({
       kind: "joined",
@@ -660,6 +964,10 @@ export class GameServer extends DurableObject<Env> {
       // Theirs alone, and sent in full here for the same reason the map and the
       // hit points are: a joiner has nothing to patch against.
       equipment: session.equipmentOf(actorId) ?? emptyEquipment(),
+      // Beside the kit, and needed before the first frame for a sharper reason:
+      // a client with no tags offers every reward in the room, so a joiner
+      // without this is shown chests it will be refused at.
+      tags: [...(session.tagsOf(actorId) ?? [])],
       playerCount: this.playerCount(),
       // Read here rather than tracked: time of day is a function of the
       // server's clock, so it costs nothing to keep and cannot fall behind
@@ -747,6 +1055,7 @@ export class GameServer extends DurableObject<Env> {
 
     this.flushEquipment();
     this.flushSounds();
+    this.flushTags();
     this.wake();
   }
 
@@ -820,6 +1129,35 @@ export class GameServer extends DurableObject<Env> {
       // kit changed, and there is nobody left to tell.
       if (!equipment) continue;
       ws.send(JSON.stringify({ type: "equipment", equipment } satisfies ServerMessage));
+    }
+  }
+
+  /**
+   * Tell anybody whose tags changed what they have taken now.
+   *
+   * Its own drain and its own message, sent from the same places the kit is —
+   * they change together today, and the two queues are what keeps that a fact
+   * about rewards rather than an assumption in the plumbing.
+   */
+  private flushTags() {
+    const session = this.session;
+    if (!session) return;
+    const changed = session.drainTagChanges();
+    if (changed.length === 0) return;
+
+    const wanted = new Set(changed);
+    for (const ws of this.ctx.getWebSockets()) {
+      const attachment = ws.deserializeAttachment() as Attachment | null;
+      if (!attachment || !wanted.has(attachment.actorId)) continue;
+      const tags = session.tagsOf(attachment.actorId);
+      // Gone between the change and the flush, exactly as a kit can be.
+      if (!tags) continue;
+      ws.send(
+        JSON.stringify({
+          type: "tags",
+          tags: [...tags],
+        } satisfies ServerMessage),
+      );
     }
   }
 
@@ -1166,16 +1504,35 @@ export class GameServer extends DurableObject<Env> {
     // the last five-second flush. A player who picked something up four seconds
     // before somebody hit save is carrying it only in memory.
     const carried = new Map<string, Equipment>();
+    const taken = new Map<string, string[]>();
     for (const ws of this.ctx.getWebSockets()) {
       const attachment = ws.deserializeAttachment() as Attachment | null;
       if (!attachment) continue;
       const kit = this.session?.equipmentOf(attachment.actorId);
       if (kit) carried.set(attachment.actorId, kit);
+      // Read here rather than from storage alone, for the reason the kit is: a
+      // reward taken since the last flush is on the runtime and nowhere else,
+      // and the world it was taken in is about to be replaced.
+      const tags = this.session?.tagsOf(attachment.actorId);
+      if (tags?.length) taken.set(attachment.actorId, [...tags]);
     }
 
     this.tiles = tiles;
     this.session = session;
     this.broadcastMap = this.session.getMap();
+    // A save is a fresh statement of what belongs where, so the registry is
+    // re-derived wholesale and every running deadline with it: the point a
+    // deadline was counting toward may no longer exist, and one that does
+    // exist again — the author placed the creature back by hand — owes
+    // nothing. Read off the new session rather than the incoming file so the
+    // creature identities are the adopted ones.
+    this.setRespawnPoints(
+      findSpawnPoints(session.getMap(), tilesByIdFromList(tiles)),
+    );
+    this.respawnPending.clear();
+    this.persistRespawnPoints();
+    this.persistRespawnPending();
+    this.scheduleRespawnAlarm();
     this.sentMotion.clear();
     this.sentHp.clear();
     // A new world is a clean slate for the dead as much as for the living:
@@ -1191,7 +1548,7 @@ export class GameServer extends DurableObject<Env> {
     this.events = [];
 
     // Everyone still connected re-enters the new world at its spawn point,
-    // carrying what they were carrying.
+    // carrying what they were carrying and everything they have already taken.
     //
     // **A save re-creates the world, not the people in it.** Items on the floor
     // coming back is the whole point of authoring them there — the map is the
@@ -1202,11 +1559,18 @@ export class GameServer extends DurableObject<Env> {
     // emptied every connected player's pockets, and the flush five seconds later
     // wrote that emptiness over the only record of what they had.
     //
-    // Checked against the new tiles on the way in, on the same terms
+    // Their tags travel for the same reason and with less to argue about: a tag
+    // records something that happened to the *player*, so a new map has nothing
+    // to say about it at all. Dropping them would refill every reward in the
+    // world for everybody standing in it, once per save — and the editor saves
+    // constantly.
+    //
+    // The kit is checked against the new tiles on the way in, on the same terms
     // {@link lastEquipmentOf} checks a remembered one: the save may have brought
     // a new catalogue with it, and a sword that has become a prop in it is a kit
-    // this world no longer agrees with. Storage is the fallback for the world
-    // that was too broken to have a session at all.
+    // this world no longer agrees with. A tag is never checked against anything
+    // — see {@link TAGS_KEY_PREFIX}. Storage is the fallback for the world that
+    // was too broken to have a session at all.
     const tilesById = tilesByIdFromList(tiles);
     for (const ws of this.ctx.getWebSockets()) {
       const attachment = ws.deserializeAttachment() as Attachment | null;
@@ -1218,6 +1582,8 @@ export class GameServer extends DurableObject<Env> {
         kit
           ? restoredEquipment(kit, tilesById)
           : await this.lastEquipmentOf(attachment.actorId),
+        taken.get(attachment.actorId) ??
+          (await this.lastTagsOf(attachment.actorId)),
       );
     }
     for (const ws of this.ctx.getWebSockets()) {
@@ -1268,6 +1634,9 @@ export class GameServer extends DurableObject<Env> {
 
     session.tick(TICK_MS);
     this.applyQueuedSteps();
+    // Before the diff below, so a refill rides the same patch as everything
+    // else this tick did.
+    this.processDueRespawns(Date.now());
 
     const actors = session.actorSnapshots();
     this.collectMotionEvents(actors);
@@ -1277,6 +1646,7 @@ export class GameServer extends DurableObject<Env> {
     this.broadcastNoise(session, actors);
 
     const cells = this.diffCells(session.getMap());
+    this.sweepRespawnCells(cells);
     const hps = this.diffHps(actors);
     const carriedLights = this.diffCarriedLights(actors);
     if (
@@ -1300,6 +1670,7 @@ export class GameServer extends DurableObject<Env> {
     // but a brain that picks something up will, and the alternative is finding
     // out by way of a panel that never updates.
     this.flushEquipment();
+    this.flushTags();
     this.saveActorsIfDue();
     this.sleepIfIdle();
   }
@@ -1373,6 +1744,10 @@ export class GameServer extends DurableObject<Env> {
       this.sentMotion.delete(actorId);
       this.sentHp.delete(actorId);
       this.queuedSteps.delete(actorId);
+      // A dead resident with a spawn point is not gone, only owed: the clock
+      // on its return starts with the death itself.
+      const point = this.respawnPoints.get(actorId);
+      if (point) this.armRespawn(point, Date.now());
     }
   }
 

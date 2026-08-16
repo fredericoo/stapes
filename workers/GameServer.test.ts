@@ -1,4 +1,9 @@
-import { env, fetchMock, runInDurableObject } from "cloudflare:test";
+import {
+  env,
+  fetchMock,
+  runDurableObjectAlarm,
+  runInDurableObject,
+} from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import tilesJson from "../data/tiles.json";
 import {
@@ -1448,6 +1453,79 @@ describe("player permanence", () => {
   });
 
   /**
+   * A tag records that something already happened, so it is the one piece of
+   * per-actor state that must survive everything.
+   *
+   * Seeded straight into storage rather than earned by opening a chest: what is
+   * under test is the load path — `lastTagsOf` → `spawn` → `hello` — which only
+   * runs when the object is built from disk, and the fixture map has no reward
+   * tile to earn one from. It is exactly the shape of bug a node test cannot
+   * see, which is what this file is for.
+   */
+  it("hands a returning player back the rewards they have taken", async () => {
+    const who = freshPlayer();
+    await runInDurableObject(stub(), async (_instance, state) => {
+      await state.storage.put(`tags:${who}`, {
+        tags: ["chest-42"],
+        savedAt: Date.now(),
+      });
+    });
+    await simulateEviction();
+
+    const { hello } = await connect(who);
+
+    expect(hello.tags).toEqual(["chest-42"]);
+  });
+
+  /**
+   * The editor saves constantly, and a save re-seats everybody.
+   *
+   * Their *kit* is not carried across — it named things in a world that has just
+   * been thrown away — but a tag names something that happened to the person,
+   * and dropping it would refill every chest in the map for everybody standing
+   * in it, once per save.
+   */
+  it("keeps taken rewards across a world replacement", async () => {
+    const who = freshPlayer();
+    await runInDurableObject(stub(), async (_instance, state) => {
+      await state.storage.put(`tags:${who}`, {
+        tags: ["chest-42"],
+        savedAt: Date.now(),
+      });
+    });
+    await simulateEviction();
+    await connect(who);
+
+    await stub().replaceWorld(authoredMap());
+
+    const { hello } = await connect(who);
+    expect(hello.tags).toEqual(["chest-42"]);
+  });
+
+  /** Capped on the same terms the kits and positions are, and separately. */
+  it("drops the least recently saved tags once the store is full", async () => {
+    const overflow = 5;
+    await runInDurableObject(stub(), async (_instance, state) => {
+      for (let i = 0; i < MAX_REMEMBERED_ACTORS + overflow; i += BACKFILL_BATCH) {
+        const batch: Record<string, unknown> = {};
+        const end = Math.min(i + BACKFILL_BATCH, MAX_REMEMBERED_ACTORS + overflow);
+        for (let n = i; n < end; n++) {
+          batch[`tags:backfill-${n}`] = { tags: ["seen"], savedAt: n };
+        }
+        await state.storage.put(batch);
+      }
+    });
+
+    await simulateEviction();
+    await connect(freshPlayer());
+
+    const kept = await storedKeys("tags:");
+    expect(kept).toHaveLength(MAX_REMEMBERED_ACTORS);
+    expect(kept).not.toContain("tags:backfill-0");
+    expect(kept).toContain(`tags:backfill-${MAX_REMEMBERED_ACTORS + overflow - 1}`);
+  });
+
+  /**
    * The one rule that stops an item existing twice.
    *
    * Picking something up takes it off the map and puts it in a bag, so the two
@@ -1773,5 +1851,110 @@ describe("consuming", () => {
     });
 
     expect(await noiseWithin(alice.ws, QUIET_MS)).toBeNull();
+  });
+});
+
+describe("respawn", () => {
+  const GNOME_X = 3;
+  /** The identity adoption mints at the gnome's authored spot. */
+  const GNOME_OWNER = `npc:${GNOME_X},0,0,1`;
+  /** Immediate, so the test waits on the machinery rather than the window. */
+  const RESPAWN_WINDOW_MS = 1;
+
+  /** A mindless body that comes back — no brain, so the world can settle. */
+  function gnomeTile() {
+    return {
+      id: "gnome",
+      name: "Gnome",
+      height: 1,
+      type: "simple",
+      kind: "prop",
+      attributes: {},
+      actor: true,
+      walkable: false,
+      interactions: {
+        respawn: { fromMs: RESPAWN_WINDOW_MS, toMs: RESPAWN_WINDOW_MS },
+      },
+      sprite: {
+        frames: [
+          {
+            sprite: {
+              tilesetId: "tiny-ranch-tiles",
+              rect: { x: 0, y: 0, w: 1, h: 1 },
+              base: { x: 0, y: 0 },
+            },
+            durationMs: 200,
+          },
+        ],
+      },
+    };
+  }
+
+  function mapWithGnome(): FlatMapFile {
+    const flat = authoredMap();
+    flat.levels["0"]![`${GNOME_X},0`] = [
+      { tileId: "grass" },
+      { tileId: "gnome" },
+    ];
+    return flat;
+  }
+
+  beforeEach(async () => {
+    await env.DATA.put(
+      "tiles.json",
+      JSON.stringify([...tilesJson, gnomeTile()]),
+    );
+    await env.DATA.put("map.json", JSON.stringify(mapWithGnome()));
+  });
+
+  it("derives and stores the spawn points when a fresh world loads", async () => {
+    await connect("alice");
+
+    const points = await runInDurableObject(stub(), (_instance, state) =>
+      state.storage.get<Array<{ key: string; ownerId?: string }>>(
+        "respawnPoints",
+      ),
+    );
+    expect(points?.map((p) => p.key)).toEqual([GNOME_OWNER]);
+    expect(points?.[0]?.ownerId).toBe(GNOME_OWNER);
+  });
+
+  /**
+   * The whole promise in one pass: a death that only storage remembers — the
+   * board was checkpointed without the body, the object evicted — is armed
+   * afresh at load, and the alarm grows the creature back, adopted under the
+   * identity it died with.
+   */
+  it("arms a creature missing at load and grows it back on the alarm", async () => {
+    // A fresh load first, which is what derives and stores the registry.
+    await connect("alice");
+
+    await putCheckpoint({ ...checkpointWith(["alice"]), dead: [GNOME_OWNER] });
+    await simulateEviction();
+
+    const { hello } = await connect("alice");
+    const helloStack = (hello.map as FlatMapFile).levels["0"]?.[`${GNOME_X},0`];
+    expect(helloStack?.map((p) => p.tileId)).toEqual(["grass"]);
+
+    // Past the 1ms window, so the deadline is due however it is served.
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    // The tick loop may have got there first and cleared the alarm, which is
+    // the running-world path doing its job; the return is therefore not
+    // asserted, only the world it leaves behind.
+    await runDurableObjectAlarm(stub());
+
+    const stack = await runInDurableObject(stub(), (instance: GameServer) => {
+      const internals = instance as unknown as {
+        session: { getMap(): MapFile };
+      };
+      return getStack(internals.session.getMap(), GNOME_X, 0, 0);
+    });
+    expect(stack.map((p) => p.tileId)).toEqual(["grass", "gnome"]);
+    expect(stack[1]?.owner).toBe(GNOME_OWNER);
+
+    const pending = await runInDurableObject(stub(), (_instance, state) =>
+      state.storage.get<Record<string, number>>("respawnPending"),
+    );
+    expect(Object.keys(pending ?? {})).toEqual([]);
   });
 });

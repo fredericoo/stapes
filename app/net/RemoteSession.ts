@@ -17,6 +17,7 @@ import {
   canDropAt,
   canPickUpFrom,
   canPushFrom,
+  canRewardFrom,
   canSwitchFrom,
   type ObjectRef,
 } from "../game/affordances";
@@ -192,6 +193,15 @@ export class RemoteSession implements PlaySession {
    * owns, and a wrong guess would show somebody an item they do not have.
    */
   private equipment: Equipment = emptyEquipment();
+  /**
+   * Which rewards this player has already taken, as the server last said.
+   *
+   * Never predicted either, and for a stronger reason than the kit: a tag is
+   * what closes a chest for ever, so a guessed one would take a reward off the
+   * screen that the player has not actually been given. Replaced wholesale, so
+   * its identity is what tells the renderer to rebuild its rows.
+   */
+  private tags: readonly string[] = NO_TAGS;
   /** Numbers still floating, with their own clocks. */
   private damage: DamageNumber[] = [];
   /** Who this client is pointing at; echoed back in the snapshot for the outline. */
@@ -313,6 +323,10 @@ export class RemoteSession implements PlaySession {
       // fresh one, and what it is carrying is whatever the server just said —
       // not what the body in the previous world had on it.
       this.equipment = message.equipment;
+      // Same rule, and it matters more here: a fresh body in a replaced world
+      // still belongs to the same person, and dropping their tags would hand
+      // them every reward in the map a second time.
+      this.tags = message.tags;
       for (const id of message.actorIds) this.motions.set(id, emptyMotion());
       this.applyHps(message.hps);
       this.applyCarriedLights(message.carriedLights);
@@ -357,6 +371,12 @@ export class RemoteSession implements PlaySession {
 
     if (message.type === "stepRejected") {
       this.rollBackFrom(message.seq);
+      return;
+    }
+
+    if (message.type === "tags") {
+      // Whole state, like the kit beside it.
+      this.tags = message.tags;
       return;
     }
 
@@ -1077,6 +1097,7 @@ export class RemoteSession implements PlaySession {
       targetId: this.targetId,
       attacking: this.attacking,
       equipment: this.equipment,
+      tags: this.tags,
       chats: this.chats,
       noises: this.noises,
       damage: this.damage,
@@ -1127,6 +1148,14 @@ export class RemoteSession implements PlaySession {
     const loc = this.locate(this.selfId, motion);
     if (!loc) return false;
     return (
+      canRewardFrom(
+        this.map,
+        this.tilesById,
+        loc,
+        ref,
+        this.equipment,
+        this.tags,
+      ) ||
       canSwitchFrom(this.map, this.tilesById, loc, ref) ||
       canPickUpFrom(this.map, this.tilesById, loc, ref, this.equipment) ||
       canPushFrom(this.map, this.tilesById, loc, ref)
@@ -1322,6 +1351,13 @@ export class RemoteSession implements PlaySession {
  * sharing it is safe in the way sharing a mutable default never is.
  */
 const NO_CARRIED_LIGHTS: string[] = [];
+
+/**
+ * What a client holds before the server has said otherwise, and for anybody who
+ * has taken no reward. Shared on the same terms {@link NO_CARRIED_LIGHTS} is:
+ * tags arrive whole and replace the array rather than being appended to.
+ */
+const NO_TAGS: readonly string[] = [];
 
 function emptyMotion(): RemoteMotion {
   return { walk: null, fall: null, slide: null, lastSeen: null };

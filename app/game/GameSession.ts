@@ -10,7 +10,7 @@ import { resolveSwitch } from "../lib/interactions";
 import { resolveConsumable, type ConsumableItem } from "../lib/item";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
 import { MIN_LEVEL } from "../lib/types";
-import { tilesByIdFromList } from "../lib/validation";
+import { canPlace, tilesByIdFromList } from "../lib/validation";
 import {
   actorDirection,
   adoptAuthoredPlayer,
@@ -31,9 +31,12 @@ import {
   canDropAt,
   canPickUpFrom,
   canPushFrom,
+  canRewardFrom,
   canSwitchFrom,
   pickUpDestination,
   interactiveDefAt,
+  reachableRewardAt,
+  rewardFits,
   pushDirectionFrom,
   pushTargetFrom,
   type ObjectRef,
@@ -60,6 +63,7 @@ import {
   startingEquipment,
 } from "./equipment";
 import { mintItemIds } from "./itemIds";
+import { isSpawnFilled, type SpawnPoint } from "./respawn";
 import {
   applyItemMove,
   canMoveItem,
@@ -70,6 +74,7 @@ import {
 import type { ItemInstance } from "../lib/itemInstance";
 import {
   instanceFromPlacement,
+  mintItemId,
   placementFromInstance,
 } from "../lib/itemInstance";
 import {
@@ -354,6 +359,17 @@ export type GameSnapshot = {
    */
   equipment: Equipment;
   /**
+   * What the viewer has been marked with — see {@link RewardInteraction.tag}.
+   *
+   * Theirs alone, on exactly the terms {@link equipment} is: a tag decides what
+   * *this* player is still owed, and nobody else's chest rows are drawn.
+   *
+   * Replaced wholesale rather than appended to, so identity is the change
+   * signal — the same contract the kit has, and what lets the renderer gate the
+   * interaction list on it without walking the list.
+   */
+  tags: readonly string[];
+  /**
    * Speech still on screen, on this viewer's level only.
    *
    * Always present rather than optional so the renderer's contract stays total;
@@ -378,6 +394,16 @@ export const LOCAL_ACTOR_ID = "local";
  * asking costs a map lookup rather than an allocation per creature per tick.
  */
 const EMPTY_ATTACKERS: readonly string[] = [];
+
+/**
+ * Shared empty list for everybody who has taken no reward yet — which is every
+ * creature in the world for ever, and every player until the first chest.
+ *
+ * Shared safely because the array is never appended to: taking a reward replaces
+ * it, on the same terms a kit is replaced, so there is no way for one actor's
+ * tag to appear on another.
+ */
+const NO_TAGS: readonly string[] = [];
 
 /**
  * Which way to turn to face a neighbouring cell.
@@ -522,6 +548,23 @@ type ActorRuntime = {
    */
   carriedLights: string[];
   /**
+   * What this actor has been marked with by the rewards they have taken.
+   *
+   * Beside {@link equipment} rather than folded into it, and the pairing is the
+   * point: they are the two halves of what a reward does — the items go in the
+   * bag, the tag goes here — and the one thing that must never happen is one
+   * landing without the other. Both are written in the same call and made
+   * durable in the same storage batch for that reason.
+   *
+   * The other state a world genuinely owes continuity for. Hit points and brains
+   * are rebuilt from the tile on every load; a tag cannot be, because what it
+   * records is that something already happened.
+   *
+   * Read-only and replaced wholesale, so a snapshot holding the previous array
+   * cannot be quietly rewritten under whoever is drawing from it.
+   */
+  tags: readonly string[];
+  /**
    * Where this creature is in its state machine, or null for a body with no
    * brain — every player, and any creature whose authored brain did not parse.
    * Built on first use rather than at adoption, which is what makes "brain
@@ -600,6 +643,8 @@ export class GameSession implements PlaySession {
    * it and the flush that sends it.
    */
   private readonly equipmentChanged = new Set<string>();
+  /** Actors whose tags have changed and whose owner has not been told yet. */
+  private readonly tagsChanged = new Set<string>();
   private readonly plateCells = new Map<string, Coord>();
   /**
    * Cells holding a placement wired to a signal channel — emitters and
@@ -831,7 +876,11 @@ export class GameSession implements PlaySession {
 
   private addActor(
     id: string,
-    opts: { resident?: boolean; carrying?: Equipment } = {},
+    opts: {
+      resident?: boolean;
+      carrying?: Equipment;
+      tagged?: readonly string[];
+    } = {},
   ): ActorRuntime {
     const resident = opts.resident === true;
     // Only people get a kit. A deer is an actor in every other respect, and
@@ -853,6 +902,11 @@ export class GameSession implements PlaySession {
       resident,
       equipment,
       carriedLights: carriedLightTileIds(equipment, this.tilesById),
+      // Not checked against the world the way a kit is. A kit names things that
+      // have to still exist; a tag names something that *happened*, and a reward
+      // whose tile the author has since deleted is still a chest this player
+      // opened. Forgetting it would hand them the next version of it twice.
+      tags: opts.tagged ?? NO_TAGS,
       brain: null,
       hp: null,
       attackCooldownMs: 0,
@@ -889,11 +943,14 @@ export class GameSession implements PlaySession {
    * @param carrying what this actor had on them the last time anyone saw them,
    *   already checked against this world's tiles — see `restoredEquipment`.
    *   Omit for somebody new, who gets the starting kit.
+   * @param tagged which rewards this actor has already taken. Omit for somebody
+   *   new, who is owed all of them.
    */
   spawn(
     id: string,
     at?: Coord & { direction?: Direction },
     carrying?: Equipment,
+    tagged?: readonly string[],
   ) {
     if (this.actors.has(id)) return;
     if (!findActorAnywhere(this.map, id)) {
@@ -902,7 +959,7 @@ export class GameSession implements PlaySession {
         : this.spawnAt;
       this.map = spawnActor(this.map, id, cell, at?.direction);
     }
-    this.addActor(id, { carrying });
+    this.addActor(id, { carrying, tagged });
   }
 
   /**
@@ -960,6 +1017,47 @@ export class GameSession implements PlaySession {
     this.map = despawnActor(this.map, id);
   }
 
+  /**
+   * Grow back what was authored at a spawn point, if it is still owed.
+   *
+   * True means this deadline is spent — the point is filled, something grew,
+   * or nothing ever will — and the server can drop it. One call grows one
+   * placement, so a point authored with several identical objects refills one
+   * per window: the growth itself changes the cell, and the server's
+   * changed-cell sweep is what notices the count is still short and arms the
+   * next.
+   * False means "not now": the placement no longer fits under whatever has
+   * been stacked in its cell, and the server retries rather than abandons,
+   * because unlike a decay that cannot happen, a monster that never comes back
+   * is a hole in the world rather than a mess left un-tidied.
+   *
+   * A tile that has left the catalogue reads as settled, not as a retry: no
+   * amount of waiting authors it back, and the registry is rebuilt from the
+   * catalogue on the next save anyway.
+   */
+  respawnAt(point: SpawnPoint): boolean {
+    if (isSpawnFilled(this.map, point)) return true;
+    const def = this.tilesById[point.placed.tileId];
+    if (!def) return true;
+    const { x, y, z } = point.cell;
+    if (!canPlace(this.map, x, y, z, def, this.tilesById).ok) return false;
+
+    this.map = appendTile(this.map, x, y, z, {
+      ...point.placed,
+      ...(point.ownerId ? { owner: point.ownerId } : {}),
+    });
+    // A respawned item is a new item — the authored placement carries no ids
+    // (see `authoredPlacement`), and this is what stamps fresh ones on.
+    this.map = mintItemIds(this.map, this.tilesById);
+    if (point.ownerId && !this.actors.has(point.ownerId)) {
+      this.addActor(point.ownerId, { resident: true });
+    }
+    // What grew back may be a plate's load, a wire's emitter or a decaying
+    // tile, so the cell's indexes are rebuilt exactly as they are after a kill.
+    this.reindexCells([point.cell]);
+    return true;
+  }
+
   actorIds(): string[] {
     return [...this.actors.keys()];
   }
@@ -974,6 +1072,17 @@ export class GameSession implements PlaySession {
    */
   equipmentOf(id: string): Equipment | null {
     return this.actors.get(id)?.equipment ?? null;
+  }
+
+  /**
+   * Which rewards one actor has already taken, or null for nobody by that name.
+   *
+   * Null rather than an empty list on the same grounds {@link equipmentOf}
+   * returns it: "here and owed everything" and "not here at all" are different
+   * answers to the server, and only one of them is worth writing down.
+   */
+  tagsOf(id: string): readonly string[] | null {
+    return this.actors.get(id)?.tags ?? null;
   }
 
   /**
@@ -2182,6 +2291,86 @@ export class GameSession implements PlaySession {
     return changed;
   }
 
+  /**
+   * Whose tags have changed since anybody last asked, and clears the list.
+   *
+   * Its own queue rather than a flag on the equipment one, even though today
+   * every tag arrives beside a kit. They are two facts with two messages, and a
+   * reward that handed over nothing — a tag for having spoken to somebody — is
+   * the obvious next thing to author.
+   */
+  drainTagChanges(): string[] {
+    if (this.tagsChanged.size === 0) return [];
+    const changed = [...this.tagsChanged];
+    this.tagsChanged.clear();
+    return changed;
+  }
+
+  canTakeReward(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
+    const actor = this.actor(id);
+    if (!this.idle(actor)) return false;
+    return canRewardFrom(
+      this.map,
+      this.tilesById,
+      this.locate(actor),
+      ref,
+      actor.equipment,
+      actor.tags,
+    );
+  }
+
+  /**
+   * Hand this actor the reward, and mark them with its tag.
+   *
+   * **The board is not touched.** Nothing is taken off the map and nothing swaps
+   * — the chest is still a chest, still full for the next person, and the cell
+   * patch that would have announced an edit is never sent. The whole of what
+   * happened lives on the taker, which is what "once per player" means in a
+   * world several people are standing in.
+   *
+   * Every item is minted fresh ({@link mintItemId}), so two players who open the
+   * same chest come away with two distinct swords. An authored reward is a
+   * recipe, not an object being moved.
+   *
+   * The kit and the tag are written together and never conditionally: a reward
+   * whose items landed without its tag is one the player can take again, which
+   * is an item with no ceiling on how many exist.
+   */
+  takeReward(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
+    const actor = this.actor(id);
+    if (!this.idle(actor)) return false;
+
+    const loc = this.locate(actor);
+    const reward = reachableRewardAt(this.map, this.tilesById, loc, ref);
+    if (!reward) return false;
+    if (actor.tags.includes(reward.tag)) return false;
+    if (!rewardFits(reward, this.tilesById, actor.equipment)) return false;
+
+    const bag = actor.equipment.bag!;
+    const given = reward.itemTileIds.map((tileId) => ({
+      id: mintItemId(),
+      tileId,
+    }));
+    this.setEquipment(actor, {
+      ...actor.equipment,
+      bag: { ...bag, contents: [...(bag.contents ?? []), ...given] },
+    });
+    this.setTags(actor, [...actor.tags, reward.tag]);
+    return true;
+  }
+
+  /**
+   * Mark an actor, replacing the list rather than pushing onto it.
+   *
+   * Same contract {@link setEquipment} keeps and for the same reason: the array
+   * identity is what tells a renderer its rows are stale, and a list appended to
+   * in place would leave an emptied chest still offering itself.
+   */
+  private setTags(actor: ActorRuntime, next: readonly string[]) {
+    actor.tags = next;
+    this.tagsChanged.add(actor.id);
+  }
+
   canSwitch(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
     if (!this.idle(actor)) return false;
@@ -2230,7 +2419,10 @@ export class GameSession implements PlaySession {
    */
   interact(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const acted =
-      this.activateSwitch(ref, id) || this.pickUp(ref, id) || this.push(ref, id);
+      this.takeReward(ref, id) ||
+      this.activateSwitch(ref, id) ||
+      this.pickUp(ref, id) ||
+      this.push(ref, id);
     if (acted) this.settleBoardNow();
     return acted;
   }
@@ -2238,7 +2430,10 @@ export class GameSession implements PlaySession {
   /** Is there anything a tap on this object would do right now? */
   canInteract(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     return (
-      this.canSwitch(ref, id) || this.canPickUp(ref, id) || this.canPush(ref, id)
+      this.canTakeReward(ref, id) ||
+      this.canSwitch(ref, id) ||
+      this.canPickUp(ref, id) ||
+      this.canPush(ref, id)
     );
   }
 
@@ -2331,6 +2526,7 @@ export class GameSession implements PlaySession {
       targetId: self.targetId,
       attacking: self.attacking,
       equipment: self.equipment,
+      tags: self.tags,
       // Nobody to talk to: the local simulation has no wire and no other actors
       // worth naming, so speech is a thing only the online client carries.
       chats: [],

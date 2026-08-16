@@ -1,6 +1,7 @@
 import {
   IconApple,
   IconBoxSeam,
+  IconGift,
   IconHandGrab,
   IconHandMove,
   IconSwitch,
@@ -62,6 +63,9 @@ const ICONS: Record<InteractionAction, typeof IconTarget> = {
   // An apple for every consumable, drink included: the icon says "this gets
   // used up", and the authored verb beside it says how.
   consume: IconApple,
+  // Being handed something, whoever is doing the handing. A gift rather than a
+  // chest, because half of these are people.
+  reward: IconGift,
 };
 
 const SPRITE_SIZE_PX = 32;
@@ -161,6 +165,25 @@ function litClass(option: InteractionOption, attacking: boolean): string {
   return "border-paper bg-paper/15 text-paper";
 }
 
+/**
+ * What a row wears, lit or not.
+ *
+ * A reward is the one row that carries its colour without being lit, and it has
+ * to: everything else here is a state you can be *in* — pointing at somebody,
+ * having a box open — and lighting up is how the list says which one you are in.
+ * "You can only do this once" is not a state, it is a property of the offer, so
+ * it is on the row from the moment the row exists. Which is also why it is a
+ * tint rather than the full lit treatment: it must not read as the row being
+ * selected.
+ */
+function rowClass(option: InteractionOption, attacking: boolean): string {
+  if (option.active) return litClass(option, attacking);
+  if (option.action === "reward") {
+    return "border-reward/60 bg-reward/10 text-paper hover:border-reward";
+  }
+  return "border-paper/40 bg-ink text-paper hover:border-paper";
+}
+
 function InteractionRow({
   option,
   tile,
@@ -197,9 +220,7 @@ function InteractionRow({
       className={[
         "flex w-full shrink-0 items-center gap-2 border-2 p-1 text-left",
         "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-        option.active
-          ? litClass(option, attacking)
-          : "border-paper/40 bg-ink text-paper hover:border-paper",
+        rowClass(option, attacking),
       ].join(" ")}
     >
       <TilePreview
@@ -213,7 +234,17 @@ function InteractionRow({
         className="shrink-0"
       />
       <span className="flex min-w-0 flex-1 flex-col">
-        <span className="flex items-center gap-1 text-xs font-medium uppercase">
+        <span
+          className={[
+            "flex items-center gap-1 text-xs font-medium uppercase",
+            // The verb is what the row is scanned for, so it is the verb that
+            // carries the colour — a purple border alone is decoration until you
+            // know what it means, and "Receive" in purple teaches it in one row.
+            option.action === "reward" ? "text-reward" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+        >
           <Icon size={14} stroke={2} aria-hidden="true" />
           {option.label}
         </span>

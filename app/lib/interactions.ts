@@ -2,8 +2,8 @@ import * as v from "valibot";
 import type { BattlerDef } from "./battler";
 import type { BrainDef } from "./brain";
 import type { ItemDef } from "./item";
-import { itemForSave, resolveItem } from "./item";
-import type { TileDef } from "./types";
+import { itemForSave, MAX_CONTAINER_SIZE, resolveItem } from "./item";
+import type { PlacedTile, TileDef } from "./types";
 import { HEIGHT_PER_LEVEL, resolveActor } from "./types";
 
 /**
@@ -108,6 +108,39 @@ export type DecayInteraction = {
   toMs: number;
 };
 
+/**
+ * Come back once a placement of this tile is gone — the mirror of
+ * {@link DecayInteraction}, with the arrow reversed: decay counts down while a
+ * placement exists, respawn counts down while one is missing.
+ *
+ * Configured on the tile def, tracked per authored placement: each spot this
+ * tile was placed at in the editor is its own spawn point, and each comes back
+ * on its own clock. A creature is tracked by the identity it was adopted under
+ * (see `../game/actors.residentOwnerId`), so one that wandered off is still
+ * alive wherever it stands; an object is tracked by its authored cell, so one
+ * carried away reads as gone and grows back — taking the sword is what makes
+ * the sword worth authoring a respawn on.
+ *
+ * Unlike decay this clock is the wall's, not the session's: the deadline is
+ * held by the server and survives the world going quiet, so a world nobody
+ * visited for an hour comes back repopulated rather than owing an hour of
+ * ticking. See `workers/GameServer` for the machinery.
+ */
+export type RespawnInteraction = {
+  /** Shortest a spawn point can sit empty, in wall-clock milliseconds. */
+  fromMs: number;
+  /**
+   * Longest it can sit empty. The wait is drawn from the range once per
+   * disappearance. A range for the same reason decay's lifetime is one: a camp
+   * cleared in one fight coming back all on the same second reads as a bug
+   * rather than as the world recovering. Equal ends are legal.
+   *
+   * Must be at least {@link fromMs}; an inverted range reads as "does not
+   * respawn", on the same terms as every other malformed block here.
+   */
+  toMs: number;
+};
+
 /** How a plate's authored {@link PressurePlateInteraction.height} reads its load. */
 export type PlateComparison = "eq" | "neq" | "gt" | "gte" | "lt" | "lte";
 
@@ -200,6 +233,72 @@ export type ReceiveInteraction = {
   mode: SignalMode;
 };
 
+/**
+ * This tile hands things over — a chest you open, a person you receive from.
+ *
+ * **The block is a marker, and almost everything about the reward is on the
+ * placement** ({@link PlacedTile.rewardTag} and
+ * {@link PlacedTile.rewardTileIds}). Exactly the split {@link EmitInteraction}
+ * makes: the tile is the kind of thing, the slot is which particular one. One
+ * `quest-chest` tile can furnish a whole map, and the three chests in a dungeon
+ * differ by what is written on their placements rather than by being three tile
+ * defs that happen to look alike.
+ *
+ * **The tile never changes, and that is the whole design.** Every other authored
+ * swap in this file — switch, plate, receive — edits the board, which is what
+ * makes it the same for everybody looking at it. "Once per player" cannot be
+ * that: the chest has to still be there for the next person who walks in. So
+ * what a reward changes is the *taker* ({@link ActorRuntime.tags}), exactly as
+ * hit points and equipment are per-actor state that no cell patch carries, and
+ * a chest somebody has emptied looks untouched to the room.
+ *
+ * **One tag, granted and gating.** Taking it writes the placement's tag onto the
+ * player, and holding that tag is what stops them taking it — one field rather
+ * than a granted/blocking pair, so a reward cannot be authored repeatable by
+ * accident. Two placements sharing a tag are therefore a *choice*: give the left
+ * chest and the right chest both `chest-42` and opening either closes the other.
+ */
+export type RewardInteraction = {
+  /**
+   * What taking it is called — "Open" on a chest, "Receive" from a person.
+   *
+   * The one field that genuinely belongs to the tile rather than to the slot: it
+   * describes the *gesture*, which is a property of what the thing is. Every
+   * chest cut from one tile is opened; what is inside them differs.
+   *
+   * Authored for the same reason {@link SwitchInteraction.actionName} is —
+   * nothing derivable from a tile that hands over a sword says whether you are
+   * prising it out of a box or being given it. Optional, and blank reads as
+   * "Take".
+   */
+  actionName?: string;
+};
+
+/**
+ * A reward as it is actually offered: the tile's half and the slot's half, read
+ * together.
+ *
+ * Nothing consumes the two separately, because neither is a reward on its own —
+ * a chest tile with nothing written on this placement gives nothing, and a tag
+ * on a placement of a tile that is not a giver is a note nobody reads. So the
+ * halves are joined once, in {@link resolveReward}, and everything downstream
+ * takes this.
+ */
+export type PlacedReward = {
+  actionName?: string;
+  tag: string;
+  itemTileIds: string[];
+};
+
+/**
+ * Most items one placement may hand over.
+ *
+ * The largest bag there is, because the taker needs room for *all* of them at
+ * once — see `rewardFits`. A reward authored bigger than any container in the
+ * game is not a generous reward, it is one nobody can ever take.
+ */
+export const MAX_REWARD_ITEMS = MAX_CONTAINER_SIZE;
+
 /** Ways a placed object can behave in play. Grows over time. */
 export type TileInteractions = {
   /**
@@ -234,7 +333,9 @@ export type TileInteractions = {
   item?: ItemDef;
   push?: PushInteraction;
   switch?: SwitchInteraction;
+  reward?: RewardInteraction;
   decay?: DecayInteraction;
+  respawn?: RespawnInteraction;
   pressurePlate?: PressurePlateInteraction;
   emit?: EmitInteraction;
   receive?: ReceiveInteraction;
@@ -242,6 +343,10 @@ export type TileInteractions = {
 
 export const DEFAULT_SWITCH: SwitchInteraction = {
   targetTileId: "",
+  actionName: "",
+};
+
+export const DEFAULT_REWARD: RewardInteraction = {
   actionName: "",
 };
 
@@ -257,6 +362,20 @@ export const DEFAULT_DECAY: DecayInteraction = {
   tileId: "",
   fromMs: DEFAULT_DECAY_FROM_MS,
   toMs: DEFAULT_DECAY_TO_MS,
+};
+
+/**
+ * Long enough that clearing a spot feels like it happened, short enough that a
+ * player who came back for the creature does not find the world permanently
+ * poorer — and spread so a cleared camp trickles back rather than reappearing
+ * in one frame.
+ */
+const DEFAULT_RESPAWN_FROM_MS = 30_000;
+const DEFAULT_RESPAWN_TO_MS = 60_000;
+
+export const DEFAULT_RESPAWN: RespawnInteraction = {
+  fromMs: DEFAULT_RESPAWN_FROM_MS,
+  toMs: DEFAULT_RESPAWN_TO_MS,
 };
 
 export const DEFAULT_PUSH: PushInteraction = {
@@ -339,6 +458,87 @@ export function resolveSwitch(def: TileDef): SwitchInteraction | null {
   return sw;
 }
 
+const rewardSchema = v.object({
+  actionName: v.optional(v.string()),
+});
+
+const rewardCache = new WeakMap<TileDef, RewardInteraction | null>();
+
+/**
+ * Parsed reward config for a tile def — whether this tile is a giver at all,
+ * and what the gesture is called.
+ *
+ * Same trust model as {@link resolvePush}: malformed → not a giver. An *empty*
+ * block is entirely valid and is the common case, because the block's presence
+ * is the whole statement; what is given is on the placement.
+ */
+export function resolveRewardDef(def: TileDef): RewardInteraction | null {
+  const cached = rewardCache.get(def);
+  if (cached !== undefined) return cached;
+
+  const raw = def.interactions?.reward;
+  const parsed = raw == null ? null : v.safeParse(rewardSchema, raw);
+  const reward = parsed?.success ? parsed.output : null;
+  rewardCache.set(def, reward);
+  return reward;
+}
+
+/**
+ * What one placement of a giver tile actually hands over, or null when it hands
+ * over nothing.
+ *
+ * Both halves are required and neither is repairable. A tagless reward could be
+ * taken for ever, which is the one thing this exists to prevent; an empty one
+ * offers a verb that does nothing. Either way the answer is null, which reads
+ * downstream as "there is no reward here" — the same shape a malformed switch
+ * takes, and it means a half-authored chest is scenery rather than a trap.
+ *
+ * Parsed rather than trusted, like every other block: `data/map.json` is
+ * hand-editable, so these two fields arrive from a file somebody typed.
+ *
+ * Memoised on placement identity, on the same grounds the def resolvers are
+ * memoised on def identity: the map is copy-on-write, so a placement object is
+ * stable until that cell is edited, and this is asked per reachable cell on
+ * every pointer move.
+ */
+const placedRewardCache = new WeakMap<PlacedTile, PlacedReward | null>();
+
+export function resolveReward(
+  placed: PlacedTile,
+  def: TileDef | undefined,
+): PlacedReward | null {
+  const cached = placedRewardCache.get(placed);
+  if (cached !== undefined) return cached;
+
+  const reward = def ? readPlacedReward(placed, def) : null;
+  placedRewardCache.set(placed, reward);
+  return reward;
+}
+
+const placedRewardSchema = v.object({
+  rewardTag: v.pipe(v.string(), v.trim(), v.minLength(1)),
+  rewardTileIds: v.pipe(
+    v.array(v.string()),
+    v.minLength(1),
+    v.maxLength(MAX_REWARD_ITEMS),
+  ),
+});
+
+function readPlacedReward(
+  placed: PlacedTile,
+  def: TileDef,
+): PlacedReward | null {
+  const gesture = resolveRewardDef(def);
+  if (!gesture) return null;
+  const parsed = v.safeParse(placedRewardSchema, placed);
+  if (!parsed.success) return null;
+  return {
+    ...gesture,
+    tag: parsed.output.rewardTag,
+    itemTileIds: parsed.output.rewardTileIds,
+  };
+}
+
 const decaySchema = v.pipe(
   v.object({
     // Permissive where every other target is `minLength(1)`, because blank is
@@ -373,6 +573,34 @@ export function resolveDecay(def: TileDef): DecayInteraction | null {
   const decay = parsed?.success ? parsed.output : null;
   decayCache.set(def, decay);
   return decay;
+}
+
+const respawnSchema = v.pipe(
+  v.object({
+    // The same gate decay's lifetime is behind: no positive wait means no
+    // respawn, so a half-authored block is inert rather than a spawn point
+    // that refills the instant it empties.
+    fromMs: v.pipe(v.number(), v.integer(), v.minValue(1)),
+    toMs: v.pipe(v.number(), v.integer(), v.minValue(1)),
+  }),
+  v.check((r) => r.toMs >= r.fromMs, "respawn toMs must be at least fromMs"),
+);
+
+const respawnCache = new WeakMap<TileDef, RespawnInteraction | null>();
+
+/**
+ * Parsed respawn config per tile def. Same trust model as {@link resolvePush}:
+ * malformed, or with no wait to count down, → does not respawn.
+ */
+export function resolveRespawn(def: TileDef): RespawnInteraction | null {
+  const cached = respawnCache.get(def);
+  if (cached !== undefined) return cached;
+
+  const raw = def.interactions?.respawn;
+  const parsed = raw == null ? null : v.safeParse(respawnSchema, raw);
+  const respawn = parsed?.success ? parsed.output : null;
+  respawnCache.set(def, respawn);
+  return respawn;
 }
 
 const pressurePlateSchema = v.object({
@@ -459,8 +687,15 @@ export function receiveTriggers(
  * Kinds of interaction a tile offers the player, in the order the single
  * interact button tries them.
  *
- * Switch comes first: it is an explicit authored swap, and an author who put
- * one on a tile meant it to be what happens. Pick-up comes next, because
+ * Reward comes first, ahead of even a switch, because it is the only one of
+ * these that can happen to a given player *once*. A chest authored to both hand
+ * over its contents and swing open would otherwise spend its one chance on the
+ * hinge. And it falls through cleanly: a reward already taken is not on offer at
+ * all, so the second tap on that chest is the switch, with nothing here having
+ * to know it is the second.
+ *
+ * Switch comes next: it is an explicit authored swap, and an author who put
+ * one on a tile meant it to be what happens. Pick-up comes after, because
  * lifting a thing is a better guess at what somebody wants from a sword on the
  * floor than shoving it further away. Push is last, the fallback "just move it"
  * behaviour that anything can fall through to.
@@ -472,11 +707,15 @@ export function receiveTriggers(
  * the placement, so looking inside is local panel state. It is an
  * `InteractionAction` without being one of these, exactly as `target` is.
  */
-export type InteractionKind = "switch" | "pickUp" | "push";
+export type InteractionKind = "reward" | "switch" | "pickUp" | "push";
 
 /** Every player-activated interaction on this tile, in a stable order. */
 export function interactionKinds(def: TileDef): InteractionKind[] {
   const kinds: InteractionKind[] = [];
+  // The def's half only. Whether *this placement* actually gives anything is a
+  // question about a slot, and `interactionKinds` is asked about tiles — see
+  // `resolveReward`, which is what the affordances ask.
+  if (resolveRewardDef(def)) kinds.push("reward");
   if (resolveSwitch(def)) kinds.push("switch");
   if (resolveItem(def)) kinds.push("pickUp");
   if (resolvePush(def)) kinds.push("push");
@@ -534,7 +773,9 @@ export function hasAnyInteraction(
       interactions?.item ||
       interactions?.push ||
       interactions?.switch ||
+      interactions?.reward ||
       interactions?.decay ||
+      interactions?.respawn ||
       interactions?.pressurePlate ||
       interactions?.emit ||
       interactions?.receive,
@@ -567,6 +808,15 @@ export function interactionsForSave(
   const savedPlate = plate?.tileId.trim()
     ? { tileId: plate.tileId.trim(), type: plate.type, height: plate.height }
     : undefined;
+  // Kept even when it is empty, unlike every other block here, because an empty
+  // one is the whole point: `reward: {}` says "this tile is a giver", and what
+  // it gives is written on each placement. Dropping it for having no fields set
+  // would un-author the tile.
+  const reward = interactions?.reward;
+  const rewardActionName = reward?.actionName?.trim();
+  const savedReward = reward
+    ? { ...(rewardActionName ? { actionName: rewardActionName } : {}) }
+    : undefined;
   // Gated on the lifetime rather than on the target, unlike every other block
   // here: a blank target is how a tile says it vanishes, and dropping the block
   // for it would silently un-author exactly the case blood is.
@@ -580,6 +830,15 @@ export function interactionsForSave(
           fromMs: decayFromMs,
           toMs: decayToMs,
         }
+      : undefined;
+  // Same gate as decay's, minus the target it does not have: a respawn with no
+  // positive wait was never authored, whatever else is in the block.
+  const respawn = interactions?.respawn;
+  const respawnFromMs = respawn ? Math.round(respawn.fromMs) : 0;
+  const respawnToMs = respawn ? Math.round(respawn.toMs) : 0;
+  const savedRespawn =
+    respawnFromMs > 0 && respawnToMs >= respawnFromMs
+      ? { fromMs: respawnFromMs, toMs: respawnToMs }
       : undefined;
   const emit = interactions?.emit;
   const receive = interactions?.receive;
@@ -620,7 +879,9 @@ export function interactionsForSave(
     !savedItem &&
     !savedPush &&
     !savedSwitch &&
+    !savedReward &&
     !savedDecay &&
+    !savedRespawn &&
     !savedPlate &&
     !savedEmit &&
     !savedReceive
@@ -633,7 +894,9 @@ export function interactionsForSave(
     ...(savedItem ? { item: savedItem } : {}),
     ...(savedPush ? { push: savedPush } : {}),
     ...(savedSwitch ? { switch: savedSwitch } : {}),
+    ...(savedReward ? { reward: savedReward } : {}),
     ...(savedDecay ? { decay: savedDecay } : {}),
+    ...(savedRespawn ? { respawn: savedRespawn } : {}),
     ...(savedPlate ? { pressurePlate: savedPlate } : {}),
     ...(savedEmit ? { emit: savedEmit } : {}),
     ...(savedReceive ? { receive: savedReceive } : {}),
