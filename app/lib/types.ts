@@ -145,6 +145,25 @@ export type TileDef = StateSprites & {
   /** Reserved for flammable/wet/frozen/pushable later. */
   attributes: Record<string, never>;
   /**
+   * Other tile ids this autotile reads as *itself* when it looks at its
+   * neighbours. Only meaningful when `type === "autotile"`.
+   *
+   * An 8-neighbour mask can only ask "is my neighbour more of me?", which makes
+   * two very different absences identical: the empty tile outside a house and
+   * the empty tile of a stair well cut through its floor both read as *not
+   * floor*. So a floor drawn to tuck itself inside a wall tucks itself around
+   * the stair well too, and no amount of art fixes it — the neighbourhood the
+   * two cases present is the same neighbourhood. The map is the only thing that
+   * knows which absence is which, and this is where it says so.
+   *
+   * One-directional on purpose. Naming a tile here says how *this* tile reads
+   * the world; it does not enlist that tile into reading the world back the
+   * same way. Connection that ran both ways would let adding one tile silently
+   * change how an existing one draws, somewhere else on the map, with nothing
+   * on the changed tile to explain why.
+   */
+  connectsTo?: string[];
+  /**
    * When true, this tile does not occlude light (e.g. water).
    * Default / absent → blocks. Prefer this over deprecated {@link blocksLight}.
    */
