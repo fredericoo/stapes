@@ -11,6 +11,18 @@
 > - **`/play` gained a label layer.** It never had one — names and speech are
 >   online-only — so looking drew an outline and no words until the route
 >   started passing `labelRef` through to the renderer.
+>
+> **Since built: a sign reads itself when you stand next to it.** Looking stayed
+> the only way to read one for a while, and it is a poor fit for the thing signs
+> are *for* — a player who has to find a modifier before the world will speak to
+> them walks past. So a described placement within `REACH_CELLS` on the reader's
+> own level now hangs its text over itself unasked, in the same blue at the same
+> anchor. **The description alone, never the name**: a look answers "what is
+> that?" and needs the name for it, while standing beside a sign is not a
+> question, and "Sign / DANGER" reads as a museum caption where "DANGER" reads as
+> the world talking. See `app/render/nearbyDescriptions.ts`, which owns who
+> speaks; the placement you are actually looking at is left to the look label, so
+> its words are not printed twice.
 
 
 
