@@ -45,6 +45,18 @@ jobs:
       - name: Unit tests
         run: pnpm test:unit
 
+      # Required by the worker tests below, not merely nice to have: the pool
+      # reads `wrangler.jsonc`, whose `assets.directory` is `build/client`, and
+      # refuses to start when it is missing. `build/` is gitignored, so a
+      # developer only ever has one because they built at some point — the
+      # dependency is invisible locally and fatal on a fresh checkout.
+      #
+      # Worth a step of its own regardless. `pnpm deploy` is `pnpm build &&
+      # wrangler deploy`, so a build that does not come up is a deploy that
+      # does not either.
+      - name: Build
+        run: pnpm build
+
       # Runs inside workerd against real Durable Object storage rather than a
       # stub. Both bugs that ever shipped in `workers/GameServer.ts` lived in
       # the load/restore path and were invisible to a node test, so this is the
