@@ -6,6 +6,7 @@ import type { InteractionOption } from "../game/interactionOptions";
 import type { OpenedContainer, SlotRef } from "../game/itemMoves";
 import { itemUseFor } from "../game/itemUse";
 import type { ItemInstance } from "../lib/itemInstance";
+import type { MasteryXp } from "../lib/mastery";
 import type { Direction, TileDef, TilesetDef } from "../lib/types";
 import { useMediaQuery } from "../lib/useMediaQuery";
 import { tilesByIdFromList } from "../lib/validation";
@@ -77,6 +78,7 @@ export function GameViewport({
   onInteract,
   onHoverInteraction,
   equipment = emptyEquipment(),
+  masteryXp = {},
   openedContainer = null,
   onOpenContainer,
   canMoveItem = () => false,
@@ -132,6 +134,12 @@ export function GameViewport({
    * crashing, exactly as `interactions` does.
    */
   equipment?: Equipment;
+  /**
+   * What the viewer has learnt — theirs alone, beside the kit and for the same
+   * reason. Defaulted so a route that has not wired it up draws a panel saying
+   * nothing is practised yet rather than crashing.
+   */
+  masteryXp?: MasteryXp;
   /**
    * The container on the floor currently being looked into, resolved off the
    * live board by whoever owns the renderer.
@@ -364,6 +372,7 @@ export function GameViewport({
       {showEquipment ? (
         <EquipmentPanel
           equipment={equipment}
+          masteryXp={masteryXp}
           bagOpen={showBag}
           tiles={tiles}
           tilesets={tilesets}

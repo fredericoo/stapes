@@ -16,6 +16,7 @@ import type {
 import { PLAYER_TILE_ID } from "../game/constants";
 import { bodyNameFor } from "../game/displayName";
 import type { Equipment } from "../game/equipment";
+import type { MasteryXp } from "../lib/mastery";
 import type { OpenedContainer, SlotRef } from "../game/itemMoves";
 import { readOpenedContainer } from "../game/openedContainer";
 import {
@@ -287,6 +288,15 @@ export class GameRenderer {
   private onEquipment: ((equipment: Equipment) => void) | null = null;
   /** Identity of the last equipment handed on, so an idle frame costs a compare. */
   private equipmentSent: Equipment | null = null;
+  private onMasteries: ((masteryXp: MasteryXp) => void) | null = null;
+  /**
+   * Identity of the last block of experience handed on.
+   *
+   * The same compare the kit gets, and it works for the same reason: the session
+   * replaces the block rather than adding to it, so a frame on which nobody
+   * landed a blow is one reference comparison.
+   */
+  private masteriesSent: MasteryXp | null = null;
   /** Kit the interaction list was last built against. See the gate below. */
   private interactionsEquipment: Equipment | null = null;
   /**
@@ -520,6 +530,20 @@ export class GameRenderer {
     if (snap.equipment === this.equipmentSent) return;
     this.equipmentSent = snap.equipment;
     this.onEquipment(snap.equipment);
+  }
+
+  setOnMasteries(cb: ((masteryXp: MasteryXp) => void) | null) {
+    this.onMasteries = cb;
+    // Dropped so the next frame reports to a fresh listener, exactly as the kit
+    // and the interaction gates are.
+    this.masteriesSent = null;
+  }
+
+  private pushMasteries(snap: GameSnapshot) {
+    if (!this.onMasteries) return;
+    if (snap.masteryXp === this.masteriesSent) return;
+    this.masteriesSent = snap.masteryXp;
+    this.onMasteries(snap.masteryXp);
   }
 
   /**
@@ -1531,13 +1555,23 @@ export class GameRenderer {
         { actorId: actor.id, tileId: actor.tileId },
         this.tilesById,
       );
+      // **Only on the one you are pointing at.** A ⭐ over every head would put a
+      // number on every rat in a field and turn the world into a spreadsheet;
+      // sizing something up is a thing you do to one creature, deliberately,
+      // before deciding whether to swing at it. Pointing is how that is asked
+      // here — see `GameSnapshot.targetId`, which look mode sets without
+      // starting a fight.
+      const sized =
+        actor.id === snap.targetId && actor.rating !== null
+          ? `${name} ⭐${actor.rating}`
+          : name;
       const fraction = healthFraction(actor.hp, actor.maxHp);
       into.push({
         id: `name:${actor.id}`,
         kind: "name",
         x: visual.x + head.x,
         y: visual.y + head.y - labelHeadroomPx(height),
-        lines: [{ id: actor.id, text: name }],
+        lines: [{ id: actor.id, text: sized }],
         // The same painter's key the world would sort these two bodies by, so a
         // tag crossing another tag is stacked the way the creatures under them
         // are. Two labels are whole boxes at one depth each, which is what
@@ -1787,6 +1821,7 @@ export class GameRenderer {
 
     this.world.setOverlays(this.overlaysFor(snap, motions));
     this.pushEquipment(snap);
+    this.pushMasteries(snap);
     this.pushOpenedContainer(snap);
     // Written from inside the render loop's own rAF, so the style change and the
     // canvas paint land in the same commit — which is what stops DOM text from

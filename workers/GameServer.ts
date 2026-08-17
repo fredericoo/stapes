@@ -138,7 +138,12 @@ function currentHps(actors: ActorSnapshot[]): HpPatch[] {
   const out: HpPatch[] = [];
   for (const actor of actors) {
     if (actor.hp === null || actor.maxHp === null) continue;
-    out.push({ actorId: actor.id, hp: actor.hp, maxHp: actor.maxHp });
+    out.push({
+      actorId: actor.id,
+      hp: actor.hp,
+      maxHp: actor.maxHp,
+      rating: actor.rating ?? 0,
+    });
   }
   return out;
 }
@@ -369,7 +374,7 @@ export class GameServer extends DurableObject<Env> {
    * nothing on the wire. Same discipline as {@link broadcastMap}: everyone is at
    * the same version, so one diff serves every socket.
    */
-  private sentHp = new Map<string, number>();
+  private sentHp = new Map<string, { hp: number; rating: number }>();
   /**
    * The carried lights each client has been told about, joined into one string
    * per actor.
@@ -1193,6 +1198,10 @@ export class GameServer extends DurableObject<Env> {
       // a client with no tags offers every reward in the room, so a joiner
       // without this is shown chests it will be refused at.
       tags: [...(session.tagsOf(actorId) ?? [])],
+      // Theirs alone, beside the kit and the tags, and in full for the same
+      // reason all three are: a joiner has nothing to patch against, and the
+      // panel showing it is on screen before the first blow.
+      masteryXp: { ...(session.masteryXpOf(actorId) ?? {}) },
       playerCount: this.playerCount(),
       // Read here rather than tracked: time of day is a function of the
       // server's clock, so it costs nothing to keep and cannot fall behind
@@ -1281,6 +1290,7 @@ export class GameServer extends DurableObject<Env> {
     this.flushEquipment();
     this.flushSounds();
     this.flushTags();
+    this.flushMasteries();
     this.wake();
   }
 
@@ -1381,6 +1391,40 @@ export class GameServer extends DurableObject<Env> {
         JSON.stringify({
           type: "tags",
           tags: [...tags],
+        } satisfies ServerMessage),
+      );
+    }
+  }
+
+  /**
+   * Tell anybody whose experience moved what they have learnt now.
+   *
+   * The busiest of the three by a long way — roughly one message per landed
+   * blow, to one socket — and cheap for the same reason the others are: it is
+   * addressed rather than broadcast, so a room of twenty people fighting is
+   * twenty small sends rather than twenty serializations of everybody's.
+   *
+   * Copied on the way out, because what the session hands back is the live block
+   * it goes on adding to.
+   */
+  private flushMasteries() {
+    const session = this.session;
+    if (!session) return;
+    const changed = session.drainMasteryChanges();
+    if (changed.length === 0) return;
+
+    const wanted = new Set(changed);
+    for (const ws of this.ctx.getWebSockets()) {
+      const attachment = ws.deserializeAttachment() as Attachment | null;
+      if (!attachment || !wanted.has(attachment.actorId)) continue;
+      const masteryXp = session.masteryXpOf(attachment.actorId);
+      // Gone between the change and the flush — the blow that taught them
+      // something was also the one that killed them.
+      if (!masteryXp) continue;
+      ws.send(
+        JSON.stringify({
+          type: "masteries",
+          masteryXp: { ...masteryXp },
         } satisfies ServerMessage),
       );
     }
@@ -1911,6 +1955,9 @@ export class GameServer extends DurableObject<Env> {
     // out by way of a panel that never updates.
     this.flushEquipment();
     this.flushTags();
+    // Unlike the two above, this one really does move on a tick: experience is
+    // earned by swinging, and swinging is something the world does to itself.
+    this.flushMasteries();
     this.saveActorsIfDue();
     this.sleepIfIdle();
   }
@@ -2028,9 +2075,19 @@ export class GameServer extends DurableObject<Env> {
     for (const actor of actors) {
       if (actor.hp === null || actor.maxHp === null) continue;
       live.add(actor.id);
-      if (this.sentHp.get(actor.id) === actor.hp) continue;
-      this.sentHp.set(actor.id, actor.hp);
-      out.push({ actorId: actor.id, hp: actor.hp, maxHp: actor.maxHp });
+      // Either number moving is worth a message, and the ⭐ is why this is a
+      // pair rather than a single reading: a creature's never moves and a
+      // player's moves without their hit points doing so.
+      const rating = actor.rating ?? 0;
+      const sent = this.sentHp.get(actor.id);
+      if (sent?.hp === actor.hp && sent.rating === rating) continue;
+      this.sentHp.set(actor.id, { hp: actor.hp, rating });
+      out.push({
+        actorId: actor.id,
+        hp: actor.hp,
+        maxHp: actor.maxHp,
+        rating,
+      });
     }
     for (const id of this.sentHp.keys()) {
       if (!live.has(id)) this.sentHp.delete(id);

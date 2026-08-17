@@ -235,6 +235,19 @@ export type ActorSnapshot = {
   /** What {@link hp} is measured against; null exactly when `hp` is. */
   maxHp: number | null;
   /**
+   * How good at fighting this body is — its ⭐ — or null exactly when `hp` is.
+   *
+   * **Broadcast, unlike everything else about a body's competence.** What a
+   * player is carrying is theirs alone because nobody else's frame can show it;
+   * a ⭐ is the opposite — sizing something up before swinging at it is the whole
+   * point of the number, and a rat whose difficulty you can only discover by
+   * losing to it is a rat nobody can make a decision about.
+   *
+   * The same figure the reward curve divides by. Two numbers here would be a
+   * player shown one game and playing another.
+   */
+  rating: number | null;
+  /**
    * The tiles of the lit things this actor is carrying.
    *
    * The one part of a kit everybody can see, and therefore the one part that is
@@ -411,6 +424,19 @@ export type GameSnapshot = {
    * interaction list on it without walking the list.
    */
   tags: readonly string[];
+  /**
+   * What the viewer has learnt, as raw experience.
+   *
+   * Theirs alone on exactly the terms {@link equipment} is — what you are good
+   * at is yours, the same as what is in your bag — and beside it rather than on
+   * {@link self} for that reason: {@link ActorSnapshot} is what everybody sees
+   * of everybody, and only the ⭐ belongs there.
+   *
+   * The experience rather than the levels, because the levels are derivable from
+   * it and the part-way-there is not — see `../lib/mastery`'s
+   * `progressToNextLevel`.
+   */
+  masteryXp: MasteryXp;
   /**
    * Speech still on screen, on this viewer's level only.
    *
@@ -624,9 +650,12 @@ type ActorRuntime = {
    * block the moment there is a body to read one from, on exactly the terms
    * {@link hp} is filled in. See {@link GameSession.bodyOf}.
    *
-   * Mutated in place rather than replaced, unlike {@link equipment}: this
-   * changes on almost every landed blow, where a kit changes when somebody
-   * moves an item, and there is nobody downstream holding a copy of it.
+   * Replaced wholesale rather than mutated, on exactly the terms
+   * {@link equipment} and {@link tags} are: the block goes out on the snapshot,
+   * and identity is what tells whoever is drawing it that something moved. A
+   * block edited in place would be the same object on every frame and a bar that
+   * never advanced. One small allocation per landed blow is the price, and it is
+   * paid on a tick that is already broadcasting a damage number.
    */
   masteryXp: MasteryXp | null;
   /**
@@ -762,6 +791,15 @@ export class GameSession implements PlaySession {
   private readonly equipmentChanged = new Set<string>();
   /** Actors whose tags have changed and whose owner has not been told yet. */
   private readonly tagsChanged = new Set<string>();
+  /**
+   * Actors whose experience has moved and whose owner has not been told yet.
+   *
+   * The busiest of the three queues by a long way — roughly one entry per landed
+   * blow — which is exactly why it is a queue rather than a message: a fight is
+   * several swings a second between them, and the set collapses all of it into
+   * one send on the next flush.
+   */
+  private readonly masteriesChanged = new Set<string>();
   private readonly plateCells = new Map<string, Coord>();
   /**
    * Cells holding a placement wired to a signal channel — emitters and
@@ -1946,14 +1984,20 @@ export class GameSession implements PlaySession {
     const xp = actor.masteryXp;
     if (!xp) return;
 
-    let moved = false;
+    // Copied lazily, so a swing that taught nothing costs no allocation — which
+    // is most of them, once a player has outgrown what they are fighting.
+    let moved: MasteryXp | null = null;
     for (const mastery of MASTERIES) {
       const amount = earned[mastery];
       if (!amount) continue;
-      xp[mastery] = (xp[mastery] ?? 0) + amount;
-      moved = true;
+      moved ??= { ...xp };
+      moved[mastery] = (moved[mastery] ?? 0) + amount;
     }
-    if (moved) actor.earnedBody = null;
+    if (!moved) return;
+
+    actor.masteryXp = moved;
+    actor.earnedBody = null;
+    this.masteriesChanged.add(actor.id);
   }
 
   /**
@@ -2750,6 +2794,21 @@ export class GameSession implements PlaySession {
     return changed;
   }
 
+  /**
+   * Whose experience has moved since anybody last asked, and clears the list.
+   *
+   * A third queue beside the other two, and not folded into either: a kit
+   * changes when somebody moves an item and this changes when somebody lands a
+   * blow, which are different events at wildly different rates. Sharing a queue
+   * would send an inventory on every swing.
+   */
+  drainMasteryChanges(): string[] {
+    if (this.masteriesChanged.size === 0) return [];
+    const changed = [...this.masteriesChanged];
+    this.masteriesChanged.clear();
+    return changed;
+  }
+
   canTakeReward(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
     if (!this.idle(actor)) return false;
@@ -2944,6 +3003,7 @@ export class GameSession implements PlaySession {
         : 0,
       hp: this.hpOf(actor),
       maxHp: this.battlerOf(actor)?.maxHp ?? null,
+      rating: this.ratingOf(actor),
       // By reference, like `walk` and `fall`: it is replaced wholesale whenever
       // a kit changes, so the same array across two ticks is the same answer and
       // nothing downstream has to copy it to be safe.
@@ -2971,6 +3031,10 @@ export class GameSession implements PlaySession {
       attacking: self.attacking,
       equipment: self.equipment,
       tags: self.tags,
+      // Seeded by the line above rather than here: `actorSnapshots` asks every
+      // body for its stats, which is what fills a fresh player's experience in
+      // from their tile. The fallback is for the body that has none to give.
+      masteryXp: self.masteryXp ?? {},
       // Nobody to talk to: the local simulation has no wire and no other actors
       // worth naming, so speech is a thing only the online client carries.
       chats: [],

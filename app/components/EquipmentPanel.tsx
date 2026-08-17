@@ -1,9 +1,12 @@
 import { useMemo } from "react";
 import type { Equipment } from "../game/equipment";
+import type { MasteryXp } from "../lib/mastery";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { ItemSlot } from "./ItemSlot";
+import { MasteryList } from "./MasteryList";
 import type { ItemDrag } from "./useItemDrag";
+import { WeaponDemands } from "./WeaponDemands";
 
 /**
  * What you are wearing: what is in your hand, and what is on your back.
@@ -18,9 +21,17 @@ import type { ItemDrag } from "./useItemDrag";
  * Two slots is a thin panel, and that is the honest state of the game rather
  * than a placeholder: armour is out of scope, and a panel pretending to more
  * slots than exist would be describing a game nobody can play yet.
+ *
+ * What you are *good at* is here too, under the slots, and the three sections
+ * read in the order a decision is made in: this is what I am holding, this is
+ * what it asks of me, this is what I have. Masteries are owner-private on
+ * exactly the terms a kit is — what you are good at is yours, the same as what
+ * is in your bag — which is why they arrive beside it on the snapshot rather
+ * than on the body everybody can see.
  */
 export function EquipmentPanel({
   equipment,
+  masteryXp = {},
   bagOpen,
   tiles,
   tilesets,
@@ -28,6 +39,14 @@ export function EquipmentPanel({
   className = "",
 }: {
   equipment: Equipment;
+  /**
+   * What the viewer has learnt, as raw experience — see `GameSnapshot`.
+   *
+   * Defaulted to nothing, on the same terms `equipment` is defaulted upstream: a
+   * route that has not wired it draws a panel saying nothing is practised yet,
+   * which is true of a body that has never fought and harmless for one that has.
+   */
+  masteryXp?: MasteryXp;
   /**
    * Whether the panel showing the inside of that bag is on screen.
    *
@@ -74,6 +93,16 @@ export function EquipmentPanel({
           drag={drag}
         />
       </div>
+      {/* Directly under the hand it is about, and absent entirely for bare
+          hands or for a weapon that asks nothing — a heading over an empty list
+          would be the panel making a point of a rule that is not in play. */}
+      <WeaponDemands
+        weapon={equipment.weapon}
+        masteryXp={masteryXp}
+        tilesById={tilesById}
+        className="mt-1"
+      />
+      <MasteryList masteryXp={masteryXp} className="mt-1" />
     </section>
   );
 }

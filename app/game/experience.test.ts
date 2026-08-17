@@ -454,3 +454,64 @@ describe("what a fight is worth is paced", () => {
     expect(earned).toBeLessThan(1);
   });
 });
+
+/**
+ * What reaches the panel.
+ *
+ * The arithmetic above and the plumbing before it are both invisible without
+ * this: a mastery that climbs and never leaves the session is a number in a save
+ * file. What is asserted here is the two contracts the drawing side depends on —
+ * that the block is on the snapshot at all, and that its *identity* changes when
+ * it moves.
+ */
+describe("what the viewer is shown", () => {
+  it("puts the viewer's own experience on their snapshot", () => {
+    const { session } = sparring();
+    advance(session, TICK_MS);
+
+    const snapshot = session.getSnapshot("me");
+    expect(learnt(snapshot.masteryXp, "fist")).toBeGreaterThan(0);
+  });
+
+  /**
+   * **Identity is the change signal**, on exactly the terms the kit's is: the
+   * renderer hands the block to React only when the reference differs, so a
+   * block edited in place would be the same object on every frame and a progress
+   * bar that never advanced.
+   */
+  it("hands over a different block once anything has been learnt", () => {
+    const { session } = sparring();
+    advance(session, TICK_MS);
+    const before = session.getSnapshot("me").masteryXp;
+
+    advance(session, 4000);
+    expect(session.getSnapshot("me").masteryXp).not.toBe(before);
+  });
+
+  it("leaves the block alone on a tick where nobody learnt anything", () => {
+    const { session } = sparring();
+    session.setAttackMode(false, "me");
+    advance(session, TICK_MS);
+    const before = session.getSnapshot("me").masteryXp;
+
+    advance(session, 2000);
+    expect(session.getSnapshot("me").masteryXp).toBe(before);
+  });
+
+  /**
+   * ⭐ rides on the body everybody can see, unlike the masteries under it —
+   * sizing a creature up before swinging at it is the whole point of the number,
+   * and one you could only learn by losing would be no use.
+   */
+  it("shows every body's ⭐ beside its hit points", () => {
+    const { session, foe } = sparring();
+    advance(session, TICK_MS);
+
+    for (const actor of session.getSnapshot("me").actors) {
+      expect(actor.rating).toBeGreaterThan(0);
+      // Null exactly when hp is, so anything drawing one can key off the other.
+      expect(actor.rating === null).toBe(actor.hp === null);
+    }
+    expect(session.ratingIn(foe)).toBeGreaterThan(0);
+  });
+});

@@ -3,6 +3,7 @@ import type { Equipment } from "../game/equipment";
 import type { SlotRef } from "../game/itemMoves";
 import type { SwingOutcome } from "../game/GameSession";
 import type { ConsumeSource } from "../game/itemUse";
+import { masteryXpBlockSchema, type MasteryXp } from "../lib/mastery";
 import type { PlacedTile } from "../lib/types";
 import { MAX_CHAT_RAW_LENGTH } from "./chat";
 
@@ -69,6 +70,7 @@ const hpPatchSchema = v.object({
   actorId: v.string(),
   hp: v.number(),
   maxHp: v.number(),
+  rating: v.number(),
 });
 
 const carriedLightsPatchSchema = v.object({
@@ -137,6 +139,19 @@ const tolerantEquipmentSchema = v.fallback(equipmentSchema, {
   bag: null,
 });
 
+/**
+ * What somebody has learnt, or nothing at all — tolerant on exactly the terms a
+ * kit is.
+ *
+ * A block of experience describes one player's competence, and a client that
+ * cannot read it can still stand in the world and swing at things: the fight is
+ * resolved server-side and this is only what the panel draws. Empty rather than
+ * partial for the same reason, too — the server is the authority, and a client
+ * salvaging half a block would draw a mastery list that is quietly wrong until
+ * the next message corrects it.
+ */
+const tolerantMasteryXpSchema = v.fallback(masteryXpBlockSchema, {});
+
 /** One cell's whole stack, replacing whatever the client had there. */
 export type CellPatch = {
   x: number;
@@ -158,6 +173,15 @@ export type HpPatch = {
   actorId: string;
   hp: number;
   maxHp: number;
+  /**
+   * The body's ⭐, riding beside its hit points.
+   *
+   * Its own channel would be a third diff and a third message for a number that
+   * moves less often than anything else here — a creature's never moves at all.
+   * They belong together besides: both answer "what is this body, right now",
+   * and both are the part of a body everybody is allowed to see.
+   */
+  rating: number;
 };
 
 /**
@@ -293,6 +317,14 @@ export type ServerMessage =
        * cannot have.
        */
       tags: string[];
+      /**
+       * What this viewer has learnt, as raw experience.
+       *
+       * Theirs alone, beside the kit and sent in full on arrival for the same
+       * reason: there is nothing to patch against, and the panel showing it is
+       * on screen before the first blow.
+       */
+      masteryXp: MasteryXp;
     }
   /**
    * "Here is what you are carrying now."
@@ -324,6 +356,19 @@ export type ServerMessage =
    * missed, and a dropped tag is a chest that can be opened twice.
    */
   | { type: "tags"; tags: string[] }
+  /**
+   * "Here is what you have learnt now."
+   *
+   * Addressed to one socket on exactly the terms the kit and the tags are, and
+   * sent whenever the experience moves rather than only when a level does. A bar
+   * that could move only on a level-up would sit still through a dozen fights
+   * and then jump, which reads as nothing happening.
+   *
+   * That makes it the most frequent of the three — about one per landed blow for
+   * whoever is fighting — and it is still cheap: one small message to one socket
+   * on a tick that is already broadcasting a damage number to everybody.
+   */
+  | { type: "masteries"; masteryXp: MasteryXp }
   | {
       type: "patch";
       cells: CellPatch[];
@@ -631,6 +676,7 @@ const serverMessageSchema = v.variant("type", [
     carriedLights: v.array(carriedLightsPatchSchema),
     equipment: tolerantEquipmentSchema,
     tags: v.array(v.string()),
+    masteryXp: tolerantMasteryXpSchema,
   }),
   v.object({
     type: v.literal("equipment"),
@@ -639,6 +685,10 @@ const serverMessageSchema = v.variant("type", [
   v.object({
     type: v.literal("tags"),
     tags: v.array(v.string()),
+  }),
+  v.object({
+    type: v.literal("masteries"),
+    masteryXp: tolerantMasteryXpSchema,
   }),
   v.object({
     type: v.literal("patch"),

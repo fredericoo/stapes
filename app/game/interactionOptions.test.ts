@@ -200,6 +200,7 @@ function actor(
     slideProgress: 0,
     hp,
     maxHp: hp === null ? null : 10,
+    rating: hp === null ? null : 10,
     carriedLights: [],
   };
 }

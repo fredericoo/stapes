@@ -14,6 +14,7 @@ import {
   trainingCeiling,
   UNREQUIRED_RATIO,
   levelForXp,
+  progressToNextLevel,
   xpForLevel,
   xpFromMasteries,
 } from "./mastery";
@@ -289,5 +290,39 @@ describe("experienceMultiplier", () => {
       expect(paid).toBeGreaterThanOrEqual(previous);
       previous = paid;
     }
+  });
+});
+
+/**
+ * The bar under a level.
+ *
+ * Worth its own arithmetic because it is the only part of a mastery a player
+ * sees moving. A level changes a few times an hour; this changes on every landed
+ * blow, and it is the whole of what makes ten minutes of fighting rats feel like
+ * something rather than nothing.
+ */
+describe("progressToNextLevel", () => {
+  it("is nothing at all at a level exactly reached", () => {
+    expect(progressToNextLevel(xpForLevel(9))).toBe(0);
+  });
+
+  it("is halfway at halfway", () => {
+    const here = xpForLevel(9);
+    const next = xpForLevel(10);
+    expect(progressToNextLevel((here + next) / 2)).toBeCloseTo(0.5, 10);
+  });
+
+  it("climbs the whole way and resets on arrival", () => {
+    const next = xpForLevel(10);
+    expect(progressToNextLevel(next - 1)).toBeGreaterThan(0.9);
+    expect(progressToNextLevel(next)).toBe(0);
+  });
+
+  /**
+   * At the top there is no next point to be part of the way to, and a bar
+   * creeping towards a level that cannot arrive is worse than no bar.
+   */
+  it("is nothing at the top of the scale, however much is banked", () => {
+    expect(progressToNextLevel(xpForLevel(MAX_MASTERY) * 10)).toBe(0);
   });
 });

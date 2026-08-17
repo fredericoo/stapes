@@ -7,6 +7,7 @@ import { LightingToggle } from "../components/LightingToggle";
 import { LoadingScreen } from "../components/LoadingScreen";
 import { GameSession } from "../game/GameSession";
 import { type Equipment, emptyEquipment } from "../game/equipment";
+import type { MasteryXp } from "../lib/mastery";
 import { bindKeyboard, HeldDirections } from "../game/heldDirections";
 import { usePlayModes } from "../components/usePlayModes";
 import {
@@ -86,6 +87,8 @@ export default function PlayPage() {
   const [stats, setStats] = useState<FrameStats | null>(null);
   const [interactions, setInteractions] = useState<InteractionOption[]>([]);
   const [equipment, setEquipment] = useState<Equipment>(emptyEquipment);
+  /** What this player has learnt — theirs alone, beside the kit. */
+  const [masteryXp, setMasteryXp] = useState<MasteryXp>({});
   const [openedContainer, setOpenedContainer] =
     useState<OpenedContainer | null>(null);
   // Straight at the renderer, like the hover outline: which box is open is a
@@ -180,6 +183,7 @@ export default function PlayPage() {
     renderer.setOnStats(setStats);
     renderer.setOnInteractions(setInteractions);
     renderer.setOnEquipment(setEquipment);
+    renderer.setOnMasteries(setMasteryXp);
     renderer.setOnOpenedContainer(setOpenedContainer);
     renderer.setOnFirstFrame(() => setPainted(true));
     rendererRef.current = renderer;
@@ -198,6 +202,7 @@ export default function PlayPage() {
       setStats(null);
       setInteractions([]);
       setEquipment(emptyEquipment());
+      setMasteryXp({});
       setOpenedContainer(null);
       // A new renderer has a fresh canvas to fill — an editor save arrives here
       // as a map change — so the screen goes back up until it has filled it.
@@ -302,6 +307,7 @@ export default function PlayPage() {
             onInteract={act}
             onHoverInteraction={hoverInteraction}
             equipment={equipment}
+            masteryXp={masteryXp}
             openedContainer={openedContainer}
             onOpenContainer={openContainer}
             canMoveItem={canMoveItem}

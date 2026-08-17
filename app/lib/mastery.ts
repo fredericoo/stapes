@@ -223,6 +223,26 @@ export function levelForXp(xp: number): number {
   return Math.min(MAX_MASTERY, level);
 }
 
+/**
+ * How far this much experience has come towards the next point, as a fraction
+ * of 1.
+ *
+ * What a progress bar draws, and the reason the raw experience is what travels
+ * rather than the level: a bar that could only move when the level did would sit
+ * still for a dozen fights and then jump, which reads as nothing happening
+ * rather than as progress.
+ *
+ * Zero at the top of the scale, where there is no next point to be part of the
+ * way to. A bar creeping towards a level that cannot arrive is worse than no bar.
+ */
+export function progressToNextLevel(xp: number): number {
+  const level = levelForXp(xp);
+  if (level >= MAX_MASTERY) return 0;
+  const from = xpForLevel(level);
+  const to = xpForLevel(level + 1);
+  return Math.max(0, Math.min(1, (Math.max(0, xp) - from) / (to - from)));
+}
+
 /** Every mastery in a block, read out of what has been earned towards it. */
 export function masteriesFromXp(xp: MasteryXp): Masteries {
   const masteries: Masteries = {};

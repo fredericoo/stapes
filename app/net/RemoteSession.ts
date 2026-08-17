@@ -22,6 +22,7 @@ import {
   type ObjectRef,
 } from "../game/affordances";
 import { type Equipment, emptyEquipment } from "../game/equipment";
+import type { MasteryXp } from "../lib/mastery";
 import { canMoveItem, itemInSlot, type SlotRef } from "../game/itemMoves";
 import type { ConsumeSource } from "../game/itemUse";
 import { resolveConsumable } from "../lib/item";
@@ -173,7 +174,10 @@ export class RemoteSession implements PlaySession {
    * where the server keeps them too: a health bar changing must not rewrite a
    * cell, or every blow would dirty the light and the geometry around it.
    */
-  private readonly hps = new Map<string, { hp: number; maxHp: number }>();
+  private readonly hps = new Map<
+    string,
+    { hp: number; maxHp: number; rating: number }
+  >();
   /**
    * The lit things each actor is carrying, as the server last reported them.
    *
@@ -202,6 +206,14 @@ export class RemoteSession implements PlaySession {
    * its identity is what tells the renderer to rebuild its rows.
    */
   private tags: readonly string[] = NO_TAGS;
+  /**
+   * What this player has learnt, as the server last said.
+   *
+   * Never predicted, on the same terms the kit and the tags are not: what a
+   * blow was worth depends on a comparison only the server can make, and a
+   * client guessing would show a bar creeping on a fight that paid nothing.
+   */
+  private masteryXp: MasteryXp = {};
   /** Numbers still floating, with their own clocks. */
   private damage: DamageNumber[] = [];
   /** Who this client is pointing at; echoed back in the snapshot for the outline. */
@@ -327,6 +339,9 @@ export class RemoteSession implements PlaySession {
       // still belongs to the same person, and dropping their tags would hand
       // them every reward in the map a second time.
       this.tags = message.tags;
+      // Same rule again: a fresh body in a replaced world is still the same
+      // person, and what they have learnt came with them.
+      this.masteryXp = message.masteryXp;
       for (const id of message.actorIds) this.motions.set(id, emptyMotion());
       this.applyHps(message.hps);
       this.applyCarriedLights(message.carriedLights);
@@ -380,6 +395,12 @@ export class RemoteSession implements PlaySession {
       return;
     }
 
+    if (message.type === "masteries") {
+      // Whole state, like everything else addressed to one socket here.
+      this.masteryXp = message.masteryXp;
+      return;
+    }
+
     if (message.type === "equipment") {
       // Whole state, replacing what was here — the same rule hit points follow,
       // and for the same reason: an inventory rebuilt from a stream of adds and
@@ -398,7 +419,11 @@ export class RemoteSession implements PlaySession {
   /** Take the server's word for everybody's hit points. */
   private applyHps(hps: HpPatch[]) {
     for (const patch of hps) {
-      this.hps.set(patch.actorId, { hp: patch.hp, maxHp: patch.maxHp });
+      this.hps.set(patch.actorId, {
+        hp: patch.hp,
+        maxHp: patch.maxHp,
+        rating: patch.rating,
+      });
     }
   }
 
@@ -1062,6 +1087,7 @@ export class RemoteSession implements PlaySession {
         : 0,
       hp: health?.hp ?? null,
       maxHp: health?.maxHp ?? null,
+      rating: health?.rating ?? null,
       // Shared by reference and never mutated in place, exactly as it is on the
       // simulation side: the array the server sent *is* the answer, and copying
       // it per actor per frame would be an allocation for a list that is almost
@@ -1099,6 +1125,7 @@ export class RemoteSession implements PlaySession {
       attacking: this.attacking,
       equipment: this.equipment,
       tags: this.tags,
+      masteryXp: this.masteryXp,
       chats: this.chats,
       noises: this.noises,
       damage: this.damage,
@@ -1384,6 +1411,7 @@ function offscreenActor(id: string): ActorSnapshot {
     slideProgress: 0,
     hp: null,
     maxHp: null,
+    rating: null,
     carriedLights: NO_CARRIED_LIGHTS,
   };
 }
