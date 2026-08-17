@@ -88,6 +88,77 @@ export function changedCellsOnLevel(
   return out;
 }
 
+/**
+ * One chunk's worth of difference between two versions of a map.
+ *
+ * `cells` is the chunk as it stands *now*, and is empty for a chunk that has
+ * gone — the caller is persistence, and "there is nothing here any more" is
+ * something it has to be able to write down rather than merely omit.
+ */
+export type ChangedChunk = {
+  levelKey: string;
+  chunkKey: string;
+  cells: ChunkCells;
+};
+
+/**
+ * Chunks whose contents differ between two versions of a map.
+ *
+ * The chunk-granular sibling of {@link changedCellsOnLevel}, leaning on the
+ * same copy-on-write identity: a walk rewrites the one chunk it crossed and
+ * leaves every other chunk the same object, so diffing a busy world is a
+ * handful of reference compares. Where that function answers "what moved", this
+ * one answers "what is worth writing down", which is why it stops at the chunk
+ * rather than descending into cells.
+ *
+ * A `prev` of null means nothing is known about the previous state and every
+ * chunk comes back — the shape a caller wants after loading, or after the world
+ * has been replaced wholesale.
+ */
+export function changedChunks(
+  prev: MapFile | null,
+  next: MapFile,
+): ChangedChunk[] {
+  const out: ChangedChunk[] = [];
+  const levelKeys = new Set([
+    ...Object.keys(prev?.levels ?? {}),
+    ...Object.keys(next.levels),
+  ]);
+  for (const zk of levelKeys) {
+    const before = prev?.levels[zk];
+    const after = next.levels[zk];
+    if (before === after) continue;
+    const chunkKeys = new Set([
+      ...Object.keys(before ?? {}),
+      ...Object.keys(after ?? {}),
+    ]);
+    for (const chk of chunkKeys) {
+      const a = before?.[chk];
+      const b = after?.[chk];
+      if (a === b) continue;
+      out.push({ levelKey: zk, chunkKey: chk, cells: b ?? {} });
+    }
+  }
+  return out;
+}
+
+/**
+ * Assemble a map from chunks that were stored one by one.
+ *
+ * The inverse of {@link changedChunks} — the levels come back grouped exactly as
+ * a running map holds them, so nothing has to be re-chunked on the way in.
+ * Empty chunks are dropped: they are the tombstones {@link changedChunks} emits
+ * for a chunk that has gone, and there is nothing in them to restore.
+ */
+export function mapFromChunks(chunks: Iterable<ChangedChunk>): MapFile {
+  const levels: Record<string, LevelChunks> = {};
+  for (const { levelKey: zk, chunkKey: chk, cells } of chunks) {
+    if (isEmptyRecord(cells)) continue;
+    (levels[zk] ??= {})[chk] = cells;
+  }
+  return { version: 1, levels };
+}
+
 /** Cells of one chunk, or an empty record. */
 export function getChunk(
   map: MapFile,
