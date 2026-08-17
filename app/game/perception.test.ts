@@ -103,8 +103,13 @@ function on(x: number, y: number, z: number, standingOn = 0): Body {
 }
 
 /** A — is its name and health readable? @see isHiddenFromCamera */
-function canRead(map: MapFile, body: Body, roofCut?: number): boolean {
-  return !isHiddenFromCamera(map, tilesById, body, roofCut);
+function canRead(
+  map: MapFile,
+  body: Body,
+  viewer: Body,
+  roofCut?: number,
+): boolean {
+  return !isHiddenFromCamera(map, tilesById, body, viewer.z, roofCut);
 }
 
 /** B — can `from` land a blow on `to`? */
@@ -144,7 +149,7 @@ describe("1 — indoors, door shut, rat in the yard", () => {
   const rat = on(3, 0, 0);
 
   it("reads the rat's name and health through the wall", () => {
-    expect(canRead(board(), rat)).toBe(true);
+    expect(canRead(board(), rat, me)).toBe(true);
   });
 
   it("but the rat cannot see me", () => {
@@ -162,7 +167,7 @@ describe("1 — indoors, door shut, rat in the yard", () => {
    * everything to it.
    */
   it("disagrees on purpose about who can see what", () => {
-    expect(canRead(board(), rat)).not.toBe(notices(board(), rat, me));
+    expect(canRead(board(), rat, me)).not.toBe(notices(board(), rat, me));
   });
 });
 
@@ -205,7 +210,7 @@ describe("3 — ringed by boxes, rat outside the ring", () => {
   const rat = on(3, 0, 0);
 
   it("still shows the rat's name and health", () => {
-    expect(canRead(board(), rat)).toBe(true);
+    expect(canRead(board(), rat, me)).toBe(true);
   });
 
   it("still lets it see me over the boxes", () => {
@@ -248,7 +253,7 @@ describe("4 — me on a platform, rat on the ground below", () => {
   const rat = on(3, 0, 0);
 
   it("shows me its health", () => {
-    expect(canRead(board(), rat)).toBe(true);
+    expect(canRead(board(), rat, me)).toBe(true);
   });
 
   it("keeps it out of reach", () => {
@@ -298,7 +303,7 @@ describe("5 — me at ground level, rat in a cave below", () => {
   const rat = on(0, 0, -1);
 
   it("hides its name and health", () => {
-    expect(canRead(board(), rat)).toBe(false);
+    expect(canRead(board(), rat, me)).toBe(false);
   });
 
   it("keeps it from seeing me through the rock", () => {
@@ -311,12 +316,74 @@ describe("5 — me at ground level, rat in a cave below", () => {
     expect(canHit(board(), me, rat)).toBe(false);
   });
 
-  /**
-   * The hole proves the ray is what decides. A body standing under it is read;
-   * one standing a cell off it is not, and the roof is identical for both.
-   */
+  /** A body standing under the hole is read; the roof is identical elsewhere. */
   it("reads a body standing under the hole, and only that one", () => {
-    expect(canRead(board(), on(2, 2, -1))).toBe(true);
-    expect(canRead(board(), on(1, 2, -1))).toBe(false);
+    expect(canRead(board(), on(3, 3, -1), me)).toBe(true);
+    expect(canRead(board(), on(1, 2, -1), me)).toBe(false);
+  });
+
+  /**
+   * **Being under the roof beats being screen-aligned with the hole.** A body at
+   * (2,2,-1) is drawn at the same pixel as the gap at (3,3,0), so its sprite is
+   * genuinely on screen — and it is still not named, because there is a floor
+   * between the viewer's level and it.
+   *
+   * That is a decision rather than a fallout, and it is the one that makes the
+   * rule sayable: *if there is a floor between you and it, you get no readout*.
+   * The alternative — read anything whose pixels survive — is the rule that let
+   * a deer be targeted through the boards somebody was standing on.
+   */
+  it("stays quiet about a body under solid roof beside the hole", () => {
+    const beside = on(2, 2, -1);
+    expect(canRead(board(), beside, me)).toBe(false);
+    // Its pixels are not covered; only the roof over it hides it.
+    expect(
+      isHiddenFromCamera(board(), tilesById, beside, beside.z, undefined),
+    ).toBe(false);
+  });
+});
+
+describe("6 — a deer directly beneath the floor I am standing on", () => {
+  /**
+   * The narrowest possible roof: one floor tile, with open sky either side of
+   * it. Nothing but that tile stands between the two bodies.
+   *
+   * This is the case the screen-occlusion rule alone gets wrong, and the reason
+   * the column test exists beside it — see {@link isHiddenFromCamera}. The floor
+   * overhead is drawn one cell up-left of the deer, so it is not on the diagonal
+   * the camera ray walks, and the deer's feet really are still painted. A wide
+   * ceiling hides its own diagonal by accident and made the gap invisible; one
+   * tile does not.
+   */
+  function board(): MapFile {
+    return put(ground(-1), 0, 0, 0, "floor");
+  }
+
+  const me = on(0, 0, 0);
+  const deer = on(0, 0, -1);
+
+  it("does not name or measure it", () => {
+    expect(canRead(board(), deer, me)).toBe(false);
+  });
+
+  it("and the diagonal alone would have missed it", () => {
+    // Nothing on the screen ray from the deer: proof the column is load-bearing
+    // rather than a second way of saying the same thing.
+    expect(isHiddenFromCamera(board(), tilesById, deer, deer.z, undefined)).toBe(
+      false,
+    );
+  });
+
+  it("keeps it unhittable through the floor", () => {
+    expect(canHit(board(), me, deer)).toBe(false);
+  });
+
+  it("and stops it noticing me", () => {
+    expect(notices(board(), deer, me, { up: 2, down: 2 })).toBe(false);
+  });
+
+  /** Step off the tile and the same deer is in plain view again. */
+  it("shows the deer again from beside the hole", () => {
+    expect(canRead(board(), on(1, 0, -1), me)).toBe(true);
   });
 });

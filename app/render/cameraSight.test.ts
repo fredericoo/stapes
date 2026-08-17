@@ -7,10 +7,16 @@ import { isHiddenFromCamera } from "./cameraSight";
 /**
  * What the camera can see, as opposed to what a body can.
  *
- * Every case here is written against the one fact the projection gives us: a
- * cell is drawn over by `(x + 1, y + 1, z + 1)` and by nothing else. So the
- * tests worth having are the ones that pin the *diagonal* — a ceiling one cell
- * off the ray hides nothing, and the same tile on the ray hides everything.
+ * Most cases here are written against the one fact the projection gives us: a
+ * cell is *painted over* by `(x + 1, y + 1, z + 1)` and by nothing else. So the
+ * tests worth having are the ones that pin the diagonal — a ceiling one cell off
+ * the ray hides nothing, and the same tile on the ray hides everything. Those
+ * pass the viewer's level as the subject's own, which switches the second rule
+ * off and leaves the diagonal alone under test.
+ *
+ * The second rule — a floor between the viewer's level and the subject — has its
+ * own case at the bottom, and the scenarios in `game/perception.test.ts` are
+ * where the two are exercised together.
  */
 
 const frame = {
@@ -70,7 +76,7 @@ const origin = { x: 0, y: 0, z: 0 };
 
 describe("camera sight", () => {
   it("sees a body under open sky", () => {
-    expect(isHiddenFromCamera(field(), tilesById, origin, undefined)).toBe(
+    expect(isHiddenFromCamera(field(), tilesById, origin, origin.z, undefined)).toBe(
       false,
     );
   });
@@ -83,7 +89,7 @@ describe("camera sight", () => {
     const map = put(field(-1), 1, 1, 0, "floor");
     const inCave = { x: 0, y: 0, z: -1 };
 
-    expect(isHiddenFromCamera(map, tilesById, inCave, undefined)).toBe(true);
+    expect(isHiddenFromCamera(map, tilesById, inCave, inCave.z, undefined)).toBe(true);
   });
 
   /**
@@ -100,11 +106,11 @@ describe("camera sight", () => {
       }
     }
 
-    expect(isHiddenFromCamera(map, tilesById, { x: 0, y: 0, z: -1 }, undefined))
+    expect(isHiddenFromCamera(map, tilesById, { x: 0, y: 0, z: -1 }, -1, undefined))
       .toBe(true);
     // And the one cell that *is* under the hole is seen, which is what makes
     // the assertion above about the ray rather than about the roof.
-    expect(isHiddenFromCamera(map, tilesById, { x: 1, y: 1, z: -1 }, undefined))
+    expect(isHiddenFromCamera(map, tilesById, { x: 1, y: 1, z: -1 }, -1, undefined))
       .toBe(false);
   });
 
@@ -116,14 +122,14 @@ describe("camera sight", () => {
       [-1, -1],
     ]) {
       const map = put(field(), dx, dy, 1, "wall");
-      expect(isHiddenFromCamera(map, tilesById, origin, undefined)).toBe(false);
+      expect(isHiddenFromCamera(map, tilesById, origin, origin.z, undefined)).toBe(false);
     }
   });
 
   it("follows the diagonal up through every level", () => {
     for (const k of [1, 2, 3]) {
       const map = put(field(), k, k, k, "wall");
-      expect(isHiddenFromCamera(map, tilesById, origin, undefined)).toBe(true);
+      expect(isHiddenFromCamera(map, tilesById, origin, origin.z, undefined)).toBe(true);
     }
   });
 
@@ -131,7 +137,7 @@ describe("camera sight", () => {
   it("reads a body through something light passes", () => {
     const map = put(field(), 1, 1, 1, "glass");
 
-    expect(isHiddenFromCamera(map, tilesById, origin, undefined)).toBe(false);
+    expect(isHiddenFromCamera(map, tilesById, origin, origin.z, undefined)).toBe(false);
   });
 
   /**
@@ -141,15 +147,38 @@ describe("camera sight", () => {
   it("ignores anything the roof-cut has taken away", () => {
     const map = put(field(), 1, 1, 1, "wall");
 
-    expect(isHiddenFromCamera(map, tilesById, origin, 0)).toBe(false);
+    expect(isHiddenFromCamera(map, tilesById, origin, origin.z, 0)).toBe(false);
     // Still cut at the viewer's own level; one level higher and the roof is
     // back on screen and back in the answer.
-    expect(isHiddenFromCamera(map, tilesById, origin, 1)).toBe(true);
+    expect(isHiddenFromCamera(map, tilesById, origin, origin.z, 1)).toBe(true);
   });
 
   it("is never hidden by its own cell", () => {
     const map = put(field(), 0, 0, 0, "wall");
 
-    expect(isHiddenFromCamera(map, tilesById, origin, undefined)).toBe(false);
+    expect(isHiddenFromCamera(map, tilesById, origin, origin.z, undefined)).toBe(false);
+  });
+
+  /**
+   * The narrowest roof there is: one floor tile, nothing on the diagonal. The
+   * painting rule says this body is visible and is right about the pixels; the
+   * column rule hides it anyway, because a viewer standing on those boards is
+   * not looking through them.
+   */
+  it("hides a body under a floor between it and the viewer", () => {
+    const map = put(field(-1), 0, 0, 0, "floor");
+    const below = { x: 0, y: 0, z: -1 };
+
+    expect(isHiddenFromCamera(map, tilesById, below, 0, undefined)).toBe(true);
+    // Same board, viewer down there with it: no floor in between any more.
+    expect(isHiddenFromCamera(map, tilesById, below, -1, undefined)).toBe(false);
+  });
+
+  it("counts every floor up to the viewer, not just the first", () => {
+    let map = put(field(-2), 0, 0, -1, "floor");
+    map = put(map, 0, 0, 0, "floor");
+    const deep = { x: 0, y: 0, z: -2 };
+
+    expect(isHiddenFromCamera(map, tilesById, deep, 0, undefined)).toBe(true);
   });
 });

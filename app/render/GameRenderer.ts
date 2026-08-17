@@ -1196,7 +1196,13 @@ export class GameRenderer {
     // only take back the cases the exact answer got right.
     if (hideLevelsAbove !== undefined && actor.z > hideLevelsAbove) return false;
     if (!this.isWithinView(snap.map, actor, camera)) return false;
-    return !isHiddenFromCamera(snap.map, this.tilesById, actor, hideLevelsAbove);
+    return !isHiddenFromCamera(
+      snap.map,
+      this.tilesById,
+      actor,
+      snap.self.z,
+      hideLevelsAbove,
+    );
   }
 
   /** Where the targeted actor is standing right now, if they still are. */

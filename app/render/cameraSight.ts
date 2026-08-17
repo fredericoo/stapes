@@ -68,14 +68,36 @@ function covers(
 }
 
 /**
- * Is this cell behind something the camera draws in front of it?
+ * Is this cell one the viewer cannot make out — drawn over, or under a roof?
  *
- * Walks the one diagonal every camera ray takes, from the level above the
- * subject up to whatever the view is still drawing. The subject's own cell is
- * never tested: a body is not hidden by the ground it stands on, nor by
- * whatever else shares its square — that is the same reason `hasLineOfSight`
- * leaves its endpoints alone.
+ * **Two rules, and the second is not an optimisation of the first.** The
+ * diagonal answers what is painted in front of this cell. The column answers
+ * whether there is a floor between the viewer's eye level and it. They catch
+ * different things and the gap between them is a real bug this used to have.
  *
+ * A body standing directly under a one-cell ledge is *not* caught by the
+ * diagonal, and strictly speaking the diagonal is right: the floor overhead sits
+ * at `(x, y, z+1)`, which this projection draws one cell up-left, so the body's
+ * feet really are still on screen beside it. Painting is not the rule players
+ * read, though. "There is a floor between us" is a statement about the building,
+ * and somebody standing on a landing does not expect to be reading the health of
+ * whatever is in the room below them. A wide cave ceiling happened to satisfy the
+ * diagonal — its `(x+1, y+1, z+1)` is more rock — which is exactly what made the
+ * gap so easy to miss: the rule looked right until the floor was one tile.
+ *
+ * The column is walked on the *subject's* own cell rather than along a ray from
+ * the viewer, and that is deliberate. Where the viewer stands on the plan must
+ * not matter, or a name would flicker as they walked around a hole; only their
+ * level does. Sideways blocking stays out of it entirely, which is what keeps a
+ * rat in the yard readable from indoors with the door shut — a wall is not a
+ * roof.
+ *
+ * The subject's own cell is never tested by either rule: a body is not hidden by
+ * the ground it stands on, nor by whatever else shares its square. That is the
+ * same reason `hasLineOfSight` leaves its endpoints alone sideways.
+ *
+ * @param viewerZ the level the viewer's eye is on. Only bodies *below* it can be
+ *   under a roof of theirs; anything above is the roof-cut's business.
  * @param hideLevelsAbove the roof-cut, or undefined when nothing is cut. Levels
  *   strictly above it are not drawn and therefore hide nothing.
  */
@@ -83,12 +105,17 @@ export function isHiddenFromCamera(
   map: MapFile,
   tilesById: Record<string, TileDef>,
   at: Coord,
+  viewerZ: number,
   hideLevelsAbove: number | undefined,
 ): boolean {
   const top = Math.min(MAX_LEVEL, hideLevelsAbove ?? MAX_LEVEL);
   for (let z = at.z + 1; z <= top; z++) {
     const step = z - at.z;
     if (covers(map, tilesById, at.x + step, at.y + step, z)) return true;
+  }
+
+  for (let z = at.z + 1; z <= Math.min(viewerZ, top); z++) {
+    if (covers(map, tilesById, at.x, at.y, z)) return true;
   }
   return false;
 }
