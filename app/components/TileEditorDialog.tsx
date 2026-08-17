@@ -1130,7 +1130,7 @@ export function TileEditorDialog({
           </label>
         ) : null}
 
-        {!isDirectional(draft) ? climbPad : null}
+        {draft.type === "simple" ? climbPad : null}
 
         {statePicker}
 
