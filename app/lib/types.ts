@@ -98,23 +98,22 @@ export const AUTOTILE_SLICE_COUNT = 47;
  * quest chest is true of you and false of the player beside you, and writing it
  * to the map would have to lie to one of you.
  *
- * - `idle` — the default, and not one state among four. It *is* the tile's
- *   sprite; the rest are sparse overrides on it. See {@link TileDef.states}.
+ * - `idle` — the default, and not one state among the rest. It *is* the tile's
+ *   sprite; the others are sparse overrides on it. See {@link TileDef.states}.
  * - `moving` — this body is crossing a cell or falling. Read from the
  *   snapshot's live motion, which the client already interpolates.
- * - `attacking` — mid-swing. Not yet driven by any renderer.
- * - `open` — a container somebody has open, or a reward you have taken. One
- *   name for both because the visual claim is identical (the lid is up) and no
- *   tile can be both. Not yet driven by any renderer.
+ *
+ * **Every state in this union must be driven by a renderer.** `attacking` and
+ * `open` were designed alongside `moving` and are specified in
+ * `plans/stateful-sprites.md`, but they are deliberately absent until the things
+ * that drive them exist: a swing on the wire, and a session that knows who has
+ * what open. A state nobody draws is a control in the editor that does nothing
+ * when you use it, and an authored sprite that never appears is indistinguishable
+ * from a bug — so each arrives with its driver, in the same change.
  */
-export type SpriteState = "idle" | "moving" | "attacking" | "open";
+export type SpriteState = "idle" | "moving";
 
-export const SPRITE_STATES: SpriteState[] = [
-  "idle",
-  "moving",
-  "attacking",
-  "open",
-];
+export const SPRITE_STATES: SpriteState[] = ["idle", "moving"];
 
 /** The non-idle states, which are the only ones {@link TileDef.states} keys. */
 export type OverrideSpriteState = Exclude<SpriteState, "idle">;

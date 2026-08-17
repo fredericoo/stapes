@@ -1520,14 +1520,18 @@ export class WorldRenderer {
       const v0 = 1 - ((rect.y + rect.h) * CELL_SIZE) / tileset.height;
       const texture = this.textures.get(tileset.id) ?? this.magentaTex;
       const isAnimated = (frames?.length ?? 0) > 1;
-      const stateful = hasSpriteStates(def);
-      // Own mesh when animated, or when the tile can move at all, or when its
-      // sprite can change state — not merely when it happens to be moving or
-      // open right now. Keying this on the live set meant a tile changed batch
-      // membership the instant it started and stopped, and changing membership
-      // rebuilt the merged geometry for the whole floor: a full rebuild per
-      // step, for a sprite that only needed a new position.
-      const separate = isAnimated || isMobileTile(def) || stateful;
+      // Own mesh when animated, or when the tile can move at all — not merely
+      // when it happens to be moving right now. Keying this on the live motion
+      // set meant a tile changed batch membership the instant it started and
+      // stopped, and changing membership rebuilt the merged geometry for the
+      // whole floor: a full rebuild per step, for a sprite that only needed a
+      // new position.
+      //
+      // `isMobileTile` also covers every tile that can change sprite state,
+      // because `moving` is the only state and `availableStates` gates it on
+      // exactly this predicate. A state that a still tile can be in — an opened
+      // chest — would need its own term here; see plans/stateful-sprites.md.
+      const separate = isAnimated || isMobileTile(def);
       const animKey = animationKey(def, placed, x, y, z, state);
 
       items.push({
@@ -1553,7 +1557,7 @@ export class WorldRenderer {
         // walk cycle the moment it steps, and the registry is what the state
         // pass reaches it through.
         anim:
-          (isAnimated || stateful) && frames
+          (isAnimated || hasSpriteStates(def)) && frames
             ? {
                 frames,
                 tileset,

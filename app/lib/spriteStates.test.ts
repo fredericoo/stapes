@@ -62,10 +62,10 @@ describe("availableStates", () => {
     expect(availableStates(deer())).toContain("moving");
   });
 
-  it("offers attacking only to battlers", () => {
-    expect(availableStates(deer())).toContain("attacking");
-    const crate: TileDef = { ...deer(), kind: "prop" };
-    expect(availableStates(crate)).not.toContain("attacking");
+  it("offers nothing a renderer does not draw", () => {
+    // The union is the gate: a state reaches the editor only once something
+    // draws it. Pinned so adding a member without a driver fails here.
+    expect(availableStates(deer())).toEqual(["idle", "moving"]);
   });
 });
 
@@ -99,8 +99,8 @@ describe("resolveTileSprite with a state", () => {
     expect(frames?.map((f) => f.sprite.rect.x)).toEqual([1]);
   });
 
-  it("falls back to idle for a state with nothing authored at all", () => {
-    const frames = getFrames(walking, { state: "attacking", direction: "n" });
+  it("falls back to idle for a tile that authors no states at all", () => {
+    const frames = getFrames(deer(), { state: "moving", direction: "n" });
     expect(frames?.map((f) => f.sprite.rect.x)).toEqual([0]);
   });
 
@@ -114,18 +114,19 @@ describe("resolveTileSprite with a state", () => {
   });
 
   it("resolves states on a simple tile", () => {
-    const chest: TileDef = {
-      id: "chest",
-      name: "Chest",
+    const boulder: TileDef = {
+      id: "boulder",
+      name: "Boulder",
       height: 1,
       type: "simple",
       kind: "prop",
       attributes: {},
+      affectedByGravity: true,
       sprite: spriteAt(0),
-      states: { open: { sprite: spriteAt(5) } },
+      states: { moving: { sprite: spriteAt(5) } },
     };
-    expect(getFrames(chest, { state: "open" })?.[0]?.sprite.rect.x).toBe(5);
-    expect(getFrames(chest)?.[0]?.sprite.rect.x).toBe(0);
+    expect(getFrames(boulder, { state: "moving" })?.[0]?.sprite.rect.x).toBe(5);
+    expect(getFrames(boulder)?.[0]?.sprite.rect.x).toBe(0);
   });
 
   it("resolves states on an autotile, slice by slice", () => {

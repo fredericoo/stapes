@@ -38,13 +38,20 @@ Durable across every phase.
 ### The states
 
 ```ts
-export type SpriteState = "idle" | "moving" | "attacking" | "open";
+// Shipped. Grows one member at a time, each with its driver.
+export type SpriteState = "idle" | "moving";
 ```
 
-`idle` is not one state among four. It is the tile's sprite, and the others are
-sparse overrides on it — see "Data model".
+`idle` is not one state among the rest. It is the tile's sprite, and the others
+are sparse overrides on it — see "Data model".
 
-Where each is read from:
+**A state exists in the union only once something draws it.** `attacking` and
+`open` are fully specified below and deliberately not in the type: a state nobody
+draws is a control in the editor that does nothing when used, and an authored
+sprite that never appears is indistinguishable from a bug. Each is added in the
+same change as the thing that drives it.
+
+Where each is read from, once it exists:
 
 | state | read from | scope |
 |---|---|---|
@@ -69,8 +76,9 @@ tile cannot be in — so what you can author is exactly what can fire:
 export function availableStates(def: TileDef): SpriteState[] {
   const out: SpriteState[] = ["idle"];
   if (isMobileTile(def)) out.push("moving");
-  if (def.kind === "battler") out.push("attacking");
-  if (resolveContainer(def) || resolveRewardDef(def)) out.push("open");
+  // Each deferred state adds its own line here, with its driver:
+  //   attacking -> def.kind === "battler"
+  //   open      -> resolveContainer(def) || resolveRewardDef(def)
   return out;
 }
 ```
@@ -128,18 +136,27 @@ frame in which nothing is happening.
 ### Batch membership
 
 `WorldRenderer.cellItems` merges static tiles into per-floor geometry, and a
-merged tile cannot swap sprites without rebuilding the floor. Movers already
-escape via `isMobileTile`, but **`quest-chest` is a plain `prop`** — no gravity,
-no push, no brain — so it is in the batch. Hence:
+merged tile cannot swap sprites without rebuilding the floor.
+
+While `moving` is the only state, `isMobileTile` covers this on its own —
+`availableStates` gates `moving` on exactly that predicate, so every tile that
+can change sprite is already out of the batch. The test is unchanged:
 
 ```ts
-const separate = isAnimated || isMobileTile(def) || hasSpriteStates(def);
+const separate = isAnimated || isMobileTile(def);
 ```
 
-Keyed on *capability*, never on current state, on exactly the grounds the
-existing comment records for keying `isMobileTile` on the tile rather than on
-the live motion set: a tile that changes batch membership when it changes state
-rebuilds a floor every time somebody opens a box.
+**Phase 3 is what breaks that**, and it is the term to remember to add:
+`quest-chest` is a plain `prop` with no gravity, no push and no brain, so an
+`open` state on a still tile needs `|| hasSpriteStates(def)`. Keyed on
+*capability* when it arrives, never on current state, on exactly the grounds the
+existing comment records for keying `isMobileTile` on the tile rather than on the
+live motion set: a tile that changed batch membership when it changed state would
+rebuild a floor every time somebody opened a box.
+
+`hasSpriteStates` exists already, for a different job — it is what registers a
+mesh with the per-frame state pass, which being animated does not imply: a grazing
+deer stands on one frame and becomes a four-frame walk when it steps.
 
 ### A state shares idle's footprint
 
@@ -240,16 +257,16 @@ recompute quest-chest states on a reference check.
 **In:** the state axis, and `moving` for actors. The point of the feature is a
 deer that looks different walking than standing still.
 
+`SpriteState` holds `idle | moving` and nothing else. Adding a member before its
+driver exists would put a state in the editor's selector that does nothing when
+picked — so each deferred state below arrives in the same change as the thing that
+draws it.
+
 **Deferred, in the order they get cheaper to add:** the quest chest (phase 3 —
 no protocol, just a predicate), `attacking` (phase 4 — one new event),
 container open (phase 5 — the only one that adds state to the wire). All three
 are designed above so the axis does not have to be reopened for them, and none
 is built now.
-
-`availableStates` still offers all four from the start. It is derived from
-predicates, so listing a state a renderer does not yet drive costs nothing and
-keeps the editor honest about where this is going — an authored `open` sprite
-simply sits unused until phase 3.
 
 The full editor redesign is deferred too. It is the right shape and phase 2
 still describes it, but authoring `moving` needs only a state selector beside
@@ -277,9 +294,9 @@ rather than a private method on `GameRenderer`, on the grounds
 not about drawing, and the loop's job is only to ask it once a frame. That is what
 made it testable against a real `GameSession` instead of a fabricated snapshot.
 
-- `SpriteState`, `StateSprites`, `TileDef.states` in `app/lib/types.ts`;
-  `availableStates` and `hasSpriteStates` beside the other predicates in
-  `app/lib/interactions.ts`, where `isMobileTile` lives.
+- `SpriteState` (`idle | moving`), `StateSprites`, `TileDef.states` in
+  `app/lib/types.ts`; `availableStates` and `hasSpriteStates` beside the other
+  predicates in `app/lib/interactions.ts`, where `isMobileTile` lives.
 - `TileResolveContext.state` and the two-level fallback in `resolveTileSprite`.
   Tests: missing state falls back to idle; missing variant within a state falls
   back to idle's variant; a state not in `availableStates` resolves as idle.
@@ -287,7 +304,9 @@ made it testable against a real `GameSession` instead of a fabricated snapshot.
   `tileLightSignature` see state frames. **Easy to miss and silently wrong**: a
   torch whose `moving` frames emit would otherwise be omitted from the bake.
 - `animKey` gains the state, in `spriteQuad.ts` and both renderers.
-- `hasSpriteStates` in the `separate` test in `WorldRenderer.cellItems`.
+- `hasSpriteStates` gates the animation-registry entry, so a mesh whose idle is a
+  single frame is still reachable by the state pass. It is deliberately *not* in
+  the `separate` test — see "Batch membership".
 - `WorldView.spriteStates`, computed in `GameRenderer` from
   `ActorSnapshot.walk / fall / slide` — the same predicate `tileMotionsFor`
   already keys off.
@@ -335,6 +354,9 @@ without it, so phase 1 otherwise ships with no way to use it.
 
 ## Phase 3 — the quest chest (deferred)
 
+Adds `open` to `SpriteState`, its line to `availableStates`, its hint to
+`STATE_HINTS`, and `|| hasSpriteStates(def)` to the `separate` test.
+
 Demoable as: a quest chest that looks emptied to you and shut to the player
 beside you.
 
@@ -349,6 +371,9 @@ the per-viewer half of the axis with no protocol at all.
   it.
 
 ## Phase 4 — attacking (deferred)
+
+Adds `attacking` to `SpriteState`, its line to `availableStates`, and its hint to
+`STATE_HINTS`.
 
 Demoable as: a rat visibly swinging at you, and missing.
 

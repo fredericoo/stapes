@@ -2,12 +2,7 @@ import * as v from "valibot";
 import type { BattlerDef } from "./battler";
 import type { BrainDef } from "./brain";
 import type { ItemDef } from "./item";
-import {
-  itemForSave,
-  MAX_CONTAINER_SIZE,
-  resolveContainer,
-  resolveItem,
-} from "./item";
+import { itemForSave, MAX_CONTAINER_SIZE, resolveItem } from "./item";
 import type { PlacedTile, SpriteState, TileDef } from "./types";
 import { HEIGHT_PER_LEVEL, resolveActor } from "./types";
 
@@ -775,31 +770,29 @@ export function isMobileTile(def: TileDef): boolean {
  * movement, and a tile that authors nothing for a state it is offered pays
  * nothing for being offered it.
  *
- * `attacking` and `open` are offered before any renderer drives them. Listing a
- * state early costs an unused sprite at worst; withholding it would mean art and
- * code have to land in the same change.
+ * Only ever returns states a renderer actually draws — see {@link SpriteState},
+ * which is the one place that list grows. Offering a state early would put a
+ * control in the editor that does nothing when used.
  */
 export function availableStates(def: TileDef): SpriteState[] {
   const out: SpriteState[] = ["idle"];
   if (isMobileTile(def)) out.push("moving");
-  if (def.kind === "battler") out.push("attacking");
-  if (resolveContainer(def) || resolveRewardDef(def)) out.push("open");
   return out;
 }
 
 /**
  * Whether this tile has any sprite authored beyond idle.
  *
- * The renderers keep such a tile out of merged floor geometry, because a merged
- * tile cannot change sprite without rebuilding the whole floor. That is the same
- * exclusion {@link isMobileTile} earns for movers, and it is needed on top of it
- * because a state-ful tile need not move at all — a quest chest is a plain prop
- * with no gravity, no push and no brain.
+ * What the renderers register a mesh by, so the per-frame state pass can reach
+ * it. Being animated is not enough on its own and neither is replacing it: a
+ * grazing deer stands on a single frame and is therefore *not* animated, yet it
+ * becomes a four-frame walk the moment it steps — so the registry has to be
+ * joined by anything that *could* change, before it has.
  *
- * Keyed on what the tile *has authored*, never on which state it is in right
- * now: a tile that changed batch membership as it changed state would rebuild a
- * floor on every step and every opened box, which is the exact cost the
- * exclusion exists to avoid.
+ * Keyed on what the tile has authored, never on which state it is in right now,
+ * for the reason {@link isMobileTile} gives about classifying per frame: a mesh
+ * that joined and left the registry as it started and stopped moving would be
+ * rebuilding geometry on exactly the frames that can least afford it.
  */
 export function hasSpriteStates(def: TileDef): boolean {
   const states = def.states;

@@ -314,18 +314,14 @@ type Props = {
 };
 
 /**
- * What each state means, and — for the two nothing drives yet — that it is not
- * wired up.
+ * What each state means, in the words of what the player will see.
  *
- * Saying so in the dialog rather than only in a plan, because a sprite that is
- * authored and never drawn is otherwise indistinguishable from a bug, and the
- * person who would report it is the person reading this line.
+ * Total over {@link SpriteState} rather than a lookup that might miss, so a new
+ * state cannot reach this selector without somebody writing down what it is for.
  */
 const STATE_HINTS: Record<SpriteState, string> = {
   idle: "How this looks at rest. Every other state falls back to it, per direction.",
   moving: "While it is crossing a cell or falling.",
-  attacking: "Mid-swing. Not drawn yet — no swing reaches the client.",
-  open: "A container somebody has open, or a reward you have taken. Not drawn yet.",
 };
 
 const TAB_TILE = "tile";

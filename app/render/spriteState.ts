@@ -15,9 +15,9 @@ import { tileInstanceKey } from "./WorldRenderer";
  * everywhere downstream — so the common case costs one allocation that never
  * happens rather than a walk of the board.
  *
- * Only `moving`, and only actors. `attacking` needs a swing to reach the client
- * and `open` needs the session to know who has what open; neither exists yet, and
- * a tile that authors those sprites simply never shows them.
+ * `moving` is the only state there is, so this is total: everything absent from
+ * the result is idle. When another state arrives it arrives here too, in the same
+ * change as whatever drives it — see {@link SpriteState}.
  */
 export function spriteStatesFor(
   actors: readonly ActorSnapshot[],
