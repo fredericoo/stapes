@@ -33,10 +33,13 @@ import {
  * least exotic code in the file and was the least covered.
  */
 
+/** How many cells {@link authoredMap} lays down, for telling it from a void. */
+const AUTHORED_CELLS = 4;
+
 /** A strip of grass with the authored spawn marker at the origin. */
 function authoredMap(): FlatMapFile {
   const levels: Record<string, Record<string, unknown[]>> = { "0": {} };
-  for (let x = 0; x < 4; x++) {
+  for (let x = 0; x < AUTHORED_CELLS; x++) {
     levels["0"]![`${x},0`] = [{ tileId: "grass" }];
   }
   levels["0"]!["0,0"] = [{ tileId: "grass" }, { tileId: "player", direction: "s" }];
@@ -475,6 +478,101 @@ describe("residents", () => {
     const { hello } = await connect("bob");
 
     expect(deerCells(hello.map as FlatMapFile)).toEqual([DEER_CELL]);
+  });
+});
+
+/**
+ * How the board itself is written down.
+ *
+ * The world used to be checkpointed as one storage value holding the whole map,
+ * which a Durable Object refuses somewhere past two megabytes — and refuses
+ * silently, since the write is fire-and-forget. These cover the shape that
+ * replaced it: a key per chunk, so the ceiling scales with the world instead of
+ * standing across it, and a flush writes only what moved.
+ */
+describe("the checkpointed board", () => {
+  /** Let the world tick, settle and write itself down. */
+  async function settle() {
+    await new Promise((resolve) => setTimeout(resolve, QUIET_MS));
+  }
+
+  async function storedBoard() {
+    return await runInDurableObject(stub(), async (_instance, state) => {
+      const meta = await state.storage.get<Record<string, unknown>>("world");
+      const chunks = await state.storage.list({ prefix: "chunk:" });
+      return { meta, chunkKeys: [...chunks.keys()] };
+    });
+  }
+
+  it("keeps the board under a key per chunk", async () => {
+    await connect("alice");
+    await settle();
+
+    const { meta, chunkKeys } = await storedBoard();
+    expect(meta).toBeDefined();
+    // The one value that grew with the world is gone; what is left is the
+    // handful of facts that cannot be recovered from the board.
+    expect(meta!.map).toBeUndefined();
+    expect(meta!.spawn).toBeDefined();
+    expect(chunkKeys.length).toBeGreaterThan(0);
+  });
+
+  /**
+   * A world checkpointed before the board was split still has to come up, and
+   * has to stop being legacy once it does — otherwise the migration is one the
+   * live world never actually takes.
+   */
+  it("writes a legacy whole-map checkpoint back out as chunks", async () => {
+    await putCheckpoint(checkpointWith(["alice"]));
+    await connect("alice");
+    // Resumed where the legacy checkpoint had them, rather than at spawn.
+    expect(await actorX("alice")).toBe(AWAY_FROM_SPAWN);
+
+    await settle();
+
+    const { meta, chunkKeys } = await storedBoard();
+    expect(meta!.map).toBeUndefined();
+    expect(chunkKeys.length).toBeGreaterThan(0);
+  });
+
+  /**
+   * Metadata with no board under it is a world that cannot be resumed — and one
+   * that will not say so. A resumed world is handed its spawn point rather than
+   * reading it off the map, so starting on nothing raises nothing: everybody
+   * joins and stands in a void. The terrain is what has to be asserted here;
+   * that a hello arrived, and that alice is in it, is true of the void too.
+   */
+  it("falls back to the authored map when the chunks are missing", async () => {
+    await putCheckpoint({ spawn: { x: 0, y: 0, z: 0, stackIndex: 1 } });
+
+    const { hello } = await connect("alice");
+
+    expect(playerOwners(hello.map as FlatMapFile)).toEqual(["alice"]);
+    const ground = (hello.map as FlatMapFile).levels["0"] ?? {};
+    expect(Object.keys(ground).length).toBe(AUTHORED_CELLS);
+  });
+
+  /**
+   * Regression shape: a chunk of a world that no longer exists, sitting under a
+   * key the new world never writes, would be reassembled as part of it — a
+   * corner of a map nobody authored, until somebody edited that exact chunk.
+   */
+  it("forgets the old board when the world is replaced", async () => {
+    await connect("alice");
+    await settle();
+    const orphan = "chunk:9:99,99";
+    await runInDurableObject(stub(), async (_instance, state) => {
+      await state.storage.put(orphan, { "1584,1584": [{ tileId: "grass" }] });
+    });
+
+    await stub().replaceWorld(authoredMap());
+    await settle();
+
+    const { chunkKeys } = await storedBoard();
+    expect(chunkKeys).not.toContain(orphan);
+    // And the new board is written down in its place, rather than the wipe
+    // leaving nothing to resume.
+    expect(chunkKeys.length).toBeGreaterThan(0);
   });
 });
 

@@ -21,13 +21,16 @@ import { resolveRespawn } from "../app/lib/interactions";
 import { minutesOfDayAt } from "../app/lib/clock";
 import {
   changedCellsOnLevel,
+  changedChunks,
   chunkifyMap,
   flattenMap,
   getStack,
+  mapFromChunks,
 } from "../app/lib/mapData";
 import { dataStoreFor, type DataStore } from "../app/lib/storage.server";
 import { tilesByIdFromList } from "../app/lib/validation";
 import type {
+  ChunkCells,
   Direction,
   FlatMapFile,
   MapFile,
@@ -46,6 +49,52 @@ import {
 
 /** Key under which the running world is checkpointed when it goes idle. */
 const CHECKPOINT_KEY = "world";
+
+/**
+ * Key prefix under which one chunk of the checkpointed board is kept, as
+ * `chunk:<level>:<chunkKey>`.
+ *
+ * A key per chunk rather than the whole map in one value, for two reasons that
+ * are really the same reason.
+ *
+ * **There is a ceiling, and the map was growing toward it.** A Durable Object's
+ * storage refuses a value over about two megabytes — `SQLITE_TOOBIG` — and the
+ * whole-map checkpoint was a single value that grew with the world. Today's map
+ * serializes to a few hundred kilobytes, so a world six or eight times its size
+ * would have started failing, and failing *silently*: the write is fire-and-
+ * forget, so nothing would have said so, and every player would simply have been
+ * handed back wherever they stood at the last checkpoint small enough to land. A
+ * chunk is at most {@link CHUNK_SIZE}² cells and cannot approach the limit, so
+ * the ceiling now scales with the world instead of standing across it.
+ *
+ * **And the map is already chunked copy-on-write.** A flush that re-serialized
+ * every cell in the world every five seconds was doing it to record that
+ * somebody had walked two tiles; {@link changedChunks} turns that into the one
+ * chunk they walked through.
+ */
+const CHUNK_KEY_PREFIX = "chunk:";
+
+/** Where one chunk of the board is kept. */
+function boardKey(levelKey: string, chunkKey: string): string {
+  return `${CHUNK_KEY_PREFIX}${levelKey}:${chunkKey}`;
+}
+
+/**
+ * Read a board key back, or null if it is not one.
+ *
+ * Both halves are keyed by strings that cannot contain a colon — a level key is
+ * a signed integer and a chunk key is a pair of them — so the first colon after
+ * the prefix is the only separator there can be.
+ */
+function parseBoardKey(
+  key: string,
+): { levelKey: string; chunkKey: string } | null {
+  if (!key.startsWith(CHUNK_KEY_PREFIX)) return null;
+  const rest = key.slice(CHUNK_KEY_PREFIX.length);
+  const at = rest.indexOf(":");
+  if (at < 0) return null;
+  return { levelKey: rest.slice(0, at), chunkKey: rest.slice(at + 1) };
+}
 
 /**
  * Key under which the world's spawn points are kept.
@@ -230,7 +279,18 @@ type QueuedStep = {
  * checkpointed map has no marker left to read.
  */
 type Checkpoint = {
-  map: FlatMapFile;
+  /**
+   * The whole board, as worlds checkpointed before {@link CHUNK_KEY_PREFIX}
+   * existed carry it.
+   *
+   * Read but never written. A world resumed through this field is written back
+   * out in chunks by its first flush, and the field goes with it — so this is
+   * the migration, and it costs one extra load of the shape that already
+   * worked.
+   *
+   * @deprecated The board lives under {@link CHUNK_KEY_PREFIX}.
+   */
+  map?: FlatMapFile;
   spawn: { x: number; y: number; z: number; stackIndex: number };
   /**
    * The world's dice, mid-roll. Travels for the same reason the spawn point
@@ -400,23 +460,64 @@ export class GameServer extends DurableObject<Env> {
     this.tiles = await store.readTiles();
 
     const checkpoint = await this.ctx.storage.get<Checkpoint>(CHECKPOINT_KEY);
+    const board = checkpoint ? await this.checkpointedBoard(checkpoint) : null;
     // No actors either way: connections spawn their own. On a fresh world the
     // authored `player` tile is only the marker saying where, and starting the
     // session consumes it.
-    this.session = checkpoint
+    this.session = board
       ? new GameSession(
-          chunkifyMap(checkpoint.map),
+          board,
           this.tiles,
           [],
-          checkpoint.spawn,
-          checkpoint.seed,
+          checkpoint!.spawn,
+          checkpoint!.seed,
         )
       : new GameSession(await store.readMap(), this.tiles, []);
-    this.dead = new Set(checkpoint?.dead ?? []);
+    // Only from a checkpoint we could actually resume. A world falling back to
+    // the authored map is a world nobody has died in yet, and carrying a grudge
+    // across that would leave somebody absent from a board they are standing on.
+    this.dead = new Set(board ? (checkpoint!.dead ?? []) : []);
     this.broadcastMap = this.session.getMap();
+    // Deliberately not `this.checkpointedMap = this.session.getMap()`, which
+    // would look like the obvious saving. Constructing a session *changes* the
+    // board it was handed — it adopts resident bodies, consumes the spawn marker
+    // and settles every plate — so the map in memory is already not the one in
+    // storage. Leaving this null makes the first flush write the board out
+    // whole, once per instance, and that is also what heals a world whose
+    // stored chunks have drifted for any reason at all.
+    this.checkpointedMap = null;
     await this.restoreActors();
     await this.pruneRemembered();
-    await this.loadRespawnState(checkpoint != null);
+    await this.loadRespawnState(board != null);
+  }
+
+  /**
+   * Reassemble the checkpointed board, or null if there is nothing to resume.
+   *
+   * Null rather than an empty map for the case where the metadata is there and
+   * the chunks are not — and the distinction is the whole point of this
+   * existing, because an empty board does not announce itself. A resumed world
+   * is handed its spawn point rather than reading it off the map, so
+   * `GameSession` starts perfectly happily on nothing at all: players would join
+   * a void, standing on no terrain, in a world that looks to every other part of
+   * this object like it is working. Falling back to the authored map costs
+   * everybody their position once and leaves a world that is actually there.
+   */
+  private async checkpointedBoard(
+    checkpoint: Checkpoint,
+  ): Promise<MapFile | null> {
+    if (checkpoint.map) return chunkifyMap(checkpoint.map);
+
+    const stored = await this.ctx.storage.list<ChunkCells>({
+      prefix: CHUNK_KEY_PREFIX,
+    });
+    const chunks = [];
+    for (const [key, cells] of stored) {
+      const parsed = parseBoardKey(key);
+      if (parsed) chunks.push({ ...parsed, cells });
+    }
+    if (chunks.length === 0) return null;
+    return mapFromChunks(chunks);
   }
 
   /**
@@ -492,12 +593,27 @@ export class GameServer extends DurableObject<Env> {
     }
   }
 
+  /**
+   * Say that a fire-and-forget write did not land.
+   *
+   * Every write in this object is deliberately not waited on — see
+   * {@link saveActors} — and none of them has a recovery worth writing, so the
+   * only honest thing to do with a rejection is make sure somebody can find out
+   * about it. Swallowing them is how a world comes to quietly stop remembering
+   * things.
+   */
+  private static reportWriteFailure(what: string) {
+    return (error: unknown) => {
+      console.error(`stapes: ${what} failed`, error);
+    };
+  }
+
   private persistRespawnPoints() {
     this.ctx.storage
       .put(RESPAWN_POINTS_KEY, [...this.respawnPoints.values()], {
         allowUnconfirmed: true,
       })
-      .catch(() => {});
+      .catch(GameServer.reportWriteFailure("respawn points write"));
   }
 
   private persistRespawnPending() {
@@ -505,7 +621,7 @@ export class GameServer extends DurableObject<Env> {
       .put(RESPAWN_PENDING_KEY, Object.fromEntries(this.respawnPending), {
         allowUnconfirmed: true,
       })
-      .catch(() => {});
+      .catch(GameServer.reportWriteFailure("respawn deadlines write"));
   }
 
   /**
@@ -518,12 +634,14 @@ export class GameServer extends DurableObject<Env> {
    */
   private scheduleRespawnAlarm() {
     if (this.respawnPending.size === 0) {
-      this.ctx.storage.deleteAlarm().catch(() => {});
+      this.ctx.storage
+        .deleteAlarm()
+        .catch(GameServer.reportWriteFailure("respawn alarm clear"));
       return;
     }
     this.ctx.storage
       .setAlarm(Math.min(...this.respawnPending.values()))
-      .catch(() => {});
+      .catch(GameServer.reportWriteFailure("respawn alarm set"));
   }
 
   /**
@@ -655,6 +773,20 @@ export class GameServer extends DurableObject<Env> {
     }
   }
 
+  /**
+   * Forget the checkpointed board entirely.
+   *
+   * Every key, not the ones the incoming map happens to reuse: a new world is
+   * usually a different shape, and a chunk of the old one left behind under a
+   * key the new one never writes would be resumed as part of it — a corner of a
+   * map nobody authored, sitting there until somebody edited that exact chunk.
+   */
+  private async deleteCheckpointedBoard() {
+    const stored = await this.ctx.storage.list({ prefix: CHUNK_KEY_PREFIX });
+    if (stored.size === 0) return;
+    await this.ctx.storage.delete([...stored.keys()]);
+  }
+
   private positionKey(actorId: string): string {
     return `${POSITION_KEY_PREFIX}${actorId}`;
   }
@@ -742,7 +874,7 @@ export class GameServer extends DurableObject<Env> {
     const savedAt = Date.now();
     const entries: Record<
       string,
-      SavedPosition | SavedEquipment | SavedTags | Checkpoint
+      SavedPosition | SavedEquipment | SavedTags | Checkpoint | ChunkCells
     > = {};
     for (const actorId of actorIds) {
       const at = session.actorPosition(actorId);
@@ -781,17 +913,35 @@ export class GameServer extends DurableObject<Env> {
     const map = session.getMap();
     if (map !== this.checkpointedMap) {
       entries[CHECKPOINT_KEY] = {
-        map: flattenMap(map),
         spawn: session.getSpawnPoint(),
         seed: session.getSeed(),
         dead: [...this.dead],
       };
+      // Only the chunks that moved, and *in the same batch* — the atomicity
+      // above is between a kit and the board it was read off, and a board split
+      // across keys is still one board as long as it is one write.
+      //
+      // A chunk that has emptied is written as an empty record rather than
+      // deleted, which is what keeps that true: a delete cannot ride in a `put`,
+      // and a separate call is a second moment at which half the board can be
+      // durable.
+      for (const chunk of changedChunks(this.checkpointedMap, map)) {
+        entries[boardKey(chunk.levelKey, chunk.chunkKey)] = chunk.cells;
+      }
       this.checkpointedMap = map;
     }
 
     if (Object.keys(entries).length === 0) return;
 
-    this.ctx.storage.put(entries, { allowUnconfirmed: true }).catch(() => {});
+    // Logged rather than swallowed. There is still nothing useful to *do* about
+    // a write that did not stick — the world has already broadcast what it
+    // records, and throwing here would take the whole object down over a
+    // position — but a checkpoint failing quietly is how a world comes to hand
+    // everybody back where they stood an hour ago with nothing anywhere saying
+    // why. Observability is on, so this reaches the logs.
+    this.ctx.storage
+      .put(entries, { allowUnconfirmed: true })
+      .catch(GameServer.reportWriteFailure("checkpoint write"));
   }
 
   /**
@@ -1498,6 +1648,12 @@ export class GameServer extends DurableObject<Env> {
 
     await store.writeMap(map);
     await this.ctx.storage.delete(CHECKPOINT_KEY);
+    await this.deleteCheckpointedBoard();
+    // The new board shares chunk keys with the old one but none of its chunk
+    // *objects*, so a diff against the world that was just thrown away would be
+    // sound but pointless — and leaving a stale baseline here would be neither.
+    // Null makes the first flush write the whole new board out.
+    this.checkpointedMap = null;
 
     // Read off the outgoing session, and read *here* — this is the last moment
     // it exists, and it holds the only copy of anybody's kit that is newer than
