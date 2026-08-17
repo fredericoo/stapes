@@ -3,6 +3,7 @@ import type {
   AutotileSlice,
   Direction,
   Frame,
+  SpriteState,
   TileDef,
   TilesetDef,
 } from "../lib/types";
@@ -18,6 +19,8 @@ type Props = {
   direction?: Direction;
   /** Autotile slice for preview (default isolated = 0). */
   autotileSlice?: AutotileSlice;
+  /** Which sprite state to draw. Default / absent → idle. */
+  state?: SpriteState;
   /**
    * Draw the first frame once and stop.
    *
@@ -65,15 +68,16 @@ function framesForPreview(
   direction: Direction | undefined,
   dirIndex: number,
   autotileSlice: AutotileSlice | undefined,
+  state: SpriteState | undefined,
 ): Frame[] | undefined {
   if (tile.type === "directional") {
     const d = direction ?? DIRECTIONS[dirIndex % 4]!;
-    return getFrames(tile, { direction: d });
+    return getFrames(tile, { state, direction: d });
   }
   if (tile.type === "autotile") {
-    return getFrames(tile, { autotileSlice: autotileSlice ?? 0 });
+    return getFrames(tile, { state, autotileSlice: autotileSlice ?? 0 });
   }
-  return getFrames(tile);
+  return getFrames(tile, { state });
 }
 
 /** Keep nearest-neighbor after canvas buffer / transform resets. */
@@ -91,6 +95,7 @@ export function TilePreview({
   className = "",
   direction,
   autotileSlice,
+  state,
   still = false,
   background = DEFAULT_PREVIEW_BACKGROUND,
   chrome = true,
@@ -123,7 +128,13 @@ export function TilePreview({
       if (!alive) return;
       const elapsed = still ? 0 : now - start;
       const dirIndex = Math.floor(elapsed / 800) % 4;
-      const frames = framesForPreview(tile, direction, dirIndex, autotileSlice);
+      const frames = framesForPreview(
+        tile,
+        direction,
+        dirIndex,
+        autotileSlice,
+        state,
+      );
       disableSmoothing(ctx);
       ctx.clearRect(0, 0, size, size);
       if (background !== null) {
@@ -187,7 +198,7 @@ export function TilePreview({
       alive = false;
       cancelAnimationFrame(raf);
     };
-  }, [tile, tilesets, size, direction, autotileSlice, still, background]);
+  }, [tile, tilesets, size, direction, autotileSlice, state, still, background]);
 
   return (
     <canvas

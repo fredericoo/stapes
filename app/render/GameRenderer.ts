@@ -59,6 +59,7 @@ import {
   type TileMotion,
   WorldRenderer,
 } from "./WorldRenderer";
+import { spriteStatesFor } from "./spriteState";
 import {
   type InteractiveIndex,
   indexBattlers,
@@ -1726,6 +1727,7 @@ export class GameRenderer {
       zoom,
       minutesOfDay: this.minutesOfDay,
       tileMotions: motions.length > 0 ? motions : undefined,
+      spriteStates: spriteStatesFor(snap.actors),
       emitterOverrides: this.emitterOverridesFor(snap),
       hideLevelsAbove: hideAbove ? anchor.z : undefined,
     });

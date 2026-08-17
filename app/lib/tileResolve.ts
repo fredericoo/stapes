@@ -10,21 +10,55 @@ import {
   type Frame,
   type LightDef,
   type MapFile,
+  type SpriteState,
+  type StateSprites,
   type TileDef,
   type TileResolveContext,
   type TileSprite,
 } from "./types";
 
+/**
+ * The state's own sprites, or nothing when it is idle or unauthored.
+ *
+ * `idle` is never looked up: it *is* the def's inline sprites, so asking for it
+ * here would be asking `states.idle` to exist. See {@link TileDef.states}.
+ */
+function overrideFor(
+  tile: TileDef,
+  state: SpriteState | undefined,
+): StateSprites | undefined {
+  if (state == null || state === "idle") return undefined;
+  return tile.states?.[state];
+}
+
+/**
+ * Which sprite a placement draws with.
+ *
+ * Resolves the {@link SpriteState} first and the tile's own axis second, falling
+ * back to idle at every step so a sparsely authored state is usable rather than
+ * blank.
+ *
+ * **Facing outranks state in the fallback**, which is the one ordering here worth
+ * arguing about. A deer that authors `moving` facing south only, walking east,
+ * draws the *standing east* sprite rather than the walking south one: a creature
+ * facing the wrong way reads as a bug, while one that forgets to animate reads as
+ * art not finished yet. So a missing variant falls through to idle's same
+ * direction, never to the state's other directions.
+ */
 export function resolveTileSprite(
   tile: TileDef,
   ctx: TileResolveContext = {},
 ): TileSprite | undefined {
+  const override = overrideFor(tile, ctx.state);
+
   if (tile.type === "simple") {
-    return tile.sprite;
+    return override?.sprite ?? tile.sprite;
   }
   if (tile.type === "directional") {
     const dir = ctx.direction ?? "s";
-    return tile.sprites?.[dir] ?? tile.sprites?.s;
+    return (
+      override?.sprites?.[dir] ?? tile.sprites?.[dir] ?? tile.sprites?.s
+    );
   }
   // autotile
   let slice = ctx.autotileSlice;
@@ -32,7 +66,12 @@ export function resolveTileSprite(
     slice = resolveAutotileSlice(ctx.map, ctx.x, ctx.y, ctx.z, tile.id);
   }
   if (slice == null) slice = 0;
-  return pickAutotileSprite(tile, slice);
+  // This slice on the state and no other, then idle with its full slice
+  // fallback. Asking `pickAutotileSprite` for the override would let *its*
+  // fallback answer first, so a tile authoring `moving` for one shape would
+  // wear that shape in every neighbourhood while it moved — the same mistake as
+  // letting a state outrank facing, in autotile clothing.
+  return override?.slices?.[slice] ?? pickAutotileSprite(tile, slice);
 }
 
 export function getFrames(
@@ -60,7 +99,13 @@ export function resolveLight(
   return light;
 }
 
-/** Compact fingerprint of all frame lights (editor cache invalidation). */
+/**
+ * Compact fingerprint of all frame lights (editor cache invalidation).
+ *
+ * Spans every {@link SpriteState} for the reason `allTileSprites` does: a light
+ * authored on a state the signature cannot see is a light the cache never
+ * notices anybody editing.
+ */
 export function tileLightSignature(tile: TileDef): string {
   const parts: string[] = [];
   const pushSprite = (key: string, sprite: TileSprite | undefined) => {
@@ -71,12 +116,21 @@ export function tileLightSignature(tile: TileDef): string {
       parts.push(`${key}@${i}:${L.radius},${L.intensity},${L.color}`);
     }
   };
-  if (tile.type === "simple") {
-    pushSprite("default", tile.sprite);
-  } else if (tile.type === "directional") {
-    for (const d of DIRECTIONS) pushSprite(d, tile.sprites?.[d]);
-  } else if (tile.slices) {
-    for (const [k, s] of Object.entries(tile.slices)) pushSprite(k, s);
+  const pushState = (prefix: string, from: StateSprites) => {
+    if (tile.type === "simple") {
+      pushSprite(`${prefix}default`, from.sprite);
+    } else if (tile.type === "directional") {
+      for (const d of DIRECTIONS) pushSprite(`${prefix}${d}`, from.sprites?.[d]);
+    } else if (from.slices) {
+      for (const [k, s] of Object.entries(from.slices)) {
+        pushSprite(`${prefix}${k}`, s);
+      }
+    }
+  };
+
+  pushState("", tile);
+  for (const [state, sprites] of Object.entries(tile.states ?? {})) {
+    if (sprites) pushState(`${state}/`, sprites);
   }
   return parts.join("|");
 }

@@ -2,8 +2,13 @@ import * as v from "valibot";
 import type { BattlerDef } from "./battler";
 import type { BrainDef } from "./brain";
 import type { ItemDef } from "./item";
-import { itemForSave, MAX_CONTAINER_SIZE, resolveItem } from "./item";
-import type { PlacedTile, TileDef } from "./types";
+import {
+  itemForSave,
+  MAX_CONTAINER_SIZE,
+  resolveContainer,
+  resolveItem,
+} from "./item";
+import type { PlacedTile, SpriteState, TileDef } from "./types";
 import { HEIGHT_PER_LEVEL, resolveActor } from "./types";
 
 /**
@@ -752,6 +757,54 @@ export function isMobileTile(def: TileDef): boolean {
     resolveActor(def) ||
     resolvePush(def) !== null
   );
+}
+
+/**
+ * The {@link SpriteState}s this tile could ever be in.
+ *
+ * Derived from predicates that already exist rather than authored, and one
+ * function rather than two: the editor builds its state selector from this and
+ * the resolver refuses a state absent from it, so what can be authored is
+ * exactly what can ever be drawn. A flag beside these would be a second answer
+ * that can disagree with the first.
+ *
+ * {@link isMobileTile} rather than "has a brain or is a battler", because it
+ * already means *can this ever change cell* — gravity, a brain, or a push — and
+ * already argues why that has to be a property of the tile rather than of
+ * whether it happens to be moving this frame. A shoved crate sliding is
+ * movement, and a tile that authors nothing for a state it is offered pays
+ * nothing for being offered it.
+ *
+ * `attacking` and `open` are offered before any renderer drives them. Listing a
+ * state early costs an unused sprite at worst; withholding it would mean art and
+ * code have to land in the same change.
+ */
+export function availableStates(def: TileDef): SpriteState[] {
+  const out: SpriteState[] = ["idle"];
+  if (isMobileTile(def)) out.push("moving");
+  if (def.kind === "battler") out.push("attacking");
+  if (resolveContainer(def) || resolveRewardDef(def)) out.push("open");
+  return out;
+}
+
+/**
+ * Whether this tile has any sprite authored beyond idle.
+ *
+ * The renderers keep such a tile out of merged floor geometry, because a merged
+ * tile cannot change sprite without rebuilding the whole floor. That is the same
+ * exclusion {@link isMobileTile} earns for movers, and it is needed on top of it
+ * because a state-ful tile need not move at all — a quest chest is a plain prop
+ * with no gravity, no push and no brain.
+ *
+ * Keyed on what the tile *has authored*, never on which state it is in right
+ * now: a tile that changed batch membership as it changed state would rebuild a
+ * floor on every step and every opened box, which is the exact cost the
+ * exclusion exists to avoid.
+ */
+export function hasSpriteStates(def: TileDef): boolean {
+  const states = def.states;
+  if (!states) return false;
+  return Object.values(states).some((s) => s != null);
 }
 
 /** Whether the player can do anything at all with this tile. */

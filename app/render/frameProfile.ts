@@ -14,6 +14,7 @@ export const FRAME_PHASES = [
   "sync",
   "map",
   "light",
+  "state",
   "motion",
   "anim",
   "draw",

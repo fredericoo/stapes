@@ -1,0 +1,51 @@
+import type { ActorSnapshot } from "../game/GameSession";
+import type { SpriteState } from "../lib/types";
+import { tileInstanceKey } from "./WorldRenderer";
+
+/**
+ * Which placements are in a non-idle {@link SpriteState}, and which one.
+ *
+ * Pure, and out here rather than inside the render loop, for the reason
+ * `readOpenedContainer` is: it is a rule about the world — *is this thing moving*
+ * — rather than about drawing. The loop's only job is to ask it once a frame and
+ * hand the answer to the renderer.
+ *
+ * Sparse, holding only the actors who are actually doing something. Almost every
+ * frame in almost every map returns nothing, and an absent key reads as `idle`
+ * everywhere downstream — so the common case costs one allocation that never
+ * happens rather than a walk of the board.
+ *
+ * Only `moving`, and only actors. `attacking` needs a swing to reach the client
+ * and `open` needs the session to know who has what open; neither exists yet, and
+ * a tile that authors those sprites simply never shows them.
+ */
+export function spriteStatesFor(
+  actors: readonly ActorSnapshot[],
+): Map<string, SpriteState> | undefined {
+  let states: Map<string, SpriteState> | undefined;
+  for (const actor of actors) {
+    if (!isMovingActor(actor)) continue;
+    const { x, y, z, stackIndex } = actor;
+    states ??= new Map();
+    states.set(tileInstanceKey({ x, y, z, stackIndex }), "moving");
+  }
+  return states;
+}
+
+/**
+ * Whether this body is in motion right now.
+ *
+ * Walking and falling both count, and deliberately: a creature dropping off a
+ * ledge is not standing still, and a walk cycle is the only art either state has
+ * to draw with — so treating a fall as idle would freeze a deer mid-air in its
+ * grazing pose.
+ *
+ * A slide does not, and that is not an omission. `slide` on an actor is the
+ * motion of an *object they shoved*, not of the actor: reading it here would put
+ * a walk cycle on somebody standing perfectly still with their hands out. The
+ * crate's own `moving` sprite is a separate question, and it needs the state
+ * keyed to the crate's cell rather than to the pusher's.
+ */
+function isMovingActor(actor: ActorSnapshot): boolean {
+  return actor.walk != null || actor.fall != null;
+}

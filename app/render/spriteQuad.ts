@@ -1,7 +1,13 @@
 import * as THREE from "three";
 import { baseCellWorldOrigin, spriteWorldOrigin } from "../lib/geometry";
 import { getFrames } from "../lib/tileResolve";
-import type { MapFile, PlacedTile, TileDef, TilesetDef } from "../lib/types";
+import type {
+  MapFile,
+  PlacedTile,
+  SpriteState,
+  TileDef,
+  TilesetDef,
+} from "../lib/types";
 import { CELL_SIZE } from "../lib/types";
 
 /** A sprite's footprint in world pixels plus its slice of the atlas. */
@@ -27,9 +33,14 @@ export type SpriteQuadAssets = {
 };
 
 /**
- * Autotiles vary per cell; everything else varies only by facing. Both
+ * Autotiles vary per cell; everything else varies only by facing and state. Both
  * renderers key their frame clocks this way, so overlays stay in step with
  * the animated tile they are drawn over.
+ *
+ * The state is part of the key because two placements of one tile in different
+ * states run different frame lists — a grazing deer has one frame and a walking
+ * one has four. Sharing a clock between them would index the short list with the
+ * long list's position.
  */
 export function animationKey(
   def: TileDef,
@@ -37,9 +48,10 @@ export function animationKey(
   x: number,
   y: number,
   z: number,
+  state: SpriteState = "idle",
 ): string {
-  if (def.type === "autotile") return `${def.id}:${x},${y},${z}`;
-  return `${def.id}:${placed.direction ?? "default"}`;
+  if (def.type === "autotile") return `${def.id}:${x},${y},${z}:${state}`;
+  return `${def.id}:${placed.direction ?? "default"}:${state}`;
 }
 
 /**
@@ -52,13 +64,21 @@ export function spriteQuadFor(
   cell: { x: number; y: number; z: number; elevation: number },
   placed: PlacedTile,
   def: TileDef,
+  state: SpriteState = "idle",
 ): SpriteQuad | null {
   const { x, y, z, elevation } = cell;
-  const frames = getFrames(def, { direction: placed.direction, map, x, y, z });
+  const frames = getFrames(def, {
+    state,
+    direction: placed.direction,
+    map,
+    x,
+    y,
+    z,
+  });
 
   let frame = frames?.[0];
   if (frames && frames.length > 1) {
-    const key = animationKey(def, placed, x, y, z);
+    const key = animationKey(def, placed, x, y, z, state);
     frame = frames[assets.frameIndices.get(key) ?? 0] ?? frames[0];
   }
   if (!frame) return null;

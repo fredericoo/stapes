@@ -6,6 +6,9 @@ import type {
   Frame,
   LightDef,
   SpriteRef,
+  OverrideSpriteState,
+  SpriteState,
+  StateSprites,
   TileDef,
   TileHeight,
   TileSprite,
@@ -36,7 +39,11 @@ import { BattleTab } from "./BattleTab";
 import { ItemTab } from "./ItemTab";
 import { RespawnTab } from "./RespawnTab";
 import { BrainEditor } from "./BrainEditor";
-import { hasAnyInteraction, interactionsForSave } from "../lib/interactions";
+import {
+  availableStates,
+  hasAnyInteraction,
+  interactionsForSave,
+} from "../lib/interactions";
 import { validateBrain, type BrainDef } from "../lib/brain";
 import { Button, Dialog, Input, Segmented, Select, TabPanel, Tabs } from "../ui";
 
@@ -98,27 +105,163 @@ function withLightingDefaults(tile: TileDef): TileDef {
   };
 }
 
+/**
+ * The sprite holder the editor is currently writing into.
+ *
+ * `idle` is the draft itself, because that is where the idle sprites live — see
+ * {@link TileDef.states}. Any other state is its entry, which the state selector
+ * guarantees exists before it is selected.
+ */
+function spriteHolder(draft: TileDef, state: SpriteState): StateSprites {
+  return state === "idle" ? draft : (draft.states?.[state] ?? {});
+}
+
 function currentSprite(
   draft: TileDef,
+  state: SpriteState,
   dir: Direction,
   slice: AutotileSlice,
 ): TileSprite | undefined {
-  if (draft.type === "simple") return draft.sprite;
-  if (draft.type === "directional") return draft.sprites?.[dir];
-  return draft.slices?.[slice];
+  const from = spriteHolder(draft, state);
+  if (draft.type === "simple") return from.sprite;
+  if (draft.type === "directional") return from.sprites?.[dir];
+  return from.slices?.[slice];
+}
+
+/** The one sprite field this tile's {@link TileType} uses, patched. */
+function patchHolder(
+  draft: TileDef,
+  state: SpriteState,
+  dir: Direction,
+  slice: AutotileSlice,
+  sprite: TileSprite,
+): StateSprites {
+  const from = spriteHolder(draft, state);
+  if (draft.type === "simple") return { sprite };
+  if (draft.type === "directional") {
+    return { sprites: { ...from.sprites, [dir]: sprite } };
+  }
+  return { slices: { ...from.slices, [slice]: sprite } };
 }
 
 function setCurrentSprite(
   draft: TileDef,
+  state: SpriteState,
   dir: Direction,
   slice: AutotileSlice,
   sprite: TileSprite,
 ): TileDef {
-  if (draft.type === "simple") return { ...draft, sprite };
+  const patch = patchHolder(draft, state, dir, slice, sprite);
+  if (state === "idle") return { ...draft, ...patch };
+  return { ...draft, states: { ...draft.states, [state]: patch } };
+}
+
+/**
+ * Idle's sprites alone, on this tile's own axis.
+ *
+ * Narrowed to the one field the type uses rather than handed over as the draft,
+ * which is structurally a {@link StateSprites} but carries the id, the name and
+ * every behaviour flag with it. A state override holding those would be a second
+ * copy of the tile inside the tile.
+ */
+function idleSprites(draft: TileDef): StateSprites {
+  if (draft.type === "simple") return { sprite: draft.sprite };
+  if (draft.type === "directional") return { sprites: draft.sprites };
+  return { slices: draft.slices };
+}
+
+/** Every sprite a {@link StateSprites} holds, on this tile's own axis. */
+function stateSpriteList(
+  draft: TileDef,
+  from: StateSprites,
+): TileSprite[] {
+  if (draft.type === "simple") return from.sprite ? [from.sprite] : [];
   if (draft.type === "directional") {
-    return { ...draft, sprites: { ...draft.sprites, [dir]: sprite } };
+    return DIRECTIONS.map((d) => from.sprites?.[d]).filter(
+      (s): s is TileSprite => s != null,
+    );
   }
-  return { ...draft, slices: { ...draft.slices, [slice]: sprite } };
+  return Object.values(from.slices ?? {}).filter(
+    (s): s is TileSprite => s != null,
+  );
+}
+
+/**
+ * The footprint a sprite draws at — its size in cells and where its base sits.
+ *
+ * Compared rather than the whole sprite because this is the one thing a state
+ * may *not* differ from idle in: a separate mesh's geometry is built once from
+ * frame 0 and only its UVs are rewritten afterwards, so a state of another size
+ * would draw the new art stretched over the old quad. It is the same constraint
+ * the frames of a single sprite have always had between them, one level up.
+ */
+function footprintOf(sprite: TileSprite | undefined): string | null {
+  const first = sprite?.frames[0];
+  if (!first) return null;
+  const { rect, base } = first.sprite;
+  return `${rect.w}x${rect.h}@${base.x},${base.y}`;
+}
+
+/**
+ * Whether every sprite in `state` draws at the footprint idle does.
+ *
+ * Reported as a message rather than repaired, because there is no honest repair:
+ * the author drew a sprite at a size, and silently cropping or re-basing it would
+ * make their art wrong in a way that only shows up in the world.
+ */
+function footprintMismatch(
+  draft: TileDef,
+  state: OverrideSpriteState,
+  override: StateSprites,
+): string | null {
+  const idle = idleSprites(draft);
+  const check = (label: string, a: TileSprite | undefined, b: TileSprite | undefined) => {
+    const want = footprintOf(a);
+    const got = footprintOf(b);
+    if (want == null || got == null || want === got) return null;
+    return `${state} ${label}: sprite is ${got} but idle is ${want} — a state must draw at idle's size and base`;
+  };
+
+  if (draft.type === "simple") return check("sprite", idle.sprite, override.sprite);
+  if (draft.type === "directional") {
+    for (const d of DIRECTIONS) {
+      const err = check(d.toUpperCase(), idle.sprites?.[d], override.sprites?.[d]);
+      if (err) return err;
+    }
+    return null;
+  }
+  for (const key of Object.keys(override.slices ?? {})) {
+    const i = Number(key);
+    const err = check(`slice ${i}`, idle.slices?.[i], override.slices?.[i]);
+    if (err) return err;
+  }
+  return null;
+}
+
+/**
+ * The states worth persisting: those a tile can actually be in, and that
+ * actually differ from idle.
+ *
+ * Dropping a state equal to idle is what lets the selector seed a new state from
+ * idle without that act *being* an edit — clicking through the rail to look at
+ * `moving` leaves the file alone. Dropping a state the tile cannot be in keeps a
+ * stale override from sitting in the data after a `kind` change made it
+ * unreachable, on the same terms `interactionsForSave` drops a blank block.
+ */
+function statesForSave(draft: TileDef): TileDef["states"] {
+  const allowed = new Set(availableStates(draft));
+  const idle = JSON.stringify(idleSprites(draft));
+  const out: NonNullable<TileDef["states"]> = {};
+  let any = false;
+
+  for (const [key, sprites] of Object.entries(draft.states ?? {})) {
+    const state = key as OverrideSpriteState;
+    if (!sprites || !allowed.has(state)) continue;
+    if (JSON.stringify(sprites) === idle) continue;
+    out[state] = sprites;
+    any = true;
+  }
+  return any ? out : undefined;
 }
 
 function validateFrameLights(frames: Frame[]): string | null {
@@ -170,6 +313,21 @@ type Props = {
   onDelete?: () => void;
 };
 
+/**
+ * What each state means, and — for the two nothing drives yet — that it is not
+ * wired up.
+ *
+ * Saying so in the dialog rather than only in a plan, because a sprite that is
+ * authored and never drawn is otherwise indistinguishable from a bug, and the
+ * person who would report it is the person reading this line.
+ */
+const STATE_HINTS: Record<SpriteState, string> = {
+  idle: "How this looks at rest. Every other state falls back to it, per direction.",
+  moving: "While it is crossing a cell or falling.",
+  attacking: "Mid-swing. Not drawn yet — no swing reaches the client.",
+  open: "A container somebody has open, or a reward you have taken. Not drawn yet.",
+};
+
 const TAB_TILE = "tile";
 const TAB_INTERACTIVE = "interactive";
 const TAB_BRAIN = "brain";
@@ -193,6 +351,7 @@ export function TileEditorDialog({
   const [tab, setTab] = useState(TAB_TILE);
   const [dir, setDir] = useState<Direction>("n");
   const [slice, setSlice] = useState<AutotileSlice>(0);
+  const [state, setState] = useState<SpriteState>("idle");
   const [frameIndex, setFrameIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
@@ -203,20 +362,44 @@ export function TileEditorDialog({
     setTab(TAB_TILE);
     setDir("n");
     setSlice(0);
+    setState("idle");
     setFrameIndex(0);
     setError(null);
   }, [open, tile, tilesets]);
 
-  const sprite = currentSprite(draft, dir, slice);
+  const sprite = currentSprite(draft, state, dir, slice);
   const frames = sprite?.frames ?? [];
   const frame = frames[frameIndex] ?? frames[0];
   const definedSlice =
-    draft.type === "autotile" ? Boolean(draft.slices?.[slice]) : true;
+    draft.type === "autotile"
+      ? Boolean(spriteHolder(draft, state).slices?.[slice])
+      : true;
   const tileset =
     tilesets.find((t) => t.id === frame?.sprite.tilesetId) ?? tilesets[0] ?? null;
 
   const setSprite = (next: TileSprite) => {
-    setDraft((d) => setCurrentSprite(d, dir, slice, next));
+    setDraft((d) => setCurrentSprite(d, state, dir, slice, next));
+  };
+
+  const states = availableStates(draft);
+
+  /**
+   * Move to a state, seeding it from idle the first time.
+   *
+   * Cloning rather than starting blank, on the same grounds the autotile grid
+   * clones slice 0 when you click an empty cell: a walk cycle is idle plus
+   * changes, and an empty canvas throws away the frame you would have started
+   * from. Save drops a state that still equals idle, so looking is not
+   * authoring — see `statesForSave`.
+   */
+  const changeState = (next: SpriteState) => {
+    setState(next);
+    setFrameIndex(0);
+    if (next === "idle" || draft.states?.[next]) return;
+    setDraft((d) => ({
+      ...d,
+      states: { ...d.states, [next]: structuredClone(idleSprites(d)) },
+    }));
   };
 
   const setFrames = (next: Frame[]) => {
@@ -236,6 +419,11 @@ export function TileEditorDialog({
 
   const changeType = (type: TileType) => {
     if (type === draft.type) return;
+    // Every state keys its sprites on the axis the *type* chooses, so overrides
+    // authored against the old one describe nothing after the swap. Dropped
+    // rather than carried across as copies of the new idle, which is what they
+    // would collapse to on save anyway.
+    setState("idle");
     const ts = tilesets[0]?.id ?? "";
     const from =
       draft.sprite ??
@@ -257,6 +445,7 @@ export function TileEditorDialog({
         sprite: structuredClone(from),
         sprites: undefined,
         slices: undefined,
+        states: undefined,
         climbFrom: { default: resolveClimbFrom(draft, isDirectional(draft) ? dir : "default") },
       });
     } else if (type === "directional") {
@@ -275,6 +464,7 @@ export function TileEditorDialog({
         sprite: undefined,
         sprites,
         slices: undefined,
+        states: undefined,
         climbFrom,
       });
       setDir("n");
@@ -285,6 +475,7 @@ export function TileEditorDialog({
         sprite: undefined,
         sprites: undefined,
         slices: { 0: structuredClone(from) },
+        states: undefined,
         climbFrom: { default: resolveClimbFrom(draft, "default") },
       });
       setSlice(0);
@@ -389,6 +580,29 @@ export function TileEditorDialog({
       }
     }
 
+    // After the per-type frame checks above, so "you have no frames at all" is
+    // reported before "your states disagree about their size".
+    const savedStates = statesForSave(draft);
+    for (const [key, sprites] of Object.entries(savedStates ?? {})) {
+      if (!sprites) continue;
+      const mismatch = footprintMismatch(
+        draft,
+        key as OverrideSpriteState,
+        sprites,
+      );
+      if (mismatch) {
+        setError(mismatch);
+        return;
+      }
+      for (const s of stateSpriteList(draft, sprites)) {
+        const err = validateFrameLights(s.frames);
+        if (err) {
+          setError(`${key}: ${err}`);
+          return;
+        }
+      }
+    }
+
     setError(null);
     const climbByVariant: Partial<
       Record<VariantKey, Record<Direction, boolean>>
@@ -415,6 +629,7 @@ export function TileEditorDialog({
       walkDurationMs: isActor ? draft.walkDurationMs : undefined,
       climbFrom: climbFromForSave(draft, climbByVariant),
       interactions: interactionsForSave(draft.interactions),
+      states: savedStates,
     };
 
     if (draft.type === "simple" && draft.sprite) {
@@ -483,6 +698,38 @@ export function TileEditorDialog({
       </div>
     </div>
   );
+
+  /**
+   * Which state the sprite editor below is editing.
+   *
+   * Flat rather than another tab level, which is the whole reason it fits in this
+   * dialog as it stands: the direction tabs and the 47-slice grid are unchanged
+   * and simply edit whichever state is selected. Hidden entirely for the many
+   * tiles that can only ever be idle, so a wall gains no control it cannot use.
+   */
+  const statePicker =
+    states.length > 1 ? (
+      <div className="flex flex-col gap-1 pt-1">
+        <div className="flex items-center gap-3">
+          <span className="text-xs font-bold uppercase text-muted">State</span>
+          <Segmented<SpriteState>
+            value={state}
+            onChange={changeState}
+            options={states.map((s) => ({
+              value: s,
+              label:
+                s === "idle"
+                  ? "Idle"
+                  : `${s[0]!.toUpperCase()}${s.slice(1)}${draft.states?.[s as OverrideSpriteState] ? " •" : ""}`,
+            }))}
+            size="sm"
+          />
+        </div>
+        <p className="text-[11px] leading-snug text-muted">
+          {STATE_HINTS[state]}
+        </p>
+      </div>
+    ) : null;
 
   const frameEditor = (
     <Tabs
@@ -644,6 +891,7 @@ export function TileEditorDialog({
             tile={draft}
             tilesets={tilesets}
             size={96}
+            state={state}
             direction={draft.type === "directional" ? dir : undefined}
             autotileSlice={draft.type === "autotile" ? slice : undefined}
           />
@@ -883,6 +1131,8 @@ export function TileEditorDialog({
         ) : null}
 
         {!isDirectional(draft) ? climbPad : null}
+
+        {statePicker}
 
         {draft.type === "simple" ? (
           frameEditor

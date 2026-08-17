@@ -3812,22 +3812,6 @@
               }
             },
             "durationMs": 200
-          },
-          {
-            "sprite": {
-              "tilesetId": "animals",
-              "rect": {
-                "x": 0,
-                "y": 0,
-                "w": 2,
-                "h": 2
-              },
-              "base": {
-                "x": 1,
-                "y": 1
-              }
-            },
-            "durationMs": 200
           }
         ]
       },
@@ -3838,22 +3822,6 @@
               "tilesetId": "animals",
               "rect": {
                 "x": 6,
-                "y": 0,
-                "w": 2,
-                "h": 2
-              },
-              "base": {
-                "x": 1,
-                "y": 1
-              }
-            },
-            "durationMs": 200
-          },
-          {
-            "sprite": {
-              "tilesetId": "animals",
-              "rect": {
-                "x": 4,
                 "y": 0,
                 "w": 2,
                 "h": 2
@@ -3884,22 +3852,6 @@
               }
             },
             "durationMs": 200
-          },
-          {
-            "sprite": {
-              "tilesetId": "animals",
-              "rect": {
-                "x": 8,
-                "y": 0,
-                "w": 2,
-                "h": 2
-              },
-              "base": {
-                "x": 1,
-                "y": 1
-              }
-            },
-            "durationMs": 200
           }
         ]
       },
@@ -3920,24 +3872,158 @@
               }
             },
             "durationMs": 200
-          },
-          {
-            "sprite": {
-              "tilesetId": "animals",
-              "rect": {
-                "x": 12,
-                "y": 0,
-                "w": 2,
-                "h": 2
-              },
-              "base": {
-                "x": 1,
-                "y": 1
-              }
-            },
-            "durationMs": 200
           }
         ]
+      }
+    },
+    "states": {
+      "moving": {
+        "sprites": {
+          "n": {
+            "frames": [
+              {
+                "sprite": {
+                  "tilesetId": "animals",
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "animals",
+                  "rect": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "e": {
+            "frames": [
+              {
+                "sprite": {
+                  "tilesetId": "animals",
+                  "rect": {
+                    "x": 6,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "animals",
+                  "rect": {
+                    "x": 4,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "s": {
+            "frames": [
+              {
+                "sprite": {
+                  "tilesetId": "animals",
+                  "rect": {
+                    "x": 10,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "animals",
+                  "rect": {
+                    "x": 8,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "w": {
+            "frames": [
+              {
+                "sprite": {
+                  "tilesetId": "animals",
+                  "rect": {
+                    "x": 14,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "animals",
+                  "rect": {
+                    "x": 12,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          }
+        }
       }
     }
   },
