@@ -210,6 +210,7 @@ describe("deciding", () => {
       // Nothing in the way and nothing said, unless a test says otherwise: the
       // defaults are the empty room these cases are written about.
       canSee: () => true,
+      sight: { up: 0, down: 0 },
       heard: () => [],
       hurtBy: () => [],
       attack: vi.fn(() => false),
@@ -804,6 +805,7 @@ describe("giving up", () => {
       say: () => {},
       noise: () => {},
       canSee: () => true,
+      sight: { up: 0, down: 0 },
       heard: () => [],
       hurtBy: () => [],
       attack: () => false,
@@ -937,6 +939,7 @@ describe("actions that take time", () => {
       // Nothing in the way and nothing said, unless a test says otherwise: the
       // defaults are the empty room these cases are written about.
       canSee: () => true,
+      sight: { up: 0, down: 0 },
       heard: () => [],
       hurtBy: () => [],
       attack: vi.fn(() => false),
@@ -1382,6 +1385,7 @@ describe("a deer that yelps", () => {
       say,
       noise: vi.fn(),
       canSee: () => true,
+      sight: { up: 0, down: 0 },
       heard: () => [],
       hurtBy: () => [],
       attack: () => false,
@@ -1452,6 +1456,7 @@ describe("a deer that yelps", () => {
       say: vi.fn(),
       noise: vi.fn(),
       canSee: () => true,
+      sight: { up: 0, down: 0 },
       heard: () => [],
       hurtBy: () => [],
       attack: () => false,

@@ -23,9 +23,8 @@
 import { stackOcclusion } from "../lib/lighting";
 import { getStack } from "../lib/mapData";
 import type { Coord, MapFile, TileDef } from "../lib/types";
-import { SIGHT_LEVEL_SLACK } from "./constants";
 
-/** Does this cell stop a line of sight dead? @see module doc */
+/** Does this cell stop a look crossing it sideways? @see module doc */
 function blocksSight(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -37,23 +36,67 @@ function blocksSight(
 }
 
 /**
+ * Does this cell's ground stop a look passing *through* it, up or down?
+ *
+ * The other half of {@link stackOcclusion}, and it has to be a separate question
+ * because the two disagree on the tile that matters most. A floor is height
+ * zero, so it blocks no light sideways and scores no opacity at all — correct
+ * for a lamp in the room, and hopeless for a look travelling vertically, which
+ * it stops completely. `sealsLevel` is the flag that already says "something
+ * solid is here" regardless of how tall it is.
+ *
+ * Glass and water are light-passing and so seal nothing, which is what lets a
+ * creature watch you through a skylight or across the bottom of a pond.
+ */
+function sealsAgainstVertical(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  x: number,
+  y: number,
+  z: number,
+): boolean {
+  return stackOcclusion(getStack(map, x, y, z), tilesById).sealsLevel;
+}
+
+/**
  * Is the path from `from` to `to` unobstructed?
  *
- * The ray is walked on the *viewer's* level whatever the target's, which is the
- * simplification {@link SIGHT_LEVEL_SLACK} admits to here: somebody standing one
- * step up a slope is seen if the ground between here and there is clear. Sight
- * through a floor is not a thing, and one level of slack is too little room for
- * it to become one.
+ * **Geometry only.** Whether a particular creature would *bother* looking that
+ * far, or that far up, is a fact about the creature and is asked separately —
+ * see `BattlerDef.sight`. This answers the question the world can answer: is
+ * there anything in the way.
  *
- * The endpoints are never tested. A viewer standing inside their own body would
- * otherwise blind themselves, and a target behind a full-height door they are
- * standing *in* would be invisible while in plain sight.
+ * ## Two ways to be blocked
  *
- * The line is sampled rather than swept: one sample per step of the longer axis,
- * each rounded to a cell. That is not a supercover walk, and the difference is
- * one authored case — a perfect diagonal gap between two wall corners reads as
- * visible here, where a stricter sweep would close it. For a creature deciding
- * whether it noticed you, being generous at the corner is the better failure.
+ * A look is stopped sideways by a full-height wall and vertically by a floor,
+ * and those are genuinely different tests on genuinely different fields — see
+ * {@link blocksSight} and {@link sealsAgainstVertical}. The vertical one is the
+ * half that used to be missing, and its absence is why this could not be trusted
+ * across levels at all: with only the sideways test, a creature in a sealed
+ * basement is in plain view of the sky.
+ *
+ * Crossing between two levels is refused by the *upper* cell's ground, whichever
+ * way the look is travelling — the floor of the room above is the ceiling of the
+ * room below, and it is one tile doing both jobs.
+ *
+ * ## The endpoints
+ *
+ * Never tested sideways. A viewer standing inside their own body would otherwise
+ * blind themselves, and a target behind a full-height door they are standing
+ * *in* would be invisible while in plain sight.
+ *
+ * They are very much tested vertically, and that asymmetry is deliberate. The
+ * floor you are standing on is between you and anything below it, including
+ * something directly underfoot — the cave in the scenarios is exactly this, and
+ * an endpoint rule that skipped it would see straight through the rock.
+ *
+ * ## Sampling
+ *
+ * One sample per step of the longest axis, each rounded to a cell. That is not a
+ * supercover walk, and the difference is one authored case — a perfect diagonal
+ * gap between two wall corners reads as visible here, where a stricter sweep
+ * would close it. For a creature deciding whether it noticed you, being generous
+ * at the corner is the better failure.
  */
 export function hasLineOfSight(
   map: MapFile,
@@ -61,18 +104,29 @@ export function hasLineOfSight(
   from: Coord,
   to: Coord,
 ): boolean {
-  if (Math.abs(from.z - to.z) > SIGHT_LEVEL_SLACK) return false;
-
   const dx = to.x - from.x;
   const dy = to.y - from.y;
-  const steps = Math.max(Math.abs(dx), Math.abs(dy));
-  // Adjacent, or the same cell: there is nothing in between to be in the way.
-  if (steps <= 1) return true;
+  const dz = to.z - from.z;
+  const steps = Math.max(Math.abs(dx), Math.abs(dy), Math.abs(dz));
+  // The same cell: there is nothing in between to be in the way.
+  if (steps === 0) return true;
 
-  for (let i = 1; i < steps; i++) {
-    const x = Math.round(from.x + (dx * i) / steps);
-    const y = Math.round(from.y + (dy * i) / steps);
-    if (blocksSight(map, tilesById, x, y, from.z)) return false;
+  let prevZ = from.z;
+  for (let i = 1; i <= steps; i++) {
+    const t = i / steps;
+    const x = Math.round(from.x + dx * t);
+    const y = Math.round(from.y + dy * t);
+    const z = Math.round(from.z + dz * t);
+
+    if (
+      z !== prevZ &&
+      sealsAgainstVertical(map, tilesById, x, y, Math.max(z, prevZ))
+    ) {
+      return false;
+    }
+    prevZ = z;
+
+    if (i < steps && blocksSight(map, tilesById, x, y, z)) return false;
   }
   return true;
 }

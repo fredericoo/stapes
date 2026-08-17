@@ -1,8 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { BattlerDef } from "../lib/battler";
-import { DEFAULT_BATTLER } from "../lib/battler";
+import { DEFAULT_BATTLER, DEFAULT_MELEE_RANGE } from "../lib/battler";
 import {
-  ATTACK_RANGE_CELLS,
   MAX_ATTACK_TICKS,
   MIN_ATTACK_TICKS,
   attackIntervalMs,
@@ -11,7 +10,9 @@ import {
   inAttackRange,
   rollAttack,
 } from "./combat";
-import { SIGHT_LEVEL_SLACK, TICK_MS } from "./constants";
+import { TICK_MS } from "./constants";
+import { HEIGHT_PER_LEVEL } from "../lib/types";
+import { reachDistanceSq } from "./distance";
 import { Rng } from "./rng";
 
 /**
@@ -183,33 +184,63 @@ describe("swinging", () => {
 });
 
 describe("reach", () => {
-  const here = { x: 4, y: 4, z: 0 };
+  const here = { x: 4, y: 4, elevAbs: 0 };
+  const melee = DEFAULT_MELEE_RANGE;
+
+  /** Elevation in height units; a level is two of them. */
+  function at(dx: number, dy: number, dElev: number) {
+    return { x: here.x + dx, y: here.y + dy, elevAbs: here.elevAbs + dElev };
+  }
 
   it("covers the eight cells around you", () => {
     for (let dx = -1; dx <= 1; dx++) {
       for (let dy = -1; dy <= 1; dy++) {
-        expect(
-          inAttackRange(here, { x: here.x + dx, y: here.y + dy, z: 0 }),
-        ).toBe(true);
+        expect(inAttackRange(here, at(dx, dy, 0), melee)).toBe(true);
       }
     }
   });
 
   it("stops at one cell", () => {
-    expect(
-      inAttackRange(here, { x: here.x + ATTACK_RANGE_CELLS + 1, y: here.y, z: 0 }),
-    ).toBe(false);
-    expect(inAttackRange(here, { x: here.x + 1, y: here.y + 2, z: 0 })).toBe(
-      false,
-    );
+    expect(inAttackRange(here, at(2, 0, 0), melee)).toBe(false);
+    expect(inAttackRange(here, at(1, 2, 0), melee)).toBe(false);
   });
 
-  it("reaches the step above and below, and no further", () => {
-    expect(
-      inAttackRange(here, { x: here.x + 1, y: here.y, z: SIGHT_LEVEL_SLACK }),
-    ).toBe(true);
-    expect(
-      inAttackRange(here, { x: here.x + 1, y: here.y, z: SIGHT_LEVEL_SLACK + 1 }),
-    ).toBe(false);
+  /**
+   * Half a level either way, including on the diagonal — the shape the melee
+   * default exists to draw. See `./distance` for why height costs a whole cell.
+   */
+  it("reaches half a level up and down, corners included", () => {
+    for (const dElev of [1, -1]) {
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dy = -1; dy <= 1; dy++) {
+          expect(inAttackRange(here, at(dx, dy, dElev), melee)).toBe(true);
+        }
+      }
+    }
+  });
+
+  it("stops short of a whole level away", () => {
+    // Straight up is the nearest a full level ever gets, and it is still out.
+    expect(inAttackRange(here, at(0, 0, HEIGHT_PER_LEVEL), melee)).toBe(false);
+    expect(inAttackRange(here, at(1, 0, HEIGHT_PER_LEVEL), melee)).toBe(false);
+    expect(inAttackRange(here, at(0, 0, -HEIGHT_PER_LEVEL), melee)).toBe(false);
+  });
+
+  /**
+   * The corner of the box lands exactly on the radius, which is why the
+   * comparison is squared and never square-rooted: 3 against 3.5, both exact.
+   */
+  it("keeps the boundary case inside", () => {
+    expect(reachDistanceSq(here, at(1, 1, 1))).toBe(3);
+    expect(melee * melee).toBeGreaterThan(3);
+    expect(melee * melee).toBeLessThan(4);
+  });
+
+  it("grows into a sphere for anything with a longer reach", () => {
+    const bow = 6;
+    expect(inAttackRange(here, at(4, 0, 0), bow)).toBe(true);
+    // Height costs a cell a unit, so a bow of six reaches three levels up.
+    expect(inAttackRange(here, at(0, 0, 3 * HEIGHT_PER_LEVEL), bow)).toBe(true);
+    expect(inAttackRange(here, at(0, 0, 4 * HEIGHT_PER_LEVEL), bow)).toBe(false);
   });
 });

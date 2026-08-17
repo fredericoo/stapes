@@ -855,9 +855,15 @@ export function interactionsForSave(
   // through the tile dialog is untouched. Rebuilding it would also mean this
   // function knowing the whole state-machine shape, which is `./brain`'s job.
   const savedBrain = interactions?.brain;
-  // Rebuilt field by field, unlike the brain: the shape is six numbers and
-  // naming them here is what keeps a stray key an editor draft carried in from
-  // ever reaching the file.
+  // Rebuilt field by field, unlike the brain: the shape is a short list of
+  // stats and naming them here is what keeps a stray key an editor draft
+  // carried in from ever reaching the file.
+  //
+  // Every field the resolver knows about has to appear, and that is the standing
+  // cost of the approach: a stat added to `BattlerDef` and forgotten here is
+  // silently dropped the next time anybody saves the tile. `sight` is copied
+  // rather than spread so the saved file never shares a reference with the
+  // draft the editor is still holding.
   const battler = interactions?.battler;
   const savedBattler = battler
     ? {
@@ -867,6 +873,8 @@ export function interactionsForSave(
         acc: battler.acc,
         flee: battler.flee,
         spd: battler.spd,
+        range: battler.range,
+        sight: { up: battler.sight.up, down: battler.sight.down },
       }
     : undefined;
   // Rebuilt field by field too, by the module that owns the union's arms —

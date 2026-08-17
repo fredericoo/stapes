@@ -16,7 +16,7 @@ import {
   resolveItem,
   resolveWeapon,
 } from "./item";
-import { resolveBattler } from "./battler";
+import { DEFAULT_MELEE_RANGE, resolveBattler } from "./battler";
 import type { TileDef, TileKind } from "./types";
 import { normalizeTileDef } from "./types";
 
@@ -156,7 +156,14 @@ describe("resolveBattler's kind gate", () => {
   const stats = { maxHp: 10, atk: 1, def: 0, acc: 50, flee: 0, spd: 50 };
 
   it("reads stats on a battler", () => {
-    expect(resolveBattler(tile("battler", { battler: stats }))).toEqual(stats);
+    // Reach and floors of interest were authorable long after these six, so a
+    // block without them parses to the melee default and to minding its own
+    // floor. That fallback is the compatibility promise, so it is asserted here.
+    expect(resolveBattler(tile("battler", { battler: stats }))).toEqual({
+      ...stats,
+      range: DEFAULT_MELEE_RANGE,
+      sight: { up: 0, down: 0 },
+    });
   });
 
   it("refuses stats on a prop", () => {
