@@ -762,19 +762,19 @@ world says **there is no rung where nothing pays** — that assertion is in
 `duel.test.ts`, and it is the one that catches a content gap before a play
 session does. Above the wolf there is nothing, which is stated there too.
 
-Two holes are knowingly open:
+One hole is knowingly open:
 
-- **Suicide-by-wolf is a Toughness farm.** Defensive experience is paid on
-  potential damage and there is no respawn cost, so feeding yourself to the
-  hardest thing in the world pays about two deaths per early point of Toughness.
-  It is the AFK-tanking hole wearing a hat: self-limiting, because the quadratic
-  curve and the falling multiplier grind it down, and not closed. The tighter fix
-  is the same one — capping defensive experience against damage dealt in the same
-  fight — and it needs per-fight bookkeeping the session still does not have.
 - **The ⭐18–24 stretch is the wolf or nothing.** The snake has stopped paying and
   the wolf is a hard fight. That reads as a gate rather than a wall and is
   probably fine, but it is the narrowest part of the ladder and the first place a
   fifth creature belongs.
+
+And one that looked like a hole and is not. **Feeding yourself to the hardest
+thing in the world pays Toughness** — defensive experience is paid on potential
+damage, so dying to a wolf is worth about two deaths per early point. That is
+only an exploit while death is cheap, and it is not going to be: **the game is
+going to be permadeath**, which prices the strategy at the whole character. Left
+exactly as it is, deliberately.
 
 ## Phase 4 — the panels
 
