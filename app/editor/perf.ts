@@ -11,8 +11,31 @@ export const PERF_BUDGETS = {
    * the ghosts into one composite paid seven of those back.
    */
   maxDrawCalls: 60,
-  /** ~3k quads × 2 tris ≈ 6k; leave headroom for overlays/ghosts. */
-  maxTriangles: 40_000,
+  /**
+   * Total triangles, as an alarm for the map rather than for the renderer.
+   *
+   * A ceiling in absolute triangles can only ever say "the fixture grew", and
+   * it says it by failing — this was 40k against a 7.3k-quad map, and the
+   * tutorial's 29.6k quads walked straight through it at 118k. What it is
+   * still worth keeping for is the case where a map grows so far that the
+   * frame budget below is next, so raise it deliberately with the map and read
+   * a failure here as "look at the map", not "look at the renderer".
+   *
+   * Whether the *renderer* regressed is {@link maxTrianglesPerQuad}'s question.
+   */
+  maxTriangles: 150_000,
+  /**
+   * Triangles per placed quad — the renderer's own share, independent of how
+   * big the map is.
+   *
+   * Measures 4.0 and has not moved: 29,184 tris over 7,305 quads before the
+   * tutorial, 118,480 over 29,631 after. Content scaled 4× and the ratio did
+   * not, which is the merged path doing its job. A regression that starts
+   * emitting extra geometry per tile — an unmerged overlay, a second pass, a
+   * ghost drawn solid — moves this and nothing else, and moves it on any map,
+   * which is why it is the assertion that does not need re-baselining.
+   */
+  maxTrianglesPerQuad: 4.5,
   /**
    * World meshes should be O(levels × tilesets + animated), not O(quads).
    * Today: a handful of levels × ~1–2 tilesets + animated instances.
