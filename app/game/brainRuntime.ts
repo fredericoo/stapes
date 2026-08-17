@@ -6,10 +6,13 @@ import {
   type BrainTransitionDef,
   type Selector,
 } from "../lib/brain";
+import type { BattlerDef } from "../lib/battler";
 import { DIRECTIONS, type Coord, type Direction } from "../lib/types";
-import { SIGHT_LEVEL_SLACK } from "./constants";
 import { DIR_DELTA } from "./movement";
 import type { Rng } from "./rng";
+
+/** Floors a creature looks up and down. @see BattlerDef.sight */
+export type SightLevels = BattlerDef["sight"];
 
 /**
  * Running a brain for one tick.
@@ -168,6 +171,15 @@ export type BrainContext = {
    */
   canSee(at: Coord): boolean;
   /**
+   * Floors this creature looks up and down, from its own stat block.
+   *
+   * Beside `canSee` rather than folded into it, because they answer different
+   * halves and only one of them is about the world: `canSee` says whether
+   * anything is in the way, and this says whether the creature was ever going to
+   * look. A rat under an open sky fails this one and passes that one.
+   */
+  sight: SightLevels;
+  /**
    * Everything said since this creature last had a turn, oldest first.
    *
    * Words and a speaker, nothing more: how far away they were and whether they
@@ -277,8 +289,28 @@ function stepsApart(a: Coord, b: Coord): number {
   return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 }
 
-function within(self: Coord, other: Coord, cells: number): boolean {
-  if (Math.abs(self.z - other.z) > SIGHT_LEVEL_SLACK) return false;
+/**
+ * Near enough to notice, by this creature's own reckoning.
+ *
+ * Two questions, and only one of them is about distance. The floors are
+ * {@link BattlerDef.sight}: a rat is authored to mind its own storey, so a body
+ * on the ledge above is not near it at any distance at all, while a hawk given
+ * `{ up: 2, down: 2 }` is watching the whole stairwell. That is a
+ * characterisation rather than a fact about the air between them, which is why
+ * it lives on the creature and not in `./sight`.
+ *
+ * The plan distance is unchanged and stays counted in steps rather than as the
+ * crow flies — a creature that thinks in cells it could walk is a creature whose
+ * behaviour matches the board, and every authored `cells` already means that.
+ */
+function within(
+  self: Coord,
+  other: Coord,
+  cells: number,
+  sight: SightLevels,
+): boolean {
+  const dz = other.z - self.z;
+  if (dz > sight.up || -dz > sight.down) return false;
   return stepsApart(self, other) <= cells;
 }
 
@@ -288,7 +320,7 @@ function inSight(
   cells: number,
   ctx: BrainContext,
 ): at is Coord {
-  return at !== null && within(ctx.self, at, cells) && ctx.canSee(at);
+  return at !== null && within(ctx.self, at, cells, ctx.sight) && ctx.canSee(at);
 }
 
 /**
@@ -313,7 +345,7 @@ function heardFrom(
     if (!utterance.text.toLowerCase().includes(wanted)) continue;
     const at = ctx.positionOf(utterance.speakerId);
     if (at === null) continue;
-    if (!within(ctx.self, at, condition.cells)) continue;
+    if (!within(ctx.self, at, condition.cells, ctx.sight)) continue;
     if (condition.los && !ctx.canSee(at)) continue;
     memory.heardFrom = utterance.speakerId;
     return true;
@@ -333,14 +365,14 @@ function holds(
       return memory.stuck;
     case "in_range": {
       const at = locate(condition.of, memory, ctx);
-      return at !== null && within(ctx.self, at, condition.cells);
+      return at !== null && within(ctx.self, at, condition.cells, ctx.sight);
     }
     case "out_of_range": {
       const at = locate(condition.of, memory, ctx);
       // A target that has left the world is as out of range as one that walked
       // off, and answering anything else would strand a creature chasing a
       // ghost. This is also what makes the two conditions exact complements.
-      return at === null || !within(ctx.self, at, condition.cells);
+      return at === null || !within(ctx.self, at, condition.cells, ctx.sight);
     }
     case "in_los":
       return inSight(locate(condition.of, memory, ctx), condition.cells, ctx);

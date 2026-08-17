@@ -151,6 +151,11 @@ function withBody(map: MapFile, x: number, y: number, tileId: string): MapFile {
   return replaceStack(map, x, y, 0, [{ tileId: "grass" }, { tileId }]);
 }
 
+/** The same body, one floor up, on a one-cell plinth so gravity leaves it there. */
+function perched(map: MapFile, x: number, y: number, tileId: string): MapFile {
+  return replaceStack(map, x, y, 1, [{ tileId: "grass" }, { tileId }]);
+}
+
 function advance(session: GameSession, ms: number) {
   for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) {
     session.tick(TICK_MS);
@@ -223,6 +228,23 @@ describe("swinging at a target", () => {
 
     advance(session, 1000);
 
+    expect(bodyOf(session, "dummy")!.hp).toBe(10);
+  });
+
+  /**
+   * The one case the plan alone cannot answer. A body on the plinth next door is
+   * one cell away on the plan and is drawn a hand's width from the player's
+   * shoulder — and is a whole level up, which at melee reach is out. See
+   * `./distance`: height costs a cell a unit, so a level costs two, and one step
+   * sideways plus a level comes to more than the melee sphere holds.
+   */
+  it("does nothing to somebody standing a floor up", () => {
+    const session = new GameSession(perched(field(), 1, 0, "dummy"), tiles);
+    fight(session, bodyOf(session, "dummy")!.id);
+
+    advance(session, 1000);
+
+    expect(bodyOf(session, "dummy")!.z).toBe(1);
     expect(bodyOf(session, "dummy")!.hp).toBe(10);
   });
 

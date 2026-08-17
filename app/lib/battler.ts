@@ -50,6 +50,34 @@ export type BattlerDef = {
    * few seconds.
    */
   spd: number;
+  /**
+   * How far a blow reaches, in cells, as a radius rather than a square.
+   *
+   * Measured in three dimensions with height costing a whole cell per unit —
+   * see `../game/distance`, which is also where the odd-looking default is
+   * argued. The short version: at {@link DEFAULT_MELEE_RANGE} the sphere is
+   * exactly the eight cells around you plus half a level either way, and the
+   * numbers that produce that shape have room on both sides.
+   *
+   * A radius rather than a square because this is the number a bow and a spell
+   * will grow out of, and a square that had to become a sphere later would
+   * change every authored melee creature on the way past.
+   */
+  range: number;
+  /**
+   * Floors this creature bothers to look up and down.
+   *
+   * **A fact about the creature, not about the world.** Whether anything is in
+   * the way is geometry and is asked separately — see `../game/sight`. This is
+   * the other half: a rat with `{ up: 0, down: 0 }` standing in the open does
+   * not notice you on the ledge above it, not because it cannot see through the
+   * air but because it does not look. That is a characterisation, and it is the
+   * dial that makes a hawk different from a rat rather than just better at it.
+   *
+   * Zero by default, so an authored creature minds its own floor until somebody
+   * decides otherwise.
+   */
+  sight: { up: number; down: number };
 };
 
 /** Both ends of the 0–100 stats, named so the editor and the schema agree. */
@@ -63,6 +91,16 @@ export const MAX_PERCENT_STAT = 100;
  * and everything else here is chosen so a pair of untouched defaults fight to a
  * conclusion in a few seconds rather than either whiffing forever or one-shotting.
  */
+/**
+ * Melee: the eight cells around you, half a level up and half a level down.
+ *
+ * √3 is the corner of that box and 2 is the first cell outside it, so anything
+ * in `[1.733, 2)` draws exactly this shape. This is the midpoint of that band in
+ * the squared terms the comparison actually runs in — `3.5` between `3` and `4`
+ * — which is as far from either wall as the shape allows. See `../game/distance`.
+ */
+export const DEFAULT_MELEE_RANGE = 1.87;
+
 export const DEFAULT_BATTLER: BattlerDef = {
   maxHp: 20,
   atk: 5,
@@ -70,6 +108,8 @@ export const DEFAULT_BATTLER: BattlerDef = {
   acc: 50,
   flee: 20,
   spd: 40,
+  range: DEFAULT_MELEE_RANGE,
+  sight: { up: 0, down: 0 },
 };
 
 const percent = v.pipe(
@@ -78,6 +118,9 @@ const percent = v.pipe(
   v.minValue(MIN_PERCENT_STAT),
   v.maxValue(MAX_PERCENT_STAT),
 );
+
+/** Floors of perception, up or down. Whole floors — half a look is not a thing. */
+const levelSlack = v.pipe(v.number(), v.integer(), v.minValue(0));
 
 const battlerSchema = v.object({
   // At least one, because a body that starts dead is not a body anybody meant
@@ -88,6 +131,15 @@ const battlerSchema = v.object({
   acc: percent,
   flee: percent,
   spd: percent,
+  // Both optional, and both authored long after the first creatures were: every
+  // tile already on disk parses to the melee default and to minding its own
+  // floor, which is what those creatures already did.
+  range: v.optional(v.pipe(v.number(), v.minValue(0)), DEFAULT_MELEE_RANGE),
+  sight: v.optional(
+    v.object({ up: levelSlack, down: levelSlack }),
+    // A getter, so two tiles never share one mutable block.
+    () => ({ up: 0, down: 0 }),
+  ),
 });
 
 const battlerCache = new WeakMap<TileDef, BattlerDef | null>();

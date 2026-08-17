@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { BattlerDef } from "../lib/battler";
-import { MAX_PERCENT_STAT, MIN_PERCENT_STAT } from "../lib/battler";
+import { DEFAULT_BATTLER, MAX_PERCENT_STAT, MIN_PERCENT_STAT } from "../lib/battler";
 import { DEFAULT_CONTAINER, DEFAULT_WEAPON } from "../lib/item";
 import type { TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
@@ -16,6 +16,7 @@ import {
 } from "./equipment";
 
 const base: BattlerDef = {
+  ...DEFAULT_BATTLER,
   maxHp: 20,
   atk: 5,
   def: 1,

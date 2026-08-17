@@ -53,8 +53,8 @@ import {
   TICK_MS,
   WALK_DURATION_MS,
 } from "./constants";
-import { resolveBattler, type BattlerDef } from "../lib/battler";
-import { attackIntervalMs, inAttackRange, rollAttack } from "./combat";
+import { DEFAULT_BATTLER, resolveBattler, type BattlerDef } from "../lib/battler";
+import { attackIntervalMs, canReach, rollAttack } from "./combat";
 import type { Equipment } from "./equipment";
 import {
   carriedLightTileIds,
@@ -1257,6 +1257,29 @@ export class GameSession implements PlaySession {
     return loc;
   }
 
+  /**
+   * Where a body is, in the terms reach is measured in.
+   *
+   * The elevation is the surface it is *standing on* — everything under it in
+   * its own stack, plus its level — which is the whole reason reach does not
+   * simply read `z`. A rat on a crate is half a level nearer your fist than a
+   * rat beside it, and on the board those two are the same cell and the same
+   * floor. `z` rides along because line of sight still walks in levels.
+   */
+  private reachPointOf(loc: ActorLocation) {
+    const stack = getStack(this.map, loc.x, loc.y, loc.z);
+    return {
+      x: loc.x,
+      y: loc.y,
+      z: loc.z,
+      elevAbs: absoluteStandingElevation(
+        loc.z,
+        stack.slice(0, loc.stackIndex),
+        this.tilesById,
+      ),
+    };
+  }
+
   setInput(input: GameInput, id: string = LOCAL_ACTOR_ID) {
     this.actor(id).input = input;
   }
@@ -1435,6 +1458,9 @@ export class GameSession implements PlaySession {
           { x: loc.x, y: loc.y, z: loc.z },
           at,
         ),
+      // A creature with no stat block minds its own floor, which is what every
+      // creature did before this was authorable.
+      sight: this.battlerOf(actor)?.sight ?? DEFAULT_BATTLER.sight,
       heard: () => this.pendingHeard,
       hurtBy: () => this.pendingHurt.get(actor.id) ?? EMPTY_ATTACKERS,
       attack: (id) => this.tryAttack(actor, id),
@@ -1628,7 +1654,19 @@ export class GameSession implements PlaySession {
     const from = this.tryLocate(attacker);
     const to = this.tryLocate(target);
     if (!from || !to) return false;
-    if (!inAttackRange(from, to)) return false;
+    // The attacker's own reach, not a constant: a bow and a fist ask the same
+    // question with different numbers, and the number belongs to whoever swings.
+    if (
+      !canReach(
+        this.map,
+        this.tilesById,
+        this.reachPointOf(from),
+        this.reachPointOf(to),
+        attackerStats.range,
+      )
+    ) {
+      return false;
+    }
 
     // Spent whether or not the blow connects: the swing happened, and a dodge
     // that cost the attacker nothing would let a fast creature flail for free.

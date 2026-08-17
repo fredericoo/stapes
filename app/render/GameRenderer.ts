@@ -28,6 +28,7 @@ import {
 import { WorldLabelLayer, type WorldLabel } from "./textLabels";
 import { FrameProfiler, type FrameStats } from "./frameProfile";
 import { fallDropPx, fallFootAbs, standingFootAbs } from "./fallAnchor";
+import { isHiddenFromCamera } from "./cameraSight";
 import { labelHeadroomPx } from "./labelHeadroom";
 import { sceneryStack } from "../game/movement";
 import type { EmitterOverride } from "../lib/lighting";
@@ -1160,6 +1161,50 @@ export class GameRenderer {
     return Math.abs(z - snap.self.z) <= CHROME_LEVEL_SLACK;
   }
 
+  /**
+   * Is this body one the viewer can actually *see*?
+   *
+   * Asked by everything that describes a battler rather than a place: the name
+   * over a head, the health under the name, and which bodies the interaction
+   * list offers to target.
+   *
+   * **Deliberately not a question about levels, and not about reach either.**
+   * Both were tried and both are wrong. A level test names a rat on the floor
+   * above whose sprite is behind a ceiling, and goes silent on one standing in
+   * the open a storey down that you are looking straight at. A reach test — only
+   * name what you could hit — sounds principled and reads as blindness: you can
+   * plainly see the thing, and the game refuses to tell you what it is until you
+   * are already beside it. What a player means by "I can see it" is that its
+   * sprite is on their screen, so that is the question asked: inside the drawn
+   * square, and not drawn over. See {@link isHiddenFromCamera}.
+   *
+   * Whether you can *fight* it is a separate rule with a separate answer, and
+   * the two are meant to disagree — reading a creature's health from across a
+   * courtyard and being unable to touch it is the normal state of affairs.
+   */
+  private isVisibleBody(
+    snap: GameSnapshot,
+    actor: ActorSnapshot,
+    camera: { x: number; y: number },
+    hideLevelsAbove: number | undefined,
+  ): boolean {
+    // The roof-cut, which is exact — anything above it is not drawn at all.
+    // Deliberately *without* {@link CHROME_LEVEL_SLACK}, which the rest of the
+    // chrome still leans on: that slack exists only because there was no cheap
+    // answer for a body drawn behind the floors below you, and there now is one.
+    // Approximating a floor's worth of doubt on top of an exact answer would
+    // only take back the cases the exact answer got right.
+    if (hideLevelsAbove !== undefined && actor.z > hideLevelsAbove) return false;
+    if (!this.isWithinView(snap.map, actor, camera)) return false;
+    return !isHiddenFromCamera(
+      snap.map,
+      this.tilesById,
+      actor,
+      snap.self.z,
+      hideLevelsAbove,
+    );
+  }
+
   /** Where the targeted actor is standing right now, if they still are. */
   private targetOutline(snap: GameSnapshot): ObjectRef | null {
     if (snap.targetId === null) return null;
@@ -1333,10 +1378,11 @@ export class GameRenderer {
    */
   private labelsFor(
     snap: GameSnapshot,
+    camera: { x: number; y: number },
     hideLevelsAbove: number | undefined,
   ): WorldLabel[] {
     const labels: WorldLabel[] = [];
-    this.pushNameLabels(snap, labels, hideLevelsAbove);
+    this.pushNameLabels(snap, labels, camera, hideLevelsAbove);
     this.pushSpeechLabels(snap, labels);
     this.pushNoiseLabels(snap, labels);
     this.forgetStaleAnchors(snap);
@@ -1443,6 +1489,12 @@ export class GameRenderer {
    * about. Everything else on the map stays unlabelled, which is what keeps a
    * field of grass a field of grass.
    *
+   * **And only what you can see** — see {@link isVisibleBody}. Not what you can
+   * reach, and not what shares your floor: a tag hanging over a rat behind a
+   * cave ceiling is a ghost, and going silent about one standing in the open a
+   * storey down is blindness. Both were shipped before this and both read as
+   * bugs. Being on screen is the rule, because that is what a player means.
+   *
    * Naming is `bodyNameFor`'s job, which already answers it for speech: a person
    * by the handle derived from their connection, a creature by what its tile is
    * called.
@@ -1464,11 +1516,12 @@ export class GameRenderer {
   private pushNameLabels(
     snap: GameSnapshot,
     into: WorldLabel[],
+    camera: { x: number; y: number },
     hideLevelsAbove: number | undefined,
   ) {
     for (const actor of snap.actors) {
       if (actor.hp === null || actor.maxHp === null) continue;
-      if (!this.isVisibleLevel(snap, actor.z, hideLevelsAbove)) continue;
+      if (!this.isVisibleBody(snap, actor, camera, hideLevelsAbove)) continue;
 
       const visual = this.actorVisualWorld(snap.map, actor);
       const height = this.movingTileHeight(snap.map, actor, actor.stackIndex);
@@ -1737,7 +1790,11 @@ export class GameRenderer {
     // canvas paint land in the same commit — which is what stops DOM text from
     // trailing the sprite it belongs to.
     const ceiling = hideAbove ? anchor.z : undefined;
-    this.labelLayer?.set(this.labelsFor(snap, ceiling), camera, fit.cssScale);
+    this.labelLayer?.set(
+      this.labelsFor(snap, camera, ceiling),
+      camera,
+      fit.cssScale,
+    );
     this.damageLayer?.set(
       this.damageFor(snap, ceiling),
       camera,
@@ -1829,11 +1886,20 @@ export class GameRenderer {
    * Bodies the viewer could pick a fight with: the ones they can see.
    *
    * Picking a target is pointing at somebody, so the bound is what is drawn
-   * rather than what is in reach — the same two rules the name tags use, since
-   * a body worth naming is exactly a body worth choosing. Whoever is already
-   * being fought is kept regardless: they can step onto a floor the roof-cut
-   * hides, and dropping their row would leave a touch player in a fight with no
-   * way out of it.
+   * rather than what is in reach — {@link isVisibleBody}, the same rule the name
+   * tags use, since a body worth naming is exactly a body worth choosing.
+   * Whether a blow can actually land is the server's question and is asked at
+   * the swing; a target you cannot yet reach is a target you are walking towards.
+   *
+   * This is also the one list every *body's* name and health reaches the UI
+   * through, so the same gate is what keeps a rat behind a cave ceiling
+   * anonymous — a shove at it is still offered and still says "Push Rat",
+   * because that much is readable from its tile, but who it is and how hurt it
+   * is are not.
+   *
+   * Whoever is already being fought is kept regardless: they can step onto a
+   * floor the roof-cut hides, and dropping their row would leave a touch player
+   * in a fight with no way out of it.
    */
   private targetableActors(
     snap: GameSnapshot,
@@ -1843,8 +1909,7 @@ export class GameRenderer {
     return snap.actors.filter(
       (actor) =>
         actor.id === snap.targetId ||
-        (this.isVisibleLevel(snap, actor.z, hideLevelsAbove) &&
-          this.isWithinView(snap.map, actor, camera)),
+        this.isVisibleBody(snap, actor, camera, hideLevelsAbove),
     );
   }
 

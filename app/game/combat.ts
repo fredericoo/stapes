@@ -1,7 +1,9 @@
 import type { BattlerDef } from "../lib/battler";
-import type { Coord } from "../lib/types";
-import { SIGHT_LEVEL_SLACK, TICK_MS } from "./constants";
+import type { MapFile, TileDef } from "../lib/types";
+import { TICK_MS } from "./constants";
+import { type ReachPoint, withinReach } from "./distance";
 import type { Rng } from "./rng";
+import { hasLineOfSight } from "./sight";
 
 /**
  * The arithmetic of one blow.
@@ -30,15 +32,14 @@ export const MIN_ATTACK_TICKS = 6;
 export const MAX_ATTACK_TICKS = 600;
 
 /**
- * How far a blow reaches, in cells, counted as a square rather than a cross.
+ * How far a blow reaches — now {@link BattlerDef.range}, per creature.
  *
- * The one distance in the game measured diagonally, and deliberately so: every
- * *movement* rule counts in steps because a creature that thinks in cells it
- * could walk is a creature whose behaviour matches the board, but a swing does
- * not walk anywhere. Excluding the corners would mean a cat standing on your
- * shoulder diagonally cannot be hit, which no player will read as a rule.
+ * It was one cell counted as a square, which was the right shape for a swing and
+ * had nowhere to go. A bow is the same question with a bigger answer, and a
+ * square that had to become a sphere later would have moved every authored
+ * creature on the way past. See `./distance` for the metric and for why height
+ * costs what it does.
  */
-export const ATTACK_RANGE_CELLS = 1;
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -134,12 +135,42 @@ export function rollAttack(
 /**
  * Is the defender close enough to swing at?
  *
- * The level slack is the same one sight and reach already use, so a creature on
- * the step above you is in the fight rather than mysteriously exempt from it.
+ * A sphere in the metric `./distance` defines, so a body standing on a crate is
+ * measured by the crate and not by which floor the crate happens to sit on. At
+ * the melee default that sphere is the eight cells around you plus half a level
+ * either way.
+ *
+ * **Range is not the only question, and on its own it is wrong.** Once height
+ * counts, the nearest thing to you may be directly under your feet through a
+ * floor — one cell away by this measure and quite unhittable. So reach is range
+ * *and* a clear line, which is the same line a creature's eye has to have; see
+ * {@link canReach}. That was not needed while a swing could only travel
+ * sideways to a neighbour, and it is the first thing the sphere breaks.
  */
-export function inAttackRange(from: Coord, to: Coord): boolean {
-  if (Math.abs(from.z - to.z) > SIGHT_LEVEL_SLACK) return false;
-  const dx = Math.abs(from.x - to.x);
-  const dy = Math.abs(from.y - to.y);
-  return Math.max(dx, dy) <= ATTACK_RANGE_CELLS;
+export function inAttackRange(
+  from: ReachPoint,
+  to: ReachPoint,
+  rangeCells: number,
+): boolean {
+  return withinReach(from, to, rangeCells);
+}
+
+/**
+ * Everything between wanting to hit somebody and being allowed to: close enough,
+ * and with nothing in the way.
+ *
+ * The two halves are separate functions because they fail for different reasons
+ * and one of them needs the board, but they are asked together everywhere and so
+ * are worth having together — a caller that checked range and forgot the wall is
+ * a caller that lets a fight happen through a floor.
+ */
+export function canReach(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  from: ReachPoint & { z: number },
+  to: ReachPoint & { z: number },
+  rangeCells: number,
+): boolean {
+  if (!inAttackRange(from, to, rangeCells)) return false;
+  return hasLineOfSight(map, tilesById, from, to);
 }

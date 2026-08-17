@@ -40,19 +40,6 @@ export const STARTING_BAG_TILE_ID = "basic-bag";
  */
 export const BRAIN_TICK_MS = WALK_DURATION_MS;
 
-/**
- * Floors up or down that still count as being near somebody, or as being able
- * to see them. The same slack interaction already uses for reach.
- *
- * Shared by the distance conditions and by the line of sight walk on purpose: a
- * condition that pairs "within five cells" with "and I can see them" would
- * otherwise be able to disagree with itself about who is even a candidate.
- * Distance is counted in steps on the plan, not as the crow flies — a creature
- * that thinks in cells it could walk is a creature whose behaviour matches the
- * board.
- */
-export const SIGHT_LEVEL_SLACK = 1;
-
 /** Max climb up in absolute height units when walking into a cell (half a level). */
 export const MAX_CLIMB_HEIGHT = 1;
 

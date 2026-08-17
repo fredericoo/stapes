@@ -131,13 +131,55 @@ describe("line of sight", () => {
     );
   });
 
-  /** One floor of slack, matching the distance conditions; two is a ceiling. */
-  it("reaches one level away but not two", () => {
+  /**
+   * Levels are crossed on the geometry and nothing else. There is no slack any
+   * more: open air above is looked through, and a floor is not. Whether a
+   * particular creature would *bother* looking up is its own business — see
+   * `BattlerDef.sight`.
+   */
+  it("looks up through open air", () => {
     const map = field();
+
     expect(hasLineOfSight(map, tilesById, from, { x: 3, y: 0, z: 1 })).toBe(
       true,
     );
-    expect(hasLineOfSight(map, tilesById, from, { x: 3, y: 0, z: 2 })).toBe(
+  });
+
+  /**
+   * And not down through the ground it is standing on. The floor between two
+   * levels belongs to the upper one, so this is the grass under the viewer's own
+   * feet doing the blocking.
+   */
+  it("does not look down through a floor", () => {
+    const map = field();
+
+    expect(hasLineOfSight(map, tilesById, from, { x: 3, y: 0, z: -1 })).toBe(
+      false,
+    );
+  });
+
+  it("looks down through a gap in the floor", () => {
+    // Straight down, so the cell the look crosses is not a matter of which way
+    // a diagonal rounded. `field` only lays ground on level 0, so clearing the
+    // viewer's own cell there is a hole in the floor under their feet.
+    const map = replaceStack(field(), 0, 0, 0, []);
+
+    expect(hasLineOfSight(map, tilesById, from, { x: 0, y: 0, z: -1 })).toBe(
+      true,
+    );
+  });
+
+  /**
+   * A ceiling stops a look going up exactly as a floor stops one going down —
+   * it is one tile doing both jobs, belonging to the upper level. Note this is
+   * the *endpoint's* own cell and is still tested: the sideways exemption for
+   * endpoints does not extend to the surface between two floors, or a body could
+   * see through the ground it is standing on.
+   */
+  it("is stopped going up by a ceiling overhead", () => {
+    const map = replaceStack(field(), 0, 0, 1, [{ tileId: "wall" }]);
+
+    expect(hasLineOfSight(map, tilesById, from, { x: 0, y: 0, z: 1 })).toBe(
       false,
     );
   });
