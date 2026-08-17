@@ -12,6 +12,7 @@ import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef, normalizeTiles } from "../lib/types";
 import { initialMemory, stepBrain } from "./brainRuntime";
+import { fightingStats, resolveBattler } from "../lib/battler";
 import { attackIntervalMs } from "./combat";
 import { BRAIN_TICK_MS, TICK_MS, WALK_DURATION_MS } from "./constants";
 import { GameSession } from "./GameSession";
@@ -2091,10 +2092,16 @@ describe("the vermin we ship", () => {
   it("is weaker than the snake, and quicker off the mark", () => {
     const rat = authored.find((tile) => tile.id === "rat")!;
     const snake = authored.find((tile) => tile.id === "snake")!;
-    const stats = (def: typeof rat) => def.interactions!.battler!;
+    // Through the real derivation rather than off the authored block: none of
+    // these three is a number anybody types any more, and comparing masteries
+    // directly would assert the inputs while the fight reads the outputs.
+    const stats = (def: typeof rat) => {
+      const battler = resolveBattler(def)!;
+      return fightingStats(battler, battler.naturalWeapon);
+    };
 
     expect(stats(rat).maxHp).toBeLessThan(stats(snake).maxHp);
-    expect(stats(rat).atk).toBeLessThan(stats(snake).atk);
+    expect(stats(rat).damage).toBeLessThan(stats(snake).damage);
     // Higher spd is a shorter wait between blows — see `./combat`.
     expect(attackIntervalMs(stats(rat).spd)).toBeLessThan(
       attackIntervalMs(stats(snake).spd),

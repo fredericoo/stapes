@@ -36,7 +36,7 @@ function tile(partial: Record<string, unknown>): TileDef {
 }
 
 /** Certain to hit, certain to hurt, and as fast as the rules allow. */
-const CERTAIN = { acc: 100, flee: 0, spd: 100 };
+const CERTAIN = { accuracy: 100, variance: 0, spd: 100 };
 
 const tiles: TileDef[] = [
   tile({ id: "grass" }),
@@ -47,7 +47,14 @@ const tiles: TileDef[] = [
     directional: true,
     walkable: false,
     variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
-    interactions: { battler: { maxHp: 100, atk: 5, def: 0, ...CERTAIN } },
+    interactions: {
+      battler: {
+        // Toughness alone, since nothing here is ever dodged at or measured for
+        // speed as a defender — 92 is the hundred hit points these tests count in.
+        masteries: { toughness: 92 },
+        naturalWeapon: { type: "weapon", damage: 5, def: 0, ...CERTAIN, mastery: "fist" },
+      },
+    },
   }),
   tile({
     id: "dummy",
@@ -56,7 +63,12 @@ const tiles: TileDef[] = [
     actor: true,
     walkable: false,
     interactions: {
-      battler: { maxHp: 500, atk: 0, def: 0, acc: 50, flee: 0, spd: 0 },
+      // As much of a punching bag as the mastery scale allows: 100 Toughness is
+      // 108 hit points, and it never swings back.
+      battler: {
+        masteries: { toughness: 100 },
+        naturalWeapon: { type: "weapon", damage: 0, def: 0, accuracy: 50, variance: 0, spd: 0, mastery: "fist" },
+      },
     },
   }),
   // A creature with a mind of its own — a resident, and nobody's player.
@@ -66,7 +78,10 @@ const tiles: TileDef[] = [
     kind: "battler",
     walkable: false,
     interactions: {
-      battler: { maxHp: 10, atk: 0, def: 0, acc: 50, flee: 0, spd: 0 },
+      battler: {
+        masteries: { toughness: 2 },
+        naturalWeapon: { type: "weapon", damage: 0, def: 0, accuracy: 50, variance: 0, spd: 0, mastery: "fist" },
+      },
       brain: { initial: "idle", states: { idle: { do: [{ action: "hold" }] } }, transitions: [] },
     },
   }),
@@ -84,7 +99,7 @@ const tiles: TileDef[] = [
     kind: "item",
     intangible: true,
     interactions: {
-      item: { type: "weapon", atk: 10, def: 0, acc: 0, spd: 0, mastery: "blade" },
+      item: { type: "weapon", damage: 10, def: 0, accuracy: 100, variance: 0, spd: 100, mastery: "blade" },
     },
   }),
   tile({
@@ -103,7 +118,7 @@ const tiles: TileDef[] = [
     intangible: true,
     light: { radius: 6, intensity: 1, color: "#ffcc88" },
     interactions: {
-      item: { type: "weapon", atk: 0, def: 0, acc: 0, spd: 0, mastery: "blunt" },
+      item: { type: "weapon", damage: 5, def: 0, accuracy: 100, variance: 0, spd: 100, mastery: "blunt" },
     },
   }),
   // Slow and clumsy in the two ways a weapon can now be told to be.
@@ -112,7 +127,7 @@ const tiles: TileDef[] = [
     kind: "item",
     intangible: true,
     interactions: {
-      item: { type: "weapon", atk: 10, def: 2, acc: -20, spd: -40, mastery: "blade" },
+      item: { type: "weapon", damage: 10, def: 2, accuracy: 90, variance: 60, spd: 20, mastery: "blade" },
     },
   }),
 ];
@@ -250,36 +265,43 @@ describe("a weapon reaches the blow", () => {
     return session;
   }
 
-  it("adds its attack to every blow", () => {
+  /**
+   * **Replacement, not addition** — the rule the whole mastery model rests on.
+   *
+   * The old arithmetic would have made this `5 + 10`, and the difference
+   * between the two answers is the entire change: a body brings what it is good
+   * at, and the weapon brings what it is. Both are certain to hit for
+   * everything, so the number is exact on both sides and nothing but the weapon
+   * moved.
+   */
+  it("replaces the body's own damage rather than adding to it", () => {
     const bare = fightingSession();
     const armed = fightingSession();
     arm(armed, "light-sword");
 
-    // One swing each. The player's acc is 100 and the sword shifts nothing but
-    // attack, so the damage is exactly `atk` on both sides and the difference
-    // between them is the weapon and nothing else.
-    const bareHit = damageOver(bare, TICK_MS * 3);
-    const armedHit = damageOver(armed, TICK_MS * 3);
-
-    expect(bareHit).toBe(5);
-    expect(armedHit).toBe(5 + 10);
+    expect(damageOver(bare, TICK_MS * 3)).toBe(5);
+    expect(damageOver(armed, TICK_MS * 3)).toBe(10);
   });
 
   /**
-   * Accuracy widens the damage band downward, so a weapon that costs accuracy
-   * is worth *less* than its attack says — which is the whole reason a weapon
-   * can be authored to cost it.
+   * Accuracy widens the damage band downward, so an inaccurate weapon is worth
+   * *less* than its damage says — which is the whole reason a weapon can be
+   * authored to cost it.
+   *
+   * The band is the claim, so the band is what is asserted: at accuracy 40 a
+   * blow worth 10 lands somewhere in 4–10, where the light sword's identical
+   * damage always lands exactly.
    */
-  it("blunts its own attack by being inaccurate", () => {
+  it("blunts its own damage by being inaccurate", () => {
     const heavy = fightingSession();
     arm(heavy, "heavy-sword");
     const hit = damageOver(heavy, TICK_MS * 3);
 
-    expect(hit).toBeGreaterThan(5);
-    expect(hit).toBeLessThan(15);
+    expect(hit).toBeGreaterThanOrEqual(4);
+    expect(hit).toBeLessThanOrEqual(10);
   });
 
-  it("slows the swing by its speed shift", () => {
+  it("swings at its own speed rather than the body's", () => {
     const light = fightingSession();
     const heavy = fightingSession();
     arm(light, "light-sword");
@@ -293,7 +315,7 @@ describe("a weapon reaches the blow", () => {
     expect(heavySwings).toBeLessThan(lightSwings);
   });
 
-  it("leaves a body with no weapon fighting exactly as its tile says", () => {
+  it("leaves an empty-handed body fighting with its natural weapon", () => {
     const session = fightingSession();
     expect(damageOver(session, TICK_MS * 3)).toBe(5);
   });
@@ -566,7 +588,10 @@ index: 0 }, { kind: "weapon" });
       .actorSnapshots()
       .find((a) => a.tileId === "dummy")!.hp!;
 
-    expect(before - after).toBe(5 + 10);
+    // The sword's damage, not the sword's on top of the body's: drawing a
+    // weapon out of the bag has to reach the blow by the same replacement every
+    // other path uses.
+    expect(before - after).toBe(10);
   });
 
   it("loots a chest on the floor, rewriting the placement it came out of", () => {

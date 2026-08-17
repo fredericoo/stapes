@@ -1,6 +1,7 @@
 import * as v from "valibot";
 import type { Equipment } from "../game/equipment";
 import type { SlotRef } from "../game/itemMoves";
+import type { SwingOutcome } from "../game/GameSession";
 import type { ConsumeSource } from "../game/itemUse";
 import type { PlacedTile } from "../lib/types";
 import { MAX_CHAT_RAW_LENGTH } from "./chat";
@@ -232,6 +233,11 @@ export type MotionEvent =
       kind: "damage";
       id: string;
       targetId: string;
+      /**
+       * Which of the three this was. A miss and a dodge both carry
+       * `amount: 0`, and the word is the only thing telling them apart.
+       */
+      outcome: SwingOutcome;
       amount: number;
       x: number;
       y: number;

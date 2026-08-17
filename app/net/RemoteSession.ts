@@ -463,6 +463,7 @@ export class RemoteSession implements PlaySession {
       this.damage.push({
         id: event.id,
         targetId: event.targetId,
+        outcome: event.outcome,
         amount: event.amount,
         x: event.x,
         y: event.y,

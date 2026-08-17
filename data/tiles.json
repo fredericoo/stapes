@@ -1889,12 +1889,20 @@
         ]
       },
       "battler": {
-        "maxHp": 22,
-        "atk": 4,
-        "def": 0,
-        "acc": 60,
-        "flee": 40,
-        "spd": 65
+        "masteries": {
+          "fist": 9,
+          "toughness": 7,
+          "agility": 28
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "def": 0,
+          "mastery": "fist",
+          "damage": 4,
+          "spd": 60,
+          "accuracy": 84,
+          "variance": 30
+        }
       }
     },
     "sprite": {
@@ -1932,12 +1940,21 @@
     "walkable": false,
     "interactions": {
       "battler": {
-        "maxHp": 40,
-        "atk": 6,
-        "def": 1,
-        "acc": 70,
-        "flee": 25,
-        "spd": 55
+        "masteries": {
+          "fist": 6,
+          "blade": 6,
+          "toughness": 8,
+          "agility": 16
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "def": 0,
+          "mastery": "fist",
+          "damage": 4,
+          "spd": 58,
+          "accuracy": 82,
+          "variance": 25
+        }
       },
       "push": {
         "climb": "none",
@@ -3788,12 +3805,19 @@
         ]
       },
       "battler": {
-        "maxHp": 18,
-        "atk": 0,
-        "def": 0,
-        "acc": 50,
-        "flee": 60,
-        "spd": 30
+        "masteries": {
+          "toughness": 8,
+          "agility": 40
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "def": 0,
+          "mastery": "fist",
+          "damage": 0,
+          "spd": 20,
+          "accuracy": 50,
+          "variance": 50
+        }
       }
     },
     "sprites": {
@@ -4042,11 +4066,15 @@
     "interactions": {
       "item": {
         "type": "weapon",
-        "atk": 3,
+        "damage": 8,
         "def": 0,
-        "acc": -5,
-        "spd": -10,
-        "mastery": "blade"
+        "spd": 52,
+        "mastery": "blade",
+        "requirements": {
+          "blade": 5
+        },
+        "accuracy": 86,
+        "variance": 40
       }
     },
     "sprite": {
@@ -4083,11 +4111,12 @@
     "interactions": {
       "item": {
         "type": "weapon",
-        "atk": 0,
+        "damage": 1,
         "def": 0,
-        "acc": 0,
-        "spd": 0,
-        "mastery": "blunt"
+        "spd": 40,
+        "mastery": "blunt",
+        "accuracy": 45,
+        "variance": 70
       }
     },
     "sprite": {
@@ -4504,12 +4533,20 @@
         ]
       },
       "battler": {
-        "maxHp": 8,
-        "atk": 4,
-        "def": 0,
-        "acc": 55,
-        "flee": 45,
-        "spd": 68
+        "masteries": {
+          "fist": 4,
+          "toughness": 3,
+          "agility": 24
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "def": 0,
+          "mastery": "fist",
+          "damage": 2,
+          "spd": 68,
+          "accuracy": 78,
+          "variance": 15
+        }
       },
       "respawn": {
         "fromMs": 30000,
@@ -4878,12 +4915,20 @@
         ]
       },
       "battler": {
-        "maxHp": 24,
-        "atk": 9,
-        "def": 1,
-        "acc": 70,
-        "flee": 20,
-        "spd": 45
+        "masteries": {
+          "fist": 16,
+          "toughness": 14,
+          "agility": 10
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "def": 0,
+          "mastery": "fist",
+          "damage": 8,
+          "spd": 50,
+          "accuracy": 88,
+          "variance": 55
+        }
       }
     },
     "states": {

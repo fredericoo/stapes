@@ -1950,6 +1950,7 @@ export class GameRenderer {
         id: hit.id,
         x: at.x,
         y: at.y,
+        outcome: hit.outcome,
         amount: hit.amount,
         own: hit.targetId === snap.self.id,
         elapsedMs: hit.elapsedMs,

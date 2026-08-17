@@ -1920,6 +1920,7 @@ export class GameServer extends DurableObject<Env> {
         kind: "damage",
         id: hit.id,
         targetId: hit.targetId,
+        outcome: hit.outcome,
         amount: hit.amount,
         x: hit.x,
         y: hit.y,

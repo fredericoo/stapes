@@ -1,5 +1,6 @@
-import type { BattlerDef } from "../lib/battler";
-import { MAX_PERCENT_STAT, MIN_PERCENT_STAT } from "../lib/battler";
+import type { BattlerDef, FightingStats } from "../lib/battler";
+import { fightingStats } from "../lib/battler";
+import type { WeaponItem } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import { mintItemId } from "../lib/itemInstance";
 import { resolveContainer, resolveItem, resolveWeapon } from "../lib/item";
@@ -201,55 +202,49 @@ export function carriedLightTileIds(
   return out;
 }
 
-/** Hold a 0–100 stat inside its range once equipment has been counted into it. */
-function clampPercent(value: number): number {
-  return Math.max(MIN_PERCENT_STAT, Math.min(MAX_PERCENT_STAT, value));
-}
-
 /**
- * The stats a body actually fights with, once what it is carrying is counted.
+ * The weapon a body will actually swing: what is in its hand, or what it was
+ * born with.
  *
- * Every field is a sum, and that is the whole rule: a weapon says what it adds,
- * zero adds nothing, and a negative number takes away. Nothing here decides how
- * much a weapon *costs* — it used to spend one `weight` against speed at full
- * rate and accuracy at half, which made the ratio between those a balance
- * decision hidden in this function rather than a number an author could see.
+ * **A held weapon replaces the natural one rather than adding to it**, and that
+ * replacement is the whole rule. It used to be a sum — a sword was `+3 atk,
+ * -10 spd` on top of whatever the tile already said — and the sum had to go for
+ * masteries to work at all. If a body carries a full stat block of its own, a
+ * mastery can only be a third modifier stacked on the other two, and the
+ * authored numbers and the earned ones end up arguing over the same ground. Now
+ * the body contributes what it is *good at* and the weapon contributes what it
+ * *is*, and neither has an opinion about the other's job.
  *
- * `atk` and `def` are unbounded above, exactly as the authored stats are — a
- * weapon is meant to make you hit harder than the tile says. The percent stats
- * are clamped, because they are read as probabilities downstream and a negative
- * accuracy is not a worse accuracy, it is a broken one.
+ * Falling back to the natural weapon rather than to nothing is what makes the
+ * empty hand an ordinary case instead of a special one: bare hands are a weapon,
+ * a bite is a weapon, and nothing downstream has to ask which it got.
+ *
+ * A tile that has been renamed or turned into a prop while somebody was holding
+ * it reads as an empty hand, on the terms {@link restoredEquipment} restores on:
+ * the fact is out of date, not corrupt.
  */
-export function applyWeaponStats(
+export function weaponInHand(
   base: BattlerDef,
-  weapon: { atk: number; def: number; acc: number; spd: number } | null,
-): BattlerDef {
-  if (!weapon) return base;
-  return {
-    ...base,
-    atk: base.atk + weapon.atk,
-    def: base.def + weapon.def,
-    spd: clampPercent(base.spd + weapon.spd),
-    acc: clampPercent(base.acc + weapon.acc),
-  };
+  equipment: Equipment | null,
+  tilesById: Record<string, TileDef>,
+): WeaponItem {
+  const held = equipment?.weapon;
+  if (!held) return base.naturalWeapon;
+  const def = tilesById[held.tileId];
+  return (def ? resolveWeapon(def) : null) ?? base.naturalWeapon;
 }
 
 /**
- * The stats a body fights with, given what it is wearing.
+ * The numbers a body fights with, given what it is wearing.
  *
  * The one entry point the simulation uses, so there is a single place where
  * "these are the numbers" is answered — see `GameSession.battlerOf`, which
- * funnels both the swing and the health bar through it. Returns the base object
- * unchanged when there is no weapon, which keeps the overwhelmingly common case
- * free of an allocation per lookup per tick.
+ * funnels the swing, the cooldown and the health bar's maximum through it.
  */
 export function effectiveBattler(
   base: BattlerDef,
   equipment: Equipment | null,
   tilesById: Record<string, TileDef>,
-): BattlerDef {
-  const held = equipment?.weapon;
-  if (!held) return base;
-  const def = tilesById[held.tileId];
-  return applyWeaponStats(base, def ? resolveWeapon(def) : null);
+): FightingStats {
+  return fightingStats(base, weaponInHand(base, equipment, tilesById));
 }

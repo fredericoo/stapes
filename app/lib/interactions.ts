@@ -2,7 +2,13 @@ import * as v from "valibot";
 import { DEFAULT_BATTLER, type BattlerDef } from "./battler";
 import type { BrainDef } from "./brain";
 import type { ItemDef } from "./item";
-import { itemForSave, MAX_CONTAINER_SIZE, resolveItem } from "./item";
+import {
+  itemForSave,
+  MAX_CONTAINER_SIZE,
+  resolveItem,
+  weaponForSave,
+} from "./item";
+import { MASTERIES } from "./mastery";
 import type { PlacedTile, SpriteState, TileDef } from "./types";
 import { HEIGHT_PER_LEVEL, resolveActor } from "./types";
 
@@ -915,14 +921,27 @@ export function interactionsForSave(
   // sitting in `data/` (or an editor draft loaded from one) can still omit
   // them. The schema fills the same defaults at parse time; writing them here
   // is what stops a save from crashing on `.sight.up` of nothing.
+  //
+  // The masteries are copied key by key for the reason the block as a whole is
+  // rebuilt: a draft that has been through the editor carries whatever the last
+  // shape left behind, and a sparse record is the easiest place for a stray key
+  // to hide. `naturalWeapon` goes through `weaponForSave` because a bite is a
+  // weapon like any other, and there is one place that knows how to write one.
+  //
+  // Zeroes are dropped along with the absent keys, because `masteryLevel` reads
+  // them as the same thing: writing one would claim the author considered a
+  // question they did not, and it would grow every creature's block by five
+  // lines saying nothing.
   const savedBattler = battler
     ? {
-        maxHp: battler.maxHp,
-        atk: battler.atk,
-        def: battler.def,
-        acc: battler.acc,
-        flee: battler.flee,
-        spd: battler.spd,
+        masteries: Object.fromEntries(
+          MASTERIES.filter((mastery) => (battler.masteries?.[mastery] ?? 0) > 0).map(
+            (mastery) => [mastery, battler.masteries[mastery]],
+          ),
+        ),
+        naturalWeapon: weaponForSave(
+          battler.naturalWeapon ?? DEFAULT_BATTLER.naturalWeapon,
+        ),
         range: battler.range ?? DEFAULT_BATTLER.range,
         sight: {
           up: battler.sight?.up ?? DEFAULT_BATTLER.sight.up,

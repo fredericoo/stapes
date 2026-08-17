@@ -5,7 +5,7 @@ import { ATTACKER_SELECTOR, resolveBrain, slot } from "../lib/brain";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef, normalizeTiles } from "../lib/types";
-import { attackIntervalMs } from "./combat";
+import { attackIntervalMs, MIN_ATTACK_TICKS } from "./combat";
 import { TICK_MS } from "./constants";
 import { GameSession } from "./GameSession";
 
@@ -84,7 +84,24 @@ const brawlerBrain = {
 };
 
 /** Certain to hit, certain to hurt, and as fast as the rules allow. */
-const CERTAIN = { acc: 100, flee: 0, spd: 100 };
+const CERTAIN = { acc: 100, spd: 100 };
+
+/**
+ * A natural weapon, spelled out once.
+ *
+ * Every body has one now, and most of these fixtures only care about two of its
+ * numbers — so the rest are defaulted here rather than repeated five times.
+ */
+const claws = (fields: Record<string, unknown>) => ({
+  type: "weapon" as const,
+  damage: 0,
+  def: 0,
+  accuracy: 50,
+  variance: 0,
+  spd: 0,
+  mastery: "fist" as const,
+  ...fields,
+});
 
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
@@ -95,7 +112,8 @@ const tiles: TileDef[] = [
     walkable: false,
     variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
     interactions: {
-      battler: { maxHp: 100, atk: 5, def: 0, ...CERTAIN },
+      // 92 Toughness is the hundred hit points these tests count in.
+      battler: { masteries: { toughness: 92 }, naturalWeapon: claws({ damage: 5, ...CERTAIN }) },
     },
   }),
   // Hit points, no mind. What a target that cannot fight back looks like.
@@ -105,7 +123,7 @@ const tiles: TileDef[] = [
     actor: true,
     walkable: false,
     interactions: {
-      battler: { maxHp: 10, atk: 0, def: 0, acc: 50, flee: 0, spd: 0 },
+      battler: { masteries: { toughness: 42 }, naturalWeapon: claws({}) },
     },
   }),
   // Armoured past anything the player can do to it.
@@ -115,7 +133,8 @@ const tiles: TileDef[] = [
     actor: true,
     walkable: false,
     interactions: {
-      battler: { maxHp: 10, atk: 0, def: 99, acc: 50, flee: 0, spd: 0 },
+      // Defence is the weapon's, until there is armour to put it on.
+      battler: { masteries: { toughness: 2 }, naturalWeapon: claws({ def: 99 }) },
     },
   }),
   tile({
@@ -124,7 +143,7 @@ const tiles: TileDef[] = [
     actor: true,
     walkable: false,
     interactions: {
-      battler: { maxHp: 30, atk: 3, def: 0, ...CERTAIN },
+      battler: { masteries: { toughness: 22 }, naturalWeapon: claws({ damage: 3, ...CERTAIN }) },
       brain: brawlerBrain,
     },
   }),
@@ -162,6 +181,27 @@ function advance(session: GameSession, ms: number) {
   }
 }
 
+/**
+ * How many times anybody swung, drained tick by tick.
+ *
+ * Per tick because `tick` clears the pending receipts at the top of each one —
+ * they are this tick's news, not a running total — so a single drain at the end
+ * only ever sees the last tick.
+ *
+ * Swings rather than hit points, because a swing no longer reliably takes any:
+ * every chance in a fight is held inside a band, so even a perfect attacker
+ * whiffs one in twenty. A receipt is emitted whatever the swing came to, which
+ * makes it the honest measure of *rate*.
+ */
+function swingsOver(session: GameSession, ms: number): number {
+  let swings = 0;
+  for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) {
+    session.tick(TICK_MS);
+    swings += session.drainDamage().length;
+  }
+  return swings;
+}
+
 /** The one actor standing in a body of this tile, if it is still on the board. */
 function bodyOf(session: GameSession, tileId: string) {
   return session.actorSnapshots().find((actor) => actor.tileId === tileId);
@@ -192,21 +232,44 @@ describe("hit points", () => {
 
     expect(self(session).hp).toBe(100);
     expect(self(session).maxHp).toBe(100);
-    expect(bodyOf(session, "dummy")?.hp).toBe(10);
+    expect(bodyOf(session, "dummy")?.hp).toBe(DUMMY_MAX_HP);
     // Not zero: zero means dead, and this body cannot be either.
     expect(bodyOf(session, "statue")?.hp).toBeNull();
     expect(bodyOf(session, "statue")?.maxHp).toBeNull();
   });
 });
 
+/**
+ * How long to swing for before a blow is certain enough to assert on.
+ *
+ * **Nothing in a fight is certain any more** — every probability is held inside
+ * a band with a floor and a ceiling, so even a perfect attacker whiffs one swing
+ * in twenty. These tests are about *reach and targeting*, not about the odds, so
+ * they swing several times and assert that hit points moved. The arithmetic of a
+ * single blow is `./combat.test`'s subject, where the stats can be forced.
+ */
+const ENOUGH_SWINGS_MS = TICK_MS * MIN_ATTACK_TICKS * 6;
+
+/** What the punching bag starts at, so "it took damage" is one comparison. */
+const DUMMY_MAX_HP = 50;
+
+/**
+ * Long enough to finish it off, with room for the swings that come to nothing.
+ *
+ * Generous rather than tight: the alternative is a test that fails once in a
+ * while on an unlucky run of misses, which is worse than a test that takes an
+ * extra simulated second.
+ */
+const LONG_ENOUGH_TO_KILL_MS = 8000;
+
 describe("swinging at a target", () => {
   it("takes hit points off somebody standing beside you", () => {
     const session = new GameSession(withBody(field(), 1, 0, "dummy"), tiles);
     fight(session, bodyOf(session, "dummy")!.id);
 
-    session.tick(TICK_MS);
+    advance(session, ENOUGH_SWINGS_MS);
 
-    expect(bodyOf(session, "dummy")!.hp).toBe(5);
+    expect(bodyOf(session, "dummy")!.hp!).toBeLessThan(DUMMY_MAX_HP);
   });
 
   /**
@@ -217,9 +280,9 @@ describe("swinging at a target", () => {
     const session = new GameSession(withBody(field(), 1, 1, "dummy"), tiles);
     fight(session, bodyOf(session, "dummy")!.id);
 
-    session.tick(TICK_MS);
+    advance(session, ENOUGH_SWINGS_MS);
 
-    expect(bodyOf(session, "dummy")!.hp).toBe(5);
+    expect(bodyOf(session, "dummy")!.hp!).toBeLessThan(DUMMY_MAX_HP);
   });
 
   it("does nothing to somebody across the field", () => {
@@ -228,7 +291,7 @@ describe("swinging at a target", () => {
 
     advance(session, 1000);
 
-    expect(bodyOf(session, "dummy")!.hp).toBe(10);
+    expect(bodyOf(session, "dummy")!.hp).toBe(DUMMY_MAX_HP);
   });
 
   /**
@@ -245,7 +308,7 @@ describe("swinging at a target", () => {
     advance(session, 1000);
 
     expect(bodyOf(session, "dummy")!.z).toBe(1);
-    expect(bodyOf(session, "dummy")!.hp).toBe(10);
+    expect(bodyOf(session, "dummy")!.hp).toBe(DUMMY_MAX_HP);
   });
 
   /** The rate is the stat's, not the tick loop's or the client's. */
@@ -255,7 +318,7 @@ describe("swinging at a target", () => {
         ? tile({
             ...t,
             interactions: {
-              battler: { maxHp: 100, atk: 1, def: 0, acc: 100, flee: 0, spd: 0 },
+              battler: { masteries: { toughness: 92 }, naturalWeapon: claws({ damage: 1, accuracy: 100 }) },
             },
           })
         : t,
@@ -267,11 +330,8 @@ describe("swinging at a target", () => {
     fight(session, bodyOf(session, "dummy")!.id);
 
     const interval = attackIntervalMs(0);
-    advance(session, interval - TICK_MS);
-    expect(bodyOf(session, "dummy")!.hp).toBe(9);
-
-    advance(session, TICK_MS * 2);
-    expect(bodyOf(session, "dummy")!.hp).toBe(8);
+    expect(swingsOver(session, interval - TICK_MS)).toBe(1);
+    expect(swingsOver(session, TICK_MS * 2)).toBe(1);
   });
 
   it("turns to face what it is hitting", () => {
@@ -326,7 +386,7 @@ describe("targeting without attacking", () => {
 
     advance(session, 1000);
 
-    expect(bodyOf(session, "dummy")!.hp).toBe(10);
+    expect(bodyOf(session, "dummy")!.hp).toBe(DUMMY_MAX_HP);
     expect(session.getSnapshot().targetId).toBe(dummyId);
   });
 
@@ -351,9 +411,9 @@ describe("targeting without attacking", () => {
     advance(session, 1000);
 
     session.setAttackMode(true);
-    session.tick(TICK_MS);
+    advance(session, ENOUGH_SWINGS_MS);
 
-    expect(bodyOf(session, "dummy")!.hp).toBe(5);
+    expect(bodyOf(session, "dummy")!.hp!).toBeLessThan(DUMMY_MAX_HP);
     expect(session.isAtRest()).toBe(false);
   });
 
@@ -361,12 +421,15 @@ describe("targeting without attacking", () => {
     const session = new GameSession(withBody(field(), 1, 0, "dummy"), tiles);
     const dummyId = bodyOf(session, "dummy")!.id;
     fight(session, dummyId);
-    session.tick(TICK_MS);
+    advance(session, ENOUGH_SWINGS_MS);
 
+    // Whatever the swinging came to, it stops here — asserted as "nothing moved
+    // after", since what a run of swings took off is now a matter of luck.
+    const settled = bodyOf(session, "dummy")!.hp!;
     session.setAttackMode(false);
     advance(session, 1000);
 
-    expect(bodyOf(session, "dummy")!.hp).toBe(5);
+    expect(bodyOf(session, "dummy")!.hp).toBe(settled);
     expect(session.getSnapshot().targetId).toBe(dummyId);
   });
 
@@ -386,11 +449,18 @@ describe("damage numbers", () => {
     const session = new GameSession(withBody(field(), 1, 0, "dummy"), tiles);
     fight(session, bodyOf(session, "dummy")!.id);
 
-    session.tick(TICK_MS);
-    const dealt = session.drainDamage();
+    // A receipt per swing, including the ones that came to nothing — that is
+    // what makes a miss visible at all. Collected tick by tick, since each tick
+    // starts with an empty page.
+    const dealt: ReturnType<typeof session.drainDamage> = [];
+    for (let elapsed = 0; elapsed < ENOUGH_SWINGS_MS; elapsed += TICK_MS) {
+      session.tick(TICK_MS);
+      dealt.push(...session.drainDamage());
+    }
 
-    expect(dealt).toHaveLength(1);
-    expect(dealt[0]).toMatchObject({ amount: 5, x: 1, y: 0, z: 0 });
+    const hits = dealt.filter((number) => number.outcome === "hit");
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits[0]).toMatchObject({ amount: 5, x: 1, y: 0, z: 0 });
     // Drained means gone: a second reader would otherwise broadcast it twice.
     expect(session.drainDamage()).toHaveLength(0);
   });
@@ -413,7 +483,7 @@ describe("running out of hit points", () => {
     const dummyId = bodyOf(session, "dummy")!.id;
     fight(session, dummyId);
 
-    advance(session, 1000);
+    advance(session, LONG_ENOUGH_TO_KILL_MS);
 
     expect(bodyOf(session, "dummy")).toBeUndefined();
     expect(session.actorIds()).not.toContain(dummyId);
@@ -424,7 +494,7 @@ describe("running out of hit points", () => {
     const session = new GameSession(withBody(field(), 1, 0, "dummy"), tiles);
     fight(session, bodyOf(session, "dummy")!.id);
 
-    advance(session, 1000);
+    advance(session, LONG_ENOUGH_TO_KILL_MS);
 
     expect(session.getSnapshot().targetId).toBeNull();
   });
@@ -439,7 +509,7 @@ describe("running out of hit points", () => {
     const dummyId = bodyOf(session, "dummy")!.id;
     fight(session, dummyId);
 
-    advance(session, 1000);
+    advance(session, LONG_ENOUGH_TO_KILL_MS);
 
     expect(() => session.requestStep(dummyId, "n")).toThrow();
   });
@@ -476,7 +546,7 @@ describe("the authored creatures", () => {
 
   /** A deer that runs away is a deer with nothing to hit you with. */
   it("leaves the deer unable to deal damage at all", () => {
-    expect(resolveBattler(byId.deer!)!.atk).toBe(0);
+    expect(resolveBattler(byId.deer!)!.naturalWeapon.damage).toBe(0);
     const brain = resolveBrain(byId.deer!);
     const swings = Object.values(brain!.states).some((state) =>
       state.do.some((action) => action.action === "attack"),

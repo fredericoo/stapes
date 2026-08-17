@@ -400,6 +400,21 @@ textarea {
   color: #ff4d4d;
 }
 
+/* A swing that came to nothing — "miss" or "dodge".
+
+   Grey rather than white, and grey whoever it happened to: the red above marks
+   hit points you cannot afford to miss, and a blow that took none is the one
+   thing in this layer with nothing at stake. It stays in the same layer, font
+   and rise as the numbers so the three read as one language, and it deliberately
+   does not outrank `--own` — a dodge of your own is still nothing happening.
+
+   A placeholder for an animation, and honest about it: a whiff wants a swing
+   that visibly goes wide, which is art rather than a word. Until then the word
+   is what makes the mastery penalty legible at all. */
+.damage-number--nothing {
+  color: #9a9a9a;
+}
+
 /* Hard-edged checkbox — matches Input / Segmented chrome */
 .hard-checkbox {
   -webkit-appearance: none;

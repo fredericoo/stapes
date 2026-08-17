@@ -2,7 +2,6 @@ import type {
   ConsumableItem,
   ContainerItem,
   ItemDef,
-  ItemMastery,
   ItemType,
   WeaponItem,
 } from "../lib/item";
@@ -14,11 +13,12 @@ import {
   MAX_CONSUMABLE_HP_SHIFT,
   MAX_CONSUMABLE_SOUND_LENGTH,
   MAX_CONTAINER_SIZE,
-  MAX_WEAPON_STAT_SHIFT,
 } from "../lib/item";
 import { hasAnyInteraction, type TileInteractions } from "../lib/interactions";
 import type { TileDef } from "../lib/types";
 import { Input, Segmented, Switch } from "../ui";
+import { StatField } from "./StatField";
+import { WeaponFields } from "./WeaponFields";
 
 type Props = {
   draft: TileDef;
@@ -30,60 +30,6 @@ const TYPE_OPTIONS: Array<{ value: ItemType; label: string }> = [
   { value: "consumable", label: "Consumable" },
   { value: "container", label: "Container" },
 ];
-
-const MASTERY_OPTIONS: Array<{ value: ItemMastery; label: string }> = [
-  { value: "blade", label: "Blade" },
-  { value: "ranged", label: "Ranged" },
-  { value: "blunt", label: "Blunt" },
-  { value: "magic", label: "Magic" },
-];
-
-/**
- * One numeric field with the sentence saying what it does, matching the Battle
- * tab's `StatField` — the two tabs are read side by side when balancing a
- * weapon against the creature it is meant to kill, and a different shape here
- * would make that comparison work.
- */
-function ItemField({
-  label,
-  hint,
-  value,
-  min,
-  max,
-  onChange,
-  readout,
-}: {
-  label: string;
-  hint: string;
-  value: number;
-  min: number;
-  max?: number;
-  onChange: (next: number) => void;
-  readout?: string;
-}) {
-  return (
-    <label className="flex flex-col gap-1 text-xs">
-      <span className="font-bold uppercase text-muted">{label}</span>
-      <Input
-        type="number"
-        min={min}
-        max={max}
-        step={1}
-        className="w-24"
-        value={value}
-        onChange={(e) => {
-          const next = Number(e.target.value);
-          if (!Number.isFinite(next)) return;
-          onChange(Math.max(min, Math.min(max ?? Infinity, Math.round(next))));
-        }}
-      />
-      <span className="max-w-64 text-[11px] leading-snug text-muted">
-        {hint}
-        {readout ? <strong className="block text-ink">{readout}</strong> : null}
-      </span>
-    </label>
-  );
-}
 
 /**
  * What it takes to be carried.
@@ -161,58 +107,17 @@ export function ItemTab({ draft, onChange }: Props) {
 
         {item.type === "weapon" ? (
           <div className="flex flex-col gap-3">
-            <div className="flex flex-wrap gap-4">
-              <ItemField
-                label="Atk"
-                hint="Added to the wielder's own attack."
-                value={item.atk}
-                min={0}
-                onChange={(atk) => patchWeapon({ atk })}
-              />
-              <ItemField
-                label="Def"
-                hint="Added to the wielder's own defence."
-                value={item.def}
-                min={0}
-                onChange={(def) => patchWeapon({ def })}
-              />
-              <ItemField
-                label="Acc"
-                hint="Added to the wielder's accuracy. Negative is harder to land."
-                value={item.acc}
-                min={-MAX_WEAPON_STAT_SHIFT}
-                max={MAX_WEAPON_STAT_SHIFT}
-                onChange={(acc) => patchWeapon({ acc })}
-                readout={describeShift(item.acc, "More accurate", "Less accurate")}
-              />
-              <ItemField
-                label="Spd"
-                hint="Added to the wielder's speed. Negative is slower to swing."
-                value={item.spd}
-                min={-MAX_WEAPON_STAT_SHIFT}
-                max={MAX_WEAPON_STAT_SHIFT}
-                onChange={(spd) => patchWeapon({ spd })}
-                readout={describeShift(item.spd, "Faster", "Slower")}
-              />
-            </div>
-
-            <div className="flex flex-col gap-1 text-xs">
-              <span className="font-bold uppercase text-muted">Mastery</span>
-              <div>
-                <Segmented<ItemMastery>
-                  value={item.mastery}
-                  onChange={(mastery) => patchWeapon({ mastery })}
-                  options={MASTERY_OPTIONS}
-                  size="sm"
-                  ariaLabel="Mastery"
-                />
-              </div>
-              <span className="text-[11px] leading-snug text-muted">
-                Which skill the weapon answers to. Nothing reads this yet —
-                it is authored now so the choice does not have to be revisited
-                when something does.
-              </span>
-            </div>
+            <p className="max-w-lg text-[11px] leading-snug text-muted">
+              These numbers <strong>are</strong> the fight, not a bonus on one.
+              Holding this replaces whatever the wielder&rsquo;s own hands or
+              jaws would have done — see a creature&rsquo;s natural weapon on the
+              Battle tab, which is the same block.
+            </p>
+            <WeaponFields
+              weapon={item}
+              onChange={patchWeapon}
+              masteryHint="Which mastery scales this weapon — and which one the wielder earns by swinging it."
+            />
           </div>
         ) : item.type === "consumable" ? (
           <div className="flex flex-col gap-3">
@@ -249,7 +154,7 @@ export function ItemTab({ draft, onChange }: Props) {
               </span>
             </label>
 
-            <ItemField
+            <StatField
               label="HP"
               hint="Added to the eater's hit points. Negative poisons."
               value={item.hp}
@@ -261,7 +166,7 @@ export function ItemTab({ draft, onChange }: Props) {
           </div>
         ) : (
           <div className="flex flex-col gap-3">
-            <ItemField
+            <StatField
               label="Size"
               hint="How many things fit inside it."
               value={item.size}

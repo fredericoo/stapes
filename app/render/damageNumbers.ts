@@ -1,4 +1,5 @@
 import { DAMAGE_NUMBER_LIFETIME_MS } from "../game/constants";
+import type { SwingOutcome } from "../game/GameSession";
 import { labelScreenPosition } from "./textLabels";
 
 /**
@@ -36,12 +37,17 @@ export type DamageNumberView = {
   /** World-pixel anchor — the point the number rises from. */
   x: number;
   y: number;
+  /** Which of the three this was; decides the word and the colour. */
+  outcome: SwingOutcome;
+  /** Read only for a hit — the other two say a word instead. */
   amount: number;
   /**
    * Red for a blow the viewer took, white for everybody else's.
    *
    * Decided by the caller rather than here, because "is this me" is a question
-   * about the session and this module has no idea who is looking.
+   * about the session and this module has no idea who is looking. What is done
+   * *with* the answer is this module's business, which is why a miss or a dodge
+   * ignores it — see {@link classFor}.
    */
   own: boolean;
   elapsedMs: number;
@@ -49,9 +55,9 @@ export type DamageNumberView = {
 
 type Entry = {
   element: HTMLDivElement;
-  /** What it says, so an unchanged number is never rewritten. */
-  amount: number;
-  own: boolean;
+  /** What it says, so an unchanged receipt is never rewritten. */
+  text: string;
+  className: string;
 };
 
 /**
@@ -106,28 +112,31 @@ export class DamageNumberLayer {
   }
 
   private entry(number: DamageNumberView): Entry {
+    const text = textFor(number);
+    const className = classFor(number);
+
     const existing = this.entries.get(number.id);
     if (existing) {
-      // A number's own value never changes once it is on screen, so this only
+      // A receipt's own value never changes once it is on screen, so this only
       // guards against an id being reused — cheap, and the alternative is a
       // stale figure hanging there.
-      if (existing.amount !== number.amount) {
-        existing.element.textContent = String(number.amount);
-        existing.amount = number.amount;
+      if (existing.text !== text) {
+        existing.element.textContent = text;
+        existing.text = text;
       }
-      if (existing.own !== number.own) {
-        existing.element.className = classFor(number.own);
-        existing.own = number.own;
+      if (existing.className !== className) {
+        existing.element.className = className;
+        existing.className = className;
       }
       return existing;
     }
 
     const element = document.createElement("div");
-    element.className = classFor(number.own);
-    element.textContent = String(number.amount);
+    element.className = className;
+    element.textContent = text;
     this.container.appendChild(element);
 
-    const entry: Entry = { element, amount: number.amount, own: number.own };
+    const entry: Entry = { element, text, className };
     this.entries.set(number.id, entry);
     return entry;
   }
@@ -138,6 +147,32 @@ export class DamageNumberLayer {
   }
 }
 
-function classFor(own: boolean): string {
-  return `damage-number${own ? " damage-number--own" : ""}`;
+/**
+ * What a swing that came to nothing says.
+ *
+ * Words rather than a symbol, because the two have to be told apart at a glance
+ * and be *learnable*: "miss" is the swinger failing and "dodge" is the target
+ * succeeding, and a player who cannot separate them cannot tell a weapon they
+ * have no business holding from a foe they cannot catch.
+ */
+const NOTHING_HAPPENED: Record<Exclude<SwingOutcome, "hit">, string> = {
+  miss: "miss",
+  dodge: "dodge",
+};
+
+function textFor(number: DamageNumberView): string {
+  if (number.outcome === "hit") return String(number.amount);
+  return NOTHING_HAPPENED[number.outcome];
+}
+
+/**
+ * Red for a blow you took, grey for a blow nobody took, white otherwise.
+ *
+ * A miss or a dodge ignores `own` deliberately: red marks hit points you cannot
+ * afford to miss while reading the traffic, and a swing that took none has
+ * nothing at stake whoever it happened to.
+ */
+function classFor(number: DamageNumberView): string {
+  if (number.outcome !== "hit") return "damage-number damage-number--nothing";
+  return `damage-number${number.own ? " damage-number--own" : ""}`;
 }

@@ -53,7 +53,11 @@ import {
   TICK_MS,
   WALK_DURATION_MS,
 } from "./constants";
-import { DEFAULT_BATTLER, resolveBattler, type BattlerDef } from "../lib/battler";
+import {
+  DEFAULT_BATTLER,
+  resolveBattler,
+  type FightingStats,
+} from "../lib/battler";
 import { attackIntervalMs, canReach, rollAttack } from "./combat";
 import type { Equipment } from "./equipment";
 import {
@@ -263,11 +267,33 @@ export type NoiseEmission = {
   elapsedMs: number;
 };
 
+/**
+ * What a swing came to, as the thing floating off the body says it.
+ *
+ * A miss and a dodge are both "no damage" and are still two different words,
+ * because they are opposite facts about who did well — see `./combat`'s
+ * {@link AttackOutcome}. A player who saw one word for both could not tell a
+ * weapon they cannot use from a foe they cannot catch.
+ */
+export type SwingOutcome = "hit" | "miss" | "dodge";
+
+/**
+ * A receipt floating off whatever was just swung at.
+ *
+ * Named for the case it started as and now carries all three: this is the
+ * channel for "something happened to this body on this tick", and a miss is
+ * exactly that even though nothing came off. Keeping one channel is what makes
+ * the three read as one language on screen; a second mechanism for the two
+ * bloodless outcomes would drift in placement and lifetime from the numbers they
+ * are meant to sit beside.
+ */
 export type DamageNumber = {
   /** Distinct per blow, so two hits on one tick are two numbers. */
   id: string;
   /** Who took it. Compared against the viewer's own id to colour the number. */
   targetId: string;
+  outcome: SwingOutcome;
+  /** Zero for anything but a hit, where the word carries the meaning instead. */
   amount: number;
   x: number;
   y: number;
@@ -1604,7 +1630,7 @@ export class GameSession implements PlaySession {
    * Swing for everybody in attack mode who has picked a fight and is standing
    * close enough.
    *
-   * Auto rather than per click, because {@link BattlerDef.spd} is what decides
+   * Auto rather than per click, because {@link FightingStats.spd} is what decides
    * how often a body swings. A client that had to ask for each blow would be
    * asking for permission it is going to be refused most of the time, and a
    * client that asked *faster* would gain nothing — which is precisely the
@@ -1692,10 +1718,52 @@ export class GameSession implements PlaySession {
     // cat that only fought back when a blow landed would stand there being
     // missed. Before the damage, so a killing blow still tells the room.
     this.notePendingHurt(target.id, attacker.id);
-    if (outcome.dodged) return true;
+
+    if (outcome.missed) {
+      this.floatSwing(target, "miss", 0);
+      return true;
+    }
+    if (outcome.dodged) {
+      this.floatSwing(target, "dodge", 0);
+      return true;
+    }
 
     this.applyDamage(target, outcome.damage);
     return true;
+  }
+
+  /**
+   * Float a receipt off a body for one swing, whatever the swing came to.
+   *
+   * The cell travels with it rather than the actor id alone, because by the time
+   * anything draws this the body may be gone — a killing blow deletes its target
+   * on the same tick, and the number is the only thing left saying what
+   * happened.
+   *
+   * Silently does nothing for a body that cannot be located, which is the honest
+   * answer: a receipt has to hang somewhere, and there is nowhere to hang it.
+   */
+  private floatSwing(
+    target: ActorRuntime,
+    outcome: SwingOutcome,
+    amount: number,
+  ) {
+    const loc = this.tryLocate(target);
+    if (!loc) return;
+
+    const number: DamageNumber = {
+      id: `hit-${this.nextDamageId++}`,
+      targetId: target.id,
+      outcome,
+      amount,
+      x: loc.x,
+      y: loc.y,
+      z: loc.z,
+      stackIndex: loc.stackIndex,
+      elapsedMs: 0,
+    };
+    this.pendingDamage.push(number);
+    this.liveDamage.push(number);
   }
 
   /** Remember who hit whom, for the brains' next round of decisions. */
@@ -1717,21 +1785,7 @@ export class GameSession implements PlaySession {
     const before = this.hpOf(target);
     if (before === null) return;
 
-    const loc = this.tryLocate(target);
-    if (loc) {
-      const number: DamageNumber = {
-        id: `hit-${this.nextDamageId++}`,
-        targetId: target.id,
-        amount,
-        x: loc.x,
-        y: loc.y,
-        z: loc.z,
-        stackIndex: loc.stackIndex,
-        elapsedMs: 0,
-      };
-      this.pendingDamage.push(number);
-      this.liveDamage.push(number);
-    }
+    this.floatSwing(target, "hit", amount);
 
     const after = before - amount;
     target.hp = Math.max(0, after);
@@ -1789,7 +1843,7 @@ export class GameSession implements PlaySession {
    * caller of `resolveBattler` would be a body that fights with its sword and
    * one that does not, depending on who asked.
    */
-  private battlerOf(actor: ActorRuntime): BattlerDef | null {
+  private battlerOf(actor: ActorRuntime): FightingStats | null {
     const loc = this.tryLocate(actor);
     if (!loc) return null;
     const def = this.tilesById[loc.placed.tileId];
