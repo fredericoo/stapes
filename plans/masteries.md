@@ -776,21 +776,60 @@ only an exploit while death is cheap, and it is not going to be: **the game is
 going to be permadeath**, which prices the strategy at the whole character. Left
 exactly as it is, deliberately.
 
-## Phase 4 — the panels
+## Phase 4 — the panels ✅ done
 
 Demoable as: an Equipment panel that shows what you are good at, and a rat you
 can size up before you swing.
 
-- Mastery list under the equipment slots: only those above zero, ordered by
-  level descending, a progress bar each. Masteries ride beside
-  `GameSnapshot.equipment`, which is already owner-private — what you are good at
-  is yours, the same as what is in your bag.
-- ⭐R beside the name on inspect.
-- **The live `q` per requirement, on the item you are holding.** The editor
-  cannot show this because it has no wielder, and without it the single most
-  surprising rule in the system — that the worst ratio decides — is invisible to
-  the player. A weapon held back by a Toughness requirement it never trains just
-  reads as broken.
+Three readings, in the order a decision is made in: **what the thing in my hand
+asks of me, what I am good at, and how hard is that.**
+
+- **`WeaponDemands`**, directly under the hand it is about. Every requirement one
+  by one against your own level, with the worst of them marked *holding it back*
+  and a plain sentence for what the ratio comes to. The tile editor cannot show
+  this and never will: an author writes what a weapon asks, and only a player has
+  the other half of the comparison. Absent entirely for bare hands and for a
+  weapon that asks nothing — a heading over an empty list would make a point of a
+  rule that is not in play.
+- **`MasteryList`**, only the masteries above zero, best first, a bar each. The
+  sparseness is the statement: a body that has never held a bow has no opinion
+  about Ranged, and a row reading "Ranged 0" would claim the opposite.
+- **⭐ over the head of whatever you are pointing at**, and nothing else's. A
+  number on every rat in a field turns the world into a spreadsheet; sizing
+  something up is a thing you do to one creature, deliberately. Look mode is how
+  that is asked without starting a fight.
+
+### What the wire needed
+
+- **⭐ rides on `ActorSnapshot` and is broadcast**, unlike everything else about a
+  body's competence. What you are carrying is yours because nobody else's frame
+  can show it; a ⭐ is the opposite — a rat whose difficulty you can only discover
+  by losing to it is a rat nobody can make a decision about. It travels *inside*
+  `HpPatch` rather than on its own channel: both answer "what is this body right
+  now", and a creature's ⭐ never moves at all.
+- **The raw experience travels, not the levels.** The levels are derivable and
+  the part-way-there is not, and a bar that could only move when the level did
+  would sit still through a dozen fights and then jump. "Nothing is happening" is
+  exactly the wrong thing to say to somebody who has just spent ten minutes
+  fighting rats.
+- **So the block had to be replaced rather than edited.** Identity is what tells
+  the renderer to hand it on — the same contract the kit has — and a block
+  mutated in place is the same object on every frame. Phase 3 had argued for
+  mutation on the grounds that nobody downstream held a copy; putting it on the
+  snapshot is what made that false. One small allocation per landed blow, on a
+  tick already broadcasting a damage number.
+- **`masteries` is its own addressed message**, beside `equipment` and `tags` and
+  on the same terms: different per socket, so folding it into the patch would
+  turn one serialization per tick into one per player. It is the busiest of the
+  three by a long way — about one per landed blow — and the change queue is what
+  collapses a fight's worth of them into one send per flush.
+
+### What is not there
+
+Nothing for **other people's** masteries, and nothing needs to be: their ⭐ is
+broadcast and the rest is theirs. There is also no readout of the reward
+multiplier — what a given fight is *worth* — which is the number a player will
+work out for themselves from ⭐ against ⭐ long before it is worth a panel.
 
 ---
 

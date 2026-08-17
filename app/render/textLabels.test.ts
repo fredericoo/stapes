@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { PLAYER_TILE_ID } from "../game/constants";
-import { displayNameFor, bodyNameFor } from "../game/displayName";
+import { displayNameFor, bodyNameFor, sizedUpName } from "../game/displayName";
 import type { TileDef } from "../lib/types";
 import { labelScreenPosition, stackingOrder } from "./textLabels";
 
@@ -218,5 +218,32 @@ describe("naming a speaker", () => {
     expect(
       bodyNameFor({ actorId: "npc:1,2,0,1", tileId: "ghost" }, tilesById),
     ).toBeTruthy();
+  });
+});
+
+/**
+ * Sizing something up before swinging at it.
+ *
+ * The ⭐ over a head is the only place the reward curve's own number is shown to
+ * a player, and it is the one label nobody can check by reading the renderer:
+ * confirming it in the world means walking to a rat.
+ */
+describe("sizedUpName", () => {
+  it("adds the ⭐ to whatever is being pointed at", () => {
+    expect(sizedUpName("Rat", 8, true)).toBe("Rat ⭐8");
+  });
+
+  /**
+   * Everything else in the field stays a name. A number over every head would
+   * turn a world into a spreadsheet, which is the whole reason this is gated on
+   * being singled out rather than on having a ⭐ at all.
+   */
+  it("leaves every other body alone", () => {
+    expect(sizedUpName("Rat", 8, false)).toBe("Rat");
+  });
+
+  /** A crate is pointable and has no opinion about fighting. */
+  it("says nothing extra about a body with no ⭐ to give", () => {
+    expect(sizedUpName("Barrel", null, true)).toBe("Barrel");
   });
 });

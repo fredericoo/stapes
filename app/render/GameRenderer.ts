@@ -14,7 +14,7 @@ import type {
   PlaySession,
 } from "../game/GameSession";
 import { PLAYER_TILE_ID } from "../game/constants";
-import { bodyNameFor } from "../game/displayName";
+import { bodyNameFor, sizedUpName } from "../game/displayName";
 import type { Equipment } from "../game/equipment";
 import type { MasteryXp } from "../lib/mastery";
 import type { OpenedContainer, SlotRef } from "../game/itemMoves";
@@ -1555,16 +1555,9 @@ export class GameRenderer {
         { actorId: actor.id, tileId: actor.tileId },
         this.tilesById,
       );
-      // **Only on the one you are pointing at.** A ⭐ over every head would put a
-      // number on every rat in a field and turn the world into a spreadsheet;
-      // sizing something up is a thing you do to one creature, deliberately,
-      // before deciding whether to swing at it. Pointing is how that is asked
-      // here — see `GameSnapshot.targetId`, which look mode sets without
-      // starting a fight.
-      const sized =
-        actor.id === snap.targetId && actor.rating !== null
-          ? `${name} ⭐${actor.rating}`
-          : name;
+      // Pointing is how sizing-up is asked here — see `GameSnapshot.targetId`,
+      // which look mode sets without starting a fight.
+      const sized = sizedUpName(name, actor.rating, actor.id === snap.targetId);
       const fraction = healthFraction(actor.hp, actor.maxHp);
       into.push({
         id: `name:${actor.id}`,

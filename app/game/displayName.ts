@@ -112,3 +112,28 @@ export function bodyNameFor(
   // deleted tile id — and the words still have to be attributed to something.
   return tilesById[body.tileId]?.name ?? displayNameFor(body.actorId);
 }
+
+/**
+ * What to call a body you are *sizing up*, which is the name plus its ⭐.
+ *
+ * **Only ever the one being pointed at.** A ⭐ over every head would put a number
+ * on every rat in a field and turn the world into a spreadsheet; sizing
+ * something up is a thing you do to one creature, deliberately, before deciding
+ * whether to swing at it. Look mode is how that is asked without starting a
+ * fight.
+ *
+ * Its own function rather than a line in the renderer because it is a decision
+ * about *what a label says* — and because that is the kind of decision that is
+ * quietly wrong for months if the only way to check it is to walk to a rat.
+ *
+ * Falls back to the bare name for anything with no ⭐ to give: a crate is
+ * pointable and has no opinion about fighting.
+ */
+export function sizedUpName(
+  name: string,
+  rating: number | null,
+  singledOut: boolean,
+): string {
+  if (!singledOut || rating === null) return name;
+  return `${name} ⭐${rating}`;
+}
