@@ -405,6 +405,9 @@ const EMPTY_ATTACKERS: readonly string[] = [];
  */
 const NO_TAGS: readonly string[] = [];
 
+/** Shared empty list for a tile nobody in the world is standing on. */
+const NO_ACTORS: readonly string[] = [];
+
 /**
  * Which way to turn to face a neighbouring cell.
  *
@@ -627,6 +630,31 @@ export class GameSession implements PlaySession {
   private readonly tilesById: Record<string, TileDef>;
   /** Insertion-ordered, which is what makes {@link tick} deterministic. */
   private readonly actors = new Map<string, ActorRuntime>();
+  /**
+   * Who is standing on each tile, so {@link nearestOnTile} answers from the
+   * handful of bodies that could possibly match rather than from every actor
+   * alive.
+   *
+   * **This is what stops brains being quadratic.** A `nearest` selector is
+   * asked fresh every brain tick — that is the whole point of it, and
+   * `app/lib/brain.ts` says so — so a world of five hundred creatures each
+   * looking for the nearest player was walking five hundred actors five hundred
+   * times, five times a second, to find the two people in it.
+   *
+   * Sound because an actor's tile is fixed for as long as they exist. A body is
+   * placed once and adopted rather than rewritten, and decay explicitly refuses
+   * to transform anything carrying an owner — so the only events that can move
+   * an entry here are the ones that add or remove an actor, which is why
+   * {@link forgetTileIndex} hangs off exactly those. Rebuilt lazily rather than
+   * maintained in place: spawning reads the board to find the new body anyway,
+   * and a world where nobody joins or dies builds this once and keeps it for
+   * ever.
+   *
+   * Never trusted on its own — see the tile check in {@link nearestOnTile}. An
+   * index that is over-inclusive is a wasted comparison; treating it as the
+   * final word would make any drift a wrong answer instead.
+   */
+  private tileIndex: Map<string, string[]> | null = null;
   private readonly spawnAt: Coord & { stackIndex: number };
   /**
    * Cells holding a pressure plate, so settling reads a handful of columns
@@ -919,7 +947,18 @@ export class GameSession implements PlaySession {
       memo: null,
     };
     this.actors.set(id, actor);
+    this.forgetTileIndex();
     return actor;
+  }
+
+  /**
+   * Drop the tile index, to be rebuilt on the next question that needs it.
+   *
+   * Called from the three places that add or remove an actor, and from nowhere
+   * else — see {@link tileIndex} for why that is the complete list.
+   */
+  private forgetTileIndex() {
+    this.tileIndex = null;
   }
 
   /**
@@ -1014,6 +1053,7 @@ export class GameSession implements PlaySession {
    */
   despawn(id: string) {
     if (!this.actors.delete(id)) return;
+    this.forgetTileIndex();
     this.map = despawnActor(this.map, id);
   }
 
@@ -1673,6 +1713,7 @@ export class GameSession implements PlaySession {
    */
   private kill(target: ActorRuntime) {
     this.actors.delete(target.id);
+    this.forgetTileIndex();
     this.pendingDeaths.push(target.id);
     this.map = despawnActor(this.map, target.id);
     this.pendingHurt.delete(target.id);
@@ -1851,9 +1892,15 @@ export class GameSession implements PlaySession {
   ): string | null {
     let best: string | null = null;
     let bestSteps = Infinity;
-    for (const actor of this.actors.values()) {
-      if (actor.id === selfId) continue;
+    for (const id of this.actorsOnTile(tileId)) {
+      if (id === selfId) continue;
+      const actor = this.actors.get(id);
+      if (!actor) continue;
       const loc = this.tryLocate(actor);
+      // The tile is re-checked against the board rather than taken from the
+      // index. Positions are read live here — the index only ever says who is
+      // worth asking about — so an entry that has gone stale costs a lookup
+      // instead of naming the wrong body.
       if (!loc || loc.placed.tileId !== tileId) continue;
       const steps = Math.abs(loc.x - from.x) + Math.abs(loc.y - from.y);
       if (steps < bestSteps) {
@@ -1862,6 +1909,32 @@ export class GameSession implements PlaySession {
       }
     }
     return best;
+  }
+
+  /**
+   * Everybody standing on a named tile, in the order they joined the world.
+   *
+   * Insertion order is inherited from {@link actors} and is load-bearing for the
+   * same reason it is there: two bodies exactly as far away must resolve the
+   * same way on every run, or a seeded world stops being reproducible.
+   */
+  private actorsOnTile(tileId: string): readonly string[] {
+    this.tileIndex ??= this.buildTileIndex();
+    return this.tileIndex.get(tileId) ?? NO_ACTORS;
+  }
+
+  private buildTileIndex(): Map<string, string[]> {
+    const index = new Map<string, string[]>();
+    for (const actor of this.actors.values()) {
+      const loc = this.tryLocate(actor);
+      // No body on the board, so nothing to be nearest to. They will be indexed
+      // whenever the next spawn or death rebuilds this.
+      if (!loc) continue;
+      const on = index.get(loc.placed.tileId);
+      if (on) on.push(actor.id);
+      else index.set(loc.placed.tileId, [actor.id]);
+    }
+    return index;
   }
 
   /** Where an actor is standing, or null once they are off the board. */

@@ -534,6 +534,38 @@ describe("noticing you", () => {
     expect(seen.size).toBeLessThanOrEqual(NOTICE_CELLS);
   });
 
+  /**
+   * Regression shape: `nearest` is answered from an index of who is standing on
+   * which tile, built the first time anything asks and kept until the cast
+   * changes. A creature that had already looked once before somebody joined
+   * would go on answering from the world as it was — so a deer would never
+   * notice anybody who arrived after it, for as long as the object lived, which
+   * on a server is until the next eviction.
+   */
+  it("notices somebody who joins after it has already looked", () => {
+    let map = field(9);
+    map = replaceStack(map, -9, -9, 0, [{ tileId: "grass" }]);
+    map = withDeer(map, 0, 0, "cat");
+    // Driven, and standing well outside what the cat looks at. Somebody has to
+    // actually be here for a brain to run at all, and this one is far enough
+    // away that the cat looks, finds them, ignores them — and has built the
+    // index by the time bob arrives.
+    map = withPlayerAt(map, 9, 0);
+    const session = new GameSession(map, noticing, ["alice"], {
+      x: -9,
+      y: -9,
+      z: 0,
+      stackIndex: 1,
+    });
+    advance(session, BRAIN_TICK_MS * 2);
+    expect(deerCell(session)).toBe("0,0");
+
+    session.spawn("bob", { x: NOTICE_CELLS, y: 0, z: 0 });
+    advance(session, BRAIN_TICK_MS * 4);
+
+    expect(deerCell(session)).not.toBe("0,0");
+  });
+
   it("keeps chasing the one that set it off, not whoever is nearest now", () => {
     let map = field(9);
     map = replaceStack(map, -9, -9, 0, [{ tileId: "grass" }]);
