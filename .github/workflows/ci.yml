@@ -1,0 +1,98 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A branch that is pushed twice in a minute does not need the first run's
+# answer. Main is excluded: its runs are the record of what was green when it
+# landed, and cancelling one leaves a commit nobody ever checked.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+env:
+  # `wrangler types` runs in the typecheck step and has no business phoning
+  # home from a build machine.
+  WRANGLER_SEND_METRICS: "false"
+
+jobs:
+  # Types and the two deterministic suites. Fast, and the only ones whose
+  # failure always means somebody broke something.
+  test:
+    name: types and tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Generates `react-router` route types and `worker-configuration.d.ts`
+      # before compiling, so a binding the deploy does not have fails here.
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Unit tests
+        run: pnpm test:unit
+
+      # Runs inside workerd against real Durable Object storage rather than a
+      # stub. Both bugs that ever shipped in `workers/GameServer.ts` lived in
+      # the load/restore path and were invisible to a node test, so this is the
+      # suite that has to run on the runtime it deploys to.
+      - name: Worker tests
+        run: pnpm test:workers
+
+  # The renderer's draw-call, mesh and frame budgets. Its own job because it
+  # boots a dev server and a browser, and because a frame-time p95 on a shared
+  # runner is the one thing here that can fail without anybody having done
+  # anything — `e2e/renderer-perf.spec.ts` already reads `CI` and switches to
+  # the looser budget, and Actions sets it. The structure caps do not move.
+  perf:
+    name: renderer budgets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Chromium alone: the Playwright config runs a single `Desktop Chrome`
+      # project, and pulling the other two engines is a minute of download per
+      # run for browsers nothing opens.
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      # Playwright starts `pnpm dev` itself — see `webServer` in
+      # `playwright.config.ts`.
+      - name: Renderer perf
+        run: pnpm test:perf
+
+      # The trace from a retried failure, which is the only thing that makes a
+      # budget miss diagnosable after the runner is gone.
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore
