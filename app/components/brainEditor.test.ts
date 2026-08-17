@@ -192,7 +192,7 @@ describe("offering selectors", () => {
     const authored = normalizeTiles(tilesJson as unknown[]);
     const offered = bodyTileIds(authored);
 
-    expect(offered).toEqual(["player", "cat", "deer", "rat", "snake"]);
+    expect(offered).toEqual(["player", "cat", "deer", "rat", "snake", "wolf"]);
     expect(offered.length).toBeLessThan(authored.length / 4);
   });
 });

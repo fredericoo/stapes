@@ -7,7 +7,7 @@ import {
   resolveBattler,
 } from "../lib/battler";
 import { resolveWeapon, type WeaponItem } from "../lib/item";
-import type { Mastery } from "../lib/mastery";
+import { experienceMultiplier, type Mastery, rating } from "../lib/mastery";
 import { normalizeTiles } from "../lib/types";
 import { attackIntervalMs, rollAttack } from "./combat";
 import { TICK_MS } from "./constants";
@@ -265,6 +265,122 @@ describe("the authored ladder", () => {
       const result = duel(fists(player), fists(bodyOf(id)), new Rng(1));
       expect(result.winner).not.toBeNull();
     }
+  });
+});
+
+/**
+ * What each rung is worth, which is the other half of a ladder.
+ *
+ * A world can have creatures at every difficulty and still be a dead end: if
+ * nothing on it pays at the ⭐ a player is standing on, they have no way up. The
+ * rungs are asserted above; this is about the gaps between them.
+ */
+describe("the ladder pays for climbing it", () => {
+  const ratingOf = (id: string) => rating(bodyOf(id).masteries);
+  const CREATURES = ["rat", "deer", "cat", "snake", "wolf"];
+
+  /**
+   * The hole this closed. A deer deals no damage and cannot be cornered into
+   * winning, so if it ever rates above something that fights back, hunting deer
+   * is the safest and best-paid thing in the world and everybody does it.
+   *
+   * The fix was to re-author the deer rather than to special-case it: its ⭐ was
+   * carried almost entirely by an Agility authored for how hard it is to *hit*,
+   * back when nothing read a creature's masteries except its own stat block.
+   */
+  it("never rates the harmless deer above anything that can hurt you", () => {
+    for (const id of CREATURES) {
+      if (id === "deer") continue;
+      expect(ratingOf("deer")).toBeLessThan(ratingOf(id));
+    }
+  });
+
+  /** And so a rat, which bites back, is worth more than a deer, which does not. */
+  it("pays a fresh player more for a rat than for a deer", () => {
+    const me = ratingOf("player");
+    expect(experienceMultiplier(ratingOf("rat"), me)).toBeGreaterThan(
+      experienceMultiplier(ratingOf("deer"), me),
+    );
+  });
+
+  /**
+   * **No rung a player passes through is unpaid.** Swept one ⭐ at a time from
+   * where a fresh player starts to the top of what the world has, because the
+   * gaps are what a table of five creatures cannot show you: every rung is fine
+   * on its own and the hole is between two of them.
+   *
+   * Half rate is the bar. Below that a fight is worth having only for what it
+   * drops, and the design has nothing to drop yet.
+   */
+  it("leaves nothing to fight at no ⭐ between the bottom and the top", () => {
+    const top = Math.max(...CREATURES.map(ratingOf));
+    for (let stars = ratingOf("player"); stars <= top; stars++) {
+      const best = Math.max(
+        ...CREATURES.map((id) => experienceMultiplier(ratingOf(id), stars)),
+      );
+      expect(best).toBeGreaterThan(0.5);
+    }
+  });
+
+  /**
+   * And the top of the ladder is the top: past the best thing in the world there
+   * is nothing left to earn from, which is a content problem rather than a bug
+   * and is worth having stated somewhere that fails when it stops being true.
+   */
+  it("runs out above the best thing in the world", () => {
+    const top = Math.max(...CREATURES.map(ratingOf));
+    const best = Math.max(
+      ...CREATURES.map((id) => experienceMultiplier(ratingOf(id), top * 2)),
+    );
+    expect(best).toBeLessThan(0.5);
+  });
+});
+
+/**
+ * The wolf: the rung above the snake, and the case natural weapons exist for.
+ */
+describe("the wolf", () => {
+  const wolf = bodyOf("wolf");
+
+  /**
+   * **Fast *and* heavy**, which is the pair one Fist number could not have said.
+   * Derive damage and speed from a single mastery and the harder-hitting animal
+   * is the slower one by construction — so a wolf would have been unauthorable,
+   * and the animal in that slot would have had to be a bigger snake.
+   */
+  it("swings faster than the snake and hits harder than the rat", () => {
+    expect(fists(wolf).spd).toBeGreaterThan(fists(bodyOf("snake")).spd);
+    expect(fists(wolf).damage).toBeGreaterThan(fists(bodyOf("rat")).damage);
+  });
+
+  /** It stands above everything else, which is what makes it the next rung. */
+  it("rates above every other creature in the world", () => {
+    for (const id of ["rat", "deer", "cat", "snake"]) {
+      expect(rating(wolf.masteries)).toBeGreaterThan(rating(bodyOf(id).masteries));
+    }
+  });
+
+  /**
+   * What makes it a rung rather than a bigger snake: **it closes.** The snake
+   * coils and waits, and walking away from a wolf is the first thing on the
+   * ladder that does not work.
+   */
+  it("is the fastest thing on the map on its feet", () => {
+    const walkMs = (id: string) => byId[id]!.walkDurationMs ?? Infinity;
+    for (const id of ["rat", "deer", "cat", "snake"]) {
+      expect(walkMs("wolf")).toBeLessThan(walkMs(id));
+    }
+  });
+
+  /** A wall for a fresh player, and a fight for somebody who has earned one. */
+  it("is out of reach until the sword is learnt and then merely hard", () => {
+    const fresh = winRate(fists(bodyOf("player")), fists(wolf));
+    const veteran = playerAt("blade", 22);
+    const armedRate = winRate(armed(veteran, "rusty-sword"), fists(wolf));
+
+    expect(fresh).toBeLessThan(0.1);
+    expect(armedRate).toBeGreaterThan(fresh);
+    expect(armedRate).toBeLessThan(0.6);
   });
 });
 

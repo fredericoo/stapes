@@ -1,10 +1,21 @@
 import { describe, expect, it } from "vitest";
 import {
+  BENEATH_YOU_EXPONENT,
+  experienceMultiplier,
   learningRate,
+  MAX_MASTERY,
   MAX_MASTERY_RATIO,
+  MAX_XP_MULTIPLIER,
+  MIN_RATING,
+  masteriesFromXp,
   masteryRatio,
+  NOTHING_BELOW_RATIO,
+  rating,
   trainingCeiling,
   UNREQUIRED_RATIO,
+  levelForXp,
+  xpForLevel,
+  xpFromMasteries,
 } from "./mastery";
 
 /**
@@ -144,5 +155,139 @@ describe("trainingCeiling", () => {
     expect(
       masteryRatio({ blunt: trainingCeiling(requirement) }, { blunt: requirement }),
     ).toBe(MAX_MASTERY_RATIO);
+  });
+});
+
+/**
+ * Experience, and the level read out of it.
+ *
+ * The pair has to round-trip exactly, because seeding is what a new player is:
+ * the authored block becomes experience and the level is read straight back out
+ * of it, and any drift there is a player who starts one point below what the
+ * tile says.
+ */
+describe("the experience curve", () => {
+  it("reads back exactly the level it was seeded from", () => {
+    for (const level of [0, 1, 5, 40, 99, MAX_MASTERY]) {
+      expect(levelForXp(xpForLevel(level))).toBe(level);
+    }
+  });
+
+  it("holds the level until the next point is paid for in full", () => {
+    const level = 7;
+    const nextPoint = xpForLevel(level + 1);
+    expect(levelForXp(nextPoint - 1)).toBe(level);
+    expect(levelForXp(nextPoint)).toBe(level + 1);
+  });
+
+  /** Each point costs more than the last, which is the whole shape of it. */
+  it("makes every point dearer than the one before", () => {
+    for (let level = 1; level < 20; level++) {
+      const thisPoint = xpForLevel(level) - xpForLevel(level - 1);
+      const nextPoint = xpForLevel(level + 1) - xpForLevel(level);
+      expect(nextPoint).toBeGreaterThan(thisPoint);
+    }
+  });
+
+  /**
+   * Spent rather than banked. Experience past the top of the scale buying an
+   * invisible level would be a player wondering why nothing was happening.
+   */
+  it("stops at the top of the scale", () => {
+    expect(levelForXp(xpForLevel(MAX_MASTERY) * 100)).toBe(MAX_MASTERY);
+  });
+
+  it("survives a round trip through a whole block", () => {
+    const masteries = { blade: 12, toughness: 8, agility: 16 };
+    expect(masteriesFromXp(xpFromMasteries(masteries))).toEqual(masteries);
+  });
+
+  /** Sparse in, sparse out — an untrained mastery is absent, not a zero. */
+  it("writes nothing down for a mastery nobody has trained", () => {
+    expect(xpFromMasteries({ blade: 0 })).toEqual({});
+    expect(masteriesFromXp({ blade: 0, blunt: 1 })).toEqual({});
+  });
+});
+
+describe("rating", () => {
+  /** The weights sum to one, which is what puts ⭐ on the mastery scale. */
+  it("rates a body that is 40 at everything at 40", () => {
+    const even = Object.fromEntries(
+      ["fist", "blade", "blunt", "ranged", "arcane", "toughness", "agility"].map(
+        (mastery) => [mastery, 40],
+      ),
+    );
+    expect(rating(even)).toBe(40);
+  });
+
+  /**
+   * Breadth is free. A swordsman who takes up the bow is no harder to reward
+   * for it, which is what stops hyper-specialisation being the only sane way to
+   * play.
+   */
+  it("counts only the best weapon mastery, so a second one is free", () => {
+    const swordsman = { blade: 40, toughness: 10, agility: 10 };
+    expect(rating({ ...swordsman, ranged: 30 })).toBe(rating(swordsman));
+  });
+
+  it("takes whichever weapon mastery is highest", () => {
+    expect(rating({ blade: 10, blunt: 40 })).toBe(rating({ blade: 40, blunt: 10 }));
+  });
+
+  /** Rating is a divisor, so nothing that fights is allowed to rate nothing. */
+  it("never rates anything below the floor", () => {
+    expect(rating({})).toBe(MIN_RATING);
+  });
+});
+
+/**
+ * What a fight is worth, by how far above or below you it is.
+ *
+ * The curve nobody can eyeball, and the one that decides whether the world has
+ * anything worth fighting in it.
+ */
+describe("experienceMultiplier", () => {
+  it("pays the plain rate against something exactly your equal", () => {
+    expect(experienceMultiplier(20, 20)).toBe(1);
+  });
+
+  /** Continuous at parity: the two arms meet rather than step. */
+  it("meets itself at parity from both sides", () => {
+    const yours = 100;
+    const justBelow = experienceMultiplier(yours - 0.001, yours);
+    const justAbove = experienceMultiplier(yours + 0.001, yours);
+    expect(justBelow).toBeCloseTo(1, 3);
+    expect(justAbove).toBeCloseTo(1, 3);
+  });
+
+  it("pays nothing at all beneath the cliff", () => {
+    expect(experienceMultiplier(NOTHING_BELOW_RATIO * 20 - 0.001, 20)).toBe(0);
+  });
+
+  /**
+   * The cliff is a cliff rather than a fade, and it lands where a payout would
+   * have stopped reading as a payout — a fortieth of a percent.
+   */
+  it("gives up a figure too small to read as a number", () => {
+    expect(NOTHING_BELOW_RATIO ** BENEATH_YOU_EXPONENT).toBeLessThan(0.005);
+  });
+
+  it("falls away steeply for anything beneath you", () => {
+    expect(experienceMultiplier(14, 20)).toBeLessThan(0.1);
+    expect(experienceMultiplier(18, 20)).toBeLessThan(0.5);
+  });
+
+  it("rises for anything above you and then stops", () => {
+    expect(experienceMultiplier(24, 20)).toBeGreaterThan(1);
+    expect(experienceMultiplier(200, 20)).toBe(MAX_XP_MULTIPLIER);
+  });
+
+  it("rises with the gap all the way to the cap", () => {
+    let previous = 0;
+    for (let theirs = 10; theirs <= 28; theirs++) {
+      const paid = experienceMultiplier(theirs, 20);
+      expect(paid).toBeGreaterThanOrEqual(previous);
+      previous = paid;
+    }
   });
 });

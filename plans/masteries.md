@@ -285,6 +285,36 @@ monotonic and uncheatable. Gear no longer *bounds* R the way the old training
 wall did — learning fades rather than stopping — but it still paces it, which is
 enough: the two systems agree without creating the exploit.
 
+### The experience curve
+
+A mastery is a level; what is stored is the experience under it.
+
+```
+xpForLevel(L) = XP_FOR_FIRST_LEVEL × L²      (4 × L²)
+levelForXp(x) = min(100, floor(√(x / 4)))
+```
+
+**Quadratic, because Rating makes the top of the scale matter more than the
+bottom.** Half of R is the best weapon mastery, so on a linear curve a player's ⭐
+would climb at a constant rate for ever and outrun everything the world has. Here
+the *n*th point costs `2n − 1` firsts, so the ladder is something climbed rather
+than a number that accrues.
+
+The unit is a point of damage. Four of them at parity buys the first point of a
+mastery, which puts a fresh player's first point of Blade about a dozen rats away
+— near enough to the fight that caused it to read as cause and effect, and far
+enough not to be confetti.
+
+**A new player's masteries are seeded from the authored block as experience**, so
+from the first tick every mastery is derived from one number apiece and nothing
+reconciles "what you were given" against "what you have earned". Re-authoring the
+`player` tile moves where new players begin and leaves everybody else where they
+are, which is the honest answer — what a mastery records is that something
+already happened.
+
+Capped at 100: experience past the top of the scale is spent, not banked. A
+mastery counting invisibly upward is a player wondering why nothing is happening.
+
 ### Experience
 
 ```
@@ -319,6 +349,14 @@ counts your best weapon rather than the one you happen to be holding.
 Potential rather than actual, on both defensive rows, so armour never starves
 you of Toughness. On a dodge no damage was ever rolled, so potential is the
 attacker's damage ceiling — the most that blow could have been.
+
+**A miss pays nobody, and the open question is closed.** Phase 3 was to decide
+whether being missed should pay Agility, on the grounds that a fast defender is
+part of why weapons miss. It is not, in this model: `hitChance` is the weapon's
+accuracy times the wielder's `q²` and the defender contributes not one term to
+it. Paying them would pay Agility for something Agility did not do, and it would
+make standing in front of the least accurate thing in the world the best Agility
+farm in it. Dodging is already the contested event, and it already pays.
 
 ### Per-target diminishing returns
 
@@ -383,6 +421,11 @@ of them fight. **The system will be correct and the map will have nothing to
 train on** until content follows. Phase 3 is where that becomes visible, and it
 is worth authoring two or three creatures alongside it rather than discovering it
 afterwards.
+
+Phase 3 added the wolf and made the gap measurable rather than felt: `duel.test.ts`
+now sweeps the reward curve one ⭐ at a time and fails if any rung between the
+bottom and the top pays nothing. It passes, narrowly — see "What phase 3 proved,
+and what it did not".
 
 ---
 
@@ -605,61 +648,133 @@ A sword you have not learnt is worse than your own hands; meeting its requiremen
 makes it the best thing you own. That is the lesson in one table, and the harness
 asserts both halves of it.
 
-## Phase 3 — earning
+## Phase 3 — earning ✅ done
 
 Demoable as: kill rats until Blade stops climbing, then notice the rats have
 stopped paying.
 
-**Everything it needs from the fight already exists.** `AttackOutcome` carries
+**Everything it needed from the fight already existed.** `AttackOutcome` carries
 `missed`, `dodged`, `damage` and `potentialDamage`, which is exactly the four
-earning events' inputs; `learningRate` and `masteryRatio` are written and tested.
-What is missing is the storage, the Rating, and the `r` curve.
+earning events' inputs; `learningRate` and `masteryRatio` were written and tested
+in phase 2. What was missing was the storage, the Rating, and the `r` curve.
 
-- **Mastery XP on the runtime**, durable beside `equipment` and `tags` and
-  written in the same storage batch — the third thing a world owes continuity
-  for. Players only; creature masteries stay authored and fixed.
-- **The four earning events**, all off one `AttackOutcome`:
+Shipped:
 
-  | event | mastery | scales with |
-  |---|---|---|
-  | landed a blow | the held weapon's, × `learningRate` | `damage` |
-  | landed a blow | agility, small share | `damage` |
-  | took a blow | toughness | `potentialDamage` |
-  | dodged | agility | `potentialDamage` |
-  | was missed | nothing | — |
+- **The experience curve** in `app/lib/mastery.ts` — `MasteryXp`, `xpForLevel`,
+  `levelForXp`, and the seeding pair `xpFromMasteries` / `masteriesFromXp`. See
+  "The experience curve" above for why it is quadratic and why a fresh player is
+  seeded rather than floored.
+- **`rating` and `experienceMultiplier`**, beside the curve because the reward is
+  the only thing that reads a Rating and both are pure arithmetic on a block of
+  masteries.
+- **`app/game/experience.ts`**, holding what one swing is worth to each side.
+  Its own module beside `combat.ts` and for the same reason: pure functions of
+  one outcome, so every rule is testable by reading it. `attackerEarnings` and
+  `defenderEarnings` know nothing about how a body is found or where its
+  experience is kept.
+- **`masteryXp` on `ActorRuntime`**, durable beside `equipment` and `tags` under
+  its own `mast:` prefix and written in the same storage batch. Mutated in place
+  rather than replaced, unlike a kit: it changes on almost every landed blow and
+  nobody downstream holds a copy.
+- **`GameSession.bodyOf`**, where the two halves of a body meet — the authored
+  tile for everything that is a fact about it, the runtime for what it is good
+  at. A resident is handed the authored block untouched, which is the whole of
+  why a creature never improves: there is no runtime number to improve.
+- **Per-target diminishing returns**, on the runtime, not durable, recovering one
+  payout per ten quiet seconds.
 
-- **Rating** `R = round(0.5·bestWeapon + 0.3·toughness + 0.2·agility)`, and
-  `multiplier(r)` — `0` below `r = 0.5`, `r⁸` to 1, `min(2, r²)` above.
-- **Per-target diminishing returns** on the defensive pair, on the runtime and
-  not durable.
+### Three things learnt
 
-Worth deciding before starting: **whether being missed should pay Agility at
-all.** It currently pays nobody, on the grounds that a whiff is the attacker's
-failure — but a fast defender is part of why weapons miss, and the argument is
-not airtight now that evasion is contested rather than subtracted.
-- **Authored alongside**: creatures at rungs the player passes through, or the
-  phase demos as a dead end. The duel harness is the check — a new creature that
-  breaks the ladder fails `duel.test.ts` rather than a play session.
-  **The wolf is the first**, and its art already exists — it
-  is a `prop` today and needs `kind: battler`, a brain, a `moving` sprite state
-  and a natural weapon.
+**A creature's weapon masteries do nothing but set its ⭐.** Nothing on disk
+authors requirements on a natural weapon, so `q = 1` for every creature always,
+and Fist changes not one of a rat's fighting numbers. Only Toughness and Agility
+reach the stat block. That makes a creature's Fist a pure difficulty *label* —
+useful, because it is the dial that makes ⭐ agree with the fight, and dangerous,
+because nothing but a duel makes a lie in it visible.
 
-  It belongs above the snake, around `r = 1.2–1.4` for a player who has been
-  clearing snakes, which is the band the curve caps at. What makes it a rung
-  rather than a bigger snake is that it **closes**: the snake coils and waits,
-  and the wolf runs you down. `walkDurationMs` is authored per tile — rat 150,
-  deer 170, snake 320 — so a wolf near 140 is the fastest thing on the map and
-  the first creature walking away from does not work on.
+**Rating is equipment-free, so an armed player fights above their ⭐.** That is
+the design working rather than failing — gear counting would make stripping naked
+the optimal farm — but it means ⭐ is calibrated against bare fists, and a
+sword-armed ⭐22 beats a wolf that rates 28 about a third of the time. The
+creature ladder is pitched on the unarmed baseline, and a weapon is what closes
+the gap, which is exactly the lesson phase 2's sword table teaches.
 
-  Its pack is most of the way built already. The rat brain binds `pack` to
-  `{nearest, tileId: "rat"}` and has the `following` / `loitering` / `stuck`
-  states to go with it; the wolf's version converges on *prey* together rather
-  than merely clustering.
+**Seeding is lazy, and that is what makes it free.** A player's experience is
+read out of the authored block the first time anything asks for a body to fight
+with — the same trick `hp` uses, and for the same reason: at the moment an actor
+is created it may have no body on the board to read one from. A player who has
+never fought has no stored block at all, which is correct: their masteries are
+still exactly what the tile says, and the tile will say it again next time.
 
-  It is also the clearest case for natural weapons: rat is fast and light, snake
-  slow and heavy, wolf fast **and** heavy. One Fist number could not have said
-  that — it would have made the harder-hitting animal the slower one by
-  construction.
+### The deer, which broke the ladder
+
+Found by computing the ratings rather than by playing: **the deer rated ⭐10
+against the player's ⭐9 while dealing zero damage.** It was the highest-paying
+and the only risk-free target in the world, and killing one would have paid about
+five times a rat.
+
+Its ⭐ was carried almost entirely by an Agility of 40, authored in phase 2 for
+how hard it is to *hit* — back when nothing read a creature's masteries except
+its own stat block. Rating gave that number a second job it was never written
+for.
+
+Re-authored to Agility 24, so it rates ⭐7: below the rat, and below everything
+else that can fight back. It keeps most of its evasion — a deer's real defence is
+its legs, not its dodge — and `duel.test.ts` now asserts the general rule rather
+than the instance: **nothing harmless may rate above anything that can hurt you.**
+
+### The wolf
+
+Above the snake at ⭐28, and the first creature a player cannot simply walk away
+from. `walkDurationMs` 140 against the rat's 150 and the snake's 320.
+
+| | rat | deer | player | cat | snake | wolf |
+|---|---|---|---|---|---|---|
+| hit points | 11 | 16 | 16 | 15 | 22 | 30 |
+| damage | 2 | 0 | 4 | 4 | 8 | 6 |
+| ticks/swing | 26 | — | 42 | 38 | 60 | 29 |
+| ⭐ | 8 | 7 | 9 | 12 | 14 | 28 |
+
+It is the clearest case for natural weapons: rat fast and light, snake slow and
+heavy, **wolf fast and heavy**. One Fist number could not have said that — it
+would have made the harder-hitting animal the slower one by construction.
+
+Its pack converges on prey rather than clustering, and the mechanism is one
+transition's position in the list: `in_los` on the nearest player is reachable
+`from: "any"` and sits *above* the pack rules, so the moment a follower can see
+what its leader is running at, it stops following and starts hunting. There is no
+loitering half, unlike the rat's flock — a pack that stops once it is near its
+neighbour never arrives anywhere.
+
+**Wolves cannot call each other, and the brain is authored around that.** `heard`
+matches only what a *player* said: `GameSession.hear` is the server's to call and
+is deliberately not wired to `recordSpeech`, because a deer's yelp setting off
+every brain in earshot is a world's worth of behaviour rather than a side effect.
+The `hunting` state still howls on entry, which is flavour until that changes.
+
+Three of them are placed in the clearing at the forest edge past the snakes,
+which is what makes it a rung rather than a tile nobody has met.
+
+### What phase 3 proved, and what it did not
+
+A sweep of the reward curve one ⭐ at a time from a fresh player to the top of the
+world says **there is no rung where nothing pays** — that assertion is in
+`duel.test.ts`, and it is the one that catches a content gap before a play
+session does. Above the wolf there is nothing, which is stated there too.
+
+Two holes are knowingly open:
+
+- **Suicide-by-wolf is a Toughness farm.** Defensive experience is paid on
+  potential damage and there is no respawn cost, so feeding yourself to the
+  hardest thing in the world pays about two deaths per early point of Toughness.
+  It is the AFK-tanking hole wearing a hat: self-limiting, because the quadratic
+  curve and the falling multiplier grind it down, and not closed. The tighter fix
+  is the same one — capping defensive experience against damage dealt in the same
+  fight — and it needs per-fight bookkeeping the session still does not have.
+- **The ⭐18–24 stretch is the wolf or nothing.** The snake has stopped paying and
+  the wolf is a hard fight. That reads as a gate rather than a wall and is
+  probably fine, but it is the narrowest part of the ladder and the first place a
+  fifth creature belongs.
 
 ## Phase 4 — the panels
 
