@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_BATTLER, type BattlerDef } from "./battler";
 import type { PlateComparison } from "./interactions";
 import {
   hasAnyInteraction,
@@ -296,5 +297,31 @@ describe("interactionsForSave", () => {
   it("omits the field when nothing is enabled", () => {
     expect(interactionsForSave({})).toBeUndefined();
     expect(interactionsForSave(undefined)).toBeUndefined();
+  });
+
+  it("fills range and sight when a battler predates those fields", () => {
+    expect(
+      interactionsForSave({
+        battler: {
+          maxHp: 22,
+          atk: 4,
+          def: 0,
+          acc: 60,
+          flee: 40,
+          spd: 65,
+        } as BattlerDef,
+      }),
+    ).toEqual({
+      battler: {
+        maxHp: 22,
+        atk: 4,
+        def: 0,
+        acc: 60,
+        flee: 40,
+        spd: 65,
+        range: DEFAULT_BATTLER.range,
+        sight: { up: 0, down: 0 },
+      },
+    });
   });
 });

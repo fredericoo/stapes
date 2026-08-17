@@ -1,5 +1,5 @@
 import * as v from "valibot";
-import type { BattlerDef } from "./battler";
+import { DEFAULT_BATTLER, type BattlerDef } from "./battler";
 import type { BrainDef } from "./brain";
 import type { ItemDef } from "./item";
 import { itemForSave, MAX_CONTAINER_SIZE, resolveItem } from "./item";
@@ -911,6 +911,10 @@ export function interactionsForSave(
   // rather than spread so the saved file never shares a reference with the
   // draft the editor is still holding.
   const battler = interactions?.battler;
+  // `range` and `sight` were authored after the first creatures, so a tile
+  // sitting in `data/` (or an editor draft loaded from one) can still omit
+  // them. The schema fills the same defaults at parse time; writing them here
+  // is what stops a save from crashing on `.sight.up` of nothing.
   const savedBattler = battler
     ? {
         maxHp: battler.maxHp,
@@ -919,8 +923,11 @@ export function interactionsForSave(
         acc: battler.acc,
         flee: battler.flee,
         spd: battler.spd,
-        range: battler.range,
-        sight: { up: battler.sight.up, down: battler.sight.down },
+        range: battler.range ?? DEFAULT_BATTLER.range,
+        sight: {
+          up: battler.sight?.up ?? DEFAULT_BATTLER.sight.up,
+          down: battler.sight?.down ?? DEFAULT_BATTLER.sight.down,
+        },
       }
     : undefined;
   // Rebuilt field by field too, by the module that owns the union's arms —
