@@ -71,32 +71,38 @@ export const PERF_BUDGETS = {
    * spill + spherical torches). Half-blocks participate in sky flood.
    * Asserted in `app/lib/lighting.perf.test.ts` — not the editor frame probe.
    *
-   * This runs synchronously on any non-player map change — a push landing, a
-   * door switching — so the budget is counted in dropped frames, not in "does
-   * it finish". Measures ~25ms p50 / ~28ms p95 today. The old 200ms ceiling
-   * was wide enough to hide a 147ms stall, so keep this tight to the real
-   * number and treat a regression as a visible hitch rather than a warning.
+   * Guards the whole-map `computeLighting`, whose one production caller is
+   * `EditorRenderer.updateLighting`. Play does not go through it: `WorldRenderer`
+   * bakes through `ChunkedLighting` and a worker, so a push landing or a door
+   * switching costs a chunk somebody else bakes rather than a frame here. What
+   * the two still share is the flood underneath, and a cold window in play runs
+   * it synchronously through `bakeRegion` — so a regression measured here is a
+   * regression there too.
    *
-   * Was 30/55 against ~13ms p50 / ~19ms p95, which is what the same code still
-   * measures on the map as it stood before the tutorial. The tutorial did not
-   * make the bake slower; it made the fixture bigger — 5.2k cells to 16.5k, for
-   * 1.9× the time. This is the budget growing with the map on purpose, so the
-   * number to compare a future regression against is the p50 above.
+   * Measures ~15ms p50 today. The old 200ms ceiling was wide enough to hide a
+   * 147ms stall, so keep this tight to the real number and treat a regression
+   * as a visible hitch rather than a warning.
+   *
+   * Was 40/70 against ~25ms p50 / ~28ms p95, before the bake stopped covering
+   * levels the map has no content on and stopped rebuilding its working set
+   * every call.
+   *
+   * Was 30/55 against ~13ms p50 / ~19ms p95, which is what that code measured
+   * on the map as it stood before the tutorial. The tutorial did not make the
+   * bake slower; it made the fixture bigger — 5.2k cells to 16.5k, for 1.9× the
+   * time. So the number to compare a future regression against is the p50.
    *
    * Was 60/110 against ~23ms p50 / ~46ms p95, before the sky flood learned to
    * seed only its frontier and the gather stopped asking every wall tile
    * whether it was a lamp.
    *
-   * Deliberately not wide enough to swallow the occasional 50–60ms bake: one
-   * run in fifty or so is a GC pause rather than the baker, and the test takes
-   * enough samples that those land outside the percentile instead of being
-   * budgeted for. A ceiling raised to cover them would also cover a real 2×.
-   *
-   * The gap over the measured p95 is for the machine rather than for the code:
-   * a laptop under load runs the whole distribution ~8% slower, and a budget
-   * with no room for that fails on a busy afternoon and teaches everyone to
-   * re-run it. 1.4× the p95 is a slightly tighter ratio than the 30 this
-   * replaces held over its own.
+   * Held at 40 rather than followed down to the p50, because p95 over twenty
+   * samples is a coarse instrument: the bake allocates its output whatever else
+   * it reuses, so roughly one run in twenty wears a GC and lands near 28ms
+   * while the other nineteen sit at 15ms. Most of the gap is for that, and the
+   * rest is for the machine — a laptop under load runs the whole distribution
+   * ~8% slower, and a budget with no room for it fails on a busy afternoon and
+   * teaches everyone to re-run the suite.
    */
   lightingBakeMsP95: 40,
   lightingBakeMsP95Ci: 70,
