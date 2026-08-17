@@ -5,7 +5,7 @@ import {
   levelKey,
   type AutotileSlice,
   type MapFile,
-  type TileDef,
+  type StateSprites,
   type TileSprite,
 } from "./types";
 
@@ -149,7 +149,8 @@ export function resolveAutotileSlice(
  * else the first defined slice.
  */
 export function pickAutotileSprite(
-  tile: TileDef,
+  /** Any sprite holder — a def for the idle state, a {@link StateSprites} for the rest. */
+  tile: StateSprites,
   slice: AutotileSlice,
 ): TileSprite | undefined {
   const slices = tile.slices;

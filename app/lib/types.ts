@@ -80,7 +80,62 @@ export type AutotileSlice = number;
 
 export const AUTOTILE_SLICE_COUNT = 47;
 
-export type TileDef = {
+/**
+ * How a tile *looks* right now, as opposed to what it is or where it faces.
+ *
+ * A second axis beside {@link Direction} and {@link AutotileSlice}, and
+ * deliberately the one axis that changes nothing else: a walking deer is
+ * exactly as solid, as climbable and as heavy as a standing one. Anything that
+ * would change behaviour is a tile swap instead — see
+ * {@link SwitchInteraction} — because behaviour is read off the def, and two
+ * behaviours need two defs.
+ *
+ * **A state is read from the actor or the session, never from the placement.**
+ * That is what separates it from a swap, and it is a statement about audience
+ * before it is one about persistence: the map has one copy that everybody
+ * looking at the world sees, so a swap can only express something true for
+ * everyone. A door is open, full stop. Whether *you* have already emptied a
+ * quest chest is true of you and false of the player beside you, and writing it
+ * to the map would have to lie to one of you.
+ *
+ * - `idle` — the default, and not one state among the rest. It *is* the tile's
+ *   sprite; the others are sparse overrides on it. See {@link TileDef.states}.
+ * - `moving` — this body is crossing a cell or falling. Read from the
+ *   snapshot's live motion, which the client already interpolates.
+ *
+ * **Every state in this union must be driven by a renderer.** `attacking` and
+ * `open` were designed alongside `moving` and are specified in
+ * `plans/stateful-sprites.md`, but they are deliberately absent until the things
+ * that drive them exist: a swing on the wire, and a session that knows who has
+ * what open. A state nobody draws is a control in the editor that does nothing
+ * when you use it, and an authored sprite that never appears is indistinguishable
+ * from a bug — so each arrives with its driver, in the same change.
+ */
+export type SpriteState = "idle" | "moving";
+
+export const SPRITE_STATES: SpriteState[] = ["idle", "moving"];
+
+/** The non-idle states, which are the only ones {@link TileDef.states} keys. */
+export type OverrideSpriteState = Exclude<SpriteState, "idle">;
+
+/**
+ * The sprites for one state, keyed by whichever axis this tile's
+ * {@link TileType} uses.
+ *
+ * Exactly the three sprite fields {@link TileDef} carries inline, which is the
+ * point: a state does not get its own way of being directional. `TileDef` is
+ * structurally one of these, so the idle state needs no unwrapping.
+ */
+export type StateSprites = {
+  /** type === "simple" */
+  sprite?: TileSprite;
+  /** type === "directional" */
+  sprites?: Partial<Record<Direction, TileSprite>>;
+  /** type === "autotile" — sparse 0..46 */
+  slices?: Partial<Record<AutotileSlice, TileSprite>>;
+};
+
+export type TileDef = StateSprites & {
   id: string;
   name: string;
   height: TileHeight;
@@ -155,12 +210,21 @@ export type TileDef = {
    * ./interactions, which validate the on-disk shape.
    */
   interactions?: TileInteractions;
-  /** type === "simple" */
-  sprite?: TileSprite;
-  /** type === "directional" */
-  sprites?: Partial<Record<Direction, TileSprite>>;
-  /** type === "autotile" — sparse 0..46 */
-  slices?: Partial<Record<AutotileSlice, TileSprite>>;
+  /**
+   * Sprites for the non-idle {@link SpriteState}s, sparse at every level.
+   *
+   * Overrides rather than a required outer level, so the three sprite fields
+   * this type carries inline stay the idle state. That is what makes the whole
+   * axis free to add: every tile already on disk is correct as written — it is
+   * all-idle — and {@link normalizeTileDef} needs no new branch. Making state a
+   * required level would instead rewrite every autotile as 47 slices under
+   * `states.idle` and touch every consumer that walks sprites.
+   *
+   * Sparse *within* a state too: a state that authors only `n` and `s` falls
+   * back to idle facing east and west. See `resolveTileSprite`, which owns the
+   * order of that fallback.
+   */
+  states?: Partial<Record<OverrideSpriteState, StateSprites>>;
 };
 
 /** Whether this tile’s top is a stand/land surface. Default: true. */
@@ -442,6 +506,8 @@ export function clampLevel(z: number): number {
 
 /** Context for resolving which TileSprite a placement uses. */
 export type TileResolveContext = {
+  /** How this placement looks right now. Absent → {@link SpriteState} `idle`. */
+  state?: SpriteState;
   direction?: Direction;
   /** Required for autotile neighbor matching. */
   map?: MapFile;
@@ -547,18 +613,35 @@ export function normalizeTiles(raw: unknown[]): TileDef[] {
   return raw.map(normalizeTileDef);
 }
 
-/** All TileSprites on a def (for animation / light scans). */
-export function allTileSprites(tile: TileDef): TileSprite[] {
+/** The TileSprites one {@link StateSprites} holds, on this tile's own axis. */
+function stateSpritesOn(tile: TileDef, from: StateSprites): TileSprite[] {
   if (tile.type === "simple") {
-    return tile.sprite ? [tile.sprite] : [];
+    return from.sprite ? [from.sprite] : [];
   }
   if (tile.type === "directional") {
-    return DIRECTIONS.map((d) => tile.sprites?.[d]).filter(
+    return DIRECTIONS.map((d) => from.sprites?.[d]).filter(
       (s): s is TileSprite => s != null,
     );
   }
-  if (!tile.slices) return [];
-  return Object.values(tile.slices).filter((s): s is TileSprite => s != null);
+  if (!from.slices) return [];
+  return Object.values(from.slices).filter((s): s is TileSprite => s != null);
+}
+
+/**
+ * All TileSprites on a def, across every {@link SpriteState} (for animation /
+ * light scans).
+ *
+ * Every state, not only idle, and that is load-bearing rather than tidy: this
+ * feeds `tileCanEmitLight`, `maxLightRadius` and `tileLightVaries`, so a lantern
+ * that only glows while it is being carried would otherwise be left out of the
+ * bake — lit on screen and dark in the lighting, with nothing failing to say so.
+ */
+export function allTileSprites(tile: TileDef): TileSprite[] {
+  const out = stateSpritesOn(tile, tile);
+  for (const state of Object.values(tile.states ?? {})) {
+    if (state) out.push(...stateSpritesOn(tile, state));
+  }
+  return out;
 }
 
 export function isAnimated(tile: TileDef): boolean {

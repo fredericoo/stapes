@@ -24,6 +24,7 @@ import type {
   Frame,
   MapFile,
   PlacedTile,
+  SpriteState,
   TileDef,
   TilesetDef,
 } from "../lib/types";
@@ -41,7 +42,7 @@ import {
   tileEmissionPhase,
   tileLightVaries,
 } from "../lib/types";
-import { isMobileTile } from "../lib/interactions";
+import { hasSpriteStates, isMobileTile } from "../lib/interactions";
 import { getFrames } from "../lib/tileResolve";
 import { ChunkedLighting, type WorldRect } from "../lib/lightingChunks";
 import {
@@ -67,9 +68,19 @@ import {
   OUTLINE_ALPHA_UNIFORM,
   pulseAlphaAt,
 } from "./overlayMeshes";
-import { type SpriteQuadAssets, spriteQuadFor } from "./spriteQuad";
+import { animationKey, type SpriteQuadAssets, spriteQuadFor } from "./spriteQuad";
 import { PLAYER_TILE_ID } from "../game/constants";
 
+/**
+ * A separate mesh whose sprite changes over time — because it animates, because
+ * its {@link SpriteState} can change, or both.
+ *
+ * One registry for both rather than two, because they are the same operation
+ * seen at two speeds: point this mesh at a different {@link Frame}. A state
+ * change is only unusual in that it also replaces the list being indexed, which
+ * is why `def` and the cell ride along — enough to re-resolve without going back
+ * to the map for the placement.
+ */
 type AnimatedInstance = {
   mesh: THREE.Mesh;
   /** Instance key, so a cell's animated meshes can be dropped without a sweep. */
@@ -77,6 +88,12 @@ type AnimatedInstance = {
   frames: Frame[];
   tileset: TilesetDef;
   animKey: string;
+  /** What resolved {@link frames}, so a state change can resolve them again. */
+  def: TileDef;
+  placed: PlacedTile;
+  cell: { x: number; y: number; z: number };
+  /** The state {@link frames} were resolved for. */
+  state: SpriteState;
 };
 
 /** One quad the builder will emit, plus what decides how it is drawn. */
@@ -84,11 +101,7 @@ type BuildItem = Quad & {
   texture: THREE.Texture;
   /** Set when this tile gets its own mesh rather than joining a merged batch. */
   tileKey?: string;
-  anim?: {
-    frames: Frame[];
-    tileset: TilesetDef;
-    animKey: string;
-  };
+  anim?: Omit<AnimatedInstance, "mesh" | "key">;
 };
 
 const DEFAULT_BACKGROUND = sampleIllumination(12 * 60).background;
@@ -101,6 +114,20 @@ export type TileInstanceKey = {
   z: number;
   stackIndex: number;
 };
+
+/**
+ * The string one placement is addressed by across every per-frame index —
+ * motions, sprite states, separate meshes, ghosts.
+ *
+ * Exported because {@link WorldView.spriteStates} and
+ * {@link WorldView.tileMotions} are both keyed by it and both are filled in by
+ * the caller: two spellings of this would mean a state map whose keys silently
+ * match nothing, with no type error and no missing sprite to notice — just a
+ * deer that never animates.
+ */
+export function tileInstanceKey(k: TileInstanceKey): string {
+  return `${k.z}:${k.x},${k.y}:${k.stackIndex}`;
+}
 
 /**
  * Where a moving tile's solid volume is right now, in fractional cells and
@@ -140,6 +167,17 @@ export type WorldView = {
   minutesOfDay: number;
   /** Active lerps; each carries the depth box its sprite currently occupies. */
   tileMotions?: TileMotion[];
+  /**
+   * How each placement looks right now, keyed by {@link TileInstanceKey}, and
+   * holding only the entries that are *not* {@link SpriteState} `idle`.
+   *
+   * Sparse on purpose, on the same terms {@link tileMotions} is: almost nothing
+   * in a map is ever in a non-idle state, and an absent key is the answer for
+   * all of it. The caller decides what a state means — walking, mid-swing, open
+   * — because that is a reading of the session, which this renderer has no
+   * access to and no business guessing at.
+   */
+  spriteStates?: ReadonlyMap<string, SpriteState>;
   /**
    * Fractional cell-space emit positions for tiles mid-walk/fall so cast
    * light tracks sprite motion. Logical `x,y,z` must match the map cell.
@@ -354,6 +392,8 @@ export class WorldRenderer {
   private animatedByLevel = new Map<number, AnimatedInstance[]>();
   private animated: AnimatedInstance[] = [];
   private animatedByKey = new Map<string, AnimatedInstance[]>();
+  /** @see WorldView.spriteStates — held so the map build can read it. */
+  private spriteStates: ReadonlyMap<string, SpriteState> | undefined;
   /** Separate meshes that can receive {@link TileMotion} offsets (anim or in-motion). */
   private movableMeshes = new Map<string, THREE.Mesh>();
   private movableBasePos = new Map<string, { x: number; y: number }>();
@@ -495,6 +535,9 @@ export class WorldRenderer {
   setView(view: WorldView) {
     this.view = view;
     this.tilesById = view.tilesById;
+    // Before applyMap, which is what reads it: a cell rebuilt this frame has to
+    // come back in the state this view says it is in.
+    this.spriteStates = view.spriteStates;
     this.applyCamera(view.camera.x, view.camera.y, view.zoom);
 
     // Before applyMap, which advances prevMap — the light cache needs to see
@@ -510,6 +553,9 @@ export class WorldRenderer {
     if (this.lightingEnabled) {
       this.time("light", () => this.updateLighting(view));
     }
+    // After applyMap, so a mesh rebuilt this frame is in the registry to be
+    // reached; before nothing, since a swap only touches its own quad.
+    this.time("state", () => this.applySpriteStates(view.spriteStates));
     this.time("motion", () => this.applyTileMotions(view.tileMotions));
     this.needsRender = true;
   }
@@ -793,7 +839,7 @@ export class WorldRenderer {
   }
 
   private tileKey(k: TileInstanceKey): string {
-    return `${k.z}:${k.x},${k.y}:${k.stackIndex}`;
+    return tileInstanceKey(k);
   }
 
   private applyTileMotions(motions: TileMotion[] | undefined) {
@@ -1442,7 +1488,13 @@ export class WorldRenderer {
       const def = this.tilesById[placed.tileId];
       if (!def) return;
 
+      const instanceKey = this.tileKey({ x, y, z, stackIndex });
+      // The state is read at build time so a cell rebuilt while a creature is
+      // mid-step comes back walking, rather than snapping to standing and
+      // waiting for the next state pass to notice.
+      const state = this.spriteStates?.get(instanceKey) ?? "idle";
       const frames = getFrames(def, {
+        state,
         direction: placed.direction,
         map,
         x,
@@ -1468,18 +1520,19 @@ export class WorldRenderer {
       const v0 = 1 - ((rect.y + rect.h) * CELL_SIZE) / tileset.height;
       const texture = this.textures.get(tileset.id) ?? this.magentaTex;
       const isAnimated = (frames?.length ?? 0) > 1;
-      const instanceKey = this.tileKey({ x, y, z, stackIndex });
       // Own mesh when animated, or when the tile can move at all — not merely
       // when it happens to be moving right now. Keying this on the live motion
       // set meant a tile changed batch membership the instant it started and
       // stopped, and changing membership rebuilt the merged geometry for the
       // whole floor: a full rebuild per step, for a sprite that only needed a
       // new position.
+      //
+      // `isMobileTile` also covers every tile that can change sprite state,
+      // because `moving` is the only state and `availableStates` gates it on
+      // exactly this predicate. A state that a still tile can be in — an opened
+      // chest — would need its own term here; see plans/stateful-sprites.md.
       const separate = isAnimated || isMobileTile(def);
-      const animKey =
-        def.type === "autotile"
-          ? `${def.id}:${x},${y},${z}`
-          : `${def.id}:${placed.direction ?? "default"}`;
+      const animKey = animationKey(def, placed, x, y, z, state);
 
       items.push({
         x: origin.x,
@@ -1499,7 +1552,22 @@ export class WorldRenderer {
         lightY1: y + 1,
         unlit: tileCanEmitLight(def),
         tileKey: separate ? instanceKey : undefined,
-        anim: isAnimated && frames ? { frames, tileset, animKey } : undefined,
+        // Registered when it merely *can* change state, not only when it
+        // animates: a creature standing still on one frame becomes a four-frame
+        // walk cycle the moment it steps, and the registry is what the state
+        // pass reaches it through.
+        anim:
+          (isAnimated || hasSpriteStates(def)) && frames
+            ? {
+                frames,
+                tileset,
+                animKey,
+                def,
+                placed,
+                cell: { x, y, z },
+                state,
+              }
+            : undefined,
       });
 
       elev += physicalHeight(def);
@@ -1528,13 +1596,7 @@ export class WorldRenderer {
       });
     }
     if (item.anim) {
-      animated.push({
-        mesh,
-        key: item.tileKey ?? "",
-        frames: item.anim.frames,
-        tileset: item.anim.tileset,
-        animKey: item.anim.animKey,
-      });
+      animated.push({ mesh, key: item.tileKey ?? "", ...item.anim });
     }
   }
 
@@ -1627,20 +1689,82 @@ export class WorldRenderer {
       changed = true;
 
       const frame = sample.frames[idx]!;
-      const { rect } = frame.sprite;
-      const u0 = (rect.x * CELL_SIZE) / sample.tileset.width;
-      const u1 = ((rect.x + rect.w) * CELL_SIZE) / sample.tileset.width;
-      const v1 = 1 - (rect.y * CELL_SIZE) / sample.tileset.height;
-      const v0 = 1 - ((rect.y + rect.h) * CELL_SIZE) / sample.tileset.height;
       for (const inst of instances) {
-        const uvs = inst.mesh.geometry.attributes.uv!;
-        uvs.setXY(0, u0, v0);
-        uvs.setXY(1, u1, v0);
-        uvs.setXY(2, u0, v1);
-        uvs.setXY(3, u1, v1);
-        uvs.needsUpdate = true;
+        writeFrameUvs(inst.mesh, frame, sample.tileset);
       }
     }
     return changed;
   }
+
+  /**
+   * Point every stateful mesh at the sprite its current {@link SpriteState}
+   * resolves to.
+   *
+   * A sibling of {@link applyTileMotions} rather than part of the map build, for
+   * the reason that pass is separate too: a state changes on a frame where the
+   * map has not, so routing it through the rebuild would mean inventing a map
+   * edit to trigger one. Here it costs a walk of the registry, which holds only
+   * the handful of meshes that can change at all.
+   *
+   * Only the frame *list* is replaced. The mesh's geometry keeps the footprint it
+   * was built with, which is why a state's sprites must match idle's `rect` and
+   * `base` — the same constraint the animation path has always had between the
+   * frames of one sprite, applied one level up. See `validateStateFootprints`.
+   */
+  private applySpriteStates(states: ReadonlyMap<string, SpriteState> | undefined) {
+    if (this.animated.length === 0) return;
+    let swapped = false;
+
+    for (const inst of this.animated) {
+      const next = states?.get(inst.key) ?? "idle";
+      if (next === inst.state) continue;
+
+      const { x, y, z } = inst.cell;
+      const frames = getFrames(inst.def, {
+        state: next,
+        direction: inst.placed.direction,
+        map: this.prevMap ?? undefined,
+        x,
+        y,
+        z,
+      });
+      // A state with nothing authored resolves to idle's frames, so this is only
+      // empty for a tile with no sprite at all — leave the mesh as it is rather
+      // than blanking it.
+      if (!frames?.length) continue;
+
+      inst.state = next;
+      inst.frames = frames;
+      inst.animKey = animationKey(inst.def, inst.placed, x, y, z, next);
+      // The new key may carry a stale index from the last time anything was in
+      // this state, and an index that happens to match is one `updateAnimations`
+      // would skip — leaving the mesh showing the state it just left.
+      this.frameIndices.delete(inst.animKey);
+      writeFrameUvs(inst.mesh, frames[0]!, inst.tileset);
+      swapped = true;
+    }
+
+    if (!swapped) return;
+    this.rebuildAnimatedIndex();
+    this.needsRender = true;
+  }
+}
+
+/** Point one quad at a frame's slice of its atlas. */
+function writeFrameUvs(
+  mesh: THREE.Mesh,
+  frame: Frame,
+  tileset: TilesetDef,
+): void {
+  const { rect } = frame.sprite;
+  const u0 = (rect.x * CELL_SIZE) / tileset.width;
+  const u1 = ((rect.x + rect.w) * CELL_SIZE) / tileset.width;
+  const v1 = 1 - (rect.y * CELL_SIZE) / tileset.height;
+  const v0 = 1 - ((rect.y + rect.h) * CELL_SIZE) / tileset.height;
+  const uvs = mesh.geometry.attributes.uv!;
+  uvs.setXY(0, u0, v0);
+  uvs.setXY(1, u1, v0);
+  uvs.setXY(2, u0, v1);
+  uvs.setXY(3, u1, v1);
+  uvs.needsUpdate = true;
 }

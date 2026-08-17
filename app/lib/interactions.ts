@@ -3,7 +3,7 @@ import type { BattlerDef } from "./battler";
 import type { BrainDef } from "./brain";
 import type { ItemDef } from "./item";
 import { itemForSave, MAX_CONTAINER_SIZE, resolveItem } from "./item";
-import type { PlacedTile, TileDef } from "./types";
+import type { PlacedTile, SpriteState, TileDef } from "./types";
 import { HEIGHT_PER_LEVEL, resolveActor } from "./types";
 
 /**
@@ -752,6 +752,52 @@ export function isMobileTile(def: TileDef): boolean {
     resolveActor(def) ||
     resolvePush(def) !== null
   );
+}
+
+/**
+ * The {@link SpriteState}s this tile could ever be in.
+ *
+ * Derived from predicates that already exist rather than authored, and one
+ * function rather than two: the editor builds its state selector from this and
+ * the resolver refuses a state absent from it, so what can be authored is
+ * exactly what can ever be drawn. A flag beside these would be a second answer
+ * that can disagree with the first.
+ *
+ * {@link isMobileTile} rather than "has a brain or is a battler", because it
+ * already means *can this ever change cell* — gravity, a brain, or a push — and
+ * already argues why that has to be a property of the tile rather than of
+ * whether it happens to be moving this frame. A shoved crate sliding is
+ * movement, and a tile that authors nothing for a state it is offered pays
+ * nothing for being offered it.
+ *
+ * Only ever returns states a renderer actually draws — see {@link SpriteState},
+ * which is the one place that list grows. Offering a state early would put a
+ * control in the editor that does nothing when used.
+ */
+export function availableStates(def: TileDef): SpriteState[] {
+  const out: SpriteState[] = ["idle"];
+  if (isMobileTile(def)) out.push("moving");
+  return out;
+}
+
+/**
+ * Whether this tile has any sprite authored beyond idle.
+ *
+ * What the renderers register a mesh by, so the per-frame state pass can reach
+ * it. Being animated is not enough on its own and neither is replacing it: a
+ * grazing deer stands on a single frame and is therefore *not* animated, yet it
+ * becomes a four-frame walk the moment it steps — so the registry has to be
+ * joined by anything that *could* change, before it has.
+ *
+ * Keyed on what the tile has authored, never on which state it is in right now,
+ * for the reason {@link isMobileTile} gives about classifying per frame: a mesh
+ * that joined and left the registry as it started and stopped moving would be
+ * rebuilding geometry on exactly the frames that can least afford it.
+ */
+export function hasSpriteStates(def: TileDef): boolean {
+  const states = def.states;
+  if (!states) return false;
+  return Object.values(states).some((s) => s != null);
 }
 
 /** Whether the player can do anything at all with this tile. */
