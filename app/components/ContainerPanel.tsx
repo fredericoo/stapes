@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { slotIn, type ContainerRef } from "../game/itemMoves";
 import { resolveContainer } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
+import type { MasteryXp } from "../lib/mastery";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { ItemSlot } from "./ItemSlot";
@@ -49,6 +50,8 @@ export function ContainerPanel({
   title,
   onClose,
   drag,
+  inspecting = false,
+  masteryXp = {},
   className = "",
 }: {
   /**
@@ -83,6 +86,14 @@ export function ContainerPanel({
   onClose: () => void;
   /** The one move in progress, page-wide. See `./useItemDrag`. */
   drag: ItemDrag;
+  /** Look mode is on, so the slots describe rather than act. See `./ItemSlot`. */
+  inspecting?: boolean;
+  /**
+   * What the viewer has learnt — theirs, not the container's, and that is the
+   * point: a sword in a chest on the floor is inspected by the person standing
+   * over it, so what it says depends on whose hands are asking.
+   */
+  masteryXp?: MasteryXp;
   className?: string;
 }) {
   const tilesById = useMemo(() => tilesByIdFromList(tiles), [tiles]);
@@ -171,6 +182,8 @@ export function ContainerPanel({
             label={`${title}, slot ${i + 1}`}
             emptyHint="Empty"
             drag={drag}
+            inspecting={inspecting}
+            masteryXp={masteryXp}
           />
         ))}
       </div>

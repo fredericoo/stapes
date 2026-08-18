@@ -5,7 +5,6 @@ import type { TileDef, TilesetDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { ItemSlot } from "./ItemSlot";
 import type { ItemDrag } from "./useItemDrag";
-import { WeaponAsks } from "./WeaponAsks";
 
 /**
  * What you are wearing: what is in your hand, and what is on your back.
@@ -24,9 +23,12 @@ import { WeaponAsks } from "./WeaponAsks";
  * The off hand sits between them because that is the order they are reached for:
  * what you swing, what you hold, what you carry it all in.
  *
- * What the thing in your hand *asks of you* is here, directly under it, because
- * that is a fact about the item rather than about you. What it is *worth* is
- * deliberately absent: this game is played by picking things up and finding out,
+ * **Nothing in here is a number.** There was a table under the hand for a while
+ * listing every mastery the weapon in it asked for against the one you had, and
+ * it is gone: what a weapon asks is now a sentence you get by looking at it, on
+ * exactly the terms a sword on the floor tells you — see `../lib/weaponFeel`.
+ * What a weapon is *worth* has always been absent, and for the reason that
+ * decided the rest: this game is played by picking things up and finding out,
  * and a panel that ranked your weapons would be answering the only question the
  * fighting has to offer. What you are good at is not here either — it moved to
  * its own panel, since it answers a different question and does not change when
@@ -39,6 +41,7 @@ export function EquipmentPanel({
   tiles,
   tilesets,
   drag,
+  inspecting = false,
   className = "",
 }: {
   equipment: Equipment;
@@ -48,6 +51,9 @@ export function EquipmentPanel({
    * Defaulted to nothing, on the same terms `equipment` is defaulted upstream: a
    * route that has not wired it draws a panel saying nothing is practised yet,
    * which is true of a body that has never fought and harmless for one that has.
+   *
+   * Handed to the slots rather than read here: half of what a weapon has to say
+   * is about the hands holding it, and the slot is where it gets said.
    */
   masteryXp?: MasteryXp;
   /**
@@ -63,6 +69,8 @@ export function EquipmentPanel({
   tilesets: TilesetDef[];
   /** The one move in progress, page-wide. See `./useItemDrag`. */
   drag: ItemDrag;
+  /** Look mode is on, so the slots describe rather than act. See `./ItemSlot`. */
+  inspecting?: boolean;
   className?: string;
 }) {
   const tilesById = useMemo(() => tilesByIdFromList(tiles), [tiles]);
@@ -84,6 +92,8 @@ export function EquipmentPanel({
           label="Weapon"
           emptyHint="Weapon — nothing in hand"
           drag={drag}
+          inspecting={inspecting}
+          masteryXp={masteryXp}
         />
         <ItemSlot
           slot={{ kind: "offhand" }}
@@ -93,6 +103,8 @@ export function EquipmentPanel({
           label="Off hand"
           emptyHint="Off hand — nothing held"
           drag={drag}
+          inspecting={inspecting}
+          masteryXp={masteryXp}
         />
         <ItemSlot
           slot={{ kind: "bag" }}
@@ -103,17 +115,10 @@ export function EquipmentPanel({
           emptyHint="Bag — nothing on your back"
           open={bagOpen}
           drag={drag}
+          inspecting={inspecting}
+          masteryXp={masteryXp}
         />
       </div>
-      {/* Directly under the hand it is about, and absent for bare hands or for
-          a weapon that asks nothing — a heading over an empty list would make a
-          point of a rule that is not in play. */}
-      <WeaponAsks
-        weapon={equipment.weapon}
-        masteryXp={masteryXp}
-        tilesById={tilesById}
-        className="mt-1"
-      />
     </section>
   );
 }

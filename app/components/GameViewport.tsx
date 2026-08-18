@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ObjectRef } from "../game/affordances";
 import type { Equipment } from "../game/equipment";
 import { emptyEquipment } from "../game/equipment";
@@ -313,6 +313,19 @@ export function GameViewport({
     world,
   });
 
+  /**
+   * Picking up the eye puts down whatever was in hand.
+   *
+   * Look mode takes the slots out of service — see `./ItemSlot` — and shift is a
+   * key that can be pressed halfway through a drag. Without this the sprite
+   * would stay stuck to the pointer over squares that no longer answer it, and
+   * letting go would land a move made in a mode that has no moves in it.
+   */
+  const { cancel: cancelDrag } = drag;
+  useEffect(() => {
+    if (looking) cancelDrag();
+  }, [looking, cancelDrag]);
+
   /** A panel is covering the arrows and the list. Only ever true on a phone. */
   const panelCoversMain =
     coarse && (showEquipment || showBag || showStats || openedContainer != null);
@@ -414,6 +427,7 @@ export function GameViewport({
           tiles={tiles}
           tilesets={tilesets}
           drag={drag}
+          inspecting={looking}
         />
       ) : null}
       {/* A panel is a thing you opened, and a bag you are not wearing is not one:
@@ -429,6 +443,8 @@ export function GameViewport({
           title="Bag"
           onClose={() => openBag(false)}
           drag={drag}
+          inspecting={looking}
+          masteryXp={masteryXp}
         />
       ) : null}
       {/* Whatever is on the floor, under whatever is on your back, so the two
@@ -446,6 +462,8 @@ export function GameViewport({
           }
           onClose={() => onOpenContainer?.(null)}
           drag={drag}
+          inspecting={looking}
+          masteryXp={masteryXp}
         />
       ) : null}
     </>

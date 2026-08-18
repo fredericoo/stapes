@@ -17,6 +17,7 @@ import { PLAYER_TILE_ID } from "../game/constants";
 import { bodyNameFor, sizedUpName } from "../game/displayName";
 import type { Equipment } from "../game/equipment";
 import type { MasteryXp } from "../lib/mastery";
+import { weaponFeelFor } from "../lib/weaponFeel";
 import type { Vitals } from "../game/GameSession";
 import type { OpenedContainer, SlotRef } from "../game/itemMoves";
 import { readOpenedContainer } from "../game/openedContainer";
@@ -1538,7 +1539,16 @@ export class GameRenderer {
     });
   }
 
-  /** What look mode says: the tile's name, and what the placement reads. */
+  /**
+   * What look mode says: the tile's name, what the placement reads, and — for a
+   * weapon — what it would be like in your hands.
+   *
+   * The feel goes last because it is the only line that is not a fact about the
+   * object: the name and the writing on it are the same for everybody who walks
+   * past, and "You can barely handle it" is about the person doing the looking.
+   * See `../lib/weaponFeel` for why that is a sentence rather than the table of
+   * requirements this replaced.
+   */
   private lookLines(snap: GameSnapshot): PointerLabel | null {
     const target = this.lookTarget(snap);
     if (!target) return null;
@@ -1547,6 +1557,8 @@ export class GameRenderer {
     if (placed.description) {
       lines.push({ id: "description", text: placed.description });
     }
+    const feel = weaponFeelFor(def, snap.masteryXp);
+    if (feel) lines.push({ id: "feel", text: feel });
     // No colour: the stylesheet's blue is the mode's own, and look mode is the
     // only thing wearing it.
     return { ref, height: def.height, lines };
