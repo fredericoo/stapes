@@ -6797,7 +6797,10 @@
         "type": "consumable",
         "label": "Eat",
         "sound": "crunch",
-        "hp": 5
+        "hp": 0,
+        "statuses": [
+          "fed"
+        ]
       }
     },
     "sprite": {

@@ -150,6 +150,21 @@ export type ConsumableItem = {
    * default: a potion that says nothing is a potion nobody heard.
    */
   sound?: string;
+  /**
+   * Statuses this puts on whoever uses it, by id, applied in order.
+   *
+   * **Beside {@link hp} rather than instead of it.** A potion still heals on the
+   * spot and a poison apple still bites on the spot; a berry now does neither and
+   * hands over a `Fed` instead. Two fields because they are two things: one
+   * happens and is over, the other is a condition you are in.
+   *
+   * Ids only — whether one of them names anything is the catalogue's question,
+   * asked where the status is granted. An id it does not hold is skipped, in the
+   * same breath a reward naming a missing tile is left alone: renamed content
+   * should read as an effect that did not happen, not as a world that will not
+   * start.
+   */
+  statuses?: string[];
 };
 
 /**
@@ -338,6 +353,10 @@ const consumableSchema = v.object({
     v.minValue(-MAX_CONSUMABLE_HP_SHIFT),
     v.maxValue(MAX_CONSUMABLE_HP_SHIFT),
   ),
+  // Ids only. Whether one of them names anything is the catalogue's question,
+  // asked where the status is applied — this module knows nothing about
+  // statuses and must not start resolving them to answer a schema.
+  statuses: v.optional(v.array(v.pipe(v.string(), v.trim(), v.minLength(1)))),
 });
 
 const containerSchema = v.object({

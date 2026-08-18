@@ -73,6 +73,19 @@ const hpPatchSchema = v.object({
   rating: v.number(),
 });
 
+/**
+ * One running status, as the viewer's own client needs it.
+ *
+ * `durationMs` travels beside the remainder so a client could draw how far
+ * through it is without having to have seen it start — which a reconnecting one
+ * never did.
+ */
+const statusPatchSchema = v.object({
+  defId: v.string(),
+  remainingMs: v.number(),
+  durationMs: v.number(),
+});
+
 const carriedLightsPatchSchema = v.object({
   actorId: v.string(),
   tileIds: v.array(v.string()),
@@ -188,6 +201,20 @@ export type HpPatch = {
    * and both are the part of a body everybody is allowed to see.
    */
   rating: number;
+};
+
+/**
+ * One status running on the viewer's own body.
+ *
+ * A `StatusInstance` minus its cadence accumulator, which is the server's
+ * bookkeeping and nothing a client could draw. Everything else about a status —
+ * its name, its line, its icon, what it does — is in the catalogue both ends
+ * already load, so what travels is an id and two clocks.
+ */
+export type StatusPatch = {
+  defId: string;
+  remainingMs: number;
+  durationMs: number;
 };
 
 /**
@@ -331,6 +358,14 @@ export type ServerMessage =
        * on screen before the first blow.
        */
       masteryXp: MasteryXp;
+      /**
+       * What is running on this viewer's own body.
+       *
+       * Sent in full on arrival like the kit and the tags, and for the same
+       * reason: there is nothing to patch against, and the lane that draws it is
+       * on screen before the first berry.
+       */
+      statuses: StatusPatch[];
     }
   /**
    * "Here is what you are carrying now."
@@ -362,6 +397,28 @@ export type ServerMessage =
    * missed, and a dropped tag is a chest that can be opened twice.
    */
   | { type: "tags"; tags: string[] }
+  /**
+   * "Here is what is running on you now."
+   *
+   * **Addressed to one socket, and deliberately not folded into the tick
+   * patch.** A patch is diffed once and serialized once for everybody, which
+   * only works because everybody is being told the same thing — and nothing
+   * draws anybody else's statuses, so nobody else needs telling. Putting this in
+   * the patch would turn one serialization per tick into one per player, to say
+   * something no other client can see.
+   *
+   * Whole state replacing whatever the client had, on the terms `HpPatch` and
+   * `equipment` are: a list rebuilt from a stream of gained-and-lost events
+   * drifts the moment one is missed and goes on being wrong with nothing to
+   * correct it.
+   *
+   * **Sent when the reading changes, not every tick.** What a client can draw is
+   * a set of statuses and a whole-second countdown each, so that is the grain
+   * the server compares at — about one message a second per status rather than
+   * thirty, and the number on screen is the exact one rather than a local
+   * timer's guess.
+   */
+  | { type: "statuses"; statuses: StatusPatch[] }
   /**
    * "Here is what you have learnt now."
    *
@@ -684,6 +741,7 @@ const serverMessageSchema = v.variant("type", [
     equipment: tolerantEquipmentSchema,
     tags: v.array(v.string()),
     masteryXp: tolerantMasteryXpSchema,
+    statuses: v.array(statusPatchSchema),
   }),
   v.object({
     type: v.literal("equipment"),
@@ -692,6 +750,10 @@ const serverMessageSchema = v.variant("type", [
   v.object({
     type: v.literal("tags"),
     tags: v.array(v.string()),
+  }),
+  v.object({
+    type: v.literal("statuses"),
+    statuses: v.array(statusPatchSchema),
   }),
   v.object({
     type: v.literal("masteries"),

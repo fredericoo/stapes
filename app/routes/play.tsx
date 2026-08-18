@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { useLoaderData } from "react-router";
 import type { Route } from "./+types/play";
 import { AppShell } from "../components/AppShell";
@@ -25,22 +25,28 @@ import type { OpenedContainer, SlotRef } from "../game/itemMoves";
 import { useGameAssets } from "../lib/gameAssets";
 import type { Direction } from "../lib/types";
 import { dataStore } from "../context";
+import { activeStatuses, statusesById } from "../lib/status";
 import { GameRenderer } from "../render/GameRenderer";
 import { FrameStatsReadout } from "../components/FrameStatsReadout";
 import type { FrameStats } from "../render/frameProfile";
 
 export async function loader({ context }: Route.LoaderArgs) {
   const store = dataStore(context);
-  const [map, tiles, tilesets] = await Promise.all([
+  const [map, tiles, tilesets, statuses] = await Promise.all([
     store.readMap(),
     store.readTiles(),
     store.readTilesets(),
+    store.readStatuses(),
   ]);
-  return { map, tiles, tilesets };
+  return { map, tiles, tilesets, statuses };
 }
 
 export default function PlayPage() {
-  const { map, tiles, tilesets } = useLoaderData<typeof loader>();
+  const { map, tiles, tilesets, statuses } = useLoaderData<typeof loader>();
+  // Resolved once per load rather than per render: `statusesById` compiles every
+  // formula in the catalogue, which is exactly the work that must not happen on
+  // a frame. @see ../lib/status
+  const statusDefs = useMemo(() => statusesById(statuses), [statuses]);
   // Nothing below runs against half-loaded assets: the canvas is not in the
   // page until this is true, so the renderer cannot start early. @see
   // ../lib/gameAssets
@@ -90,7 +96,7 @@ export default function PlayPage() {
   /** What this player has learnt — theirs alone, beside the kit. */
   const [masteryXp, setMasteryXp] = useState<MasteryXp>({});
   /** What this player's body can take, and its ⭐. */
-  const [vitals, setVitals] = useState<Vitals>({ hp: null, maxHp: null, rating: null });
+  const [vitals, setVitals] = useState<Vitals>({ hp: null, maxHp: null, rating: null, statuses: [] });
   const [openedContainer, setOpenedContainer] =
     useState<OpenedContainer | null>(null);
   // Straight at the renderer, like the hover outline: which box is open is a
@@ -163,7 +169,7 @@ export default function PlayPage() {
 
     let session: GameSession;
     try {
-      session = new GameSession(map, tiles);
+      session = new GameSession(map, tiles, { statuses: statusDefs });
     } catch (err) {
       console.error(err);
       return;
@@ -206,7 +212,7 @@ export default function PlayPage() {
       setInteractions([]);
       setEquipment(emptyEquipment());
       setMasteryXp({});
-      setVitals({ hp: null, maxHp: null, rating: null });
+      setVitals({ hp: null, maxHp: null, rating: null, statuses: [] });
       setOpenedContainer(null);
       // A new renderer has a fresh canvas to fill — an editor save arrives here
       // as a map change — so the screen goes back up until it has filled it.
@@ -313,6 +319,7 @@ export default function PlayPage() {
             equipment={equipment}
             masteryXp={masteryXp}
             vitals={vitals}
+            statuses={activeStatuses(vitals.statuses, statusDefs)}
             openedContainer={openedContainer}
             onOpenContainer={openContainer}
             canMoveItem={canMoveItem}

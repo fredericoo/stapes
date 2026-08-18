@@ -5,6 +5,7 @@ import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { NOISE_LIFETIME_MS, STARTING_BAG_TILE_ID, TICK_MS } from "./constants";
 import { GameSession } from "./GameSession";
+import { statusesById } from "../lib/status";
 
 /**
  * Eating and drinking, as the session runs them.
@@ -36,6 +37,18 @@ function tile(partial: Record<string, unknown>): TileDef {
 }
 
 const PLAYER_MAX_HP = 100;
+
+/** A consumable that grants statuses instead of moving hit points on the spot. */
+function granter(id: string, statuses: string[]): TileDef {
+  return tile({
+    id,
+    kind: "item",
+    intangible: true,
+    interactions: {
+      item: { type: "consumable", label: "Eat", hp: 0, statuses },
+    },
+  });
+}
 
 function consumable(id: string, hp: number, sound?: string): TileDef {
   return tile({
@@ -75,6 +88,9 @@ const tiles: TileDef[] = [
   consumable("hemlock", -PLAYER_MAX_HP, "glug"),
   // Authored with no noise, which is every consumable until somebody writes one.
   consumable("quiet-cherry", 5),
+  // The berry as `data/tiles.json` now authors it: no instant heal at all.
+  granter("berry", ["fed"]),
+  granter("mystery-fruit", ["no-such-status"]),
   tile({
     id: "sword",
     kind: "item",
@@ -453,5 +469,134 @@ describe("a consumer with no hit points", () => {
       false,
     );
     expect(tilesAt(session, 1, 0)).toEqual(["grass", "cherry"]);
+  });
+});
+
+
+/**
+ * A consumable that hands over a status instead of moving hit points.
+ *
+ * The berry, end to end and as authored: `data/statuses.json`'s Fed against
+ * `data/tiles.json`'s berry, through the same `statusesById` the routes use, so
+ * a typo in either file fails here rather than in a browser.
+ */
+describe("eating something that grants a status", () => {
+  /** Fixed ends, so the roll is a constant and the arithmetic below is exact. */
+  const FED_MS = 10_000;
+
+  const catalogue = statusesById([
+    {
+      id: "fed",
+      name: "Fed",
+      description: "Slowly recovering health.",
+      tone: "good",
+      iconTileId: "berry",
+      fromMs: FED_MS,
+      toMs: FED_MS,
+      stacks: true,
+      maxMs: 3_600_000,
+      everyMs: 1_000,
+      effects: { hp: "ceil(MAX_HP / 100)" },
+    },
+  ]);
+
+  /**
+   * A berry to the east and a poison to the north.
+   *
+   * The poison is not decoration: a body at full health has nothing to recover,
+   * so every assertion about healing would pass against a `Fed` that did
+   * absolutely nothing. Wounding first is what makes the numbers below mean
+   * something.
+   */
+  function fedWorld(): GameSession {
+    let map = replaceStack(field(), 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "berry" },
+    ]);
+    map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "poison" }]);
+    return new GameSession(map, tiles, { statuses: catalogue });
+  }
+
+  /** Take the poison to the north, leaving the body ten points down. */
+  function wound(session: GameSession) {
+    session.consume({ kind: "floor", ref: refAt(session, 0, 1) });
+  }
+
+  /** Run whole seconds through the session's own fixed tick. */
+  function runSeconds(session: GameSession, seconds: number) {
+    for (let i = 0; i < Math.round((seconds * 1000) / TICK_MS); i++) {
+      session.tick(TICK_MS);
+    }
+  }
+
+  it("moves no hit points on the tick it is eaten", () => {
+    const session = fedWorld();
+    wound(session);
+    const before = hpOf(session);
+    expect(before).toBe(PLAYER_MAX_HP - 10);
+
+    expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(true);
+    expect(hpOf(session)).toBe(before);
+    expect(session.statusesOf("local")?.map((s) => s.defId)).toEqual(["fed"]);
+  });
+
+  it("heals one a second, rounded up, for as long as it runs", () => {
+    const session = fedWorld();
+    wound(session);
+    session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
+    const start = hpOf(session)!;
+
+    runSeconds(session, 3);
+    // `ceil(100 / 100)` is 1, three times over.
+    expect(hpOf(session)).toBe(start + 3);
+  });
+
+  /** The cap still holds: a berry cannot make anybody overfull. */
+  it("stops at the maximum", () => {
+    const session = fedWorld();
+    session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
+    runSeconds(session, 5);
+    expect(hpOf(session)).toBe(PLAYER_MAX_HP);
+  });
+
+  it("runs out, and stops", () => {
+    const session = fedWorld();
+    wound(session);
+    session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
+    runSeconds(session, FED_MS / 1000);
+
+    expect(session.statusesOf("local")).toEqual([]);
+    // Ten seconds of Fed against ten points of poison, which is the whole of it.
+    expect(hpOf(session)).toBe(PLAYER_MAX_HP);
+  });
+
+  it("stacks a second helping onto what is left", () => {
+    const map = replaceStack(
+      replaceStack(field(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "berry" }]),
+      0,
+      1,
+      0,
+      [{ tileId: "grass" }, { tileId: "berry" }],
+    );
+    const session = new GameSession(map, tiles, { statuses: catalogue });
+    session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
+    session.consume({ kind: "floor", ref: refAt(session, 0, 1) });
+    expect(session.statusesOf("local")).toHaveLength(1);
+    expect(session.statusesOf("local")![0]!.remainingMs).toBe(FED_MS * 2);
+  });
+
+  /**
+   * Renamed content reads as an effect that did not happen, never as a world
+   * that will not start — the same rule a reward naming a missing tile is under.
+   */
+  it("eats an item naming a status nobody authored, and does nothing", () => {
+    const map = replaceStack(field(), 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "mystery-fruit" },
+    ]);
+    const session = new GameSession(map, tiles, { statuses: catalogue });
+    expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(true);
+    expect(session.statusesOf("local")).toEqual([]);
+    expect(tilesAt(session, 1, 0)).toEqual(["grass"]);
   });
 });

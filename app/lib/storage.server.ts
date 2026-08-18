@@ -12,6 +12,13 @@ import { DEV_DATA_PREFIX } from "./devData";
 const MAP_KEY = "map.json";
 const TILES_KEY = "tiles.json";
 const TILESETS_KEY = "tilesets.json";
+/**
+ * The status catalogue. A fourth blob rather than a kind of tile: a status is
+ * never placed, never stacked and never walked into, so giving it a `TileDef`
+ * would put entries in `tilesById` that can never appear on a board. See
+ * `./status`.
+ */
+const STATUSES_KEY = "statuses.json";
 const TILESET_PREFIX = "tilesets/";
 
 const JSON_TYPE = "application/json";
@@ -132,6 +139,32 @@ export class DataStore {
     await this.blobs.put(
       TILES_KEY,
       `${JSON.stringify(tiles, null, 2)}\n`,
+      JSON_TYPE,
+    );
+  }
+
+  /**
+   * The status catalogue, still raw.
+   *
+   * Handed over unparsed on purpose, exactly as tiles are handed over
+   * un-resolved: `statusesById` is what decides which entries are statuses, it
+   * memoises nothing and it runs on both sides of the wire. A store that parsed
+   * here would be a second place that has an opinion about what a status is.
+   *
+   * An absent file is an empty catalogue rather than a failure — a fresh
+   * environment loads blank until `pnpm seed` runs, the same as the map does.
+   */
+  async readStatuses(): Promise<unknown[]> {
+    const raw = await this.blobs.getText(STATUSES_KEY);
+    if (raw === null) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    return Array.isArray(parsed) ? parsed : [];
+  }
+
+  async writeStatuses(statuses: unknown[]) {
+    await this.blobs.put(
+      STATUSES_KEY,
+      `${JSON.stringify(statuses, null, 2)}\n`,
       JSON_TYPE,
     );
   }

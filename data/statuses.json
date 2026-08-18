@@ -1,0 +1,15 @@
+[
+  {
+    "id": "fed",
+    "name": "Fed",
+    "description": "Slowly recovering health.",
+    "tone": "good",
+    "iconTileId": "berry",
+    "fromMs": 10000,
+    "toMs": 30000,
+    "stacks": true,
+    "maxMs": 3600000,
+    "everyMs": 1000,
+    "effects": { "hp": "ceil(MAX_HP / 100)" }
+  }
+]

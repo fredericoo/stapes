@@ -1,0 +1,350 @@
+import type { FightingStats } from "../lib/battler";
+import type { FormulaScope } from "../lib/formula";
+import { MAX_PERCENT_STAT } from "../lib/item";
+import { MODIFIER_KEYS, type StatusDef } from "../lib/status";
+import { TICK_MS } from "./constants";
+import type { Rng } from "./rng";
+
+/**
+ * A status effect while it is actually running on somebody.
+ *
+ * The `./decay` of this feature, and split from `../lib/status` on the same
+ * terms `./combat` is split from `../lib/battler`: the def is what an author
+ * wrote, this is what a tick does with it.
+ *
+ * **Everything here is pure.** The session owns the list and the hit points; this
+ * owns the arithmetic that moves them. That is what lets stacking, cadence and
+ * expiry be asserted without a world.
+ */
+
+/** One status running on one body. */
+export type StatusInstance = {
+  defId: string;
+  /** What it was rolled at, and the denominator of `ELAPSED_SEC`. */
+  durationMs: number;
+  /** What is left. Counted down by the tick, and the thing that is stored. */
+  remainingMs: number;
+  /** Towards the next period. See {@link advanceStatuses}. */
+  sinceEffectMs: number;
+};
+
+/** What a formula needs to know about the body carrying it. */
+export type StatusBearer = {
+  hp: number;
+  /** **Before** any status modifier — see `../lib/formula`'s `MAX_HP`. */
+  maxHp: number;
+};
+
+/** Nobody is under anything, which is almost everybody almost always. */
+export const NO_STATUSES: readonly StatusInstance[] = [];
+
+/**
+ * Round a cadence up to a whole number of ticks.
+ *
+ * A cadence that did not divide the tick rate would drift against the loop and
+ * stop being reproducible, which is the whole reason `BRAIN_TICK_MS` is a whole
+ * number of ticks. Snapping rather than refusing, because an off-grid number is a
+ * rounding question and not a malformed block: 1000ms is exactly 30 ticks, and an
+ * author who types 1010 gets 1033⅓ and a note in the editor saying so.
+ */
+export function snapToTick(everyMs: number): number {
+  if (everyMs <= 0) return 0;
+  // Nudged before the ceiling because `TICK_MS` is 1000/30 and does not divide a
+  // second exactly: `1000 / TICK_MS` is 30.000000000000004, so an honest `ceil`
+  // makes one second thirty-*one* ticks and every authored cadence a tick late.
+  return Math.max(1, Math.ceil(everyMs / TICK_MS - TICK_EPSILON_MS)) * TICK_MS;
+}
+
+/**
+ * Slack allowed when comparing two accumulated millisecond counts.
+ *
+ * `TICK_MS` is not representable, so thirty ticks of it come to 30000.000000000004
+ * and thirty seconds of cadence to 30000.000000000003 — a status that should pay
+ * out thirty times pays out twenty-nine, and it does so more often the longer it
+ * runs. Far smaller than anything the simulation can observe, and far larger than
+ * the error it is absorbing.
+ */
+const TICK_EPSILON_MS = 1e-6;
+
+/**
+ * Whole seconds left, rounded **up**, so a status with a millisecond to run
+ * still reads one second and only an expired one reads zero.
+ *
+ * The epsilon is the same accumulated-float slack {@link TICK_EPSILON_MS}
+ * absorbs, and `ceil` is where it hurts most: a countdown lands on an exact
+ * second boundary precisely when a cadence fires, so 1000.0000000000001ms left
+ * read as **two** seconds and every formula reading `ELAPSED_SEC` was a second
+ * behind on its first payout. Shared with the chrome so a badge, a panel row and
+ * a formula can never disagree about what second it is.
+ */
+export function secondsLeft(remainingMs: number): number {
+  return Math.max(0, Math.ceil(remainingMs / 1000 - TICK_EPSILON_MS));
+}
+
+/**
+ * What a status list *says* right now, as a string.
+ *
+ * The list is a fresh array on every tick anything is running, so identity says
+ * "changed" thirty times a second and tells you nothing. What anybody can
+ * actually *do* with a status list is draw a set of statuses and a whole-second
+ * countdown each, so that is the grain worth comparing at — which makes this
+ * about one change a second per status rather than thirty.
+ *
+ * Shared by the server deciding whether to send and by the renderer deciding
+ * whether to re-render, so the two cannot come to hold different ideas of when
+ * something moved.
+ */
+export function statusReading(statuses: readonly StatusInstance[]): string {
+  if (statuses.length === 0) return "";
+  return statuses
+    .map((status) => `${status.defId}:${secondsLeft(status.remainingMs)}`)
+    .join("|");
+}
+
+/**
+ * A duration from the authored range, both ends included.
+ *
+ * **Always exactly one draw**, even where the two ends are equal and the answer
+ * was never in doubt — the same discipline a swing's three draws and a decay's
+ * one are under. A draw count that varied with what an author typed would mean
+ * widening one status's range by a millisecond changed what every creature in the
+ * world rolled after it.
+ *
+ * The world's dice, never a generator of this feature's own: two worlds on one
+ * seed must agree about how long somebody was fed as well as about when the blood
+ * dried.
+ */
+export function rollDurationMs(def: StatusDef, rng: Rng): number {
+  return def.fromMs + rng.int(def.toMs - def.fromMs + 1);
+}
+
+/**
+ * Put a status on a body, or extend the one already there.
+ *
+ * - **Stacking** adds to what is left and clamps at the authored ceiling.
+ * - **Not stacking** refreshes to the longer of the two, never the newer. A bad
+ *   roll must not be able to shorten a status you already have — that would make
+ *   eating a second berry a punishment often enough to notice.
+ *
+ * One draw either way, taken before the branch, so what an author picked cannot
+ * change what the world rolls next.
+ *
+ * `durationMs` is re-stated to whatever the remainder became, which is what keeps
+ * `ELAPSED_SEC` honest: a stacked status has been running for however much its
+ * total now exceeds what is left.
+ *
+ * Replaced wholesale rather than mutated, on the terms `equipment` and `tags`
+ * are: the list goes out on a snapshot and identity is what tells whoever is
+ * drawing it that something moved.
+ */
+export function applyStatus(
+  current: readonly StatusInstance[],
+  def: StatusDef,
+  rng: Rng,
+): readonly StatusInstance[] {
+  const rolled = rollDurationMs(def, rng);
+  const existing = current.find((instance) => instance.defId === def.id);
+
+  if (!existing) {
+    return [
+      ...current,
+      {
+        defId: def.id,
+        durationMs: rolled,
+        remainingMs: rolled,
+        sinceEffectMs: 0,
+      },
+    ];
+  }
+
+  const remainingMs = def.stacks
+    ? Math.min(def.maxMs, existing.remainingMs + rolled)
+    : Math.max(existing.remainingMs, rolled);
+
+  return current.map((instance) =>
+    instance.defId === def.id
+      ? { ...instance, remainingMs, durationMs: remainingMs }
+      : instance,
+  );
+}
+
+/** What one tick of statuses did, beside how far they advanced. */
+export type StatusTick = {
+  statuses: readonly StatusInstance[];
+  /**
+   * One signed figure per period that fired, in the order they fired.
+   *
+   * A list rather than a sum, because the two directions do not go the same way
+   * out: a heal clamps at the maximum and a harm goes through `applyDamage`, so
+   * that it shows its number, tells the brains and can kill. Netting them here
+   * would be inventing a third path that does neither.
+   */
+  hpChanges: number[];
+  /**
+   * Whether the *set* changed — something ran out, or its def has gone.
+   *
+   * Deliberately not "anything happened": every status advances on every tick, so
+   * the list is a fresh array whenever it holds anything at all. What this
+   * answers is the narrower question the wire asks — whether anybody needs
+   * telling, given a client counts its own timers down from what it was last
+   * sent.
+   */
+  expired: boolean;
+};
+
+/**
+ * Advance every status on a body by one tick.
+ *
+ * The order inside is load-bearing:
+ *
+ * 1. **Wind the clocks down**, so a status with one tick left is on its last.
+ * 2. **Fire whatever is due**, which is what lets an N-second status at a
+ *    one-second cadence pay out exactly N times rather than N−1.
+ * 3. **Drop what has run out.**
+ *
+ * The cadence accumulator is **drained rather than reset**, and the loop is a
+ * `while` rather than an `if`, because `GameSession.update` runs up to ten ticks
+ * in one call: a status whose cadence is shorter than the catch-up owes every one
+ * of those periods, not the last.
+ */
+export function advanceStatuses(
+  statuses: readonly StatusInstance[],
+  tickMs: number,
+  bearer: StatusBearer,
+  catalogue: Record<string, StatusDef>,
+): StatusTick {
+  // The one case that costs nothing, and the overwhelmingly common one: the same
+  // empty array back, no allocation, no walk.
+  if (statuses.length === 0) {
+    return { statuses, hpChanges: [], expired: false };
+  }
+
+  const next: StatusInstance[] = [];
+  const hpChanges: number[] = [];
+  let expired = false;
+
+  for (const instance of statuses) {
+    const def = catalogue[instance.defId];
+    // A status whose def has left the catalogue is dropped rather than carried:
+    // it is a live rule being applied, and there is no rule left to apply.
+    if (!def) {
+      expired = true;
+      continue;
+    }
+
+    const remainingMs = instance.remainingMs - tickMs;
+    let sinceEffectMs = instance.sinceEffectMs + tickMs;
+    const everyMs = snapToTick(def.everyMs);
+
+    if (everyMs > 0 && def.effects.hp) {
+      while (sinceEffectMs + TICK_EPSILON_MS >= everyMs) {
+        sinceEffectMs -= everyMs;
+        hpChanges.push(
+          def.effects.hp.evaluate(scopeFor(instance, remainingMs, bearer)),
+        );
+      }
+    }
+
+    // Against the epsilon rather than zero, for the reason above: nine hundred
+    // subtractions of an unrepresentable tick leave a thirty-second status at
+    // plus-a-femtosecond about as often as at minus one, and half the time it
+    // would outlive its own duration by a tick.
+    if (remainingMs <= TICK_EPSILON_MS) {
+      expired = true;
+      continue;
+    }
+
+    next.push({ ...instance, remainingMs, sinceEffectMs });
+  }
+
+  // **Always the advanced list, never the one that came in.** Returning the
+  // original on a "nothing notable happened" tick is what an identity
+  // optimisation wants to do here, and it throws the countdown away: every
+  // status is one tick shorter than it was, so a list that holds anything has
+  // changed by definition. One small allocation per bearer per tick, and only
+  // for a bearer that is actually under something.
+  return { statuses: next, hpChanges, expired };
+}
+
+/** What a formula sees while this instance is being evaluated. */
+function scopeFor(
+  instance: StatusInstance,
+  remainingMs: number,
+  bearer: StatusBearer,
+): FormulaScope {
+  const REMAINING_SEC = secondsLeft(remainingMs);
+  const DURATION_SEC = secondsLeft(instance.durationMs);
+  return {
+    DURATION_SEC,
+    REMAINING_SEC,
+    ELAPSED_SEC: Math.max(0, DURATION_SEC - REMAINING_SEC),
+    MAX_HP: bearer.maxHp,
+    HP: bearer.hp,
+  };
+}
+
+/**
+ * The stats a body actually fights with, once everything on it has had its say.
+ *
+ * Read where the stats are read rather than applied on a clock, which is what
+ * makes a modifier continuous and an effect periodic — two different kinds of
+ * thing that would otherwise both be "what a status does".
+ *
+ * **Summed, then clamped by the bands the stats already live in.** Nothing new
+ * bounds a probability: `MIN_CHANCE`/`MAX_CHANCE` are applied downstream in
+ * `./combat` and must stay the only place a chance is held.
+ *
+ * `flee` is deliberately left unbounded above, exactly as `fleeFrom` leaves it —
+ * it is one side of a logistic contest, and a ceiling here would be a second
+ * ceiling that silently won.
+ *
+ * Returns the same object when nothing applies, so the overwhelmingly common
+ * "nobody is under anything" costs a length check and no allocation.
+ */
+export function withStatusModifiers(
+  stats: FightingStats,
+  statuses: readonly StatusInstance[],
+  catalogue: Record<string, StatusDef>,
+  hp: number,
+): FightingStats {
+  if (statuses.length === 0) return stats;
+
+  const deltas: Record<string, number> = {};
+  let any = false;
+
+  for (const instance of statuses) {
+    const def = catalogue[instance.defId];
+    if (!def) continue;
+    // `MAX_HP` is the figure *before* any status touches it — see
+    // `../lib/formula`. Reading the running total instead would let a status
+    // that raises max health and heals a share of it compound against itself.
+    const scope = scopeFor(instance, instance.remainingMs, {
+      hp,
+      maxHp: stats.maxHp,
+    });
+    for (const key of MODIFIER_KEYS) {
+      const formula = def.modifiers[key];
+      if (!formula) continue;
+      deltas[key] = (deltas[key] ?? 0) + formula.evaluate(scope);
+      any = true;
+    }
+  }
+
+  if (!any) return stats;
+
+  const atLeast = (value: number, floor: number) => Math.max(floor, value);
+  const percent = (value: number) =>
+    Math.max(0, Math.min(MAX_PERCENT_STAT, value));
+
+  return {
+    ...stats,
+    // One, not zero: a body whose maximum a status drove to nothing would be
+    // dead by arithmetic rather than by anything that happened to it.
+    maxHp: atLeast(stats.maxHp + (deltas.maxHp ?? 0), 1),
+    damage: atLeast(stats.damage + (deltas.damage ?? 0), 0),
+    def: atLeast(stats.def + (deltas.def ?? 0), 0),
+    accuracy: percent(stats.accuracy + (deltas.accuracy ?? 0)),
+    spd: percent(stats.spd + (deltas.spd ?? 0)),
+    flee: atLeast(stats.flee + (deltas.flee ?? 0), 0),
+  };
+}

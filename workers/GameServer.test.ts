@@ -6,6 +6,7 @@ import {
 } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import tilesJson from "../data/tiles.json";
+import statusesJson from "../data/statuses.json";
 import {
   BRAIN_TICK_MS,
   PLAYER_TILE_ID,
@@ -175,6 +176,7 @@ async function putCheckpoint(value: unknown) {
 
 beforeEach(async () => {
   await env.DATA.put("tiles.json", JSON.stringify(tilesJson));
+  await env.DATA.put("statuses.json", JSON.stringify(statusesJson));
   await env.DATA.put("map.json", JSON.stringify(authoredMap()));
 });
 
@@ -721,13 +723,16 @@ describe("replacing the world", () => {
     replacement.levels["0"]![`${AWAY_FROM_SPAWN},0`] = [{ tileId: "water" }];
 
     const pool = devDataPool();
-    // One read, and it is the tiles: a save replaces the world wholesale, so it
-    // deliberately never reads the map it is replacing. No `map.json` GET is
+    // Two reads, and neither is the map: a save replaces the world wholesale, so
+    // it deliberately never reads the one it is replacing. No `map.json` GET is
     // stubbed here, and that is the assertion — with net access off, reaching
     // for one would fail the test rather than quietly pass.
     pool
       .intercept({ path: dataPath("tiles.json") })
       .reply(200, JSON.stringify(tilesJson));
+    pool
+      .intercept({ path: dataPath("statuses.json") })
+      .reply(200, JSON.stringify(statusesJson));
     let written = "";
     pool
       .intercept({ path: dataPath("map.json"), method: "PUT" })
@@ -764,6 +769,9 @@ describe("finding authored content", () => {
     pool
       .intercept({ path: dataPath("tiles.json") })
       .reply(200, JSON.stringify(tilesJson));
+    pool
+      .intercept({ path: dataPath("statuses.json") })
+      .reply(200, JSON.stringify(statusesJson));
     pool
       .intercept({ path: dataPath("map.json") })
       .reply(200, JSON.stringify(onDisk));
@@ -2733,5 +2741,128 @@ describe("dying and coming back", () => {
     await connect("alice");
 
     expect(await actorX("alice")).toBe(SPAWN_CELL);
+  });
+});
+
+/**
+ * A status effect across a disconnection and an eviction.
+ *
+ * **The test a node one cannot write**, and the reason this file exists: the
+ * whole contract of a status is about what happens to it while nobody is driving
+ * the body, and "nobody is driving the body" only has a meaning out here. Three
+ * bugs in `GameServer` have already lived in the load / restore / checkpoint
+ * path, and this feature adds two more keys to it.
+ *
+ * `berry` and `fed` are the authored content out of `data/`, not fixtures, so a
+ * typo in either file fails here.
+ */
+describe("statuses across a disconnection", () => {
+  const BERRY_REF = { x: 1, y: 0, z: 0, stackIndex: 1 };
+
+  /** The strip of grass with a berry east of spawn, as the consume tests use. */
+  function mapWithBerry(): FlatMapFile {
+    const map = authoredMap();
+    map.levels["0"]!["1,0"] = [{ tileId: "grass" }, { tileId: "berry" }];
+    return map;
+  }
+
+  async function storedStatuses(
+    actorId: string,
+  ): Promise<{ defId: string; remainingMs: number }[] | undefined> {
+    let found: { statuses: { defId: string; remainingMs: number }[] } | undefined;
+    await runInDurableObject(stub(), async (_instance, state) => {
+      found = await state.storage.get(`status:${actorId}`);
+    });
+    return found?.statuses;
+  }
+
+  type LiveStatus = { defId: string; remainingMs: number };
+
+  /** What the world says is running on somebody right now. */
+  async function liveStatuses(actorId: string): Promise<LiveStatus[] | null> {
+    let found: LiveStatus[] | null = null;
+    await runInDurableObject(stub(), (instance: GameServer) => {
+      const session = (
+        instance as unknown as {
+          session: { statusesOf(id: string): readonly LiveStatus[] | null };
+        }
+      ).session;
+      found = [...(session.statusesOf(actorId) ?? [])];
+    });
+    return found;
+  }
+
+  it("writes down what is running as the world settles", async () => {
+    await env.DATA.put("map.json", JSON.stringify(mapWithBerry()));
+    const who = freshPlayer();
+    const { ws } = await connect(who);
+
+    send(ws, { type: "consume", from: { kind: "floor", ref: BERRY_REF } });
+    await noiseWithin(ws, 1000);
+    // Saving is the last thing before the world sleeps, which is the point after
+    // which this object may be evicted.
+    await new Promise((resolve) => setTimeout(resolve, QUIET_MS));
+
+    const stored = await storedStatuses(who);
+    expect(stored?.map((entry) => entry.defId)).toEqual(["fed"]);
+    expect(stored![0]!.remainingMs).toBeGreaterThan(0);
+  });
+
+  /**
+   * **The whole feature, in one assertion.** Logging off must neither cancel a
+   * status nor advance it, so what comes back has to be what was left — not a
+   * fresh one, and not one the wall clock ate while nobody was here.
+   *
+   * Asserts the remainder rather than merely that a status is present: "still
+   * fed" passes whether the timer froze or ran, which is the only thing this is
+   * about.
+   */
+  it("comes back exactly where it left off", async () => {
+    await env.DATA.put("map.json", JSON.stringify(mapWithBerry()));
+    const who = freshPlayer();
+    const first = await connect(who);
+
+    send(first.ws, { type: "consume", from: { kind: "floor", ref: BERRY_REF } });
+    await noiseWithin(first.ws, 1000);
+    await leave(first.ws);
+
+    const away = await storedStatuses(who);
+    expect(away?.[0]?.defId).toBe("fed");
+    const remainingWhenTheyLeft = away![0]!.remainingMs;
+
+    // The world runs on without them, and then stops existing altogether.
+    await new Promise((resolve) => setTimeout(resolve, QUIET_MS * 3));
+    await simulateEviction();
+
+    await connect(who);
+    const back = await liveStatuses(who);
+    expect(back?.map((entry) => entry.defId)).toEqual(["fed"]);
+    // Frozen, not merely surviving: whatever the world did while they were gone
+    // is not allowed to have been done to them.
+    expect(back![0]!.remainingMs).toBe(remainingWhenTheyLeft);
+  });
+
+  /**
+   * Health is written **only when it is short of full**, and the absence is the
+   * rule rather than a gap: a body at its maximum needs no memory, because the
+   * tile says so again next load. Without this the store would grow a key per
+   * visitor for the fact that nothing has happened to them.
+   */
+  it("writes no health down for a body that is not hurt", async () => {
+    await env.DATA.put("map.json", JSON.stringify(mapWithBerry()));
+    const who = freshPlayer();
+    const { ws } = await connect(who);
+
+    send(ws, { type: "consume", from: { kind: "floor", ref: BERRY_REF } });
+    await noiseWithin(ws, 1000);
+    await new Promise((resolve) => setTimeout(resolve, QUIET_MS));
+
+    // At full health nothing is written, and that absence *is* the rule: a body
+    // at its maximum needs no memory, because the tile says so again next load.
+    let stored: unknown;
+    await runInDurableObject(stub(), async (_instance, state) => {
+      stored = await state.storage.get(`hp:${who}`);
+    });
+    expect(stored).toBeUndefined();
   });
 });

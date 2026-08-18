@@ -13,17 +13,22 @@ import { useMediaQuery } from "../lib/useMediaQuery";
 import { tilesByIdFromList } from "../lib/validation";
 import { ChatBar, ChatButton } from "./ChatBar";
 import { ContainerPanel } from "./ContainerPanel";
-import { DirectionPad } from "./DirectionPad";
+import { DirectionPad, MAX_PAD_SIZE_PX } from "./DirectionPad";
 import { EquipmentPanel } from "./EquipmentPanel";
 import { DragLayer } from "./DragLayer";
 import { InteractionList } from "./InteractionList";
 import { AttackToggle, LookToggle, type ModeToggleSize } from "./ModeToggle";
 import { BagButton, EquipmentToggle, StatsToggle } from "./PanelToggle";
 import { StatsPanel } from "./StatsPanel";
+import type { ActiveStatus } from "../lib/status";
+import { StatusStrip } from "./StatusStrip";
 import { useItemDrag } from "./useItemDrag";
 
 /** A body nothing has reported on yet. Shared, so a default costs no allocation. */
-const NO_VITALS: Vitals = { hp: null, maxHp: null, rating: null };
+const NO_VITALS: Vitals = { hp: null, maxHp: null, rating: null, statuses: [] };
+
+/** Nobody is under anything, which is almost everybody almost always. */
+const NO_STATUSES: ActiveStatus[] = [];
 
 /**
  * The game as a fixed square, letterboxed into whatever space it is given.
@@ -50,6 +55,19 @@ const NO_VITALS: Vitals = { hp: null, maxHp: null, rating: null };
  * would resize the canvas every time the player walked past a crate.
  */
 const INTERACTION_PANEL_WIDTH_PX = 224;
+
+/**
+ * Narrowest the list of what is in reach may get on a phone.
+ *
+ * **The list wins ties with the pad, and that is the whole point of it being a
+ * number here.** Both share one row, and only one of them is text: a d-pad that
+ * loses twenty pixels is a smaller d-pad, where a list that loses twenty wraps
+ * "Nothing in reach." onto two lines and then wraps every verb off its own row.
+ * So the list states a floor and `DirectionPad` shrinks into whatever is left —
+ * down to `MIN_PAD_SIZE_PX`, past which there is nothing left to give and both
+ * are simply on a phone too narrow for either.
+ */
+const INTERACTION_LIST_MIN_WIDTH_PX = 168;
 
 const COARSE_POINTER = "(pointer: coarse)";
 
@@ -85,6 +103,7 @@ export function GameViewport({
   equipment = emptyEquipment(),
   masteryXp = {},
   vitals = NO_VITALS,
+  statuses = NO_STATUSES,
   openedContainer = null,
   onOpenContainer,
   canMoveItem = () => false,
@@ -151,6 +170,13 @@ export function GameViewport({
    * stats, which the panel says plainly rather than crashing over.
    */
   vitals?: Vitals;
+  /**
+   * What is currently running on the viewer's own body.
+   *
+   * Theirs alone, and deliberately not everybody's: nothing draws another body's
+   * statuses, so nothing needs telling about them. See `./StatusStrip`.
+   */
+  statuses?: ActiveStatus[];
   /**
    * The container on the floor currently being looked into, resolved off the
    * live board by whoever owns the renderer.
@@ -417,7 +443,13 @@ export function GameViewport({
   const panels = (
     <>
       {showStats ? (
-        <StatsPanel vitals={vitals} masteryXp={masteryXp} />
+        <StatsPanel
+          vitals={vitals}
+          masteryXp={masteryXp}
+          statuses={statuses}
+          tilesById={tilesById}
+          tilesets={tilesets}
+        />
       ) : null}
       {showEquipment ? (
         <EquipmentPanel
@@ -544,11 +576,48 @@ export function GameViewport({
           // thing you *read* before acting — sits on the other, out from under
           // the hand that is steering.
           <div className="flex w-full min-h-0 flex-1 items-stretch gap-3 px-3 pb-3">
-            <div className="flex min-h-0 min-w-0 flex-1 flex-col items-start gap-2">
+            <div
+              className="flex min-h-0 flex-1 flex-col items-start gap-2"
+              style={{ minWidth: INTERACTION_LIST_MIN_WIDTH_PX }}
+            >
               {list}
             </div>
-            <div className="flex shrink-0 items-center">
-              <DirectionPad onPress={press} onRelease={release} />
+            {/* The lane sits *above* the pad rather than beside it, and that is
+                what buys the pad its size back: a column on the screen edge cost
+                the row its own width plus a gap, where a line stacked on top of
+                the pad costs nothing horizontal at all. The two are one cluster,
+                so they share a column and the lane is exactly the pad's width.
+
+                Shrinks rather than holding its size — see
+                {@link INTERACTION_LIST_MIN_WIDTH_PX}. */}
+            <div
+              className="flex min-w-0 shrink flex-col items-center"
+              // A basis rather than letting it size to its contents: the pad is
+              // `w-full` of this box, so a shrink-to-fit parent would be asking
+              // the child how wide to be and getting `min-width` back — the pad
+              // sat pinned at its floor with free space beside it. Stating the
+              // ideal here is what gives flexbox something to shrink *from*.
+              style={{ flexBasis: MAX_PAD_SIZE_PX }}
+            >
+              {/* Rendered whether or not anything is running: a lane that
+                  appeared on the first berry would push the pad down out from
+                  under the thumb steering with it. */}
+              <StatusStrip
+                statuses={statuses}
+                interactive={false}
+                tilesById={tilesById}
+                tilesets={tilesets}
+              />
+              {/* Shoved to the far end of the column rather than sat under the
+                  lane, so the two are as far apart as the space allows. They are
+                  one cluster to *read* and must not be one to *hit*: a thumb
+                  reaching for north lands where the top of the pad is, and a row
+                  of decorations an inch above it is a stray press waiting to
+                  happen — see `interactive={false}`, which is the other half of
+                  the same worry. */}
+              <div className="mt-auto w-full">
+                <DirectionPad onPress={press} onRelease={release} />
+              </div>
             </div>
           </div>
         ) : null}
@@ -559,6 +628,18 @@ export function GameViewport({
           className="flex h-full shrink-0 flex-col gap-2 border-l-2 border-paper/20 p-2"
           style={{ width: INTERACTION_PANEL_WIDTH_PX }}
         >
+          {/* Above the modes and ruled off from them, so the column reads top to
+              bottom as: what you are under, what a tap means, what you have,
+              what is in reach. Always present, so nothing below it moves when a
+              status lands. */}
+          <div className="shrink-0 border-b-2 border-paper/20 pb-2">
+            <StatusStrip
+              statuses={statuses}
+              interactive
+              tilesById={tilesById}
+              tilesets={tilesets}
+            />
+          </div>
           {/* Modes above the list and ruled off from it, because they are a
               different kind of thing: the rows below say what you could do to
               one particular object, and these say what doing anything means. */}

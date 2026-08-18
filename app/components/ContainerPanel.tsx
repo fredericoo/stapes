@@ -24,8 +24,15 @@ const FRONT: "s" = "s";
  */
 const CLOSE_ICON_SIZE_PX = 12;
 
-/** Big enough to tell a chest from a bag, small enough to sit in a heading. */
-const TITLE_SPRITE_SIZE_PX = 18;
+/**
+ * Big enough to tell a chest from a bag, small enough to sit in a heading.
+ *
+ * Exported because `./StatusStrip` and the panel's effects list are sized off it
+ * rather than off {@link ITEM_SLOT_SIZE_PX}: a status icon is a mark beside a
+ * name, which is exactly this, and not a thing you could pick up, which is the
+ * slot.
+ */
+export const TITLE_SPRITE_SIZE_PX = 18;
 
 /**
  * What is inside a container.
