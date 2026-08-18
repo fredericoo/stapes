@@ -43029,6 +43029,9 @@
           "tileId": "dirt"
         },
         {
+          "tileId": "wooden-floor"
+        },
+        {
           "tileId": "sw2"
         }
       ],
@@ -43037,12 +43040,18 @@
           "tileId": "dirt"
         },
         {
+          "tileId": "wooden-floor"
+        },
+        {
           "tileId": "sw2"
         }
       ],
       "7,-6": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "wooden-floor"
         },
         {
           "tileId": "window-1",
@@ -43054,6 +43063,9 @@
           "tileId": "dirt"
         },
         {
+          "tileId": "wooden-floor"
+        },
+        {
           "tileId": "sw2"
         }
       ],
@@ -43062,12 +43074,18 @@
           "tileId": "dirt"
         },
         {
+          "tileId": "wooden-floor"
+        },
+        {
           "tileId": "sw2"
         }
       ],
       "7,-3": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "wooden-floor"
         },
         {
           "tileId": "sw2"
@@ -43870,6 +43888,9 @@
           "tileId": "dirt"
         },
         {
+          "tileId": "wooden-floor"
+        },
+        {
           "tileId": "sw2"
         }
       ],
@@ -43896,6 +43917,9 @@
       "8,-3": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "wooden-floor"
         },
         {
           "tileId": "sw2"
@@ -44701,6 +44725,9 @@
           "tileId": "dirt"
         },
         {
+          "tileId": "wooden-floor"
+        },
+        {
           "tileId": "sw2"
         }
       ],
@@ -44736,6 +44763,9 @@
       "9,-3": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "wooden-floor"
         },
         {
           "tileId": "sw2"
@@ -45530,6 +45560,9 @@
           "tileId": "dirt"
         },
         {
+          "tileId": "wooden-floor"
+        },
+        {
           "tileId": "sw2"
         }
       ],
@@ -45556,6 +45589,9 @@
       "10,-3": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "wooden-floor"
         },
         {
           "tileId": "sw2"
@@ -46363,6 +46399,9 @@
           "tileId": "dirt"
         },
         {
+          "tileId": "wooden-floor"
+        },
+        {
           "tileId": "sw2"
         }
       ],
@@ -46389,6 +46428,9 @@
       "11,-3": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "wooden-floor"
         },
         {
           "tileId": "door-closed",
@@ -47200,6 +47242,9 @@
           "tileId": "dirt"
         },
         {
+          "tileId": "wooden-floor"
+        },
+        {
           "tileId": "sw2"
         }
       ],
@@ -47226,6 +47271,9 @@
       "12,-3": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "wooden-floor"
         },
         {
           "tileId": "sw2"
@@ -48042,6 +48090,9 @@
           "tileId": "dirt"
         },
         {
+          "tileId": "wooden-floor"
+        },
+        {
           "tileId": "sw2"
         }
       ],
@@ -48068,6 +48119,9 @@
       "13,-3": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "wooden-floor"
         },
         {
           "tileId": "sw2"
@@ -48878,6 +48932,9 @@
           "tileId": "dirt"
         },
         {
+          "tileId": "wooden-floor"
+        },
+        {
           "tileId": "sw2"
         }
       ],
@@ -48904,6 +48961,9 @@
       "14,-3": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "wooden-floor"
         },
         {
           "tileId": "window-1",
@@ -49710,6 +49770,9 @@
           "tileId": "dirt"
         },
         {
+          "tileId": "wooden-floor"
+        },
+        {
           "tileId": "sw2"
         }
       ],
@@ -49736,6 +49799,9 @@
       "15,-3": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "wooden-floor"
         },
         {
           "tileId": "sw2"
@@ -50526,6 +50592,9 @@
           "tileId": "dirt"
         },
         {
+          "tileId": "wooden-floor"
+        },
+        {
           "tileId": "sw2"
         }
       ],
@@ -50534,12 +50603,18 @@
           "tileId": "dirt"
         },
         {
+          "tileId": "wooden-floor"
+        },
+        {
           "tileId": "sw2"
         }
       ],
       "16,-6": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "wooden-floor"
         },
         {
           "tileId": "window-1",
@@ -50551,6 +50626,9 @@
           "tileId": "dirt"
         },
         {
+          "tileId": "wooden-floor"
+        },
+        {
           "tileId": "sw2"
         }
       ],
@@ -50559,12 +50637,18 @@
           "tileId": "dirt"
         },
         {
+          "tileId": "wooden-floor"
+        },
+        {
           "tileId": "sw2"
         }
       ],
       "16,-3": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "wooden-floor"
         },
         {
           "tileId": "sw2"
@@ -86912,35 +86996,56 @@
           "tileId": "dirt"
         },
         {
+          "tileId": "wooden-floor"
+        },
+        {
           "tileId": "sw2"
         }
       ],
       "7,-7": [
+        {
+          "tileId": "wooden-floor"
+        },
         {
           "tileId": "sw2"
         }
       ],
       "7,-6": [
         {
+          "tileId": "wooden-floor"
+        },
+        {
           "tileId": "sw2"
         }
       ],
       "7,-5": [
+        {
+          "tileId": "wooden-floor"
+        },
         {
           "tileId": "sw2"
         }
       ],
       "7,-4": [
         {
+          "tileId": "wooden-floor"
+        },
+        {
           "tileId": "sw2"
         }
       ],
       "7,-3": [
         {
+          "tileId": "wooden-floor"
+        },
+        {
           "tileId": "sw2"
         }
       ],
       "8,-8": [
+        {
+          "tileId": "wooden-floor"
+        },
         {
           "tileId": "sw2"
         }
@@ -86948,29 +87053,47 @@
       "8,-7": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "wooden-floor-inner"
         }
       ],
       "8,-6": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "wooden-floor-inner"
         }
       ],
       "8,-5": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "wooden-floor-inner"
         }
       ],
       "8,-4": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "wooden-floor-inner"
         }
       ],
       "8,-3": [
+        {
+          "tileId": "wooden-floor"
+        },
         {
           "tileId": "sw2"
         }
       ],
       "9,-8": [
+        {
+          "tileId": "wooden-floor"
+        },
         {
           "tileId": "sw2"
         }
@@ -86978,19 +87101,31 @@
       "9,-7": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "wooden-floor-inner"
         }
       ],
       "9,-4": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "wooden-floor-inner"
         }
       ],
       "9,-3": [
+        {
+          "tileId": "wooden-floor"
+        },
         {
           "tileId": "sw2"
         }
       ],
       "10,-8": [
+        {
+          "tileId": "wooden-floor"
+        },
         {
           "tileId": "sw2"
         }
@@ -86998,29 +87133,47 @@
       "10,-7": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "wooden-floor-inner"
         }
       ],
       "10,-6": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "wooden-floor-inner"
         }
       ],
       "10,-5": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "wooden-floor-inner"
         }
       ],
       "10,-4": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "wooden-floor-inner"
         }
       ],
       "10,-3": [
+        {
+          "tileId": "wooden-floor"
+        },
         {
           "tileId": "sw2"
         }
       ],
       "11,-8": [
+        {
+          "tileId": "wooden-floor"
+        },
         {
           "tileId": "sw2"
         }
@@ -87047,10 +87200,16 @@
       ],
       "11,-3": [
         {
+          "tileId": "wooden-floor"
+        },
+        {
           "tileId": "sw2"
         }
       ],
       "12,-8": [
+        {
+          "tileId": "wooden-floor"
+        },
         {
           "tileId": "sw2"
         }
@@ -87076,6 +87235,9 @@
         }
       ],
       "12,-3": [
+        {
+          "tileId": "wooden-floor"
+        },
         {
           "tileId": "sw2"
         }
@@ -87116,6 +87278,9 @@
       ],
       "13,-8": [
         {
+          "tileId": "wooden-floor"
+        },
+        {
           "tileId": "sw2"
         }
       ],
@@ -87140,6 +87305,9 @@
         }
       ],
       "13,-3": [
+        {
+          "tileId": "wooden-floor"
+        },
         {
           "tileId": "sw2"
         }
@@ -87180,6 +87348,9 @@
       ],
       "14,-8": [
         {
+          "tileId": "wooden-floor"
+        },
+        {
           "tileId": "sw2"
         }
       ],
@@ -87204,6 +87375,9 @@
         }
       ],
       "14,-3": [
+        {
+          "tileId": "wooden-floor"
+        },
         {
           "tileId": "sw2"
         }
@@ -87244,6 +87418,9 @@
       ],
       "15,-8": [
         {
+          "tileId": "wooden-floor"
+        },
+        {
           "tileId": "sw2"
         }
       ],
@@ -87268,6 +87445,9 @@
         }
       ],
       "15,-3": [
+        {
+          "tileId": "wooden-floor"
+        },
         {
           "tileId": "sw2"
         }
@@ -87308,30 +87488,48 @@
       ],
       "16,-8": [
         {
+          "tileId": "wooden-floor"
+        },
+        {
           "tileId": "sw2"
         }
       ],
       "16,-7": [
+        {
+          "tileId": "wooden-floor"
+        },
         {
           "tileId": "sw2"
         }
       ],
       "16,-6": [
         {
+          "tileId": "wooden-floor"
+        },
+        {
           "tileId": "sw2"
         }
       ],
       "16,-5": [
+        {
+          "tileId": "wooden-floor"
+        },
         {
           "tileId": "sw2"
         }
       ],
       "16,-4": [
         {
+          "tileId": "wooden-floor"
+        },
+        {
           "tileId": "sw2"
         }
       ],
       "16,-3": [
+        {
+          "tileId": "wooden-floor"
+        },
         {
           "tileId": "sw2"
         }
