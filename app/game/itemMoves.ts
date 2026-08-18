@@ -3,7 +3,7 @@ import { resolveContainer, resolveWeapon } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { MapFile, PlacedTile, TileDef } from "../lib/types";
 import { reachableItemDefAt, type Actor, type ObjectRef } from "./affordances";
-import type { Equipment } from "./equipment";
+import { type Equipment, offhandAccepts } from "./equipment";
 
 /**
  * Moving one carried thing from where it is to somewhere else.
@@ -42,8 +42,16 @@ import type { Equipment } from "./equipment";
  * — there is nowhere else for a thing to land.
  */
 export type SlotRef =
-  /** In hand. */
+  /** In hand — what you swing. */
   | { kind: "weapon" }
+  /**
+   * The other hand — a torch, a shield, anything you carry rather than swing.
+   *
+   * A slot of its own rather than a second weapon slot, because what reaches a
+   * fight from here is light and defence and never a blow. See
+   * `./equipment`'s `offhand` for why it exists at all.
+   */
+  | { kind: "offhand" }
   /**
    * On your back — the bag itself, not a place inside it.
    *
@@ -94,6 +102,7 @@ export function slotIn(container: ContainerRef, index: number): SlotRef {
  */
 export function slotKey(slot: SlotRef): string {
   if (slot.kind === "weapon") return "weapon";
+  if (slot.kind === "offhand") return "offhand";
   if (slot.kind === "bag") return "bag";
   if (slot.kind === "contents") return `contents:${slot.index}`;
   const { x, y, z, stackIndex } = slot.ref;
@@ -160,6 +169,9 @@ function slotAccepts(
   const def = tilesById[instance.tileId];
   if (!def) return false;
   if (slot.kind === "weapon") return resolveWeapon(def) != null;
+  // Looser than the weapon slot on purpose: you can hold a thing that is no use
+  // as a weapon, which is the whole point of having somewhere to put a torch.
+  if (slot.kind === "offhand") return offhandAccepts(def);
   // The one slot a container may go in, and only a wearable one. Nothing can
   // reach it today — a container is never inside another container to be moved
   // out of — but it is the honest rule for the slot rather than an accident of
@@ -184,6 +196,7 @@ export function itemInSlot(
   slot: SlotRef,
 ): ItemInstance | null {
   if (slot.kind === "weapon") return equipment.weapon;
+  if (slot.kind === "offhand") return equipment.offhand;
   if (slot.kind === "bag") return equipment.bag;
   if (slot.kind === "contents") {
     return equipment.bag?.contents?.[slot.index] ?? null;
@@ -207,6 +220,7 @@ function slotHasRoom(
   slot: SlotRef,
 ): boolean {
   if (slot.kind === "weapon") return equipment.weapon === null;
+  if (slot.kind === "offhand") return equipment.offhand === null;
   if (slot.kind === "bag") return equipment.bag === null;
   if (slot.kind === "contents") {
     const bag = equipment.bag;
@@ -311,6 +325,11 @@ export function clearSlot(
     return { map, equipment: { ...equipment, weapon: null } };
   }
 
+  if (slot.kind === "offhand") {
+    if (!equipment.offhand) return null;
+    return { map, equipment: { ...equipment, offhand: null } };
+  }
+
   if (slot.kind === "bag") {
     if (!equipment.bag) return null;
     return { map, equipment: { ...equipment, bag: null } };
@@ -355,6 +374,10 @@ function fillSlot(
 ): ItemMoveResult | null {
   if (slot.kind === "weapon") {
     return { map, equipment: { ...equipment, weapon: instance } };
+  }
+
+  if (slot.kind === "offhand") {
+    return { map, equipment: { ...equipment, offhand: instance } };
   }
 
   if (slot.kind === "bag") {

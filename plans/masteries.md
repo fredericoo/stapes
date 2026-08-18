@@ -895,15 +895,46 @@ twentieth of their own fists, against a rat swinging every 26 ticks. It read
 exactly as it felt: "the rat has three times my attack speed and I hit it for 1".
 Nothing anywhere on the screen said otherwise.
 
-The rule is right and the silence was not, so the panel now says what you are
-actually fighting with — damage, swing time and landing chance — **always,
-including for bare hands**, because a readout that appeared only when something
-was wrong would make its own absence the message. `worseThanBareHands` names the
-one comparison a player can act on, and it lives in `../game/equipment` beside
-the rule it is about rather than in the panel that draws it.
+The first answer was to print the numbers — damage, swing time, landing chance —
+and it was the wrong one. **This game is played by picking things up and finding
+out.** Whether a weapon hits harder than your fists is the only question the
+fighting has to offer, and a panel that answers it in advance has taken the game
+away. What a weapon *asks* stays, because that is a gate rather than a verdict
+and it is authored on the item; what it is *worth* came back out.
 
-It fires for an unlearnt sword too, which is not a bug: an unlearnt sword really
-is worse than your own hands, and that is the lesson phase 2 spent a section on.
+The real answer is a second hand.
+
+### The off hand
+
+`Equipment` is `weapon`, `offhand`, `bag`. A torch or a shield goes in the off
+hand, and the choice between them is the point of the slot.
+
+**It does not swing.** Two hands fighting is a whole design — timing, which one
+lands, what a mastery means when you hold two things — and none of it is needed
+to answer the question this slot exists for. Exactly two things reach a fight
+from here:
+
+- **Light**, through `carriedLightTileIds`, which was already a projection over
+  *slots* rather than over named fields. Its comment predicted this slot by name
+  — "there will be more of them — a lamp hook, an off hand" — so adding it was
+  one entry in one list rather than a hunt through everything that lights a room.
+- **Defence**, through `offhandDefence`, read off the `def` that already lives on
+  a weapon as a stopgap until armour exists. A shield is therefore authorable
+  today as an item with a `def` and nothing much else, with no new item type
+  invented for it.
+
+It takes anything that is not a container, which is the rule the inside of a bag
+already follows and for the same reason: a bag has a slot of its own, and a pack
+in a hand in a pack is the nesting nothing here allows.
+
+**A tap on a light goes to the off hand**, and that check sits *above* the weapon
+rule rather than below it — a lantern is authored as a weapon, because it had to
+be when the swinging hand was the only hand, so the obvious ordering would have
+shipped this slot and changed nothing anybody noticed.
+
+Dragging a lantern into the weapon hand is still allowed, and still terrible.
+That is now a choice somebody made rather than one the game made for them, which
+is the whole difference.
 
 ### What is not there
 
@@ -917,7 +948,10 @@ work out for themselves from ⭐ against ⭐ long before it is worth a panel.
 ## Deferred
 
 - **Armour slots**, and with them a real `def` and a ceiling for Toughness. The
-  single largest thing this design is currently leaning on not existing.
+  single largest thing this design is currently leaning on not existing. The off
+  hand is a first corner of it — a shield's `def` reaches a fight — but it trains
+  no mastery, so Toughness is still uncapped and still has nothing to grow
+  against.
 - **`range` moves onto the weapon.** It is on the battler today, and once a
   natural weapon exists that is the honest home for it — a bow's reach is the
   bow's. Left alone in phase 1 because nothing needs it yet and moving it touches

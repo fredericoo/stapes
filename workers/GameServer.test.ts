@@ -1544,7 +1544,8 @@ describe("player permanence", () => {
         const end = Math.min(i + BACKFILL_BATCH, MAX_REMEMBERED_ACTORS + overflow);
         for (let n = i; n < end; n++) {
           batch[`equip:backfill-${n}`] = {
-            equipment: { weapon: null, bag: null },
+            equipment: { weapon: null, offhand: null,
+  bag: null },
             savedAt: n,
           };
         }

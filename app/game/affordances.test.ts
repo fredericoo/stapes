@@ -56,10 +56,12 @@ const tilesById = tilesByIdFromList(tiles);
 
 const KIT: Equipment = {
   weapon: null,
+  offhand: null,
   bag: { id: "itm_bag", tileId: "bag", contents: [] },
 };
 const FULL_KIT: Equipment = {
   weapon: null,
+  offhand: null,
   bag: {
     id: "itm_bag",
     tileId: "bag",

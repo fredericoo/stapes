@@ -1,5 +1,6 @@
 import { resolveConsumable, resolveContainer, resolveWeapon } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
+import { resolveLight } from "../lib/tileResolve";
 import type { TileDef } from "../lib/types";
 import type { ObjectRef } from "./affordances";
 import type { SlotRef } from "./itemMoves";
@@ -82,6 +83,16 @@ export function itemUseFor(
 ): ItemUse | null {
   const def = tilesById[instance.tileId];
   if (!def) return null;
+
+  // **A light goes to the other hand**, and this is checked before the weapon
+  // rule rather than after it because a lantern is authored as a weapon — it had
+  // to be, when the swinging hand was the only hand. Tapping one is a request to
+  // see in the dark, never a request to fight with it.
+  if (resolveLight(def, { direction: instance.direction })) {
+    return slot.kind === "offhand"
+      ? { type: "move", to: FIRST_BAG_SLOT }
+      : { type: "move", to: { kind: "offhand" } };
+  }
 
   if (resolveWeapon(def)) {
     return slot.kind === "weapon"

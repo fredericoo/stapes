@@ -246,12 +246,14 @@ describe("a kit that will not parse", () => {
 
   it("still lets the world through, and hands back an empty kit", () => {
     const message = parseServerMessage(
-      helloWith({ weapon: null, bag: { id: "itm_bag", tileId: "basic-bag", contents: [badItem] } }),
+      helloWith({ weapon: null, offhand: null,
+  bag: { id: "itm_bag", tileId: "basic-bag", contents: [badItem] } }),
     );
     expect(message).not.toBeNull();
     expect(message).toMatchObject({ type: "hello", selfId: "a", playerCount: 1 });
     expect(message?.type === "hello" && message.equipment).toEqual({
       weapon: null,
+      offhand: null,
       bag: null,
     });
   });
@@ -263,6 +265,7 @@ describe("a kit that will not parse", () => {
     const message = parseServerMessage(
       helloWith({
         weapon: { id: "itm_w", tileId: "rusty-sword" },
+        offhand: null,
         bag: { id: "itm_bag", tileId: "basic-bag", contents: [badItem] },
       }),
     );
@@ -271,11 +274,13 @@ describe("a kit that will not parse", () => {
 
   it("does the same for the equipment message on its own", () => {
     const message = parseServerMessage(
-      JSON.stringify({ type: "equipment", equipment: { weapon: badItem, bag: null } }),
+      JSON.stringify({ type: "equipment", equipment: { weapon: badItem, offhand: null,
+  bag: null } }),
     );
     expect(message).not.toBeNull();
     expect(message?.type === "equipment" && message.equipment).toEqual({
       weapon: null,
+      offhand: null,
       bag: null,
     });
   });
@@ -283,6 +288,7 @@ describe("a kit that will not parse", () => {
   it("still takes a kit it can read", () => {
     const equipment = {
       weapon: { id: "itm_w", tileId: "rusty-sword" },
+      offhand: null,
       bag: { id: "itm_b", tileId: "basic-bag", contents: [{ id: "itm_c", tileId: "hand-lantern" }] },
     };
     const message = parseServerMessage(JSON.stringify({ type: "equipment", equipment }));
@@ -292,7 +298,8 @@ describe("a kit that will not parse", () => {
   // The tolerance is the equipment field's alone: a `hello` whose *world* cannot
   // be read is still a message with nothing to draw.
   it("is not a licence for the rest of the message", () => {
-    expect(parseServerMessage(helloWith({ weapon: null, bag: null }).replace('"playerCount":1', '"playerCount":"lots"'))).toBeNull();
+    expect(parseServerMessage(helloWith({ weapon: null, offhand: null,
+  bag: null }).replace('"playerCount":1', '"playerCount":"lots"'))).toBeNull();
   });
 });
 

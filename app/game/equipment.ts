@@ -6,7 +6,6 @@ import { mintItemId } from "../lib/itemInstance";
 import { resolveContainer, resolveItem, resolveWeapon } from "../lib/item";
 import { resolveLight } from "../lib/tileResolve";
 import type { TileDef } from "../lib/types";
-import { attackIntervalMs } from "./combat";
 
 /**
  * What carrying things does to a fight.
@@ -34,6 +33,22 @@ import { attackIntervalMs } from "./combat";
  */
 export type Equipment = {
   weapon: ItemInstance | null;
+  /**
+   * The other hand — a torch, a shield, whatever is worth carrying that is not
+   * what you are swinging.
+   *
+   * **It exists because the weapon slot was the only hand there was, and a
+   * held weapon replaces your fists rather than adding to them.** So a lantern,
+   * which is authored as a weapon because it had to go somewhere, meant fighting
+   * at a twentieth of your bare hands to see in the dark. That is a real
+   * trade-off to offer a player and a terrible one to impose on them without
+   * saying so, and the honest fix is a second hand rather than a warning label.
+   *
+   * It does not swing. What reaches a fight from here is light and defence —
+   * see {@link carriedLightTileIds} and {@link effectiveBattler} — which is
+   * exactly what a torch and a shield are for.
+   */
+  offhand: ItemInstance | null;
   /** An equippable container. Its `contents` is the inventory. */
   bag: ItemInstance | null;
 };
@@ -43,7 +58,7 @@ export type EquipSlot = keyof Equipment;
 
 /** Carrying nothing at all — a body that was never given a kit. */
 export function emptyEquipment(): Equipment {
-  return { weapon: null, bag: null };
+  return { weapon: null, offhand: null, bag: null };
 }
 
 /**
@@ -67,6 +82,7 @@ export function startingEquipment(
   if (!container?.equippable) return emptyEquipment();
   return {
     weapon: null,
+    offhand: null,
     bag: { id: mintItemId(), tileId: bagTileId, contents: [] },
   };
 }
@@ -98,9 +114,20 @@ export function restoredEquipment(
       ? identified(saved.weapon)
       : null;
 
+  // Absent on a kit saved before this slot existed, which reads as an empty
+  // hand — the same answer the rest of this function gives to anything the world
+  // no longer agrees with.
+  const offhandDef = saved.offhand ? tilesById[saved.offhand.tileId] : undefined;
+  const offhand =
+    saved.offhand && offhandDef && offhandAccepts(offhandDef)
+      ? identified(saved.offhand)
+      : null;
+
   const bagDef = saved.bag ? tilesById[saved.bag.tileId] : undefined;
   const container = bagDef ? resolveContainer(bagDef) : null;
-  if (!saved.bag || !container?.equippable) return { weapon, bag: null };
+  if (!saved.bag || !container?.equippable) {
+    return { weapon, offhand, bag: null };
+  }
 
   // Truncated to what the bag holds *now*, because an author who shrank it did
   // so knowing what was in the world — and a bag reporting 6/4 is a state no
@@ -115,7 +142,7 @@ export function restoredEquipment(
     .slice(0, container.size)
     .map(identified);
 
-  return { weapon, bag: { ...identified(saved.bag), contents } };
+  return { weapon, offhand, bag: { ...identified(saved.bag), contents } };
 }
 
 /**
@@ -140,6 +167,7 @@ function identified(instance: ItemInstance): ItemInstance {
 export function carriedInstances(equipment: Equipment): ItemInstance[] {
   const out: ItemInstance[] = [];
   if (equipment.weapon) out.push(equipment.weapon);
+  if (equipment.offhand) out.push(equipment.offhand);
   if (equipment.bag) {
     out.push(equipment.bag);
     // One level, never recursive: a container may not hold a container, so
@@ -153,12 +181,12 @@ export function carriedInstances(equipment: Equipment): ItemInstance[] {
  * Everything worn in a slot, which is what a light is read off.
  *
  * Deliberately *not* {@link carriedInstances}: what is in the bag is in the bag.
- * The list is over the slots rather than over the two fields by name because
- * there will be more of them — a lamp hook, an off hand — and a projection that
- * had to be edited for each would be the wrong shape from the first one added.
+ * The list is over the slots rather than over the fields by name — the off hand
+ * was the first of the "more of them" this comment anticipated, and adding it
+ * was one entry here rather than a hunt through everything that lights a room.
  */
 function wornInstances(equipment: Equipment): ItemInstance[] {
-  return [equipment.weapon, equipment.bag].filter(
+  return [equipment.weapon, equipment.offhand, equipment.bag].filter(
     (instance): instance is ItemInstance => instance != null,
   );
 }
@@ -247,41 +275,52 @@ export function effectiveBattler(
   equipment: Equipment | null,
   tilesById: Record<string, TileDef>,
 ): FightingStats {
-  return fightingStats(base, weaponInHand(base, equipment, tilesById));
+  const stats = fightingStats(base, weaponInHand(base, equipment, tilesById));
+  const guard = offhandDefence(equipment, tilesById);
+  return guard === 0 ? stats : { ...stats, def: stats.def + guard };
 }
 
 /**
- * Damage per millisecond, which is the only fair way to compare two weapons.
+ * What the off hand turns aside, if it is holding something that turns anything
+ * aside.
  *
- * Damage alone would call a hand lantern a quarter of your fists when it is
- * nearer a twentieth: it also swings less than half as often and lands half as
- * many of those. Landing, hitting and swinging, multiplied.
+ * **The one thing the off hand adds to a fight, and it is deliberately not
+ * damage.** Two hands swinging is a whole design — timing, which one lands,
+ * what a mastery means when you hold two things — and none of it is needed to
+ * answer the question this slot exists for: a torch or a shield. Light comes out
+ * of {@link carriedLightTileIds} and defence comes out of here, so both halves
+ * of that choice work and neither invents a second attack.
+ *
+ * Read off a weapon's `def`, which is where defence already lives as a stopgap
+ * until armour exists — so a shield is authorable today as an item with a `def`
+ * and nothing to speak of anywhere else, and needs no new item type to be
+ * invented for it.
+ *
+ * Zero for an empty hand, a tile the catalogue has lost, and anything with no
+ * opinion about defence.
  */
-export function damageRate(stats: FightingStats): number {
-  return (stats.damage * stats.hitChance) / attackIntervalMs(stats.spd);
-}
-
-/**
- * Whether the thing in this body's hand is worth less than the hand.
- *
- * **The one comparison a player can act on**, and it exists because a held
- * weapon *replaces* the natural one rather than adding to it — the rule the
- * whole natural-weapon design rests on, and the one with a sharp edge nobody
- * could see. A hand lantern is a weapon: damage 1 at accuracy 45, swinging every
- * 95 ticks against bare hands at 4 and 82 and 41. Somebody who picked one up to
- * see in the dark was fighting at a twentieth of their own fists, with nothing
- * anywhere saying so, and read it as the game being broken.
- *
- * False for empty hands, which cannot be worse than themselves.
- */
-export function worseThanBareHands(
-  base: BattlerDef,
+export function offhandDefence(
   equipment: Equipment | null,
   tilesById: Record<string, TileDef>,
-): boolean {
-  if (!equipment?.weapon) return false;
-  return (
-    damageRate(effectiveBattler(base, equipment, tilesById)) <
-    damageRate(effectiveBattler(base, null, tilesById))
-  );
+): number {
+  const held = equipment?.offhand;
+  if (!held) return 0;
+  const def = tilesById[held.tileId];
+  return def ? (resolveWeapon(def)?.def ?? 0) : 0;
+}
+
+/**
+ * Whether this is a thing you could hold in your other hand.
+ *
+ * Anything but a container, which is the same rule the inside of a bag follows
+ * and for the same reason: a bag has a slot of its own, and a pack inside a hand
+ * inside a pack is the nesting nothing here allows. Everything else is fair —
+ * a torch, a shield, a spare sword you are not swinging.
+ *
+ * Here rather than in `./itemMoves` because it is a fact about the slot, and the
+ * slot is defined by this module. `restoredEquipment` and the move rules both
+ * ask it, and two answers would be a kit that could be saved and not re-equipped.
+ */
+export function offhandAccepts(def: TileDef): boolean {
+  return resolveItem(def) != null && resolveContainer(def) == null;
 }

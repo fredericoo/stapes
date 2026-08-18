@@ -5,7 +5,7 @@ import type { TileDef, TilesetDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { ItemSlot } from "./ItemSlot";
 import type { ItemDrag } from "./useItemDrag";
-import { WeaponDemands } from "./WeaponDemands";
+import { WeaponAsks } from "./WeaponAsks";
 
 /**
  * What you are wearing: what is in your hand, and what is on your back.
@@ -17,14 +17,20 @@ import { WeaponDemands } from "./WeaponDemands";
  * a bag that needed its own gesture would be the one exception. So it is a slot,
  * beside the hand, and the strip button went back to being only an opener.
  *
- * Two slots is a thin panel, and that is the honest state of the game rather
+ * Three slots is a thin panel, and that is the honest state of the game rather
  * than a placeholder: armour is out of scope, and a panel pretending to more
  * slots than exist would be describing a game nobody can play yet.
  *
+ * The off hand sits between them because that is the order they are reached for:
+ * what you swing, what you hold, what you carry it all in.
+ *
  * What the thing in your hand *asks of you* is here, directly under it, because
- * that is a fact about the item rather than about you. What you are good at is
- * not: it moved to its own panel, since it answers a different question and does
- * not change when you move an item. See `./StatsPanel`.
+ * that is a fact about the item rather than about you. What it is *worth* is
+ * deliberately absent: this game is played by picking things up and finding out,
+ * and a panel that ranked your weapons would be answering the only question the
+ * fighting has to offer. What you are good at is not here either — it moved to
+ * its own panel, since it answers a different question and does not change when
+ * you move an item. See `./StatsPanel`.
  */
 export function EquipmentPanel({
   equipment,
@@ -80,6 +86,15 @@ export function EquipmentPanel({
           drag={drag}
         />
         <ItemSlot
+          slot={{ kind: "offhand" }}
+          instance={equipment.offhand}
+          tilesById={tilesById}
+          tilesets={tilesets}
+          label="Off hand"
+          emptyHint="Off hand — nothing held"
+          drag={drag}
+        />
+        <ItemSlot
           slot={{ kind: "bag" }}
           instance={equipment.bag}
           tilesById={tilesById}
@@ -90,11 +105,11 @@ export function EquipmentPanel({
           drag={drag}
         />
       </div>
-      {/* Directly under the hand it is about, and drawn for bare hands too: a
-          readout that appeared only when something was wrong would make its own
-          absence the message. */}
-      <WeaponDemands
-        equipment={equipment}
+      {/* Directly under the hand it is about, and absent for bare hands or for
+          a weapon that asks nothing — a heading over an empty list would make a
+          point of a rule that is not in play. */}
+      <WeaponAsks
+        weapon={equipment.weapon}
         masteryXp={masteryXp}
         tilesById={tilesById}
         className="mt-1"

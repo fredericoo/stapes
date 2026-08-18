@@ -213,12 +213,14 @@ function playerAt(map: MapFile, x = 0, y = 0): ActorSnapshot {
 /** A player with an empty four-slot bag on their back — the starting kit. */
 const KIT: Equipment = {
   weapon: null,
+  offhand: null,
   bag: { id: "itm_bag", tileId: "bag", contents: [] },
 };
 
 /** Same bag, with nothing left to put in it. */
 const FULL_KIT: Equipment = {
   weapon: null,
+  offhand: null,
   bag: {
     id: "itm_bag",
     tileId: "bag",

@@ -100567,9 +100567,6 @@
       "-11,55": [
         {
           "tileId": "grass-2"
-        },
-        {
-          "tileId": "rusty-sword"
         }
       ],
       "-11,56": [
@@ -101456,9 +101453,6 @@
       "-9,55": [
         {
           "tileId": "grass-2"
-        },
-        {
-          "tileId": "hand-lantern"
         }
       ],
       "-9,56": [
@@ -101804,6 +101798,9 @@
         },
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "barrel"
         }
       ],
       "-8,45": [
@@ -101884,10 +101881,6 @@
       "-8,55": [
         {
           "tileId": "grass-2"
-        },
-        {
-          "tileId": "rat",
-          "direction": "w"
         }
       ],
       "-8,56": [
@@ -121519,17 +121512,11 @@
       "-9,40": [
         {
           "tileId": "grass-2"
-        },
-        {
-          "tileId": "dirt"
         }
       ],
       "-9,41": [
         {
           "tileId": "grass-2"
-        },
-        {
-          "tileId": "dirt"
         }
       ],
       "-9,42": [
@@ -121538,6 +121525,9 @@
         },
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "wooden-box"
         }
       ],
       "-9,43": [
@@ -121586,11 +121576,17 @@
       "-8,40": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "dirt"
         }
       ],
       "-8,41": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "dirt"
         }
       ],
       "-8,42": [
@@ -121657,12 +121653,6 @@
       "-7,42": [
         {
           "tileId": "grass-2"
-        },
-        {
-          "tileId": "dirt"
-        },
-        {
-          "tileId": "wooden-box"
         }
       ],
       "-7,43": [
