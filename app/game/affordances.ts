@@ -173,8 +173,15 @@ export function withinReach(actor: Actor, ref: ObjectRef): boolean {
  * Any body, not only your own. Two people standing over one sword either both
  * reach it or neither does, and "whoever stepped on it owns it" is a rule
  * nothing else in the game plays by.
+ *
+ * Exported for `../render/nearbyDescriptions`, which asks the same question of
+ * the same radius: a sign under a crate has nothing to say, and a sign you are
+ * standing on still does.
  */
-function coveredBySomething(stack: PlacedTile[], index: number): boolean {
+export function coveredBySomething(
+  stack: PlacedTile[],
+  index: number,
+): boolean {
   for (let above = index + 1; above < stack.length; above++) {
     if (!stack[above]?.owner) return true;
   }
