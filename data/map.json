@@ -55252,10 +55252,6 @@
       "21,40": [
         {
           "tileId": "grass-2"
-        },
-        {
-          "tileId": "wolf",
-          "direction": "e"
         }
       ],
       "21,41": [
@@ -57933,10 +57929,6 @@
       "24,39": [
         {
           "tileId": "grass-2"
-        },
-        {
-          "tileId": "wolf",
-          "direction": "s"
         }
       ],
       "24,40": [
@@ -60705,10 +60697,6 @@
       "27,40": [
         {
           "tileId": "grass-2"
-        },
-        {
-          "tileId": "wolf",
-          "direction": "w"
         }
       ],
       "27,41": [
