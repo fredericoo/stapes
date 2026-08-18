@@ -72,8 +72,6 @@ import {
   type AttackOutcome,
   attackIntervalMs,
   canReach,
-  REGEN_DELAY_MS,
-  REGEN_FULL_MS,
   rollAttack,
 } from "./combat";
 import type { Equipment } from "./equipment";
@@ -738,23 +736,6 @@ type ActorRuntime = {
   hp: number | null;
   /** Milliseconds until this body may swing again. See `./combat`. */
   attackCooldownMs: number;
-  /**
-   * How long since this body was last in a fight, either end of it.
-   *
-   * Reset by swinging *and* by being swung at, so backing out of a fight you are
-   * losing is a decision with a cost rather than a free pause — the thing
-   * chasing you is holding this at zero as long as it keeps connecting.
-   */
-  calmMs: number;
-  /**
-   * Healing part-way to the next whole hit point.
-   *
-   * Hit points are integers and recovery is a rate, so the remainder has to live
-   * somewhere. Here rather than as a fractional `hp`, because every reader of
-   * `hp` — the bar, the wire, the kill check — wants a whole number, and one of
-   * them would eventually forget to round.
-   */
-  healingMs: number;
   /** Who this actor is set on, for a body driven by somebody pointing at things. */
   targetId: string | null;
   /**
@@ -848,14 +829,6 @@ export class GameSession implements PlaySession {
    * one send on the next flush.
    */
   private readonly masteriesChanged = new Set<string>();
-  /**
-   * Whether anybody is below their maximum, as of the last {@link knitWounds}.
-   *
-   * A flag rather than a question, because the question costs a stat block per
-   * body and {@link isAtRest} asks it every tick. Set by the one pass that is
-   * already walking every actor and already has the answer in hand.
-   */
-  private wounded = false;
   private readonly plateCells = new Map<string, Coord>();
   /**
    * Cells holding a placement wired to a signal channel — emitters and
@@ -1133,11 +1106,6 @@ export class GameSession implements PlaySession {
       brain: null,
       hp: null,
       attackCooldownMs: 0,
-      // Fresh bodies start calm, so somebody who joins hurt — a returning player
-      // never does, but a respawned creature might — knits from the first tick
-      // rather than waiting out a fight it was not in.
-      calmMs: REGEN_DELAY_MS,
-      healingMs: 0,
       targetId: null,
       attacking: false,
       input: { directions: [] },
@@ -1552,7 +1520,6 @@ export class GameSession implements PlaySession {
     // Beside the cooldowns, because it is the same kind of thing: a countdown
     // somebody spent by swinging, winding back down while they do not.
     this.recoverDefensiveDecay(tickMs);
-    this.knitWounds(tickMs);
 
     // Before the bodies move, so a decision taken now starts its walk on this
     // tick rather than the next.
@@ -1923,12 +1890,6 @@ export class GameSession implements PlaySession {
       );
     }
 
-    // Both ends are in a fight now, whatever the swing comes to. A miss still
-    // means somebody is trying to kill you, and knitting through it would make
-    // an inaccurate attacker something to stand still in front of.
-    attacker.calmMs = 0;
-    target.calmMs = 0;
-
     const outcome = rollAttack(attackerStats, targetStats, this.rng);
     // Noted even on a dodge: what a creature reacts to is being swung at, and a
     // cat that only fought back when a blow landed would stand there being
@@ -2116,57 +2077,6 @@ export class GameSession implements PlaySession {
       }
       if (decayed.size === 0) actor.defensiveDecay = null;
     }
-  }
-
-  /**
-   * Give back to every body that has been left alone long enough to knit.
-   *
-   * **Out of a fight only**, which is what lets it fix attrition without moving
-   * a single number a fight is fought with: win rates, damage per second, the
-   * sword lesson and the whole reward curve are untouched, because none of them
-   * happen while nobody is swinging. What changes is the thing that was actually
-   * broken — that a player who won could never get back what winning cost them.
-   *
-   * Everything with hit points, not just players. A rat that got away and licked
-   * its wounds is the same rule read from the other side, and making it a
-   * player-only privilege would be the first place this design stopped saying
-   * that a rat and a player are the same kind of thing.
-   *
-   * The remainder is carried in {@link ActorRuntime.healingMs} rather than
-   * rounded away, so a body with 60 hit points and one with 6 both take
-   * {@link REGEN_FULL_MS} to come back — the rate is a share of the maximum, and
-   * dropping the fraction would quietly make big bodies heal slower per point.
-   */
-  private knitWounds(tickMs: number) {
-    let wounded = false;
-
-    for (const actor of this.actors.values()) {
-      actor.calmMs += tickMs;
-      // Nothing has read this body's hit points yet, so it has taken no damage
-      // anybody knows about. Asking for its stats here would seat a stat block
-      // for every crate in the world once a tick.
-      if (actor.hp === null) continue;
-
-      const stats = this.battlerOf(actor);
-      if (!stats || actor.hp >= stats.maxHp) {
-        actor.healingMs = 0;
-        continue;
-      }
-
-      // Owed something, whether or not it is being paid yet: a body still inside
-      // the delay is a body this loop has to stay awake for.
-      wounded = true;
-      if (actor.calmMs < REGEN_DELAY_MS) continue;
-
-      actor.healingMs += tickMs;
-      const msPerPoint = REGEN_FULL_MS / stats.maxHp;
-      while (actor.healingMs >= msPerPoint && actor.hp < stats.maxHp) {
-        actor.healingMs -= msPerPoint;
-        actor.hp++;
-      }
-    }
-
-    this.wounded = wounded;
   }
 
   /** Remember who hit whom, for the brains' next round of decisions. */
@@ -3197,15 +3107,6 @@ export class GameSession implements PlaySession {
     // ticking for half a minute after the last blow; a tile authored to decay
     // in an hour would keep it ticking for an hour.
     if (this.decay.pending()) return false;
-    // Somebody is owed hit points, and this loop is the only thing that will
-    // give them back. Resting here would stop the clock mid-heal and leave
-    // whoever won the last fight stuck at whatever it cost them until something
-    // else happened to wake the world.
-    //
-    // Read off the flag {@link knitWounds} left rather than recomputed: working
-    // it out means asking every body for its stat block, and this runs on every
-    // tick of every world.
-    if (this.wounded) return false;
 
     let observed = false;
     let thinking = false;

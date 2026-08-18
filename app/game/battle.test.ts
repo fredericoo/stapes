@@ -5,12 +5,7 @@ import { ATTACKER_SELECTOR, resolveBrain, slot } from "../lib/brain";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef, normalizeTiles } from "../lib/types";
-import {
-  attackIntervalMs,
-  MIN_ATTACK_TICKS,
-  REGEN_DELAY_MS,
-  REGEN_FULL_MS,
-} from "./combat";
+import { attackIntervalMs, MIN_ATTACK_TICKS } from "./combat";
 import { TICK_MS } from "./constants";
 import { GameSession } from "./GameSession";
 
@@ -150,24 +145,6 @@ const tiles: TileDef[] = [
     interactions: {
       battler: { masteries: { toughness: 22 }, naturalWeapon: claws({ damage: 3, ...CERTAIN }) },
       brain: brawlerBrain,
-    },
-  }),
-  // Made to be hit for a long time without dying, which is the one thing a
-  // fixture for *recovery* has to do: the window being tested is longer than any
-  // real fight, and a body that died half way through would report the absence
-  // of a corpse as the absence of healing. Toughness alone could not buy that —
-  // a mastery stops at 100 — so most of it is armour, thick enough to turn the
-  // player's five into a scratch.
-  tile({
-    id: "sandbag",
-    height: 1,
-    actor: true,
-    walkable: false,
-    interactions: {
-      battler: {
-        masteries: { toughness: 100 },
-        naturalWeapon: claws({ def: 3 }),
-      },
     },
   }),
   // A body with no battler block at all: swinging at it must fail, not throw.
@@ -599,81 +576,5 @@ describe("the authored creatures", () => {
     const spook = brain.transitions.find((t) => t.if.cond === "attacked");
     expect(spook?.bind).toEqual({ spooked: ATTACKER_SELECTOR });
     expect(spook?.to).toBe("flee");
-  });
-});
-
-/**
- * Knitting back up between fights.
- *
- * The fix for the thing the duel harness could never see: every ordering it
- * asserts is about *one* fight from full health, and the game is played as a
- * sequence of them. A fresh player beat a rat nine times in ten and finished on
- * two fifths of their health, with nothing on the map to drink and no way back —
- * so the honest answer to "how many rats can I kill" was one.
- *
- * Out of combat only, which is what lets it fix that without moving a single
- * number a fight is fought with.
- */
-describe("recovering", () => {
-  const SANDBAG_MAX_HP = 108;
-
-  /** A sandbag that has been hit for a while, and the session hitting it. */
-  function bloodied() {
-    const session = new GameSession(withBody(field(), 1, 0, "sandbag"), tiles);
-    fight(session, bodyOf(session, "sandbag")!.id);
-    advance(session, 2000);
-    const hurt = bodyOf(session, "sandbag")!.hp!;
-    expect(hurt).toBeLessThan(SANDBAG_MAX_HP);
-    return { session, hurt };
-  }
-
-  const sandbagHp = (session: GameSession) => bodyOf(session, "sandbag")!.hp;
-
-  it("gives hit points back to a body left alone", () => {
-    const { session } = bloodied();
-
-    session.setAttackMode(false);
-    advance(session, REGEN_DELAY_MS + REGEN_FULL_MS);
-
-    expect(sandbagHp(session)).toBe(SANDBAG_MAX_HP);
-  });
-
-  /**
-   * **Not while it is still being hit.** A body that knitted through a fight
-   * would make an inaccurate attacker something to stand still in front of, and
-   * a defensive stalemate a thing you win by waiting.
-   */
-  it("gives nothing back to a body still being swung at", () => {
-    const { session, hurt } = bloodied();
-
-    advance(session, REGEN_DELAY_MS + 2000);
-
-    expect(sandbagHp(session)).toBeLessThan(hurt);
-  });
-
-  it("waits out the delay before anything knits", () => {
-    const { session, hurt } = bloodied();
-
-    session.setAttackMode(false);
-    advance(session, REGEN_DELAY_MS - TICK_MS * 2);
-
-    expect(sandbagHp(session)).toBe(hurt);
-  });
-
-  /**
-   * A world that fell asleep mid-heal would leave whoever won the last fight
-   * stuck at whatever it cost them until something else happened to wake it.
-   */
-  it("keeps the world awake until everybody is whole", () => {
-    const { session } = bloodied();
-    session.setAttackMode(false);
-    session.setTarget(null);
-    advance(session, 1000);
-
-    expect(session.isAtRest()).toBe(false);
-
-    advance(session, REGEN_DELAY_MS + REGEN_FULL_MS);
-    expect(sandbagHp(session)).toBe(SANDBAG_MAX_HP);
-    expect(session.isAtRest()).toBe(true);
   });
 });
