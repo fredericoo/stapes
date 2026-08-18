@@ -1,9 +1,11 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import { slotKey, type SlotRef } from "../game/itemMoves";
 import { itemUseFor } from "../game/itemUse";
 import { consumeVerb, resolveConsumable } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
+import type { MasteryXp } from "../lib/mastery";
 import type { TileDef, TilesetDef } from "../lib/types";
+import { weaponFeelFor } from "../lib/weaponFeel";
 import type { ItemDrag } from "./useItemDrag";
 import { TilePreview } from "./TilePreview";
 
@@ -19,6 +21,20 @@ import { TilePreview } from "./TilePreview";
  * holding one thing indistinguishable from a one-slot bag that is full. It is
  * also what makes an empty slot a place to *drop* something, which a missing
  * square could not be.
+ *
+ * ## Look mode turns a slot from a control into a label
+ *
+ * While the eye is on, a slot does nothing: it cannot be tapped to wield or eat
+ * what is in it, and it cannot be dragged. What it does instead is describe
+ * itself the moment a pointer is over it — see {@link SlotTooltip}.
+ *
+ * That trade is what makes the description reachable at all on a phone. There is
+ * no hover on a touchscreen, so the words have to come from a press; but a press
+ * that both eats your apple *and* tells you about it is a gesture nobody can use
+ * to look at food they want to keep. Look mode already means "I am asking about
+ * things rather than doing them" everywhere else on the screen — a tap on the
+ * world reads a door instead of opening it — so the kit follows the same rule,
+ * and the same gesture is safe because it no longer does the other thing.
  */
 
 /** Which sprite stands for a tile in a slot — the one facing the reader. */
@@ -69,6 +85,8 @@ export function ItemSlot({
   emptyHint,
   open,
   drag,
+  inspecting = false,
+  masteryXp = {},
 }: {
   /** Where this square is, in the terms a move is expressed in. */
   slot: SlotRef;
@@ -100,6 +118,23 @@ export function ItemSlot({
    * know that on its own.
    */
   drag: ItemDrag;
+  /**
+   * Look mode is on, so this square describes rather than acts.
+   *
+   * Passed down from whoever owns the mode rather than read from a store,
+   * because it is the same flag the canvas is drawing its blue outlines from:
+   * a slot that had its own idea of whether the player was looking would be a
+   * second answer to a question the eye button already settles.
+   */
+  inspecting?: boolean;
+  /**
+   * What the viewer has learnt, as raw experience — see `GameSnapshot`.
+   *
+   * Here because half of what a weapon has to say is about the hands holding it.
+   * Defaulted to nothing, on the same terms the panels default it: a body that
+   * has never fought is told it can barely handle the sword, which is true.
+   */
+  masteryXp?: MasteryXp;
 }) {
   const tile = instance ? (tilesById[instance.tileId] ?? null) : null;
   const name = instance
@@ -119,6 +154,40 @@ export function ItemSlot({
     [key, register],
   );
 
+  /**
+   * A pointer is resting on this square, or a keyboard has focused it.
+   *
+   * Only ever read while inspecting, and held here rather than lifted to the
+   * panel because only one square can be under a pointer at a time and nothing
+   * outside this one needs to know which. `pointerenter` and `pointerleave`
+   * cover a mouse and a thumb in the same pair of events — a touch enters on the
+   * finger landing and leaves when it lifts — which is what makes "held over"
+   * mean the same thing on both.
+   */
+  const [pointedAt, setPointedAt] = useState(false);
+  /**
+   * What looking at this square says, in the order the world already says it:
+   * what the thing is, what is written on it, and what it would be like to use.
+   *
+   * The tile's name heads it rather than {@link name}, which prefers whatever is
+   * written on the instance. That preference is right for a one-line tooltip and
+   * wrong here for the same reason `../render/GameRenderer`'s `lookLines` keeps
+   * the two apart: "Left here by someone" answers a different question from
+   * "Rusty Sword", and a look that swapped one for the other would leave a
+   * player unable to find out what they had picked up.
+   *
+   * Behind the mode, because reading a weapon's block means parsing it and a
+   * panel redraws with the board — the same reason `pressHintFor` is the only
+   * other thing here that touches an item's interactions.
+   */
+  const inspectLines = !inspecting
+    ? []
+    : [
+        tile?.name ?? instance?.tileId ?? "",
+        instance?.description?.trim() ?? "",
+        tile ? weaponFeelFor(tile, masteryXp) : null,
+      ].filter((line): line is string => Boolean(line));
+
   const held = drag.held;
   /** Being dragged out of this very square, so it is drawn as where it came from. */
   const isSource = held != null && slotKey(held.from) === key;
@@ -128,18 +197,31 @@ export function ItemSlot({
   // it is doing: the state belongs to the *thing* in the slot, and a slot whose
   // thing has been dropped has no state left to be in.
   const isOpen = instance ? open : undefined;
-  const pressHint = pressHintFor(instance, slot, tilesById, isOpen);
+  // Nothing is pressed while looking, so nothing is promised either: a hint
+  // saying "Press to wield it" over a square that will not is worse than silence.
+  const pressHint = inspecting
+    ? null
+    : pressHintFor(instance, slot, tilesById, isOpen);
+  const showTooltip = inspecting && pointedAt && instance != null;
 
   return (
     <button
       type="button"
       ref={attach}
       onPointerDown={(event) => {
-        if (instance) startDrag(event, slot, instance);
+        if (instance && !inspecting) startDrag(event, slot, instance);
       }}
-      onClick={() => tap(slot, instance)}
+      onClick={() => {
+        if (!inspecting) tap(slot, instance);
+      }}
+      onPointerEnter={() => setPointedAt(true)}
+      onPointerLeave={() => setPointedAt(false)}
+      // A keyboard has no pointer to rest anywhere, and focus is the gesture it
+      // has instead — so tabbing through a bag while looking reads it out.
+      onFocus={() => setPointedAt(true)}
+      onBlur={() => setPointedAt(false)}
       className={[
-        "flex shrink-0 items-center justify-center border-2 transition-colors",
+        "relative flex shrink-0 items-center justify-center border-2 transition-colors",
         "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
         isOver
           ? // Under the pointer and legal: the strongest state on screen, because
@@ -169,13 +251,23 @@ export function ItemSlot({
         // moving the item, and the pointermove events stop arriving entirely.
         touchAction: "none",
       }}
-      title={instance ? name : emptyHint}
+      // The browser's own tooltip is what a slot says when you are *not*
+      // looking, and it stands down while you are: its half-second delay is
+      // precisely what look mode is promising to skip, and two tooltips over one
+      // square would be the page answering a question twice.
+      title={inspecting ? undefined : instance ? name : emptyHint}
       // What is here, and what pressing it would do. The second half is the
       // whole of the label's job now that a press uses a thing rather than
       // moving it: "Rusty Sword" says what you are on, and only the hint says
       // what happens if you commit to it.
+      //
+      // While looking, what the square would say aloud takes the hint's place —
+      // the same swap the sighted reader gets, since a press does nothing and
+      // what the thing is and would be like is the whole of what is left to say.
       aria-label={
-        pressHint ? `${label}: ${name}. ${pressHint}` : `${label}: ${name}`
+        inspecting && instance
+          ? `${label}: ${inspectLines.join(". ")}`
+          : [`${label}: ${name}`, pressHint].filter(Boolean).join(". ")
       }
       // Only where being pressed is a state the slot can be *in*. A bag is open
       // or shut; wielding a sword is something you do, not somewhere it stays,
@@ -194,6 +286,46 @@ export function ItemSlot({
           background={null}
         />
       ) : null}
+      {showTooltip ? <SlotTooltip lines={inspectLines} /> : null}
     </button>
+  );
+}
+
+/**
+ * What a square says while you are looking at it.
+ *
+ * **Drawn rather than handed to the browser**, which is the whole point of it
+ * existing: a `title` waits half a second and never appears under a thumb at
+ * all, and look mode's promise is that pointing at something tells you about it
+ * now.
+ *
+ * The name leads and everything after it is quieter, in the order and the shape
+ * the world's look label already uses — see `../render/GameRenderer`'s
+ * `lookLines`. A sword on the floor and the same sword in your bag are one thing
+ * being asked one question, and the answer should not be laid out two ways.
+ *
+ * Above the square rather than below it, because a bag is a grid and a tooltip
+ * hanging downward covers the row a reader is working along. Inert to the
+ * pointer, so it cannot come between a finger and the square it is describing —
+ * which would take the pointer off the slot and dismiss the very tooltip that
+ * had just appeared.
+ */
+function SlotTooltip({ lines }: { lines: string[] }) {
+  const [name, ...rest] = lines;
+  return (
+    <span
+      // Announced by the button's own label instead: to a screen reader this is
+      // a second copy of what `aria-label` already says, and the two together
+      // read the name twice.
+      aria-hidden
+      className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1 -translate-x-1/2 border border-paper/40 bg-ink px-1 py-0.5 text-center text-[11px] leading-tight whitespace-nowrap text-paper"
+    >
+      {name}
+      {rest.map((line) => (
+        <span key={line} className="block text-paper/70">
+          {line}
+        </span>
+      ))}
+    </span>
   );
 }

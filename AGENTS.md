@@ -390,6 +390,63 @@ player standing in front of it. `WorldLabelLayer` orders the *elements* rather
 than writing z-indexes, so the stylesheet's bands — name under speech under
 damage — keep deciding everything they already decided.
 
+## The player is told sentences; the simulation keeps the numbers
+
+**A figure a player can read is a figure a player will optimise against, and
+this game is played by picking things up and finding out.** So the rule is that
+player-facing surfaces *describe*, and the arithmetic stays where it decides
+things. It is not a style preference — it is what separates a game about
+exploring from a game about arithmetic, and the two want opposite interfaces.
+
+The first thing decided this way was weapon requirements. There was a panel
+under the hand slot listing every mastery a weapon asked for against the one you
+had — "Blade 3 / 5", the worst one in red — and it was a spreadsheet. It is gone.
+What replaced it is one sentence you get by *inspecting* the weapon
+(`app/lib/weaponFeel.ts`): "You can confidently wield it", "You can mostly wield
+it", "You can barely wield it". A number tells you exactly how far short you are,
+which is a thing to compute against; a sentence tells you that you are short,
+which is a thing to go and do something about.
+
+Three rules fall out of it, and they apply to the next one of these as much as
+to this one:
+
+- **Bands are counted in the design's own constants, never in fractions.** Every
+  threshold in `weaponFeel` is a whole `MASTERY_BRIDGE` away from what the weapon
+  asks — one, two and four, the same distances either side of the gate — for
+  exactly the reason that constant beat a ratio in `app/lib/mastery.ts`: as a
+  fraction, "a quarter short" is one point on a starter dagger and twenty on an
+  endgame blade, so the ladder would have a different number of rungs at every
+  tier. In points it is the same ladder the whole way up. The rungs widen as they
+  go out because the precision stops being worth anything there, and the first
+  band above meeting it lands on the training ceiling — so "you can confidently
+  wield it" and "this has little left to teach you" are one fact rather than two
+  that drift apart.
+- **The sentence is derived in one place and read in every surface.**
+  `weaponFeelFor` is what the world's look label and a slot in a panel both call,
+  so the sword on the floor and the sword in your bag cannot come to say
+  different things about the same hands. A second copy of the ladder is how a
+  panel and a label end up disagreeing in front of a player.
+- **Silence is an answer.** A weapon that asks nothing says nothing, because an
+  unrequirement is a fact about the weapon rather than about you. A line on every
+  item turns the sentence back into a stat readout with words in it.
+
+**Inspecting is a mode, and the mode is what makes the sentence reachable.** Look
+mode (shift, or the eye) already meant "I am asking about things rather than
+doing them" — a tap on the world reads a door instead of opening it — and the kit
+now follows the same rule: while the eye is on, a slot cannot be tapped to wield
+or eat what is in it and cannot be dragged, and instead it describes itself the
+moment a pointer rests on it (`app/components/ItemSlot.tsx`). That trade is what
+makes the words reachable on a phone at all. There is no hover on a touchscreen,
+so the description has to come from a press — and a press that both eats your
+apple *and* tells you about it is a gesture nobody can use to look at food they
+want to keep. Taking the actions away is what makes the same gesture safe.
+
+The tooltip is drawn rather than handed to the browser's `title`, and that is the
+whole point of it existing: `title` waits half a second and never appears under a
+thumb, where look mode's promise is that pointing at something tells you about it
+now. Entering the mode also cancels a drag in flight, since shift is a key that
+can be pressed halfway through one.
+
 ## A reward happens to the player, not to the board
 
 `interactions.reward` hands over a list of items once per player — a quest
