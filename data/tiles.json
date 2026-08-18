@@ -975,7 +975,10 @@
           }
         ]
       }
-    }
+    },
+    "connectsTo": [
+      "half-stone"
+    ]
   },
   {
     "id": "water",
