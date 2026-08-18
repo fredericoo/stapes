@@ -487,7 +487,7 @@ describe("running out of hit points", () => {
 
     expect(bodyOf(session, "dummy")).toBeUndefined();
     expect(session.actorIds()).not.toContain(dummyId);
-    expect(session.drainDeaths()).toContain(dummyId);
+    expect(session.drainDeaths().map((death) => death.id)).toContain(dummyId);
   });
 
   it("releases whoever was fighting them", () => {

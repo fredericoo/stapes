@@ -4,6 +4,7 @@ import {
   GameSession,
   type ActorPosition,
   type ActorSnapshot,
+  type Death,
 } from "../app/game/GameSession";
 import { TICK_MS, WALK_DURATION_MS } from "../app/game/constants";
 import { cellKey } from "../app/game/pressurePlates";
@@ -472,6 +473,18 @@ export class GameServer extends DurableObject<Env> {
    * meantime does not quietly resurrect them.
    */
   private dead = new Set<string>();
+  /**
+   * What each newly-dead player must be handed back, until the batch that also
+   * carries the board they died on has written it.
+   *
+   * Their rows cannot be built by {@link saveActors}' own loop, which reads the
+   * session: a dead actor has no position and no runtime, so the loop skips them
+   * entirely — and it was *only* the loop that skipped, while the board below it
+   * was written regardless. That is how a sword picked up and carried into a
+   * losing fight ended up neither in its owner's kit nor on the floor it had
+   * been taken from. See {@link noteDeaths}.
+   */
+  private pendingDeathWrites = new Map<string, Death>();
   /** Where the world grows things back, by spawn-point key. */
   private respawnPoints = new Map<string, SpawnPoint>();
   /**
@@ -1073,6 +1086,40 @@ export class GameServer extends DurableObject<Env> {
       this.writtenActors.set(actorId, { position: at, equipment, tags, masteries });
     }
 
+    // The dead, whom the loop above cannot reach: `actorPosition` is null for a
+    // body that is off the board, and the runtime that held its kit is gone.
+    // Their facts were captured at the death instead — see {@link Death} — and
+    // are written here so they land in the same batch as the board that killed
+    // them, which is the whole point of doing it from inside this function.
+    //
+    // Forced past the dirty check, and unconditionally rather than only when
+    // something changed: what these rows record is a body ceasing to exist, and
+    // there is nothing to compare that against.
+    for (const [actorId, death] of this.pendingDeathWrites) {
+      // Where they fell, so they come back standing over their own kit rather
+      // than wherever the last flush happened to catch them — which, at one
+      // flush every {@link ACTOR_FLUSH_INTERVAL_MS}, was up to half a minute of
+      // walking ago.
+      if (death.at) entries[this.positionKey(actorId)] = { ...death.at, savedAt };
+      // Empty when the kit reached the floor, and the whole kit when the cell
+      // refused it. Written either way, because "empty" is exactly the fact the
+      // board is being written to agree with.
+      entries[this.equipmentKey(actorId)] = {
+        equipment: death.equipment,
+        savedAt,
+      };
+      if (death.tags.length > 0) {
+        entries[this.tagsKey(actorId)] = { tags: [...death.tags], savedAt };
+      }
+      if (death.masteryXp) {
+        entries[this.masteriesKey(actorId)] = {
+          masteries: { ...death.masteryXp },
+          savedAt,
+        };
+      }
+    }
+    this.pendingDeathWrites.clear();
+
     // The board, in the same batch as the kits read off it. **This is what
     // stops an item existing twice.** Picking something up takes it off the map
     // and puts it in a bag, so a kit made durable against a map that was not
@@ -1252,23 +1299,6 @@ export class GameServer extends DurableObject<Env> {
       if (attachment) ids.add(attachment.actorId);
     }
     return ids.size;
-  }
-
-  /**
-   * Whether this actor is still connected by some other socket.
-   *
-   * The closing socket is still listed by `getWebSockets` while its close is
-   * being handled — same as in {@link playerCount} — so it has to be excluded
-   * by identity rather than by its attachment, which is indistinguishable from
-   * the ones that are staying.
-   */
-  private hasOtherSocket(closing: WebSocket, actorId: string): boolean {
-    for (const ws of this.ctx.getWebSockets()) {
-      if (ws === closing) continue;
-      const attachment = ws.deserializeAttachment() as Attachment | null;
-      if (attachment?.actorId === actorId) return true;
-    }
-    return false;
   }
 
   private sendHello(ws: WebSocket, actorId: string) {
@@ -1798,7 +1828,7 @@ export class GameServer extends DurableObject<Env> {
     // Two tabs are the ordinary version of the same thing: identity is a
     // cookie, so they are one person with one body, and shutting one must not
     // take the body away from the other.
-    if (this.hasOtherSocket(ws, attachment.actorId)) return;
+    if (this.hasSocket(attachment.actorId, ws)) return;
 
     // Before the despawn, which is what takes their tile — and with it the only
     // record of where they were — off the board.
@@ -2215,20 +2245,29 @@ export class GameServer extends DurableObject<Env> {
   }
 
   /**
-   * Note whoever was killed, and stop holding anything on their behalf.
+   * Note whoever was killed, stop holding anything on their behalf, and write
+   * down what is left of them.
    *
    * No event goes out: the cell patch that removes their tile is the whole of
    * the news, and every client already draws an actor by finding their body on
    * the board. What this is for is the *server's* own state — a queued step
-   * aimed by a body that no longer exists, and above all the record that keeps
-   * them off the board across a wake.
+   * aimed by a body that no longer exists, the record that keeps them off the
+   * board across a wake, and the one chance to make a death durable.
+   *
+   * **A death is the moment the session stops being able to answer for
+   * somebody.** Everything a reload hands back — where they were, what they
+   * carried, what they had learned — is read from storage, and the runtime
+   * holding it is deleted here. So the facts ride in on the {@link Death} and go
+   * straight into a forced batch beside the board they belong to.
    *
    * Creatures land in the set too, harmlessly: nothing ever spawns one by id, so
    * their entry is inert. Filtering them out would mean asking the session which
-   * of its actors was wildlife, to save a handful of strings.
+   * of its actors was wildlife, to save a handful of strings. They are kept out
+   * of the *write*, though, where a row per rat is not a handful of anything.
    */
   private noteDeaths(session: GameSession) {
-    for (const actorId of session.drainDeaths()) {
+    for (const death of session.drainDeaths()) {
+      const actorId = death.id;
       this.dead.add(actorId);
       this.sentMotion.delete(actorId);
       this.sentHp.delete(actorId);
@@ -2240,7 +2279,42 @@ export class GameServer extends DurableObject<Env> {
       // on its return starts with the death itself.
       const point = this.respawnPoints.get(actorId);
       if (point) this.armRespawn(point, Date.now());
+
+      // Only somebody who can come back. A socket is the exact test: a dead
+      // player sits there connected until they reload, and a creature has never
+      // had one — so this is "is there anyone to hand this to" without asking
+      // the session, whose runtime for them is already gone. Without the test a
+      // world that respawns wildlife would write a position and a kit per rat.
+      if (!this.hasSocket(actorId)) continue;
+      this.pendingDeathWrites.set(actorId, death);
     }
+    // **Forced, here, rather than left to the next flush.** The board this tick
+    // leaves behind no longer holds the body and does hold its kit, and the rows
+    // saying so are the ones above; a flush that carried one without the other
+    // would hand somebody back a sword that is also lying on the floor, or take
+    // one that is lying nowhere. They go in one batch, and it is this one —
+    // deferring it would leave a reload in the gap reading the pre-death kit,
+    // and a reload is the very next thing a dead player does.
+    if (this.pendingDeathWrites.size > 0) {
+      this.saveActors(session.actorIds(), true);
+    }
+  }
+
+  /**
+   * Whether anybody is still connected as this actor.
+   *
+   * @param excluding a socket on its way out. A closing connection is still
+   *   listed by `getWebSockets` while its close is being handled — same as in
+   *   {@link playerCount} — so it has to be excluded by identity rather than by
+   *   its attachment, which is indistinguishable from the ones that are staying.
+   */
+  private hasSocket(actorId: string, excluding?: WebSocket): boolean {
+    for (const ws of this.ctx.getWebSockets()) {
+      if (ws === excluding) continue;
+      const attachment = ws.deserializeAttachment() as Attachment | null;
+      if (attachment?.actorId === actorId) return true;
+    }
+    return false;
   }
 
   /**
