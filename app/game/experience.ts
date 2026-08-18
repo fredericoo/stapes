@@ -29,11 +29,20 @@ import type { AttackOutcome } from "./combat";
 /**
  * Experience one point of damage is worth, before everything that scales it.
  *
- * The unit the whole economy is denominated in, and one rather than a hundred so
- * that the curve in `../lib/mastery` can be read in the same breath: a mastery's
- * first point costs four damage-worth of fighting at parity.
+ * The unit the whole economy is denominated in. **Two, and it was one** — the
+ * early game asked for about a dozen kills per point of a starter mastery, which
+ * is a dozen kills too many for the first thing a player ever does. At two it is
+ * six, which is near enough to the fight that caused it to read as cause and
+ * effect.
+ *
+ * Doubled here rather than by halving `../lib/mastery`'s `XP_FOR_FIRST_LEVEL`,
+ * and the difference is not cosmetic: experience is *stored*, so moving the cost
+ * curve would re-read every player's saved total against a new scale and hand
+ * them levels they never fought for. Moving the earning rate leaves everyone
+ * exactly where they are and changes only what happens next, which is the honest
+ * way to retune a live world.
  */
-export const XP_PER_DAMAGE = 1;
+export const XP_PER_DAMAGE = 2;
 
 /**
  * The share of a landed blow that goes to Agility rather than to the weapon.

@@ -8,6 +8,7 @@ import {
 } from "../lib/item";
 import {
   MASTERIES,
+  MASTERY_BRIDGE,
   MAX_MASTERY,
   MAX_MASTERY_RATIO,
   type Mastery,
@@ -190,7 +191,7 @@ export function WeaponFields({
               }
               readout={
                 mastery === weapon.mastery && required > 0
-                  ? `Full learning to ${MASTERY_LABELS[mastery]} ${trainingCeiling(required)}, then fading.`
+                  ? `Full learning to ${MASTERY_LABELS[mastery]} ${trainingCeiling(required)} — a ${MASTERY_BRIDGE}-point bridge — then fading.`
                   : undefined
               }
             />
@@ -205,6 +206,14 @@ export function WeaponFields({
         rather than useless and can still teach. Above it, up to{" "}
         {MAX_MASTERY_RATIO}×, speed and damage keep improving and landing does
         not, since it is already certain.
+      </p>
+
+      <p className="max-w-lg text-[11px] leading-snug text-muted">
+        <strong>How far it carries a wielder is a separate question.</strong>{" "}
+        Every weapon teaches {MASTERY_BRIDGE} points past what it asks, whatever
+        tier it sits at, and fades after that rather than stopping. So a
+        requirement is not just a gate — it is where this weapon's stretch of the
+        ladder begins.
       </p>
     </div>
   );

@@ -78,26 +78,47 @@ export function masteryLevel(masteries: Masteries, mastery: Mastery): number {
 }
 
 /**
- * One number, doing two jobs.
+ * The most a weapon can be improved by a wielder who has outgrown it.
  *
- * **Performance.** {@link masteryRatio} caps here, so a Blade-100 hero holding a
- * requirement-1 dagger performs as though they had 1.25 — no twinking, and no
- * veteran clearing a dungeon with a stick.
+ * **Performance only.** A Blade-100 hero holding a requirement-1 dagger performs
+ * as though they had 1.25 — no twinking, and no veteran clearing a dungeon with
+ * a stick. It says nothing about learning.
  *
- * **Learning.** Up to here a weapon teaches its mastery at full rate; past here
- * the rate falls away — see {@link learningRate}. It is the same number so that
- * "a weapon you have outgrown" and "a weapon that has stopped teaching you" are
- * the same sentence.
+ * It used to say both, and the two jobs pulled apart under their own weight. As
+ * a ratio, how far a weapon carries you depends on its tier: `req × 1.25` is one
+ * whole point of progress on a requirement-5 sword and twenty on a
+ * requirement-80 one. That is backwards — the starter weapon a player has just
+ * met is the one they outgrow before they have finished reading its name, and
+ * the endgame weapon they have worked for is the one that lasts forever.
+ * {@link MASTERY_BRIDGE} answers the learning half additively instead, so every
+ * weapon is worth the same amount of progress whatever tier it sits at.
  *
- * This used to be a wall: experience simply stopped at `requirement × 1.25` and
- * you had to go and find a better axe. That produced a deadlock in the other
- * direction — a weapon asking anything of a mastery you had none of could never
- * teach that mastery, because you could never land a blow with it, so there was
- * no way from Blade 0 to Blade 1 at all. A falloff has the pacing the wall was
- * for without the dead end, and it is the honest model besides: you do keep
- * learning from a weapon you have outgrown, just barely.
+ * The cap stayed a ratio because its job genuinely is proportional: what a
+ * weapon is worth in the hand scales with what it asks, where what it can teach
+ * you does not.
  */
 export const MAX_MASTERY_RATIO = 1.25;
+
+/**
+ * How far past its requirement a weapon still teaches at full rate, in mastery
+ * points.
+ *
+ * **A weapon is a bridge of fixed length.** Five points, whether it asks Blade 5
+ * or Blade 80 — so a starter sword carries a new player from 5 to 10 rather than
+ * from 5 to 6, and an endgame sword carries a veteran from 80 to 85 rather than
+ * from 80 to 100. The ladder is the same number of rungs the whole way up, which
+ * is the property a ratio cannot have.
+ *
+ * Five, because it is a real stretch at the bottom without being the whole early
+ * game: at the rates in `../game/experience` it is several sessions of a starter
+ * weapon rather than several kills, and a player meets the next tier because
+ * they have earned it rather than because the arithmetic pushed them.
+ *
+ * Past the bridge a weapon keeps teaching, at a rate that fades — see
+ * {@link learningRate}. This is emphatically not a wall: a wall here is what
+ * deadlocked the design once already.
+ */
+export const MASTERY_BRIDGE = 5;
 
 /** What a weapon asking nothing is worth: neither penalty nor bonus. */
 export const UNREQUIRED_RATIO = 1;
@@ -136,24 +157,35 @@ export function masteryRatio(
 /**
  * The highest a weapon asking this much still teaches at full rate.
  *
- * Floored, because a mastery is a whole number and a figure of 43.75 would be
- * 43 wearing a decimal that reads as if it meant something.
+ * {@link MASTERY_BRIDGE} above the requirement, so it is the same distance for
+ * every weapon in the game. No flooring is needed — both terms are whole
+ * masteries, which is the other quiet advantage over the ratio it replaced.
  *
- * **No longer a wall** — see {@link MAX_MASTERY_RATIO} and {@link learningRate}.
- * Past this you keep learning, at a rate that halves for every doubling.
+ * **Meaningless for a weapon that asks nothing**, which has no ceiling at all
+ * and teaches forever. {@link learningRate} answers that case before it gets
+ * here, and callers that show this figure gate on a requirement above zero for
+ * the same reason.
+ *
+ * **No longer a wall** — see {@link learningRate}. Past this you keep learning,
+ * at a rate that fades.
  */
 export function trainingCeiling(requirement: number): number {
-  return Math.floor(requirement * MAX_MASTERY_RATIO);
+  return requirement + MASTERY_BRIDGE;
 }
 
 /**
  * How much of the usual experience a weapon is still worth to you, as a fraction
  * of 1.
  *
- * Full rate until you have outgrown it, then `1/x`: at twice the ceiling you
- * learn half as much, at four times a quarter, and it never quite reaches
- * nothing. The point is pacing rather than prohibition — grinding a starter
- * sword to 100 should be possible and absurd, not impossible.
+ * Full rate across the whole bridge, then `ceiling / level`: at twice the
+ * ceiling you learn half as much, at four times a quarter, and it never quite
+ * reaches nothing. The point is pacing rather than prohibition — grinding a
+ * starter sword to 100 should be possible and absurd, not impossible.
+ *
+ * Read off {@link trainingCeiling} rather than recomputing the boundary, so
+ * "a weapon you have outgrown" has exactly one definition. When that definition
+ * was a ratio the two were the same sentence either way; now that it is a bridge
+ * they would be two sentences that drift.
  *
  * **The other direction is deliberately not here.** A weapon far *above* you
  * already teaches you less, because experience comes from landing blows and you
@@ -165,9 +197,9 @@ export function trainingCeiling(requirement: number): number {
  */
 export function learningRate(masteryLevel: number, requirement: number): number {
   if (requirement <= 0) return 1;
-  const ratio = masteryLevel / requirement;
-  if (ratio <= MAX_MASTERY_RATIO) return 1;
-  return MAX_MASTERY_RATIO / ratio;
+  const ceiling = trainingCeiling(requirement);
+  if (masteryLevel <= ceiling) return 1;
+  return ceiling / masteryLevel;
 }
 
 /**
@@ -368,19 +400,34 @@ export function rating(masteries: Masteries): number {
  * Below this share of your own Rating, a fight is worth nothing at all.
  *
  * A cliff rather than an asymptote, and stated as nothing on purpose: the curve
- * below would pay 0.4% here, and a payout that small does not read as a small
+ * below pays 0.4% here, and a payout that small does not read as a small
  * payout, it reads as a bug.
+ *
+ * **A third rather than a half, because it is tied to
+ * {@link BENEATH_YOU_EXPONENT} and follows it.** The cliff has to land where the
+ * curve has already fallen to nothing-in-all-but-name; softening the exponent
+ * lifts the whole curve, so the same figure now arrives further down. Leaving it
+ * at a half would have put a visible 3% step at the edge, which is precisely the
+ * thing this constant exists to avoid.
  */
-export const NOTHING_BELOW_RATIO = 0.5;
+export const NOTHING_BELOW_RATIO = 1 / 3;
 
 /**
  * How sharply a fight beneath you stops being worth having.
  *
- * Eight is steep — something 70% of your Rating pays 6% — and steep is the
- * point. Grinding things beneath you has to be genuinely worthless, or it is
- * simply the safest way to play and everybody does it.
+ * Five, and it was eight. Eight was steep on purpose — grinding things beneath
+ * you has to be genuinely worthless, or it is simply the safest way to play and
+ * everybody does it — but at eight the fall was so fast that Rating *rounding*
+ * became the loudest event in a player's progression. A starter target paid 0.39
+ * at ⭐9 and 0.17 at ⭐10, and nothing about the player changed in between except
+ * a rounded number ticking over. That reads as a punishment for levelling up.
+ *
+ * At five the same step is 0.55 to 0.33: the first safe thing a player finds
+ * stays worth fighting for a few points of progress rather than one, and the
+ * incentive to move up the ladder survives, because something at your own
+ * Rating still pays three times what something at 70% of it does.
  */
-export const BENEATH_YOU_EXPONENT = 8;
+export const BENEATH_YOU_EXPONENT = 5;
 
 /**
  * The most any single fight can be worth, however far above you it is.
