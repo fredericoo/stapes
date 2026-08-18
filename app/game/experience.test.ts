@@ -18,6 +18,7 @@ import {
   defensiveDecay,
   DEFENSIVE_RECOVERY_MS,
   MIN_DEFENSIVE_DECAY,
+  XP_PER_DAMAGE,
 } from "./experience";
 import { GameSession } from "./GameSession";
 
@@ -121,11 +122,15 @@ describe("what a landed blow teaches the swinger", () => {
 
 describe("what a blow teaches the body it was aimed at", () => {
   it("pays toughness for one that landed", () => {
-    expect(defenderEarnings(landed, 1, 1)).toEqual({ toughness: 10 });
+    expect(defenderEarnings(landed, 1, 1)).toEqual({
+      toughness: landed.potentialDamage * XP_PER_DAMAGE,
+    });
   });
 
   it("pays agility for one that was avoided, and nothing to toughness", () => {
-    expect(defenderEarnings(dodged, 1, 1)).toEqual({ agility: 10 });
+    expect(defenderEarnings(dodged, 1, 1)).toEqual({
+      agility: dodged.potentialDamage * XP_PER_DAMAGE,
+    });
   });
 
   /**
@@ -145,7 +150,9 @@ describe("what a blow teaches the body it was aimed at", () => {
    */
   it("counts what the blow could have been rather than what got through", () => {
     const absorbed: AttackOutcome = { ...landed, damage: 1, potentialDamage: 10 };
-    expect(defenderEarnings(absorbed, 1, 1)).toEqual({ toughness: 10 });
+    expect(defenderEarnings(absorbed, 1, 1)).toEqual({
+      toughness: absorbed.potentialDamage * XP_PER_DAMAGE,
+    });
   });
 });
 

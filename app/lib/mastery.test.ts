@@ -4,6 +4,7 @@ import {
   experienceMultiplier,
   learningRate,
   MAX_MASTERY,
+  MASTERY_BRIDGE,
   MAX_MASTERY_RATIO,
   MAX_XP_MULTIPLIER,
   MIN_RATING,
@@ -104,7 +105,7 @@ describe("learningRate", () => {
 
   it("halves for each doubling past the ceiling", () => {
     const requirement = 40;
-    const ceiling = requirement * MAX_MASTERY_RATIO;
+    const ceiling = trainingCeiling(requirement);
     expect(learningRate(ceiling * 2, requirement)).toBeCloseTo(0.5, 10);
     expect(learningRate(ceiling * 4, requirement)).toBeCloseTo(0.25, 10);
   });
@@ -135,27 +136,44 @@ describe("learningRate", () => {
 
 describe("trainingCeiling", () => {
   /** The worked example from the design, kept honest. */
-  it("takes a Double Axe's Blunt 35 to 43", () => {
-    expect(trainingCeiling(35)).toBe(43);
-  });
-
-  it("floors rather than rounding, since a mastery is a whole number", () => {
-    // 10 × 1.25 is 12.5, and half a level is not a thing.
-    expect(trainingCeiling(10)).toBe(12);
+  it("takes a Double Axe's Blunt 35 to 40", () => {
+    expect(trainingCeiling(35)).toBe(40);
   });
 
   /**
-   * The two ceilings are the same number on purpose: a weapon you have outgrown
-   * is exactly a weapon that has stopped teaching you.
+   * The whole point of the bridge, and the thing the old ratio could not do: a
+   * starter weapon and an endgame weapon are worth the same amount of progress.
+   * Under `req × 1.25` the requirement-5 sword carried a player one single point
+   * and the requirement-80 sword carried a veteran twenty.
    */
-  it("agrees with the performance cap", () => {
+  it("is the same distance whatever tier the weapon sits at", () => {
+    for (const requirement of [1, 5, 20, 40, 80]) {
+      expect(trainingCeiling(requirement) - requirement).toBe(MASTERY_BRIDGE);
+    }
+  });
+
+  /**
+   * No flooring, unlike the ratio it replaced: both terms are whole masteries,
+   * so there is no half a level to lose on the way through.
+   */
+  it("lands on a whole mastery without having to round", () => {
+    expect(trainingCeiling(10)).toBe(15);
+    expect(Number.isInteger(trainingCeiling(7))).toBe(true);
+  });
+
+  /**
+   * **The two ceilings are deliberately no longer the same number.** They were,
+   * and the shared constant is what forced the learning half to be proportional
+   * when it wanted to be additive — see `MAX_MASTERY_RATIO`. Past the bridge a
+   * weapon can still be improving in the hand while it has stopped teaching, and
+   * that is the intended reading rather than a drift to be tidied up.
+   */
+  it("is independent of the performance cap", () => {
     const requirement = 40;
-    expect(trainingCeiling(requirement)).toBe(
-      Math.floor(requirement * MAX_MASTERY_RATIO),
-    );
     expect(
       masteryRatio({ blunt: trainingCeiling(requirement) }, { blunt: requirement }),
-    ).toBe(MAX_MASTERY_RATIO);
+    ).toBeLessThan(MAX_MASTERY_RATIO);
+    expect(learningRate(trainingCeiling(requirement), requirement)).toBe(1);
   });
 });
 
@@ -273,9 +291,26 @@ describe("experienceMultiplier", () => {
     expect(NOTHING_BELOW_RATIO ** BENEATH_YOU_EXPONENT).toBeLessThan(0.005);
   });
 
+  /**
+   * Steep, but no longer a trapdoor. The thresholds moved with
+   * `BENEATH_YOU_EXPONENT` going 8 → 5: something at 70% of your Rating pays a
+   * sixth rather than a sixteenth, which is what keeps the first safe target a
+   * player finds worth more than a single point of progress.
+   */
   it("falls away steeply for anything beneath you", () => {
-    expect(experienceMultiplier(14, 20)).toBeLessThan(0.1);
-    expect(experienceMultiplier(18, 20)).toBeLessThan(0.5);
+    expect(experienceMultiplier(14, 20)).toBeLessThan(0.2);
+    expect(experienceMultiplier(18, 20)).toBeLessThan(0.7);
+  });
+
+  /**
+   * The reason the exponent was softened rather than the cliff moved: a rounded
+   * Rating ticking over used to more than halve what a starter target was worth,
+   * which reads as a punishment for levelling up.
+   */
+  it("does not collapse a starter target when your Rating rounds up", () => {
+    const before = experienceMultiplier(8, 9);
+    const after = experienceMultiplier(8, 10);
+    expect(after).toBeGreaterThan(before / 2);
   });
 
   it("rises for anything above you and then stops", () => {
