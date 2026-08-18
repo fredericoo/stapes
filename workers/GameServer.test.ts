@@ -2488,6 +2488,64 @@ describe("what a flush writes", () => {
   });
 
   /**
+   * Statuses are the one row that is *meant* to be rewritten, and the one that
+   * has to be retractable.
+   *
+   * A countdown genuinely moves every tick, so a fed player pays a row per flush
+   * for as long as it runs — bounded, and the honest price of not losing the
+   * remainder to a crash. What must not happen is the row outliving the status:
+   * skipping the write when the list goes empty leaves the last remainder on
+   * disk, and the next reconnect restores a status that had already run out.
+   *
+   * That is exactly what a `length > 0` guard does, and it is what this branch
+   * shipped with until a rebase put it next to the skipping above.
+   */
+  it("retracts a status row once the status has run out", async () => {
+    const map = authoredMap();
+    map.levels["0"]!["1,0"] = [{ tileId: "grass" }, { tileId: "berry" }];
+    await env.DATA.put("map.json", JSON.stringify(map));
+
+    const who = freshPlayer();
+    const { ws } = await connect(who);
+    send(ws, {
+      type: "consume",
+      from: { kind: "floor", ref: { x: 1, y: 0, z: 0, stackIndex: 1 } },
+    });
+    await noiseWithin(ws, 1000);
+    await new Promise((resolve) => setTimeout(resolve, QUIET_MS));
+
+    const stored = await runInDurableObject(stub(), (_instance, state) =>
+      state.storage.get<{ statuses: unknown[] }>(`status:${who}`),
+    );
+    expect(stored?.statuses).toHaveLength(1);
+
+    // Run the status out from under them, then flush again. Reaching in rather
+    // than waiting ten real seconds: what is under test is the *write*, and the
+    // countdown itself has its own tests in `app/game/statuses.test.ts`.
+    await runInDurableObject(stub(), (instance: GameServer) => {
+      const internals = instance as unknown as {
+        saveActors(ids: Iterable<string>): void;
+        session: {
+          actorIds(): string[];
+          statusesOf(id: string): { remainingMs: number }[] | null;
+          tick(ms: number): void;
+        };
+      };
+      const running = internals.session.statusesOf(who);
+      for (const status of running ?? []) status.remainingMs = 1;
+      internals.session.tick(100);
+      internals.saveActors(internals.session.actorIds());
+    });
+    await new Promise((resolve) => setTimeout(resolve, QUIET_MS));
+
+    const after = await runInDurableObject(stub(), (_instance, state) =>
+      state.storage.get<{ statuses: unknown[] }>(`status:${who}`),
+    );
+    // Overwritten with nothing, rather than left saying what it used to.
+    expect(after?.statuses).toEqual([]);
+  });
+
+  /**
    * The invariant the skipping must not break.
    *
    * Picking something up takes it off the map and puts it in a bag, so a kit made
