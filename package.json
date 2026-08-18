@@ -11,6 +11,7 @@
     "seed": "tsx scripts/seed-r2.ts",
     "typecheck": "react-router typegen && wrangler types && tsc && tsc -p tsconfig.node.json",
     "generate": "tsx scripts/generate-tilesets.ts",
+    "generate:complement": "tsx scripts/generate-autotile-complement.ts",
     "test": "pnpm test:unit && pnpm test:workers && pnpm test:perf",
     "test:unit": "vitest run",
     "test:perf": "playwright test",

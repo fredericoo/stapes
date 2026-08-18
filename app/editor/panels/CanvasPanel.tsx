@@ -61,7 +61,7 @@ function CanvasStatus() {
               selected.x,
               selected.y,
               currentLevel,
-              def.id,
+              def,
             );
             const defined = Boolean(def.slices?.[slice]);
             return {

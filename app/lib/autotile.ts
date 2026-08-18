@@ -108,15 +108,32 @@ const NEIGHBOR_OFFSETS: { bit: number; dx: number; dy: number }[] = [
   { bit: NW, dx: -1, dy: -1 },
 ];
 
-/** True if the stack at (x,y,z) contains tileId. */
-export function stackHasTileId(
+/**
+ * Everything the mask needs to know about the tile doing the looking: its own
+ * id, and whatever else it counts as itself.
+ *
+ * A `TileDef` is structurally one of these, so callers pass the def they
+ * already hold. That is the point of taking an object rather than an id — the
+ * two call sites both have the def, and an id alone is a signature that lets a
+ * caller drop {@link TileDef.connectsTo} on the floor and get a plausible,
+ * silently wrong slice back.
+ */
+export type AutotileIdentity = {
+  id: string;
+  connectsTo?: readonly string[];
+};
+
+/** True if the stack at (x,y,z) holds anything `tile` counts as itself. */
+export function stackConnects(
   map: MapFile,
   x: number,
   y: number,
   z: number,
-  tileId: string,
+  tile: AutotileIdentity,
 ): boolean {
-  return getStack(map, x, y, z).some((p) => p.tileId === tileId);
+  return getStack(map, x, y, z).some(
+    (p) => p.tileId === tile.id || tile.connectsTo?.includes(p.tileId) === true,
+  );
 }
 
 /** Build 8-neighbor bitmask for an autotile placement. */
@@ -125,11 +142,11 @@ export function neighborMask(
   x: number,
   y: number,
   z: number,
-  tileId: string,
+  tile: AutotileIdentity,
 ): number {
   let mask = 0;
   for (const { bit, dx, dy } of NEIGHBOR_OFFSETS) {
-    if (stackHasTileId(map, x + dx, y + dy, z, tileId)) mask |= bit;
+    if (stackConnects(map, x + dx, y + dy, z, tile)) mask |= bit;
   }
   return mask;
 }
@@ -139,9 +156,9 @@ export function resolveAutotileSlice(
   x: number,
   y: number,
   z: number,
-  tileId: string,
+  tile: AutotileIdentity,
 ): AutotileSlice {
-  return blobMaskToSlice(neighborMask(map, x, y, z, tileId));
+  return blobMaskToSlice(neighborMask(map, x, y, z, tile));
 }
 
 /**

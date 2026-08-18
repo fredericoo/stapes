@@ -63,7 +63,7 @@ export function resolveTileSprite(
   // autotile
   let slice = ctx.autotileSlice;
   if (slice == null && ctx.map != null && ctx.x != null && ctx.y != null && ctx.z != null) {
-    slice = resolveAutotileSlice(ctx.map, ctx.x, ctx.y, ctx.z, tile.id);
+    slice = resolveAutotileSlice(ctx.map, ctx.x, ctx.y, ctx.z, tile);
   }
   if (slice == null) slice = 0;
   // This slice on the state and no other, then idle with its full slice
