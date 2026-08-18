@@ -15,6 +15,8 @@
 # Cloudflare
 /.wrangler/
 worker-configuration.d.ts
+# Secrets for `pnpm dev`. The deployed ones live in `wrangler secret`.
+.dev.vars
 
 # Working notes. Plans are how a change gets thought through, not what the
 # repository is for — they go stale the moment the code lands, and a reader

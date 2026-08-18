@@ -9,6 +9,7 @@
     "dev:worker": "pnpm build && tsx scripts/dev-worker.ts",
     "deploy": "pnpm build && wrangler deploy",
     "seed": "tsx scripts/seed-r2.ts",
+    "reset": "tsx scripts/reset-world.ts",
     "typecheck": "react-router typegen && wrangler types && tsc && tsc -p tsconfig.node.json",
     "generate": "tsx scripts/generate-tilesets.ts",
     "generate:complement": "tsx scripts/generate-autotile-complement.ts",

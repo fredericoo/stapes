@@ -10,6 +10,11 @@
  *
  *   pnpm seed
  *   pnpm seed --remote
+ *
+ * **Seeding is not the whole of putting an environment back.** It replaces the
+ * authored content and nothing else; the world being played lives in the
+ * Durable Object, which prefers its own checkpoint to the bucket. `pnpm reset`
+ * is the two halves together — see `scripts/reset-world.ts`.
  */
 import { execFileSync } from "node:child_process";
 import { promises as fs } from "node:fs";
@@ -43,8 +48,8 @@ async function filesUnder(dir: string): Promise<string[]> {
   return found.flat();
 }
 
-async function main() {
-  const remote = process.argv.includes("--remote");
+/** Upload every file under `data/`, one at a time. Returns how many landed. */
+export async function seedR2(remote: boolean): Promise<number> {
   const files = await filesUnder(DATA_DIR);
 
   if (files.length === 0) {
@@ -75,12 +80,23 @@ async function main() {
     );
   }
 
-  console.log(
-    `\n${files.length} objects seeded into ${BUCKET} (${remote ? "remote" : "local"}).`,
-  );
+  return files.length;
 }
 
-main().catch((err) => {
-  console.error(err);
-  process.exit(1);
-});
+/**
+ * Only when run as `pnpm seed`, so `pnpm reset` can import {@link seedR2}
+ * without the import itself seeding anything.
+ */
+if (import.meta.filename === process.argv[1]) {
+  const remote = process.argv.includes("--remote");
+  seedR2(remote)
+    .then((count) => {
+      console.log(
+        `\n${count} objects seeded into ${BUCKET} (${remote ? "remote" : "local"}).`,
+      );
+    })
+    .catch((err) => {
+      console.error(err);
+      process.exit(1);
+    });
+}

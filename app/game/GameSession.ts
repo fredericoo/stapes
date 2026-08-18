@@ -1274,6 +1274,23 @@ export class GameSession implements PlaySession {
   }
 
   /**
+   * Whether this actor is a body the world owns rather than one a person drives.
+   *
+   * The distinction the server needs is "where does this actor come back from".
+   * A resident is on the board — adopted out of the map when a session opens —
+   * so the checkpointed board already says where it is. A player is not: their
+   * tile is consumed at spawn and their position is only recoverable from what
+   * was written down about them. See `GameServer.saveActors`, which is the one
+   * caller and writes a position row for the second kind only.
+   *
+   * False for nobody by that name, on the same grounds the accessors above
+   * return null: an actor who is not here is not a resident of anywhere.
+   */
+  isResident(id: string): boolean {
+    return this.actors.get(id)?.resident === true;
+  }
+
+  /**
    * What one actor is carrying, or null when nobody by that name is here.
    *
    * Null rather than an empty kit, because the two mean different things to the
