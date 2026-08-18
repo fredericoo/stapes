@@ -27,6 +27,7 @@
 // so the star wars characters and the 1200 adjectives shake out. Verified in a
 // production build — worth re-checking if a third list is ever added here.
 import { animals, colors } from "unique-names-generator";
+import { RATING_GLYPH } from "../lib/mastery";
 import { PLAYER_TILE_ID } from "./constants";
 import type { TileDef } from "../lib/types";
 
@@ -114,26 +115,28 @@ export function bodyNameFor(
 }
 
 /**
- * What to call a body you are *sizing up*, which is the name plus its ⭐.
+ * What to call a body you are *sizing up*, which is the name plus its rating.
  *
- * **Only ever the one being pointed at.** A ⭐ over every head would put a number
- * on every rat in a field and turn the world into a spreadsheet; sizing
- * something up is a thing you do to one creature, deliberately, before deciding
- * whether to swing at it. Look mode is how that is asked without starting a
- * fight.
+ * **Only while looking.** A rating over every head all the time turns a field of
+ * creatures into a spreadsheet, and it is not what a name tag is for: a name
+ * says who that is, and a rating answers a question you only ask when you are
+ * deciding whether to pick a fight. Look mode is when you are asking it — which
+ * is also why it is not gated on the *target* instead. Targeting is how you
+ * start a fight, and a number that appears once you have committed is a number
+ * that arrived too late to be any use.
  *
  * Its own function rather than a line in the renderer because it is a decision
  * about *what a label says* — and because that is the kind of decision that is
  * quietly wrong for months if the only way to check it is to walk to a rat.
  *
- * Falls back to the bare name for anything with no ⭐ to give: a crate is
- * pointable and has no opinion about fighting.
+ * Falls back to the bare name for anything with no rating to give: a crate is
+ * lookable and has no opinion about fighting.
  */
 export function sizedUpName(
   name: string,
   rating: number | null,
-  singledOut: boolean,
+  looking: boolean,
 ): string {
-  if (!singledOut || rating === null) return name;
-  return `${name} ⭐${rating}`;
+  if (!looking || rating === null) return name;
+  return `${name} ${RATING_GLYPH}${rating}`;
 }

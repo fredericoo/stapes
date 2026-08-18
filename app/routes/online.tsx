@@ -25,6 +25,7 @@ import type { ObjectRef } from "../game/affordances";
 import type { OpenedContainer, SlotRef } from "../game/itemMoves";
 import type { Direction } from "../lib/types";
 import { ACTOR_COOKIE, GAME_SOCKET_PATH } from "../net/protocol";
+import type { Vitals } from "../game/GameSession";
 import { RemoteSession } from "../net/RemoteSession";
 import type { FrameStats } from "../render/frameProfile";
 import { GameRenderer } from "../render/GameRenderer";
@@ -131,6 +132,8 @@ export default function OnlinePage() {
   const [equipment, setEquipment] = useState<Equipment>(emptyEquipment);
   /** What this player has learnt — theirs alone, beside the kit. */
   const [masteryXp, setMasteryXp] = useState<MasteryXp>({});
+  /** What this player's body can take, and its ⭐. */
+  const [vitals, setVitals] = useState<Vitals>({ hp: null, maxHp: null, rating: null });
   const [openedContainer, setOpenedContainer] =
     useState<OpenedContainer | null>(null);
   // Straight at the renderer, like the hover outline: which box is open is a
@@ -246,6 +249,7 @@ export default function OnlinePage() {
       // `hello` is about to replace outright.
       setEquipment(emptyEquipment());
       setMasteryXp({});
+      setVitals({ hp: null, maxHp: null, rating: null });
       setOpenedContainer(null);
       // And the loading screen comes back for the same reason: the next
       // renderer starts with an empty canvas, and a reconnect can take a while.
@@ -287,6 +291,7 @@ export default function OnlinePage() {
         renderer.setOnInteractions(setInteractions);
         renderer.setOnEquipment(setEquipment);
         renderer.setOnMasteries(setMasteryXp);
+        renderer.setOnVitals(setVitals);
         renderer.setOnOpenedContainer(setOpenedContainer);
         renderer.setOnFirstFrame(() => setPainted(true));
         rendererRef.current = renderer;
@@ -403,6 +408,7 @@ export default function OnlinePage() {
             onHoverInteraction={hoverInteraction}
             equipment={equipment}
             masteryXp={masteryXp}
+            vitals={vitals}
             openedContainer={openedContainer}
             onOpenContainer={openContainer}
             canMoveItem={canMoveItem}

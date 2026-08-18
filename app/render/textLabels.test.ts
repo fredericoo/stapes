@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { PLAYER_TILE_ID } from "../game/constants";
 import { displayNameFor, bodyNameFor, sizedUpName } from "../game/displayName";
+import { RATING_GLYPH } from "../lib/mastery";
 import type { TileDef } from "../lib/types";
 import { labelScreenPosition, stackingOrder } from "./textLabels";
 
@@ -224,26 +225,39 @@ describe("naming a speaker", () => {
 /**
  * Sizing something up before swinging at it.
  *
- * The ⭐ over a head is the only place the reward curve's own number is shown to
+ * The rating over a head is the only place the reward curve's own number reaches
  * a player, and it is the one label nobody can check by reading the renderer:
  * confirming it in the world means walking to a rat.
  */
 describe("sizedUpName", () => {
-  it("adds the ⭐ to whatever is being pointed at", () => {
-    expect(sizedUpName("Rat", 8, true)).toBe("Rat ⭐8");
+  it("adds the rating to everything while you are looking", () => {
+    expect(sizedUpName("Rat", 8, true)).toBe(`Rat ${RATING_GLYPH}8`);
   });
 
   /**
-   * Everything else in the field stays a name. A number over every head would
-   * turn a world into a spreadsheet, which is the whole reason this is gated on
-   * being singled out rather than on having a ⭐ at all.
+   * A number over every head all the time turns a field into a spreadsheet, and
+   * it is not what a name tag is for. Look mode is the question being asked.
    */
-  it("leaves every other body alone", () => {
+  it("says nothing extra when nobody is looking", () => {
     expect(sizedUpName("Rat", 8, false)).toBe("Rat");
   });
 
-  /** A crate is pointable and has no opinion about fighting. */
-  it("says nothing extra about a body with no ⭐ to give", () => {
+  /** A crate is lookable and has no opinion about fighting. */
+  it("says nothing extra about a body with no rating to give", () => {
     expect(sizedUpName("Barrel", null, true)).toBe("Barrel");
+  });
+
+  /**
+   * ASCII, because the world's font is. A ⭐ has no glyph in NF Pixels and the
+   * browser answers with a colour emoji at the wrong metrics — which is what
+   * this shipped as, and what it looked like.
+   */
+  it("is written in something the world's font can draw", () => {
+    const label = sizedUpName("Rat", 8, true);
+    for (const char of label) {
+      const code = char.codePointAt(0) ?? 0;
+      expect(code).toBeGreaterThanOrEqual(0x20);
+      expect(code).toBeLessThanOrEqual(0x7d);
+    }
   });
 });

@@ -67,6 +67,31 @@ export function attackIntervalMs(spd: number): number {
 }
 
 /**
+ * How long a body has to be left alone before it starts knitting.
+ *
+ * Long enough that it never fires between two swings of one fight — the slowest
+ * thing on the ladder swings every three seconds — so this is a fact about
+ * fights being *over* rather than a trickle of healing inside one. Anything
+ * shorter would make a defensive stalemate a thing you could win by waiting.
+ */
+export const REGEN_DELAY_MS = 5_000;
+
+/**
+ * How long a body left alone takes to come back from nothing to full.
+ *
+ * **This is what "regeneration from Toughness" comes to**, without a second dial
+ * to author: recovery is a share of the maximum per second, and Toughness is
+ * what sets the maximum, so a tough body knits more hit points per second *and*
+ * has more of them. One number, two effects, and no way for the two to disagree.
+ *
+ * Half a minute, which is what makes the early game survivable without touching
+ * a single authored stat. A rat costs a fresh player about half their health and
+ * there is nothing on the map to drink; before this, the answer to "how many rats
+ * can I kill" was one, and the answer to "then what" was nothing.
+ */
+export const REGEN_FULL_MS = 30_000;
+
+/**
  * How far apart two contested numbers have to be before the outcome stops being
  * in doubt.
  *

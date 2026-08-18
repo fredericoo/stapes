@@ -7,6 +7,7 @@ import type { OpenedContainer, SlotRef } from "../game/itemMoves";
 import { itemUseFor } from "../game/itemUse";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { MasteryXp } from "../lib/mastery";
+import type { Vitals } from "../game/GameSession";
 import type { Direction, TileDef, TilesetDef } from "../lib/types";
 import { useMediaQuery } from "../lib/useMediaQuery";
 import { tilesByIdFromList } from "../lib/validation";
@@ -17,8 +18,12 @@ import { EquipmentPanel } from "./EquipmentPanel";
 import { DragLayer } from "./DragLayer";
 import { InteractionList } from "./InteractionList";
 import { AttackToggle, LookToggle, type ModeToggleSize } from "./ModeToggle";
-import { BagButton, EquipmentToggle } from "./PanelToggle";
+import { BagButton, EquipmentToggle, StatsToggle } from "./PanelToggle";
+import { StatsPanel } from "./StatsPanel";
 import { useItemDrag } from "./useItemDrag";
+
+/** A body nothing has reported on yet. Shared, so a default costs no allocation. */
+const NO_VITALS: Vitals = { hp: null, maxHp: null, rating: null };
 
 /**
  * The game as a fixed square, letterboxed into whatever space it is given.
@@ -79,6 +84,7 @@ export function GameViewport({
   onHoverInteraction,
   equipment = emptyEquipment(),
   masteryXp = {},
+  vitals = NO_VITALS,
   openedContainer = null,
   onOpenContainer,
   canMoveItem = () => false,
@@ -140,6 +146,11 @@ export function GameViewport({
    * nothing is practised yet rather than crashing.
    */
   masteryXp?: MasteryXp;
+  /**
+   * What the viewer's own body can take, and its ⭐. Defaulted to a body with no
+   * stats, which the panel says plainly rather than crashing over.
+   */
+  vitals?: Vitals;
   /**
    * The container on the floor currently being looked into, resolved off the
    * live board by whoever owns the renderer.
@@ -232,8 +243,17 @@ export function GameViewport({
    */
   const [equipmentOpen, setEquipmentOpen] = useState<boolean | null>(null);
   const [bagOpen, setBagOpen] = useState<boolean | null>(null);
+  /**
+   * Closed until asked for, on both devices and unlike the two above.
+   *
+   * They are things you are *doing* — a hand and a bag you move items between —
+   * and this is a thing you check. Opening it by default on a desktop would put
+   * a wall of numbers beside the game for a question nobody asked yet.
+   */
+  const [statsOpen, setStatsOpen] = useState(false);
   const showEquipment = equipmentOpen ?? !coarse;
   const showBag = bagOpen ?? !coarse;
+  const showStats = statsOpen;
 
   /**
    * On a phone the two panels want the same space, so opening one closes the
@@ -242,11 +262,24 @@ export function GameViewport({
    */
   const openEquipment = (open: boolean) => {
     setEquipmentOpen(open);
-    if (open && coarse) setBagOpen(false);
+    if (open && coarse) {
+      setBagOpen(false);
+      setStatsOpen(false);
+    }
   };
   const openBag = (open: boolean) => {
     setBagOpen(open);
-    if (open && coarse) setEquipmentOpen(false);
+    if (open && coarse) {
+      setEquipmentOpen(false);
+      setStatsOpen(false);
+    }
+  };
+  const openStats = (open: boolean) => {
+    setStatsOpen(open);
+    if (open && coarse) {
+      setEquipmentOpen(false);
+      setBagOpen(false);
+    }
   };
 
   /**
@@ -282,7 +315,7 @@ export function GameViewport({
 
   /** A panel is covering the arrows and the list. Only ever true on a phone. */
   const panelCoversMain =
-    coarse && (showEquipment || showBag || openedContainer != null);
+    coarse && (showEquipment || showBag || showStats || openedContainer != null);
   const press = useCallback(onDirectionPress, [onDirectionPress]);
   const release = useCallback(onDirectionRelease, [onDirectionRelease]);
   const noteTyping = useCallback(
@@ -343,6 +376,7 @@ export function GameViewport({
           kind of button: the two on the left change what a tap on the world
           means, and these two only open something. */}
       <span className="h-8 w-px shrink-0 bg-paper/20" aria-hidden="true" />
+      <StatsToggle open={showStats} onChange={openStats} size={size} />
       <EquipmentToggle
         open={showEquipment}
         onChange={openEquipment}
@@ -369,6 +403,9 @@ export function GameViewport({
    */
   const panels = (
     <>
+      {showStats ? (
+        <StatsPanel vitals={vitals} masteryXp={masteryXp} />
+      ) : null}
       {showEquipment ? (
         <EquipmentPanel
           equipment={equipment}

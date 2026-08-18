@@ -1,4 +1,4 @@
-import { IconBackpack, IconShirt } from "@tabler/icons-react";
+import { IconBackpack, IconHeartbeat, IconShirt } from "@tabler/icons-react";
 import { useCallback } from "react";
 import { resolveContainer } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
@@ -8,7 +8,7 @@ import { MODE_TOGGLE_SIZE_CLASS, type ModeToggleSize } from "./ModeToggle";
 import type { ItemDrag } from "./useItemDrag";
 
 /**
- * The buttons that open what you are carrying.
+ * The buttons that open what you are carrying, and what you are.
  *
  * Drawn in the same row and at the same size as the mode toggles, and
  * deliberately *not* coloured like them. A mode toggle wears the colour of the
@@ -26,6 +26,35 @@ function toggleClass(on: boolean, size: ModeToggleSize): string {
       ? "border-paper bg-paper text-ink"
       : "border-paper/40 bg-transparent text-paper",
   ].join(" ");
+}
+
+/** Show or hide what you can take and what you are good at. */
+export function StatsToggle({
+  open,
+  onChange,
+  size = "touch",
+}: {
+  open: boolean;
+  onChange: (open: boolean) => void;
+  size?: ModeToggleSize;
+}) {
+  return (
+    <Tooltip content="Stats">
+      <button
+        type="button"
+        aria-pressed={open}
+        aria-label="Stats"
+        onClick={() => onChange(!open)}
+        className={toggleClass(open, size)}
+      >
+        <IconHeartbeat
+          size={size === "touch" ? 24 : 18}
+          stroke={2}
+          aria-hidden="true"
+        />
+      </button>
+    </Tooltip>
+  );
 }
 
 /** Show or hide what you are wearing. */

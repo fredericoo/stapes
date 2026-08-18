@@ -784,6 +784,13 @@ can size up before you swing.
 Three readings, in the order a decision is made in: **what the thing in my hand
 asks of me, what I am good at, and how hard is that.**
 
+- **`StatsPanel`**, its own menu behind its own button: hit points as a figure
+  *and* a bar, the ⭐, and the mastery list. It began as a tail on the equipment
+  panel and did not belong there — what is in your hand is a decision you are
+  making now, and this is the record of every fight you have had, so burying it
+  under two slots made it read as a footnote to a bag. Closed by default on both
+  devices, unlike the two panels beside it: they are things you *do*, this is a
+  thing you check.
 - **`WeaponDemands`**, directly under the hand it is about. Every requirement one
   by one against your own level, with the worst of them marked *holding it back*
   and a plain sentence for what the ratio comes to. The tile editor cannot show
@@ -791,13 +798,28 @@ asks of me, what I am good at, and how hard is that.**
   the other half of the comparison. Absent entirely for bare hands and for a
   weapon that asks nothing — a heading over an empty list would make a point of a
   rule that is not in play.
-- **`MasteryList`**, only the masteries above zero, best first, a bar each. The
-  sparseness is the statement: a body that has never held a bow has no opinion
-  about Ranged, and a row reading "Ranged 0" would claim the opposite.
-- **⭐ over the head of whatever you are pointing at**, and nothing else's. A
-  number on every rat in a field turns the world into a spreadsheet; sizing
-  something up is a thing you do to one creature, deliberately. Look mode is how
-  that is asked without starting a fight.
+- **The mastery list**, only the masteries above zero, best first, a bar each.
+  The sparseness is the statement: a body that has never held a bow has no
+  opinion about Ranged, and a row reading "Ranged 0" would claim the opposite.
+  Each row is a name and a number and nothing else — a gloss saying what Agility
+  is for is a sentence read once and then in the way for ever.
+- **The rating over every head, while you are looking**, and over nothing
+  otherwise. It shipped gated on the *target* instead, which was wrong twice: a
+  number that appears once you have committed to the fight arrived too late to be
+  any use, and a target is kept, so every creature you had fought wore one
+  permanently.
+
+### The star was an emoji, and the world's font is ASCII
+
+`RATING_GLYPH` is an asterisk. The world's text is typeset in NF Pixels, subset
+to printable ASCII — `app/net/chat` already drops anything outside that range,
+and the font has no `~`. A ⭐ has no glyph there, so the browser answered with a
+colour emoji at its own metrics, sitting in a name tag drawn at two CSS pixels
+per font pixel. It read as a bug because it was one.
+
+The panels are typeset in a face that *could* draw the star and use the asterisk
+anyway: a star over a head and a star in a menu that are two different shapes are
+two different numbers as far as a reader is concerned.
 
 ### What the wire needed
 
@@ -824,6 +846,37 @@ asks of me, what I am good at, and how hard is that.**
   three by a long way — about one per landed blow — and the change queue is what
   collapses a fight's worth of them into one send per flush.
 
+### Attrition, which no duel could have shown
+
+**A fresh player could kill exactly one rat.** The duel harness said the fight
+was safe — nine wins in ten — and it was right about the fight and blind to the
+game: every ordering it asserts is about *one* fight from full health, and the
+game is a sequence of them. Winning cost about three fifths of a health bar, and
+there was no way on the map to get it back.
+
+Two changes, and only one of them is a number:
+
+- **Out-of-combat recovery.** A body left alone for five seconds knits back to
+  full over thirty. That is what "regeneration from Toughness" comes to without a
+  second dial: recovery is a share of the maximum per second and Toughness sets
+  the maximum, so a tough body knits more points per second *and* has more of
+  them. It fixes attrition without moving a single number a fight is fought with
+  — win rates, damage per second, the sword lesson and the whole reward curve are
+  untouched, because none of them happen while nobody is swinging.
+- **The rat's bite went from 2 to 1.** Neither its damage nor its speed is in its
+  ⭐, so this costs the reward curve nothing at all: the rat still rates 7.7 and
+  still pays a fresh player 39%. It is also the honest reading of what phase 2
+  wrote down about it — "nips, always for the same little".
+
+Three rats back to back with no pause at all, four with ten seconds of walking
+between them, and as many as you like if you pace yourself.
+
+**What was deliberately not done:** every version of "make the player stronger"
+inverts the ladder. Enough toughness or enough fist to survive five rats in a row
+also beats the snake every time and makes bare hands worth more than the sword —
+which is the one lesson the whole mastery system exists to teach. The table that
+says so is worth keeping in mind before anyone reaches for the player's block.
+
 ### What is not there
 
 Nothing for **other people's** masteries, and nothing needs to be: their ⭐ is
@@ -841,5 +894,5 @@ work out for themselves from ⭐ against ⭐ long before it is worth a panel.
   natural weapon exists that is the honest home for it — a bow's reach is the
   bow's. Left alone in phase 1 because nothing needs it yet and moving it touches
   every authored creature on the way past.
-- **Regeneration from Toughness**, and **arcane cooldowns and magic damage** —
-  both named in the original design, neither with a mechanism to attach to yet.
+- **Arcane cooldowns and magic damage** — named in the original design, with no
+  mechanism to attach to yet.

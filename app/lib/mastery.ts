@@ -303,6 +303,22 @@ export const RATING_PER_AGILITY = 0.2;
 export const MIN_RATING = 1;
 
 /**
+ * How a Rating is written, wherever one is shown.
+ *
+ * An asterisk, and not the star it obviously wants to be: the world's text is
+ * typeset in NF Pixels, which is subset to printable ASCII — see
+ * `public/fonts/` and `../net/chat`, which drops anything outside that range for
+ * the same reason. A ⭐ has no glyph there, so the browser falls back to a colour
+ * emoji at the wrong metrics, sitting in a name tag drawn at two CSS pixels per
+ * font pixel. It reads as a bug because it is one.
+ *
+ * The panels are typeset in a different face that *could* draw the star, and
+ * they use this anyway: a ⭐ over a head and a star in a menu that are two
+ * different shapes are two different numbers as far as a reader is concerned.
+ */
+export const RATING_GLYPH = "*";
+
+/**
  * How good this body is at fighting, all in.
  *
  * **Computed from raw masteries and never from equipment**, which is

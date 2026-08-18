@@ -17,6 +17,7 @@ import { PLAYER_TILE_ID } from "../game/constants";
 import { bodyNameFor, sizedUpName } from "../game/displayName";
 import type { Equipment } from "../game/equipment";
 import type { MasteryXp } from "../lib/mastery";
+import type { Vitals } from "../game/GameSession";
 import type { OpenedContainer, SlotRef } from "../game/itemMoves";
 import { readOpenedContainer } from "../game/openedContainer";
 import {
@@ -288,6 +289,16 @@ export class GameRenderer {
   private onEquipment: ((equipment: Equipment) => void) | null = null;
   /** Identity of the last equipment handed on, so an idle frame costs a compare. */
   private equipmentSent: Equipment | null = null;
+  private onVitals: ((vitals: Vitals) => void) | null = null;
+  /**
+   * The last vitals handed on, compared field by field rather than by identity.
+   *
+   * Unlike a kit, `snap.self` is rebuilt every frame, so there is no reference to
+   * compare — and unlike a kit these are three small numbers, which makes
+   * comparing them cheaper than the render they would otherwise trigger sixty
+   * times a second.
+   */
+  private vitalsSent: Vitals | null = null;
   private onMasteries: ((masteryXp: MasteryXp) => void) | null = null;
   /**
    * Identity of the last block of experience handed on.
@@ -530,6 +541,33 @@ export class GameRenderer {
     if (snap.equipment === this.equipmentSent) return;
     this.equipmentSent = snap.equipment;
     this.onEquipment(snap.equipment);
+  }
+
+  setOnVitals(cb: ((vitals: Vitals) => void) | null) {
+    this.onVitals = cb;
+    // Dropped so the next frame reports to a fresh listener, exactly as the kit
+    // and the masteries are.
+    this.vitalsSent = null;
+  }
+
+  private pushVitals(snap: GameSnapshot) {
+    if (!this.onVitals) return;
+    const next: Vitals = {
+      hp: snap.self.hp,
+      maxHp: snap.self.maxHp,
+      rating: snap.self.rating,
+    };
+    const sent = this.vitalsSent;
+    if (
+      sent &&
+      sent.hp === next.hp &&
+      sent.maxHp === next.maxHp &&
+      sent.rating === next.rating
+    ) {
+      return;
+    }
+    this.vitalsSent = next;
+    this.onVitals(next);
   }
 
   setOnMasteries(cb: ((masteryXp: MasteryXp) => void) | null) {
@@ -1555,9 +1593,10 @@ export class GameRenderer {
         { actorId: actor.id, tileId: actor.tileId },
         this.tilesById,
       );
-      // Pointing is how sizing-up is asked here — see `GameSnapshot.targetId`,
-      // which look mode sets without starting a fight.
-      const sized = sizedUpName(name, actor.rating, actor.id === snap.targetId);
+      // Look mode, and not the target: a rating you only see once you have
+      // committed to the fight arrived too late to be any use. Holding shift is
+      // the question being asked.
+      const sized = sizedUpName(name, actor.rating, this.lookMode);
       const fraction = healthFraction(actor.hp, actor.maxHp);
       into.push({
         id: `name:${actor.id}`,
@@ -1815,6 +1854,7 @@ export class GameRenderer {
     this.world.setOverlays(this.overlaysFor(snap, motions));
     this.pushEquipment(snap);
     this.pushMasteries(snap);
+    this.pushVitals(snap);
     this.pushOpenedContainer(snap);
     // Written from inside the render loop's own rAF, so the style change and the
     // canvas paint land in the same commit — which is what stops DOM text from

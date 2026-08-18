@@ -5,7 +5,7 @@ import { AppShell } from "../components/AppShell";
 import { GameViewport } from "../components/GameViewport";
 import { LightingToggle } from "../components/LightingToggle";
 import { LoadingScreen } from "../components/LoadingScreen";
-import { GameSession } from "../game/GameSession";
+import { GameSession, type Vitals } from "../game/GameSession";
 import { type Equipment, emptyEquipment } from "../game/equipment";
 import type { MasteryXp } from "../lib/mastery";
 import { bindKeyboard, HeldDirections } from "../game/heldDirections";
@@ -89,6 +89,8 @@ export default function PlayPage() {
   const [equipment, setEquipment] = useState<Equipment>(emptyEquipment);
   /** What this player has learnt — theirs alone, beside the kit. */
   const [masteryXp, setMasteryXp] = useState<MasteryXp>({});
+  /** What this player's body can take, and its ⭐. */
+  const [vitals, setVitals] = useState<Vitals>({ hp: null, maxHp: null, rating: null });
   const [openedContainer, setOpenedContainer] =
     useState<OpenedContainer | null>(null);
   // Straight at the renderer, like the hover outline: which box is open is a
@@ -184,6 +186,7 @@ export default function PlayPage() {
     renderer.setOnInteractions(setInteractions);
     renderer.setOnEquipment(setEquipment);
     renderer.setOnMasteries(setMasteryXp);
+    renderer.setOnVitals(setVitals);
     renderer.setOnOpenedContainer(setOpenedContainer);
     renderer.setOnFirstFrame(() => setPainted(true));
     rendererRef.current = renderer;
@@ -203,6 +206,7 @@ export default function PlayPage() {
       setInteractions([]);
       setEquipment(emptyEquipment());
       setMasteryXp({});
+      setVitals({ hp: null, maxHp: null, rating: null });
       setOpenedContainer(null);
       // A new renderer has a fresh canvas to fill — an editor save arrives here
       // as a map change — so the screen goes back up until it has filled it.
@@ -308,6 +312,7 @@ export default function PlayPage() {
             onHoverInteraction={hoverInteraction}
             equipment={equipment}
             masteryXp={masteryXp}
+            vitals={vitals}
             openedContainer={openedContainer}
             onOpenContainer={openContainer}
             canMoveItem={canMoveItem}

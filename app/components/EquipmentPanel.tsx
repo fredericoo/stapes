@@ -4,7 +4,6 @@ import type { MasteryXp } from "../lib/mastery";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { ItemSlot } from "./ItemSlot";
-import { MasteryList } from "./MasteryList";
 import type { ItemDrag } from "./useItemDrag";
 import { WeaponDemands } from "./WeaponDemands";
 
@@ -22,12 +21,10 @@ import { WeaponDemands } from "./WeaponDemands";
  * than a placeholder: armour is out of scope, and a panel pretending to more
  * slots than exist would be describing a game nobody can play yet.
  *
- * What you are *good at* is here too, under the slots, and the three sections
- * read in the order a decision is made in: this is what I am holding, this is
- * what it asks of me, this is what I have. Masteries are owner-private on
- * exactly the terms a kit is — what you are good at is yours, the same as what
- * is in your bag — which is why they arrive beside it on the snapshot rather
- * than on the body everybody can see.
+ * What the thing in your hand *asks of you* is here, directly under it, because
+ * that is a fact about the item rather than about you. What you are good at is
+ * not: it moved to its own panel, since it answers a different question and does
+ * not change when you move an item. See `./StatsPanel`.
  */
 export function EquipmentPanel({
   equipment,
@@ -102,7 +99,6 @@ export function EquipmentPanel({
         tilesById={tilesById}
         className="mt-1"
       />
-      <MasteryList masteryXp={masteryXp} className="mt-1" />
     </section>
   );
 }
