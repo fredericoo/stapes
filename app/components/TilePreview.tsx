@@ -3,6 +3,7 @@ import type {
   AutotileSlice,
   Direction,
   Frame,
+  SpriteRef,
   SpriteState,
   TileDef,
   TilesetDef,
@@ -85,6 +86,111 @@ function disableSmoothing(ctx: CanvasRenderingContext2D) {
   ctx.imageSmoothingEnabled = false;
 }
 
+/** The placeholder that makes a missing tileset obvious rather than invisible. */
+const MISSING = "#ff00ff";
+
+/**
+ * Paint one sprite reference into a square of canvas.
+ *
+ * Split out of {@link TilePreview} because a sprite is not always a tile: a
+ * status carries a bare {@link SpriteRef} and has no def to resolve frames from.
+ * The *function* rather than a component, because `TilePreview` animates on its
+ * own rAF loop and needs to repaint without a React render per frame — sharing
+ * the component would have meant setting state five times a second per thumbnail.
+ *
+ * Returns nothing and swallows a failed load into the magenta placeholder, on
+ * the same terms the renderer does: a missing tileset should be *visible*, not
+ * an exception on a frame.
+ */
+export async function drawSprite(
+  ctx: CanvasRenderingContext2D,
+  sprite: SpriteRef,
+  tilesets: TilesetDef[],
+  size: number,
+): Promise<void> {
+  const tileset = tilesets.find((ts) => ts.id === sprite.tilesetId);
+  if (!tileset) {
+    ctx.fillStyle = MISSING;
+    ctx.fillRect(0, 0, size, size);
+    return;
+  }
+
+  try {
+    const img = await loadImage(`/tilesets/${tileset.file}`);
+    const { rect } = sprite;
+    const sx = rect.x * 8;
+    const sy = rect.y * 8;
+    const sw = rect.w * 8;
+    const sh = rect.h * 8;
+    // Integer scale so canvas nearest-neighbor stays chunky, not interpolated.
+    const scale = Math.max(1, Math.floor(Math.min(size / sw, size / sh)));
+    const dw = sw * scale;
+    const dh = sh * scale;
+    const dx = Math.floor((size - dw) / 2);
+    const dy = Math.floor((size - dh) / 2);
+    disableSmoothing(ctx);
+    ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
+  } catch {
+    ctx.fillStyle = MISSING;
+    ctx.fillRect(0, 0, size, size);
+  }
+}
+
+/**
+ * One sprite, drawn once.
+ *
+ * What {@link TilePreview} is for a tile, this is for anything that is *only* a
+ * picture — a status icon, and whatever else stops being a tile next. There is
+ * no animation loop because a sprite reference has nothing to animate: a `Frame`
+ * is what carries a duration, and picking between frames is the tile's business.
+ */
+export function SpritePreview({
+  sprite,
+  tilesets,
+  size = 48,
+  className = "",
+}: {
+  sprite: SpriteRef | null;
+  tilesets: TilesetDef[];
+  size?: number;
+  className?: string;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const dpr = Math.max(1, Math.round(window.devicePixelRatio || 1));
+    canvas.width = size * dpr;
+    canvas.height = size * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    disableSmoothing(ctx);
+    ctx.clearRect(0, 0, size, size);
+
+    if (!sprite) return;
+    let alive = true;
+    void drawSprite(ctx, sprite, tilesets, size).then(() => {
+      // The draw is async; a component unmounted in between has a canvas that
+      // is no longer in the page, and painting it is wasted rather than wrong.
+      if (!alive) return;
+    });
+    return () => {
+      alive = false;
+    };
+  }, [sprite, tilesets, size]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      className={className}
+      style={{ width: size, height: size, imageRendering: "pixelated" }}
+    />
+  );
+}
+
 /**
  * Shared animated tile preview. Uses a local rAF loop; fine for dozens of cards.
  */
@@ -143,7 +249,7 @@ export function TilePreview({
       }
 
       if (!frames || frames.length === 0) {
-        ctx.fillStyle = "#ff00ff";
+        ctx.fillStyle = MISSING;
         ctx.fillRect(0, 0, size, size);
         again();
         return;
@@ -161,34 +267,8 @@ export function TilePreview({
         t -= f.durationMs;
       }
 
-      const tileset = tilesets.find((ts) => ts.id === frame.sprite.tilesetId);
-      if (!tileset) {
-        ctx.fillStyle = "#ff00ff";
-        ctx.fillRect(0, 0, size, size);
-        again();
-        return;
-      }
-
-      try {
-        const img = await loadImage(`/tilesets/${tileset.file}`);
-        if (!alive) return;
-        const { rect } = frame.sprite;
-        const sx = rect.x * 8;
-        const sy = rect.y * 8;
-        const sw = rect.w * 8;
-        const sh = rect.h * 8;
-        // Integer scale so canvas nearest-neighbor stays chunky, not interpolated.
-        const scale = Math.max(1, Math.floor(Math.min(size / sw, size / sh)));
-        const dw = sw * scale;
-        const dh = sh * scale;
-        const dx = Math.floor((size - dw) / 2);
-        const dy = Math.floor((size - dh) / 2);
-        disableSmoothing(ctx);
-        ctx.drawImage(img, sx, sy, sw, sh, dx, dy, dw, dh);
-      } catch {
-        ctx.fillStyle = "#ff00ff";
-        ctx.fillRect(0, 0, size, size);
-      }
+      await drawSprite(ctx, frame.sprite, tilesets, size);
+      if (!alive) return;
 
       again();
     };

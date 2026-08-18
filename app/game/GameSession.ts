@@ -7,7 +7,11 @@ import {
   replaceStack,
 } from "../lib/mapData";
 import { resolveSwitch } from "../lib/interactions";
-import { resolveConsumable, type ConsumableItem } from "../lib/item";
+import {
+  type ConsumableItem,
+  type ConsumableStatus,
+  resolveConsumable,
+} from "../lib/item";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
 import { MIN_LEVEL } from "../lib/types";
 import {
@@ -2447,10 +2451,17 @@ export class GameSession implements PlaySession {
    *
    * The dice are the world's own — see `./statuses`.
    */
-  private grantStatus(actor: ActorRuntime, defId: string) {
-    const def = this.statusDefs[defId];
+  private grantStatus(actor: ActorRuntime, grant: ConsumableStatus) {
+    const def = this.statusDefs[grant.id];
     if (!def) return;
-    actor.statuses = applyStatus(actor.statuses, def, this.rng);
+    // The item's range where it states one, and the status's own otherwise —
+    // see `../lib/item`'s `ConsumableStatus`. Both ends or neither, so this
+    // cannot end up ordering one source's floor against another's ceiling.
+    const range =
+      grant.fromMs === undefined || grant.toMs === undefined
+        ? def
+        : { fromMs: grant.fromMs, toMs: grant.toMs };
+    actor.statuses = applyStatus(actor.statuses, def, this.rng, range);
     // Noted here as well as on the tick, because eating happens *between* ticks
     // and the world may be asleep when it does — the same reason the kit is
     // flushed wherever it can change rather than only on the loop.
@@ -2937,8 +2948,8 @@ export class GameSession implements PlaySession {
     // kills you has already handed it over — and after the sound, on the same
     // grounds: by the time a fatal number has landed there is no body left to
     // hang anything on.
-    for (const defId of consumable.statuses ?? []) {
-      this.grantStatus(actor, defId);
+    for (const grant of consumable.statuses ?? []) {
+      this.grantStatus(actor, grant);
     }
 
     if (consumable.hp < 0) {

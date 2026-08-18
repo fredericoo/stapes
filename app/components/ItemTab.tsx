@@ -1,5 +1,6 @@
 import type {
   ConsumableItem,
+  ConsumableStatus,
   ContainerItem,
   ItemDef,
   ItemType,
@@ -15,14 +16,21 @@ import {
   MAX_CONTAINER_SIZE,
 } from "../lib/item";
 import { hasAnyInteraction, type TileInteractions } from "../lib/interactions";
+import type { StatusDef } from "../lib/status";
 import type { TileDef } from "../lib/types";
-import { Input, Segmented, Switch } from "../ui";
+import { Button, Input, Segmented, Select, Switch } from "../ui";
 import { StatField } from "./StatField";
 import { WeaponFields } from "./WeaponFields";
 
 type Props = {
   draft: TileDef;
   onChange: (next: TileDef) => void;
+  /**
+   * The status catalogue, so a consumable can be pointed at one by name rather
+   * than by an id somebody has to remember. Empty where nothing is authored, in
+   * which case the section says so instead of offering an empty dropdown.
+   */
+  statusDefs?: Record<string, StatusDef>;
 };
 
 const TYPE_OPTIONS: Array<{ value: ItemType; label: string }> = [
@@ -39,7 +47,7 @@ const TYPE_OPTIONS: Array<{ value: ItemType; label: string }> = [
  * rather than deciding it. Like that tab it has no on/off switch — it is only
  * ever shown for a tile whose kind is already `item`.
  */
-export function ItemTab({ draft, onChange }: Props) {
+export function ItemTab({ draft, onChange, statusDefs = {} }: Props) {
   const item = draft.interactions?.item ?? DEFAULT_WEAPON;
 
   const setItem = (next: ItemDef) => {
@@ -163,6 +171,14 @@ export function ItemTab({ draft, onChange }: Props) {
               onChange={(hp) => patchConsumable({ hp })}
               readout={describeShift(item.hp, "Heals", "Harms")}
             />
+
+            <ConsumableStatuses
+              statuses={item.statuses ?? []}
+              statusDefs={statusDefs}
+              onChange={(statuses) =>
+                patchConsumable({ statuses: statuses.length ? statuses : undefined })
+              }
+            />
           </div>
         ) : (
           <div className="flex flex-col gap-3">
@@ -214,4 +230,153 @@ export function ItemTab({ draft, onChange }: Props) {
 function describeShift(value: number, up: string, down: string): string {
   if (value === 0) return "No effect.";
   return `${value > 0 ? up : down} by ${Math.abs(value)}.`;
+}
+
+/**
+ * Which statuses using this hands over, and how long each is worth.
+ *
+ * **The list is here rather than on the status**, because a status is a
+ * condition and a consumable is what causes one: bread and a berry both leave
+ * you Fed, and only the food knows which of them is a meal.
+ *
+ * That is also the whole argument for the duration override. Without it the
+ * difference between a snack and a loaf could only be a *second status* — and
+ * then two identical conditions would sit in the panel side by side, refusing to
+ * stack with each other, for a difference that is only ever a number.
+ */
+function ConsumableStatuses({
+  statuses,
+  statusDefs,
+  onChange,
+}: {
+  statuses: ConsumableStatus[];
+  statusDefs: Record<string, StatusDef>;
+  onChange: (next: ConsumableStatus[]) => void;
+}) {
+  const catalogue = Object.values(statusDefs);
+  const options = catalogue.map((def) => ({ value: def.id, label: def.name }));
+
+  const patchAt = (index: number, fields: Partial<ConsumableStatus>) =>
+    onChange(
+      statuses.map((entry, i) => (i === index ? { ...entry, ...fields } : entry)),
+    );
+
+  return (
+    <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
+      <span className="text-xs font-bold uppercase text-muted">Statuses</span>
+      <p className="max-w-lg text-[11px] leading-snug text-muted">
+        What using this <strong>starts</strong>, as opposed to what it does on
+        the spot. Leave the duration blank to use the status&rsquo;s own range —
+        set it to make this a bigger meal than the next thing.
+      </p>
+
+      {catalogue.length === 0 ? (
+        <p className="text-[11px] text-muted">
+          Nothing authored yet — statuses live on the Statuses page.
+        </p>
+      ) : null}
+
+      {statuses.map((entry, index) => {
+        const def = statusDefs[entry.id];
+        const overriding = entry.fromMs !== undefined && entry.toMs !== undefined;
+        return (
+          <div
+            key={`${entry.id}-${index}`}
+            className="flex flex-wrap items-end gap-2 border-2 border-border p-2"
+          >
+            <label className="flex flex-col gap-0.5 text-xs">
+              <span className="font-bold uppercase text-muted">Status</span>
+              <Select
+                value={entry.id || null}
+                onValueChange={(id) => id && patchAt(index, { id })}
+                options={options}
+              />
+            </label>
+
+            <label className="flex flex-col gap-0.5 text-xs">
+              <span className="font-bold uppercase text-muted">Own length</span>
+              {/* Both ends move together, because half an override would have to
+                  be ordered against a number from somewhere else — see
+                  `ConsumableStatus`. */}
+              <Switch
+                checked={overriding}
+                ariaLabel="Give this item its own duration"
+                onCheckedChange={(on) =>
+                  patchAt(
+                    index,
+                    on
+                      ? { fromMs: def?.fromMs ?? 0, toMs: def?.toMs ?? 0 }
+                      : { fromMs: undefined, toMs: undefined },
+                  )
+                }
+              />
+            </label>
+
+            {overriding ? (
+              <>
+                <label className="flex flex-col gap-0.5 text-xs">
+                  <span className="font-bold uppercase text-muted">From (ms)</span>
+                  <Input
+                    type="number"
+                    className="w-28"
+                    min={0}
+                    value={entry.fromMs ?? 0}
+                    onChange={(e) => {
+                      const fromMs = Math.max(0, Number(e.target.value) || 0);
+                      // Kept ordered here so nothing authored through this
+                      // screen can land on the inverted range the schema
+                      // refuses.
+                      patchAt(index, {
+                        fromMs,
+                        toMs: Math.max(fromMs, entry.toMs ?? fromMs),
+                      });
+                    }}
+                  />
+                </label>
+                <label className="flex flex-col gap-0.5 text-xs">
+                  <span className="font-bold uppercase text-muted">To (ms)</span>
+                  <Input
+                    type="number"
+                    className="w-28"
+                    min={0}
+                    value={entry.toMs ?? 0}
+                    onChange={(e) => {
+                      const toMs = Math.max(0, Number(e.target.value) || 0);
+                      patchAt(index, {
+                        toMs,
+                        fromMs: Math.min(toMs, entry.fromMs ?? toMs),
+                      });
+                    }}
+                  />
+                </label>
+              </>
+            ) : (
+              <span className="text-[11px] text-muted">
+                {def
+                  ? `${(def.fromMs / 1000).toFixed(0)}–${(def.toMs / 1000).toFixed(0)}s, as the status says.`
+                  : "Unknown status — it will be skipped."}
+              </span>
+            )}
+
+            <Button
+              className="ml-auto"
+              onClick={() => onChange(statuses.filter((_, i) => i !== index))}
+            >
+              Remove
+            </Button>
+          </div>
+        );
+      })}
+
+      <Button
+        className="self-start"
+        disabled={catalogue.length === 0}
+        onClick={() =>
+          onChange([...statuses, { id: catalogue[0]!.id }])
+        }
+      >
+        Add status
+      </Button>
+    </div>
+  );
 }

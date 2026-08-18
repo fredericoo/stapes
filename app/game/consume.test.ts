@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_CONTAINER } from "../lib/item";
+import { type ConsumableStatus, DEFAULT_CONTAINER } from "../lib/item";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
@@ -39,7 +39,7 @@ function tile(partial: Record<string, unknown>): TileDef {
 const PLAYER_MAX_HP = 100;
 
 /** A consumable that grants statuses instead of moving hit points on the spot. */
-function granter(id: string, statuses: string[]): TileDef {
+function granter(id: string, statuses: ConsumableStatus[]): TileDef {
   return tile({
     id,
     kind: "item",
@@ -89,8 +89,10 @@ const tiles: TileDef[] = [
   // Authored with no noise, which is every consumable until somebody writes one.
   consumable("quiet-cherry", 5),
   // The berry as `data/tiles.json` now authors it: no instant heal at all.
-  granter("berry", ["fed"]),
-  granter("mystery-fruit", ["no-such-status"]),
+  granter("berry", [{ id: "fed" }]),
+  granter("mystery-fruit", [{ id: "no-such-status" }]),
+  // The same status, authored to last far longer — a loaf against a berry.
+  granter("bread", [{ id: "fed", fromMs: 60_000, toMs: 60_000 }]),
   tile({
     id: "sword",
     kind: "item",
@@ -490,7 +492,7 @@ describe("eating something that grants a status", () => {
       name: "Fed",
       description: "Slowly recovering health.",
       tone: "good",
-      iconTileId: "berry",
+      icon: { tilesetId: "ultima-vi", rect: { x: 48, y: 20, w: 1, h: 1 } },
       fromMs: FED_MS,
       toMs: FED_MS,
       stacks: true,
@@ -583,6 +585,43 @@ describe("eating something that grants a status", () => {
     session.consume({ kind: "floor", ref: refAt(session, 0, 1) });
     expect(session.statusesOf("local")).toHaveLength(1);
     expect(session.statusesOf("local")![0]!.remainingMs).toBe(FED_MS * 2);
+  });
+
+  /**
+   * **The reason the range lives on the item.** Bread and a berry leave you
+   * with the same condition and differ only in how much of it — expressing that
+   * with a second status would put two identical rows in the panel, refusing to
+   * stack with each other.
+   */
+  it("takes the item's duration over the status's own", () => {
+    const map = replaceStack(field(), 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "bread" },
+    ]);
+    const session = new GameSession(map, tiles, { statuses: catalogue });
+
+    session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
+
+    // 60s from the loaf, not the 10s the status itself is authored at.
+    expect(session.statusesOf("local")![0]!.remainingMs).toBe(60_000);
+  });
+
+  /** And stacking is what makes the pair worth having: one Fed, longer. */
+  it("stacks a meal onto a snack as one status", () => {
+    const map = replaceStack(
+      replaceStack(field(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "berry" }]),
+      0,
+      1,
+      0,
+      [{ tileId: "grass" }, { tileId: "bread" }],
+    );
+    const session = new GameSession(map, tiles, { statuses: catalogue });
+
+    session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
+    session.consume({ kind: "floor", ref: refAt(session, 0, 1) });
+
+    expect(session.statusesOf("local")).toHaveLength(1);
+    expect(session.statusesOf("local")![0]!.remainingMs).toBe(FED_MS + 60_000);
   });
 
   /**

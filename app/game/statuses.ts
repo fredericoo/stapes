@@ -114,9 +114,12 @@ export function statusReading(statuses: readonly StatusInstance[]): string {
  * seed must agree about how long somebody was fed as well as about when the blood
  * dried.
  */
-export function rollDurationMs(def: StatusDef, rng: Rng): number {
-  return def.fromMs + rng.int(def.toMs - def.fromMs + 1);
+export function rollDurationMs(range: DurationRange, rng: Rng): number {
+  return range.fromMs + rng.int(range.toMs - range.fromMs + 1);
 }
+
+/** Both ends of a duration, from a status or from whatever handed it over. */
+export type DurationRange = { fromMs: number; toMs: number };
 
 /**
  * Put a status on a body, or extend the one already there.
@@ -141,8 +144,16 @@ export function applyStatus(
   current: readonly StatusInstance[],
   def: StatusDef,
   rng: Rng,
+  /**
+   * What the thing handing this over says it is worth, if it says anything.
+   *
+   * Bread and a berry both leave you Fed and differ only in how long — see
+   * `../lib/item`'s `ConsumableStatus`. The ceiling is still the status's own:
+   * `maxMs` is a property of the condition, not of the meal.
+   */
+  range: DurationRange = def,
 ): readonly StatusInstance[] {
-  const rolled = rollDurationMs(def, rng);
+  const rolled = rollDurationMs(range, rng);
   const existing = current.find((instance) => instance.defId === def.id);
 
   if (!existing) {

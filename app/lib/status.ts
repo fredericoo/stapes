@@ -1,5 +1,6 @@
 import * as v from "valibot";
 import { type Formula, parseFormula } from "./formula";
+import { type CellRect, defaultBase, type SpriteRef } from "./types";
 
 /**
  * What a status effect *is*: a lifetime, something it does while it lasts, and
@@ -82,15 +83,18 @@ export type StatusDef = {
    */
   tone: StatusTone;
   /**
-   * The tile whose sprite stands for this status.
+   * The picture, as a rectangle on a tileset.
    *
-   * A tile id rather than a sprite reference of its own, which is a deliberate
-   * simplification and not a placeholder: the icon for Fed *is* a berry, tiles
-   * already carry sprites through every layer that would have to learn about a
-   * second kind, and an author edits it in the tile editor that already exists.
-   * An id naming no tile draws nothing, exactly as a missing item tile does.
+   * Its own sprite rather than a borrowed tile id, which is what lets a status
+   * be drawn from anywhere on any sheet instead of only where a tile happens to
+   * exist. It is a bare {@link SpriteRef} and not a `Frame`, because a frame is
+   * what carries a duration and a status icon has nothing to animate — see
+   * `../components/TilePreview`'s `SpritePreview`.
+   *
+   * Optional: a status with no icon is a status somebody has not drawn yet, and
+   * a blank cell in the lane is a better answer than refusing to load one.
    */
-  iconTileId: string;
+  icon?: SpriteRef;
   /** How long one application lasts, both ends included. One draw. */
   fromMs: number;
   toMs: number;
@@ -138,7 +142,7 @@ export const DEFAULT_STATUS_SOURCE = {
   name: "",
   description: "",
   tone: "good" as StatusTone,
-  iconTileId: "",
+  icon: { tilesetId: "", rect: { x: 0, y: 0, w: 1, h: 1 }, base: { x: 0, y: 0 } },
   fromMs: 10_000,
   toMs: 30_000,
   stacks: false,
@@ -147,6 +151,35 @@ export const DEFAULT_STATUS_SOURCE = {
   effects: {},
   modifiers: {},
 };
+
+/**
+ * A rectangle on a tileset, in 8px cells.
+ *
+ * The same shape a tile frame's sprite has, restated here rather than imported
+ * from a tile schema because the two are validated at different boundaries and
+ * a status must not start depending on what a tile happens to allow.
+ *
+ * A tileset id naming nothing draws the magenta placeholder rather than failing
+ * to load — a missing sheet should be *visible*, on the terms the renderer
+ * already treats one.
+ */
+const spriteRefSchema = v.object({
+  tilesetId: v.string(),
+  rect: v.object({
+    x: v.pipe(v.number(), v.integer(), v.minValue(0)),
+    y: v.pipe(v.number(), v.integer(), v.minValue(0)),
+    w: v.pipe(v.number(), v.integer(), v.minValue(1)),
+    h: v.pipe(v.number(), v.integer(), v.minValue(1)),
+  }),
+  // Defaulted rather than required, so a sprite written by hand needs only the
+  // rectangle — `defaultBase` is the same answer the tile editor fills in.
+  base: v.optional(
+    v.object({
+      x: v.pipe(v.number(), v.integer(), v.minValue(0)),
+      y: v.pipe(v.number(), v.integer(), v.minValue(0)),
+    }),
+  ),
+});
 
 const durationMs = v.pipe(
   v.number(),
@@ -173,7 +206,7 @@ const statusSourceSchema = v.pipe(
       v.maxLength(MAX_STATUS_DESCRIPTION_LENGTH),
     ),
     tone: v.picklist(STATUS_TONES),
-    iconTileId: v.optional(v.string(), ""),
+    icon: v.optional(spriteRefSchema),
     fromMs: durationMs,
     toMs: durationMs,
     stacks: v.optional(v.boolean(), false),
@@ -226,7 +259,7 @@ function compileStatus(raw: StatusSource): StatusDef | null {
     name: raw.name,
     description: raw.description,
     tone: raw.tone,
-    iconTileId: raw.iconTileId,
+    icon: completeSprite(raw.icon) ?? undefined,
     fromMs: raw.fromMs,
     toMs: raw.toMs,
     stacks: raw.stacks,
@@ -273,9 +306,23 @@ export type ActiveStatus = {
   name: string;
   description: string;
   tone: StatusTone;
-  iconTileId: string;
+  icon: SpriteRef | null;
   remainingMs: number;
 };
+
+/**
+ * A stored sprite with its base filled in.
+ *
+ * `base` is optional on disk — `defaultBase` is the same answer the tile editor
+ * writes — so anything reading an authored sprite has to complete it. One helper
+ * rather than the same `??` at each of the four places that draw one.
+ */
+export function completeSprite(
+  sprite: { tilesetId: string; rect: CellRect; base?: { x: number; y: number } } | undefined,
+): SpriteRef | null {
+  if (!sprite) return null;
+  return { ...sprite, base: sprite.base ?? defaultBase(sprite.rect) };
+}
 
 /** What is running on a body, ready to draw. Unknown ids are dropped. */
 export function activeStatuses(
@@ -291,7 +338,7 @@ export function activeStatuses(
       name: def.name,
       description: def.description,
       tone: def.tone,
-      iconTileId: def.iconTileId,
+      icon: def.icon ?? null,
       remainingMs: instance.remainingMs,
     });
   }

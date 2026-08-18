@@ -38,6 +38,7 @@ import { TileIdMultiSelect } from "./TileIdMultiSelect";
 import { InteractiveTab } from "./InteractiveTab";
 import { BattleTab } from "./BattleTab";
 import { ItemTab } from "./ItemTab";
+import type { StatusDef } from "../lib/status";
 import { RespawnTab } from "./RespawnTab";
 import { BrainEditor } from "./BrainEditor";
 import {
@@ -309,6 +310,8 @@ type Props = {
   /** Whole library — the interactive tab picks tile ids out of it. */
   tiles: TileDef[];
   tilesets: TilesetDef[];
+  /** The status catalogue, for the consumable's list. See `./ItemTab`. */
+  statusDefs?: Record<string, StatusDef>;
   isNew: boolean;
   onSave: (tile: TileDef) => void;
   onDelete?: () => void;
@@ -338,6 +341,7 @@ export function TileEditorDialog({
   tile,
   tiles,
   tilesets,
+  statusDefs = {},
   isNew,
   onSave,
   onDelete,
@@ -989,7 +993,7 @@ export function TileEditorDialog({
           </TabPanel>
 
           <TabPanel value={TAB_ITEM}>
-            <ItemTab draft={draft} onChange={setDraft} />
+            <ItemTab draft={draft} onChange={setDraft} statusDefs={statusDefs} />
           </TabPanel>
 
           <TabPanel value={TAB_RESPAWN}>

@@ -6799,7 +6799,9 @@
         "sound": "crunch",
         "hp": 0,
         "statuses": [
-          "fed"
+          {
+            "id": "fed"
+          }
         ]
       }
     },

@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import type { ActiveStatus } from "../lib/status";
-import type { TileDef, TilesetDef } from "../lib/types";
+import type { TilesetDef } from "../lib/types";
 import { secondsLeft } from "../game/statuses";
 import { Tooltip } from "../ui";
 import { TITLE_SPRITE_SIZE_PX } from "./ContainerPanel";
-import { TilePreview } from "./TilePreview";
+import { SpritePreview } from "./TilePreview";
 
 /**
  * What you are under, at a glance.
@@ -137,7 +137,6 @@ export function badgeSeconds(remainingMs: number): number | null {
 export function StatusStrip({
   statuses,
   interactive,
-  tilesById,
   tilesets,
   className = "",
 }: {
@@ -147,7 +146,6 @@ export function StatusStrip({
    * Decides both the tooltip and whether events reach it at all.
    */
   interactive: boolean;
-  tilesById: Record<string, TileDef>;
   tilesets: TilesetDef[];
   className?: string;
 }) {
@@ -195,17 +193,13 @@ export function StatusStrip({
     >
       {shown.map((status) => (
         <StatusCell key={status.defId} status={status} tooltip={interactive}>
-          {/* Still, because an icon in a lane is an *identifier* rather than a
-              subject: a row of independently animating thumbnails competes for
-              the frame budget of the game drawn beside them. */}
-          <TilePreview
-            tile={tilesById[status.iconTileId] ?? null}
+          {/* A bare sprite rather than a tile, and so nothing to animate: a
+              lane of independently ticking thumbnails would compete for the
+              frame budget of the game drawn beside them. */}
+          <SpritePreview
+            sprite={status.icon}
             tilesets={tilesets}
             size={STATUS_ICON_SIZE_PX}
-            direction="s"
-            still
-            chrome={false}
-            background={null}
           />
         </StatusCell>
       ))}

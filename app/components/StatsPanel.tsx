@@ -15,7 +15,7 @@ import { secondsLeft } from "../game/statuses";
 import { Tooltip } from "../ui";
 import type { ActiveStatus } from "../lib/status";
 import { compareStatuses, STATUS_ICON_SIZE_PX } from "./StatusStrip";
-import { TilePreview } from "./TilePreview";
+import { SpritePreview } from "./TilePreview";
 
 /**
  * What you are, in numbers: what you can take, and what you are good at.
@@ -35,7 +35,6 @@ export function StatsPanel({
   vitals,
   masteryXp,
   statuses = [],
-  tilesById = {},
   tilesets = [],
   className = "",
 }: {
@@ -43,7 +42,6 @@ export function StatsPanel({
   masteryXp: MasteryXp;
   /** What is running on this body. See `./StatusStrip`, which draws the glance. */
   statuses?: ActiveStatus[];
-  tilesById?: Record<string, TileDef>;
   tilesets?: TilesetDef[];
   className?: string;
 }) {
@@ -79,7 +77,7 @@ export function StatsPanel({
 
       <Health vitals={vitals} />
 
-      <Effects statuses={statuses} tilesById={tilesById} tilesets={tilesets} />
+      <Effects statuses={statuses} tilesets={tilesets} />
 
       <h3 className="mt-1 text-[11px] font-bold uppercase tracking-wide text-paper/50">
         Masteries
@@ -125,11 +123,9 @@ export function StatsPanel({
  */
 function Effects({
   statuses,
-  tilesById,
   tilesets,
 }: {
   statuses: ActiveStatus[];
-  tilesById: Record<string, TileDef>;
   tilesets: TilesetDef[];
 }) {
   if (statuses.length === 0) return null;
@@ -145,12 +141,7 @@ function Effects({
       </h3>
       <ul className="flex flex-col gap-0.5">
         {ordered.map((status) => (
-          <EffectRow
-            key={status.defId}
-            status={status}
-            tile={tilesById[status.iconTileId] ?? null}
-            tilesets={tilesets}
-          />
+          <EffectRow key={status.defId} status={status} tilesets={tilesets} />
         ))}
       </ul>
     </>
@@ -166,11 +157,9 @@ function Effects({
  */
 function EffectRow({
   status,
-  tile,
   tilesets,
 }: {
   status: ActiveStatus;
-  tile: TileDef | null;
   tilesets: TilesetDef[];
 }) {
   const seconds = secondsLeft(status.remainingMs);
@@ -187,14 +176,10 @@ function EffectRow({
           className="grid shrink-0 place-items-center"
           style={{ width: STATUS_ICON_SIZE_PX, height: STATUS_ICON_SIZE_PX }}
         >
-          <TilePreview
-            tile={tile}
+          <SpritePreview
+            sprite={status.icon}
             tilesets={tilesets}
             size={STATUS_ICON_SIZE_PX}
-            direction="s"
-            still
-            chrome={false}
-            background={null}
           />
         </span>
         <span

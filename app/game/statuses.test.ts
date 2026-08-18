@@ -20,7 +20,7 @@ function status(over: Record<string, unknown> = {}): StatusDef {
     name: "Fed",
     description: "Slowly recovering health.",
     tone: "good",
-    iconTileId: "berry",
+    icon: { tilesetId: "ultima-vi", rect: { x: 48, y: 20, w: 1, h: 1 } },
     fromMs: 10_000,
     toMs: 30_000,
     stacks: true,

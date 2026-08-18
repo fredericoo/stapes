@@ -447,7 +447,6 @@ export function GameViewport({
           vitals={vitals}
           masteryXp={masteryXp}
           statuses={statuses}
-          tilesById={tilesById}
           tilesets={tilesets}
         />
       ) : null}
@@ -605,7 +604,6 @@ export function GameViewport({
               <StatusStrip
                 statuses={statuses}
                 interactive={false}
-                tilesById={tilesById}
                 tilesets={tilesets}
               />
               {/* Shoved to the far end of the column rather than sat under the
@@ -636,7 +634,6 @@ export function GameViewport({
             <StatusStrip
               statuses={statuses}
               interactive
-              tilesById={tilesById}
               tilesets={tilesets}
             />
           </div>

@@ -3,15 +3,15 @@ import { useFetcher, useLoaderData } from "react-router";
 import type { Route } from "./+types/statuses";
 import { AppShell } from "../components/AppShell";
 import { StatusEditorDialog } from "../components/StatusEditorDialog";
-import { TilePreview } from "../components/TilePreview";
+import { SpritePreview } from "../components/TilePreview";
 import { dataStore } from "../context";
 import { TITLE_SPRITE_SIZE_PX } from "../components/ContainerPanel";
 import {
+  completeSprite,
   DEFAULT_STATUS_SOURCE,
   resolveStatus,
   type StatusSource,
 } from "../lib/status";
-import { tilesByIdFromList } from "../lib/validation";
 import { Button, useToast } from "../ui";
 
 /**
@@ -28,12 +28,11 @@ import { Button, useToast } from "../ui";
 
 export async function loader({ context }: Route.LoaderArgs) {
   const store = dataStore(context);
-  const [statuses, tiles, tilesets] = await Promise.all([
+  const [statuses, tilesets] = await Promise.all([
     store.readStatuses(),
-    store.readTiles(),
     store.readTilesets(),
   ]);
-  return { statuses: statuses as StatusSource[], tiles, tilesets };
+  return { statuses: statuses as StatusSource[], tilesets };
 }
 
 export async function action({ context, request }: Route.ActionArgs) {
@@ -70,11 +69,10 @@ export async function action({ context, request }: Route.ActionArgs) {
 }
 
 export default function StatusesPage() {
-  const { statuses, tiles, tilesets } = useLoaderData<typeof loader>();
+  const { statuses, tilesets } = useLoaderData<typeof loader>();
   const fetcher = useFetcher<typeof action>();
   const toast = useToast();
   const [editing, setEditing] = useState<StatusSource | null>(null);
-  const tilesById = tilesByIdFromList(tiles);
 
   const save = (status: StatusSource) => {
     fetcher.submit(
@@ -120,14 +118,10 @@ export default function StatusesPage() {
                   key={status.id}
                   className="flex items-center gap-2 border-2 border-border bg-panel p-2"
                 >
-                  <TilePreview
-                    tile={tilesById[status.iconTileId ?? ""] ?? null}
+                  <SpritePreview
+                    sprite={completeSprite(status.icon)}
                     tilesets={tilesets}
                     size={TITLE_SPRITE_SIZE_PX}
-                    direction="s"
-                    still
-                    chrome={false}
-                    background={null}
                   />
                   <span className="flex min-w-0 flex-col">
                     <span className="text-xs font-bold">
@@ -159,7 +153,6 @@ export default function StatusesPage() {
       {editing ? (
         <StatusEditorDialog
           draft={editing}
-          tiles={tiles}
           tilesets={tilesets}
           onCancel={() => setEditing(null)}
           onSave={save}

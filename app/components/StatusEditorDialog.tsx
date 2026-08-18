@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { parseFormula, type FormulaScope } from "../lib/formula";
 import {
+  completeSprite,
   MAX_STATUS_DESCRIPTION_LENGTH,
   MAX_STATUS_DURATION_MS,
   MODIFIER_KEYS,
@@ -9,9 +10,10 @@ import {
   type StatusSource,
 } from "../lib/status";
 import { snapToTick } from "../game/statuses";
-import type { TileDef, TilesetDef } from "../lib/types";
+import { defaultBase, type SpriteRef, type TilesetDef } from "../lib/types";
 import { Button, Dialog, Input, Select, Switch } from "../ui";
-import { TilePreview } from "./TilePreview";
+import { SpritePreview } from "./TilePreview";
+import { SpriteSelector } from "./SpriteSelector";
 import { TITLE_SPRITE_SIZE_PX } from "./ContainerPanel";
 
 /**
@@ -110,13 +112,11 @@ function MsField({
 
 export function StatusEditorDialog({
   draft,
-  tiles,
   tilesets,
   onCancel,
   onSave,
 }: {
   draft: StatusSource;
-  tiles: TileDef[];
   tilesets: TilesetDef[];
   onCancel: () => void;
   onSave: (status: StatusSource) => void;
@@ -125,7 +125,18 @@ export function StatusEditorDialog({
   const patch = (fields: Partial<StatusSource>) =>
     setStatus((current) => ({ ...current, ...fields }));
 
-  const iconTile = tiles.find((t) => t.id === status.iconTileId) ?? null;
+  const icon = completeSprite(status.icon);
+  const iconTileset = tilesets.find((t) => t.id === icon?.tilesetId) ?? null;
+
+  /**
+   * Keep the base cell inside the rectangle it belongs to.
+   *
+   * `SpriteSelector` hands back both together, but the tileset *select* only
+   * changes the sheet — and a base left over from a wider rectangle on the last
+   * sheet is out of bounds on this one.
+   */
+  const setIcon = (next: SpriteRef) =>
+    patch({ icon: { ...next, base: next.base ?? defaultBase(next.rect) } });
   // The same function every catalogue is built with, so what this button is
   // gated on and what the world will accept cannot come apart.
   const valid = resolveStatus(status) !== null;
@@ -200,26 +211,52 @@ export function StatusEditorDialog({
           </span>
         </label>
 
-        <div className="flex items-end gap-2">
-          <label className="flex flex-col gap-0.5">
-            <span className="text-[11px] font-bold uppercase text-muted">
-              Icon tile
-            </span>
-            <Select
-              value={status.iconTileId || null}
-              onValueChange={(v) => patch({ iconTileId: v ?? "" })}
-              options={tiles.map((t) => ({ value: t.id, label: t.name || t.id }))}
+        <div className="flex flex-col gap-1 border-t-2 border-border pt-3">
+          <span className="text-xs font-bold uppercase text-muted">Icon</span>
+          <p className="max-w-lg text-[11px] leading-snug text-muted">
+            Drag a rectangle on the sheet, the same way a tile's sprite is
+            picked. Its own picture rather than a borrowed tile, so it can come
+            from anywhere on any sheet.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-start gap-3">
+          <div className="flex flex-col gap-2">
+            <label className="flex items-center gap-2">
+              <span className="text-[11px] font-bold uppercase text-muted">
+                Tileset
+              </span>
+              <Select
+                value={icon?.tilesetId || null}
+                onValueChange={(id) => {
+                  if (!id) return;
+                  // The rectangle is kept and the base recomputed: switching
+                  // sheets to find the same shape elsewhere is the common move,
+                  // and starting from 1×1 every time would undo it.
+                  const rect = icon?.rect ?? { x: 0, y: 0, w: 1, h: 1 };
+                  setIcon({ tilesetId: id, rect, base: defaultBase(rect) });
+                }}
+                options={tilesets.map((t) => ({ value: t.id, label: t.name }))}
+              />
+            </label>
+            <SpriteSelector
+              tileset={iconTileset}
+              value={icon}
+              onChange={setIcon}
             />
-          </label>
-          <TilePreview
-            tile={iconTile}
-            tilesets={tilesets}
-            size={TITLE_SPRITE_SIZE_PX}
-            direction="s"
-            still
-            chrome={false}
-            background={null}
-          />
+          </div>
+          <div className="flex flex-col items-center gap-1">
+            <span className="text-[11px] font-bold uppercase text-muted">
+              In the lane
+            </span>
+            {/* At the size it is actually drawn at, not a big preview: the whole
+                question an author has here is whether it reads at 18px beside a
+                countdown, and a 96px version answers a different one. */}
+            <SpritePreview
+              sprite={icon}
+              tilesets={tilesets}
+              size={TITLE_SPRITE_SIZE_PX}
+            />
+          </div>
         </div>
 
         <div className="flex flex-col gap-1 border-t-2 border-border pt-3">
