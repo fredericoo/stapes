@@ -34961,6 +34961,11 @@
           "tileId": "grass-2"
         }
       ],
+      "-3,33": [
+        {
+          "tileId": "grass-2"
+        }
+      ],
       "-3,34": [
         {
           "tileId": "grass"
@@ -100562,6 +100567,9 @@
       "-11,55": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "rusty-sword"
         }
       ],
       "-11,56": [
@@ -101448,6 +101456,9 @@
       "-9,55": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "hand-lantern"
         }
       ],
       "-9,56": [
@@ -101873,6 +101884,10 @@
       "-8,55": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "rat",
+          "direction": "w"
         }
       ],
       "-8,56": [
@@ -104488,6 +104503,10 @@
       ],
       "-2,40": [
         {
+          "tileId": "torch",
+          "direction": "s"
+        },
+        {
           "tileId": "half-stone"
         }
       ],
@@ -106038,6 +106057,10 @@
         },
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "torch",
+          "direction": "n"
         }
       ],
       "1,43": [
@@ -109255,6 +109278,10 @@
         },
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "torch",
+          "direction": "s"
         }
       ],
       "8,42": [

@@ -61,6 +61,7 @@ import {
 } from "../lib/battler";
 import {
   experienceMultiplier,
+  hasExperience,
   MASTERIES,
   masteriesFromXp,
   type MasteryXp,
@@ -312,6 +313,15 @@ export type NoiseEmission = {
  * weapon they cannot use from a foe they cannot catch.
  */
 export type SwingOutcome = "hit" | "miss" | "dodge";
+
+/**
+ * The same three, as values.
+ *
+ * A union alone cannot be validated at a boundary, and the wire is a boundary —
+ * see `../net/protocol`, where the schema forgetting this field made every blow
+ * online draw nothing.
+ */
+export const SWING_OUTCOMES: SwingOutcome[] = ["hit", "miss", "dodge"];
 
 /**
  * A receipt floating off whatever was just swung at.
@@ -1112,7 +1122,12 @@ export class GameSession implements PlaySession {
       // Seeded lazily rather than here, for the reason `hp` is: the authored
       // masteries live on the body, and at this moment the actor may have no
       // body on the board to read one from. A returning player brings theirs.
-      masteryXp: resident ? null : (opts.earned ?? null),
+      //
+      // Checked rather than trusted, and `hasExperience` says why: an empty
+      // block is not a body with nothing learnt, it is one nobody has asked
+      // about — and passing it through would defeat the seeding below and hand
+      // somebody a body with half the hit points and no evasion.
+      masteryXp: resident || !hasExperience(opts.earned) ? null : opts.earned,
       earnedBody: null,
       defensiveDecay: null,
       brain: null,

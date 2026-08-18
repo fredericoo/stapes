@@ -1,18 +1,27 @@
 import { describe, expect, it } from "vitest";
+import tilesJson from "../../data/tiles.json";
 import type { BattlerDef } from "../lib/battler";
-import { DEFAULT_BATTLER, maxHpFrom, fleeFrom } from "../lib/battler";
+import {
+  DEFAULT_BATTLER,
+  fleeFrom,
+  maxHpFrom,
+  resolveBattler,
+} from "../lib/battler";
 import { DEFAULT_CONTAINER, DEFAULT_WEAPON } from "../lib/item";
 import type { TileDef } from "../lib/types";
-import { normalizeTileDef } from "../lib/types";
+import { normalizeTileDef, normalizeTiles } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
+import type { Equipment } from "./equipment";
 import {
   carriedInstances,
   carriedLightTileIds,
+  damageRate,
   effectiveBattler,
   emptyEquipment,
   restoredEquipment,
   startingEquipment,
   weaponInHand,
+  worseThanBareHands,
 } from "./equipment";
 
 /**
@@ -397,5 +406,63 @@ describe("restoredEquipment", () => {
 
   it("hands back nothing at all for a kit of nothing", () => {
     expect(restoredEquipment(emptyEquipment(), tiles)).toEqual(emptyEquipment());
+  });
+});
+
+/**
+ * A thing in your hand that is worth less than the hand.
+ *
+ * Found by playing: a hand lantern is equipped in the weapon slot for light, and
+ * a held weapon *replaces* the natural one rather than adding to it — so a
+ * player carrying a lamp was fighting at a twentieth of their bare fists.
+ * Nothing on screen said so, and it read as the game being broken: "the rat has
+ * three times my attack speed and I hit it for 1" is an exact description of a
+ * lantern.
+ *
+ * Against the shipped catalogue rather than a fixture, because the whole point
+ * is what an author actually wrote down.
+ */
+describe("what is worth swinging", () => {
+  const tiles = normalizeTiles(tilesJson as unknown[]);
+  const byId = Object.fromEntries(tiles.map((tile) => [tile.id, tile]));
+  const player = resolveBattler(byId["player"]!)!;
+
+  const holding = (tileId: string): Equipment => ({
+    weapon: { id: `itm_${tileId}`, tileId },
+    bag: null,
+  });
+
+  it("calls a lantern out as worse than bare hands", () => {
+    expect(worseThanBareHands(player, holding("hand-lantern"), byId)).toBe(true);
+  });
+
+  it("leaves a real weapon alone once its requirement is met", () => {
+    expect(worseThanBareHands(player, holding("rusty-sword"), byId)).toBe(false);
+  });
+
+  /**
+   * And says so about a weapon you have not learnt, which is the same warning
+   * for the reason phase 2 spent a whole section on: an unlearnt sword really is
+   * worse than your own hands, and that is the lesson rather than a bug.
+   */
+  it("calls out a weapon whose requirement is nowhere near met", () => {
+    const novice = { ...player, masteries: { ...player.masteries, blade: 0 } };
+    expect(worseThanBareHands(novice, holding("rusty-sword"), byId)).toBe(true);
+  });
+
+  it("says nothing about empty hands, which cannot be worse than themselves", () => {
+    expect(worseThanBareHands(player, { weapon: null, bag: null }, byId)).toBe(false);
+    expect(worseThanBareHands(player, null, byId)).toBe(false);
+  });
+
+  /** The figures behind it, so a retune that inverts them fails here. */
+  it("rates the lantern far below fists on damage, landing and speed alike", () => {
+    const fists = effectiveBattler(player, null, byId);
+    const lamp = effectiveBattler(player, holding("hand-lantern"), byId);
+
+    expect(lamp.damage).toBeLessThan(fists.damage);
+    expect(lamp.hitChance).toBeLessThan(fists.hitChance);
+    expect(lamp.spd).toBeLessThan(fists.spd);
+    expect(damageRate(lamp)).toBeLessThan(damageRate(fists) / 5);
   });
 });

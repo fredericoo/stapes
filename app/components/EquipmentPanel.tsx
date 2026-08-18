@@ -90,11 +90,11 @@ export function EquipmentPanel({
           drag={drag}
         />
       </div>
-      {/* Directly under the hand it is about, and absent entirely for bare
-          hands or for a weapon that asks nothing — a heading over an empty list
-          would be the panel making a point of a rule that is not in play. */}
+      {/* Directly under the hand it is about, and drawn for bare hands too: a
+          readout that appeared only when something was wrong would make its own
+          absence the message. */}
       <WeaponDemands
-        weapon={equipment.weapon}
+        equipment={equipment}
         masteryXp={masteryXp}
         tilesById={tilesById}
         className="mt-1"

@@ -243,6 +243,28 @@ export function progressToNextLevel(xp: number): number {
   return Math.max(0, Math.min(1, (Math.max(0, xp) - from) / (to - from)));
 }
 
+/**
+ * Whether this block records anything at all.
+ *
+ * **An empty block is not a body with nothing learnt — it is a body nobody has
+ * asked about yet**, and the difference is the whole of somebody's character.
+ * Seeding is gated on the block being *absent*, so an empty one restored from
+ * storage slips past the gate and sticks: every mastery reads zero, and a player
+ * comes back with eight hit points instead of sixteen, no evasion, and a sword
+ * they can no longer swing.
+ *
+ * There is no legitimate empty block. A seeded one is never empty for any body
+ * an author gave masteries to, and one that genuinely would be empty seeds to
+ * empty again — so treating it as absent costs nothing and closes the hole.
+ */
+export function hasExperience(xp: MasteryXp | undefined): xp is MasteryXp {
+  if (!xp) return false;
+  for (const mastery of MASTERIES) {
+    if ((xp[mastery] ?? 0) > 0) return true;
+  }
+  return false;
+}
+
 /** Every mastery in a block, read out of what has been earned towards it. */
 export function masteriesFromXp(xp: MasteryXp): Masteries {
   const masteries: Masteries = {};

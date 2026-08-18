@@ -1,7 +1,7 @@
 import * as v from "valibot";
 import type { Equipment } from "../game/equipment";
 import type { SlotRef } from "../game/itemMoves";
-import type { SwingOutcome } from "../game/GameSession";
+import { SWING_OUTCOMES, type SwingOutcome } from "../game/GameSession";
 import type { ConsumeSource } from "../game/itemUse";
 import { masteryXpBlockSchema, type MasteryXp } from "../lib/mastery";
 import type { PlacedTile } from "../lib/types";
@@ -735,6 +735,13 @@ const serverMessageSchema = v.variant("type", [
           kind: v.literal("damage"),
           id: v.string(),
           targetId: v.string(),
+          // **Not optional, and its absence here was a real bug.** Valibot
+          // strips keys a schema does not name, so a field the type promised and
+          // the schema forgot arrived as `undefined` — and the one thing that
+          // reads it turns "hit" into a number and everything else into a word.
+          // Every blow online drew nothing at all, for as long as `outcome` has
+          // existed.
+          outcome: v.picklist(SWING_OUTCOMES),
           amount: v.number(),
           x: v.number(),
           y: v.number(),

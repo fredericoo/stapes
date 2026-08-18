@@ -6,6 +6,7 @@ import { mintItemId } from "../lib/itemInstance";
 import { resolveContainer, resolveItem, resolveWeapon } from "../lib/item";
 import { resolveLight } from "../lib/tileResolve";
 import type { TileDef } from "../lib/types";
+import { attackIntervalMs } from "./combat";
 
 /**
  * What carrying things does to a fight.
@@ -247,4 +248,40 @@ export function effectiveBattler(
   tilesById: Record<string, TileDef>,
 ): FightingStats {
   return fightingStats(base, weaponInHand(base, equipment, tilesById));
+}
+
+/**
+ * Damage per millisecond, which is the only fair way to compare two weapons.
+ *
+ * Damage alone would call a hand lantern a quarter of your fists when it is
+ * nearer a twentieth: it also swings less than half as often and lands half as
+ * many of those. Landing, hitting and swinging, multiplied.
+ */
+export function damageRate(stats: FightingStats): number {
+  return (stats.damage * stats.hitChance) / attackIntervalMs(stats.spd);
+}
+
+/**
+ * Whether the thing in this body's hand is worth less than the hand.
+ *
+ * **The one comparison a player can act on**, and it exists because a held
+ * weapon *replaces* the natural one rather than adding to it — the rule the
+ * whole natural-weapon design rests on, and the one with a sharp edge nobody
+ * could see. A hand lantern is a weapon: damage 1 at accuracy 45, swinging every
+ * 95 ticks against bare hands at 4 and 82 and 41. Somebody who picked one up to
+ * see in the dark was fighting at a twentieth of their own fists, with nothing
+ * anywhere saying so, and read it as the game being broken.
+ *
+ * False for empty hands, which cannot be worse than themselves.
+ */
+export function worseThanBareHands(
+  base: BattlerDef,
+  equipment: Equipment | null,
+  tilesById: Record<string, TileDef>,
+): boolean {
+  if (!equipment?.weapon) return false;
+  return (
+    damageRate(effectiveBattler(base, equipment, tilesById)) <
+    damageRate(effectiveBattler(base, null, tilesById))
+  );
 }

@@ -877,6 +877,34 @@ also beats the snake every time and makes bare hands worth more than the sword �
 which is the one lesson the whole mastery system exists to teach. The table that
 says so is worth keeping in mind before anyone reaches for the player's block.
 
+### The lantern, and the edge on "a weapon replaces your hands"
+
+Found by playing, and worth writing down because the mechanism is a rule this
+design is proud of. **A held weapon replaces the natural one rather than adding
+to it** — the decision the whole natural-weapon section argues for. A hand
+lantern is equipped in the weapon slot, and it is authored as a weapon:
+
+| in hand | damage | accuracy | ticks per swing |
+|---|---|---|---|
+| bare fists | 4 | 82 | 41 |
+| hand lantern | 1 | 45 | 95 |
+| rusty sword | 8 | 86 | 52 |
+
+So somebody who picked one up to see in the dark was fighting at about a
+twentieth of their own fists, against a rat swinging every 26 ticks. It read
+exactly as it felt: "the rat has three times my attack speed and I hit it for 1".
+Nothing anywhere on the screen said otherwise.
+
+The rule is right and the silence was not, so the panel now says what you are
+actually fighting with — damage, swing time and landing chance — **always,
+including for bare hands**, because a readout that appeared only when something
+was wrong would make its own absence the message. `worseThanBareHands` names the
+one comparison a player can act on, and it lives in `../game/equipment` beside
+the rule it is about rather than in the panel that draws it.
+
+It fires for an unlearnt sword too, which is not a bug: an unlearnt sword really
+is worse than your own hands, and that is the lesson phase 2 spent a section on.
+
 ### What is not there
 
 Nothing for **other people's** masteries, and nothing needs to be: their ⭐ is
