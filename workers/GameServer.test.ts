@@ -2178,3 +2178,348 @@ describe("respawn", () => {
     expect(Object.keys(pending ?? {})).toEqual([]);
   });
 });
+
+/**
+ * The one operation in this object that is *destructive on purpose*.
+ *
+ * Everything else here is built to lose nothing: a save carries kits, tags and
+ * masteries across, an eviction carries positions, and a bad map fails having
+ * changed nothing. That is right until the thing that has to go is something
+ * the object remembers about a *player*, at which point every one of those
+ * mechanisms is working to keep it — see the first case below for the shape of
+ * bug that produces.
+ */
+describe("resetting the world", () => {
+  /**
+   * The reason this exists at all, in one case.
+   *
+   * A mastery block is the piece of per-actor state everything else is built to
+   * keep: an eviction restores it, and `replaceWorld` reads it off the outgoing
+   * session precisely so that a save cannot cost somebody what they have
+   * learnt. Which is right, and which also means a block that has come to
+   * disagree with the content it was written against is unreachable — there is
+   * no sequence of seeds, saves and reloads that clears it.
+   *
+   * Asserted from both ends, because only the pair says anything: the first
+   * expectation is a save failing to shift it, and the second is the reset
+   * being the thing that does.
+   */
+  it("forgets what a player had learnt, which a save carries forward", async () => {
+    const who = freshPlayer();
+    // Far above anything the authored `player` tile could seed, so a block that
+    // had been quietly re-derived from the tile reads as a much smaller number
+    // rather than as a pass.
+    const EARNED = { blade: 40_000, toughness: 9_000 };
+    await runInDurableObject(stub(), async (_instance, state) => {
+      await state.storage.put(`mast:${who}`, {
+        masteries: EARNED,
+        savedAt: Date.now(),
+      });
+    });
+    await simulateEviction();
+    await connect(who);
+
+    await stub().replaceWorld(authoredMap());
+    expect((await connect(who)).hello.masteryXp).toEqual(EARNED);
+
+    await stub().resetWorld();
+
+    const { hello } = await connect(who);
+    // Seeded from the authored `player` tile again, which is what somebody the
+    // world has never met looks like.
+    expect(hello.masteryXp).not.toEqual(EARNED);
+    expect(await storedKeys("mast:")).not.toContain(`mast:${who}`);
+  });
+
+  /**
+   * A tag is the piece of per-actor state everything else is built to preserve
+   * — `replaceWorld` carries it explicitly so the editor's constant saves do
+   * not refill every chest in the map. Which means a tag naming a reward that
+   * has since been re-authored is unreachable by any other route: the chest is
+   * there, it is offered to everybody else, and it is closed to you for ever.
+   */
+  it("gives back the rewards a player had already taken", async () => {
+    const who = freshPlayer();
+    await runInDurableObject(stub(), async (_instance, state) => {
+      await state.storage.put(`tags:${who}`, {
+        tags: ["chest-42"],
+        savedAt: Date.now(),
+      });
+    });
+    await simulateEviction();
+
+    const taken = await connect(who);
+    expect(taken.hello.tags).toEqual(["chest-42"]);
+
+    await stub().resetWorld();
+
+    const { hello } = await connect(who);
+    expect(hello.tags).toEqual([]);
+    expect(await storedKeys("tags:")).toEqual([]);
+  });
+
+  /**
+   * The checkpoint is preferred to the bucket on every load, which is what
+   * makes a seeded map invisible: `pnpm seed` can replace every byte of the
+   * authored world and the object goes on serving the one it has.
+   */
+  it("starts the board again from the authored map", async () => {
+    await connect("alice");
+    await putCheckpoint(checkpointWith(["alice"]));
+    await simulateEviction();
+
+    const resumed = await connect("alice");
+    expect(playerCells(resumed.hello.map as FlatMapFile)).toEqual([
+      AWAY_FROM_SPAWN,
+    ]);
+
+    await stub().resetWorld();
+
+    const { hello } = await connect("alice");
+    // Back at the authored spawn, on a board the authored file describes.
+    expect(playerCells(hello.map as FlatMapFile)).toEqual([0]);
+    // The authored strip, not the four cells the checkpoint happened to share
+    // with it: a board resumed from storage would still be missing the marker.
+    expect(
+      Object.keys((hello.map as FlatMapFile).levels["0"] ?? {}),
+    ).toHaveLength(AUTHORED_CELLS);
+  });
+
+  /**
+   * Everyone already in the world, without waiting for them to reload.
+   *
+   * A reset that only took effect on reconnect would leave whoever was standing
+   * there playing a world that no longer exists — walking a board nobody else
+   * can see, with every step refused by a session that has never heard of them.
+   */
+  it("re-seats a connected player rather than waiting for a reload", async () => {
+    const who = freshPlayer();
+    const joined = await connect(who);
+
+    await stub().resetWorld();
+
+    const hello = await nextMessage(joined.ws);
+    expect(hello.type).toBe("hello");
+    expect(hello.selfId).toBe(who);
+    expect(playerOwners(hello.map as FlatMapFile)).toEqual([who]);
+  });
+
+  /**
+   * The chat log, which is the one thing in this object that is not a key.
+   *
+   * `deleteAll` empties the key-value side and leaves a table made through
+   * `storage.sql` standing, so the log has to go by name — and a wipe that left
+   * it holding what a world that no longer exists said would be a wipe in name
+   * only. Written with a log to drop rather than against an empty object,
+   * because `DROP TABLE IF EXISTS` on a world nobody has spoken in is a no-op
+   * that passes whatever the code does.
+   */
+  it("drops the chat log, and survives having one to drop", async () => {
+    const alice = await connect("alice");
+    say(alice.ws, "hello");
+    await chatWithin(alice.ws, 1000);
+    expect(await chatRows()).not.toHaveLength(0);
+
+    await stub().resetWorld();
+
+    // The table itself, not its rows: `chatRows` would throw on a dropped one,
+    // which is the same assertion made in a way that cannot tell a drop from a
+    // typo. `logChat` creates it again the next time anybody speaks.
+    const tables = await runInDurableObject(stub(), (_instance, state) => [
+      ...state.storage.sql.exec(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'chat'",
+      ),
+    ]);
+    expect(tables).toHaveLength(0);
+  });
+
+  /** The ordinary case: nobody is connected and the world is asleep. */
+  it("works on a world nobody is in", async () => {
+    await putCheckpoint(checkpointWith(["ghost"]));
+    await simulateEviction();
+
+    await stub().resetWorld();
+
+    const { hello } = await connect("alice");
+    expect(playerCells(hello.map as FlatMapFile)).toEqual([0]);
+  });
+});
+
+/**
+ * What a flush is allowed to cost.
+ *
+ * The interval used to be the only thing holding the write rate down, because a
+ * flush wrote every actor unconditionally whether or not anything about them had
+ * moved. That came to roughly thirteen thousand storage rows an hour for one
+ * connected player — enough to exhaust a day of the Durable Objects free tier in
+ * a single sitting, which is how it was found, with every socket in production
+ * failing on `Exceeded allowed rows written`.
+ *
+ * So these are cost tests, and cost is the thing a test suite normally cannot
+ * see: nothing here changes what a player experiences, which is exactly why it
+ * could regress for months without a single other case going red.
+ */
+describe("what a flush writes", () => {
+  const GNOME_X = 3;
+  const GNOME_OWNER = `npc:${GNOME_X},0,0,1`;
+
+  /** A mindless body, so the world can actually settle and flush. */
+  function gnomeTile() {
+    return {
+      id: "gnome",
+      name: "Gnome",
+      height: 1,
+      type: "simple",
+      kind: "prop",
+      attributes: {},
+      actor: true,
+      walkable: false,
+      interactions: {},
+      sprite: {
+        frames: [
+          {
+            sprite: {
+              tilesetId: "tiny-ranch-tiles",
+              rect: { x: 0, y: 0, w: 1, h: 1 },
+              base: { x: 0, y: 0 },
+            },
+            durationMs: 200,
+          },
+        ],
+      },
+    };
+  }
+
+  function mapWithGnome(): FlatMapFile {
+    const flat = authoredMap();
+    flat.levels["0"]![`${GNOME_X},0`] = [
+      { tileId: "grass" },
+      { tileId: "gnome" },
+    ];
+    return flat;
+  }
+
+  beforeEach(async () => {
+    await env.DATA.put(
+      "tiles.json",
+      JSON.stringify([...tilesJson, gnomeTile()]),
+    );
+    await env.DATA.put("map.json", JSON.stringify(mapWithGnome()));
+  });
+
+  /**
+   * The single biggest line of the old bill, and it bought nothing.
+   *
+   * Every caller of `lastPositionOf` is asking on behalf of a socket, because a
+   * player's tile is consumed at spawn and the board no longer says where they
+   * were. A creature is the opposite — it is adopted *out of* the board — so its
+   * position is already in the checkpointed chunks and the row beside them had
+   * no reader at all. Twelve of the eighteen-odd rows a flush wrote on the real
+   * map were exactly this.
+   */
+  it("never writes down where a creature is standing", async () => {
+    const alice = await connect("alice");
+    await walkEast(alice.ws);
+    await new Promise((resolve) => setTimeout(resolve, QUIET_MS));
+
+    const positions = await storedKeys("pos:");
+    expect(positions).toContain("pos:alice");
+    expect(positions).not.toContain(`pos:${GNOME_OWNER}`);
+  });
+
+  /**
+   * And the board is why that is safe rather than merely cheap: a creature comes
+   * back from the checkpoint it is drawn on, so forgetting its row costs nothing
+   * across the eviction that would expose it.
+   */
+  it("still puts a creature back where it stood after an eviction", async () => {
+    await connect("alice");
+    await new Promise((resolve) => setTimeout(resolve, QUIET_MS));
+    await simulateEviction();
+
+    const { hello } = await connect("bob");
+    const stack = (hello.map as FlatMapFile).levels["0"]?.[`${GNOME_X},0`];
+    expect(stack?.map((placed) => placed.tileId)).toEqual(["grass", "gnome"]);
+  });
+
+  /**
+   * Somebody standing still is the common case in a world that never settles —
+   * one person AFK holds the tick loop open for everybody, and used to hold a
+   * write open with it, thirty times a minute, saying the same thing each time.
+   */
+  it("does not write a player again while they have not moved", async () => {
+    const who = freshPlayer();
+    const alice = await connect(who);
+    await walkEast(alice.ws);
+    await new Promise((resolve) => setTimeout(resolve, QUIET_MS));
+
+    const first = await runInDurableObject(stub(), (_instance, state) =>
+      state.storage.get<{ savedAt: number }>(`pos:${who}`),
+    );
+    expect(first).toBeDefined();
+
+    // A second settle with nothing having happened in between.
+    await runInDurableObject(stub(), (instance: GameServer) => {
+      const internals = instance as unknown as {
+        saveActors(ids: Iterable<string>): void;
+        session: { actorIds(): string[] };
+      };
+      internals.saveActors(internals.session.actorIds());
+    });
+    await new Promise((resolve) => setTimeout(resolve, QUIET_MS));
+
+    const second = await runInDurableObject(stub(), (_instance, state) =>
+      state.storage.get<{ savedAt: number }>(`pos:${who}`),
+    );
+    // The same stamp, which is only possible if nothing was written over it.
+    expect(second?.savedAt).toBe(first?.savedAt);
+  });
+
+  /**
+   * The invariant the skipping must not break.
+   *
+   * Picking something up takes it off the map and puts it in a bag, so a kit made
+   * durable against a board that was not is an item existing twice. Skipping an
+   * unchanged row cannot cause that — the event that must not split the two
+   * changes both, so both are dirty together — but "cannot" is the kind of claim
+   * that wants a test standing on it.
+   */
+  it("writes a kit and the board it was read from in one batch", async () => {
+    const who = freshPlayer();
+    const alice = await connect(who);
+    await walkEast(alice.ws);
+    await new Promise((resolve) => setTimeout(resolve, QUIET_MS));
+
+    const kit = await runInDurableObject(stub(), (_instance, state) =>
+      state.storage.get<{ savedAt: number }>(`equip:${who}`),
+    );
+    const board = await storedKeys("chunk:");
+    // A starting kit exists and the board it was read against is down beside it.
+    expect(kit).toBeDefined();
+    expect(board.length).toBeGreaterThan(0);
+  });
+
+  /**
+   * A leaver is forced past the dirty check, because a skipped row keeps
+   * whatever `savedAt` it last had and `savedAt` is what decides who gets
+   * forgotten first. Somebody who stood still for an hour and then left would
+   * otherwise carry an hour-old stamp into that queue, which is backwards.
+   */
+  it("restamps somebody on the way out even if they never moved", async () => {
+    const who = freshPlayer();
+    const alice = await connect(who);
+    await walkEast(alice.ws);
+    await new Promise((resolve) => setTimeout(resolve, QUIET_MS));
+
+    const before = await runInDurableObject(stub(), (_instance, state) =>
+      state.storage.get<{ savedAt: number }>(`pos:${who}`),
+    );
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    await leave(alice.ws);
+
+    const after = await runInDurableObject(stub(), (_instance, state) =>
+      state.storage.get<{ savedAt: number }>(`pos:${who}`),
+    );
+    expect(after?.savedAt).toBeGreaterThan(before!.savedAt);
+  });
+});

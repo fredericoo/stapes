@@ -247,14 +247,30 @@ const MASTERIES_KEY_PREFIX = "mast:";
 export const MAX_REMEMBERED_ACTORS = 1_000;
 
 /**
- * How often positions are written out while the world is being played.
+ * How often what has changed is written out while the world is being played.
  *
- * The floor on how much a crash can cost somebody, and the whole reason this is
- * not simply left to the idle checkpoint: a busy world never settles, so an
- * object that died mid-session would hand everybody back the position they had
- * when the room was last empty. Five seconds is a couple of rooms' walking.
+ * The ceiling on how much a crash can cost somebody, and the whole reason this
+ * is not simply left to the idle checkpoint: **a world with anybody in it never
+ * settles.** `GameSession.isAtRest` stays false for as long as a player is
+ * present and any creature has a brain wanting a turn, so an object that died
+ * mid-session would hand everybody back the position they had when the room was
+ * last empty — which on a busy world is hours ago, not minutes.
+ *
+ * Thirty seconds rather than the five it began at. Five was chosen when a flush
+ * wrote every actor unconditionally, so the interval was the only thing holding
+ * the write rate down, and it was holding it down at roughly thirteen thousand
+ * rows an hour for a single connected player — enough to exhaust a day's free
+ * tier in one sitting, which is exactly how this was found. Now that
+ * {@link GameServer.saveActors} writes only what has actually moved, the
+ * interval is free to be what it should always have been: a statement about how
+ * much progress is acceptable to lose, and nothing about cost.
+ *
+ * Thirty seconds of walking and fighting is the exposure, and it is bounded on
+ * both ends by things that do not wait for it — a socket closing saves before
+ * the body goes, and a world settling saves before it may be evicted. What is
+ * left is the genuinely unannounced death: a crash, an eviction, or a deploy.
  */
-const ACTOR_FLUSH_INTERVAL_MS = 5_000;
+const ACTOR_FLUSH_INTERVAL_MS = 30_000;
 
 /**
  * Where somebody was standing, kept against their return.
@@ -290,6 +306,42 @@ type SavedTags = { tags: string[]; savedAt: number };
 type SavedMasteries = { masteries: MasteryXp; savedAt: number };
 
 type Attachment = { actorId: string };
+
+/**
+ * What was last written down about one actor, so a flush can skip the rows that
+ * still say what storage already says.
+ *
+ * Compared by identity for the three that are *replaced* rather than edited —
+ * `GameSession` swaps in a new kit, a new tag list and a new experience block
+ * on every change, exactly as it swaps in a new map — which makes an unchanged
+ * one a reference compare rather than a walk. The same discipline
+ * {@link GameServer.checkpointedMap} already applies to the board, and it is
+ * sound for the same reason: storage writes are ordered, so a later batch
+ * cannot be durable while the batch it was diffed against is not.
+ *
+ * The position is the exception and is compared by value, because
+ * `actorPosition` builds a fresh object per call — there is no identity to
+ * compare, and four numbers is cheaper than making one.
+ *
+ * Per instance, never restored. An object that has just loaded has written
+ * nothing down in its own lifetime and therefore writes everybody out once, on
+ * exactly the terms {@link load} leaves `checkpointedMap` null for: it costs one
+ * full flush per instance, and it is what heals a row that has drifted for any
+ * reason at all.
+ */
+type WrittenActor = {
+  position: ActorPosition | null;
+  equipment: Equipment | null;
+  tags: readonly string[] | null;
+  masteries: MasteryXp | null;
+};
+
+/** Whether two positions describe the same standing place, facing the same way. */
+function samePosition(a: ActorPosition, b: ActorPosition): boolean {
+  return (
+    a.x === b.x && a.y === b.y && a.z === b.z && a.direction === b.direction
+  );
+}
 
 /** A step a client says it has taken, waiting for this side to agree. */
 type QueuedStep = {
@@ -406,6 +458,8 @@ export class GameServer extends DurableObject<Env> {
    * durable while the batch holding the map it was read against is not.
    */
   private checkpointedMap: MapFile | null = null;
+  /** What storage was last told about each actor. See {@link WrittenActor}. */
+  private writtenActors = new Map<string, WrittenActor>();
   /** Whether the chat table has been created in this instance's lifetime. */
   private chatLogReady = false;
   /**
@@ -924,7 +978,7 @@ export class GameServer extends DurableObject<Env> {
    * do about a position that did not stick, and an unhandled rejection here
    * would take the world down over it.
    */
-  private saveActors(actorIds: Iterable<string>) {
+  private saveActors(actorIds: Iterable<string>, force = false) {
     const session = this.session;
     if (!session) return;
 
@@ -941,16 +995,43 @@ export class GameServer extends DurableObject<Env> {
     for (const actorId of actorIds) {
       const at = session.actorPosition(actorId);
       if (!at) continue;
-      entries[this.positionKey(actorId)] = { ...at, savedAt };
+      // What storage already believes, or nothing when the caller has asked for
+      // this to be written whatever it says — see the `force` callers, which are
+      // the two moments a stale `savedAt` would matter.
+      const written = force ? undefined : this.writtenActors.get(actorId);
+      const equipment = session.equipmentOf(actorId);
+      const tags = session.tagsOf(actorId);
+      const masteries = session.masteryXpOf(actorId);
+
+      // **A resident's position is never written, because nothing ever reads
+      // it.** Every caller of {@link lastPositionOf} is asking on behalf of a
+      // socket — `restoreActors` walks `getWebSockets`, and so do the join and
+      // the replacement — because a player's tile is consumed at spawn and the
+      // board no longer says where they were. A creature is the opposite: it is
+      // adopted *out of* the board, so the checkpointed chunks already hold its
+      // position and a `pos:` row beside them is a second copy nobody consults.
+      //
+      // This was the bulk of the write rate rather than a tidy-up. Twelve of the
+      // eighteen-odd rows a flush wrote on today's map were creatures recording
+      // where they stood for no reader at all.
+      if (!session.isResident(actorId)) {
+        if (!written?.position || !samePosition(written.position, at)) {
+          entries[this.positionKey(actorId)] = { ...at, savedAt };
+        }
+      }
       // In the same write as the position, so the two facts about a player
       // cannot land in different storage batches and disagree about which
-      // moment they describe.
+      // moment they describe. Skipping an unchanged one does not weaken that:
+      // what makes the pair disagree is one of them moving without the other,
+      // and a kit that has not changed cannot be the one that moved.
       //
       // Only a kit with something in it. Every deer in the world has an empty
       // one, and a key per creature per world would be the ceiling below spent
       // on remembering that a deer is still carrying nothing.
-      const equipment = session.equipmentOf(actorId);
-      if (equipment?.weapon || equipment?.bag) {
+      if (
+        (equipment?.weapon || equipment?.bag) &&
+        equipment !== written?.equipment
+      ) {
         entries[this.equipmentKey(actorId)] = { equipment, savedAt };
       }
       // In the same batch again, and here the pairing is not merely tidy: the
@@ -961,8 +1042,12 @@ export class GameServer extends DurableObject<Env> {
       // Only a non-empty list, on the same terms the kit is: everybody starts
       // with none, and a key per creature per world would spend the ceiling
       // below on remembering that a deer has opened no chests.
-      const tags = session.tagsOf(actorId);
-      if (tags && tags.length > 0) {
+      //
+      // And the pairing survives the skip for a sharper reason than the kit's:
+      // taking a reward is what puts items in the bag *and* the tag in this
+      // list, so the one event that must not split the two changes both, and
+      // both are therefore dirty in the same flush.
+      if (tags && tags.length > 0 && tags !== written?.tags) {
         entries[this.tagsKey(actorId)] = { tags: [...tags], savedAt };
       }
       // And in the same batch a third time. Nothing pairs this with the kit the
@@ -974,13 +1059,18 @@ export class GameServer extends DurableObject<Env> {
       // Null until something has asked, which for a player who has not fought is
       // the common case: their masteries are still exactly what the tile says,
       // and the tile will say it again next time.
-      const masteries = session.masteryXpOf(actorId);
-      if (masteries) {
+      if (masteries && masteries !== written?.masteries) {
         entries[this.masteriesKey(actorId)] = {
           masteries: { ...masteries },
           savedAt,
         };
       }
+
+      // Remembered as of this batch rather than as of a confirmation, on the
+      // same terms the batch itself is fire-and-forget: a write that does not
+      // stick leaves this instance believing storage is ahead of where it is,
+      // and the next instance — which remembers nothing — writes it out again.
+      this.writtenActors.set(actorId, { position: at, equipment, tags, masteries });
     }
 
     // The board, in the same batch as the kits read off it. **This is what
@@ -1712,8 +1802,15 @@ export class GameServer extends DurableObject<Env> {
 
     // Before the despawn, which is what takes their tile — and with it the only
     // record of where they were — off the board.
-    this.saveActors([attachment.actorId]);
+    //
+    // Forced past the dirty check, and not because anything here is likely to be
+    // stale: a skipped row keeps whatever `savedAt` it last had, and `savedAt`
+    // is what {@link pruneOldest} ranks by. Somebody who stood still for an hour
+    // and then left would otherwise be carrying an hour-old stamp into the queue
+    // of who gets forgotten first, which is precisely backwards.
+    this.saveActors([attachment.actorId], true);
     this.session?.despawn(attachment.actorId);
+    this.writtenActors.delete(attachment.actorId);
     this.sentMotion.delete(attachment.actorId);
     this.queuedSteps.delete(attachment.actorId);
     this.lastSaidAt.delete(attachment.actorId);
@@ -1817,6 +1914,12 @@ export class GameServer extends DurableObject<Env> {
     this.scheduleRespawnAlarm();
     this.sentMotion.clear();
     this.sentHp.clear();
+    // Everybody is about to be re-seated at the new world's spawn, so every
+    // position this instance believed it had written is now a claim about a
+    // board that no longer exists. Cleared rather than corrected: the next flush
+    // then writes each of them once, which is the same self-healing pass
+    // `checkpointedMap = null` above buys for the board.
+    this.writtenActors.clear();
     // A new world is a clean slate for the dead as much as for the living:
     // everyone still connected is seated in it below, so holding a grudge from
     // the world that no longer exists would leave somebody permanently absent
@@ -1878,6 +1981,101 @@ export class GameServer extends DurableObject<Env> {
   }
 
   /**
+   * Throw the world away — the board, the people in it, and every last thing
+   * this object remembers about anybody — and start again from the authored
+   * files.
+   *
+   * **This is not a bigger {@link replaceWorld}, and the difference is the
+   * point.** A save is a statement about the *world*: it re-creates the map and
+   * carries every player's kit, tags and masteries across, deliberately,
+   * because nothing an author writes in a map has any bearing on what a player
+   * is holding or has learnt. Every other mechanism here pulls the same way —
+   * a checkpoint is preferred to the authored map so an eviction does not
+   * teleport a room full of people, and a tag is never checked against the
+   * world so a re-authored chest cannot be refilled underneath somebody.
+   *
+   * That is all correct until the thing that has to go *is* what the object
+   * remembers, at which point there is no route to it. Seeding the bucket
+   * cannot reach it, a save carries it forward, and an eviction preserves it.
+   * A player whose stored state disagrees with the content it was written
+   * against — a mastery block, a tag naming a reward that has been
+   * re-authored, a kit of tiles that have changed meaning — stays that way
+   * through everything, and there is no repair short of not remembering them.
+   *
+   * So: `data/` is the source of truth in the repo, R2 is the source of truth
+   * in production, and this object is the source of truth for the running
+   * world. Nothing reconciles the three. This is the reconciliation, and it is
+   * destructive by design — every position, kit, tag and mastery in the world
+   * is dropped, and everyone still connected re-enters as somebody this world
+   * has never met.
+   *
+   * `dataOrigin` is the caller's own origin, for the same reason
+   * {@link replaceWorld} takes one — see {@link store}.
+   */
+  async resetWorld(dataOrigin?: string): Promise<void> {
+    if (dataOrigin) this.dataOrigin = dataOrigin;
+
+    // The tick and the session go together, and *before the first await*.
+    // A flush is the one thing here that writes the world back out, and one
+    // landing between the wipe and the reload would restore the very checkpoint
+    // being deleted — `saveActors` reads the live session and puts it straight
+    // back. Dropping both in the same synchronous run leaves no moment at which
+    // that can happen: `saveActors` returns immediately on a null session, and
+    // nothing else writes the board.
+    if (this.timer !== null) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
+    this.session = null;
+    // A load in flight was reading the world that is about to stop existing.
+    // Left in place, `ensureLoaded` below would await it and adopt its result.
+    this.loading = null;
+
+    // The chat log is not a key. `deleteAll` empties the key-value side, and a
+    // table made through `storage.sql` stands through it holding what a world
+    // that no longer exists said — so it goes by name. Before the wipe rather
+    // than after, on the principle that a statement against the database is
+    // safest while the database is indisputably there; both orders work today.
+    this.ctx.storage.sql.exec("DROP TABLE IF EXISTS chat");
+    this.chatLogReady = false;
+    // A respawn deadline outliving the world it was owed to would wake a fresh
+    // object to refill a spawn point that means nothing in it. Explicitly,
+    // rather than trusting the wipe to have taken it along with the keys.
+    await this.ctx.storage.deleteAlarm();
+
+    await this.ctx.storage.deleteAll();
+
+    // Only what {@link load} does not write for itself. It re-reads the tiles,
+    // builds the session, and rebuilds the board, the dead and the respawn
+    // registry from what is now an empty store — what it has no opinion about
+    // is the per-client bookkeeping, which describes a world these clients are
+    // about to stop being in.
+    this.sentMotion.clear();
+    this.sentHp.clear();
+    this.sentCarriedLights.clear();
+    this.queuedSteps.clear();
+    this.lastSaidAt.clear();
+    this.events = [];
+    // Storage is empty as of the wipe above, so anything this instance believed
+    // it had written down is now a belief about rows that are gone.
+    this.writtenActors.clear();
+    // So the first tick of the new world flushes rather than waiting out the
+    // rest of an interval that was being counted for the old one.
+    this.actorsSavedAt = 0;
+
+    // Reads the authored map and tiles back out of `data/`, and — with every
+    // per-actor key gone — seats everybody still connected as a stranger: at
+    // the spawn point, with the starting kit, no rewards taken, and exactly the
+    // masteries their tile says they have.
+    await this.ensureLoaded();
+    for (const ws of this.ctx.getWebSockets()) {
+      const attachment = ws.deserializeAttachment() as Attachment | null;
+      if (attachment) this.sendHello(ws, attachment.actorId);
+    }
+    this.wake();
+  }
+
+  /**
    * Start ticking, if it is not already.
    *
    * `setInterval` blocks hibernation, which is exactly why it only runs while
@@ -1909,7 +2107,11 @@ export class GameServer extends DurableObject<Env> {
     // only chance to record the people whose sockets will not survive it: a
     // connection that dies during hibernation runs no close, so the wake reaps
     // its body without ever hearing about it.
-    this.saveActors(session.actorIds());
+    //
+    // Forced, for the reason the close is and one more: this is where a world
+    // goes quiet, so it is the one flush whose cost does not repeat, and paying
+    // it in full leaves every stamp honest for whatever prunes them next.
+    this.saveActors(session.actorIds(), true);
   }
 
   private tick() {
@@ -2031,6 +2233,9 @@ export class GameServer extends DurableObject<Env> {
       this.sentMotion.delete(actorId);
       this.sentHp.delete(actorId);
       this.queuedSteps.delete(actorId);
+      // Or the map grows a row per body the world has ever killed, and a world
+      // that respawns creatures kills a great many.
+      this.writtenActors.delete(actorId);
       // A dead resident with a spawn point is not gone, only owed: the clock
       // on its return starts with the death itself.
       const point = this.respawnPoints.get(actorId);

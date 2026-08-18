@@ -38,6 +38,15 @@ Do not add a second write path that bypasses `DataStore`. The reason the two
 directions stay consistent is that there is only ever one copy of the truth in a
 given environment, never a sync between two.
 
+**There is a third copy, and it is not `DataStore`'s.** The Durable Object holds
+the world being played, prefers its own checkpoint to the bucket on every load,
+and carries each player's kit, tags and masteries across a save on purpose — so
+a seed can replace every byte of authored content and change nothing anybody can
+see. Nothing reconciles the two, by design: `GameServer.resetWorld` is the one
+place that does, over the `/reset` endpoint and `pnpm reset`, and it is
+destructive. Reach for it when the world has drifted from `data/`; not for
+anything a save could do.
+
 ## Two dev servers, and `pnpm dev` is the one you want
 
 `pnpm dev` runs everything, `/online` included: the Cloudflare Vite plugin

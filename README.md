@@ -22,6 +22,8 @@ Open http://localhost:5173 — redirects to `/map`. Tile database lives at `/til
   eviction. No HMR, since it serves a build
 - `pnpm generate` — regenerate placeholder tileset + seed JSON in `data/`
 - `pnpm seed` — upload `data/` into the local R2 bucket (`--remote` for the deployed one)
+- `pnpm reset` — seed, then wipe the running world so it reloads from the seed.
+  Destroys every position, kit, reward and mastery. Needs `RESET_SECRET`
 - `pnpm typecheck` — route typegen + `wrangler types` + tsc, for both tsconfigs
 - `pnpm test:unit` — `app/` logic, node pool
 - `pnpm test:workers` — `workers/` inside workerd, with real Durable Object storage
@@ -65,6 +67,14 @@ It has two homes, behind one interface (`app/lib/storage.server.ts`):
 
 `pnpm dev:r2` runs dev against R2 instead, for when you want to exercise that
 path locally.
+
+There is a third source of truth that seeding cannot reach: the Durable Object
+holding the world people are actually in. It prefers its own checkpoint to the
+bucket, so a seeded map changes nothing anybody can see, and it deliberately
+carries each player's kit, tags and masteries across a save. `pnpm reset` is the
+way out — it seeds and then tells the deployment to forget everything. It needs
+`RESET_SECRET`, the secret that deployment was given with `wrangler secret put`;
+without one set, the endpoint is not there at all.
 
 Map edits are in-memory until you hit **Save** (or Cmd/Ctrl+S). Tile DB edits save immediately via route actions.
 
