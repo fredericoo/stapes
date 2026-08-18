@@ -27,21 +27,6 @@ import { labelScreenPosition } from "./textLabels";
  */
 const RISE_PX = 22;
 
-/**
- * How far left a number drifts for every pixel it climbs.
- *
- * One, because that is the projection: elevation moves a tile up-*left* in equal
- * amounts — `elevationScreenOffset` is `{ x: -4e, y: -4e }` — so a number that
- * rose straight up was the one thing in the layer travelling along an axis the
- * world does not have. Matching it makes the climb read as height rather than
- * as a caption sliding off a sprite.
- *
- * Applied to the travelled part only. {@link START_LIFT_PX} is clearance to get
- * clear of the art, not a distance climbed in the world, and skewing that too
- * would start every number half a glyph to the left of the body it came off.
- */
-const LEFT_PER_RISE = 1;
-
 /** Where a number starts, relative to its anchor, so it clears the sprite. */
 const START_LIFT_PX = 6;
 
@@ -114,10 +99,8 @@ export class DamageNumberLayer {
       );
       // No fade and no shrink — it simply travels and stops existing, which is
       // what keeps a small number as readable in its last frame as its first.
-      const climbed = RISE_PX * progress;
-      const top = Math.round(anchor.top - START_LIFT_PX - climbed);
-      const left = Math.round(anchor.left - LEFT_PER_RISE * climbed);
-      entry.element.style.setProperty("--label-x", `${left}px`);
+      const top = Math.round(anchor.top - START_LIFT_PX - RISE_PX * progress);
+      entry.element.style.setProperty("--label-x", `${anchor.left}px`);
       entry.element.style.setProperty("--label-y", `${top}px`);
     }
 
