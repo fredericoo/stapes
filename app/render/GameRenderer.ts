@@ -1112,10 +1112,7 @@ export class GameRenderer {
    * so the outline *is* the affordance — an object that will not budge simply
    * never lights up, and no second cue is needed to explain why.
    */
-  private overlaysFor(
-    snap: GameSnapshot,
-    motions: TileMotion[],
-  ): OverlaySpec[] {
+  private overlaysFor(snap: GameSnapshot): OverlaySpec[] {
     const outline = (
       ref: ObjectRef,
       color: number,
@@ -1125,7 +1122,6 @@ export class GameRenderer {
       ...ref,
       color,
       pulse,
-      ...this.motionOffsetFor(ref, motions),
     });
 
     // The row under the cursor points into the world, whatever mode the canvas
@@ -1170,34 +1166,6 @@ export class GameRenderer {
       specs.push(outline(listed.ref, interactionColor(listed)));
     }
     return specs;
-  }
-
-  /**
-   * The lerp offset the sprite at this slot is being drawn with, if it is
-   * moving at all.
-   *
-   * Looked up in the very list handed to the renderer rather than recomputed, so
-   * an outline and the art inside it are offset by the same number by
-   * construction. A motion is keyed at the cell the map still holds the tile in
-   * — a walk commits only when it lands, a slide commits at once — which is the
-   * same cell every outline reference is built from, so the two always agree
-   * about what to match on.
-   */
-  private motionOffsetFor(
-    ref: ObjectRef,
-    motions: TileMotion[],
-  ): { ox: number; oy: number } | undefined {
-    for (const motion of motions) {
-      if (
-        motion.x === ref.x &&
-        motion.y === ref.y &&
-        motion.z === ref.z &&
-        motion.stackIndex === ref.stackIndex
-      ) {
-        return { ox: motion.ox, oy: motion.oy };
-      }
-    }
-    return undefined;
   }
 
   /**
@@ -1880,10 +1848,6 @@ export class GameRenderer {
     this.pushInteractionOptions(snap, camera, hideAbove ? anchor.z : undefined);
     this.repickPointer(snap, camera);
 
-    // Worked out once and handed to both: the sprites are drawn with these
-    // offsets and the outlines have to be drawn with the same ones, so sharing
-    // the list is what keeps a silhouette on the thing it belongs to rather than
-    // a step behind it.
     const motions = this.tileMotionsFor(snap);
 
     this.world.setView({
@@ -1898,7 +1862,7 @@ export class GameRenderer {
       hideLevelsAbove: hideAbove ? anchor.z : undefined,
     });
 
-    this.world.setOverlays(this.overlaysFor(snap, motions));
+    this.world.setOverlays(this.overlaysFor(snap));
     this.pushEquipment(snap);
     this.pushMasteries(snap);
     this.pushVitals(snap);
