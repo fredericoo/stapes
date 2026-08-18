@@ -117,6 +117,13 @@ export function makeSpriteMesh(
 const OUTLINE_PAD_PX = 1;
 
 /**
+ * Marks an overlay whose geometry belongs to the world mesh it follows, so
+ * emptying the chrome layer frees the material and leaves the sprite's own
+ * buffers alone. Disposing them would take the tile down with the outline.
+ */
+export const BORROWED_GEOMETRY = "borrowedGeometry";
+
+/**
  * How a chosen outline breathes: seconds per cycle, and how far down it dips.
  *
  * Slow enough to read as deliberate rather than as a warning light, and it never
@@ -142,6 +149,17 @@ export function pulseAlphaAt(elapsedMs: number): number {
 }
 
 /**
+ * The atlas a silhouette is read out of, and how much uv one world pixel spans.
+ *
+ * Both hold for a placement across every frame and every `SpriteState` it can be
+ * in: the frames of a sprite share one rect by construction, a state's sprites
+ * are validated against idle's, and a mesh keeps the tileset it was built with.
+ * That invariance is what lets an outline be built once and then left alone
+ * while the sprite underneath it animates.
+ */
+type OutlineArt = { texture: THREE.Texture; uvPerPx: THREE.Vector2 };
+
+/**
  * 1px outer silhouette outline via alpha edge detect: four-connected, plus the
  * corner tips four-connected leaves off.
  *
@@ -157,55 +175,70 @@ export function pulseAlphaAt(elapsedMs: number): number {
  * also doubles the width of every diagonal edge, which is worse. `cornerTip` in
  * the shader is what tells the two apart.
  *
- * Mesh is padded 1 world-px; UVs outside the sprite rect count as transparent so
- * neighbouring atlas tiles never bleed in. One pixel is all the padding needed:
- * only texels within a pixel of the sprite are ever *shaded*, and the probes
- * reaching two texels further are reads, which the rect test already guards.
+ * The geometry is the sprite's own footprint and the vertex shader grows it by a
+ * world pixel, rather than the mesh being built a pixel larger. That is what
+ * lets an outline share the quad the world is drawing — see
+ * {@link makeFollowingSpriteOutline} — since a shared buffer cannot be padded
+ * for one of its readers. UVs outside the sprite rect count as transparent so
+ * neighbouring atlas tiles never bleed in, and one pixel is all the growth
+ * needed: only texels within a pixel of the sprite are ever *shaded*, and the
+ * probes reaching two texels further are reads, which the rect test guards.
  *
  * The alpha is a uniform so a breathing outline costs a number written per frame
  * rather than a mesh rebuilt per frame — see {@link OUTLINE_ALPHA_UNIFORM} and
  * `WorldRenderer.tick`. A steady outline simply never has it written again.
  */
-export function makeSpriteOutline(quad: SpriteQuad, color: number): THREE.Mesh {
-  const pad = OUTLINE_PAD_PX;
-  const du = (quad.u1 - quad.u0) / quad.w;
-  const dv = (quad.v1 - quad.v0) / quad.h;
-  const geo = new THREE.PlaneGeometry(quad.w + pad * 2, quad.h + pad * 2);
-  const uvs = geo.attributes.uv!;
-  uvs.setXY(0, quad.u0 - du * pad, quad.v0 - dv * pad);
-  uvs.setXY(1, quad.u1 + du * pad, quad.v0 - dv * pad);
-  uvs.setXY(2, quad.u0 - du * pad, quad.v1 + dv * pad);
-  uvs.setXY(3, quad.u1 + du * pad, quad.v1 + dv * pad);
-  uvs.needsUpdate = true;
-
+function outlineMesh(
+  geometry: THREE.BufferGeometry,
+  art: OutlineArt,
+  color: number,
+): THREE.Mesh {
   const mat = new THREE.ShaderMaterial({
     uniforms: {
-      map: { value: quad.texture },
-      uUvMin: { value: new THREE.Vector2(quad.u0, quad.v0) },
-      uUvMax: { value: new THREE.Vector2(quad.u1, quad.v1) },
-      uPx: { value: new THREE.Vector2(du, dv) },
+      map: { value: art.texture },
+      uPx: { value: art.uvPerPx },
+      uPad: { value: OUTLINE_PAD_PX },
       uColor: { value: new THREE.Color(color) },
       [OUTLINE_ALPHA_UNIFORM]: { value: 1 },
     },
     vertexShader: /* glsl */ `
+      uniform vec2 uPx;
+      uniform float uPad;
       varying vec2 vUv;
+      varying vec2 vUvMin;
+      varying vec2 vUvMax;
       void main() {
-        vUv = uv;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        // The quad is centred on its own origin, so a corner's sign is the
+        // direction it grows in and |position| * 2 is the sprite's footprint.
+        // Between them every vertex can work out the frame's uv rect for itself,
+        // which is the point: there is no uniform for anyone to rewrite when the
+        // frame flips underneath.
+        vec2 grow = sign(position.xy);
+        // uv runs down the atlas while the mesh runs up the screen, so the top
+        // corners carry the *smaller* v.
+        vec2 uvGrow = vec2(grow.x, -grow.y);
+        vec2 span = abs(position.xy) * 2.0 * uPx;
+        vUvMin = uv - step(0.0, uvGrow) * span;
+        vUvMax = vUvMin + span;
+        vUv = uv + uvGrow * uPad * uPx;
+        gl_Position =
+          projectionMatrix *
+          modelViewMatrix *
+          vec4(position + vec3(grow * uPad, 0.0), 1.0);
       }
     `,
     fragmentShader: /* glsl */ `
       uniform sampler2D map;
-      uniform vec2 uUvMin;
-      uniform vec2 uUvMax;
       uniform vec2 uPx;
       uniform vec3 uColor;
       uniform float uAlpha;
       varying vec2 vUv;
+      varying vec2 vUvMin;
+      varying vec2 vUvMax;
 
       float sampleA(vec2 uv) {
-        if (uv.x < uUvMin.x || uv.x >= uUvMax.x ||
-            uv.y < uUvMin.y || uv.y >= uUvMax.y) {
+        if (uv.x < vUvMin.x || uv.x >= vUvMax.x ||
+            uv.y < vUvMin.y || uv.y >= vUvMax.y) {
           return 0.0;
         }
         return texture2D(map, uv).a;
@@ -261,12 +294,97 @@ export function makeSpriteOutline(quad: SpriteQuad, color: number): THREE.Mesh {
     toneMapped: false,
   });
 
-  const mesh = new THREE.Mesh(geo, mat);
-  mesh.position.set(quad.x + quad.w / 2, quad.y + quad.h / 2, 0);
+  const mesh = new THREE.Mesh(geometry, mat);
   mesh.renderOrder = OVERLAY_RENDER_ORDER.spriteOutline;
   mesh.matrixAutoUpdate = false;
+  return mesh;
+}
+
+/**
+ * An outline cut from the map, for a tile the world draws inside a merged batch.
+ *
+ * It owns its quad because there is no single mesh to point at, and it can:
+ * a tile only joins a batch when it can neither animate nor move, so the frame
+ * this is cut from is the only frame it will ever have.
+ */
+export function makeSpriteOutline(quad: SpriteQuad, color: number): THREE.Mesh {
+  const geo = new THREE.PlaneGeometry(quad.w, quad.h);
+  const uvs = geo.attributes.uv!;
+  uvs.setXY(0, quad.u0, quad.v0);
+  uvs.setXY(1, quad.u1, quad.v0);
+  uvs.setXY(2, quad.u0, quad.v1);
+  uvs.setXY(3, quad.u1, quad.v1);
+  uvs.needsUpdate = true;
+
+  const mesh = outlineMesh(
+    geo,
+    {
+      texture: quad.texture,
+      uvPerPx: new THREE.Vector2(
+        (quad.u1 - quad.u0) / quad.w,
+        (quad.v1 - quad.v0) / quad.h,
+      ),
+    },
+    color,
+  );
+  mesh.position.set(quad.x + quad.w / 2, quad.y + quad.h / 2, 0);
   mesh.updateMatrix();
   return mesh;
+}
+
+/**
+ * An outline around the mesh the world is drawing, sharing its geometry.
+ *
+ * The sprite's own quad *is* the silhouette: the buffer this reads its uvs from
+ * is the buffer the frame flip writes to and the state swap rewrites, and the
+ * matrix is the one the walk lerp moves. So the outline is on the frame the
+ * player is looking at, in the pose it is in, at the pixel it was drawn at,
+ * because there is only one copy of each of those facts. Nothing here has to be
+ * told that a sprite animated, and nothing can be told a frame late.
+ *
+ * Returns null for a mesh with no texture, which is a tileset still in flight
+ * rather than a sprite worth outlining.
+ *
+ * The caller keeps the matrix in step — see `WorldRenderer.syncFollowingOutlines`
+ * — since the chrome is a separate scene and cannot simply be parented.
+ */
+export function makeFollowingSpriteOutline(
+  source: THREE.Mesh,
+  color: number,
+): THREE.Mesh | null {
+  const texture = (source.material as THREE.MeshBasicMaterial).map;
+  const uvPerPx = uvPerWorldPx(source.geometry);
+  if (!texture || !uvPerPx) return null;
+
+  const mesh = outlineMesh(source.geometry, { texture, uvPerPx }, color);
+  mesh.userData[BORROWED_GEOMETRY] = true;
+  mesh.matrix.copy(source.matrixWorld);
+  mesh.matrixWorld.copy(source.matrixWorld);
+  return mesh;
+}
+
+/**
+ * How much uv a world pixel covers on this quad, read off the quad itself.
+ *
+ * One over the tileset's width and height, worked out from the corners rather
+ * than passed in, so an outline needs nothing from the caller that the mesh it
+ * follows does not already carry. Frame-invariant: every frame of a sprite
+ * covers the same rect, so the ratio survives the uvs being rewritten.
+ *
+ * Vertex order is the one shared by `PlaneGeometry` and `buildSingleQuadGeometry`
+ * — 0 and 1 are the two ends of the top edge, 0 and 2 the two ends of the left.
+ */
+function uvPerWorldPx(geo: THREE.BufferGeometry): THREE.Vector2 | null {
+  const pos = geo.attributes.position;
+  const uv = geo.attributes.uv;
+  if (!pos || !uv || pos.count < 3) return null;
+  const w = Math.abs(pos.getX(1) - pos.getX(0));
+  const h = Math.abs(pos.getY(2) - pos.getY(0));
+  if (w === 0 || h === 0) return null;
+  return new THREE.Vector2(
+    Math.abs(uv.getX(1) - uv.getX(0)) / w,
+    Math.abs(uv.getY(2) - uv.getY(0)) / h,
+  );
 }
 
 /** Empty an overlay group, freeing the throwaway geometry and materials. */
@@ -274,7 +392,9 @@ export function disposeGroupChildren(group: THREE.Group) {
   while (group.children.length) {
     const child = group.children.pop()!;
     const mesh = child as THREE.Mesh;
-    mesh.geometry?.dispose();
+    // Everything here is throwaway except a borrowed quad, which belongs to a
+    // tile that is still on screen — see {@link BORROWED_GEOMETRY}.
+    if (!mesh.userData[BORROWED_GEOMETRY]) mesh.geometry?.dispose();
     const mat = mesh.material as THREE.Material | THREE.Material[] | undefined;
     if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
     else mat?.dispose?.();

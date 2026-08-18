@@ -63,6 +63,7 @@ import {
 } from "./worldQuads";
 import {
   disposeGroupChildren,
+  makeFollowingSpriteOutline,
   makeSpriteGhost,
   makeSpriteOutline,
   OUTLINE_ALPHA_UNIFORM,
@@ -195,20 +196,6 @@ export type ObjectOutlineOverlay = TileInstanceKey & {
   kind: "objectOutline";
   color: number;
   /**
-   * World-pixel offset to draw the outline at, matching the sprite's own lerp.
-   *
-   * An outline is cut from the art at the tile's *committed* cell, and a walk
-   * only commits when it lands — so without this the silhouette sits at the cell
-   * a creature is leaving and snaps a whole cell forward when the step
-   * completes. It read as the outline chasing the thing it was supposed to be
-   * around, permanently a step behind.
-   *
-   * Taken from the same {@link TileMotion} that offsets the sprite rather than
-   * recomputed here, so the two cannot drift apart by a frame or a pixel.
-   */
-  ox?: number;
-  oy?: number;
-  /**
    * Breathe rather than sit still, for an outline that marks a decision the
    * player made rather than something the pointer happens to be over.
    *
@@ -244,13 +231,15 @@ function overlaySpecKey(spec: OverlaySpec): string {
   if (spec.kind === "ghost") {
     return `g:${spec.tileId}@${spec.x},${spec.y},${spec.z}:${spec.alpha}`;
   }
-  // The offset is part of the identity: while a tile is walking it changes every
-  // frame, and that is exactly when the outline has to be rebuilt to keep up.
-  const at = spec.ox || spec.oy ? `@${Math.round(spec.ox ?? 0)},${Math.round(spec.oy ?? 0)}` : "";
+  // Nothing about how the tile *looks* is in here — not the frame, not the pose,
+  // not where the lerp has carried it. An outline follows the mesh it was cut
+  // around (see {@link WorldRenderer.outlineFor}), so the only things that can
+  // make it the wrong mesh are which tile it is on and what colour it wears.
+  //
   // The pulse is in the key but the *phase* deliberately is not: a breathing
   // outline is one mesh whose uniform is written per frame, so keying on how lit
   // it is right now would rebuild the whole chrome layer sixty times a second.
-  return `o:${spec.x},${spec.y},${spec.z},${spec.stackIndex}:${spec.color}${spec.pulse ? "~" : ""}${at}`;
+  return `o:${spec.x},${spec.y},${spec.z},${spec.stackIndex}:${spec.color}${spec.pulse ? "~" : ""}`;
 }
 
 /**
@@ -382,6 +371,8 @@ export class WorldRenderer {
    * a full stop.
    */
   private pulsingOutlines: THREE.ShaderMaterial[] = [];
+  /** Outlines borrowing a world mesh, and the mesh each one is around. */
+  private followingOutlines: { outline: THREE.Mesh; source: THREE.Mesh }[] = [];
   private pulseElapsedMs = 0;
   private textures = new Map<string, THREE.Texture>();
   private materials = new Map<string, THREE.MeshBasicMaterial>();
@@ -610,6 +601,7 @@ export class WorldRenderer {
 
     disposeGroupChildren(this.overlays);
     this.pulsingOutlines = [];
+    this.followingOutlines = [];
     for (const spec of specs) this.addOverlay(spec);
     // At the phase the clock is already at, so a rebuild is invisible rather
     // than a flash back to full brightness.
@@ -618,6 +610,24 @@ export class WorldRenderer {
     // identity matrixWorld and all draw at the world origin.
     this.overlays.updateMatrixWorld(true);
     this.needsRender = true;
+  }
+
+  /**
+   * Put every borrowed outline back on top of the mesh it is around.
+   *
+   * Here rather than in `setOverlays`, because the frames an outline has to keep
+   * up on are the ones where it is *not* rebuilt: a sprite mid-step moves every
+   * frame while the overlay set stays exactly as it was. Drawing is the one
+   * thing that cannot be skipped on such a frame, so the copy rides with it.
+   *
+   * A copy rather than parenting, since the chrome is a separate scene — drawn
+   * after the palette pass so an outline keeps its exact colour.
+   */
+  private syncFollowingOutlines() {
+    for (const { outline, source } of this.followingOutlines) {
+      outline.matrix.copy(source.matrixWorld);
+      outline.matrixWorld.copy(source.matrixWorld);
+    }
   }
 
   /** Write this instant's brightness into every breathing outline. */
@@ -650,8 +660,35 @@ export class WorldRenderer {
       this.addGhost(spec);
       return;
     }
+    const outline = this.outlineFor(spec);
+    if (!outline) return;
+    if (spec.pulse) {
+      this.pulsingOutlines.push(outline.material as THREE.ShaderMaterial);
+    }
+    this.overlays.add(outline);
+  }
+
+  /**
+   * An outline around one placed tile, cut from whatever the world is drawing it
+   * with.
+   *
+   * A tile that animates or can move owns its mesh, and the outline borrows it:
+   * the frame, the pose and the walk lerp are then facts the two share rather
+   * than facts the chrome has to be told about. That is the whole of keeping an
+   * outline in step — every other tile is in a merged batch precisely because
+   * nothing about it can change, so cutting it a quad of its own is exact too.
+   */
+  private outlineFor(spec: ObjectOutlineOverlay): THREE.Mesh | null {
+    const key = this.tileKey(spec);
+    const source = this.movableMeshes.get(key);
+    if (source) {
+      const outline = makeFollowingSpriteOutline(source, spec.color);
+      if (outline) this.followingOutlines.push({ outline, source });
+      return outline;
+    }
+
     const subject = this.overlaySubject(spec);
-    if (!subject) return;
+    if (!subject) return null;
     const quad = spriteQuadFor(
       this.quadAssets(),
       subject.map,
@@ -659,17 +696,7 @@ export class WorldRenderer {
       subject.placed,
       subject.def,
     );
-    if (!quad) return;
-    // Moved rather than rebuilt at a different cell: the silhouette is cut from
-    // the art where the map says the tile is, and the offset carries it to where
-    // the sprite has actually been drawn this frame.
-    quad.x += spec.ox ?? 0;
-    quad.y += spec.oy ?? 0;
-    const outline = makeSpriteOutline(quad, spec.color);
-    if (spec.pulse) {
-      this.pulsingOutlines.push(outline.material as THREE.ShaderMaterial);
-    }
-    this.overlays.add(outline);
+    return quad ? makeSpriteOutline(quad, spec.color) : null;
   }
 
 
@@ -740,9 +767,6 @@ export class WorldRenderer {
     this.animClock += dt;
     if (!this.updateAnimations()) return;
     this.needsRender = true;
-    // Outline quads are cut from the frame on screen, so a frame flip has to
-    // rebuild them even though the overlay spec itself has not changed.
-    this.overlaySig = null;
   }
 
   start() {
@@ -803,6 +827,7 @@ export class WorldRenderer {
     // Quantise before chrome so hover outlines and target squares keep their
     // exact colour instead of snapping to the nearest palette entry.
     if (this.overlays.children.length > 0) {
+      this.syncFollowingOutlines();
       r.autoClear = false;
       r.render(this.overlayScene, this.camera);
       r.autoClear = true;
@@ -828,6 +853,7 @@ export class WorldRenderer {
     // Dropped with the meshes they belong to: a disposed material written to on
     // a stray tick is a use-after-free as far as WebGL is concerned.
     this.pulsingOutlines = [];
+    this.followingOutlines = [];
     this.renderer.dispose();
     this.lightBaker?.dispose();
     this.lightBaker = null;
