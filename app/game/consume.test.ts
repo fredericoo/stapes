@@ -58,7 +58,10 @@ const tiles: TileDef[] = [
     walkable: false,
     variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
     interactions: {
-      battler: { maxHp: PLAYER_MAX_HP, atk: 5, def: 0, acc: 100, flee: 0, spd: 100 },
+      battler: {
+        masteries: { toughness: PLAYER_MAX_HP - 8 },
+        naturalWeapon: { type: "weapon", damage: 5, def: 0, accuracy: 100, variance: 0, spd: 100, mastery: "fist" },
+      },
     },
   }),
   tile({
@@ -77,7 +80,7 @@ const tiles: TileDef[] = [
     kind: "item",
     intangible: true,
     interactions: {
-      item: { type: "weapon", atk: 1, def: 0, acc: 0, spd: 0, mastery: "blade" },
+      item: { type: "weapon", damage: 1, def: 0, accuracy: 100, variance: 0, spd: 50, mastery: "blade" },
     },
   }),
   tile({

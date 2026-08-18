@@ -1,93 +1,145 @@
 import { describe, expect, it } from "vitest";
+import tilesJson from "../../data/tiles.json";
 import type { BattlerDef } from "../lib/battler";
-import { DEFAULT_BATTLER, MAX_PERCENT_STAT, MIN_PERCENT_STAT } from "../lib/battler";
+import {
+  DEFAULT_BATTLER,
+  fleeFrom,
+  maxHpFrom,
+  resolveBattler,
+} from "../lib/battler";
 import { DEFAULT_CONTAINER, DEFAULT_WEAPON } from "../lib/item";
 import type { TileDef } from "../lib/types";
-import { normalizeTileDef } from "../lib/types";
+import { normalizeTileDef, normalizeTiles } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
+import type { Equipment } from "./equipment";
 import {
-  applyWeaponStats,
   carriedInstances,
   carriedLightTileIds,
   effectiveBattler,
   emptyEquipment,
+  offhandAccepts,
+  offhandDefence,
   restoredEquipment,
   startingEquipment,
+  weaponInHand,
 } from "./equipment";
+
+/**
+ * A body with recognisable claws, so "which weapon won" is answerable by
+ * looking at one number.
+ *
+ * Deliberately unlike {@link DEFAULT_WEAPON} in every field: a fixture that
+ * happened to agree with the fallback would pass whichever weapon the code
+ * picked, which is the one thing these tests exist to tell apart.
+ */
+const CLAWS = {
+  type: "weapon",
+  damage: 7,
+  def: 3,
+  accuracy: 44,
+  variance: 35,
+  spd: 33,
+  mastery: "fist",
+} as const;
 
 const base: BattlerDef = {
   ...DEFAULT_BATTLER,
-  maxHp: 20,
-  atk: 5,
-  def: 1,
-  acc: 50,
-  flee: 20,
-  spd: 40,
+  masteries: { fist: 12, toughness: 20, agility: 6 },
+  naturalWeapon: { ...CLAWS },
 };
 
-describe("applyWeaponStats", () => {
-  it("is the base stats with no weapon", () => {
-    expect(applyWeaponStats(base, null)).toEqual(base);
+/**
+ * Which weapon a body swings, and what the masteries do regardless.
+ *
+ * The claim under test is **replacement, not addition** — the rule the whole
+ * mastery model rests on. Every assertion below would also pass under the old
+ * sum if the numbers happened to line up, which is why the fixture's claws
+ * disagree with the default weapon in every single field.
+ */
+describe("weaponInHand", () => {
+  it("falls back to the natural weapon with an empty hand", () => {
+    expect(weaponInHand(base, null, lightTiles)).toEqual(CLAWS);
+    expect(weaponInHand(base, emptyEquipment(), lightTiles)).toEqual(CLAWS);
   });
 
-  it("adds attack and defence", () => {
-    const out = applyWeaponStats(base, { atk: 3, def: 2, acc: 0, spd: 0 });
-    expect(out.atk).toBe(8);
-    expect(out.def).toBe(3);
+  it("takes what is in the hand instead, rather than as well", () => {
+    const kit = { weapon: { id: "w", tileId: "sword" }, offhand: null,
+  bag: null };
+    expect(weaponInHand(base, kit, lightTiles)).toEqual(DEFAULT_WEAPON);
   });
 
-  it("adds nothing at all when every field is zero", () => {
-    expect(applyWeaponStats(base, { atk: 0, def: 0, acc: 0, spd: 0 })).toEqual(
-      base,
-    );
+  /** The bag is carried, not wielded — nothing in it reaches a blow. */
+  it("ignores what is in the bag", () => {
+    const kit = {
+      weapon: null,
+      offhand: null,
+      bag: { id: "b", tileId: "bag", contents: [{ id: "c", tileId: "sword" }] },
+    };
+    expect(weaponInHand(base, kit, lightTiles)).toEqual(CLAWS);
+  });
+
+  it("falls back when the slot holds something that is not a weapon", () => {
+    const kit = { weapon: { id: "w", tileId: "bag" }, offhand: null,
+  bag: null };
+    expect(weaponInHand(base, kit, lightTiles)).toEqual(CLAWS);
   });
 
   /**
-   * The whole point of the two signed stats: a weapon may be slower *and* more
-   * accurate, which one `weight` spent against both could never say.
+   * A tile renamed while somebody was holding it. The fact is out of date, not
+   * corrupt, so the hand reads as empty rather than as a body with no weapon at
+   * all — which would be a creature that cannot swing.
    */
-  it("moves speed and accuracy independently, in either direction", () => {
-    const out = applyWeaponStats(base, { atk: 0, def: 0, acc: 12, spd: -10 });
-    expect(out.acc).toBe(62);
-    expect(out.spd).toBe(30);
+  it("falls back when the held tile is gone from the catalogue", () => {
+    const kit = { weapon: { id: "w", tileId: "no-such-tile" }, offhand: null,
+  bag: null };
+    expect(weaponInHand(base, kit, lightTiles)).toEqual(CLAWS);
+  });
+});
+
+describe("effectiveBattler", () => {
+  it("takes damage, defence, accuracy and speed from the weapon", () => {
+    const out = effectiveBattler(base, null, lightTiles);
+    expect(out.damage).toBe(CLAWS.damage);
+    expect(out.def).toBe(CLAWS.def);
+    expect(out.accuracy).toBe(CLAWS.accuracy);
+    expect(out.variance).toBe(CLAWS.variance);
+    expect(out.spd).toBe(CLAWS.spd);
   });
 
-  it("takes a positive shift as a bonus rather than as free", () => {
-    const out = applyWeaponStats(base, { atk: 0, def: 0, acc: 5, spd: 5 });
-    expect(out.acc).toBe(55);
-    expect(out.spd).toBe(45);
+  it("replaces all four when a weapon is held, adding none of them", () => {
+    const kit = { weapon: { id: "w", tileId: "sword" }, offhand: null,
+  bag: null };
+    const out = effectiveBattler(base, kit, lightTiles);
+    expect(out.damage).toBe(DEFAULT_WEAPON.damage);
+    expect(out.accuracy).toBe(DEFAULT_WEAPON.accuracy);
+    expect(out.spd).toBe(DEFAULT_WEAPON.spd);
   });
 
-  it("leaves max hp and flee alone", () => {
-    const out = applyWeaponStats(base, { atk: 9, def: 9, acc: -30, spd: -30 });
-    expect(out.maxHp).toBe(base.maxHp);
-    expect(out.flee).toBe(base.flee);
+  /**
+   * The other half of the split: what a body *is* comes from its masteries and
+   * cannot be picked up or put down. A sword that raised your hit points would
+   * mean health had to be re-checked every time anybody equipped anything.
+   */
+  it("takes hit points and flee from the masteries, whatever is held", () => {
+    const kit = { weapon: { id: "w", tileId: "sword" }, offhand: null,
+  bag: null };
+    for (const equipment of [null, emptyEquipment(), kit]) {
+      const out = effectiveBattler(base, equipment, lightTiles);
+      expect(out.maxHp).toBe(maxHpFrom(20));
+      expect(out.flee).toBe(fleeFrom(6));
+    }
   });
 
-  it("clamps the percent stats at the floor rather than going negative", () => {
-    const out = applyWeaponStats(base, { atk: 0, def: 0, acc: -100, spd: -100 });
-    expect(out.spd).toBe(MIN_PERCENT_STAT);
-    expect(out.acc).toBe(MIN_PERCENT_STAT);
+  it("keeps the body's own reach and sight", () => {
+    const out = effectiveBattler(base, null, lightTiles);
+    expect(out.range).toBe(base.range);
+    expect(out.sight).toEqual(base.sight);
   });
 
-  it("clamps at the ceiling too, since a shift may be a bonus", () => {
-    const out = applyWeaponStats(base, { atk: 0, def: 0, acc: 100, spd: 100 });
-    expect(out.acc).toBe(MAX_PERCENT_STAT);
-    expect(out.spd).toBe(MAX_PERCENT_STAT);
-  });
-
-  it("leaves attack and defence unbounded above, unlike the percent stats", () => {
-    const out = applyWeaponStats(
-      { ...base, acc: MAX_PERCENT_STAT },
-      { atk: 500, def: 500, acc: 10, spd: 0 },
-    );
-    expect(out.atk).toBe(505);
-    expect(out.acc).toBe(MAX_PERCENT_STAT);
-  });
-
-  it("does not mutate the base stats", () => {
-    const snapshot = { ...base };
-    applyWeaponStats(base, { atk: 3, def: 2, acc: -5, spd: -10 });
+  it("does not mutate the body it was asked about", () => {
+    const snapshot = structuredClone(base);
+    effectiveBattler(base, { weapon: { id: "w", tileId: "sword" }, offhand: null,
+  bag: null }, lightTiles);
     expect(base).toEqual(snapshot);
   });
 });
@@ -158,6 +210,7 @@ describe("carriedInstances", () => {
   it("counts the weapon, the bag, and what is in the bag", () => {
     const ids = carriedInstances({
       weapon: { id: "w", tileId: "sword" },
+      offhand: null,
       bag: {
         id: "b",
         tileId: "bag",
@@ -170,17 +223,20 @@ describe("carriedInstances", () => {
 
 describe("carriedLightTileIds", () => {
   it("is empty when nothing carried gives off light", () => {
-    const kit = { weapon: { id: "w", tileId: "sword" }, bag: null };
+    const kit = { weapon: { id: "w", tileId: "sword" }, offhand: null,
+  bag: null };
     expect(carriedLightTileIds(kit, lightTiles)).toEqual([]);
   });
 
   it("finds a light in the hand", () => {
-    const kit = { weapon: { id: "w", tileId: "torch" }, bag: null };
+    const kit = { weapon: { id: "w", tileId: "torch" }, offhand: null,
+  bag: null };
     expect(carriedLightTileIds(kit, lightTiles)).toEqual(["torch"]);
   });
 
   it("finds a light in a bag that is itself lit, because a bag is worn", () => {
-    const kit = { weapon: null, bag: { id: "b", tileId: "lamp-bag" } };
+    const kit = { weapon: null, offhand: null,
+  bag: { id: "b", tileId: "lamp-bag" } };
     expect(carriedLightTileIds(kit, lightTiles)).toEqual(["lamp-bag"]);
   });
 
@@ -192,6 +248,7 @@ describe("carriedLightTileIds", () => {
   it("ignores a light buried in the bag", () => {
     const kit = {
       weapon: null,
+      offhand: null,
       bag: { id: "b", tileId: "bag", contents: [{ id: "c", tileId: "torch" }] },
     };
     expect(carriedLightTileIds(kit, lightTiles)).toEqual([]);
@@ -205,6 +262,7 @@ describe("carriedLightTileIds", () => {
   it("lists every worn light separately, so they can be summed", () => {
     const kit = {
       weapon: { id: "w", tileId: "torch" },
+      offhand: null,
       bag: {
         id: "b",
         tileId: "lamp-bag",
@@ -215,35 +273,9 @@ describe("carriedLightTileIds", () => {
   });
 
   it("ignores a tile the catalogue has never heard of", () => {
-    const kit = { weapon: { id: "w", tileId: "ghost" }, bag: null };
+    const kit = { weapon: { id: "w", tileId: "ghost" }, offhand: null,
+  bag: null };
     expect(carriedLightTileIds(kit, lightTiles)).toEqual([]);
-  });
-});
-
-describe("effectiveBattler", () => {
-  it("is the base stats with no equipment at all", () => {
-    expect(effectiveBattler(base, null, lightTiles)).toBe(base);
-    expect(effectiveBattler(base, emptyEquipment(), lightTiles)).toBe(base);
-  });
-
-  it("counts a weapon in the hand", () => {
-    const kit = { weapon: { id: "w", tileId: "sword" }, bag: null };
-    const out = effectiveBattler(base, kit, lightTiles);
-    expect(out.atk).toBe(base.atk + DEFAULT_WEAPON.atk);
-  });
-
-  /** The bag is carried, not wielded — nothing in it reaches a blow. */
-  it("ignores what is in the bag", () => {
-    const kit = {
-      weapon: null,
-      bag: { id: "b", tileId: "bag", contents: [{ id: "c", tileId: "sword" }] },
-    };
-    expect(effectiveBattler(base, kit, lightTiles)).toBe(base);
-  });
-
-  it("ignores a slot holding something that is not a weapon", () => {
-    const kit = { weapon: { id: "w", tileId: "bag" }, bag: null };
-    expect(effectiveBattler(base, kit, lightTiles)).toEqual(base);
   });
 });
 
@@ -270,6 +302,7 @@ describe("restoredEquipment", () => {
   it("hands back a kit the world still agrees with", () => {
     const saved = {
       weapon: { id: "itm_w", tileId: "sword" },
+      offhand: null,
       bag: bag("bag", [{ id: "itm_a", tileId: "sword" }]),
     };
     expect(restoredEquipment(saved, tiles)).toEqual(saved);
@@ -277,7 +310,8 @@ describe("restoredEquipment", () => {
 
   it("drops a weapon whose tile has left the world", () => {
     const restored = restoredEquipment(
-      { weapon: { id: "itm_w", tileId: "gone" }, bag: null },
+      { weapon: { id: "itm_w", tileId: "gone" }, offhand: null,
+  bag: null },
       tiles,
     );
     expect(restored.weapon).toBeNull();
@@ -285,7 +319,8 @@ describe("restoredEquipment", () => {
 
   it("drops a weapon whose tile is no longer a weapon", () => {
     const restored = restoredEquipment(
-      { weapon: { id: "itm_w", tileId: "bag" }, bag: null },
+      { weapon: { id: "itm_w", tileId: "bag" }, offhand: null,
+  bag: null },
       tiles,
     );
     expect(restored.weapon).toBeNull();
@@ -296,7 +331,8 @@ describe("restoredEquipment", () => {
   // a shape the model does not have.
   it("drops the whole bag when its tile is no longer wearable", () => {
     const restored = restoredEquipment(
-      { weapon: null, bag: bag("chest", [{ id: "itm_a", tileId: "sword" }]) },
+      { weapon: null, offhand: null,
+  bag: bag("chest", [{ id: "itm_a", tileId: "sword" }]) },
       tiles,
     );
     expect(restored.bag).toBeNull();
@@ -304,7 +340,8 @@ describe("restoredEquipment", () => {
 
   it("keeps a weapon whose bag went", () => {
     const restored = restoredEquipment(
-      { weapon: { id: "itm_w", tileId: "sword" }, bag: bag("gone", []) },
+      { weapon: { id: "itm_w", tileId: "sword" }, offhand: null,
+  bag: bag("gone", []) },
       tiles,
     );
     expect(restored.weapon?.tileId).toBe("sword");
@@ -315,6 +352,7 @@ describe("restoredEquipment", () => {
     const restored = restoredEquipment(
       {
         weapon: null,
+        offhand: null,
         bag: bag("bag", [
           { id: "itm_a", tileId: "sword" },
           { id: "itm_b", tileId: "gone" },
@@ -330,7 +368,8 @@ describe("restoredEquipment", () => {
   // was something else.
   it("drops a container that has found its way inside a bag", () => {
     const restored = restoredEquipment(
-      { weapon: null, bag: bag("bag", [{ id: "itm_a", tileId: "chest" }]) },
+      { weapon: null, offhand: null,
+  bag: bag("bag", [{ id: "itm_a", tileId: "chest" }]) },
       tiles,
     );
     expect(restored.bag?.contents).toEqual([]);
@@ -340,6 +379,7 @@ describe("restoredEquipment", () => {
     const restored = restoredEquipment(
       {
         weapon: null,
+        offhand: null,
         bag: bag("small-bag", [
           { id: "itm_a", tileId: "sword" },
           { id: "itm_b", tileId: "sword" },
@@ -362,6 +402,7 @@ describe("restoredEquipment", () => {
     const restored = restoredEquipment(
       {
         weapon: null,
+        offhand: null,
         bag: {
           id: "itm_bag",
           tileId: "bag",
@@ -378,6 +419,7 @@ describe("restoredEquipment", () => {
     const restored = restoredEquipment(
       {
         weapon: { tileId: "sword" } as never,
+        offhand: null,
         bag: { tileId: "bag", contents: [] } as never,
       },
       tiles,
@@ -388,5 +430,97 @@ describe("restoredEquipment", () => {
 
   it("hands back nothing at all for a kit of nothing", () => {
     expect(restoredEquipment(emptyEquipment(), tiles)).toEqual(emptyEquipment());
+  });
+});
+
+/**
+ * The other hand.
+ *
+ * It exists because the swinging hand was the only hand there was, and a held
+ * weapon *replaces* your fists rather than adding to them — so a lantern, which
+ * had to be authored as a weapon to be equippable at all, meant fighting at a
+ * twentieth of your bare hands in order to see in the dark. That is a real
+ * trade-off to offer somebody and a terrible one to impose on them silently.
+ *
+ * Against the shipped catalogue, because the whole point is what an author
+ * actually wrote down.
+ */
+describe("the off hand", () => {
+  const shipped = tilesByIdFromList(normalizeTiles(tilesJson as unknown[]));
+  const player = resolveBattler(shipped["player"]!)!;
+
+  const holding = (offhand: string | null, weapon: string | null = null): Equipment => ({
+    weapon: weapon ? { id: `itm_${weapon}`, tileId: weapon } : null,
+    offhand: offhand ? { id: `itm_${offhand}`, tileId: offhand } : null,
+    bag: null,
+  });
+
+  it("takes anything that is not a container", () => {
+    expect(offhandAccepts(shipped["hand-lantern"]!)).toBe(true);
+    expect(offhandAccepts(shipped["rusty-sword"]!)).toBe(true);
+    expect(offhandAccepts(shipped["berry"]!)).toBe(true);
+    // A bag has a slot of its own, and a pack in a hand in a pack is the
+    // nesting nothing here allows.
+    expect(offhandAccepts(shipped["basic-bag"]!)).toBe(false);
+    // Not an item at all.
+    expect(offhandAccepts(shipped["grass"]!)).toBe(false);
+  });
+
+  /**
+   * **The whole reason the slot exists**: a lamp lights the room from here, so
+   * seeing in the dark no longer costs you the hand you fight with.
+   */
+  it("lights the room from the other hand, leaving the weapon hand free", () => {
+    const lit = carriedLightTileIds(holding("hand-lantern", "rusty-sword"), shipped);
+    expect(lit).toContain("hand-lantern");
+  });
+
+  it("leaves what you swing with entirely alone", () => {
+    const bare = effectiveBattler(player, holding(null), shipped);
+    const lamp = effectiveBattler(player, holding("hand-lantern"), shipped);
+
+    expect(lamp.damage).toBe(bare.damage);
+    expect(lamp.spd).toBe(bare.spd);
+    expect(lamp.hitChance).toBe(bare.hitChance);
+  });
+
+  /**
+   * And the other half of "a torch or a shield": defence, read off the `def`
+   * that already lives on a weapon as a stopgap until armour exists — so a
+   * shield is authorable today without a new item type being invented for it.
+   */
+  it("adds what it turns aside to your defence", () => {
+    const shield = normalizeTileDef({
+      id: "shield",
+      name: "Shield",
+      height: 0,
+      kind: "item",
+      directional: false,
+      attributes: {},
+      variants: { default: [] },
+      intangible: true,
+      interactions: { item: { ...DEFAULT_WEAPON, damage: 0, def: 3 } },
+    });
+    const withShield = { ...shipped, shield };
+
+    const bare = effectiveBattler(player, holding(null), withShield);
+    const guarded = effectiveBattler(player, holding("shield"), withShield);
+
+    expect(guarded.def).toBe(bare.def + 3);
+    // Still swinging your own fists, which is the point of it being the *other*
+    // hand rather than a second weapon.
+    expect(guarded.damage).toBe(bare.damage);
+  });
+
+  it("turns nothing aside when it is empty or holding a torch", () => {
+    expect(offhandDefence(holding(null), shipped)).toBe(0);
+    expect(offhandDefence(holding("hand-lantern"), shipped)).toBe(0);
+    expect(offhandDefence(null, shipped)).toBe(0);
+  });
+
+  /** A kit saved before the slot existed comes back with an empty hand. */
+  it("restores a kit that predates it", () => {
+    const old = { weapon: null, bag: null } as unknown as Equipment;
+    expect(restoredEquipment(old, shipped).offhand).toBeNull();
   });
 });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { parseClientMessage, parseServerMessage } from "./protocol";
+import { SWING_OUTCOMES } from "../game/GameSession";
 
 /**
  * What a browser is allowed to say.
@@ -245,12 +246,14 @@ describe("a kit that will not parse", () => {
 
   it("still lets the world through, and hands back an empty kit", () => {
     const message = parseServerMessage(
-      helloWith({ weapon: null, bag: { id: "itm_bag", tileId: "basic-bag", contents: [badItem] } }),
+      helloWith({ weapon: null, offhand: null,
+  bag: { id: "itm_bag", tileId: "basic-bag", contents: [badItem] } }),
     );
     expect(message).not.toBeNull();
     expect(message).toMatchObject({ type: "hello", selfId: "a", playerCount: 1 });
     expect(message?.type === "hello" && message.equipment).toEqual({
       weapon: null,
+      offhand: null,
       bag: null,
     });
   });
@@ -262,6 +265,7 @@ describe("a kit that will not parse", () => {
     const message = parseServerMessage(
       helloWith({
         weapon: { id: "itm_w", tileId: "rusty-sword" },
+        offhand: null,
         bag: { id: "itm_bag", tileId: "basic-bag", contents: [badItem] },
       }),
     );
@@ -270,11 +274,13 @@ describe("a kit that will not parse", () => {
 
   it("does the same for the equipment message on its own", () => {
     const message = parseServerMessage(
-      JSON.stringify({ type: "equipment", equipment: { weapon: badItem, bag: null } }),
+      JSON.stringify({ type: "equipment", equipment: { weapon: badItem, offhand: null,
+  bag: null } }),
     );
     expect(message).not.toBeNull();
     expect(message?.type === "equipment" && message.equipment).toEqual({
       weapon: null,
+      offhand: null,
       bag: null,
     });
   });
@@ -282,6 +288,7 @@ describe("a kit that will not parse", () => {
   it("still takes a kit it can read", () => {
     const equipment = {
       weapon: { id: "itm_w", tileId: "rusty-sword" },
+      offhand: null,
       bag: { id: "itm_b", tileId: "basic-bag", contents: [{ id: "itm_c", tileId: "hand-lantern" }] },
     };
     const message = parseServerMessage(JSON.stringify({ type: "equipment", equipment }));
@@ -291,6 +298,81 @@ describe("a kit that will not parse", () => {
   // The tolerance is the equipment field's alone: a `hello` whose *world* cannot
   // be read is still a message with nothing to draw.
   it("is not a licence for the rest of the message", () => {
-    expect(parseServerMessage(helloWith({ weapon: null, bag: null }).replace('"playerCount":1', '"playerCount":"lots"'))).toBeNull();
+    expect(parseServerMessage(helloWith({ weapon: null, offhand: null,
+  bag: null }).replace('"playerCount":1', '"playerCount":"lots"'))).toBeNull();
+  });
+});
+
+/**
+ * Every field the type promises, actually surviving the wire.
+ *
+ * The bug this exists for: `outcome` was added to a damage event, the type was
+ * updated and the schema was not, and valibot strips what a schema does not
+ * name. It type-checked, it parsed, and every blow struck online drew nothing —
+ * because the one thing reading that field turns `"hit"` into a number and
+ * everything else into a word, and `undefined` is neither.
+ *
+ * Asserted by comparing what came back against what went in, rather than by
+ * naming the fields: a test that lists them is a second place to forget one.
+ */
+describe("nothing is quietly dropped in transit", () => {
+  const damageEvent = {
+    kind: "damage" as const,
+    id: "hit-1",
+    targetId: "rat",
+    outcome: "dodge" as const,
+    amount: 0,
+    x: 1,
+    y: 2,
+    z: 0,
+    stackIndex: 1,
+  };
+
+  it("carries a damage event through whole", () => {
+    const message = parseServerMessage(
+      JSON.stringify({
+        type: "patch",
+        cells: [],
+        events: [damageEvent],
+        hps: [],
+        carriedLights: [],
+      }),
+    );
+
+    expect(message?.type === "patch" && message.events[0]).toEqual(damageEvent);
+  });
+
+  it("keeps every outcome a swing can have", () => {
+    for (const outcome of SWING_OUTCOMES) {
+      const message = parseServerMessage(
+        JSON.stringify({
+          type: "patch",
+          cells: [],
+          events: [{ ...damageEvent, outcome }],
+          hps: [],
+          carriedLights: [],
+        }),
+      );
+      expect(message?.type === "patch" && message.events[0]).toEqual({
+        ...damageEvent,
+        outcome,
+      });
+    }
+  });
+
+  /** A ⭐ rides with hit points, and had to survive the same trip. */
+  it("carries a body's rating beside its hit points", () => {
+    const hp = { actorId: "rat", hp: 3, maxHp: 11, rating: 8 };
+    const message = parseServerMessage(
+      JSON.stringify({
+        type: "patch",
+        cells: [],
+        events: [],
+        hps: [hp],
+        carriedLights: [],
+      }),
+    );
+
+    expect(message?.type === "patch" && message.hps[0]).toEqual(hp);
   });
 });

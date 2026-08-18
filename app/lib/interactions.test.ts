@@ -303,25 +303,33 @@ describe("interactionsForSave", () => {
     expect(
       interactionsForSave({
         battler: {
-          maxHp: 22,
-          atk: 4,
-          def: 0,
-          acc: 60,
-          flee: 40,
-          spd: 65,
+          masteries: { fist: 9, toughness: 14 },
+          naturalWeapon: DEFAULT_BATTLER.naturalWeapon,
         } as BattlerDef,
       }),
     ).toEqual({
       battler: {
-        maxHp: 22,
-        atk: 4,
-        def: 0,
-        acc: 60,
-        flee: 40,
-        spd: 65,
+        masteries: { fist: 9, toughness: 14 },
+        naturalWeapon: DEFAULT_BATTLER.naturalWeapon,
         range: DEFAULT_BATTLER.range,
         sight: { up: 0, down: 0 },
       },
     });
+  });
+
+  /**
+   * A mastery nobody has trained reads the same as one nobody wrote, so writing
+   * it would grow every creature's block by five lines saying nothing — and it
+   * would claim the author considered a question they did not.
+   */
+  it("drops masteries left at zero rather than writing them out", () => {
+    expect(
+      interactionsForSave({
+        battler: {
+          masteries: { fist: 3, blade: 0, arcane: 0, toughness: 5 },
+          naturalWeapon: DEFAULT_BATTLER.naturalWeapon,
+        } as BattlerDef,
+      })?.battler?.masteries,
+    ).toEqual({ fist: 3, toughness: 5 });
   });
 });

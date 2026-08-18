@@ -7,7 +7,8 @@ import {
   MAX_CONSUMABLE_HP_SHIFT,
   MAX_CONSUMABLE_SOUND_LENGTH,
   MAX_CONTAINER_SIZE,
-  MAX_WEAPON_STAT_SHIFT,
+  MAX_PERCENT_STAT,
+  MAX_WEAPON_DAMAGE,
   consumeVerb,
   isItem,
   itemForSave,
@@ -113,15 +114,17 @@ describe("resolveItem", () => {
 
   describe("malformed blocks read as not-an-item", () => {
     const cases: Array<[string, unknown]> = [
-      ["an unknown type", { type: "hat", atk: 1 }],
-      ["no type at all", { atk: 1, def: 1, acc: 0, spd: 0, mastery: "blade" }],
+      ["an unknown type", { type: "hat", damage: 1 }],
+      ["no type at all", { damage: 1, def: 1, accuracy: 0, variance: 0, spd: 0, mastery: "blade" }],
       ["an unknown mastery", { ...DEFAULT_WEAPON, mastery: "sonic" }],
-      ["a fractional stat", { ...DEFAULT_WEAPON, atk: 1.5 }],
-      ["a negative stat", { ...DEFAULT_WEAPON, atk: -1 }],
-      ["a shift past the cap", { ...DEFAULT_WEAPON, spd: MAX_WEAPON_STAT_SHIFT + 1 }],
-      ["a shift past the floor", { ...DEFAULT_WEAPON, acc: -MAX_WEAPON_STAT_SHIFT - 1 }],
-      ["a fractional shift", { ...DEFAULT_WEAPON, acc: -0.5 }],
-      ["a weapon missing its accuracy", { type: "weapon", atk: 1, def: 1, spd: 0, mastery: "blade" }],
+      ["a fractional stat", { ...DEFAULT_WEAPON, damage: 1.5 }],
+      ["a negative stat", { ...DEFAULT_WEAPON, damage: -1 }],
+      ["a percent stat past the cap", { ...DEFAULT_WEAPON, spd: MAX_PERCENT_STAT + 1 }],
+      ["a percent stat below zero, which is broken rather than worse", { ...DEFAULT_WEAPON, accuracy: -1 }],
+      ["a fractional percent stat", { ...DEFAULT_WEAPON, variance: 60.5 }],
+      ["damage past the cap", { ...DEFAULT_WEAPON, damage: MAX_WEAPON_DAMAGE + 1 }],
+      ["a weapon missing its accuracy", { type: "weapon", damage: 1, def: 1, variance: 0, spd: 0, mastery: "blade" }],
+      ["a weapon missing its variance", { type: "weapon", damage: 1, def: 1, accuracy: 60, spd: 0, mastery: "blade" }],
       ["a consumable with no hp at all", { type: "consumable", label: "Eat" }],
       [
         "a noise longer than the cap",
@@ -153,17 +156,30 @@ describe("resolveItem", () => {
 });
 
 describe("resolveBattler's kind gate", () => {
-  const stats = { maxHp: 10, atk: 1, def: 0, acc: 50, flee: 0, spd: 50 };
+  const stats = {
+    masteries: { fist: 6, toughness: 4 },
+    naturalWeapon: { ...DEFAULT_WEAPON, mastery: "fist" },
+  };
 
   it("reads stats on a battler", () => {
-    // Reach and floors of interest were authorable long after these six, so a
-    // block without them parses to the melee default and to minding its own
-    // floor. That fallback is the compatibility promise, so it is asserted here.
+    // Reach and floors of interest are optional, so a block without them parses
+    // to the melee default and to minding its own floor. That fallback is the
+    // compatibility promise, so it is asserted here.
     expect(resolveBattler(tile("battler", { battler: stats }))).toEqual({
       ...stats,
       range: DEFAULT_MELEE_RANGE,
       sight: { up: 0, down: 0 },
     });
+  });
+
+  /**
+   * A body with no masteries and no weapon has no numbers at all, and there is
+   * nothing sensible to invent for it — so it reads as not-a-battler, which is
+   * also what every tile authored before masteries existed now reads as.
+   */
+  it("refuses a block from before masteries existed", () => {
+    const old = { maxHp: 10, atk: 1, def: 0, acc: 50, flee: 0, spd: 50 };
+    expect(resolveBattler(tile("battler", { battler: old }))).toBeNull();
   });
 
   it("refuses stats on a prop", () => {

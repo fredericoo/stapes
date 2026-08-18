@@ -1,4 +1,5 @@
 import { DAMAGE_NUMBER_LIFETIME_MS } from "../game/constants";
+import type { SwingOutcome } from "../game/GameSession";
 import { labelScreenPosition } from "./textLabels";
 
 /**
@@ -36,12 +37,17 @@ export type DamageNumberView = {
   /** World-pixel anchor — the point the number rises from. */
   x: number;
   y: number;
+  /** Which of the three this was; decides the word and the colour. */
+  outcome: SwingOutcome;
+  /** Read only for a hit — the other two say a word instead. */
   amount: number;
   /**
    * Red for a blow the viewer took, white for everybody else's.
    *
    * Decided by the caller rather than here, because "is this me" is a question
-   * about the session and this module has no idea who is looking.
+   * about the session and this module has no idea who is looking. What is done
+   * *with* the answer is this module's business, which is why a miss or a dodge
+   * ignores it — see {@link classFor}.
    */
   own: boolean;
   elapsedMs: number;
@@ -49,9 +55,9 @@ export type DamageNumberView = {
 
 type Entry = {
   element: HTMLDivElement;
-  /** What it says, so an unchanged number is never rewritten. */
-  amount: number;
-  own: boolean;
+  /** What it says, so an unchanged receipt is never rewritten. */
+  text: string;
+  className: string;
 };
 
 /**
@@ -106,28 +112,31 @@ export class DamageNumberLayer {
   }
 
   private entry(number: DamageNumberView): Entry {
+    const text = textFor(number);
+    const className = classFor(number);
+
     const existing = this.entries.get(number.id);
     if (existing) {
-      // A number's own value never changes once it is on screen, so this only
+      // A receipt's own value never changes once it is on screen, so this only
       // guards against an id being reused — cheap, and the alternative is a
       // stale figure hanging there.
-      if (existing.amount !== number.amount) {
-        existing.element.textContent = String(number.amount);
-        existing.amount = number.amount;
+      if (existing.text !== text) {
+        existing.element.textContent = text;
+        existing.text = text;
       }
-      if (existing.own !== number.own) {
-        existing.element.className = classFor(number.own);
-        existing.own = number.own;
+      if (existing.className !== className) {
+        existing.element.className = className;
+        existing.className = className;
       }
       return existing;
     }
 
     const element = document.createElement("div");
-    element.className = classFor(number.own);
-    element.textContent = String(number.amount);
+    element.className = className;
+    element.textContent = text;
     this.container.appendChild(element);
 
-    const entry: Entry = { element, amount: number.amount, own: number.own };
+    const entry: Entry = { element, text, className };
     this.entries.set(number.id, entry);
     return entry;
   }
@@ -138,6 +147,54 @@ export class DamageNumberLayer {
   }
 }
 
-function classFor(own: boolean): string {
-  return `damage-number${own ? " damage-number--own" : ""}`;
+/**
+ * What a swing that came to nothing says.
+ *
+ * Words rather than a symbol, because the two have to be told apart at a glance
+ * and be *learnable*: "miss" is the swinger failing and "dodge" is the target
+ * succeeding, and a player who cannot separate them cannot tell a weapon they
+ * have no business holding from a foe they cannot catch.
+ */
+const NOTHING_HAPPENED: Record<Exclude<SwingOutcome, "hit">, string> = {
+  miss: "miss",
+  dodge: "dodge",
+};
+
+/**
+ * A blow that landed and did nothing.
+ *
+ * The third way a swing comes to nothing, and it needed a word of its own for
+ * the reason "miss" and "dodge" did: **a bare `0` is unreadable.** It looks like
+ * a number that failed to render, it is one glyph away from every other figure
+ * in the layer, and it says nothing about *why* — where "blocked" says armour
+ * turned it, which is a different fact from having swung at air.
+ *
+ * It happens on any blow whose damage is stopped outright — defence eating it,
+ * or a weapon whose variance reaches all the way down. A rat authored at damage
+ * 2 with variance 100 rolls one about a quarter of the time, which is exactly
+ * the character that authoring is for and exactly the case a `0` would have made
+ * look broken.
+ */
+const BLOCKED = "blocked";
+
+export function textFor(number: DamageNumberView): string {
+  if (number.outcome !== "hit") return NOTHING_HAPPENED[number.outcome];
+  return number.amount > 0 ? String(number.amount) : BLOCKED;
+}
+
+/**
+ * Red for a blow you took, grey for a blow nobody took, white otherwise.
+ *
+ * A miss or a dodge ignores `own` deliberately: red marks hit points you cannot
+ * afford to miss while reading the traffic, and a swing that took none has
+ * nothing at stake whoever it happened to.
+ */
+export function classFor(number: DamageNumberView): string {
+  // A blocked blow reads as nothing rather than as damage, and *whoever* it
+  // happened to: red marks hit points you cannot afford to miss, and a blow that
+  // took none has nothing at stake.
+  if (number.outcome !== "hit" || number.amount <= 0) {
+    return "damage-number damage-number--nothing";
+  }
+  return `damage-number${number.own ? " damage-number--own" : ""}`;
 }

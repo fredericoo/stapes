@@ -51,8 +51,12 @@ function sword(id: string): ItemInstance {
   return { id, tileId: "sword" };
 }
 
-function kit(contents: ItemInstance[], weapon: ItemInstance | null = null): Equipment {
-  return { weapon, bag: { id: "itm_bag", tileId: "bag", contents } };
+function kit(
+  contents: ItemInstance[],
+  weapon: ItemInstance | null = null,
+  offhand: ItemInstance | null = null,
+): Equipment {
+  return { weapon, offhand, bag: { id: "itm_bag", tileId: "bag", contents } };
 }
 
 /** A chest one cell east, holding whatever it is given. */
@@ -438,7 +442,8 @@ index: 0,
   });
 
   it("refuses everything when there is no bag on your back", () => {
-    const bagless: Equipment = { weapon: null, bag: null };
+    const bagless: Equipment = { weapon: null, offhand: null,
+  bag: null };
     const { map, ref } = chestAt(1, [sword("itm_a")]);
     expect(
       canMoveItem(map, tilesById, ME, bagless, { kind: "ground", ref, index: 0 }, {
@@ -491,7 +496,8 @@ describe("the bag slot", () => {
   });
 
   it("is empty, and refuses everything, on a bare back", () => {
-    const bagless: Equipment = { weapon: null, bag: null };
+    const bagless: Equipment = { weapon: null, offhand: null,
+  bag: null };
     expect(
       canMoveItem(emptyMap(), tilesById, ME, bagless, { kind: "bag" }, {
         kind: "weapon",

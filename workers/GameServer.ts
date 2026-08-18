@@ -1,4 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
+import * as v from "valibot";
 import {
   GameSession,
   type ActorPosition,
@@ -19,6 +20,7 @@ import {
 } from "../app/game/equipment";
 import { resolveRespawn } from "../app/lib/interactions";
 import { minutesOfDayAt } from "../app/lib/clock";
+import { masteryXpBlockSchema, type MasteryXp } from "../app/lib/mastery";
 import {
   changedCellsOnLevel,
   changedChunks,
@@ -136,7 +138,12 @@ function currentHps(actors: ActorSnapshot[]): HpPatch[] {
   const out: HpPatch[] = [];
   for (const actor of actors) {
     if (actor.hp === null || actor.maxHp === null) continue;
-    out.push({ actorId: actor.id, hp: actor.hp, maxHp: actor.maxHp });
+    out.push({
+      actorId: actor.id,
+      hp: actor.hp,
+      maxHp: actor.maxHp,
+      rating: actor.rating ?? 0,
+    });
   }
   return out;
 }
@@ -211,6 +218,23 @@ const EQUIPMENT_KEY_PREFIX = "equip:";
 const TAGS_KEY_PREFIX = "tags:";
 
 /**
+ * Key prefix under which one actor's earned masteries are kept.
+ *
+ * The third and last thing a world owes a returning player, and a fourth key
+ * rather than a field on any of the others for the same reason they are separate
+ * from each other: it is a different kind of fact with a different population.
+ * Every body has a position, only players have a kit, and only players who have
+ * been in a fight have any of this.
+ *
+ * Like a tag and unlike a kit, **it is never checked against the authored
+ * world** — what it records is that something already happened. Unlike a tag, it
+ * is checked for *shape*, because it is arithmetic rather than a list of strings
+ * and a malformed figure would propagate through every fight the player has from
+ * then on rather than failing where it was read.
+ */
+const MASTERIES_KEY_PREFIX = "mast:";
+
+/**
  * How many actors the world remembers the whereabouts of.
  *
  * One entry per player who has ever connected — it grows with *visitors*, not
@@ -261,6 +285,9 @@ type SavedEquipment = { equipment: Equipment; savedAt: number };
 
 /** Which rewards somebody has taken, kept against their return. */
 type SavedTags = { tags: string[]; savedAt: number };
+
+/** What somebody has learnt, kept against their return. */
+type SavedMasteries = { masteries: MasteryXp; savedAt: number };
 
 type Attachment = { actorId: string };
 
@@ -347,7 +374,7 @@ export class GameServer extends DurableObject<Env> {
    * nothing on the wire. Same discipline as {@link broadcastMap}: everyone is at
    * the same version, so one diff serves every socket.
    */
-  private sentHp = new Map<string, number>();
+  private sentHp = new Map<string, { hp: number; rating: number }>();
   /**
    * The carried lights each client has been told about, joined into one string
    * per actor.
@@ -769,6 +796,7 @@ export class GameServer extends DurableObject<Env> {
         await this.lastPositionOf(id),
         await this.lastEquipmentOf(id),
         await this.lastTagsOf(id),
+        await this.lastMasteriesOf(id),
       );
     }
   }
@@ -797,6 +825,35 @@ export class GameServer extends DurableObject<Env> {
 
   private tagsKey(actorId: string): string {
     return `${TAGS_KEY_PREFIX}${actorId}`;
+  }
+
+  private masteriesKey(actorId: string): string {
+    return `${MASTERIES_KEY_PREFIX}${actorId}`;
+  }
+
+  /**
+   * What this actor has learnt, if the world remembers.
+   *
+   * Parsed rather than trusted. This is the one number in a player's save that
+   * is *arithmetic* — everything downstream divides by it, scales by it and
+   * compares against it — so a block written by an older build with a mastery
+   * that has since been renamed, or by a bug, must not reach a fight. A block
+   * that does not parse reads as nothing, which loses that player their progress
+   * and is still the better answer than a NaN spreading through every swing they
+   * make from then on.
+   *
+   * Undefined for somebody new, which {@link GameSession.spawn} reads as "seed
+   * them from the body they arrive in".
+   */
+  private async lastMasteriesOf(
+    actorId: string,
+  ): Promise<MasteryXp | undefined> {
+    const saved = await this.ctx.storage.get<SavedMasteries>(
+      this.masteriesKey(actorId),
+    );
+    if (!saved?.masteries) return undefined;
+    const parsed = v.safeParse(masteryXpBlockSchema, saved.masteries);
+    return parsed.success ? parsed.output : undefined;
   }
 
   /**
@@ -874,7 +931,12 @@ export class GameServer extends DurableObject<Env> {
     const savedAt = Date.now();
     const entries: Record<
       string,
-      SavedPosition | SavedEquipment | SavedTags | Checkpoint | ChunkCells
+      | SavedPosition
+      | SavedEquipment
+      | SavedTags
+      | SavedMasteries
+      | Checkpoint
+      | ChunkCells
     > = {};
     for (const actorId of actorIds) {
       const at = session.actorPosition(actorId);
@@ -902,6 +964,22 @@ export class GameServer extends DurableObject<Env> {
       const tags = session.tagsOf(actorId);
       if (tags && tags.length > 0) {
         entries[this.tagsKey(actorId)] = { tags: [...tags], savedAt };
+      }
+      // And in the same batch a third time. Nothing pairs this with the kit the
+      // way the kit is paired with the board — you cannot learn a mastery out of
+      // a chest — but a player's continuity is one fact in three parts, and
+      // splitting the moments they were written is how somebody comes back with
+      // the sword and not the skill to swing it.
+      //
+      // Null until something has asked, which for a player who has not fought is
+      // the common case: their masteries are still exactly what the tile says,
+      // and the tile will say it again next time.
+      const masteries = session.masteryXpOf(actorId);
+      if (masteries) {
+        entries[this.masteriesKey(actorId)] = {
+          masteries: { ...masteries },
+          savedAt,
+        };
       }
     }
 
@@ -980,6 +1058,7 @@ export class GameServer extends DurableObject<Env> {
     await this.pruneOldest(POSITION_KEY_PREFIX);
     await this.pruneOldest(EQUIPMENT_KEY_PREFIX);
     await this.pruneOldest(TAGS_KEY_PREFIX);
+    await this.pruneOldest(MASTERIES_KEY_PREFIX);
   }
 
   /**
@@ -1046,6 +1125,7 @@ export class GameServer extends DurableObject<Env> {
       await this.lastPositionOf(actorId),
       await this.lastEquipmentOf(actorId),
       await this.lastTagsOf(actorId),
+      await this.lastMasteriesOf(actorId),
     );
     this.events.push({
       kind: "joined",
@@ -1118,6 +1198,10 @@ export class GameServer extends DurableObject<Env> {
       // a client with no tags offers every reward in the room, so a joiner
       // without this is shown chests it will be refused at.
       tags: [...(session.tagsOf(actorId) ?? [])],
+      // Theirs alone, beside the kit and the tags, and in full for the same
+      // reason all three are: a joiner has nothing to patch against, and the
+      // panel showing it is on screen before the first blow.
+      masteryXp: { ...(session.masteryXpOf(actorId) ?? {}) },
       playerCount: this.playerCount(),
       // Read here rather than tracked: time of day is a function of the
       // server's clock, so it costs nothing to keep and cannot fall behind
@@ -1206,6 +1290,7 @@ export class GameServer extends DurableObject<Env> {
     this.flushEquipment();
     this.flushSounds();
     this.flushTags();
+    this.flushMasteries();
     this.wake();
   }
 
@@ -1306,6 +1391,40 @@ export class GameServer extends DurableObject<Env> {
         JSON.stringify({
           type: "tags",
           tags: [...tags],
+        } satisfies ServerMessage),
+      );
+    }
+  }
+
+  /**
+   * Tell anybody whose experience moved what they have learnt now.
+   *
+   * The busiest of the three by a long way — roughly one message per landed
+   * blow, to one socket — and cheap for the same reason the others are: it is
+   * addressed rather than broadcast, so a room of twenty people fighting is
+   * twenty small sends rather than twenty serializations of everybody's.
+   *
+   * Copied on the way out, because what the session hands back is the live block
+   * it goes on adding to.
+   */
+  private flushMasteries() {
+    const session = this.session;
+    if (!session) return;
+    const changed = session.drainMasteryChanges();
+    if (changed.length === 0) return;
+
+    const wanted = new Set(changed);
+    for (const ws of this.ctx.getWebSockets()) {
+      const attachment = ws.deserializeAttachment() as Attachment | null;
+      if (!attachment || !wanted.has(attachment.actorId)) continue;
+      const masteryXp = session.masteryXpOf(attachment.actorId);
+      // Gone between the change and the flush — the blow that taught them
+      // something was also the one that killed them.
+      if (!masteryXp) continue;
+      ws.send(
+        JSON.stringify({
+          type: "masteries",
+          masteryXp: { ...masteryXp },
         } satisfies ServerMessage),
       );
     }
@@ -1661,6 +1780,7 @@ export class GameServer extends DurableObject<Env> {
     // before somebody hit save is carrying it only in memory.
     const carried = new Map<string, Equipment>();
     const taken = new Map<string, string[]>();
+    const learnt = new Map<string, MasteryXp>();
     for (const ws of this.ctx.getWebSockets()) {
       const attachment = ws.deserializeAttachment() as Attachment | null;
       if (!attachment) continue;
@@ -1671,6 +1791,12 @@ export class GameServer extends DurableObject<Env> {
       // and the world it was taken in is about to be replaced.
       const tags = this.session?.tagsOf(attachment.actorId);
       if (tags?.length) taken.set(attachment.actorId, [...tags]);
+      // And the masteries, for the same reason again and with the least to
+      // argue about of the three: a save is a statement about the world, and
+      // nothing an author writes in one has any bearing on what a player has
+      // already learnt.
+      const masteries = this.session?.masteryXpOf(attachment.actorId);
+      if (masteries) learnt.set(attachment.actorId, { ...masteries });
     }
 
     this.tiles = tiles;
@@ -1740,6 +1866,8 @@ export class GameServer extends DurableObject<Env> {
           : await this.lastEquipmentOf(attachment.actorId),
         taken.get(attachment.actorId) ??
           (await this.lastTagsOf(attachment.actorId)),
+        learnt.get(attachment.actorId) ??
+          (await this.lastMasteriesOf(attachment.actorId)),
       );
     }
     for (const ws of this.ctx.getWebSockets()) {
@@ -1827,6 +1955,9 @@ export class GameServer extends DurableObject<Env> {
     // out by way of a panel that never updates.
     this.flushEquipment();
     this.flushTags();
+    // Unlike the two above, this one really does move on a tick: experience is
+    // earned by swinging, and swinging is something the world does to itself.
+    this.flushMasteries();
     this.saveActorsIfDue();
     this.sleepIfIdle();
   }
@@ -1920,6 +2051,7 @@ export class GameServer extends DurableObject<Env> {
         kind: "damage",
         id: hit.id,
         targetId: hit.targetId,
+        outcome: hit.outcome,
         amount: hit.amount,
         x: hit.x,
         y: hit.y,
@@ -1943,9 +2075,19 @@ export class GameServer extends DurableObject<Env> {
     for (const actor of actors) {
       if (actor.hp === null || actor.maxHp === null) continue;
       live.add(actor.id);
-      if (this.sentHp.get(actor.id) === actor.hp) continue;
-      this.sentHp.set(actor.id, actor.hp);
-      out.push({ actorId: actor.id, hp: actor.hp, maxHp: actor.maxHp });
+      // Either number moving is worth a message, and the ⭐ is why this is a
+      // pair rather than a single reading: a creature's never moves and a
+      // player's moves without their hit points doing so.
+      const rating = actor.rating ?? 0;
+      const sent = this.sentHp.get(actor.id);
+      if (sent?.hp === actor.hp && sent.rating === rating) continue;
+      this.sentHp.set(actor.id, { hp: actor.hp, rating });
+      out.push({
+        actorId: actor.id,
+        hp: actor.hp,
+        maxHp: actor.maxHp,
+        rating,
+      });
     }
     for (const id of this.sentHp.keys()) {
       if (!live.has(id)) this.sentHp.delete(id);

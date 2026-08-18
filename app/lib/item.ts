@@ -1,4 +1,11 @@
 import * as v from "valibot";
+import {
+  type Masteries,
+  MASTERIES,
+  masteriesSchema,
+  WEAPON_MASTERIES,
+  type WeaponMastery,
+} from "./mastery";
 import type { TileDef } from "./types";
 
 /**
@@ -26,48 +33,84 @@ import type { TileDef } from "./types";
  */
 
 /**
- * Which skill a weapon answers to.
+ * How a weapon fights, and which mastery decides how well it is used.
  *
- * `magic` is authorable and does nothing yet. It is a slot in the model on
- * purpose: the enum is written into `data/tiles.json` the moment anybody saves a
- * weapon, and widening it later is a file migration where leaving room now is
- * free.
- */
-export type ItemMastery = "blade" | "ranged" | "blunt" | "magic";
-
-export const ITEM_MASTERIES: ItemMastery[] = [
-  "blade",
-  "ranged",
-  "blunt",
-  "magic",
-];
-
-/**
- * Every number on a weapon is added to the wielder's own, and may be negative.
+ * **These numbers are the fight, not a bonus on top of one.** They used to be
+ * signed deltas added to whatever the wielder's tile already said — a sword was
+ * `+3 atk, -10 spd` on top of a body that had its own attack and speed. That
+ * arrangement had no room for masteries: if a body already carries a full stat
+ * block, a mastery can only be a second modifier on it, and the authored numbers
+ * and the earned ones fight over the same ground.
  *
- * **Zero is no effect**, which makes a weapon's block read as a list of what it
- * changes rather than as four settings that all mean something. A blade that is
- * slower and less accurate than bare hands says exactly that, in the units the
- * fight is fought in.
+ * So the body stopped having them. A body has masteries and a *natural weapon*
+ * — a bite, a claw, a pair of fists — and whatever it is holding replaces that
+ * weapon rather than adjusting it. What the mastery does is scale the profile
+ * written here, which is what lets a rat be fast and light while a snake is slow
+ * and heavy: one Fist number could never have said that, because a higher one
+ * would make the harder-hitting animal the faster one by construction.
  *
- * This replaced a single `weight` that was spent against speed at full rate and
- * accuracy at half. One number encoding two effects meant an author who wanted a
- * fast inaccurate weapon could not have one, and the ratio between the two costs
- * was a balance decision buried in arithmetic. Two numbers say it outright, and
- * they can go up: a rapier that makes you *faster* is now authorable, where
- * "negative weight" would have been a nonsense nobody could read.
+ * See `./battler` for the derivation and `plans/masteries.md` for the argument.
  */
 export type WeaponItem = {
   type: "weapon";
-  /** Added to the wielder's base atk. */
-  atk: number;
-  /** Added to the wielder's base def. */
+  /**
+   * The most one blow with this can do, before the defender's {@link def}.
+   *
+   * A ceiling rather than an average, on the terms `../game/combat` sets out —
+   * {@link acc} decides how much of it a given swing is worth. Was `atk`, and
+   * the rename is the whole change in one word: it is the weapon's damage now,
+   * not an increment to somebody else's.
+   */
+  damage: number;
+  /**
+   * Flat reduction on every blow that lands on the wielder.
+   *
+   * The only source of defence in the game, and deliberately a thin one: armour
+   * is where this belongs and armour has no slot yet. A parrying weapon is the
+   * one honest way to author it in the meantime.
+   */
   def: number;
-  /** Added to the wielder's accuracy. Negative makes it harder to land. */
-  acc: number;
-  /** Added to the wielder's speed. Negative makes it slower to swing. */
+  /**
+   * 0–100. How reliably this finds its target.
+   *
+   * **Only that.** It used to answer three questions at once — whether a blow
+   * landed, how true it was when it did, and how hard it was to dodge — which
+   * made it by far the most load-bearing number on a weapon and left no way to
+   * author a thing that lands often and hits unpredictably. Most melee weapons
+   * should sit high here; how *risky* they are is {@link variance}.
+   */
+  accuracy: number;
+  /**
+   * 0–100. How much a connecting blow varies, as a share of {@link damage}.
+   *
+   * Zero is a weapon that always deals exactly its damage. A hundred is one that
+   * might deal anything from nothing to everything. This is the risk dial, and
+   * splitting it out of accuracy is what makes a heavy weapon expressible: a
+   * greataxe finds its target as reliably as a sword and is far less predictable
+   * about what it does when it gets there.
+   *
+   * The roll inside the band is triangular rather than flat — see
+   * `../game/combat`'s `damageFraction` — so the middle is common and both ends
+   * are rare whatever this is set to.
+   */
+  variance: number;
+  /** 0–100. How often this can be swung. See `../game/combat`. */
   spd: number;
-  mastery: ItemMastery;
+  mastery: WeaponMastery;
+  /**
+   * What this asks of whoever swings it, mastery by mastery.
+   *
+   * Absent means it asks nothing, which is not the same as asking zero of
+   * everything — see `./mastery`'s `masteryRatio`. **The worst ratio decides**,
+   * so a requirement on a mastery this weapon does not even train is a real gate
+   * and not a footnote: a Double Axe asking Blunt 35 and Toughness 20 is held
+   * back by whichever of the wielder's is further behind.
+   *
+   * Requirements on other masteries are deliberately allowed. Its Blunt is what
+   * the axe *teaches*; its Toughness is what it takes to hold the thing up, and
+   * you go and get that somewhere else.
+   */
+  requirements?: Masteries;
 };
 
 /**
@@ -146,14 +189,24 @@ export type ItemType = ItemDef["type"];
 export const ITEM_TYPES: ItemType[] = ["weapon", "consumable", "container"];
 
 /**
- * Furthest a weapon may push a percent stat, in either direction.
+ * Both ends of the 0–100 stats, named so the editor and the schema agree.
  *
- * Bounded because `acc` and `spd` are spent against 0–100 stats, and a weapon
- * that moves one further than the whole range is not a stronger weapon — it is
- * the same weapon as one at the cap, wearing a number that reads as if it did
- * something.
+ * Here rather than on the battler, which is where they used to live: a body no
+ * longer has percent stats of its own — it has masteries — so a weapon's `acc`
+ * and `spd` are now the only authored numbers on this scale.
  */
-export const MAX_WEAPON_STAT_SHIFT = 100;
+export const MIN_PERCENT_STAT = 0;
+export const MAX_PERCENT_STAT = 100;
+
+/**
+ * Ceiling on a weapon's damage.
+ *
+ * A sanity bound rather than a balance one, on the terms
+ * {@link MAX_CONSUMABLE_HP_SHIFT} is: wide enough for anything worth authoring,
+ * narrow enough that a typo'd extra digit reads as malformed rather than as a
+ * weapon that deletes whatever it touches.
+ */
+export const MAX_WEAPON_DAMAGE = 999;
 
 /** Widest a container may be, so a contents grid stays a grid. */
 export const MAX_CONTAINER_SIZE = 12;
@@ -190,15 +243,22 @@ export function consumeVerb(consumable: ConsumableItem): string {
   return consumable.label?.trim() || CONSUME_FALLBACK_VERB;
 }
 
+/**
+ * What a tile gets the moment somebody makes it a weapon.
+ *
+ * Middling and complete, where it used to be a list of small deltas: every field
+ * is now absolute, so a default of zero accuracy would be a weapon that cannot
+ * be aimed rather than one that changes nothing. These are roughly a pair of
+ * competent fists — a fresh weapon should be usable on the tick it is authored,
+ * and an author who wants a greatsword is a few keystrokes away.
+ */
 export const DEFAULT_WEAPON: WeaponItem = {
   type: "weapon",
-  atk: 3,
+  damage: 4,
   def: 0,
-  // A little slower to swing than bare hands, and no harder to aim. Something
-  // rather than nothing, so a fresh weapon demonstrates that these can be
-  // negative — but small, since a default is a starting point and not a design.
-  acc: 0,
-  spd: -5,
+  accuracy: 85,
+  variance: 20,
+  spd: 50,
   mastery: "blade",
 };
 
@@ -223,25 +283,42 @@ export const DEFAULT_CONTAINER: ContainerItem = {
   equippable: true,
 };
 
-const weaponSchema = v.object({
+/** Both percent stats, on the one scale a fight reads them against. */
+const percent = v.pipe(
+  v.number(),
+  v.integer(),
+  v.minValue(MIN_PERCENT_STAT),
+  v.maxValue(MAX_PERCENT_STAT),
+);
+
+/**
+ * Exported because a body's natural weapon is validated by it too.
+ *
+ * "A bite is a weapon like any other" has to be literally true, including in
+ * what it is allowed to say — a second schema for natural weapons would be two
+ * definitions of a weapon that could drift.
+ */
+export const weaponSchema = v.object({
   type: v.literal("weapon"),
-  atk: v.pipe(v.number(), v.integer(), v.minValue(0)),
+  damage: v.pipe(
+    v.number(),
+    v.integer(),
+    v.minValue(0),
+    v.maxValue(MAX_WEAPON_DAMAGE),
+  ),
   def: v.pipe(v.number(), v.integer(), v.minValue(0)),
-  // Signed, unlike atk and def: a weapon may make you worse at swinging it, and
-  // that is most of what tells two weapons apart.
-  acc: v.pipe(
-    v.number(),
-    v.integer(),
-    v.minValue(-MAX_WEAPON_STAT_SHIFT),
-    v.maxValue(MAX_WEAPON_STAT_SHIFT),
-  ),
-  spd: v.pipe(
-    v.number(),
-    v.integer(),
-    v.minValue(-MAX_WEAPON_STAT_SHIFT),
-    v.maxValue(MAX_WEAPON_STAT_SHIFT),
-  ),
-  mastery: v.picklist(ITEM_MASTERIES),
+  // Unsigned, where both were signed shifts: these are the wielder's accuracy
+  // and speed now, not adjustments to numbers the body brought with it, and a
+  // negative accuracy is not a worse one — it is a broken one.
+  accuracy: percent,
+  variance: percent,
+  spd: percent,
+  mastery: v.picklist(WEAPON_MASTERIES),
+  // Optional, and absent is the overwhelmingly common case: most weapons ask
+  // nothing. An empty object is allowed through rather than rejected — it says
+  // the same thing as no key, and refusing it would make a round trip through
+  // the editor a validation error.
+  requirements: v.optional(masteriesSchema),
 });
 
 const consumableSchema = v.object({
@@ -340,18 +417,39 @@ export function resolveConsumable(def: TileDef): ConsumableItem | null {
  * module rather than in `./interactions` keeps knowledge of the union's arms in
  * the one place that defines them.
  */
+/**
+ * A weapon's fields, named, and nothing else.
+ *
+ * Split out of {@link itemForSave} because a body's natural weapon is saved
+ * through it too, and that caller knows it has a weapon — going via the union
+ * would hand it back an `ItemDef` it would have to re-narrow for no reason.
+ */
+export function weaponForSave(weapon: WeaponItem): WeaponItem {
+  // Zeroes dropped along with the absent keys, and the whole block dropped when
+  // nothing survives: a requirement of zero is not a requirement, and a weapon
+  // carrying `requirements: {}` would read as "asks something" to anybody
+  // skimming the file.
+  const requirements = Object.fromEntries(
+    MASTERIES.filter((mastery) => (weapon.requirements?.[mastery] ?? 0) > 0).map(
+      (mastery) => [mastery, weapon.requirements?.[mastery]],
+    ),
+  );
+
+  return {
+    type: "weapon",
+    damage: weapon.damage,
+    def: weapon.def,
+    accuracy: weapon.accuracy,
+    variance: weapon.variance,
+    spd: weapon.spd,
+    mastery: weapon.mastery,
+    ...(Object.keys(requirements).length > 0 ? { requirements } : {}),
+  };
+}
+
 export function itemForSave(item: ItemDef | undefined): ItemDef | undefined {
   if (!item) return undefined;
-  if (item.type === "weapon") {
-    return {
-      type: "weapon",
-      atk: item.atk,
-      def: item.def,
-      acc: item.acc,
-      spd: item.spd,
-      mastery: item.mastery,
-    };
-  }
+  if (item.type === "weapon") return weaponForSave(item);
   if (item.type === "consumable") {
     // A blank verb is dropped rather than written as `""`, exactly as a
     // switch's actionName is: an empty string that means "no name" is a second

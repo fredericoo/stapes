@@ -53,15 +53,41 @@ import {
   TICK_MS,
   WALK_DURATION_MS,
 } from "./constants";
-import { DEFAULT_BATTLER, resolveBattler, type BattlerDef } from "../lib/battler";
-import { attackIntervalMs, canReach, rollAttack } from "./combat";
+import {
+  type BattlerDef,
+  DEFAULT_BATTLER,
+  resolveBattler,
+  type FightingStats,
+} from "../lib/battler";
+import {
+  experienceMultiplier,
+  hasExperience,
+  MASTERIES,
+  masteriesFromXp,
+  type MasteryXp,
+  rating,
+  xpFromMasteries,
+} from "../lib/mastery";
+import {
+  type AttackOutcome,
+  attackIntervalMs,
+  canReach,
+  rollAttack,
+} from "./combat";
 import type { Equipment } from "./equipment";
 import {
   carriedLightTileIds,
   effectiveBattler,
   emptyEquipment,
   startingEquipment,
+  weaponInHand,
 } from "./equipment";
+import {
+  attackerEarnings,
+  defenderEarnings,
+  defensiveDecay,
+  DEFENSIVE_RECOVERY_MS,
+} from "./experience";
 import { mintItemIds } from "./itemIds";
 import { isSpawnFilled, type SpawnPoint } from "./respawn";
 import {
@@ -215,6 +241,19 @@ export type ActorSnapshot = {
   /** What {@link hp} is measured against; null exactly when `hp` is. */
   maxHp: number | null;
   /**
+   * How good at fighting this body is — its ⭐ — or null exactly when `hp` is.
+   *
+   * **Broadcast, unlike everything else about a body's competence.** What a
+   * player is carrying is theirs alone because nobody else's frame can show it;
+   * a ⭐ is the opposite — sizing something up before swinging at it is the whole
+   * point of the number, and a rat whose difficulty you can only discover by
+   * losing to it is a rat nobody can make a decision about.
+   *
+   * The same figure the reward curve divides by. Two numbers here would be a
+   * player shown one game and playing another.
+   */
+  rating: number | null;
+  /**
    * The tiles of the lit things this actor is carrying.
    *
    * The one part of a kit everybody can see, and therefore the one part that is
@@ -263,11 +302,42 @@ export type NoiseEmission = {
   elapsedMs: number;
 };
 
+/**
+ * What a swing came to, as the thing floating off the body says it.
+ *
+ * A miss and a dodge are both "no damage" and are still two different words,
+ * because they are opposite facts about who did well — see `./combat`'s
+ * {@link AttackOutcome}. A player who saw one word for both could not tell a
+ * weapon they cannot use from a foe they cannot catch.
+ */
+export type SwingOutcome = "hit" | "miss" | "dodge";
+
+/**
+ * The same three, as values.
+ *
+ * A union alone cannot be validated at a boundary, and the wire is a boundary —
+ * see `../net/protocol`, where the schema forgetting this field made every blow
+ * online draw nothing.
+ */
+export const SWING_OUTCOMES: SwingOutcome[] = ["hit", "miss", "dodge"];
+
+/**
+ * A receipt floating off whatever was just swung at.
+ *
+ * Named for the case it started as and now carries all three: this is the
+ * channel for "something happened to this body on this tick", and a miss is
+ * exactly that even though nothing came off. Keeping one channel is what makes
+ * the three read as one language on screen; a second mechanism for the two
+ * bloodless outcomes would drift in placement and lifetime from the numbers they
+ * are meant to sit beside.
+ */
 export type DamageNumber = {
   /** Distinct per blow, so two hits on one tick are two numbers. */
   id: string;
   /** Who took it. Compared against the viewer's own id to colour the number. */
   targetId: string;
+  outcome: SwingOutcome;
+  /** Zero for anything but a hit, where the word carries the meaning instead. */
   amount: number;
   x: number;
   y: number;
@@ -370,6 +440,19 @@ export type GameSnapshot = {
    */
   tags: readonly string[];
   /**
+   * What the viewer has learnt, as raw experience.
+   *
+   * Theirs alone on exactly the terms {@link equipment} is — what you are good
+   * at is yours, the same as what is in your bag — and beside it rather than on
+   * {@link self} for that reason: {@link ActorSnapshot} is what everybody sees
+   * of everybody, and only the ⭐ belongs there.
+   *
+   * The experience rather than the levels, because the levels are derivable from
+   * it and the part-way-there is not — see `../lib/mastery`'s
+   * `progressToNextLevel`.
+   */
+  masteryXp: MasteryXp;
+  /**
    * Speech still on screen, on this viewer's level only.
    *
    * Always present rather than optional so the renderer's contract stays total;
@@ -384,6 +467,20 @@ export type GameSnapshot = {
    * every hiss and crunch in it. @see NoiseEmission
    */
   noises: NoiseEmission[];
+};
+
+/**
+ * What a player needs to know about their own body, in numbers.
+ *
+ * A projection of {@link ActorSnapshot} rather than the thing itself, because
+ * what a stats panel wants is the three readings and not a position on a board.
+ * Null on every field for a body with no stats at all, which is the same answer
+ * `hp` has always given.
+ */
+export type Vitals = {
+  hp: number | null;
+  maxHp: number | null;
+  rating: number | null;
 };
 
 /** The id the single local actor takes when nobody names one. */
@@ -568,6 +665,56 @@ type ActorRuntime = {
    */
   tags: readonly string[];
   /**
+   * What this actor has earned towards each mastery, or null for a body that
+   * does not earn.
+   *
+   * **The third thing a world genuinely owes continuity for**, beside
+   * {@link equipment} and {@link tags} and written in the same storage batch.
+   * Hit points and brains are rebuilt from the tile on every load; experience
+   * cannot be, because what it records is that something already happened.
+   *
+   * Null on a {@link resident} for ever: a rat does not get better at biting,
+   * and a creature's masteries are read straight off the tile. Null on a player
+   * only until somebody first asks — the numbers are seeded from the authored
+   * block the moment there is a body to read one from, on exactly the terms
+   * {@link hp} is filled in. See {@link GameSession.bodyOf}.
+   *
+   * Replaced wholesale rather than mutated, on exactly the terms
+   * {@link equipment} and {@link tags} are: the block goes out on the snapshot,
+   * and identity is what tells whoever is drawing it that something moved. A
+   * block edited in place would be the same object on every frame and a bar that
+   * never advanced. One small allocation per landed blow is the price, and it is
+   * paid on a tick that is already broadcasting a damage number.
+   */
+  masteryXp: MasteryXp | null;
+  /**
+   * The authored body with this actor's earned masteries in it, keyed on the
+   * authored block it was built from.
+   *
+   * The same staleness discipline as {@link memo}: `resolveBattler` memoises on
+   * def identity, so holding the block this was derived from is an exact check.
+   * Dropped whenever experience is granted, which is the only other thing that
+   * can move it.
+   *
+   * Worth memoising because {@link GameSession.battlerOf} is asked once per body
+   * per swing *and* once per body per frame by whatever draws health bars, and
+   * reading seven levels out of seven square roots at that rate is a cost with
+   * nothing to show for it.
+   */
+  earnedBody: { authored: BattlerDef; body: BattlerDef } | null;
+  /**
+   * How many defensive payouts each attacker has already been worth, and how
+   * long since the last one.
+   *
+   * **Not durable, and deliberately so** — it is rebuilt like {@link hp} and
+   * {@link brain} rather than owed continuity. What it records is the state of a
+   * fight, and a fight does not survive the world being unloaded.
+   *
+   * Null until this body is first hit by anything, so the great majority of
+   * actors never allocate one.
+   */
+  defensiveDecay: Map<string, { payouts: number; idleMs: number }> | null;
+  /**
    * Where this creature is in its state machine, or null for a body with no
    * brain — every player, and any creature whose authored brain did not parse.
    * Built on first use rather than at adoption, which is what makes "brain
@@ -673,6 +820,15 @@ export class GameSession implements PlaySession {
   private readonly equipmentChanged = new Set<string>();
   /** Actors whose tags have changed and whose owner has not been told yet. */
   private readonly tagsChanged = new Set<string>();
+  /**
+   * Actors whose experience has moved and whose owner has not been told yet.
+   *
+   * The busiest of the three queues by a long way — roughly one entry per landed
+   * blow — which is exactly why it is a queue rather than a message: a fight is
+   * several swings a second between them, and the set collapses all of it into
+   * one send on the next flush.
+   */
+  private readonly masteriesChanged = new Set<string>();
   private readonly plateCells = new Map<string, Coord>();
   /**
    * Cells holding a placement wired to a signal channel — emitters and
@@ -908,6 +1064,7 @@ export class GameSession implements PlaySession {
       resident?: boolean;
       carrying?: Equipment;
       tagged?: readonly string[];
+      earned?: MasteryXp;
     } = {},
   ): ActorRuntime {
     const resident = opts.resident === true;
@@ -935,6 +1092,17 @@ export class GameSession implements PlaySession {
       // whose tile the author has since deleted is still a chest this player
       // opened. Forgetting it would hand them the next version of it twice.
       tags: opts.tagged ?? NO_TAGS,
+      // Seeded lazily rather than here, for the reason `hp` is: the authored
+      // masteries live on the body, and at this moment the actor may have no
+      // body on the board to read one from. A returning player brings theirs.
+      //
+      // Checked rather than trusted, and `hasExperience` says why: an empty
+      // block is not a body with nothing learnt, it is one nobody has asked
+      // about — and passing it through would defeat the seeding below and hand
+      // somebody a body with half the hit points and no evasion.
+      masteryXp: resident || !hasExperience(opts.earned) ? null : opts.earned,
+      earnedBody: null,
+      defensiveDecay: null,
       brain: null,
       hp: null,
       attackCooldownMs: 0,
@@ -984,12 +1152,15 @@ export class GameSession implements PlaySession {
    *   Omit for somebody new, who gets the starting kit.
    * @param tagged which rewards this actor has already taken. Omit for somebody
    *   new, who is owed all of them.
+   * @param earned what this actor has learnt. Omit for somebody new, whose
+   *   masteries are seeded from the authored block on the body they arrive in.
    */
   spawn(
     id: string,
     at?: Coord & { direction?: Direction },
     carrying?: Equipment,
     tagged?: readonly string[],
+    earned?: MasteryXp,
   ) {
     if (this.actors.has(id)) return;
     if (!findActorAnywhere(this.map, id)) {
@@ -998,7 +1169,7 @@ export class GameSession implements PlaySession {
         : this.spawnAt;
       this.map = spawnActor(this.map, id, cell, at?.direction);
     }
-    this.addActor(id, { carrying, tagged });
+    this.addActor(id, { carrying, tagged, earned });
   }
 
   /**
@@ -1123,6 +1294,35 @@ export class GameSession implements PlaySession {
    */
   tagsOf(id: string): readonly string[] | null {
     return this.actors.get(id)?.tags ?? null;
+  }
+
+  /**
+   * What one actor has learnt, or null for a body that does not learn.
+   *
+   * Null covers three cases the server treats alike — nobody by that name, a
+   * creature, and a player nothing has yet asked about — because all three come
+   * to the same thing when the question is "is there anything here worth writing
+   * down".
+   *
+   * The live object rather than a copy, on the same terms {@link equipmentOf}
+   * hands back the live kit. Whoever makes it durable copies it on the way out.
+   */
+  masteryXpOf(id: string): MasteryXp | null {
+    return this.actors.get(id)?.masteryXp ?? null;
+  }
+
+  /**
+   * How good at fighting one actor is — their ⭐ — or null for a body with no
+   * stats at all.
+   *
+   * Public because the server persists nothing derived and shows plenty: this is
+   * the number beside a name on inspect, and it must be the same number the
+   * reward curve divides by or the player is being shown a different game from
+   * the one they are playing.
+   */
+  ratingIn(id: string): number | null {
+    const actor = this.actors.get(id);
+    return actor ? this.ratingOf(actor) : null;
   }
 
   /**
@@ -1317,6 +1517,9 @@ export class GameSession implements PlaySession {
     // spend it on this tick — whether the swing comes from a brain below or from
     // somebody's target above.
     this.advanceCooldowns(tickMs);
+    // Beside the cooldowns, because it is the same kind of thing: a countdown
+    // somebody spent by swinging, winding back down while they do not.
+    this.recoverDefensiveDecay(tickMs);
 
     // Before the bodies move, so a decision taken now starts its walk on this
     // tick rather than the next.
@@ -1604,7 +1807,7 @@ export class GameSession implements PlaySession {
    * Swing for everybody in attack mode who has picked a fight and is standing
    * close enough.
    *
-   * Auto rather than per click, because {@link BattlerDef.spd} is what decides
+   * Auto rather than per click, because {@link FightingStats.spd} is what decides
    * how often a body swings. A client that had to ask for each blow would be
    * asking for permission it is going to be refused most of the time, and a
    * client that asked *faster* would gain nothing — which is precisely the
@@ -1692,10 +1895,188 @@ export class GameSession implements PlaySession {
     // cat that only fought back when a blow landed would stand there being
     // missed. Before the damage, so a killing blow still tells the room.
     this.notePendingHurt(target.id, attacker.id);
-    if (outcome.dodged) return true;
+    // Before the damage too, so the killing blow pays for itself — a body that
+    // has already left the board has no experience to be given.
+    this.awardExperience(attacker, target, outcome);
+
+    if (outcome.missed) {
+      this.floatSwing(target, "miss", 0);
+      return true;
+    }
+    if (outcome.dodged) {
+      this.floatSwing(target, "dodge", 0);
+      return true;
+    }
 
     this.applyDamage(target, outcome.damage);
     return true;
+  }
+
+  /**
+   * Float a receipt off a body for one swing, whatever the swing came to.
+   *
+   * The cell travels with it rather than the actor id alone, because by the time
+   * anything draws this the body may be gone — a killing blow deletes its target
+   * on the same tick, and the number is the only thing left saying what
+   * happened.
+   *
+   * Silently does nothing for a body that cannot be located, which is the honest
+   * answer: a receipt has to hang somewhere, and there is nowhere to hang it.
+   */
+  private floatSwing(
+    target: ActorRuntime,
+    outcome: SwingOutcome,
+    amount: number,
+  ) {
+    const loc = this.tryLocate(target);
+    if (!loc) return;
+
+    const number: DamageNumber = {
+      id: `hit-${this.nextDamageId++}`,
+      targetId: target.id,
+      outcome,
+      amount,
+      x: loc.x,
+      y: loc.y,
+      z: loc.z,
+      stackIndex: loc.stackIndex,
+      elapsedMs: 0,
+    };
+    this.pendingDamage.push(number);
+    this.liveDamage.push(number);
+  }
+
+  /**
+   * Pay both sides of one swing whatever it taught them.
+   *
+   * **Scaled by how the two bodies compare, and each side sees its own ratio.**
+   * The rat learns nothing from a player it could never beat and the player
+   * learns nearly nothing from the rat, from one and the same blow — which is
+   * the whole of what makes the world a ladder rather than a place to grind the
+   * first thing you meet.
+   *
+   * Silent for a creature on either side. Only a player has experience to be
+   * given, and asking that question here rather than inside the arithmetic keeps
+   * `./experience` a set of pure functions about a swing.
+   */
+  private awardExperience(
+    attacker: ActorRuntime,
+    target: ActorRuntime,
+    outcome: AttackOutcome,
+  ) {
+    // A miss pays nobody, so there is nothing to work out. Worth the early
+    // return rather than falling through the two arithmetics below to zero:
+    // this runs on every swing in the world.
+    if (outcome.missed) return;
+    if (attacker.resident && target.resident) return;
+
+    const attackerRating = this.ratingOf(attacker);
+    const targetRating = this.ratingOf(target);
+    if (attackerRating === null || targetRating === null) return;
+
+    if (!attacker.resident) {
+      const body = this.bodyOf(attacker);
+      if (body) {
+        this.grantExperience(
+          attacker,
+          attackerEarnings(
+            outcome,
+            weaponInHand(body, attacker.equipment, this.tilesById),
+            body.masteries,
+            experienceMultiplier(targetRating, attackerRating),
+          ),
+        );
+      }
+    }
+
+    // The multiplier before the decay, and the early return is the point: a rat
+    // gnawing somebody far above it pays nothing whatever the decay says, and
+    // spending a payout on it would charge that player for a blow they were
+    // never going to be paid for.
+    const defensive = experienceMultiplier(attackerRating, targetRating);
+    if (!target.resident && defensive > 0) {
+      this.grantExperience(
+        target,
+        defenderEarnings(
+          outcome,
+          defensive,
+          this.spendDefensiveDecay(target, attacker.id),
+        ),
+      );
+    }
+  }
+
+  /**
+   * Add experience to a body, and forget whatever was derived from the old
+   * figures.
+   *
+   * The single place experience is written, which is what makes the memo above
+   * safe: there is no way to move a mastery without the body built from it being
+   * dropped in the same statement.
+   */
+  private grantExperience(actor: ActorRuntime, earned: MasteryXp) {
+    const xp = actor.masteryXp;
+    if (!xp) return;
+
+    // Copied lazily, so a swing that taught nothing costs no allocation — which
+    // is most of them, once a player has outgrown what they are fighting.
+    let moved: MasteryXp | null = null;
+    for (const mastery of MASTERIES) {
+      const amount = earned[mastery];
+      if (!amount) continue;
+      moved ??= { ...xp };
+      moved[mastery] = (moved[mastery] ?? 0) + amount;
+    }
+    if (!moved) return;
+
+    actor.masteryXp = moved;
+    actor.earnedBody = null;
+    this.masteriesChanged.add(actor.id);
+  }
+
+  /**
+   * What the next defensive payout from this attacker is worth, counting it as
+   * taken.
+   *
+   * Per attacker rather than per victim, because the thing being paced is one
+   * body farming another: a fight against something new starts at full rate
+   * however long you have just spent being chewed on by a rat.
+   */
+  private spendDefensiveDecay(target: ActorRuntime, attackerId: string): number {
+    const decayed = (target.defensiveDecay ??= new Map());
+    const seen = decayed.get(attackerId);
+    if (!seen) {
+      decayed.set(attackerId, { payouts: 1, idleMs: 0 });
+      return defensiveDecay(0);
+    }
+    seen.idleMs = 0;
+    const worth = defensiveDecay(seen.payouts);
+    seen.payouts++;
+    return worth;
+  }
+
+  /**
+   * Forgive one payout for every stretch an attacker has left a body alone, and
+   * forget them entirely once they are square.
+   *
+   * Aged on the tick clock like every other timer here rather than stamped with
+   * a time and compared later, so it agrees with the rest of the session about
+   * how long a second is — and so a world nobody is ticking does not quietly
+   * recover while it sleeps.
+   */
+  private recoverDefensiveDecay(tickMs: number) {
+    for (const actor of this.actors.values()) {
+      const decayed = actor.defensiveDecay;
+      if (!decayed) continue;
+      for (const [attackerId, seen] of decayed) {
+        seen.idleMs += tickMs;
+        if (seen.idleMs < DEFENSIVE_RECOVERY_MS) continue;
+        seen.idleMs -= DEFENSIVE_RECOVERY_MS;
+        seen.payouts--;
+        if (seen.payouts <= 0) decayed.delete(attackerId);
+      }
+      if (decayed.size === 0) actor.defensiveDecay = null;
+    }
   }
 
   /** Remember who hit whom, for the brains' next round of decisions. */
@@ -1717,21 +2098,7 @@ export class GameSession implements PlaySession {
     const before = this.hpOf(target);
     if (before === null) return;
 
-    const loc = this.tryLocate(target);
-    if (loc) {
-      const number: DamageNumber = {
-        id: `hit-${this.nextDamageId++}`,
-        targetId: target.id,
-        amount,
-        x: loc.x,
-        y: loc.y,
-        z: loc.z,
-        stackIndex: loc.stackIndex,
-        elapsedMs: 0,
-      };
-      this.pendingDamage.push(number);
-      this.liveDamage.push(number);
-    }
+    this.floatSwing(target, "hit", amount);
 
     const after = before - amount;
     target.hp = Math.max(0, after);
@@ -1789,13 +2156,57 @@ export class GameSession implements PlaySession {
    * caller of `resolveBattler` would be a body that fights with its sword and
    * one that does not, depending on who asked.
    */
-  private battlerOf(actor: ActorRuntime): BattlerDef | null {
+  private battlerOf(actor: ActorRuntime): FightingStats | null {
+    const body = this.bodyOf(actor);
+    if (!body) return null;
+    return effectiveBattler(body, actor.equipment, this.tilesById);
+  }
+
+  /**
+   * The body this actor actually fights in: the one authored on their tile, with
+   * whatever they have learnt in place of the authored masteries.
+   *
+   * **The two halves of a body come from different places and this is where they
+   * meet.** Everything about a body that is a fact rather than a competence — its
+   * reach, how far it bothers to look, what it bites with — is the tile's and is
+   * fixed. What it is *good at* belongs to whoever is in it, which for a player
+   * is something they earned and for a rat is something an author decided.
+   *
+   * A resident is handed the authored block untouched, which is the whole of why
+   * a creature never improves: there is no runtime number to improve.
+   */
+  private bodyOf(actor: ActorRuntime): BattlerDef | null {
     const loc = this.tryLocate(actor);
     if (!loc) return null;
     const def = this.tilesById[loc.placed.tileId];
-    const base = def ? resolveBattler(def) : null;
-    if (!base) return null;
-    return effectiveBattler(base, actor.equipment, this.tilesById);
+    const authored = def ? resolveBattler(def) : null;
+    if (!authored || actor.resident) return authored;
+
+    const memo = actor.earnedBody;
+    if (memo?.authored === authored) return memo.body;
+
+    // The one moment a fresh player's experience exists: the authored block
+    // becomes the experience that produces it, and from here on the masteries
+    // are derived from that alone. See `xpFromMasteries` for why a starting
+    // point rather than a floor.
+    actor.masteryXp ??= xpFromMasteries(authored.masteries);
+    const body = { ...authored, masteries: masteriesFromXp(actor.masteryXp) };
+    actor.earnedBody = { authored, body };
+    return body;
+  }
+
+  /**
+   * How good at fighting this body is, all in — its ⭐.
+   *
+   * **Raw masteries, never equipment.** If a sword counted, taking it off would
+   * lower your Rating, raise the ratio every reward is scaled by, and make
+   * fighting naked the optimal way to play. Reading it off the same derived
+   * block the fight uses is what keeps that true without anybody having to
+   * remember it.
+   */
+  private ratingOf(actor: ActorRuntime): number | null {
+    const body = this.bodyOf(actor);
+    return body ? rating(body.masteries) : null;
   }
 
   /**
@@ -2417,6 +2828,21 @@ export class GameSession implements PlaySession {
     return changed;
   }
 
+  /**
+   * Whose experience has moved since anybody last asked, and clears the list.
+   *
+   * A third queue beside the other two, and not folded into either: a kit
+   * changes when somebody moves an item and this changes when somebody lands a
+   * blow, which are different events at wildly different rates. Sharing a queue
+   * would send an inventory on every swing.
+   */
+  drainMasteryChanges(): string[] {
+    if (this.masteriesChanged.size === 0) return [];
+    const changed = [...this.masteriesChanged];
+    this.masteriesChanged.clear();
+    return changed;
+  }
+
   canTakeReward(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
     if (!this.idle(actor)) return false;
@@ -2611,6 +3037,7 @@ export class GameSession implements PlaySession {
         : 0,
       hp: this.hpOf(actor),
       maxHp: this.battlerOf(actor)?.maxHp ?? null,
+      rating: this.ratingOf(actor),
       // By reference, like `walk` and `fall`: it is replaced wholesale whenever
       // a kit changes, so the same array across two ticks is the same answer and
       // nothing downstream has to copy it to be safe.
@@ -2638,6 +3065,10 @@ export class GameSession implements PlaySession {
       attacking: self.attacking,
       equipment: self.equipment,
       tags: self.tags,
+      // Seeded by the line above rather than here: `actorSnapshots` asks every
+      // body for its stats, which is what fills a fresh player's experience in
+      // from their tile. The fallback is for the body that has none to give.
+      masteryXp: self.masteryXp ?? {},
       // Nobody to talk to: the local simulation has no wire and no other actors
       // worth naming, so speech is a thing only the online client carries.
       chats: [],
@@ -2691,6 +3122,7 @@ export class GameSession implements PlaySession {
       // player standing there watching a deer must not hold the world awake for
       // as long as they keep it in sight.
       if (actor.attacking && actor.targetId !== null) return false;
+
       if (!actor.resident) {
         observed = true;
       } else if (!thinking) {

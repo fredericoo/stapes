@@ -1,4 +1,7 @@
-import type { BattlerDef } from "../lib/battler";
+import {
+  clampChance,
+  type FightingStats,
+} from "../lib/battler";
 import type { MapFile, TileDef } from "../lib/types";
 import { TICK_MS } from "./constants";
 import { type ReachPoint, withinReach } from "./distance";
@@ -17,7 +20,7 @@ import { hasLineOfSight } from "./sight";
  */
 
 /**
- * Ticks between blows at {@link BattlerDef.spd} 100 — as fast as it gets.
+ * Ticks between blows at {@link FightingStats.spd} 100 — as fast as it gets.
  *
  * Six rather than two, and the slow end is stretched to match. At two ticks a
  * fight was over before a player could read what was happening to them: the
@@ -28,11 +31,11 @@ import { hasLineOfSight } from "./sight";
  */
 export const MIN_ATTACK_TICKS = 6;
 
-/** Ticks between blows at {@link BattlerDef.spd} 0 — as slow as it gets. */
+/** Ticks between blows at {@link FightingStats.spd} 0 — as slow as it gets. */
 export const MAX_ATTACK_TICKS = 600;
 
 /**
- * How far a blow reaches — now {@link BattlerDef.range}, per creature.
+ * How far a blow reaches — now {@link FightingStats.range}, per creature.
  *
  * It was one cell counted as a square, which was the right shape for a swing and
  * had nowhere to go. A bow is the same question with a bigger answer, and a
@@ -64,23 +67,45 @@ export function attackIntervalMs(spd: number): number {
 }
 
 /**
+ * How far apart two contested numbers have to be before the outcome stops being
+ * in doubt.
+ *
+ * Sets the steepness of {@link dodgeChance}'s curve. At twenty, a defender forty
+ * behind still gets out of the way about one time in seven, and one twenty ahead
+ * is favoured without being untouchable — which is the width the authored
+ * evasions and accuracies actually span.
+ */
+export const CONTEST_SCALE = 20;
+
+/**
  * The chance a blow is avoided entirely, as a fraction of 1.
  *
- * Flee is always read against half the attacker's accuracy: 50 against 50 is
- * `50 - 25`, a quarter. Halving is what keeps accuracy from being the only stat
- * worth having — a perfectly accurate attacker still leaves a nimble defender
- * their whole flee minus fifty, rather than erasing it.
+ * A contest between the defender's evasion and the attacker's accuracy, resolved
+ * on a logistic curve: level pegging is a coin toss, and every point either way
+ * bends it smoothly rather than in a straight line. Clamped to the band above,
+ * so no amount of accuracy erases a nimble defender and no amount of evasion
+ * makes anybody untouchable.
+ *
+ * **This used to be `flee - accuracy / 2`, and the halving was a bodge.** It was
+ * there to stop accuracy being the only stat worth having, which it had to be
+ * because accuracy was also the only thing deciding whether a blow landed. Once
+ * landing became its own question, the linear form collapsed: pushing weapon
+ * accuracy up far enough to make hit chances sane drove every dodge in the game
+ * to about two percent, and Agility stopped being worth training. A curve with
+ * floors at both ends has no such cliff — it is asymptotic where the old one hit
+ * zero and stayed there.
  */
-export function dodgeChance(flee: number, attackerAcc: number): number {
-  return clamp(flee - attackerAcc / 2, 0, 100) / 100;
+export function dodgeChance(flee: number, attackerAccuracy: number): number {
+  const contest = (flee - attackerAccuracy) / CONTEST_SCALE;
+  return clampChance(1 / (1 + Math.exp(-contest)));
 }
 
 /**
- * The share of {@link BattlerDef.atk} one blow is worth, before defence.
+ * The share of {@link FightingStats.damage} one blow is worth, before defence.
  *
  * Accuracy sets how *wide* the band is, not where the good end of it is: the top
  * of the band is always full damage, and falling accuracy only drags the floor
- * down. So 100 accuracy is exactly `atk` every time, 50 lands somewhere between
+ * down. So 100 accuracy is exactly `damage` every time, 50 lands somewhere between
  * half and full, and 0 can produce anything at all.
  *
  * Within the band the roll is triangular — two draws averaged — so the middle is
@@ -91,45 +116,95 @@ export function dodgeChance(flee: number, attackerAcc: number): number {
  * @param roll two independent draws in [0, 1), which the caller owns so this
  *   stays a function rather than a thing that touches the world's dice.
  */
-export function damageFraction(acc: number, roll: [number, number]): number {
-  const spread = 1 - clamp(acc, 0, 100) / 100;
+export function damageFraction(variance: number, roll: [number, number]): number {
+  const spread = clamp(variance, 0, 100) / 100;
   const peaked = (roll[0] + roll[1]) / 2;
   return 1 - spread + spread * peaked;
 }
 
 /** What one swing came to. */
 export type AttackOutcome = {
+  /**
+   * The blow never went where it was aimed.
+   *
+   * **The attacker's failure, and deliberately not the same event as a
+   * {@link dodged}.** They look identical from outside — nobody took any damage
+   * — but they are opposite facts about who did well, and the experience each
+   * one is worth goes to a different party. A dodge is the defender's agility
+   * paying off; a miss is the swinger being out of their depth with what they
+   * are holding, and it earns nobody anything.
+   *
+   * Collapsing the two into "no damage" would also make the mastery penalty
+   * invisible: a player swinging an axe they cannot lift would see the same
+   * thing as a player fighting something nimble, and could not tell that the
+   * problem was the axe.
+   */
+  missed: boolean;
   /** The defender got out of the way; nothing else here happened. */
   dodged: boolean;
-  /** Hit points actually taken off, after {@link BattlerDef.def}. */
+  /** Hit points actually taken off, after {@link FightingStats.def}. */
   damage: number;
+  /**
+   * What the blow would have been worth had it landed, before defence.
+   *
+   * Zero on a miss, because a swing that went nowhere was never worth anything.
+   * On a **dodge** it is the whole point: the design pays the defender's Agility
+   * in proportion to what they got out of the way of, so escaping something
+   * enormous has to be worth more than escaping a scratch, and by then the blow
+   * no longer exists to be measured. Rolling the damage before asking about the
+   * dodge is what makes that answerable, and it is free — every draw is taken up
+   * front regardless.
+   */
+  potentialDamage: number;
 };
 
 /**
  * Swing once.
  *
- * Two rolls in a fixed order — dodge first, then the damage band — so the dice
- * stream advances by the same amount whatever the stats are. A world's dice are
- * seeded to be reproducible, and a draw whose *count* depended on accuracy would
- * make one creature's stats change what every creature after it rolls.
+ * Three rolls in a fixed order — miss, then dodge, then the damage band — and
+ * **all four draws are taken before any of them is read**, so the dice stream
+ * advances by the same amount whatever the stats are and whatever the outcome
+ * is. A world's dice are seeded to be reproducible, and a draw whose *count*
+ * depended on the stats would make one creature's numbers change what every
+ * creature after it rolls. Returning early after drawing is the point of the
+ * arrangement, not a smell: the cost is paid up front precisely so the early
+ * return is free of consequence.
  *
  * Damage floors at zero rather than going negative: a blow that cannot get
  * through armour is a blow worth nothing, not a heal.
  */
 export function rollAttack(
-  attacker: BattlerDef,
-  defender: BattlerDef,
+  attacker: FightingStats,
+  defender: FightingStats,
   rng: Rng,
 ): AttackOutcome {
+  const missRoll = rng.next();
   const dodgeRoll = rng.next();
   const damageRoll: [number, number] = [rng.next(), rng.next()];
 
-  if (dodgeRoll < dodgeChance(defender.flee, attacker.acc)) {
-    return { dodged: true, damage: 0 };
+  // Missing first, because it happens first: a blow that never went where it was
+  // aimed gave the defender nothing to get out of the way of, and crediting them
+  // with a dodge for it would pay agility for standing still.
+  if (missRoll >= attacker.hitChance) {
+    return { missed: true, dodged: false, damage: 0, potentialDamage: 0 };
   }
 
-  const dealt = Math.round(attacker.atk * damageFraction(attacker.acc, damageRoll));
-  return { dodged: false, damage: Math.max(0, dealt - defender.def) };
+  // Rolled before the dodge is asked about rather than after, so a blow that is
+  // avoided still knows what it was worth. See {@link AttackOutcome.potentialDamage}.
+  const potentialDamage = Math.round(
+    attacker.damage * damageFraction(attacker.variance, damageRoll),
+  );
+
+  if (dodgeRoll < dodgeChance(defender.flee, attacker.accuracy)) {
+    return { missed: false, dodged: true, damage: 0, potentialDamage };
+  }
+
+  return {
+    missed: false,
+    dodged: false,
+    damage: Math.max(0, potentialDamage - defender.def),
+    potentialDamage,
+  };
 }
 
 /**

@@ -9,6 +9,8 @@ import type { TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { itemUseFor } from "./itemUse";
+import tilesJson from "../../data/tiles.json";
+import { normalizeTiles } from "../lib/types";
 
 /**
  * What a tap on a carried thing does.
@@ -117,5 +119,39 @@ describe("itemUseFor", () => {
     expect(
       itemUseFor(instance("ghost"), { kind: "contents", index: 0 }, tilesById),
     ).toBeNull();
+  });
+});
+
+/**
+ * A light goes to the other hand.
+ *
+ * Checked before the weapon rule rather than after it, because a lantern *is* a
+ * weapon as far as the catalogue is concerned — it had to be, when the swinging
+ * hand was the only hand there was. Tapping one is a request to see in the dark
+ * and never a request to fight with it, and getting that order wrong is how the
+ * off hand would ship and change nothing anybody noticed.
+ */
+describe("a tap on a light", () => {
+  const shipped = tilesByIdFromList(normalizeTiles(tilesJson as unknown[]));
+  const lantern = { id: "itm_lamp", tileId: "hand-lantern" };
+  const sword = { id: "itm_sword", tileId: "rusty-sword" };
+
+  it("sends a lantern to the off hand rather than the weapon hand", () => {
+    expect(itemUseFor(lantern, { kind: "contents", index: 0 }, shipped)).toEqual({
+      type: "move",
+      to: { kind: "offhand" },
+    });
+  });
+
+  it("takes it back off again when it is already held", () => {
+    const use = itemUseFor(lantern, { kind: "offhand" }, shipped);
+    expect(use?.type === "move" && use.to.kind).toBe("contents");
+  });
+
+  it("still sends a sword to the hand that swings", () => {
+    expect(itemUseFor(sword, { kind: "contents", index: 0 }, shipped)).toEqual({
+      type: "move",
+      to: { kind: "weapon" },
+    });
   });
 });

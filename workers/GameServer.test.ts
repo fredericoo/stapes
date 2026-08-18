@@ -1338,6 +1338,17 @@ async function savedEquipment(
   return found;
 }
 
+/** What the object wrote down about one player's masteries, if anything. */
+async function savedMasteries(
+  actorId: string,
+): Promise<Record<string, number> | undefined> {
+  let found: { masteries?: Record<string, number> } | undefined;
+  await runInDurableObject(stub(), async (_instance, state) => {
+    found = await state.storage.get(`mast:${actorId}`);
+  });
+  return found?.masteries;
+}
+
 /** The kit a `hello` handed over, in the shape the assertions want it. */
 function kitOf(hello: Record<string, unknown>): { bag: { id: string } } {
   return hello.equipment as { bag: { id: string } };
@@ -1535,7 +1546,8 @@ describe("player permanence", () => {
         const end = Math.min(i + BACKFILL_BATCH, MAX_REMEMBERED_ACTORS + overflow);
         for (let n = i; n < end; n++) {
           batch[`equip:backfill-${n}`] = {
-            equipment: { weapon: null, bag: null },
+            equipment: { weapon: null, offhand: null,
+  bag: null },
             savedAt: n,
           };
         }
@@ -1623,6 +1635,92 @@ describe("player permanence", () => {
     expect(kept).toHaveLength(MAX_REMEMBERED_ACTORS);
     expect(kept).not.toContain("tags:backfill-0");
     expect(kept).toContain(`tags:backfill-${MAX_REMEMBERED_ACTORS + overflow - 1}`);
+  });
+
+  /**
+   * A mastery is the third thing a world owes continuity for, and the one with
+   * no fallback: a lost kit is a sword, and a lost mastery is every fight the
+   * player has ever had.
+   *
+   * Seeded straight into storage rather than earned in a fight, for the reason
+   * the tag test is: what is under test is the load path — `lastMasteriesOf` →
+   * `spawn` → the runtime — and the figure is chosen far above anything the
+   * authored `player` tile could seed, so a block that had been quietly
+   * re-derived from the tile reads as a much smaller number rather than as a
+   * pass.
+   */
+  it("hands a returning player back what they have learnt", async () => {
+    const who = freshPlayer();
+    const EARNED = { blade: 40_000, toughness: 9_000 };
+    await runInDurableObject(stub(), async (_instance, state) => {
+      await state.storage.put(`mast:${who}`, {
+        masteries: EARNED,
+        savedAt: Date.now(),
+      });
+    });
+    await simulateEviction();
+
+    const { ws } = await connect(who);
+    await walkEast(ws);
+    await new Promise((resolve) => setTimeout(resolve, QUIET_MS));
+
+    expect(await savedMasteries(who)).toEqual(EARNED);
+  });
+
+  /**
+   * The one piece of a save that is *arithmetic* rather than a name or a list.
+   *
+   * Everything downstream divides by it, scales by it and compares against it,
+   * so a figure that is not a number has to be refused where it is read. Losing
+   * that player their progress is the cost; a NaN spreading through every swing
+   * they make from then on is the alternative.
+   */
+  it("refuses a stored block of masteries it cannot make sense of", async () => {
+    const who = freshPlayer();
+    await runInDurableObject(stub(), async (_instance, state) => {
+      await state.storage.put(`mast:${who}`, {
+        masteries: { blade: "quite good", agility: -1 },
+        savedAt: Date.now(),
+      });
+    });
+    await simulateEviction();
+
+    const { ws, hello } = await connect(who);
+    expect(hello).toBeDefined();
+
+    await walkEast(ws);
+    await new Promise((resolve) => setTimeout(resolve, QUIET_MS));
+
+    // Re-seeded from the tile, which is what a player who has never fought
+    // looks like — and every figure in it a real number.
+    const written = await savedMasteries(who);
+    for (const earned of Object.values(written ?? {})) {
+      expect(Number.isFinite(earned)).toBe(true);
+    }
+    expect(written?.blade).not.toBeNaN();
+  });
+
+  /** Capped on the same terms the kits, positions and tags are, and separately. */
+  it("drops the least recently saved masteries once the store is full", async () => {
+    const overflow = 5;
+    await runInDurableObject(stub(), async (_instance, state) => {
+      for (let i = 0; i < MAX_REMEMBERED_ACTORS + overflow; i += BACKFILL_BATCH) {
+        const batch: Record<string, unknown> = {};
+        const end = Math.min(i + BACKFILL_BATCH, MAX_REMEMBERED_ACTORS + overflow);
+        for (let n = i; n < end; n++) {
+          batch[`mast:backfill-${n}`] = { masteries: { fist: n }, savedAt: n };
+        }
+        await state.storage.put(batch);
+      }
+    });
+
+    await simulateEviction();
+    await connect(freshPlayer());
+
+    const kept = await storedKeys("mast:");
+    expect(kept).toHaveLength(MAX_REMEMBERED_ACTORS);
+    expect(kept).not.toContain("mast:backfill-0");
+    expect(kept).toContain(`mast:backfill-${MAX_REMEMBERED_ACTORS + overflow - 1}`);
   });
 
   /**
