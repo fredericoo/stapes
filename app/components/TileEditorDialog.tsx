@@ -34,6 +34,7 @@ import {
   AutotileSlicePreview,
   autotileSliceTitle,
 } from "./AutotileSlicePreview";
+import { TileIdMultiSelect } from "./TileIdMultiSelect";
 import { InteractiveTab } from "./InteractiveTab";
 import { BattleTab } from "./BattleTab";
 import { ItemTab } from "./ItemTab";
@@ -623,6 +624,10 @@ export function TileEditorDialog({
       // actorhood needs no redundant `actor: true` alongside it.
       actor: draft.actor ? true : undefined,
       walkDurationMs: isActor ? draft.walkDurationMs : undefined,
+      connectsTo:
+        draft.type === "autotile" && draft.connectsTo?.length
+          ? draft.connectsTo
+          : undefined,
       climbFrom: climbFromForSave(draft, climbByVariant),
       interactions: interactionsForSave(draft.interactions),
       states: savedStates,
@@ -1155,8 +1160,9 @@ export function TileEditorDialog({
                 <p className="text-[11px] leading-snug text-muted">
                   Each icon is a neighborhood: dark green = this tile, light
                   green = matching neighbors. Rendering picks the slice from
-                  nearby same-id tiles. Sparse — only define the shapes you
-                  need (missing falls back to isolated).
+                  nearby tiles that count as this one — its own id, plus
+                  anything under Connects to. Sparse — only define the shapes
+                  you need (missing falls back to isolated).
                 </p>
               </div>
               <div
@@ -1242,6 +1248,14 @@ export function TileEditorDialog({
                 </Button>
               ) : null}
             </div>
+            <TileIdMultiSelect
+              tiles={tiles.filter((t) => t.id !== draft.id)}
+              tilesets={tilesets}
+              selectedIds={draft.connectsTo ?? []}
+              onChange={(connectsTo) => setDraft({ ...draft, connectsTo })}
+              label="Connects to"
+              emptyHint="Only its own id. Pick tiles this one should read as itself when it looks at its neighbours — an opening it should close around, or a window a wall should run through. One-directional: it does not make them read this tile back."
+            />
             {frameEditor}
           </div>
         )}
