@@ -4232,90 +4232,8 @@
     "kind": "battler",
     "attributes": {},
     "lightPassing": true,
-    "walkable": false,
-    "sprites": {
-      "n": {
-        "frames": [
-          {
-            "sprite": {
-              "tilesetId": "animals",
-              "rect": {
-                "x": 0,
-                "y": 2,
-                "w": 1,
-                "h": 2
-              },
-              "base": {
-                "x": 0,
-                "y": 0
-              }
-            },
-            "durationMs": 200
-          }
-        ]
-      },
-      "e": {
-        "frames": [
-          {
-            "sprite": {
-              "tilesetId": "animals",
-              "rect": {
-                "x": 2,
-                "y": 2,
-                "w": 2,
-                "h": 1
-              },
-              "base": {
-                "x": 1,
-                "y": 0
-              }
-            },
-            "durationMs": 200
-          }
-        ]
-      },
-      "s": {
-        "frames": [
-          {
-            "sprite": {
-              "tilesetId": "animals",
-              "rect": {
-                "x": 4,
-                "y": 2,
-                "w": 1,
-                "h": 2
-              },
-              "base": {
-                "x": 0,
-                "y": 1
-              }
-            },
-            "durationMs": 200
-          }
-        ]
-      },
-      "w": {
-        "frames": [
-          {
-            "sprite": {
-              "tilesetId": "animals",
-              "rect": {
-                "x": 6,
-                "y": 2,
-                "w": 2,
-                "h": 1
-              },
-              "base": {
-                "x": 0,
-                "y": 0
-              }
-            },
-            "durationMs": 200
-          }
-        ]
-      }
-    },
     "affectedByGravity": true,
+    "walkable": false,
     "walkDurationMs": 150,
     "interactions": {
       "brain": {
@@ -4540,12 +4458,17 @@
         },
         "naturalWeapon": {
           "type": "weapon",
+          "damage": 2,
           "def": 0,
-          "mastery": "fist",
-          "damage": 1,
-          "spd": 68,
           "accuracy": 78,
-          "variance": 15
+          "variance": 100,
+          "spd": 68,
+          "mastery": "fist"
+        },
+        "range": 1.87,
+        "sight": {
+          "up": 0,
+          "down": 0
         }
       },
       "respawn": {
@@ -4701,6 +4624,88 @@
             ]
           }
         }
+      }
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 0,
+                "y": 2,
+                "w": 1,
+                "h": 2
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 2,
+                "y": 2,
+                "w": 2,
+                "h": 1
+              },
+              "base": {
+                "x": 1,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 4,
+                "y": 2,
+                "w": 1,
+                "h": 2
+              },
+              "base": {
+                "x": 0,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "animals",
+              "rect": {
+                "x": 6,
+                "y": 2,
+                "w": 2,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
       }
     }
   },

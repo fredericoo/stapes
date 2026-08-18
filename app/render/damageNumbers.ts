@@ -27,6 +27,21 @@ import { labelScreenPosition } from "./textLabels";
  */
 const RISE_PX = 22;
 
+/**
+ * How far left a number drifts for every pixel it climbs.
+ *
+ * One, because that is the projection: elevation moves a tile up-*left* in equal
+ * amounts — `elevationScreenOffset` is `{ x: -4e, y: -4e }` — so a number that
+ * rose straight up was the one thing in the layer travelling along an axis the
+ * world does not have. Matching it makes the climb read as height rather than
+ * as a caption sliding off a sprite.
+ *
+ * Applied to the travelled part only. {@link START_LIFT_PX} is clearance to get
+ * clear of the art, not a distance climbed in the world, and skewing that too
+ * would start every number half a glyph to the left of the body it came off.
+ */
+const LEFT_PER_RISE = 1;
+
 /** Where a number starts, relative to its anchor, so it clears the sprite. */
 const START_LIFT_PX = 6;
 
@@ -99,8 +114,10 @@ export class DamageNumberLayer {
       );
       // No fade and no shrink — it simply travels and stops existing, which is
       // what keeps a small number as readable in its last frame as its first.
-      const top = Math.round(anchor.top - START_LIFT_PX - RISE_PX * progress);
-      entry.element.style.setProperty("--label-x", `${anchor.left}px`);
+      const climbed = RISE_PX * progress;
+      const top = Math.round(anchor.top - START_LIFT_PX - climbed);
+      const left = Math.round(anchor.left - LEFT_PER_RISE * climbed);
+      entry.element.style.setProperty("--label-x", `${left}px`);
       entry.element.style.setProperty("--label-y", `${top}px`);
     }
 
@@ -160,9 +177,26 @@ const NOTHING_HAPPENED: Record<Exclude<SwingOutcome, "hit">, string> = {
   dodge: "dodge",
 };
 
-function textFor(number: DamageNumberView): string {
-  if (number.outcome === "hit") return String(number.amount);
-  return NOTHING_HAPPENED[number.outcome];
+/**
+ * A blow that landed and did nothing.
+ *
+ * The third way a swing comes to nothing, and it needed a word of its own for
+ * the reason "miss" and "dodge" did: **a bare `0` is unreadable.** It looks like
+ * a number that failed to render, it is one glyph away from every other figure
+ * in the layer, and it says nothing about *why* — where "blocked" says armour
+ * turned it, which is a different fact from having swung at air.
+ *
+ * It happens on any blow whose damage is stopped outright — defence eating it,
+ * or a weapon whose variance reaches all the way down. A rat authored at damage
+ * 2 with variance 100 rolls one about a quarter of the time, which is exactly
+ * the character that authoring is for and exactly the case a `0` would have made
+ * look broken.
+ */
+const BLOCKED = "blocked";
+
+export function textFor(number: DamageNumberView): string {
+  if (number.outcome !== "hit") return NOTHING_HAPPENED[number.outcome];
+  return number.amount > 0 ? String(number.amount) : BLOCKED;
 }
 
 /**
@@ -172,7 +206,12 @@ function textFor(number: DamageNumberView): string {
  * afford to miss while reading the traffic, and a swing that took none has
  * nothing at stake whoever it happened to.
  */
-function classFor(number: DamageNumberView): string {
-  if (number.outcome !== "hit") return "damage-number damage-number--nothing";
+export function classFor(number: DamageNumberView): string {
+  // A blocked blow reads as nothing rather than as damage, and *whoever* it
+  // happened to: red marks hit points you cannot afford to miss, and a blow that
+  // took none has nothing at stake.
+  if (number.outcome !== "hit" || number.amount <= 0) {
+    return "damage-number damage-number--nothing";
+  }
   return `damage-number${number.own ? " damage-number--own" : ""}`;
 }

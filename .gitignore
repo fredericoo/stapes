@@ -15,3 +15,8 @@
 # Cloudflare
 /.wrangler/
 worker-configuration.d.ts
+
+# Working notes. Plans are how a change gets thought through, not what the
+# repository is for — they go stale the moment the code lands, and a reader
+# finding one has no way to tell which parts still describe the game.
+/plans/
