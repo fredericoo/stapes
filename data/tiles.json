@@ -3294,16 +3294,36 @@
         "frames": [
           {
             "sprite": {
-              "tilesetId": "walls",
+              "tilesetId": "floors",
               "rect": {
-                "x": 8,
+                "x": 1,
                 "y": 4,
-                "w": 2,
-                "h": 2
+                "w": 1,
+                "h": 1
               },
               "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "1": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
                 "x": 1,
-                "y": 1
+                "y": 5,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
               }
             },
             "durationMs": 200
@@ -3314,16 +3334,16 @@
         "frames": [
           {
             "sprite": {
-              "tilesetId": "walls",
+              "tilesetId": "floors",
               "rect": {
-                "x": 8,
-                "y": 6,
-                "w": 2,
-                "h": 2
+                "x": 3,
+                "y": 5,
+                "w": 1,
+                "h": 1
               },
               "base": {
-                "x": 1,
-                "y": 1
+                "x": 0,
+                "y": 0
               }
             },
             "durationMs": 200
@@ -3334,16 +3354,16 @@
         "frames": [
           {
             "sprite": {
-              "tilesetId": "walls",
+              "tilesetId": "floors",
               "rect": {
-                "x": 8,
+                "x": 3,
                 "y": 6,
-                "w": 2,
-                "h": 2
+                "w": 1,
+                "h": 1
               },
               "base": {
-                "x": 1,
-                "y": 1
+                "x": 0,
+                "y": 0
               }
             },
             "durationMs": 200
@@ -3354,16 +3374,176 @@
         "frames": [
           {
             "sprite": {
-              "tilesetId": "walls",
+              "tilesetId": "floors",
               "rect": {
-                "x": 8,
+                "x": 3,
                 "y": 6,
-                "w": 2,
-                "h": 2
+                "w": 1,
+                "h": 1
               },
               "base": {
-                "x": 1,
-                "y": 1
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "5": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 0,
+                "y": 5,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "6": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 2,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "7": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 0,
+                "y": 6,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "8": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 0,
+                "y": 7,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "9": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 0,
+                "y": 7,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "10": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 0,
+                "y": 6,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "11": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 0,
+                "y": 7,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "12": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 0,
+                "y": 7,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
               }
             },
             "durationMs": 200
@@ -3374,16 +3554,16 @@
         "frames": [
           {
             "sprite": {
-              "tilesetId": "walls",
+              "tilesetId": "floors",
               "rect": {
-                "x": 8,
-                "y": 6,
-                "w": 2,
-                "h": 2
+                "x": 2,
+                "y": 5,
+                "w": 1,
+                "h": 1
               },
               "base": {
-                "x": 1,
-                "y": 1
+                "x": 0,
+                "y": 0
               }
             },
             "durationMs": 200
@@ -3394,16 +3574,16 @@
         "frames": [
           {
             "sprite": {
-              "tilesetId": "walls",
+              "tilesetId": "floors",
               "rect": {
-                "x": 8,
+                "x": 2,
                 "y": 6,
-                "w": 2,
-                "h": 2
+                "w": 1,
+                "h": 1
               },
               "base": {
-                "x": 1,
-                "y": 1
+                "x": 0,
+                "y": 0
               }
             },
             "durationMs": 200
@@ -3414,16 +3594,16 @@
         "frames": [
           {
             "sprite": {
-              "tilesetId": "walls",
+              "tilesetId": "floors",
               "rect": {
-                "x": 8,
-                "y": 6,
-                "w": 2,
-                "h": 2
+                "x": 3,
+                "y": 4,
+                "w": 1,
+                "h": 1
               },
               "base": {
-                "x": 1,
-                "y": 1
+                "x": 0,
+                "y": 0
               }
             },
             "durationMs": 200
@@ -3434,16 +3614,16 @@
         "frames": [
           {
             "sprite": {
-              "tilesetId": "walls",
+              "tilesetId": "floors",
               "rect": {
-                "x": 8,
-                "y": 6,
-                "w": 2,
-                "h": 2
+                "x": 3,
+                "y": 7,
+                "w": 1,
+                "h": 1
               },
               "base": {
-                "x": 1,
-                "y": 1
+                "x": 0,
+                "y": 0
               }
             },
             "durationMs": 200
@@ -3454,16 +3634,336 @@
         "frames": [
           {
             "sprite": {
-              "tilesetId": "walls",
+              "tilesetId": "floors",
               "rect": {
-                "x": 8,
-                "y": 6,
-                "w": 2,
-                "h": 2
+                "x": 3,
+                "y": 7,
+                "w": 1,
+                "h": 1
               },
               "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "18": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
                 "x": 1,
-                "y": 1
+                "y": 6,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "19": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 2,
+                "y": 7,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "20": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 1,
+                "y": 7,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "21": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 0,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "22": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 0,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "23": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 1,
+                "y": 7,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "24": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 0,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "25": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 0,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "26": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 1,
+                "y": 6,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "27": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 2,
+                "y": 7,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "28": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 1,
+                "y": 7,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "29": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 0,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "30": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 0,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "31": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 1,
+                "y": 7,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "32": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 0,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "33": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 0,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
               }
             },
             "durationMs": 200
@@ -3474,16 +3974,16 @@
         "frames": [
           {
             "sprite": {
-              "tilesetId": "walls",
+              "tilesetId": "floors",
               "rect": {
-                "x": 8,
+                "x": 2,
                 "y": 6,
-                "w": 2,
-                "h": 2
+                "w": 1,
+                "h": 1
               },
               "base": {
-                "x": 1,
-                "y": 1
+                "x": 0,
+                "y": 0
               }
             },
             "durationMs": 200
@@ -3494,16 +3994,16 @@
         "frames": [
           {
             "sprite": {
-              "tilesetId": "walls",
+              "tilesetId": "floors",
               "rect": {
-                "x": 8,
-                "y": 6,
-                "w": 2,
-                "h": 2
+                "x": 3,
+                "y": 7,
+                "w": 1,
+                "h": 1
               },
               "base": {
-                "x": 1,
-                "y": 1
+                "x": 0,
+                "y": 0
               }
             },
             "durationMs": 200
@@ -3514,16 +4014,1170 @@
         "frames": [
           {
             "sprite": {
-              "tilesetId": "walls",
+              "tilesetId": "floors",
+              "rect": {
+                "x": 3,
+                "y": 7,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "37": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 2,
+                "y": 7,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "38": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 0,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "39": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 0,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "40": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 0,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "41": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 0,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "42": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 2,
+                "y": 7,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "43": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 0,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "44": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 0,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "45": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 0,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "46": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 0,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "wooden-floor-inner",
+    "name": "Wooden floor (inner)",
+    "height": 0,
+    "type": "autotile",
+    "kind": "prop",
+    "attributes": {},
+    "intangible": true,
+    "connectsTo": [
+      "wooden-floor"
+    ],
+    "slices": {
+      "0": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 9,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "1": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 9,
+                "y": 5,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "2": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 11,
+                "y": 5,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "3": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 11,
+                "y": 6,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "4": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 11,
+                "y": 6,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "5": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 8,
+                "y": 5,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "6": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 10,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "7": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
               "rect": {
                 "x": 8,
                 "y": 6,
-                "w": 2,
-                "h": 2
+                "w": 1,
+                "h": 1
               },
               "base": {
-                "x": 1,
-                "y": 1
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "8": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 8,
+                "y": 7,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "9": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 8,
+                "y": 7,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "10": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 8,
+                "y": 6,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "11": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 8,
+                "y": 7,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "12": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 8,
+                "y": 7,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "13": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 10,
+                "y": 5,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "14": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 10,
+                "y": 6,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "15": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 11,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "16": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 11,
+                "y": 7,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "17": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 11,
+                "y": 7,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "18": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 9,
+                "y": 6,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "19": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 10,
+                "y": 7,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "20": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 9,
+                "y": 7,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "21": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 8,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "22": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 8,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "23": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 9,
+                "y": 7,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "24": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 8,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "25": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 8,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "26": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 9,
+                "y": 6,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "27": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 10,
+                "y": 7,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "28": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 9,
+                "y": 7,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "29": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 8,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "30": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 8,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "31": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 9,
+                "y": 7,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "32": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 8,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "33": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 8,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "34": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 10,
+                "y": 6,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "35": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 11,
+                "y": 7,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "36": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 11,
+                "y": 7,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "37": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 10,
+                "y": 7,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "38": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 8,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "39": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 8,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "40": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 8,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "41": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 8,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "42": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 10,
+                "y": 7,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "43": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 8,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "44": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 8,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "45": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 8,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "46": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 8,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
               }
             },
             "durationMs": 200

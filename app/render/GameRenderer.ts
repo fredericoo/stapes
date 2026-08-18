@@ -27,6 +27,7 @@ import {
   topInteractionAt,
   type InteractionOption,
 } from "../game/interactionOptions";
+import { describedNearby } from "./nearbyDescriptions";
 import { WorldLabelLayer, type WorldLabel } from "./textLabels";
 import { FrameProfiler, type FrameStats } from "./frameProfile";
 import { fallDropPx, fallFootAbs, standingFootAbs } from "./fallAnchor";
@@ -1434,10 +1435,14 @@ export class GameRenderer {
   /**
    * Every piece of in-world text this frame: names on heads, speech on cells.
    *
-   * Both are produced here because both are anchored in world pixels and handed
-   * to the same layer, which turns them into screen positions. Names are keyed
-   * by actor and speech by message id, so the two can never collide in the
-   * element cache.
+   * All of it is produced here because it is all anchored in world pixels and
+   * handed to the same layer, which turns them into screen positions. Names are
+   * keyed by actor, speech by message id and a read sign by its slot, so none of
+   * them can collide in the element cache.
+   *
+   * The pointer goes in before the signs around it: the layout pass keeps the
+   * order it was handed within a kind, and the thing you are actually pointing
+   * at is the one that must survive a crowded view.
    */
   private labelsFor(
     snap: GameSnapshot,
@@ -1450,7 +1455,37 @@ export class GameRenderer {
     this.pushNoiseLabels(snap, labels);
     this.forgetStaleAnchors(snap);
     this.pushPointerLabel(snap, labels);
+    this.pushNearbyDescriptionLabels(snap, labels);
     return labels;
+  }
+
+  /**
+   * What the things you are standing among say, in the same blue a look wears.
+   *
+   * Same colour and same anchor as a look on purpose — it is the same fact about
+   * the same placement, arrived at without being asked. What it drops is the
+   * name line: see `./nearbyDescriptions`, which owns the rule for who speaks.
+   *
+   * A placement being looked at is skipped, because the look label is already
+   * saying its words: drawn as well, the layout pass would sit one description
+   * above an identical one and read as a stutter.
+   */
+  private pushNearbyDescriptionLabels(snap: GameSnapshot, into: WorldLabel[]) {
+    for (const near of describedNearby(snap.map, this.tilesById, snap.self)) {
+      if (this.lookMode && sameRef(near.ref, this.lookedAt)) continue;
+
+      const { x, y, z, stackIndex } = near.ref;
+      const ground = this.cellWorldCenter(x, y, z, snap.map, stackIndex);
+      const head = elevationScreenOffset(near.height);
+
+      into.push({
+        id: `described:${x},${y},${z},${stackIndex}`,
+        kind: "look",
+        x: ground.x + head.x,
+        y: ground.y + head.y,
+        lines: [{ id: "description", text: near.text }],
+      });
+    }
   }
 
   /**

@@ -14,8 +14,10 @@ import {
 } from "../app/game/constants";
 import { MINUTES_PER_DAY, minutesOfDayAt } from "../app/lib/clock";
 import { DEV_DATA_PREFIX } from "../app/lib/devData";
+import { resolvePush } from "../app/lib/interactions";
 import { getStack, listCoords } from "../app/lib/mapData";
-import type { FlatMapFile, MapFile } from "../app/lib/types";
+import type { FlatMapFile, MapFile, TileDef } from "../app/lib/types";
+import { tilesByIdFromList } from "../app/lib/validation";
 import { CHAT_MIN_INTERVAL_MS } from "../app/net/chat";
 import {
   CHAT_LOG_MAX_ROWS,
@@ -1794,6 +1796,27 @@ describe("player permanence", () => {
 const BOX_SPAWN = 9;
 const BOX_AT = BOX_SPAWN + 1;
 
+const BOX_TILE_ID = "wooden-box";
+
+/** Laid under the box wherever its own rules allow no ground to be chosen. */
+const ANY_GROUND_TILE_ID = "grass";
+
+/**
+ * The tile the lane is paved with: one the box is authored to slide across.
+ *
+ * Read off the crate's own `push.moveOnTileIds` rather than named here, because
+ * that list is authored content and has been narrowed before — the day the box
+ * stopped moving on anything but dirt, a lane of grass turned every shove in
+ * this file into a refusal, which reads as "nothing was announced" and is
+ * exactly the failure the test below exists to catch. An empty list means
+ * anywhere, and then any ground will do.
+ */
+function laneTileId(): string {
+  const def = tilesByIdFromList(tilesJson as TileDef[])[BOX_TILE_ID];
+  const moveOn = def ? (resolvePush(def)?.moveOnTileIds ?? []) : [];
+  return moveOn[0] ?? ANY_GROUND_TILE_ID;
+}
+
 /**
  * A run-on world with a box beside its spawn point.
  *
@@ -1805,11 +1828,12 @@ function stripWithABox(): {
   map: FlatMapFile;
   spawn: { x: number; y: number; z: number; stackIndex: number };
 } {
+  const ground = laneTileId();
   const levels: Record<string, Record<string, unknown[]>> = { "0": {} };
   for (let x = 0; x <= BOX_AT + 1; x++) {
-    levels["0"]![`${x},0`] = [{ tileId: "grass" }];
+    levels["0"]![`${x},0`] = [{ tileId: ground }];
   }
-  levels["0"]![`${BOX_AT},0`] = [{ tileId: "grass" }, { tileId: "wooden-box" }];
+  levels["0"]![`${BOX_AT},0`] = [{ tileId: ground }, { tileId: BOX_TILE_ID }];
   return {
     map: { version: 1, levels } as FlatMapFile,
     spawn: { x: BOX_SPAWN, y: 0, z: 0, stackIndex: 1 },
