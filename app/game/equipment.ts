@@ -165,16 +165,29 @@ function identified(instance: ItemInstance): ItemInstance {
   return instance.id ? instance : { ...instance, id: mintItemId() };
 }
 
-/** Everything worn or carried, slots and bag contents alike, in a flat list. */
+/**
+ * Every slot on a body, in the order they are reached for.
+ *
+ * Written down once, because "the fields of `Equipment`" is a list two separate
+ * passes had already got out of step with each other — the off hand was the
+ * first slot added and the second one to be forgotten somewhere.
+ */
+const EQUIPMENT_SLOTS = ["weapon", "offhand", "bag"] as const;
+
+/** Everything worn or carried, slots and their contents alike, in a flat list. */
 export function carriedInstances(equipment: Equipment): ItemInstance[] {
   const out: ItemInstance[] = [];
-  if (equipment.weapon) out.push(equipment.weapon);
-  if (equipment.offhand) out.push(equipment.offhand);
-  if (equipment.bag) {
-    out.push(equipment.bag);
+  // Every slot, and what is inside whatever is in it. A hand takes a spare pack
+  // now, so the bag on your back is no longer the only thing on a body with
+  // things inside it — and something missed here is something the id minting
+  // pass never reaches, which is a thing the wire cannot describe.
+  for (const slot of EQUIPMENT_SLOTS) {
+    const instance = equipment[slot];
+    if (!instance) continue;
+    out.push(instance);
     // One level, never recursive: a container may not hold a container, so
     // there is nothing below this to walk.
-    if (equipment.bag.contents) out.push(...equipment.bag.contents);
+    if (instance.contents) out.push(...instance.contents);
   }
   return out;
 }
@@ -188,7 +201,7 @@ export function carriedInstances(equipment: Equipment): ItemInstance[] {
  * was one entry here rather than a hunt through everything that lights a room.
  */
 function wornInstances(equipment: Equipment): ItemInstance[] {
-  return [equipment.weapon, equipment.offhand, equipment.bag].filter(
+  return EQUIPMENT_SLOTS.map((slot) => equipment[slot]).filter(
     (instance): instance is ItemInstance => instance != null,
   );
 }

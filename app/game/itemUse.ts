@@ -83,10 +83,18 @@ export function itemUseFor(
   const def = tilesById[instance.tileId];
   if (!def) return null;
 
-  // A pack on your back is for looking in, and that beats moving it: the drag
-  // is how you take one off. Checked first because a container is the one kind
-  // of item whose slot and whose use disagree.
-  if (resolveContainer(def)) return slot.kind === "bag" ? { type: "open" } : null;
+  // A pack is for looking in, wherever on you it is, and that beats moving it:
+  // the drag is how you take one off. Checked first because a container is the
+  // one kind of item whose slot and whose use disagree — and it is the reason
+  // both hands take one at all, since a bag you could hold but never open would
+  // be a worse place to keep it than the floor.
+  if (resolveContainer(def)) {
+    return slot.kind === "bag" ||
+      slot.kind === "weapon" ||
+      slot.kind === "offhand"
+      ? { type: "open" }
+      : null;
+  }
 
   // **Where the thing belongs**, which is the same answer the floor's "Wield"
   // and "Hold" rows are built from — see `./affordances`' `equipSlotOf`. This

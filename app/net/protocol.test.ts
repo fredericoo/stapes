@@ -44,6 +44,26 @@ index: 0 },
     });
   });
 
+  /** A pack in a hand is a container too, and `of` is which one. */
+  it("takes a contents slot naming the hand it is inside", () => {
+    const from = { kind: "contents", index: 1, of: "offhand" };
+    expect(parsed({ type: "moveItem", from, to: { kind: "weapon" } })).toEqual({
+      type: "moveItem",
+      from,
+      to: { kind: "weapon" },
+    });
+  });
+
+  it("drops a hand nobody has", () => {
+    expect(
+      parsed({
+        type: "moveItem",
+        from: { kind: "contents", index: 0, of: "bag" },
+        to: { kind: "weapon" },
+      }),
+    ).toBeNull();
+  });
+
   it("drops a slot kind nobody defined", () => {
     expect(
       parsed({ type: "moveItem", from: { kind: "hat" }, to: { kind: "weapon" } }),

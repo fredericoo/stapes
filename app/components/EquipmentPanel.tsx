@@ -50,6 +50,7 @@ export function EquipmentPanel({
   equipment,
   masteryXp = {},
   bagOpen,
+  handOpen = null,
   tiles,
   tilesets,
   drag,
@@ -77,6 +78,15 @@ export function EquipmentPanel({
    * has replaced this one entirely.
    */
   bagOpen: boolean;
+  /**
+   * Which hand is holding a container the player has open, if either is.
+   *
+   * A hand takes anything you can carry, a spare pack included — and a pack you
+   * could hold but never look into would be a worse place to keep it than the
+   * floor. So a hand is a third thing that can be open, and it wears the same
+   * yellow the bag slot does.
+   */
+  handOpen?: "weapon" | "offhand" | null;
   tiles: TileDef[];
   tilesets: TilesetDef[];
   /** The one move in progress, page-wide. See `./useItemDrag`. */
@@ -105,6 +115,7 @@ export function EquipmentPanel({
             label="Weapon"
             emptyHint="Weapon — nothing in hand"
             emptyIcon={MainHandIcon}
+            open={handOpen === "weapon"}
             drag={drag}
             inspecting={inspecting}
             masteryXp={masteryXp}
@@ -119,6 +130,7 @@ export function EquipmentPanel({
             label="Off hand"
             emptyHint="Off hand — nothing held"
             emptyIcon={OffHandIcon}
+            open={handOpen === "offhand"}
             drag={drag}
             inspecting={inspecting}
             masteryXp={masteryXp}

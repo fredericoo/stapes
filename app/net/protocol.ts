@@ -605,6 +605,10 @@ const inboundSlotRefSchema = v.variant("kind", [
   v.object({
     kind: v.literal("contents"),
     index: v.pipe(v.number(), v.integer(), v.minValue(0)),
+    // Which container on the body, absent meaning the pack on the back. See
+    // `../game/itemMoves`' `SlotRef`: a hand can hold a pack, and a pack in a
+    // hand is a pack you can move things in and out of.
+    of: v.optional(v.picklist(["weapon", "offhand"])),
   }),
   v.object({
     kind: v.literal("ground"),

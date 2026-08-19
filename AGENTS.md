@@ -218,6 +218,15 @@ the floor is something you notice a fight later. It is the row that works with
 an unequipped player standing over a sword could do nothing with it. It outranks
 `pickUp`, so a plain tap arms you while the slot is free.
 
+**A pack in a hand is a pack you can open**, which is what makes a hand a real
+place to keep one rather than a shelf. `SlotRef`'s `contents` arm gained an
+optional `of` — absent still means the bag on your back — so a position inside a
+container is one arm and one capacity check however many containers a body is
+carrying. `ContainerRef` gained the matching `hand` case, and `GameViewport`
+holds which hand is open beside `bagOpen`, dropping it the moment that hand is
+emptied. `carriedInstances` walks every slot's contents for the same reason: a
+thing it misses is a thing the id-minting pass never reaches.
+
 **The verb is read off the item, never off the slot** (`equipVerb`): you wield a
 sword, you hold a torch, you put on a pack. Since both hands take anything, a
 verb named after the square would have to call a backpack in your fist

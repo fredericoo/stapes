@@ -514,3 +514,116 @@ describe("the bag slot", () => {
     );
   });
 });
+
+/**
+ * A pack held in a hand is a pack, and the squares inside it are squares.
+ *
+ * The one arm that had to learn there is more than one container on a body:
+ * `contents` names *which* now, and absent still means the one on your back.
+ * Everything else — the capacity check, the nesting rule, the append — is the
+ * same code, which is the whole reason it is one arm and not two.
+ */
+describe("a container held in a hand", () => {
+  /** Wearing a pack, holding a second one in the off hand. */
+  function carrying(
+    worn: ItemInstance[] = [],
+    held: ItemInstance[] = [],
+  ): Equipment {
+    return {
+      weapon: null,
+      offhand: { id: "itm_held", tileId: "bag", contents: held },
+      bag: { id: "itm_bag", tileId: "bag", contents: worn },
+    };
+  }
+
+  const HELD_SLOT = { kind: "contents", index: 0, of: "offhand" } as const;
+
+  it("is where a thing put into it ends up", () => {
+    const moved = applyItemMove(
+      emptyMap(),
+      tilesById,
+      ME,
+      carrying([sword("itm_a")]),
+      { kind: "contents", index: 0 },
+      HELD_SLOT,
+    );
+
+    expect(moved?.equipment.bag?.contents).toEqual([]);
+    expect(moved?.equipment.offhand?.contents?.map((i) => i.tileId)).toEqual([
+      "sword",
+    ]);
+  });
+
+  it("is where a thing taken out of it comes from", () => {
+    const moved = applyItemMove(
+      emptyMap(),
+      tilesById,
+      ME,
+      carrying([], [sword("itm_a")]),
+      HELD_SLOT,
+      { kind: "weapon" },
+    );
+
+    expect(moved?.equipment.offhand?.contents).toEqual([]);
+    expect(moved?.equipment.weapon?.tileId).toBe("sword");
+  });
+
+  /** Two squares of one container: there is no reordering, here or anywhere. */
+  it("refuses a shuffle within itself", () => {
+    expect(
+      canMoveItem(
+        emptyMap(),
+        tilesById,
+        ME,
+        carrying([], [sword("itm_a"), sword("itm_b")]),
+        HELD_SLOT,
+        { kind: "contents", index: 1, of: "offhand" },
+      ),
+    ).toBe(false);
+  });
+
+  /** The worn pack and the held one are two containers, so this is a real move. */
+  it("is a different container from the one on your back", () => {
+    expect(
+      canMoveItem(
+        emptyMap(),
+        tilesById,
+        ME,
+        carrying([sword("itm_a")]),
+        { kind: "contents", index: 0 },
+        HELD_SLOT,
+      ),
+    ).toBe(true);
+  });
+
+  it("still refuses a container, because nothing nests", () => {
+    const spare: ItemInstance = { id: "itm_spare", tileId: "bag", contents: [] };
+    expect(
+      canMoveItem(
+        emptyMap(),
+        tilesById,
+        ME,
+        { ...carrying(), weapon: spare },
+        { kind: "weapon" },
+        HELD_SLOT,
+      ),
+    ).toBe(false);
+  });
+
+  it("refuses a slot in a hand holding nothing", () => {
+    expect(
+      canMoveItem(
+        emptyMap(),
+        tilesById,
+        ME,
+        { ...carrying([sword("itm_a")]), offhand: null },
+        { kind: "contents", index: 0 },
+        HELD_SLOT,
+      ),
+    ).toBe(false);
+  });
+
+  it("keys apart from the same index in the worn pack", () => {
+    expect(slotKey(HELD_SLOT)).not.toBe(slotKey({ kind: "contents", index: 0 }));
+  });
+});

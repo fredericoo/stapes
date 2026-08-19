@@ -83,10 +83,22 @@ describe("itemUseFor", () => {
     });
   });
 
-  // No container may hold a container, so the bag slot is the only square in the
-  // game one can be sitting in. This is the case that would matter if that ever
-  // changed, and it must not quietly start opening a panel nothing sized.
-  it("does nothing with a container anywhere but the bag slot", () => {
+  /**
+   * The reason a hand may hold one at all: a pack you could carry but never
+   * look into would be a worse place to keep things than the floor.
+   */
+  it("opens a pack held in either hand", () => {
+    for (const slot of [{ kind: "weapon" } as const, { kind: "offhand" } as const]) {
+      expect(itemUseFor(instance("bag"), slot, tilesById)).toEqual({
+        type: "open",
+      });
+    }
+  });
+
+  // No container may hold a container, so the squares on a body are the only
+  // ones in the game a container can be sitting in. A ground endpoint names a
+  // slot *inside* a box, and nothing that goes there is one.
+  it("does nothing with a container in a slot inside another container", () => {
     expect(
       itemUseFor(
         instance("chest"),

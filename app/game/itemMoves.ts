@@ -62,8 +62,21 @@ export type SlotRef =
    * destination, until `drop` gives it the floor.
    */
   | { kind: "bag" }
-  /** A position inside the bag on your back. */
-  | { kind: "contents"; index: number }
+  /**
+   * A position inside a container you are carrying.
+   *
+   * `of` names which one, and **absent means the bag on your back** — the
+   * overwhelmingly common case, and every slot reference written before a hand
+   * could hold a pack. Both hands take anything you can carry now, a spare
+   * backpack included, and a bag held in one is a bag you can look into: this is
+   * the one arm that had to learn there is more than one container on a body.
+   *
+   * Not a second arm beside `contents`, because it is not a second thing: a
+   * position inside a container is a position inside a container, and two arms
+   * would be the same capacity check, the same nesting rule and the same
+   * append written twice.
+   */
+  | { kind: "contents"; index: number; of?: "weapon" | "offhand" }
   | { kind: "ground"; ref: ObjectRef; index: number };
 
 /**
@@ -73,7 +86,11 @@ export type SlotRef =
  * as the difference, which is what stops the two views drifting apart in the
  * places a player would notice.
  */
-export type ContainerRef = { kind: "bag" } | { kind: "ground"; ref: ObjectRef };
+export type ContainerRef =
+  | { kind: "bag" }
+  /** A container held in one of your hands, rather than worn. */
+  | { kind: "hand"; hand: "weapon" | "offhand" }
+  | { kind: "ground"; ref: ObjectRef };
 
 /**
  * A container on the floor that somebody has open, and where it is.
@@ -89,9 +106,23 @@ export type OpenedContainer = { instance: ItemInstance; ref: ObjectRef };
 
 /** The slot at a position in a container being looked into. */
 export function slotIn(container: ContainerRef, index: number): SlotRef {
-  return container.kind === "bag"
-    ? { kind: "contents", index }
-    : { kind: "ground", ref: container.ref, index };
+  if (container.kind === "bag") return { kind: "contents", index };
+  if (container.kind === "hand") {
+    return { kind: "contents", index, of: container.hand };
+  }
+  return { kind: "ground", ref: container.ref, index };
+}
+
+/**
+ * Which slot on the body holds the container a `contents` reference is inside.
+ *
+ * One place, because "absent means the bag" is a default and a default written
+ * out at six call sites is six chances to forget it.
+ */
+function contentsHolder(slot: {
+  of?: "weapon" | "offhand";
+}): "bag" | "weapon" | "offhand" {
+  return slot.of ?? "bag";
 }
 
 /**
@@ -104,7 +135,9 @@ export function slotKey(slot: SlotRef): string {
   if (slot.kind === "weapon") return "weapon";
   if (slot.kind === "offhand") return "offhand";
   if (slot.kind === "bag") return "bag";
-  if (slot.kind === "contents") return `contents:${slot.index}`;
+  if (slot.kind === "contents") {
+    return `contents:${contentsHolder(slot)}:${slot.index}`;
+  }
   const { x, y, z, stackIndex } = slot.ref;
   return `ground:${x},${y},${z},${stackIndex}:${slot.index}`;
 }
@@ -112,6 +145,9 @@ export function slotKey(slot: SlotRef): string {
 /** Are these two slots in the same container, or the same single slot? */
 function sameContainer(a: SlotRef, b: SlotRef): boolean {
   if (a.kind !== b.kind) return false;
+  if (a.kind === "contents" && b.kind === "contents") {
+    return contentsHolder(a) === contentsHolder(b);
+  }
   if (a.kind !== "ground" || b.kind !== "ground") return true;
   return (
     a.ref.x === b.ref.x &&
@@ -199,7 +235,7 @@ export function itemInSlot(
   if (slot.kind === "offhand") return equipment.offhand;
   if (slot.kind === "bag") return equipment.bag;
   if (slot.kind === "contents") {
-    return equipment.bag?.contents?.[slot.index] ?? null;
+    return equipment[contentsHolder(slot)]?.contents?.[slot.index] ?? null;
   }
   const placed = groundContainerAt(map, tilesById, actor, slot.ref);
   return placed?.contents?.[slot.index] ?? null;
@@ -223,9 +259,9 @@ function slotHasRoom(
   if (slot.kind === "offhand") return equipment.offhand === null;
   if (slot.kind === "bag") return equipment.bag === null;
   if (slot.kind === "contents") {
-    const bag = equipment.bag;
-    if (!bag) return false;
-    return (bag.contents?.length ?? 0) < capacityOf(bag, tilesById);
+    const holder = equipment[contentsHolder(slot)];
+    if (!holder) return false;
+    return (holder.contents?.length ?? 0) < capacityOf(holder, tilesById);
   }
   const placed = groundContainerAt(map, tilesById, actor, slot.ref);
   if (!placed) return false;
@@ -358,14 +394,15 @@ export function clearSlot(
   }
 
   if (slot.kind === "contents") {
-    const bag = equipment.bag;
-    const contents = bag?.contents;
-    if (!bag || !contents?.[slot.index]) return null;
+    const where = contentsHolder(slot);
+    const holder = equipment[where];
+    const contents = holder?.contents;
+    if (!holder || !contents?.[slot.index]) return null;
     return {
       map,
       equipment: {
         ...equipment,
-        bag: { ...bag, contents: removeAt(contents, slot.index) },
+        [where]: { ...holder, contents: removeAt(contents, slot.index) },
       },
     };
   }
@@ -407,13 +444,14 @@ function fillSlot(
   }
 
   if (slot.kind === "contents") {
-    const bag = equipment.bag;
-    if (!bag) return null;
+    const where = contentsHolder(slot);
+    const holder = equipment[where];
+    if (!holder) return null;
     return {
       map,
       equipment: {
         ...equipment,
-        bag: { ...bag, contents: [...(bag.contents ?? []), instance] },
+        [where]: { ...holder, contents: [...(holder.contents ?? []), instance] },
       },
     };
   }
