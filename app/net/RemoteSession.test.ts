@@ -825,3 +825,134 @@ describe("RemoteSession attack mode", () => {
     expect(framesOfType(socket, "attackMode")).toEqual([]);
   });
 });
+
+/**
+ * Death, which is the one thing on this wire the client cannot work out for
+ * itself.
+ *
+ * A body missing from the board is the ordinary state of somebody walking
+ * through a doorway this client has not been patched about yet, so "dead" has
+ * to be *told* — and it is told once, after which the socket goes silent until
+ * this side asks for a body back.
+ */
+describe("RemoteSession death", () => {
+  /** The kit a death leaves behind: nothing, because it is all on the floor. */
+  function died(equipment = emptyEquipment()) {
+    return { type: "died", equipment };
+  }
+
+  /** The whole state a `rebirth` is answered with. @see GameServer.rebirth */
+  function helloAgain() {
+    return {
+      type: "hello",
+      selfId: SELF,
+      map: flatMap(),
+      actorIds: [SELF],
+      playerCount: 1,
+      minutesOfDay: SERVER_MINUTES,
+      hps: [],
+      carriedLights: [],
+      equipment: emptyEquipment(),
+      tags: [],
+      statuses: [],
+    };
+  }
+
+  it("tells a listener the moment the server says so", () => {
+    const { socket, session } = connected();
+    const seen: boolean[] = [];
+    session.setOnDead((dead) => seen.push(dead));
+
+    socket.deliver(died());
+
+    expect(seen).toEqual([false, true]);
+    expect(session.isDead()).toBe(true);
+  });
+
+  it("tells a listener that arrives after the death", () => {
+    const { socket, session } = connected();
+    socket.deliver(died());
+
+    const seen: boolean[] = [];
+    session.setOnDead((dead) => seen.push(dead));
+
+    expect(seen).toEqual([true]);
+  });
+
+  /**
+   * The kit rides on the death rather than on an `equipment` message, because
+   * the runtime an `equipment` message is read off is what the death deletes.
+   * Without this the panel keeps showing a sword that is lying on the floor.
+   */
+  it("takes the emptied kit off the death itself", () => {
+    const { socket, session } = connected();
+
+    socket.deliver(died());
+
+    expect(session.getSnapshot().equipment).toEqual(emptyEquipment());
+  });
+
+  /**
+   * The chips are the viewer's own and are flushed off a live runtime, which a
+   * death deletes — so nothing else would ever take them down, and a corpse
+   * would sit there poisoned behind the screen.
+   */
+  it("takes the statuses off a body that is gone", () => {
+    const { socket, session } = connected();
+    socket.deliver({
+      type: "statuses",
+      statuses: [{ defId: "poison", remainingMs: 5000, durationMs: 10_000 }],
+    });
+    expect(session.getSnapshot().self.statuses).toHaveLength(1);
+
+    socket.deliver(died());
+
+    expect(session.getSnapshot().self.statuses).toEqual([]);
+  });
+
+  it("stops stepping once it is dead", () => {
+    const { socket, session } = connected();
+    socket.deliver(died());
+
+    session.setInput({ directions: ["e"] });
+
+    // Told rather than inferred: the body is still on this client's copy of the
+    // board — the patch that removes it is a separate message — so nothing but
+    // the death itself could have stopped this step.
+    expect(framesOfType(socket, "step")).toEqual([]);
+  });
+
+  it("asks for a body back, and only while it has none", () => {
+    const { socket, session } = connected();
+
+    session.rebirth();
+    expect(framesOfType(socket, "rebirth")).toEqual([]);
+
+    socket.deliver(died());
+    session.rebirth();
+
+    expect(framesOfType(socket, "rebirth")).toEqual([{ type: "rebirth" }]);
+  });
+
+  it("comes back to life on the hello that answers it", () => {
+    const { socket, session } = connected();
+    socket.deliver(died());
+    const seen: boolean[] = [];
+    session.setOnDead((dead) => seen.push(dead));
+
+    socket.deliver(helloAgain());
+
+    expect(seen).toEqual([true, false]);
+    expect(session.isDead()).toBe(false);
+  });
+
+  it("steps again once it has a body", () => {
+    const { socket, session } = connected();
+    socket.deliver(died());
+    socket.deliver(helloAgain());
+
+    session.setInput({ directions: ["e"] });
+
+    expect(framesOfType(socket, "step")).toHaveLength(1);
+  });
+});

@@ -2299,8 +2299,10 @@ export class GameSession implements PlaySession {
    *
    * The tile goes and so does the runtime, which for a player is exactly the
    * intent: with no actor by that name the server ignores everything their
-   * socket sends, so a dead player can sit there connected and do nothing until
-   * they reload and are handed a fresh body. There is no respawn.
+   * socket sends, so a dead player sits there connected and can do nothing —
+   * which is what the death screen is drawn over. The one thing that gets past
+   * that gate is the request for a body back; see `GameServer.rebirth`. There
+   * is still no automatic respawn: coming back is something they ask for.
    *
    * **The kit does not go with the runtime.** It is dropped onto the corpse's
    * cell first, so a sword somebody picked up a moment ago is still a sword in

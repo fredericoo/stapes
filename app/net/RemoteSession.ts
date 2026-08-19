@@ -238,6 +238,21 @@ export class RemoteSession implements PlaySession {
   private lastSelf: ActorSnapshot | null = null;
   private ready = false;
   private onReady: (() => void) | null = null;
+  /**
+   * Whether this player's body has been taken off the board for good.
+   *
+   * Told rather than inferred, though the map would appear to say it: a body is
+   * missing from the board for a whole second every time somebody walks through
+   * a doorway the client has not been patched about yet, and the difference
+   * between "not there" and "dead" is the difference between a moment's stale
+   * map and a screen the player cannot dismiss.
+   *
+   * It is also what the silence means. From the death onwards the server sends
+   * this socket nothing at all, so the board frozen on screen is not a world
+   * that stopped — it is one nobody is telling us about any more.
+   */
+  private dead = false;
+  private onDead: ((dead: boolean) => void) | null = null;
   /** How many people the server last said were here. */
   private players = 0;
   private onPlayers: ((count: number) => void) | null = null;
@@ -261,6 +276,37 @@ export class RemoteSession implements PlaySession {
   }
 
   /**
+   * Watch for this player's death, and for their coming back from it.
+   *
+   * Pushed rather than polled, like the headcount: it changes twice in a
+   * session at most, and asking every frame would be a render per frame of a
+   * boolean that is almost always false. Fires on registration too, so a
+   * listener that arrives after the death still learns about it.
+   */
+  setOnDead(cb: ((dead: boolean) => void) | null) {
+    this.onDead = cb;
+    cb?.(this.dead);
+  }
+
+  isDead(): boolean {
+    return this.dead;
+  }
+
+  /**
+   * Ask for a body again.
+   *
+   * The one thing this session can do while dead, and it is sent rather than
+   * predicted: where somebody comes back in is the server's answer, and the
+   * reply is a whole `hello` that resets this client outright. Nothing is
+   * cleared here — the `hello` handler does all of it, on the same path a
+   * replaced world takes.
+   */
+  rebirth() {
+    if (!this.dead) return;
+    this.send({ type: "rebirth" });
+  }
+
+  /**
    * Watch the headcount.
    *
    * Pushed rather than polled because it changes on somebody else's timetable
@@ -275,6 +321,13 @@ export class RemoteSession implements PlaySession {
 
   playerCount(): number {
     return this.players;
+  }
+
+  /** Note a death or a return, telling anyone watching if it changed. */
+  private setDead(dead: boolean) {
+    if (dead === this.dead) return;
+    this.dead = dead;
+    this.onDead?.(dead);
   }
 
   /** Take a headcount from the wire, telling anyone watching if it moved. */
@@ -356,6 +409,11 @@ export class RemoteSession implements PlaySession {
       this.applyHps(message.hps);
       this.applyCarriedLights(message.carriedLights);
       this.setPlayers(message.playerCount);
+      // A `hello` is a body, whichever of the two sent it: the answer to
+      // `rebirth`, or a world replaced under a socket that happened to be dead
+      // in the old one. Either way there is somebody on the board again, and
+      // the screen saying otherwise has to come down.
+      this.setDead(false);
       this.ready = true;
       this.onReady?.();
       return;
@@ -408,6 +466,31 @@ export class RemoteSession implements PlaySession {
     if (message.type === "masteries") {
       // Whole state, like everything else addressed to one socket here.
       this.masteryXp = message.masteryXp;
+      return;
+    }
+
+    if (message.type === "died") {
+      // The kit first, so the panel is right on the frame the screen goes up.
+      // It comes on this message rather than on an `equipment` one because
+      // there is no longer a body for the server to read one off — see the
+      // protocol's note. Normally empty: everything is on the floor where the
+      // patch just before this put it.
+      this.equipment = message.equipment;
+      // Dropped before the flag rather than left to {@link setInput}'s gate:
+      // that gate stops anything *new* arriving, and this is what a key already
+      // down when the blow landed leaves behind. A step still pending is in the
+      // same position — the socket is silent from here, so no patch is coming
+      // that could confirm or refuse it.
+      this.held = { directions: [] };
+      this.pending = [];
+      // Stated locally rather than sent, unlike the kit beside it. What is left
+      // in the bag is a real question — normally nothing, sometimes the whole
+      // kit the cell refused — so the server has to answer it. What a corpse is
+      // still poisoned with is not a question: a body off the board carries
+      // none, and `flushStatuses` cannot say so because it reads the runtime
+      // the death deleted. Left alone, the chips would sit there on a corpse.
+      this.statuses = NO_STATUSES;
+      this.setDead(true);
       return;
     }
 
@@ -1394,6 +1477,12 @@ export class RemoteSession implements PlaySession {
    * and it is free to not spend.
    */
   setInput(input: GameInput) {
+    // A dead session holds nothing and predicts nothing. The keyboard is still
+    // bound — it listens on the window, which the death screen does not cover —
+    // so this is where a key held through a death stops meaning anything, and
+    // where a key pressed at the screen stops being a step waiting to be taken
+    // the moment a body exists again.
+    if (this.dead) return;
     this.held = {
       directions: [...input.directions],
       faceOnly: input.faceOnly,

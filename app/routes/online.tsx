@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { data, useLoaderData } from "react-router";
 import type { Route } from "./+types/online";
 import { AppShell } from "../components/AppShell";
+import { DeathScreen } from "../components/DeathScreen";
 import { FrameStatsReadout } from "../components/FrameStatsReadout";
 import { GameViewport } from "../components/GameViewport";
 import { InkDocument } from "../components/InkDocument";
@@ -125,6 +126,16 @@ export default function OnlinePage() {
     if (typing) inputRef.current?.clear();
   }, []);
   const [status, setStatus] = useState<Status>("connecting");
+  /**
+   * Whether this player has been killed and has not asked for a body back.
+   *
+   * Page state rather than the renderer's, unlike the vitals beside it, because
+   * what it changes is the page: everything under the death screen goes `inert`
+   * for as long as it is true, and that is a React attribute on a real element
+   * rather than something a frame can draw.
+   */
+  const [dead, setDead] = useState(false);
+  const rebirth = useCallback(() => sessionRef.current?.rebirth(), []);
   // Placeholder until `hello` says what time it is out there. Nobody scrubs it:
   // the hour belongs to the world, not to whoever is looking at it.
   const [minutesOfDay, setMinutesOfDay] = useState<MinutesOfDay>(
@@ -261,6 +272,11 @@ export default function OnlinePage() {
       // And the loading screen comes back for the same reason: the next
       // renderer starts with an empty canvas, and a reconnect can take a while.
       setPainted(false);
+      // A death belongs to the session that announced it. The next one opens
+      // with a `hello`, which is a body by definition — so carrying the screen
+      // across a reconnect would put a Rebirth button over a world this player
+      // is already standing in.
+      setDead(false);
     };
 
     const connect = () => {
@@ -276,6 +292,11 @@ export default function OnlinePage() {
       // is not missed — it lands well ahead of the renderer this page otherwise
       // waits for.
       remote.setOnPlayers(setPlayers);
+      // Registered here rather than in `setOnReady` for a sharper version of
+      // the same reason: a death can only reach a session that is live, but a
+      // *reconnect* builds a fresh one, and a listener attached on the renderer
+      // path would be one the second session never got.
+      remote.setOnDead(setDead);
 
       // The renderer only starts once there is a world: it centres on the
       // viewer's own actor, and before `hello` there is nobody to centre on.
@@ -359,81 +380,94 @@ export default function OnlinePage() {
   );
 
   return (
-    <AppShell
-      menuExtras={
-        <>
-          <div
-            className="flex items-center gap-2"
-            // Announced, unlike the clock: the headcount changes only when
-            // somebody actually arrives or leaves, which is worth hearing.
-            role="status"
-          >
-            <span className="text-xs uppercase text-paper/70">Players</span>
-            <span className="border-2 border-paper/40 px-1.5 py-0.5 text-xs tabular-nums text-paper">
-              {players ?? "—"}
-            </span>
+    <>
+      {/* Everything the game is, taken out of reach in one place while this
+          player is dead. `inert` rather than a pile of `disabled` props and a
+          `pointer-events: none`: it is the browser's own answer to "this
+          subtree is not interactive", so it covers the pointer, the tab order,
+          the arrow keys reaching a focused field and anything read aloud —
+          none of which an overlay drawn on top of them covers. The wrapper
+          exists for the attribute and takes the height back, because the shell
+          under it is sized against its parent. */}
+      <div className="h-full" inert={dead}>
+        <AppShell
+          menuExtras={
+            <>
+              <div
+                className="flex items-center gap-2"
+                // Announced, unlike the clock: the headcount changes only when
+                // somebody actually arrives or leaves, which is worth hearing.
+                role="status"
+              >
+                <span className="text-xs uppercase text-paper/70">Players</span>
+                <span className="border-2 border-paper/40 px-1.5 py-0.5 text-xs tabular-nums text-paper">
+                  {players ?? "—"}
+                </span>
+              </div>
+              <FrameStatsReadout stats={stats} />
+              {status === "live" ? statusChip : null}
+              <LightingToggle
+                enabled={lightingEnabled}
+                onChange={setLightingEnabled}
+              />
+            </>
+          }
+          trailing={
+            <>
+              {status === "live" ? null : statusChip}
+              <span
+                className="border-2 border-paper/40 px-1.5 py-0.5 text-xs tabular-nums text-paper"
+                // Named rather than announced: the hour changes every second, so
+                // a live region here would talk over everything else.
+                aria-label={`Time of day, ${formatClock(minutesOfDay)}`}
+              >
+                {formatClock(minutesOfDay)}
+              </span>
+            </>
+          }
+        >
+          {/* Outside the wrapper below and not inside the viewport it is about: the
+              viewport waits on its assets, and the document would be cream around
+              the loading screen until they arrived. */}
+          <InkDocument />
+          {/* The screen sits over the game rather than instead of it, because it
+              outlasts the moment the canvas mounts — see `painted`. */}
+          <div className="relative h-full w-full">
+            {assetsReady ? (
+              <GameViewport
+                canvasRef={canvasRef}
+                labelRef={labelRef}
+                onDirectionPress={pressDirection}
+                onDirectionRelease={releaseDirection}
+                onSay={say}
+                onTypingChange={noteTyping}
+                looking={looking}
+                onLookingChange={setLookLatched}
+                attacking={attacking}
+                onAttackingChange={setAttacking}
+                interactions={interactions}
+                onInteract={act}
+                onHoverInteraction={hoverInteraction}
+                equipment={equipment}
+                masteryXp={masteryXp}
+                vitals={vitals}
+                statuses={activeStatuses(vitals.statuses, statusDefs)}
+                openedContainer={openedContainer}
+                onOpenContainer={openContainer}
+                canMoveItem={canMoveItem}
+                onMoveItem={moveItem}
+                onConsumeItem={consumeItem}
+                onDragOverWorld={dragOverWorld}
+                onDropOnWorld={dropOnWorld}
+                tiles={tiles}
+                tilesets={tilesets}
+              />
+            ) : null}
+            {painted ? null : <LoadingScreen />}
           </div>
-          <FrameStatsReadout stats={stats} />
-          {status === "live" ? statusChip : null}
-          <LightingToggle
-            enabled={lightingEnabled}
-            onChange={setLightingEnabled}
-          />
-        </>
-      }
-      trailing={
-        <>
-          {status === "live" ? null : statusChip}
-          <span
-            className="border-2 border-paper/40 px-1.5 py-0.5 text-xs tabular-nums text-paper"
-            // Named rather than announced: the hour changes every second, so
-            // a live region here would talk over everything else.
-            aria-label={`Time of day, ${formatClock(minutesOfDay)}`}
-          >
-            {formatClock(minutesOfDay)}
-          </span>
-        </>
-      }
-    >
-      {/* Outside the wrapper below and not inside the viewport it is about: the
-          viewport waits on its assets, and the document would be cream around
-          the loading screen until they arrived. */}
-      <InkDocument />
-      {/* The screen sits over the game rather than instead of it, because it
-          outlasts the moment the canvas mounts — see `painted`. */}
-      <div className="relative h-full w-full">
-        {assetsReady ? (
-          <GameViewport
-            canvasRef={canvasRef}
-            labelRef={labelRef}
-            onDirectionPress={pressDirection}
-            onDirectionRelease={releaseDirection}
-            onSay={say}
-            onTypingChange={noteTyping}
-            looking={looking}
-            onLookingChange={setLookLatched}
-            attacking={attacking}
-            onAttackingChange={setAttacking}
-            interactions={interactions}
-            onInteract={act}
-            onHoverInteraction={hoverInteraction}
-            equipment={equipment}
-            masteryXp={masteryXp}
-            vitals={vitals}
-            statuses={activeStatuses(vitals.statuses, statusDefs)}
-            openedContainer={openedContainer}
-            onOpenContainer={openContainer}
-            canMoveItem={canMoveItem}
-            onMoveItem={moveItem}
-            onConsumeItem={consumeItem}
-            onDragOverWorld={dragOverWorld}
-            onDropOnWorld={dropOnWorld}
-            tiles={tiles}
-            tilesets={tilesets}
-          />
-        ) : null}
-        {painted ? null : <LoadingScreen />}
+        </AppShell>
       </div>
-    </AppShell>
+      {dead ? <DeathScreen onRebirth={rebirth} /> : null}
+    </>
   );
 }
