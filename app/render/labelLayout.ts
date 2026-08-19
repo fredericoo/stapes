@@ -208,9 +208,10 @@ function wantedRect(
  * bar belonged to whatever was standing over there instead.
  *
  * So the bar is placed on the anchor directly, and pulled inside the view by its
- * own width. Every reading is 24 bricks wide whoever it belongs to, which is why
+ * own width. Every reading is one cell wide whoever it belongs to, which is why
  * this can be true where it cannot be for the name: a bar has room to stay on
- * its target long after a name has had to slide off it.
+ * its target long after a name has had to slide off it, and two bars on
+ * neighbouring cells are two readings rather than one smear.
  */
 function barLeftFor(
   request: LabelRequest,

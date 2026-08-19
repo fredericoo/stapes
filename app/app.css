@@ -139,6 +139,12 @@ textarea {
   --label-yellow: #ffd23f;
   /* Exactly one of the font's own pixels, since the em is 10 of them. */
   --world-label-brick: calc(var(--world-label-size) / 10);
+  /* Carried on the layer as well as on each label, so a brick can be read back
+     out of a computed font size — `./render/textLabels` sizes a health bar to a
+     cell and needs the brick as a real length, which a custom property holding
+     a `calc` is not. Every child sets the same size explicitly, so this changes
+     nothing about what is drawn. */
+  font-size: var(--world-label-size);
   /* The four offsets the outline is built from, one and two bricks either way.
      Named short because they are about to be written out two dozen times — see
      `.world-label` for the shape they make and why it takes that many. */
@@ -318,19 +324,23 @@ textarea {
      on a small screen, where the world is zoomed out and the text is at its
      coarsest while the bar stays razor sharp.
 
-     Width is written from `HEALTH_BAR_BRICKS` when the element is built, so the
-     track and the fill dividing it are one number in one place. */
+     Width is written by `./render/textLabels` rather than here, because it is
+     not a constant: a track is exactly one cell wide, rounded down to whole
+     bricks, so that two creatures standing side by side have two bars that
+     cannot touch — see `healthBarTrackBricks`. */
   /* Content-box, against Tailwind's global border-box, and it is load-bearing:
      these lengths count *fill* bricks, which is what the width written from
-     `HEALTH_BAR_BRICKS` means. Under border-box the height would be the whole
-     box, both borders would eat it, and the fill would be left with next to
-     nothing — a bar that renders as a solid black sliver whatever the health. */
+     `healthBarTrackBricks` means — that function has already taken the border
+     below off a cell. Under border-box the height would be the whole box, both
+     borders would eat it, and the fill would be left with next to nothing — a
+     bar that renders as a solid black sliver whatever the health. */
   box-sizing: content-box;
-  /* Four bricks of fill rather than two, which is the height at which the fill
-     is thick enough to carry its colour — the entire job, since a player reads
-     "it went red" long before they read a length. Two read as a rule drawn under
-     the name rather than as a gauge. */
-  height: calc(var(--world-label-brick) * 4);
+  /* Height comes from `./render/textLabels` with the width, and for the same
+     reason: a track is a cell long, and how thick that should be depends on how
+     long it turned out — see `healthBarFillHeightBricks`. Fixed at four bricks
+     it read as a gauge on a monitor and very nearly as a square on a phone. */
+  /* One brick a side, and `TRACK_BORDER_BRICKS` in `./render/healthBar` is the
+     same number: the track is fitted to a cell with this counted in. */
   border: var(--world-label-brick) solid #000;
   background: #1a1014;
   /* The fill starts at the left edge and grows right, like every health bar. */

@@ -15,7 +15,7 @@ import type {
 import type { TileDef, TilesetDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import {
-  HEALTH_BAR_BRICKS,
+  HEALTH_BAR_FILL_STEPS,
   healthBarColor,
   healthBarFillBricks,
   healthFraction,
@@ -261,10 +261,11 @@ function InteractionRow({
  * The reading and its colour come from `../render/healthBar`, which is the same
  * arithmetic the bar over the creature's head runs: a row that went red at a
  * different moment than the world did would be two gauges to learn instead of
- * one. The fill is stated in that module's bricks and turned into a percentage
- * here — what the bricks are buying is the rounding, not the pixels. A creature
- * on its last hit point keeps a visible sliver, and one that has taken a
- * scratch never rounds back up to a full track.
+ * one. The fill is stated in that module's steps and turned into a percentage
+ * here — what the steps are buying is the rounding, not the pixels, which is why
+ * this row keeps the default count while a bar in the world takes its own from
+ * the width of a cell. A creature on its last hit point keeps a visible sliver,
+ * and one that has taken a scratch never rounds back up to a full track.
  *
  * Named for a screen reader rather than left as decoration, because the bar is
  * the only place this number appears. It is a label rather than text on purpose:
@@ -282,7 +283,7 @@ function RowHealth({ health }: { health: { hp: number; maxHp: number } }) {
     >
       <span
         style={{
-          width: `${(healthBarFillBricks(fraction) / HEALTH_BAR_BRICKS) * 100}%`,
+          width: `${(healthBarFillBricks(fraction) / HEALTH_BAR_FILL_STEPS) * 100}%`,
           backgroundColor: healthBarColor(fraction),
         }}
       />

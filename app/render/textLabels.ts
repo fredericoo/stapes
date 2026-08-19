@@ -42,10 +42,12 @@
  * a crowd of boxes without knowing how big the boxes are.
  */
 
+import { CELL_SIZE } from "../lib/types";
 import {
-  HEALTH_BAR_BRICKS,
   healthBarColor,
   healthBarFillBricks,
+  healthBarFillHeightBricks,
+  healthBarTrackBricks,
 } from "./healthBar";
 import {
   type LabelKind,
@@ -158,23 +160,49 @@ const ANCHOR_CLEARANCE_EMS = 2;
 const BAR_CLASS = "world-label__bar";
 
 /**
+ * Bricks to an em of the label font.
+ *
+ * The font is ten of its own pixels tall to the em, which is what lets a brick
+ * be read back off a computed font size rather than copied out of the
+ * stylesheet — `--world-label-brick` is that same division, in CSS.
+ */
+const BRICKS_PER_EM = 10;
+
+/**
  * Point a bar at a health reading.
  *
- * Width and colour only — never structure — so this can run every frame for
- * every battler on screen without touching layout. The track is the last child
- * of the group; a group whose signature says it has a bar always has one.
+ * Fill width and colour only — never the track, and never structure — so this
+ * can run every frame for every battler on screen without touching layout. The
+ * track is the last child of the group; a group whose signature says it has a
+ * bar always has one.
  */
-function fillBar(element: HTMLDivElement, fraction: number) {
+function fillBar(
+  element: HTMLDivElement,
+  fraction: number,
+  trackBricks: number,
+) {
   const fill = element.querySelector<HTMLElement>(`.${BAR_CLASS} > div`);
   if (!fill) return;
   // In bricks, not per cent: the fill has to step on the same grid the letters
   // sit on, or the bar is drawn at a finer resolution than the text beside it.
-  fill.style.width = brickWidth(healthBarFillBricks(fraction));
+  fill.style.width = brickLength(healthBarFillBricks(fraction, trackBricks));
   fill.style.backgroundColor = healthBarColor(fraction);
 }
 
-/** A length in font bricks, as CSS. @see HEALTH_BAR_BRICKS */
-function brickWidth(bricks: number): string {
+/**
+ * Give a track its box: a cell long, and thick in proportion to that.
+ *
+ * Both dimensions together, because they are one shape — a length set without
+ * the thickness that goes with it is the bar that looked square on a phone. This
+ * is layout, unlike {@link fillBar}, so it runs only when the zoom moves.
+ */
+function shapeTrack(track: HTMLElement, trackBricks: number) {
+  track.style.width = brickLength(trackBricks);
+  track.style.height = brickLength(healthBarFillHeightBricks(trackBricks));
+}
+
+/** A length in font bricks, as CSS. @see healthBarTrackBricks */
+function brickLength(bricks: number): string {
   return `calc(var(--world-label-brick) * ${bricks})`;
 }
 
@@ -260,6 +288,21 @@ export class WorldLabelLayer {
   private view: { width: number; height: number };
   /** Ids in the order they are currently stacked. @see restack */
   private stacking = "";
+  /**
+   * The track length every bar on screen is currently drawn at, in bricks.
+   *
+   * One number for the whole layer rather than one per bar, because it is
+   * decided by the zoom and every cell is the same size: two bars of different
+   * lengths would be two scales to read at once. Zero until the first frame has
+   * a scale to work it out from. @see healthBarTrackBricks
+   */
+  private trackBricks = 0;
+  /**
+   * A brick in CSS pixels, read off the layer's own type rather than copied out
+   * of the stylesheet, and held because it only moves when the font size does.
+   * @see BRICKS_PER_EM
+   */
+  private brickPx: number | null = null;
   private readonly resize: ResizeObserver | null;
   /**
    * Every held measurement is a claim about a box drawn in a particular face,
@@ -275,6 +318,7 @@ export class WorldLabelLayer {
    * gets its labels re-measured, instead of leaving them wrong for the session.
    */
   private readonly onFontsLoaded = () => {
+    this.brickPx = null;
     for (const entry of this.entries.values()) entry.size = null;
   };
 
@@ -320,6 +364,47 @@ export class WorldLabelLayer {
   }
 
   /**
+   * Fit every track to a cell, and only when the zoom has actually moved one.
+   *
+   * A track's length is layout — the layout pass places a bar on its own anchor
+   * and needs to know how wide it turned out — so this runs in the sync phase,
+   * before anything is measured, and writes nothing on the frames where the
+   * answer has not changed. Which is almost all of them: the scale moves when
+   * the window does, and the window does not move sixty times a second.
+   *
+   * A new length makes every held measurement a claim about a box that no longer
+   * exists, so they go with it — the same reason a resize drops them.
+   */
+  private sizeTracks(cssScale: number) {
+    const bricks = healthBarTrackBricks(CELL_SIZE * cssScale, this.brick());
+    if (bricks === this.trackBricks) return;
+    this.trackBricks = bricks;
+
+    for (const entry of this.entries.values()) {
+      const track = entry.element.querySelector<HTMLElement>(`.${BAR_CLASS}`);
+      if (!track) continue;
+      shapeTrack(track, bricks);
+      entry.size = null;
+    }
+  }
+
+  /**
+   * A brick in CSS pixels: a tenth of the type the layer is set in.
+   *
+   * Derived rather than copied, so `--world-label-size` stays the one place the
+   * size is written — the same argument {@link measure} makes about the height a
+   * bubble hangs at. Held between frames because the answer only moves when the
+   * font size does, and computing it is a style read on the container.
+   */
+  private brick(): number {
+    if (this.brickPx !== null) return this.brickPx;
+    const fontSize =
+      Number.parseFloat(getComputedStyle(this.container).fontSize) || 0;
+    this.brickPx = fontSize / BRICKS_PER_EM;
+    return this.brickPx;
+  }
+
+  /**
    * Throw away held measurements when the pane changes shape.
    *
    * The one job the observer is actually needed for: every group wraps against a
@@ -331,6 +416,7 @@ export class WorldLabelLayer {
   private watchSize(): ResizeObserver | null {
     if (typeof ResizeObserver === "undefined") return null;
     const observer = new ResizeObserver(() => {
+      this.brickPx = null;
       for (const entry of this.entries.values()) entry.size = null;
     });
     observer.observe(this.container);
@@ -346,6 +432,7 @@ export class WorldLabelLayer {
     cssScale: number,
   ) {
     this.syncView();
+    this.sizeTracks(cssScale);
 
     const live = new Set<string>();
     const entries = labels.map((label) => {
@@ -354,7 +441,9 @@ export class WorldLabelLayer {
       // Outside the sync/measure/place discipline on purpose: a fill width is a
       // style write on an existing child, so it cannot change the box the layout
       // pass is about to measure and cannot force a reflow to read.
-      if (label.bar) fillBar(entry.element, label.bar.fraction);
+      if (label.bar) {
+        fillBar(entry.element, label.bar.fraction, this.trackBricks);
+      }
       // Ink is a paint, never a box, so it rides alongside the fill rather than
       // counting towards the signature that would force a re-measure.
       if (entry.color !== label.color) {
@@ -483,8 +572,8 @@ export class WorldLabelLayer {
       height: element.offsetHeight,
       // A name is the thing being cleared, so it sits on the anchor itself.
       lift: kind === "name" ? 0 : Math.round(fontSize * ANCHOR_CLEARANCE_EMS),
-      // Measured rather than worked out from `HEALTH_BAR_BRICKS`, because the
-      // number the layout pass needs is the box the browser actually made:
+      // Measured rather than worked out from the track's brick count, because
+      // the number the layout pass needs is the box the browser actually made:
       // bricks, borders and the rounding of a fractional em all included. It is
       // read here with the rest so it costs no extra layout flush.
       barWidth: element.querySelector<HTMLElement>(`.${BAR_CLASS}`)?.offsetWidth,
@@ -558,10 +647,12 @@ export class WorldLabelLayer {
     if (label.bar) {
       const track = document.createElement("div");
       track.className = BAR_CLASS;
-      // Set here rather than in the stylesheet so the width and the fill that
-      // divides it are one number in one place, and written on creation rather
-      // than per frame because it is the one part of the bar that is layout.
-      track.style.width = brickWidth(HEALTH_BAR_BRICKS);
+      // Sized here rather than in the stylesheet because neither dimension is a
+      // constant: the track is a cell wide, which is a number only the current
+      // zoom knows, and its thickness is in proportion to that. Written on
+      // creation, and again from {@link sizeTracks} when the zoom moves — the
+      // one part of a bar that is layout rather than paint.
+      shapeTrack(track, this.trackBricks);
       track.appendChild(document.createElement("div"));
       rows.push(track);
     }
