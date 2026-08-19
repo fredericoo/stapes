@@ -123,6 +123,17 @@ their tile off the board, and at that moment the map stops being the record. So
 positions are kept a second time, per actor, under `pos:<id>` — and the two are
 not redundant.
 
+**A third row says where they *started*.** `spawn:<id>` is written once, the
+first time the world sees somebody, and never rewritten: where you entered is a
+different fact from where you are, and it does not move when you do. A death
+overwrites `pos:` with it, which is the whole of respawning. Today every row
+holds the same coordinates — a map has one authored `player` marker — and
+keeping it per player is what lets a death answer the question without asking a
+map that may since have been re-authored out of it. `replaceWorld` drops the
+rows wholesale for exactly that reason: a save can move the marker, and a
+remembered door into a building that no longer stands is worse than no memory
+at all.
+
 **The write must not gate the broadcast.** A Durable Object holds outgoing
 messages until preceding writes are durable, which is right for anything the
 world's consistency rests on and wrong for this: a position is a convenience,
@@ -279,6 +290,47 @@ survive somebody editing the tile's maximum. What *is* checkpointed is the set o
 evidence to recover, and without carrying it the first hibernation wake would
 find a dead player's socket still open, see no body, and seat them again.
 
+**A death is the moment the session stops being able to answer for somebody**,
+and everything a reload hands back is read from storage — so a death has to write
+itself down before it destroys the only copy of what it knew.
+
+- **The kit does not die with the body.** `kill` drops it onto the corpse's cell
+  first, all of it or none of it: a sword somebody picked up a moment ago is
+  still a sword in the world, findable and theirs again if they walk back for it.
+  The alternative is not "death costs you your things", it is the world quietly
+  being one sword lighter with nothing in it able to put that right. All-or-
+  nothing because the two halves — what is on the board and what the body still
+  owns — are written to different keys, and a half-dropped kit has no single true
+  answer to give either of them.
+- **The `Death` carries what the runtime knew**, because `GameSession.kill`
+  deletes it: what is left of the kit, its tags and its masteries. Nothing
+  downstream can re-derive any of it.
+- **A reload puts them back at the spawn point, with a fresh empty bag.** The
+  position row is *overwritten* with `spawn:<id>` rather than left alone —
+  leaving it is what put people back wherever the last flush caught them, up to
+  a whole `ACTOR_FLUSH_INTERVAL_MS` of walking ago. The kit is the starting one
+  rather than the emptied one, because coming back with no bag at all leaves
+  somebody unable to pick their own corpse up. It is written rather than deleted
+  — a missing row already means "give them the starting kit", but a delete
+  cannot ride in the batch, and a second call is a second moment at which the
+  board and the kit can disagree. What they still *own* wins over both: a kit
+  the floor refused was never dropped, so writing a fresh one over it would
+  destroy what the refusal saved.
+- **Hit points need nothing.** They are rebuilt from the tile on every load, so a
+  respawned body is at full health by construction rather than by a reset.
+- **`noteDeaths` forces a flush**, rather than leaving it to the next one. This
+  was a real bug and a sharp one: `saveActors` skips an actor with no position —
+  which is every dead one — and then writes the board *regardless*, so the batch
+  recording "the sword is no longer on the floor" carried nothing saying where it
+  went. A sword picked up and carried into a losing fight ended up in nobody's
+  kit and on nobody's floor. The forced batch is also what beats the reload: a
+  reload is the very next thing a dead player does, and a deferred write would
+  leave it reading the pre-death kit.
+- **Only somebody with a socket is written.** A dead player sits there connected
+  until they reload and a creature never had a connection, so the socket is the
+  exact test for "is there anyone to hand this back to" — and it keeps a world
+  that respawns wildlife from writing a position and a kit per rat.
+
 **The client picks the target; the server decides when a blow lands.** A `target`
 message names who, and that is all a client is trusted with. Attack speed is the
 `spd` stat, so a client sending a thousand attack requests swings at exactly the
@@ -326,10 +378,12 @@ The formulas live in `app/game/combat.ts`, kept pure so they can be asserted:
   a world is reproducible, and a draw count that varied with accuracy would make
   one creature's stats change what every creature after it rolled.
 
-**Zero hit points deletes the body.** For a player that also removes their actor,
-so the server ignores everything their socket sends — a dead player sits there
-connected and inert until they reload, which is the only thing that hands them a
-new body. There is no respawn.
+**Zero hit points deletes the body, and leaves the kit where it fell.** For a
+player it also removes their actor, so the server ignores everything their socket
+sends — a dead player sits there connected and inert until they reload, which is
+the only thing that hands them a new body. The reload is the respawn: they come
+back at the door they came in by, on full hit points, wearing an empty bag, with
+everything they were carrying lying where they died. The walk back is the cost.
 
 **Being a battler is what earns a name tag**, and the health bar rides in the
 same label. Names used to be a mode the online route switched on, with a check

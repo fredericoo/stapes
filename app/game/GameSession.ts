@@ -10,7 +10,11 @@ import { resolveSwitch } from "../lib/interactions";
 import { resolveConsumable, type ConsumableItem } from "../lib/item";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
 import { MIN_LEVEL } from "../lib/types";
-import { canPlace, tilesByIdFromList } from "../lib/validation";
+import {
+  canPlace,
+  canReplaceStack,
+  tilesByIdFromList,
+} from "../lib/validation";
 import {
   actorDirection,
   adoptAuthoredPlayer,
@@ -767,6 +771,35 @@ type ActorRuntime = {
 };
 
 /**
+ * A body the world has just taken off the board.
+ *
+ * More than an id, because by the time anybody asks these questions the runtime
+ * that could answer them is gone: {@link GameSession.kill} deletes it, and the
+ * one moment a dead player's cell and kit exist is the moment that destroys
+ * them. The server writes them down from here — see `GameServer.noteDeaths`,
+ * which is what makes a death survive a reload.
+ */
+export type Death = {
+  id: string;
+  /**
+   * What the body still owns once the floor has taken what it could: empty when
+   * the kit landed as loot, and the whole kit when the cell refused it.
+   *
+   * One field rather than a "did it drop" flag, because the two facts have to
+   * agree and this is the shape in which they cannot disagree — whatever is not
+   * on the board is here, and the server writes exactly this.
+   */
+  equipment: Equipment;
+  /**
+   * What it had learned and what it had been marked with, on the same terms the
+   * kit is here: a fight's last blows and a chest opened on the way in are
+   * earned facts, and the runtime that held them is about to stop existing.
+   */
+  masteryXp: MasteryXp | null;
+  tags: readonly string[];
+};
+
+/**
  * Authoritative play session. Mutates an in-memory map; no DOM / renderer.
  *
  * Holds any number of actors. `/play` runs exactly one and never names it; the
@@ -943,12 +976,13 @@ export class GameSession implements PlaySession {
   /**
    * Who died this tick, waiting to be noticed.
    *
-   * The session cannot act on a death beyond removing the body — whether the
-   * connection behind it is kept out of the world afterwards is the server's
-   * question, and this is how it hears about one. Drained like speech and
-   * damage; a session with no wire never asks.
+   * The session cannot act on a death beyond removing the body and putting what
+   * it carried on the floor — whether the connection behind it is kept out of
+   * the world afterwards is the server's question, and this is how it hears
+   * about one. Drained like speech and damage; a session with no wire never
+   * asks.
    */
-  private pendingDeaths: string[] = [];
+  private pendingDeaths: Death[] = [];
   /**
    * The creature-driven emitters the last settle pass saw, as a signature.
    *
@@ -1803,9 +1837,10 @@ export class GameSession implements PlaySession {
    *
    * Not cleared by the next tick, unlike speech and damage: a death is the one
    * thing here the caller *must* not miss — a server that dropped one would put
-   * the actor back on the board at the next wake, undoing it.
+   * the actor back on the board at the next wake, undoing it, and would never
+   * hear what the body was carrying when it stopped existing.
    */
-  drainDeaths(): string[] {
+  drainDeaths(): Death[] {
     const died = this.pendingDeaths;
     this.pendingDeaths = [];
     return died;
@@ -2123,29 +2158,95 @@ export class GameSession implements PlaySession {
   }
 
   /**
-   * Take a body off the board for good.
+   * Take a body off the board for good, and leave what it was carrying where it
+   * fell.
    *
    * The tile goes and so does the runtime, which for a player is exactly the
    * intent: with no actor by that name the server ignores everything their
    * socket sends, so a dead player can sit there connected and do nothing until
    * they reload and are handed a fresh body. There is no respawn.
    *
+   * **The kit does not go with the runtime.** It is dropped onto the corpse's
+   * cell first, so a sword somebody picked up a moment ago is still a sword in
+   * the world — findable, and theirs again if they walk back for it. The
+   * alternative is not "death costs you your things", it is the world quietly
+   * being one sword lighter, which nothing in it can ever put right.
+   *
    * Everyone aiming at them is released here rather than discovering it later,
    * so nothing is left swinging at a slot that can never be filled again.
    */
   private kill(target: ActorRuntime) {
+    // Before the body comes off the board, which is what makes it unfindable.
+    const loc = this.tryLocate(target);
+
     this.actors.delete(target.id);
     this.forgetTileIndex();
-    this.pendingDeaths.push(target.id);
     this.map = despawnActor(this.map, target.id);
     this.pendingHurt.delete(target.id);
     for (const actor of this.actors.values()) {
       if (actor.targetId === target.id) actor.targetId = null;
     }
-    // The cell they were standing in has one fewer thing in it, which is a real
-    // change to what rests on a plate and to what is holding a crate up.
-    const loc = target.memo?.loc;
+
+    // After the despawn, so the pile lands in the room the corpse just made
+    // rather than being refused for the volume the body was still taking up.
+    const equipment = loc
+      ? this.dropKit(target.equipment, loc)
+      : target.equipment;
+
+    this.pendingDeaths.push({
+      id: target.id,
+      equipment,
+      masteryXp: target.masteryXp,
+      tags: target.tags,
+    });
+
+    // The cell they were standing in has lost a body and gained a pile, both of
+    // which are real changes to what rests on a plate and to what is holding a
+    // crate up.
     if (loc) this.reindexCells([{ x: loc.x, y: loc.y, z: loc.z }]);
+  }
+
+  /**
+   * Put a whole kit on the floor of one cell, and say what is left of it.
+   *
+   * All or nothing, unlike a player's {@link drop}, which places one thing and
+   * can be told no. A half-dropped kit would leave the server with no single
+   * true answer to "what does this body still own" — some of it on the board,
+   * some of it owed — and the two halves are written to different keys, so a
+   * disagreement between them is an item existing twice or not at all. Refusing
+   * the whole pile keeps the kit intact instead: nothing reached the floor, so
+   * the dead still own all of it and come back carrying it.
+   *
+   * In practice the cell has just lost a body and every carried thing is
+   * height-less, so the refusal is a guard rather than a path — but it is the
+   * guard that lets the caller trust what comes back.
+   *
+   * No settle here: the tick runs one pass over the whole board after everything
+   * that moved it, and a kit dropped over a hole falls into it there, by exactly
+   * the rule a shoved crate follows.
+   */
+  private dropKit(equipment: Equipment, at: Coord): Equipment {
+    const carried = [equipment.weapon, equipment.offhand, equipment.bag].filter(
+      (instance): instance is ItemInstance => instance != null,
+    );
+    if (carried.length === 0) return equipment;
+
+    const placements = carried.map(placementFromInstance);
+    const stack = getStack(this.map, at.x, at.y, at.z);
+    const room = canReplaceStack(
+      this.map,
+      at.x,
+      at.y,
+      at.z,
+      [...stack, ...placements],
+      this.tilesById,
+    );
+    if (!room.ok) return equipment;
+
+    for (const placed of placements) {
+      this.map = appendTile(this.map, at.x, at.y, at.z, placed);
+    }
+    return emptyEquipment();
   }
 
   /** Age the floating numbers out, on the tick clock like every other timer. */

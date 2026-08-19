@@ -5,7 +5,7 @@ import { parseServerMessage } from "../net/protocol";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { STARTING_BAG_TILE_ID, TICK_MS } from "./constants";
-import { GameSession } from "./GameSession";
+import { GameSession, LOCAL_ACTOR_ID } from "./GameSession";
 
 /**
  * What an actor is carrying, as the session sees it.
@@ -957,5 +957,118 @@ describe("carried lights", () => {
     session.moveItem({ kind: "contents", index: 0 }, { kind: "weapon" });
 
     expect(lightsOf(session)).toEqual([LANTERN]);
+  });
+});
+
+/**
+ * What a body is carrying when it stops being a body.
+ *
+ * The kit lives on the runtime and the runtime is deleted by the killing blow,
+ * so "what happens to it" is not a detail — it is the difference between a
+ * sword changing hands and a sword leaving the world. See `GameSession.kill`.
+ */
+describe("dying with something on you", () => {
+  const SWORD = "light-sword";
+
+  /**
+   * Long enough to finish somebody off, with room for the swings that come to
+   * nothing: every chance in a fight is held inside a band, so even a perfect
+   * attacker whiffs now and then.
+   */
+  const LONG_ENOUGH_TO_KILL_MS = 30_000;
+
+  const KILLER = "killer";
+
+  function refAt(session: GameSession, x: number, y: number) {
+    const stack = getStack(session.getMap(), x, y, 0);
+    return { x, y, z: 0, stackIndex: stack.length - 1 };
+  }
+
+  function tilesAt(session: GameSession, x: number, y: number): string[] {
+    return getStack(session.getMap(), x, y, 0).map((p) => p.tileId);
+  }
+
+  /**
+   * A player at the origin with a sword in hand and a bag on their back, and
+   * somebody beside them swinging until they stop.
+   *
+   * A second *player* rather than a creature with a brain: what is under test is
+   * the death, and a mind that also decides where to stand would make every
+   * assertion about which cell the kit landed in a coin toss.
+   */
+  function doomed(): GameSession {
+    const map = replaceStack(field(), 1, 1, 0, [
+      { tileId: "grass" },
+      { tileId: SWORD },
+    ]);
+    const session = new GameSession(map, tiles);
+    session.pickUp(refAt(session, 1, 1));
+    session.moveItem({ kind: "contents", index: 0 }, { kind: "weapon" });
+
+    session.spawn(KILLER, { x: 1, y: 0, z: 0, direction: "w" });
+    session.setTarget(selfId(session), KILLER);
+    session.setAttackMode(true, KILLER);
+    return session;
+  }
+
+  it("leaves the whole kit on the floor where the body fell", () => {
+    const session = doomed();
+
+    advance(session, LONG_ENOUGH_TO_KILL_MS);
+
+    expect(session.actorIds()).not.toContain(LOCAL_ACTOR_ID);
+    expect(tilesAt(session, 0, 0)).toEqual([
+      "grass",
+      SWORD,
+      STARTING_BAG_TILE_ID,
+    ]);
+  });
+
+  it("keeps the identity of everything it drops", () => {
+    const session = doomed();
+    const swordId = session.getSnapshot().equipment.weapon!.id;
+
+    advance(session, LONG_ENOUGH_TO_KILL_MS);
+
+    const dropped = getStack(session.getMap(), 0, 0, 0).find(
+      (placed) => placed.tileId === SWORD,
+    );
+    expect(dropped?.itemId).toBe(swordId);
+  });
+
+  /**
+   * The one fact the server writes down. An empty kit beside a board holding the
+   * pile is the pair agreeing; anything else is an item existing twice or not at
+   * all.
+   */
+  it("hands the death over empty-handed", () => {
+    const session = doomed();
+    const playerId = selfId(session);
+
+    advance(session, LONG_ENOUGH_TO_KILL_MS);
+
+    const death = session.drainDeaths().find((one) => one.id === playerId);
+    expect(death?.equipment).toEqual({
+      weapon: null,
+      offhand: null,
+      bag: null,
+    });
+  });
+
+  /**
+   * A creature carries nothing, so its death must not put an empty placement
+   * anywhere — the cell it stood in is left exactly as bare as it was.
+   */
+  it("leaves nothing behind for a body that was carrying nothing", () => {
+    const session = new GameSession(withBody(field(), 1, 0, "dummy"), tiles);
+    const dummyId = session
+      .actorSnapshots()
+      .find((actor) => actor.tileId === "dummy")!.id;
+    session.setTarget(dummyId);
+    session.setAttackMode(true);
+
+    advance(session, LONG_ENOUGH_TO_KILL_MS);
+
+    expect(tilesAt(session, 1, 0)).toEqual(["grass"]);
   });
 });
