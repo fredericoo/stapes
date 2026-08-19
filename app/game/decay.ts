@@ -493,42 +493,36 @@ type SlotAfter = { changed: boolean; instance: ItemInstance | null };
 
 const UNCHANGED: SlotAfter = { changed: false, instance: null };
 
-/** What is worn in a single-item slot after the clock. */
-function wornAfter(
+/**
+ * One slot after the clock, inside and out.
+ *
+ * Contents are turned first, so the holder's own turn is judged against what it
+ * is holding *now* — a pack down to its last apple can rot away on the same tick
+ * the apple does, rather than being held back a lifetime by something that is
+ * about to go too.
+ *
+ * Every slot walks its contents, not just the bag: a hand takes a spare pack
+ * now, so the thing on your back is no longer the only thing on a body with
+ * things inside it. One function over all three is what stops that staying true
+ * of the *decay* rules a release after it stopped being true of the kit.
+ */
+function slotAfter(
   instance: ItemInstance | null,
   site: SlotKind,
   due: ReadonlyMap<string, string>,
   tilesById: Record<string, TileDef>,
 ): SlotAfter {
   if (!instance) return UNCHANGED;
-  const turn = turnOf(instance, site, due, tilesById);
-  if (turn.kind === "stays") return { changed: false, instance };
-  if (turn.kind === "gone") return { changed: true, instance: null };
-  return { changed: true, instance: { ...instance, tileId: turn.tileId } };
-}
-
-/**
- * The bag after the clock, inside and out.
- *
- * Its contents are turned first so the bag's own turn is judged against what it
- * is holding *now* — a pack down to its last apple can rot away on the same tick
- * the apple does, rather than being held back a lifetime by something that is
- * about to go too.
- */
-function bagAfter(
-  bag: ItemInstance | null,
-  due: ReadonlyMap<string, string>,
-  tilesById: Record<string, TileDef>,
-): SlotAfter {
-  if (!bag) return UNCHANGED;
-  const contents = bag.contents
-    ? decayedContents(bag.contents, "contents", due, tilesById)
+  const contents = instance.contents
+    ? decayedContents(instance.contents, "contents", due, tilesById)
     : null;
-  const held = contents ?? bag.contents;
-  const inside = contents ? { ...bag, contents } : bag;
+  const held = contents ?? instance.contents;
+  const inside = contents ? { ...instance, contents } : instance;
 
-  const turn = turnOf({ ...bag, contents: held }, "bag", due, tilesById);
-  if (turn.kind === "stays") return { changed: contents != null, instance: inside };
+  const turn = turnOf({ ...instance, contents: held }, site, due, tilesById);
+  if (turn.kind === "stays") {
+    return { changed: contents != null, instance: inside };
+  }
   if (turn.kind === "gone") return { changed: true, instance: null };
   return { changed: true, instance: { ...inside, tileId: turn.tileId } };
 }
@@ -539,9 +533,9 @@ function decayedEquipment(
   due: ReadonlyMap<string, string>,
   tilesById: Record<string, TileDef>,
 ): Equipment | null {
-  const weapon = wornAfter(equipment.weapon, "weapon", due, tilesById);
-  const offhand = wornAfter(equipment.offhand, "offhand", due, tilesById);
-  const bag = bagAfter(equipment.bag, due, tilesById);
+  const weapon = slotAfter(equipment.weapon, "weapon", due, tilesById);
+  const offhand = slotAfter(equipment.offhand, "offhand", due, tilesById);
+  const bag = slotAfter(equipment.bag, "bag", due, tilesById);
   if (!weapon.changed && !offhand.changed && !bag.changed) return null;
   return {
     weapon: weapon.instance,

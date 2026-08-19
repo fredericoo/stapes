@@ -800,7 +800,8 @@ next time its holder is touched":
   a container may not hold a container — and turns the moment it is on the floor.
   `isItem` on top of that, which moves never need: a move can only carry
   something that was already an item, and a decay is the one way a slot could
-  come to hold scenery.
+  come to hold scenery. Every slot walks its own contents rather than only the
+  bag, because a hand takes a spare pack.
 - **Nothing decays out from under what it is holding.** A pack that rotted away
   would take a sword and three apples with it silently, so a container with
   anything in it simply waits until it is empty.

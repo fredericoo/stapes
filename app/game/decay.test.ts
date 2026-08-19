@@ -632,15 +632,49 @@ describe("things that decay while somebody is holding them", () => {
     expect(bagIds(session, who)).toEqual(["mushroom"]);
   });
 
-  it("refuses a turn the hand it is in could not hold", () => {
+  it("turns in a hand, which takes anything you could carry", () => {
     const session = new GameSession(withCompany(emptyMap()), tiles);
     const who = bearerOf(
       session,
       kitWith([], { weapon: thing("itm_club", "bone-club") }),
     );
 
+    // A hand is not a weapon rack — see `handAccepts`. A club that rots into
+    // something inedible to swing is still something you can hold.
     run(session, BERRY_MS);
-    expect(carried(session, who).weapon?.tileId).toBe("bone-club");
+    expect(carried(session, who).weapon?.tileId).toBe("berry");
+  });
+
+  it("refuses a turn the hand it is in could not hold", () => {
+    const session = new GameSession(withCompany(emptyMap()), tiles);
+    const who = bearerOf(
+      session,
+      kitWith([], { offhand: thing("itm_shroom", "mushroom") }),
+    );
+
+    // The one thing a hand refuses is a thing that is not a thing: scenery in
+    // a fist is a state nothing else in the game has an answer for.
+    run(session, BERRY_MS);
+    expect(carried(session, who).offhand?.tileId).toBe("mushroom");
+  });
+
+  it("rots inside a pack somebody is holding, not only the one on their back", () => {
+    const session = new GameSession(withCompany(emptyMap()), tiles);
+    const who = bearerOf(
+      session,
+      kitWith([], {
+        offhand: {
+          id: "itm_spare",
+          tileId: STARTING_BAG_TILE_ID,
+          contents: [thing("itm_berry", "berry")],
+        },
+      }),
+    );
+
+    run(session, BERRY_MS);
+    expect(carried(session, who).offhand?.contents).toEqual([
+      { id: "itm_berry", tileId: "rotten-berry" },
+    ]);
   });
 
   it("makes the same turn on the floor that a slot refused", () => {
