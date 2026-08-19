@@ -182,7 +182,7 @@ export function ChatButton({
         <Popover.Trigger
           aria-label="Say something"
           className={[
-            "flex shrink-0 items-center justify-center border-2 shadow-hard",
+            "flex items-center justify-center border-2 shadow-hard",
             MODE_TOGGLE_SIZE_CLASS.touch,
             "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
             // Lit while the field is open, on the same terms the mode toggles

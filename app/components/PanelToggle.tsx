@@ -19,7 +19,7 @@ import type { ItemDrag } from "./useItemDrag";
 
 function toggleClass(on: boolean, size: ModeToggleSize): string {
   return [
-    "flex shrink-0 items-center justify-center border-2 shadow-hard",
+    "flex items-center justify-center border-2 shadow-hard",
     MODE_TOGGLE_SIZE_CLASS[size],
     "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
     on

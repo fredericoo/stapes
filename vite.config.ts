@@ -34,6 +34,14 @@ function devDataDirectory(): Plugin {
 }
 
 export default defineConfig({
+  server: {
+    // Whoever launched us gets to say where to listen. Vite does not read this
+    // on its own, and without it every checkout of this repo asks for the same
+    // hard-coded port — which is fine until two worktrees are running at once
+    // and the second one cannot start. Undefined when unset, so Vite falls back
+    // to its own default rather than to port 0.
+    port: process.env.PORT ? Number(process.env.PORT) : undefined,
+  },
   // The Cloudflare plugin runs server code in workerd during dev, so a loader
   // reaching for a Node API fails here rather than on deploy.
   plugins: [
