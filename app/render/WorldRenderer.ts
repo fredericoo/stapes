@@ -33,6 +33,7 @@ import {
   MAX_LEVEL,
   MIN_LEVEL,
   coordKey,
+  frameIndexAtTime,
   levelKey,
   parseCoordKey,
   physicalHeight,
@@ -95,6 +96,15 @@ type AnimatedInstance = {
   cell: { x: number; y: number; z: number };
   /** The state {@link frames} were resolved for. */
   state: SpriteState;
+  /**
+   * Index into {@link frames} the mesh's UVs currently show.
+   *
+   * Held per instance rather than inferred from the shared per-key index,
+   * because a mesh can be younger than the key: a step rebuilds the walker's
+   * mesh, and the rebuilt one starts at whatever frame the build wrote, not at
+   * whatever frame the key last ticked to.
+   */
+  frameIdx: number;
 };
 
 /** One quad the builder will emit, plus what decides how it is drawn. */
@@ -1527,7 +1537,13 @@ export class WorldRenderer {
         y,
         z,
       });
-      const first = frames?.[0];
+      // The phase the shared clock is at, not frame 0. A rebuild happens on
+      // whatever frame the world happened to change on — every step, for a
+      // walker — and a mesh born at frame 0 would sit there until the clock
+      // crossed into the *next* index, which is a walk cycle that restarts
+      // several times a second. See `updateAnimations`.
+      const frameIdx = frames ? frameIndexAtTime(frames, this.animClock) : 0;
+      const first = frames?.[frameIdx];
       if (!first) return;
 
       const tileset = this.tilesetById.get(first.sprite.tilesetId);
@@ -1592,6 +1608,7 @@ export class WorldRenderer {
                 placed,
                 cell: { x, y, z },
                 state,
+                frameIdx,
               }
             : undefined,
       });
@@ -1692,31 +1709,35 @@ export class WorldRenderer {
     return mesh;
   }
 
+  /**
+   * Point every animated mesh at the frame {@link animClock} says is live.
+   *
+   * The index is a pure function of the shared clock, so two placements of one
+   * sprite are on the same frame by construction rather than by having started
+   * together — and a sprite's cadence is the cadence its frames are authored
+   * with, whatever the frame rate.
+   *
+   * The skip is per instance, not per key. Keying it off the shared index was
+   * the bug that made walking look erratic: a step rebuilds the walker's mesh
+   * at build-time UVs, and a shared index that already read `2` said "nothing
+   * to write" about a mesh that was showing something else entirely.
+   */
   private updateAnimations(): boolean {
     if (this.animatedByKey.size === 0) return false;
     let changed = false;
 
     for (const [key, instances] of this.animatedByKey) {
       const sample = instances[0]!;
-      let total = 0;
-      for (const f of sample.frames) total += f.durationMs;
-      if (total <= 0) continue;
-      let t = this.animClock % total;
-      let idx = 0;
-      for (let i = 0; i < sample.frames.length; i++) {
-        if (t < sample.frames[i]!.durationMs) {
-          idx = i;
-          break;
-        }
-        t -= sample.frames[i]!.durationMs;
-      }
-      if (this.frameIndices.get(key) === idx) continue;
+      const idx = frameIndexAtTime(sample.frames, this.animClock);
       this.frameIndices.set(key, idx);
-      changed = true;
 
-      const frame = sample.frames[idx]!;
+      const frame = sample.frames[idx];
+      if (!frame) continue;
       for (const inst of instances) {
+        if (inst.frameIdx === idx) continue;
+        inst.frameIdx = idx;
         writeFrameUvs(inst.mesh, frame, sample.tileset);
+        changed = true;
       }
     }
     return changed;
@@ -1759,14 +1780,12 @@ export class WorldRenderer {
       // than blanking it.
       if (!frames?.length) continue;
 
+      const idx = frameIndexAtTime(frames, this.animClock);
       inst.state = next;
       inst.frames = frames;
       inst.animKey = animationKey(inst.def, inst.placed, x, y, z, next);
-      // The new key may carry a stale index from the last time anything was in
-      // this state, and an index that happens to match is one `updateAnimations`
-      // would skip — leaving the mesh showing the state it just left.
-      this.frameIndices.delete(inst.animKey);
-      writeFrameUvs(inst.mesh, frames[0]!, inst.tileset);
+      inst.frameIdx = idx;
+      writeFrameUvs(inst.mesh, frames[idx]!, inst.tileset);
       swapped = true;
     }
 
