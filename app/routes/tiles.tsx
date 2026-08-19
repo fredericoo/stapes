@@ -1,21 +1,23 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Form, useFetcher, useLoaderData, useNavigation } from "react-router";
 import type { Route } from "./+types/tiles";
 import { AppShell } from "../components/AppShell";
 import { TileEditorDialog, tileIsAnimated } from "../components/TileEditorDialog";
 import { TilePreview } from "../components/TilePreview";
 import { dataStore } from "../context";
+import { statusesById } from "../lib/status";
 import { readPngSize } from "../lib/storage.server";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { Button, Dialog, Input, useToast } from "../ui";
 
 export async function loader({ context }: Route.LoaderArgs) {
   const store = dataStore(context);
-  const [tiles, tilesets] = await Promise.all([
+  const [tiles, tilesets, statuses] = await Promise.all([
     store.readTiles(),
     store.readTilesets(),
+    store.readStatuses(),
   ]);
-  return { tiles, tilesets };
+  return { tiles, tilesets, statuses };
 }
 
 export async function action({ context, request }: Route.ActionArgs) {
@@ -84,7 +86,11 @@ export async function action({ context, request }: Route.ActionArgs) {
 }
 
 export default function TilesPage() {
-  const { tiles, tilesets } = useLoaderData<typeof loader>();
+  const { tiles, tilesets, statuses } = useLoaderData<typeof loader>();
+  // Compiled once per load, not per render: `statusesById` parses every formula
+  // in the catalogue. Only the names and the ranges are read here, but there is
+  // one function that decides what a status is and this is it.
+  const statusDefs = useMemo(() => statusesById(statuses), [statuses]);
   const fetcher = useFetcher<typeof action>();
   const toast = useToast();
   const [editing, setEditing] = useState<TileDef | null>(null);
@@ -166,6 +172,7 @@ export default function TilesPage() {
           }
         }}
         tile={editing}
+        statusDefs={statusDefs}
         tiles={tiles}
         tilesets={tilesets}
         isNew={isNew}

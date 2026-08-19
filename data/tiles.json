@@ -975,7 +975,10 @@
           }
         ]
       }
-    }
+    },
+    "connectsTo": [
+      "half-stone"
+    ]
   },
   {
     "id": "water",
@@ -6794,7 +6797,12 @@
         "type": "consumable",
         "label": "Eat",
         "sound": "crunch",
-        "hp": 5
+        "hp": 0,
+        "statuses": [
+          {
+            "id": "fed"
+          }
+        ]
       }
     },
     "sprite": {

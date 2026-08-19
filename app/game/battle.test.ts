@@ -225,10 +225,7 @@ function fight(session: GameSession, actorId: string | null) {
 
 describe("hit points", () => {
   it("start full, and only exist on a body that has stats", () => {
-    const session = new GameSession(
-      withBody(withBody(field(), 1, 0, "dummy"), 2, 0, "statue"),
-      tiles,
-    );
+    const session = new GameSession(withBody(withBody(field(), 1, 0, "dummy"), 2, 0, "statue"), tiles);
 
     expect(self(session).hp).toBe(100);
     expect(self(session).maxHp).toBe(100);
@@ -323,10 +320,7 @@ describe("swinging at a target", () => {
           })
         : t,
     );
-    const session = new GameSession(
-      withBody(field(), 1, 0, "dummy"),
-      slowPlayer,
-    );
+    const session = new GameSession(withBody(field(), 1, 0, "dummy"), slowPlayer);
     fight(session, bodyOf(session, "dummy")!.id);
 
     const interval = attackIntervalMs(0);

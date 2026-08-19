@@ -19,6 +19,7 @@ import type { Equipment } from "../game/equipment";
 import type { MasteryXp } from "../lib/mastery";
 import { weaponFeelFor } from "../lib/weaponFeel";
 import type { Vitals } from "../game/GameSession";
+import { statusReading } from "../game/statuses";
 import type { OpenedContainer, SlotRef } from "../game/itemMoves";
 import { readOpenedContainer } from "../game/openedContainer";
 import {
@@ -554,13 +555,21 @@ export class GameRenderer {
       hp: snap.self.hp,
       maxHp: snap.self.maxHp,
       rating: snap.self.rating,
+      statuses: snap.self.statuses,
     };
     const sent = this.vitalsSent;
     if (
       sent &&
       sent.hp === next.hp &&
       sent.maxHp === next.maxHp &&
-      sent.rating === next.rating
+      sent.rating === next.rating &&
+      // By reading rather than by identity: the status list is a fresh array on
+      // every tick a status is running, so an identity check here would push a
+      // new object thirty times a second and re-render the panel with it. What
+      // the chrome can actually show is whole seconds, so that is the grain the
+      // comparison works at — one push a second per status, and the number on
+      // screen is always exact without a timer of its own.
+      statusReading(sent.statuses) === statusReading(next.statuses)
     ) {
       return;
     }

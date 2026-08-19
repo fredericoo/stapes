@@ -159,12 +159,12 @@ function sessionOnStrip(): GameSession {
     version: 1,
     levels: { "0": strip() },
   } as unknown as FlatMapFile);
-  return new GameSession(map, tiles, ["a"], {
+  return new GameSession(map, tiles, { actorIds: ["a"], spawnAt: {
     x: 0,
     y: 0,
     z: 0,
     stackIndex: 1,
-  });
+  } });
 }
 
 describe("GameSession.requestStep", () => {
@@ -230,12 +230,12 @@ describe("GameSession.requestStep", () => {
       version: 1,
       levels: { "0": { "0,0": [grass], "1,0": [grass] }, "1": {} },
     } as unknown as FlatMapFile);
-    const session = new GameSession(map, tiles, ["a"], {
+    const session = new GameSession(map, tiles, { actorIds: ["a"], spawnAt: {
       x: 0,
       y: 0,
       z: 1,
       stackIndex: 0,
-    });
+    } });
     session.tick(TICK_MS);
 
     expect(session.requestStep("a", "e")).toBe("refused");

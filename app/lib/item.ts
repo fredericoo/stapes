@@ -150,6 +150,50 @@ export type ConsumableItem = {
    * default: a potion that says nothing is a potion nobody heard.
    */
   sound?: string;
+  /**
+   * Statuses this puts on whoever uses it, applied in order.
+   *
+   * **Beside {@link hp} rather than instead of it.** A potion still heals on the
+   * spot and a poison apple still bites on the spot; a berry now does neither and
+   * hands over a `Fed` instead. Two fields because they are two things: one
+   * happens and is over, the other is a condition you are in.
+   *
+   * Whether an id names anything is the catalogue's question, asked where the
+   * status is granted. An id it does not hold is skipped, in the same breath a
+   * reward naming a missing tile is left alone: renamed content should read as an
+   * effect that did not happen, not as a world that will not start.
+   */
+  statuses?: ConsumableStatus[];
+};
+
+/**
+ * One status a consumable hands over, and how long for.
+ *
+ * **The range belongs to the food, not only to the condition.** Bread and a berry
+ * both leave you Fed — same icon, same line, same 1% a second — and the whole
+ * difference between a snack and a meal is how long it lasts. Without an override
+ * here that difference could only be expressed by authoring a second status, and
+ * then two identical conditions would sit in the panel refusing to stack with
+ * each other.
+ *
+ * So the status owns what it *does* and the item owns how much of it you get,
+ * which is also the split that keeps stacking meaningful: eat a berry then a
+ * loaf and you have one Fed, longer.
+ *
+ * Absent means the status's own range, which is what every consumable wants
+ * until somebody has a reason to differ.
+ */
+export type ConsumableStatus = {
+  id: string;
+  /**
+   * Overrides the status's authored range, both ends included.
+   *
+   * **Both or neither.** Half an override would have to be ordered against a
+   * number from somewhere else, and "the item's floor against the status's
+   * ceiling" is a rule nobody could hold in their head while authoring.
+   */
+  fromMs?: number;
+  toMs?: number;
 };
 
 /**
@@ -321,6 +365,26 @@ export const weaponSchema = v.object({
   requirements: v.optional(masteriesSchema),
 });
 
+/** How long a consumable's status runs, when it differs from the status's own. */
+const statusOverrideSchema = v.pipe(
+  v.object({
+    id: v.pipe(v.string(), v.trim(), v.minLength(1)),
+    fromMs: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0))),
+    toMs: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0))),
+  }),
+  // Both or neither, and ordered — the same two rules a decay lifetime is under,
+  // and refused here for the same reason: an inverted range authored by hand
+  // should read as a malformed block rather than as a status that never lands.
+  v.check(
+    (raw) => (raw.fromMs === undefined) === (raw.toMs === undefined),
+    "give both ends of a duration override, or neither",
+  ),
+  v.check(
+    (raw) => raw.fromMs === undefined || raw.toMs! >= raw.fromMs,
+    "duration range is inverted",
+  ),
+);
+
 const consumableSchema = v.object({
   type: v.literal("consumable"),
   // Optional on the same grounds as a switch's actionName: a consumable with
@@ -338,6 +402,16 @@ const consumableSchema = v.object({
     v.minValue(-MAX_CONSUMABLE_HP_SHIFT),
     v.maxValue(MAX_CONSUMABLE_HP_SHIFT),
   ),
+  // Whether an id names anything is the catalogue's question, asked where the
+  // status is granted — this module knows nothing about statuses and must not
+  // start resolving them to answer a schema.
+  //
+  // **One shape, not two.** A bare-string shorthand was tempting for
+  // hand-authoring and was a trap: `resolveConsumable` normalised it, but the
+  // tile editor works on the *raw* block, so the picker saw strings where it
+  // expected entries and silently reported every status as unknown. A tolerance
+  // that only half the readers apply is worse than eight extra characters.
+  statuses: v.optional(v.array(statusOverrideSchema)),
 });
 
 const containerSchema = v.object({

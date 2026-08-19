@@ -7,7 +7,11 @@ import {
   replaceStack,
 } from "../lib/mapData";
 import { resolveSwitch } from "../lib/interactions";
-import { resolveConsumable, type ConsumableItem } from "../lib/item";
+import {
+  type ConsumableItem,
+  type ConsumableStatus,
+  resolveConsumable,
+} from "../lib/item";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
 import { MIN_LEVEL } from "../lib/types";
 import {
@@ -153,6 +157,15 @@ import {
   type ExtraEmitter,
 } from "./signals";
 import { DecayIndex, applyDecay, findDecayCells } from "./decay";
+import type { StatusDef } from "../lib/status";
+import {
+  advanceStatuses,
+  applyStatus,
+  NO_STATUSES,
+  type StatusInstance,
+  statusReading,
+  withStatusModifiers,
+} from "./statuses";
 import { sanitizeChatText } from "../net/chat";
 
 export type { ObjectRef } from "./affordances";
@@ -242,6 +255,14 @@ export type ActorSnapshot = {
    * on the same tick. Anything drawing a health bar keys off the null.
    */
   hp: number | null;
+  /**
+   * What is running on this body. Empty for almost everybody almost always.
+   *
+   * On the snapshot rather than only on the runtime because the viewer's own
+   * chrome reads it off here, exactly as the kit and the ⭐ are read — and by
+   * reference, since the list is replaced wholesale rather than mutated.
+   */
+  statuses: readonly StatusInstance[];
   /** What {@link hp} is measured against; null exactly when `hp` is. */
   maxHp: number | null;
   /**
@@ -485,6 +506,16 @@ export type Vitals = {
   hp: number | null;
   maxHp: number | null;
   rating: number | null;
+  /**
+   * What is running on this body, in the order the session holds it.
+   *
+   * Here rather than on its own callback because it answers the same question
+   * the other three do — *what state is my body in* — and because the panel and
+   * the strip that draw it are the two things already reading this. The instances
+   * only; joining them to the catalogue is `../lib/status`'s `activeStatuses`,
+   * and it happens in the route that has the catalogue.
+   */
+  statuses: readonly StatusInstance[];
 };
 
 /** The id the single local actor takes when nobody names one. */
@@ -738,6 +769,21 @@ type ActorRuntime = {
    * number that has to survive somebody editing the tile's max.
    */
   hp: number | null;
+  /**
+   * What is running on this body right now. See `./statuses`.
+   *
+   * **Durable, unlike {@link hp} used to be and unlike {@link brain}.** What a
+   * status records is a rule currently being applied to somebody, and the whole
+   * point of it is that logging off neither cancels it nor advances it — so it
+   * rides in the same storage batch as the kit and the tags. That is also why hit
+   * points became durable beside it: a heal-over-time undone by a reconnect is
+   * not an effect.
+   *
+   * Replaced wholesale rather than mutated, on the terms {@link tags} and
+   * {@link masteryXp} are — the list goes out on a snapshot and identity is what
+   * says something moved.
+   */
+  statuses: readonly StatusInstance[];
   /** Milliseconds until this body may swing again. See `./combat`. */
   attackCooldownMs: number;
   /** Who this actor is set on, for a body driven by somebody pointing at things. */
@@ -888,6 +934,35 @@ export class GameSession implements PlaySession {
    * from {@link rng} and a field initialiser would run before that exists.
    */
   private readonly decay: DecayIndex;
+  /**
+   * The status catalogue, as authored. Keyed by id and never mutated.
+   *
+   * Handed in beside the tiles because it is the same kind of thing — authored
+   * content the session reads and never writes — and an empty one is a world
+   * where nothing has statuses, which is exactly what every test that does not
+   * care about them wants.
+   */
+  private readonly statusDefs: Record<string, StatusDef>;
+  /**
+   * Whose statuses have moved in a way anybody could see, waiting to be
+   * announced.
+   *
+   * A fourth queue beside the kit, the tags and the experience, and it earns one
+   * for a reason none of those had: those three change when somebody *does*
+   * something, and this changes on its own, every tick, for as long as anything
+   * is running. So the queue is filled from a **reading** rather than from the
+   * fact of a change — see `./statuses`'s `statusReading` — which is what turns
+   * thirty announcements a second into about one.
+   */
+  private readonly statusesChanged = new Set<string>();
+  /**
+   * What each actor's statuses last read as, so the queue above can tell a
+   * change worth announcing from a countdown ticking inside the same second.
+   *
+   * Cleared with the actor, or it would grow with everybody who has ever
+   * connected.
+   */
+  private readonly statusReadings = new Map<string, string>();
   /** Map identity the last settle pass read. See {@link settleBoardNow}. */
   private settledMap: MapFile | null = null;
   private accumulatorMs = 0;
@@ -995,28 +1070,51 @@ export class GameSession implements PlaySession {
   private settledEmitters = "";
 
   /**
-   * @param actorIds actors to start with. The default adopts the authored
-   *   `player` tile as a single local actor, which is what `/play` wants; pass
-   *   an empty array to open an empty world and {@link spawn} into it.
-   * @param spawnAt where actors enter. Omit for an authored map, and it is read
-   *   from the `player` tile, which is then consumed — adopted by the first
-   *   actor or removed. **Required when resuming a map that has already been
-   *   run**, because that map no longer has a marker to read: it was consumed
-   *   the first time. Rediscovering it is impossible, so it has to be carried
-   *   alongside.
-   * @param seed where the world's dice start. Carried in the checkpoint for the
-   *   same reason `spawnAt` is — resuming from the opening seed would replay
-   *   the wander the world had already played. Omit for a fresh world.
+   * The world and its content are positional because there is no world without
+   * them; everything else is optional and lives in one object. It used to be
+   * four trailing positionals, and by the time statuses needed one the calls
+   * that wanted only the last of them were writing `undefined` three times.
    */
   constructor(
     map: MapFile,
     tiles: TileDef[],
-    actorIds: readonly string[] = [LOCAL_ACTOR_ID],
-    spawnAt?: Coord & { stackIndex: number },
-    seed?: number,
+    {
+      actorIds = [LOCAL_ACTOR_ID],
+      spawnAt,
+      seed,
+      statuses: statusDefs = {},
+    }: {
+      /**
+       * Actors to start with. The default adopts the authored `player` tile as
+       * a single local actor, which is what `/play` wants; pass an empty array
+       * to open an empty world and {@link spawn} into it.
+       */
+      actorIds?: readonly string[];
+      /**
+       * Where actors enter. Omit for an authored map, and it is read from the
+       * `player` tile, which is then consumed — adopted by the first actor or
+       * removed. **Required when resuming a map that has already been run**,
+       * because that map no longer has a marker to read: it was consumed the
+       * first time. Rediscovering it is impossible, so it has to be carried
+       * alongside.
+       */
+      spawnAt?: Coord & { stackIndex: number };
+      /**
+       * Where the world's dice start. Carried in the checkpoint for the same
+       * reason `spawnAt` is — resuming from the opening seed would replay the
+       * wander the world had already played. Omit for a fresh world.
+       */
+      seed?: number;
+      /**
+       * The status catalogue, keyed by id — see `../lib/status`. Omit for a
+       * world where nothing has statuses, which is every test not about them.
+       */
+      statuses?: Record<string, StatusDef>;
+    } = {},
   ) {
     this.map = structuredClone(map);
     this.tilesById = tilesByIdFromList(tiles);
+    this.statusDefs = statusDefs;
     this.rng = new Rng(seed);
     this.decay = new DecayIndex(this.rng);
 
@@ -1099,6 +1197,8 @@ export class GameSession implements PlaySession {
       carrying?: Equipment;
       tagged?: readonly string[];
       earned?: MasteryXp;
+      statuses?: readonly StatusInstance[];
+      hp?: number;
     } = {},
   ): ActorRuntime {
     const resident = opts.resident === true;
@@ -1138,7 +1238,19 @@ export class GameSession implements PlaySession {
       earnedBody: null,
       defensiveDecay: null,
       brain: null,
-      hp: null,
+      // Restored where a returning player had any, and null otherwise — null
+      // still means "ask the tile", which is what a fresh body and every
+      // creature in the world wants. A stored zero would be a corpse, so it
+      // floors at one: nothing should ever write one, because a death takes the
+      // actor off the board rather than leaving it at nothing, and this is a
+      // path whose whole job is bringing somebody back.
+      hp: opts.hp === undefined ? null : Math.max(1, opts.hp),
+      // Whatever was still running when they left, frozen for exactly as long as
+      // they were away. A resident is handed nothing: its statuses are rebuilt
+      // from the tile like its brain, since a world nobody is looking at owes no
+      // continuity and a key per creature would spend the storage ceiling on
+      // remembering that a deer is uninjured.
+      statuses: resident ? NO_STATUSES : (opts.statuses ?? NO_STATUSES),
       attackCooldownMs: 0,
       targetId: null,
       attacking: false,
@@ -1176,34 +1288,47 @@ export class GameSession implements PlaySession {
    * carry those is unchanged. Arriving on a plate still presses it — the map
    * identity changed, so the next {@link settleBoardNow} will not skip.
    *
-   * @param at where this actor was standing the last time anyone saw them.
-   *   Consulted only when they have no tile on the board — a body already in
-   *   the map is more recent than any memory of one — and honoured only if it
-   *   still has room for them; see {@link findEntryCell}. Omit for an actor the
-   *   world has never met, who enters at the spawn point.
-   * @param carrying what this actor had on them the last time anyone saw them,
-   *   already checked against this world's tiles — see `restoredEquipment`.
-   *   Omit for somebody new, who gets the starting kit.
-   * @param tagged which rewards this actor has already taken. Omit for somebody
-   *   new, who is owed all of them.
-   * @param earned what this actor has learnt. Omit for somebody new, whose
-   *   masteries are seeded from the authored block on the body they arrive in.
+   * Everything a returning player brings back with them is one object, because
+   * that is what it is: six facts about the same person, restored together or
+   * not at all. Omit it entirely for somebody the world has never met.
    */
   spawn(
     id: string,
-    at?: Coord & { direction?: Direction },
-    carrying?: Equipment,
-    tagged?: readonly string[],
-    earned?: MasteryXp,
+    restored: {
+      /**
+       * Where this actor was standing the last time anyone saw them. Consulted
+       * only when they have no tile on the board — a body already in the map is
+       * more recent than any memory of one — and honoured only if it still has
+       * room for them; see {@link findEntryCell}.
+       */
+      at?: Coord & { direction?: Direction };
+      /**
+       * What they had on them, already checked against this world's tiles — see
+       * `restoredEquipment`. Omit for somebody new, who gets the starting kit.
+       */
+      carrying?: Equipment;
+      /** Which rewards they have taken. Omit and they are owed all of them. */
+      tagged?: readonly string[];
+      /**
+       * What they have learnt. Omit for somebody new, whose masteries are seeded
+       * from the authored block on the body they arrive in.
+       */
+      earned?: MasteryXp;
+      /** What was still running on them, frozen for as long as they were away. */
+      statuses?: readonly StatusInstance[];
+      /** What health they were on. Omit for a body that comes back full. */
+      hp?: number;
+    } = {},
   ) {
     if (this.actors.has(id)) return;
+    const { at } = restored;
     if (!findActorAnywhere(this.map, id)) {
       const cell = at
         ? findEntryCell(this.map, this.tilesById, at, this.spawnAt)
         : this.spawnAt;
       this.map = spawnActor(this.map, id, cell, at?.direction);
     }
-    this.addActor(id, { carrying, tagged, earned });
+    this.addActor(id, restored);
   }
 
   /**
@@ -1257,6 +1382,11 @@ export class GameSession implements PlaySession {
    * were holding down releases on the next tick by the same identity check.
    */
   despawn(id: string) {
+    // Before the delete, or the reading is left behind for somebody who is no
+    // longer here — and a returning actor would then be compared against what
+    // they were under last time and told nothing.
+    this.statusReadings.delete(id);
+    this.statusesChanged.delete(id);
     if (!this.actors.delete(id)) return;
     this.forgetTileIndex();
     this.map = despawnActor(this.map, id);
@@ -1563,6 +1693,12 @@ export class GameSession implements PlaySession {
     this.pendingNoise = [];
     this.ageDamageNumbers(tickMs);
     this.ageNoises(tickMs);
+
+    // Before the cooldowns and before anything swings, because a status is the
+    // one thing here that can change the numbers the rest of the tick is fought
+    // with — and because a poison that kills on this tick should take its bearer
+    // off the board before they get a swing out of it.
+    this.tickStatuses(tickMs);
 
     // Before anything swings, so a body whose cooldown expires on this tick can
     // spend it on this tick — whether the swing comes from a brain below or from
@@ -2275,9 +2411,160 @@ export class GameSession implements PlaySession {
    * one that does not, depending on who asked.
    */
   private battlerOf(actor: ActorRuntime): FightingStats | null {
+    const base = this.baseBattlerOf(actor);
+    if (!base) return null;
+    return withStatusModifiers(
+      base,
+      actor.statuses,
+      this.statusDefs,
+      // The stored figure rather than {@link hpOf}, which reads *this* function
+      // and would loop. Statuses that read `HP` therefore see the raw number,
+      // which is what a formula wants anyway: the clamp exists so a lowered
+      // maximum cannot leave somebody overfull, not to change what they have.
+      actor.hp ?? base.maxHp,
+    );
+  }
+
+  /**
+   * The same block **before any status has touched it**.
+   *
+   * Split out because it is what a status formula's `MAX_HP` has to read: a
+   * status that raises maximum health and heals a share of it would otherwise
+   * compound against itself once a second, and each of those readings would be a
+   * fraction of the last. See `../lib/formula`.
+   *
+   * It is also the only honest input to `withStatusModifiers`, which sums deltas
+   * onto a base — folding statuses into their own input would apply them twice.
+   */
+  private baseBattlerOf(actor: ActorRuntime): FightingStats | null {
     const body = this.bodyOf(actor);
     if (!body) return null;
     return effectiveBattler(body, actor.equipment, this.tilesById);
+  }
+
+  /**
+   * Put a status on somebody, by id.
+   *
+   * An id the catalogue does not hold is skipped, in the same breath a reward
+   * naming a missing tile is left alone: renamed content should read as an effect
+   * that did not happen, not as a world that will not start.
+   *
+   * The dice are the world's own — see `./statuses`.
+   */
+  private grantStatus(actor: ActorRuntime, grant: ConsumableStatus) {
+    const def = this.statusDefs[grant.id];
+    if (!def) return;
+    // The item's range where it states one, and the status's own otherwise —
+    // see `../lib/item`'s `ConsumableStatus`. Both ends or neither, so this
+    // cannot end up ordering one source's floor against another's ceiling.
+    const range =
+      grant.fromMs === undefined || grant.toMs === undefined
+        ? def
+        : { fromMs: grant.fromMs, toMs: grant.toMs };
+    actor.statuses = applyStatus(actor.statuses, def, this.rng, range);
+    // Noted here as well as on the tick, because eating happens *between* ticks
+    // and the world may be asleep when it does — the same reason the kit is
+    // flushed wherever it can change rather than only on the loop.
+    this.noteStatusReading(actor);
+  }
+
+  /**
+   * Queue an announcement if what this actor's statuses say has changed.
+   *
+   * Idempotent, and cheap on the overwhelmingly common path: a body under
+   * nothing reads as the empty string, which is what it read as last time.
+   */
+  private noteStatusReading(actor: ActorRuntime) {
+    const reading = statusReading(actor.statuses);
+    if (this.statusReadings.get(actor.id) === reading) return;
+    this.statusReadings.set(actor.id, reading);
+    this.statusesChanged.add(actor.id);
+  }
+
+  /**
+   * Advance everything running on everybody, and pay out whatever came due.
+   *
+   * In the tick's own order rather than folded into another pass, because what it
+   * does is neither motion nor a fight: a status can heal, harm, kill, and change
+   * the numbers the swing three lines further down is fought with.
+   *
+   * **The two directions leave by different doors**, and that is the whole reason
+   * `./statuses` hands back signed figures rather than a net. A harm goes through
+   * {@link applyDamage} so it shows its number, tells the brains and can kill —
+   * a death by poison and a death by blows must not be two codepaths to keep
+   * alive. A heal clamps at the maximum, exactly as a consumable's does.
+   */
+  private tickStatuses(tickMs: number) {
+    for (const actor of this.actors.values()) {
+      if (actor.statuses.length === 0) continue;
+
+      const base = this.baseBattlerOf(actor);
+      if (!base) continue;
+
+      const { statuses, hpChanges } = advanceStatuses(
+        actor.statuses,
+        tickMs,
+        { hp: this.hpOf(actor) ?? base.maxHp, maxHp: base.maxHp },
+        this.statusDefs,
+      );
+      actor.statuses = statuses;
+      this.noteStatusReading(actor);
+
+      for (const change of hpChanges) {
+        if (change < 0) {
+          this.applyDamage(actor, -change);
+          // A body that has just died is off the board, and everything after
+          // this would be arithmetic on a corpse.
+          if (actor.hp === 0) break;
+          continue;
+        }
+        if (change === 0) continue;
+        const stats = this.battlerOf(actor);
+        const before = this.hpOf(actor);
+        if (stats && before !== null) {
+          actor.hp = Math.min(stats.maxHp, before + change);
+        }
+      }
+    }
+  }
+
+  /** What is running on this actor, for the chrome and for the checkpoint. */
+  statusesOf(id: string): readonly StatusInstance[] | null {
+    return this.actors.get(id)?.statuses ?? null;
+  }
+
+  /**
+   * The same list in the shape the wire carries, or null for nobody by that
+   * name.
+   *
+   * The cadence accumulator is dropped rather than sent: it is bookkeeping about
+   * when the next payout is due, and no client pays anything out.
+   */
+  statusPatchesOf(
+    id: string,
+  ): { defId: string; remainingMs: number; durationMs: number }[] | null {
+    const statuses = this.actors.get(id)?.statuses;
+    if (!statuses) return null;
+    return statuses.map(({ defId, remainingMs, durationMs }) => ({
+      defId,
+      remainingMs,
+      durationMs,
+    }));
+  }
+
+  /**
+   * Hit points as they stand, for whoever is making them durable.
+   *
+   * Null where the body has none, and where it has never been asked — an actor
+   * whose `hp` is still null is one at full health by construction, and saving
+   * that would spend a storage key on the tile saying it again next load.
+   */
+  storedHpOf(id: string): number | null {
+    const actor = this.actors.get(id);
+    if (!actor || actor.hp === null) return null;
+    const stats = this.battlerOf(actor);
+    if (!stats || actor.hp >= stats.maxHp) return null;
+    return actor.hp;
   }
 
   /**
@@ -2657,6 +2944,14 @@ export class GameSession implements PlaySession {
     // there is nowhere left to hang a bubble.
     this.recordConsumeSound(actor, consumable);
 
+    // Before the hit points move, so a consumable that both grants something and
+    // kills you has already handed it over — and after the sound, on the same
+    // grounds: by the time a fatal number has landed there is no body left to
+    // hang anything on.
+    for (const grant of consumable.statuses ?? []) {
+      this.grantStatus(actor, grant);
+    }
+
     if (consumable.hp < 0) {
       // Through the damage path rather than a bare subtraction, so a poison
       // apple shows its number, tells the brains, and can kill — a death by
@@ -2961,6 +3256,20 @@ export class GameSession implements PlaySession {
     return changed;
   }
 
+  /**
+   * Whose statuses have changed in a way worth telling them about.
+   *
+   * A fourth queue, and the only one that is filled by the passage of time
+   * rather than by somebody doing something — see {@link statusesChanged} for
+   * why that makes the *reading* the thing being compared.
+   */
+  drainStatusChanges(): string[] {
+    if (this.statusesChanged.size === 0) return [];
+    const changed = [...this.statusesChanged];
+    this.statusesChanged.clear();
+    return changed;
+  }
+
   canTakeReward(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
     if (!this.idle(actor)) return false;
@@ -3156,6 +3465,9 @@ export class GameSession implements PlaySession {
       hp: this.hpOf(actor),
       maxHp: this.battlerOf(actor)?.maxHp ?? null,
       rating: this.ratingOf(actor),
+      // By reference, like the kit below: `advanceStatuses` replaces the list
+      // wholesale, so the same array across two ticks is the same answer.
+      statuses: actor.statuses,
       // By reference, like `walk` and `fall`: it is replaced wholesale whenever
       // a kit changes, so the same array across two ticks is the same answer and
       // nothing downstream has to copy it to be safe.

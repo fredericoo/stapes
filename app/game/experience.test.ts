@@ -291,13 +291,7 @@ function advance(session: GameSession, ms: number) {
 
 /** The player, and something standing next to them, already fighting. */
 function sparring(opponent = "sparring-partner", seed = 1) {
-  const session = new GameSession(
-    withBody(field(), 1, opponent),
-    tiles,
-    ["me"],
-    undefined,
-    seed,
-  );
+  const session = new GameSession(withBody(field(), 1, opponent), tiles, { actorIds: ["me"], seed: seed });
   const foe = session.actorIds().find((id) => id !== "me")!;
   session.setTarget(foe, "me");
   session.setAttackMode(true, "me");
@@ -391,9 +385,9 @@ describe("a player earns from the fights they have", () => {
 
     // Enough to buy several points outright, handed over rather than ground out
     // — the grind is the previous test's business.
-    session.spawn("veteran", { x: -1, y: 0, z: 0 }, undefined, undefined, {
-      fist: xpForLevel(60),
-      toughness: xpForLevel(60),
+    session.spawn("veteran", {
+      at: { x: -1, y: 0, z: 0 },
+      earned: { fist: xpForLevel(60), toughness: xpForLevel(60) },
     });
     expect(session.ratingIn("veteran")!).toBeGreaterThan(before);
   });

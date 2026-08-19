@@ -241,6 +241,7 @@ describe("a kit that will not parse", () => {
       carriedLights: [],
       equipment,
       tags: [],
+      statuses: [],
     });
   }
 

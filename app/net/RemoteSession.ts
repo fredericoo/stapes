@@ -6,6 +6,7 @@ import {
   PUSH_STEP_MS,
   WALK_DURATION_MS,
 } from "../game/constants";
+import type { StatusInstance } from "../game/statuses";
 import {
   actorDirection,
   actorStillAt,
@@ -342,6 +343,15 @@ export class RemoteSession implements PlaySession {
       // Same rule again: a fresh body in a replaced world is still the same
       // person, and what they have learnt came with them.
       this.masteryXp = message.masteryXp;
+      // And what is running on them, for the same reason a third time — the
+      // server carries statuses across a world replacement precisely so a save
+      // does not cure every poison in the room.
+      this.statuses = message.statuses.map((patch) => ({
+        defId: patch.defId,
+        remainingMs: patch.remainingMs,
+        durationMs: patch.durationMs,
+        sinceEffectMs: 0,
+      }));
       for (const id of message.actorIds) this.motions.set(id, emptyMotion());
       this.applyHps(message.hps);
       this.applyCarriedLights(message.carriedLights);
@@ -409,12 +419,39 @@ export class RemoteSession implements PlaySession {
       return;
     }
 
+    if (message.type === "statuses") {
+      // Whole state again, on the terms the kit and the hit points are under. A
+      // list rebuilt from gained-and-lost events drifts the moment one is missed
+      // and goes on being wrong with nothing to correct it.
+      //
+      // The cadence accumulator is not on the wire and is not wanted: it is the
+      // server's bookkeeping about when the next payout is due, and the client
+      // pays nothing out. Zero is the honest local value.
+      this.statuses = message.statuses.map((patch) => ({
+        defId: patch.defId,
+        remainingMs: patch.remainingMs,
+        durationMs: patch.durationMs,
+        sinceEffectMs: 0,
+      }));
+      return;
+    }
+
     this.applyCells(message.cells);
     this.applyHps(message.hps);
     this.applyCarriedLights(message.carriedLights);
     for (const event of message.events) this.applyEvent(event);
     this.rebuildPredicted();
   };
+
+  /**
+   * What is running on the viewer's own body, as the server last said.
+   *
+   * Theirs alone: nothing draws anybody else's, so nothing else is ever told.
+   * Held here rather than in `this.hps` for exactly that reason — one is a map
+   * keyed by actor because a health bar hangs over every head, and this is a
+   * single list because there is only ever one body it describes.
+   */
+  private statuses: readonly StatusInstance[] = NO_STATUSES;
 
   /** Take the server's word for everybody's hit points. */
   private applyHps(hps: HpPatch[]) {
@@ -1088,6 +1125,10 @@ export class RemoteSession implements PlaySession {
       hp: health?.hp ?? null,
       maxHp: health?.maxHp ?? null,
       rating: health?.rating ?? null,
+      // The viewer's own, and nobody else's: statuses do not travel with a body,
+      // so every other snapshot carries none. That is not a gap — nothing draws
+      // another body's statuses, which is why the wire never sends them.
+      statuses: id === this.selfId ? this.statuses : NO_STATUSES,
       // Shared by reference and never mutated in place, exactly as it is on the
       // simulation side: the array the server sent *is* the answer, and copying
       // it per actor per frame would be an allocation for a list that is almost
@@ -1387,6 +1428,9 @@ const NO_CARRIED_LIGHTS: string[] = [];
  */
 const NO_TAGS: readonly string[] = [];
 
+/** Shared empty list, since no remote body ever carries statuses. */
+const NO_STATUSES: readonly StatusInstance[] = [];
+
 function emptyMotion(): RemoteMotion {
   return { walk: null, fall: null, slide: null, lastSeen: null };
 }
@@ -1412,6 +1456,7 @@ function offscreenActor(id: string): ActorSnapshot {
     hp: null,
     maxHp: null,
     rating: null,
+    statuses: NO_STATUSES,
     carriedLights: NO_CARRIED_LIGHTS,
   };
 }

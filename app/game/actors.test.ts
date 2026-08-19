@@ -109,14 +109,14 @@ describe("actor lifecycle", () => {
   });
 
   it("opens an empty world with no avatar on the board", () => {
-    const session = new GameSession(strip(3), tiles, []);
+    const session = new GameSession(strip(3), tiles, { actorIds: [] });
     expect(idsAt(session, 0, 0)).toEqual(["grass"]);
     expect(findPlayers(session.getMap())).toHaveLength(0);
     expect(session.actorIds()).toEqual([]);
   });
 
   it("spawns every actor at the authored marker's cell", () => {
-    const session = new GameSession(strip(3), tiles, []);
+    const session = new GameSession(strip(3), tiles, { actorIds: [] });
     session.spawn("a");
     session.spawn("b");
 
@@ -125,7 +125,7 @@ describe("actor lifecycle", () => {
   });
 
   it("removes an actor's tile when they leave", () => {
-    const session = new GameSession(strip(3), tiles, ["a", "b"]);
+    const session = new GameSession(strip(3), tiles, { actorIds: ["a", "b"] });
     expect(findPlayers(session.getMap())).toHaveLength(2);
 
     session.despawn("a");
@@ -136,7 +136,7 @@ describe("actor lifecycle", () => {
   });
 
   it("leaves mid-walk without stranding the tile", () => {
-    const session = new GameSession(strip(4), tiles, ["a", "b"]);
+    const session = new GameSession(strip(4), tiles, { actorIds: ["a", "b"] });
     session.setInput({ directions: ["e"] }, "b");
     // Part-way through the walk, so `b` has a committed cell and a live lerp.
     advance(session, WALK_DURATION_MS / 2);
@@ -168,14 +168,14 @@ describe("actor lifecycle", () => {
    * only ever removes one — so the first would linger forever.
    */
   it("re-seats an actor who already has a tile instead of minting a second", () => {
-    const first = new GameSession(strip(4), tiles, ["a"]);
+    const first = new GameSession(strip(4), tiles, { actorIds: ["a"] });
     first.setInput({ directions: ["e"] }, "a");
     first.update(ONE_WALK_MS);
     const ranMap = first.getMap();
     const spawn = first.getSpawnPoint();
     expect(first.getSnapshot("a").self.x).toBe(1);
 
-    const resumed = new GameSession(ranMap, tiles, ["a"], spawn);
+    const resumed = new GameSession(ranMap, tiles, { actorIds: ["a"], spawnAt: spawn });
 
     expect(findPlayers(resumed.getMap())).toHaveLength(1);
     // And re-seated where they were, not sent back to spawn.
@@ -183,7 +183,7 @@ describe("actor lifecycle", () => {
   });
 
   it("reaps actors whose connections are gone", () => {
-    const session = new GameSession(strip(3), tiles, ["a", "b", "c"]);
+    const session = new GameSession(strip(3), tiles, { actorIds: ["a", "b", "c"] });
     expect(findPlayers(session.getMap())).toHaveLength(3);
 
     session.reapAbsentActors(["b"]);
@@ -193,14 +193,14 @@ describe("actor lifecycle", () => {
   });
 
   it("resumes a map whose marker was already consumed", () => {
-    const first = new GameSession(strip(3), tiles, []);
+    const first = new GameSession(strip(3), tiles, { actorIds: [] });
     const ranMap = first.getMap();
     const spawn = first.getSpawnPoint();
     expect(findPlayers(ranMap)).toHaveLength(0);
 
-    expect(() => new GameSession(ranMap, tiles, [])).toThrow(/No tile/);
+    expect(() => new GameSession(ranMap, tiles, { actorIds: [] })).toThrow(/No tile/);
 
-    const resumed = new GameSession(ranMap, tiles, [], spawn);
+    const resumed = new GameSession(ranMap, tiles, { actorIds: [], spawnAt: spawn });
     resumed.spawn("a");
     expect(ownersAt(resumed, spawn.x, spawn.y, spawn.z)).toEqual([
       undefined,
@@ -211,7 +211,7 @@ describe("actor lifecycle", () => {
 
 describe("two actors on one board", () => {
   it("each walks under its own input", () => {
-    const session = new GameSession(strip(5), tiles, ["a", "b"]);
+    const session = new GameSession(strip(5), tiles, { actorIds: ["a", "b"] });
     session.setInput({ directions: ["e"] }, "a");
     advance(session, ONE_WALK_MS);
 
@@ -221,7 +221,7 @@ describe("two actors on one board", () => {
   });
 
   it("sees each other in the snapshot, in stable id order", () => {
-    const session = new GameSession(strip(5), tiles, ["a", "b"]);
+    const session = new GameSession(strip(5), tiles, { actorIds: ["a", "b"] });
     const snap = session.getSnapshot("a");
 
     expect(snap.actors.map((actor) => actor.id)).toEqual(["a", "b"]);
@@ -231,7 +231,7 @@ describe("two actors on one board", () => {
   it("resolves a contested cell by actor order, not by both entering it", () => {
     // Both stand on x=0 and both press east; only one may occupy x=1, since
     // the player tile is not walkable.
-    const session = new GameSession(strip(3), tiles, ["a", "b"]);
+    const session = new GameSession(strip(3), tiles, { actorIds: ["a", "b"] });
     session.setInput({ directions: ["e"] }, "a");
     session.setInput({ directions: ["e"] }, "b");
     advance(session, ONE_WALK_MS);
@@ -244,7 +244,7 @@ describe("two actors on one board", () => {
   });
 
   it("blocks a walk into the cell another actor is standing in", () => {
-    const session = new GameSession(strip(3), tiles, []);
+    const session = new GameSession(strip(3), tiles, { actorIds: [] });
     session.spawn("a");
     // Put `b` directly east of the spawn cell.
     session.setInput({ directions: ["e"] }, "a");
@@ -273,7 +273,7 @@ describe("actors and shared objects", () => {
   }
 
   it("lets one actor push a crate the other can then see moved", () => {
-    const session = new GameSession(withCrate(1), tiles, ["a", "b"]);
+    const session = new GameSession(withCrate(1), tiles, { actorIds: ["a", "b"] });
     expect(session.push({ x: 1, y: 0, z: 0, stackIndex: 1 }, "a")).toBe(true);
 
     expect(idsAt(session, 1, 0)).toEqual(["grass"]);
@@ -283,7 +283,7 @@ describe("actors and shared objects", () => {
   });
 
   it("charges the slide to the pusher alone", () => {
-    const session = new GameSession(withCrate(1), tiles, ["a", "b"]);
+    const session = new GameSession(withCrate(1), tiles, { actorIds: ["a", "b"] });
     session.push({ x: 1, y: 0, z: 0, stackIndex: 1 }, "a");
 
     expect(session.getSnapshot("a").self.slide).not.toBeNull();
@@ -292,7 +292,7 @@ describe("actors and shared objects", () => {
   });
 
   it("refuses a push from an actor who is not adjacent", () => {
-    const session = new GameSession(withCrate(3), tiles, ["a", "b"]);
+    const session = new GameSession(withCrate(3), tiles, { actorIds: ["a", "b"] });
     // Both are at x=0; the crate is three cells away.
     expect(session.canPush({ x: 3, y: 0, z: 0, stackIndex: 1 }, "b")).toBe(
       false,

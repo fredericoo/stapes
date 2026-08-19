@@ -177,7 +177,7 @@ describe("the starting kit", () => {
   });
 
   it("gives two players two different bags", () => {
-    const session = new GameSession(field(), tiles, ["a", "b"]);
+    const session = new GameSession(field(), tiles, { actorIds: ["a", "b"] });
     const a = session.equipmentOf("a")!.bag!.id;
     const b = session.equipmentOf("b")!.bag!.id;
     expect(a).not.toBe(b);
@@ -569,10 +569,7 @@ index: 0 })).toBe(
 
   it("counts a drawn weapon towards the blow it lands", () => {
     const map = withBody(field(), 1, 0, "dummy");
-    const session = new GameSession(
-      replaceStack(map, 1, 1, 0, [{ tileId: "grass" }, { tileId: SWORD }]),
-      tiles,
-    );
+    const session = new GameSession(replaceStack(map, 1, 1, 0, [{ tileId: "grass" }, { tileId: SWORD }]), tiles);
     session.pickUp(refAt(session, 1, 1));
     session.moveItem({ kind: "contents",
 index: 0 }, { kind: "weapon" });
@@ -1005,7 +1002,7 @@ describe("dying with something on you", () => {
     session.pickUp(refAt(session, 1, 1));
     session.moveItem({ kind: "contents", index: 0 }, { kind: "weapon" });
 
-    session.spawn(KILLER, { x: 1, y: 0, z: 0, direction: "w" });
+    session.spawn(KILLER, { at: { x: 1, y: 0, z: 0, direction: "w" } });
     session.setTarget(selfId(session), KILLER);
     session.setAttackMode(true, KILLER);
     return session;

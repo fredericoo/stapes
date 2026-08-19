@@ -27,6 +27,7 @@ const NARROW_VIEWPORT = "(max-width: 767px)";
 
 const DESTINATIONS: { to: string; label: string }[] = [
   { to: "/tiles", label: "Tiles" },
+  { to: "/statuses", label: "Statuses" },
   { to: "/map", label: "Map" },
   { to: "/play", label: "Play" },
   { to: "/online", label: "Online" },

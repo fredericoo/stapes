@@ -14,14 +14,57 @@ import type { Direction } from "../lib/types";
  * take no pointer events — the pad reads the geometry itself.
  */
 
-/** Side of the pad's touch area. The diamond is inscribed in it. */
-const PAD_SIZE_PX = 176;
+/**
+ * Side of the pad's touch area at its most comfortable. The diamond is
+ * inscribed in it.
+ *
+ * A **maximum** rather than a fixed size: the pad is the thing that yields when
+ * a phone is narrow, because the list beside it is text and text has a width
+ * below which it stops being readable, where a d-pad merely gets smaller. See
+ * {@link MIN_PAD_SIZE_PX}.
+ */
+export const MAX_PAD_SIZE_PX = 176;
 
-/** Side of the inscribed square, before it is turned to sit on its point. */
-const DIAMOND_SIZE_PX = Math.round(PAD_SIZE_PX / Math.SQRT2);
+/**
+ * How small the pad is allowed to get before the list starts giving room back.
+ *
+ * Roughly a thumb. Below this the quadrants stop being reliably separable while
+ * walking, and a control you have to look at is worse than a cramped list.
+ *
+ * Exported because the status lane beside it floors its own height here: a lane
+ * sized purely by leftover space collapses to nothing on a squeezed layout, and
+ * the pad is the thing it has to read as a cluster with. Floored at the pad's
+ * *smallest*, so the lane can never be taller than the pad it sits against.
+ */
+export const MIN_PAD_SIZE_PX = 128;
 
-/** A thumb resting near the middle should not steer. */
-const DEAD_ZONE_PX = 16;
+/**
+ * The inscribed square as a share of the pad, before it is turned to sit on its
+ * point.
+ *
+ * A ratio rather than a length now that the pad is fluid — `1/√2` is what makes
+ * a square rotated 45° exactly fill the box it is inscribed in.
+ */
+const DIAMOND_RATIO = 1 / Math.SQRT2;
+
+/**
+ * A thumb resting near the middle should not steer, as a share of the pad's
+ * side.
+ *
+ * Proportional rather than absolute, because the pad now shrinks: sixteen pixels
+ * of a 176px pad is a tenth of it and sixteen pixels of a 128px pad is an
+ * eighth, so a fixed zone would quietly grow into a shrinking pad and make the
+ * quadrants harder to reach exactly where they are already tightest.
+ */
+const DEAD_ZONE_RATIO = 16 / MAX_PAD_SIZE_PX;
+
+/** The dead zone this pad actually has, given how big it ended up. */
+function deadZoneFor(padSizePx: number): number {
+  return DEAD_ZONE_RATIO * padSizePx;
+}
+
+/** The dead zone at the pad's full size, which is what the default reads as. */
+const DEAD_ZONE_PX = deadZoneFor(MAX_PAD_SIZE_PX);
 
 /**
  * The direction a point means, measured from the pad's centre — or null when it
@@ -81,6 +124,9 @@ export function DirectionPad({
       directionAt(
         clientX - (rect.left + rect.width / 2),
         clientY - (rect.top + rect.height / 2),
+        // Measured rather than assumed: the pad is whatever width the row had
+        // left for it, and the zone has to be a share of that.
+        deadZoneFor(rect.width),
       ),
     );
   };
@@ -116,10 +162,12 @@ export function DirectionPad({
   return (
     <div
       ref={padRef}
-      className="relative touch-none select-none"
+      // Fluid between the two bounds, and square by ratio rather than by two
+      // matching lengths — the width is whatever the row gives it.
+      className="relative aspect-square w-full shrink touch-none select-none"
       style={{
-        width: PAD_SIZE_PX,
-        height: PAD_SIZE_PX,
+        maxWidth: MAX_PAD_SIZE_PX,
+        minWidth: MIN_PAD_SIZE_PX,
         WebkitTouchCallout: "none",
         WebkitUserSelect: "none",
         WebkitTapHighlightColor: "transparent",
@@ -154,7 +202,7 @@ export function DirectionPad({
     >
       <div
         className="absolute top-1/2 left-1/2 grid -translate-x-1/2 -translate-y-1/2 grid-cols-2 grid-rows-2 gap-px rotate-45"
-        style={{ width: DIAMOND_SIZE_PX, height: DIAMOND_SIZE_PX }}
+        style={{ width: `${DIAMOND_RATIO * 100}%`, height: `${DIAMOND_RATIO * 100}%` }}
       >
         {QUADRANTS.map(({ direction, label, glyph }) => (
           <button

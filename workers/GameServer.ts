@@ -38,6 +38,8 @@ import {
 } from "../app/lib/mapData";
 import { dataStoreFor, type DataStore } from "../app/lib/storage.server";
 import { tilesByIdFromList } from "../app/lib/validation";
+import { type StatusDef, statusesById } from "../app/lib/status";
+import type { StatusInstance } from "../app/game/statuses";
 import type {
   ChunkCells,
   Direction,
@@ -242,6 +244,7 @@ const TAGS_KEY_PREFIX = "tags:";
 const MASTERIES_KEY_PREFIX = "mast:";
 
 /**
+/**
  * Key prefix under which one player's spawn point is kept — where a death puts
  * them back.
  *
@@ -259,6 +262,38 @@ const MASTERIES_KEY_PREFIX = "mast:";
  * door that is no longer there.
  */
 const SPAWN_KEY_PREFIX = "spawn:";
+
+/**
+ * Key prefix under which one actor's running statuses are kept.
+ *
+ * The whole of what makes a status effect a status effect rather than a timer:
+ * logging off must neither cancel it nor advance it, so what is left of it has to
+ * outlive the connection. Its own key beside the four before it, and a different
+ * population again — only somebody who has eaten or been bitten has any.
+ *
+ * Validated for **shape** on the way back in, like the masteries and unlike the
+ * tags: it is arithmetic a tick will act on, and a malformed remainder would run
+ * through every payout from then on rather than failing where it was read. The
+ * ids in it are *not* checked against the catalogue here — `advanceStatuses`
+ * drops one whose def has gone, which is the same check in the one place that
+ * can also do something about it.
+ */
+const STATUSES_KEY_PREFIX = "status:";
+
+/**
+ * Key prefix under which one actor's hit points are kept.
+ *
+ * Hit points used to be rebuilt from the tile on every load, on the grounds that
+ * a world nobody is looking at owes no continuity. Statuses broke that: a heal
+ * that runs for half an hour is undone by a reconnect, and a poison is cured by
+ * one, so the feature would have been decorative in exactly the case it was
+ * written for.
+ *
+ * Written **only when they are not full**, which is what keeps the cost
+ * proportional to injury rather than to visitors: a body at its maximum needs no
+ * memory, because the tile says so again next load.
+ */
+const HP_KEY_PREFIX = "hp:";
 
 /**
  * How many actors the world remembers the whereabouts of.
@@ -334,6 +369,36 @@ type SavedMasteries = { masteries: MasteryXp; savedAt: number };
 /** Where somebody came into the world, kept against their death. */
 type SavedSpawn = ActorPosition & { savedAt: number };
 
+/** What was still running on somebody, frozen for as long as they are away. */
+type SavedStatuses = { statuses: StatusInstance[]; savedAt: number };
+
+/**
+ * What health somebody was on.
+ *
+ * **Nullable, and the null is what makes the row correctable.** Null means "at
+ * their maximum", which is also what an absent key means — but a row that has to
+ * be *overwritten* with that is the only way to retract a number written while
+ * they were hurt. See {@link GameServer.saveActors}.
+ */
+type SavedHp = { hp: number | null; savedAt: number };
+
+/**
+ * One stored status, checked rather than trusted.
+ *
+ * Every field is arithmetic a tick will act on, so a malformed one has to fail
+ * here rather than propagate. `defId` is deliberately *not* checked against the
+ * catalogue: `advanceStatuses` drops a status whose def has gone, which is the
+ * same test in the one place that can also stop applying it.
+ */
+const savedStatusSchema = v.object({
+  defId: v.pipe(v.string(), v.minLength(1)),
+  durationMs: v.pipe(v.number(), v.finite(), v.minValue(0)),
+  remainingMs: v.pipe(v.number(), v.finite(), v.minValue(0)),
+  sinceEffectMs: v.pipe(v.number(), v.finite(), v.minValue(0)),
+});
+
+const savedStatusesSchema = v.array(savedStatusSchema);
+
 type Attachment = { actorId: string };
 
 /**
@@ -363,6 +428,13 @@ type WrittenActor = {
   equipment: Equipment | null;
   tags: readonly string[] | null;
   masteries: MasteryXp | null;
+  /**
+   * Null means "never told", which is not the same as an empty list: the
+   * difference is whether there is a stale row out there to correct. See
+   * {@link GameServer.saveActors}.
+   */
+  statuses: readonly StatusInstance[] | null;
+  hp: number | null;
 };
 
 /** Whether two positions describe the same standing place, facing the same way. */
@@ -447,6 +519,12 @@ type SentMotion = {
 export class GameServer extends DurableObject<Env> {
   private session: GameSession | null = null;
   private tiles: TileDef[] = [];
+  /**
+   * The status catalogue, compiled. Empty until {@link load} runs, which is the
+   * same state the tiles are in and means the same thing: a world nothing has
+   * been read into yet.
+   */
+  private statusDefs: Record<string, StatusDef> = {};
   /** Map identity the last broadcast was diffed against. */
   private broadcastMap: MapFile | null = null;
   private sentMotion = new Map<string, SentMotion>();
@@ -591,6 +669,11 @@ export class GameServer extends DurableObject<Env> {
   private async load() {
     const store = this.store();
     this.tiles = await store.readTiles();
+    // Beside the tiles because it is the same kind of thing: authored content
+    // the world reads and never writes. Resolved once per load — `statusesById`
+    // compiles every formula in it, which is exactly the work that must not
+    // happen on a tick.
+    this.statusDefs = statusesById(await store.readStatuses());
 
     const checkpoint = await this.ctx.storage.get<Checkpoint>(CHECKPOINT_KEY);
     const board = checkpoint ? await this.checkpointedBoard(checkpoint) : null;
@@ -598,14 +681,16 @@ export class GameServer extends DurableObject<Env> {
     // authored `player` tile is only the marker saying where, and starting the
     // session consumes it.
     this.session = board
-      ? new GameSession(
-          board,
-          this.tiles,
-          [],
-          checkpoint!.spawn,
-          checkpoint!.seed,
-        )
-      : new GameSession(await store.readMap(), this.tiles, []);
+      ? new GameSession(board, this.tiles, {
+          actorIds: [],
+          spawnAt: checkpoint!.spawn,
+          seed: checkpoint!.seed,
+          statuses: this.statusDefs,
+        })
+      : new GameSession(await store.readMap(), this.tiles, {
+          actorIds: [],
+          statuses: this.statusDefs,
+        });
     // Only from a checkpoint we could actually resume. A world falling back to
     // the authored map is a world nobody has died in yet, and carrying a grudge
     // across that would leave somebody absent from a board they are standing on.
@@ -900,14 +985,29 @@ export class GameServer extends DurableObject<Env> {
       // Beside the seating, because a player restored across a wake can die
       // without ever running {@link fetch} again.
       await this.rememberSpawn(id);
-      this.session?.spawn(
-        id,
-        await this.lastPositionOf(id),
-        await this.lastEquipmentOf(id),
-        await this.lastTagsOf(id),
-        await this.lastMasteriesOf(id),
-      );
+      this.session?.spawn(id, await this.restoredActor(id));
     }
+  }
+
+  /**
+   * Everything the world remembers about one person, fetched together.
+   *
+   * One helper rather than six awaits at each of the three places somebody is
+   * seated, because the list only ever grows and the three had already drifted
+   * into three different lengths once. Whatever is here is what `spawn` is
+   * handed, and an absent key is `undefined`, which every field reads as "give
+   * them the default".
+   */
+  private async restoredActor(actorId: string) {
+    const [at, carrying, tagged, earned, statuses, hp] = await Promise.all([
+      this.lastPositionOf(actorId),
+      this.lastEquipmentOf(actorId),
+      this.lastTagsOf(actorId),
+      this.lastMasteriesOf(actorId),
+      this.lastStatusesOf(actorId),
+      this.lastHpOf(actorId),
+    ]);
+    return { at, carrying, tagged, earned, statuses, hp };
   }
 
   /**
@@ -994,6 +1094,14 @@ export class GameServer extends DurableObject<Env> {
     return `${TAGS_KEY_PREFIX}${actorId}`;
   }
 
+  private statusesKey(actorId: string): string {
+    return `${STATUSES_KEY_PREFIX}${actorId}`;
+  }
+
+  private hpKey(actorId: string): string {
+    return `${HP_KEY_PREFIX}${actorId}`;
+  }
+
   private masteriesKey(actorId: string): string {
     return `${MASTERIES_KEY_PREFIX}${actorId}`;
   }
@@ -1021,6 +1129,46 @@ export class GameServer extends DurableObject<Env> {
     if (!saved?.masteries) return undefined;
     const parsed = v.safeParse(masteryXpBlockSchema, saved.masteries);
     return parsed.success ? parsed.output : undefined;
+  }
+
+  /**
+   * What was still running on this actor when the world last saw them.
+   *
+   * Handed back **unadvanced**: the whole contract is that a status neither ends
+   * nor progresses while nobody is driving the body. Undefined for somebody the
+   * world has nothing on, which {@link GameSession.spawn} reads as "under
+   * nothing".
+   *
+   * A block that does not validate is dropped whole rather than filtered, on the
+   * terms a malformed mastery block is: half a remembered condition is a worse
+   * answer than none, and none is one a player can act on.
+   */
+  private async lastStatusesOf(
+    actorId: string,
+  ): Promise<StatusInstance[] | undefined> {
+    const saved = await this.ctx.storage.get<SavedStatuses>(
+      this.statusesKey(actorId),
+    );
+    if (!saved?.statuses) return undefined;
+    const parsed = v.safeParse(savedStatusesSchema, saved.statuses);
+    return parsed.success ? parsed.output : undefined;
+  }
+
+  /**
+   * What health this actor was on, if the world remembers them being hurt.
+   *
+   * Undefined means full, which is both the common case and the honest reading:
+   * nothing is written for a body at its maximum, so an absent key and a healthy
+   * body are the same fact.
+   */
+  private async lastHpOf(actorId: string): Promise<number | undefined> {
+    const saved = await this.ctx.storage.get<SavedHp>(this.hpKey(actorId));
+    // A stored null is a body that healed to full, and reads exactly as an
+    // absent key does: undefined, which `spawn` takes as "ask the tile".
+    if (saved?.hp == null || !Number.isFinite(saved.hp) || saved.hp < 1) {
+      return undefined;
+    }
+    return Math.floor(saved.hp);
   }
 
   /**
@@ -1102,6 +1250,8 @@ export class GameServer extends DurableObject<Env> {
       | SavedEquipment
       | SavedTags
       | SavedMasteries
+      | SavedStatuses
+      | SavedHp
       | Checkpoint
       | ChunkCells
     > = {};
@@ -1115,6 +1265,8 @@ export class GameServer extends DurableObject<Env> {
       const equipment = session.equipmentOf(actorId);
       const tags = session.tagsOf(actorId);
       const masteries = session.masteryXpOf(actorId);
+      const statuses = session.statusesOf(actorId);
+      const hp = session.storedHpOf(actorId);
 
       // **A resident's position is never written, because nothing ever reads
       // it.** Every caller of {@link lastPositionOf} is asking on behalf of a
@@ -1178,12 +1330,54 @@ export class GameServer extends DurableObject<Env> {
           savedAt,
         };
       }
+      // And in the same batch a fourth and fifth time, where the pairing matters
+      // more than it does anywhere above: a status that heals *moves hit points*,
+      // so a remembered condition made durable against health that was not —  or
+      // the other way round — comes back either having healed twice or not at
+      // all. One write, one moment.
+      //
+      // **Written when they change, and changing to nothing counts.** Every
+      // other row here can be skipped while empty because an absent key and an
+      // empty value mean the same thing for ever. These two are the opposite: a
+      // `status:` row left behind when the last one ran out is a status that
+      // comes back from the dead on the next reconnect, and an `hp:` row left
+      // behind after somebody healed to full un-heals them. Skipping the empty
+      // case is what a `length > 0` guard alone would do, and it was wrong.
+      //
+      // Residents are excluded outright, on exactly the grounds their position
+      // is: `spawn` refuses restored statuses for a body that lives in the map,
+      // so nothing would ever read either row.
+      if (!session.isResident(actorId)) {
+        const lastStatuses = written?.statuses ?? null;
+        const bothEmpty =
+          (statuses?.length ?? 0) === 0 && (lastStatuses?.length ?? 0) === 0;
+        // Identity, like the kit and the tags: `advanceStatuses` replaces the
+        // list wholesale, so a fresh array *is* a tick having passed.
+        if (!bothEmpty && statuses !== lastStatuses) {
+          entries[this.statusesKey(actorId)] = {
+            statuses: (statuses ?? []).map((status) => ({ ...status })),
+            savedAt,
+          };
+        }
+        // By value rather than identity, since it is a number: null is a body at
+        // its maximum, which is the common case and needs no memory of its own.
+        if (hp !== (written?.hp ?? null)) {
+          entries[this.hpKey(actorId)] = { hp, savedAt };
+        }
+      }
 
       // Remembered as of this batch rather than as of a confirmation, on the
       // same terms the batch itself is fire-and-forget: a write that does not
       // stick leaves this instance believing storage is ahead of where it is,
       // and the next instance — which remembers nothing — writes it out again.
-      this.writtenActors.set(actorId, { position: at, equipment, tags, masteries });
+      this.writtenActors.set(actorId, {
+        position: at,
+        equipment,
+        tags,
+        masteries,
+        statuses,
+        hp,
+      });
     }
 
     // The dead, whom the loop above cannot reach: `actorPosition` is null for a
@@ -1313,6 +1507,8 @@ export class GameServer extends DurableObject<Env> {
     await this.pruneOldest(POSITION_KEY_PREFIX);
     await this.pruneOldest(EQUIPMENT_KEY_PREFIX);
     await this.pruneOldest(TAGS_KEY_PREFIX);
+    await this.pruneOldest(STATUSES_KEY_PREFIX);
+    await this.pruneOldest(HP_KEY_PREFIX);
     await this.pruneOldest(MASTERIES_KEY_PREFIX);
     await this.pruneOldest(SPAWN_KEY_PREFIX);
   }
@@ -1379,13 +1575,7 @@ export class GameServer extends DurableObject<Env> {
     // Rejoining with the same id keeps the actor already on the board; the
     // remembered position is for somebody whose body is gone — they left, or
     // their connection died while this object was evicted and they were reaped.
-    session.spawn(
-      actorId,
-      await this.lastPositionOf(actorId),
-      await this.lastEquipmentOf(actorId),
-      await this.lastTagsOf(actorId),
-      await this.lastMasteriesOf(actorId),
-    );
+    session.spawn(actorId, await this.restoredActor(actorId));
     this.events.push({
       kind: "joined",
       actorId,
@@ -1444,6 +1634,10 @@ export class GameServer extends DurableObject<Env> {
       // reason all three are: a joiner has nothing to patch against, and the
       // panel showing it is on screen before the first blow.
       masteryXp: { ...(session.masteryXpOf(actorId) ?? {}) },
+      // Theirs alone again, and in full on arrival for the reason all of these
+      // are: there is nothing to patch against, and the lane that draws them is
+      // on screen before the first berry.
+      statuses: session.statusPatchesOf(actorId) ?? [],
       playerCount: this.playerCount(),
       // Read here rather than tracked: time of day is a function of the
       // server's clock, so it costs nothing to keep and cannot fall behind
@@ -1533,6 +1727,9 @@ export class GameServer extends DurableObject<Env> {
     this.flushSounds();
     this.flushTags();
     this.flushMasteries();
+    // Eating happens between ticks, and the world may be asleep when it does —
+    // the same reason the kit is flushed here rather than only on the loop.
+    this.flushStatuses();
     this.wake();
   }
 
@@ -1669,6 +1866,37 @@ export class GameServer extends DurableObject<Env> {
           masteryXp: { ...masteryXp },
         } satisfies ServerMessage),
       );
+    }
+  }
+
+  /**
+   * Tell anybody whose statuses have moved what is running on them now.
+   *
+   * The fourth of these, and the only one whose queue fills on its own: a kit,
+   * a tag and a mastery all change because somebody did something, and this
+   * changes because time passed. `GameSession` compares a **reading** rather
+   * than the list, which is what keeps a status that runs for an hour to about
+   * thirty-six hundred small sends instead of a hundred thousand.
+   *
+   * Addressed rather than broadcast, and that is not an economy here but a
+   * correctness point: nothing draws another body's statuses, so nobody else has
+   * any use for them.
+   */
+  private flushStatuses() {
+    const session = this.session;
+    if (!session) return;
+    const changed = session.drainStatusChanges();
+    if (changed.length === 0) return;
+
+    const wanted = new Set(changed);
+    for (const ws of this.ctx.getWebSockets()) {
+      const attachment = ws.deserializeAttachment() as Attachment | null;
+      if (!attachment || !wanted.has(attachment.actorId)) continue;
+      const statuses = session.statusPatchesOf(attachment.actorId);
+      // Gone between the change and the flush — the poison that ticked was also
+      // the one that killed them.
+      if (!statuses) continue;
+      ws.send(JSON.stringify({ type: "statuses", statuses } satisfies ServerMessage));
     }
   }
 
@@ -2009,10 +2237,17 @@ export class GameServer extends DurableObject<Env> {
     if (dataOrigin) this.dataOrigin = dataOrigin;
     const store = this.store();
     const tiles = await store.readTiles();
+    // Re-read rather than reused, on exactly the terms the tiles are: a save is
+    // the repair path, and it must not depend on the state of the world it is
+    // replacing.
+    const statusDefs = statusesById(await store.readStatuses());
 
     const map = chunkifyMap(flat);
     // Throws for a map that cannot start — before a single byte is written.
-    const session = new GameSession(map, tiles, []);
+    const session = new GameSession(map, tiles, {
+      actorIds: [],
+      statuses: statusDefs,
+    });
 
     await store.writeMap(map);
     await this.ctx.storage.delete(CHECKPOINT_KEY);
@@ -2030,6 +2265,8 @@ export class GameServer extends DurableObject<Env> {
     const carried = new Map<string, Equipment>();
     const taken = new Map<string, string[]>();
     const learnt = new Map<string, MasteryXp>();
+    const running = new Map<string, readonly StatusInstance[]>();
+    const health = new Map<string, number>();
     for (const ws of this.ctx.getWebSockets()) {
       const attachment = ws.deserializeAttachment() as Attachment | null;
       if (!attachment) continue;
@@ -2046,6 +2283,15 @@ export class GameServer extends DurableObject<Env> {
       // already learnt.
       const masteries = this.session?.masteryXpOf(attachment.actorId);
       if (masteries) learnt.set(attachment.actorId, { ...masteries });
+      // And what is running on them, with what it has already done to them. A
+      // save re-creates the world, not the people standing in it, and a berry
+      // eaten four seconds before somebody hit save is on the runtime and
+      // nowhere else. Dropping the pair would cure every poison in the world
+      // and heal every wound, once per save — and the editor saves constantly.
+      const statuses = this.session?.statusesOf(attachment.actorId);
+      if (statuses?.length) running.set(attachment.actorId, statuses);
+      const hp = this.session?.storedHpOf(attachment.actorId);
+      if (hp !== null && hp !== undefined) health.set(attachment.actorId, hp);
     }
 
     this.tiles = tiles;
@@ -2120,17 +2366,21 @@ export class GameServer extends DurableObject<Env> {
       const attachment = ws.deserializeAttachment() as Attachment | null;
       if (!attachment) continue;
       const kit = carried.get(attachment.actorId);
-      this.session.spawn(
-        attachment.actorId,
-        undefined,
-        kit
+      this.session.spawn(attachment.actorId, {
+        carrying: kit
           ? restoredEquipment(kit, tilesById)
           : await this.lastEquipmentOf(attachment.actorId),
-        taken.get(attachment.actorId) ??
+        tagged:
+          taken.get(attachment.actorId) ??
           (await this.lastTagsOf(attachment.actorId)),
-        learnt.get(attachment.actorId) ??
+        earned:
+          learnt.get(attachment.actorId) ??
           (await this.lastMasteriesOf(attachment.actorId)),
-      );
+        statuses:
+          running.get(attachment.actorId) ??
+          (await this.lastStatusesOf(attachment.actorId)),
+        hp: health.get(attachment.actorId) ?? (await this.lastHpOf(attachment.actorId)),
+      });
     }
     for (const ws of this.ctx.getWebSockets()) {
       const attachment = ws.deserializeAttachment() as Attachment | null;
@@ -2319,6 +2569,9 @@ export class GameServer extends DurableObject<Env> {
     // Unlike the two above, this one really does move on a tick: experience is
     // earned by swinging, and swinging is something the world does to itself.
     this.flushMasteries();
+    // And this one moves on *every* tick by construction, which is precisely why
+    // the session compares a reading rather than a list before queueing.
+    this.flushStatuses();
     this.saveActorsIfDue();
     this.sleepIfIdle();
   }

@@ -144,7 +144,7 @@ describe("a crate in a running world", () => {
 
     // The constructor settles the board once, so an authored-floating crate is
     // already on the ground before anyone sees it — no first-frame hang.
-    const session = new GameSession(map, tiles, [], spawn);
+    const session = new GameSession(map, tiles, { actorIds: [], spawnAt: spawn });
 
     expect(ids(getStack(session.getMap(), 0, 0, 0))).toEqual(["grass", "box"]);
   });
@@ -161,7 +161,7 @@ describe("a crate in a running world", () => {
     // The crate, hanging one level above the plate.
     map = replaceStack(map, 1, 0, 1, [{ tileId: "box" }]);
 
-    const session = new GameSession(map, tiles, [], spawn);
+    const session = new GameSession(map, tiles, { actorIds: [], spawnAt: spawn });
     const at = (c: Coord) => ids(getStack(session.getMap(), c.x, c.y, c.z));
 
     expect(at({ x: 1, y: 0, z: 0 })).toEqual(["plate-down", "box"]);
@@ -200,7 +200,7 @@ describe("a crate in a running world", () => {
   it("stays put once landed, rather than re-dropping every tick", () => {
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }]);
     map = replaceStack(map, 0, 0, 1, [{ tileId: "box" }]);
-    const session = new GameSession(map, tiles, [], spawn);
+    const session = new GameSession(map, tiles, { actorIds: [], spawnAt: spawn });
 
     for (let i = 0; i < 10; i++) session.tick(TICK_MS);
 

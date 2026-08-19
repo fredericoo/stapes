@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { data, useLoaderData } from "react-router";
 import type { Route } from "./+types/online";
 import { AppShell } from "../components/AppShell";
@@ -15,6 +15,7 @@ import {
   type InteractionOption,
 } from "../game/interactionOptions";
 import { dataStore } from "../context";
+import { activeStatuses, statusesById } from "../lib/status";
 import { useGameAssets } from "../lib/gameAssets";
 import {
   DEFAULT_PLAY_MINUTES,
@@ -45,9 +46,10 @@ function readCookie(request: Request, name: string): string | null {
 
 export async function loader({ context, request }: Route.LoaderArgs) {
   const store = dataStore(context);
-  const [tiles, tilesets] = await Promise.all([
+  const [tiles, tilesets, statuses] = await Promise.all([
     store.readTiles(),
     store.readTilesets(),
+    store.readStatuses(),
   ]);
 
   // Identity is a random id in an HttpOnly cookie: enough to tell two players
@@ -58,7 +60,7 @@ export async function loader({ context, request }: Route.LoaderArgs) {
   const existing = readCookie(request, ACTOR_COOKIE);
   const actorId = existing ?? crypto.randomUUID();
 
-  const payload = { tiles, tilesets, socketPath: GAME_SOCKET_PATH };
+  const payload = { tiles, tilesets, statuses, socketPath: GAME_SOCKET_PATH };
   if (existing) return payload;
 
   return data(payload, {
@@ -77,7 +79,11 @@ const RECONNECT_MAX_MS = 10_000;
 type Status = "connecting" | "live" | "reconnecting";
 
 export default function OnlinePage() {
-  const { tiles, tilesets, socketPath } = useLoaderData<typeof loader>();
+  const { tiles, tilesets, statuses, socketPath } = useLoaderData<typeof loader>();
+  // Both ends load the same catalogue: the server to run the effects, this side
+  // to name and draw them. Only ids and clocks travel, which is what keeps a
+  // status running for an hour to a handful of small messages.
+  const statusDefs = useMemo(() => statusesById(statuses), [statuses]);
   // No canvas until the assets are here, so no socket either: the connection is
   // opened by the same effect the renderer is built in. @see ../lib/gameAssets
   const assetsReady = useGameAssets(tilesets);
@@ -133,7 +139,7 @@ export default function OnlinePage() {
   /** What this player has learnt — theirs alone, beside the kit. */
   const [masteryXp, setMasteryXp] = useState<MasteryXp>({});
   /** What this player's body can take, and its ⭐. */
-  const [vitals, setVitals] = useState<Vitals>({ hp: null, maxHp: null, rating: null });
+  const [vitals, setVitals] = useState<Vitals>({ hp: null, maxHp: null, rating: null, statuses: [] });
   const [openedContainer, setOpenedContainer] =
     useState<OpenedContainer | null>(null);
   // Straight at the renderer, like the hover outline: which box is open is a
@@ -249,7 +255,7 @@ export default function OnlinePage() {
       // `hello` is about to replace outright.
       setEquipment(emptyEquipment());
       setMasteryXp({});
-      setVitals({ hp: null, maxHp: null, rating: null });
+      setVitals({ hp: null, maxHp: null, rating: null, statuses: [] });
       setOpenedContainer(null);
       // And the loading screen comes back for the same reason: the next
       // renderer starts with an empty canvas, and a reconnect can take a while.
@@ -409,6 +415,7 @@ export default function OnlinePage() {
             equipment={equipment}
             masteryXp={masteryXp}
             vitals={vitals}
+            statuses={activeStatuses(vitals.statuses, statusDefs)}
             openedContainer={openedContainer}
             onOpenContainer={openContainer}
             canMoveItem={canMoveItem}

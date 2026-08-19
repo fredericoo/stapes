@@ -105,7 +105,7 @@ function advance(session: GameSession, ms: number) {
 
 describe("adopting residents", () => {
   it("makes an actor of every body placed in the map", () => {
-    const session = new GameSession(withBody(strip(4), 2, "deer"), tiles, []);
+    const session = new GameSession(withBody(strip(4), 2, "deer"), tiles, { actorIds: [] });
 
     // The deer is driving itself; nobody has connected.
     expect(session.actorIds()).toHaveLength(1);
@@ -113,7 +113,7 @@ describe("adopting residents", () => {
   });
 
   it("mints an identity from where the body was authored", () => {
-    const session = new GameSession(withBody(strip(4), 2, "deer"), tiles, []);
+    const session = new GameSession(withBody(strip(4), 2, "deer"), tiles, { actorIds: [] });
 
     expect(session.actorIds()).toEqual(["npc:2,0,0,1"]);
     expect(ownersAt(session.getMap(), 2, 0, 0)).toEqual([
@@ -130,7 +130,7 @@ describe("adopting residents", () => {
       { tileId: "ghost" },
     ]);
 
-    const session = new GameSession(map, tiles, []);
+    const session = new GameSession(map, tiles, { actorIds: [] });
 
     expect(new Set(session.actorIds()).size).toBe(2);
   });
@@ -141,13 +141,13 @@ describe("adopting residents", () => {
    * an unowned avatar standing on the spawn point of every world.
    */
   it("leaves the authored spawn marker alone", () => {
-    const session = new GameSession(strip(4), tiles, []);
+    const session = new GameSession(strip(4), tiles, { actorIds: [] });
 
     expect(session.actorIds()).toEqual([]);
   });
 
   it("does not adopt a connected player as a resident", () => {
-    const session = new GameSession(strip(4), tiles, ["alice"]);
+    const session = new GameSession(strip(4), tiles, { actorIds: ["alice"] });
 
     expect(session.actorIds()).toEqual(["alice"]);
   });
@@ -158,15 +158,15 @@ describe("adopting residents", () => {
    * identity, and the runtime that drives the first would never find its body.
    */
   it("keeps the identity a resumed body already carries", () => {
-    const first = new GameSession(withBody(strip(4), 2, "deer"), tiles, []);
+    const first = new GameSession(withBody(strip(4), 2, "deer"), tiles, { actorIds: [] });
     const id = first.actorIds()[0]!;
 
-    const resumed = new GameSession(first.getMap(), tiles, [], {
+    const resumed = new GameSession(first.getMap(), tiles, { actorIds: [], spawnAt: {
       x: 0,
       y: 0,
       z: 0,
       stackIndex: 1,
-    });
+    } });
 
     expect(resumed.actorIds()).toEqual([id]);
     // And exactly one body, rather than the original plus a fresh one.
@@ -181,10 +181,10 @@ describe("residents and the reaper", () => {
    * of who is present — and reaping on that alone emptied the world.
    */
   it("keeps residents while removing players nobody is driving", () => {
-    const session = new GameSession(withBody(strip(4), 2, "deer"), tiles, [
+    const session = new GameSession(withBody(strip(4), 2, "deer"), tiles, { actorIds: [
       "alice",
       "bob",
-    ]);
+    ] });
 
     session.reapAbsentActors(["alice"]);
 
@@ -208,7 +208,7 @@ describe("a resident is its own tile", () => {
     // One level up, over open air.
     map = replaceStack(map, 2, 0, 1, [{ tileId: "ghost" }]);
 
-    const session = new GameSession(map, tiles, []);
+    const session = new GameSession(map, tiles, { actorIds: [] });
     advance(session, FALL_MS_PER_HEIGHT * 4);
 
     expect(placedAt(session.getMap(), 2, 0, 1)).toHaveLength(1);
@@ -218,7 +218,7 @@ describe("a resident is its own tile", () => {
     let map = strip(4);
     map = replaceStack(map, 2, 0, 1, [{ tileId: "deer" }]);
 
-    const session = new GameSession(map, tiles, []);
+    const session = new GameSession(map, tiles, { actorIds: [] });
     advance(session, FALL_MS_PER_HEIGHT * 4);
 
     // Landed on the grass a level down, and left nothing behind.
@@ -232,7 +232,7 @@ describe("a resident is its own tile", () => {
     let map = strip(4);
     map = replaceStack(map, 2, 0, 0, [{ tileId: "plate" }, { tileId: "deer" }]);
 
-    const session = new GameSession(map, tiles, []);
+    const session = new GameSession(map, tiles, { actorIds: [] });
 
     expect(placedAt(session.getMap(), 2, 0, 0)[0]!.tileId).toBe(
       "plate-pressed",
@@ -247,7 +247,7 @@ describe("a world nobody is watching", () => {
    * not be a reason to stay awake.
    */
   it("comes to rest with residents on the board and nobody connected", () => {
-    const session = new GameSession(withBody(strip(4), 2, "deer"), tiles, []);
+    const session = new GameSession(withBody(strip(4), 2, "deer"), tiles, { actorIds: [] });
     advance(session, FALL_MS_PER_HEIGHT * 4);
 
     expect(session.isAtRest()).toBe(true);
@@ -257,7 +257,7 @@ describe("a world nobody is watching", () => {
     let map = strip(4);
     map = replaceStack(map, 2, 0, 2, [{ tileId: "deer" }]);
 
-    const session = new GameSession(map, tiles, []);
+    const session = new GameSession(map, tiles, { actorIds: [] });
     advance(session, FALL_MS_PER_HEIGHT / 2);
 
     expect(session.isAtRest()).toBe(false);

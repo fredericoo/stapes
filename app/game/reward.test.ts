@@ -278,7 +278,7 @@ describe("taking a reward", () => {
     const session = new GameSession(board(), tiles);
     // Somebody else, stood diagonally off the chest, with three of four slots
     // already spoken for against a reward of two.
-    session.spawn("crowded", { x: 0, y: 1, z: 0 }, bagWith(3));
+    session.spawn("crowded", { at: { x: 0, y: 1, z: 0 }, carrying: bagWith(3) });
 
     expect(session.canTakeReward(CHEST, "crowded")).toBe(false);
     expect(session.interact(CHEST, "crowded")).toBe(false);
@@ -289,14 +289,14 @@ describe("taking a reward", () => {
 
   it("is offered again to somebody who has made room", () => {
     const session = new GameSession(board(), tiles);
-    session.spawn("roomy", { x: 0, y: 1, z: 0 }, bagWith(2));
+    session.spawn("roomy", { at: { x: 0, y: 1, z: 0 }, carrying: bagWith(2) });
 
     expect(session.canTakeReward(CHEST, "roomy")).toBe(true);
   });
 
   it("is not owed to somebody who arrives already carrying the tag", () => {
     const session = new GameSession(board(), tiles);
-    session.spawn("returning", { x: 0, y: 1, z: 0 }, bagWith(0), [REWARD_TAG]);
+    session.spawn("returning", { at: { x: 0, y: 1, z: 0 }, carrying: bagWith(0), tagged: [REWARD_TAG] });
 
     expect(session.canTakeReward(CHEST, "returning")).toBe(false);
   });
