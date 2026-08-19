@@ -30,6 +30,7 @@ import {
   CELL_SIZE,
   MAX_LEVEL,
   MIN_LEVEL,
+  frameIndexAtTime,
   levelKey,
   physicalHeight,
   tileCanEmitLight,
@@ -74,6 +75,8 @@ type AnimatedInstance = {
   frames: Frame[];
   tileset: TilesetDef;
   animKey: string;
+  /** Index into {@link frames} the mesh's UVs currently show. @see WorldRenderer */
+  frameIdx: number;
 };
 
 /** A textured rectangle in world pixels, ready to be turned into a mesh. */
@@ -1159,6 +1162,7 @@ export class EditorRenderer {
         direction?: string;
         tileset: TilesetDef;
         animKey: string;
+        frameIdx: number;
       };
     };
 
@@ -1200,7 +1204,11 @@ export class EditorRenderer {
           y: cell.y,
           z,
         });
-        const first = frames?.[0];
+        // The frame the shared clock is on, not frame 0 — a rebuilt mesh that
+        // started at 0 would sit there until the clock crossed into the next
+        // index. @see WorldRenderer.updateAnimations
+        const frameIdx = frames ? frameIndexAtTime(frames, this.animClock) : 0;
+        const first = frames?.[frameIdx];
         if (!first) return;
 
         const tileset = this.tilesetById.get(first.sprite.tilesetId);
@@ -1252,6 +1260,7 @@ export class EditorRenderer {
                   direction: placed.direction,
                   tileset,
                   animKey,
+                  frameIdx,
                 }
               : undefined,
         });
@@ -1283,6 +1292,7 @@ export class EditorRenderer {
           frames: item.anim.frames,
           tileset: item.anim.tileset,
           animKey: item.anim.animKey,
+          frameIdx: item.anim.frameIdx,
         });
       } else {
         let list = staticByTex.get(item.texture);
@@ -1338,30 +1348,22 @@ export class EditorRenderer {
 
     for (const [key, instances] of this.animatedByKey) {
       const sample = instances[0]!;
-      let total = 0;
-      for (const f of sample.frames) total += f.durationMs;
-      if (total <= 0) continue;
-      let t = this.animClock % total;
-      let idx = 0;
-      for (let i = 0; i < sample.frames.length; i++) {
-        if (t < sample.frames[i]!.durationMs) {
-          idx = i;
-          break;
-        }
-        t -= sample.frames[i]!.durationMs;
-      }
-      const prev = this.frameIndices.get(key);
-      if (prev === idx) continue;
+      const idx = frameIndexAtTime(sample.frames, this.animClock);
       this.frameIndices.set(key, idx);
-      changed = true;
 
-      const frame = sample.frames[idx]!;
+      const frame = sample.frames[idx];
+      if (!frame) continue;
       const { rect } = frame.sprite;
       const u0 = (rect.x * CELL_SIZE) / sample.tileset.width;
       const u1 = ((rect.x + rect.w) * CELL_SIZE) / sample.tileset.width;
       const v1 = 1 - (rect.y * CELL_SIZE) / sample.tileset.height;
       const v0 = 1 - ((rect.y + rect.h) * CELL_SIZE) / sample.tileset.height;
+      // Per instance, not per key: a mesh rebuilt by an edit can be showing a
+      // different frame from the one the shared index last ticked to.
       for (const inst of instances) {
+        if (inst.frameIdx === idx) continue;
+        inst.frameIdx = idx;
+        changed = true;
         const uvs = inst.mesh.geometry.attributes.uv!;
         uvs.setXY(0, u0, v0);
         uvs.setXY(1, u1, v0);
