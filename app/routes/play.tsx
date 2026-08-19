@@ -3,6 +3,7 @@ import { useLoaderData } from "react-router";
 import type { Route } from "./+types/play";
 import { AppShell } from "../components/AppShell";
 import { GameViewport } from "../components/GameViewport";
+import { InkDocument } from "../components/InkDocument";
 import { LightingToggle } from "../components/LightingToggle";
 import { LoadingScreen } from "../components/LoadingScreen";
 import { GameSession, type Vitals } from "../game/GameSession";
@@ -294,6 +295,10 @@ export default function PlayPage() {
         </span>
       }
     >
+      {/* Outside the wrapper below and not inside the viewport it is about: the
+          viewport waits on its assets, and the document would be cream around
+          the loading screen until they arrived. */}
+      <InkDocument />
       {/* The screen sits over the game rather than instead of it, because it
           outlasts the moment the canvas mounts — see `painted`. */}
       <div className="relative h-full w-full">
