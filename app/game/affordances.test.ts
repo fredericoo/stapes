@@ -7,8 +7,12 @@ import { tilesByIdFromList } from "../lib/validation";
 import {
   canDropAt,
   canOpenFrom,
+  canEquipFrom,
   canPickUpFrom,
+  dropDestinationAt,
+  equipSlotFrom,
   pickUpDestination,
+  pushableDefAt,
   REACH_CELLS,
   withinReach,
   type ObjectRef,
@@ -43,6 +47,16 @@ const tiles = [
   // where sight is light and you see over anything shorter than a level.
   tile({ id: "wall", height: 2 }),
   tile({ id: "sword", kind: "item", interactions: { item: DEFAULT_WEAPON } }),
+  tile({
+    id: "torch",
+    kind: "item",
+    interactions: { item: { ...DEFAULT_WEAPON, offhand: true } },
+  }),
+  tile({
+    id: "berry",
+    kind: "item",
+    interactions: { item: { type: "consumable", hp: 5 } },
+  }),
   tile({ id: "bag", kind: "item", interactions: { item: DEFAULT_CONTAINER } }),
   tile({
     id: "chest",
@@ -129,49 +143,107 @@ describe("withinReach", () => {
   });
 });
 
-describe("pickUpDestination", () => {
-  it("puts an ordinary item in the bag", () => {
+describe("canPickUpFrom", () => {
+  it("stows an ordinary item in the bag", () => {
     const map = mapWith(1, 0, "sword");
-    expect(pickUpDestination(map, tilesById, ME, ref(1, 0), KIT)).toBe(
-      "contents",
-    );
+    expect(canPickUpFrom(map, tilesById, ME, ref(1, 0), KIT)).toBe(true);
   });
 
-  it("puts a wearable bag on a bare back", () => {
-    const map = mapWith(1, 0, "bag");
+  /**
+   * A pack never goes *in* a pack — nothing nests — but with a back that is
+   * already full a hand will take one, which is a choice rather than a rule.
+   */
+  it("takes a spare pack in hand when the back is full", () => {
     expect(
-      pickUpDestination(map, tilesById, ME, ref(1, 0), emptyEquipment()),
-    ).toBe("bag-slot");
-  });
-
-  /** Containers do not nest: a bag never goes inside a bag. */
-  it("refuses a bag when one is already worn, however much room is inside it", () => {
-    const map = mapWith(1, 0, "bag");
-    expect(pickUpDestination(map, tilesById, ME, ref(1, 0), KIT)).toBeNull();
-  });
-
-  it("never takes a chest, which is looted where it lies", () => {
-    const map = mapWith(1, 0, "chest");
+      pickUpDestination(mapWith(1, 0, "bag"), tilesById, ME, ref(1, 0), KIT),
+    ).toEqual({ kind: "slot", slot: "offhand" });
+    // Bare back, and the "Put on" row owns it instead.
     expect(
-      pickUpDestination(map, tilesById, ME, ref(1, 0), emptyEquipment()),
+      pickUpDestination(
+        mapWith(1, 0, "bag"),
+        tilesById,
+        ME,
+        ref(1, 0),
+        emptyEquipment(),
+      ),
     ).toBeNull();
   });
 
-  it("refuses an ordinary item with no bag to put it in", () => {
-    const map = mapWith(1, 0, "sword");
+  /** A chest is opened where it lies, so no hand will take one either. */
+  it("never takes a chest at all", () => {
+    for (const kit of [KIT, emptyEquipment(), FULL_KIT]) {
+      expect(
+        canPickUpFrom(mapWith(1, 0, "chest"), tilesById, ME, ref(1, 0), kit),
+      ).toBe(false);
+    }
+  });
+
+  /**
+   * A full bag is not the end of the conversation: you have hands. The spare one
+   * goes first, so a pickup never rewrites what you are fighting with.
+   */
+  it("reaches for a hand when there is nowhere else", () => {
+    const armed: Equipment = {
+      ...FULL_KIT,
+      weapon: { id: "itm_held", tileId: "sword" },
+    };
     expect(
-      pickUpDestination(map, tilesById, ME, ref(1, 0), emptyEquipment()),
+      pickUpDestination(mapWith(1, 0, "sword"), tilesById, ME, ref(1, 0), armed),
+    ).toEqual({ kind: "slot", slot: "offhand" });
+
+    // And the weapon hand once the spare one is taken. A berry, because a
+    // sword's own slot is free here and that is the equip row's to offer.
+    expect(
+      pickUpDestination(mapWith(1, 0, "berry"), tilesById, ME, ref(1, 0), {
+        ...FULL_KIT,
+        offhand: { id: "itm_lit", tileId: "torch" },
+      }),
+    ).toEqual({ kind: "slot", slot: "weapon" });
+  });
+
+  /**
+   * A thing with a free slot of its own is that row's business — see
+   * `equipSlotFrom`. Two rows meaning one hand is what this refusal prevents.
+   */
+  it("leaves the slot a thing belongs in to the equip row", () => {
+    expect(
+      pickUpDestination(
+        mapWith(1, 0, "sword"),
+        tilesById,
+        ME,
+        ref(1, 0),
+        emptyEquipment(),
+      ),
     ).toBeNull();
   });
 
-  it("refuses an ordinary item once the bag is full", () => {
-    const map = mapWith(1, 0, "sword");
-    expect(pickUpDestination(map, tilesById, ME, ref(1, 0), FULL_KIT)).toBeNull();
+  /** A consumable belongs nowhere, so a hand is the first thing it reaches. */
+  it("holds a thing with no slot of its own", () => {
+    expect(
+      pickUpDestination(
+        mapWith(1, 0, "berry"),
+        tilesById,
+        ME,
+        ref(1, 0),
+        emptyEquipment(),
+      ),
+    ).toEqual({ kind: "slot", slot: "offhand" });
+  });
+
+  it("refuses once the bag is full and both hands are too", () => {
+    const laden: Equipment = {
+      ...FULL_KIT,
+      weapon: { id: "itm_a", tileId: "sword" },
+      offhand: { id: "itm_b", tileId: "torch" },
+    };
+    expect(
+      canPickUpFrom(mapWith(1, 0, "sword"), tilesById, ME, ref(1, 0), laden),
+    ).toBe(false);
   });
 
   it("refuses a tile that is not an item", () => {
     const map = mapWith(1, 0, "rock");
-    expect(pickUpDestination(map, tilesById, ME, ref(1, 0), KIT)).toBeNull();
+    expect(canPickUpFrom(map, tilesById, ME, ref(1, 0), KIT)).toBe(false);
   });
 
   it("refuses something buried under another tile", () => {
@@ -184,9 +256,67 @@ describe("pickUpDestination", () => {
   });
 
   it("refuses an empty cell", () => {
+    expect(canPickUpFrom(emptyMap(), tilesById, ME, ref(1, 0), KIT)).toBe(false);
+  });
+});
+
+/**
+ * Arming yourself off the floor, which is what you can do with no bag at all.
+ * One slot per thing, and it has to be empty.
+ */
+describe("equipSlotFrom", () => {
+  const slotFor = (tileId: string, kit: Equipment) =>
+    equipSlotFrom(mapWith(1, 0, tileId), tilesById, ME, ref(1, 0), kit);
+
+  it("sends each thing to the slot its tile names", () => {
+    expect(slotFor("sword", emptyEquipment())).toBe("weapon");
+    expect(slotFor("torch", emptyEquipment())).toBe("offhand");
+    expect(slotFor("bag", emptyEquipment())).toBe("bag");
+  });
+
+  /** The point of the whole thing: a sword with nothing to put it in. */
+  it("arms somebody carrying nothing", () => {
+    expect(canEquipFrom(mapWith(1, 0, "sword"), tilesById, ME, ref(1, 0), emptyEquipment())).toBe(
+      true,
+    );
+  });
+
+  it("refuses a slot that is already full", () => {
+    const armed: Equipment = {
+      ...emptyEquipment(),
+      weapon: { id: "itm_held", tileId: "sword" },
+    };
+    expect(slotFor("sword", armed)).toBeNull();
+    // And the other hand is not a fallback — a sword is a sword, not a shield.
+    expect(slotFor("sword", { ...armed, offhand: null })).toBeNull();
+  });
+
+  it("refuses a bag when one is already worn", () => {
+    expect(slotFor("bag", KIT)).toBeNull();
+  });
+
+  it("never equips a chest, which is looted where it lies", () => {
+    expect(slotFor("chest", emptyEquipment())).toBeNull();
+  });
+
+  /** A hand is not a pocket. A berry goes in the bag or in your mouth. */
+  it("has no slot for a consumable", () => {
+    expect(slotFor("berry", emptyEquipment())).toBeNull();
+  });
+
+  it("refuses a tile that is not an item at all", () => {
+    expect(slotFor("rock", emptyEquipment())).toBeNull();
+  });
+
+  it("refuses something buried under another tile", () => {
+    const map = replaceStack(emptyMap(), 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "sword", itemId: "itm_buried" },
+      { tileId: "rock" },
+    ]);
     expect(
-      pickUpDestination(emptyMap(), tilesById, ME, ref(1, 0), KIT),
-    ).toBeNull();
+      canEquipFrom(map, tilesById, ME, ref(1, 0), emptyEquipment()),
+    ).toBe(false);
   });
 });
 
@@ -207,10 +337,15 @@ describe("canOpenFrom", () => {
    * Opening is looking, and looking costs nothing — so unlike pick-up it asks
    * nothing at all about what the player is already carrying.
    */
-  it("opens a bag even with one already worn and a full pack", () => {
+  it("opens a bag with one already worn and both hands full", () => {
+    const laden: Equipment = {
+      ...FULL_KIT,
+      weapon: { id: "itm_a", tileId: "sword" },
+      offhand: { id: "itm_b", tileId: "torch" },
+    };
     const map = mapWith(1, 0, "bag");
     expect(canOpenFrom(map, tilesById, ME, ref(1, 0))).toBe(true);
-    expect(canPickUpFrom(map, tilesById, ME, ref(1, 0), FULL_KIT)).toBe(false);
+    expect(canPickUpFrom(map, tilesById, ME, ref(1, 0), laden)).toBe(false);
   });
 
   it("does not open a weapon", () => {
@@ -251,8 +386,8 @@ describe("a body is not a lid", () => {
 
   it("picks up a sword from under your own feet", () => {
     expect(
-      pickUpDestination(under("sword", ["rock"]), tilesById, ME, ref(0, 0), KIT),
-    ).toBe("contents");
+      canPickUpFrom(under("sword", ["rock"]), tilesById, ME, ref(0, 0), KIT),
+    ).toBe(true);
   });
 
   it("opens a chest you are standing on", () => {
@@ -263,14 +398,14 @@ describe("a body is not a lid", () => {
 
   it("reaches under two bodies as readily as one", () => {
     expect(
-      pickUpDestination(
+      canPickUpFrom(
         under("sword", ["rock", "rock"]),
         tilesById,
         ME,
         ref(0, 0),
         KIT,
       ),
-    ).toBe("contents");
+    ).toBe(true);
   });
 
   it("is still buried under something nobody is driving", () => {
@@ -279,7 +414,7 @@ describe("a body is not a lid", () => {
       { tileId: "sword", itemId: "itm_target" },
       { tileId: "rock" },
     ]);
-    expect(pickUpDestination(buried, tilesById, ME, ref(0, 0), KIT)).toBeNull();
+    expect(canPickUpFrom(buried, tilesById, ME, ref(0, 0), KIT)).toBe(false);
     expect(canOpenFrom(buried, tilesById, ME, ref(0, 0))).toBe(false);
   });
 });
@@ -356,5 +491,111 @@ describe("canDropAt", () => {
     expect(canDropAt(map, tilesById, ME, { x: 1, y: 0, z: 3 }, sword)).toBe(
       false,
     );
+  });
+
+  /**
+   * A box catches what is thrown at it, and only then does the floor get a
+   * look-in — see `dropDestinationAt`.
+   */
+  describe("what catches it", () => {
+    const bag = tilesById.bag!;
+
+    function chestAt(x: number, contents: unknown[] = []): MapFile {
+      return replaceStack(field(), x, 0, 0, [
+        { tileId: "grass" },
+        { tileId: "chest", itemId: "itm_chest", contents } as never,
+      ]);
+    }
+
+    it("puts a thing inside the container it lands on", () => {
+      expect(
+        dropDestinationAt(chestAt(1), tilesById, ME, { x: 1, y: 0, z: 0 }, sword),
+      ).toEqual({ kind: "contents", ref: { x: 1, y: 0, z: 0, stackIndex: 1 } });
+    });
+
+    it("lands on top of a full one instead", () => {
+      const full = chestAt(1, [
+        { id: "itm_a", tileId: "sword" },
+        { id: "itm_b", tileId: "sword" },
+      ]);
+      expect(
+        dropDestinationAt(full, tilesById, ME, { x: 1, y: 0, z: 0 }, sword),
+      ).toEqual({ kind: "stack" });
+    });
+
+    /** Containers do not nest, so a bag thrown at a chest lands on it. */
+    it("lands on top when the thing thrown is itself a container", () => {
+      expect(
+        dropDestinationAt(chestAt(1), tilesById, ME, { x: 1, y: 0, z: 0 }, bag),
+      ).toEqual({ kind: "stack" });
+    });
+
+    it("does not reach a container buried under something", () => {
+      const covered = replaceStack(field(), 1, 0, 0, [
+        { tileId: "grass" },
+        { tileId: "chest", itemId: "itm_chest" },
+        { tileId: "rock" },
+      ]);
+      expect(
+        dropDestinationAt(covered, tilesById, ME, { x: 1, y: 0, z: 0 }, sword),
+      ).toEqual({ kind: "stack" });
+    });
+
+    it("is caught by a chest with somebody standing on it", () => {
+      const stoodOn = replaceStack(field(), 1, 0, 0, [
+        { tileId: "grass" },
+        { tileId: "chest", itemId: "itm_chest" },
+        { tileId: "rock", owner: "someone" },
+      ]);
+      expect(
+        dropDestinationAt(stoodOn, tilesById, ME, { x: 1, y: 0, z: 0 }, sword),
+      ).toEqual({ kind: "contents", ref: { x: 1, y: 0, z: 0, stackIndex: 1 } });
+    });
+  });
+});
+
+/**
+ * A shove takes the column with it, so being under something is no reason to
+ * refuse one — but a body riding on top is.
+ */
+describe("pushableDefAt", () => {
+  const pushTiles = [
+    ...tiles,
+    tile({
+      id: "crate",
+      height: 1,
+      affectedByGravity: true,
+      interactions: { push: { climb: "half", moveOnTileIds: [] } },
+    }),
+  ];
+  const pushTilesById = tilesByIdFromList(pushTiles);
+
+  function column(...above: string[]): MapFile {
+    return replaceStack(emptyMap(), 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "crate" },
+      ...above.map((tileId) => ({ tileId })),
+    ]);
+  }
+
+  it("reaches a crate under another tile", () => {
+    const map = column("rock");
+    expect(pushableDefAt(map, pushTilesById, ME, ref(1, 0))?.id).toBe("crate");
+  });
+
+  it("refuses one with a body on top of it", () => {
+    const map = replaceStack(emptyMap(), 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "crate" },
+      { tileId: "rock", owner: "someone" },
+    ]);
+    expect(pushableDefAt(map, pushTilesById, ME, ref(1, 0))).toBeNull();
+  });
+
+  it("refuses a tile with no push on it", () => {
+    const map = column("rock");
+    expect(
+      pushableDefAt(map, pushTilesById, ME, ref(1, 0, 0, 2)),
+    ).toBeNull();
   });
 });

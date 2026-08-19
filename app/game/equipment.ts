@@ -108,9 +108,11 @@ export function restoredEquipment(
   saved: Equipment,
   tilesById: Record<string, TileDef>,
 ): Equipment {
+  // Both hands asked the same question, because both hands *are* the same
+  // question now — see {@link handAccepts}.
   const weaponDef = saved.weapon ? tilesById[saved.weapon.tileId] : undefined;
   const weapon =
-    saved.weapon && weaponDef && resolveWeapon(weaponDef)
+    saved.weapon && weaponDef && handAccepts(weaponDef)
       ? identified(saved.weapon)
       : null;
 
@@ -119,7 +121,7 @@ export function restoredEquipment(
   // no longer agrees with.
   const offhandDef = saved.offhand ? tilesById[saved.offhand.tileId] : undefined;
   const offhand =
-    saved.offhand && offhandDef && offhandAccepts(offhandDef)
+    saved.offhand && offhandDef && handAccepts(offhandDef)
       ? identified(saved.offhand)
       : null;
 
@@ -310,17 +312,24 @@ export function offhandDefence(
 }
 
 /**
- * Whether this is a thing you could hold in your other hand.
+ * Whether either hand could hold this.
  *
- * Anything but a container, which is the same rule the inside of a bag follows
- * and for the same reason: a bag has a slot of its own, and a pack inside a hand
- * inside a pack is the nesting nothing here allows. Everything else is fair —
- * a torch, a shield, a spare sword you are not swinging.
+ * **A hand takes anything you can carry**, which is the honest reading of what a
+ * hand is: if you would rather hold a second pack than a shield, that is a
+ * choice the game has no business refusing. What a thing is *for* is a separate
+ * question, answered by `equipSlotOf` — which is what decides where a thing goes
+ * when you have not said, and what `WeaponItem.offhand` exists to inform.
+ *
+ * The one refusal is a container nobody may carry: `equippable: false` is an
+ * author saying "this is a chest, it is opened where it lies", and a chest in a
+ * fist would be that flag meaning nothing.
  *
  * Here rather than in `./itemMoves` because it is a fact about the slot, and the
  * slot is defined by this module. `restoredEquipment` and the move rules both
  * ask it, and two answers would be a kit that could be saved and not re-equipped.
  */
-export function offhandAccepts(def: TileDef): boolean {
-  return resolveItem(def) != null && resolveContainer(def) == null;
+export function handAccepts(def: TileDef): boolean {
+  const item = resolveItem(def);
+  if (!item) return false;
+  return item.type !== "container" || item.equippable;
 }

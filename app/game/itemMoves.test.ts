@@ -32,6 +32,8 @@ function tile(partial: Record<string, unknown>): TileDef {
 
 const tiles = [
   tile({ id: "grass" }),
+  // Something with volume, which is what it takes to bury a thing.
+  tile({ id: "crate", height: 1 }),
   tile({ id: "sword", kind: "item", interactions: { item: DEFAULT_WEAPON } }),
   tile({ id: "sign" }),
   tile({ id: "bag", kind: "item", interactions: { item: DEFAULT_CONTAINER } }),
@@ -259,7 +261,7 @@ index: 0,
     const buried = replaceStack(emptyMap(), 1, 0, 0, [
       { tileId: "grass" },
       { tileId: "chest", itemId: "itm_chest", contents: [sword("itm_a")] },
-      { tileId: "grass" },
+      { tileId: "crate" },
     ]);
     const ref: ObjectRef = { x: 1, y: 0, z: 0, stackIndex: 1 };
     expect(
@@ -367,13 +369,14 @@ index: 0,
       }, { kind: "ground", ref, index: 0 }),
     ).toBe(false);
 
-    // Nor worn in the hand, which the weapon gate refuses for its own reason.
+    // A hand, though, will take one: nesting is about what is *inside* a
+    // container, and a pack in your fist is not inside anything.
     expect(
       canMoveItem(emptyMap(), tilesById, ME, holding, { kind: "contents",
 index: 0 }, {
         kind: "weapon",
       }),
-    ).toBe(false);
+    ).toBe(true);
   });
 });
 
@@ -469,10 +472,10 @@ describe("the bag slot", () => {
       { kind: "bag" },
       { kind: "weapon" },
     );
-    // Refused, since a bag is not a weapon — but the source was found, which is
-    // the half this pins. The other half is `drop`.
-    expect(moved).toBeNull();
-    expect(held.bag).not.toBeNull();
+    // A hand takes anything you can carry, a pack included — so this is the bag
+    // coming off your back and into your fist, and the source is left bare.
+    expect(moved?.equipment.bag).toBeNull();
+    expect(moved?.equipment.weapon?.tileId).toBe("bag");
   });
 
   it("refuses to take a container off into its own contents", () => {

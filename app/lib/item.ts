@@ -71,6 +71,26 @@ export type WeaponItem = {
    */
   def: number;
   /**
+   * This belongs in the *other* hand — a shield, a torch, a lantern.
+   *
+   * **Authored rather than derived, and that is the whole point.** The off hand
+   * used to take anything that was not a container, which made every sword in
+   * the game a second sword you could hold: dual wielding, arrived at by
+   * accident, with no rule anywhere for what two weapons do. Nothing about a
+   * tile says whether it is meant for that hand — a torch and a sword are both
+   * weapons here, because defence and light both ride on this block — so the
+   * author says it.
+   *
+   * The exact counterpart of {@link ContainerItem.equippable}: a container is
+   * only a backpack if somebody said so, and a weapon is only off-hand kit if
+   * somebody said so. Absent is the common case and means the main hand.
+   *
+   * It does not *exclude* the main hand. A shield in your fist is legal, just
+   * not what the game offers you; what this decides is which slot a thing goes
+   * to when it is equipped off the floor, and which slot will accept it at all.
+   */
+  offhand?: boolean;
+  /**
    * 0–100. How reliably this finds its target.
    *
    * **Only that.** It used to answer three questions at once — whether a blow
@@ -244,6 +264,34 @@ export function consumeVerb(consumable: ConsumableItem): string {
 }
 
 /**
+ * What putting this thing on is called.
+ *
+ * **Read off the item, never off the slot it is heading for.** The hands take
+ * anything now — a pack in your fist instead of a shield is a choice the game
+ * lets you make — so a verb named after the square would have to call that
+ * "wielding a backpack". What the word describes is the *thing*: you wield a
+ * sword, you hold a torch, you put on a pack, whichever hand ends up with it.
+ *
+ * Not authored, unlike a consumable's, because there is nothing for an author
+ * to add: the three kinds of item are the three verbs, and "Wield" is what every
+ * weapon in every game has always been called. `offhand` is the one distinction
+ * inside a kind, and it is already written down for other reasons.
+ */
+export function equipVerb(def: TileDef): string {
+  const item = resolveItem(def);
+  if (!item) return EQUIP_FALLBACK_VERB;
+  if (item.type === "container") return "Put on";
+  if (item.type === "weapon") return item.offhand ? "Hold" : "Wield";
+  // Anything you are merely carrying rather than using. Nothing reaches this
+  // through the interaction list — a consumable has no slot it belongs in — but
+  // a hand will take one, and the square it lands in has to be able to say so.
+  return "Hold";
+}
+
+/** What an item nothing else can name reads as when it is put on. */
+export const EQUIP_FALLBACK_VERB = "Equip";
+
+/**
  * What a tile gets the moment somebody makes it a weapon.
  *
  * Middling and complete, where it used to be a list of small deltas: every field
@@ -307,6 +355,9 @@ export const weaponSchema = v.object({
     v.maxValue(MAX_WEAPON_DAMAGE),
   ),
   def: v.pipe(v.number(), v.integer(), v.minValue(0)),
+  // Optional, and absent means the main hand — the overwhelmingly common case,
+  // and every weapon authored before the slot existed.
+  offhand: v.optional(v.boolean()),
   // Unsigned, where both were signed shifts: these are the wielder's accuracy
   // and speed now, not adjustments to numbers the body brought with it, and a
   // negative accuracy is not a worse one — it is a broken one.
@@ -443,6 +494,10 @@ export function weaponForSave(weapon: WeaponItem): WeaponItem {
     variance: weapon.variance,
     spd: weapon.spd,
     mastery: weapon.mastery,
+    // Written only when true, on the same terms the requirements block is: an
+    // explicit `false` on every weapon in the file is a field to skim past that
+    // says exactly what its absence says.
+    ...(weapon.offhand ? { offhand: true } : {}),
     ...(Object.keys(requirements).length > 0 ? { requirements } : {}),
   };
 }

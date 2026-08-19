@@ -1,8 +1,7 @@
-import { resolveConsumable, resolveContainer, resolveWeapon } from "../lib/item";
+import { resolveConsumable, resolveContainer } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
-import { resolveLight } from "../lib/tileResolve";
 import type { TileDef } from "../lib/types";
-import type { ObjectRef } from "./affordances";
+import { equipSlotOf, type ObjectRef } from "./affordances";
 import type { SlotRef } from "./itemMoves";
 
 /**
@@ -19,9 +18,9 @@ import type { SlotRef } from "./itemMoves";
  * and every kind of item answers it in its own terms:
  *
  * - a container is for looking inside, so a tap opens it;
- * - a weapon is for holding, so a tap puts it in your hand — and taps the one in
- *   your hand back into your bag, because the inverse of a use is the same
- *   gesture again;
+ * - a weapon is for holding, so a tap puts it in the hand it belongs in — and
+ *   taps the one in that hand back into your bag, because the inverse of a use
+ *   is the same gesture again;
  * - a consumable is for eating or drinking, so a tap spends it — the case this
  *   module was written expecting to gain.
  *
@@ -84,31 +83,26 @@ export function itemUseFor(
   const def = tilesById[instance.tileId];
   if (!def) return null;
 
-  // **A light goes to the other hand**, and this is checked before the weapon
-  // rule rather than after it because a lantern is authored as a weapon — it had
-  // to be, when the swinging hand was the only hand. Tapping one is a request to
-  // see in the dark, never a request to fight with it.
-  if (resolveLight(def, { direction: instance.direction })) {
-    return slot.kind === "offhand"
-      ? { type: "move", to: FIRST_BAG_SLOT }
-      : { type: "move", to: { kind: "offhand" } };
-  }
-
-  if (resolveWeapon(def)) {
-    return slot.kind === "weapon"
-      ? { type: "move", to: FIRST_BAG_SLOT }
-      : { type: "move", to: { kind: "weapon" } };
-  }
-
-  // From any slot it can be sitting in — your bag or a box on the floor. The
-  // slot rules already keep one out of the weapon and bag slots, so there is no
-  // square left where the answer should differ.
-  if (resolveConsumable(def)) return { type: "consume" };
-
-  // Only the bag on your back, and that is not a special case — no container may
-  // hold a container, so the bag slot is the one square in the game a container
-  // can be sitting in. A chest is opened where it lies, from the world.
+  // A pack on your back is for looking in, and that beats moving it: the drag
+  // is how you take one off. Checked first because a container is the one kind
+  // of item whose slot and whose use disagree.
   if (resolveContainer(def)) return slot.kind === "bag" ? { type: "open" } : null;
+
+  // **Where the thing belongs**, which is the same answer the floor's "Wield"
+  // and "Hold" rows are built from — see `./affordances`' `equipSlotOf`. This
+  // used to be guessed from whether the tile gave off light, because a lantern
+  // is authored as a weapon and the swinging hand was once the only hand; the
+  // guess is gone now that `WeaponItem.offhand` says it outright.
+  const belongs = equipSlotOf(def);
+  if (belongs === "weapon" || belongs === "offhand") {
+    return slot.kind === belongs
+      ? { type: "move", to: FIRST_BAG_SLOT }
+      : { type: "move", to: { kind: belongs } };
+  }
+
+  // From any slot it can be sitting in — a hand, your bag, or a box on the
+  // floor. Nothing about eating depends on where the thing was.
+  if (resolveConsumable(def)) return { type: "consume" };
 
   return null;
 }

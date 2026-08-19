@@ -63,27 +63,50 @@ export function moveEntity(
   from: { x: number; y: number; z: number; stackIndex: number },
   to: { x: number; y: number; z: number },
   direction: Direction | undefined,
-  tilesById: Record<string, TileDef>,
+  _tilesById?: Record<string, TileDef>,
+): MapFile {
+  return moveColumn(map, from, 1, to, direction);
+}
+
+/**
+ * Move `count` placements, starting at `from.stackIndex`, to the top of another
+ * cell's stack — keeping their order.
+ *
+ * What a shove does, and the reason it is one operation rather than a loop of
+ * {@link moveEntity}: a loop would take the bottom crate out from under the one
+ * riding it, leaving the rider unsupported in a map every gravity and plate
+ * pass can see, for as long as the loop takes to catch up. One `setStacks` means
+ * there is no such frame.
+ *
+ * `direction` turns every placement that moves. Omit it to leave facing alone,
+ * which is what dragged scenery wants.
+ */
+export function moveColumn(
+  map: MapFile,
+  from: { x: number; y: number; z: number; stackIndex: number },
+  count: number,
+  to: { x: number; y: number; z: number },
+  direction: Direction | undefined,
 ): MapFile {
   const stack = getStack(map, from.x, from.y, from.z);
-  const entity = stack[from.stackIndex];
-  if (!entity) return map;
+  const moving = stack.slice(from.stackIndex, from.stackIndex + count);
+  if (moving.length === 0) return map;
 
   // Spread, not rebuilt field by field: a placement carries per-placement state
   // (its signal channel) that a move has no business dropping.
-  const placed: PlacedTile = {
+  const placed: PlacedTile[] = moving.map((entity) => ({
     ...entity,
     direction: direction ?? entity.direction,
-  };
+  }));
   // Both cells in one pass. Done as remove-then-place it copies the level
   // twice, and on a populated floor that is thousands of keys copied to move
   // one tile — the dominant cost of committing a step.
   const fromStack = [...stack];
-  fromStack.splice(from.stackIndex, 1);
+  fromStack.splice(from.stackIndex, moving.length);
 
   const sameCell = from.x === to.x && from.y === to.y && from.z === to.z;
   const toBase = sameCell ? fromStack : getStack(map, to.x, to.y, to.z);
-  const toStack = [...toBase, placed];
+  const toStack = [...toBase, ...placed];
 
   return setStacks(
     map,

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_CONTAINER } from "../lib/item";
 import { emptyMap, getStack, parseMap, replaceStack, serializeMap } from "../lib/mapData";
 import { parseServerMessage } from "../net/protocol";
+import type { ItemInstance } from "../lib/itemInstance";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { STARTING_BAG_TILE_ID, TICK_MS } from "./constants";
@@ -40,6 +41,9 @@ const CERTAIN = { accuracy: 100, variance: 0, spd: 100 };
 
 const tiles: TileDef[] = [
   tile({ id: "grass" }),
+  // Something with volume, which is what it takes to bury a thing: a flat tile
+  // lying on top of another one hides nothing.
+  tile({ id: "crate", height: 1 }),
   tile({
     id: "player",
     height: 2,
@@ -119,6 +123,24 @@ const tiles: TileDef[] = [
     light: { radius: 6, intensity: 1, color: "#ffcc88" },
     interactions: {
       item: { type: "weapon", damage: 5, def: 0, accuracy: 100, variance: 0, spd: 100, mastery: "blunt" },
+    },
+  }),
+  // Something that belongs nowhere in particular, so a hand is the first place
+  // a pickup with a full bag reaches for.
+  tile({
+    id: "cherry",
+    kind: "item",
+    intangible: true,
+    interactions: { item: { type: "consumable", label: "Eat", hp: 5 } },
+  }),
+  // The one thing in here authored for the other hand.
+  tile({
+    id: "torch",
+    kind: "item",
+    intangible: true,
+    light: { radius: 6, intensity: 1, color: "#ffcc88" },
+    interactions: {
+      item: { type: "weapon", damage: 1, def: 0, offhand: true, accuracy: 40, variance: 0, spd: 40, mastery: "blunt" },
     },
   }),
   // Slow and clumsy in the two ways a weapon can now be told to be.
@@ -412,15 +434,26 @@ describe("picking things up", () => {
   });
 
   /**
-   * Containers do not nest, so the only place a bag can go is a back with
-   * nothing on it — and every player starts with one already there.
+   * Containers do not nest, so a second bag never goes *inside* the one you are
+   * wearing. A hand will carry it, which is a choice the game has no business
+   * refusing — and with both hands full there is nowhere left at all.
    */
-  it("refuses a second bag", () => {
+  it("carries a second bag in hand, and refuses it once they are full", () => {
     const session = withItem(1, 0, STARTING_BAG_TILE_ID);
-    expect(session.pickUp(refAt(session, 1, 0))).toBe(false);
+    expect(session.pickUp(refAt(session, 1, 0))).toBe(true);
+    expect(session.getSnapshot().equipment.offhand?.tileId).toBe(
+      STARTING_BAG_TILE_ID,
+    );
+    expect(bagOf(session).contents).toEqual([]);
+
+    const laden = withItem(1, 0, STARTING_BAG_TILE_ID);
+    const kit = laden.equipmentOf(selfId(laden))!;
+    kit.weapon = { id: "itm_a", tileId: SWORD };
+    kit.offhand = { id: "itm_b", tileId: SWORD };
+    expect(laden.pickUp(refAt(laden, 1, 0))).toBe(false);
   });
 
-  it("takes a bag onto a bare back, contents and all", () => {
+  it("puts a bag on a bare back, contents and all", () => {
     let map = field();
     map = replaceStack(map, 1, 0, 0, [
       { tileId: "grass" },
@@ -434,10 +467,130 @@ describe("picking things up", () => {
     // Take the starting bag off first — there is no other way to bare a back.
     session.equipmentOf(selfId(session))!.bag = null;
 
-    expect(session.pickUp(refAt(session, 1, 0))).toBe(true);
+    expect(session.equip(refAt(session, 1, 0))).toBe(true);
     const bag = bagOf(session);
     expect(bag.id).toBe("itm_authored");
     expect(bag.contents).toEqual([{ id: "itm_loot", tileId: SWORD }]);
+  });
+
+  /**
+   * A full bag is not the end of it. You have hands, and the spare one goes
+   * first so a pickup never rewrites what you are fighting with.
+   */
+  describe("with nowhere left to put it", () => {
+    /** Bag full to the brim, so only the hands are left. */
+    function stuffed(tileId: string): GameSession {
+      const session = withItem(1, 0, tileId);
+      const kit = session.equipmentOf(selfId(session))!;
+      kit.bag = {
+        ...kit.bag!,
+        contents: Array.from({ length: DEFAULT_CONTAINER.size }, (_, i) => ({
+          id: `itm_${i}`,
+          tileId: SWORD,
+        })),
+      };
+      return session;
+    }
+
+    it("takes a thing into the spare hand", () => {
+      const session = stuffed("cherry");
+
+      expect(session.pickUp(refAt(session, 1, 0))).toBe(true);
+      expect(session.getSnapshot().equipment.offhand?.tileId).toBe("cherry");
+    });
+
+    it("falls through to the weapon hand once that one is taken", () => {
+      const session = stuffed("cherry");
+      session.equipmentOf(selfId(session))!.offhand = {
+        id: "itm_lit",
+        tileId: "torch",
+      };
+
+      expect(session.pickUp(refAt(session, 1, 0))).toBe(true);
+      expect(session.getSnapshot().equipment.weapon?.tileId).toBe("cherry");
+    });
+
+    it("refuses once the hands are full too", () => {
+      const session = stuffed("cherry");
+      const kit = session.equipmentOf(selfId(session))!;
+      kit.weapon = { id: "itm_a", tileId: SWORD };
+      kit.offhand = { id: "itm_b", tileId: "torch" };
+
+      expect(session.pickUp(refAt(session, 1, 0))).toBe(false);
+      expect(getStack(session.getMap(), 1, 0, 0)).toHaveLength(2);
+    });
+  });
+
+  /**
+   * Arming yourself off the floor — the trip a pickup makes, into a slot on the
+   * body rather than into a bag. It is the only thing somebody carrying nothing
+   * at all can do with a sword.
+   */
+  describe("equipping where it lies", () => {
+    function bare(x: number, y: number, tileId: string): GameSession {
+      const session = withItem(x, y, tileId);
+      session.equipmentOf(selfId(session))!.bag = null;
+      return session;
+    }
+
+    const kitOf = (session: GameSession) => session.getSnapshot().equipment;
+
+    const tilesAt = (session: GameSession, x: number, y: number) =>
+      getStack(session.getMap(), x, y, 0).map((p) => p.tileId);
+
+    it("puts a sword in the hand of somebody carrying nothing", () => {
+      const session = bare(1, 0, SWORD);
+
+      expect(session.equip(refAt(session, 1, 0))).toBe(true);
+      expect(kitOf(session).weapon?.tileId).toBe(SWORD);
+      expect(tilesAt(session, 1, 0)).toEqual(["grass"]);
+    });
+
+    it("puts a torch in the other hand, leaving the weapon hand free", () => {
+      const session = bare(1, 0, "torch");
+
+      expect(session.equip(refAt(session, 1, 0))).toBe(true);
+      expect(kitOf(session).offhand?.tileId).toBe("torch");
+      expect(kitOf(session).weapon).toBeNull();
+    });
+
+    /** Never a swap: what you are already holding stays where it is. */
+    it("refuses once the slot it names is full", () => {
+      const session = bare(1, 0, SWORD);
+      session.equipmentOf(selfId(session))!.weapon = {
+        id: "itm_held",
+        tileId: "heavy-sword",
+      };
+
+      expect(session.equip(refAt(session, 1, 0))).toBe(false);
+      expect(kitOf(session).weapon?.tileId).toBe("heavy-sword");
+      expect(tilesAt(session, 1, 0)).toEqual(["grass", SWORD]);
+    });
+
+    it("has nowhere to put a chest", () => {
+      const session = bare(1, 0, "chest");
+      expect(session.equip(refAt(session, 1, 0))).toBe(false);
+    });
+
+    /** A tap arms you when it can — see `ACTION_ORDER`. */
+    it("is what a plain interact runs, ahead of stowing it", () => {
+      const session = withItem(1, 0, SWORD);
+
+      expect(session.interact(refAt(session, 1, 0))).toBe(true);
+      expect(kitOf(session).weapon?.tileId).toBe(SWORD);
+      expect(bagOf(session).contents).toEqual([]);
+    });
+
+    it("falls through to the bag once the hand is full", () => {
+      const session = withItem(1, 0, SWORD);
+      session.equipmentOf(selfId(session))!.weapon = {
+        id: "itm_held",
+        tileId: "heavy-sword",
+      };
+
+      expect(session.interact(refAt(session, 1, 0))).toBe(true);
+      expect(bagOf(session).contents?.map((i) => i.tileId)).toEqual([SWORD]);
+    });
   });
 
   it("never picks up a chest, which is looted where it lies", () => {
@@ -473,11 +626,32 @@ describe("picking things up", () => {
     map = replaceStack(map, 1, 0, 0, [
       { tileId: "grass" },
       { tileId: SWORD },
-      { tileId: "grass" },
+      { tileId: "crate" },
     ]);
     const session = new GameSession(map, tiles);
 
     expect(session.pickUp({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(false);
+  });
+
+  /**
+   * Two swords in one cell are two swords, and a player who could only ever
+   * take the one on top would have no way at all to reach the other.
+   */
+  it("takes either of two things lying on each other", () => {
+    let map = field();
+    map = replaceStack(map, 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: SWORD },
+      { tileId: SWORD },
+    ]);
+    const session = new GameSession(map, tiles);
+
+    expect(session.pickUp({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(true);
+    expect(session.pickUp({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(true);
+    expect(bagOf(session).contents).toHaveLength(2);
+    expect(getStack(session.getMap(), 1, 0, 0).map((p) => p.tileId)).toEqual([
+      "grass",
+    ]);
   });
 
   it("refuses a tile that is not an item at all", () => {
@@ -778,14 +952,24 @@ describe("putting things down", () => {
   }
 
   /** A player at the origin carrying one sword, taken off the floor beside them. */
-  function armed(): GameSession {
-    const map = replaceStack(field(), 1, 1, 0, [
+  function armed(board: MapFile = field()): GameSession {
+    const map = replaceStack(board, 1, 1, 0, [
       { tileId: "grass" },
       { tileId: SWORD },
     ]);
     const session = new GameSession(map, tiles);
     session.pickUp(refAt(session, 1, 1));
     return session;
+  }
+
+  /** The same, with a chest standing two cells east of the player. */
+  function armedFacingChest(contents: ItemInstance[] = []): GameSession {
+    return armed(
+      replaceStack(field(), 2, 0, 0, [
+        { tileId: "grass" },
+        { tileId: "chest", itemId: "itm_chest", contents },
+      ]),
+    );
   }
 
   function tilesAt(session: GameSession, x: number, y: number): string[] {
@@ -839,15 +1023,45 @@ describe("putting things down", () => {
     expect(session.getSnapshot().equipment.bag).toBeNull();
   });
 
-  it("can be picked straight back up, which is the round trip", () => {
+  it("can be put straight back on, which is the round trip", () => {
     const session = armed();
     session.drop({ kind: "bag" }, { x: 1, y: 0, z: 0 });
     const bagRef = refAt(session, 1, 0);
 
-    expect(session.pickUp(bagRef)).toBe(true);
+    expect(session.equip(bagRef)).toBe(true);
     const bag = session.getSnapshot().equipment.bag!;
     expect(bag.contents?.map((i) => i.tileId)).toEqual([SWORD]);
     expect(tilesAt(session, 1, 0)).toEqual(["grass"]);
+  });
+
+  /**
+   * Aimed at a box, it goes in the box — the whole of "drop it in there" without
+   * having to open a panel first.
+   */
+  it("throws a thing into the container it lands on", () => {
+    const session = armedFacingChest();
+
+    expect(
+      session.drop({ kind: "contents", index: 0 }, { x: 2, y: 0, z: 0 }),
+    ).toBe(true);
+
+    expect(tilesAt(session, 2, 0)).toEqual(["grass", "chest"]);
+    expect(
+      getStack(session.getMap(), 2, 0, 0)[1]!.contents?.map((i) => i.tileId),
+    ).toEqual([SWORD]);
+    expect(session.getSnapshot().equipment.bag?.contents).toEqual([]);
+  });
+
+  it("lands on a full container rather than refusing", () => {
+    const session = armedFacingChest([
+      { id: "itm_a", tileId: SWORD },
+      { id: "itm_b", tileId: SWORD },
+    ]);
+
+    expect(
+      session.drop({ kind: "contents", index: 0 }, { x: 2, y: 0, z: 0 }),
+    ).toBe(true);
+    expect(tilesAt(session, 2, 0)).toEqual(["grass", "chest", SWORD]);
   });
 
   it("refuses an empty slot, and says so rather than dropping nothing", () => {

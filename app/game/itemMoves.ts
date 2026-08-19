@@ -3,7 +3,7 @@ import { resolveContainer, resolveWeapon } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { MapFile, PlacedTile, TileDef } from "../lib/types";
 import { reachableItemDefAt, type Actor, type ObjectRef } from "./affordances";
-import { type Equipment, offhandAccepts } from "./equipment";
+import { type Equipment, handAccepts } from "./equipment";
 
 /**
  * Moving one carried thing from where it is to somewhere else.
@@ -168,15 +168,15 @@ function slotAccepts(
 ): boolean {
   const def = tilesById[instance.tileId];
   if (!def) return false;
-  if (slot.kind === "weapon") return resolveWeapon(def) != null;
-  // Looser than the weapon slot on purpose: you can hold a thing that is no use
-  // as a weapon, which is the whole point of having somewhere to put a torch.
-  if (slot.kind === "offhand") return offhandAccepts(def);
-  // The one slot a container may go in, and only a wearable one. Nothing can
-  // reach it today — a container is never inside another container to be moved
-  // out of — but it is the honest rule for the slot rather than an accident of
-  // what happens to be possible.
+  // Both hands, one rule, and it is a generous one — see `handAccepts`. A drag
+  // is somebody saying exactly what they want, and a hand refusing a thing you
+  // could obviously hold is the interface arguing with them. Which slot a thing
+  // *belongs* in is `equipSlotOf`'s question, asked only when nobody has said.
+  if (slot.kind === "weapon" || slot.kind === "offhand") return handAccepts(def);
+  // The one slot a container may go in besides a hand, and only a wearable one.
   if (slot.kind === "bag") return resolveContainer(def)?.equippable === true;
+  // Inside a bag, where the nesting rule still bites: a pack in a pack is the
+  // one arrangement nothing in the model has an answer for.
   return resolveContainer(def) == null;
 }
 
@@ -245,6 +245,28 @@ function withGroundContents(
     i === ref.stackIndex ? { ...placed, contents } : placed,
   );
   return replaceStack(map, ref.x, ref.y, ref.z, next);
+}
+
+/**
+ * Append one thing to the container at a slot, or null when nothing is there.
+ *
+ * The one write `GameSession.drop` needs when a thing thrown at a box lands
+ * inside it, and it goes through the same {@link withGroundContents} a move into
+ * that slot does — writing a placement's contents a second way is how two paths
+ * come to disagree about what a container holds.
+ *
+ * No reach test, unlike every slot here: a drop is a throw and its range is
+ * `canDropAt`'s, which is much longer than an arm's. The caller has already
+ * asked, through `dropDestinationAt`, which is what named this slot.
+ */
+export function stashInContainer(
+  map: MapFile,
+  ref: ObjectRef,
+  instance: ItemInstance,
+): MapFile | null {
+  const placed = getStack(map, ref.x, ref.y, ref.z)[ref.stackIndex];
+  if (!placed) return null;
+  return withGroundContents(map, ref, [...(placed.contents ?? []), instance]);
 }
 
 /** The board and the kit after a move. Whichever half did not change is `===`. */

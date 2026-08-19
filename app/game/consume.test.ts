@@ -50,6 +50,9 @@ function consumable(id: string, hp: number, sound?: string): TileDef {
 
 const tiles: TileDef[] = [
   tile({ id: "grass" }),
+  // Something with volume, which is what it takes to bury a thing: a flat tile
+  // lying on top of another one hides nothing.
+  tile({ id: "crate", height: 1 }),
   tile({
     id: "player",
     height: 2,
@@ -200,7 +203,7 @@ describe("eating off the floor", () => {
     const map = replaceStack(field(), 1, 0, 0, [
       { tileId: "grass" },
       { tileId: "cherry" },
-      { tileId: "grass" },
+      { tileId: "crate" },
     ]);
     const session = new GameSession(map, tiles);
     expect(

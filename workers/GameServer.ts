@@ -1506,6 +1506,11 @@ export class GameServer extends DurableObject<Env> {
       // these rules, but it decided on a map that may be a round trip old and a
       // bag that may have filled up since.
       session.pickUp(message.ref, actorId);
+    } else if (message.type === "equip") {
+      // Re-validated on the same terms a pickup is, plus the one rule that is
+      // this message's own: the slot has to still be empty. The client offered
+      // "Wield" against a hand that may have filled since.
+      session.equip(message.ref, actorId);
     } else if (message.type === "moveItem") {
       // Every rule asked again here, reach above all: a ground endpoint names a
       // container the client had a panel open on, and the panel may have been
@@ -2359,6 +2364,7 @@ export class GameServer extends DurableObject<Env> {
           actorId: actor.id,
           object: actor.slide.object,
           from: actor.slide.from,
+          count: actor.slide.count,
         });
       }
 

@@ -231,8 +231,11 @@ export type MotionEvent =
   | {
       kind: "slideStarted";
       actorId: string;
+      /** Lowest of the shoved placements. @see SlideSnapshot */
       object: { x: number; y: number; z: number; stackIndex: number };
       from: { x: number; y: number; z: number };
+      /** How many placements travelled, `object` included. */
+      count: number;
     }
   /**
    * Somebody arrived, or somebody went.
@@ -489,6 +492,20 @@ export type ClientMessage =
    */
   | { type: "pickUp"; ref: { x: number; y: number; z: number; stackIndex: number } }
   /**
+   * "I am putting that on."
+   *
+   * `pickUp`'s sibling and not a flag on it, because the two say different
+   * things: one stows a thing, the other arms you with it, and the list draws
+   * them as separate rows with separate verbs. A tap that meant either
+   * depending on what the server felt like would make "Wield" a suggestion.
+   *
+   * **No slot travels with it.** Where a thing goes is a fact about the tile —
+   * `equipSlotOf` — so naming it here would be the client telling the server
+   * something the server already knows, and one more field to disbelieve. Which
+   * slot must be *free* is a fact about the kit, which is the server's.
+   */
+  | { type: "equip"; ref: { x: number; y: number; z: number; stackIndex: number } }
+  /**
    * "Put that there."
    *
    * One message for equipping, unequipping, looting and stashing, because under
@@ -619,6 +636,10 @@ const clientMessageSchema = v.variant("type", [
     ref: inboundRefSchema,
   }),
   v.object({
+    type: v.literal("equip"),
+    ref: inboundRefSchema,
+  }),
+  v.object({
     type: v.literal("moveItem"),
     from: inboundSlotRefSchema,
     to: inboundSlotRefSchema,
@@ -727,6 +748,7 @@ const serverMessageSchema = v.variant("type", [
           actorId: v.string(),
           object: objectRefSchema,
           from: coordSchema,
+          count: v.number(),
         }),
         v.object({
           kind: v.literal("joined"),
