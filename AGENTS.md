@@ -126,7 +126,8 @@ not redundant.
 **A third row says where they *started*.** `spawn:<id>` is written once, the
 first time the world sees somebody, and never rewritten: where you entered is a
 different fact from where you are, and it does not move when you do. A death
-overwrites `pos:` with it, which is the whole of respawning. Today every row
+overwrites `pos:` with it, which is the whole of respawning — asked for from the
+death screen's Rebirth button, or by reloading. Today every row
 holds the same coordinates — a map has one authored `player` marker — and
 keeping it per player is what lets a death answer the question without asking a
 map that may since have been re-authored out of it. `replaceWorld` drops the
@@ -305,7 +306,8 @@ itself down before it destroys the only copy of what it knew.
 - **The `Death` carries what the runtime knew**, because `GameSession.kill`
   deletes it: what is left of the kit, its tags and its masteries. Nothing
   downstream can re-derive any of it.
-- **A reload puts them back at the spawn point, with a fresh empty bag.** The
+- **A reload or a `rebirth` puts them back at the spawn point, with a fresh empty
+  bag.** The
   position row is *overwritten* with `spawn:<id>` rather than left alone —
   leaving it is what put people back wherever the last flush caught them, up to
   a whole `ACTOR_FLUSH_INTERVAL_MS` of walking ago. The kit is the starting one
@@ -327,9 +329,10 @@ itself down before it destroys the only copy of what it knew.
   reload is the very next thing a dead player does, and a deferred write would
   leave it reading the pre-death kit.
 - **Only somebody with a socket is written.** A dead player sits there connected
-  until they reload and a creature never had a connection, so the socket is the
-  exact test for "is there anyone to hand this back to" — and it keeps a world
-  that respawns wildlife from writing a position and a kit per rat.
+  and a creature never had a connection, so the socket is the exact test for "is
+  there anyone to hand this back to" — and it keeps a world that respawns
+  wildlife from writing a position and a kit per rat. The same test decides who
+  is *told*: see the death screen below.
 
 **The client picks the target; the server decides when a blow lands.** A `target`
 message names who, and that is all a client is trusted with. Attack speed is the
@@ -380,10 +383,62 @@ The formulas live in `app/game/combat.ts`, kept pure so they can be asserted:
 
 **Zero hit points deletes the body, and leaves the kit where it fell.** For a
 player it also removes their actor, so the server ignores everything their socket
-sends — a dead player sits there connected and inert until they reload, which is
-the only thing that hands them a new body. The reload is the respawn: they come
-back at the door they came in by, on full hit points, wearing an empty bag, with
-everything they were carrying lying where they died. The walk back is the cost.
+sends. They come back at the door they came in by, on full hit points, wearing an
+empty bag, with everything they were carrying lying where they died. The walk
+back is the cost.
+
+## Dying is a screen, and the socket goes quiet behind it
+
+Being dead is the one state a client cannot infer. A body missing from the board
+is what an ordinary stale patch looks like, so `died` is a message: sent to the
+one socket, carrying the kit, and the last thing that socket hears.
+
+**Three things happen in an order, and the order is the whole design.**
+
+1. The tick that killed them broadcasts its patch *including* to them. That
+   frame is the honest one — their body gone from the cell, their kit lying in
+   it — and it is what the death screen is drawn over.
+2. `announceDeaths` sends `died` and only then adds them to `silenced`, so the
+   message is not the first casualty of the rule it announces.
+3. From there `broadcast` skips their socket entirely. A dead player watching
+   the world carry on is being shown a board they have no body in, and every
+   patch of it is bandwidth spent on somebody who cannot act.
+
+**The kit rides on `died` rather than on an `equipment` message.** That message
+is read off a live runtime and a death is exactly what deletes it, so an emptied
+bag would never be announced and the panel would go on showing a sword that is
+on the floor. Normally empty; the whole kit when the cell refused the pile.
+
+**Statuses come down without being sent**, and the asymmetry with the kit is the
+point. What is left in a bag is a real question with two possible answers, so
+the server has to answer it. What a body off the board is still poisoned with is
+not a question — it is nothing — so the client states it locally. `flushStatuses`
+could not say it either way: it reads the same deleted runtime.
+
+**`silenced` is a subset of `dead`, not the same set.** `dead` holds every body
+the world has taken off the board, wildlife included, and a rat has no socket to
+fall silent on — silencing off it would mean asking, per broadcast, which of
+thousands of dead deer had a connection. It is not checkpointed either, because
+it is derivable: `restoreActors` rebuilds it from the checkpointed `dead`
+intersected with the sockets that survived the eviction.
+
+**`rebirth` is the only message a dead client may send**, and it is answered
+ahead of the `actorIds` gate every other message is dropped by — that gate asks
+the runtime a death deleted. The reply is a whole `hello` to *every* socket that
+player has: a silenced socket has been receiving nothing for as long as its
+owner sat on the screen, so its map is arbitrarily stale and no diff would catch
+it up, and two tabs are one person with one body, so they died together and come
+back together. Reloading still works and still does the same thing through
+`fetch`; the button exists so that coming back does not mean losing the tab.
+
+**The blocking is `inert`, not an overlay.** The page marks everything under the
+death screen inert, which is the browser's own answer to "this subtree is not
+interactive": it covers the pointer, the tab order, a keypress reaching a
+focused chat field and anything reading the page aloud. An overlay drawn on top
+covers none of those — a dimmed panel is still tabbable. The screen itself only
+darkens, because the frozen world behind it is the answer to what happened.
+`RemoteSession.setInput` refuses while dead for the half `inert` cannot reach:
+the keyboard is bound to the window, which no overlay covers.
 
 **Being a battler is what earns a name tag**, and the health bar rides in the
 same label. Names used to be a mode the online route switched on, with a check

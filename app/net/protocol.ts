@@ -507,7 +507,29 @@ export type ServerMessage =
    * Only refusals travel. An accepted step needs no word of its own: the cell
    * patch that commits it is the confirmation, and it was being sent anyway.
    */
-  | { type: "stepRejected"; seq: number };
+  | { type: "stepRejected"; seq: number }
+  /**
+   * "You are dead."
+   *
+   * The last thing a socket hears until it asks to come back: from the tick
+   * that sends this until a `rebirth`, the server stops broadcasting to it
+   * entirely. That silence is the point — a dead player watching the world
+   * carry on without them is being shown a board they have no body in, and
+   * every patch of it is bandwidth spent on somebody who cannot act.
+   *
+   * Sent *after* the patch of the tick that killed them, never instead of it,
+   * so the last frame they are left looking at is the true one: their body
+   * gone from the cell, and everything they were carrying lying in it.
+   *
+   * Carries the kit rather than leaving the client to guess it, because the
+   * usual channel cannot say this. `equipment` messages are read off a live
+   * runtime, and a death is exactly the moment that runtime stops existing —
+   * so an emptied bag would never be announced, and the panel would sit there
+   * showing a sword that is on the floor. Normally empty; the whole kit when
+   * the cell refused the pile, which is the one case where the dead still own
+   * what they were holding.
+   */
+  | { type: "died"; equipment: Equipment };
 
 export type ClientMessage =
   /**
@@ -608,7 +630,24 @@ export type ClientMessage =
    * server keeps its own clock either way. A client that flipped this a thousand
    * times a second would land exactly as many blows as one that flipped it once.
    */
-  | { type: "attackMode"; enabled: boolean };
+  | { type: "attackMode"; enabled: boolean }
+  /**
+   * "Put me back in."
+   *
+   * The only thing a dead client may say. Every other message is dropped for
+   * an actor with no body — the server's gate is "is there a runtime by this
+   * name", and a death deletes it — so this one is answered ahead of that gate
+   * rather than inside it.
+   *
+   * Carries nothing. Where somebody comes back in is the server's answer
+   * (`spawn:<id>`, written the first time the world saw them), and a client
+   * that could name its own cell could name any of them.
+   *
+   * The reply is a whole `hello`, not a patch: a dead socket has been receiving
+   * nothing, so its map is as many ticks stale as the player sat on the death
+   * screen, and there is no diff that could catch it up.
+   */
+  | { type: "rebirth" };
 
 /**
  * Inbound from the browser. Held to a tighter standard than outbound: a client
@@ -713,6 +752,9 @@ const clientMessageSchema = v.variant("type", [
   v.object({
     type: v.literal("attackMode"),
     enabled: v.boolean(),
+  }),
+  v.object({
+    type: v.literal("rebirth"),
   }),
 ]);
 
@@ -844,6 +886,10 @@ const serverMessageSchema = v.variant("type", [
   v.object({
     type: v.literal("stepRejected"),
     seq: v.number(),
+  }),
+  v.object({
+    type: v.literal("died"),
+    equipment: tolerantEquipmentSchema,
   }),
 ]);
 

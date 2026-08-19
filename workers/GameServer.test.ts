@@ -1156,6 +1156,23 @@ function messageWithin(
   });
 }
 
+/**
+ * Keep every message a socket receives from now on.
+ *
+ * For the assertions no single-message helper can make: that things arrived in
+ * a particular order, and — the harder one — that nothing arrived at all.
+ */
+function record(ws: WebSocket) {
+  const seen: Record<string, unknown>[] = [];
+  ws.addEventListener("message", (event) => {
+    seen.push(JSON.parse(event.data as string) as Record<string, unknown>);
+  });
+  return {
+    types: () => seen.map((message) => message.type as string),
+    of: (type: string) => seen.filter((message) => message.type === type),
+  };
+}
+
 /** Wait for a patch carrying a `walkStarted`, and hand back that event. */
 function walkWithin(
   ws: WebSocket,
@@ -2799,6 +2816,109 @@ describe("dying and coming back", () => {
     await connect("alice");
 
     expect(await actorX("alice")).toBe(SPAWN_CELL);
+  });
+
+  it("tells the dying player they died, after the patch that emptied them", async () => {
+    const alice = await armedAlice();
+    const seen = record(alice.ws);
+
+    await killAndTick("alice");
+
+    const types = seen.types();
+    expect(types).toContain("died");
+    // The order is the contract, not an accident of the tick: the patch showing
+    // the body gone and the kit on the floor is the last frame they are left
+    // looking at, so it has to have gone out first.
+    expect(types.indexOf("patch")).toBeGreaterThanOrEqual(0);
+    expect(types.indexOf("patch")).toBeLessThan(types.indexOf("died"));
+  });
+
+  it("hands the emptied kit over on the death itself", async () => {
+    const alice = await armedAlice();
+    const seen = record(alice.ws);
+
+    await killAndTick("alice");
+
+    const died = seen.of("died")[0]!;
+    const equipment = died.equipment as Record<string, unknown>;
+    // Everything is on the floor, so there is nothing left in hand. This cannot
+    // arrive as an `equipment` message: that one is read off a live runtime, and
+    // the death is what deletes it.
+    expect(equipment.weapon).toBeNull();
+    expect(equipment.offhand).toBeNull();
+    expect(equipment.bag).toBeNull();
+  });
+
+  it("stops talking to a dead socket, while the world goes on for everyone else", async () => {
+    const alice = await armedAlice();
+    const bob = await connect("bob");
+    await killAndTick("alice");
+    // Past the death and its patch, so what follows is only the world moving on
+    // without her.
+    const afterDeath = record(alice.ws);
+    const bobSees = record(bob.ws);
+
+    step(bob.ws, 1, "e");
+    const bobsWalk = await walkWithin(bob.ws, 1000);
+
+    // Bob's own step reaches Bob, which is what makes the silence a rule about
+    // the dead rather than a world that stopped ticking.
+    expect(bobsWalk).not.toBeNull();
+    expect(bobSees.types()).toContain("patch");
+    expect(afterDeath.types()).toEqual([]);
+  });
+
+  it("puts a body back and re-tells the world on a rebirth", async () => {
+    const alice = await armedAlice();
+    await killAndTick("alice");
+    expect(await actorX("alice")).toBeNull();
+
+    send(alice.ws, { type: "rebirth" });
+    const hello = await messageWithin(alice.ws, "hello", 1000);
+
+    expect(hello).not.toBeNull();
+    expect(hello!.selfId).toBe("alice");
+    // At the door rather than where she fell — the same answer a reload gives.
+    expect(await actorX("alice")).toBe(SPAWN_CELL);
+  });
+
+  it("starts talking to them again once they are back", async () => {
+    const alice = await armedAlice();
+    const bob = await connect("bob");
+    await killAndTick("alice");
+
+    send(alice.ws, { type: "rebirth" });
+    expect(await messageWithin(alice.ws, "hello", 1000)).not.toBeNull();
+    step(bob.ws, 1, "e");
+
+    expect(await walkWithin(alice.ws, 1000)).not.toBeNull();
+  });
+
+  it("ignores a rebirth from somebody who is not dead", async () => {
+    const alice = await armedAlice();
+
+    send(alice.ws, { type: "rebirth" });
+
+    // A `hello` here would throw away every step this client had predicted, for
+    // a player who never lost their body in the first place.
+    expect(await messageWithin(alice.ws, "hello", 500)).toBeNull();
+    expect(await actorX("alice")).toBe(AWAY_FROM_SPAWN);
+  });
+
+  it("keeps a dead socket silent across an eviction", async () => {
+    const alice = await armedAlice();
+    const bob = await connect("bob");
+    await killAndTick("alice");
+    await simulateEviction();
+    // The wake reloads the world and re-seats everybody whose socket survived;
+    // alice is in the checkpointed dead, so she gets neither a body nor a word.
+    const afterWake = record(alice.ws);
+
+    step(bob.ws, 1, "e");
+    expect(await walkWithin(bob.ws, 1000)).not.toBeNull();
+
+    expect(await actorX("alice")).toBeNull();
+    expect(afterWake.types()).toEqual([]);
   });
 });
 

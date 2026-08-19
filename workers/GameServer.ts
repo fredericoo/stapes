@@ -592,6 +592,38 @@ export class GameServer extends DurableObject<Env> {
    */
   private pendingDeathWrites = new Map<string, Death>();
   /**
+   * Sockets the world has stopped talking to: connected, but with nobody at
+   * this end to talk *about*.
+   *
+   * A dead player sits there with an open socket and no body, and every patch
+   * sent to them is a report on a board they cannot touch. Worse than wasted:
+   * the screen behind the death message would go on moving, which reads as a
+   * world you are still in. So the sends stop at the death and start again at
+   * the {@link ClientMessage} `rebirth`.
+   *
+   * A subset of {@link dead} rather than the same thing. That set holds every
+   * body the world has taken off the board, wildlife included, and a rat has no
+   * socket to fall silent on — so silencing off `dead` would mean asking, per
+   * broadcast, which of thousands of dead deer had a connection. This holds the
+   * handful that do.
+   *
+   * Not checkpointed, and not because it does not matter across an eviction: it
+   * is derivable there, from `dead` — which *is* checkpointed — intersected
+   * with the sockets that survived. {@link restoreActors} does exactly that.
+   */
+  private silenced = new Set<string>();
+  /**
+   * Who died on the tick currently being broadcast, and what they still own.
+   *
+   * Held for the length of one tick, between {@link noteDeaths} filling it and
+   * the end of {@link tick} draining it, and the gap between those two is the
+   * whole reason it exists: the patch that goes out in between is the *last*
+   * thing these sockets hear, and it has to reach them. Silencing at the death
+   * itself would take away the one frame that shows them what happened —
+   * their body gone from the cell, and their kit lying in it.
+   */
+  private justDied: Death[] = [];
+  /**
    * Where each connected player came in, so a death can put them back there
    * without waiting on storage.
    *
@@ -981,11 +1013,21 @@ export class GameServer extends DurableObject<Env> {
       // A socket belonging to somebody who died stays open and stays empty.
       // Seating them here is exactly the resurrection the checkpointed set of
       // the dead exists to prevent.
-      if (this.dead.has(id)) continue;
-      // Beside the seating, because a player restored across a wake can die
-      // without ever running {@link fetch} again.
-      await this.rememberSpawn(id);
-      this.session?.spawn(id, await this.restoredActor(id));
+      //
+      // It stays *silent* too, and that is what this rebuilds: the set of
+      // sockets the world is not talking to is derived rather than stored, and
+      // this is the one moment it can be — everybody dead with a connection is
+      // exactly the intersection being walked here. Missing it would have an
+      // eviction quietly resume the patch stream to a screen still saying you
+      // are dead.
+      if (this.dead.has(id)) {
+        this.silenced.add(id);
+        continue;
+      }
+      // Note this seats rather than joins: nobody arrived, and the door is
+      // remembered here because a player restored across a wake can die without
+      // ever running {@link fetch} again.
+      await this.seatActor(id);
     }
   }
 
@@ -1564,18 +1606,11 @@ export class GameServer extends DurableObject<Env> {
 
     await this.ensureLoaded();
 
-    const session = this.session!;
-    // A new socket is a reload, and a reload is how somebody comes back from
-    // being killed: there is no respawn, so this is the only thing that hands a
-    // dead actor a body again.
-    this.dead.delete(actorId);
-    // Before the seating: this is where somebody is *created*, and a death that
-    // arrives before the row is durable has nowhere to put them back.
-    await this.rememberSpawn(actorId);
-    // Rejoining with the same id keeps the actor already on the board; the
-    // remembered position is for somebody whose body is gone — they left, or
-    // their connection died while this object was evicted and they were reaped.
-    session.spawn(actorId, await this.restoredActor(actorId));
+    // A new socket is a reload, and a reload is still a way back from being
+    // killed — it was the only one before the death screen's button, and it
+    // stays honest beside it: whatever state a tab has got itself into, opening
+    // the page again hands you a body.
+    await this.seatActor(actorId);
     this.events.push({
       kind: "joined",
       actorId,
@@ -1662,6 +1697,17 @@ export class GameServer extends DurableObject<Env> {
 
     const session = this.session!;
     const { actorId } = attachment;
+
+    // Ahead of the gate below, and the only message that is. That gate is "does
+    // this actor have a runtime", and a death deletes it — so every other
+    // message from a dead client is dropped there, which is exactly the point.
+    // This one is the request to stop being dead, and asking it of the runtime
+    // that no longer exists would make it unanswerable.
+    if (message.type === "rebirth") {
+      await this.rebirth(actorId);
+      return;
+    }
+
     if (!session.actorIds().includes(actorId)) return;
 
     if (message.type === "say") {
@@ -2194,6 +2240,13 @@ export class GameServer extends DurableObject<Env> {
     this.sentMotion.delete(attachment.actorId);
     this.queuedSteps.delete(attachment.actorId);
     this.lastSaidAt.delete(attachment.actorId);
+    // Their last socket has gone, so there is nothing left to be silent
+    // towards. `dead` is deliberately *not* cleared beside it — that is the
+    // record keeping them off the board, and closing a tab is not a way to come
+    // back to life. This is only the sending rule, and it has nobody to apply
+    // to; left behind, it would be a row per player the world has ever killed,
+    // growing with visitors rather than with anything.
+    this.silenced.delete(attachment.actorId);
     this.events.push({
       kind: "left",
       actorId: attachment.actorId,
@@ -2323,6 +2376,11 @@ export class GameServer extends DurableObject<Env> {
     // the world that no longer exists would leave somebody permanently absent
     // from one they never died in.
     this.dead.clear();
+    // And with nobody dead there is nobody to be silent towards. Cleared beside
+    // the set it is derived from, so the two cannot disagree: the `hello` below
+    // reaches every socket, and a stale entry here would leave one of them
+    // reading it and then never hearing another word.
+    this.silenced.clear();
     // The marker may have moved — a save is a fresh statement of where the world
     // begins — so every remembered door is now a claim about a building that no
     // longer stands. Dropped rather than corrected, on the terms
@@ -2465,6 +2523,12 @@ export class GameServer extends DurableObject<Env> {
     this.queuedSteps.clear();
     this.lastSaidAt.clear();
     this.events = [];
+    // A death still waiting to be announced belongs to the world being thrown
+    // away, and the `hello` below is about to seat its owner as a stranger.
+    // Announcing it after that would put a death screen over a body that is
+    // standing at spawn. `silenced` needs no line of its own: `restoreActors`
+    // rebuilds it from the checkpointed dead, and the wipe left none.
+    this.justDied = [];
     // Storage is empty as of the wipe above, so anything this instance believed
     // it had written down is now a belief about rows that are gone.
     this.writtenActors.clear();
@@ -2560,6 +2624,10 @@ export class GameServer extends DurableObject<Env> {
       this.broadcastMap = session.getMap();
       this.events = [];
     }
+
+    // After the patch, which is the whole of the ordering: that patch is the
+    // last thing these sockets will hear, and this is what tells them so.
+    this.announceDeaths();
 
     // A kit can change on a tick as well as on input — nothing does that yet,
     // but a brain that picks something up will, and the alternative is finding
@@ -2669,6 +2737,10 @@ export class GameServer extends DurableObject<Env> {
       // world that respawns wildlife would write a position and a kit per rat.
       if (!this.hasSocket(actorId)) continue;
       this.pendingDeathWrites.set(actorId, death);
+      // The same test decides both: somebody with a socket is somebody to write
+      // down *and* somebody to tell. See {@link tick} for why the telling waits
+      // until after this tick's patch has gone out.
+      this.justDied.push(death);
     }
     // **Forced, here, rather than left to the next flush.** The board this tick
     // leaves behind no longer holds the body and does hold its kit, and the rows
@@ -2680,6 +2752,86 @@ export class GameServer extends DurableObject<Env> {
     if (this.pendingDeathWrites.size > 0) {
       this.saveActors(session.actorIds(), true);
     }
+  }
+
+  /**
+   * Tell whoever just died that they did, and stop talking to them.
+   *
+   * The order inside is the point. The `died` message goes out first and the
+   * silence starts after it, so the message itself is not the first thing
+   * dropped by the rule it announces.
+   *
+   * Carries the kit the {@link Death} recorded rather than asking the session
+   * for it, because the session cannot answer: the runtime holding it was
+   * deleted by the same call that filled this list. Normally empty — the pile
+   * is on the floor — and the whole kit when the cell refused it, which is the
+   * one case where the dead still own what they were carrying and must not be
+   * shown an empty bag.
+   */
+  private announceDeaths() {
+    if (this.justDied.length === 0) return;
+    for (const death of this.justDied) {
+      this.sendTo(death.id, { type: "died", equipment: death.equipment });
+      this.silenced.add(death.id);
+    }
+    this.justDied = [];
+  }
+
+  /**
+   * Put somebody back in the world with a body.
+   *
+   * The one path onto the board for a player, taken by all three ways of
+   * getting there: a fresh socket, a wake that found one still open, and a
+   * {@link rebirth} asked for from the death screen. Written once because the
+   * order in it is load-bearing — the door has to be remembered before the
+   * seating, since a death arriving in the gap has nowhere to put them back —
+   * and three copies of an order is three chances to get it wrong.
+   *
+   * Clearing the death is not merely tidying: {@link dead} is what
+   * {@link restoreActors} consults to leave a dead player's socket empty across
+   * a wake, so a seating that left it set would be undone by the next eviction.
+   *
+   * Rejoining with the same id keeps the actor already on the board; the
+   * remembered position is for somebody whose body is gone — they left, or
+   * their connection died while this object was evicted and they were reaped.
+   */
+  private async seatActor(actorId: string) {
+    this.dead.delete(actorId);
+    this.silenced.delete(actorId);
+    await this.rememberSpawn(actorId);
+    this.session!.spawn(actorId, await this.restoredActor(actorId));
+  }
+
+  /**
+   * Answer "put me back in" from a dead player.
+   *
+   * Reloading the page does the same thing by way of {@link fetch}, and did it
+   * first — this exists so that coming back does not mean losing the tab. What
+   * it costs over a reload is one `hello`, which a reload was paying anyway.
+   *
+   * **Answered with a whole `hello`, to every socket this player has.** A
+   * silenced socket has been receiving nothing for as long as its owner sat on
+   * the death screen, so its map is arbitrarily stale and there is no diff that
+   * would catch it up. And two tabs are one person with one body: they died
+   * together, so they come back together, rather than leaving the second one
+   * watching a frozen board it will never be sent a patch for.
+   *
+   * Ignored unless they are actually dead. A live player asking for this would
+   * otherwise be handed a second seating — harmless in itself, since `spawn`
+   * keeps the body already on the board, but the `hello` behind it would throw
+   * away every step they had predicted.
+   */
+  private async rebirth(actorId: string) {
+    if (!this.dead.has(actorId)) return;
+    await this.seatActor(actorId);
+    for (const ws of this.ctx.getWebSockets()) {
+      const attachment = ws.deserializeAttachment() as Attachment | null;
+      if (attachment?.actorId !== actorId) continue;
+      this.sendHello(ws, actorId);
+    }
+    // A body appearing moves the board, so it has to be broadcast even though
+    // nobody pressed anything.
+    this.wake();
   }
 
   /**
@@ -2806,7 +2958,14 @@ export class GameServer extends DurableObject<Env> {
     // One serialization for everyone: every socket is at the same map version,
     // which is what makes the per-tick cost independent of player count.
     const payload = JSON.stringify(message);
+    // Read once rather than per socket, and skipped entirely while nobody is
+    // dead — which is the normal state of a world. An attachment read is a
+    // deserialization, and paying one per socket per tick to answer a question
+    // whose answer is almost always "no" is the kind of cost this loop cannot
+    // acquire.
+    const anySilenced = this.silenced.size > 0;
     for (const ws of this.ctx.getWebSockets()) {
+      if (anySilenced && this.isSilenced(ws)) continue;
       try {
         ws.send(payload);
       } catch {
@@ -2814,5 +2973,11 @@ export class GameServer extends DurableObject<Env> {
         // runtime; webSocketClose will clean the actor up.
       }
     }
+  }
+
+  /** Whether this socket belongs to somebody the world has stopped telling. */
+  private isSilenced(ws: WebSocket): boolean {
+    const attachment = ws.deserializeAttachment() as Attachment | null;
+    return attachment ? this.silenced.has(attachment.actorId) : false;
   }
 }
