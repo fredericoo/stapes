@@ -308,7 +308,44 @@ export type ActiveStatus = {
   tone: StatusTone;
   icon: SpriteRef | null;
   remainingMs: number;
+  /**
+   * What a full bar means for this status — see {@link fullDurationMs}.
+   *
+   * Resolved here rather than in the component because it is a property of the
+   * *def*, and the chrome should not have to know that a stacking status is
+   * measured against a different ceiling from one that is not.
+   */
+  fullDurationMs: number;
 };
+
+/**
+ * The duration a status's bar reads as full.
+ *
+ * Two answers, because a status means two different things by "as long as this
+ * gets":
+ *
+ * - **Stacking** — the ceiling it can be piled up to. A bar that filled at one
+ *   helping would have nowhere left to show the second, which is the whole point
+ *   of a status that stacks.
+ * - **Not stacking** — the longest the roll could have come out. A short draw
+ *   therefore *starts* short, which is the honest reading: two people who ate
+ *   the same thing did not get the same thing, and the bar is where that shows.
+ *
+ * Never the instance's own rolled duration. That would make every status start
+ * full and drain identically, which is easier to read and says nothing.
+ *
+ * **The trade this makes, decided deliberately:** a status whose ceiling is far
+ * above a single helping spends most of its life pinned to the bar's minimum.
+ * Fed is exactly that — 10–30 seconds a berry against an hour of stacking — so
+ * one berry is under a percent and reads as the one-pixel floor
+ * `../components/StatusStrip` keeps for anything still running. That is honest
+ * rather than broken: against an hour, a berry *is* a rounding error, and the
+ * bar is saying so. An author who wants a readable bar brings `maxMs` within
+ * reach of what one use grants.
+ */
+export function fullDurationMs(def: StatusDef): number {
+  return def.stacks ? def.maxMs : def.toMs;
+}
 
 /**
  * A stored sprite with its base filled in.
@@ -340,6 +377,7 @@ export function activeStatuses(
       tone: def.tone,
       icon: def.icon ?? null,
       remainingMs: instance.remainingMs,
+      fullDurationMs: fullDurationMs(def),
     });
   }
   return out;

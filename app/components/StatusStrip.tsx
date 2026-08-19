@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ActiveStatus } from "../lib/status";
 import type { TilesetDef } from "../lib/types";
-import { secondsLeft } from "../game/statuses";
 import { Tooltip } from "../ui";
 import { TITLE_SPRITE_SIZE_PX } from "./ContainerPanel";
 import { SpritePreview } from "./TilePreview";
@@ -44,16 +43,11 @@ export const STATUS_CELL_SIZE_PX = 24;
 /** The gap between cells, in the same units the capacity arithmetic counts in. */
 export const STATUS_ICON_GAP_PX = 4;
 
-/**
- * The longest countdown a corner badge will print, in seconds.
- *
- * Past this the badge is dropped rather than widened or abbreviated, and the
- * dropping is the feature. Three glyphs is what fits over an 18px sprite without
- * burying it, and a status with minutes left is one whose exact remainder nobody
- * is watching — the interesting number is on a poison about to run out, not on an
- * hour of being fed. The panel still has the figure for anything that wants it.
- */
-export const MAX_BADGED_SECONDS = 99;
+/** How tall the countdown bar under each icon is. */
+export const STATUS_BAR_HEIGHT_PX = 3;
+
+/** Gap between the sprite and its bar, so the two read as one cell. */
+const STATUS_BAR_GAP_PX = 1;
 
 /**
  * How many cells fit in a lane this long.
@@ -103,15 +97,19 @@ export function splitForCapacity(
 }
 
 /**
- * Whole seconds left, or null where the countdown is too long to print.
+ * How full a status's bar is, as a fraction of 1.
  *
- * The seconds themselves come from `../game/statuses`, which is the same reading
- * the formulas are evaluated against — a badge that rounded on its own would show
- * `31s` on a thirty-second status about half the time.
+ * **A figure was tried here first and could not be read.** Three glyphs over an
+ * 18px sprite buried the picture and still made you stop and parse a number, for
+ * something you only ever want to know approximately — a bar answers "nearly
+ * gone" or "plenty left" without being read at all.
+ *
+ * Safe against a zero or missing ceiling, which a hand-authored file can produce:
+ * an empty bar is the honest answer when nothing says how long full is.
  */
-export function badgeSeconds(remainingMs: number): number | null {
-  const seconds = secondsLeft(remainingMs);
-  return seconds > MAX_BADGED_SECONDS ? null : seconds;
+export function statusFraction(status: ActiveStatus): number {
+  if (!(status.fullDurationMs > 0)) return 0;
+  return Math.max(0, Math.min(1, status.remainingMs / status.fullDurationMs));
 }
 
 /**
@@ -201,6 +199,7 @@ export function StatusStrip({
             tilesets={tilesets}
             size={STATUS_ICON_SIZE_PX}
           />
+          <StatusBar status={status} />
         </StatusCell>
       ))}
       {overflow > 0 ? (
@@ -226,8 +225,8 @@ export function StatusStrip({
  * popup saying only "Slowly recovering health." beside an unnamed icon would be an
  * answer to a question nobody could have asked.
  *
- * The one thing it does print is the countdown, and only while that is short
- * enough to read in a corner. See {@link MAX_BADGED_SECONDS}.
+ * It prints nothing at all. How long is left is the bar underneath — see
+ * {@link StatusBar} — and the exact figure is the panel's.
  */
 function StatusCell({
   status,
@@ -238,35 +237,18 @@ function StatusCell({
   tooltip: boolean;
   children: React.ReactNode;
 }) {
-  const seconds = badgeSeconds(status.remainingMs);
-
   const cell = (
       <li
         role="img"
         aria-label={`${status.name}. ${status.description}`}
-        className="relative grid shrink-0 place-items-center"
-        style={{ width: STATUS_CELL_SIZE_PX, height: STATUS_CELL_SIZE_PX }}
+        className="flex shrink-0 flex-col items-center justify-center"
+        style={{
+          width: STATUS_CELL_SIZE_PX,
+          height: STATUS_CELL_SIZE_PX,
+          gap: STATUS_BAR_GAP_PX,
+        }}
       >
         {children}
-        {/* In the corner rather than beside it, on exactly the terms the bag
-            button's fullness is: the lane is a row of equal cells and one that
-            grew a caption would break that rank.
-
-            Inside the cell rather than hung off it — `-bottom-1 -right-1` is what
-            the bag does, and the lane is `overflow-hidden` at exactly the cell's
-            size, so anything outside is clipped away.
-
-            Hidden from the reader, who has the name in the label above. A figure
-            that changed every second would have a screen reader narrate the whole
-            countdown, which is the thing `MasteryProgress` already refuses to do. */}
-        {seconds === null ? null : (
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute bottom-0 right-0 bg-ink px-px text-[9px] font-bold leading-none tabular-nums text-paper/80"
-          >
-            {seconds}s
-          </span>
-        )}
       </li>
   );
 
@@ -284,5 +266,42 @@ function StatusCell({
     >
       {cell}
     </Tooltip>
+  );
+}
+
+/**
+ * How much of a status is left, drawn rather than printed.
+ *
+ * Full width of the cell so a row of them lines up as a row, and stepped in
+ * whole pixels for the same reason the health bar over a head is: this is pixel
+ * art, and a fill that slid by fractions would be the one soft edge on screen.
+ *
+ * Tone rather than a colour of its own, so the bar, the panel row's name and the
+ * order the lane is sorted in are all saying the same thing about the same
+ * status.
+ */
+function StatusBar({ status }: { status: ActiveStatus }) {
+  const fraction = statusFraction(status);
+  // **Anything still running keeps a pixel**, the same rounding
+  // `healthBarFillBricks` does and for the same reason: an empty bar says the
+  // status is over, and it is not. It matters far more here than it does there —
+  // a status measured against a ceiling it is nowhere near rounds to nothing for
+  // most of its life. See {@link fullDurationMs}.
+  const filled =
+    fraction > 0
+      ? Math.max(1, Math.round(fraction * STATUS_CELL_SIZE_PX))
+      : 0;
+
+  return (
+    <span
+      aria-hidden="true"
+      className="block shrink-0 bg-paper/20"
+      style={{ width: STATUS_CELL_SIZE_PX, height: STATUS_BAR_HEIGHT_PX }}
+    >
+      <span
+        className={`block h-full ${status.tone === "bad" ? "bg-danger" : "bg-paper/70"}`}
+        style={{ width: filled }}
+      />
+    </span>
   );
 }
