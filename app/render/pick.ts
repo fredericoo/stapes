@@ -7,14 +7,9 @@ import {
 import type { ObjectRef } from "../game/GameSession";
 import { isBattler } from "../lib/battler";
 import { isInteractive } from "../lib/interactions";
-import { getStack, listCoords, stackHeight } from "../lib/mapData";
+import { elevationAt, getStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
-import {
-  CELL_SIZE,
-  MAX_LEVEL,
-  MIN_LEVEL,
-  physicalHeight,
-} from "../lib/types";
+import { CELL_SIZE, MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 
 /**
  * Picking is by the tile's **foot** — the one cell it stands on — and never by
@@ -65,99 +60,6 @@ export function footRect(
   return { x: origin.x, y: origin.y, w: CELL_SIZE, h: CELL_SIZE };
 }
 
-function footContains(
-  foot: { x: number; y: number; w: number; h: number },
-  worldX: number,
-  worldY: number,
-): boolean {
-  return (
-    worldX >= foot.x &&
-    worldX < foot.x + foot.w &&
-    worldY >= foot.y &&
-    worldY < foot.y + foot.h
-  );
-}
-
-/**
- * Every interactive placement near `centerZ` that can actually be acted on —
- * only the top of its stack — with the elevation its sprite is drawn at.
- * `levelSlack` includes floors above and below (game play uses 1). Maps hold
- * far more scenery than interactive objects, so the candidate list is built
- * once per map version rather than per pointer move.
- */
-export type InteractiveIndex = Array<{ ref: ObjectRef; elevation: number }>;
-
-export function indexInteractive(
-  map: MapFile,
-  centerZ: number,
-  tilesById: Record<string, TileDef>,
-  levelSlack = 0,
-): InteractiveIndex {
-  const out: InteractiveIndex = [];
-  const zMin = Math.max(MIN_LEVEL, centerZ - levelSlack);
-  const zMax = Math.min(MAX_LEVEL, centerZ + levelSlack);
-
-  for (let z = zMin; z <= zMax; z++) {
-    for (const { x, y } of listCoords(map, z)) {
-      const stack = getStack(map, x, y, z);
-      let elevation = 0;
-      stack.forEach((placed, stackIndex) => {
-        const def = tilesById[placed.tileId];
-        const drawnAt = elevation;
-        if (def) elevation += physicalHeight(def);
-        // Buried under another tile: not hoverable, not interactive.
-        if (stackIndex !== stack.length - 1) return;
-        if (!def || !isInteractive(def)) return;
-        out.push({ ref: { x, y, z, stackIndex }, elevation: drawnAt });
-      });
-    }
-  }
-
-  return out;
-}
-
-/**
- * Every body with hit points near `centerZ`, as pick candidates.
- *
- * The same shape and the same discipline as {@link indexInteractive}, and a
- * separate index rather than a widened one because the two questions have
- * different answers: a crate is interactive and cannot be fought, a deer is a
- * battler and cannot be shoved. Folding them together would mean every caller
- * filtering the result back down to what it actually wanted.
- *
- * Only the top of a stack counts, for the same reason it does there: a buried
- * body is not on screen, and you cannot point at what you cannot see. In
- * practice a body is always on top anyway — it is the thing standing on the
- * floor rather than under it.
- */
-export function indexBattlers(
-  map: MapFile,
-  centerZ: number,
-  tilesById: Record<string, TileDef>,
-  levelSlack = 0,
-): InteractiveIndex {
-  const out: InteractiveIndex = [];
-  const zMin = Math.max(MIN_LEVEL, centerZ - levelSlack);
-  const zMax = Math.min(MAX_LEVEL, centerZ + levelSlack);
-
-  for (let z = zMin; z <= zMax; z++) {
-    for (const { x, y } of listCoords(map, z)) {
-      const stack = getStack(map, x, y, z);
-      const stackIndex = stack.length - 1;
-      const placed = stack[stackIndex];
-      if (!placed) continue;
-      const def = tilesById[placed.tileId];
-      if (!def || !isBattler(def)) continue;
-      out.push({
-        ref: { x, y, z, stackIndex },
-        elevation: stackHeight(stack.slice(0, stackIndex), tilesById),
-      });
-    }
-  }
-
-  return out;
-}
-
 export type PickContext = {
   map: MapFile;
   tilesById: Record<string, TileDef>;
@@ -167,11 +69,19 @@ export type PickContext = {
 };
 
 /**
- * The interactive object whose foot is under a canvas-relative point, or null.
+ * What the pointer is over, from the one cell per level it can possibly be.
  *
- * A rect test against each candidate's foot square. There is no ID buffer and
- * no readback: the candidate list is only the interactive placements on one
- * level, so brute force is cheaper than a pass.
+ * Ground squares tile the plane and {@link screenToCoord} is their exact
+ * inverse, so a point belongs to exactly one cell on each level and there is
+ * nothing to search: three levels are three lookups. This replaced a pair of
+ * indexes that were rebuilt whenever the map changed identity — every commit
+ * anywhere in the world — and each rebuild walked every cell on three levels to
+ * find the dozen that were interesting. It cost 17ms a frame on the live map to
+ * produce 23 candidates, and only ever ran while the cursor was over the canvas,
+ * which is how it presented: fps that recovered the moment the mouse left.
+ *
+ * Only the top of each stack is a candidate. A buried tile is not on screen,
+ * and you can neither look at nor click what you cannot see.
  *
  * Candidates are ranked by `isActionable` first and draw order second. Draw
  * order alone loses the object the player came for whenever something inert
@@ -184,84 +94,29 @@ export type PickContext = {
  * the one below — which is why the draw-order tie-break survives the move away
  * from sprite quads.
  */
-export function pickInteractiveAt(
-  ctx: PickContext,
-  index: InteractiveIndex,
-  screenX: number,
-  screenY: number,
-  isActionable: (ref: ObjectRef) => boolean = () => false,
-): ObjectRef | null {
-  const worldX = ctx.camera.x + screenX / ctx.zoom;
-  const worldY = ctx.camera.y + screenY / ctx.zoom;
-
-  let best: ObjectRef | null = null;
-  let bestActionable = false;
-  let bestOrder = -Infinity;
-
-  for (const { ref, elevation } of index) {
-    const placed = getStack(ctx.map, ref.x, ref.y, ref.z)[ref.stackIndex];
-    const def = placed && ctx.tilesById[placed.tileId];
-    if (!placed || !def) continue;
-
-    const foot = footRect(ref.x, ref.y, ref.z);
-    if (!footContains(foot, worldX, worldY)) continue;
-
-    const actionable = isActionable(ref);
-    const order = drawOrder(
-      ref.x,
-      ref.y,
-      absoluteElevation(ref.z, elevation),
-      ref.stackIndex,
-    );
-    if (best && !outranks(actionable, order, bestActionable, bestOrder)) {
-      continue;
-    }
-
-    best = ref;
-    bestActionable = actionable;
-    bestOrder = order;
-  }
-
-  return best;
-}
-
-/**
- * The tile whose column is under a canvas-relative point — the pick behind
- * *looking*.
- *
- * Deliberately not an index. {@link indexInteractive} is affordable because
- * interactive placements are rare; every top-of-stack tile on three levels is
- * thousands of entries, rebuilt on every map identity — which during a walk is
- * every commit. So the projection is simply inverted instead: ground squares
- * tile the plane, so each level contributes exactly *one* candidate cell and
- * there is nothing to search. Nothing is cached, so nothing can go stale.
- *
- * This used to probe a square of cells around the pointer, sized by the widest
- * sprite in the tile set, and test each one's art. Both the search and the
- * dependency on the atlas are gone with it.
- *
- * Only the top of each stack is a candidate, for the same reason it is in the
- * interactive index: a buried tile is not on screen, and you cannot look at
- * what you cannot see. `hideLevelsAbove` is honoured for that same reason —
- * a roof the view has cut away is not there to be named. A roof that is still
- * drawn very much is, and reports "Roof".
- */
-export function pickTileAt(
+function pickTopAt(
   ctx: PickContext,
   screenX: number,
   screenY: number,
-  centerZ: number,
-  levelSlack: number,
-  hideLevelsAbove?: number,
+  opts: {
+    centerZ: number;
+    levelSlack: number;
+    /** Highest level to consider. @see pickTileAt */
+    ceiling?: number;
+    /** Which tiles are candidates at all. Every tile, when absent. */
+    accepts?: (def: TileDef) => boolean;
+    isActionable?: (ref: ObjectRef) => boolean;
+  },
 ): ObjectRef | null {
   const zMax = Math.min(
     MAX_LEVEL,
-    centerZ + levelSlack,
-    hideLevelsAbove ?? MAX_LEVEL,
+    opts.centerZ + opts.levelSlack,
+    opts.ceiling ?? MAX_LEVEL,
   );
-  const zMin = Math.max(MIN_LEVEL, centerZ - levelSlack);
+  const zMin = Math.max(MIN_LEVEL, opts.centerZ - opts.levelSlack);
 
   let best: ObjectRef | null = null;
+  let bestActionable = false;
   let bestOrder = -Infinity;
 
   for (let z = zMin; z <= zMax; z++) {
@@ -277,28 +132,93 @@ export function pickTileAt(
     );
 
     const stack = getStack(ctx.map, x, y, z);
-    if (stack.length === 0) continue;
-
     const stackIndex = stack.length - 1;
-    const placed = stack[stackIndex]!;
-    if (!ctx.tilesById[placed.tileId]) continue;
+    const placed = stack[stackIndex];
+    if (!placed) continue;
+    const def = ctx.tilesById[placed.tileId];
+    if (!def) continue;
+    if (opts.accepts && !opts.accepts(def)) continue;
 
+    const ref: ObjectRef = { x, y, z, stackIndex };
+    const actionable = opts.isActionable?.(ref) ?? false;
     // Elevation of the *top* tile: everything under it, stacked. Only the sort
     // key reads it — where the tile is *hit* is the ground, not its own height.
-    let elevation = 0;
-    for (let i = 0; i < stackIndex; i++) {
-      const under = ctx.tilesById[stack[i]!.tileId];
-      if (under) elevation += physicalHeight(under);
+    const order = drawOrder(
+      x,
+      y,
+      absoluteElevation(z, elevationAt(stack, stackIndex, ctx.tilesById)),
+      stackIndex,
+    );
+    if (best && !outranks(actionable, order, bestActionable, bestOrder)) {
+      continue;
     }
 
-    const order = drawOrder(x, y, absoluteElevation(z, elevation), stackIndex);
-    if (order <= bestOrder) continue;
-
-    best = { x, y, z, stackIndex };
+    best = ref;
+    bestActionable = actionable;
     bestOrder = order;
   }
 
   return best;
+}
+
+/** The interactive object under a canvas-relative point. @see pickTopAt */
+export function pickInteractiveAt(
+  ctx: PickContext,
+  screenX: number,
+  screenY: number,
+  centerZ: number,
+  levelSlack: number,
+  isActionable: (ref: ObjectRef) => boolean = () => false,
+): ObjectRef | null {
+  return pickTopAt(ctx, screenX, screenY, {
+    centerZ,
+    levelSlack,
+    accepts: isInteractive,
+    isActionable,
+  });
+}
+
+/** The body with hit points under a canvas-relative point. @see pickTopAt */
+export function pickBattlerAt(
+  ctx: PickContext,
+  screenX: number,
+  screenY: number,
+  centerZ: number,
+  levelSlack: number,
+): ObjectRef | null {
+  return pickTopAt(ctx, screenX, screenY, {
+    centerZ,
+    levelSlack,
+    accepts: isBattler,
+  });
+}
+
+/**
+ * The tile whose column is under a canvas-relative point — the pick behind
+ * *looking*.
+ *
+ * Every tile is a candidate, because looking names whatever is there rather
+ * than whatever can be done to it. `hideLevelsAbove` is honoured for the reason
+ * only the top of a stack is offered: a roof the view has cut away is not there
+ * to be named. A roof that is still drawn very much is, and reports "Roof".
+ *
+ * This used to probe a square of cells around the pointer, sized by the widest
+ * sprite in the tile set, and test each one's art. Both the search and the
+ * dependency on the atlas are gone with it.
+ */
+export function pickTileAt(
+  ctx: PickContext,
+  screenX: number,
+  screenY: number,
+  centerZ: number,
+  levelSlack: number,
+  hideLevelsAbove?: number,
+): ObjectRef | null {
+  return pickTopAt(ctx, screenX, screenY, {
+    centerZ,
+    levelSlack,
+    ceiling: hideLevelsAbove,
+  });
 }
 
 /** Lexicographic rank: actionable beats inert, then frontmost beats behind. */
