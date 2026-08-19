@@ -66,9 +66,7 @@ import {
 } from "./WorldRenderer";
 import { spriteStatesFor } from "./spriteState";
 import {
-  type InteractiveIndex,
-  indexBattlers,
-  indexInteractive,
+  pickBattlerAt,
   pickInteractiveAt,
   pickTileAt,
 } from "./pick";
@@ -153,8 +151,14 @@ const CHROME_LEVEL_SLACK = 1;
  */
 const LOOK_COLOR = 0x3fa9ff;
 
-/** Floors above and below the viewer that a look can reach, as the pick does. */
-const LOOK_LEVEL_SLACK = 1;
+/**
+ * Floors above and below the viewer that a pick can reach.
+ *
+ * One constant for looking, hovering and clicking, because a thing you can name
+ * and a thing you can touch have to be the same set: an object reachable by one
+ * pick and not the other reads as the outline lying about what a click will do.
+ */
+const PICK_LEVEL_SLACK = 1;
 
 /**
  * Ink for the name of a thing the pointer is over, outside look mode.
@@ -374,14 +378,6 @@ export class GameRenderer {
   private raf = 0;
   private lastTime = 0;
   private running = false;
-  /** Interactive placements on the viewer's level ±1, rebuilt when either changes. */
-  private interactive: InteractiveIndex = [];
-  private interactiveKey = "";
-  private indexedMap: MapFile | null = null;
-  /** Battler placements on the viewer's level ±1, cached the same way. */
-  private battlers: InteractiveIndex = [];
-  private battlerKey = "";
-  private battlerMap: MapFile | null = null;
   /**
    * Which object the pointer is over — not what can be done to it.
    *
@@ -844,9 +840,10 @@ export class GameRenderer {
         // element's own coordinates, and the buffer is stretched over it.
         zoom: currentFit(this.canvas).cssScale,
       },
-      this.interactiveIndex(snap),
       point.x,
       point.y,
+      snap.self.z,
+      PICK_LEVEL_SLACK,
       (ref) => topInteractionAt(this.interactionsSent, ref) !== null,
     );
   }
@@ -916,7 +913,7 @@ export class GameRenderer {
    * The battler drawn under a canvas-relative point, if any.
    *
    * Never the viewer's own body. It is a battler like everything else and the
-   * index has no way to know otherwise, but the camera is centred on it — so the
+   * pick has no way to know otherwise, but the camera is centred on it — so the
    * pointer sits on top of it constantly, and an outline that lights up whenever
    * the mouse crosses the middle of the screen is noise around something the
    * session refuses to target anyway.
@@ -925,31 +922,20 @@ export class GameRenderer {
     point: { x: number; y: number },
     snap: GameSnapshot,
   ): ObjectRef | null {
-    const found = pickInteractiveAt(
+    const found = pickBattlerAt(
       {
         map: snap.map,
         tilesById: this.tilesById,
         camera: this.cameraFor(snap),
         zoom: currentFit(this.canvas).cssScale,
       },
-      this.battlerIndex(snap),
       point.x,
       point.y,
+      snap.self.z,
+      PICK_LEVEL_SLACK,
     );
     if (!found) return null;
     return this.actorIdAt(found, snap) === snap.self.id ? null : found;
-  }
-
-  /** Battler placements on the viewer's level ±1, cached per map + level. */
-  private battlerIndex(snap: GameSnapshot): InteractiveIndex {
-    const key = `${snap.self.z}`;
-    if (this.battlerMap === snap.map && this.battlerKey === key) {
-      return this.battlers;
-    }
-    this.battlerMap = snap.map;
-    this.battlerKey = key;
-    this.battlers = indexBattlers(snap.map, snap.self.z, this.tilesById, 1);
-    return this.battlers;
   }
 
   /**
@@ -1061,7 +1047,7 @@ export class GameRenderer {
       point.x,
       point.y,
       snap.self.z,
-      LOOK_LEVEL_SLACK,
+      PICK_LEVEL_SLACK,
       hidden ? anchor.z : undefined,
     );
   }
@@ -1087,23 +1073,6 @@ export class GameRenderer {
     const at = { x: ref.x, y: ref.y, z: ref.z };
     if (!this.session.canDrop(drag.from, at)) return null;
     return { kind: "ghost", tileId: drag.tileId, ...at, alpha: DROP_GHOST_ALPHA };
-  }
-
-  /** Interactive placements on the viewer's level ±1, cached per map + level. */
-  private interactiveIndex(snap: GameSnapshot): InteractiveIndex {
-    const key = `${snap.self.z}`;
-    if (this.indexedMap === snap.map && this.interactiveKey === key) {
-      return this.interactive;
-    }
-    this.indexedMap = snap.map;
-    this.interactiveKey = key;
-    this.interactive = indexInteractive(
-      snap.map,
-      snap.self.z,
-      this.tilesById,
-      1,
-    );
-    return this.interactive;
   }
 
   /**
