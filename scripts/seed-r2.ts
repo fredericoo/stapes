@@ -10,6 +10,7 @@
  *
  *   pnpm seed
  *   pnpm seed --remote
+ *   CLOUDFLARE_ENV=preview pnpm seed --remote   # the pull request preview bucket
  *
  * **Seeding is not the whole of putting an environment back.** It replaces the
  * authored content and nothing else; the world being played lives in the
@@ -22,8 +23,29 @@ import path from "node:path";
 
 const DATA_DIR = path.resolve(import.meta.dirname, "../data");
 
-/** Must match `r2_buckets[].bucket_name` in wrangler.jsonc. */
-const BUCKET = "stapes-data";
+/**
+ * Which bucket to fill, keyed by the same `CLOUDFLARE_ENV` the build reads.
+ *
+ * One switch rather than two: `CLOUDFLARE_ENV=preview pnpm build` resolves the
+ * `preview` environment in wrangler.jsonc, and the same variable sends a seed at
+ * the bucket that environment binds. Getting them out of step would fill one
+ * bucket and deploy against the other, which reads as an empty world.
+ *
+ * Must match `r2_buckets[].bucket_name` in wrangler.jsonc, per environment.
+ */
+const BUCKETS: Record<string, string> = {
+  production: "stapes-data",
+  preview: "stapes-data-preview",
+};
+
+const BUCKET = BUCKETS[process.env.CLOUDFLARE_ENV ?? "production"] ?? null;
+
+if (!BUCKET) {
+  console.error(
+    `Unknown CLOUDFLARE_ENV "${process.env.CLOUDFLARE_ENV}". Known: ${Object.keys(BUCKETS).join(", ")}.`,
+  );
+  process.exit(1);
+}
 
 const CONTENT_TYPES: Record<string, string> = {
   ".json": "application/json",

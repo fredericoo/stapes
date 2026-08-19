@@ -1,0 +1,140 @@
+# A whole Worker per pull request, at a URL you can open and play.
+#
+# Cloudflare does not generate preview URLs for a Worker that implements a
+# Durable Object, and this one does — so there is no version to point at and a
+# preview has to be a Worker of its own. `stapes-pr-<n>` is a distinct name,
+# which means a distinct Durable Object namespace: the `v1` migration runs
+# fresh, the world has no checkpoint, and it loads from R2 on first request.
+#
+# The bucket is `stapes-data-preview`, never production's. The deployed editor
+# writes to `DATA`, so a preview bound to `stapes-data` could publish a branch's
+# map over the live world.
+name: PR preview
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+# A branch pushed twice in a minute does not need the first deploy. Keyed on the
+# PR rather than the ref so the teardown below cannot race its own deploy.
+concurrency:
+  group: preview-${{ github.event.number }}
+  cancel-in-progress: true
+
+env:
+  WRANGLER_SEND_METRICS: "false"
+
+jobs:
+  deploy:
+    name: deploy preview
+    # Forks do not get the repository's secrets, so the deploy would fail on
+    # authentication rather than on anything the contributor did.
+    if: >-
+      github.event.action != 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # `CLOUDFLARE_ENV` is read by the Cloudflare Vite plugin, which resolves
+      # wrangler.jsonc at *build* time into `build/server/wrangler.json`. That
+      # generated config is what `wrangler deploy` reads, so passing `--env` at
+      # deploy time would be silently ignored — the environment has to be chosen
+      # here or the preview comes up bound to the production bucket.
+      - name: Build
+        run: pnpm build
+        env:
+          CLOUDFLARE_ENV: preview
+
+      # Before the deploy, not after. A fresh Worker's Durable Object loads the
+      # world from R2 on its first request and then keeps its own checkpoint, so
+      # content that lands after somebody has opened the preview is content
+      # nobody sees.
+      #
+      # One bucket serves every open PR. A second PR's seed replaces the first's
+      # `map.json`, but the first's world is already checkpointed and carries on
+      # unaffected. Tiles have no checkpoint, so a preview can draw with another
+      # branch's tile definitions — the price of not creating a bucket per PR.
+      - name: Seed preview bucket
+        run: pnpm seed --remote
+        env:
+          CLOUDFLARE_ENV: preview
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Deploy
+        id: deploy
+        run: |
+          set -o pipefail
+          npx wrangler deploy --name "stapes-pr-${{ github.event.number }}" \
+            | tee deploy.log
+          url="$(grep -oE 'https://stapes-pr-[0-9]+\.[a-z0-9-]+\.workers\.dev' deploy.log | head -1)"
+          if [ -z "$url" ]; then
+            echo "No workers.dev URL in the deploy output." >&2
+            exit 1
+          fi
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Summary
+        run: echo "Preview: ${{ steps.deploy.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"
+
+      # Only when the PR opens. The name is derived from the PR number, so the
+      # URL is the same for every push to it and a comment per push would be the
+      # same sentence over and over.
+      - name: Comment the link
+        if: github.event.action == 'opened' || github.event.action == 'reopened'
+        run: |
+          printf '%s\n\n%s\n' \
+            "Preview: ${{ steps.deploy.outputs.url }}" \
+            "A world of its own, seeded from this branch's \`data/\`. It goes when the PR closes." \
+            > comment.md
+          gh pr comment "${{ github.event.number }}" --body-file comment.md
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  destroy:
+    name: destroy preview
+    if: >-
+      github.event.action == 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # `--force` because the Worker owns a Durable Object namespace and the
+      # prompt that guards deleting one has nobody to answer it here. Nothing
+      # else binds to it: the namespace was created by this Worker and dies
+      # with it, taking the preview's world with it.
+      - name: Delete the Worker
+        run: npx wrangler delete "stapes-pr-${{ github.event.number }}" --force
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

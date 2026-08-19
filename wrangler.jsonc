@@ -43,5 +43,35 @@
       "tag": "v1",
       "new_sqlite_classes": ["GameServer"]
     }
-  ]
+  ],
+  // Pull request previews. A whole Worker per PR — `wrangler deploy --name
+  // stapes-pr-<n> --env preview` — because Cloudflare does not generate preview
+  // URLs for a Worker that implements a Durable Object, which this one does.
+  // A distinct Worker name is a distinct Durable Object namespace, so every PR
+  // gets its own world rather than a version pointing at the live one.
+  //
+  // Only the bucket differs from production, and it has to: the deployed editor
+  // writes to `DATA`, so a preview bound to `stapes-data` could publish a
+  // branch's map over the live world.
+  "env": {
+    "preview": {
+      "vars": {
+        "DATA_ORIGIN": ""
+      },
+      "r2_buckets": [
+        {
+          "binding": "DATA",
+          "bucket_name": "stapes-data-preview"
+        }
+      ],
+      "durable_objects": {
+        "bindings": [
+          {
+            "name": "GAME",
+            "class_name": "GameServer"
+          }
+        ]
+      }
+    }
+  }
 }
