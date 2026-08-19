@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import statusesJson from "../../data/statuses.json";
 import { resolveStatus, type StatusDef } from "../lib/status";
 import { TICK_MS } from "./constants";
 import { Rng } from "./rng";
@@ -172,6 +173,51 @@ describe("the effect itself", () => {
     });
     const held = applyStatus([], poison, new Rng(1));
     expect(runSeconds(held, 2, catalogue(poison)).hpChanges).toEqual([-1, -2]);
+  });
+});
+
+/**
+ * Poison as it sits in `data/statuses.json`: remaining time is the dose, five
+ * at the ten-minute ceiling and one as it runs out, paid every five seconds.
+ */
+describe("poison, as authored", () => {
+  const def = resolveStatus(statusesJson.find((entry) => entry.id === "poison"));
+  if (!def) throw new Error("authored poison did not resolve");
+
+  const TEN_MIN = 600_000;
+
+  function bite(remainingSec: number): number {
+    return def.effects.hp!.evaluate({
+      DURATION_SEC: 600,
+      REMAINING_SEC: remainingSec,
+      ELAPSED_SEC: Math.max(0, 600 - remainingSec),
+      MAX_HP: 16,
+      HP: 16,
+    });
+  }
+
+  it("stacks up to ten minutes and ticks every five seconds", () => {
+    expect(def.stacks).toBe(true);
+    expect(def.maxMs).toBe(TEN_MIN);
+    expect(def.everyMs).toBe(5_000);
+  });
+
+  it("bites five at ten minutes left, one as it runs out", () => {
+    expect(bite(600)).toBe(-5);
+    expect(bite(481)).toBe(-5);
+    expect(bite(480)).toBe(-4);
+    expect(bite(120)).toBe(-1);
+    expect(bite(1)).toBe(-1);
+  });
+
+  it("pays out once per five seconds for the whole life of a dose", () => {
+    const held = applyStatus([], def, new Rng(1), {
+      fromMs: 10_000,
+      toMs: 10_000,
+    });
+    const { statuses, hpChanges } = runSeconds(held, 10, catalogue(def));
+    expect(hpChanges).toEqual([-1, -1]);
+    expect(statuses).toHaveLength(0);
   });
 });
 

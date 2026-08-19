@@ -25,5 +25,32 @@
         "y": 0
       }
     }
+  },
+  {
+    "id": "poison",
+    "name": "Poisoned",
+    "description": "Takes more damage the longer it lasts.",
+    "tone": "bad",
+    "icon": {
+      "tilesetId": "tiny-ranch-tiles",
+      "rect": {
+        "x": 18,
+        "y": 11,
+        "w": 1,
+        "h": 1
+      },
+      "base": {
+        "x": 0,
+        "y": 0
+      }
+    },
+    "fromMs": 10000,
+    "toMs": 30000,
+    "stacks": true,
+    "maxMs": 600000,
+    "everyMs": 5000,
+    "effects": {
+      "hp": "0 - min(5, max(1, ceil(REMAINING_SEC * 5 / 600)))"
+    }
   }
 ]

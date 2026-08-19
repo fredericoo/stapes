@@ -7083,9 +7083,20 @@
         "hp": 0,
         "statuses": [
           {
-            "id": "fed"
+            "id": "fed",
+            "fromMs": 10000,
+            "toMs": 30000
           }
         ]
+      },
+      "decay": {
+        "tileId": "stale-berry",
+        "fromMs": 3600000,
+        "toMs": 3600000
+      },
+      "respawn": {
+        "fromMs": 60000,
+        "toMs": 120000
       }
     },
     "sprite": {
@@ -7559,7 +7570,7 @@
   {
     "id": "red-potion",
     "name": "Red Potion",
-    "height": 0,
+    "height": 1,
     "type": "simple",
     "kind": "item",
     "attributes": {},
@@ -7579,6 +7590,201 @@
             "rect": {
               "x": 19,
               "y": 10,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "green-potion",
+    "name": "Green Potion",
+    "height": 1,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "consumable",
+        "label": "Drink",
+        "sound": "gulp",
+        "hp": 0,
+        "statuses": [
+          {
+            "id": "poison"
+          }
+        ]
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 18,
+              "y": 11,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "bread",
+    "name": "Bread",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "consumable",
+        "label": "Eat",
+        "sound": "crunch",
+        "hp": 0,
+        "statuses": [
+          {
+            "id": "fed",
+            "fromMs": 0,
+            "toMs": 60000
+          }
+        ]
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 16,
+              "y": 11,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "bush",
+    "name": "Bush",
+    "height": 1,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "walkable": false,
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 2,
+              "y": 8,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "small-bush",
+    "name": "Small bush",
+    "height": 1,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "lightPassing": true,
+    "walkable": false,
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 2,
+              "y": 10,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "stale-berry",
+    "name": "Berry",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "interactions": {
+      "item": {
+        "type": "consumable",
+        "label": "Eat",
+        "sound": "squish",
+        "hp": -2,
+        "statuses": [
+          {
+            "id": "fed",
+            "fromMs": 5000,
+            "toMs": 20000
+          },
+          {
+            "id": "poison",
+            "fromMs": 1000,
+            "toMs": 60000
+          }
+        ]
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 17,
+              "y": 14,
               "w": 1,
               "h": 1
             },

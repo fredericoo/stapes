@@ -3,7 +3,7 @@
  * stored.
  *
  * A status heals `ceil(MAX_HP / 100)` a second and a poison bites harder the
- * longer it has been running; neither is a number an author can type, and both
+ * longer it has left; neither is a number an author can type, and both
  * are one line of arithmetic. That is the whole of what this is for — see
  * `./status`.
  *

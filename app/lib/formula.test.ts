@@ -55,6 +55,19 @@ describe("parseFormula", () => {
   it("computes a heal that grows as a status runs down", () => {
     expect(evaluate("HP + REMAINING_SEC / 10")).toBe(10);
   });
+
+  /**
+   * Poison as authored: five at ten minutes left, one as it runs out, and the
+   * four steps between are even two-minute bands of remaining time.
+   */
+  it("computes a poison that bites harder the longer it has left", () => {
+    const source = "0 - min(5, max(1, ceil(REMAINING_SEC * 5 / 600)))";
+    expect(evaluate(source, { REMAINING_SEC: 600 })).toBe(-5);
+    expect(evaluate(source, { REMAINING_SEC: 481 })).toBe(-5);
+    expect(evaluate(source, { REMAINING_SEC: 480 })).toBe(-4);
+    expect(evaluate(source, { REMAINING_SEC: 120 })).toBe(-1);
+    expect(evaluate(source, { REMAINING_SEC: 0 })).toBe(-1);
+  });
 });
 
 describe("integerising", () => {

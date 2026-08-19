@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
+import statusesJson from "../../data/statuses.json";
+import tilesJson from "../../data/tiles.json";
 import { type ConsumableStatus, DEFAULT_CONTAINER } from "../lib/item";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
-import { normalizeTileDef } from "../lib/types";
+import { normalizeTileDef, normalizeTiles } from "../lib/types";
 import { NOISE_LIFETIME_MS, STARTING_BAG_TILE_ID, TICK_MS } from "./constants";
 import { GameSession } from "./GameSession";
 import { statusesById } from "../lib/status";
@@ -93,6 +95,7 @@ const tiles: TileDef[] = [
   granter("mystery-fruit", [{ id: "no-such-status" }]),
   // The same status, authored to last far longer — a loaf against a berry.
   granter("bread", [{ id: "fed", fromMs: 60_000, toMs: 60_000 }]),
+  ...normalizeTiles(tilesJson as unknown[]).filter((t) => t.id === "green-potion"),
   tile({
     id: "sword",
     kind: "item",
@@ -637,5 +640,41 @@ describe("eating something that grants a status", () => {
     expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(true);
     expect(session.statusesOf("local")).toEqual([]);
     expect(tilesAt(session, 1, 0)).toEqual(["grass"]);
+  });
+});
+
+/**
+ * The green potion, end to end and as authored: `data/tiles.json` against
+ * `data/statuses.json`'s poison, so a typo in either file fails here rather
+ * than in a browser.
+ */
+describe("drinking the green potion, as authored", () => {
+  const catalogue = statusesById(statusesJson);
+
+  function potionWorld(): GameSession {
+    const map = replaceStack(field(), 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "green-potion" },
+    ]);
+    return new GameSession(map, tiles, { statuses: catalogue });
+  }
+
+  it("grants poison and spends the bottle", () => {
+    const session = potionWorld();
+    expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(
+      true,
+    );
+    expect(tilesAt(session, 1, 0)).toEqual(["grass"]);
+    const held = session.statusesOf("local");
+    expect(held?.map((s) => s.defId)).toEqual(["poison"]);
+    expect(held![0]!.remainingMs).toBeGreaterThanOrEqual(10_000);
+    expect(held![0]!.remainingMs).toBeLessThanOrEqual(30_000);
+  });
+
+  it("moves no hit points on the tick it is drunk", () => {
+    const session = potionWorld();
+    expect(hpOf(session)).toBe(PLAYER_MAX_HP);
+    session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
+    expect(hpOf(session)).toBe(PLAYER_MAX_HP);
   });
 });

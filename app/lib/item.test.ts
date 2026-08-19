@@ -230,6 +230,33 @@ describe("itemForSave", () => {
     ).toEqual({ type: "consumable", hp: 1 });
   });
 
+  it("keeps a consumable's statuses and drops an empty list", () => {
+    const withStatus = {
+      type: "consumable" as const,
+      label: "Eat",
+      hp: 0,
+      statuses: [{ id: "fed" }],
+    };
+    expect(itemForSave(withStatus)).toEqual(withStatus);
+    expect(
+      itemForSave({
+        type: "consumable",
+        hp: 0,
+        statuses: [{ id: "fed", fromMs: 60_000, toMs: 120_000 }],
+      }),
+    ).toEqual({
+      type: "consumable",
+      hp: 0,
+      statuses: [{ id: "fed", fromMs: 60_000, toMs: 120_000 }],
+    });
+    expect(
+      itemForSave({ type: "consumable", hp: 0, statuses: [] }),
+    ).toEqual({ type: "consumable", hp: 0 });
+    expect(
+      itemForSave({ type: "consumable", hp: 0, statuses: [{ id: "  " }] }),
+    ).toEqual({ type: "consumable", hp: 0 });
+  });
+
   it("drops weapon fields a draft carried into a consumable", () => {
     const draft = { ...DEFAULT_CONSUMABLE, atk: 3, size: 4 } as never;
     expect(itemForSave(draft)).toEqual(DEFAULT_CONSUMABLE);

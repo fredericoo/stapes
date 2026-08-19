@@ -521,6 +521,26 @@ export function weaponForSave(weapon: WeaponItem): WeaponItem {
   };
 }
 
+function consumableStatusesForSave(
+  statuses: ConsumableStatus[] | undefined,
+): ConsumableStatus[] | undefined {
+  if (!statuses?.length) return undefined;
+  const saved: ConsumableStatus[] = [];
+  for (const entry of statuses) {
+    const id = entry.id.trim();
+    if (!id) continue;
+    const fromMs = entry.fromMs;
+    const toMs = entry.toMs;
+    // Both or neither — half an override is malformed and the schema refuses it.
+    if (fromMs !== undefined && toMs !== undefined) {
+      saved.push({ id, fromMs: Math.round(fromMs), toMs: Math.round(toMs) });
+    } else {
+      saved.push({ id });
+    }
+  }
+  return saved.length ? saved : undefined;
+}
+
 export function itemForSave(item: ItemDef | undefined): ItemDef | undefined {
   if (!item) return undefined;
   if (item.type === "weapon") return weaponForSave(item);
@@ -530,11 +550,13 @@ export function itemForSave(item: ItemDef | undefined): ItemDef | undefined {
     // way of saying what an absent key already says.
     const label = item.label?.trim();
     const sound = item.sound?.trim();
+    const statuses = consumableStatusesForSave(item.statuses);
     return {
       type: "consumable",
       ...(label ? { label } : {}),
       ...(sound ? { sound } : {}),
       hp: item.hp,
+      ...(statuses ? { statuses } : {}),
     };
   }
   return {
