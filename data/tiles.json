@@ -3543,7 +3543,9 @@
       "push": {
         "climb": "half",
         "moveOnTileIds": [
-          "dirt"
+          "dirt",
+          "pressure-plate",
+          "pressure-plate-pressed"
         ]
       }
     },
@@ -7792,6 +7794,66 @@
             "base": {
               "x": 0,
               "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "ladder-top",
+    "name": "Ladder",
+    "height": 1,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 10,
+              "y": 8,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "ladder-up",
+    "name": "Ladder",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 10,
+              "y": 10,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
             }
           },
           "durationMs": 200

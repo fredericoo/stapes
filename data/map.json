@@ -45575,6 +45575,9 @@
       "10,-7": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "ladder-up"
         }
       ],
       "10,-6": [
@@ -87160,15 +87163,15 @@
           "tileId": "wooden-floor"
         },
         {
+          "tileId": "wooden-floor-inner"
+        },
+        {
           "tileId": "sw2"
         }
       ],
       "10,-7": [
         {
-          "tileId": "wooden-floor"
-        },
-        {
-          "tileId": "wooden-floor-inner"
+          "tileId": "ladder-top"
         }
       ],
       "10,-6": [
@@ -87214,6 +87217,9 @@
       "11,-7": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "wooden-floor-inner"
         }
       ],
       "11,-6": [
