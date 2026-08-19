@@ -108,9 +108,11 @@ export function restoredEquipment(
   saved: Equipment,
   tilesById: Record<string, TileDef>,
 ): Equipment {
+  // Both hands asked the same question, because both hands *are* the same
+  // question now — see {@link handAccepts}.
   const weaponDef = saved.weapon ? tilesById[saved.weapon.tileId] : undefined;
   const weapon =
-    saved.weapon && weaponDef && resolveWeapon(weaponDef)
+    saved.weapon && weaponDef && handAccepts(weaponDef)
       ? identified(saved.weapon)
       : null;
 
@@ -119,7 +121,7 @@ export function restoredEquipment(
   // no longer agrees with.
   const offhandDef = saved.offhand ? tilesById[saved.offhand.tileId] : undefined;
   const offhand =
-    saved.offhand && offhandDef && offhandAccepts(offhandDef)
+    saved.offhand && offhandDef && handAccepts(offhandDef)
       ? identified(saved.offhand)
       : null;
 
@@ -163,16 +165,29 @@ function identified(instance: ItemInstance): ItemInstance {
   return instance.id ? instance : { ...instance, id: mintItemId() };
 }
 
-/** Everything worn or carried, slots and bag contents alike, in a flat list. */
+/**
+ * Every slot on a body, in the order they are reached for.
+ *
+ * Written down once, because "the fields of `Equipment`" is a list two separate
+ * passes had already got out of step with each other — the off hand was the
+ * first slot added and the second one to be forgotten somewhere.
+ */
+const EQUIPMENT_SLOTS = ["weapon", "offhand", "bag"] as const;
+
+/** Everything worn or carried, slots and their contents alike, in a flat list. */
 export function carriedInstances(equipment: Equipment): ItemInstance[] {
   const out: ItemInstance[] = [];
-  if (equipment.weapon) out.push(equipment.weapon);
-  if (equipment.offhand) out.push(equipment.offhand);
-  if (equipment.bag) {
-    out.push(equipment.bag);
+  // Every slot, and what is inside whatever is in it. A hand takes a spare pack
+  // now, so the bag on your back is no longer the only thing on a body with
+  // things inside it — and something missed here is something the id minting
+  // pass never reaches, which is a thing the wire cannot describe.
+  for (const slot of EQUIPMENT_SLOTS) {
+    const instance = equipment[slot];
+    if (!instance) continue;
+    out.push(instance);
     // One level, never recursive: a container may not hold a container, so
     // there is nothing below this to walk.
-    if (equipment.bag.contents) out.push(...equipment.bag.contents);
+    if (instance.contents) out.push(...instance.contents);
   }
   return out;
 }
@@ -186,7 +201,7 @@ export function carriedInstances(equipment: Equipment): ItemInstance[] {
  * was one entry here rather than a hunt through everything that lights a room.
  */
 function wornInstances(equipment: Equipment): ItemInstance[] {
-  return [equipment.weapon, equipment.offhand, equipment.bag].filter(
+  return EQUIPMENT_SLOTS.map((slot) => equipment[slot]).filter(
     (instance): instance is ItemInstance => instance != null,
   );
 }
@@ -310,17 +325,24 @@ export function offhandDefence(
 }
 
 /**
- * Whether this is a thing you could hold in your other hand.
+ * Whether either hand could hold this.
  *
- * Anything but a container, which is the same rule the inside of a bag follows
- * and for the same reason: a bag has a slot of its own, and a pack inside a hand
- * inside a pack is the nesting nothing here allows. Everything else is fair —
- * a torch, a shield, a spare sword you are not swinging.
+ * **A hand takes anything you can carry**, which is the honest reading of what a
+ * hand is: if you would rather hold a second pack than a shield, that is a
+ * choice the game has no business refusing. What a thing is *for* is a separate
+ * question, answered by `equipSlotOf` — which is what decides where a thing goes
+ * when you have not said, and what `WeaponItem.offhand` exists to inform.
+ *
+ * The one refusal is a container nobody may carry: `equippable: false` is an
+ * author saying "this is a chest, it is opened where it lies", and a chest in a
+ * fist would be that flag meaning nothing.
  *
  * Here rather than in `./itemMoves` because it is a fact about the slot, and the
  * slot is defined by this module. `restoredEquipment` and the move rules both
  * ask it, and two answers would be a kit that could be saved and not re-equipped.
  */
-export function offhandAccepts(def: TileDef): boolean {
-  return resolveItem(def) != null && resolveContainer(def) == null;
+export function handAccepts(def: TileDef): boolean {
+  const item = resolveItem(def);
+  if (!item) return false;
+  return item.type !== "container" || item.equippable;
 }

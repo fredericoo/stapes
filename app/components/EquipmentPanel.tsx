@@ -1,4 +1,8 @@
-import { useMemo } from "react";
+import {
+  IconBackpack,
+  IconHandStop,
+} from "@tabler/icons-react";
+import { useMemo, type ReactNode } from "react";
 import type { Equipment } from "../game/equipment";
 import type { MasteryXp } from "../lib/mastery";
 import type { TileDef, TilesetDef } from "../lib/types";
@@ -23,6 +27,14 @@ import type { ItemDrag } from "./useItemDrag";
  * The off hand sits between them because that is the order they are reached for:
  * what you swing, what you hold, what you carry it all in.
  *
+ * **Each square is captioned and each empty one is pictured**, which the bag's
+ * grid deliberately is not. A slot inside a bag is a square — anything goes in
+ * it and there is nothing to say — where these three are each *for* something,
+ * and a panel of three identical dashed squares is one you have to be taught
+ * rather than one you can read. The caption is the short name (`Main`,
+ * `Offhand`, `Back`) rather than the accessible one, which stays the longer
+ * phrase a screen reader wants.
+ *
  * **Nothing in here is a number.** There was a table under the hand for a while
  * listing every mastery the weapon in it asked for against the one you had, and
  * it is gone: what a weapon asks is now a sentence you get by looking at it, on
@@ -38,6 +50,7 @@ export function EquipmentPanel({
   equipment,
   masteryXp = {},
   bagOpen,
+  handOpen = null,
   tiles,
   tilesets,
   drag,
@@ -65,6 +78,15 @@ export function EquipmentPanel({
    * has replaced this one entirely.
    */
   bagOpen: boolean;
+  /**
+   * Which hand is holding a container the player has open, if either is.
+   *
+   * A hand takes anything you can carry, a spare pack included — and a pack you
+   * could hold but never look into would be a worse place to keep it than the
+   * floor. So a hand is a third thing that can be open, and it wears the same
+   * yellow the bag slot does.
+   */
+  handOpen?: "weapon" | "offhand" | null;
   tiles: TileDef[];
   tilesets: TilesetDef[];
   /** The one move in progress, page-wide. See `./useItemDrag`. */
@@ -84,41 +106,103 @@ export function EquipmentPanel({
         Equipment
       </h2>
       <div className="flex flex-wrap gap-1">
-        <ItemSlot
-          slot={{ kind: "weapon" }}
-          instance={equipment.weapon}
-          tilesById={tilesById}
-          tilesets={tilesets}
-          label="Weapon"
-          emptyHint="Weapon — nothing in hand"
-          drag={drag}
-          inspecting={inspecting}
-          masteryXp={masteryXp}
-        />
-        <ItemSlot
-          slot={{ kind: "offhand" }}
-          instance={equipment.offhand}
-          tilesById={tilesById}
-          tilesets={tilesets}
-          label="Off hand"
-          emptyHint="Off hand — nothing held"
-          drag={drag}
-          inspecting={inspecting}
-          masteryXp={masteryXp}
-        />
-        <ItemSlot
-          slot={{ kind: "bag" }}
-          instance={equipment.bag}
-          tilesById={tilesById}
-          tilesets={tilesets}
-          label="Bag"
-          emptyHint="Bag — nothing on your back"
-          open={bagOpen}
-          drag={drag}
-          inspecting={inspecting}
-          masteryXp={masteryXp}
-        />
+        <CaptionedSlot caption="Main">
+          <ItemSlot
+            slot={{ kind: "weapon" }}
+            instance={equipment.weapon}
+            tilesById={tilesById}
+            tilesets={tilesets}
+            label="Weapon"
+            emptyHint="Weapon — nothing in hand"
+            emptyIcon={MainHandIcon}
+            open={handOpen === "weapon"}
+            drag={drag}
+            inspecting={inspecting}
+            masteryXp={masteryXp}
+          />
+        </CaptionedSlot>
+        <CaptionedSlot caption="Offhand">
+          <ItemSlot
+            slot={{ kind: "offhand" }}
+            instance={equipment.offhand}
+            tilesById={tilesById}
+            tilesets={tilesets}
+            label="Off hand"
+            emptyHint="Off hand — nothing held"
+            emptyIcon={OffHandIcon}
+            open={handOpen === "offhand"}
+            drag={drag}
+            inspecting={inspecting}
+            masteryXp={masteryXp}
+          />
+        </CaptionedSlot>
+        <CaptionedSlot caption="Back">
+          <ItemSlot
+            slot={{ kind: "bag" }}
+            instance={equipment.bag}
+            tilesById={tilesById}
+            tilesets={tilesets}
+            label="Bag"
+            emptyHint="Bag — nothing on your back"
+            emptyIcon={IconBackpack}
+            open={bagOpen}
+            drag={drag}
+            inspecting={inspecting}
+            masteryXp={masteryXp}
+          />
+        </CaptionedSlot>
       </div>
     </section>
+  );
+}
+
+/**
+ * A hand, and the same hand the other way round.
+ *
+ * Tabler has no left and right hand, so the pair is one open palm mirrored —
+ * which is what a left and a right hand *are*, and reads as a pair at 20px far
+ * better than two unrelated glyphs would. Placeholders, and easy ones to
+ * replace: the panel names them here and nothing else knows they are the same
+ * icon twice.
+ */
+function MainHandIcon(props: { size?: number; stroke?: number; className?: string }) {
+  return <IconHandStop {...props} />;
+}
+
+function OffHandIcon({
+  className = "",
+  ...props
+}: {
+  size?: number;
+  stroke?: number;
+  className?: string;
+}) {
+  return <IconHandStop {...props} className={`-scale-x-100 ${className}`} />;
+}
+
+/**
+ * One equipment square with its name over it.
+ *
+ * `aria-hidden`, because the square underneath already says what it is — a
+ * screen reader that heard "Main" and then "Weapon: empty" would be hearing the
+ * same fact twice, in two vocabularies.
+ */
+function CaptionedSlot({
+  caption,
+  children,
+}: {
+  caption: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-0.5">
+      <span
+        aria-hidden
+        className="text-[9px] font-bold uppercase leading-none tracking-wide text-paper/40"
+      >
+        {caption}
+      </span>
+      {children}
+    </div>
   );
 }

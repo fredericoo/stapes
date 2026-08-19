@@ -1,15 +1,61 @@
-import { surfaceTileAt } from "../lib/mapData";
+import { elevationAt, getStack, surfaceTileAt } from "../lib/mapData";
 import type { PushInteraction } from "../lib/interactions";
 import { CLIMB_HEIGHT_UNITS } from "../lib/interactions";
-import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
-import { fitsAtElevation } from "../lib/validation";
+import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
+import { HEIGHT_PER_LEVEL, physicalHeight } from "../lib/types";
+import { fitsHeightAtElevation } from "../lib/validation";
 import { findLandingAbs } from "./gravity";
-import { DIR_DELTA, listStandingSurfaces, standingAbs } from "./movement";
+import { DIR_DELTA, listStandingSurfaces } from "./movement";
 
 export type PushCheck = { ok: true; to: Coord } | { ok: false; reason: string };
 
 /** A pushable object's place in the map — cell plus slot in its stack. */
 export type PushFrom = Coord & { stackIndex: number };
+
+/**
+ * Everything a shove at this slot takes with it: the object and whatever is
+ * stacked on it, bottom first.
+ *
+ * **A shove moves a column, not a tile.** Two crates one on top of the other are
+ * two things you can walk up to and lean on, and a player who shoved the lower
+ * one and watched the upper one stay hanging in the air would be watching a bug.
+ * So the whole column rides, keeps its order, and is tested for room as one
+ * volume — see {@link pushedHeight}.
+ *
+ * Exported because the affordance layer asks the same question a step earlier,
+ * to find out whether the riders are things that *can* be carried at all.
+ */
+export function pushedColumn(
+  map: MapFile,
+  from: PushFrom,
+): PlacedTile[] {
+  return getStack(map, from.x, from.y, from.z).slice(from.stackIndex);
+}
+
+/** Absolute elevation of the surface the slot at `from` is resting on. */
+function pushedFeetAbs(
+  map: MapFile,
+  from: PushFrom,
+  tilesById: Record<string, TileDef>,
+): number {
+  const stack = getStack(map, from.x, from.y, from.z);
+  return (
+    from.z * HEIGHT_PER_LEVEL + elevationAt(stack, from.stackIndex, tilesById)
+  );
+}
+
+/** How tall the whole travelling column is. */
+function pushedHeight(
+  column: readonly PlacedTile[],
+  tilesById: Record<string, TileDef>,
+): number {
+  let total = 0;
+  for (const placed of column) {
+    const def = tilesById[placed.tileId];
+    if (def) total += physicalHeight(def);
+  }
+  return total;
+}
 
 /**
  * Does the surface at `abs` satisfy the tile's move-on-tiles restriction?
@@ -40,7 +86,7 @@ function surfaceToRestOn(
   y: number,
   lo: number,
   hi: number,
-  def: TileDef,
+  height: number,
   push: PushInteraction,
   tilesById: Record<string, TileDef>,
 ): Coord | null {
@@ -49,7 +95,9 @@ function surfaceToRestOn(
     .sort((a, b) => a.abs - b.abs);
 
   for (const surface of candidates) {
-    if (!fitsAtElevation(map, x, y, surface.abs, def, tilesById).ok) continue;
+    if (!fitsHeightAtElevation(map, x, y, surface.abs, height, tilesById).ok) {
+      continue;
+    }
     if (!surfaceAllowed(map, x, y, surface.abs, push, tilesById)) continue;
     return { x, y, z: surface.z };
   }
@@ -66,7 +114,7 @@ function landingBelow(
   x: number,
   y: number,
   fromAbs: number,
-  def: TileDef,
+  height: number,
   push: PushInteraction,
   tilesById: Record<string, TileDef>,
 ): PushCheck {
@@ -82,7 +130,7 @@ function landingBelow(
     return { ok: false, reason: "Landing surface is not walkable" };
   }
 
-  const fit = fitsAtElevation(map, x, y, landingAbs, def, tilesById);
+  const fit = fitsHeightAtElevation(map, x, y, landingAbs, height, tilesById);
   if (!fit.ok) return fit;
 
   if (!surfaceAllowed(map, x, y, landingAbs, push, tilesById)) {
@@ -104,6 +152,11 @@ function landingBelow(
  * Unlike walking, `climbFrom` is not consulted: a ramp's climb sides describe
  * how a walker may mount it, and the tile's own `climb` is the authored
  * control for pushed objects.
+ *
+ * What travels is the whole {@link pushedColumn}, so the room asked for at the
+ * destination is the column's total height rather than `def`'s. `def` is still
+ * the one that answers for gravity: whatever is riding, it is the thing at the
+ * bottom that decides whether the column falls or the shove is simply refused.
  */
 export function pushDestination(
   map: MapFile,
@@ -117,14 +170,8 @@ export function pushDestination(
   const destX = from.x + dx;
   const destY = from.y + dy;
 
-  const fromAbs = standingAbs(
-    map,
-    from.x,
-    from.y,
-    from.z,
-    from.stackIndex,
-    tilesById,
-  );
+  const fromAbs = pushedFeetAbs(map, from, tilesById);
+  const height = pushedHeight(pushedColumn(map, from), tilesById);
   const maxClimb = CLIMB_HEIGHT_UNITS[push.climb];
 
   const stepped = surfaceToRestOn(
@@ -133,14 +180,21 @@ export function pushDestination(
     destY,
     fromAbs - maxClimb,
     fromAbs + maxClimb,
-    def,
+    height,
     push,
     tilesById,
   );
   if (stepped) return { ok: true, to: stepped };
 
   // No surface in reach — enter the cell in open air, if the volume is clear.
-  const clear = fitsAtElevation(map, destX, destY, fromAbs, def, tilesById);
+  const clear = fitsHeightAtElevation(
+    map,
+    destX,
+    destY,
+    fromAbs,
+    height,
+    tilesById,
+  );
   if (!clear.ok) return clear;
 
   // Without gravity there is nothing to bring it down and no way to represent
@@ -149,5 +203,5 @@ export function pushDestination(
     return { ok: false, reason: "Nothing to rest on and no gravity to fall" };
   }
 
-  return landingBelow(map, destX, destY, fromAbs, def, push, tilesById);
+  return landingBelow(map, destX, destY, fromAbs, height, push, tilesById);
 }

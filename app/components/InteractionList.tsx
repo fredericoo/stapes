@@ -4,6 +4,7 @@ import {
   IconGift,
   IconHandGrab,
   IconHandMove,
+  IconShirt,
   IconSwitch,
   IconTarget,
 } from "@tabler/icons-react";
@@ -58,6 +59,10 @@ const ICONS: Record<InteractionAction, typeof IconTarget> = {
   // A closing hand against push's sliding one: both are hands, and the
   // difference between taking a thing and shoving it is what the shape says.
   pickUp: IconHandGrab,
+  // Deliberately not a hand, so it cannot be mistaken for the pick-up row
+  // sitting directly under it: putting a thing on is about your body, and every
+  // slot it can go in is somewhere you wear or carry it.
+  equip: IconShirt,
   push: IconHandMove,
   switch: IconSwitch,
   // An apple for every consumable, drink included: the icon says "this gets

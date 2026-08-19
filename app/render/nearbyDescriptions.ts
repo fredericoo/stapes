@@ -73,7 +73,7 @@ export function describedNearby(
       for (let stackIndex = 0; stackIndex < stack.length; stackIndex++) {
         const placed = stack[stackIndex];
         if (!placed?.description) continue;
-        if (coveredBySomething(stack, stackIndex)) continue;
+        if (coveredBySomething(stack, stackIndex, tilesById)) continue;
         const def = tilesById[placed.tileId];
         if (!def) continue;
 

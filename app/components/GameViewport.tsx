@@ -277,9 +277,21 @@ export function GameViewport({
    * a wall of numbers beside the game for a question nobody asked yet.
    */
   const [statsOpen, setStatsOpen] = useState(false);
+  /**
+   * Which hand is holding a container the player has open, if either is.
+   *
+   * A third thing that can be open, and unlike the other two it belongs to the
+   * *item* rather than to the panel: put the pack down and there is nothing left
+   * to be looking into, which is what the effect below enforces.
+   */
+  const [openHand, setOpenHand] = useState<"weapon" | "offhand" | null>(null);
   const showEquipment = equipmentOpen ?? !coarse;
   const showBag = bagOpen ?? !coarse;
   const showStats = statsOpen;
+  /** The pack in that hand, or null once it is no longer a pack in that hand. */
+  const heldContainer = openHand
+    ? (equipment[openHand] ?? null)
+    : null;
 
   /**
    * On a phone the two panels want the same space, so opening one closes the
@@ -322,7 +334,15 @@ export function GameViewport({
     if (!use) return;
     // Shut it if it is open: the same press, both ways, because a bag is
     // somewhere you look into rather than something you switch on.
-    if (use.type === "open") openBag(!showBag);
+    if (use.type === "open") {
+      // Whichever container was pressed. Shut it if it is already open: the
+      // same press, both ways, because a bag is somewhere you look into rather
+      // than something you switch on.
+      if (slot.kind === "bag") openBag(!showBag);
+      else if (slot.kind === "weapon" || slot.kind === "offhand") {
+        setOpenHand(openHand === slot.kind ? null : slot.kind);
+      }
+    }
     // All the way to the server, like a move: what it does to your hit points
     // and to the thing itself are both the session's answers.
     else if (use.type === "consume") onConsumeItem?.(slot);
@@ -352,9 +372,25 @@ export function GameViewport({
     if (looking) cancelDrag();
   }, [looking, cancelDrag]);
 
+  /**
+   * A panel is a thing you opened, and a hand you have emptied is not one.
+   *
+   * The same rule the bag panel follows by asking `equipment.bag` before it
+   * draws — written as an effect here because the *reference* has to go too, or
+   * the next thing put in that hand would open by itself.
+   */
+  useEffect(() => {
+    if (openHand && !equipment[openHand]) setOpenHand(null);
+  }, [openHand, equipment]);
+
   /** A panel is covering the arrows and the list. Only ever true on a phone. */
   const panelCoversMain =
-    coarse && (showEquipment || showBag || showStats || openedContainer != null);
+    coarse &&
+    (showEquipment ||
+      showBag ||
+      showStats ||
+      heldContainer != null ||
+      openedContainer != null);
   const press = useCallback(onDirectionPress, [onDirectionPress]);
   const release = useCallback(onDirectionRelease, [onDirectionRelease]);
   const noteTyping = useCallback(
@@ -455,6 +491,7 @@ export function GameViewport({
           equipment={equipment}
           masteryXp={masteryXp}
           bagOpen={showBag}
+          handOpen={heldContainer ? openHand : null}
           tiles={tiles}
           tilesets={tilesets}
           drag={drag}
@@ -473,6 +510,21 @@ export function GameViewport({
           tilesets={tilesets}
           title="Bag"
           onClose={() => openBag(false)}
+          drag={drag}
+          inspecting={looking}
+          masteryXp={masteryXp}
+        />
+      ) : null}
+      {/* A pack in a hand, between the one on your back and whatever is on the
+          floor — the order they sit in on the body. */}
+      {heldContainer && openHand ? (
+        <ContainerPanel
+          container={heldContainer}
+          location={{ kind: "hand", hand: openHand }}
+          tiles={tiles}
+          tilesets={tilesets}
+          title={tilesById[heldContainer.tileId]?.name ?? "Container"}
+          onClose={() => setOpenHand(null)}
           drag={drag}
           inspecting={looking}
           masteryXp={masteryXp}

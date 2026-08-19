@@ -857,11 +857,22 @@ describe("GameSession canInteract", () => {
     expect(session.canInteract({ x: 2, y: 0, z: 0, stackIndex: 0 })).toBe(false);
   });
 
-  it("ignores a hover on a buried interactive object", () => {
+  it("hovers an object with something stacked on top of it", () => {
     let map = mapWithCrate(1);
     map = replaceStack(map, 1, 0, 0, [
       { tileId: "grass" },
       { tileId: "crate" },
+      { tileId: "slab" },
+    ]);
+    const session = new GameSession(map, tiles);
+    expect(session.canInteract({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(true);
+  });
+
+  it("ignores a hover on a switch buried under something", () => {
+    let map = mapWithCrate(3);
+    map = replaceStack(map, 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "door-closed" },
       { tileId: "slab" },
     ]);
     const session = new GameSession(map, tiles);
@@ -1024,7 +1035,11 @@ describe("GameSession push", () => {
     expect(session.push({ x: 1, y: 0, z: 2, stackIndex: 1 })).toBe(false);
   });
 
-  it("refuses a buried interactive object", () => {
+  /**
+   * A shove moves the column, so the thing riding the crate arrives with it
+   * rather than being left hanging where the crate used to be.
+   */
+  it("carries whatever is stacked on the object it shoves", () => {
     let map = mapWithCrate(1);
     map = replaceStack(map, 1, 0, 0, [
       { tileId: "grass" },
@@ -1032,8 +1047,40 @@ describe("GameSession push", () => {
       { tileId: "slab" },
     ]);
     const session = new GameSession(map, tiles);
+
+    expect(session.push({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(true);
+    const snap = session.getSnapshot();
+    expect(getStack(snap.map, 1, 0, 0).map((p) => p.tileId)).toEqual(["grass"]);
+    expect(getStack(snap.map, 2, 0, 0).map((p) => p.tileId)).toEqual([
+      "grass",
+      "crate",
+      "slab",
+    ]);
+    // Both travelling tiles are named, so the sprite for the rider slides with
+    // the crate rather than snapping to the new cell.
+    expect(snap.self.slide?.object).toEqual({ x: 2, y: 0, z: 0, stackIndex: 1 });
+    expect(snap.self.slide?.count).toBe(2);
+  });
+
+  /**
+   * The room asked for is the whole column's, not the crate's: a crate alone
+   * clears the gap under the floor above, and the same crate with a wall on it
+   * does not.
+   */
+  it("refuses a column too tall for where it is going", () => {
+    let map = mapWithCrate(1);
+    map = replaceStack(map, 2, 0, 1, [{ tileId: "grass" }]);
+    expect(new GameSession(map, tiles).push(crateRef(1))).toBe(true);
+
+    map = replaceStack(map, 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "crate" },
+      { tileId: "wall" },
+    ]);
+    const session = new GameSession(map, tiles);
     expect(session.push({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(false);
   });
+
 
   it("does nothing when the cell behind the object is blocked", () => {
     let map = mapWithCrate(1);
@@ -1073,6 +1120,7 @@ describe("GameSession push", () => {
     expect(snap.self.slide).not.toBeNull();
     expect(snap.self.slide?.from).toEqual({ x: 1, y: 0, z: 0 });
     expect(snap.self.slide?.object).toEqual({ x: 2, y: 0, z: 0, stackIndex: 1 });
+    expect(snap.self.slide?.count).toBe(1);
     expect(snap.self.slideProgress).toBe(0);
 
     runSlide(session);

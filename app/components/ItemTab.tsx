@@ -126,6 +126,24 @@ export function ItemTab({ draft, onChange, statusDefs = {} }: Props) {
               onChange={patchWeapon}
               masteryHint="Which mastery scales this weapon — and which one the wielder earns by swinging it."
             />
+
+            <label className="flex items-start gap-2 text-xs">
+              <Switch
+                checked={item.offhand === true}
+                onCheckedChange={(offhand) => patchWeapon({ offhand })}
+                ariaLabel="Off hand"
+              />
+              <span className="flex flex-col gap-1">
+                <span className="font-bold uppercase text-muted">Off hand</span>
+                <span className="max-w-72 text-[11px] leading-snug text-muted">
+                  On, it belongs in the other hand: a shield, a torch, a
+                  lantern. Picking it up off the floor holds it there, and the
+                  slot takes nothing that is not marked this way — otherwise
+                  every sword is a second sword and the game is quietly dual
+                  wielding.
+                </span>
+              </span>
+            </label>
           </div>
         ) : item.type === "consumable" ? (
           <div className="flex flex-col gap-3">

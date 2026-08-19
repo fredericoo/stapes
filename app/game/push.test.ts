@@ -5,7 +5,7 @@ import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
-import { pushDestination } from "./push";
+import { pushDestination, pushedColumn } from "./push";
 
 function tile(
   partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
@@ -326,5 +326,67 @@ describe("pushDestination move-on-tiles", () => {
       tilesById,
     );
     expect(check.ok).toBe(false);
+  });
+});
+
+/**
+ * A shove moves the object and everything stacked on it as one rigid column,
+ * so the room it needs at the far end is the column's and not the crate's.
+ */
+describe("pushDestination with a rider", () => {
+  it("counts the whole column from the slot being shoved", () => {
+    let map = grassStrip(2);
+    map = place(map, 0, 0, 0, ["grass", "crate", "crate", "statue"]);
+
+    expect(
+      pushedColumn(map, { x: 0, y: 0, z: 0, stackIndex: 1 }).map(
+        (p) => p.tileId,
+      ),
+    ).toEqual(["crate", "crate", "statue"]);
+    expect(
+      pushedColumn(map, { x: 0, y: 0, z: 0, stackIndex: 2 }).map(
+        (p) => p.tileId,
+      ),
+    ).toEqual(["crate", "statue"]);
+  });
+
+  it("measures the step up from the shoved slot, not from the ground", () => {
+    let map = grassStrip(2);
+    map = place(map, 0, 0, 0, ["grass", "crate", "crate"]);
+    map = place(map, 1, 0, 0, ["grass", "slab"]);
+
+    // The upper crate stands at 1 and the slab's top is at 1 — level ground for
+    // it, however tall the pile under it is.
+    const check = pushDestination(
+      map,
+      { x: 0, y: 0, z: 0, stackIndex: 2 },
+      "e",
+      tilesById.crate!,
+      push({ climb: "none" }),
+      tilesById,
+    );
+    expect(check).toEqual({ ok: true, to: { x: 1, y: 0, z: 0 } });
+  });
+
+  it("refuses when the rider is what does not fit", () => {
+    let map = emptyMap();
+    map = place(map, 0, 0, 0, ["grass", "crate", "crate", "crate"]);
+    map = place(map, 1, 0, 0, ["grass"]);
+    // A floor one level up, which the top crate slides onto happily and a
+    // three-high column cannot pass under.
+    map = place(map, 1, 0, 1, ["grass"]);
+
+    const shove = (stackIndex: number) =>
+      pushDestination(
+        map,
+        { x: 0, y: 0, z: 0, stackIndex },
+        "e",
+        tilesById.crate!,
+        push({ climb: "none" }),
+        tilesById,
+      ).ok;
+
+    expect(shove(3)).toBe(true);
+    expect(shove(1)).toBe(false);
   });
 });

@@ -7,10 +7,16 @@ import {
   resolveReward,
   resolveSwitch,
 } from "../lib/interactions";
-import { resolveConsumable, resolveContainer, resolveItem } from "../lib/item";
+import {
+  resolveConsumable,
+  resolveContainer,
+  resolveItem,
+  resolveWeapon,
+} from "../lib/item";
 import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
+import { physicalHeight } from "../lib/types";
 import { canReplaceStack } from "../lib/validation";
-import type { Equipment } from "./equipment";
+import { handAccepts, type Equipment } from "./equipment";
 import { pushDestination } from "./push";
 
 /** A specific placed tile in the map — cell plus slot in its stack. */
@@ -38,7 +44,11 @@ export const INTERACT_LEVEL_SLACK = 1;
 
 /**
  * Interactive object at a stack slot, if the actor could be looking at it.
- * Buried under another tile is out: only the top of a stack can be acted on.
+ *
+ * Buried under something solid is out, read through {@link coveredBySomething}
+ * — the same rule pick-up takes, so a lever with a sword lying across it is
+ * still a lever and one under a crate is not. Pushing does *not* come through
+ * here; see {@link pushableDefAt} for why reaching under is fine there.
  */
 export function interactiveDefAt(
   map: MapFile,
@@ -48,11 +58,45 @@ export function interactiveDefAt(
 ): TileDef | null {
   if (Math.abs(ref.z - actor.z) > INTERACT_LEVEL_SLACK) return null;
   const stack = getStack(map, ref.x, ref.y, ref.z);
-  if (ref.stackIndex !== stack.length - 1) return null;
+  if (coveredBySomething(stack, ref.stackIndex, tilesById)) return null;
   const placed = stack[ref.stackIndex];
   if (!placed) return null;
   const def = tilesById[placed.tileId];
   if (!def || !isInteractive(def)) return null;
+  return def;
+}
+
+/**
+ * Pushable object at a stack slot, if the actor could shove it.
+ *
+ * **The one action that reaches under a lid**, and it does so because nothing
+ * is left behind: a shove takes the whole {@link pushedColumn} with it, so the
+ * crate on top of the crate you leant on arrives in the next cell too. Asking
+ * "is it buried" here would refuse exactly the shove a player expects to work —
+ * a stack of two boxes is two boxes you can push.
+ *
+ * A **body riding on top refuses the shove**, and that is the one thing a
+ * column cannot carry. Somebody standing on a crate has their own motion and
+ * their own idea of where they are walking to; sliding the ground out from
+ * under them mid-step would commit that walk from a cell they are no longer in.
+ * A body is not a lid — it does not hide what is beneath it — but it is not
+ * cargo either.
+ */
+export function pushableDefAt(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  ref: ObjectRef,
+): TileDef | null {
+  if (Math.abs(ref.z - actor.z) > INTERACT_LEVEL_SLACK) return null;
+  const stack = getStack(map, ref.x, ref.y, ref.z);
+  const placed = stack[ref.stackIndex];
+  if (!placed) return null;
+  for (let above = ref.stackIndex + 1; above < stack.length; above++) {
+    if (stack[above]?.owner) return null;
+  }
+  const def = tilesById[placed.tileId];
+  if (!def || !resolvePush(def)) return null;
   return def;
 }
 
@@ -82,7 +126,7 @@ export function pushTargetFrom(
   actor: Actor,
   ref: ObjectRef,
 ): Coord | null {
-  const def = interactiveDefAt(map, tilesById, actor, ref);
+  const def = pushableDefAt(map, tilesById, actor, ref);
   const push = def && resolvePush(def);
   if (!def || !push) return null;
 
@@ -161,18 +205,38 @@ export function withinReach(actor: Actor, ref: ObjectRef): boolean {
 }
 
 /**
+ * Does this placement hide what is underneath it?
+ *
+ * **Height is the whole rule, and a body never counts.** A sword, a coin, a
+ * berry are flat — they add no volume to the stack, they are drawn beside what
+ * they are lying on rather than over it, and a player looking at two of them in
+ * one cell sees two things they could pick up. A crate is a metre of wood and
+ * genuinely in the way. So the line is `physicalHeight > 0`, which is the same
+ * line the stacking model already draws between things that take up room and
+ * things that merely rest somewhere.
+ *
+ * The body exception is older and separate: standing on a sword does not bury
+ * it, and a chest with somebody on top is a chest you can still open. Any body,
+ * not only your own — two people standing over one sword either both reach it or
+ * neither does, and "whoever stepped on it owns it" is a rule nothing else in
+ * the game plays by. Without it the round pick-up radius would contradict
+ * itself, since it takes in the cell you are standing in on purpose.
+ */
+function isLid(
+  placed: PlacedTile | undefined,
+  tilesById: Record<string, TileDef>,
+): boolean {
+  if (!placed || placed.owner) return false;
+  const def = tilesById[placed.tileId];
+  return def != null && physicalHeight(def) > 0;
+}
+
+/**
  * Is anything actually lying on top of this slot?
  *
- * **A body is not a lid.** Standing on a sword does not bury it, and a chest
- * with somebody on top of it is a chest you can still open — the rule exists to
- * stop you reaching a thing under a *crate*, and a person who walked over it is
- * not one. Without this the round pick-up radius would contradict itself: it
- * takes in the cell you are standing in on purpose, and that is exactly the cell
- * your own body would otherwise cover.
- *
- * Any body, not only your own. Two people standing over one sword either both
- * reach it or neither does, and "whoever stepped on it owns it" is a rule
- * nothing else in the game plays by.
+ * "Anything" is {@link isLid} — something with volume and nobody in it. Two
+ * swords in one cell therefore cover neither: they are both reachable, and the
+ * list of things to do offers both.
  *
  * Exported for `../render/nearbyDescriptions`, which asks the same question of
  * the same radius: a sign under a crate has nothing to say, and a sign you are
@@ -181,11 +245,27 @@ export function withinReach(actor: Actor, ref: ObjectRef): boolean {
 export function coveredBySomething(
   stack: PlacedTile[],
   index: number,
+  tilesById: Record<string, TileDef>,
 ): boolean {
   for (let above = index + 1; above < stack.length; above++) {
-    if (!stack[above]?.owner) return true;
+    if (isLid(stack[above], tilesById)) return true;
   }
   return false;
+}
+
+/**
+ * The slot a thing thrown at this cell would land on — the topmost placement
+ * that is not a body, or -1 for a cell holding nothing but bodies.
+ *
+ * A body is not a lid here either: a chest with somebody standing on it is
+ * still the thing at the top of that cell, and a sword tossed at it should go
+ * in the chest rather than land on their head.
+ */
+function topmostThingIn(stack: readonly PlacedTile[]): number {
+  for (let i = stack.length - 1; i >= 0; i--) {
+    if (!stack[i]?.owner) return i;
+  }
+  return -1;
 }
 
 /**
@@ -205,7 +285,7 @@ export function reachableItemDefAt(
 ): TileDef | null {
   if (!withinReach(actor, ref)) return null;
   const stack = getStack(map, ref.x, ref.y, ref.z);
-  if (coveredBySomething(stack, ref.stackIndex)) return null;
+  if (coveredBySomething(stack, ref.stackIndex, tilesById)) return null;
   const placed = stack[ref.stackIndex];
   if (!placed) return null;
   const def = tilesById[placed.tileId];
@@ -214,21 +294,103 @@ export function reachableItemDefAt(
 }
 
 /**
- * Where a thing would go if this actor picked it up, or null if nowhere.
+ * The slot on a body this thing belongs in, from the tile alone.
  *
- * Three answers rather than a boolean, because "can I pick this up" and "where
- * does it land" are the same question asked once — the caller that says yes is
- * the caller that then has to put it somewhere, and deriving the destination a
- * second time is how the two come to disagree.
+ * **One slot per thing, and the tile decides which.** A sword is for the hand
+ * you swing with, a torch or a shield for the other one (`WeaponItem.offhand`),
+ * a backpack for your back (`ContainerItem.equippable`). Everything else — a
+ * berry, a chest, a rock — has no slot and can only be carried in a bag.
  *
- * - `"bag-slot"` — an equippable container, and the actor's back is free.
- * - `"contents"` — anything else, and there is room in the bag.
+ * One rather than "every slot that would take it", because the alternative is a
+ * list that offers to Wield *and* Hold the same sword and a player who has to
+ * decide which hand a thing goes in every time they pick one up. Where a thing
+ * belongs is a fact about the thing.
  *
- * A container that is *not* equippable can never be picked up, because no
- * container may hold a container and the bag slot will not take it. A corpse or
- * a chest is looted where it lies, which is what `open` is for.
+ * It is not the same question as "may this slot hold this" — `itemMoves`'
+ * `slotAccepts` is looser and stays looser, because a drag is somebody saying
+ * exactly what they want. This is what happens when they do not say.
  */
-export type PickUpDestination = "bag-slot" | "contents";
+export type EquipSlot = "weapon" | "offhand" | "bag";
+
+export function equipSlotOf(def: TileDef): EquipSlot | null {
+  const container = resolveContainer(def);
+  // Never into a bag: containers do not nest, so the only place one can go is
+  // a back. A chest or a corpse is looted where it lies — that is what `open`
+  // is for — and has no slot at all.
+  if (container) return container.equippable ? "bag" : null;
+
+  const weapon = resolveWeapon(def);
+  if (!weapon) return null;
+  return weapon.offhand ? "offhand" : "weapon";
+}
+
+/**
+ * Which of this actor's slots is empty and waiting for the thing at `ref`.
+ *
+ * **Equipping off the floor is not picking up**, which is the whole reason this
+ * is a question of its own: a sword goes into your hand, and a hand is not a
+ * pocket. It is what lets somebody with no bag at all arm themselves — the case
+ * that used to be reachable only for a backpack, since that was the one thing
+ * with somewhere to go.
+ *
+ * The slot has to be **empty**. Equipping never displaces what you are already
+ * holding: a swap is two deliberate acts, and a tap that quietly put your sword
+ * on the floor to make room for a worse one is the kind of thing you notice a
+ * fight later. Taking the second sword is what the bag is for.
+ */
+export function equipSlotFrom(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  ref: ObjectRef,
+  equipment: Equipment,
+): EquipSlot | null {
+  const def = reachableItemDefAt(map, tilesById, actor, ref);
+  const slot = def && equipSlotOf(def);
+  if (!slot) return null;
+  return equipment[slot] ? null : slot;
+}
+
+/** Could this actor equip the thing where it lies? @see equipSlotFrom */
+export function canEquipFrom(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  ref: ObjectRef,
+  equipment: Equipment,
+): boolean {
+  return equipSlotFrom(map, tilesById, actor, ref, equipment) != null;
+}
+
+/**
+ * Where a thing would go if this actor simply took it.
+ *
+ * - `"contents"` — into the bag, which is where anything you are merely
+ *   carrying belongs.
+ * - a hand — because a full bag should not be the end of the conversation. You
+ *   have hands; a thing you can hold is a thing you can pick up, and the
+ *   alternative is standing over a sword you cannot have.
+ *
+ * **A hand is the last place this looks, and never one the equip row is already
+ * offering.** Where a thing *belongs* is `equipSlotFrom`'s answer and it has a
+ * row of its own with its own verb; a pickup that also reached for that slot
+ * would put "Wield" and "Pick up" beside each other meaning the same thing. So
+ * the hands come up only once the bag is out of room *and* the thing has no free
+ * slot of its own — which is exactly when there is nowhere else at all. It
+ * follows that the two rows can never name one outcome, and neither has to ask
+ * about the other.
+ *
+ * The off hand before the weapon hand. What you swing with is the slot with
+ * consequences — see `weaponInHand` — and a pickup with nowhere else to go
+ * should reach for the spare hand rather than rewrite what you are fighting
+ * with.
+ *
+ * A container never goes in the bag, wearable or not: nothing nests. A wearable
+ * one can still end up in a hand, since a hand takes anything you can carry.
+ */
+export type PickUpDestination =
+  | { kind: "contents" }
+  | { kind: "slot"; slot: "weapon" | "offhand" };
 
 export function pickUpDestination(
   map: MapFile,
@@ -240,22 +402,23 @@ export function pickUpDestination(
   const def = reachableItemDefAt(map, tilesById, actor, ref);
   if (!def) return null;
 
-  const container = resolveContainer(def);
-  if (container) {
-    // Never into a bag: containers do not nest, so the only place one can go is
-    // a back that has nothing on it yet.
-    if (!container.equippable) return null;
-    return equipment.bag ? null : "bag-slot";
+  if (!resolveContainer(def) && bagHasRoom(tilesById, equipment)) {
+    return { kind: "contents" };
   }
 
-  const bag = equipment.bag;
-  if (!bag) return null;
-  const bagDef = tilesById[bag.tileId];
-  const size = bagDef ? (resolveContainer(bagDef)?.size ?? 0) : 0;
-  return (bag.contents?.length ?? 0) < size ? "contents" : null;
+  // Where the thing belongs has its own row with its own verb, so a pickup that
+  // reached for that slot too would put "Wield" and "Pick up" side by side
+  // meaning one thing. The hands come up only once nowhere else will have it.
+  const belongs = equipSlotOf(def);
+  if (belongs && !equipment[belongs]) return null;
+
+  if (!handAccepts(def)) return null;
+  if (!equipment.offhand) return { kind: "slot", slot: "offhand" };
+  if (!equipment.weapon) return { kind: "slot", slot: "weapon" };
+  return null;
 }
 
-/** Could this actor pick the thing up right now? */
+/** Could this actor take the thing at all? @see pickUpDestination */
 export function canPickUpFrom(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -264,6 +427,18 @@ export function canPickUpFrom(
   equipment: Equipment,
 ): boolean {
   return pickUpDestination(map, tilesById, actor, ref, equipment) != null;
+}
+
+/** Is there a free square inside the bag on this actor's back? */
+function bagHasRoom(
+  tilesById: Record<string, TileDef>,
+  equipment: Equipment,
+): boolean {
+  const bag = equipment.bag;
+  if (!bag) return false;
+  const bagDef = tilesById[bag.tileId];
+  const size = bagDef ? (resolveContainer(bagDef)?.size ?? 0) : 0;
+  return (bag.contents?.length ?? 0) < size;
 }
 
 /**
@@ -280,19 +455,79 @@ export const DROP_CELLS = 5;
 const DROP_CELLS_SQUARED = DROP_CELLS * DROP_CELLS;
 
 /**
- * Can this actor put a thing down at this cell?
+ * Where a thing thrown at a cell actually ends up.
  *
- * Three questions, and each rules out a different way of cheating. **Range**,
- * because a drop is a throw and not a teleport. **Line of sight**, because the
- * range is long enough to reach through a wall otherwise — the one rule pick-up
- * has no need of, since everything within arm's length is already in the open.
- * And **room in the stack**, asked through `canReplaceStack`, which is the same
- * question the editor asks when it places a tile: a cell that cannot hold
- * another thing cannot hold this one either.
+ * - `"stack"` — on the floor of that cell, on top of whatever is there.
+ * - `"contents"` — inside the container it landed on, which is the slot named.
+ *
+ * **A box catches what you throw at it.** Dropping a sword onto a chest and
+ * watching it land *beside* the chest is the kind of thing a player does once,
+ * shrugs at, and then works around for the rest of the game by opening the
+ * panel — so the box takes it when the box has room, and the floor takes it when
+ * it does not. Nothing is refused for being aimed at a full chest; it simply
+ * lands on top, which is what the throw would have done anyway.
+ *
+ * Only the top thing catches, and a body is not one — see
+ * {@link topmostThingIn}. A chest under a crate is a chest with a lid on it.
+ *
+ * Containers never go inside containers, so a bag thrown at a chest lands on it.
+ * That rule lives in one place for moves (`itemMoves`' `slotAccepts`) and this
+ * is the board's half of it.
+ *
+ * Three questions gate the throw itself, and each rules out a different way of
+ * cheating. **Range**, because a drop is a throw and not a teleport. **Line of
+ * sight**, because the range is long enough to reach through a wall otherwise —
+ * the one rule pick-up has no need of, since everything within arm's length is
+ * already in the open. And **room**, either in the box or in the stack, the
+ * latter asked through `canReplaceStack`: the same question the editor asks when
+ * it places a tile.
  *
  * The tile rather than the instance, because none of this depends on which
  * particular sword it is — only on how tall it is and what it is made of.
  */
+export type DropDestination =
+  | { kind: "stack" }
+  | { kind: "contents"; ref: ObjectRef };
+
+export function dropDestinationAt(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  to: Coord,
+  def: TileDef,
+): DropDestination | null {
+  const dx = to.x - actor.x;
+  const dy = to.y - actor.y;
+  if (dx * dx + dy * dy > DROP_CELLS_SQUARED) return null;
+  if (Math.abs(to.z - actor.z) > INTERACT_LEVEL_SLACK) return null;
+  if (!hasLineOfSight(map, tilesById, actor, to)) return null;
+
+  // Something has to be there already. An empty cell is not "room" — it is a
+  // hole in the world, and a sword thrown into one is a sword nobody gets back.
+  // Every playable cell has at least a floor, so this reads as "somewhere that
+  // exists" rather than as a rule anybody has to think about.
+  const stack = getStack(map, to.x, to.y, to.z);
+  if (stack.length === 0) return null;
+
+  const stackIndex = topmostThingIn(stack);
+  const caught = stack[stackIndex];
+  const catcher = caught && tilesById[caught.tileId];
+  const container = catcher ? resolveContainer(catcher) : null;
+  if (
+    caught &&
+    container &&
+    resolveContainer(def) == null &&
+    (caught.contents?.length ?? 0) < container.size
+  ) {
+    return { kind: "contents", ref: { ...to, stackIndex } };
+  }
+
+  const next = [...stack, { tileId: def.id }];
+  if (!canReplaceStack(map, to.x, to.y, to.z, next, tilesById).ok) return null;
+  return { kind: "stack" };
+}
+
+/** Can this actor put a thing down at this cell? @see dropDestinationAt */
 export function canDropAt(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -300,21 +535,7 @@ export function canDropAt(
   to: Coord,
   def: TileDef,
 ): boolean {
-  const dx = to.x - actor.x;
-  const dy = to.y - actor.y;
-  if (dx * dx + dy * dy > DROP_CELLS_SQUARED) return false;
-  if (Math.abs(to.z - actor.z) > INTERACT_LEVEL_SLACK) return false;
-  if (!hasLineOfSight(map, tilesById, actor, to)) return false;
-
-  // Something has to be there already. An empty cell is not "room" — it is a
-  // hole in the world, and a sword thrown into one is a sword nobody gets back.
-  // Every playable cell has at least a floor, so this reads as "somewhere that
-  // exists" rather than as a rule anybody has to think about.
-  const stack = getStack(map, to.x, to.y, to.z);
-  if (stack.length === 0) return false;
-
-  const next = [...stack, { tileId: def.id }];
-  return canReplaceStack(map, to.x, to.y, to.z, next, tilesById).ok;
+  return dropDestinationAt(map, tilesById, actor, to, def) != null;
 }
 
 /**
@@ -361,7 +582,7 @@ export function reachableRewardAt(
 ): PlacedReward | null {
   if (!withinReach(actor, ref)) return null;
   const stack = getStack(map, ref.x, ref.y, ref.z);
-  if (coveredBySomething(stack, ref.stackIndex)) return null;
+  if (coveredBySomething(stack, ref.stackIndex, tilesById)) return null;
   const placed = stack[ref.stackIndex];
   if (!placed) return null;
   return resolveReward(placed, tilesById[placed.tileId]);

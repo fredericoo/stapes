@@ -33,6 +33,7 @@ import { describedNearby } from "./nearbyDescriptions";
 import { WorldLabelLayer, type WorldLabel } from "./textLabels";
 import { FrameProfiler, type FrameStats } from "./frameProfile";
 import { fallDropPx, fallFootAbs, standingFootAbs } from "./fallAnchor";
+import { slideTileMotions } from "./slideMotion";
 import { isHiddenFromCamera } from "./cameraSight";
 import { labelHeadroomPx } from "./labelHeadroom";
 import { sceneryStack } from "../game/movement";
@@ -2199,8 +2200,7 @@ export class GameRenderer {
     // Every actor, not just the viewer: a shove by someone across the room has
     // to animate here too, or their crate teleports.
     for (const actor of snap.actors) {
-      const slide = this.slideMotion(snap.map, actor);
-      if (slide) motions.push(slide);
+      motions.push(...this.slideMotions(snap.map, actor));
 
       const own = this.actorMotion(snap.map, actor);
       if (own) motions.push(own);
@@ -2284,57 +2284,17 @@ export class GameRenderer {
   }
 
   /**
-   * Motion for a pushed object still catching up to the cell it was shoved
-   * into. The push is already committed, so this is anchored at the object's
-   * real slot and drags it *back* towards the cell it left — the offset decays
-   * to zero rather than building up to the move. Same lerp the player walks
-   * with, so the object sorts against its neighbours rather than jumping.
+   * Motions for a shoved column still catching up to the cell it was pushed
+   * into. One per travelling tile. @see slideTileMotions
    */
-  private slideMotion(map: MapFile, actor: ActorSnapshot): TileMotion | null {
-    const slide = actor.slide;
-    if (!slide) return null;
-
-    const { object, from } = slide;
-    const t = actor.slideProgress;
-    // The object has left `from`, so its old surface is that stack's top now;
-    // at `object` it is in the stack, so its surface is the scenery under it.
-    const fromCenter = this.surfaceWorldCenter(from.x, from.y, from.z, map);
-    const toCenter = this.cellWorldCenter(
-      object.x,
-      object.y,
-      object.z,
+  private slideMotions(map: MapFile, actor: ActorSnapshot): TileMotion[] {
+    if (!actor.slide) return [];
+    return slideTileMotions(
       map,
-      object.stackIndex,
+      this.tilesById,
+      actor.slide,
+      actor.slideProgress,
     );
-    const visual = snapToWholePixels({
-      x: fromCenter.x + (toCenter.x - fromCenter.x) * t,
-      y: fromCenter.y + (toCenter.y - fromCenter.y) * t,
-    });
-
-    const originFoot = this.surfaceFootAbs(map, from.x, from.y, from.z);
-    const destFoot = this.standingFootAbs(map, object, object.stackIndex);
-    const foot = originFoot + (destFoot - originFoot) * t;
-    const originStackLen = getStack(map, from.x, from.y, from.z).length;
-
-    return {
-      x: object.x,
-      y: object.y,
-      z: object.z,
-      stackIndex: object.stackIndex,
-      ox: visual.x - toCenter.x,
-      oy: visual.y - toCenter.y,
-      alsoDrawAtZ: from.z < object.z ? from.z : undefined,
-      box: {
-        x: from.x + (object.x - from.x) * t,
-        y: from.y + (object.y - from.y) * t,
-        foot,
-        top: foot + this.movingTileHeight(map, object, object.stackIndex),
-        stackBias: Math.max(
-          depthStackBias(from.z, originStackLen),
-          depthStackBias(object.z, object.stackIndex),
-        ),
-      },
-    };
   }
 
   /** Height of the tile at a stack slot — the mover is not always the player. */

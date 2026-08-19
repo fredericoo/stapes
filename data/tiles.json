@@ -6053,6 +6053,7 @@
         "type": "weapon",
         "damage": 1,
         "def": 0,
+        "offhand": true,
         "spd": 40,
         "mastery": "blunt",
         "accuracy": 45,

@@ -16,6 +16,7 @@ import {
 import {
   canConsumeFrom,
   canDropAt,
+  canEquipFrom,
   canPickUpFrom,
   canPushFrom,
   canRewardFrom,
@@ -72,7 +73,12 @@ type LiveChat = ChatBubble & { elapsedMs: number };
 type RemoteMotion = {
   walk: WalkState | null;
   fall: FallState | null;
-  slide: { object: ObjectRef; from: { x: number; y: number; z: number }; elapsedMs: number } | null;
+  slide: {
+    object: ObjectRef;
+    from: { x: number; y: number; z: number };
+    count: number;
+    elapsedMs: number;
+  } | null;
   /** Last place this actor was found, so relocating them stays a cell lookup. */
   lastSeen: ActorLocation | null;
 };
@@ -650,7 +656,12 @@ export class RemoteSession implements PlaySession {
         elapsedMs: 0,
       };
     } else {
-      motion.slide = { object: event.object, from: event.from, elapsedMs: 0 };
+      motion.slide = {
+        object: event.object,
+        from: event.from,
+        count: event.count,
+        elapsedMs: 0,
+      };
     }
   }
 
@@ -1309,6 +1320,7 @@ export class RemoteSession implements PlaySession {
         this.tags,
       ) ||
       canSwitchFrom(this.map, this.tilesById, loc, ref) ||
+      canEquipFrom(this.map, this.tilesById, loc, ref, this.equipment) ||
       canPickUpFrom(this.map, this.tilesById, loc, ref, this.equipment) ||
       canPushFrom(this.map, this.tilesById, loc, ref)
     );
@@ -1345,6 +1357,28 @@ export class RemoteSession implements PlaySession {
       return false;
     }
     this.send({ type: "pickUp", ref });
+    return true;
+  }
+
+  /**
+   * Ask for the thing to be put on rather than put away.
+   *
+   * Not predicted, on the same terms a pickup is not: it changes what is in a
+   * hand, and drawing somebody holding a sword they turn out not to have is a
+   * worse lie than a moment's delay. The local check is the server's own, so a
+   * refusal costs no round trip.
+   */
+  equip(ref: ObjectRef): boolean {
+    const motion = this.motions.get(this.selfId);
+    if (!motion) return false;
+    if (motion.walk || motion.fall || motion.slide) return false;
+    if (this.pending.length > 0) return false;
+    const loc = this.locate(this.selfId, motion);
+    if (!loc) return false;
+    if (!canEquipFrom(this.map, this.tilesById, loc, ref, this.equipment)) {
+      return false;
+    }
+    this.send({ type: "equip", ref });
     return true;
   }
 

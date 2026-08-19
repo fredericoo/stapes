@@ -71,6 +71,14 @@ const tiles: TileDef[] = [
     interactions: { item: DEFAULT_WEAPON },
   }),
   tile({
+    id: "torch",
+    name: "Torch",
+    height: 0,
+    kind: "item",
+    intangible: true,
+    interactions: { item: { ...DEFAULT_WEAPON, offhand: true } },
+  }),
+  tile({
     id: "bag",
     name: "Bag",
     height: 0,
@@ -235,6 +243,13 @@ const FULL_KIT: Equipment = {
 /** Carrying nothing at all — no bag to put anything into. */
 const NO_BAG: Equipment = emptyEquipment();
 
+/** Both hands and the back already full, so only stowing is ever on offer. */
+const ARMED: Equipment = {
+  weapon: { id: "itm_held", tileId: "sword" },
+  offhand: { id: "itm_lit", tileId: "torch" },
+  bag: { id: "itm_bag", tileId: "bag", contents: [] },
+};
+
 /** Just the verbs, for tests that do not care about the rest of an entry. */
 function actionsIn(options: InteractionOption[]): string[] {
   return options.map((o) => o.action);
@@ -319,12 +334,39 @@ describe("listInteractionOptions — objects", () => {
     expect(actionsIn(targets)).toEqual(["switch"]);
   });
 
-  it("ignores an object buried under another tile", () => {
+  it("ignores a switch buried under another tile", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "door_shut", "rock"]);
+    const me = playerAt(map);
+
+    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
+  });
+
+  /**
+   * A shove reaches under, because whatever is on top comes with it — so a
+   * crate with a rock on it is still a crate you can push.
+   */
+  it("offers a push on an object with something stacked on it", () => {
     let map = field();
     map = place(map, 1, 0, ["grass", "crate", "rock"]);
     const me = playerAt(map);
 
-    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
+    const targets = listInteractionOptions(map, tilesById, me, [me], null, KIT);
+
+    expect(actionsIn(targets)).toEqual(["push"]);
+    expect(targets[0]!.ref.stackIndex).toBe(1);
+  });
+
+  /** Two crates one on the other are two crates, and either can be shoved. */
+  it("offers a push on each of two stacked objects", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "crate", "crate"]);
+    const me = playerAt(map);
+
+    const targets = listInteractionOptions(map, tilesById, me, [me], null, KIT);
+
+    expect(actionsIn(targets)).toEqual(["push", "push"]);
+    expect(targets.map((t) => t.ref.stackIndex).sort()).toEqual([1, 2]);
   });
 
   it("lists every reachable object at once", () => {
@@ -546,7 +588,7 @@ describe("listInteractionOptions — picking things up", () => {
     map = place(map, 1, 0, ["grass", "sword"]);
     const me = playerAt(map);
 
-    const options = listInteractionOptions(map, tilesById, me, [me], null, KIT);
+    const options = listInteractionOptions(map, tilesById, me, [me], null, ARMED);
 
     expect(options).toHaveLength(1);
     expect(options[0]!.action).toBe("pickUp");
@@ -565,7 +607,7 @@ describe("listInteractionOptions — picking things up", () => {
     const me = playerAt(map);
 
     expect(
-      actionsIn(listInteractionOptions(map, tilesById, me, [me], null, KIT)),
+      actionsIn(listInteractionOptions(map, tilesById, me, [me], null, ARMED)),
     ).toEqual(["pickUp"]);
   });
 
@@ -575,7 +617,7 @@ describe("listInteractionOptions — picking things up", () => {
     const me = playerAt(map);
 
     expect(
-      actionsIn(listInteractionOptions(map, tilesById, me, [me], null, KIT)),
+      actionsIn(listInteractionOptions(map, tilesById, me, [me], null, ARMED)),
     ).toEqual(["pickUp"]);
   });
 
@@ -599,24 +641,33 @@ describe("listInteractionOptions — picking things up", () => {
     );
   });
 
-  it("says nothing when the bag is full", () => {
+  it("says nothing once the bag and both hands are full", () => {
     let map = field();
     map = place(map, 1, 0, ["grass", "sword"]);
     const me = playerAt(map);
+    const noRoomAnywhere: Equipment = {
+      ...FULL_KIT,
+      weapon: { id: "w", tileId: "sword" },
+      offhand: { id: "o", tileId: "torch" },
+    };
 
     expect(
-      listInteractionOptions(map, tilesById, me, [me], null, FULL_KIT),
+      listInteractionOptions(map, tilesById, me, [me], null, noRoomAnywhere),
     ).toEqual([]);
   });
 
-  it("says nothing when there is no bag to put it in", () => {
+  /**
+   * A full bag is not the end of it: you have hands. The row still says "Pick
+   * up", because putting a thing somewhere out of the way is what it means.
+   */
+  it("reaches for a hand when the bag has no room", () => {
     let map = field();
-    map = place(map, 1, 0, ["grass", "sword"]);
+    map = place(map, 1, 0, ["grass", "cherry"]);
     const me = playerAt(map);
 
     expect(
-      listInteractionOptions(map, tilesById, me, [me], null, NO_BAG),
-    ).toEqual([]);
+      actionsIn(listInteractionOptions(map, tilesById, me, [me], null, FULL_KIT)),
+    ).toEqual(["pickUp", "consume"]);
   });
 
   /** An authored switch is an explicit intent, and wins over lifting the thing. */
@@ -643,8 +694,58 @@ describe("listInteractionOptions — picking things up", () => {
   });
 });
 
+/**
+ * Arming yourself off the floor.
+ *
+ * A verb per slot, because "Wield" and "Hold" are what you are actually
+ * choosing between — and it is the one row that works with no bag at all, which
+ * is the whole reason it exists.
+ */
+describe("listInteractionOptions — putting things on", () => {
+  const rowsFor = (tileId: string, kit: Equipment) => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", tileId]);
+    const me = playerAt(map);
+    return listInteractionOptions(map, tilesById, me, [me], null, kit);
+  };
+
+  it("names the slot the thing belongs in", () => {
+    const verbs = (tileId: string) =>
+      rowsFor(tileId, NO_BAG)
+        .filter((o) => o.action === "equip")
+        .map((o) => o.label);
+
+    expect(verbs("sword")).toEqual(["Wield"]);
+    expect(verbs("torch")).toEqual(["Hold"]);
+    expect(verbs("bag")).toEqual(["Put on"]);
+  });
+
+  /** The case this exists for: nothing carried, and a sword on the ground. */
+  it("arms somebody with no bag at all", () => {
+    expect(actionsIn(rowsFor("sword", NO_BAG))).toEqual(["equip"]);
+  });
+
+  /** Two things to want, so two rows — and the tap takes the hand. */
+  it("offers stowing beside it when there is also room in the bag", () => {
+    expect(actionsIn(rowsFor("sword", KIT))).toEqual(["equip", "pickUp"]);
+  });
+
+  it("drops the row once the slot it names is full", () => {
+    expect(actionsIn(rowsFor("sword", ARMED))).toEqual(["pickUp"]);
+    expect(actionsIn(rowsFor("torch", ARMED))).toEqual(["pickUp"]);
+  });
+
+  /**
+   * A consumable belongs nowhere in particular, so nothing offers to put it on.
+   * A hand will still take one — that is the pick-up row's business, not this.
+   */
+  it("has no equip row for a consumable", () => {
+    expect(actionsIn(rowsFor("cherry", NO_BAG))).not.toContain("equip");
+  });
+});
+
 describe("listInteractionOptions — bags on the floor", () => {
-  it("offers a bag as two rows, pick up before open", () => {
+  it("offers a bag as two rows, putting it on before open", () => {
     let map = field();
     map = place(map, 1, 0, ["grass", "bag"]);
     const me = playerAt(map);
@@ -659,9 +760,10 @@ describe("listInteractionOptions — bags on the floor", () => {
       NO_BAG,
     );
 
-    // Taking it comes first. The only time both are offered is when your back
+    // Wearing it comes first. The only time both are offered is when your back
     // is bare, which is exactly when you want the bag itself.
-    expect(actionsIn(options)).toEqual(["pickUp", "open"]);
+    expect(actionsIn(options)).toEqual(["equip", "open"]);
+    expect(options[0]!.label).toBe("Put on");
     expect(options.every((o) => o.name === "Bag")).toBe(true);
   });
 
@@ -671,14 +773,19 @@ describe("listInteractionOptions — bags on the floor", () => {
    * a bag with room inside it changes nothing, because a bag is not something
    * that goes *in* a bag.
    */
-  it("offers only open for a bag when one is already worn", () => {
+  /**
+   * With a pack already on your back the second one can only be carried, and a
+   * hand will do that — which is a choice rather than a rule. Opening still
+   * comes first, since looking inside is the more interesting of the two.
+   */
+  it("offers open before taking a bag in hand when one is already worn", () => {
     let map = field();
     map = place(map, 1, 0, ["grass", "bag"]);
     const me = playerAt(map);
 
     expect(
       actionsIn(listInteractionOptions(map, tilesById, me, [me], null, KIT)),
-    ).toEqual(["open"]);
+    ).toEqual(["open", "pickUp"]);
   });
 
   it("never offers to pick up a chest, however much room there is", () => {
@@ -707,7 +814,7 @@ describe("listInteractionOptions — bags on the floor", () => {
     const me = playerAt(map);
 
     expect(
-      actionsIn(listInteractionOptions(map, tilesById, me, [me], null, KIT)),
+      actionsIn(listInteractionOptions(map, tilesById, me, [me], null, ARMED)),
     ).toEqual(["pickUp"]);
   });
 });
@@ -749,15 +856,20 @@ describe("listInteractionOptions — consumables on the floor", () => {
     expect(eat?.label).toBe("Use");
   });
 
-  // A full bag refuses the pickup and not the meal — eating it off the ground
-  // is exactly what a player with no room left wants to do with a cherry.
-  it("still offers the meal when the bag is full", () => {
+  // The meal survives having nowhere at all to put the thing — eating it off
+  // the ground is exactly what a player with no room left wants to do.
+  it("offers the meal when there is nowhere left to put it", () => {
     let map = field();
     map = place(map, 1, 0, ["grass", "cherry"]);
     const me = playerAt(map);
+    const laden: Equipment = {
+      ...FULL_KIT,
+      weapon: { id: "w", tileId: "sword" },
+      offhand: { id: "o", tileId: "torch" },
+    };
 
     expect(
-      actionsIn(listInteractionOptions(map, tilesById, me, [me], null, FULL_KIT)),
+      actionsIn(listInteractionOptions(map, tilesById, me, [me], null, laden)),
     ).toEqual(["consume"]);
   });
 
@@ -813,7 +925,7 @@ describe("listInteractionOptions — standing on things", () => {
     const map = withBodyOver(field(), 0, 0, ["grass", "sword"], "me");
     const me = actor("me", "player", 0, 0, map);
 
-    const options = listInteractionOptions(map, tilesById, me, [me], null, KIT);
+    const options = listInteractionOptions(map, tilesById, me, [me], null, ARMED);
 
     expect(actionsIn(options)).toEqual(["pickUp"]);
     expect(options[0]!.ref).toEqual({ x: 0, y: 0, z: 0, stackIndex: 1 });
@@ -852,7 +964,7 @@ describe("listInteractionOptions — standing on things", () => {
       me,
       [me, them],
       null,
-      KIT,
+      ARMED,
     );
 
     expect(actionsIn(options).sort()).toEqual(["pickUp", "push", "target"]);
@@ -931,17 +1043,29 @@ describe("topInteractionAt", () => {
     return listInteractionOptions(map, tilesById, me, [me], null, kit);
   }
 
-  it("takes pick up over open on a bag, when there is a back to put it on", () => {
+  it("takes putting it on over open on a bag, when the back is bare", () => {
     let map = field();
     map = place(map, 1, 0, ["grass", "bag"]);
     const ref = { x: 1, y: 0, z: 0, stackIndex: 1 };
 
     const top = topInteractionAt(optionsAround(map, NO_BAG), ref);
-    expect(top?.action).toBe("pickUp");
+    expect(top?.action).toBe("equip");
+  });
+
+  /** An empty hand is the strongest thing you can say about a sword. */
+  it("takes the hand over the bag on a sword", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "sword"]);
+    const ref = { x: 1, y: 0, z: 0, stackIndex: 1 };
+
+    expect(topInteractionAt(optionsAround(map, KIT), ref)?.action).toBe("equip");
+    expect(topInteractionAt(optionsAround(map, ARMED), ref)?.action).toBe(
+      "pickUp",
+    );
   });
 
   // The other half of the same rule, and the reason the order is easy: wearing
-  // a bag takes pick-up off the table entirely, so the row that is left is the
+  // a bag takes "Put on" off the table entirely, so the row that is left is the
   // one that was always going to be wanted.
   it("takes open on a bag once one is already worn", () => {
     let map = field();
@@ -994,7 +1118,7 @@ describe("topInteractionAt", () => {
     map = place(map, 1, 0, ["grass", "crate"]);
     map = place(map, 0, 1, ["grass", "sword"]);
 
-    const top = topInteractionAt(optionsAround(map), {
+    const top = topInteractionAt(optionsAround(map, ARMED), {
       x: 0,
       y: 1,
       z: 0,

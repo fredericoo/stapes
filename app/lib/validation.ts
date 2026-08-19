@@ -118,7 +118,34 @@ export function fitsAtElevation(
   tileDef: TileDef,
   tilesById: Record<string, TileDef>,
 ): PlaceResult {
-  const headAbs = feetAbs + physicalHeight(tileDef);
+  return fitsHeightAtElevation(
+    map,
+    x,
+    y,
+    feetAbs,
+    physicalHeight(tileDef),
+    tilesById,
+  );
+}
+
+/**
+ * {@link fitsAtElevation} for a volume rather than a tile.
+ *
+ * A shoved crate with something sitting on it travels as one rigid column, and
+ * the question the destination has to answer is whether *all* of it clears —
+ * asking tile by tile would let a two-high pair through a one-high gap because
+ * neither half of it is too tall on its own. Nothing about the check depends on
+ * which tiles make up the height, so the height is all it takes.
+ */
+export function fitsHeightAtElevation(
+  map: MapFile,
+  x: number,
+  y: number,
+  feetAbs: number,
+  height: number,
+  tilesById: Record<string, TileDef>,
+): PlaceResult {
+  const headAbs = feetAbs + height;
   const maxAbs = (MAX_LEVEL + 1) * HEIGHT_PER_LEVEL + HEIGHT_PER_LEVEL;
   if (feetAbs < MIN_LEVEL * HEIGHT_PER_LEVEL || headAbs > maxAbs) {
     return { ok: false, reason: "Out of vertical range" };

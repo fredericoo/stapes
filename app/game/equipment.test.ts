@@ -17,7 +17,7 @@ import {
   carriedLightTileIds,
   effectiveBattler,
   emptyEquipment,
-  offhandAccepts,
+  handAccepts,
   offhandDefence,
   restoredEquipment,
   startingEquipment,
@@ -317,10 +317,19 @@ describe("restoredEquipment", () => {
     expect(restored.weapon).toBeNull();
   });
 
-  it("drops a weapon whose tile is no longer a weapon", () => {
+  /** A hand takes anything you can carry, so a pack in one survives a reload. */
+  it("keeps a pack held in a hand", () => {
+    const held = { id: "itm_w", tileId: "bag" };
     const restored = restoredEquipment(
-      { weapon: { id: "itm_w", tileId: "bag" }, offhand: null,
-  bag: null },
+      { weapon: held, offhand: null, bag: null },
+      tiles,
+    );
+    expect(restored.weapon).toEqual(held);
+  });
+
+  it("drops a chest held in a hand, since no hand may carry one", () => {
+    const restored = restoredEquipment(
+      { weapon: { id: "itm_w", tileId: "chest" }, offhand: null, bag: null },
       tiles,
     );
     expect(restored.weapon).toBeNull();
@@ -455,15 +464,17 @@ describe("the off hand", () => {
     bag: null,
   });
 
-  it("takes anything that is not a container", () => {
-    expect(offhandAccepts(shipped["hand-lantern"]!)).toBe(true);
-    expect(offhandAccepts(shipped["rusty-sword"]!)).toBe(true);
-    expect(offhandAccepts(shipped["berry"]!)).toBe(true);
-    // A bag has a slot of its own, and a pack in a hand in a pack is the
-    // nesting nothing here allows.
-    expect(offhandAccepts(shipped["basic-bag"]!)).toBe(false);
+  it("takes anything you could carry, a pack included", () => {
+    expect(handAccepts(shipped["hand-lantern"]!)).toBe(true);
+    expect(handAccepts(shipped["rusty-sword"]!)).toBe(true);
+    expect(handAccepts(shipped["berry"]!)).toBe(true);
+    // Your choice, and the game has no business refusing it.
+    expect(handAccepts(shipped["basic-bag"]!)).toBe(true);
+    // The one refusal: `equippable: false` is an author saying this is a chest,
+    // opened where it lies and never carried.
+    expect(handAccepts(shipped["crate-chest"]!)).toBe(false);
     // Not an item at all.
-    expect(offhandAccepts(shipped["grass"]!)).toBe(false);
+    expect(handAccepts(shipped["grass"]!)).toBe(false);
   });
 
   /**

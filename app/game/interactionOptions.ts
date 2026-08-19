@@ -1,8 +1,13 @@
 import { getStack } from "../lib/mapData";
 import type { InteractionKind } from "../lib/interactions";
 import { resolveRewardDef, resolveSwitch } from "../lib/interactions";
-import { consumeVerb, resolveConsumable } from "../lib/item";
-import type { MapFile, PlacedTile, TileDef } from "../lib/types";
+import {
+  consumeVerb,
+  EQUIP_FALLBACK_VERB,
+  equipVerb,
+  resolveConsumable,
+} from "../lib/item";
+import type { MapFile, TileDef } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 import {
   canConsumeFrom,
@@ -11,7 +16,10 @@ import {
   canPushFrom,
   canRewardFrom,
   canSwitchFrom,
+  equipSlotFrom,
   INTERACT_LEVEL_SLACK,
+  pickUpDestination,
+  type EquipSlot,
   type ObjectRef,
 } from "./affordances";
 import { bodyNameFor } from "./displayName";
@@ -50,7 +58,20 @@ import type { ActorSnapshot, PlaySession } from "./GameSession";
  * is the point: you choose who you are interested in once, and change your mind
  * about what to do with them without having to choose again.
  */
-export type InteractionAction = InteractionKind | "target" | "open" | "consume";
+export type InteractionAction =
+  | InteractionKind
+  | "target"
+  | "open"
+  | "consume"
+  /**
+   * Putting a thing on where it lies — into a hand, or onto your back.
+   *
+   * One action rather than three, because a thing has one slot it belongs in
+   * (`equipSlotOf`) and the row is named after that slot: "Wield" a sword,
+   * "Hold" a torch, "Put on" a pack. Three actions would be three ranks to keep
+   * ordered against each other for a choice nothing can ever present twice.
+   */
+  | "equip";
 
 export type InteractionOption = {
   /** Identity across frames, so the list can be diffed rather than compared. */
@@ -98,6 +119,9 @@ const LABELS: Record<InteractionAction, string> = {
   target: "Target",
   open: "Open",
   pickUp: "Pick up",
+  // Only the fallback: an equip row is named for the *thing*, not for the slot
+  // it fills. See `equipVerb`.
+  equip: EQUIP_FALLBACK_VERB,
   push: "Push",
   switch: "Switch",
   // The fallback only — a consumable's row is named by its author ("Eat",
@@ -148,21 +172,25 @@ const ACTION_ORDER: Record<InteractionAction, number> = {
   // the contents of, and rummaging in it is the lesser reading of the same tap.
   reward: 1,
   switch: 2,
-  // Above open, and the two are almost never both on offer anyway — which is
-  // what makes the order easy. A bag is only pick-up-able when your back is
-  // bare, and a bare back is exactly when you want the bag rather than a look
-  // inside it; the moment you are wearing one, pick-up stops being offered at
-  // all and open is the only thing left. A chest is never picked up, so it opens
-  // either way. The pair therefore reads: take it if you can, otherwise look in
-  // it.
-  pickUp: 3,
+  // Above pick-up, and this is the one that decides what a plain tap on a sword
+  // does. An empty hand is the strongest thing a player can be saying about what
+  // they want done with a weapon on the floor, and stowing it afterwards is one
+  // drag; the reverse — fishing a sword back out of a bag you did not mean it to
+  // go into — is the annoying direction. It only ever appears when the slot is
+  // free, so it cannot take a tap away from anybody who is already armed.
+  equip: 3,
+  // Above pick-up, and only ever up against it on a container: a pack you are
+  // already wearing the twin of can be taken into a hand now, and a tap that
+  // picked it up rather than looking inside would be answering the less
+  // interesting of the two questions. Nothing else in the game is both.
   open: 4,
+  pickUp: 5,
   // Below pick-up on purpose, and pick-up is what a plain tap on the tile runs:
   // eating destroys the thing where lifting it is reversible, so the row you
   // have to *find* is the destructive one and the gesture you can fire by
   // accident is the safe one.
-  consume: 5,
-  push: 6,
+  consume: 6,
+  push: 7,
 };
 
 /**
@@ -275,6 +303,13 @@ export function applyInteraction(
     session.pickUp(option.ref);
     return;
   }
+  // Named for the same reason, and more sharply: `interact` would try this
+  // first anyway, but a row saying "Wield" has to wield rather than run
+  // whatever the precedence currently happens to put in front.
+  if (option.action === "equip") {
+    session.equip(option.ref);
+    return;
+  }
   // Named for the same reason pick-up is: the row says "Eat", and `interact`'s
   // precedence would have the tap lift the thing into a bag instead.
   if (option.action === "consume") {
@@ -285,21 +320,6 @@ export function applyInteraction(
   // before handing anything to the session. See `GameViewport`.
   if (option.action === "open") return;
   session.interact(option.ref);
-}
-
-/**
- * Where the top *thing* is in a stack, or -1 for a stack of nothing but bodies.
- *
- * The counterpart of `affordances`' own cover rule, and it has to agree with it:
- * a cell whose rows were built from a slot that module considers buried would
- * offer actions every one of which is refused, and a cell it can reach into but
- * this one never looks at would offer none at all.
- */
-function topmostThingIn(stack: readonly PlacedTile[]): number {
-  for (let i = stack.length - 1; i >= 0; i--) {
-    if (!stack[i]?.owner) return i;
-  }
-  return -1;
 }
 
 function refKey(ref: ObjectRef): string {
@@ -381,7 +401,15 @@ function objectOptions(
       const y = self.y + dy;
 
       for (let z = zMin; z <= zMax; z++) {
-        for (const stackIndex of actionableSlotsIn(getStack(map, x, y, z))) {
+        // Every slot, and the affordances decide. Which of them a cell actually
+        // offers is `./affordances`' question and it has three different
+        // answers — a flat thing does not bury what is under it, a body buries
+        // nothing at all, and a shove reaches under anything because the column
+        // rides with it — so restating any of them here would be a second
+        // opinion that can disagree. A stack is a handful of tiles and this is
+        // nine cells across three floors; nothing here sweeps the map.
+        const stack = getStack(map, x, y, z);
+        for (let stackIndex = 0; stackIndex < stack.length; stackIndex++) {
           out.push(
             ...slotOptions(
               map,
@@ -400,32 +428,6 @@ function objectOptions(
   }
 
   return out;
-}
-
-/**
- * Which slots of one cell are worth asking about — at most two.
- *
- * The top of the stack, which is what a tap acts on, and *underneath a body*
- * the topmost thing that is not one. A body is not a lid: standing on a sword
- * does not bury it, and a chest with somebody on it is a chest you can still
- * open. The cell this matters most in is the actor's own, which the round reach
- * takes in on purpose and which their own body would otherwise cover
- * completely.
- *
- * Both, rather than one or the other, because a body can be a subject in its own
- * right — the `player` tile is shovable — so looking only underneath would take
- * away the shove, and looking only on top is the bug this fixes.
- *
- * Deliberately not the whole stack. Reaching under a body is reaching past
- * something soft; reaching under a crate is not, and a cell of four things does
- * not offer four rows.
- */
-function actionableSlotsIn(stack: readonly PlacedTile[]): number[] {
-  const top = stack.length - 1;
-  if (top < 0) return [];
-  if (!stack[top]?.owner) return [top];
-  const covered = topmostThingIn(stack);
-  return covered < 0 ? [top] : [top, covered];
 }
 
 /** Every row one slot of one cell offers. */
@@ -471,8 +473,16 @@ function slotOptions(
 
   // The one thing a tap would run, named by what it would actually be — the
   // precedence is read out of the session's own order rather than restated here.
-  const action = objectAction(map, tilesById, self, ref, equipment, tags);
+  const equipSlot = equipSlotFrom(map, tilesById, self, ref, equipment);
+  const stow = pickUpDestination(map, tilesById, self, ref, equipment) != null;
+  const action = objectAction(map, tilesById, self, ref, equipment, tags, equipSlot);
   if (action) add(action, objectActionLabel(action, tilesById[placed.tileId]));
+
+  // Beside a tap that would arm you, the row that merely puts the thing away:
+  // "Wield" and "Pick up" are different things to want. They can never mean the
+  // same slot — `pickUpDestination` reaches for a hand only once the equip row
+  // has none to offer — so neither row has to ask about the other.
+  if (action === "equip" && stow) add("pickUp", LABELS.pickUp);
 
   // And, beside it, opening — which is not something a tap runs at all. A bag on
   // the floor is therefore two rows, "Open" and "Pick up", which is the same
@@ -507,9 +517,11 @@ function objectAction(
   ref: ObjectRef,
   equipment: Equipment,
   tags: readonly string[],
-): InteractionKind | null {
+  equipSlot: EquipSlot | null,
+): InteractionAction | null {
   if (canRewardFrom(map, tilesById, self, ref, equipment, tags)) return "reward";
   if (canSwitchFrom(map, tilesById, self, ref)) return "switch";
+  if (equipSlot) return "equip";
   if (canPickUpFrom(map, tilesById, self, ref, equipment)) return "pickUp";
   if (canPushFrom(map, tilesById, self, ref)) return "push";
   return null;
@@ -522,10 +534,14 @@ function objectAction(
  * because only they know whether it is a box or a person.
  */
 function objectActionLabel(
-  action: InteractionKind,
+  action: InteractionAction,
   def: TileDef | undefined,
 ): string {
   if (!def) return LABELS[action];
+  // Named for the thing rather than for the square it lands in — see
+  // `equipVerb`. Both hands take anything now, so a verb read off the slot
+  // would have to call putting a pack in your fist "wielding" it.
+  if (action === "equip") return equipVerb(def);
   if (action === "switch") {
     return resolveSwitch(def)?.actionName?.trim() || LABELS.switch;
   }

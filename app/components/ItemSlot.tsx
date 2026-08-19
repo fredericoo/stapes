@@ -1,7 +1,7 @@
-import { useCallback, useState } from "react";
+import { useCallback, useState, type ComponentType } from "react";
 import { slotKey, type SlotRef } from "../game/itemMoves";
 import { itemUseFor } from "../game/itemUse";
-import { consumeVerb, resolveConsumable } from "../lib/item";
+import { consumeVerb, equipVerb, resolveConsumable } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { MasteryXp } from "../lib/mastery";
 import type { TileDef, TilesetDef } from "../lib/types";
@@ -45,6 +45,11 @@ export const ITEM_SLOT_SIZE_PX = 44;
 
 const SPRITE_SIZE_PX = 32;
 
+/** Smaller than a sprite, so a hint never reads as the thing itself. */
+const EMPTY_ICON_SIZE_PX = 20;
+
+const EMPTY_ICON_STROKE = 1.5;
+
 /**
  * What a press on this would do, in a sentence.
  *
@@ -71,9 +76,12 @@ function pressHintFor(
     const verb = consumable ? consumeVerb(consumable) : null;
     return verb ? `Press to ${verb.toLocaleLowerCase()} it.` : null;
   }
-  return use.to.kind === "weapon"
-    ? "Press to wield it."
-    : "Press to put it away.";
+  // Named after the thing rather than after the square, on the same terms the
+  // world's row is — see `equipVerb`. "Press to wield it" over a backpack is
+  // what reading the destination instead used to produce.
+  if (use.to.kind === "contents") return "Press to put it away.";
+  const def = tilesById[instance.tileId];
+  return def ? `Press to ${equipVerb(def).toLocaleLowerCase()} it.` : null;
 }
 
 export function ItemSlot({
@@ -83,6 +91,7 @@ export function ItemSlot({
   tilesets,
   label,
   emptyHint,
+  emptyIcon: EmptyIcon,
   open,
   drag,
   inspecting = false,
@@ -101,6 +110,18 @@ export function ItemSlot({
   label: string;
   /** Shown in the tooltip of an empty slot — what belongs here. */
   emptyHint?: string;
+  /**
+   * Drawn faintly in this square while it is empty — a hand, a pack.
+   *
+   * **Only the slots on a body have one.** A square inside a bag is a square:
+   * anything goes in it, so an icon there would be picturing nothing. The three
+   * on your kit are each *for* something, and an empty one saying so is the
+   * difference between a panel you have to learn and one you can read.
+   *
+   * A component rather than a name, so nothing here has to hold a table of
+   * icons: the panel that knows what its slots are is the panel that names them.
+   */
+  emptyIcon?: ComponentType<{ size?: number; stroke?: number; className?: string }>;
   /**
    * This thing is currently open, and the panel showing its insides is on
    * screen.
@@ -284,6 +305,14 @@ export function ItemSlot({
           still
           chrome={false}
           background={null}
+        />
+      ) : EmptyIcon ? (
+        // Faint enough to read as a hint rather than as contents: the square is
+        // empty, and an icon at full strength would be something in it.
+        <EmptyIcon
+          size={EMPTY_ICON_SIZE_PX}
+          stroke={EMPTY_ICON_STROKE}
+          className="text-paper/25"
         />
       ) : null}
       {showTooltip ? <SlotTooltip lines={inspectLines} /> : null}

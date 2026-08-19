@@ -648,6 +648,28 @@ describe("replacing the world", () => {
   });
 
   /**
+   * The other message that crosses the line into a kit, and the one that works
+   * with no bag at all: a sword goes into the hand rather than into a pocket.
+   */
+  it("arms a player from the floor when they ask to equip", async () => {
+    const withSword = authoredMap();
+    withSword.levels["0"]!["1,0"] = [
+      { tileId: "grass" },
+      { tileId: "rusty-sword" },
+    ];
+    await env.DATA.put("map.json", JSON.stringify(withSword));
+
+    const alice = await connect("alice");
+    send(alice.ws, { type: "equip", ref: { x: 1, y: 0, z: 0, stackIndex: 1 } });
+    const armed = (await equipmentWithin(alice.ws))!;
+
+    const equipment = armed.equipment as { weapon: { tileId: string } | null };
+    expect(equipment.weapon?.tileId).toBe("rusty-sword");
+    // Into the hand and nowhere else — the bag is untouched.
+    expect(contentsOf(armed)).toEqual([]);
+  });
+
+  /**
    * The other half of the same rule, and the reason this is not simply "keep
    * everything": the floor is the map's to decide. An authored sword comes back
    * when the map does, whoever happens to be holding one.

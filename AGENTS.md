@@ -172,13 +172,95 @@ of the session because both ends of the wire ask: the server to validate an
 interaction, the client to decide whether to draw one under the cursor. Same
 rules on both sides means the client cannot offer something the server refuses.
 
+**What buries a thing is volume, and only volume** (`isLid`). A cell can hold
+several things and being under one of them is not, on its own, being out of
+reach: a sword lying across another sword hides nothing, and neither does a body
+standing on either of them. `physicalHeight > 0` and nobody in it — a crate — is
+the whole of the rule, which is the same line the stacking model already draws
+between things that take up room and things that merely rest somewhere. Two
+swords in one cell are therefore two things you can pick up, and the list offers
+both; before this only the top of a stack was reachable, and the lower sword
+could not be got at at all.
+
+**A shove is the one action that reaches under a lid**, because nothing is left
+behind: `pushedColumn` is the object plus everything stacked on it, the group
+travels as one rigid volume (`fitsHeightAtElevation`, `moveColumn`), and the
+destination is asked for the column's height rather than the crate's. A stack of
+two boxes is two boxes you can push, and shoving the lower one takes the upper
+one with it. The exception is a **body riding on top**, which refuses the shove:
+somebody standing on a crate has their own motion and their own idea of where
+they are walking to, and `commitWalk` would land that step from a cell they are
+no longer standing in. A body is not a lid, but it is not cargo either.
+
+**Where a thing belongs and where it will *go* are two questions**, and keeping
+them apart is what makes the kit both permissive and legible.
+
+- `handAccepts` answers the second, and answers it generously: **a hand takes
+  anything you can carry**, a pack included. If you would rather hold a second
+  backpack than a shield, the game has no business refusing you. The one refusal
+  is `equippable: false` — an author saying "this is a chest, opened where it
+  lies" — and the inside of a bag, where nesting still bites.
+- `equipSlotOf` answers the first, from the tile alone: a weapon goes in the hand
+  you swing with, a `WeaponItem.offhand` thing (a torch, a shield) in the other,
+  an equippable container on your back. It is what happens when nobody has said.
+  A drag is somebody saying, so `slotAccepts` stays the looser of the two.
+
+`WeaponItem.offhand` is the exact counterpart of `ContainerItem.equippable`:
+nothing about a tile says which hand it is for, since a torch and a sword are
+both `weapon` blocks here (light and defence both ride on one), so the author
+says it. It used to be guessed from whether the tile gave off light; `itemUseFor`
+asked that question too, and now both read the flag.
+
+**Putting a thing on is not picking it up.** `equipSlotFrom` offers the natural
+slot only while it is *empty* — equipping never displaces what you are holding,
+because a swap is two deliberate acts and a tap that quietly put your sword on
+the floor is something you notice a fight later. It is the row that works with
+**no bag at all**, which is the whole reason it is a verb of its own: before it,
+an unequipped player standing over a sword could do nothing with it. It outranks
+`pickUp`, so a plain tap arms you while the slot is free.
+
+**A pack in a hand is a pack you can open**, which is what makes a hand a real
+place to keep one rather than a shelf. `SlotRef`'s `contents` arm gained an
+optional `of` — absent still means the bag on your back — so a position inside a
+container is one arm and one capacity check however many containers a body is
+carrying. `ContainerRef` gained the matching `hand` case, and `GameViewport`
+holds which hand is open beside `bagOpen`, dropping it the moment that hand is
+emptied. `carriedInstances` walks every slot's contents for the same reason: a
+thing it misses is a thing the id-minting pass never reaches.
+
+**The verb is read off the item, never off the slot** (`equipVerb`): you wield a
+sword, you hold a torch, you put on a pack. Since both hands take anything, a
+verb named after the square would have to call a backpack in your fist
+"wielding" it. `ItemSlot`'s press hint uses the same function, so the panel and
+the world say one word.
+
+**A pickup reaches for a hand last.** `pickUpDestination` is the bag, then — only
+once the bag is out of room *and* the thing has no free slot of its own — the off
+hand, then the weapon hand. The spare hand first, because what you swing with is
+the slot with consequences. The "no free slot of its own" clause is what stops
+"Wield" and "Pick up" appearing side by side meaning one hand, and it means
+neither row has to ask about the other. `open` outranks `pickUp` for the one tile
+kind that is both: a second pack can be carried in a fist now, and a tap that
+took it rather than looking inside would answer the duller question.
+
+**A box catches what you throw at it.** `dropDestinationAt` answers with a slot
+rather than a boolean: aimed at a container with room, a dropped item goes
+*inside* it (through `stashInContainer`, the same write a move into that slot
+makes); aimed at a full one, or carrying a container of its own, it lands on top.
+Nothing is refused for being aimed at a full chest. That path adds no placement
+to the board, so it settles nothing — the reasoning `moveItem` skips its settle
+under.
+
 `./interactionOptions` is the third caller, asking the same questions in the
 plural: everything actionable right now, rather than the one thing under the
 pointer. It is what the list beside the game is drawn from, and it exists
 because a thumb has no hover — before it, an affordance was invisible until it
 was already being used. Two things keep it cheap. It is **bounded by
-construction** — four neighbouring cells across three floors, plus the actors
-the snapshot already holds — so it never sweeps. And `GameRenderer` gates it
+construction** — every slot of the nine cells around the actor across three
+floors, plus the actors the snapshot already holds — so it never sweeps. Every
+slot rather than a chosen few, because which of them a cell offers has three
+different answers now and restating any of them beside the affordances would be
+a second opinion that can disagree. And `GameRenderer` gates it
 twice before it reaches React: once on map identity plus the viewer's cell and
 target, which makes standing still free, and once on the resulting list's
 contents, because the map takes a new identity on every commit anywhere in the

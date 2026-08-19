@@ -36,17 +36,20 @@ import {
 } from "./actors";
 import {
   canConsumeFrom,
-  canDropAt,
+  canEquipFrom,
+  dropDestinationAt,
   canPickUpFrom,
+  pickUpDestination,
   canPushFrom,
   canRewardFrom,
   canSwitchFrom,
-  pickUpDestination,
+  equipSlotFrom,
   interactiveDefAt,
   reachableRewardAt,
   rewardFits,
   pushDirectionFrom,
   pushTargetFrom,
+  type DropDestination,
   type ObjectRef,
 } from "./affordances";
 import { findEntryCell } from "./entry";
@@ -97,12 +100,14 @@ import {
   DEFENSIVE_RECOVERY_MS,
 } from "./experience";
 import { mintItemIds } from "./itemIds";
+import { pushedColumn } from "./push";
 import { isSpawnFilled, type SpawnPoint } from "./respawn";
 import {
   applyItemMove,
   canMoveItem,
   clearSlot,
   itemInSlot,
+  stashInContainer,
   type SlotRef,
 } from "./itemMoves";
 import type { ItemInstance } from "../lib/itemInstance";
@@ -121,6 +126,7 @@ import {
   settleGravity,
 } from "./gravity";
 import {
+  moveColumn,
   moveEntity,
   placeEntityOnSurface,
   removeEntity,
@@ -210,9 +216,23 @@ export type GameInput = {
  * is the same discipline, learned late.
  */
 export type SlideSnapshot = {
-  /** The object at its committed cell — the move is already in the map. */
+  /**
+   * The lowest of the shoved placements, at its committed cell — the move is
+   * already in the map.
+   */
   object: ObjectRef;
   from: Coord;
+  /**
+   * How many placements are travelling, {@link object} included.
+   *
+   * A shove takes the column above the object with it, and the riders sit
+   * directly on top of it at the destination — so the whole group is
+   * `object.stackIndex` through `object.stackIndex + count - 1`, and a count is
+   * all it takes to name them. Sent rather than re-derived because the client
+   * cannot tell which of the tiles now stacked at that cell arrived with this
+   * shove and which were already there.
+   */
+  count: number;
 };
 
 /**
@@ -587,7 +607,7 @@ export interface PlaySession {
   canInteract(ref: ObjectRef): boolean;
   interact(ref: ObjectRef): boolean;
   /**
-   * Take the thing at this slot into your kit.
+   * Take the thing at this slot — into your bag, or into a free hand.
    *
    * On the interface rather than left to {@link interact}, because the list
    * offers pick-up as its own row and a row that named one action and ran
@@ -595,6 +615,14 @@ export interface PlaySession {
    * does.
    */
   pickUp(ref: ObjectRef): boolean;
+  /**
+   * Put the thing at this slot on — into the hand or the back it belongs in.
+   *
+   * A separate verb from {@link pickUp} rather than a destination inside it,
+   * because the list says "Wield" and means it. It is also the row that works
+   * with no bag at all.
+   */
+  equip(ref: ObjectRef): boolean;
   /**
    * Eat or drink a consumable, from a slot in your kit or off the floor.
    *
@@ -635,9 +663,11 @@ export interface PlaySession {
  * map, where every collision check is looking.
  */
 type SlideState = {
-  /** The object at its new home. */
+  /** The lowest of the shoved placements, at its new home. */
   object: ObjectRef;
   from: Coord;
+  /** How many placements travelled. @see SlideSnapshot.count */
+  count: number;
   elapsedMs: number;
 };
 
@@ -2840,11 +2870,20 @@ export class GameSession implements PlaySession {
     );
 
     const from = { x: ref.x, y: ref.y, z: ref.z };
-    this.map = moveEntity(this.map, ref, to, undefined, this.tilesById);
+    // Whatever is stacked on the shoved object rides with it, in one write —
+    // see `moveColumn`, and `pushDestination` for the room the column needs.
+    const count = pushedColumn(this.map, ref).length;
+    const landed = getStack(this.map, to.x, to.y, to.z).length;
+    this.map = moveColumn(this.map, ref, count, to, undefined);
 
-    // moveEntity appends, so the object is the top of the destination stack.
-    const stackIndex = getStack(this.map, to.x, to.y, to.z).length - 1;
-    actor.slide = { object: { ...to, stackIndex }, from, elapsedMs: 0 };
+    // A column lands on top of the destination stack, in order, so the object
+    // the player named is the lowest of the `count` slots that just appeared.
+    actor.slide = {
+      object: { ...to, stackIndex: landed },
+      from,
+      count,
+      elapsedMs: 0,
+    };
     // The object itself may be a plate, so both ends of the shove are suspect.
     this.reindexCells([from, to]);
     return true;
@@ -2863,11 +2902,11 @@ export class GameSession implements PlaySession {
   }
 
   /**
-   * Take the thing off the board and into this actor's kit.
+   * Take the thing off the board and put it away — in the bag, or failing that
+   * in a free hand. @see pickUpDestination
    *
    * The placement becomes an instance and the map loses it, which is the whole
-   * operation — a container comes up with its `contents` intact because those
-   * ride on the placement, so nothing here has to know a bag from a sword.
+   * operation — see {@link takeFromBoard}.
    *
    * Returns false when the pickup is illegal, on the same terms a blocked push
    * does: a refusal is a no-op, not an error state.
@@ -2876,41 +2915,100 @@ export class GameSession implements PlaySession {
     const actor = this.actor(id);
     if (!this.idle(actor)) return false;
 
-    const loc = this.locate(actor);
     const destination = pickUpDestination(
       this.map,
       this.tilesById,
-      loc,
+      this.locate(actor),
       ref,
       actor.equipment,
     );
     if (!destination) return false;
 
-    const placed = getStack(this.map, ref.x, ref.y, ref.z)[ref.stackIndex];
-    const instance = placed && instanceFromPlacement(placed);
-    // An item with no identity means something skipped the minting pass. Better
-    // a pickup that does nothing than one that puts an anonymous thing in a bag
-    // and loses track of it forever.
+    const bag = actor.equipment.bag;
+    if (destination.kind === "contents" && !bag) return false;
+
+    const instance = this.takeFromBoard(ref);
     if (!instance) return false;
 
     this.setEquipment(
       actor,
-      destination === "bag-slot"
-        ? { ...actor.equipment, bag: instance }
-        : {
+      destination.kind === "contents"
+        ? {
             ...actor.equipment,
-            bag: {
-              ...actor.equipment.bag!,
-              contents: [...(actor.equipment.bag!.contents ?? []), instance],
-            },
-          },
+            bag: { ...bag!, contents: [...(bag!.contents ?? []), instance] },
+          }
+        : { ...actor.equipment, [destination.slot]: instance },
     );
+    return true;
+  }
+
+  canEquip(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
+    const actor = this.actor(id);
+    if (!this.idle(actor)) return false;
+    return canEquipFrom(
+      this.map,
+      this.tilesById,
+      this.locate(actor),
+      ref,
+      actor.equipment,
+    );
+  }
+
+  /**
+   * Put the thing on, straight off the floor.
+   *
+   * The same trip a pickup makes and a different destination: a sword goes into
+   * the hand rather than into a bag, which is what lets somebody carrying
+   * nothing at all arm themselves. Which slot is the tile's own answer — see
+   * `equipSlotOf` — and it has to be empty, so this never puts down what you are
+   * already holding.
+   *
+   * Returns false when the equip is illegal, on the same terms a pickup does.
+   */
+  equip(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
+    const actor = this.actor(id);
+    if (!this.idle(actor)) return false;
+
+    const slot = equipSlotFrom(
+      this.map,
+      this.tilesById,
+      this.locate(actor),
+      ref,
+      actor.equipment,
+    );
+    if (!slot) return false;
+
+    const instance = this.takeFromBoard(ref);
+    if (!instance) return false;
+
+    this.setEquipment(actor, { ...actor.equipment, [slot]: instance });
+    return true;
+  }
+
+  /**
+   * Lift a placement off the board and hand back what it became.
+   *
+   * The one crossing of the line for anything entering a kit, shared by
+   * {@link pickUp} and {@link equip} because it is the same trip whichever slot
+   * the thing is headed for: a container comes up with its `contents` intact
+   * because those ride on the placement, so nothing here has to know a bag from
+   * a sword.
+   *
+   * Null when there is nothing there or the placement has no identity — an item
+   * with no id means something skipped the minting pass, and better a pickup
+   * that does nothing than one that puts an anonymous thing in a kit and loses
+   * track of it forever. Nothing is removed in that case.
+   */
+  private takeFromBoard(ref: ObjectRef): ItemInstance | null {
+    const placed = getStack(this.map, ref.x, ref.y, ref.z)[ref.stackIndex];
+    const instance = placed && instanceFromPlacement(placed);
+    if (!instance) return null;
 
     this.map = removeTileAt(this.map, ref.x, ref.y, ref.z, ref.stackIndex);
     // The cell has one fewer thing in it, which is a real change to what rests
     // on a plate and to what was holding a crate up.
     this.reindexCells([{ x: ref.x, y: ref.y, z: ref.z }]);
-    return true;
+    return instance;
   }
 
   /**
@@ -3127,7 +3225,11 @@ export class GameSession implements PlaySession {
     from: SlotRef,
     to: Coord,
     id: string,
-  ): { actor: ActorRuntime; instance: ItemInstance } | null {
+  ): {
+    actor: ActorRuntime;
+    instance: ItemInstance;
+    destination: DropDestination;
+  } | null {
     const actor = this.actors.get(id);
     if (!actor) return null;
     const loc = this.tryLocate(actor);
@@ -3144,8 +3246,9 @@ export class GameSession implements PlaySession {
 
     const def = this.tilesById[instance.tileId];
     if (!def) return null;
-    if (!canDropAt(this.map, this.tilesById, loc, to, def)) return null;
-    return { actor, instance };
+    const destination = dropDestinationAt(this.map, this.tilesById, loc, to, def);
+    if (!destination) return null;
+    return { actor, instance, destination };
   }
 
   /**
@@ -3163,7 +3266,7 @@ export class GameSession implements PlaySession {
   drop(from: SlotRef, to: Coord, id: string = LOCAL_ACTOR_ID): boolean {
     const candidate = this.dropCandidate(from, to, id);
     if (!candidate) return false;
-    const { actor, instance } = candidate;
+    const { actor, instance, destination } = candidate;
 
     const emptied = clearSlot(
       this.map,
@@ -3174,16 +3277,29 @@ export class GameSession implements PlaySession {
     );
     if (!emptied) return false;
 
-    this.map = appendTile(
-      emptied.map,
-      to.x,
-      to.y,
-      to.z,
-      placementFromInstance(instance),
-    );
+    // The board first and the kit second, so there is no order in which the
+    // thing can leave a slot without arriving somewhere.
+    const landed =
+      destination.kind === "contents"
+        ? stashInContainer(emptied.map, destination.ref, instance)
+        : appendTile(
+            emptied.map,
+            to.x,
+            to.y,
+            to.z,
+            placementFromInstance(instance),
+          );
+    if (!landed) return false;
+
+    this.map = landed;
     if (emptied.equipment !== actor.equipment) {
       this.setEquipment(actor, emptied.equipment);
     }
+
+    // Caught by the box it was thrown at, and then it is not on the board at
+    // all: no placement appeared, nothing rests differently on a plate, and no
+    // wire changed value — the same reasoning `moveItem` settles nothing under.
+    if (destination.kind === "contents") return true;
 
     // The thing that just landed may be a plate, may be wired, and is almost
     // certainly subject to gravity — and the cell it came *out of*, for a drop
@@ -3387,6 +3503,7 @@ export class GameSession implements PlaySession {
     const acted =
       this.takeReward(ref, id) ||
       this.activateSwitch(ref, id) ||
+      this.equip(ref, id) ||
       this.pickUp(ref, id) ||
       this.push(ref, id);
     if (acted) this.settleBoardNow();
@@ -3398,6 +3515,7 @@ export class GameSession implements PlaySession {
     return (
       this.canTakeReward(ref, id) ||
       this.canSwitch(ref, id) ||
+      this.canEquip(ref, id) ||
       this.canPickUp(ref, id) ||
       this.canPush(ref, id)
     );
