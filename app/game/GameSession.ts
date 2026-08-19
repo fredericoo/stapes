@@ -782,12 +782,6 @@ type ActorRuntime = {
 export type Death = {
   id: string;
   /**
-   * Where the body fell, and so where its kit is now lying and where its owner
-   * comes back in. Null when the body could not be located, which leaves the
-   * last remembered position standing rather than replacing it with a guess.
-   */
-  at: ActorPosition | null;
-  /**
    * What the body still owns once the floor has taken what it could: empty when
    * the kit landed as loot, and the whole kit when the cell refused it.
    *
@@ -2201,9 +2195,6 @@ export class GameSession implements PlaySession {
 
     this.pendingDeaths.push({
       id: target.id,
-      at: loc
-        ? { x: loc.x, y: loc.y, z: loc.z, direction: actorDirection(loc) }
-        : null,
       equipment,
       masteryXp: target.masteryXp,
       tags: target.tags,

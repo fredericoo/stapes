@@ -1041,14 +1041,13 @@ describe("dying with something on you", () => {
    * pile is the pair agreeing; anything else is an item existing twice or not at
    * all.
    */
-  it("hands the death over empty-handed, and standing where it fell", () => {
+  it("hands the death over empty-handed", () => {
     const session = doomed();
     const playerId = selfId(session);
 
     advance(session, LONG_ENOUGH_TO_KILL_MS);
 
     const death = session.drainDeaths().find((one) => one.id === playerId);
-    expect(death?.at).toEqual({ x: 0, y: 0, z: 0, direction: "e" });
     expect(death?.equipment).toEqual({
       weapon: null,
       offhand: null,

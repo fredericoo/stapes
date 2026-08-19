@@ -11,7 +11,7 @@ export type ActorLocation = Coord & {
 };
 
 /** Facing a freshly spawned actor takes, matching the authored default. */
-const DEFAULT_FACING: Direction = "s";
+export const DEFAULT_FACING: Direction = "s";
 
 /**
  * Cells searched around a last-known location before falling back to a sweep.

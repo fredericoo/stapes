@@ -123,6 +123,17 @@ their tile off the board, and at that moment the map stops being the record. So
 positions are kept a second time, per actor, under `pos:<id>` — and the two are
 not redundant.
 
+**A third row says where they *started*.** `spawn:<id>` is written once, the
+first time the world sees somebody, and never rewritten: where you entered is a
+different fact from where you are, and it does not move when you do. A death
+overwrites `pos:` with it, which is the whole of respawning. Today every row
+holds the same coordinates — a map has one authored `player` marker — and
+keeping it per player is what lets a death answer the question without asking a
+map that may since have been re-authored out of it. `replaceWorld` drops the
+rows wholesale for exactly that reason: a save can move the marker, and a
+remembered door into a building that no longer stands is worse than no memory
+at all.
+
 **The write must not gate the broadcast.** A Durable Object holds outgoing
 messages until preceding writes are durable, which is right for anything the
 world's consistency rests on and wrong for this: a position is a convenience,
@@ -292,8 +303,21 @@ itself down before it destroys the only copy of what it knew.
   owns — are written to different keys, and a half-dropped kit has no single true
   answer to give either of them.
 - **The `Death` carries what the runtime knew**, because `GameSession.kill`
-  deletes it: where the body fell, what is left of the kit, its tags and its
-  masteries. Nothing downstream can re-derive any of it.
+  deletes it: what is left of the kit, its tags and its masteries. Nothing
+  downstream can re-derive any of it.
+- **A reload puts them back at the spawn point, with a fresh empty bag.** The
+  position row is *overwritten* with `spawn:<id>` rather than left alone —
+  leaving it is what put people back wherever the last flush caught them, up to
+  a whole `ACTOR_FLUSH_INTERVAL_MS` of walking ago. The kit is the starting one
+  rather than the emptied one, because coming back with no bag at all leaves
+  somebody unable to pick their own corpse up. It is written rather than deleted
+  — a missing row already means "give them the starting kit", but a delete
+  cannot ride in the batch, and a second call is a second moment at which the
+  board and the kit can disagree. What they still *own* wins over both: a kit
+  the floor refused was never dropped, so writing a fresh one over it would
+  destroy what the refusal saved.
+- **Hit points need nothing.** They are rebuilt from the tile on every load, so a
+  respawned body is at full health by construction rather than by a reset.
 - **`noteDeaths` forces a flush**, rather than leaving it to the next one. This
   was a real bug and a sharp one: `saveActors` skips an actor with no position —
   which is every dead one — and then writes the board *regardless*, so the batch
@@ -357,8 +381,9 @@ The formulas live in `app/game/combat.ts`, kept pure so they can be asserted:
 **Zero hit points deletes the body, and leaves the kit where it fell.** For a
 player it also removes their actor, so the server ignores everything their socket
 sends — a dead player sits there connected and inert until they reload, which is
-the only thing that hands them a new body. There is no respawn. They come back
-standing over their own things, which is the whole of what death costs.
+the only thing that hands them a new body. The reload is the respawn: they come
+back at the door they came in by, on full hit points, wearing an empty bag, with
+everything they were carrying lying where they died. The walk back is the cost.
 
 **Being a battler is what earns a name tag**, and the health bar rides in the
 same label. Names used to be a mode the online route switched on, with a check

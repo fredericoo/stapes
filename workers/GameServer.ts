@@ -6,7 +6,11 @@ import {
   type ActorSnapshot,
   type Death,
 } from "../app/game/GameSession";
-import { TICK_MS, WALK_DURATION_MS } from "../app/game/constants";
+import {
+  STARTING_BAG_TILE_ID,
+  TICK_MS,
+  WALK_DURATION_MS,
+} from "../app/game/constants";
 import { cellKey } from "../app/game/pressurePlates";
 import {
   findSpawnPoints,
@@ -18,7 +22,9 @@ import {
   type Equipment,
   emptyEquipment,
   restoredEquipment,
+  startingEquipment,
 } from "../app/game/equipment";
+import { DEFAULT_FACING } from "../app/game/actors";
 import { resolveRespawn } from "../app/lib/interactions";
 import { minutesOfDayAt } from "../app/lib/clock";
 import { masteryXpBlockSchema, type MasteryXp } from "../app/lib/mastery";
@@ -236,6 +242,25 @@ const TAGS_KEY_PREFIX = "tags:";
 const MASTERIES_KEY_PREFIX = "mast:";
 
 /**
+ * Key prefix under which one player's spawn point is kept — where a death puts
+ * them back.
+ *
+ * Written once, when the world first sees them, and never again: this is where
+ * somebody *entered*, which is a different fact from where they are
+ * ({@link POSITION_KEY_PREFIX}) and does not move when they do. Today every row
+ * under here holds the same coordinates, because a map has one authored `player`
+ * marker — the point of keeping it per player is that a death does not have to
+ * ask the map a question the map has already been re-authored out of, and that
+ * the day a world has two front doors nothing above this line changes.
+ *
+ * Dropped wholesale by {@link replaceWorld}, which is the one thing that can
+ * move the marker: a save is a fresh statement of where the world begins, and a
+ * remembered spawn pointing into the old one would put somebody back through a
+ * door that is no longer there.
+ */
+const SPAWN_KEY_PREFIX = "spawn:";
+
+/**
  * How many actors the world remembers the whereabouts of.
  *
  * One entry per player who has ever connected — it grows with *visitors*, not
@@ -305,6 +330,9 @@ type SavedTags = { tags: string[]; savedAt: number };
 
 /** What somebody has learnt, kept against their return. */
 type SavedMasteries = { masteries: MasteryXp; savedAt: number };
+
+/** Where somebody came into the world, kept against their death. */
+type SavedSpawn = ActorPosition & { savedAt: number };
 
 type Attachment = { actorId: string };
 
@@ -485,6 +513,17 @@ export class GameServer extends DurableObject<Env> {
    * been taken from. See {@link noteDeaths}.
    */
   private pendingDeathWrites = new Map<string, Death>();
+  /**
+   * Where each connected player came in, so a death can put them back there
+   * without waiting on storage.
+   *
+   * Held in memory because {@link saveActors} is synchronous and a death is
+   * written from inside it: reading the row there would make the one write that
+   * must not be deferred an awaited one. Every path that seats a player fills
+   * this — the join and the restore — and only a seated player can die, so the
+   * lookup cannot miss.
+   */
+  private readonly spawns = new Map<string, ActorPosition>();
   /** Where the world grows things back, by spawn-point key. */
   private respawnPoints = new Map<string, SpawnPoint>();
   /**
@@ -858,6 +897,9 @@ export class GameServer extends DurableObject<Env> {
       // Seating them here is exactly the resurrection the checkpointed set of
       // the dead exists to prevent.
       if (this.dead.has(id)) continue;
+      // Beside the seating, because a player restored across a wake can die
+      // without ever running {@link fetch} again.
+      await this.rememberSpawn(id);
       this.session?.spawn(
         id,
         await this.lastPositionOf(id),
@@ -876,10 +918,68 @@ export class GameServer extends DurableObject<Env> {
    * key the new one never writes would be resumed as part of it — a corner of a
    * map nobody authored, sitting there until somebody edited that exact chunk.
    */
+  /**
+   * Forget where everybody came in.
+   *
+   * Only {@link replaceWorld} calls this, and only because a save can move the
+   * authored marker. Written as a sweep rather than a per-player delete for the
+   * reason {@link deleteCheckpointedBoard} is: the rows that matter belong to
+   * people who are not here, and there is no list of them but the prefix.
+   */
+  private async deleteSavedSpawns() {
+    const stored = await this.ctx.storage.list({ prefix: SPAWN_KEY_PREFIX });
+    if (stored.size === 0) return;
+    await this.ctx.storage.delete([...stored.keys()]);
+  }
+
   private async deleteCheckpointedBoard() {
     const stored = await this.ctx.storage.list({ prefix: CHUNK_KEY_PREFIX });
     if (stored.size === 0) return;
     await this.ctx.storage.delete([...stored.keys()]);
+  }
+
+  private spawnKey(actorId: string): string {
+    return `${SPAWN_KEY_PREFIX}${actorId}`;
+  }
+
+  /**
+   * Where this player comes back in, minting it the first time the world sees
+   * them.
+   *
+   * **Read once per connection, not once per death.** The row is written the
+   * moment somebody is created and never rewritten, so the only thing that can
+   * change it is the world being replaced — which drops the rows rather than
+   * editing them. Caching it on the instance is therefore not a staleness risk;
+   * it is the whole reason a death can be written without awaiting anything.
+   *
+   * The facing is the one a fresh body takes, rather than whichever way they
+   * happened to be looking: this is a door, not a footprint.
+   */
+  private async rememberSpawn(actorId: string): Promise<void> {
+    if (this.spawns.has(actorId)) return;
+
+    const saved = await this.ctx.storage.get<SavedSpawn>(
+      this.spawnKey(actorId),
+    );
+    if (saved) {
+      this.spawns.set(actorId, {
+        x: saved.x,
+        y: saved.y,
+        z: saved.z,
+        direction: saved.direction,
+      });
+      return;
+    }
+
+    const { x, y, z } = this.session!.getSpawnPoint();
+    const spawn: ActorPosition = { x, y, z, direction: DEFAULT_FACING };
+    this.spawns.set(actorId, spawn);
+    // Its own write rather than a place in the next flush: it is written once
+    // per player ever, and it has to be durable before the death that reads it —
+    // which can be seconds away and is not obliged to wait for a flush.
+    this.ctx.storage
+      .put(this.spawnKey(actorId), { ...spawn, savedAt: Date.now() })
+      .catch(GameServer.reportWriteFailure("spawn write"));
   }
 
   private positionKey(actorId: string): string {
@@ -1096,16 +1196,34 @@ export class GameServer extends DurableObject<Env> {
     // something changed: what these rows record is a body ceasing to exist, and
     // there is nothing to compare that against.
     for (const [actorId, death] of this.pendingDeathWrites) {
-      // Where they fell, so they come back standing over their own kit rather
-      // than wherever the last flush happened to catch them — which, at one
-      // flush every {@link ACTOR_FLUSH_INTERVAL_MS}, was up to half a minute of
-      // walking ago.
-      if (death.at) entries[this.positionKey(actorId)] = { ...death.at, savedAt };
-      // Empty when the kit reached the floor, and the whole kit when the cell
-      // refused it. Written either way, because "empty" is exactly the fact the
-      // board is being written to agree with.
+      // **The spawn point, not the cell they fell in.** Their position row is
+      // overwritten rather than left alone, because leaving it is what put
+      // people back wherever the last flush caught them — up to a whole
+      // {@link ACTOR_FLUSH_INTERVAL_MS} of walking ago.
+      const spawn = this.spawns.get(actorId);
+      if (spawn) entries[this.positionKey(actorId)] = { ...spawn, savedAt };
+      // A fresh kit, not the emptied one: what they were carrying is on the
+      // floor where they died and is theirs again if they walk back for it, but
+      // coming back with no bag at all would leave them unable to pick it up.
+      // This is the same kit the world hands somebody who has never been here —
+      // which, as far as their pockets are concerned, is what they now are.
+      //
+      // Written rather than deleted, though "give them the starting kit" is
+      // exactly what a missing row means to {@link GameSession.spawn}: a delete
+      // cannot ride in this `put`, and a second call is a second moment at which
+      // the board and the kit can disagree. The refused-drop case is the one
+      // exception — nothing reached the floor, so they still own all of it.
+      const stillOwned =
+        death.equipment.weapon ??
+        death.equipment.offhand ??
+        death.equipment.bag;
       entries[this.equipmentKey(actorId)] = {
-        equipment: death.equipment,
+        equipment: stillOwned
+          ? death.equipment
+          : startingEquipment(
+              tilesByIdFromList(this.tiles),
+              STARTING_BAG_TILE_ID,
+            ),
         savedAt,
       };
       if (death.tags.length > 0) {
@@ -1196,6 +1314,7 @@ export class GameServer extends DurableObject<Env> {
     await this.pruneOldest(EQUIPMENT_KEY_PREFIX);
     await this.pruneOldest(TAGS_KEY_PREFIX);
     await this.pruneOldest(MASTERIES_KEY_PREFIX);
+    await this.pruneOldest(SPAWN_KEY_PREFIX);
   }
 
   /**
@@ -1254,6 +1373,9 @@ export class GameServer extends DurableObject<Env> {
     // being killed: there is no respawn, so this is the only thing that hands a
     // dead actor a body again.
     this.dead.delete(actorId);
+    // Before the seating: this is where somebody is *created*, and a death that
+    // arrives before the row is durable has nowhere to put them back.
+    await this.rememberSpawn(actorId);
     // Rejoining with the same id keeps the actor already on the board; the
     // remembered position is for somebody whose body is gone — they left, or
     // their connection died while this object was evicted and they were reaped.
@@ -1955,6 +2077,13 @@ export class GameServer extends DurableObject<Env> {
     // the world that no longer exists would leave somebody permanently absent
     // from one they never died in.
     this.dead.clear();
+    // The marker may have moved — a save is a fresh statement of where the world
+    // begins — so every remembered door is now a claim about a building that no
+    // longer stands. Dropped rather than corrected, on the terms
+    // `checkpointedMap = null` above is: the next join re-derives each one from
+    // the map that actually exists.
+    this.spawns.clear();
+    await this.deleteSavedSpawns();
     this.lastSaidAt.clear();
     // Every queued step was aimed at a board that no longer exists. They are
     // dropped rather than refused: the `hello` below resets each client's

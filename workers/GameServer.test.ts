@@ -10,6 +10,7 @@ import {
   BRAIN_TICK_MS,
   PLAYER_TILE_ID,
   PUSH_STEP_MS,
+  STARTING_BAG_TILE_ID,
   WALK_DURATION_MS,
 } from "../app/game/constants";
 import { MINUTES_PER_DAY, minutesOfDayAt } from "../app/lib/clock";
@@ -53,6 +54,9 @@ function authoredMap(): FlatMapFile {
  * are standing in it, and the spawn point survives only because it is carried.
  */
 const AWAY_FROM_SPAWN = 2;
+
+/** Where the authored `player` marker stands, which is where a death sends you. */
+const SPAWN_CELL = 0;
 
 function checkpointWith(owners: string[]): {
   map: FlatMapFile;
@@ -2628,23 +2632,72 @@ describe("dying and coming back", () => {
     }));
   }
 
-  it("writes the emptied kit in the batch that drops the body", async () => {
+  it("writes a kit holding nothing they died with, in the batch that drops the body", async () => {
     await armedAlice();
 
     await killAndTick("alice");
 
     const { equipment } = await storedRows("alice");
     expect(equipment?.equipment.weapon).toBeNull();
-    expect(equipment?.equipment.bag).toBeNull();
+    // A bag, because a respawn hands one back — but a new one, holding none of
+    // what fell on the floor.
+    const bag = equipment?.equipment.bag as { contents?: unknown[] } | null;
+    expect(bag?.contents ?? []).toEqual([]);
   });
 
-  it("remembers where the body fell, not where the last flush caught it", async () => {
+  it("sends them back to the spawn point, not to where the last flush caught them", async () => {
     await armedAlice();
+    // She died two cells from the door, so "back at spawn" and "left where the
+    // flush found her" are different answers.
+    expect(await actorX("alice")).toBe(AWAY_FROM_SPAWN);
 
     await killAndTick("alice");
 
     const { position } = await storedRows("alice");
-    expect(position?.x).toBe(AWAY_FROM_SPAWN);
+    expect(position?.x).toBe(SPAWN_CELL);
+  });
+
+  it("stores the spawn coordinates the first time it sees somebody", async () => {
+    await putCheckpoint(checkpointWithSword());
+    await connect("alice");
+
+    const spawn = await runInDurableObject(stub(), async (_instance, state) =>
+      state.storage.get<Record<string, unknown>>("spawn:alice"),
+    );
+    expect(spawn).toMatchObject({ x: SPAWN_CELL, y: 0, z: 0 });
+  });
+
+  /**
+   * A death empties your pockets but must not strand you: with no bag at all
+   * there is nothing to pick your own corpse up with.
+   */
+  it("hands back a fresh empty bag", async () => {
+    await armedAlice();
+    await killAndTick("alice");
+    await simulateEviction();
+
+    const { hello } = await connect("alice");
+
+    const equipment = hello.equipment as {
+      weapon: unknown;
+      bag: { tileId: string; contents: unknown[] } | null;
+    };
+    expect(equipment.weapon).toBeNull();
+    expect(equipment.bag?.tileId).toBe(STARTING_BAG_TILE_ID);
+    expect(equipment.bag?.contents).toEqual([]);
+  });
+
+  it("brings them back on full hit points", async () => {
+    await armedAlice();
+    await killAndTick("alice");
+    await simulateEviction();
+
+    const { hello } = await connect("alice");
+
+    const mine = (
+      hello.hps as { actorId: string; hp: number; maxHp: number }[]
+    ).find((entry) => entry.actorId === "alice");
+    expect(mine!.hp).toBe(mine!.maxHp);
   });
 
   /**
@@ -2661,19 +2714,24 @@ describe("dying and coming back", () => {
 
     // On the floor, inside the bag that fell with it.
     expect(tilesAt(hello.map as FlatMapFile, AWAY_FROM_SPAWN)).toContain(SWORD);
-    // And not also on her back, which is the same bug from the other side.
-    const equipment = hello.equipment as Record<string, unknown>;
+    // And not also on her back, which is the same bug from the other side. The
+    // bag she is wearing is a fresh one, so the sword cannot be in two places by
+    // way of a bag that is.
+    const equipment = hello.equipment as {
+      weapon: unknown;
+      bag: { contents?: unknown[] } | null;
+    };
     expect(equipment.weapon).toBeNull();
-    expect(equipment.bag).toBeNull();
+    expect(equipment.bag?.contents ?? []).toEqual([]);
   });
 
-  it("seats them back where they died", async () => {
+  it("seats them at the spawn point after a reload", async () => {
     await armedAlice();
     await killAndTick("alice");
     await simulateEviction();
 
     await connect("alice");
 
-    expect(await actorX("alice")).toBe(AWAY_FROM_SPAWN);
+    expect(await actorX("alice")).toBe(SPAWN_CELL);
   });
 });
