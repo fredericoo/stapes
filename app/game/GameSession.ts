@@ -162,7 +162,13 @@ import {
   settleSignals,
   type ExtraEmitter,
 } from "./signals";
-import { DecayIndex, applyDecay, findDecayCells } from "./decay";
+import type { ItemDecay, PlacementDecay } from "./decay";
+import {
+  DecayIndex,
+  applyDecay,
+  applyItemDecay,
+  findDecayCells,
+} from "./decay";
 import type { StatusDef } from "../lib/status";
 import {
   advanceStatuses,
@@ -1246,6 +1252,10 @@ export class GameSession implements PlaySession {
       (resident
         ? emptyEquipment()
         : startingEquipment(this.tilesById, STARTING_BAG_TILE_ID));
+    // The kit's first and only arming that does not go through
+    // {@link setEquipment}: a returning player's berries have been ripening in
+    // storage as far as they know, and start their lifetime again here.
+    this.decay.armEquipment(equipment, this.tilesById);
     const actor: ActorRuntime = {
       id,
       resident,
@@ -1764,15 +1774,48 @@ export class GameSession implements PlaySession {
     this.settleBoardNow();
   }
 
-  /** Turn everything whose time is up, and re-arm what it turned into. */
+  /**
+   * Turn everything whose time is up, and re-arm what it turned into.
+   *
+   * The two halves are applied apart because they are addressed apart: a
+   * placement is turned where it stands, and a thing is turned wherever it has
+   * got to — see `./decay`. Both feed one reindex, and the kits one
+   * {@link setEquipment} each, which is what starts the next leg of a chain:
+   * blood to a stain to nothing, a berry to a rotten one to nothing, with no
+   * chain to author beyond each tile naming the next.
+   */
   private applyDueDecay() {
     const due = this.decay.takeDue();
     if (due.length === 0) return;
-    const { map, changed } = applyDecay(this.map, due, this.tilesById);
-    this.map = map;
-    // Which also starts the next countdown where a tile decayed into another
-    // that decays in turn — blood to a stain to nothing, with no chain to
-    // author beyond each tile naming the next.
+
+    const placements = due.filter(
+      (entry): entry is PlacementDecay => entry.kind === "placement",
+    );
+    const items = due.filter(
+      (entry): entry is ItemDecay => entry.kind === "item",
+    );
+
+    const turned = applyDecay(this.map, placements, this.tilesById);
+    this.map = turned.map;
+    const changed = turned.changed;
+
+    // Only when something carried is actually due: this pass walks the whole
+    // board looking for the things it names, and a tick where only blood dried
+    // has no reason to pay for that.
+    if (items.length > 0) {
+      const rotted = applyItemDecay(
+        this.map,
+        this.actors.values(),
+        items,
+        this.tilesById,
+      );
+      this.map = rotted.map;
+      changed.push(...rotted.changed);
+      for (const [actorId, equipment] of rotted.equipment) {
+        this.setEquipment(this.actor(actorId), equipment);
+      }
+    }
+
     this.reindexCells(changed);
   }
 
@@ -3325,6 +3368,11 @@ export class GameSession implements PlaySession {
     // cannot go stale" a fact about this function rather than a discipline
     // spread over every caller.
     actor.carriedLights = carriedLightTileIds(next, this.tilesById);
+    // The kit's `reindexCells`, and here for the same reason: this is the one
+    // place a kit is written, so a thing that arrives in one starts counting
+    // down without every equip, stash and loot having to remember to say so.
+    // Additive, so nothing already ripening is set back by being moved.
+    this.decay.armEquipment(next, this.tilesById);
     this.equipmentChanged.add(actor.id);
   }
 

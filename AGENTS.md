@@ -695,9 +695,11 @@ hinge. It falls through cleanly, since a reward already taken is not on offer.
 
 `DecayInteraction` turns a placement into another tile, or into nothing, once it
 has been on the board long enough. Any tile can carry one; it exists for blood
-and bodies, which are spawned constantly and must not accumulate. The swap
-itself is the same one plates and receivers make — `canReplaceStack`, refuse
-rather than force — and everything interesting is in *where the deadline lives*.
+and bodies, which are spawned constantly and must not accumulate. It reaches
+what people are *carrying* on the same clock — a berry ripens the same whether
+it is on the floor, in a chest or in your bag. The swap itself is the same one
+plates and receivers make — `canReplaceStack`, refuse rather than force — and
+everything interesting is in *where the deadline lives*.
 
 **A lifetime is a range, drawn once per placement.** `fromMs`/`toMs` rather than
 one number, because the motivating case spawns in bursts: a fight's worth of
@@ -740,10 +742,11 @@ depend on how fast the test ran. Three things follow:
   lifetime would be an hour of Durable Object, and it is the *longest* end of
   the range that sets it. Lifetimes are authored in seconds so that cost is
   visible while writing one.
-- **A placement is keyed by cell plus tile id**, not by stack index: an index
-  shifts the moment anything is placed under it, and blood in a doorway would
-  forget its age every time somebody walked over it. Two placements of the same
-  decaying tile in one cell therefore share a deadline and go together.
+- **An anonymous placement is keyed by cell plus tile id**, not by stack index:
+  an index shifts the moment anything is placed under it, and blood in a doorway
+  would forget its age every time somebody walked over it. Two placements of the
+  same decaying tile in one cell therefore share a deadline and go together.
+  Anything carrying an item id is keyed by that instead — see below.
 - **Arming is additive, and that is load-bearing.** `reindexCells` runs whenever
   a cell's stack changes, so re-stamping there would reset the timer of every
   splash somebody stepped on — blood in a corridor would never dry. An entry
@@ -759,6 +762,54 @@ at once — which is the shape that survives a fight's worth of blood.
 it under a damage receiver has to place the tile *and* `reindexCells` its cell,
 or that tile never ages. That is the same index discipline plates and wires
 already require.
+
+### A thing is keyed by which thing it is, not by where it is
+
+Anything carrying an item id counts down under that id (`itemEntryKey`). This is
+the whole of "food rots in your bag": an item id is minted once and kept across
+every pickup, stash and drop, so one entry follows a berry from the floor into a
+bag into a chest without the clock noticing it moved. Keying it by cell instead
+would have stopped the clock the moment somebody picked it up and started it
+over when they put it down — a rule under which the way to keep food fresh is to
+carry it, which nobody would have chosen.
+
+The arming discipline is the same, one rung out. `armCell` covers the board and
+what is inside containers on it; `armEquipment` covers a kit and is called from
+`setEquipment`, the one place a kit is ever written — an arming hook beside the
+assignment is a fact about that function, where one spread over every equip,
+stash and loot is a discipline that eventually slips. Both are additive, for the
+sharper version of the reason `reindexCells` is: a kit is rewritten constantly,
+so re-stamping would mean a berry moved from bag to hand came back fresh.
+
+**Applying an item decay sweeps rather than looks up.** An entry names a thing
+and not a place, which is exactly what survives a pickup and exactly what leaves
+`applyItemDecay` with no address to go to. It could carry a last-known
+whereabouts refreshed on every arm; that stays exact right up until the one move
+that forgets to refresh it, at which point a berry stashed in a chest becomes
+immortal for reasons nobody can see from the code. So it walks the kits and the
+board. The cost is charged per *tick that has a thing due*, never per thing —
+`takeDue` hands over everything ripe at that instant — and blood, the population
+that actually runs to hundreds, is anonymous and never reaches this pass.
+
+Three refusals, all of them "it stays what it is, and is armed again for free the
+next time its holder is touched":
+
+- **A slot asks of a rotting thing exactly what it asks of a dragged one**
+  (`slotAccepts`, `app/game/itemMoves.ts`), because arriving by rot is still
+  arriving. A berry that rots into a crate does not turn while it is in a bag —
+  a container may not hold a container — and turns the moment it is on the floor.
+  `isItem` on top of that, which moves never need: a move can only carry
+  something that was already an item, and a decay is the one way a slot could
+  come to hold scenery. Every slot walks its own contents rather than only the
+  bag, because a hand takes a spare pack.
+- **Nothing decays out from under what it is holding.** A pack that rotted away
+  would take a sword and three apples with it silently, so a container with
+  anything in it simply waits until it is empty.
+- **The floor asks nothing** — the ground holds anything — but a thing that rots
+  into a tile nobody can pick up comes out *anonymous*. An item id on scenery is
+  a promise the world cannot keep, and it would leave the tile counting down
+  under a key nothing can reach; dropping it hands the tile back to `armCell` as
+  the plain decaying placement it now is.
 
 ## The save is the repair path, so it must not need a working world
 

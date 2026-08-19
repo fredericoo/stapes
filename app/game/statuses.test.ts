@@ -177,12 +177,25 @@ describe("the effect itself", () => {
 });
 
 /**
+ * The authored poison, or a named failure rather than a null two lines later.
+ *
+ * A function rather than a `const` and a guard beside it, because a guard only
+ * narrows the scope it stands in: the helpers below close over the result, and
+ * a closure does not inherit what was proved outside it. A declared return type
+ * is what carries the proof across that boundary.
+ */
+function authoredPoison(): StatusDef {
+  const def = resolveStatus(statusesJson.find((entry) => entry.id === "poison"));
+  if (!def) throw new Error("authored poison did not resolve");
+  return def;
+}
+
+/**
  * Poison as it sits in `data/statuses.json`: remaining time is the dose, five
  * at the ten-minute ceiling and one as it runs out, paid every five seconds.
  */
 describe("poison, as authored", () => {
-  const def = resolveStatus(statusesJson.find((entry) => entry.id === "poison"));
-  if (!def) throw new Error("authored poison did not resolve");
+  const def = authoredPoison();
 
   const TEN_MIN = 600_000;
 

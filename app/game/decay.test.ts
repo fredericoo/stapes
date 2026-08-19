@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
+import type { ItemInstance } from "../lib/itemInstance";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
-import type { MapFile, TileDef } from "../lib/types";
+import type { Coord, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
-import { TICK_MS } from "./constants";
+import { STARTING_BAG_TILE_ID, TICK_MS } from "./constants";
 import { DecayIndex, applyDecay, findDecayCells } from "./decay";
-import { GameSession } from "./GameSession";
+import type { Equipment } from "./equipment";
+import { GameSession, LOCAL_ACTOR_ID } from "./GameSession";
 import { Rng } from "./rng";
 
 /** Fixed lifetimes, so a test asserts a deadline rather than a distribution. */
@@ -15,6 +17,10 @@ const STAIN_MS = 2000;
 /** The spread the jitter tests draw from. */
 const JITTER_FROM_MS = 1000;
 const JITTER_TO_MS = 5000;
+
+/** Fixed lifetimes for the things somebody can carry. */
+const BERRY_MS = 3000;
+const ROTTEN_MS = 4000;
 
 function tile(
   partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
@@ -58,6 +64,24 @@ function directionalTile(id: string, extra: Record<string, unknown> = {}) {
     attributes: {},
     variants: { n: frames, e: frames, s: frames, w: frames },
     ...extra,
+  });
+}
+
+/** The plainest consumable there is: no verb, no statuses, no health in it. */
+const EDIBLE = { type: "consumable", hp: 0 } as const;
+
+/** A tile somebody can pick up, optionally with a clock on it. */
+function itemTile(
+  id: string,
+  item: Record<string, unknown>,
+  decay?: { tileId: string; fromMs: number; toMs: number },
+): TileDef {
+  return tile({
+    id,
+    height: 0,
+    kind: "item",
+    intangible: true,
+    interactions: { item, ...(decay ? { decay } : {}) },
   });
 }
 
@@ -114,6 +138,47 @@ const tiles: TileDef[] = [
     affectedByGravity: true,
     walkable: false,
     interactions: { decay: { tileId: "", fromMs: BLOOD_MS, toMs: BLOOD_MS } },
+  }),
+  // Things somebody can carry, which is the other half of what decays.
+  itemTile("basic-bag", { type: "container", size: 4, equippable: true }),
+  itemTile("crate", { type: "container", size: 2, equippable: false }),
+  itemTile("berry", EDIBLE, {
+    tileId: "rotten-berry",
+    fromMs: BERRY_MS,
+    toMs: BERRY_MS,
+  }),
+  itemTile("rotten-berry", EDIBLE, {
+    tileId: "",
+    fromMs: ROTTEN_MS,
+    toMs: ROTTEN_MS,
+  }),
+  // Rots into a container, which no slot and no bag may hold.
+  itemTile("seed-pod", EDIBLE, {
+    tileId: "crate",
+    fromMs: BERRY_MS,
+    toMs: BERRY_MS,
+  }),
+  // Rots into scenery: a thing, and then not a thing at all.
+  itemTile("mushroom", EDIBLE, { tileId: "stain", fromMs: BERRY_MS, toMs: BERRY_MS }),
+  // A weapon that rots into something nobody can swing.
+  itemTile(
+    "bone-club",
+    {
+      type: "weapon",
+      damage: 5,
+      def: 0,
+      accuracy: 100,
+      variance: 0,
+      spd: 50,
+      mastery: "blunt",
+    },
+    { tileId: "berry", fromMs: BERRY_MS, toMs: BERRY_MS },
+  ),
+  // A bag that rots away — but only once there is nothing left inside it.
+  itemTile("satchel", { type: "container", size: 2, equippable: true }, {
+    tileId: "",
+    fromMs: BERRY_MS,
+    toMs: BERRY_MS,
   }),
 ];
 
@@ -179,7 +244,7 @@ describe("DecayIndex", () => {
 
     index.advance(1);
     expect(index.takeDue()).toEqual([
-      { cell: ORIGIN, tileId: "blood", dueMs: BLOOD_MS },
+      { kind: "placement", cell: ORIGIN, tileId: "blood", dueMs: BLOOD_MS },
     ]);
     expect(index.pending()).toBe(false);
   });
@@ -279,7 +344,8 @@ describe("DecayIndex", () => {
 });
 
 describe("applyDecay", () => {
-  const due = (tileId: string) => [{ cell: ORIGIN, tileId, dueMs: 0 }];
+  const due = (tileId: string) =>
+    [{ kind: "placement", cell: ORIGIN, tileId, dueMs: 0 }] as const;
 
   it("swaps in the target and keeps everything else in the stack", () => {
     const map = replaceStack(emptyMap(), 0, 0, 0, [
@@ -388,5 +454,253 @@ describe("GameSession decay", () => {
     const ref = { x: 0, y: 0, z: 0, stackIndex: 1 };
     expect(session.canInteract(ref)).toBe(false);
     expect(session.interact(ref)).toBe(false);
+  });
+});
+
+/** Room beside the idle player for somebody carrying something. */
+const BESIDE: Coord = { x: 8, y: 9, z: 0 };
+
+function withCompany(map: MapFile): MapFile {
+  return replaceStack(withIdlePlayer(map), BESIDE.x, BESIDE.y, BESIDE.z, [
+    { tileId: "grass" },
+  ]);
+}
+
+/** Grass beside the player with `placed` standing on it. */
+function beside(placed: PlacedTile): MapFile {
+  return replaceStack(withIdlePlayer(emptyMap()), BESIDE.x, BESIDE.y, BESIDE.z, [
+    { tileId: "grass" },
+    placed,
+  ]);
+}
+
+function thing(id: string, tileId: string): ItemInstance {
+  return { id, tileId };
+}
+
+/** A kit with a bag on its back, and whatever else is asked for. */
+function kitWith(
+  contents: ItemInstance[],
+  slots: Partial<Equipment> = {},
+): Equipment {
+  return {
+    weapon: null,
+    offhand: null,
+    bag: { id: "itm_bag", tileId: STARTING_BAG_TILE_ID, contents },
+    ...slots,
+  };
+}
+
+function carried(session: GameSession, id: string): Equipment {
+  const kit = session.equipmentOf(id);
+  if (!kit) throw new Error(`nobody called "${id}" is carrying anything`);
+  return kit;
+}
+
+function bagIds(session: GameSession, id: string): string[] {
+  return (carried(session, id).bag?.contents ?? []).map((held) => held.tileId);
+}
+
+/** Somebody stood beside the idle player, carrying `kit`. */
+function bearerOf(session: GameSession, kit: Equipment): string {
+  session.spawn("bearer", { at: BESIDE, carrying: kit });
+  return "bearer";
+}
+
+/** What the cell beside the player is holding. */
+function asideStack(session: GameSession): PlacedTile[] {
+  return getStack(session.getMap(), BESIDE.x, BESIDE.y, BESIDE.z);
+}
+
+describe("things that decay while somebody is holding them", () => {
+  it("rots in the bag on somebody's back", () => {
+    const session = new GameSession(withCompany(emptyMap()), tiles);
+    const who = bearerOf(session, kitWith([thing("itm_berry", "berry")]));
+
+    expect(bagIds(session, who)).toEqual(["berry"]);
+    run(session, BERRY_MS);
+    expect(bagIds(session, who)).toEqual(["rotten-berry"]);
+  });
+
+  it("is still the same thing on the other side of the turn", () => {
+    const session = new GameSession(withCompany(emptyMap()), tiles);
+    const who = bearerOf(session, kitWith([thing("itm_berry", "berry")]));
+
+    run(session, BERRY_MS);
+    expect(carried(session, who).bag?.contents?.[0]?.id).toBe("itm_berry");
+  });
+
+  it("chains in a bag exactly as it does on the floor", () => {
+    const session = new GameSession(withCompany(emptyMap()), tiles);
+    const who = bearerOf(session, kitWith([thing("itm_berry", "berry")]));
+
+    run(session, BERRY_MS + ROTTEN_MS);
+    expect(bagIds(session, who)).toEqual([]);
+  });
+
+  it("rots in a hand", () => {
+    const session = new GameSession(withCompany(emptyMap()), tiles);
+    const who = bearerOf(
+      session,
+      kitWith([], { offhand: thing("itm_berry", "berry") }),
+    );
+
+    run(session, BERRY_MS);
+    expect(carried(session, who).offhand?.tileId).toBe("rotten-berry");
+  });
+
+  it("rots inside a chest on the floor", () => {
+    const session = new GameSession(
+      beside({
+        tileId: "crate",
+        itemId: "itm_crate",
+        contents: [thing("itm_berry", "berry")],
+      }),
+      tiles,
+    );
+
+    run(session, BERRY_MS);
+    expect(asideStack(session)[1]?.contents).toEqual([
+      { id: "itm_berry", tileId: "rotten-berry" },
+    ]);
+  });
+
+  it("does not start over when somebody picks it up", () => {
+    // The whole point of keying a clock to the thing rather than to the cell:
+    // half a berry's life on the floor and half in a bag is one berry's life.
+    const session = new GameSession(
+      beside({ tileId: "berry", itemId: "itm_berry" }),
+      tiles,
+    );
+
+    run(session, BERRY_MS / 2);
+    expect(session.pickUp({ ...BESIDE, stackIndex: 1 })).toBe(true);
+    expect(bagIds(session, LOCAL_ACTOR_ID)).toEqual(["berry"]);
+
+    run(session, BERRY_MS / 2);
+    expect(bagIds(session, LOCAL_ACTOR_ID)).toEqual(["rotten-berry"]);
+  });
+
+  it("does not rot away with things still inside it", () => {
+    const session = new GameSession(withCompany(emptyMap()), tiles);
+    const who = bearerOf(
+      session,
+      kitWith([thing("itm_berry", "berry")], {
+        bag: {
+          id: "itm_satchel",
+          tileId: "satchel",
+          contents: [thing("itm_berry", "berry")],
+        },
+      }),
+    );
+
+    // Both are due on the same tick, and only the berry may go: a bag that
+    // rotted out from under what it held would destroy it silently.
+    run(session, BERRY_MS);
+    expect(carried(session, who).bag?.tileId).toBe("satchel");
+    expect(bagIds(session, who)).toEqual(["rotten-berry"]);
+  });
+
+  it("rots away once there is nothing left inside it", () => {
+    const session = new GameSession(withCompany(emptyMap()), tiles);
+    const who = bearerOf(
+      session,
+      kitWith([], {
+        bag: { id: "itm_satchel", tileId: "satchel", contents: [] },
+      }),
+    );
+
+    run(session, BERRY_MS);
+    expect(carried(session, who).bag).toBeNull();
+  });
+
+  it("refuses a turn the bag it is in could not hold", () => {
+    const session = new GameSession(withCompany(emptyMap()), tiles);
+    const who = bearerOf(session, kitWith([thing("itm_pod", "seed-pod")]));
+
+    // A container may not go in a container, so the pod waits rather than
+    // arriving in the bag as something the nesting rule forbids.
+    run(session, BERRY_MS);
+    expect(bagIds(session, who)).toEqual(["seed-pod"]);
+  });
+
+  it("refuses a turn that would leave scenery in a bag", () => {
+    const session = new GameSession(withCompany(emptyMap()), tiles);
+    const who = bearerOf(session, kitWith([thing("itm_shroom", "mushroom")]));
+
+    run(session, BERRY_MS);
+    expect(bagIds(session, who)).toEqual(["mushroom"]);
+  });
+
+  it("turns in a hand, which takes anything you could carry", () => {
+    const session = new GameSession(withCompany(emptyMap()), tiles);
+    const who = bearerOf(
+      session,
+      kitWith([], { weapon: thing("itm_club", "bone-club") }),
+    );
+
+    // A hand is not a weapon rack — see `handAccepts`. A club that rots into
+    // something inedible to swing is still something you can hold.
+    run(session, BERRY_MS);
+    expect(carried(session, who).weapon?.tileId).toBe("berry");
+  });
+
+  it("refuses a turn the hand it is in could not hold", () => {
+    const session = new GameSession(withCompany(emptyMap()), tiles);
+    const who = bearerOf(
+      session,
+      kitWith([], { offhand: thing("itm_shroom", "mushroom") }),
+    );
+
+    // The one thing a hand refuses is a thing that is not a thing: scenery in
+    // a fist is a state nothing else in the game has an answer for.
+    run(session, BERRY_MS);
+    expect(carried(session, who).offhand?.tileId).toBe("mushroom");
+  });
+
+  it("rots inside a pack somebody is holding, not only the one on their back", () => {
+    const session = new GameSession(withCompany(emptyMap()), tiles);
+    const who = bearerOf(
+      session,
+      kitWith([], {
+        offhand: {
+          id: "itm_spare",
+          tileId: STARTING_BAG_TILE_ID,
+          contents: [thing("itm_berry", "berry")],
+        },
+      }),
+    );
+
+    run(session, BERRY_MS);
+    expect(carried(session, who).offhand?.contents).toEqual([
+      { id: "itm_berry", tileId: "rotten-berry" },
+    ]);
+  });
+
+  it("makes the same turn on the floor that a slot refused", () => {
+    const session = new GameSession(
+      beside({ tileId: "seed-pod", itemId: "itm_pod" }),
+      tiles,
+    );
+
+    // The ground holds anything, which is the only rule the floor has.
+    run(session, BERRY_MS);
+    expect(asideStack(session).map((p) => p.tileId)).toEqual(["grass", "crate"]);
+  });
+
+  it("gives up its identity when it rots into scenery", () => {
+    const session = new GameSession(
+      beside({ tileId: "mushroom", itemId: "itm_shroom" }),
+      tiles,
+    );
+
+    run(session, BERRY_MS);
+    const [, turned] = asideStack(session);
+    expect(turned?.tileId).toBe("stain");
+    // An item id on a tile nobody can pick up would keep it counting down under
+    // a key nothing can reach. As a stain it decays by cell, like any other.
+    expect(turned?.itemId).toBeUndefined();
+    run(session, STAIN_MS);
+    expect(asideStack(session).map((p) => p.tileId)).toEqual(["grass"]);
   });
 });

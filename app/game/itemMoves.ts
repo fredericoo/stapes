@@ -185,20 +185,29 @@ function groundContainerAt(
   return getStack(map, ref.x, ref.y, ref.z)[ref.stackIndex] ?? null;
 }
 
+/** Which kind of place a slot is, with the position dropped. */
+export type SlotKind = SlotRef["kind"];
+
 /**
  * May this kind of slot hold this thing at all?
  *
  * **The one place the nesting rule lives**, which is what every direction a move
  * can take goes through: bag → ground, ground → bag, and ground → another chest
  * all ask this same question, so there is no direction left over for a container
- * to sneak into another one through.
+ * to sneak into another one through. `./decay` asks it too, because a thing that
+ * rots into something else in your bag is arriving in that slot as surely as one
+ * you dragged there.
  *
  * The weapon slot's rule is here for the same reason — it is the other half of
  * "what may go where", and a hand holding a signpost would be a state the model
  * allows and nothing else in the game has an answer for.
+ *
+ * Takes the kind rather than the slot because the position never mattered: what
+ * a slot accepts is a fact about the *kind* of place it is, and a caller with no
+ * index to offer should not have to invent one to ask.
  */
-function slotAccepts(
-  slot: SlotRef,
+export function slotAccepts(
+  kind: SlotKind,
   instance: ItemInstance,
   tilesById: Record<string, TileDef>,
 ): boolean {
@@ -208,9 +217,9 @@ function slotAccepts(
   // is somebody saying exactly what they want, and a hand refusing a thing you
   // could obviously hold is the interface arguing with them. Which slot a thing
   // *belongs* in is `equipSlotOf`'s question, asked only when nobody has said.
-  if (slot.kind === "weapon" || slot.kind === "offhand") return handAccepts(def);
+  if (kind === "weapon" || kind === "offhand") return handAccepts(def);
   // The one slot a container may go in besides a hand, and only a wearable one.
-  if (slot.kind === "bag") return resolveContainer(def)?.equippable === true;
+  if (kind === "bag") return resolveContainer(def)?.equippable === true;
   // Inside a bag, where the nesting rule still bites: a pack in a pack is the
   // one arrangement nothing in the model has an answer for.
   return resolveContainer(def) == null;
@@ -338,7 +347,7 @@ export function applyItemMove(
   // kit — which does not fail here, it fails on the socket, as a message the
   // owner's own client throws away.
   if (!instance.id) return null;
-  if (!slotAccepts(to, instance, tilesById)) return null;
+  if (!slotAccepts(to.kind, instance, tilesById)) return null;
   if (!slotHasRoom(map, tilesById, actor, equipment, to)) return null;
 
   const emptied = clearSlot(map, tilesById, actor, equipment, from);
