@@ -4,14 +4,16 @@
     {
       "name": "stapes-dev",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["dev", "--port", "5176", "--host"],
-      "port": 5176
+      "runtimeArgs": ["dev", "--host"],
+      "port": 5176,
+      "autoPort": true
     },
     {
       "name": "stapes-dev-alt",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["dev", "--port", "5177", "--host"],
-      "port": 5177
+      "runtimeArgs": ["dev", "--host"],
+      "port": 5177,
+      "autoPort": true
     },
     {
       "name": "stapes-worker",
