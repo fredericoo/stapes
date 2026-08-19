@@ -2634,9 +2634,9 @@ export class GameServer extends DurableObject<Env> {
     // last thing these sockets will hear, and this is what tells them so.
     this.announceDeaths();
 
-    // A kit can change on a tick as well as on input — nothing does that yet,
-    // but a brain that picks something up will, and the alternative is finding
-    // out by way of a panel that never updates.
+    // A kit can change on a tick as well as on input: food rots on the world's
+    // clock, not on anybody's keypress, and the alternative is finding out by
+    // way of a panel that never updates.
     this.flushEquipment();
     this.flushTags();
     // Unlike the two above, this one really does move on a tick: experience is

@@ -1,9 +1,14 @@
 import type { DecayInteraction } from "../lib/interactions";
 import { resolveDecay } from "../lib/interactions";
-import { getStack, listCoords, replaceStack } from "../lib/mapData";
+import { isItem, resolveContainer } from "../lib/item";
+import type { ItemInstance } from "../lib/itemInstance";
+import type { StackEdit } from "../lib/mapData";
+import { getStack, listCoords, replaceStack, setStacks } from "../lib/mapData";
 import type { Coord, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 import { canReplaceStack } from "../lib/validation";
+import { carriedInstances, type Equipment } from "./equipment";
+import { type SlotKind, slotAccepts } from "./itemMoves";
 import { cellKey } from "./pressurePlates";
 import type { Rng } from "./rng";
 
@@ -16,33 +21,85 @@ import type { Rng } from "./rng";
  * placements of the *same* decaying tile in one cell share one deadline and go
  * together — which is the difference between a bounded key and one that has to
  * be minted onto the placement and then kept alive through every swap.
+ *
+ * Only anonymous placements are keyed this way. Anything carrying an identity
+ * is keyed by {@link itemEntryKey} instead, because a thing that can be picked
+ * up is a thing whose cell is about to be wrong.
  */
 function entryKey(cell: Coord, tileId: string): string {
   return `${cellKey(cell)}|${tileId}`;
 }
 
-/** A placement counting down, and when its time is up. */
-export type DecayEntry = {
+/**
+ * Which *thing* a deadline belongs to.
+ *
+ * The item id and nothing else, which is the whole reason carried things can
+ * decay at all: an id is minted once and kept across every pickup, stash and
+ * drop (see `../lib/itemInstance`), so one entry follows a berry from the floor
+ * into a bag into a chest without the clock ever noticing it moved.
+ *
+ * No collision with {@link entryKey} is possible: a cell key is digits and
+ * commas, and this one is not.
+ */
+function itemEntryKey(itemId: string): string {
+  return `item|${itemId}`;
+}
+
+/** An anonymous placement counting down, and when its time is up. */
+export type PlacementDecay = {
+  kind: "placement";
   cell: Coord;
   tileId: string;
   /** Session-elapsed ms at which this turns. See {@link DecayIndex.advance}. */
   dueMs: number;
 };
 
-/** Does any placement in this cell decay? */
+/** One particular thing counting down, wherever it has got to by then. */
+export type ItemDecay = {
+  kind: "item";
+  itemId: string;
+  /**
+   * What it was when the clock started.
+   *
+   * Checked again at expiry, which is what makes a stale entry harmless: a thing
+   * that has already turned into something else — or been eaten and its id
+   * reused by nothing — reads as an entry about a thing that no longer exists,
+   * and is dropped rather than applied to whatever wears the id now.
+   */
+  tileId: string;
+  /** Session-elapsed ms at which this turns. See {@link DecayIndex.advance}. */
+  dueMs: number;
+};
+
+/** A placement or a thing, counting down. */
+export type DecayEntry = PlacementDecay | ItemDecay;
+
+/** Does anything in this cell decay, in the stack or inside a container in it? */
 export function cellHasDecay(
   map: MapFile,
   cell: Coord,
   tilesById: Record<string, TileDef>,
 ): boolean {
   return getStack(map, cell.x, cell.y, cell.z).some((placed) => {
-    const def = tilesById[placed.tileId];
-    return def != null && resolveDecay(def) != null;
+    if (decayOf(placed.tileId, tilesById)) return true;
+    // A crate of apples is a cell that decays even when the crate does not.
+    return (placed.contents ?? []).some((held) =>
+      decayOf(held.tileId, tilesById),
+    );
   });
 }
 
+/** This tile's decay, or null when it has none and none that parses. */
+function decayOf(
+  tileId: string,
+  tilesById: Record<string, TileDef>,
+): DecayInteraction | null {
+  const def = tilesById[tileId];
+  return def ? resolveDecay(def) : null;
+}
+
 /**
- * Every cell holding a decaying placement. Whole-map scan, for arming the index
+ * Every cell holding something that decays. Whole-map scan, for arming the index
  * once at load rather than per tick — the same discipline plates and wires are
  * indexed under.
  */
@@ -80,6 +137,15 @@ export function findDecayCells(
  * so a decay is reproducible from a seed and a tick count exactly as a fight
  * is. `Date.now()` in here would make a test's outcome depend on how fast the
  * test ran.
+ *
+ * ## Two kinds of thing count down here
+ *
+ * A placement is keyed by where it is, and a *thing* — anything carrying an item
+ * id — by which thing it is. That split is the whole of "food rots in your bag":
+ * a cell key stops the moment somebody picks the food up, and an item key does
+ * not care that it moved. It also means picking a berry up no longer pauses its
+ * clock and dropping it no longer restarts it, which was the old behaviour and
+ * was not a rule anybody would have chosen.
  */
 export class DecayIndex {
   private readonly entries = new Map<string, DecayEntry>();
@@ -116,7 +182,8 @@ export class DecayIndex {
   }
 
   /**
-   * Start the clock on every decaying placement in this cell.
+   * Start the clock on everything in this cell that decays — the placements and
+   * whatever is inside them.
    *
    * Additive: a placement already counting down keeps the deadline it has.
    * Re-stamping would be the obvious reading of "this cell changed" and is
@@ -137,15 +204,82 @@ export class DecayIndex {
    */
   armCell(map: MapFile, cell: Coord, tilesById: Record<string, TileDef>) {
     for (const placed of getStack(map, cell.x, cell.y, cell.z)) {
-      const def = tilesById[placed.tileId];
-      const decay = def ? resolveDecay(def) : null;
-      if (!decay) continue;
-      const key = entryKey(cell, placed.tileId);
-      if (this.entries.has(key)) continue;
-      const dueMs = this.elapsedMs + this.rollLifetimeMs(decay);
-      this.entries.set(key, { cell: { ...cell }, tileId: placed.tileId, dueMs });
-      if (dueMs < this.nextDueMs) this.nextDueMs = dueMs;
+      if (placed.itemId) {
+        // A thing on the floor is armed as a thing, not as a placement: it is
+        // one pickup away from having no cell at all.
+        this.armItem(placed.itemId, placed.tileId, tilesById);
+      } else {
+        this.armPlacement(cell, placed.tileId, tilesById);
+      }
+      for (const held of placed.contents ?? []) {
+        this.armItem(held.id, held.tileId, tilesById);
+      }
     }
+  }
+
+  /**
+   * Start the clock on everything this actor is carrying.
+   *
+   * The counterpart to {@link armCell} for the half of the world that has no
+   * cells in it. Called from the one place a kit is ever written, on the same
+   * terms the cell indexes are rebuilt from the one place a stack is: an arming
+   * hook next to the assignment is a fact about that function, where one spread
+   * over every caller would be a discipline that eventually slips.
+   *
+   * Additive like {@link armCell}, and for a sharper reason: a kit is rewritten
+   * on every equip, stash and loot, so a berry moved from bag to hand would
+   * otherwise come back fresh every time it was touched.
+   */
+  armEquipment(equipment: Equipment, tilesById: Record<string, TileDef>) {
+    for (const instance of carriedInstances(equipment)) {
+      this.armItem(instance.id, instance.tileId, tilesById);
+    }
+  }
+
+  private armPlacement(
+    cell: Coord,
+    tileId: string,
+    tilesById: Record<string, TileDef>,
+  ) {
+    const decay = decayOf(tileId, tilesById);
+    if (!decay) return;
+    const key = entryKey(cell, tileId);
+    if (this.entries.has(key)) return;
+    this.file(key, {
+      kind: "placement",
+      cell: { ...cell },
+      tileId,
+      dueMs: this.elapsedMs + this.rollLifetimeMs(decay),
+    });
+  }
+
+  private armItem(
+    itemId: string | undefined,
+    tileId: string,
+    tilesById: Record<string, TileDef>,
+  ) {
+    // An anonymous item is one the minting pass missed. It gets no clock rather
+    // than a key shared with every other anonymous thing in the world.
+    if (!itemId) return;
+    const decay = decayOf(tileId, tilesById);
+    if (!decay) return;
+    const key = itemEntryKey(itemId);
+    // Re-armed under the *same* key after it turned into something else, which
+    // is how a chain runs: the entry for what it was has already been taken, so
+    // this starts the next leg rather than being mistaken for it.
+    if (this.entries.has(key)) return;
+    this.file(key, {
+      kind: "item",
+      itemId,
+      tileId,
+      dueMs: this.elapsedMs + this.rollLifetimeMs(decay),
+    });
+  }
+
+  /** Hold an entry, and keep the soonest deadline true. */
+  private file(key: string, entry: DecayEntry) {
+    this.entries.set(key, entry);
+    if (entry.dueMs < this.nextDueMs) this.nextDueMs = entry.dueMs;
   }
 
   /**
@@ -194,13 +328,17 @@ export type DecayResult = {
 };
 
 /**
- * `stack` with every placement of `tileId` turned, or null when nothing in it
- * turns.
+ * `stack` with every anonymous placement of `tileId` turned, or null when
+ * nothing in it turns.
  *
  * A placement somebody is driving is left alone. Deleting a body out from under
  * its runtime would strand an actor whose next `locate` throws, and a decaying
  * tile that has been adopted as somebody's avatar is a map an author can fix —
  * not a world that has to fall over to tell them.
+ *
+ * A placement carrying an item id is left alone too: it is counting down under
+ * its own key, and turning it from here would turn every other copy of the same
+ * tile in the cell along with it.
  */
 function decayedStack(
   map: MapFile,
@@ -208,8 +346,7 @@ function decayedStack(
   tileId: string,
   tilesById: Record<string, TileDef>,
 ): PlacedTile[] | null {
-  const def = tilesById[tileId];
-  const decay: DecayInteraction | null = def ? resolveDecay(def) : null;
+  const decay = decayOf(tileId, tilesById);
   if (!decay) return null;
   // A target that does not exist leaves the tile where it is rather than
   // erasing it: a typo in `tiles.json` should read as a decay that never
@@ -220,7 +357,7 @@ function decayedStack(
   const next: PlacedTile[] = [];
   let turned = false;
   for (const placed of stack) {
-    if (placed.tileId !== tileId || placed.owner) {
+    if (placed.tileId !== tileId || placed.owner || placed.itemId) {
       next.push(placed);
       continue;
     }
@@ -237,7 +374,7 @@ function decayedStack(
 }
 
 /**
- * Turn everything in `entries`, in one pass.
+ * Turn every anonymous placement in `entries`, in one pass.
  *
  * A decay that cannot happen — the placement is gone, the target does not fit,
  * somebody is driving the body — is abandoned rather than retried. Retrying
@@ -246,7 +383,7 @@ function decayedStack(
  */
 export function applyDecay(
   map: MapFile,
-  entries: Iterable<DecayEntry>,
+  entries: Iterable<PlacementDecay>,
   tilesById: Record<string, TileDef>,
 ): DecayResult {
   const changed: Coord[] = [];
@@ -258,4 +395,282 @@ export function applyDecay(
     changed.push(cell);
   }
   return { map: next, changed };
+}
+
+/**
+ * Where a thing is when its time comes, as far as the rules care.
+ *
+ * Every slot kind, plus the floor — which is not a slot and has no rule, because
+ * the ground will hold anything.
+ */
+type ItemSite = SlotKind | "floor";
+
+/** What becomes of a thing whose time is up. */
+type Turn =
+  /** Nothing. It was not due, or what it would become cannot go where it is. */
+  | { kind: "stays" }
+  /** It ceases to exist. */
+  | { kind: "gone" }
+  /** It is this now. */
+  | { kind: "turned"; tileId: string };
+
+const STAYS: Turn = { kind: "stays" };
+const GONE: Turn = { kind: "gone" };
+
+/**
+ * What one thing turns into, given where it is standing.
+ *
+ * The single place the item half of decay decides anything, asked identically of
+ * a berry in a hand, a berry in a bag, a berry in a chest and a berry on the
+ * floor. Four call sites and one rule is the point: a berry that rots in your
+ * bag but not in a crate would be a distinction nobody authored.
+ *
+ * Every refusal reads the same way — it stays what it is, and is armed again for
+ * free the next time its holder is touched, so nothing is stuck forever on a
+ * turn that could not happen this time.
+ */
+function turnOf(
+  thing: { id: string; tileId: string; contents?: ItemInstance[] },
+  site: ItemSite,
+  due: ReadonlyMap<string, string>,
+  tilesById: Record<string, TileDef>,
+): Turn {
+  // Not due, or due as something it is no longer: an entry names both the thing
+  // and what it was, and a thing that has moved on since is not this entry's.
+  if (due.get(thing.id) !== thing.tileId) return STAYS;
+  const decay = decayOf(thing.tileId, tilesById);
+  if (!decay) return STAYS;
+
+  // Nothing decays out from under what it is holding. A pack that rotted away
+  // would take a sword and three apples with it, silently, and there is no
+  // reading of "your bag went off" that should destroy what was inside it — so
+  // a full container simply waits until it is empty.
+  const held = thing.contents?.length ?? 0;
+  if (!decay.tileId) return held > 0 ? STAYS : GONE;
+
+  // The same refusal `decayedStack` makes for the same reason: a typo in
+  // `tiles.json` reads as a decay that never happened.
+  const target = tilesById[decay.tileId];
+  if (!target) return STAYS;
+  if (held > (resolveContainer(target)?.size ?? 0)) return STAYS;
+
+  // The floor asks nothing; a slot asks exactly what it asks of a thing dragged
+  // into it, because arriving by rot is still arriving. `isItem` on top, which
+  // moves never need: a move can only ever carry a thing that was already an
+  // item, and a decay is the one way a slot could come to hold scenery.
+  if (site === "floor") return { kind: "turned", tileId: decay.tileId };
+  const next: ItemInstance = { ...thing, tileId: decay.tileId };
+  if (!isItem(target) || !slotAccepts(site, next, tilesById)) return STAYS;
+  return { kind: "turned", tileId: decay.tileId };
+}
+
+/** A container's contents after the clock, or null when none of them turned. */
+function decayedContents(
+  contents: readonly ItemInstance[],
+  site: ItemSite,
+  due: ReadonlyMap<string, string>,
+  tilesById: Record<string, TileDef>,
+): ItemInstance[] | null {
+  const next: ItemInstance[] = [];
+  let touched = false;
+  for (const held of contents) {
+    const turn = turnOf(held, site, due, tilesById);
+    if (turn.kind === "stays") {
+      next.push(held);
+      continue;
+    }
+    touched = true;
+    // Gone leaves no hole: contents are a list that fills in order, so a thing
+    // rotting out of the middle of a bag closes up behind it exactly as one
+    // taken out of it does.
+    if (turn.kind === "turned") next.push({ ...held, tileId: turn.tileId });
+  }
+  return touched ? next : null;
+}
+
+/** A slot after its contents were offered to the clock. */
+type SlotAfter = { changed: boolean; instance: ItemInstance | null };
+
+const UNCHANGED: SlotAfter = { changed: false, instance: null };
+
+/** What is worn in a single-item slot after the clock. */
+function wornAfter(
+  instance: ItemInstance | null,
+  site: SlotKind,
+  due: ReadonlyMap<string, string>,
+  tilesById: Record<string, TileDef>,
+): SlotAfter {
+  if (!instance) return UNCHANGED;
+  const turn = turnOf(instance, site, due, tilesById);
+  if (turn.kind === "stays") return { changed: false, instance };
+  if (turn.kind === "gone") return { changed: true, instance: null };
+  return { changed: true, instance: { ...instance, tileId: turn.tileId } };
+}
+
+/**
+ * The bag after the clock, inside and out.
+ *
+ * Its contents are turned first so the bag's own turn is judged against what it
+ * is holding *now* — a pack down to its last apple can rot away on the same tick
+ * the apple does, rather than being held back a lifetime by something that is
+ * about to go too.
+ */
+function bagAfter(
+  bag: ItemInstance | null,
+  due: ReadonlyMap<string, string>,
+  tilesById: Record<string, TileDef>,
+): SlotAfter {
+  if (!bag) return UNCHANGED;
+  const contents = bag.contents
+    ? decayedContents(bag.contents, "contents", due, tilesById)
+    : null;
+  const held = contents ?? bag.contents;
+  const inside = contents ? { ...bag, contents } : bag;
+
+  const turn = turnOf({ ...bag, contents: held }, "bag", due, tilesById);
+  if (turn.kind === "stays") return { changed: contents != null, instance: inside };
+  if (turn.kind === "gone") return { changed: true, instance: null };
+  return { changed: true, instance: { ...inside, tileId: turn.tileId } };
+}
+
+/** A kit after the clock, or null when nothing in it turned. */
+function decayedEquipment(
+  equipment: Equipment,
+  due: ReadonlyMap<string, string>,
+  tilesById: Record<string, TileDef>,
+): Equipment | null {
+  const weapon = wornAfter(equipment.weapon, "weapon", due, tilesById);
+  const offhand = wornAfter(equipment.offhand, "offhand", due, tilesById);
+  const bag = bagAfter(equipment.bag, due, tilesById);
+  if (!weapon.changed && !offhand.changed && !bag.changed) return null;
+  return {
+    weapon: weapon.instance,
+    offhand: offhand.instance,
+    bag: bag.instance,
+  };
+}
+
+/**
+ * A placement rewritten as what it turned into.
+ *
+ * A target that is not an item comes out **anonymous**: a berry that rots into a
+ * stain is scenery, and an item id on a tile nobody can pick up is a promise the
+ * world has no way to keep — worse, it would keep the thing counting down under
+ * an item key when what it has become belongs under a cell key. Dropping the id
+ * hands it back to `armCell` as the plain decaying tile it now is.
+ */
+function placementAfterTurn(
+  placed: PlacedTile,
+  tileId: string,
+  contents: ItemInstance[] | undefined,
+  tilesById: Record<string, TileDef>,
+): PlacedTile {
+  const next: PlacedTile = { ...placed, tileId };
+  if (contents) next.contents = contents;
+  const def = tilesById[tileId];
+  if (def && isItem(def)) return next;
+  delete next.itemId;
+  return next;
+}
+
+/** One cell's stack after the clock, or null when nothing in it turned. */
+function decayedItemsInStack(
+  stack: readonly PlacedTile[],
+  due: ReadonlyMap<string, string>,
+  tilesById: Record<string, TileDef>,
+): PlacedTile[] | null {
+  const next: PlacedTile[] = [];
+  let touched = false;
+  for (const placed of stack) {
+    const contents = placed.contents
+      ? decayedContents(placed.contents, "ground", due, tilesById)
+      : null;
+    const held = contents ?? placed.contents;
+    if (contents) touched = true;
+
+    const turn = placed.itemId
+      ? turnOf(
+          { id: placed.itemId, tileId: placed.tileId, contents: held },
+          "floor",
+          due,
+          tilesById,
+        )
+      : STAYS;
+    if (turn.kind === "gone") {
+      touched = true;
+      continue;
+    }
+    if (turn.kind === "turned") {
+      touched = true;
+      next.push(placementAfterTurn(placed, turn.tileId, held, tilesById));
+      continue;
+    }
+    next.push(contents ? { ...placed, contents } : placed);
+  }
+  return touched ? next : null;
+}
+
+/** The board after the clock: loose things, and things inside things. */
+function decayedBoard(
+  map: MapFile,
+  due: ReadonlyMap<string, string>,
+  tilesById: Record<string, TileDef>,
+): DecayResult {
+  const edits: StackEdit[] = [];
+  const changed: Coord[] = [];
+  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+    for (const { x, y, stack } of listCoords(map, z)) {
+      const next = decayedItemsInStack(stack, due, tilesById);
+      if (!next) continue;
+      // The same refusal a placement decay makes, for the same reason: whatever
+      // a thing rots into has to fit under what has been stacked on it.
+      if (!canReplaceStack(map, x, y, z, next, tilesById).ok) continue;
+      edits.push({ x, y, z, stack: next });
+      changed.push({ x, y, z });
+    }
+  }
+  return { map: setStacks(map, edits), changed };
+}
+
+/** An actor and what it is carrying — all {@link applyItemDecay} needs of one. */
+export type Kit = { id: string; equipment: Equipment };
+
+export type ItemDecayResult = DecayResult & {
+  /** Kits that changed, by actor id. Absent means untouched. */
+  equipment: Map<string, Equipment>;
+};
+
+/**
+ * Turn every *thing* whose time is up, wherever it has got to.
+ *
+ * ## Why this sweeps rather than looks up
+ *
+ * An item entry names a thing and not a place, which is exactly what lets it
+ * survive a pickup — and leaves this pass with no address to go to. It could
+ * carry a last-known whereabouts updated on every arm, and that would be exact
+ * right up until the one move that forgot to update it, at which point a berry
+ * stashed in a chest becomes immortal for reasons nobody can see. So: one walk
+ * of the kits and one of the board, and the thing is wherever it is.
+ *
+ * The cost is a whole-map walk, which is affordable only because it is charged
+ * per *tick that has an item due*, not per item — {@link DecayIndex.takeDue}
+ * hands over everything ripe at that instant, and the ticks in between pay one
+ * comparison. Blood, which is the population that actually runs to hundreds,
+ * never reaches here at all: it is anonymous, so it decays by cell.
+ */
+export function applyItemDecay(
+  map: MapFile,
+  kits: Iterable<Kit>,
+  entries: Iterable<ItemDecay>,
+  tilesById: Record<string, TileDef>,
+): ItemDecayResult {
+  const due = new Map<string, string>();
+  for (const entry of entries) due.set(entry.itemId, entry.tileId);
+
+  const equipment = new Map<string, Equipment>();
+  for (const kit of kits) {
+    const next = decayedEquipment(kit.equipment, due, tilesById);
+    if (next) equipment.set(kit.id, next);
+  }
+  return { ...decayedBoard(map, due, tilesById), equipment };
 }
