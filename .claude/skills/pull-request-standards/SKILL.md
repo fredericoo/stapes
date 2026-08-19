@@ -116,6 +116,41 @@ If the change is visual, include screenshots or recordings to illustrate it.
 </details>
 ```
 
+### Getting an image into the body
+
+GitHub's upload endpoint is part of its web editor, not part of the API `gh`
+drives, so there is no flag that attaches a file. The
+[`gh image`](https://github.com/drogers0/gh-image) extension borrows the
+browser's GitHub session to reach it, and prints the markdown to paste:
+
+```sh
+gh extension install drogers0/gh-image   # once
+gh image shot-before.png shot-after.png  # prints ![shot-before.png](https://github.com/user-attachments/…)
+```
+
+**A `user-attachments` URL 404s to anything without a session, and that is not a
+failed upload.** This repository is private, so its attachments are readable only
+by somebody signed in and allowed to see it — which is every reviewer, in a
+browser, and no `curl`. Checking one from a shell and concluding the upload broke
+costs more time than the upload did.
+
+### Capturing the files
+
+Screenshots have to exist on disk before any of the above. Agent browser tooling
+generally hands an image back to the conversation rather than writing a file, so
+reach for Playwright, which is already a dev dependency:
+
+```js
+const page = await browser.newPage();
+await page.goto("http://localhost:5173/play");
+await page.locator("aside").screenshot({ path: "shot-before.png" });
+```
+
+Shooting a **locator** rather than the page is what makes a before/after pair
+comparable: the same element is the same size in both, so the only difference
+left is the change. Set `deviceScaleFactor: 2` — this game is pixel art, and a
+1× capture of it is mush.
+
 ## Manual Testing
 
 `How to Test` is for local manual verification by a human. Assume a MacBook unless told otherwise.
