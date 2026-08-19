@@ -1951,12 +1951,17 @@
         },
         "naturalWeapon": {
           "type": "weapon",
-          "def": 0,
-          "mastery": "fist",
           "damage": 4,
-          "spd": 58,
+          "def": 0,
           "accuracy": 82,
-          "variance": 25
+          "variance": 25,
+          "spd": 58,
+          "mastery": "fist"
+        },
+        "range": 1.87,
+        "sight": {
+          "up": 0,
+          "down": 0
         }
       },
       "push": {
@@ -1964,15 +1969,293 @@
         "moveOnTileIds": []
       }
     },
+    "states": {
+      "moving": {
+        "sprites": {
+          "n": {
+            "frames": [
+              {
+                "sprite": {
+                  "tilesetId": "people",
+                  "rect": {
+                    "x": 4,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "people",
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "people",
+                  "rect": {
+                    "x": 0,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "people",
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "e": {
+            "frames": [
+              {
+                "sprite": {
+                  "tilesetId": "people",
+                  "rect": {
+                    "x": 4,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "people",
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "people",
+                  "rect": {
+                    "x": 0,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "people",
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "s": {
+            "frames": [
+              {
+                "sprite": {
+                  "tilesetId": "people",
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "people",
+                  "rect": {
+                    "x": 4,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "people",
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "people",
+                  "rect": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "w": {
+            "frames": [
+              {
+                "sprite": {
+                  "tilesetId": "people",
+                  "rect": {
+                    "x": 4,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "people",
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "people",
+                  "rect": {
+                    "x": 0,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "people",
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          }
+        }
+      }
+    },
     "sprites": {
       "n": {
         "frames": [
           {
             "sprite": {
-              "tilesetId": "tiny-ranch-tiles",
+              "tilesetId": "people",
               "rect": {
-                "x": 18,
-                "y": 2,
+                "x": 2,
+                "y": 6,
                 "w": 2,
                 "h": 2
               },
@@ -1989,9 +2272,9 @@
         "frames": [
           {
             "sprite": {
-              "tilesetId": "tiny-ranch-tiles",
+              "tilesetId": "people",
               "rect": {
-                "x": 18,
+                "x": 2,
                 "y": 2,
                 "w": 2,
                 "h": 2
@@ -2009,10 +2292,10 @@
         "frames": [
           {
             "sprite": {
-              "tilesetId": "tiny-ranch-tiles",
+              "tilesetId": "people",
               "rect": {
-                "x": 18,
-                "y": 2,
+                "x": 2,
+                "y": 0,
                 "w": 2,
                 "h": 2
               },
@@ -2029,10 +2312,10 @@
         "frames": [
           {
             "sprite": {
-              "tilesetId": "tiny-ranch-tiles",
+              "tilesetId": "people",
               "rect": {
-                "x": 18,
-                "y": 2,
+                "x": 2,
+                "y": 4,
                 "w": 2,
                 "h": 2
               },
@@ -6809,10 +7092,10 @@
       "frames": [
         {
           "sprite": {
-            "tilesetId": "ultima-vi",
+            "tilesetId": "tiny-ranch-tiles",
             "rect": {
-              "x": 48,
-              "y": 20,
+              "x": 17,
+              "y": 11,
               "w": 1,
               "h": 1
             },

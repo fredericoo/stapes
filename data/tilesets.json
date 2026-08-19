@@ -47,5 +47,12 @@
     "file": "animals.png",
     "width": 128,
     "height": 128
+  },
+  {
+    "id": "people",
+    "name": "People",
+    "file": "people.png",
+    "width": 128,
+    "height": 128
   }
 ]
