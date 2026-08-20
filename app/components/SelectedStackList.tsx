@@ -8,6 +8,7 @@ import {
   resolveEmit,
   resolveReceive,
   resolveRewardDef,
+  resolveTeleportDef,
 } from "../lib/interactions";
 import { resolveContainer, resolveItem } from "../lib/item";
 import { useEditorStore } from "../editor/store";
@@ -77,6 +78,15 @@ function isWired(def: TileDef): boolean {
  */
 function isGiver(def: TileDef): boolean {
   return resolveRewardDef(def) != null;
+}
+
+/**
+ * Does this tile move anybody? Only a teleporter gets a destination, on the same
+ * grounds only a wired tile gets a channel: coordinates on a rock are a control
+ * that can never do anything.
+ */
+function isTeleporter(def: TileDef): boolean {
+  return resolveTeleportDef(def) != null;
 }
 
 /**
@@ -237,6 +247,8 @@ function SortableStackItem({
           stackIndex={stackIndex}
           wired={isWired(def)}
           gives={isGiver(def)}
+          teleports={isTeleporter(def)}
+          teleportDestinationKind={resolveTeleportDef(def)?.destination ?? null}
           giveable={giveable}
           tilesets={tilesets}
           channelListId={CHANNEL_LIST_ID}

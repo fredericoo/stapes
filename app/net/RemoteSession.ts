@@ -625,6 +625,16 @@ export class RemoteSession implements PlaySession {
       return;
     }
 
+    if (event.kind === "teleported") {
+      // Nothing to animate — the body is simply somewhere else, and the cell
+      // patches in this same frame say where. What has to happen is that both
+      // the lerp and, for our own body, the prediction stop: a walk still being
+      // drawn would drag the sprite across the map from a cell nobody is in.
+      this.motions.set(event.actorId, emptyMotion());
+      if (event.actorId === this.selfId) this.abandonPrediction();
+      return;
+    }
+
     if (event.actorId === this.selfId) {
       // A walk of our own is one we drew a round trip ago and are still holding
       // a guess about; this is the server agreeing, not news, and replaying it

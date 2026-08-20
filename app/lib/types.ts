@@ -411,6 +411,21 @@ export type PlacedTile = {
    */
   rewardTileIds?: string[];
   /**
+   * Where this placement sends whoever activates it. See `../lib/interactions`'s
+   * {@link TeleportInteraction}.
+   *
+   * A placement field on exactly the terms {@link rewardTag} is, and for the
+   * same argument: the tile says *what kind of thing this is* — a portal you
+   * step into, a ladder you climb — and the slot says which particular one. One
+   * `portal` tile therefore furnishes a whole map, where coordinates on the def
+   * would make every portal in the world lead to one room.
+   *
+   * Read as a cell or as a delta depending on the tile's
+   * `TeleportInteraction.destination`; `resolveTeleport` is the one place that
+   * decides which, and everything downstream takes the absolute answer.
+   */
+  teleportTo?: Coord;
+  /**
    * Which actor drives this placement, for the handful of tiles that are
    * somebody's avatar rather than scenery.
    *

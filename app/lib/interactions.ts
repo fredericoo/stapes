@@ -9,8 +9,8 @@ import {
   weaponForSave,
 } from "./item";
 import { MASTERIES } from "./mastery";
-import type { PlacedTile, SpriteState, TileDef } from "./types";
-import { HEIGHT_PER_LEVEL, resolveActor } from "./types";
+import type { Coord, PlacedTile, SpriteState, TileDef } from "./types";
+import { HEIGHT_PER_LEVEL, MAX_LEVEL, MIN_LEVEL, resolveActor } from "./types";
 
 /**
  * How far up a pushed object can step. Descent is deliberately absent —
@@ -239,6 +239,94 @@ export type ReceiveInteraction = {
   mode: SignalMode;
 };
 
+/** When a teleport fires. */
+export type TeleportTrigger = "step" | "interact" | "interactOver";
+
+export const TELEPORT_TRIGGERS: TeleportTrigger[] = [
+  "step",
+  "interact",
+  "interactOver",
+];
+
+/** How a teleport's authored numbers are read against the board. */
+export type TeleportDestinationKind = "absolute" | "relative";
+
+export const TELEPORT_DESTINATION_KINDS: TeleportDestinationKind[] = [
+  "absolute",
+  "relative",
+];
+
+/**
+ * Put whoever activates this somewhere else on the board.
+ *
+ * **The block is a marker, and where it goes is on the placement**
+ * ({@link PlacedTile.teleportTo}) — exactly the split
+ * {@link RewardInteraction} makes, and for the same argument: the tile says
+ * *what kind of thing this is* — a portal you step into, a ladder you climb —
+ * and the slot says which particular one. One `portal` tile therefore furnishes
+ * a whole map, where coordinates on the def would make every portal in the
+ * world lead to one room.
+ *
+ * Nothing here is per-player and nothing is spent: a teleport is the one
+ * authored interaction with no state at all on either side of it. Walking back
+ * onto the pad sends you through again, which is what a door is.
+ */
+export type TeleportInteraction = {
+  /**
+   * What going through it is called — "Enter" on a portal, "Climb" on a ladder.
+   *
+   * Authored for the reason {@link SwitchInteraction.actionName} and
+   * {@link RewardInteraction.actionName} are: nothing derivable from a tile
+   * that moves you says whether you are stepping through it or hauling yourself
+   * up it. Optional, and blank reads as "Enter".
+   *
+   * Read only when the player has something to press. A {@link trigger} of
+   * `step` offers no row and never shows this.
+   */
+  actionName?: string;
+  /**
+   * What sets it off.
+   *
+   * - `step` — landing on the cell does it, with nothing to press. A portal.
+   * - `interact` — pressing it from the next cell over, on exactly the reach a
+   *   {@link SwitchInteraction} takes: orthogonal and adjacent, because "the
+   *   thing you are squarely beside" is the only reading a doorway has.
+   * - `interactOver` — pressing it while standing in its cell. A ladder: you
+   *   walk onto the rungs and then climb, which is two acts and reads as two.
+   */
+  trigger: TeleportTrigger;
+  /**
+   * How the placement's three numbers are read.
+   *
+   * - `absolute` — they are the cell, whole. A portal to a fixed room.
+   * - `relative` — they are a delta **from the placement's own cell**, not from
+   *   wherever the player happened to be standing. A ladder is `z + 1` from the
+   *   rungs however you approached them; measuring from the actor would make an
+   *   adjacent portal land somewhere different for each of the four sides you
+   *   could press it from.
+   */
+  destination: TeleportDestinationKind;
+};
+
+/**
+ * A teleport as it is actually offered: the tile's half and the slot's half,
+ * read together.
+ *
+ * Joined once here for the reason {@link PlacedReward} is: neither half is a
+ * teleport on its own — a portal tile with no destination written on this
+ * placement leads nowhere, and coordinates on a placement of a tile that does
+ * not teleport are a note nobody reads.
+ *
+ * {@link to} is the cell itself, with `relative` already resolved against the
+ * placement, so nothing downstream has to know which kind was authored.
+ */
+export type PlacedTeleport = {
+  actionName?: string;
+  trigger: TeleportTrigger;
+  /** Where the traveller ends up, absolute. */
+  to: Coord;
+};
+
 /**
  * This tile hands things over — a chest you open, a person you receive from.
  *
@@ -340,6 +428,7 @@ export type TileInteractions = {
   push?: PushInteraction;
   switch?: SwitchInteraction;
   reward?: RewardInteraction;
+  teleport?: TeleportInteraction;
   decay?: DecayInteraction;
   respawn?: RespawnInteraction;
   pressurePlate?: PressurePlateInteraction;
@@ -354,6 +443,17 @@ export const DEFAULT_SWITCH: SwitchInteraction = {
 
 export const DEFAULT_REWARD: RewardInteraction = {
   actionName: "",
+};
+
+/**
+ * A ladder, which is the shape this was authored for: you stand on the rungs
+ * and climb one floor. Relative rather than absolute because a default with
+ * coordinates in it would be a default that points at a particular room.
+ */
+export const DEFAULT_TELEPORT: TeleportInteraction = {
+  actionName: "",
+  trigger: "interactOver",
+  destination: "relative",
 };
 
 /**
@@ -545,6 +645,105 @@ function readPlacedReward(
   };
 }
 
+const teleportSchema = v.object({
+  actionName: v.optional(v.string()),
+  trigger: v.picklist(TELEPORT_TRIGGERS),
+  destination: v.picklist(TELEPORT_DESTINATION_KINDS),
+});
+
+const teleportCache = new WeakMap<TileDef, TeleportInteraction | null>();
+
+/**
+ * Parsed teleport config for a tile def — whether this tile moves anybody at
+ * all, what the gesture is called, and how the placement's numbers read.
+ *
+ * Same trust model as {@link resolvePush}: malformed → does not teleport. The
+ * block carries no coordinates, so unlike a switch there is no target to be
+ * empty; a well-formed block on a placement nobody wrote a destination on is a
+ * portal that leads nowhere, which {@link resolveTeleport} is what refuses.
+ */
+export function resolveTeleportDef(def: TileDef): TeleportInteraction | null {
+  const cached = teleportCache.get(def);
+  if (cached !== undefined) return cached;
+
+  const raw = def.interactions?.teleport;
+  const parsed = raw == null ? null : v.safeParse(teleportSchema, raw);
+  const teleport = parsed?.success ? parsed.output : null;
+  teleportCache.set(def, teleport);
+  return teleport;
+}
+
+const placedTeleportSchema = v.object({
+  teleportTo: v.object({
+    x: v.pipe(v.number(), v.integer()),
+    y: v.pipe(v.number(), v.integer()),
+    z: v.pipe(v.number(), v.integer()),
+  }),
+});
+
+/**
+ * Where one placement of a teleporting tile actually sends somebody, or null
+ * when it sends them nowhere.
+ *
+ * The `relative` arm is resolved here and nowhere else, against the cell the
+ * placement is standing in — see {@link TeleportInteraction.destination} for
+ * why that origin and not the traveller's. Everything downstream therefore
+ * takes one absolute cell and never learns which kind was authored.
+ *
+ * A destination off the ends of the world is refused rather than clamped, on
+ * the same terms every other malformed block here is: a ladder authored `z + 1`
+ * on the top floor leads nowhere, and pinning it to the floor it is already on
+ * would be a teleport that silently does nothing while still offering its row.
+ *
+ * Only the *authored* half is memoised, unlike {@link resolveReward}, and the
+ * arithmetic is redone per call. The cache is keyed on placement identity,
+ * which says nothing about where that placement is standing — and a relative
+ * teleport's answer depends on exactly that. Caching the resolved cell would
+ * make this correct only for as long as no placement object outlives a move,
+ * which is true today and is not a promise anything states.
+ */
+const authoredTeleportCache = new WeakMap<PlacedTile, Coord | null>();
+
+export function resolveTeleport(
+  placed: PlacedTile,
+  def: TileDef | undefined,
+  at: Coord,
+): PlacedTeleport | null {
+  const gesture = def ? resolveTeleportDef(def) : null;
+  if (!gesture) return null;
+
+  const authored = authoredDestination(placed);
+  if (!authored) return null;
+
+  const to =
+    gesture.destination === "absolute"
+      ? authored
+      : { x: at.x + authored.x, y: at.y + authored.y, z: at.z + authored.z };
+  if (to.z < MIN_LEVEL || to.z > MAX_LEVEL) return null;
+  // A teleport onto the cell it is authored in is not a teleport. Refused
+  // rather than left as a no-op move, because the row is offered from this same
+  // answer: a ladder whose delta is all zeroes should read as unauthored rather
+  // than as a rung that takes a press and does nothing.
+  if (to.x === at.x && to.y === at.y && to.z === at.z) return null;
+
+  return {
+    ...(gesture.actionName ? { actionName: gesture.actionName } : {}),
+    trigger: gesture.trigger,
+    to,
+  };
+}
+
+/** The three numbers as written on the placement, before any origin is applied. */
+function authoredDestination(placed: PlacedTile): Coord | null {
+  const cached = authoredTeleportCache.get(placed);
+  if (cached !== undefined) return cached;
+
+  const parsed = v.safeParse(placedTeleportSchema, placed);
+  const authored = parsed.success ? parsed.output.teleportTo : null;
+  authoredTeleportCache.set(placed, authored);
+  return authored;
+}
+
 const decaySchema = v.pipe(
   v.object({
     // Permissive where every other target is `minLength(1)`, because blank is
@@ -713,7 +912,12 @@ export function receiveTriggers(
  * the placement, so looking inside is local panel state. It is an
  * `InteractionAction` without being one of these, exactly as `target` is.
  */
-export type InteractionKind = "reward" | "switch" | "pickUp" | "push";
+export type InteractionKind =
+  | "reward"
+  | "teleport"
+  | "switch"
+  | "pickUp"
+  | "push";
 
 /** Every player-activated interaction on this tile, in a stable order. */
 export function interactionKinds(def: TileDef): InteractionKind[] {
@@ -722,10 +926,21 @@ export function interactionKinds(def: TileDef): InteractionKind[] {
   // question about a slot, and `interactionKinds` is asked about tiles — see
   // `resolveReward`, which is what the affordances ask.
   if (resolveRewardDef(def)) kinds.push("reward");
+  // The def's half only too, and with a second question folded in: a `step`
+  // teleport is not player-activated at all, so a portal you walk onto is no
+  // more tappable than a pressure plate is. Only the two triggers that wait for
+  // a press are ever a kind.
+  if (pressableTeleport(def)) kinds.push("teleport");
   if (resolveSwitch(def)) kinds.push("switch");
   if (resolveItem(def)) kinds.push("pickUp");
   if (resolvePush(def)) kinds.push("push");
   return kinds;
+}
+
+/** Does this tile's teleport wait for a press, rather than firing underfoot? */
+function pressableTeleport(def: TileDef): boolean {
+  const teleport = resolveTeleportDef(def);
+  return teleport != null && teleport.trigger !== "step";
 }
 
 /**
@@ -826,6 +1041,7 @@ export function hasAnyInteraction(
       interactions?.push ||
       interactions?.switch ||
       interactions?.reward ||
+      interactions?.teleport ||
       interactions?.decay ||
       interactions?.respawn ||
       interactions?.pressurePlate ||
@@ -868,6 +1084,19 @@ export function interactionsForSave(
   const rewardActionName = reward?.actionName?.trim();
   const savedReward = reward
     ? { ...(rewardActionName ? { actionName: rewardActionName } : {}) }
+    : undefined;
+  // Kept whatever is in it, on the same terms the reward block is and for the
+  // same reason: the presence of the block is the statement, and where each
+  // portal leads is written on its placements. There is nothing here that could
+  // be blank enough to mean unauthored.
+  const teleport = interactions?.teleport;
+  const teleportActionName = teleport?.actionName?.trim();
+  const savedTeleport = teleport
+    ? {
+        ...(teleportActionName ? { actionName: teleportActionName } : {}),
+        trigger: teleport.trigger,
+        destination: teleport.destination,
+      }
     : undefined;
   // Gated on the lifetime rather than on the target, unlike every other block
   // here: a blank target is how a tile says it vanishes, and dropping the block
@@ -960,6 +1189,7 @@ export function interactionsForSave(
     !savedPush &&
     !savedSwitch &&
     !savedReward &&
+    !savedTeleport &&
     !savedDecay &&
     !savedRespawn &&
     !savedPlate &&
@@ -975,6 +1205,7 @@ export function interactionsForSave(
     ...(savedPush ? { push: savedPush } : {}),
     ...(savedSwitch ? { switch: savedSwitch } : {}),
     ...(savedReward ? { reward: savedReward } : {}),
+    ...(savedTeleport ? { teleport: savedTeleport } : {}),
     ...(savedDecay ? { decay: savedDecay } : {}),
     ...(savedRespawn ? { respawn: savedRespawn } : {}),
     ...(savedPlate ? { pressurePlate: savedPlate } : {}),

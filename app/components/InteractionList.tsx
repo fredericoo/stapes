@@ -1,6 +1,7 @@
 import {
   IconApple,
   IconBoxSeam,
+  IconDoorEnter,
   IconGift,
   IconHandGrab,
   IconHandMove,
@@ -65,6 +66,9 @@ const ICONS: Record<InteractionAction, typeof IconTarget> = {
   equip: IconShirt,
   push: IconHandMove,
   switch: IconSwitch,
+  // A doorway rather than a ladder or a swirl, because the row covers both and
+  // the one thing every teleport has in common is that you end up through it.
+  teleport: IconDoorEnter,
   // An apple for every consumable, drink included: the icon says "this gets
   // used up", and the authored verb beside it says how.
   consume: IconApple,
