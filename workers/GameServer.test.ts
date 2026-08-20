@@ -115,9 +115,15 @@ function playerOwners(map: FlatMapFile): (string | undefined)[] {
   return found;
 }
 
+/** How long a test waits for the world to say something before giving up. */
+const MESSAGE_TIMEOUT_MS = 5000;
+
 function nextMessage(ws: WebSocket): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error("no message")), 5000);
+    const timer = setTimeout(
+      () => reject(new Error("no message")),
+      MESSAGE_TIMEOUT_MS,
+    );
     ws.addEventListener(
       "message",
       (event) => {
@@ -126,6 +132,38 @@ function nextMessage(ws: WebSocket): Promise<Record<string, unknown>> {
       },
       { once: true },
     );
+  });
+}
+
+/**
+ * The next message of a given kind, letting anything else go past first.
+ *
+ * The world talks on its own schedule — a tick lands, somebody else takes a
+ * step, a body decays — so "the next message" and "the message my request
+ * produced" are not the same thing. Waiting for the *kind* is what makes an
+ * assertion about a reply an assertion about that reply, rather than a bet on
+ * nothing else happening in between.
+ */
+function nextMessageOfType(
+  ws: WebSocket,
+  type: string,
+): Promise<Record<string, unknown>> {
+  return new Promise((resolve, reject) => {
+    const onMessage = (event: MessageEvent) => {
+      const message = JSON.parse(event.data as string) as Record<
+        string,
+        unknown
+      >;
+      if (message.type !== type) return;
+      clearTimeout(timer);
+      ws.removeEventListener("message", onMessage);
+      resolve(message);
+    };
+    const timer = setTimeout(() => {
+      ws.removeEventListener("message", onMessage);
+      reject(new Error(`no ${type} message`));
+    }, MESSAGE_TIMEOUT_MS);
+    ws.addEventListener("message", onMessage);
   });
 }
 
@@ -2829,8 +2867,11 @@ describe("dying and coming back", () => {
     // The kit patch that says it worked, which is also the acknowledgement that
     // the message has been handled — asserting on storage before it would be
     // asserting on a race.
-    const patch = await nextMessage(alice.ws);
-    expect(patch.type).toBe("equipment");
+    //
+    // By kind rather than by position: a world patch from an unrelated tick can
+    // and does arrive between the request and its answer, and taking whatever
+    // came next made this fail in CI as "expected 'patch' to be 'equipment'".
+    await nextMessageOfType(alice.ws, "equipment");
     return alice;
   }
 
