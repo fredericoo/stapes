@@ -692,6 +692,80 @@ thumb, where look mode's promise is that pointing at something tells you about i
 now. Entering the mode also cancels a drag in flight, since shift is a key that
 can be pressed halfway through one.
 
+### A notice is a sentence with nowhere else to go
+
+The bottom of the view carries at most two lines of white text — "Your blade
+mastery is now 10", "You open Quest Chest and receive 1 Hand Lantern, 1 Rusty
+Sword" — and they are the same idea as `weaponFeel` one step on: prose for a fact
+that has no picture. Three kinds qualify. Something crossed a threshold you were
+not watching, so the mastery bars mattered for one frame while you were looking
+at a rat. Something happened that the board deliberately does not show — a reward
+leaves the chest full and the map untouched, so the only evidence is a line item
+in a bag you may not have open. Or something you asked for did not happen — "You
+cannot fit there", "Your inventory is full" — and a refusal that shows as
+*nothing occurring* is indistinguishable from the input being dropped. Everything
+else already has a better telling: a blow is a number off a head, a status is an
+icon in the strip. Reach for a notice when there is no picture, not when a
+picture would be work.
+
+There are no levels in this game, so a notice must not name one: "Your blade
+mastery is now 10", never "level 10". @see `app/lib/mastery.ts`.
+
+These are load-bearing:
+
+- **It is drawn by the render loop, not by React.** There is nothing to do to a
+  notice — it cannot be dismissed, focused or replied to — so it has no role, no
+  live region, no state and no unmount timer. It is an element in the world text
+  layer (`app/render/notifications.ts`), positioned against the bottom edge of
+  the square rather than against a cell, and the page has no idea it exists. Text
+  over this canvas is DOM for the reason `app/render/textLabels.ts` gives at
+  length; a notice is in that layer for the font, the brick and the outline,
+  which are declared there and nowhere else. One brick of outline, not speech's
+  two: the heavy weight buys a background for text landing over unpredictable
+  art, and a notice always lands in the same quiet corner of the frame.
+- **Two, capped, newest at the bottom.** A third arriving evicts the oldest on
+  the spot rather than queueing behind it: a notice describes a moment, and a
+  line held back until a slot frees up is read against whatever the player is
+  doing by then. A repeat of the line already showing refreshes its timer instead
+  of stacking a duplicate, which is what keeps a mashed key from filling both
+  slots with one sentence.
+- **One source, and the client infers nothing.** Every sentence is composed
+  where the thing it describes happened — a reward as it is handed over, a
+  mastery inside `grantExperience` as the experience that crossed it is written —
+  queued against the body it happened to, and drained through
+  `PlaySession.drainNotices`: the session's own queue in single-player, the
+  addressed `notice` message online. A renderer draws; it does not work out what
+  occurred.
+
+  The mastery line was briefly a **diff** the client took across successive
+  `masteryXp` blocks, because at the time nothing on the wire announced a
+  crossing. That stopped being true the moment rewards needed a channel, and the
+  diff was strictly the worse half: reconstructing an event from state meant the
+  renderer held a private copy of the last block, gated on `hasExperience` so the
+  empty block held before `hello` was not read as a lifetime of level-ups, and
+  had to be careful that a re-registered listener did not replay them. All of it
+  to guess at something the session knew exactly. **When a channel already
+  carries events, do not add a second mechanism that infers them.**
+- **`notice` is the one fire-and-forget message on the wire.** Everything else
+  addressed to a socket carries whole state precisely so a dropped message
+  self-corrects on the next one. This carries an event, and a lost line is a line
+  nobody reads — the right trade for a sentence that is stale four seconds later,
+  but the reason nothing may ever depend on a notice having arrived. What the
+  reward actually *did* is confirmed by the `tags` and `equipment` messages
+  beside it, which are whole.
+- **Only earning speaks, and that silence is structural.** A body is *seeded*
+  with the masteries its tile was authored with, and seeding does not go through
+  `grantExperience` — so a new player is greeted with nothing, without a gate
+  anywhere having to suppress it. This is the whole reason composing at the
+  source beat the diff: the old client-side version had to be *told* to be quiet
+  about a block it had no way to recognise.
+- **The sentence is composed in one place, from what the author wrote.** A
+  reward's verb is its `actionName` ("Open"), lowercased into the line, so the
+  row you pressed and the line that follows it cannot describe two gestures; the
+  giver and the items are named by `TileDef.name`; and items are grouped by tile,
+  because a reward is a recipe and "1 Bread, 1 Bread, 1 Bread" reads as a
+  rendering fault.
+
 ## A reward happens to the player, not to the board
 
 `interactions.reward` hands over a list of items once per player — a quest

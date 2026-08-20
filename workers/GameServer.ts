@@ -1786,6 +1786,7 @@ export class GameServer extends DurableObject<Env> {
     this.flushEquipment();
     this.flushSounds();
     this.flushTags();
+    this.flushNotices();
     this.flushMasteries();
     // Eating happens between ticks, and the world may be asleep when it does —
     // the same reason the kit is flushed here rather than only on the loop.
@@ -1892,6 +1893,31 @@ export class GameServer extends DurableObject<Env> {
           tags: [...tags],
         } satisfies ServerMessage),
       );
+    }
+  }
+
+  /**
+   * Say whatever the board has to say to the people it happened to.
+   *
+   * Drained per socket rather than in one sweep, because the queue is keyed by
+   * actor and there is nothing useful to do with a line for somebody who is not
+   * here: `GameSession` holds it, and they read it when they come back.
+   *
+   * Several lines can be waiting for one player — a chest opened on the same
+   * tick something else spoke — so this sends each in turn rather than joining
+   * them. The client's stack is what decides how many of them are readable; see
+   * `app/render/notifications.ts`.
+   */
+  private flushNotices() {
+    const session = this.session;
+    if (!session) return;
+
+    for (const ws of this.ctx.getWebSockets()) {
+      const attachment = ws.deserializeAttachment() as Attachment | null;
+      if (!attachment) continue;
+      for (const text of session.drainNotices(attachment.actorId)) {
+        ws.send(JSON.stringify({ type: "notice", text } satisfies ServerMessage));
+      }
     }
   }
 
@@ -2649,6 +2675,10 @@ export class GameServer extends DurableObject<Env> {
     // way of a panel that never updates.
     this.flushEquipment();
     this.flushTags();
+    // Beside the tag, because it describes the same act — and on the tick as
+    // well as on input for the same reason the kit is: nothing guarantees which
+    // of the two got there first.
+    this.flushNotices();
     // Unlike the two above, this one really does move on a tick: experience is
     // earned by swinging, and swinging is something the world does to itself.
     this.flushMasteries();

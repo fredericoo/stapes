@@ -121,6 +121,11 @@ textarea {
  * already resolved against every other label on screen. Nothing here may shift
  * a label again — a second opinion about position is exactly the overlap that
  * pass exists to prevent.
+ *
+ * One thing in here is not in the world at all: `.notice-stack`, pinned to the
+ * bottom edge and addressed to the player rather than to a cell. It is here for
+ * the font, the brick and the outline, which are declared on this layer and
+ * nowhere else.
  */
 .world-label-layer {
   /* 20px, which must stay a multiple of 10 — see the @font-face note. Two CSS
@@ -227,7 +232,8 @@ textarea {
  * brick, which does compose, at the cost of putting every child of the label
  * through the filter too.
  */
-.world-label {
+.world-label,
+.notice {
   text-shadow:
     var(--o1n) var(--o1n) 0 #000, 0 var(--o1n) 0 #000,
     var(--o1) var(--o1n) 0 #000,
@@ -239,7 +245,7 @@ textarea {
 }
 
 /**
- * Two bricks, for the two things that are saying something new.
+ * Two bricks, for the two that are saying something new somewhere new.
  *
  * A name and a look label are always there — a name over every battler on
  * screen, a look label under the pointer for as long as it rests. Weight spent
@@ -247,6 +253,14 @@ textarea {
  * reading as art with text over it and starts reading as text with art behind
  * it. Speech and damage are the opposite: they arrive, they matter for a second
  * or five, and they have to win against whatever colour they happen to land on.
+ *
+ * A notice is *not* one of them, though it arrives the same way, and the reason
+ * is that it always lands in the same place. Speech and damage appear over
+ * whatever the world happens to be doing at that cell, so the outline is what
+ * buys them a background; a notice sits at the foot of the view, where the eye
+ * already knows to look and the art is furthest from the centre of the frame.
+ * Two bricks there is weight spent on a fight already won, and it thickens a
+ * whole sentence rather than two digits.
  *
  * Must stay after `.world-label` — same specificity, so it is source order that
  * decides, and this replaces the property rather than adding to it.
@@ -423,6 +437,73 @@ textarea {
    is what makes the mastery penalty legible at all. */
 .damage-number--nothing {
   color: #9a9a9a;
+}
+
+/**
+ * What the game has just told you, stacked at the foot of the view.
+ *
+ * The one thing in this layer that is not in the world: a name is over a
+ * creature and a number is over a blow, and this is addressed to the person
+ * holding the keyboard. So it takes nothing from the camera — no anchor, no
+ * `--label-x`, no layout pass — and sits against the bottom edge of the square
+ * wherever that square happens to be.
+ *
+ * It lives in the world layer regardless, and that is deliberate rather than
+ * convenient: it is drawn in the same 1-bit font, at the same size, with the
+ * same outline as everything else the game says out loud, and those are all
+ * declared once on the layer. A container of its own would be a second place
+ * for the brick to be defined and a second thing to forget when it moves.
+ *
+ * See `app/render/notifications.ts` for how many there are and how long they
+ * stay.
+ */
+.notice-stack {
+  position: absolute;
+  /* Full width so the column can centre against the square rather than against
+     its own contents — a one-word notice and a full sentence then share a
+     centre line, and a new line arriving does not shift the one above it
+     sideways. */
+  left: 0;
+  right: 0;
+  /* Two of the font's own pixels clear of the edge. Off the very bottom because
+     the layer clips, and a descender flush against the boundary reads as text
+     that has been cut rather than text that has been placed. */
+  bottom: calc(var(--world-label-brick) * 2);
+  display: flex;
+  /* Downwards, so the newest sits nearest the bottom edge and an older line is
+     pushed up by exactly its own height — wrapped or not, measured by nobody.
+     The same trick a multi-line label plays, and for the same reason: the thing
+     that just happened is always in the same place. */
+  flex-direction: column;
+  align-items: center;
+  gap: var(--world-label-brick);
+  /* A notice must never eat a click aimed at the world underneath it. Inherited
+     from the layer already; stated because this is the element a future
+     dismissable notice would have to change. */
+  pointer-events: none;
+}
+
+.notice {
+  font-family: "NF Pixels", monospace;
+  font-size: var(--world-label-size);
+  /* 1.2, matching every other block of this font — see `.world-label`. */
+  line-height: 1.2;
+  /* White, like a damage number that happened to somebody else: the neutral end
+     of this layer's palette. The vocabulary in the world is spoken for — yellow
+     is a tag, red is your own hit points, blue is looking — and a notice is
+     none of those. When the refusals arrive they can take a colour of their own
+     off this. */
+  color: #fff;
+  text-align: center;
+  /* Wider than a label's 60%, because this one is not standing on anything it
+     could obscure, and narrower than the square so a long sentence wraps to a
+     shape rather than running the full width. */
+  max-width: 80%;
+  overflow-wrap: break-word;
+  /* Over the numbers, which are themselves over the bubbles. Whatever the world
+     is doing, the sentence addressed to the player is the thing that must be
+     readable. */
+  z-index: 3;
 }
 
 /* Hard-edged checkbox — matches Input / Segmented chrome */

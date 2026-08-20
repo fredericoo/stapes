@@ -55,6 +55,7 @@ import {
   type DropDestination,
   type ObjectRef,
 } from "./affordances";
+import { masteryNotice, rewardNotice } from "./notices";
 import { findEntryCell } from "./entry";
 import {
   BRAIN_TICK_MS,
@@ -77,7 +78,9 @@ import {
 import {
   experienceMultiplier,
   hasExperience,
+  levelForXp,
   MASTERIES,
+  type Mastery,
   masteriesFromXp,
   type MasteryXp,
   rating,
@@ -682,6 +685,20 @@ export interface PlaySession {
   canDrop(from: SlotRef, to: Coord): boolean;
   /** Put a carried thing down on the board. @see canDrop */
   drop(from: SlotRef, to: Coord): boolean;
+  /**
+   * Sentences the game has for the viewer, taken away as they are read.
+   *
+   * A drain rather than state, because a notice is an *event*: it happened once,
+   * it is said once, and nothing on either side has any use for it afterwards.
+   * The two implementations differ only in where the sentence was composed — the
+   * local session writes its own, and the remote one repeats what the server
+   * addressed to it. @see ../render/notifications
+   *
+   * Deliberately not on the snapshot beside `damage`. A snapshot describes the
+   * board and may be taken freely; this empties something, and a getter that
+   * emptied a queue would lose a line to anybody who looked twice.
+   */
+  drainNotices(): string[];
 }
 
 /**
@@ -1096,6 +1113,20 @@ export class GameSession implements PlaySession {
    * outlives it by a couple of seconds. Both are fed by the same blow.
    */
   private liveDamage: DamageNumber[] = [];
+  /**
+   * Sentences waiting to be told to the people they are about.
+   *
+   * Addressed rather than broadcast, and that is what makes it a list of pairs
+   * rather than a list of lines: "you open the chest" is true of exactly one
+   * body in the room, and everybody else watching would be told about a chest
+   * they can still open themselves.
+   *
+   * A line queued for somebody who has just disconnected waits here until they
+   * come back and drain it, which is the right answer rather than a leak: they
+   * *did* take the reward, and being told on the next visit is still being told.
+   * Ids are stable per player, so the wait ends.
+   */
+  private readonly pendingNotices: { actorId: string; text: string }[] = [];
   /** Ticks up per blow, so two hits in one tick are two numbers. */
   private nextDamageId = 0;
   /**
@@ -2414,17 +2445,33 @@ export class GameSession implements PlaySession {
     // Copied lazily, so a swing that taught nothing costs no allocation — which
     // is most of them, once a player has outgrown what they are fighting.
     let moved: MasteryXp | null = null;
+    // Crossings are collected rather than said as they are found, so nothing is
+    // announced until the whole block is known to be going in — see below.
+    let crossed: Mastery[] | null = null;
     for (const mastery of MASTERIES) {
       const amount = earned[mastery];
       if (!amount) continue;
       moved ??= { ...xp };
-      moved[mastery] = (moved[mastery] ?? 0) + amount;
+      const before = moved[mastery] ?? 0;
+      const after = before + amount;
+      moved[mastery] = after;
+      // Read here rather than diffed later: this is the one place both totals
+      // for one mastery exist at once, and earning is the only thing that moves
+      // one. A body *seeded* with masteries never comes through here, which is
+      // why announcing at the source needs no baseline to be quiet about.
+      if (levelForXp(after) > levelForXp(before)) (crossed ??= []).push(mastery);
     }
     if (!moved) return;
 
     actor.masteryXp = moved;
     actor.earnedBody = null;
     this.masteriesChanged.add(actor.id);
+    // After the write, on the same rule the reward's line follows: a sentence is
+    // a receipt, and a receipt printed ahead of the thing it receipts is a lie
+    // waiting for an early return to be added above it.
+    for (const mastery of crossed ?? []) {
+      this.say(actor.id, masteryNotice(mastery, levelForXp(moved[mastery] ?? 0)));
+    }
   }
 
   /**
@@ -3606,6 +3653,12 @@ export class GameSession implements PlaySession {
     if (actor.tags.includes(reward.tag)) return false;
     if (!rewardFits(reward, this.tilesById, actor.equipment)) return false;
 
+    // Read before anything is written, because the notice names the giver and
+    // `reachableRewardAt` has already proved the slot holds one.
+    const giverDef =
+      this.tilesById[getStack(this.map, ref.x, ref.y, ref.z)[ref.stackIndex].tileId];
+    if (!giverDef) return false;
+
     const bag = actor.equipment.bag!;
     const given = reward.itemTileIds.map((tileId) => ({
       id: mintItemId(),
@@ -3616,7 +3669,44 @@ export class GameSession implements PlaySession {
       bag: { ...bag, contents: [...(bag.contents ?? []), ...given] },
     });
     this.setTags(actor, [...actor.tags, reward.tag]);
+    // After the two writes, never before: the sentence says what the player now
+    // has, and a line queued ahead of a throw would be a receipt for a reward
+    // that never landed. Composed here rather than on the way out because this
+    // is the last place holding the giver *and* what it gave — by the time
+    // anything drains this, the ref is a coordinate and the reward is gone.
+    this.say(actor.id, rewardNotice(reward, giverDef, this.tilesById));
     return true;
+  }
+
+  /**
+   * Queue a sentence for one body's owner.
+   *
+   * Private and deliberately narrow: everything that puts a line in front of a
+   * player goes through here, so there is one place to look when asking what the
+   * game is capable of saying. @see ./notices
+   */
+  private say(actorId: string, text: string) {
+    this.pendingNotices.push({ actorId, text });
+  }
+
+  /**
+   * Take away everything queued for one body's owner.
+   *
+   * The id defaults to the local player, which is what makes this the
+   * {@link PlaySession} face of the queue; the worker passes real ids and drains
+   * one socket's worth at a time. Splicing rather than filtering because the
+   * list is nearly always empty and never long — a reward is once per player per
+   * chest, for ever.
+   */
+  drainNotices(id: string = LOCAL_ACTOR_ID): string[] {
+    if (this.pendingNotices.length === 0) return [];
+    const mine: string[] = [];
+    for (let i = this.pendingNotices.length - 1; i >= 0; i--) {
+      if (this.pendingNotices[i].actorId !== id) continue;
+      mine.unshift(this.pendingNotices[i].text);
+      this.pendingNotices.splice(i, 1);
+    }
+    return mine;
   }
 
   /**

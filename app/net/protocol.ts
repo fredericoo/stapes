@@ -437,6 +437,28 @@ export type ServerMessage =
    */
   | { type: "tags"; tags: string[] }
   /**
+   * "Here is something to tell you."
+   *
+   * One sentence for one player, drawn at the foot of their view and then gone
+   * — see `../render/notifications`. Addressed rather than broadcast for the
+   * reason a kit and a tag are, and more sharply: the whole content of a notice
+   * is the word "you".
+   *
+   * **Fire-and-forget, and the only message here that is.** Everything else
+   * addressed to one socket carries whole state precisely so a dropped message
+   * self-corrects on the next one; this carries an event, and a lost line is a
+   * line the player never reads. That is the right trade — the alternative is
+   * acknowledgements and a replay buffer for a sentence that is stale four
+   * seconds after it is composed — but it is why nothing may ever depend on a
+   * notice having arrived. The reward it describes is confirmed by the `tags`
+   * and `equipment` messages beside it, which are whole.
+   *
+   * Composed on the server rather than derived by the client, because it says
+   * what *happened*: the mastery line the client works out for itself is a
+   * reading of totals it already holds, and this is an event only the board saw.
+   */
+  | { type: "notice"; text: string }
+  /**
    * "Here is what is running on you now."
    *
    * **Addressed to one socket, and deliberately not folded into the tick
@@ -853,6 +875,10 @@ const serverMessageSchema = v.variant("type", [
   v.object({
     type: v.literal("tags"),
     tags: v.array(v.string()),
+  }),
+  v.object({
+    type: v.literal("notice"),
+    text: v.string(),
   }),
   v.object({
     type: v.literal("statuses"),
