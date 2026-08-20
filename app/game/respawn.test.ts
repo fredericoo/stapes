@@ -67,6 +67,23 @@ const tiles: TileDef[] = [
     walkable: false,
     interactions: { respawn: RESPAWN },
   }),
+  // A body that comes back holding something. What it grows back with is rolled
+  // at the moment it grows, which is what makes a drop a thing you go and get.
+  tile({
+    id: "packrat",
+    height: 1,
+    actor: true,
+    walkable: false,
+    kind: "battler",
+    interactions: {
+      respawn: RESPAWN,
+      battler: {
+        masteries: { toughness: 1 },
+        naturalWeapon: DEFAULT_WEAPON,
+        kit: [{ slot: "weapon", tileId: "coin", chance: 100 }],
+      },
+    },
+  }),
   // A body that does not — its death is permanent.
   tile({ id: "deer", height: 1, actor: true, walkable: false }),
   // An object that grows back where it was authored.
@@ -281,6 +298,36 @@ describe("GameSession.respawnAt", () => {
     const coin = getStack(session.getMap(), 1, 0, 0)[1];
     expect(coin?.tileId).toBe("coin");
     expect(coin?.itemId).toBeTruthy();
+  });
+
+  /**
+   * **A respawned body rolls its kit again**, on exactly the terms its hit
+   * points are rebuilt from the tile: what grew back is a new creature, not the
+   * one that died holding what it was holding. Two respawns of one point are
+   * therefore two different coins, and a player who cleared the camp an hour ago
+   * has to clear it again to get another.
+   */
+  it("rolls a respawned creature's kit, and rolls it fresh each time", () => {
+    const PACKRAT_X = 2;
+    const owner = `npc:${PACKRAT_X},0,0,1`;
+    const authoredRat = replaceStack(strip(6), PACKRAT_X, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "packrat" },
+    ]);
+    const point = pointFor(authoredRat, owner);
+    const session = new GameSession(strip(6), tiles);
+
+    expect(session.respawnAt(point)).toBe(true);
+    const first = session.equipmentOf(owner)!.weapon;
+    expect(first?.tileId).toBe("coin");
+
+    // Cleared again: the body is off the board and the point is owed another.
+    session.despawn(owner);
+    expect(session.respawnAt(point)).toBe(true);
+    const second = session.equipmentOf(owner)!.weapon;
+
+    expect(second?.tileId).toBe("coin");
+    expect(second?.id).not.toBe(first?.id);
   });
 
   it("treats a tile that has left the catalogue as settled, not retryable", () => {

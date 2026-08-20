@@ -18,10 +18,16 @@ import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import type { ObjectRef } from "./affordances";
 import { canRewardFrom, rewardFits } from "./affordances";
-import { STARTING_BAG_TILE_ID } from "./constants";
 import { emptyEquipment, type Equipment } from "./equipment";
 import { GameSession } from "./GameSession";
 import { listInteractionOptions } from "./interactionOptions";
+
+/**
+ * The bag `player`'s kit is authored with — see `app/lib/kit.ts`. A literal
+ * here like every other tile id in this file: what a body carries is authored
+ * content now, so there is no constant in the engine left to import.
+ */
+const BAG_TILE_ID = "basic-bag";
 
 /**
  * A reward is the one thing on the board that happens to a *player* rather than
@@ -46,11 +52,26 @@ const REWARD_TAG = "chest-42";
 
 const tiles = [
   tile({ id: "grass" }),
-  tile({ id: "player", height: 2, kind: "battler", actor: true }),
+  // The kit is what puts a bag on somebody's back now — see `app/lib/kit.ts` —
+  // and a reward with nowhere to go is refused, so this block is the premise of
+  // half the file rather than decoration.
+  tile({
+    id: "player",
+    height: 2,
+    kind: "battler",
+    actor: true,
+    interactions: {
+      battler: {
+        masteries: { toughness: 8 },
+        naturalWeapon: DEFAULT_WEAPON,
+        kit: [{ slot: "bag", tileId: BAG_TILE_ID, chance: 100 }],
+      },
+    },
+  }),
   tile({ id: "sword", kind: "item", interactions: { item: DEFAULT_WEAPON } }),
   tile({ id: "torch", kind: "item", interactions: { item: DEFAULT_WEAPON } }),
   tile({
-    id: STARTING_BAG_TILE_ID,
+    id: BAG_TILE_ID,
     kind: "item",
     interactions: { item: { ...DEFAULT_CONTAINER, size: 4 } },
   }),
@@ -120,7 +141,7 @@ function bagWith(count: number): Equipment {
     offhand: null,
     bag: {
       id: "itm_bag",
-      tileId: STARTING_BAG_TILE_ID,
+      tileId: BAG_TILE_ID,
       contents: Array.from({ length: count }, (_, i) => ({
         id: `itm_filler_${i}`,
         tileId: "sword",
@@ -209,7 +230,7 @@ describe("whether a reward fits", () => {
 
   it("is refused when it would hand over a container", () => {
     const reward = rewardAt(
-      board("quest-chest", "free-bag", [STARTING_BAG_TILE_ID]),
+      board("quest-chest", "free-bag", [BAG_TILE_ID]),
       1,
       0,
     )!;

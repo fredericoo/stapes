@@ -5,6 +5,7 @@ import {
   weaponSchema,
   type WeaponItem,
 } from "./item";
+import { type Kit, kitSchema } from "./kit";
 import {
   type Masteries,
   masteriesSchema,
@@ -86,6 +87,24 @@ export type BattlerDef = {
    * decides otherwise.
    */
   sight: { up: number; down: number };
+  /**
+   * What this body is born carrying. See `./kit`, which owns the shape and the
+   * parsing.
+   *
+   * On the battler rather than beside it, because equipment is now something
+   * *every* body has and only a battler has a body — the player's backpack and
+   * a rat's mouthful of meat are the same field on the same block. What turns a
+   * kit into an `Equipment` is `../game/battlerKit`, which rolls it once, when
+   * the body is instantiated.
+   *
+   * Optional, and absent reads as "carries nothing" — which is every creature
+   * that predates this. Optional rather than an always-written empty array
+   * because `interactionsForSave` omits it when it is empty, and a type that
+   * promised more than the file holds would be a promise every reader has to
+   * check anyway. `resolveBattler` fills it, so anything downstream of a parse
+   * sees a list.
+   */
+  kit?: Kit;
 };
 
 /**
@@ -295,6 +314,10 @@ export const DEFAULT_BATTLER: BattlerDef = {
   naturalWeapon: { ...DEFAULT_WEAPON, mastery: "fist" },
   range: DEFAULT_MELEE_RANGE,
   sight: { up: 0, down: 0 },
+  // Nothing, because what a body carries is the one part of it an author has to
+  // decide: a default sword would arm every creature anybody ticks the Battler
+  // box on, and arming things is the whole point of the field.
+  kit: [],
 };
 
 /**
@@ -358,6 +381,10 @@ const battlerSchema = v.object({
     // A getter, so two tiles never share one mutable block.
     () => ({ up: 0, down: 0 }),
   ),
+  // Optional on the terms `range` and `sight` are — every creature in `data/`
+  // predates it — and never rejected once present, since {@link kitSchema}
+  // falls back to nothing rather than failing the block around it.
+  kit: v.optional(kitSchema, () => []),
 });
 
 const battlerCache = new WeakMap<TileDef, BattlerDef | null>();

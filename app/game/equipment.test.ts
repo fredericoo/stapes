@@ -20,7 +20,6 @@ import {
   handAccepts,
   offhandDefence,
   restoredEquipment,
-  startingEquipment,
   weaponInHand,
 } from "./equipment";
 
@@ -177,30 +176,6 @@ const lightTiles = tilesByIdFromList([
   itemTile("bag", DEFAULT_CONTAINER),
   itemTile("lamp-bag", DEFAULT_CONTAINER, LIT),
 ]);
-
-describe("startingEquipment", () => {
-  it("hands out the bag when the tile is an equippable container", () => {
-    const kit = startingEquipment(lightTiles, "bag");
-    expect(kit.bag?.tileId).toBe("bag");
-    expect(kit.bag?.contents).toEqual([]);
-    expect(kit.weapon).toBeNull();
-  });
-
-  it("hands out nothing when the tile is missing", () => {
-    expect(startingEquipment(lightTiles, "no-such-tile")).toEqual(emptyEquipment());
-  });
-
-  it("hands out nothing when the tile is not a container", () => {
-    expect(startingEquipment(lightTiles, "sword")).toEqual(emptyEquipment());
-  });
-
-  it("hands out nothing when the container cannot be worn", () => {
-    const tiles = tilesByIdFromList([
-      itemTile("chest", { ...DEFAULT_CONTAINER, equippable: false }),
-    ]);
-    expect(startingEquipment(tiles, "chest")).toEqual(emptyEquipment());
-  });
-});
 
 describe("carriedInstances", () => {
   it("is empty for an empty kit", () => {

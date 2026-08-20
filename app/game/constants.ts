@@ -19,20 +19,17 @@ export const FALL_MS_PER_HEIGHT = 200;
 /** Time a pushed object takes to travel one tile — same pace as a walk. */
 export const PUSH_STEP_MS = WALK_DURATION_MS;
 
-export const PLAYER_TILE_ID = "player";
-
 /**
- * The bag every player starts with on their back.
+ * The tile a person arrives in — and, since a kit hangs off the battler block,
+ * where the backpack they arrive with comes from too.
  *
- * A tile id rather than an authored placement, because the starting kit is not
- * in the world: nobody dropped it and there is nowhere it came from. Named here
- * beside the player's own tile since it is the same kind of fact — what a person
- * *is* when the world first hands them a body.
- *
- * A world whose author has renamed or removed this tile seats players with
- * nothing rather than refusing to start; see `startingEquipment`.
+ * There used to be a `STARTING_BAG_TILE_ID` beside this, naming that bag
+ * directly. It is gone: the player's bag is authored on this tile exactly as a
+ * rat's meat is authored on `rat`, so there is one place a body's belongings
+ * are decided rather than one for people and one for everything else. See
+ * `../lib/kit`.
  */
-export const STARTING_BAG_TILE_ID = "basic-bag";
+export const PLAYER_TILE_ID = "player";
 
 /**
  * How often a brain decides. Six simulation ticks — one decision per walk.

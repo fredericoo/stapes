@@ -5,8 +5,15 @@ import { parseServerMessage } from "../net/protocol";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
-import { STARTING_BAG_TILE_ID, TICK_MS } from "./constants";
+import { TICK_MS } from "./constants";
 import { GameSession, LOCAL_ACTOR_ID } from "./GameSession";
+
+/**
+ * The bag `player`'s kit is authored with — see `app/lib/kit.ts`. A literal
+ * here like every other tile id in this file: what a body carries is authored
+ * content now, so there is no constant in the engine left to import.
+ */
+const BAG_TILE_ID = "basic-bag";
 
 /**
  * What an actor is carrying, as the session sees it.
@@ -57,6 +64,8 @@ const tiles: TileDef[] = [
         // speed as a defender — 92 is the hundred hit points these tests count in.
         masteries: { toughness: 92 },
         naturalWeapon: { type: "weapon", damage: 5, def: 0, ...CERTAIN, mastery: "fist" },
+        // Where the bag on a player's back comes from — see `app/lib/kit.ts`.
+        kit: [{ slot: "bag", tileId: BAG_TILE_ID, chance: 100 }],
       },
     },
   }),
@@ -75,6 +84,23 @@ const tiles: TileDef[] = [
       },
     },
   }),
+  // A creature born holding something, which is the whole of a kit: it is on the
+  // board because the map put it there, and it is armed because its tile says
+  // so. No brain, so it stands where it is put.
+  tile({
+    id: "packrat",
+    height: 1,
+    kind: "battler",
+    actor: true,
+    walkable: false,
+    interactions: {
+      battler: {
+        masteries: { toughness: 1 },
+        naturalWeapon: { type: "weapon", damage: 0, def: 0, accuracy: 50, variance: 0, spd: 0, mastery: "fist" },
+        kit: [{ slot: "weapon", tileId: "light-sword", chance: 100 }],
+      },
+    },
+  }),
   // A creature with a mind of its own — a resident, and nobody's player.
   tile({
     id: "deer",
@@ -90,7 +116,7 @@ const tiles: TileDef[] = [
     },
   }),
   tile({
-    id: STARTING_BAG_TILE_ID,
+    id: BAG_TILE_ID,
     kind: "item",
     intangible: true,
     interactions: { item: { ...DEFAULT_CONTAINER } },
@@ -189,7 +215,7 @@ describe("the starting kit", () => {
     const kit = session.getSnapshot().equipment;
 
     expect(kit.weapon).toBeNull();
-    expect(kit.bag?.tileId).toBe(STARTING_BAG_TILE_ID);
+    expect(kit.bag?.tileId).toBe(BAG_TILE_ID);
     expect(kit.bag?.contents).toEqual([]);
   });
 
@@ -206,11 +232,12 @@ describe("the starting kit", () => {
   });
 
   /**
-   * A deer is an actor in every other respect. Handing every creature in the
-   * world a backpack it will never open would be a bag per body to seat and
-   * carry around for nothing.
+   * Nothing rather than a bag, and the difference from the player is entirely in
+   * the tile: a deer authors no kit, so it is born with empty hands. Handing
+   * every creature in the world a backpack it will never open would be a bag per
+   * body to seat and carry around for nothing.
    */
-  it("gives a resident creature nothing", () => {
+  it("gives a resident creature with no kit nothing", () => {
     const session = new GameSession(withBody(field(), 1, 0, "deer"), tiles);
     const deer = session
       .actorSnapshots()
@@ -221,8 +248,22 @@ describe("the starting kit", () => {
     expect(kit.bag).toBeNull();
   });
 
+  /**
+   * The other half of the same rule, and the reason a player is not a special
+   * case any more: a creature whose tile *does* author a kit is born holding it,
+   * on the same path and out of the same function.
+   */
+  it("gives a resident creature what its kit rolled", () => {
+    const session = new GameSession(withBody(field(), 1, 0, "packrat"), tiles);
+    const rat = session
+      .actorSnapshots()
+      .find((actor) => actor.tileId === "packrat")!;
+
+    expect(session.equipmentOf(rat.id)!.weapon?.tileId).toBe("light-sword");
+  });
+
   it("is nothing at all when the world has no bag tile to give", () => {
-    const withoutBag = tiles.filter((t) => t.id !== STARTING_BAG_TILE_ID);
+    const withoutBag = tiles.filter((t) => t.id !== BAG_TILE_ID);
     const session = new GameSession(field(), withoutBag);
     const kit = session.getSnapshot().equipment;
 
@@ -439,14 +480,14 @@ describe("picking things up", () => {
    * refusing — and with both hands full there is nowhere left at all.
    */
   it("carries a second bag in hand, and refuses it once they are full", () => {
-    const session = withItem(1, 0, STARTING_BAG_TILE_ID);
+    const session = withItem(1, 0, BAG_TILE_ID);
     expect(session.pickUp(refAt(session, 1, 0))).toBe(true);
     expect(session.getSnapshot().equipment.offhand?.tileId).toBe(
-      STARTING_BAG_TILE_ID,
+      BAG_TILE_ID,
     );
     expect(bagOf(session).contents).toEqual([]);
 
-    const laden = withItem(1, 0, STARTING_BAG_TILE_ID);
+    const laden = withItem(1, 0, BAG_TILE_ID);
     const kit = laden.equipmentOf(selfId(laden))!;
     kit.weapon = { id: "itm_a", tileId: SWORD };
     kit.offhand = { id: "itm_b", tileId: SWORD };
@@ -458,7 +499,7 @@ describe("picking things up", () => {
     map = replaceStack(map, 1, 0, 0, [
       { tileId: "grass" },
       {
-        tileId: STARTING_BAG_TILE_ID,
+        tileId: BAG_TILE_ID,
         itemId: "itm_authored",
         contents: [{ id: "itm_loot", tileId: SWORD }],
       },
@@ -1014,7 +1055,7 @@ describe("putting things down", () => {
     expect(session.drop({ kind: "bag" }, { x: 1, y: 0, z: 0 })).toBe(true);
 
     const placed = getStack(session.getMap(), 1, 0, 0)[1]!;
-    expect(placed.tileId).toBe(STARTING_BAG_TILE_ID);
+    expect(placed.tileId).toBe(BAG_TILE_ID);
     expect(placed.itemId).toBe(bagId);
     expect(placed.contents?.map((i) => i.tileId)).toEqual([SWORD]);
     expect(session.getSnapshot().equipment.bag).toBeNull();
@@ -1231,7 +1272,7 @@ describe("dying with something on you", () => {
     expect(tilesAt(session, 0, 0)).toEqual([
       "grass",
       SWORD,
-      STARTING_BAG_TILE_ID,
+      BAG_TILE_ID,
     ]);
   });
 
@@ -1264,6 +1305,24 @@ describe("dying with something on you", () => {
       offhand: null,
       bag: null,
     });
+  });
+
+  /**
+   * The same drop the player's death takes, which is the point of it being one
+   * function: a rat is a battler with a kit, and `kill` has no idea it is not a
+   * person.
+   */
+  it("leaves a creature's kit on the floor exactly as it does a player's", () => {
+    const session = new GameSession(withBody(field(), 1, 0, "packrat"), tiles);
+    const rat = session
+      .actorSnapshots()
+      .find((actor) => actor.tileId === "packrat")!;
+    session.setTarget(rat.id);
+    session.setAttackMode(true);
+
+    advance(session, LONG_ENOUGH_TO_KILL_MS);
+
+    expect(tilesAt(session, 1, 0)).toEqual(["grass", SWORD]);
   });
 
   /**

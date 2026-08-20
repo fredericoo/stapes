@@ -62,8 +62,8 @@ import {
   FALL_MS_PER_HEIGHT,
   NOISE_LIFETIME_MS,
   MAX_CLIMB_HEIGHT,
+  PLAYER_TILE_ID,
   PUSH_STEP_MS,
-  STARTING_BAG_TILE_ID,
   STRIKE_DURATION_MS,
   TICK_MS,
   WALK_DURATION_MS,
@@ -94,9 +94,10 @@ import {
   carriedLightTileIds,
   effectiveBattler,
   emptyEquipment,
-  startingEquipment,
   weaponInHand,
+  wornInstances,
 } from "./equipment";
+import { equipmentForBody } from "./battlerKit";
 import {
   attackerEarnings,
   defenderEarnings,
@@ -1207,7 +1208,7 @@ export class GameSession implements PlaySession {
         this.map = removeAuthoredPlayer(this.map);
       } else {
         this.map = adoptAuthoredPlayer(this.map, first);
-        this.addActor(first);
+        this.addActor(first, { bodyTileId: PLAYER_TILE_ID });
       }
       for (const id of rest) this.spawn(id);
     }
@@ -1261,7 +1262,9 @@ export class GameSession implements PlaySession {
       if (!body.placed.owner) {
         this.map = adoptBodyAt(this.map, body, owner);
       }
-      if (!this.actors.has(owner)) this.addActor(owner, { resident: true });
+      if (!this.actors.has(owner)) {
+        this.addActor(owner, { resident: true, bodyTileId: body.placed.tileId });
+      }
     }
   }
 
@@ -1269,6 +1272,12 @@ export class GameSession implements PlaySession {
     id: string,
     opts: {
       resident?: boolean;
+      /**
+       * The tile of the body this actor is being seated in, which is what its
+       * kit is rolled from — see {@link rollKit}. Omit only where there is
+       * genuinely no body to name, which is nowhere today.
+       */
+      bodyTileId?: string;
       carrying?: Equipment;
       tagged?: readonly string[];
       earned?: MasteryXp;
@@ -1277,20 +1286,20 @@ export class GameSession implements PlaySession {
     } = {},
   ): ActorRuntime {
     const resident = opts.resident === true;
-    // Only people get a kit. A deer is an actor in every other respect, and
-    // could carry things the day something wants it to — but handing every
-    // creature in the world a backpack it will never open is a bag per body to
-    // seat, checkpoint and diff for nothing.
+    // **Everybody gets a kit, and it comes from the body they are in.** It used
+    // to be "people get a starting bag, creatures get nothing", on the grounds
+    // that a backpack per deer is a bag to seat, checkpoint and diff for
+    // nothing. What changed is that a creature's kit is now something an author
+    // asked for — a rat with meat on it is why you fight a rat — so the cost is
+    // being paid for a reason, and only where a kit was actually authored.
     //
     // A returning player brings their own, already checked against the tiles
     // this world has now — see `restoredEquipment`. It is not merged with the
-    // starting kit: coming back with a bag *and* a fresh one is a bag from
+    // rolled one: coming back with a bag *and* a fresh one is a bag from
     // nowhere, once per reconnect.
     const equipment =
       opts.carrying ??
-      (resident
-        ? emptyEquipment()
-        : startingEquipment(this.tilesById, STARTING_BAG_TILE_ID));
+      (opts.bodyTileId ? this.rollKit(opts.bodyTileId) : emptyEquipment());
     // The kit's first and only arming that does not go through
     // {@link setEquipment}: a returning player's berries have been ripening in
     // storage as far as they know, and start their lifetime again here.
@@ -1343,6 +1352,30 @@ export class GameSession implements PlaySession {
     this.actors.set(id, actor);
     this.forgetTileIndex();
     return actor;
+  }
+
+  /**
+   * What a body of this kind is born carrying, rolled on the world's dice.
+   *
+   * The dice are the session's rather than `Math.random()` for the reason every
+   * other draw here uses them: two worlds on one seed have to agree about what
+   * the wolf was carrying as well as about which way it walked. It is also what
+   * makes a kit assertable in a test without reaching for a mock.
+   */
+  private rollKit(bodyTileId: string): Equipment {
+    return equipmentForBody(bodyTileId, this.tilesById, () => this.rng.next());
+  }
+
+  /**
+   * The kit the world hands somebody it has never met — and hands them again
+   * after a death, since as far as their pockets are concerned that is what
+   * they now are.
+   *
+   * Exposed because the server writes that second one down: a death deletes the
+   * runtime that would otherwise have rolled it. See `GameServer.saveActors`.
+   */
+  startingKit(): Equipment {
+    return this.rollKit(PLAYER_TILE_ID);
   }
 
   /**
@@ -1408,7 +1441,7 @@ export class GameSession implements PlaySession {
         : this.spawnAt;
       this.map = spawnActor(this.map, id, cell, at?.direction);
     }
-    this.addActor(id, restored);
+    this.addActor(id, { ...restored, bodyTileId: PLAYER_TILE_ID });
   }
 
   /**
@@ -1504,8 +1537,14 @@ export class GameSession implements PlaySession {
     // A respawned item is a new item — the authored placement carries no ids
     // (see `authoredPlacement`), and this is what stamps fresh ones on.
     this.map = mintItemIds(this.map, this.tilesById);
+    // A body that grew back rolls its kit again, on the same terms its hit
+    // points are rebuilt from the tile: what respawned is a new creature, not
+    // the one that died holding what it was holding.
     if (point.ownerId && !this.actors.has(point.ownerId)) {
-      this.addActor(point.ownerId, { resident: true });
+      this.addActor(point.ownerId, {
+        resident: true,
+        bodyTileId: point.placed.tileId,
+      });
     }
     // What grew back may be a plate's load, a wire's emitter or a decaying
     // tile, so the cell's indexes are rebuilt exactly as they are after a kill.
@@ -2530,9 +2569,7 @@ export class GameSession implements PlaySession {
    * the rule a shoved crate follows.
    */
   private dropKit(equipment: Equipment, at: Coord): Equipment {
-    const carried = [equipment.weapon, equipment.offhand, equipment.bag].filter(
-      (instance): instance is ItemInstance => instance != null,
-    );
+    const carried = wornInstances(equipment);
     if (carried.length === 0) return equipment;
 
     const placements = carried.map(placementFromInstance);

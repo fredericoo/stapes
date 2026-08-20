@@ -351,7 +351,8 @@ session can drive it.
 ## Fighting is stats on a tile, and nothing else
 
 A **battler** is any tile with an `interactions.battler` block (`app/lib/battler.ts`):
-six numbers, parsed rather than trusted like every other interaction. The player,
+masteries, a natural weapon, what it notices and what it is born carrying, parsed
+rather than trusted like every other interaction. The player,
 the cat and the deer are battlers; a crate could be one. Being a battler is
 independent of `actor` and of `brain` — what a body can take is a separate
 question from what drives it, and keeping the three apart is what lets the player
@@ -372,6 +373,59 @@ survive somebody editing the tile's maximum. What *is* checkpointed is the set o
 **dead actors** — a death is a tile that is *not* on the board, so it leaves no
 evidence to recover, and without carrying it the first hibernation wake would
 find a dead player's socket still open, see no body, and seat them again.
+
+### A body is born carrying what its tile says
+
+Every battler has a **kit** (`app/lib/kit.ts`), authored on the same block as its
+masteries and its natural weapon, and rolled into an `Equipment` exactly once —
+when the world puts that body on the board (`app/game/battlerKit.ts`). The player
+is not a special case: their backpack is a row on the `player` tile's kit at 100%,
+authored the same way a rat's mouthful of meat is authored on `rat`. There used to
+be a `STARTING_BAG_TILE_ID` constant beside `PLAYER_TILE_ID` naming that bag
+directly, and it is gone — one place decides what a body owns, rather than one for
+people and one for everything else.
+
+- **The shape is the slots, not a loot table.** Every row names an equip slot —
+  the same three squares a player drags things between — so a wolf authored with
+  a torch in its off hand *lights the wood it is standing in* and one authored
+  with a sword *swings it*. Nothing downstream knows a wolf is not a person:
+  `carriedLightTileIds`, `weaponInHand` and `effectiveBattler` were already
+  reading an actor's equipment and needed no changes at all.
+- **Several rows may name one slot, and the first success takes it.** That is how
+  a weighted table is written: put the rare blade above the rusty one. Chance is
+  a percent and floats are allowed, because a quarter of a percent is the shape a
+  rare drop wants and a whole-number scale cannot say it.
+- **Every row costs exactly one draw, whatever lands.** A row aimed at a square
+  already taken is still drawn for, and so are the contents of a container that
+  never arrived — the same rule a swing (three draws) and a decay lifetime (one)
+  keep, and for the same reason: a draw count that varied with what an author
+  typed would mean adding a dagger to one wolf changed what every creature in the
+  world rolled after it. The dice are the world's own (`GameSession.rng`), so two
+  worlds on one seed agree about what the wolf was carrying as well as where it
+  walked. **Authoring a kit still moves the stream** for everything drawn after
+  it, which is not a bug and is worth knowing before reading a seeded test that
+  went red: `brain.test.ts` pins its own seed for exactly this reason.
+- **A kit may not put a body in a state a drag could not.** The roll asks
+  `slotAccepts`, the same answer every drag and every rot asks — so the back
+  takes only a pack you can wear, a hand takes anything you can carry, and the
+  nesting rule still bites inside a container. A row the world has since made
+  impossible (renamed tile, shrunk bag, a chest made unwearable) lands nothing,
+  silently, on the terms `restoredEquipment` drops a sword the catalogue lost.
+- **A respawned body rolls again**, on exactly the terms its hit points are
+  rebuilt from the tile: what grew back is a new creature, not the one that died
+  holding what it was holding. So is a body re-adopted after an eviction — same
+  bargain hit points and brain memory already take.
+- **A creature's kit is never written down.** `saveActors` excludes residents
+  from the `equip:` row for the reason it already excluded them from `pos:`:
+  a creature is adopted *out of* the board and re-rolls as it is adopted, so a
+  stored kit is a copy the next wake overwrites before anything could read it.
+  That gate used to be "only a kit with something in it", which came to the same
+  thing while every creature had an empty one and stopped the day a rat could be
+  authored carrying meat.
+- **Dying drops it, and that is one function.** `kill` → `dropKit` never asked
+  who the body belonged to, so wildlife dropping its kit needed no new path —
+  which is the whole of "a player is just another battler" holding up under a
+  feature that could easily have grown a second one.
 
 **A death is the moment the session stops being able to answer for somebody**,
 and everything a reload hands back is read from storage — so a death has to write
