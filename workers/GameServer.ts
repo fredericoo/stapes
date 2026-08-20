@@ -203,8 +203,9 @@ const POSITION_KEY_PREFIX = "pos:";
  * Key prefix under which one actor's last known kit is kept.
  *
  * Its own key rather than a field on the position, because the two are not the
- * same fact and are not always both there: a creature has a position and no kit,
- * and the ceiling below prunes them independently.
+ * same fact: a kit changes without the body moving and the body moves without
+ * the kit changing, so {@link GameServer.saveActors} dirties them separately —
+ * and the ceiling below prunes them independently as well.
  */
 const EQUIPMENT_KEY_PREFIX = "equip:";
 
@@ -1333,18 +1334,24 @@ export class GameServer extends DurableObject<Env> {
       // is not: nothing ever reads it.** A creature is adopted out of the board
       // and rolls its kit as it is adopted (`../app/game/battlerKit`), so a
       // stored row would be a copy that the next wake overwrites with a fresh
-      // roll before anybody could consult it. This gate used to be "only a kit
-      // with something in it", which came to the same thing while every creature
-      // in the world had an empty one — and stopped the day a rat could be
-      // authored carrying meat. The emptiness test alone would then have spent
-      // the row ceiling below on a key per armed creature per world.
+      // roll before anybody could consult it. That test, and not emptiness, is
+      // what keeps the row ceiling below from being spent on a key per creature
+      // per world — which is just as well, because the day a rat could be
+      // authored carrying meat is the day emptiness stopped standing in for it.
       //
-      // Every slot counts, the off hand included: a body holding nothing but a
-      // torch is carrying something, and a gate naming two of the three squares
-      // is the same omission the off hand has been the victim of before.
+      // **And an empty kit is written like any other.** Every other row here can
+      // be skipped while empty because an absent key and an empty value mean the
+      // same thing for ever; this one is the opposite, and for a sharper reason
+      // than the `status:` row below. Dropping your last item puts it on the
+      // floor, and the board written in this very batch says so — so a kit row
+      // skipped for being empty leaves storage claiming the bag is on your back
+      // while the floor holds it. That is the item existing twice this paired
+      // write exists to prevent, and it is what a `weapon || offhand || bag`
+      // guard did to anybody who emptied their pockets. Naming no slot at all
+      // is also the last way to leave the off hand out of one.
       if (
+        equipment &&
         !session.isResident(actorId) &&
-        (equipment?.weapon || equipment?.offhand || equipment?.bag) &&
         equipment !== written?.equipment
       ) {
         entries[this.equipmentKey(actorId)] = { equipment, savedAt };
