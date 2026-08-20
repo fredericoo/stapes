@@ -74,6 +74,7 @@ import {
   pickTileAt,
 } from "./pick";
 import { DamageNumberLayer, type DamageNumberView } from "./damageNumbers";
+import { NoticeQueue, NotificationLayer } from "./notifications";
 import { healthBarColor, healthFraction } from "./healthBar";
 import { fitViewport, VIEW_PX, type ViewportFit } from "./viewport";
 
@@ -399,6 +400,16 @@ export class GameRenderer {
   private pointerPickKey = "";
   private pointerPickMap: MapFile | null = null;
   private damageLayer: DamageNumberLayer | null = null;
+  private notificationLayer: NotificationLayer | null = null;
+  /**
+   * The lines waiting to be read at the foot of the view.
+   *
+   * Held whether or not there is anywhere to draw them, unlike the layer beside
+   * it: the queue is where a notice's lifetime is counted, and a renderer built
+   * without a text layer would otherwise silently discard the level-up that
+   * happened while it was not looking.
+   */
+  private readonly notices = new NoticeQueue();
   /** @see setLookMode */
   private lookMode = false;
   private lookedAt: ObjectRef | null = null;
@@ -452,6 +463,7 @@ export class GameRenderer {
     if (labelContainer) {
       this.labelLayer = new WorldLabelLayer(labelContainer);
       this.damageLayer = new DamageNumberLayer(labelContainer);
+      this.notificationLayer = new NotificationLayer(labelContainer);
     }
     this.attachPointer();
     this.attachKeys();
@@ -591,6 +603,34 @@ export class GameRenderer {
     if (snap.masteryXp === this.masteriesSent) return;
     this.masteriesSent = snap.masteryXp;
     this.onMasteries(snap.masteryXp);
+  }
+
+  /**
+   * Put up anything the game has to say in words, and age what is already up.
+   *
+   * **Nothing is worked out here.** Every sentence is composed where the thing
+   * it describes happened — a reward as it is handed over, a mastery as the
+   * experience that crossed it is written — and arrives through
+   * `PlaySession.drainNotices`: the session's own queue in single-player, and
+   * the addressed `notice` message online. @see ../game/notices
+   *
+   * The level-up line used to be a diff taken here, across successive
+   * `masteryXp` blocks, and it is worth knowing why it is not: reconstructing an
+   * event from state meant holding a private copy of the last block, gating on
+   * `hasExperience` so the empty block held before `hello` was not read as a
+   * lifetime of level-ups, and being careful that a re-registered listener did
+   * not replay them. All of it existed to guess at something the session knew
+   * exactly. A renderer draws; it does not infer what happened.
+   *
+   * The layer is written every frame whether or not anything arrived, because a
+   * notice also has to *leave*, and nothing else in the loop knows when its four
+   * seconds are up.
+   */
+  private pushNotices(nowMs: number) {
+    for (const text of this.session.drainNotices()) {
+      this.notices.push(text, nowMs);
+    }
+    this.notificationLayer?.set(this.notices.live(nowMs));
   }
 
   /**
@@ -741,7 +781,7 @@ export class GameRenderer {
       this.profiler.measure("sim", () => this.session.update(dt));
       // `view` nests the sync/map/light/motion phases recorded inside setView,
       // so it is their total rather than a separate slice.
-      this.profiler.measure("view", () => this.pushView());
+      this.profiler.measure("view", () => this.pushView(now));
       this.profiler.measure("anim", () => this.world.tick(dt));
       // CPU cost of submitting the frame. GPU time lands after this returns and
       // is not counted — a low `draw` does not by itself mean the GPU is idle.
@@ -774,6 +814,8 @@ export class GameRenderer {
     this.labelLayer = null;
     this.damageLayer?.dispose();
     this.damageLayer = null;
+    this.notificationLayer?.dispose();
+    this.notificationLayer = null;
     this.world.dispose();
   }
 
@@ -1802,7 +1844,7 @@ export class GameRenderer {
     return { x: visual.x - half, y: visual.y - half };
   }
 
-  private pushView() {
+  private pushView(nowMs: number) {
     const snap = this.session.getSnapshot();
     const fit = currentFit(this.canvas);
     // The buffer is a whole multiple of the view, so the world lands on a clean
@@ -1845,6 +1887,7 @@ export class GameRenderer {
     this.world.setOverlays(this.overlaysFor(snap));
     this.pushEquipment(snap);
     this.pushMasteries(snap);
+    this.pushNotices(nowMs);
     this.pushVitals(snap);
     this.pushOpenedContainer(snap);
     // Written from inside the render loop's own rAF, so the style change and the

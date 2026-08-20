@@ -209,6 +209,15 @@ export class RemoteSession implements PlaySession {
    */
   private equipment: Equipment = emptyEquipment();
   /**
+   * Sentences the server has addressed to this player, waiting for a frame.
+   *
+   * Never seeded and never restored, unlike everything else held here, which is
+   * whole state the server repeats. A notice is an event, so a reconnect starts
+   * silent rather than replaying whatever was said before the socket dropped.
+   * @see ./protocol
+   */
+  private pendingNotices: string[] = [];
+  /**
    * Which rewards this player has already taken, as the server last said.
    *
    * Never predicted either, and for a stronger reason than the kit: a tag is
@@ -470,6 +479,14 @@ export class RemoteSession implements PlaySession {
     if (message.type === "tags") {
       // Whole state, like the kit beside it.
       this.tags = message.tags;
+      return;
+    }
+
+    if (message.type === "notice") {
+      // Held rather than acted on: what a sentence is worth and how long it
+      // stays up are the renderer's questions, and this side's only job is not
+      // to lose the line between the socket and the next frame.
+      this.pendingNotices.push(message.text);
       return;
     }
 
@@ -1321,6 +1338,17 @@ export class RemoteSession implements PlaySession {
    * drawn as having happened, so there is nothing to roll back if the server
    * disagrees about whether the target can be reached.
    */
+  /**
+   * Everything the server has said since the last frame, taken away as it is
+   * read. @see PlaySession.drainNotices
+   */
+  drainNotices(): string[] {
+    if (this.pendingNotices.length === 0) return [];
+    const said = this.pendingNotices;
+    this.pendingNotices = [];
+    return said;
+  }
+
   setTarget(actorId: string | null) {
     if (actorId === this.targetId) return;
     this.targetId = actorId;
