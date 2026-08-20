@@ -158,6 +158,7 @@ import {
   type Utterance,
 } from "./brainRuntime";
 import type { ConsumeSource } from "./itemUse";
+import { canTransmuteFrom, planTransmute, runTransmute } from "./transmute";
 import { hasLineOfSight } from "./sight";
 import { Rng } from "./rng";
 import { chooseStep, type StepRequest } from "./stepping";
@@ -661,6 +662,15 @@ export interface PlaySession {
    * does.
    */
   consume(from: ConsumeSource): boolean;
+  /**
+   * Spend one carried thing at a transmuter, and take back what it makes.
+   *
+   * On the interface for the reason {@link pickUp} is, and one step further: a
+   * transmuter may offer several recipes on one placement, so there is no `ref`
+   * a bare {@link interact} could disambiguate. The index is the position in
+   * the tile's authored list — see `./transmute`.
+   */
+  transmute(ref: ObjectRef, recipe: number): boolean;
   /**
    * Would this move be honoured right now?
    *
@@ -3616,6 +3626,62 @@ export class GameSession implements PlaySession {
       bag: { ...bag, contents: [...(bag.contents ?? []), ...given] },
     });
     this.setTags(actor, [...actor.tags, reward.tag]);
+    return true;
+  }
+
+  canTransmute(
+    ref: ObjectRef,
+    recipe: number,
+    id: string = LOCAL_ACTOR_ID,
+  ): boolean {
+    const actor = this.actor(id);
+    if (!this.idle(actor)) return false;
+    return canTransmuteFrom(
+      this.map,
+      this.tilesById,
+      this.locate(actor),
+      actor.equipment,
+      ref,
+      recipe,
+    );
+  }
+
+  /**
+   * Spend one carried thing at a transmuter and take back what it makes.
+   *
+   * **The board is not touched**, on exactly a reward's terms and for a related
+   * reason: the fire has to still be a fire for the next person, so there is no
+   * cell patch to send and `settleBoardNow` has nothing to settle. What changes
+   * is one kit, which travels as an `equipment` message.
+   *
+   * Unlike a reward it leaves **no tag and no mark of any kind**, because there
+   * is nothing to stop: a fire cooks the second steak too, and what limits it is
+   * having something to spend. That is the whole difference between "once per
+   * player" and "as often as you can pay for it".
+   *
+   * Gated on {@link idle} like every other board-side act. It is a kit change,
+   * but it is one you reach out and do to something in the world, and a player
+   * mid-stride is not standing next to it yet.
+   */
+  transmute(
+    ref: ObjectRef,
+    recipe: number,
+    id: string = LOCAL_ACTOR_ID,
+  ): boolean {
+    const actor = this.actor(id);
+    if (!this.idle(actor)) return false;
+
+    const plan = planTransmute(
+      this.map,
+      this.tilesById,
+      this.locate(actor),
+      actor.equipment,
+      ref,
+      recipe,
+    );
+    if (!plan) return false;
+
+    this.setEquipment(actor, runTransmute(plan, mintItemId));
     return true;
   }
 

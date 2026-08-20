@@ -158,7 +158,7 @@ function sameContainer(a: SlotRef, b: SlotRef): boolean {
 }
 
 /** How many things fit in this instance, or 0 when it is not a container. */
-function capacityOf(
+export function capacityOf(
   instance: ItemInstance,
   tilesById: Record<string, TileDef>,
 ): number {
@@ -212,7 +212,17 @@ export function slotAccepts(
   tilesById: Record<string, TileDef>,
 ): boolean {
   const def = tilesById[instance.tileId];
-  if (!def) return false;
+  return def != null && slotTakes(kind, def);
+}
+
+/**
+ * The same question of a *tile*, for callers with no instance to offer.
+ *
+ * `../game/transmute` is one: a recipe names what comes back by tile, and the
+ * things do not exist until the recipe is allowed to run — so asking whether
+ * they may land somewhere cannot mean minting them first.
+ */
+export function slotTakes(kind: SlotKind, def: TileDef): boolean {
   // Both hands, one rule, and it is a generous one — see `handAccepts`. A drag
   // is somebody saying exactly what they want, and a hand refusing a thing you
   // could obviously hold is the interface arguing with them. Which slot a thing

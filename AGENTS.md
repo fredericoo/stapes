@@ -745,6 +745,73 @@ it is the only one that can happen to a given player once: a chest authored to
 both give its contents and swing open would otherwise spend its one chance on the
 hinge. It falls through cleanly, since a reward already taken is not on offer.
 
+## A transmutation spends what you carry, not what is on the board
+
+`interactions.transmute` turns one carried thing into one or more others — a
+flame that cooks `raw-meat` into `cooked-meat`, a rat salesman who takes a
+carcass for a coin. It is the reward's near neighbour and the differences are
+the interesting part.
+
+- **Wholly on the tile, with no placement half.** A reward splits because what a
+  chest gives is which chest it is; what a fire does to meat is a fact about
+  fire, and every fire cut from the tile does it. So there is nothing for a slot
+  to vary, `resolveTransmute` is the only resolver, and there is no join.
+- **The board is not touched, exactly as a reward's is not.** No cell patch, no
+  swap, nothing removed — the fire is still a fire for the next person. What
+  changes is one kit, which travels as an `equipment` message. `GameSession.transmute`
+  therefore does not call `settleBoardNow`: there is nothing to settle.
+- **No tag, and that is the whole difference from a reward.** A reward is once
+  per player and the tag is what closes it; a fire cooks the second steak too.
+  What limits a transmutation is having something to spend, so the recipe simply
+  stops being offered when your bag runs out — which is the same "not on offer"
+  an emptied chest reads as, arrived at from the other side.
+- **A list of recipes, and each is a row.** One tile may cook meat and cook fish
+  and trade a pelt. `offeredTransmutations` returns only the ones the player can
+  actually run, so a fire you have nothing to cook at offers nothing at all —
+  the menu is what you could cook, not what fires can do.
+- **The row is named for what is *spent*, not for the tile.** "Cook Raw Meat":
+  the verb is the recipe's (`Transmutation.verb`, per recipe rather than per
+  tile, because one stall may both trade and cook) and the name and sprite are
+  the input's. The `ref` stays the transmuter, so the outline still goes round
+  the fire. It is the only row in `listInteractionOptions` whose subject is not
+  its `ref`, and the only one that needs a third part in its id
+  (`transmute:<ref>:<index>`) because one placement offers several.
+- **A recipe is addressed by position**, and `ClientMessage.transmute` carries
+  that index. The same argument `SlotRef` makes for indices over instance ids:
+  both ends hold the same tile catalogue, so a position is something the server
+  can check against a list it already has. An index past the end is a refusal in
+  `planTransmute`, not a malformed frame — the schema does not hold the
+  catalogue.
+- **The input is looked for in the hands first, then in the bag.** What you are
+  already holding out is what you meant. Never the bag slot itself and never a
+  container in a hand: a pack is not a thing you spend, and a row saying "Trade
+  Backpack" that destroyed an inventory is the one footgun this refuses outright.
+- **What comes back goes where the payment came from, then overflows onto the
+  body.** `returnSlots` lists the destinations best first: the slot that paid,
+  then the pack, then the free hands (off hand before weapon, on
+  `pickUpDestination`'s reasoning). So a one-for-one swap puts the steak in the
+  hand that held out the meat and needs no other room at all, and a trade that
+  gives back three finds squares for the other two rather than refusing.
+- **Nothing ever lands on the floor.** When the body has no room left the recipe
+  is simply not offered — `landingsFor` returns null and there is no row. The
+  room check and the placement are one question: whether a recipe may run *is*
+  whether every result has somewhere to go, so `TransmutePlan.landings` is what
+  the check produced and `runTransmute` only mints and files. A run that worked
+  it out again could work it out differently from the check that offered the row.
+- **Asked against the kit with the input already gone**, which is what makes the
+  ordinary case free: the square the payment vacated is the square its result
+  lands in. Cooking the last steak in a full pack needs no room, and neither
+  does cooking one held in a hand while the pack is full — and that second case
+  is not a corner, because a pickup reaches for a hand only once the pack has
+  none, so "input in a hand" and "bag full" are the same moment. `slotTakes` is
+  `slotAccepts` asked of a tile rather than an instance, because the results do
+  not exist until the recipe is allowed to run.
+- **`app/game/transmute.ts` holds the rules and never returns a map.** It sits
+  outside `./affordances` because it needs a kit, which the board's questions
+  deliberately know nothing about — `reachableTransmuteAt` is the board's half
+  (reach, cover, the def) and this joins it to the kit. Both ends read it: the
+  client to offer the row, the server to validate the message.
+
 ## Decay is a switch whose input is time
 
 `DecayInteraction` turns a placement into another tile, or into nothing, once it

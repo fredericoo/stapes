@@ -165,6 +165,45 @@ describe("consume", () => {
   });
 });
 
+describe("transmute", () => {
+  it("carries the placement and which of its recipes was pressed", () => {
+    const message = {
+      type: "transmute",
+      ref: { x: -2, y: 3, z: 1, stackIndex: 2 },
+      recipe: 1,
+    };
+    expect(parsed(message)).toEqual(message);
+  });
+
+  it("drops one with no recipe named", () => {
+    expect(
+      parsed({ type: "transmute", ref: { x: 0, y: 0, z: 0, stackIndex: 0 } }),
+    ).toBeNull();
+  });
+
+  it("drops a negative recipe, which is no position at all", () => {
+    expect(
+      parsed({
+        type: "transmute",
+        ref: { x: 0, y: 0, z: 0, stackIndex: 0 },
+        recipe: -1,
+      }),
+    ).toBeNull();
+  });
+
+  it("keeps a recipe past the end, which the session refuses instead", () => {
+    // How many recipes a tile has is decided by the tile, and the schema does
+    // not hold the catalogue — so an index out of range is a refusal in the one
+    // place the list is understood, not a malformed frame.
+    const message = {
+      type: "transmute",
+      ref: { x: 0, y: 0, z: 0, stackIndex: 0 },
+      recipe: 99,
+    };
+    expect(parsed(message)).toEqual(message);
+  });
+});
+
 describe("the frame itself", () => {
   it("drops something that is not JSON at all", () => {
     expect(parseClientMessage("{not json")).toBeNull();

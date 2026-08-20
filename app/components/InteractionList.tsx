@@ -8,6 +8,7 @@ import {
   IconShirt,
   IconSwitch,
   IconTarget,
+  IconTransform,
 } from "@tabler/icons-react";
 import { useMemo } from "react";
 import type {
@@ -75,6 +76,11 @@ const ICONS: Record<InteractionAction, typeof IconTarget> = {
   // Being handed something, whoever is doing the handing. A gift rather than a
   // chest, because half of these are people.
   reward: IconGift,
+  // One shape becoming another, which is the only thing every recipe shares:
+  // the row could be cooking, trading or smelting, and the authored verb beside
+  // it is what says which. Deliberately not a flame — that would name one of
+  // them and mislead about the rest.
+  transmute: IconTransform,
 };
 
 const SPRITE_SIZE_PX = 32;

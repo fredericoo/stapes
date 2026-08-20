@@ -665,6 +665,31 @@ export type ClientMessage =
    * not trusted with the answer.
    */
   | { type: "consume"; from: ConsumeSource }
+  /**
+   * "I am spending that at this."
+   *
+   * The fourth message that changes what exists: one carried thing stops being
+   * and one or more others begin. It is the only one that has to name *which*
+   * of several things a placement offers, because a fire may cook three
+   * different foods and every one of them is a row on the same cell — so a
+   * `ref` alone cannot say which row was pressed.
+   *
+   * `recipe` is a position in the tile's authored list, on exactly the terms
+   * {@link SlotRef} is an index rather than an instance id: both ends hold the
+   * same tile catalogue, so a position is something the server can check
+   * against a list it already has, where a name would be one more string to
+   * disbelieve.
+   *
+   * Nothing about the *input* travels. Which slot it comes out of is a fact
+   * about the kit, which is the server's — see `../game/transmute`. The client
+   * asks the same question to decide whether to offer the row at all, and is
+   * still not trusted with the answer.
+   */
+  | {
+      type: "transmute";
+      ref: { x: number; y: number; z: number; stackIndex: number };
+      recipe: number;
+    }
   | { type: "say"; text: string }
   /**
    * "This is who I am pointing at" — or null, for nobody.
@@ -795,6 +820,15 @@ const clientMessageSchema = v.variant("type", [
       v.object({ kind: v.literal("slot"), slot: inboundSlotRefSchema }),
       v.object({ kind: v.literal("floor"), ref: inboundRefSchema }),
     ]),
+  }),
+  v.object({
+    type: v.literal("transmute"),
+    ref: inboundRefSchema,
+    // Bounded below and left unbounded above, exactly as a slot index is: how
+    // many recipes a tile has is decided by the tile, which the server knows
+    // and this schema does not. A position past the end reads as "no recipe
+    // there" and is refused in the one place the list is understood.
+    recipe: v.pipe(v.number(), v.integer(), v.minValue(0)),
   }),
   v.object({
     type: v.literal("say"),

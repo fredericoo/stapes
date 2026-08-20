@@ -4,6 +4,7 @@ import {
   resolveRewardDef,
   resolveSwitch,
   resolveTeleportDef,
+  transmuteVerb,
 } from "../lib/interactions";
 import {
   consumeVerb,
@@ -29,6 +30,7 @@ import {
 } from "./affordances";
 import { bodyNameFor } from "./displayName";
 import type { Equipment } from "./equipment";
+import { offeredTransmutations } from "./transmute";
 import type { ActorSnapshot, PlaySession } from "./GameSession";
 
 /**
@@ -93,6 +95,17 @@ export type InteractionOption = {
   ref: ObjectRef;
   /** Who to point at, for `target`; null for anything the board offers. */
   actorId: string | null;
+  /**
+   * Which of the tile's recipes this row runs, for `transmute`; null for every
+   * other action.
+   *
+   * The one entry in the list that cannot be addressed by its `ref` alone — a
+   * fire offers a row per thing you could cook at it, all on the same
+   * placement — so the position of the recipe travels on the row exactly as
+   * {@link actorId} does for a target. See `./transmute`'s
+   * `offeredTransmutations` for why a position rather than a name.
+   */
+  recipeIndex: number | null;
   /** The tile standing for this entry — its front sprite is what gets drawn. */
   tileId: string;
   /** A person by their handle, anything else by what its tile is called. */
@@ -140,6 +153,11 @@ const LABELS: Record<InteractionAction, string> = {
   // portal is "Enter" and a ladder is "Climb", and nothing derivable from a
   // tile that moves you says which. See `TeleportInteraction.actionName`.
   teleport: "Enter",
+  // Never actually read: a transmute row is named by its *recipe* rather than
+  // by its tile — see `transmuteVerb` — because one fire may cook and trade.
+  // Present because the record is exhaustive, which is what stops an action
+  // being added without somebody deciding what it is called.
+  transmute: "Transmute",
 };
 
 /**
@@ -185,25 +203,30 @@ const ACTION_ORDER: Record<InteractionAction, number> = {
   // half that takes you somewhere is the one with consequences.
   teleport: 2,
   switch: 3,
+  // Below the switch and above everything to do with carrying, which is where
+  // an explicit authored act belongs — and it never competes with the tap
+  // anyway, since a transmute row is reached by name and a tile that both
+  // cooked and swung open would spend its tap on the hinge either way.
+  transmute: 4,
   // Above pick-up, and this is the one that decides what a plain tap on a sword
   // does. An empty hand is the strongest thing a player can be saying about what
   // they want done with a weapon on the floor, and stowing it afterwards is one
   // drag; the reverse — fishing a sword back out of a bag you did not mean it to
   // go into — is the annoying direction. It only ever appears when the slot is
   // free, so it cannot take a tap away from anybody who is already armed.
-  equip: 4,
+  equip: 5,
   // Above pick-up, and only ever up against it on a container: a pack you are
   // already wearing the twin of can be taken into a hand now, and a tap that
   // picked it up rather than looking inside would be answering the less
   // interesting of the two questions. Nothing else in the game is both.
-  open: 5,
-  pickUp: 6,
+  open: 6,
+  pickUp: 7,
   // Below pick-up on purpose, and pick-up is what a plain tap on the tile runs:
   // eating destroys the thing where lifting it is reversible, so the row you
   // have to *find* is the destructive one and the gesture you can fire by
   // accident is the safe one.
-  consume: 7,
-  push: 8,
+  consume: 8,
+  push: 9,
 };
 
 /**
@@ -321,6 +344,14 @@ export function applyInteraction(
   // whatever the precedence currently happens to put in front.
   if (option.action === "equip") {
     session.equip(option.ref);
+    return;
+  }
+  // Named because it has to be: a fire offering three recipes is three rows on
+  // one placement, and `interact` has no way to say which. The index is the
+  // row's own — see `InteractionOption.recipeIndex`.
+  if (option.action === "transmute") {
+    if (option.recipeIndex === null) return;
+    session.transmute(option.ref, option.recipeIndex);
     return;
   }
   // Named for the same reason pick-up is: the row says "Eat", and `interact`'s
@@ -474,6 +505,7 @@ function slotOptions(
       label,
       ref,
       actorId: null,
+      recipeIndex: null,
       tileId: placed.tileId,
       name,
       // A shove at a creature reports its health for the same reason the fight
@@ -508,6 +540,38 @@ function slotOptions(
   if (canOpenFrom(map, tilesById, self, ref)) {
     const isOpen = openedRef != null && refKey(openedRef) === refKey(ref);
     add("open", isOpen ? CLOSE_LABEL : LABELS.open, isOpen);
+  }
+
+  // One row per recipe the player could actually run, which is the only entry
+  // in the list that is not one-per-verb-per-thing: a fire that cooks meat and
+  // fish offers "Cook Raw Meat" and "Cook Raw Fish", and the verb alone would
+  // not tell them apart. So the row is named for what is being *spent* — its
+  // sprite and its name are the input's, while its `ref` stays the fire, which
+  // is what the outline goes round.
+  for (const { index, recipe } of offeredTransmutations(
+    map,
+    tilesById,
+    self,
+    equipment,
+    ref,
+  )) {
+    const input = tilesById[recipe.fromTileId];
+    out.push({
+      // `action:ref` like every other row, plus the recipe — the one id in the
+      // list that needs a third part, because one placement offers several.
+      // `MAX_TRANSMUTATIONS` keeps the index a single digit, so the string sort
+      // that settles ties between equal rows is also the authored order.
+      id: `transmute:${refKey(ref)}:${index}`,
+      action: "transmute",
+      label: transmuteVerb(recipe),
+      ref,
+      actorId: null,
+      recipeIndex: index,
+      tileId: recipe.fromTileId,
+      name: input?.name ?? recipe.fromTileId,
+      health: null,
+      active: false,
+    });
   }
 
   // The other beside-a-tap row: a cherry on the floor is "Pick up" and "Eat",
@@ -617,6 +681,7 @@ function targetOptions(
       label: LABELS.target,
       ref,
       actorId: actor.id,
+      recipeIndex: null,
       tileId: actor.tileId,
       name: bodyNameFor(
         { actorId: actor.id, tileId: actor.tileId },

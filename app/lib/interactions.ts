@@ -416,6 +416,75 @@ export type PlacedReward = {
   itemTileIds: string[];
 };
 
+
+/**
+ * One thing this tile turns into others: spend that, get these.
+ *
+ * **A recipe, not a trade of objects.** The input is destroyed and the outputs
+ * are minted fresh, on exactly the terms {@link RewardInteraction} hands its
+ * items over — so a fire that cooks meat is not moving a particular steak
+ * around, it is answering "what does raw meat become here".
+ *
+ * Wholly on the tile, with no placement half at all, and that is the one place
+ * this parts company with a reward: what a fire does to meat is a fact about
+ * fire, and every fire cut from the tile does it. There is nothing left for a
+ * slot to vary.
+ */
+export type Transmutation = {
+  /**
+   * What doing it is called — "Cook" at a fire, "Trade" with a salesman.
+   *
+   * Authored per *recipe* rather than per tile, unlike every other verb in this
+   * file, because a tile may offer several and they need not be the same act: a
+   * stall that trades a carcass for a coin may also cook. It is also the half
+   * the player is choosing between, since the thing being spent is the other.
+   *
+   * Optional, and blank reads as "Transmute" — which is deliberately an ugly
+   * word to see in play, because a recipe worth authoring is worth naming.
+   */
+  verb?: string;
+  /** The item spent. One, always: a recipe with two inputs is two decisions. */
+  fromTileId: string;
+  /** What comes back. Order is the author's, as a reward's is. */
+  toTileIds: string[];
+};
+
+/**
+ * This tile turns one carried thing into others — a fire you cook at, a trader
+ * you sell to.
+ *
+ * **Nothing on the board changes**, exactly as nothing changes when a reward is
+ * taken, and for a related reason: the fire has to still be a fire for the next
+ * person. What changes is the kit of whoever pressed it. Unlike a reward it is
+ * *not* once per player and carries no tag — a fire cooks the second steak too,
+ * and what limits it is having something to spend.
+ *
+ * A list rather than a single recipe, because "what will this fire do for me"
+ * is a question with several answers and each is its own row: an author who had
+ * to cut one tile per recipe would be cutting one fire per food in the game.
+ */
+export type TransmuteInteraction = {
+  recipes: Transmutation[];
+};
+
+/**
+ * Most things one recipe may hand back.
+ *
+ * {@link MAX_REWARD_ITEMS}' argument, because it is the same constraint: the
+ * outputs all arrive at once and all have to fit, so a recipe authored bigger
+ * than any bag in the game is one nobody can ever run.
+ */
+export const MAX_TRANSMUTATION_OUTPUTS = MAX_CONTAINER_SIZE;
+
+/**
+ * Most recipes one tile may offer.
+ *
+ * A bound on a *list the player reads*, rather than on anything the simulation
+ * would struggle with: every runnable recipe is a row in the interaction list,
+ * and a fire offering twenty of them has stopped being something you can scan.
+ */
+export const MAX_TRANSMUTATIONS = 8;
+
 /**
  * Most items one placement may hand over.
  *
@@ -460,6 +529,7 @@ export type TileInteractions = {
   push?: PushInteraction;
   switch?: SwitchInteraction;
   reward?: RewardInteraction;
+  transmute?: TransmuteInteraction;
   teleport?: TeleportInteraction;
   decay?: DecayInteraction;
   respawn?: RespawnInteraction;
@@ -475,6 +545,21 @@ export const DEFAULT_SWITCH: SwitchInteraction = {
 
 export const DEFAULT_REWARD: RewardInteraction = {
   actionName: "",
+};
+
+/**
+ * One blank recipe, because a transmuter with no recipes is not a transmuter —
+ * switching the block on has to leave the author with the row they came to
+ * fill in, exactly as switching a switch on leaves them a target to pick.
+ */
+export const DEFAULT_TRANSMUTATION: Transmutation = {
+  verb: "",
+  fromTileId: "",
+  toTileIds: [],
+};
+
+export const DEFAULT_TRANSMUTE: TransmuteInteraction = {
+  recipes: [{ ...DEFAULT_TRANSMUTATION }],
 };
 
 /**
@@ -675,6 +760,91 @@ function readPlacedReward(
     tag: parsed.output.rewardTag,
     itemTileIds: parsed.output.rewardTileIds,
   };
+}
+
+/**
+ * One recipe, as it is allowed to arrive from a hand-edited file.
+ *
+ * The input must name something and the outputs must not be empty, because
+ * either half missing makes the recipe a verb that does nothing — the same line
+ * {@link readPlacedReward} draws, and it lands in the same place: a
+ * half-authored recipe is dropped and the rest of the tile still works.
+ */
+const transmutationSchema = v.object({
+  verb: v.optional(v.string()),
+  fromTileId: v.pipe(v.string(), v.trim(), v.minLength(1)),
+  toTileIds: v.pipe(
+    v.array(v.string()),
+    v.minLength(1),
+    v.maxLength(MAX_TRANSMUTATION_OUTPUTS),
+  ),
+});
+
+/**
+ * Malformed recipes are dropped one at a time rather than taking the block down
+ * with them, which is this schema's whole shape: a fire that cooks three things
+ * and has a typo in the third should still cook the other two, and an author
+ * who broke one row should see that row go missing rather than the tile go
+ * inert.
+ */
+const transmuteSchema = v.object({
+  recipes: v.pipe(
+    v.array(v.fallback(v.nullable(transmutationSchema), null)),
+    v.transform((recipes) =>
+      recipes
+        .filter((recipe): recipe is Transmutation => recipe != null)
+        .slice(0, MAX_TRANSMUTATIONS),
+    ),
+  ),
+});
+
+const transmuteCache = new WeakMap<TileDef, TransmuteInteraction | null>();
+
+/**
+ * Parsed transmutation config for a tile def — every recipe it offers, in the
+ * order the author wrote them.
+ *
+ * Same trust model as {@link resolvePush}, and one refusal of its own: a block
+ * whose recipes all turned out to be malformed is *not* a transmuter, so it
+ * offers no rows rather than an empty menu. Unlike a reward's, an empty block
+ * here says nothing — there is no placement half for it to be pointing at.
+ *
+ * Memoised on def identity, on the same grounds every other resolver here is:
+ * the interaction list asks this per reachable cell every time the board or the
+ * player moves.
+ */
+export function resolveTransmute(def: TileDef): TransmuteInteraction | null {
+  const cached = transmuteCache.get(def);
+  if (cached !== undefined) return cached;
+
+  const raw = def.interactions?.transmute;
+  const parsed = raw == null ? null : v.safeParse(transmuteSchema, raw);
+  const transmute =
+    parsed?.success && parsed.output.recipes.length > 0 ? parsed.output : null;
+  transmuteCache.set(def, transmute);
+  return transmute;
+}
+
+/**
+ * What an unnamed recipe reads as.
+ *
+ * Deliberately the mechanism's own name and deliberately unlovely: every other
+ * fallback in here ("Take", "Enter") is a word a player might actually want,
+ * because those blocks were authored before their verb existed and the fallback
+ * has to carry real content. Recipes have had a verb since the day they existed,
+ * so this only ever shows on one somebody forgot to name.
+ */
+export const DEFAULT_TRANSMUTE_VERB = "Transmute";
+
+/**
+ * What a recipe's row is called, with the fallback applied.
+ *
+ * One place, because the list draws it and the tile editor previews it, and a
+ * verb that read as "Transmute" in one and blank in the other would be two
+ * answers to a question the author asked once.
+ */
+export function transmuteVerb(recipe: Transmutation): string {
+  return recipe.verb?.trim() || DEFAULT_TRANSMUTE_VERB;
 }
 
 const coordSchema = v.object({
@@ -949,7 +1119,10 @@ export function receiveTriggers(
  * to know it is the second.
  *
  * Switch comes next: it is an explicit authored swap, and an author who put
- * one on a tile meant it to be what happens. Pick-up comes after, because
+ * one on a tile meant it to be what happens. Transmute follows it and for the
+ * same argument one step weaker — it is authored and explicit, but it is the
+ * only kind here that can offer *several* rows on one tile, so it is named by
+ * its row rather than reached by a bare tap. Pick-up comes after, because
  * lifting a thing is a better guess at what somebody wants from a sword on the
  * floor than shoving it further away. Push is last, the fallback "just move it"
  * behaviour that anything can fall through to.
@@ -965,6 +1138,7 @@ export type InteractionKind =
   | "reward"
   | "teleport"
   | "switch"
+  | "transmute"
   | "pickUp"
   | "push";
 
@@ -981,6 +1155,10 @@ export function interactionKinds(def: TileDef): InteractionKind[] {
   // a press are ever a kind.
   if (pressableTeleport(def)) kinds.push("teleport");
   if (resolveSwitch(def)) kinds.push("switch");
+  // The def's half and the whole of it — a transmuter carries no placement
+  // half at all. Whether the player has anything to spend is a question about
+  // *them*, which is the affordances', not this one's.
+  if (resolveTransmute(def)) kinds.push("transmute");
   if (resolveItem(def)) kinds.push("pickUp");
   if (resolvePush(def)) kinds.push("push");
   return kinds;
@@ -1090,6 +1268,7 @@ export function hasAnyInteraction(
       interactions?.push ||
       interactions?.switch ||
       interactions?.reward ||
+      interactions?.transmute ||
       interactions?.teleport ||
       interactions?.decay ||
       interactions?.respawn ||
@@ -1144,6 +1323,24 @@ export function interactionsForSave(
   // arm knows which fields belong. A `delta` left behind on an absolute teleport
   // would be inert *and* invisible — sitting in `data/tiles.json` waiting for
   // somebody to flip the control back and find numbers they never authored.
+  // Rebuilt recipe by recipe, and the half-authored ones dropped on the way
+  // out rather than only on the way in: a row an author added and never filled
+  // in is a row the resolver would refuse anyway, and writing it to
+  // `data/tiles.json` would leave the file claiming a recipe the game does not
+  // have. A block left with nothing in it is not a transmuter, so it goes.
+  const transmute = interactions?.transmute;
+  const savedRecipes = (transmute?.recipes ?? []).flatMap((recipe) => {
+    const fromTileId = recipe.fromTileId.trim();
+    const toTileIds = recipe.toTileIds.filter((id) => id.trim());
+    if (!fromTileId || toTileIds.length === 0) return [];
+    const verb = recipe.verb?.trim();
+    // A blank verb is dropped rather than written as `""`, exactly as a
+    // switch's is: an empty string meaning "no name" is a second way of saying
+    // what an absent key already says.
+    return [{ ...(verb ? { verb } : {}), fromTileId, toTileIds }];
+  });
+  const savedTransmute =
+    savedRecipes.length > 0 ? { recipes: savedRecipes } : undefined;
   const teleport = interactions?.teleport;
   const teleportActionName = teleport?.actionName?.trim();
   const savedTeleport = teleport
@@ -1262,6 +1459,7 @@ export function interactionsForSave(
     !savedPush &&
     !savedSwitch &&
     !savedReward &&
+    !savedTransmute &&
     !savedTeleport &&
     !savedDecay &&
     !savedRespawn &&
@@ -1278,6 +1476,7 @@ export function interactionsForSave(
     ...(savedPush ? { push: savedPush } : {}),
     ...(savedSwitch ? { switch: savedSwitch } : {}),
     ...(savedReward ? { reward: savedReward } : {}),
+    ...(savedTransmute ? { transmute: savedTransmute } : {}),
     ...(savedTeleport ? { teleport: savedTeleport } : {}),
     ...(savedDecay ? { decay: savedDecay } : {}),
     ...(savedRespawn ? { respawn: savedRespawn } : {}),
