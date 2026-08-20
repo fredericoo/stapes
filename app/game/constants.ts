@@ -6,8 +6,15 @@ export const TICK_MS = 1000 / TICK_HZ;
 /** Time to walk one tile (client lerp + sim commit at end). */
 export const WALK_DURATION_MS = 200;
 
-/** Time to fall one height unit (4px; keeps prior px/ms with HEIGHT_PER_LEVEL=2). */
-export const FALL_MS_PER_HEIGHT = 400;
+/**
+ * Time to fall one height unit (4px, with HEIGHT_PER_LEVEL=2).
+ *
+ * Twice the old pace. A fall at 400ms/unit floated — a drop off a two-level
+ * ledge took most of a second, long enough to read as a descent rather than as
+ * gravity. Nothing else is keyed to it: every consumer divides by it, so the
+ * sim's step-down cadence and the client's interpolation move together.
+ */
+export const FALL_MS_PER_HEIGHT = 200;
 
 /** Time a pushed object takes to travel one tile — same pace as a walk. */
 export const PUSH_STEP_MS = WALK_DURATION_MS;

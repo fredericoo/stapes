@@ -33,19 +33,21 @@ export function spriteStatesFor(
 }
 
 /**
- * Whether this body is in motion right now.
+ * Whether this body is walking right now.
  *
- * Walking and falling both count, and deliberately: a creature dropping off a
- * ledge is not standing still, and a walk cycle is the only art either state has
- * to draw with — so treating a fall as idle would freeze a deer mid-air in its
- * grazing pose.
+ * A fall does not count, and that is the point: `moving` art is a walk cycle,
+ * and a creature pumping its legs on the way down a cliff reads as comic rather
+ * than as falling. Idle is the honest thing to draw with the art that exists —
+ * a body holding its shape while the ground comes up at it. A real mid-air pose
+ * wants a `falling` state of its own, authored alongside its driver the way
+ * {@link SpriteState} asks.
  *
- * A slide does not, and that is not an omission. `slide` on an actor is the
- * motion of an *object they shoved*, not of the actor: reading it here would put
- * a walk cycle on somebody standing perfectly still with their hands out. The
- * crate's own `moving` sprite is a separate question, and it needs the state
- * keyed to the crate's cell rather than to the pusher's.
+ * A slide does not count either, and that is not an omission. `slide` on an
+ * actor is the motion of an *object they shoved*, not of the actor: reading it
+ * here would put a walk cycle on somebody standing perfectly still with their
+ * hands out. The crate's own `moving` sprite is a separate question, and it
+ * needs the state keyed to the crate's cell rather than to the pusher's.
  */
 function isMovingActor(actor: ActorSnapshot): boolean {
-  return actor.walk != null || actor.fall != null;
+  return actor.walk != null;
 }
