@@ -2279,7 +2279,15 @@ describe("resetting the world", () => {
     // Seeded from the authored `player` tile again, which is what somebody the
     // world has never met looks like.
     expect(hello.masteryXp).not.toEqual(EARNED);
-    expect(await storedKeys("mast:")).not.toContain(`mast:${who}`);
+    // What the row *says*, rather than whether there is one — and the absence
+    // was a race rather than a stricter assertion. A reset wakes the tick loop,
+    // every tick asks the player for their stats, and the first thing that asks
+    // is what seeds a fresh player's experience from their tile
+    // (`GameSession`'s `battlerOf`). The flush that follows writes a `mast:` row
+    // holding exactly what the tile says — so this passed only while no tick had
+    // landed yet, which on a slow enough machine is never true. Undefined passes
+    // too: no row is also not what they had learnt.
+    expect(await savedMasteries(who)).not.toEqual(EARNED);
   });
 
   /**
