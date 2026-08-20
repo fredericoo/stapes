@@ -35,7 +35,6 @@ describe("what a number says", () => {
 
   it("keeps a miss and a dodge tellable apart", () => {
     expect(textFor(swing({ outcome: "miss", amount: 0 }))).toBe("miss");
-    expect(textFor(swing({ outcome: "dodge", amount: 0 }))).toBe("dodge");
   });
 });
 
@@ -56,6 +55,5 @@ describe("what colour it says it in", () => {
 
   it("reads a miss and a dodge as nothing too", () => {
     expect(classFor(swing({ outcome: "miss", own: true }))).toContain("--nothing");
-    expect(classFor(swing({ outcome: "dodge", own: true }))).toContain("--nothing");
   });
 });

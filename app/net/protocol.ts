@@ -2,6 +2,7 @@ import * as v from "valibot";
 import type { Equipment } from "../game/equipment";
 import type { SlotRef } from "../game/itemMoves";
 import { SWING_OUTCOMES, type SwingOutcome } from "../game/GameSession";
+import { STRIKE_KINDS, type StrikeKind } from "../game/strike";
 import type { ConsumeSource } from "../game/itemUse";
 import { masteryXpBlockSchema, type MasteryXp } from "../lib/mastery";
 import type { PlacedTile } from "../lib/types";
@@ -263,6 +264,30 @@ export type MotionEvent =
       from: { x: number; y: number; z: number };
       /** How many placements travelled, `object` included. */
       count: number;
+    }
+  /**
+   * A body moved because of a blow — the swinger throwing itself forward, or the
+   * defender getting out of the way.
+   *
+   * The whole of what the animation needs, and deliberately not the other body's
+   * id: by the time this is drawn that body may be gone, since a killing blow
+   * takes its target off the board on the same tick. The delta is the direction
+   * the lean goes, and it outlives whoever it was measured against.
+   *
+   * Its own event rather than a flag on `damage`, because the two are not the
+   * same fact: a blow out of arm's reach floats a number and no lean, and a
+   * dodge is now the reverse — a movement and no number at all.
+   */
+  | {
+      kind: "strikeStarted";
+      actorId: string;
+      /** Which end of the blow this body was on. @see `../game/strike` */
+      strike: StrikeKind;
+      /** Cells to travel on the plan. */
+      dx: number;
+      dy: number;
+      /** Height units to travel, absolute. */
+      dElev: number;
     }
   /**
    * Somebody arrived, or somebody went.
@@ -872,6 +897,14 @@ const serverMessageSchema = v.variant("type", [
         v.object({
           kind: v.literal("teleported"),
           actorId: v.string(),
+        }),
+        v.object({
+          kind: v.literal("strikeStarted"),
+          actorId: v.string(),
+          strike: v.picklist(STRIKE_KINDS),
+          dx: v.number(),
+          dy: v.number(),
+          dElev: v.number(),
         }),
         v.object({
           kind: v.literal("joined"),

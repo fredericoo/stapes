@@ -341,7 +341,7 @@ describe("nothing is quietly dropped in transit", () => {
     kind: "damage" as const,
     id: "hit-1",
     targetId: "rat",
-    outcome: "dodge" as const,
+    outcome: "miss" as const,
     amount: 0,
     x: 1,
     y: 2,

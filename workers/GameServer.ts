@@ -506,6 +506,7 @@ type SentMotion = {
   walk: unknown;
   fall: unknown;
   slide: unknown;
+  strike: unknown;
 };
 
 /**
@@ -2689,11 +2690,22 @@ export class GameServer extends DurableObject<Env> {
           count: actor.slide.count,
         });
       }
+      if (actor.strike && actor.strike !== sent?.strike) {
+        this.events.push({
+          kind: "strikeStarted",
+          actorId: actor.id,
+          strike: actor.strike.kind,
+          dx: actor.strike.dx,
+          dy: actor.strike.dy,
+          dElev: actor.strike.dElev,
+        });
+      }
 
       this.sentMotion.set(actor.id, {
         walk: actor.walk,
         fall: actor.fall,
         slide: actor.slide,
+        strike: actor.strike,
       });
     }
     for (const id of this.sentMotion.keys()) {
