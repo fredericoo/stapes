@@ -6,6 +6,7 @@ import type { TileDef, TilesetDef } from "../lib/types";
 import { Tooltip } from "../ui/Tooltip";
 import { MODE_TOGGLE_SIZE_CLASS, type ModeToggleSize } from "./ModeToggle";
 import type { ItemDrag } from "./useItemDrag";
+import { useTap } from "./useTap";
 
 /**
  * The buttons that open what you are carrying, and what you are.
@@ -38,13 +39,17 @@ export function StatsToggle({
   onChange: (open: boolean) => void;
   size?: ModeToggleSize;
 }) {
+  // Pointer-driven rather than click-driven, so the row still answers a thumb
+  // that is holding the d-pad down. See `./useTap`.
+  const tap = useTap(() => onChange(!open));
+
   return (
     <Tooltip content="Stats">
       <button
         type="button"
         aria-pressed={open}
         aria-label="Stats"
-        onClick={() => onChange(!open)}
+        {...tap}
         className={toggleClass(open, size)}
       >
         <IconHeartbeat
@@ -67,13 +72,17 @@ export function EquipmentToggle({
   onChange: (open: boolean) => void;
   size?: ModeToggleSize;
 }) {
+  // Pointer-driven rather than click-driven, so the row still answers a thumb
+  // that is holding the d-pad down. See `./useTap`.
+  const tap = useTap(() => onChange(!open));
+
   return (
     <Tooltip content="Equipment">
       <button
         type="button"
         aria-pressed={open}
         aria-label="Equipment"
-        onClick={() => onChange(!open)}
+        {...tap}
         className={toggleClass(open, size)}
       >
         <IconShirt
@@ -159,6 +168,10 @@ export function BagButton({
   const isOver = drag.over === BAG_BUTTON_TARGET_KEY;
   const fullness = bag ? `${held} of ${capacity} full` : null;
 
+  // Pointer-driven rather than click-driven, so the row still answers a thumb
+  // that is holding the d-pad down. See `./useTap`.
+  const tap = useTap(() => onChange(!open));
+
   return (
     <Tooltip content={bag ? `${name} — ${held}/${capacity}` : "No bag"}>
       <button
@@ -167,7 +180,7 @@ export function BagButton({
         aria-pressed={open}
         aria-label={bag ? `${name}, ${fullness}` : "No bag"}
         disabled={!bag}
-        onClick={() => onChange(!open)}
+        {...tap}
         className={[
           "relative",
           toggleClass(open, size),

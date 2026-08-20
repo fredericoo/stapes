@@ -23,6 +23,7 @@ import { StatsPanel } from "./StatsPanel";
 import type { ActiveStatus } from "../lib/status";
 import { StatusStrip } from "./StatusStrip";
 import { useItemDrag } from "./useItemDrag";
+import { useNoZoom } from "./useNoZoom";
 
 /** A body nothing has reported on yet. Shared, so a default costs no allocation. */
 const NO_VITALS: Vitals = { hp: null, maxHp: null, rating: null, statuses: [] };
@@ -220,6 +221,10 @@ export function GameViewport({
   tilesets?: TilesetDef[];
 }) {
   const coarse = useCoarsePointer();
+  // Zooming a fixed-square world only crops the controls off the screen. Held
+  // to the game rather than declared for the whole site, so the editor keeps
+  // the magnifying glass it has a real use for. See `./useNoZoom`.
+  useNoZoom(coarse);
   const tilesById = useMemo(() => tilesByIdFromList(tiles), [tiles]);
 
   /**
@@ -556,15 +561,21 @@ export function GameViewport({
     <div className="flex h-full w-full bg-ink">
       <DragLayer drag={drag} tilesById={tilesById} tilesets={tilesets} />
       <div
-        className="flex h-full min-w-0 flex-1 touch-manipulation flex-col items-center select-none"
+        // `pan-y` rather than `manipulation`: both drop the double-tap zoom, and
+        // this one also takes the column out of pinch-zoom. That matters for
+        // more than the stray gesture — a second finger landing somewhere that
+        // *might* still become a pinch is a finger the engine holds in reserve,
+        // and holding it is what stops the press behind it from ever being
+        // reported. Vertical panning survives, because the list of what is in
+        // reach and the panels both scroll.
+        className="flex h-full min-w-0 flex-1 touch-pan-y flex-col items-center select-none"
         style={{
           // A double-tap on a control is a double-tap-to-select gesture as far as
           // the browser is concerned, and dragging from it extends the selection.
           // With nothing selectable under the finger it reaches for the nearest
           // text that is — the chrome above — so the whole surface has to opt out,
           // not just the buttons: the gaps between them are where a fast thumb
-          // actually lands. `touch-manipulation` drops the double-tap zoom that
-          // rides along with it, while leaving pinch zoom alone.
+          // actually lands.
           WebkitTouchCallout: "none",
           WebkitTapHighlightColor: "transparent",
         }}

@@ -175,6 +175,10 @@ export function DirectionPad({
       onContextMenu={(e) => e.preventDefault()}
       onPointerDown={(e) => {
         e.preventDefault();
+        // First finger on the pad owns it until it lifts. Without this a second
+        // one landing on the pad took the slot over, and *its* release stopped
+        // the walk while the finger actually steering was still down.
+        if (pointerRef.current !== null) return;
         pointerRef.current = e.pointerId;
         // Capture so a thumb that slides past the edge keeps steering, and so
         // the release comes back here wherever it happens.
