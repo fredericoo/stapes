@@ -1771,6 +1771,12 @@ export class GameServer extends DurableObject<Env> {
       // a move: the client offered "Eat" from these rules, on a board a round
       // trip old, and is not trusted with the answer.
       session.consume(message.from, actorId);
+    } else if (message.type === "transmute") {
+      // Reach, the recipe existing, having the input, and having room for what
+      // comes back — all re-asked in the session, on the same terms a reward
+      // is. The client offered the row from these rules, on a board and a bag
+      // that may both be a round trip old.
+      session.transmute(message.ref, message.recipe, actorId);
     } else if (message.type === "drop") {
       // Range, sight and room in the stack, all re-asked. The client drew a
       // ghost from these same rules, but it drew it on a board that may be a

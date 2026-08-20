@@ -59855,6 +59855,9 @@
       "26,33": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "raw-meat"
         }
       ],
       "26,34": [
@@ -60780,6 +60783,10 @@
         },
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "player",
+          "direction": "s"
         }
       ],
       "27,35": [
@@ -60792,7 +60799,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "dirt"
+          "tileId": "raw-meat"
         }
       ],
       "27,37": [
@@ -61672,7 +61679,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "dirt"
+          "tileId": "raw-meat"
         }
       ],
       "28,32": [
@@ -61694,6 +61701,9 @@
         },
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "flame"
         }
       ],
       "28,35": [
@@ -62618,6 +62628,9 @@
       "29,37": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "raw-meat"
         }
       ],
       "29,38": [
@@ -63485,6 +63498,9 @@
       "30,33": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "raw-meat"
         }
       ],
       "30,34": [
@@ -114973,10 +114989,6 @@
       "20,38": [
         {
           "tileId": "grass-2"
-        },
-        {
-          "tileId": "player",
-          "direction": "s"
         }
       ],
       "20,39": [

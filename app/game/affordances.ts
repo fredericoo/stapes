@@ -1,12 +1,17 @@
 import { getStack } from "../lib/mapData";
 import { hasLineOfSight } from "./sight";
-import type { PlacedReward, PlacedTeleport } from "../lib/interactions";
+import type {
+  PlacedReward,
+  PlacedTeleport,
+  TransmuteInteraction,
+} from "../lib/interactions";
 import {
   isInteractive,
   resolvePush,
   resolveReward,
   resolveSwitch,
   resolveTeleport,
+  resolveTransmute,
 } from "../lib/interactions";
 import {
   resolveConsumable,
@@ -647,6 +652,42 @@ export function canRewardFrom(
   if (!reward) return false;
   if (tags.includes(reward.tag)) return false;
   return rewardFits(reward, tilesById, equipment);
+}
+
+/**
+ * The recipes at a stack slot, if this actor could reach whatever is offering
+ * them.
+ *
+ * The tile's half and all of it — a transmuter has no placement half to join,
+ * unlike a reward or a teleport, because what a fire does to meat is a fact
+ * about fire. So this is `resolveTransmute` plus the reach every other reaching
+ * affordance takes.
+ *
+ * Reach is the round {@link REACH_CELLS} rather than push's orthogonal step, on
+ * the same grounds a reward's is: handing a trader a carcass needs no
+ * unambiguous "one cell further away", and a salesman standing diagonally who
+ * would not deal with you would read as a bug.
+ *
+ * Cover is the rule everything else takes — a fire under a crate is out — and a
+ * body is not cover, which matters here for the reason it matters to a reward:
+ * half the transmuters worth authoring are people.
+ *
+ * Says nothing about whether the actor has anything to spend. That is a
+ * question about their kit and it is `../game/transmute`'s.
+ */
+export function reachableTransmuteAt(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  ref: ObjectRef,
+): TransmuteInteraction | null {
+  if (!withinReach(actor, ref)) return null;
+  const stack = getStack(map, ref.x, ref.y, ref.z);
+  if (coveredBySomething(stack, ref.stackIndex, tilesById)) return null;
+  const placed = stack[ref.stackIndex];
+  if (!placed) return null;
+  const def = tilesById[placed.tileId];
+  return def ? resolveTransmute(def) : null;
 }
 
 /**

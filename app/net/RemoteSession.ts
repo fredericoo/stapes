@@ -29,6 +29,7 @@ import { type Equipment, emptyEquipment } from "../game/equipment";
 import type { MasteryXp } from "../lib/mastery";
 import { canMoveItem, itemInSlot, type SlotRef } from "../game/itemMoves";
 import type { ConsumeSource } from "../game/itemUse";
+import { canTransmuteFrom } from "../game/transmute";
 import { resolveConsumable } from "../lib/item";
 import { moveEntity, setEntityDirection } from "../game/mapMutations";
 import { chooseStep } from "../game/stepping";
@@ -1459,6 +1460,43 @@ export class RemoteSession implements PlaySession {
     }
 
     this.send({ type: "consume", from });
+    return true;
+  }
+
+  /**
+   * Ask for the thing to be spent at whatever turns it into something else.
+   *
+   * Not predicted, on the same terms a pickup is not: it changes what is in a
+   * bag, and drawing somebody holding a cooked steak they turn out not to have
+   * is a worse lie than a moment's delay. The local check is the server's own —
+   * reach, the recipe existing, having the input, and room for what comes
+   * back — so a refusal costs no round trip at all.
+   *
+   * Gated like a board action rather than like a move, matching the session:
+   * you reach out and do this to something in the world, and an actor whose
+   * last step the server has yet to confirm is not standing beside it yet.
+   */
+  transmute(ref: ObjectRef, recipe: number): boolean {
+    const motion = this.motions.get(this.selfId);
+    if (!motion) return false;
+    if (motion.walk || motion.fall || motion.slide) return false;
+    if (this.pending.length > 0) return false;
+    const loc = this.locate(this.selfId, motion);
+    if (!loc) return false;
+    if (
+      !canTransmuteFrom(
+        this.map,
+        this.tilesById,
+        loc,
+        this.equipment,
+        ref,
+        recipe,
+      )
+    ) {
+      return false;
+    }
+
+    this.send({ type: "transmute", ref, recipe });
     return true;
   }
 

@@ -14,6 +14,8 @@ import type {
   TeleportInteraction,
   TeleportTrigger,
   TileInteractions,
+  Transmutation,
+  TransmuteInteraction,
 } from "../lib/interactions";
 import {
   DEFAULT_DECAY,
@@ -24,14 +26,19 @@ import {
   DEFAULT_REWARD,
   DEFAULT_SWITCH,
   DEFAULT_TELEPORT,
+  DEFAULT_TRANSMUTATION,
+  DEFAULT_TRANSMUTE,
+  DEFAULT_TRANSMUTE_VERB,
   MAX_REWARD_ITEMS,
+  MAX_TRANSMUTATION_OUTPUTS,
+  MAX_TRANSMUTATIONS,
   hasAnyInteraction,
 } from "../lib/interactions";
 import { DEFAULT_BATTLER } from "../lib/battler";
 import { DEFAULT_WEAPON, resolveContainer, resolveItem } from "../lib/item";
 import type { TileDef, TileKind, TilesetDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL } from "../lib/types";
-import { Input, Segmented, Switch } from "../ui";
+import { Button, Input, Segmented, Switch } from "../ui";
 import { TileIdMultiSelect } from "./TileIdMultiSelect";
 
 /** Symbols read left-to-right after the "load is" label. */
@@ -137,6 +144,7 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets }: Props) {
   const push = draft.interactions?.push;
   const sw = draft.interactions?.switch;
   const reward = draft.interactions?.reward;
+  const transmute = draft.interactions?.transmute;
   const teleport = draft.interactions?.teleport;
   const decay = draft.interactions?.decay;
   const plate = draft.interactions?.pressurePlate;
@@ -209,6 +217,46 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets }: Props) {
   const patchReward = (patch: Partial<RewardInteraction>) => {
     if (!reward) return;
     setReward({ ...reward, ...patch });
+  };
+
+  const setTransmute = (next: TransmuteInteraction | undefined) => {
+    patchKind("transmute", next ?? null);
+  };
+
+  /**
+   * Rewrite one recipe, leaving its siblings alone.
+   *
+   * By position rather than by identity because a recipe has none — it *is* its
+   * position, which is how the row the player presses names it. See
+   * `Transmutation`.
+   */
+  const patchRecipe = (index: number, patch: Partial<Transmutation>) => {
+    if (!transmute) return;
+    setTransmute({
+      recipes: transmute.recipes.map((recipe, i) =>
+        i === index ? { ...recipe, ...patch } : recipe,
+      ),
+    });
+  };
+
+  const addRecipe = () => {
+    if (!transmute || transmute.recipes.length >= MAX_TRANSMUTATIONS) return;
+    setTransmute({
+      recipes: [...transmute.recipes, { ...DEFAULT_TRANSMUTATION }],
+    });
+  };
+
+  /**
+   * Drop a recipe, and the whole block with the last one.
+   *
+   * A transmuter with no recipes is not a transmuter — the resolver reads an
+   * emptied block as "does not transmute" — so leaving one behind would be an
+   * editor showing a switch that is on and a tile that does nothing.
+   */
+  const removeRecipe = (index: number) => {
+    if (!transmute) return;
+    const recipes = transmute.recipes.filter((_, i) => i !== index);
+    setTransmute(recipes.length > 0 ? { recipes } : undefined);
   };
 
   const setTeleport = (next: TeleportInteraction | undefined) => {
@@ -476,6 +524,119 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets }: Props) {
                 “Take”.
               </span>
             </label>
+          </div>
+        ) : null}
+      </section>
+
+      <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
+        <label className="flex items-center gap-2 text-sm font-bold">
+          <Switch
+            checked={Boolean(transmute)}
+            onCheckedChange={(on) =>
+              setTransmute(on ? { recipes: [...DEFAULT_TRANSMUTE.recipes] } : undefined)
+            }
+            ariaLabel="Transmutes"
+          />
+          Transmute
+        </label>
+        <p className="text-[11px] leading-snug text-muted">
+          Turns one thing the player is carrying into one or more others — a
+          fire that cooks meat, a trader who takes a carcass for a coin. The
+          input is destroyed and what comes back is minted fresh, so this is a
+          recipe rather than an exchange of particular objects.
+        </p>
+        <p className="text-[11px] leading-snug text-muted">
+          <strong>The tile never changes and nothing is spent but the input.</strong>{" "}
+          Unlike a reward it is not once per player: the fire cooks the second
+          steak too, and what limits it is having something to spend. A recipe is
+          only offered while the player is actually carrying its input, so a fire
+          you have nothing to cook at is just a fire.
+        </p>
+
+        {transmute ? (
+          <div className="flex flex-col gap-3 border-t-2 border-border pt-3">
+            {transmute.recipes.map((recipe, index) => (
+              <div
+                key={index}
+                className="flex flex-col gap-3 border-2 border-border bg-paper p-3"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <span className="text-xs font-bold uppercase text-muted">
+                    Recipe {index + 1}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => removeRecipe(index)}
+                  >
+                    Remove
+                  </Button>
+                </div>
+
+                <label className="flex flex-col gap-1 text-xs font-bold">
+                  Verb
+                  <Input
+                    value={recipe.verb ?? ""}
+                    onChange={(e) => patchRecipe(index, { verb: e.target.value })}
+                    placeholder={DEFAULT_TRANSMUTE_VERB}
+                  />
+                  <span className="text-[11px] font-normal leading-snug text-muted">
+                    What the player is doing, as they would say it — “Cook” at a
+                    fire, “Trade” with a salesman. The row reads as the verb and
+                    the thing being spent, so this one says “Cook Raw Meat”. Per
+                    recipe rather than per tile, because one stall may both trade
+                    and cook. Leave it blank and it reads as “{DEFAULT_TRANSMUTE_VERB}”.
+                  </span>
+                </label>
+
+                <TileIdMultiSelect
+                  tiles={tiles.filter(isGiveable)}
+                  tilesets={tilesets}
+                  selectedIds={recipe.fromTileId ? [recipe.fromTileId] : []}
+                  onChange={(ids) =>
+                    patchRecipe(index, { fromTileId: ids[0] ?? "" })
+                  }
+                  label="Spends"
+                  emptyHint="Pick the item this takes. It is looked for in the player’s hands first, then in their bag."
+                  single
+                />
+
+                <TileIdMultiSelect
+                  tiles={tiles.filter(isGiveable)}
+                  tilesets={tilesets}
+                  selectedIds={recipe.toTileIds}
+                  onChange={(toTileIds) =>
+                    patchRecipe(index, {
+                      toTileIds: toTileIds.slice(0, MAX_TRANSMUTATION_OUTPUTS),
+                    })
+                  }
+                  label="Gives back"
+                  emptyHint="Pick what comes back. Nothing here means the recipe does nothing, and it is dropped on save."
+                />
+                <span className="text-[11px] leading-snug text-muted">
+                  <strong>It goes back where the input came from</strong> — the
+                  hand that held it out, or the pack it was taken from, counting
+                  the square the input frees. Whatever will not fit there spills
+                  to the rest of the kit, pack before hands, and{" "}
+                  <strong>never onto the floor</strong>: a recipe with nowhere
+                  left on the body to put its results is not offered at all. Up
+                  to {MAX_TRANSMUTATION_OUTPUTS}, and never a container: nothing
+                  nests.
+                </span>
+              </div>
+            ))}
+
+            {transmute.recipes.length < MAX_TRANSMUTATIONS ? (
+              <Button variant="secondary" size="sm" onClick={addRecipe}>
+                Add recipe
+              </Button>
+            ) : (
+              <span className="text-[11px] leading-snug text-muted">
+                {MAX_TRANSMUTATIONS} recipes is the most one tile may offer —
+                every runnable one is a row in the player’s list, and a menu
+                longer than this has stopped being something you can scan.
+              </span>
+            )}
           </div>
         ) : null}
       </section>

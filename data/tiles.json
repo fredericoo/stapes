@@ -7915,5 +7915,142 @@
         }
       ]
     }
+  },
+  {
+    "id": "raw-meat",
+    "name": "Raw Meat",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "consumable",
+        "label": "Eat",
+        "sound": "squish",
+        "hp": -1,
+        "statuses": [
+          {
+            "id": "fed",
+            "fromMs": 2000,
+            "toMs": 8000
+          }
+        ]
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 18,
+              "y": 14,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "cooked-meat",
+    "name": "Cooked Meat",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "consumable",
+        "label": "Eat",
+        "sound": "crunch",
+        "hp": 3,
+        "statuses": [
+          {
+            "id": "fed",
+            "fromMs": 0,
+            "toMs": 90000
+          }
+        ]
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 18,
+              "y": 8,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "flame",
+    "name": "Flame",
+    "height": 1,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "lightPassing": true,
+    "interactions": {
+      "transmute": {
+        "recipes": [
+          {
+            "verb": "Cook",
+            "fromTileId": "raw-meat",
+            "toTileIds": [
+              "cooked-meat"
+            ]
+          }
+        ]
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "ultima-vi",
+            "rect": {
+              "x": 24,
+              "y": 72,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 6,
+            "intensity": 1,
+            "color": "#e14714"
+          }
+        }
+      ]
+    }
   }
 ]
