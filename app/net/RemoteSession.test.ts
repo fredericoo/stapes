@@ -44,6 +44,20 @@ function tile(
 
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
+  tile({ id: "wall", height: 2 }),
+  // A rung: pressed from the cell you are standing in, and carrying its climb
+  // on the tile rather than on the placement.
+  tile({
+    id: "ladder",
+    height: 0,
+    interactions: {
+      teleport: {
+        actionName: "Climb",
+        trigger: "interactOver",
+        destination: { kind: "relative", delta: { x: 0, y: 0, z: 1 } },
+      },
+    },
+  }),
   tile({
     id: "player",
     height: 2,
@@ -999,5 +1013,66 @@ describe("RemoteSession death", () => {
     session.setInput({ directions: ["e"] });
 
     expect(framesOfType(socket, "step")).toHaveLength(1);
+  });
+});
+
+/**
+ * The one interaction whose gate is asked of the *body* rather than of the
+ * board alone, and the one this side forgot to ask at all: the row said "Climb"
+ * — the list builds it from `../game/affordances`, which this client shares —
+ * while `canInteract` refused the tap it sends, so a ladder online was scenery
+ * with a button that did nothing.
+ */
+describe("RemoteSession teleports", () => {
+  const RUNG = { x: 0, y: 0, z: 0, stackIndex: 1 };
+  const ladder: PlacedTile = { tileId: "ladder" } as PlacedTile;
+  const wall: PlacedTile = { tileId: "wall" } as PlacedTile;
+
+  /** Standing on a rung, with the level above open or walled off. */
+  function onLadder(above: PlacedTile[]) {
+    const socket = new FakeSocket();
+    const session = new RemoteSession(socket as unknown as WebSocket, tiles);
+    socket.deliver({
+      type: "hello",
+      selfId: SELF,
+      map: {
+        version: 1,
+        levels: {
+          "0": { "0,0": [grass, ladder, player] },
+          "1": { "0,0": above },
+        },
+      } as unknown as FlatMapFile,
+      actorIds: [SELF],
+      playerCount: 1,
+      minutesOfDay: SERVER_MINUTES,
+      hps: [],
+      carriedLights: [],
+      equipment: emptyEquipment(),
+      tags: [],
+      statuses: [],
+    });
+    return { socket, session };
+  }
+
+  it("offers the climb it is standing on", () => {
+    const { session } = onLadder([grass]);
+    expect(session.canInteract(RUNG)).toBe(true);
+  });
+
+  it("puts the tap on the wire", () => {
+    const { socket, session } = onLadder([grass]);
+    expect(session.interact(RUNG)).toBe(true);
+    expect(framesOfType(socket, "interact")).toEqual([
+      { type: "interact", ref: RUNG },
+    ]);
+  });
+
+  it("offers nothing when the far end has no room for the climber", () => {
+    // The same refusal the server would make — see `teleportFits` — so the two
+    // ends agree about which ladders are climbable.
+    const { socket, session } = onLadder([wall]);
+    expect(session.canInteract(RUNG)).toBe(false);
+    expect(session.interact(RUNG)).toBe(false);
+    expect(framesOfType(socket, "interact")).toEqual([]);
   });
 });

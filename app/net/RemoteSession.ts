@@ -23,6 +23,7 @@ import {
   canPushFrom,
   canRewardFrom,
   canSwitchFrom,
+  canTeleportFrom,
   type ObjectRef,
 } from "../game/affordances";
 import { type Equipment, emptyEquipment } from "../game/equipment";
@@ -1392,11 +1393,33 @@ export class RemoteSession implements PlaySession {
         this.equipment,
         this.tags,
       ) ||
+      // Asked of the body standing here rather than of the player tile, on the
+      // same terms `../game/interactionOptions` asks it: whether the far end
+      // has room is a question about who is making the trip.
+      this.canTeleport(loc, ref) ||
       canSwitchFrom(this.map, this.tilesById, loc, ref) ||
       canEquipFrom(this.map, this.tilesById, loc, ref, this.equipment) ||
       canPickUpFrom(this.map, this.tilesById, loc, ref, this.equipment) ||
       canPushFrom(this.map, this.tilesById, loc, ref)
     );
+  }
+
+  /**
+   * The one arm of {@link canInteract} that needs to know whose body is making
+   * the trip, so it is the one arm with a wrapper.
+   *
+   * The traveller is read off the map rather than assumed to be the player
+   * tile: a ladder's far end has to hold whatever is climbing it, and that is a
+   * question about height. `../game/GameSession.canTeleport` asks it the same
+   * way, which is what keeps the row this offers one the server will honour.
+   *
+   * A missing def refuses. The catalogue is the same on both sides, so a tile
+   * this client cannot name is one it cannot reason about either.
+   */
+  private canTeleport(loc: ActorLocation, ref: ObjectRef): boolean {
+    const travellerDef = this.tilesById[loc.placed.tileId];
+    if (!travellerDef) return false;
+    return canTeleportFrom(this.map, this.tilesById, loc, ref, travellerDef);
   }
 
   interact(ref: ObjectRef): boolean {
