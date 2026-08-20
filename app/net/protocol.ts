@@ -274,6 +274,17 @@ export type MotionEvent =
    * counted twice. Sent as a whole number that replaces the last one, these
    * cannot drift.
    */
+  /**
+   * Somebody was moved by the board rather than by their own legs.
+   *
+   * Carries no destination, because the cell patches in the same frame already
+   * say where everybody is. What it carries is the only thing the board cannot:
+   * that whatever this client was drawing for that body is void. For your own
+   * body that is a prediction to throw away — see `RemoteSession`, which treats
+   * any motion of its own it did not predict as exactly that — and for anybody
+   * else's it is a lerp that must stop rather than drag a sprite across the map.
+   */
+  | { kind: "teleported"; actorId: string }
   | { kind: "joined"; actorId: string; playerCount: number }
   | { kind: "left"; actorId: string; playerCount: number }
   /**
@@ -857,6 +868,10 @@ const serverMessageSchema = v.variant("type", [
           object: objectRefSchema,
           from: coordSchema,
           count: v.number(),
+        }),
+        v.object({
+          kind: v.literal("teleported"),
+          actorId: v.string(),
         }),
         v.object({
           kind: v.literal("joined"),

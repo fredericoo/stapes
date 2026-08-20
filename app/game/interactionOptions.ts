@@ -1,6 +1,10 @@
 import { getStack } from "../lib/mapData";
 import type { InteractionKind } from "../lib/interactions";
-import { resolveRewardDef, resolveSwitch } from "../lib/interactions";
+import {
+  resolveRewardDef,
+  resolveSwitch,
+  resolveTeleportDef,
+} from "../lib/interactions";
 import {
   consumeVerb,
   EQUIP_FALLBACK_VERB,
@@ -16,6 +20,7 @@ import {
   canPushFrom,
   canRewardFrom,
   canSwitchFrom,
+  canTeleportFrom,
   equipSlotFrom,
   INTERACT_LEVEL_SLACK,
   pickUpDestination,
@@ -131,6 +136,10 @@ const LABELS: Record<InteractionAction, string> = {
   // fallback has to name what the *player* does, and every other label here
   // does: the tile being a reward is the author's word for it, not theirs.
   reward: "Take",
+  // The fallback only, on the same terms a switch's and a reward's are: a
+  // portal is "Enter" and a ladder is "Climb", and nothing derivable from a
+  // tile that moves you says which. See `TeleportInteraction.actionName`.
+  teleport: "Enter",
 };
 
 /**
@@ -171,26 +180,30 @@ const ACTION_ORDER: Record<InteractionAction, number> = {
   // authored as both a reward and a container is one you are meant to be *given*
   // the contents of, and rummaging in it is the lesser reading of the same tap.
   reward: 1,
-  switch: 2,
+  // Above the switch, for the reason the session's own precedence puts it
+  // there: a door authored to both open and lead through is one tap, and the
+  // half that takes you somewhere is the one with consequences.
+  teleport: 2,
+  switch: 3,
   // Above pick-up, and this is the one that decides what a plain tap on a sword
   // does. An empty hand is the strongest thing a player can be saying about what
   // they want done with a weapon on the floor, and stowing it afterwards is one
   // drag; the reverse — fishing a sword back out of a bag you did not mean it to
   // go into — is the annoying direction. It only ever appears when the slot is
   // free, so it cannot take a tap away from anybody who is already armed.
-  equip: 3,
+  equip: 4,
   // Above pick-up, and only ever up against it on a container: a pack you are
   // already wearing the twin of can be taken into a hand now, and a tap that
   // picked it up rather than looking inside would be answering the less
   // interesting of the two questions. Nothing else in the game is both.
-  open: 4,
-  pickUp: 5,
+  open: 5,
+  pickUp: 6,
   // Below pick-up on purpose, and pick-up is what a plain tap on the tile runs:
   // eating destroys the thing where lifting it is reversible, so the row you
   // have to *find* is the destructive one and the gesture you can fire by
   // accident is the safe one.
-  consume: 6,
-  push: 7,
+  consume: 7,
+  push: 8,
 };
 
 /**
@@ -520,6 +533,13 @@ function objectAction(
   equipSlot: EquipSlot | null,
 ): InteractionAction | null {
   if (canRewardFrom(map, tilesById, self, ref, equipment, tags)) return "reward";
+  // Asked against the viewer's *own* body, because whether the far end has room
+  // is a question about who is making the trip — see `teleportFits`. The list
+  // is built for one viewer, so the one body it could ever mean is theirs.
+  const selfDef = tilesById[self.tileId];
+  if (selfDef && canTeleportFrom(map, tilesById, self, ref, selfDef)) {
+    return "teleport";
+  }
   if (canSwitchFrom(map, tilesById, self, ref)) return "switch";
   if (equipSlot) return "equip";
   if (canPickUpFrom(map, tilesById, self, ref, equipment)) return "pickUp";
@@ -550,6 +570,12 @@ function objectActionLabel(
     // on the tile — what this particular chest gives is on its placement, and
     // the row does not name it.
     return resolveRewardDef(def)?.actionName?.trim() || LABELS.reward;
+  }
+  // The def's half for the same reason a reward's is: the verb describes the
+  // gesture, which is what the tile is, and where this particular portal leads
+  // is on its placement.
+  if (action === "teleport") {
+    return resolveTeleportDef(def)?.actionName?.trim() || LABELS.teleport;
   }
   return LABELS[action];
 }

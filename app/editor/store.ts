@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
+import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import {
   DEFAULT_EDITOR_MINUTES,
   type MinutesOfDay,
@@ -16,6 +16,7 @@ import {
   updatePlacedChannel,
   updatePlacedDescription,
   updatePlacedReward,
+  updatePlacedTeleport,
   updatePlacedDirection,
 } from "../lib/mapData";
 import { canPlace, canReplaceStack, tilesByIdFromList } from "../lib/validation";
@@ -150,6 +151,8 @@ export type EditorStore = {
     tag: string,
     tileIds: readonly string[],
   ) => void;
+  /** Where one placement sends people; `null` clears it. */
+  setStackTeleport: (stackIndex: number, to: Coord | null) => void;
 };
 
 export const useEditorStore = create<EditorStore>((set, get) => ({
@@ -531,6 +534,21 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         stackIndex,
         tag,
         tileIds,
+      ),
+    );
+  },
+
+  setStackTeleport: (stackIndex, to) => {
+    const { map, selected, currentLevel } = get();
+    if (!selected) return;
+    get().commitMap(
+      updatePlacedTeleport(
+        map,
+        selected.x,
+        selected.y,
+        currentLevel,
+        stackIndex,
+        to,
       ),
     );
   },

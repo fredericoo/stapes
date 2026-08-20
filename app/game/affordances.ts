@@ -1,11 +1,12 @@
 import { getStack } from "../lib/mapData";
 import { hasLineOfSight } from "./sight";
-import type { PlacedReward } from "../lib/interactions";
+import type { PlacedReward, PlacedTeleport } from "../lib/interactions";
 import {
   isInteractive,
   resolvePush,
   resolveReward,
   resolveSwitch,
+  resolveTeleport,
 } from "../lib/interactions";
 import {
   resolveConsumable,
@@ -15,7 +16,7 @@ import {
 } from "../lib/item";
 import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { physicalHeight } from "../lib/types";
-import { canReplaceStack } from "../lib/validation";
+import { canReplaceStack, fitsTile } from "../lib/validation";
 import { handAccepts, type Equipment } from "./equipment";
 import { pushDestination } from "./push";
 
@@ -646,6 +647,99 @@ export function canRewardFrom(
   if (!reward) return false;
   if (tags.includes(reward.tag)) return false;
   return rewardFits(reward, tilesById, equipment);
+}
+
+/**
+ * The teleport at a stack slot, if there is one and this actor could set it off
+ * by pressing it.
+ *
+ * Read off the *placement* and the tile together — see `resolveTeleport`, which
+ * owns that join and resolves a relative destination against the cell. The tile
+ * says whether this kind of thing moves anybody at all and how; the slot says
+ * where to, so the same portal tile can be a dozen different doors across a map.
+ *
+ * **Two reaches, because there are two gestures.** An `interact` teleport takes
+ * push's orthogonal step, exactly as a switch does: a doorway is the thing you
+ * are squarely beside, and a diagonal has no such reading. An `interactOver` one
+ * takes no reach at all — you must be standing in its cell — because that is the
+ * whole difference between the two, and a ladder you could climb from the next
+ * square over would not be a ladder.
+ *
+ * A `step` teleport is never here. Nothing about it answers to a press, so
+ * offering it would outline a floor tile and put a row on screen for something
+ * that has already happened by the time you could read it. See
+ * `../game/GameSession.teleportOnLanding`, which is what fires those.
+ *
+ * Cover is the same rule everything else takes — a portal under a crate is out —
+ * and it is `interactiveDefAt` that asks. Bodies are not lids, which is what
+ * makes `interactOver` possible at all: you are standing on the rungs.
+ */
+export function reachableTeleportAt(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  ref: ObjectRef,
+): PlacedTeleport | null {
+  const def = interactiveDefAt(map, tilesById, actor, ref);
+  if (!def) return null;
+  const placed = getStack(map, ref.x, ref.y, ref.z)[ref.stackIndex];
+  if (!placed) return null;
+
+  const teleport = resolveTeleport(placed, def, ref);
+  if (!teleport) return null;
+
+  if (teleport.trigger === "interact") {
+    return pushDirectionFrom(actor, ref) ? teleport : null;
+  }
+  if (teleport.trigger === "interactOver") {
+    const over =
+      actor.x === ref.x && actor.y === ref.y && actor.z === ref.z;
+    return over ? teleport : null;
+  }
+  return null;
+}
+
+/**
+ * Is there room at the far end for the body making the trip?
+ *
+ * The "if they fit" half of a teleport, and it is asked of the *traveller's own
+ * tile* rather than of the player's — a deer that walks onto a portal is a
+ * different height from the person who authored it, and the cell that holds one
+ * need not hold the other.
+ *
+ * {@link fitsTile} is the same predicate the editor places against and the one
+ * an entering player is put down by (see `./entry`), which is the point of
+ * reusing it: a destination the editor would refuse is one nobody can arrive at.
+ * What is *below* the feet is left to gravity, exactly as it is for an arrival —
+ * this decides where the traveller lands, not where they end up.
+ */
+export function teleportFits(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  travellerDef: TileDef,
+  to: Coord,
+): boolean {
+  return fitsTile(map, to.x, to.y, to.z, travellerDef, tilesById).ok;
+}
+
+/**
+ * Could this actor go through right now?
+ *
+ * Two refusals and they are deliberately not distinguished, on the same terms a
+ * reward's are: nothing authored here, or nowhere to stand at the far end.
+ * Either way there is no row and no outline, so a blocked portal reads as
+ * scenery rather than as a door being unhelpful.
+ */
+export function canTeleportFrom(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  ref: ObjectRef,
+  travellerDef: TileDef,
+): boolean {
+  const teleport = reachableTeleportAt(map, tilesById, actor, ref);
+  if (!teleport) return false;
+  return teleportFits(map, tilesById, travellerDef, teleport.to);
 }
 
 /**

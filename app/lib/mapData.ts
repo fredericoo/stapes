@@ -1,6 +1,7 @@
 import type { ItemInstance } from "./itemInstance";
 import type {
   ChunkCells,
+  Coord,
   Direction,
   FlatMapFile,
   LevelChunks,
@@ -692,6 +693,48 @@ export function updatePlacedReward(
     return live ? { ...rest, rewardTag: nextTag, rewardTileIds: nextIds } : rest;
   });
   return setStack(map, x, y, z, stack);
+}
+
+/**
+ * Set where one placement sends people, or clear it.
+ *
+ * `null` clears, and clearing is how a portal is un-authored: the tile stays a
+ * teleporter and the placement stops being one, which is exactly the split the
+ * field exists for. There is no half-written state to guard against here — the
+ * three numbers arrive together or not at all — so unlike
+ * {@link updatePlacedReward} nothing has to be cleared in sympathy.
+ *
+ * **Returns the same map when nothing changes**, on exactly the terms
+ * {@link updatePlacedText} does, and for the same reason: this commits when a
+ * dialog closes, which happens whether or not anything was typed.
+ */
+export function updatePlacedTeleport(
+  map: MapFile,
+  x: number,
+  y: number,
+  z: number,
+  stackIndex: number,
+  to: Coord | null,
+): MapFile {
+  const current = getStack(map, x, y, z);
+  const placed = current[stackIndex];
+  if (!placed) return map;
+
+  if (sameCoord(placed.teleportTo, to ?? undefined)) return map;
+
+  const stack = current.map((p, i) => {
+    if (i !== stackIndex) return { ...p };
+    const { teleportTo: _to, ...rest } = p;
+    return to ? { ...rest, teleportTo: { ...to } } : rest;
+  });
+  return setStack(map, x, y, z, stack);
+}
+
+/** Two cells, either of which may be absent, naming the same spot. */
+function sameCoord(a: Coord | undefined, b: Coord | undefined): boolean {
+  if (a === b) return true;
+  if (!a || !b) return false;
+  return a.x === b.x && a.y === b.y && a.z === b.z;
 }
 
 /** Two id lists, either of which may be absent, holding the same ids in order. */

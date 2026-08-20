@@ -7810,6 +7810,20 @@
     "attributes": {},
     "lightPassing": true,
     "intangible": true,
+    "interactions": {
+      "teleport": {
+        "actionName": "Climb down",
+        "trigger": "interactOver",
+        "destination": {
+          "kind": "relative",
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "z": -1
+          }
+        }
+      }
+    },
     "sprite": {
       "frames": [
         {
@@ -7840,6 +7854,20 @@
     "attributes": {},
     "lightPassing": true,
     "intangible": true,
+    "interactions": {
+      "teleport": {
+        "actionName": "Climb up",
+        "trigger": "interactOver",
+        "destination": {
+          "kind": "relative",
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "z": 1
+          }
+        }
+      }
+    },
     "sprite": {
       "frames": [
         {

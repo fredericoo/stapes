@@ -54489,6 +54489,17 @@
           "tileId": "grass-2"
         }
       ],
+      "20,37": [
+        {
+          "tileId": "ladder-top",
+          "description": "It looks like there is a dark cave down there."
+        }
+      ],
+      "20,38": [
+        {
+          "tileId": "grass-2"
+        }
+      ],
       "20,39": [
         {
           "tileId": "grass-2"
@@ -101238,10 +101249,6 @@
       "-10,55": [
         {
           "tileId": "grass-2"
-        },
-        {
-          "tileId": "player",
-          "direction": "s"
         }
       ],
       "-10,56": [
@@ -114957,11 +114964,10 @@
       ],
       "20,37": [
         {
-          "tileId": "brick-slab"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "stone-stairs",
-          "direction": "s"
+          "tileId": "ladder-up"
         }
       ],
       "20,38": [
@@ -114969,7 +114975,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "stone-stairs",
+          "tileId": "player",
           "direction": "s"
         }
       ],

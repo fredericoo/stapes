@@ -2605,6 +2605,7 @@ export class GameServer extends DurableObject<Env> {
     const actors = session.actorSnapshots();
     this.collectMotionEvents(actors);
     this.collectDamageEvents(session);
+    this.collectTeleportEvents(session);
     this.noteDeaths(session);
     this.broadcastSpeech(session, actors);
     this.broadcastNoise(session, actors);
@@ -2877,6 +2878,21 @@ export class GameServer extends DurableObject<Env> {
         z: hit.z,
         stackIndex: hit.stackIndex,
       });
+    }
+  }
+
+  /**
+   * Turn this tick's trips into events.
+   *
+   * Drained rather than diffed, on the same terms a blow is: a teleport leaves
+   * no state behind to compare two readings of, and the body simply being
+   * somewhere else is exactly what the cell patches already say. The event says
+   * the one thing they cannot — that a client's own guess about that body is
+   * void.
+   */
+  private collectTeleportEvents(session: GameSession) {
+    for (const actorId of session.drainTeleports()) {
+      this.events.push({ kind: "teleported", actorId });
     }
   }
 

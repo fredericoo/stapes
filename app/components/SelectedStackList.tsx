@@ -8,6 +8,7 @@ import {
   resolveEmit,
   resolveReceive,
   resolveRewardDef,
+  resolveTeleportDef,
 } from "../lib/interactions";
 import { resolveContainer, resolveItem } from "../lib/item";
 import { useEditorStore } from "../editor/store";
@@ -77,6 +78,18 @@ function isWired(def: TileDef): boolean {
  */
 function isGiver(def: TileDef): boolean {
   return resolveRewardDef(def) != null;
+}
+
+/**
+ * Does this placement need a destination written on it?
+ *
+ * Only an *absolute* teleporter does. A relative one carries its whole journey
+ * on the tile — see `TeleportDestination` — so a ladder placement has nothing to
+ * author, and offering three empty boxes beside it would be a control that can
+ * never do anything, on the same grounds a channel on a rock would be.
+ */
+function needsDestination(def: TileDef): boolean {
+  return resolveTeleportDef(def)?.destination.kind === "absolute";
 }
 
 /**
@@ -237,6 +250,7 @@ function SortableStackItem({
           stackIndex={stackIndex}
           wired={isWired(def)}
           gives={isGiver(def)}
+          teleports={needsDestination(def)}
           giveable={giveable}
           tilesets={tilesets}
           channelListId={CHANNEL_LIST_ID}

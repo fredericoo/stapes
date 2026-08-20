@@ -6,7 +6,7 @@ import {
   removeTileAt,
   replaceStack,
 } from "../lib/mapData";
-import { resolveSwitch } from "../lib/interactions";
+import { resolveSwitch, resolveTeleport } from "../lib/interactions";
 import {
   type ConsumableItem,
   type ConsumableStatus,
@@ -43,10 +43,13 @@ import {
   canPushFrom,
   canRewardFrom,
   canSwitchFrom,
+  canTeleportFrom,
   equipSlotFrom,
   interactiveDefAt,
   reachableRewardAt,
+  reachableTeleportAt,
   rewardFits,
+  teleportFits,
   pushDirectionFrom,
   pushTargetFrom,
   type DropDestination,
@@ -1073,6 +1076,15 @@ export class GameSession implements PlaySession {
    */
   private pendingNoise: NoiseEmission[] = [];
   /**
+   * Whoever went through a teleport this tick, by id.
+   *
+   * Queued rather than diffed, on the same terms a blow is: a trip leaves no
+   * lasting state to compare two readings of — the body is simply somewhere
+   * else, which the cell patches already say. What the ids carry is the one
+   * thing the board cannot: that a client's guess about this body is void.
+   */
+  private pendingTeleports: string[] = [];
+  /**
    * Noises still on screen, aged down by the tick loop.
    *
    * The pair works the way damage's does rather than the way speech's does, and
@@ -1731,6 +1743,7 @@ export class GameSession implements PlaySession {
     this.pendingSpeech = [];
     this.pendingDamage = [];
     this.pendingNoise = [];
+    this.pendingTeleports = [];
     this.ageDamageNumbers(tickMs);
     this.ageNoises(tickMs);
 
@@ -2039,6 +2052,20 @@ export class GameSession implements PlaySession {
     const dealt = this.pendingDamage;
     this.pendingDamage = [];
     return dealt;
+  }
+
+  /**
+   * Everybody who went through a teleport this tick, handed over and forgotten.
+   *
+   * The server's to call, right after {@link tick}, exactly as
+   * {@link drainDamage} is — and an offline `/play` never does, which costs
+   * nothing: the local viewer reads the board directly and has no prediction to
+   * invalidate.
+   */
+  drainTeleports(): string[] {
+    const travelled = this.pendingTeleports;
+    this.pendingTeleports = [];
+    return travelled;
   }
 
   /**
@@ -3527,6 +3554,112 @@ export class GameSession implements PlaySession {
     return true;
   }
 
+  canTeleport(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
+    const actor = this.actor(id);
+    if (!this.idle(actor)) return false;
+    return canTeleportFrom(
+      this.map,
+      this.tilesById,
+      this.locate(actor),
+      ref,
+      this.defFor(actor),
+    );
+  }
+
+  /**
+   * Send this actor through. Returns false when the trip is not on offer.
+   *
+   * The pressed half only — a `step` teleport never arrives here, because there
+   * is no press to route. See {@link teleportOnArrival}, which fires those, and
+   * {@link moveThrough}, which both ends share so a portal you walk onto and one
+   * you push cannot land you differently.
+   */
+  activateTeleport(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
+    const actor = this.actor(id);
+    if (!this.idle(actor)) return false;
+
+    const loc = this.locate(actor);
+    const teleport = reachableTeleportAt(this.map, this.tilesById, loc, ref);
+    if (!teleport) return false;
+    const def = this.defFor(actor);
+    if (!teleportFits(this.map, this.tilesById, def, teleport.to)) return false;
+
+    this.moveThrough(actor, teleport.to);
+    return true;
+  }
+
+  /**
+   * Put a body down at the far end of a teleport, whatever set it off.
+   *
+   * **Motion is dropped, not carried.** A walk half-drawn out of the cell you
+   * just left would commit from the wrong end of the map, and a fall would go on
+   * measuring a column that is no longer under anybody — so whatever this actor
+   * thought it was doing is void, exactly as it is for a client whose prediction
+   * this cancels. Facing survives, because it is the one part of the trip the
+   * traveller decided.
+   *
+   * Falling from the far end is left to the next tick's {@link maybeStartFall},
+   * for the reason `findEntryCell` gives about an arriving player: this decides
+   * where somebody lands, not where they end up.
+   *
+   * The id is queued rather than the trip: nothing on the wire needs to know
+   * where a teleport went, because the cell patches carry that already. What a
+   * client cannot work out from the board is that the body it has been drawing
+   * a step for is no longer the body's business — see the `teleported` event in
+   * `../net/protocol`.
+   */
+  private moveThrough(actor: ActorRuntime, to: Coord) {
+    const loc = this.locate(actor);
+    actor.walk = null;
+    actor.fall = null;
+    actor.slide = null;
+
+    this.map = moveEntity(
+      this.map,
+      { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex },
+      to,
+      undefined,
+      this.tilesById,
+    );
+    this.reindexCells([{ x: loc.x, y: loc.y, z: loc.z }, to]);
+    this.pendingTeleports.push(actor.id);
+  }
+
+  /**
+   * Go through whatever this actor has just arrived on top of.
+   *
+   * The `step` trigger, and the only one that is not a press. Asked once per
+   * tick per actor whose cell changed, which is what keeps a pair of portals
+   * pointed at each other from being a loop: arriving *by* teleport is not
+   * arriving *by* step, so the far end does not fire on the tick it catches you.
+   *
+   * Every actor, not only players. A deer that wanders onto a pad goes through
+   * it, on the same terms gravity and pressure plates already treat a body as a
+   * body — the alternative is a test for what drives one, which nothing else in
+   * the simulation has.
+   *
+   * The whole stack, top down: a pad with a rug thrown over it is still a pad,
+   * and the topmost answer wins so an author can bury one under another. Bounded
+   * by construction — one cell, and a stack is a handful of tiles.
+   */
+  private teleportOnArrival(actor: ActorRuntime) {
+    const loc = this.locate(actor);
+    const stack = getStack(this.map, loc.x, loc.y, loc.z);
+    const def = this.defFor(actor);
+
+    for (let i = stack.length - 1; i >= 0; i--) {
+      // Their own body, and anything riding above it. Neither is the floor they
+      // stepped onto.
+      if (i >= loc.stackIndex) continue;
+      const placed = stack[i]!;
+      const teleport = resolveTeleport(placed, this.tilesById[placed.tileId], loc);
+      if (!teleport || teleport.trigger !== "step") continue;
+      if (!teleportFits(this.map, this.tilesById, def, teleport.to)) return;
+      this.moveThrough(actor, teleport.to);
+      return;
+    }
+  }
+
   /**
    * The one thing a tap on this object does. Everything an actor can do to
    * an object lives behind a single button, so the tile's own capabilities
@@ -3550,6 +3683,11 @@ export class GameSession implements PlaySession {
   interact(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const acted =
       this.takeReward(ref, id) ||
+      // Above the switch, and below the reward, on the reward's own argument:
+      // this is the one of the three that takes the player somewhere else, so a
+      // door authored to both open and lead through would otherwise spend the
+      // tap on its hinge and leave them standing where they were.
+      this.activateTeleport(ref, id) ||
       this.activateSwitch(ref, id) ||
       this.equip(ref, id) ||
       this.pickUp(ref, id) ||
@@ -3562,6 +3700,7 @@ export class GameSession implements PlaySession {
   canInteract(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     return (
       this.canTakeReward(ref, id) ||
+      this.canTeleport(ref, id) ||
       this.canSwitch(ref, id) ||
       this.canEquip(ref, id) ||
       this.canPickUp(ref, id) ||
@@ -3577,8 +3716,29 @@ export class GameSession implements PlaySession {
     if (actor.slide.elapsedMs >= PUSH_STEP_MS) actor.slide = null;
   }
 
-  /** One actor's own motion for one tick — walking, falling, or starting to. */
+  /**
+   * One actor's own motion for one tick — walking, falling, or starting to —
+   * and then whatever the cell they ended it in does to them.
+   *
+   * The arrival check is here, around the whole of motion, rather than at the
+   * end of the walk that usually causes it. A body reaches a new cell three
+   * ways — it walks there, it falls there, or it slides off a ledge and does
+   * both — and a `step` teleport that only answered to the first would be a pad
+   * you could drop onto without going through. Comparing the cell either side of
+   * the tick is one rule for all three, and it is what keeps a body still in
+   * mid-air out of it: they have not arrived anywhere yet.
+   */
   private tickMotion(actor: ActorRuntime, tickMs: number) {
+    const from = this.locate(actor);
+    this.advanceMotion(actor, tickMs);
+    if (actor.fall) return;
+
+    const to = this.locate(actor);
+    if (to.x === from.x && to.y === from.y && to.z === from.z) return;
+    this.teleportOnArrival(actor);
+  }
+
+  private advanceMotion(actor: ActorRuntime, tickMs: number) {
     if (actor.fall) {
       this.tickFall(actor, tickMs);
       return;
