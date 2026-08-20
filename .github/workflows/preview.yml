@@ -93,7 +93,11 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Summary
-        run: echo "Preview: ${{ steps.deploy.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"
+        # A block scalar, and not for length: an unquoted `run:` value is a
+        # plain YAML scalar, where a colon-and-space is read as the start of a
+        # mapping key. "Preview: " made the whole file fail to load.
+        run: |
+          echo "Preview: ${{ steps.deploy.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"
 
       # Only when the PR opens. The name is derived from the PR number, so the
       # URL is the same for every push to it and a comment per push would be the
