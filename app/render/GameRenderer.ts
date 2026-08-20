@@ -34,6 +34,7 @@ import { WorldLabelLayer, type WorldLabel } from "./textLabels";
 import { FrameProfiler, type FrameStats } from "./frameProfile";
 import { fallDropPx, fallFootAbs, standingFootAbs } from "./fallAnchor";
 import { slideTileMotions } from "./slideMotion";
+import { strikeOffset } from "./strikeMotion";
 import { isHiddenFromCamera } from "./cameraSight";
 import { labelHeadroomPx } from "./labelHeadroom";
 import { sceneryStack } from "../game/movement";
@@ -2211,11 +2212,28 @@ export class GameRenderer {
     return motions;
   }
 
-  /** Motion for one actor's walk / fall lerp, if either is running. */
+  /**
+   * Motion for one actor's walk / fall lerp, or for the lean of a blow — and for
+   * both at once, since a body can swing while it walks.
+   *
+   * One motion, never two: a motion is keyed by the slot it moves, so a second
+   * one for the same body would be two meshes claiming one placement. The strike
+   * therefore rides *on* whatever the body is already doing, which is also what
+   * it looks like — a creature that lunges mid-step leans out of its own stride.
+   *
+   * **The lean moves the sprite and not the depth box.** The striker has not
+   * left its cell — the simulation has it standing exactly where it stood — and
+   * a box that travelled half a cell into the target would put the two bodies on
+   * the boundary where their sort order flips, for 150ms, every swing.
+   */
   private actorMotion(
     map: MapFile,
     actor: ActorSnapshot,
   ): TileMotion | null {
+    const lean = actor.strike
+      ? strikeOffset(actor.strike, actor.strikeProgress)
+      : null;
+
     if (actor.walk) {
       const { from, to } = actor.walk;
       const stackIndex = actor.stackIndex;
@@ -2238,8 +2256,8 @@ export class GameRenderer {
         y: from.y,
         z: from.z,
         stackIndex,
-        ox: visual.x - fromCenter.x,
-        oy: visual.y - fromCenter.y,
+        ox: visual.x - fromCenter.x + (lean?.ox ?? 0),
+        oy: visual.y - fromCenter.y + (lean?.oy ?? 0),
         // Descending: also draw under the destination level so roof-cut can
         // hide the origin group without the sprite vanishing mid-lerp.
         alsoDrawAtZ: to.z < from.z ? to.z : undefined,
@@ -2267,9 +2285,31 @@ export class GameRenderer {
         y: actor.y,
         z: actor.z,
         stackIndex: actor.stackIndex,
-        ox: drop,
-        oy: drop,
+        ox: drop + (lean?.ox ?? 0),
+        oy: drop + (lean?.oy ?? 0),
         alsoDrawAtZ: landingZ < actor.z ? landingZ : undefined,
+        box: {
+          x: actor.x,
+          y: actor.y,
+          foot,
+          top: foot + this.movingTileHeight(map, actor, actor.stackIndex),
+          stackBias: depthStackBias(actor.z, actor.stackIndex),
+        },
+      };
+    }
+
+    if (lean) {
+      // Standing and swinging: the box is exactly where the body is, which is
+      // the whole of what this motion is for — an offset sprite over an
+      // unchanged placement.
+      const foot = this.standingFootAbs(map, actor, actor.stackIndex);
+      return {
+        x: actor.x,
+        y: actor.y,
+        z: actor.z,
+        stackIndex: actor.stackIndex,
+        ox: lean.ox,
+        oy: lean.oy,
         box: {
           x: actor.x,
           y: actor.y,

@@ -6,7 +6,7 @@ import { emptyMap, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef, normalizeTiles } from "../lib/types";
 import { attackIntervalMs, MIN_ATTACK_TICKS } from "./combat";
-import { TICK_MS } from "./constants";
+import { STRIKE_DURATION_MS, TICK_MS } from "./constants";
 import { GameSession } from "./GameSession";
 
 /**
@@ -175,6 +175,20 @@ function perched(map: MapFile, x: number, y: number, tileId: string): MapFile {
   return replaceStack(map, x, y, 1, [{ tileId: "grass" }, { tileId }]);
 }
 
+/**
+ * Tick until something is true, or give up loudly.
+ *
+ * The bound is what makes this a test rather than a hang: a condition that never
+ * arrives fails here instead of taking the run with it.
+ */
+function advanceUntil(session: GameSession, done: () => boolean) {
+  for (let elapsed = 0; elapsed < LONG_ENOUGH_TO_KILL_MS; elapsed += TICK_MS) {
+    if (done()) return;
+    session.tick(TICK_MS);
+  }
+  throw new Error("condition never came true");
+}
+
 function advance(session: GameSession, ms: number) {
   for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) {
     session.tick(TICK_MS);
@@ -182,22 +196,29 @@ function advance(session: GameSession, ms: number) {
 }
 
 /**
- * How many times anybody swung, drained tick by tick.
+ * How many times the viewer swung, counted tick by tick.
  *
- * Per tick because `tick` clears the pending receipts at the top of each one —
- * they are this tick's news, not a running total — so a single drain at the end
- * only ever sees the last tick.
+ * Per tick because a lean is aged and dropped as the world runs — a single look
+ * at the end would see at most the last one.
  *
- * Swings rather than hit points, because a swing no longer reliably takes any:
- * every chance in a fight is held inside a band, so even a perfect attacker
- * whiffs one in twenty. A receipt is emitted whatever the swing came to, which
- * makes it the honest measure of *rate*.
+ * **The lean rather than the receipt, and it used to be the receipt.** A swing no
+ * longer reliably produces one: a dodged blow is now a movement on the defender
+ * and nothing floating at all, so a rate counted in receipts would come up short
+ * one swing in twenty and fail on the unlucky run. Every swing thrown inside
+ * arm's reach leans, which is what makes this the honest measure of *rate* — and
+ * everything here fights at arm's reach.
+ *
+ * Identity, exactly as the wire counts them: the state is mutated in place as it
+ * ages, so a new object is a new swing and nothing else is.
  */
 function swingsOver(session: GameSession, ms: number): number {
   let swings = 0;
+  let last = null;
   for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) {
     session.tick(TICK_MS);
-    swings += session.drainDamage().length;
+    const lean = self(session).strike;
+    if (lean && lean !== last) swings++;
+    last = lean;
   }
   return swings;
 }
@@ -463,7 +484,10 @@ describe("damage numbers", () => {
     const session = new GameSession(withBody(field(), 1, 0, "dummy"), tiles);
     fight(session, bodyOf(session, "dummy")!.id);
 
-    session.tick(TICK_MS);
+    // Until something actually floats, rather than for one tick: a dodged blow
+    // is a movement now and produces no receipt, so the first swing is not
+    // guaranteed to make one.
+    advanceUntil(session, () => session.getSnapshot().damage.length > 0);
     session.drainDamage();
     session.tick(TICK_MS);
 
@@ -506,6 +530,98 @@ describe("running out of hit points", () => {
     advance(session, LONG_ENOUGH_TO_KILL_MS);
 
     expect(() => session.requestStep(dummyId, "n")).toThrow();
+  });
+});
+
+/**
+ * Ticks until a lean would have to be over, with a tick of slack: a strike that
+ * outlived this would still be up when its owner's fastest possible next blow
+ * lands, which is the one thing {@link STRIKE_DURATION_MS} is chosen to prevent.
+ */
+const STRIKE_OVER_MS = STRIKE_DURATION_MS + TICK_MS;
+
+describe("throwing yourself at somebody", () => {
+  it("leans towards whoever it is swinging at", () => {
+    const session = new GameSession(withBody(field(), 1, 0, "dummy"), tiles);
+    fight(session, bodyOf(session, "dummy")!.id);
+
+    session.tick(TICK_MS);
+
+    expect(self(session).strike).toMatchObject({ dx: 1, dy: 0, dElev: 0 });
+  });
+
+  it("leans at the corner for a foe on the corner", () => {
+    const session = new GameSession(withBody(field(), 1, 1, "dummy"), tiles);
+    fight(session, bodyOf(session, "dummy")!.id);
+
+    session.tick(TICK_MS);
+
+    expect(self(session).strike).toMatchObject({ dx: 1, dy: 1 });
+  });
+
+  /**
+   * The lean is a drawing and nothing else: the body it belongs to is standing
+   * exactly where it stood, and is home again before it may swing a second time.
+   */
+  it("comes home without ever having moved", () => {
+    const session = new GameSession(withBody(field(), 1, 0, "dummy"), tiles);
+    const before = self(session);
+    fight(session, bodyOf(session, "dummy")!.id);
+
+    advance(session, STRIKE_OVER_MS);
+
+    const after = self(session);
+    expect(after.strike).toBeNull();
+    expect([after.x, after.y, after.z]).toEqual([before.x, before.y, before.z]);
+  });
+
+  /**
+   * Every swing shows exactly one thing, and between them the two kinds of
+   * showing account for all of it: a number floats, or the defender hops. The
+   * anvil is armoured past anything the player can do to it and has no brain to
+   * swing back with, so every lean on *it* is a dodge and every blow that got
+   * through took nothing.
+   */
+  it("shows something for every swing, whatever it came to", () => {
+    const session = new GameSession(withBody(field(), 1, 0, "anvil"), tiles);
+    const anvil = bodyOf(session, "anvil")!;
+    fight(session, anvil.id);
+
+    let lunges = 0;
+    let receipts = 0;
+    let hops = 0;
+    let lastMine = null;
+    let lastTheirs = null;
+    for (let elapsed = 0; elapsed < ENOUGH_SWINGS_MS; elapsed += TICK_MS) {
+      session.tick(TICK_MS);
+      receipts += session.drainDamage().length;
+      // Identity, exactly as the wire counts them: the state is mutated in
+      // place as it ages, so a new object is a new blow and nothing else is.
+      const mine = self(session).strike;
+      if (mine && mine !== lastMine) lunges++;
+      lastMine = mine;
+      const theirs = bodyOf(session, "anvil")?.strike ?? null;
+      if (theirs && theirs !== lastTheirs) hops++;
+      lastTheirs = theirs;
+    }
+
+    expect(lunges).toBeGreaterThan(1);
+    expect(receipts + hops).toBe(lunges);
+    expect(bodyOf(session, "anvil")!.hp).toBe(anvil.hp);
+  });
+
+  it("throws the dodger back the way the blow came", () => {
+    const session = new GameSession(withBody(field(), 1, 0, "anvil"), tiles);
+    fight(session, bodyOf(session, "anvil")!.id);
+
+    advanceUntil(session, () => bodyOf(session, "anvil")?.strike != null);
+
+    // East of the player, so away is further east.
+    expect(bodyOf(session, "anvil")!.strike).toMatchObject({
+      kind: "dodge",
+      dx: 1,
+      dy: 0,
+    });
   });
 });
 

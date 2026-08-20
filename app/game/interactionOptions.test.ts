@@ -206,6 +206,8 @@ function actor(
     fallProgress: 0,
     slide: null,
     slideProgress: 0,
+    strike: null,
+    strikeProgress: 0,
     hp,
     maxHp: hp === null ? null : 10,
     rating: hp === null ? null : 10,

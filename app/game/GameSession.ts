@@ -64,6 +64,7 @@ import {
   MAX_CLIMB_HEIGHT,
   PUSH_STEP_MS,
   STARTING_BAG_TILE_ID,
+  STRIKE_DURATION_MS,
   TICK_MS,
   WALK_DURATION_MS,
 } from "./constants";
@@ -103,6 +104,12 @@ import {
   DEFENSIVE_RECOVERY_MS,
 } from "./experience";
 import { mintItemIds } from "./itemIds";
+import {
+  dodgeAway,
+  outranksSwing,
+  swingToward,
+  type StrikeState,
+} from "./strike";
 import { pushedColumn } from "./push";
 import { isSpawnFilled, type SpawnPoint } from "./respawn";
 import {
@@ -276,6 +283,12 @@ export type ActorSnapshot = {
   slide: SlideSnapshot | null;
   slideProgress: number;
   /**
+   * The lean of a blow this body is part-way through, or null for the usual
+   * case of a body not swinging at anything. @see `./strike`
+   */
+  strike: StrikeState | null;
+  strikeProgress: number;
+  /**
    * Hit points right now, or null for a body with none — a crate, a sign, a
    * creature nobody has given stats to.
    *
@@ -359,21 +372,27 @@ export type NoiseEmission = {
 /**
  * What a swing came to, as the thing floating off the body says it.
  *
- * A miss and a dodge are both "no damage" and are still two different words,
- * because they are opposite facts about who did well — see `./combat`'s
- * {@link AttackOutcome}. A player who saw one word for both could not tell a
- * weapon they cannot use from a foe they cannot catch.
+ * **A dodge is not in here, and used to be.** It was a third word, and the three
+ * were genuinely three different facts — but a dodge is the only one of them
+ * that the body it happened to can *act out*, and it now does: the defender hops
+ * half a tile out of the way. See `./strike`. A word as well would be the same
+ * event told twice, and the weaker telling would be the one drawing the eye
+ * away from the bodies.
+ *
+ * A miss keeps its word for the reason it never had a movement: it is the
+ * *attacker* failing, the defender did nothing, and there is no body whose
+ * motion could say so.
  */
-export type SwingOutcome = "hit" | "miss" | "dodge";
+export type SwingOutcome = "hit" | "miss";
 
 /**
- * The same three, as values.
+ * The same two, as values.
  *
  * A union alone cannot be validated at a boundary, and the wire is a boundary —
  * see `../net/protocol`, where the schema forgetting this field made every blow
  * online draw nothing.
  */
-export const SWING_OUTCOMES: SwingOutcome[] = ["hit", "miss", "dodge"];
+export const SWING_OUTCOMES: SwingOutcome[] = ["hit", "miss"];
 
 /**
  * A receipt floating off whatever was just swung at.
@@ -847,6 +866,14 @@ type ActorRuntime = {
   fall: FallState | null;
   slide: SlideState | null;
   /**
+   * The lean of a blow this body is still part-way through. @see `./strike`
+   *
+   * Beside the three motions rather than folded into the cooldown, because it is
+   * a different kind of clock: the cooldown is when this body may swing again
+   * and it outlives the strike several times over at any ordinary speed.
+   */
+  strike: StrikeState | null;
+  /**
    * Location memo, keyed on the map object it was read from.
    *
    * Map mutation is persistent, so object identity is an exact staleness check:
@@ -1310,6 +1337,7 @@ export class GameSession implements PlaySession {
       walk: null,
       fall: null,
       slide: null,
+      strike: null,
       memo: null,
     };
     this.actors.set(id, actor);
@@ -1757,6 +1785,10 @@ export class GameSession implements PlaySession {
     // spend it on this tick — whether the swing comes from a brain below or from
     // somebody's target above.
     this.advanceCooldowns(tickMs);
+    // Beside them, and before the swings for the same reason: a lean that is up
+    // this tick has to be gone before a body is given the chance to start
+    // another one.
+    this.tickStrikes(tickMs);
     // Beside the cooldowns, because it is the same kind of thing: a countdown
     // somebody spent by swinging, winding back down while they do not.
     this.recoverDefensiveDecay(tickMs);
@@ -2092,6 +2124,24 @@ export class GameSession implements PlaySession {
   }
 
   /**
+   * Age every lean, and drop the ones that are home.
+   *
+   * Beside {@link advanceCooldowns} and before anything swings, which is what
+   * lets a strike started on this tick begin at zero rather than a tick in — the
+   * body's own motions are ticked at the bottom of the tick, and a strike put
+   * there would lose its first frame to the swing that created it.
+   */
+  private tickStrikes(tickMs: number) {
+    for (const actor of this.actors.values()) {
+      if (!actor.strike) continue;
+      actor.strike.elapsedMs += tickMs;
+      // Nothing to commit — the body never left the cell it is standing in, so
+      // dropping the state is the whole of "recovered".
+      if (actor.strike.elapsedMs >= STRIKE_DURATION_MS) actor.strike = null;
+    }
+  }
+
+  /**
    * Swing for everybody in attack mode who has picked a fight and is standing
    * close enough.
    *
@@ -2145,14 +2195,16 @@ export class GameSession implements PlaySession {
     const from = this.tryLocate(attacker);
     const to = this.tryLocate(target);
     if (!from || !to) return false;
+    const fromPoint = this.reachPointOf(from);
+    const toPoint = this.reachPointOf(to);
     // The attacker's own reach, not a constant: a bow and a fist ask the same
     // question with different numbers, and the number belongs to whoever swings.
     if (
       !canReach(
         this.map,
         this.tilesById,
-        this.reachPointOf(from),
-        this.reachPointOf(to),
+        fromPoint,
+        toPoint,
         attackerStats.range,
       )
     ) {
@@ -2162,6 +2214,18 @@ export class GameSession implements PlaySession {
     // Spent whether or not the blow connects: the swing happened, and a dodge
     // that cost the attacker nothing would let a fast creature flail for free.
     attacker.attackCooldownMs = attackIntervalMs(attackerStats.spd);
+
+    // Thrown before the dice, and on the same grounds the cooldown is spent
+    // before them: what the lean says is *this body swung at that one*, which is
+    // true of a miss, a dodge and a blow that armour ate. A strike a player only
+    // saw on the blows that landed would be a fight where half the traffic came
+    // from nowhere. Null past arm's length — see `./strike`.
+    //
+    // Unless this body has just got out of somebody else's way, which is the one
+    // thing that outranks its own swing. @see outranksSwing
+    if (!outranksSwing(attacker.strike)) {
+      attacker.strike = swingToward(fromPoint, toPoint);
+    }
 
     // Turning into the blow, so a creature that fights while cornered is facing
     // what it is fighting. Free when it already is — `setEntityDirection` guards
@@ -2192,7 +2256,9 @@ export class GameSession implements PlaySession {
       return true;
     }
     if (outcome.dodged) {
-      this.floatSwing(target, "dodge", 0);
+      // The whole of what a dodge says now. No receipt floats: the hop is the
+      // account, and a word beside it would be the same event told twice.
+      target.strike = dodgeAway(toPoint, fromPoint);
       return true;
     }
 
@@ -3790,6 +3856,11 @@ export class GameSession implements PlaySession {
       slideProgress: actor.slide
         ? Math.min(1, (actor.slide.elapsedMs + visualExtra) / PUSH_STEP_MS)
         : 0,
+      // By reference and clamped, on the same terms as the slide above.
+      strike: actor.strike,
+      strikeProgress: actor.strike
+        ? Math.min(1, (actor.strike.elapsedMs + visualExtra) / STRIKE_DURATION_MS)
+        : 0,
       hp: this.hpOf(actor),
       maxHp: this.battlerOf(actor)?.maxHp ?? null,
       rating: this.ratingOf(actor),
@@ -3869,7 +3940,7 @@ export class GameSession implements PlaySession {
     let observed = false;
     let thinking = false;
     for (const actor of this.actors.values()) {
-      if (actor.walk || actor.fall || actor.slide) return false;
+      if (actor.walk || actor.fall || actor.slide || actor.strike) return false;
       if (actor.input.directions.length > 0) return false;
       // Somebody standing still next to the thing they are fighting is not an
       // idle world: the next swing is on a cooldown that only this loop winds

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   FALL_MS_PER_HEIGHT,
   PLAYER_TILE_ID,
+  STRIKE_DURATION_MS,
   WALK_DURATION_MS,
 } from "../game/constants";
 import type { FlatMapFile, PlacedTile, TileDef } from "../lib/types";
@@ -518,6 +519,50 @@ function committedTo(from: number): CellPatch[] {
     { x: from + 1, y: 0, z: 0, stack: [grass, player] },
   ];
 }
+
+/** Somebody swinging east, as the server announces it. */
+const strikeStarted: MotionEvent = {
+  kind: "strikeStarted",
+  actorId: SELF,
+  strike: "swing",
+  dx: 1,
+  dy: 0,
+  dElev: 0,
+};
+
+describe("RemoteSession strikes", () => {
+  it("leans on the event and recovers on its own clock", () => {
+    const { socket, session } = connected();
+    socket.deliver(patch([], [strikeStarted]));
+
+    expect(session.getSnapshot().self.strike).toMatchObject({ dx: 1, dy: 0 });
+
+    // No patch confirms a lean, because a lean changes nothing about the board:
+    // unlike a walk, the only thing that ends it is the clock.
+    session.update(STRIKE_DURATION_MS);
+
+    expect(session.getSnapshot().self.strike).toBeNull();
+  });
+
+  /**
+   * The subtle one. Every other event about this client's own body is motion it
+   * never predicted, and arriving is grounds for throwing its guesses away. A
+   * strike is not: the striker never leaves its cell, so a swing thrown while
+   * walking has nothing to say about where the walker is — and a client that
+   * treated it as news would drop its own footwork on every blow it landed.
+   */
+  it("does not cost the walker the step it predicted", () => {
+    const { socket, session } = connected();
+    session.setInput({ directions: ["e"] });
+    const predicted = session.getSnapshot().self.walk;
+
+    socket.deliver(patch([], [strikeStarted]));
+
+    const self = session.getSnapshot().self;
+    expect(self.walk).toBe(predicted);
+    expect(self.strike).not.toBeNull();
+  });
+});
 
 describe("RemoteSession prediction", () => {
   it("walks on the key press, without waiting for the server", () => {

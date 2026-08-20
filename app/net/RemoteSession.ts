@@ -4,9 +4,11 @@ import {
   NOISE_LIFETIME_MS,
   PLAYER_TILE_ID,
   PUSH_STEP_MS,
+  STRIKE_DURATION_MS,
   WALK_DURATION_MS,
 } from "../game/constants";
 import type { StatusInstance } from "../game/statuses";
+import type { StrikeState } from "../game/strike";
 import {
   actorDirection,
   actorStillAt,
@@ -79,6 +81,7 @@ type RemoteMotion = {
     count: number;
     elapsedMs: number;
   } | null;
+  strike: StrikeState | null;
   /** Last place this actor was found, so relocating them stays a cell lookup. */
   lastSeen: ActorLocation | null;
 };
@@ -635,6 +638,27 @@ export class RemoteSession implements PlaySession {
       return;
     }
 
+    // Before the prediction guard below, and that placement is the whole of the
+    // care this needs: a lean is not a claim about where a body *is* — the
+    // striker never leaves its cell — so it can neither confirm nor contradict a
+    // step this client is holding a guess about. Run through that guard, every
+    // swing a walking player took would throw their own footwork away.
+    //
+    // The opposite of the teleport above, which is worth reading beside it: that
+    // one moves a body without animating, this one animates without moving one.
+    if (event.kind === "strikeStarted") {
+      const striking = this.motions.get(event.actorId) ?? emptyMotion();
+      this.motions.set(event.actorId, striking);
+      striking.strike = {
+        kind: event.strike,
+        dx: event.dx,
+        dy: event.dy,
+        dElev: event.dElev,
+        elapsedMs: 0,
+      };
+      return;
+    }
+
     if (event.actorId === this.selfId) {
       // A walk of our own is one we drew a round trip ago and are still holding
       // a guess about; this is the server agreeing, not news, and replaying it
@@ -725,6 +749,12 @@ export class RemoteSession implements PlaySession {
       if (motion.slide) {
         motion.slide.elapsedMs += dtMs;
         if (motion.slide.elapsedMs >= PUSH_STEP_MS) motion.slide = null;
+      }
+      // Dropped on its own timer, unlike a walk or a fall: there is no patch
+      // coming to confirm it, because a strike changes nothing about the board.
+      if (motion.strike) {
+        motion.strike.elapsedMs += dtMs;
+        if (motion.strike.elapsedMs >= STRIKE_DURATION_MS) motion.strike = null;
       }
     }
 
@@ -1226,6 +1256,10 @@ export class RemoteSession implements PlaySession {
       slideProgress: motion.slide
         ? Math.min(1, motion.slide.elapsedMs / PUSH_STEP_MS)
         : 0,
+      strike: motion.strike,
+      strikeProgress: motion.strike
+        ? Math.min(1, motion.strike.elapsedMs / STRIKE_DURATION_MS)
+        : 0,
       hp: health?.hp ?? null,
       maxHp: health?.maxHp ?? null,
       rating: health?.rating ?? null,
@@ -1565,7 +1599,7 @@ const NO_TAGS: readonly string[] = [];
 const NO_STATUSES: readonly StatusInstance[] = [];
 
 function emptyMotion(): RemoteMotion {
-  return { walk: null, fall: null, slide: null, lastSeen: null };
+  return { walk: null, fall: null, slide: null, strike: null, lastSeen: null };
 }
 
 /** Stand-in for an actor not on the board yet. Drawn nowhere, centres nothing. */
@@ -1586,6 +1620,8 @@ function offscreenActor(id: string): ActorSnapshot {
     fallProgress: 0,
     slide: null,
     slideProgress: 0,
+    strike: null,
+    strikeProgress: 0,
     hp: null,
     maxHp: null,
     rating: null,

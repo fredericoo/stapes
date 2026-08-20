@@ -37,17 +37,17 @@ export type DamageNumberView = {
   /** World-pixel anchor — the point the number rises from. */
   x: number;
   y: number;
-  /** Which of the three this was; decides the word and the colour. */
+  /** Which of the two this was; decides the word and the colour. */
   outcome: SwingOutcome;
-  /** Read only for a hit — the other two say a word instead. */
+  /** Read only for a hit — a miss says a word instead. */
   amount: number;
   /**
    * Red for a blow the viewer took, white for everybody else's.
    *
    * Decided by the caller rather than here, because "is this me" is a question
    * about the session and this module has no idea who is looking. What is done
-   * *with* the answer is this module's business, which is why a miss or a dodge
-   * ignores it — see {@link classFor}.
+   * *with* the answer is this module's business, which is why a miss ignores it
+   * — see {@link classFor}.
    */
   own: boolean;
   elapsedMs: number;
@@ -148,23 +148,27 @@ export class DamageNumberLayer {
 }
 
 /**
- * What a swing that came to nothing says.
+ * What a swing that never went where it was aimed says.
  *
- * Words rather than a symbol, because the two have to be told apart at a glance
- * and be *learnable*: "miss" is the swinger failing and "dodge" is the target
- * succeeding, and a player who cannot separate them cannot tell a weapon they
- * have no business holding from a foe they cannot catch.
+ * A word rather than a symbol, because it has to be *learnable*: a miss is the
+ * swinger failing, and a player who cannot read that off the screen cannot tell
+ * a weapon they have no business holding from a foe they cannot catch.
+ *
+ * **The only one of the three left in text.** A dodge used to be a word here
+ * beside this one, and is now the defender hopping half a tile out of the way —
+ * see `../game/strike`. That is the split: a miss is something the *attacker*
+ * did, with no body free to act it out, and a dodge is something the defender
+ * did, which their own body says better than a label ever could.
  */
 const NOTHING_HAPPENED: Record<Exclude<SwingOutcome, "hit">, string> = {
   miss: "miss",
-  dodge: "dodge",
 };
 
 /**
  * A blow that landed and did nothing.
  *
- * The third way a swing comes to nothing, and it needed a word of its own for
- * the reason "miss" and "dodge" did: **a bare `0` is unreadable.** It looks like
+ * The other way a swing comes to nothing, and it needed a word of its own for
+ * the reason "miss" did: **a bare `0` is unreadable.** It looks like
  * a number that failed to render, it is one glyph away from every other figure
  * in the layer, and it says nothing about *why* — where "blocked" says armour
  * turned it, which is a different fact from having swung at air.
@@ -185,9 +189,9 @@ export function textFor(number: DamageNumberView): string {
 /**
  * Red for a blow you took, grey for a blow nobody took, white otherwise.
  *
- * A miss or a dodge ignores `own` deliberately: red marks hit points you cannot
- * afford to miss while reading the traffic, and a swing that took none has
- * nothing at stake whoever it happened to.
+ * A miss ignores `own` deliberately: red marks hit points you cannot afford to
+ * miss while reading the traffic, and a swing that took none has nothing at
+ * stake whoever it happened to.
  */
 export function classFor(number: DamageNumberView): string {
   // A blocked blow reads as nothing rather than as damage, and *whoever* it

@@ -72,3 +72,17 @@ export const DAMAGE_NUMBER_LIFETIME_MS = 900;
  * lifetime is, so a noise lives the same length either side of a wire.
  */
 export const NOISE_LIFETIME_MS = 2_000;
+
+/**
+ * How long a body spends leaning into one blow — out and back.
+ *
+ * Under the 200ms floor between two blows ({@link MIN_ATTACK_TICKS} at the tick
+ * rate), and that is the whole of the number: the fastest fighter in the world
+ * has to be home before it swings again, or the lean never returns and the body
+ * simply lives half a tile from where it stands. Everybody slower gets a pause
+ * between strikes, which is what makes a count of blows readable.
+ *
+ * Shared by the simulation and the online client so a strike lasts the same
+ * length either side of a wire, exactly as the damage lifetime is.
+ */
+export const STRIKE_DURATION_MS = 150;
