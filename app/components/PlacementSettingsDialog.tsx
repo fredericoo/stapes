@@ -1,7 +1,6 @@
 import { useState } from "react";
 import type { Coord, PlacedTile, TileDef, TilesetDef } from "../lib/types";
 import { MAX_DESCRIPTION_LENGTH, MAX_LEVEL, MIN_LEVEL } from "../lib/types";
-import type { TeleportDestinationKind } from "../lib/interactions";
 import { MAX_REWARD_ITEMS } from "../lib/interactions";
 import { useEditorStore } from "../editor/store";
 import { Button, Dialog, Input, Textarea } from "../ui";
@@ -78,7 +77,6 @@ export function PlacementSettingsDialog({
   wired,
   gives,
   teleports,
-  teleportDestinationKind,
   giveable,
   tilesets,
   channelListId,
@@ -91,14 +89,12 @@ export function PlacementSettingsDialog({
   wired: boolean;
   /** Only giver tiles get a reward; see `isGiver` in ./SelectedStackList. */
   gives: boolean;
-  /** Only teleporters get a destination; see `isTeleporter` in ./SelectedStackList. */
-  teleports: boolean;
   /**
-   * How the three numbers read, which is the tile's answer rather than this
-   * slot's — see `TeleportInteraction.destination`. Null when the tile does not
-   * teleport, in which case there is nothing to label.
+   * Only an *absolute* teleporter gets a destination; see `needsDestination` in
+   * ./SelectedStackList. A ladder carries its whole journey on the tile, so
+   * there is nothing here for it to say.
    */
-  teleportDestinationKind: TeleportDestinationKind | null;
+  teleports: boolean;
   /** What a reward may hand over — plain items, never a container. */
   giveable: TileDef[];
   tilesets: TilesetDef[];
@@ -225,9 +221,7 @@ export function PlacementSettingsDialog({
           <div className="flex flex-col gap-3 border-t-2 border-border pt-4">
             <div className="flex flex-col gap-1 text-xs">
               <span className="font-bold uppercase text-muted">
-                {teleportDestinationKind === "relative"
-                  ? "Destination offset"
-                  : "Destination cell"}
+                Destination cell
               </span>
               <div className="flex gap-2">
                 {DESTINATION_AXES.map((axis) => (
@@ -256,9 +250,10 @@ export function PlacementSettingsDialog({
                 ))}
               </div>
               <span className="text-[11px] leading-snug text-muted">
-                {teleportDestinationKind === "relative"
-                  ? "Counted from this placement’s own cell, never from wherever the player was standing — z + 1 is one floor up from here. Leave any of the three blank and this placement leads nowhere."
-                  : "The cell itself, whole. Leave any of the three blank and this placement leads nowhere."}
+                The cell this doorway opens onto, whole. It belongs to the spot
+                rather than to the tile, which is what lets one portal tile be
+                every doorway in the world. Empty all three and this placement
+                leads nowhere.
               </span>
             </div>
           </div>

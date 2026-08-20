@@ -45577,12 +45577,7 @@
           "tileId": "wooden-floor"
         },
         {
-          "tileId": "ladder-up",
-          "teleportTo": {
-            "x": 0,
-            "y": 0,
-            "z": 1
-          }
+          "tileId": "ladder-up"
         }
       ],
       "10,-6": [
@@ -54497,11 +54492,6 @@
       "20,37": [
         {
           "tileId": "ladder-top",
-          "teleportTo": {
-            "x": 0,
-            "y": 0,
-            "z": -1
-          },
           "description": "It looks like there is a dark cave down there."
         }
       ],
@@ -114977,12 +114967,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "ladder-up",
-          "teleportTo": {
-            "x": 0,
-            "y": 0,
-            "z": 1
-          }
+          "tileId": "ladder-up"
         }
       ],
       "20,38": [

@@ -72,7 +72,7 @@ const tiles: TileDef[] = [
     id: "pad",
     height: 0,
     interactions: {
-      teleport: { trigger: "step", destination: "absolute" },
+      teleport: { trigger: "step", destination: { kind: "absolute" } },
     },
   }),
   // The doorway: pressed from the next square over.
@@ -83,13 +83,25 @@ const tiles: TileDef[] = [
       teleport: {
         actionName: "Enter",
         trigger: "interact",
-        destination: "absolute",
+        destination: { kind: "absolute" },
       },
     },
   }),
   // Intangible, like the real one: it marks the top of a climb and holds
   // nobody up, which is the whole point of the case below.
   tile({ id: "ladder-top", height: 1, intangible: true }),
+  // A delta that travels nowhere, which reads as unauthored rather than as a
+  // rung that takes a press and does nothing.
+  tile({
+    id: "still",
+    height: 0,
+    interactions: {
+      teleport: {
+        trigger: "interactOver",
+        destination: { kind: "relative", delta: { x: 0, y: 0, z: 0 } },
+      },
+    },
+  }),
   // The motivating case for `relative` — one rung tile, every ladder in the
   // world, each carrying its own climb on its placement.
   tile({
@@ -99,7 +111,7 @@ const tiles: TileDef[] = [
       teleport: {
         actionName: "Climb",
         trigger: "interactOver",
-        destination: "relative",
+        destination: { kind: "relative", delta: { x: 0, y: 0, z: 1 } },
       },
     },
   }),
@@ -140,7 +152,7 @@ function whereIs(map: MapFile, tileId: string) {
 describe("resolveTeleport", () => {
   const at = { x: 4, y: 4, z: 0 };
 
-  it("reads absolute numbers as the cell itself", () => {
+  it("reads an absolute placement as the cell itself", () => {
     const placed: PlacedTile = {
       tileId: "portal",
       teleportTo: { x: 9, y: 1, z: 2 },
@@ -152,10 +164,24 @@ describe("resolveTeleport", () => {
     });
   });
 
-  it("counts a relative delta from the placement, not from the traveller", () => {
+  it("counts the tile's delta from the placement, not from the traveller", () => {
+    expect(resolveTeleport({ tileId: "ladder" }, tilesById.ladder, at)?.to).toEqual(
+      { x: 4, y: 4, z: 1 },
+    );
+    // The same tile, dropped somewhere else, makes the same journey. This is
+    // the whole reason a ladder's delta belongs to the def.
+    expect(
+      resolveTeleport({ tileId: "ladder" }, tilesById.ladder, { x: -3, y: 8, z: 2 })
+        ?.to,
+    ).toEqual({ x: -3, y: 8, z: 3 });
+  });
+
+  it("ignores a destination written on a relative placement", () => {
+    // The arms do not overlap: a ladder reads its tile and nothing else, so a
+    // stale cell left on a placement cannot quietly redirect it.
     const placed: PlacedTile = {
       tileId: "ladder",
-      teleportTo: { x: 0, y: 0, z: 1 },
+      teleportTo: { x: 99, y: 99, z: 5 },
     };
     expect(resolveTeleport(placed, tilesById.ladder, at)?.to).toEqual({
       x: 4,
@@ -164,8 +190,8 @@ describe("resolveTeleport", () => {
     });
   });
 
-  it("is nothing without both halves", () => {
-    // The slot's half with no tile that teleports.
+  it("is nothing without the half that carries the numbers", () => {
+    // A tile that does not teleport, however the placement is written.
     expect(
       resolveTeleport(
         { tileId: "grass", teleportTo: { x: 1, y: 1, z: 0 } },
@@ -173,41 +199,37 @@ describe("resolveTeleport", () => {
         at,
       ),
     ).toBeNull();
-    // The tile's half with nothing written on the slot.
+    // An absolute tile with nothing written on the slot.
     expect(resolveTeleport({ tileId: "portal" }, tilesById.portal, at)).toBeNull();
   });
 
   it("refuses a destination off the ends of the world rather than clamping", () => {
-    const placed: PlacedTile = {
-      tileId: "ladder",
-      teleportTo: { x: 0, y: 0, z: 1 },
-    };
     expect(
-      resolveTeleport(placed, tilesById.ladder, { x: 4, y: 4, z: 8 }),
+      resolveTeleport({ tileId: "ladder" }, tilesById.ladder, { x: 4, y: 4, z: 8 }),
     ).toBeNull();
   });
 
   it("refuses a trip that ends where it started", () => {
-    const placed: PlacedTile = {
-      tileId: "ladder",
-      teleportTo: { x: 0, y: 0, z: 0 },
-    };
-    expect(resolveTeleport(placed, tilesById.ladder, at)).toBeNull();
+    expect(
+      resolveTeleport({ tileId: "still" }, tilesById.still, at),
+    ).toBeNull();
   });
 });
 
 describe("reachableTeleportAt", () => {
   /** A portal at (1,0) with the traveller standing at (0,0). */
   function doorway(trigger: "interact" | "interactOver") {
-    const tileId = trigger === "interact" ? "portal" : "ladder";
     let map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "grass" },
       { tileId: "player", direction: "e" },
     ]);
-    map = replaceStack(map, 1, 0, 0, [
-      { tileId: "grass" },
-      { tileId, teleportTo: { x: 5, y: 5, z: 0 } },
-    ]);
+    // The portal is absolute and carries its target; the ladder is relative and
+    // carries nothing, which is the difference under test everywhere else.
+    const placed: PlacedTile =
+      trigger === "interact"
+        ? { tileId: "portal", teleportTo: { x: 5, y: 5, z: 0 } }
+        : { tileId: "ladder" };
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, placed]);
     return map;
   }
 
@@ -338,7 +360,7 @@ describe("GameSession teleport", () => {
   it("climbs a relative ladder from the cell it is authored in", () => {
     let map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "grass" },
-      { tileId: "ladder", teleportTo: { x: 0, y: 0, z: 1 } },
+      { tileId: "ladder" },
       { tileId: "player", direction: "s" },
     ]);
     map = replaceStack(map, 0, 0, 1, [{ tileId: "grass" }]);
@@ -432,7 +454,7 @@ describe("climbing onto an intangible ladder top", () => {
   function ladderColumn() {
     let map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "grass" },
-      { tileId: "ladder", teleportTo: { x: 0, y: 0, z: 1 } },
+      { tileId: "ladder" },
       { tileId: "player", direction: "s" },
     ]);
     map = replaceStack(map, 0, 0, 1, [{ tileId: "ladder-top" }]);

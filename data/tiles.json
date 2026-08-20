@@ -7814,7 +7814,14 @@
       "teleport": {
         "actionName": "Climb down",
         "trigger": "interactOver",
-        "destination": "relative"
+        "destination": {
+          "kind": "relative",
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "z": -1
+          }
+        }
       }
     },
     "sprite": {
@@ -7851,7 +7858,14 @@
       "teleport": {
         "actionName": "Climb up",
         "trigger": "interactOver",
-        "destination": "relative"
+        "destination": {
+          "kind": "relative",
+          "delta": {
+            "x": 0,
+            "y": 0,
+            "z": 1
+          }
+        }
       }
     },
     "sprite": {

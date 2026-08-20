@@ -248,12 +248,49 @@ export const TELEPORT_TRIGGERS: TeleportTrigger[] = [
   "interactOver",
 ];
 
-/** How a teleport's authored numbers are read against the board. */
-export type TeleportDestinationKind = "absolute" | "relative";
+/**
+ * Where a teleport leads, and — the point of the union — *which half of the
+ * authoring holds the answer*.
+ *
+ * A discriminated union rather than a kind beside optional numbers, on exactly
+ * the terms {@link ItemDef} is one: an absolute teleport cannot have a delta and
+ * a relative one cannot have a destination written on a placement, so neither
+ * can be left behind when an author changes their mind.
+ *
+ * **The split is not arbitrary — it follows what actually varies.** A ladder is
+ * the same ladder wherever it is: it takes you up one floor, and that is a fact
+ * about what a ladder *is*, so every copy of the tile should already know it.
+ * A portal is the opposite: one tile furnishes a whole map and each doorway
+ * leads somewhere different, so the target has to belong to the slot. Putting
+ * both on the placement made every ladder in the world need its `z + 1` typed
+ * out again; putting both on the def would make every portal lead to one room.
+ */
+export type TeleportDestination =
+  | {
+      kind: "relative";
+      /**
+       * Cells travelled, counted from the **placement's own cell** — never from
+       * wherever the traveller happened to be standing. A ladder is `z + 1` from
+       * the rungs however you approached them; measuring from the actor would
+       * make an adjacent portal land somewhere different for each of the four
+       * sides you could press it from.
+       */
+      delta: Coord;
+    }
+  | {
+      kind: "absolute";
+      /**
+       * No numbers here on purpose. Where each one leads is written on the
+       * placement ({@link PlacedTile.teleportTo}), which is what lets one portal
+       * tile be every doorway in the world.
+       */
+    };
+
+export type TeleportDestinationKind = TeleportDestination["kind"];
 
 export const TELEPORT_DESTINATION_KINDS: TeleportDestinationKind[] = [
-  "absolute",
   "relative",
+  "absolute",
 ];
 
 /**
@@ -296,16 +333,10 @@ export type TeleportInteraction = {
    */
   trigger: TeleportTrigger;
   /**
-   * How the placement's three numbers are read.
-   *
-   * - `absolute` — they are the cell, whole. A portal to a fixed room.
-   * - `relative` — they are a delta **from the placement's own cell**, not from
-   *   wherever the player happened to be standing. A ladder is `z + 1` from the
-   *   rungs however you approached them; measuring from the actor would make an
-   *   adjacent portal land somewhere different for each of the four sides you
-   *   could press it from.
+   * Where it leads, and which half of the authoring says so. See
+   * {@link TeleportDestination}.
    */
-  destination: TeleportDestinationKind;
+  destination: TeleportDestination;
 };
 
 /**
@@ -317,8 +348,8 @@ export type TeleportInteraction = {
  * placement leads nowhere, and coordinates on a placement of a tile that does
  * not teleport are a note nobody reads.
  *
- * {@link to} is the cell itself, with `relative` already resolved against the
- * placement, so nothing downstream has to know which kind was authored.
+ * {@link to} is the cell itself, with a delta already resolved against the
+ * placement, so nothing downstream has to know which half was authored.
  */
 export type PlacedTeleport = {
   actionName?: string;
@@ -453,7 +484,7 @@ export const DEFAULT_REWARD: RewardInteraction = {
 export const DEFAULT_TELEPORT: TeleportInteraction = {
   actionName: "",
   trigger: "interactOver",
-  destination: "relative",
+  destination: { kind: "relative", delta: { x: 0, y: 0, z: 1 } },
 };
 
 /**
@@ -645,10 +676,19 @@ function readPlacedReward(
   };
 }
 
+const coordSchema = v.object({
+  x: v.pipe(v.number(), v.integer()),
+  y: v.pipe(v.number(), v.integer()),
+  z: v.pipe(v.number(), v.integer()),
+});
+
 const teleportSchema = v.object({
   actionName: v.optional(v.string()),
   trigger: v.picklist(TELEPORT_TRIGGERS),
-  destination: v.picklist(TELEPORT_DESTINATION_KINDS),
+  destination: v.variant("kind", [
+    v.object({ kind: v.literal("relative"), delta: coordSchema }),
+    v.object({ kind: v.literal("absolute") }),
+  ]),
 });
 
 const teleportCache = new WeakMap<TileDef, TeleportInteraction | null>();
@@ -674,36 +714,27 @@ export function resolveTeleportDef(def: TileDef): TeleportInteraction | null {
 }
 
 const placedTeleportSchema = v.object({
-  teleportTo: v.object({
-    x: v.pipe(v.number(), v.integer()),
-    y: v.pipe(v.number(), v.integer()),
-    z: v.pipe(v.number(), v.integer()),
-  }),
+  teleportTo: coordSchema,
 });
 
 /**
  * Where one placement of a teleporting tile actually sends somebody, or null
  * when it sends them nowhere.
  *
- * The `relative` arm is resolved here and nowhere else, against the cell the
- * placement is standing in — see {@link TeleportInteraction.destination} for
- * why that origin and not the traveller's. Everything downstream therefore
- * takes one absolute cell and never learns which kind was authored.
+ * **The union decides which half is even consulted.** A relative teleport reads
+ * its delta off the tile and never looks at the placement; an absolute one reads
+ * the placement and the tile carries no numbers at all. So a ladder is authored
+ * once and works everywhere it is dropped, and a portal is authored per doorway
+ * — see {@link TeleportDestination} for why that is the split.
+ *
+ * Either way the answer is one absolute cell, and everything downstream takes it
+ * without learning which half it came from.
  *
  * A destination off the ends of the world is refused rather than clamped, on
  * the same terms every other malformed block here is: a ladder authored `z + 1`
  * on the top floor leads nowhere, and pinning it to the floor it is already on
  * would be a teleport that silently does nothing while still offering its row.
- *
- * Only the *authored* half is memoised, unlike {@link resolveReward}, and the
- * arithmetic is redone per call. The cache is keyed on placement identity,
- * which says nothing about where that placement is standing — and a relative
- * teleport's answer depends on exactly that. Caching the resolved cell would
- * make this correct only for as long as no placement object outlives a move,
- * which is true today and is not a promise anything states.
  */
-const authoredTeleportCache = new WeakMap<PlacedTile, Coord | null>();
-
 export function resolveTeleport(
   placed: PlacedTile,
   def: TileDef | undefined,
@@ -712,13 +743,8 @@ export function resolveTeleport(
   const gesture = def ? resolveTeleportDef(def) : null;
   if (!gesture) return null;
 
-  const authored = authoredDestination(placed);
-  if (!authored) return null;
-
-  const to =
-    gesture.destination === "absolute"
-      ? authored
-      : { x: at.x + authored.x, y: at.y + authored.y, z: at.z + authored.z };
+  const to = destinationOf(gesture.destination, placed, at);
+  if (!to) return null;
   if (to.z < MIN_LEVEL || to.z > MAX_LEVEL) return null;
   // A teleport onto the cell it is authored in is not a teleport. Refused
   // rather than left as a no-op move, because the row is offered from this same
@@ -733,7 +759,29 @@ export function resolveTeleport(
   };
 }
 
-/** The three numbers as written on the placement, before any origin is applied. */
+function destinationOf(
+  destination: TeleportDestination,
+  placed: PlacedTile,
+  at: Coord,
+): Coord | null {
+  if (destination.kind === "relative") {
+    const { delta } = destination;
+    return { x: at.x + delta.x, y: at.y + delta.y, z: at.z + delta.z };
+  }
+  return authoredDestination(placed);
+}
+
+/**
+ * The cell written on this placement, for the absolute case only.
+ *
+ * Memoised on placement identity — the map is copy-on-write, so a placement
+ * object is stable until its cell is edited, and this is asked per reachable
+ * cell on every pointer move. Safe to cache unlike a resolved *relative*
+ * destination, which depends on where the placement is standing and so could go
+ * stale the moment one moved.
+ */
+const authoredTeleportCache = new WeakMap<PlacedTile, Coord | null>();
+
 function authoredDestination(placed: PlacedTile): Coord | null {
   const cached = authoredTeleportCache.get(placed);
   if (cached !== undefined) return cached;
@@ -1085,17 +1133,33 @@ export function interactionsForSave(
   const savedReward = reward
     ? { ...(rewardActionName ? { actionName: rewardActionName } : {}) }
     : undefined;
-  // Kept whatever is in it, on the same terms the reward block is and for the
-  // same reason: the presence of the block is the statement, and where each
-  // portal leads is written on its placements. There is nothing here that could
-  // be blank enough to mean unauthored.
+  // Kept whatever is in it, on the same terms the reward block is: the presence
+  // of the block is the statement, and there is nothing here that could be blank
+  // enough to mean unauthored.
+  //
+  // The destination is rebuilt by its arm rather than copied, for the reason
+  // `itemForSave` rebuilds an item's: flipping the control from an offset to a
+  // cell and back leaves the editor's draft carrying both shapes, and only the
+  // arm knows which fields belong. A `delta` left behind on an absolute teleport
+  // would be inert *and* invisible — sitting in `data/tiles.json` waiting for
+  // somebody to flip the control back and find numbers they never authored.
   const teleport = interactions?.teleport;
   const teleportActionName = teleport?.actionName?.trim();
   const savedTeleport = teleport
     ? {
         ...(teleportActionName ? { actionName: teleportActionName } : {}),
         trigger: teleport.trigger,
-        destination: teleport.destination,
+        destination:
+          teleport.destination.kind === "relative"
+            ? {
+                kind: "relative" as const,
+                delta: {
+                  x: Math.round(teleport.destination.delta.x),
+                  y: Math.round(teleport.destination.delta.y),
+                  z: Math.round(teleport.destination.delta.z),
+                },
+              }
+            : { kind: "absolute" as const },
       }
     : undefined;
   // Gated on the lifetime rather than on the target, unlike every other block

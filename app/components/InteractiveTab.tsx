@@ -63,16 +63,22 @@ const DESTINATION_OPTIONS: Array<{
   value: TeleportDestinationKind;
   label: string;
 }> = [
-  { value: "absolute", label: "A cell" },
   { value: "relative", label: "An offset" },
+  { value: "absolute", label: "A cell" },
 ];
 
-/** What each destination kind makes of the numbers on a placement. */
+/** Which half of the authoring holds the answer, in one line under the control. */
 const DESTINATION_HINTS: Record<TeleportDestinationKind, string> = {
-  absolute: "The numbers on each placement are the cell itself. A portal to a fixed room.",
   relative:
-    "The numbers are a step from the placement’s own cell, never from wherever the player was standing. A ladder is z + 1 from the rungs however you approached them.",
+    "The same journey wherever this tile is dropped, set here and once. A ladder goes up one floor, whichever ladder it is.",
+  absolute:
+    "A different cell for every placement, set on each one in the map editor. One portal tile can be every doorway in the world.",
 };
+
+const DELTA_AXES = ["x", "y", "z"] as const;
+
+/** One floor up: the ladder this was built for. */
+const DEFAULT_TELEPORT_DELTA = { x: 0, y: 0, z: 1 };
 
 /** Deepest a plate can be buried: a stack may overflow one level into the next. */
 const MAX_PLATE_HEIGHT = HEIGHT_PER_LEVEL * 2;
@@ -212,6 +218,41 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets }: Props) {
   const patchTeleport = (patch: Partial<TeleportInteraction>) => {
     if (!teleport) return;
     setTeleport({ ...teleport, ...patch });
+  };
+
+  /**
+   * Move between the two arms, seeding the one being arrived at.
+   *
+   * The offset is seeded rather than carried across, because the arms hold
+   * different things: an absolute teleport has no delta at all, so coming back
+   * to `relative` has to land on something an author can see and edit rather
+   * than on whatever was there before it was dropped.
+   */
+  const setDestinationKind = (kind: TeleportDestinationKind) => {
+    if (!teleport || teleport.destination.kind === kind) return;
+    patchTeleport({
+      destination:
+        kind === "relative"
+          ? { kind, delta: { ...DEFAULT_TELEPORT_DELTA } }
+          : { kind },
+    });
+  };
+
+  const delta =
+    teleport?.destination.kind === "relative"
+      ? teleport.destination.delta
+      : DEFAULT_TELEPORT_DELTA;
+
+  /** A cleared axis reads as 0 rather than as NaN, like every number here. */
+  const patchDelta = (axis: (typeof DELTA_AXES)[number], raw: string) => {
+    if (teleport?.destination.kind !== "relative") return;
+    const parsed = Number.parseInt(raw, 10);
+    patchTeleport({
+      destination: {
+        kind: "relative",
+        delta: { ...delta, [axis]: Number.isInteger(parsed) ? parsed : 0 },
+      },
+    });
   };
 
   const setDecay = (next: DecayInteraction | undefined) => {
@@ -457,9 +498,11 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets }: Props) {
           traveller would not fit at the far end.
         </p>
         <p className="text-[11px] leading-snug text-muted">
-          <strong>Where it leads is set per placement</strong>, not here — the
-          same way a reward’s loot is. One portal tile can be every doorway in
-          the world. Select a placement in the map editor and open its settings.
+          <strong>Where it leads is set by whichever half actually varies.</strong>{" "}
+          A ladder makes the same journey wherever it is dropped, so its offset
+          lives here and is authored once. A portal leads somewhere different
+          from every doorway, so its target lives on each placement — select one
+          in the map editor and open its settings.
         </p>
 
         {teleport ? (
@@ -481,16 +524,42 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets }: Props) {
             <div className="flex flex-col gap-1 text-xs font-bold">
               Destination is
               <Segmented<TeleportDestinationKind>
-                value={teleport.destination}
-                onChange={(destination) => patchTeleport({ destination })}
+                value={teleport.destination.kind}
+                onChange={setDestinationKind}
                 options={DESTINATION_OPTIONS}
                 size="sm"
                 ariaLabel="Teleport destination kind"
               />
               <span className="text-[11px] font-normal leading-snug text-muted">
-                {DESTINATION_HINTS[teleport.destination]}
+                {DESTINATION_HINTS[teleport.destination.kind]}
               </span>
             </div>
+
+            {teleport.destination.kind === "relative" ? (
+              <div className="flex flex-col gap-1 text-xs font-bold">
+                Offset
+                <div className="flex gap-2">
+                  {DELTA_AXES.map((axis) => (
+                    <label key={axis} className="flex flex-1 flex-col gap-1">
+                      <span className="uppercase text-muted">{axis}</span>
+                      <Input
+                        type="number"
+                        step={1}
+                        value={String(delta[axis])}
+                        onChange={(e) => patchDelta(axis, e.target.value)}
+                      />
+                    </label>
+                  ))}
+                </div>
+                <span className="text-[11px] font-normal leading-snug text-muted">
+                  How far this moves somebody, from wherever it is placed. A
+                  ladder up is <strong>z + 1</strong> and a ladder down is{" "}
+                  <strong>z − 1</strong>. Every copy of this tile travels the
+                  same distance, which is what makes a ladder a tile you can
+                  drop anywhere.
+                </span>
+              </div>
+            ) : null}
 
             {teleport.trigger === "step" ? null : (
               <label className="flex flex-col gap-1 text-xs font-bold">

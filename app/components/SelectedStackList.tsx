@@ -81,12 +81,15 @@ function isGiver(def: TileDef): boolean {
 }
 
 /**
- * Does this tile move anybody? Only a teleporter gets a destination, on the same
- * grounds only a wired tile gets a channel: coordinates on a rock are a control
- * that can never do anything.
+ * Does this placement need a destination written on it?
+ *
+ * Only an *absolute* teleporter does. A relative one carries its whole journey
+ * on the tile — see `TeleportDestination` — so a ladder placement has nothing to
+ * author, and offering three empty boxes beside it would be a control that can
+ * never do anything, on the same grounds a channel on a rock would be.
  */
-function isTeleporter(def: TileDef): boolean {
-  return resolveTeleportDef(def) != null;
+function needsDestination(def: TileDef): boolean {
+  return resolveTeleportDef(def)?.destination.kind === "absolute";
 }
 
 /**
@@ -247,8 +250,7 @@ function SortableStackItem({
           stackIndex={stackIndex}
           wired={isWired(def)}
           gives={isGiver(def)}
-          teleports={isTeleporter(def)}
-          teleportDestinationKind={resolveTeleportDef(def)?.destination ?? null}
+          teleports={needsDestination(def)}
           giveable={giveable}
           tilesets={tilesets}
           channelListId={CHANNEL_LIST_ID}
