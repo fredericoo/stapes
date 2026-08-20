@@ -5,9 +5,16 @@ import { type ConsumableStatus, DEFAULT_CONTAINER } from "../lib/item";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef, normalizeTiles } from "../lib/types";
-import { NOISE_LIFETIME_MS, STARTING_BAG_TILE_ID, TICK_MS } from "./constants";
+import { NOISE_LIFETIME_MS, TICK_MS } from "./constants";
 import { GameSession } from "./GameSession";
 import { statusesById } from "../lib/status";
+
+/**
+ * The bag `player`'s kit is authored with — see `app/lib/kit.ts`. A literal
+ * here like every other tile id in this file: what a body carries is authored
+ * content now, so there is no constant in the engine left to import.
+ */
+const BAG_TILE_ID = "basic-bag";
 
 /**
  * Eating and drinking, as the session runs them.
@@ -79,11 +86,13 @@ const tiles: TileDef[] = [
       battler: {
         masteries: { toughness: PLAYER_MAX_HP - 8 },
         naturalWeapon: { type: "weapon", damage: 5, def: 0, accuracy: 100, variance: 0, spd: 100, mastery: "fist" },
+        // Where the bag on a player's back comes from — see `app/lib/kit.ts`.
+        kit: [{ slot: "bag", tileId: BAG_TILE_ID, chance: 100 }],
       },
     },
   }),
   tile({
-    id: STARTING_BAG_TILE_ID,
+    id: BAG_TILE_ID,
     kind: "item",
     intangible: true,
     interactions: { item: { ...DEFAULT_CONTAINER } },

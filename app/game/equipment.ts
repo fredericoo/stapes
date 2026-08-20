@@ -4,6 +4,7 @@ import type { WeaponItem } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import { mintItemId } from "../lib/itemInstance";
 import { resolveContainer, resolveItem, resolveWeapon } from "../lib/item";
+import { EQUIP_SLOTS, type EquipSlot } from "../lib/kit";
 import { resolveLight } from "../lib/tileResolve";
 import type { TileDef } from "../lib/types";
 
@@ -53,38 +54,18 @@ export type Equipment = {
   bag: ItemInstance | null;
 };
 
-/** Which slot a thing is worn in. */
-export type EquipSlot = keyof Equipment;
+/**
+ * Which slot a thing is worn in.
+ *
+ * Named in `../lib/kit` rather than here, because an authored kit has to say
+ * one and `lib` may not reach into `game`. {@link EQUIPMENT_SLOTS} below is what
+ * holds the two shapes together.
+ */
+export type { EquipSlot };
 
 /** Carrying nothing at all — a body that was never given a kit. */
 export function emptyEquipment(): Equipment {
   return { weapon: null, offhand: null, bag: null };
-}
-
-/**
- * What a player starts with: an empty hand and a bag on their back.
- *
- * The bag is minted here rather than authored into the map, because it is not
- * in the world — nobody dropped it and there is no placement it came from. Its
- * id is as real as any other, so the starting bag can be dropped, left
- * somewhere, and found again as the same bag.
- *
- * Returns an empty kit rather than throwing when the tile is missing or is not
- * an equippable container: a world whose author has renamed the bag tile should
- * seat players with nothing, not refuse to start.
- */
-export function startingEquipment(
-  tilesById: Record<string, TileDef>,
-  bagTileId: string,
-): Equipment {
-  const def = tilesById[bagTileId];
-  const container = def ? resolveContainer(def) : null;
-  if (!container?.equippable) return emptyEquipment();
-  return {
-    weapon: null,
-    offhand: null,
-    bag: { id: mintItemId(), tileId: bagTileId, contents: [] },
-  };
 }
 
 /**
@@ -170,9 +151,21 @@ function identified(instance: ItemInstance): ItemInstance {
  *
  * Written down once, because "the fields of `Equipment`" is a list two separate
  * passes had already got out of step with each other — the off hand was the
- * first slot added and the second one to be forgotten somewhere.
+ * first slot added and the second one to be forgotten somewhere. It is now the
+ * *authored* list — an author names a slot in a kit, so `../lib/kit` had to own
+ * the names — and this is where the runtime shape is held to it.
  */
-const EQUIPMENT_SLOTS = ["weapon", "offhand", "bag"] as const;
+const EQUIPMENT_SLOTS: readonly (keyof Equipment)[] = EQUIP_SLOTS;
+
+/**
+ * A slot added to {@link Equipment} and not to `EQUIP_SLOTS` would be a thing
+ * carried that nothing here can see — no light read off it, no id minted for
+ * what is inside it, nothing dropped when its owner dies. This is what makes
+ * that a type error rather than a bug found a fortnight later: the record is
+ * satisfiable by `{}` only while there is no such slot.
+ */
+const _everySlotIsListed: Record<Exclude<keyof Equipment, EquipSlot>, never> =
+  {};
 
 /** Everything worn or carried, slots and their contents alike, in a flat list. */
 export function carriedInstances(equipment: Equipment): ItemInstance[] {
@@ -193,14 +186,20 @@ export function carriedInstances(equipment: Equipment): ItemInstance[] {
 }
 
 /**
- * Everything worn in a slot, which is what a light is read off.
+ * Everything worn in a slot — what a light is read off, and what a death puts
+ * on the floor.
  *
- * Deliberately *not* {@link carriedInstances}: what is in the bag is in the bag.
+ * Deliberately *not* {@link carriedInstances}: what is in the bag is in the bag,
+ * and it goes down with the bag rather than beside it.
+ *
  * The list is over the slots rather than over the fields by name — the off hand
  * was the first of the "more of them" this comment anticipated, and adding it
  * was one entry here rather than a hunt through everything that lights a room.
+ * `GameSession.dropKit` and the server's what-do-they-still-own test read it for
+ * exactly that reason: both were a hand-written `[weapon, offhand, bag]`, which
+ * is the shape the off hand has already been left out of once.
  */
-function wornInstances(equipment: Equipment): ItemInstance[] {
+export function wornInstances(equipment: Equipment): ItemInstance[] {
   return EQUIPMENT_SLOTS.map((slot) => equipment[slot]).filter(
     (instance): instance is ItemInstance => instance != null,
   );

@@ -1947,6 +1947,25 @@ describe("the vermin we ship", () => {
   const SIGHT_CELLS = 7;
 
   /**
+   * The dice these yards are read against, pinned rather than left to the
+   * world's default.
+   *
+   * **A creature that is ignoring you is still wandering**, so "it did not come
+   * closer" is only ever true of a particular roll: a rat standing eight cells
+   * off can scurry a cell inward for reasons that have nothing to do with
+   * noticing anybody, and from seven it then hunts for reasons that do. Pinning
+   * the stream is what makes that assertion mean the rule rather than the
+   * weather. It has to be pinned *here* rather than inherited, because the
+   * default stream shifts whenever anything else in the world draws from it —
+   * authoring a kit onto the rat moved it, and this file went red for a wander
+   * rather than for a brain.
+   *
+   * The rule itself is proved by the neighbouring test: from seven both of them
+   * close, on any dice at all.
+   */
+  const YARD_SEED = 20260820;
+
+  /**
    * Somewhere for a creature nobody is meant to notice to stand: far enough that
    * no brain here can see it, and *present*, because a world with nobody
    * connected freezes every brain in it. @see GameSession.tickBrains
@@ -1983,12 +2002,11 @@ describe("the vermin we ship", () => {
       { tileId: "dirt" },
       { tileId: "player", direction: "e", owner: "alice" },
     ]);
-    return new GameSession(map, authored, { actorIds: ["alice"], spawnAt: {
-      x: 12,
-      y: 12,
-      z: 0,
-      stackIndex: 1,
-    } });
+    return new GameSession(map, authored, {
+      actorIds: ["alice"],
+      spawnAt: { x: 12, y: 12, z: 0, stackIndex: 1 },
+      seed: YARD_SEED,
+    });
   }
 
   function bodies(session: GameSession, tileId: string) {

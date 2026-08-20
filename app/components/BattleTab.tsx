@@ -11,13 +11,17 @@ import {
   masteryLevel,
   MIN_MASTERY,
 } from "../lib/mastery";
+import type { Kit } from "../lib/kit";
 import type { TileDef } from "../lib/types";
+import { KitEditor } from "./KitEditor";
 import { StatField } from "./StatField";
 import { describeInterval, WeaponFields } from "./WeaponFields";
 
 type Props = {
   draft: TileDef;
   onChange: (next: TileDef) => void;
+  /** The whole library — the kit table picks carryable tiles out of it. */
+  tiles: TileDef[];
 };
 
 const MASTERY_FIELDS: Array<{ mastery: Mastery; label: string; hint: string }> = [
@@ -74,7 +78,7 @@ function describeDodge(flee: number): string {
  * honest way to show numbers nobody types — a readout that could disagree with
  * the formula would be worse than none.
  */
-export function BattleTab({ draft, onChange }: Props) {
+export function BattleTab({ draft, onChange, tiles }: Props) {
   const battler = draft.interactions?.battler ?? DEFAULT_BATTLER;
 
   const setBattler = (next: BattlerDef) => {
@@ -94,6 +98,8 @@ export function BattleTab({ draft, onChange }: Props) {
       masteries: { ...battler.masteries, [mastery]: level },
     });
   };
+
+  const setKit = (kit: Kit) => setBattler({ ...battler, kit });
 
   const patchWeapon = (fields: Partial<WeaponItem>) => {
     setBattler({
@@ -157,6 +163,25 @@ export function BattleTab({ draft, onChange }: Props) {
           onChange={patchWeapon}
           masteryHint="Which mastery scales this weapon — and which one this body earns by using it."
         />
+
+        <div className="flex flex-col gap-1 border-t-2 border-border pt-3">
+          <span className="text-xs font-bold uppercase text-muted">Kit</span>
+          <p className="max-w-lg text-[11px] leading-snug text-muted">
+            What a body of this kind is born carrying — the same three slots a
+            player drags things between, so a torch here lights the room and a
+            sword here gets swung. Rolled once, when the body is put on the
+            board; a creature that <strong>respawns rolls again</strong>, and
+            anything it is holding when it dies is{" "}
+            <strong>left on the floor where it fell</strong>.
+          </p>
+          <p className="max-w-lg text-[11px] leading-snug text-muted">
+            Several rows may name one slot: they are rolled top down and the
+            first that comes up takes it, which is how a rare thing is written
+            above a common one.
+          </p>
+        </div>
+
+        <KitEditor kit={battler.kit ?? []} tiles={tiles} onChange={setKit} />
 
         <div className="flex flex-col gap-1 border-t-2 border-border pt-3">
           <span className="text-xs font-bold uppercase text-muted">

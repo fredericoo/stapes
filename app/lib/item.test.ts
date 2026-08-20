@@ -162,13 +162,15 @@ describe("resolveBattler's kind gate", () => {
   };
 
   it("reads stats on a battler", () => {
-    // Reach and floors of interest are optional, so a block without them parses
-    // to the melee default and to minding its own floor. That fallback is the
-    // compatibility promise, so it is asserted here.
+    // Reach, floors of interest and the kit are optional, so a block without
+    // them parses to the melee default, to minding its own floor and to
+    // carrying nothing. That fallback is the compatibility promise, so it is
+    // asserted here.
     expect(resolveBattler(tile("battler", { battler: stats }))).toEqual({
       ...stats,
       range: DEFAULT_MELEE_RANGE,
       sight: { up: 0, down: 0 },
+      kit: [],
     });
   });
 

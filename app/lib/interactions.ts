@@ -2,6 +2,7 @@ import * as v from "valibot";
 import { DEFAULT_BATTLER, type BattlerDef } from "./battler";
 import type { BrainDef } from "./brain";
 import type { ItemDef } from "./item";
+import { kitForSave } from "./kit";
 import {
   itemForSave,
   MAX_CONTAINER_SIZE,
@@ -1225,6 +1226,7 @@ export function interactionsForSave(
   // them as the same thing: writing one would claim the author considered a
   // question they did not, and it would grow every creature's block by five
   // lines saying nothing.
+  const savedKit = kitForSave(battler?.kit);
   const savedBattler = battler
     ? {
         masteries: Object.fromEntries(
@@ -1240,6 +1242,13 @@ export function interactionsForSave(
           up: battler.sight?.up ?? DEFAULT_BATTLER.sight.up,
           down: battler.sight?.down ?? DEFAULT_BATTLER.sight.down,
         },
+        // Omitted entirely when nothing is authored, unlike `range` and
+        // `sight`: those have a default worth writing down, where a body that
+        // carries nothing is the overwhelming majority and `kit: []` on every
+        // creature in the file would be a line saying nothing. `kitForSave`
+        // rebuilds it entry by entry for the reason the block around it is
+        // rebuilt — an editor draft carries whatever the last shape left behind.
+        ...(savedKit ? { kit: savedKit } : {}),
       }
     : undefined;
   // Rebuilt field by field too, by the module that owns the union's arms —

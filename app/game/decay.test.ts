@@ -4,11 +4,18 @@ import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { Coord, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
-import { STARTING_BAG_TILE_ID, TICK_MS } from "./constants";
+import { TICK_MS } from "./constants";
 import { DecayIndex, applyDecay, findDecayCells } from "./decay";
 import type { Equipment } from "./equipment";
 import { GameSession, LOCAL_ACTOR_ID } from "./GameSession";
 import { Rng } from "./rng";
+
+/**
+ * The bag `player`'s kit is authored with — see `app/lib/kit.ts`. A literal
+ * here like every other tile id in this file: what a body carries is authored
+ * content now, so there is no constant in the engine left to import.
+ */
+const BAG_TILE_ID = "basic-bag";
 
 /** Fixed lifetimes, so a test asserts a deadline rather than a distribution. */
 const BLOOD_MS = 1000;
@@ -88,7 +95,29 @@ function itemTile(
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
   tile({ id: "wall", height: 2 }),
-  directionalTile("player", { affectedByGravity: true, walkable: false }),
+  // A battler with a kit, because that is now the only way anybody gets a bag
+  // — and half this file is about a berry ripening inside one. See
+  // `app/lib/kit.ts`.
+  directionalTile("player", {
+    affectedByGravity: true,
+    walkable: false,
+    kind: "battler",
+    interactions: {
+      battler: {
+        masteries: { toughness: 8 },
+        naturalWeapon: {
+          type: "weapon",
+          damage: 1,
+          def: 0,
+          accuracy: 50,
+          variance: 0,
+          spd: 50,
+          mastery: "fist",
+        },
+        kit: [{ slot: "bag", tileId: BAG_TILE_ID, chance: 100 }],
+      },
+    },
+  }),
   // The motivating pair: blood dries to a stain, the stain fades to nothing.
   tile({
     id: "blood",
@@ -486,7 +515,7 @@ function kitWith(
   return {
     weapon: null,
     offhand: null,
-    bag: { id: "itm_bag", tileId: STARTING_BAG_TILE_ID, contents },
+    bag: { id: "itm_bag", tileId: BAG_TILE_ID, contents },
     ...slots,
   };
 }
@@ -665,7 +694,7 @@ describe("things that decay while somebody is holding them", () => {
       kitWith([], {
         offhand: {
           id: "itm_spare",
-          tileId: STARTING_BAG_TILE_ID,
+          tileId: BAG_TILE_ID,
           contents: [thing("itm_berry", "berry")],
         },
       }),

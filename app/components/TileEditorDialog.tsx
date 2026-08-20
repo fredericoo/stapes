@@ -989,7 +989,7 @@ export function TileEditorDialog({
           </TabPanel>
 
           <TabPanel value={TAB_BATTLE}>
-            <BattleTab draft={draft} onChange={setDraft} />
+            <BattleTab draft={draft} onChange={setDraft} tiles={tiles} />
           </TabPanel>
 
           <TabPanel value={TAB_ITEM}>

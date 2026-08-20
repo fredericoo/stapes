@@ -6,11 +6,7 @@ import {
   type ActorSnapshot,
   type Death,
 } from "../app/game/GameSession";
-import {
-  STARTING_BAG_TILE_ID,
-  TICK_MS,
-  WALK_DURATION_MS,
-} from "../app/game/constants";
+import { TICK_MS, WALK_DURATION_MS } from "../app/game/constants";
 import { cellKey } from "../app/game/pressurePlates";
 import {
   findSpawnPoints,
@@ -22,7 +18,7 @@ import {
   type Equipment,
   emptyEquipment,
   restoredEquipment,
-  startingEquipment,
+  wornInstances,
 } from "../app/game/equipment";
 import { DEFAULT_FACING } from "../app/game/actors";
 import { resolveRespawn } from "../app/lib/interactions";
@@ -1333,11 +1329,22 @@ export class GameServer extends DurableObject<Env> {
       // what makes the pair disagree is one of them moving without the other,
       // and a kit that has not changed cannot be the one that moved.
       //
-      // Only a kit with something in it. Every deer in the world has an empty
-      // one, and a key per creature per world would be the ceiling below spent
-      // on remembering that a deer is still carrying nothing.
+      // **A resident's kit is never written, on exactly the grounds its position
+      // is not: nothing ever reads it.** A creature is adopted out of the board
+      // and rolls its kit as it is adopted (`../app/game/battlerKit`), so a
+      // stored row would be a copy that the next wake overwrites with a fresh
+      // roll before anybody could consult it. This gate used to be "only a kit
+      // with something in it", which came to the same thing while every creature
+      // in the world had an empty one — and stopped the day a rat could be
+      // authored carrying meat. The emptiness test alone would then have spent
+      // the row ceiling below on a key per armed creature per world.
+      //
+      // Every slot counts, the off hand included: a body holding nothing but a
+      // torch is carrying something, and a gate naming two of the three squares
+      // is the same omission the off hand has been the victim of before.
       if (
-        (equipment?.weapon || equipment?.bag) &&
+        !session.isResident(actorId) &&
+        (equipment?.weapon || equipment?.offhand || equipment?.bag) &&
         equipment !== written?.equipment
       ) {
         entries[this.equipmentKey(actorId)] = { equipment, savedAt };
@@ -1450,17 +1457,11 @@ export class GameServer extends DurableObject<Env> {
       // cannot ride in this `put`, and a second call is a second moment at which
       // the board and the kit can disagree. The refused-drop case is the one
       // exception — nothing reached the floor, so they still own all of it.
-      const stillOwned =
-        death.equipment.weapon ??
-        death.equipment.offhand ??
-        death.equipment.bag;
+      // Every slot, read off the one list of them: a hand-written triple here is
+      // the shape the off hand has already been left out of once.
+      const stillOwned = wornInstances(death.equipment).length > 0;
       entries[this.equipmentKey(actorId)] = {
-        equipment: stillOwned
-          ? death.equipment
-          : startingEquipment(
-              tilesByIdFromList(this.tiles),
-              STARTING_BAG_TILE_ID,
-            ),
+        equipment: stillOwned ? death.equipment : session.startingKit(),
         savedAt,
       };
       if (death.tags.length > 0) {

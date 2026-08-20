@@ -318,6 +318,35 @@ describe("interactionsForSave", () => {
   });
 
   /**
+   * The standing cost of rebuilding the block field by field is that a field
+   * forgotten here is silently dropped the next time anybody saves the tile —
+   * which for a kit would mean opening the tile dialog on a rat disarmed it.
+   */
+  it("carries a kit through a save, blank rows and all dropped", () => {
+    expect(
+      interactionsForSave({
+        battler: {
+          ...DEFAULT_BATTLER,
+          kit: [
+            { slot: "bag", tileId: " basic-bag ", chance: 100, contents: [] },
+            { slot: "weapon", tileId: "", chance: 25 },
+          ],
+        },
+      })?.battler?.kit,
+    ).toEqual([{ slot: "bag", tileId: "basic-bag", chance: 100 }]);
+  });
+
+  /**
+   * Unlike `range` and `sight`, which have a default worth writing down: an
+   * empty kit on every creature in the file would be a line saying nothing.
+   */
+  it("omits an empty kit rather than writing it out", () => {
+    expect(
+      interactionsForSave({ battler: { ...DEFAULT_BATTLER, kit: [] } })?.battler,
+    ).not.toHaveProperty("kit");
+  });
+
+  /**
    * A mastery nobody has trained reads the same as one nobody wrote, so writing
    * it would grow every creature's block by five lines saying nothing — and it
    * would claim the author considered a question they did not.

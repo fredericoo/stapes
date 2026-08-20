@@ -11,7 +11,6 @@ import {
   BRAIN_TICK_MS,
   PLAYER_TILE_ID,
   PUSH_STEP_MS,
-  STARTING_BAG_TILE_ID,
   WALK_DURATION_MS,
 } from "../app/game/constants";
 import { MINUTES_PER_DAY, minutesOfDayAt } from "../app/lib/clock";
@@ -26,6 +25,13 @@ import {
   MAX_REMEMBERED_ACTORS,
   type GameServer,
 } from "./GameServer";
+
+/**
+ * The bag `player`'s kit is authored with — see `app/lib/kit.ts`. A literal
+ * here like every other tile id in this file: what a body carries is authored
+ * content now, so there is no constant in the engine left to import.
+ */
+const BAG_TILE_ID = "basic-bag";
 
 /**
  * The Durable Object's load / restore / checkpoint path, in the runtime it
@@ -2429,11 +2435,27 @@ describe("what a flush writes", () => {
       name: "Gnome",
       height: 1,
       type: "simple",
-      kind: "prop",
+      kind: "battler",
       attributes: {},
       actor: true,
       walkable: false,
-      interactions: {},
+      // Armed, because the row this creature must *not* write is the one an
+      // empty kit would never have written anyway.
+      interactions: {
+        battler: {
+          masteries: { toughness: 4 },
+          naturalWeapon: {
+            type: "weapon",
+            damage: 1,
+            def: 0,
+            accuracy: 50,
+            variance: 0,
+            spd: 20,
+            mastery: "fist",
+          },
+          kit: [{ slot: "bag", tileId: BAG_TILE_ID, chance: 100 }],
+        },
+      },
       sprite: {
         frames: [
           {
@@ -2484,6 +2506,22 @@ describe("what a flush writes", () => {
     const positions = await storedKeys("pos:");
     expect(positions).toContain("pos:alice");
     expect(positions).not.toContain(`pos:${GNOME_OWNER}`);
+  });
+
+  /**
+   * The same bill, one row along. A creature rolls its kit as it is adopted out
+   * of the board, so a stored one is a copy the next wake overwrites before
+   * anybody could read it — and unlike the deer this gate was written for, an
+   * armed creature has a kit worth writing if nothing stops it.
+   */
+  it("never writes down what a creature is carrying", async () => {
+    const alice = await connect("alice");
+    await walkEast(alice.ws);
+    await new Promise((resolve) => setTimeout(resolve, QUIET_MS));
+
+    const kits = await storedKeys("equip:");
+    expect(kits).toContain("equip:alice");
+    expect(kits).not.toContain(`equip:${GNOME_OWNER}`);
   });
 
   /**
@@ -2796,7 +2834,7 @@ describe("dying and coming back", () => {
       bag: { tileId: string; contents: unknown[] } | null;
     };
     expect(equipment.weapon).toBeNull();
-    expect(equipment.bag?.tileId).toBe(STARTING_BAG_TILE_ID);
+    expect(equipment.bag?.tileId).toBe(BAG_TILE_ID);
     expect(equipment.bag?.contents).toEqual([]);
   });
 
