@@ -1459,6 +1459,35 @@ describe("player permanence", () => {
     expect(await actorX(who)).toBe(ONE_STEP_EAST);
   });
 
+  /**
+   * The same bug from the player's side, which is where it is actually felt.
+   *
+   * Dropping the last thing you carry writes a floor holding it and used to
+   * leave the kit row saying you still had it — so the reconnect handed the bag
+   * back while the bag was lying there. One item, two owners, once per drop.
+   */
+  it("does not hand back a bag they left on the floor", async () => {
+    const who = freshPlayer();
+    const first = await connect(who);
+    send(first.ws, {
+      type: "drop",
+      from: { kind: "bag" },
+      to: { x: SPAWN_CELL, y: 0, z: 0 },
+    });
+    expect(await equipmentWithin(first.ws)).not.toBeNull();
+    await leave(first.ws);
+    // Through storage rather than through this instance's memory of it, which
+    // is the only path a player who left an idle world ever comes back down.
+    await simulateEviction();
+
+    const { hello } = await connect(who);
+
+    expect((hello.equipment as { bag: unknown }).bag).toBeNull();
+    // And still where they put it, rather than gone with the row that forgot it.
+    const stack = (hello.map as FlatMapFile).levels["0"]?.[`${SPAWN_CELL},0`];
+    expect(stack?.map((placed) => placed.tileId)).toContain(BAG_TILE_ID);
+  });
+
   it("starts somebody the world has never met at the spawn point", async () => {
     await connect(freshPlayer());
 
@@ -2513,6 +2542,10 @@ describe("what a flush writes", () => {
    * of the board, so a stored one is a copy the next wake overwrites before
    * anybody could read it — and unlike the deer this gate was written for, an
    * armed creature has a kit worth writing if nothing stops it.
+   *
+   * The resident test is now the whole of what stops it: the emptiness test
+   * beside it has gone, so the cheapness this asserts has to hold on its own.
+   * See the retraction below for why it had to go.
    */
   it("never writes down what a creature is carrying", async () => {
     const alice = await connect("alice");
@@ -2652,6 +2685,53 @@ describe("what a flush writes", () => {
     // A starting kit exists and the board it was read against is down beside it.
     expect(kit).toBeDefined();
     expect(board.length).toBeGreaterThan(0);
+  });
+
+  /**
+   * The kit is the other row that has to be retractable, and for a sharper
+   * reason than a status: the board is written in the same batch.
+   *
+   * Dropping the last thing you are carrying puts it on the floor, and the
+   * checkpointed chunks in that same `put` say so. A kit row skipped because it
+   * is now empty is therefore not merely stale — it is a second copy of the very
+   * item the board beside it has already handed back to the world. Reconnect and
+   * the bag is on your back *and* at your feet.
+   *
+   * That is exactly what a "only a kit with something in it" guard does, which
+   * is what stood here.
+   */
+  it("retracts a kit row once the last thing in it has been dropped", async () => {
+    const who = freshPlayer();
+    const { ws } = await connect(who);
+    await new Promise((resolve) => setTimeout(resolve, QUIET_MS));
+
+    // The starting bag, written by the settle above: what the drop has to undo.
+    const before = await savedEquipment(who);
+    expect((before?.equipment as { bag: unknown } | undefined)?.bag).not.toBeNull();
+
+    // Their own cell, which is always in range and always has room for one more.
+    send(ws, {
+      type: "drop",
+      from: { kind: "bag" },
+      to: { x: SPAWN_CELL, y: 0, z: 0 },
+    });
+    // The kit patch is the acknowledgement that the drop was handled; asserting
+    // on storage before it would be asserting on a race.
+    const patch = await equipmentWithin(ws);
+    expect(patch).not.toBeNull();
+    await new Promise((resolve) => setTimeout(resolve, QUIET_MS));
+
+    const after = await savedEquipment(who);
+    const kit = after?.equipment as {
+      weapon: unknown;
+      offhand: unknown;
+      bag: unknown;
+    };
+    // Overwritten with nothing, rather than left saying what it used to — the
+    // bag is on the floor in the same batch, and both cannot be true.
+    expect(kit.weapon).toBeNull();
+    expect(kit.offhand).toBeNull();
+    expect(kit.bag).toBeNull();
   });
 
   /**
