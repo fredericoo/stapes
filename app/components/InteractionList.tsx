@@ -24,6 +24,7 @@ import {
   healthFraction,
 } from "../render/healthBar";
 import { TilePreview } from "./TilePreview";
+import { useTap } from "./useTap";
 
 /**
  * Everything within reach, as a list you can act from.
@@ -215,11 +216,15 @@ function InteractionRow({
   onHover?: (optionId: string | null) => void;
 }) {
   const Icon = ICONS[option.action];
+  // Pointer-driven rather than click-driven: a row has to answer a thumb that
+  // is already holding the d-pad, and a click never arrives while it is. See
+  // `./useTap`.
+  const tap = useTap(() => onAct(option));
 
   return (
     <button
       type="button"
-      onClick={() => onAct(option)}
+      {...tap}
       onMouseEnter={() => onHover?.(option.id)}
       onMouseLeave={() => onHover?.(null)}
       onFocus={() => onHover?.(option.id)}

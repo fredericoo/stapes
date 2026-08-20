@@ -1,5 +1,6 @@
 import { IconEye, IconSword } from "@tabler/icons-react";
 import { Tooltip } from "../ui/Tooltip";
+import { useTap } from "./useTap";
 
 /**
  * The modes a tap can be in, as buttons you can see the state of.
@@ -80,6 +81,10 @@ function ModeToggle({
   onChange: (on: boolean) => void;
   size: ModeToggleSize;
 }) {
+  // Pointer-driven rather than click-driven, so the row still answers a thumb
+  // that is holding the d-pad down. See `./useTap`.
+  const tap = useTap(() => onChange(!on));
+
   return (
     <Tooltip content={hint}>
       <button
@@ -89,7 +94,7 @@ function ModeToggle({
         // out in the canvas where there is nothing to announce.
         aria-pressed={on}
         aria-label={label}
-        onClick={() => onChange(!on)}
+        {...tap}
         className={[
           "flex items-center justify-center border-2 shadow-hard",
           MODE_TOGGLE_SIZE_CLASS[size],
