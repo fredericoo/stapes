@@ -96,6 +96,25 @@ describe("spriteStatesFor", () => {
     expect(states!.size).toBe(1);
   });
 
+  it("leaves a falling body idle, walk cycle and all", () => {
+    // A ledge with nothing under it: the player is dropped a level above the
+    // grass and gravity takes it from there.
+    let map = floor();
+    map = replaceStack(map, 0, 0, 1, [{ tileId: "player", direction: "e" } as PlacedTile]);
+    map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" } as PlacedTile]);
+    const session = new GameSession(map, tiles);
+
+    let falling = false;
+    for (let i = 0; i < 20 && !falling; i++) {
+      session.update(TICK_MS);
+      falling = session.getSnapshot().self.fall != null;
+    }
+
+    expect(falling, "the player never started falling").toBe(true);
+    // The `moving` sprite is a walk cycle. Mid-air legs are not a fall.
+    expect(spriteStatesFor(session.getSnapshot().actors)).toBeUndefined();
+  });
+
   it("goes back to idle once the step lands", () => {
     const session = new GameSession(floor(), tiles);
     session.setInput({ directions: ["e"] });

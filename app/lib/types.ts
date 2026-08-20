@@ -100,8 +100,10 @@ export const AUTOTILE_SLICE_COUNT = 47;
  *
  * - `idle` — the default, and not one state among the rest. It *is* the tile's
  *   sprite; the others are sparse overrides on it. See {@link TileDef.states}.
- * - `moving` — this body is crossing a cell or falling. Read from the
- *   snapshot's live motion, which the client already interpolates.
+ * - `moving` — this body is crossing a cell. Read from the snapshot's live
+ *   motion, which the client already interpolates. A *fall* is deliberately not
+ *   this: the art is a walk cycle, and legs pumping in mid-air read as a joke.
+ *   A falling body draws idle until a `falling` state exists to draw it.
  *
  * **Every state in this union must be driven by a renderer.** `attacking` and
  * `open` were designed alongside `moving` and are specified in
