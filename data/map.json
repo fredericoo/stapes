@@ -45577,7 +45577,12 @@
           "tileId": "wooden-floor"
         },
         {
-          "tileId": "ladder-up"
+          "tileId": "ladder-up",
+          "teleportTo": {
+            "x": 0,
+            "y": 0,
+            "z": 1
+          }
         }
       ],
       "10,-6": [
@@ -54485,6 +54490,22 @@
         }
       ],
       "20,36": [
+        {
+          "tileId": "grass-2"
+        }
+      ],
+      "20,37": [
+        {
+          "tileId": "ladder-top",
+          "teleportTo": {
+            "x": 0,
+            "y": 0,
+            "z": -1
+          },
+          "description": "It looks like there is a dark cave down there."
+        }
+      ],
+      "20,38": [
         {
           "tileId": "grass-2"
         }
@@ -101238,10 +101259,6 @@
       "-10,55": [
         {
           "tileId": "grass-2"
-        },
-        {
-          "tileId": "player",
-          "direction": "s"
         }
       ],
       "-10,56": [
@@ -114957,11 +114974,15 @@
       ],
       "20,37": [
         {
-          "tileId": "brick-slab"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "stone-stairs",
-          "direction": "s"
+          "tileId": "ladder-up",
+          "teleportTo": {
+            "x": 0,
+            "y": 0,
+            "z": 1
+          }
         }
       ],
       "20,38": [
@@ -114969,7 +114990,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "stone-stairs",
+          "tileId": "player",
           "direction": "s"
         }
       ],

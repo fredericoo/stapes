@@ -7810,6 +7810,13 @@
     "attributes": {},
     "lightPassing": true,
     "intangible": true,
+    "interactions": {
+      "teleport": {
+        "actionName": "Climb down",
+        "trigger": "interactOver",
+        "destination": "relative"
+      }
+    },
     "sprite": {
       "frames": [
         {
@@ -7840,6 +7847,13 @@
     "attributes": {},
     "lightPassing": true,
     "intangible": true,
+    "interactions": {
+      "teleport": {
+        "actionName": "Climb up",
+        "trigger": "interactOver",
+        "destination": "relative"
+      }
+    },
     "sprite": {
       "frames": [
         {
