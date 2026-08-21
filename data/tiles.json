@@ -7273,6 +7273,46 @@
     }
   },
   {
+    "id": "quest-crate",
+    "name": "Supply Crate",
+    "height": 1,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "reward": {
+        "actionName": "Open"
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 12,
+              "y": 8,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 3,
+            "intensity": 0.5,
+            "color": "#ffffff"
+          }
+        }
+      ]
+    }
+  },
+  {
     "id": "berry",
     "name": "Berry",
     "height": 0,
@@ -8231,6 +8271,90 @@
             "radius": 6,
             "intensity": 1,
             "color": "#e14714"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "portal",
+    "name": "Portal",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "intangible": true,
+    "interactions": {
+      "teleport": {
+        "trigger": "step",
+        "destination": {
+          "kind": "absolute"
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 4,
+              "y": 12,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 5,
+            "intensity": 1,
+            "color": "#477eff"
+          }
+        },
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 6,
+              "y": 12,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 6,
+            "intensity": 1,
+            "color": "#477eff"
+          }
+        },
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 8,
+              "y": 12,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 5,
+            "intensity": 1,
+            "color": "#477eff"
           }
         }
       ]
