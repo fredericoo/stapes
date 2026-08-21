@@ -11,6 +11,7 @@ import {
   MAX_WEAPON_DAMAGE,
   MIN_PERCENT_STAT,
   MIN_PROJECTILE_SPEED,
+  reachOf,
 } from "../lib/item";
 import { flightDurationMs } from "../game/projectile";
 import { HEIGHT_PER_LEVEL, type TileDef } from "../lib/types";
@@ -170,8 +171,13 @@ export function WeaponFields({
   statusDefs?: Record<string, StatusDef>;
 }) {
   const projectile = weapon.projectile;
+  // Read through `reachOf` rather than off the draft: an authored weapon that
+  // predates the field has no `reach` at all, and every creature's natural
+  // weapon in `tiles.json` is one. Patching through it too, so half a reach
+  // never reaches the draft.
+  const reach = reachOf(weapon);
   const patchReach = (fields: Partial<Reach>) =>
-    onChange({ reach: { ...weapon.reach, ...fields } });
+    onChange({ reach: { ...reach, ...fields } });
   const patchProjectile = (fields: Partial<ProjectileDef>) =>
     onChange({
       projectile: { ...(projectile ?? STARTER_PROJECTILE), ...fields },
@@ -233,22 +239,22 @@ export function WeaponFields({
         <StatField
           label="Reach"
           hint="How far it carries across the floor, as a radius in cells."
-          value={weapon.reach.cells}
+          value={reach.cells}
           min={0}
           max={MAX_REACH_CELLS}
           step={0.5}
           onChange={(cells) => patchReach({ cells })}
-          readout={describeReachCells(weapon.reach.cells)}
+          readout={describeReachCells(reach.cells)}
         />
         <StatField
           label="Height"
           hint="How far up or down it carries, in height units — two to a level."
-          value={weapon.reach.height}
+          value={reach.height}
           min={0}
           max={MAX_REACH_HEIGHT}
           step={0.5}
           onChange={(height) => patchReach({ height })}
-          readout={describeReachHeight(weapon.reach.height)}
+          readout={describeReachHeight(reach.height)}
         />
       </div>
 
@@ -320,7 +326,7 @@ export function WeaponFields({
               min={MIN_PROJECTILE_SPEED}
               max={MAX_PROJECTILE_SPEED}
               onChange={(cellsPerSecond) => patchProjectile({ cellsPerSecond })}
-              readout={describeFlight(weapon.reach, projectile)}
+              readout={describeFlight(reach, projectile)}
             />
           ) : null}
         </div>

@@ -9,13 +9,16 @@ import {
   MAX_CONTAINER_SIZE,
   MAX_PERCENT_STAT,
   MAX_WEAPON_DAMAGE,
+  MELEE_REACH,
   consumeVerb,
   isItem,
   itemForSave,
   resolveConsumable,
   resolveContainer,
   resolveItem,
+  reachOf,
   resolveWeapon,
+  weaponForSave,
 } from "./item";
 import { resolveBattler } from "./battler";
 import type { TileDef, TileKind } from "./types";
@@ -220,12 +223,67 @@ describe("resolveBattler's kind gate", () => {
   });
 });
 
+/**
+ * The one answer to "what does this draft reach", shared by the fields that
+ * draw it and the save that writes it. Both used to read `weapon.reach`
+ * straight off the draft, and both threw for every weapon in `tiles.json` that
+ * predates the field — which is all of them but the bow.
+ */
+describe("reachOf", () => {
+  it("is an arm's length for a weapon that never named one", () => {
+    const { reach: _absent, ...noReach } = DEFAULT_WEAPON;
+    expect(reachOf(noReach as never)).toEqual(MELEE_REACH);
+  });
+
+  it("is whatever the author named, when they named one", () => {
+    expect(reachOf({ reach: { cells: 6, height: 2 } })).toEqual({
+      cells: 6,
+      height: 2,
+    });
+  });
+
+  /**
+   * A fresh object every call. Handing back the constant would let one weapon's
+   * edit reach through into every other that took the default — the bug
+   * `DEFAULT_WEAPON` spreads `MELEE_REACH` to avoid.
+   */
+  it("never hands back the shared constant", () => {
+    const { reach: _absent, ...noReach } = DEFAULT_WEAPON;
+    expect(reachOf(noReach as never)).not.toBe(MELEE_REACH);
+  });
+
+  /** Half a reach in the draft still comes back whole. */
+  it("fills in the half an unfinished draft is missing", () => {
+    expect(reachOf({ reach: { cells: 4 } as never })).toEqual({
+      cells: 4,
+      height: MELEE_REACH.height,
+    });
+  });
+});
+
 describe("itemForSave", () => {
   it("drops fields belonging to the other arm of the union", () => {
     // What an editor draft looks like after a weapon → container → weapon trip.
     const draft = { ...DEFAULT_WEAPON, size: 4, equippable: true } as never;
     expect(itemForSave(draft)).toEqual(DEFAULT_WEAPON);
     expect(itemForSave(draft)).not.toHaveProperty("size");
+  });
+
+  /**
+   * The draft an editor hands back is the *authored* block, never the parsed
+   * one, so the schema's default for `reach` has not run on it. Every weapon in
+   * `tiles.json` but the bow predates reach moving off the body and omits the
+   * key, so assuming it threw on the way to disk for all of them — and for every
+   * natural weapon, which is saved through the same function.
+   */
+  it("writes an arm's length for a weapon that never named a reach", () => {
+    const { reach: _absent, ...noReach } = DEFAULT_WEAPON;
+    expect(itemForSave(noReach as never)).toEqual(DEFAULT_WEAPON);
+  });
+
+  it("keeps a reach the author did name", () => {
+    const bow = { ...DEFAULT_WEAPON, reach: { cells: 6, height: 2 } };
+    expect(weaponForSave(bow).reach).toEqual({ cells: 6, height: 2 });
   });
 
   it("keeps a container's own fields", () => {
