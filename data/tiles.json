@@ -1944,10 +1944,13 @@
     "interactions": {
       "battler": {
         "masteries": {
-          "fist": 6,
-          "blade": 6,
-          "toughness": 8,
-          "agility": 16
+          "fist": 5,
+          "blade": 5,
+          "blunt": 5,
+          "ranged": 5,
+          "arcane": 5,
+          "toughness": 5,
+          "agility": 10
         },
         "naturalWeapon": {
           "type": "weapon",
@@ -6009,31 +6012,211 @@
     "type": "simple",
     "kind": "item",
     "attributes": {},
+    "lightPassing": true,
     "intangible": true,
     "affectedByGravity": true,
-    "lightPassing": true,
     "interactions": {
       "item": {
         "type": "weapon",
         "damage": 8,
         "def": 0,
+        "accuracy": 86,
+        "variance": 40,
         "spd": 52,
         "mastery": "blade",
         "requirements": {
           "blade": 5
-        },
-        "accuracy": 86,
-        "variance": 40
+        }
       }
     },
     "sprite": {
       "frames": [
         {
           "sprite": {
-            "tilesetId": "tiny-ranch-tiles",
+            "tilesetId": "equipment",
             "rect": {
-              "x": 16,
-              "y": 10,
+              "x": 1,
+              "y": 14,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "simple-axe",
+    "name": "Simple Axe",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "weapon",
+        "damage": 17,
+        "def": 0,
+        "accuracy": 82,
+        "variance": 60,
+        "spd": 42,
+        "mastery": "blade",
+        "requirements": {
+          "blade": 8
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "equipment",
+            "rect": {
+              "x": 0,
+              "y": 25,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "simple-bow",
+    "name": "Simple Bow",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "weapon",
+        "damage": 16,
+        "def": 0,
+        "accuracy": 62,
+        "variance": 75,
+        "spd": 44,
+        "mastery": "ranged",
+        "requirements": {
+          "ranged": 5
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "equipment",
+            "rect": {
+              "x": 21,
+              "y": 25,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "basic-staff",
+    "name": "Basic Staff",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "weapon",
+        "damage": 6,
+        "def": 0,
+        "accuracy": 92,
+        "variance": 10,
+        "spd": 44,
+        "mastery": "arcane",
+        "requirements": {
+          "arcane": 5
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "equipment",
+            "rect": {
+              "x": 12,
+              "y": 31,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "simple-hammer",
+    "name": "Simple Hammer",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "weapon",
+        "damage": 9,
+        "def": 0,
+        "accuracy": 84,
+        "variance": 20,
+        "spd": 46,
+        "mastery": "blunt",
+        "requirements": {
+          "blunt": 5
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "equipment",
+            "rect": {
+              "x": 9,
+              "y": 25,
               "w": 1,
               "h": 1
             },
@@ -6049,7 +6232,7 @@
   },
   {
     "id": "hand-lantern",
-    "name": "Hand Lantern",
+    "name": "Torch",
     "height": 0,
     "type": "simple",
     "kind": "item",
@@ -6062,11 +6245,11 @@
         "type": "weapon",
         "damage": 1,
         "def": 0,
-        "offhand": true,
+        "accuracy": 45,
+        "variance": 70,
         "spd": 40,
         "mastery": "blunt",
-        "accuracy": 45,
-        "variance": 70
+        "offhand": true
       }
     },
     "sprite": {
@@ -7991,8 +8174,8 @@
           "sprite": {
             "tilesetId": "tiny-ranch-tiles",
             "rect": {
-              "x": 18,
-              "y": 8,
+              "x": 19,
+              "y": 14,
               "w": 1,
               "h": 1
             },

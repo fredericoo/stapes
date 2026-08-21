@@ -54,5 +54,12 @@
     "file": "people.png",
     "width": 128,
     "height": 128
+  },
+  {
+    "id": "equipment",
+    "name": "Equipment",
+    "file": "equipment.png",
+    "width": 264,
+    "height": 368
   }
 ]
