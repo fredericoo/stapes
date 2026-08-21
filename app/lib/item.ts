@@ -870,6 +870,24 @@ export function resolveConsumable(def: TileDef): ConsumableItem | null {
  * through it too, and that caller knows it has a weapon — going via the union
  * would hand it back an `ItemDef` it would have to re-narrow for no reason.
  */
+/**
+ * A weapon's reach, with the default the schema would have applied.
+ *
+ * Every weapon reaches — the type says so — but a weapon *draft* need not,
+ * because a draft is the authored block and the schema's default has not run on
+ * it. Nearly every weapon in `tiles.json` predates reach moving off the body and
+ * omits the key, so anything reading `weapon.reach` straight off a draft is
+ * reading `undefined` for almost all of them.
+ *
+ * Its own function rather than a `??` at each site because there are three, in
+ * two modules, and the one that got it wrong was silent until somebody pressed
+ * Save. A fresh object every call, so no two weapons can end up sharing one
+ * mutable block — the same care {@link DEFAULT_WEAPON} takes.
+ */
+export function reachOf(weapon: Pick<WeaponItem, "reach">): Reach {
+  return { ...MELEE_REACH, ...weapon.reach };
+}
+
 export function weaponForSave(weapon: WeaponItem): WeaponItem {
   // Zeroes dropped along with the absent keys, and the whole block dropped when
   // nothing survives: a requirement of zero is not a requirement, and a weapon
@@ -894,7 +912,10 @@ export function weaponForSave(weapon: WeaponItem): WeaponItem {
     // every weapon has an opinion about now, and omitting the melee default
     // would make "an arm's length" and "nobody has said" the same line in the
     // file — which is fine until somebody changes what an arm's length is.
-    reach: { cells: weapon.reach.cells, height: weapon.reach.height },
+    //
+    // Through `reachOf`, because what arrives is the editor's *draft* — the
+    // authored block, never parsed — so the schema's default has not run on it.
+    reach: reachOf(weapon),
     mastery: weapon.mastery,
     ...(weapon.projectile
       ? {
