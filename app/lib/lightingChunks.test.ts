@@ -14,11 +14,19 @@ import {
   ChunkedLighting,
   LIGHT_APRON,
   LIGHT_CHUNK_SIZE,
+  bakeRegion,
   type WorldRect,
 } from "./lightingChunks";
 import { PLAYER_TILE_ID } from "../game/constants";
 import type { MapFile, TileDef } from "./types";
-import { MAX_LEVEL, MIN_LEVEL, levelKey, parseCoordKey } from "./types";
+import {
+  MAX_LEVEL,
+  MIN_LEVEL,
+  coordKey,
+  levelKey,
+  normalizeTileDef,
+  parseCoordKey,
+} from "./types";
 
 const tilesById = Object.fromEntries(
   (tiles as TileDef[]).map((t) => [t.id, t]),
@@ -687,5 +695,73 @@ describe("a flickering emitter", () => {
     const later = chunked.packedGridFor(mapFile, far, FLICKER_FRAME_MS);
     expect(chunked.bakedLastCall).toBe(0);
     expect(later).toBe(first);
+  });
+});
+
+/**
+ * Which chunks a flicker is charged to, at the exact edge of its reach.
+ *
+ * Being charged is not free: it adds an axis to the chunk's phase key, so every
+ * tick of that emitter's cycle is a phase the chunk has never been baked at and
+ * a bake it has to pay for. A chunk the light cannot actually touch must
+ * therefore not be charged — and the light stops one cell short of the radius,
+ * because the flood attenuates by `1 - dist / radius` and drops the remainder.
+ *
+ * Pinned on a map built for it rather than on the fixture, so that moving a
+ * torch in `data/map.json` cannot quietly stop this being covered.
+ */
+describe("a flicker's reach", () => {
+  const RADIUS = 6;
+  /** Last row of chunk (0, 0), the chunk baked below. */
+  const CHUNK_LAST_ROW = LIGHT_CHUNK_SIZE - 1;
+  /** Column the emitter stands in — inside the chunk's span, so only `y` varies. */
+  const EMITTER_X = 4;
+
+  /** Two frames of identical art at different intensities, like the fixture torch. */
+  const flicker = normalizeTileDef({
+    id: "flicker",
+    name: "flicker",
+    height: 0,
+    type: "simple",
+    kind: "prop",
+    attributes: {},
+    sprite: {
+      frames: [1, 0.5].map((intensity) => ({
+        sprite: {
+          tilesetId: "t",
+          rect: { x: 0, y: 0, w: 1, h: 1 },
+          base: { x: 0, y: 0 },
+        },
+        durationMs: 180,
+        light: { radius: RADIUS, intensity, color: "#ffffff" },
+      })),
+    },
+  });
+  const byId: Record<string, TileDef> = { flicker };
+
+  /** The emitters chunk (0, 0) is charged with, for one placed this far south. */
+  function chargedTo(emitterY: number): string[] {
+    const levels: FlatMapFile["levels"] = {
+      [levelKey(0)]: {
+        [coordKey(EMITTER_X, emitterY)]: [{ tileId: "flicker" }],
+      },
+    };
+    const baked = bakeRegion(
+      chunkifyMap({ version: 1, levels }),
+      byId,
+      undefined,
+      { x0: 0, y0: 0, x1: CHUNK_LAST_ROW, y1: CHUNK_LAST_ROW },
+      0,
+    );
+    expect(baked.size, "expected a single chunk to have been baked").toBe(1);
+    return [...baked.values()][0]!.animated;
+  }
+
+  it("charges a chunk it lights, however faintly", () => {
+    expect(chargedTo(CHUNK_LAST_ROW + RADIUS - 1)).toEqual(["flicker"]);
+  });
+
+  it("spares a chunk exactly its radius away, where it is already black", () => {
+    expect(chargedTo(CHUNK_LAST_ROW + RADIUS)).toEqual([]);
   });
 });
