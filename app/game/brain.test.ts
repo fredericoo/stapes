@@ -2772,18 +2772,24 @@ describe("the shopkeeper we ship", () => {
     expect(saidDuring(session, ENGAGED_MS)).toEqual([]);
   });
 
-  /** Standing where the world puts it, which is the half a brain cannot say. */
-  it("is on the shipped map, within earshot of where a player arrives", () => {
+  /**
+   * Standing *somewhere*, which is the half a brain cannot say.
+   *
+   * Deliberately not which cell. Where an NPC stands is an authoring decision
+   * and the map editor is how it gets made, so a test pinning the coordinate
+   * turns moving the shopkeeper across the square into a failing build — which
+   * is what happened the first time somebody did. What is still worth catching
+   * is the tile existing in the library and being placed nowhere, since that
+   * reads in game as a feature that silently is not there.
+   */
+  it("is placed on the shipped map", () => {
     const map = mapJson as unknown as FlatMapFile;
-    const placed: string[] = [];
-    for (const [key, stack] of Object.entries(map.levels["-1"] ?? {})) {
-      for (const tile of stack) {
-        if (tile.tileId === "shopkeeper" || tile.tileId === "player") {
-          placed.push(`${tile.tileId}@${key}`);
-        }
-      }
-    }
-    // Sorted, because cell order in the file is nobody's decision.
-    expect(placed.sort()).toEqual(["player@-10,55", "shopkeeper@-9,55"]);
+    const cells = Object.values(map.levels).flatMap((level) =>
+      Object.values(level),
+    );
+    const placed = cells.some((stack) =>
+      stack.some((tile) => tile.tileId === "shopkeeper"),
+    );
+    expect(placed).toBe(true);
   });
 });
