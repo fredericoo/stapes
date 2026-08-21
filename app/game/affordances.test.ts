@@ -88,6 +88,12 @@ const FULL_KIT: Equipment = {
 
 const ME = { x: 0, y: 0, z: 0 };
 
+/**
+ * Nothing anywhere, so reach comes down to the geometry alone: a board with no
+ * cells has no floor to be on the wrong side of.
+ */
+const OPEN_AIR = emptyMap();
+
 function mapWith(x: number, y: number, tileId: string, z = 0): MapFile {
   return replaceStack(emptyMap(), x, y, z, [
     { tileId: "grass" },
@@ -113,7 +119,7 @@ describe("withinReach", () => {
       [-1, -1],
     ];
     for (const [x, y] of inReach) {
-      expect(withinReach(ME, ref(x, y))).toBe(true);
+      expect(withinReach(OPEN_AIR, tilesById, ME, ref(x, y))).toBe(true);
     }
   });
 
@@ -126,7 +132,7 @@ describe("withinReach", () => {
       [-2, 0],
     ];
     for (const [x, y] of outOfReach) {
-      expect(withinReach(ME, ref(x, y))).toBe(false);
+      expect(withinReach(OPEN_AIR, tilesById, ME, ref(x, y))).toBe(false);
     }
   });
 
@@ -137,9 +143,39 @@ describe("withinReach", () => {
   });
 
   it("reaches one floor up and down, and no further", () => {
-    expect(withinReach(ME, ref(1, 0, 1))).toBe(true);
-    expect(withinReach(ME, ref(1, 0, -1))).toBe(true);
-    expect(withinReach(ME, ref(1, 0, 2))).toBe(false);
+    expect(withinReach(OPEN_AIR, tilesById, ME, ref(1, 0, 1))).toBe(true);
+    expect(withinReach(OPEN_AIR, tilesById, ME, ref(1, 0, -1))).toBe(true);
+    expect(withinReach(OPEN_AIR, tilesById, ME, ref(1, 0, 2))).toBe(false);
+  });
+
+  /**
+   * The reason the floor of slack is not enough on its own: a supply crate on
+   * the level below, under the ground you are standing on, offering itself
+   * through a metre of earth.
+   */
+  it("refuses a thing one floor down with ground laid over it", () => {
+    const roofed = replaceStack(mapWith(1, 0, "chest", -1), 1, 0, 0, [
+      { tileId: "grass" },
+    ]);
+    expect(withinReach(roofed, tilesById, ME, ref(1, 0, -1))).toBe(false);
+  });
+
+  /** And the case the slack exists for: the same crate, down an open shaft. */
+  it("still reaches down where that ground is missing", () => {
+    const open = mapWith(1, 0, "chest", -1);
+    expect(withinReach(open, tilesById, ME, ref(1, 0, -1))).toBe(true);
+  });
+
+  /**
+   * Sideways is untouched. A look never tests its own endpoints, so what you
+   * are standing beside stays within arm's length, wall or no wall.
+   */
+  it("reaches across its own floor whatever is standing in the way", () => {
+    const walled = replaceStack(mapWith(1, 0, "chest"), 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "wall" },
+    ]);
+    expect(withinReach(walled, tilesById, ME, ref(1, 0))).toBe(true);
   });
 });
 

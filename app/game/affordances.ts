@@ -202,12 +202,38 @@ export const REACH_CELLS = 1.5;
 
 const REACH_CELLS_SQUARED = REACH_CELLS * REACH_CELLS;
 
-/** Is this object close enough to reach, in plan and in floors? */
-export function withinReach(actor: Actor, ref: ObjectRef): boolean {
+/**
+ * Can this actor actually put a hand on the object?
+ *
+ * {@link REACH_CELLS} of plan distance, a floor of slack either way, **and
+ * nothing solid in between** — and the last of those is the one that has to be
+ * asked of the board rather than of the coordinates.
+ * {@link INTERACT_LEVEL_SLACK} is there so you can crouch at the lip of a ledge
+ * and take what is lying below it; on its own it also opened a crate buried
+ * under the ground you were standing on, which reads as reaching through solid
+ * earth because that is exactly what it was.
+ *
+ * {@link hasLineOfSight} answers it, rather than a fresh test for a floor in the
+ * way, because it is the same question {@link dropDestinationAt} already asks of
+ * the same slack: a cell you can lob a torch into is one you could have touched
+ * had it been nearer. Sharing the question means a reach and a throw can never
+ * disagree about which floors are joined.
+ *
+ * **Reaching sideways is untouched.** A look never tests its own endpoints — see
+ * `./sight` — so the chest beside you is still the chest beside you, wall or no
+ * wall, and only crossing a floor can now be refused.
+ */
+export function withinReach(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  ref: ObjectRef,
+): boolean {
   if (Math.abs(ref.z - actor.z) > INTERACT_LEVEL_SLACK) return false;
   const dx = ref.x - actor.x;
   const dy = ref.y - actor.y;
-  return dx * dx + dy * dy <= REACH_CELLS_SQUARED;
+  if (dx * dx + dy * dy > REACH_CELLS_SQUARED) return false;
+  return hasLineOfSight(map, tilesById, actor, ref);
 }
 
 /**
@@ -289,7 +315,7 @@ export function reachableItemDefAt(
   actor: Actor,
   ref: ObjectRef,
 ): TileDef | null {
-  if (!withinReach(actor, ref)) return null;
+  if (!withinReach(map, tilesById, actor, ref)) return null;
   const stack = getStack(map, ref.x, ref.y, ref.z);
   if (coveredBySomething(stack, ref.stackIndex, tilesById)) return null;
   const placed = stack[ref.stackIndex];
@@ -586,7 +612,7 @@ export function reachableRewardAt(
   actor: Actor,
   ref: ObjectRef,
 ): PlacedReward | null {
-  if (!withinReach(actor, ref)) return null;
+  if (!withinReach(map, tilesById, actor, ref)) return null;
   const stack = getStack(map, ref.x, ref.y, ref.z);
   if (coveredBySomething(stack, ref.stackIndex, tilesById)) return null;
   const placed = stack[ref.stackIndex];
@@ -681,7 +707,7 @@ export function reachableTransmuteAt(
   actor: Actor,
   ref: ObjectRef,
 ): TransmuteInteraction | null {
-  if (!withinReach(actor, ref)) return null;
+  if (!withinReach(map, tilesById, actor, ref)) return null;
   const stack = getStack(map, ref.x, ref.y, ref.z);
   if (coveredBySomething(stack, ref.stackIndex, tilesById)) return null;
   const placed = stack[ref.stackIndex];
