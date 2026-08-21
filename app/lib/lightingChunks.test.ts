@@ -22,6 +22,7 @@ import type { MapFile, TileDef } from "./types";
 import {
   MAX_LEVEL,
   MIN_LEVEL,
+  allTileSprites,
   coordKey,
   levelKey,
   normalizeTileDef,
@@ -107,6 +108,207 @@ describe("chunked lighting", () => {
       differing,
       `${differing}/${compared} samples differ, max delta ${maxDelta.toFixed(1)}/255`,
     ).toBe(0);
+  });
+
+  /**
+   * The apron is only a sound crop while nothing can reach past it, and
+   * `LightDef.radius` is an unbounded field — so the guarantee lives in
+   * `clampTileLight`, and these are the tests that hold it there. Without the
+   * clamp an authored radius-25 lamp lights its own chunk, stops dead at the
+   * edge of the next, and nothing anywhere throws.
+   */
+  describe("an authored radius cannot outrun the apron", () => {
+    const sprite = {
+      tilesetId: "tiny-ranch-tiles",
+      rect: { x: 0, y: 0, w: 1, h: 1 },
+      base: { x: 0, y: 0 },
+    };
+    const WILD_RADIUS = LIGHT_APRON + 10;
+    const wildLight = {
+      radius: WILD_RADIUS,
+      intensity: 1,
+      color: "#ffffff",
+    };
+    const base = {
+      name: "Test",
+      type: "simple",
+      kind: "prop",
+      attributes: {},
+      lightPassing: true,
+      intangible: true,
+    } as const;
+
+    /** Every emitting frame this def holds, across every sprite state. */
+    function radiiOf(def: TileDef): number[] {
+      return allTileSprites(def).flatMap((s) =>
+        s.frames.flatMap((f) => (f.light ? [f.light.radius] : [])),
+      );
+    }
+
+    it("clamps a radius past the cap on load", () => {
+      const def = normalizeTileDef({
+        ...base,
+        id: "wild",
+        height: 1,
+        sprite: { frames: [{ sprite, durationMs: 100, light: wildLight }] },
+      });
+      expect(radiiOf(def)).toEqual([LIGHT_APRON]);
+    });
+
+    /**
+     * A lantern that only glows while carried lives under `states`, which is a
+     * second place frames hide — and the one a clamp written against the inline
+     * sprite alone would walk straight past.
+     */
+    it("clamps a radius on a non-idle sprite state too", () => {
+      const def = normalizeTileDef({
+        ...base,
+        id: "wild-carried",
+        height: 1,
+        sprite: { frames: [{ sprite, durationMs: 100 }] },
+        states: {
+          carried: {
+            sprite: { frames: [{ sprite, durationMs: 100, light: wildLight }] },
+          },
+        },
+      });
+      expect(radiiOf(def)).toEqual([LIGHT_APRON]);
+    });
+
+    /** The legacy shape carries one light for the whole tile, not per frame. */
+    it("clamps a radius arriving in the legacy tile shape", () => {
+      const def = normalizeTileDef({
+        id: "wild-legacy",
+        name: "Test",
+        height: 1,
+        kind: "prop",
+        variants: { default: [{ sprite, durationMs: 100 }] },
+        light: wildLight,
+      });
+      expect(radiiOf(def)).toEqual([LIGHT_APRON]);
+    });
+
+    it("leaves a radius inside the cap exactly as authored", () => {
+      const def = normalizeTileDef({
+        ...base,
+        id: "tame",
+        height: 1,
+        sprite: {
+          frames: [
+            { sprite, durationMs: 100, light: { ...wildLight, radius: 6 } },
+          ],
+        },
+      });
+      expect(radiiOf(def)).toEqual([6]);
+    });
+
+    /**
+     * What the shipped catalogue actually holds, asserted so the cap stays a
+     * fact rather than an intention. Every emitter here is well inside it —
+     * the widest is a torch at 8 — which is why introducing the clamp changed
+     * not one baked byte.
+     */
+    it("leaves every shipped tile untouched", () => {
+      for (const def of Object.values(tilesById)) {
+        for (const radius of radiiOf(def)) {
+          expect(radius, `${def.id} emits past the apron`).toBeLessThanOrEqual(
+            LIGHT_APRON,
+          );
+        }
+      }
+    });
+
+    /**
+     * The behaviour all of the above is for: a lamp authored far past the cap
+     * still lights a chunk it does not stand in, exactly as the monolithic bake
+     * does.
+     *
+     * Synthetic on both halves deliberately. A bare floor gives the light
+     * somewhere to travel — dropped onto `data/map.json` the lamp would most
+     * likely land against a wall and the test would pass either way — and the
+     * lamp stands `LIGHT_APRON` + 2 cells from the target chunk's edge, which is
+     * the only band that discriminates: near enough that an unclamped radius
+     * would reach in, far enough that the chunk's own crop never reads it.
+     */
+    it("bakes a chunk the lamp does not stand in, cell for cell", () => {
+      const floor: TileDef = normalizeTileDef({
+        ...base,
+        id: "test-floor",
+        height: 0,
+        sprite: { frames: [{ sprite, durationMs: 100 }] },
+      });
+      const lamp: TileDef = normalizeTileDef({
+        ...base,
+        id: "test-wide-lamp",
+        height: 1,
+        sprite: { frames: [{ sprite, durationMs: 100, light: wildLight }] },
+      });
+      const defs: Record<string, TileDef> = {
+        ...tilesById,
+        [floor.id]: floor,
+        [lamp.id]: lamp,
+      };
+
+      const target: WorldRect = {
+        x0: 0,
+        y0: 0,
+        x1: LIGHT_CHUNK_SIZE - 1,
+        y1: LIGHT_CHUNK_SIZE - 1,
+      };
+      const lampAt = { x: -(LIGHT_APRON + 2), y: 8 };
+
+      const cells: Record<string, { tileId: string }[]> = {};
+      for (let y = -LIGHT_CHUNK_SIZE; y < LIGHT_CHUNK_SIZE * 2; y++) {
+        for (let x = -LIGHT_CHUNK_SIZE; x < LIGHT_CHUNK_SIZE * 2; x++) {
+          cells[coordKey(x, y)] = [{ tileId: floor.id }];
+        }
+      }
+      cells[coordKey(lampAt.x, lampAt.y)] = [
+        { tileId: floor.id },
+        { tileId: lamp.id },
+      ];
+      const lit = chunkifyMap({
+        version: 1,
+        levels: { [levelKey(0)]: cells },
+      } as unknown as FlatMapFile);
+
+      const mono = computeLighting(lit, defs, ambient, undefined, omit);
+      // One chunk, baked alone with its own crop — the shape a player walking
+      // towards the lamp actually gets.
+      const chunked = new ChunkedLighting(defs, omit);
+      const grid = chunked.gridFor(lit, ambient, target);
+
+      const monoLevel = mono.levels.get(0);
+      const chunkLevel = grid.levels.get(0);
+      expect(monoLevel).toBeDefined();
+      expect(chunkLevel).toBeDefined();
+
+      let differing = 0;
+      let maxDelta = 0;
+      let brightest = 0;
+      for (let y = target.y0; y <= target.y1; y++) {
+        for (let x = target.x0; x <= target.x1; x++) {
+          const a = sampleLevelLight(monoLevel!, x, y);
+          const b = sampleLevelLight(chunkLevel!, x, y);
+          for (let c = 0; c < 3; c++) {
+            if (a[c]! > brightest) brightest = a[c]!;
+            const d = Math.abs(a[c]! - b[c]!) * 255;
+            if (d > 0.5) differing++;
+            if (d > maxDelta) maxDelta = d;
+          }
+        }
+      }
+
+      // Light has to reach the chunk at all, or the comparison holds vacuously.
+      expect(
+        brightest,
+        "lamp light never reached the chunk under test",
+      ).toBeGreaterThan(0);
+      expect(
+        differing,
+        `${differing} samples differ, max delta ${maxDelta.toFixed(1)}/255`,
+      ).toBe(0);
+    });
   });
 
   it("serves a second identical request entirely from cache", () => {
