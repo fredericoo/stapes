@@ -6116,6 +6116,14 @@
         "mastery": "ranged",
         "requirements": {
           "ranged": 5
+        },
+        "reach": {
+          "cells": 6,
+          "height": 2
+        },
+        "projectile": {
+          "tileId": "arrow",
+          "speedPxPerMs": 0.03
         }
       }
     },
@@ -8283,6 +8291,178 @@
           }
         }
       ]
+    }
+  },
+  {
+    "id": "arrow",
+    "name": "Arrow",
+    "height": 0,
+    "type": "directional8",
+    "kind": "prop",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "projectiles",
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "ne": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "projectiles",
+              "rect": {
+                "x": 1,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "projectiles",
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "se": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "projectiles",
+              "rect": {
+                "x": 3,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "projectiles",
+              "rect": {
+                "x": 4,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "sw": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "projectiles",
+              "rect": {
+                "x": 5,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "projectiles",
+              "rect": {
+                "x": 6,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "nw": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "projectiles",
+              "rect": {
+                "x": 7,
+                "y": 0,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
     }
   },
   {

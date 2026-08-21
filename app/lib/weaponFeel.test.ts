@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { MELEE_REACH } from "./item";
 import {
   learningRate,
   MASTERY_BRIDGE,
@@ -152,6 +153,7 @@ function weaponTile(requirements: Record<string, number> | undefined): TileDef {
         spd: 50,
         accuracy: 80,
         variance: 20,
+        reach: MELEE_REACH,
         mastery: "blade",
         ...(requirements ? { requirements } : {}),
       },

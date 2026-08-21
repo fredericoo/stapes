@@ -48,6 +48,20 @@ const coordSchema = v.object({
   z: v.number(),
 });
 
+/**
+ * An end of a projectile's flight: a cell on the plan and an absolute height.
+ *
+ * Not a {@link coordSchema}, and the difference is the whole reason a shot can
+ * be aimed at somebody standing on a crate: `z` names a floor, and a body half a
+ * level up is on the same floor as the one that shot at it. See
+ * `../game/distance`, which measures reach in these and never in floors.
+ */
+const flightPointSchema = v.object({
+  x: v.number(),
+  y: v.number(),
+  elevAbs: v.number(),
+});
+
 const objectRefSchema = v.object({
   x: v.number(),
   y: v.number(),
@@ -325,6 +339,45 @@ export type MotionEvent =
    * its target off the board on the same tick: by the time this is drawn there
    * may be nobody by that name left to ask where they were standing.
    */
+  /**
+   * A shot was loosed.
+   *
+   * **Its own event rather than a flag on `damage`, on exactly the terms
+   * `strikeStarted` is one.** The two are not the same fact: a melee blow floats
+   * a number and puts nothing in the air, and a shot that killed its target
+   * floats a number over a body that is already gone while the arrow carries on
+   * to where it was standing. One is what the blow came to; the other is what it
+   * looked like.
+   *
+   * Carries no actor id at either end, and that is the same reasoning
+   * `strikeStarted` carries a delta rather than a target: by the time this is
+   * drawn there may be nobody at either end to look up. What it carries is two
+   * fixed points and a duration, which is everything the flight needs and
+   * nothing that can go stale.
+   *
+   * **The damage for this shot is in the same frame, already settled.** The
+   * arrow is a receipt arriving late and can never contradict it — see
+   * `../game/projectile` for why that is the only arrangement two clients can
+   * agree about.
+   */
+  | {
+      kind: "projectileFired";
+      id: string;
+      /** The tile drawn in flight — a `directional8` one. */
+      tileId: string;
+      /** Cell on the plan and absolute height, at each end. */
+      from: { x: number; y: number; elevAbs: number };
+      to: { x: number; y: number; elevAbs: number };
+      /**
+       * How long the whole flight takes.
+       *
+       * Sent rather than re-derived from the weapon's speed, because the
+       * receiver may not be able to: the shooter can drop the bow, or die, in
+       * the same frame this arrives. What is in the air owes nothing to what
+       * fired it.
+       */
+      durationMs: number;
+    }
   | {
       kind: "damage";
       id: string;
@@ -965,6 +1018,14 @@ const serverMessageSchema = v.variant("type", [
           dx: v.number(),
           dy: v.number(),
           dElev: v.number(),
+        }),
+        v.object({
+          kind: v.literal("projectileFired"),
+          id: v.string(),
+          tileId: v.string(),
+          from: flightPointSchema,
+          to: flightPointSchema,
+          durationMs: v.number(),
         }),
         v.object({
           kind: v.literal("joined"),

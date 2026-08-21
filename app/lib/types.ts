@@ -5,6 +5,76 @@ export type Direction = "n" | "e" | "s" | "w";
 
 export const DIRECTIONS: Direction[] = ["n", "e", "s", "w"];
 
+/**
+ * A bearing on the plan, to the nearest eighth — the four {@link Direction}s
+ * plus the four corners between them.
+ *
+ * **A superset of {@link Direction} rather than a parallel type**, and that
+ * containment is what keeps it cheap. A placement still faces one of four ways,
+ * because walking is four ways and facing follows walking; an eight-way tile
+ * placed on the map is simply asked for the cardinal it is facing, and answers.
+ * Nothing about climbing, movement or the editor's facing control had to learn a
+ * new vocabulary — only the sprite lookup, which is the one thing that actually
+ * varies by eighths.
+ *
+ * It exists for things that travel on an arbitrary bearing rather than walking
+ * on a grid. An arrow is the first: a shot at somebody two cells east and five
+ * north is going *somewhere between* north and north-east, and a four-way sprite
+ * would draw it pointing at neither. See `./item`'s `ProjectileDef`.
+ */
+export type Octant =
+  | "n"
+  | "ne"
+  | "e"
+  | "se"
+  | "s"
+  | "sw"
+  | "w"
+  | "nw";
+
+/**
+ * Every bearing, in clockwise screen order starting at north.
+ *
+ * The order is load-bearing rather than tidy: whatever picks an octant from an
+ * angle indexes this, so a list in some other order would rotate every arrow in
+ * the game by however far it was shuffled.
+ */
+export const OCTANTS: Octant[] = [
+  "n",
+  "ne",
+  "e",
+  "se",
+  "s",
+  "sw",
+  "w",
+  "nw",
+];
+
+/**
+ * The cardinal an eighth is nearest to, for a tile that only authored four.
+ *
+ * A corner is equidistant between the two cardinals it sits between, so the
+ * choice is arbitrary and is settled here once — clockwise, so north-east reads
+ * as east — rather than being re-guessed by every fallback that needs it. What
+ * matters is that it is the *same* arbitrary answer everywhere, since two
+ * spellings would make one sprite lookup disagree with another about which way
+ * a half-authored tile is facing.
+ */
+const NEAREST_CARDINAL: Record<Octant, Direction> = {
+  n: "n",
+  ne: "e",
+  e: "e",
+  se: "s",
+  s: "s",
+  sw: "w",
+  w: "w",
+  nw: "n",
+};
+
+export function nearestCardinal(octant: Octant): Direction {
+  return NEAREST_CARDINAL[octant];
+}
+
 export type CellRect = {
   x: number;
   y: number;
@@ -43,9 +113,25 @@ export type TileSprite = {
 /** 0 = flat, 1 = half level, 2 = full level. */
 export type TileHeight = 0 | 1 | 2;
 
-export type TileType = "simple" | "directional" | "autotile";
+/**
+ * Which axis a tile's art varies along.
+ *
+ * `directional8` is `directional` with four more keys and no other difference —
+ * same field, same lookup, same climb variants, same everything. It is a
+ * separate *type* rather than a flag because the editor has to know how many
+ * squares to offer and a sprite scan has to know how many keys to walk, and
+ * both of those are questions about what the tile is rather than about what
+ * happens to be authored on it. A four-way tile with a stray `ne` sprite in the
+ * file is a four-way tile.
+ */
+export type TileType = "simple" | "directional" | "directional8" | "autotile";
 
-export const TILE_TYPES: TileType[] = ["simple", "directional", "autotile"];
+export const TILE_TYPES: TileType[] = [
+  "simple",
+  "directional",
+  "directional8",
+  "autotile",
+];
 
 /**
  * What a tile *is*, as opposed to what it does.
@@ -131,8 +217,16 @@ export type OverrideSpriteState = Exclude<SpriteState, "idle">;
 export type StateSprites = {
   /** type === "simple" */
   sprite?: TileSprite;
-  /** type === "directional" */
-  sprites?: Partial<Record<Direction, TileSprite>>;
+  /**
+   * type === "directional" (four keys) or "directional8" (eight).
+   *
+   * One field for both, because they are one axis at two resolutions: an octant
+   * *is* a direction where the two overlap, so a lookup written for four keys
+   * reads eight without noticing. Two fields would be two places for a rename to
+   * miss, and a tile switched from four ways to eight would lose the art it
+   * already had.
+   */
+  sprites?: Partial<Record<Octant, TileSprite>>;
   /** type === "autotile" — sparse 0..46 */
   slices?: Partial<Record<AutotileSlice, TileSprite>>;
 };
@@ -291,8 +385,26 @@ const OPEN_CLIMB: Record<Direction, boolean> = {
   w: true,
 };
 
+/**
+ * Does this tile's art vary by which way it faces?
+ *
+ * True of both resolutions, which is what lets everything downstream of facing —
+ * climb variants above all — stay written in four cardinals. An eight-way tile
+ * is still placed facing one of four ways; only its sprite table is wider.
+ */
 export function isDirectional(def: TileDef): boolean {
-  return def.type === "directional";
+  return def.type === "directional" || def.type === "directional8";
+}
+
+/**
+ * The sprite keys this tile's art is authored under.
+ *
+ * The one place the two resolutions are told apart, so a scan that walks every
+ * sprite on a def — for animation, for light, for the editor — cannot quietly
+ * stop at four keys on a tile that has eight.
+ */
+export function facingKeysFor(def: TileDef): readonly Octant[] {
+  return def.type === "directional8" ? OCTANTS : DIRECTIONS;
 }
 
 /** World climb-from flags for a variant; missing dirs default to true. */
@@ -544,7 +656,14 @@ export function clampLevel(z: number): number {
 export type TileResolveContext = {
   /** How this placement looks right now. Absent → {@link SpriteState} `idle`. */
   state?: SpriteState;
-  direction?: Direction;
+  /**
+   * Which way this is facing. An {@link Octant} rather than a {@link Direction},
+   * since the two overlap: a placement supplies one of four and something
+   * travelling on a bearing supplies one of eight, and the lookup is the same
+   * lookup either way. @see resolveTileSprite for what a tile with fewer
+   * sprites than the asker has bearings falls back to.
+   */
+  direction?: Octant;
   /** Required for autotile neighbor matching. */
   map?: MapFile;
   x?: number;
@@ -654,10 +773,10 @@ function stateSpritesOn(tile: TileDef, from: StateSprites): TileSprite[] {
   if (tile.type === "simple") {
     return from.sprite ? [from.sprite] : [];
   }
-  if (tile.type === "directional") {
-    return DIRECTIONS.map((d) => from.sprites?.[d]).filter(
-      (s): s is TileSprite => s != null,
-    );
+  if (isDirectional(tile)) {
+    return facingKeysFor(tile)
+      .map((d) => from.sprites?.[d])
+      .filter((s): s is TileSprite => s != null);
   }
   if (!from.slices) return [];
   return Object.values(from.slices).filter((s): s is TileSprite => s != null);

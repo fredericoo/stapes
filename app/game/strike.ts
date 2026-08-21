@@ -8,8 +8,9 @@
  *
  * Two movements, and they are opposites of each other:
  *
- * - **A swing throws the attacker forward.** Owed for every blow struck within
- *   arm's reach, whatever it came to — see {@link swingToward}.
+ * - **A swing throws the attacker forward.** Owed for every blow struck with a
+ *   melee weapon within arm's reach, whatever it came to — see
+ *   {@link swingToward}. A bow owes none: what it throws is the arrow.
  * - **A dodge throws the defender back.** The blow that was avoided, said with
  *   the body instead of with a word — see {@link dodgeAway}.
  *
@@ -21,26 +22,24 @@
  * already is.
  */
 
-import { DEFAULT_MELEE_RANGE } from "../lib/battler";
+import { MELEE_REACH } from "../lib/item";
 import { withinReach, type ReachPoint } from "./distance";
 
 /**
  * How close the target has to be for the attacker to throw itself at them.
  *
- * **The melee box, exactly** — the eight cells around you plus half a level
- * either way, which is the shape `DEFAULT_MELEE_RANGE` was chosen to draw. Any
- * shorter and there is a body you are plainly standing next to that you swing at
- * without moving: a foe on the diagonal *and* up on a crate is 1.73 away in a
- * metric where height costs a whole cell, so a band of 1.5 would have left that
- * one blow leanless while its two neighbours leaned.
+ * **The melee shape, exactly** — the eight cells around you plus half a level
+ * either way. Shared with the reach rather than a number of its own, and that is
+ * the point: a swing you can make by reaching is a swing you should be seen
+ * reaching for. What it excludes is everything past arm's length, whatever put
+ * the blow there — a spear authored to reach three cells lands a blow at three
+ * cells, and leaning half a tile at it would claim a contact that never
+ * happened.
  *
- * Shared with the reach rather than a number of its own, and that is the point:
- * a swing you can make by reaching is a swing you should be seen reaching for.
- * What it deliberately excludes is everything past arm's length — a bow's blow
- * lands from five cells away and leaning half a tile at it would claim a contact
- * that never happened.
+ * It is the *second* of the two gates on a lean, and the weaker one. The first
+ * is what the weapon is: see {@link swingToward}.
  */
-export const STRIKE_RANGE_CELLS = DEFAULT_MELEE_RANGE;
+export const STRIKE_REACH = MELEE_REACH;
 
 /**
  * A body part-way through throwing itself at somebody.
@@ -91,30 +90,51 @@ export type StrikeKind = "swing" | "dodge";
 export const STRIKE_KINDS: StrikeKind[] = ["swing", "dodge"];
 
 /**
- * The lean one body owes for swinging at another, or null for a blow struck
- * from too far away to lean into.
+ * The lean one body owes for swinging at another, or null for a blow nobody
+ * leans into.
+ *
+ * ## Two ways to owe nothing, and the first is the weapon
+ *
+ * **A ranged weapon never leans, however close its target is.** Not "rarely",
+ * and not "only past arm's length": an archer with somebody in their face still
+ * looses an arrow, and lunging at them would be the animation claiming a blow
+ * that the arrow is on its way to deliver. Gating this on distance alone was the
+ * shape while every weapon was a fist — it read correctly because a bow's target
+ * was always far away — and it fails the moment anybody backs a bowman into a
+ * corner. What a body does with a blow is decided by what it is holding, so that
+ * is what this asks first.
+ *
+ * The distance gate stays behind it and still earns its place: a *melee* weapon
+ * authored to reach three cells lands blows at three cells, and half a tile of
+ * lean at that range claims a contact that never happened.
  *
  * Null also for a swing at something in the exact same place, which is not a
  * defensive nicety: two bodies in one cell at one elevation give a direction of
  * nothing, and a lean of zero pixels is a frame of animation that says less than
  * no animation at all.
+ *
+ * @param ranged whether the weapon puts something in the air — see
+ *   `../lib/item`'s `isRanged`, which is the only place that question is decided.
  */
 export function swingToward(
   from: ReachPoint,
   to: ReachPoint,
+  ranged: boolean,
 ): StrikeState | null {
-  if (!withinReach(from, to, STRIKE_RANGE_CELLS)) return null;
+  if (ranged) return null;
+  if (!withinReach(from, to, STRIKE_REACH)) return null;
   return leanBetween("swing", from, to);
 }
 
 /**
  * The hop a body makes getting out of the way of a blow.
  *
- * **Not gated on range, unlike a swing**, and that asymmetry is the point: this
- * is now the only account of a dodge anybody gets, so an arrow avoided at five
- * cells has to show something or the shot simply vanishes. A swing is gated
- * because a lunge claims a *contact*; a hop backwards claims nothing except that
- * something came from that direction, which is as true of an arrow as of a fist.
+ * **Gated on neither range nor the weapon, unlike a swing**, and that asymmetry
+ * is the point: this is the only account of a dodge anybody gets, so an arrow
+ * avoided at five cells has to show something or the shot simply vanishes. A
+ * swing is gated because a lunge claims a *contact*; a hop backwards claims
+ * nothing except that something came from that direction, which is as true of an
+ * arrow as of a fist.
  *
  * The delta runs from the attacker to the defender, so the defender travels
  * along it — away.

@@ -7,7 +7,7 @@ import {
   maxHpFrom,
   resolveBattler,
 } from "../lib/battler";
-import { DEFAULT_CONTAINER, DEFAULT_WEAPON } from "../lib/item";
+import { DEFAULT_CONTAINER, DEFAULT_WEAPON, MELEE_REACH } from "../lib/item";
 import type { TileDef } from "../lib/types";
 import { normalizeTileDef, normalizeTiles } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
@@ -38,6 +38,7 @@ const CLAWS = {
   accuracy: 44,
   variance: 35,
   spd: 33,
+  reach: MELEE_REACH,
   mastery: "fist",
 } as const;
 
@@ -129,9 +130,12 @@ describe("effectiveBattler", () => {
     }
   });
 
-  it("keeps the body's own reach and sight", () => {
+  it("takes its reach from the weapon and its sight from the body", () => {
     const out = effectiveBattler(base, null, lightTiles);
-    expect(out.range).toBe(base.range);
+    // The natural weapon's, because that is what an empty hand swings — and the
+    // whole of why reach moved off the body: a bow in that hand would answer
+    // differently, where a tile-level number could not.
+    expect(out.reach).toEqual(base.naturalWeapon.reach);
     expect(out.sight).toEqual(base.sight);
   });
 

@@ -31,6 +31,13 @@ type Props = {
    * which case the section says so instead of offering an empty dropdown.
    */
   statusDefs?: Record<string, StatusDef>;
+  /**
+   * The whole library, handed through to the weapon fields so a bow can be
+   * pointed at the arrow it fires. Here for the same reason the Battle tab
+   * carries it: the picker needs the catalogue, and this tab is the only thing
+   * between it and the dialog that has one.
+   */
+  tiles: TileDef[];
 };
 
 const TYPE_OPTIONS: Array<{ value: ItemType; label: string }> = [
@@ -47,7 +54,7 @@ const TYPE_OPTIONS: Array<{ value: ItemType; label: string }> = [
  * rather than deciding it. Like that tab it has no on/off switch — it is only
  * ever shown for a tile whose kind is already `item`.
  */
-export function ItemTab({ draft, onChange, statusDefs = {} }: Props) {
+export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
   const item = draft.interactions?.item ?? DEFAULT_WEAPON;
 
   const setItem = (next: ItemDef) => {
@@ -125,6 +132,7 @@ export function ItemTab({ draft, onChange, statusDefs = {} }: Props) {
               weapon={item}
               onChange={patchWeapon}
               masteryHint="Which mastery scales this weapon — and which one the wielder earns by swinging it."
+              tiles={tiles}
             />
 
             <label className="flex items-start gap-2 text-xs">

@@ -2,6 +2,9 @@ import * as v from "valibot";
 import {
   DEFAULT_WEAPON,
   MAX_PERCENT_STAT,
+  MELEE_REACH,
+  type ProjectileDef,
+  type Reach,
   weaponSchema,
   type WeaponItem,
 } from "./item";
@@ -59,20 +62,6 @@ export type BattlerDef = {
    * `../game/equipment`.
    */
   naturalWeapon: WeaponItem;
-  /**
-   * How far a blow reaches, in cells, as a radius rather than a square.
-   *
-   * Measured in three dimensions with height costing a whole cell per unit —
-   * see `../game/distance`, which is also where the odd-looking default is
-   * argued. The short version: at {@link DEFAULT_MELEE_RANGE} the sphere is
-   * exactly the eight cells around you plus half a level either way, and the
-   * numbers that produce that shape have room on both sides.
-   *
-   * On the body rather than on the weapon, which is arguably the wrong home and
-   * is left alone deliberately: once ranged weapons exist a bow's reach is the
-   * bow's, and moving it then is one migration instead of two.
-   */
-  range: number;
   /**
    * Floors this creature bothers to look up and down.
    *
@@ -157,19 +146,28 @@ export type FightingStats = {
    * coin toss, and neither end ever reaches certainty.
    */
   flee: number;
-  range: number;
+  /**
+   * How far this body's blow carries — the weapon's, not the body's.
+   *
+   * It used to be {@link BattlerDef.range}, authored on the tile, and that field
+   * is gone rather than deprecated. A body has no reach of its own: bare hands
+   * are a weapon, a bite is a weapon, and each carries the distance it works at.
+   * A rat that picks up a bow shoots as far as the bow carries.
+   */
+  reach: Reach;
+  /**
+   * What this body's weapon puts in the air, or null for one that reaches its
+   * target itself.
+   *
+   * Carried here rather than looked up again where it is needed, because the two
+   * things that read it — whether to lean, and what to draw in flight — both run
+   * on the tick of a swing that has already resolved the weapon once. Asking the
+   * catalogue twice is how the lean and the arrow come to disagree about whether
+   * a blow was a shot.
+   */
+  projectile: ProjectileDef | null;
   sight: { up: number; down: number };
 };
-
-/**
- * Melee: the eight cells around you, half a level up and half a level down.
- *
- * √3 is the corner of that box and 2 is the first cell outside it, so anything
- * in `[1.733, 2)` draws exactly this shape. This is the midpoint of that band in
- * the squared terms the comparison actually runs in — `3.5` between `3` and `4`
- * — which is as far from either wall as the shape allows. See `../game/distance`.
- */
-export const DEFAULT_MELEE_RANGE = 1.87;
 
 /**
  * Hit points a body has before Toughness adds any.
@@ -311,8 +309,7 @@ export function hitChanceFrom(ratio: number, accuracy: number): number {
  */
 export const DEFAULT_BATTLER: BattlerDef = {
   masteries: { fist: 8, toughness: 8, agility: 8 },
-  naturalWeapon: { ...DEFAULT_WEAPON, mastery: "fist" },
-  range: DEFAULT_MELEE_RANGE,
+  naturalWeapon: { ...DEFAULT_WEAPON, mastery: "fist", reach: { ...MELEE_REACH } },
   sight: { up: 0, down: 0 },
   // Nothing, because what a body carries is the one part of it an author has to
   // decide: a default sword would arm every creature anybody ticks the Battler
@@ -360,7 +357,12 @@ export function fightingStats(
       MAX_PERCENT_STAT,
       Math.round(weapon.spd * (SPEED_AT_ZERO_RATIO + SPEED_PER_RATIO * ratio)),
     ),
-    range: battler.range,
+    // Both off the weapon, not off the body — the one place a bow differs from a
+    // fist in kind rather than in degree. Untouched by the mastery ratio above:
+    // a novice archer is worse at hitting what they aim at, and the arrow still
+    // flies as far as the bow throws it.
+    reach: weapon.reach,
+    projectile: weapon.projectile ?? null,
     sight: battler.sight,
   };
 }
@@ -375,7 +377,11 @@ const battlerSchema = v.object({
   // a battler", which is the correct answer — those tiles have to be re-authored.
   masteries: masteriesSchema,
   naturalWeapon: weaponSchema,
-  range: v.optional(v.pipe(v.number(), v.minValue(0)), DEFAULT_MELEE_RANGE),
+  // `range` used to sit here, and it is gone rather than tolerated: a body's
+  // reach is now its weapon's, and an authored number left on the tile would be
+  // a second answer that silently loses. Anything on disk still carrying one
+  // parses fine and the field is dropped — see `../lib/interactions`, which no
+  // longer writes it back.
   sight: v.optional(
     v.object({ up: levelSlack, down: levelSlack }),
     // A getter, so two tiles never share one mutable block.

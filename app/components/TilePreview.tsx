@@ -1,14 +1,14 @@
 import { useEffect, useRef } from "react";
 import type {
   AutotileSlice,
-  Direction,
   Frame,
+  Octant,
   SpriteRef,
   SpriteState,
   TileDef,
   TilesetDef,
 } from "../lib/types";
-import { DIRECTIONS } from "../lib/types";
+import { facingKeysFor, isDirectional } from "../lib/types";
 import { getFrames } from "../lib/tileResolve";
 
 type Props = {
@@ -16,8 +16,8 @@ type Props = {
   tilesets: TilesetDef[];
   size?: number;
   className?: string;
-  /** Force a direction (skip cycling). */
-  direction?: Direction;
+  /** Force a bearing (skip cycling). */
+  direction?: Octant;
   /** Autotile slice for preview (default isolated = 0). */
   autotileSlice?: AutotileSlice;
   /** Which sprite state to draw. Default / absent → idle. */
@@ -66,13 +66,16 @@ function loadImage(src: string): Promise<HTMLImageElement> {
 
 function framesForPreview(
   tile: TileDef,
-  direction: Direction | undefined,
+  direction: Octant | undefined,
   dirIndex: number,
   autotileSlice: AutotileSlice | undefined,
   state: SpriteState | undefined,
 ): Frame[] | undefined {
-  if (tile.type === "directional") {
-    const d = direction ?? DIRECTIONS[dirIndex % 4]!;
+  if (isDirectional(tile)) {
+    // Cycles the tile's own keys, so an eight-way tile shows all eight rather
+    // than four of them and then four repeats.
+    const keys = facingKeysFor(tile);
+    const d = direction ?? keys[dirIndex % keys.length]!;
     return getFrames(tile, { state, direction: d });
   }
   if (tile.type === "autotile") {

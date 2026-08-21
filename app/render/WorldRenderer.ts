@@ -30,6 +30,7 @@ import type {
 } from "../lib/types";
 import {
   CELL_SIZE,
+  HEIGHT_PER_LEVEL,
   MAX_LEVEL,
   MIN_LEVEL,
   coordKey,
@@ -51,6 +52,7 @@ import {
   WorkerChunkBaker,
 } from "../lib/lightBakerClient";
 import type { FramePhase, FrameProfiler } from "./frameProfile";
+import type { ProjectileView } from "./projectileMotion";
 import { GpuLighting } from "./gpuLighting";
 import { PalettePass } from "./palettePass";
 import {
@@ -61,6 +63,7 @@ import {
   buildSingleQuadGeometry,
   injectWorldShader,
   writeBoxAttr,
+  writeLightUvAttr,
 } from "./worldQuads";
 import {
   disposeGroupChildren,
@@ -105,6 +108,40 @@ type AnimatedInstance = {
    * whatever frame the key last ticked to.
    */
   frameIdx: number;
+};
+
+/**
+ * How high in its level's band an arrow sorts against coplanar surfaces.
+ *
+ * Above anything a real stack reaches — stacks are single digits and the band is
+ * 64 wide — because an arrow drawn at exactly a floor's height is over that
+ * floor rather than inside it. Well under the band, so it can never bleed into
+ * the level above's. @see depthStackBias
+ */
+const PROJECTILE_STACK_BIAS = 32;
+
+/** One arrow's mesh and everything needed to keep drawing it. */
+type ProjectileMesh = {
+  mesh: THREE.Mesh;
+  /** Held for its height, which is the depth box's thickness. */
+  def: TileDef;
+  /**
+   * The bearing's frames, resolved once.
+   *
+   * Once is enough because a flight's bearing never changes — see
+   * `./projectileMotion` — so nothing can make this list go stale for as long as
+   * the arrow is in the air.
+   */
+  frames: Frame[];
+  tileset: TilesetDef;
+  texture: THREE.Texture;
+  /** Which frame the UVs currently show; -1 until the first is written. */
+  frameIdx: number;
+  /** The level whose material it is wearing. */
+  z: number;
+  /** The sprite footprint, so the centre can be found without the rect again. */
+  w: number;
+  h: number;
 };
 
 /** One quad the builder will emit, plus what decides how it is drawn. */
@@ -178,6 +215,15 @@ export type WorldView = {
   minutesOfDay: number;
   /** Active lerps; each carries the depth box its sprite currently occupies. */
   tileMotions?: TileMotion[];
+  /**
+   * Arrows in the air, positioned for this frame. @see `./projectileMotion`
+   *
+   * Not a {@link TileMotion}, and the difference is that a motion moves a
+   * *placement* — it is keyed by the slot it offsets, and there is a tile on the
+   * board underneath it. A projectile is on no cell and in no stack: there is
+   * nothing for it to be an offset of.
+   */
+  projectiles?: ProjectileView[];
   /**
    * How each placement looks right now, keyed by {@link TileInstanceKey}, and
    * holding only the entries that are *not* {@link SpriteState} `idle`.
@@ -397,6 +443,29 @@ export class WorldRenderer {
   private spriteStates: ReadonlyMap<string, SpriteState> | undefined;
   /** Separate meshes that can receive {@link TileMotion} offsets (anim or in-motion). */
   private movableMeshes = new Map<string, THREE.Mesh>();
+  /**
+   * The arrows currently in the air, by flight id.
+   *
+   * Held between frames rather than rebuilt, for the reason the overlay layer is
+   * *not*: an arrow moves every single frame of its life, so a signature-gated
+   * rebuild would allocate and throw away a mesh thirty times a second. What
+   * changes per frame is a position, a depth box and a light sample — three
+   * attribute writes — which is exactly what a walking sprite already costs.
+   */
+  private projectileMeshes = new Map<string, ProjectileMesh>();
+  /**
+   * Every arrow, in one group under {@link world} rather than one per level.
+   *
+   * **Deliberately outside the level groups, which is the one thing that makes
+   * this survive a map edit.** A level group is destroyed and rebuilt whenever
+   * its floor changes, and a mesh parented in one would be disposed underneath
+   * the map that still holds it — a torn-down geometry drawn on the next frame.
+   * Nothing is lost by staying out: depth is resolved per fragment from the box
+   * each quad carries, so group membership decides nothing about sorting. The
+   * one thing it did decide is roof-cut visibility, and that is a line of code
+   * here instead — see {@link applyProjectiles}.
+   */
+  private projectileGroup: THREE.Group;
   private movableBasePos = new Map<string, { x: number; y: number }>();
   private movableBaseBox = new Map<
     string,
@@ -485,6 +554,10 @@ export class WorldRenderer {
     this.overlayScene.matrixWorldAutoUpdate = false;
     this.overlays = new THREE.Group();
     this.overlayScene.add(this.overlays);
+    this.projectileGroup = new THREE.Group();
+    this.projectileGroup.matrixAutoUpdate = false;
+    this.projectileGroup.updateMatrix();
+    this.world.add(this.projectileGroup);
 
     const data = new Uint8Array([255, 0, 255, 255]);
     this.magentaTex = new THREE.DataTexture(data, 1, 1, THREE.RGBAFormat);
@@ -557,7 +630,12 @@ export class WorldRenderer {
     // After applyMap, so a mesh rebuilt this frame is in the registry to be
     // reached; before nothing, since a swap only touches its own quad.
     this.time("state", () => this.applySpriteStates(view.spriteStates));
-    this.time("motion", () => this.applyTileMotions(view.tileMotions));
+    this.time("motion", () => {
+      this.applyTileMotions(view.tileMotions);
+      // Beside the motions, because it is the same kind of work at the same
+      // point in the frame: something that is not where the map says it is.
+      this.applyProjectiles(view.projectiles);
+    });
     this.needsRender = true;
   }
 
@@ -860,6 +938,8 @@ export class WorldRenderer {
     this.resizeObserver?.disconnect();
     this.palettePass.dispose();
     disposeGroupChildren(this.overlays);
+    disposeGroupChildren(this.projectileGroup);
+    this.projectileMeshes.clear();
     // Dropped with the meshes they belong to: a disposed material written to on
     // a stray tick is a use-after-free as far as WebGL is concerned.
     this.pulsingOutlines = [];
@@ -923,6 +1003,142 @@ export class WorldRenderer {
     for (const key of [...this.motionGhosts.keys()]) {
       if (!activeGhosts.has(key)) this.disposeMotionGhost(key);
     }
+  }
+
+  /**
+   * Draw this frame's arrows.
+   *
+   * A mesh per flight, made once and moved ever after. Everything that varies
+   * frame to frame — where it is, what it sorts against, which cell's light it
+   * takes — is an attribute write on geometry that already exists; the sprite's
+   * footprint is fixed, because a flight's bearing never changes and the frames
+   * of one sprite share a rect.
+   *
+   * A flight whose tile the catalogue has lost, or whose art is unauthored on
+   * the bearing it is travelling, simply draws nothing. That is the same answer
+   * every other id in a kit gets when the world has moved on underneath it: the
+   * fact is out of date, not corrupt, and a fight is not worth refusing over the
+   * art.
+   */
+  private applyProjectiles(views: ProjectileView[] | undefined) {
+    if (views === undefined && this.projectileMeshes.size === 0) return;
+
+    const live = new Set<string>();
+    for (const view of views ?? []) {
+      const entry = this.projectileMesh(view);
+      if (!entry) continue;
+      live.add(view.id);
+      this.placeProjectile(entry, view);
+    }
+
+    for (const [id, entry] of this.projectileMeshes) {
+      if (live.has(id)) continue;
+      this.projectileGroup.remove(entry.mesh);
+      disposeObject3D(entry.mesh);
+      this.projectileMeshes.delete(id);
+    }
+  }
+
+  /**
+   * The mesh for one flight, made on the frame it first appears.
+   *
+   * Null when there is nothing to draw with, and null every frame after that
+   * too — the lookups are all off a catalogue that does not change mid-flight,
+   * so a miss on the first frame is a miss for the whole flight.
+   */
+  private projectileMesh(view: ProjectileView): ProjectileMesh | null {
+    const existing = this.projectileMeshes.get(view.id);
+    if (existing) return existing;
+
+    const def = this.tilesById[view.tileId];
+    if (!def) return null;
+    const frames = getFrames(def, { direction: view.direction });
+    if (!frames?.length) return null;
+    const tileset = this.tilesetById.get(frames[0]!.sprite.tilesetId);
+    if (!tileset) return null;
+
+    const texture = this.textures.get(tileset.id) ?? this.magentaTex;
+    const { rect } = frames[0]!.sprite;
+    const quad: Omit<Quad, "x" | "y"> = {
+      w: rect.w * CELL_SIZE,
+      h: rect.h * CELL_SIZE,
+      ...frameUvs(frames[0]!, tileset),
+      // Placeholders. Every one of these is rewritten by `placeProjectile`
+      // before the frame is drawn, and they exist here only because a geometry
+      // has to be built with something in its attributes.
+      box: depthBox(view.x, view.y, view.elevAbs, view.elevAbs),
+      stackBias: 0,
+      lightX0: view.x,
+      lightY0: view.y,
+      lightX1: view.x + 1,
+      lightY1: view.y + 1,
+      unlit: tileCanEmitLight(def),
+    };
+
+    const mesh = new THREE.Mesh(
+      buildSingleQuadGeometry(quad),
+      this.materialFor(texture, view.z),
+    );
+    // Never culled, for the reason every other single-quad mesh here is not: the
+    // bounding sphere is computed once and the thing moves every frame.
+    mesh.frustumCulled = false;
+    mesh.matrixAutoUpdate = false;
+    this.projectileGroup.add(mesh);
+
+    const entry: ProjectileMesh = {
+      mesh,
+      def,
+      frames,
+      tileset,
+      texture,
+      frameIdx: -1,
+      z: view.z,
+      w: quad.w,
+      h: quad.h,
+    };
+    this.projectileMeshes.set(view.id, entry);
+    return entry;
+  }
+
+  /** Put one arrow where this frame says it is. */
+  private placeProjectile(entry: ProjectileMesh, view: ProjectileView) {
+    const frameIdx = frameIndexAtTime(entry.frames, this.animClock);
+    const frame = entry.frames[frameIdx]!;
+    if (frameIdx !== entry.frameIdx) {
+      entry.frameIdx = frameIdx;
+      writeFrameUvs(entry.mesh, frame, entry.tileset);
+    }
+
+    // The level's own light and the level's own roof-cut, both re-asked every
+    // frame because an arrow can cross a storey mid-flight — a shot from a
+    // balcony passes through the boundary on its way down, and a material fixed
+    // at launch would light the whole descent by the room it left.
+    if (view.z !== entry.z) {
+      entry.z = view.z;
+      entry.mesh.material = this.materialFor(entry.texture, view.z);
+    }
+    entry.mesh.visible =
+      this.hideLevelsAbove === undefined || view.z <= this.hideLevelsAbove;
+
+    const localElev = view.elevAbs - view.z * HEIGHT_PER_LEVEL;
+    const baseOrigin = baseCellWorldOrigin(view.x, view.y, view.z, localElev);
+    const origin = spriteWorldOrigin(baseOrigin, frame.sprite.base);
+    entry.mesh.position.set(origin.x + entry.w / 2, origin.y + entry.h / 2, 0);
+    entry.mesh.updateMatrix();
+    entry.mesh.updateMatrixWorld(true);
+
+    writeBoxAttr(
+      entry.mesh.geometry,
+      depthBox(view.x, view.y, view.elevAbs, view.elevAbs + entry.def.height),
+      depthStackBias(view.z, PROJECTILE_STACK_BIAS),
+    );
+    writeLightUvAttr(
+      entry.mesh.geometry,
+      view.x,
+      view.y,
+      view.x + 1,
+      view.y + 1,
+    );
   }
 
   /** Level group for z, creating an empty one when the dest floor has no tiles yet. */
@@ -1298,9 +1514,15 @@ export class WorldRenderer {
 
   private rebuildAll(map: MapFile) {
     this.clearMotionGhosts();
-    while (this.world.children.length) {
-      const g = this.world.children.pop()!;
-      disposeObject3D(g);
+    // Every level group, and deliberately not the arrows: a map edit is not a
+    // reason for a shot already in the air to vanish, and the group's contents
+    // are keyed by flight rather than by cell so there is nothing in it a
+    // rebuilt board could invalidate. It is also the only child of `world` that
+    // this function does not own. @see projectileGroup
+    for (const child of [...this.world.children]) {
+      if (child === this.projectileGroup) continue;
+      this.world.remove(child);
+      disposeObject3D(child);
     }
     this.levelGroups.clear();
     this.animatedByLevel.clear();
@@ -1796,16 +2018,32 @@ export class WorldRenderer {
 }
 
 /** Point one quad at a frame's slice of its atlas. */
+/**
+ * A frame's slice of its atlas, in texture coordinates.
+ *
+ * Written down once because three places need it — the level build, the
+ * animation pass and the projectile pass — and the v axis is flipped, which is
+ * exactly the kind of arithmetic that gets copied slightly wrong.
+ */
+function frameUvs(
+  frame: Frame,
+  tileset: TilesetDef,
+): { u0: number; v0: number; u1: number; v1: number } {
+  const { rect } = frame.sprite;
+  return {
+    u0: (rect.x * CELL_SIZE) / tileset.width,
+    u1: ((rect.x + rect.w) * CELL_SIZE) / tileset.width,
+    v1: 1 - (rect.y * CELL_SIZE) / tileset.height,
+    v0: 1 - ((rect.y + rect.h) * CELL_SIZE) / tileset.height,
+  };
+}
+
 function writeFrameUvs(
   mesh: THREE.Mesh,
   frame: Frame,
   tileset: TilesetDef,
 ): void {
-  const { rect } = frame.sprite;
-  const u0 = (rect.x * CELL_SIZE) / tileset.width;
-  const u1 = ((rect.x + rect.w) * CELL_SIZE) / tileset.width;
-  const v1 = 1 - (rect.y * CELL_SIZE) / tileset.height;
-  const v0 = 1 - ((rect.y + rect.h) * CELL_SIZE) / tileset.height;
+  const { u0, v0, u1, v1 } = frameUvs(frame, tileset);
   const uvs = mesh.geometry.attributes.uv!;
   uvs.setXY(0, u0, v0);
   uvs.setXY(1, u1, v0);

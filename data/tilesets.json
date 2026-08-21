@@ -61,5 +61,12 @@
     "file": "equipment.png",
     "width": 264,
     "height": 368
+  },
+  {
+    "id": "projectiles",
+    "name": "Projectiles",
+    "file": "projectiles.png",
+    "width": 64,
+    "height": 8
   }
 ]

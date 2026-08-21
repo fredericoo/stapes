@@ -1434,13 +1434,12 @@ export function interactionsForSave(
         naturalWeapon: weaponForSave(
           battler.naturalWeapon ?? DEFAULT_BATTLER.naturalWeapon,
         ),
-        range: battler.range ?? DEFAULT_BATTLER.range,
         sight: {
           up: battler.sight?.up ?? DEFAULT_BATTLER.sight.up,
           down: battler.sight?.down ?? DEFAULT_BATTLER.sight.down,
         },
-        // Omitted entirely when nothing is authored, unlike `range` and
-        // `sight`: those have a default worth writing down, where a body that
+        // Omitted entirely when nothing is authored, unlike `sight`: that has a
+        // default worth writing down, where a body that
         // carries nothing is the overwhelming majority and `kit: []` on every
         // creature in the file would be a line saying nothing. `kitForSave`
         // rebuilds it entry by entry for the reason the block around it is

@@ -3,6 +3,10 @@ import { HEIGHT_PER_LEVEL } from "../lib/types";
 import type { ReachPoint } from "./distance";
 import { dodgeAway, outranksSwing, swingToward } from "./strike";
 
+/** Every swing below is a melee one unless it says otherwise. */
+const MELEE = false;
+const RANGED = true;
+
 /**
  * Which way the two bodies in a blow move, and which blows move them at all.
  *
@@ -21,7 +25,7 @@ const HALF_LEVEL = HEIGHT_PER_LEVEL / 2;
 
 describe("who is close enough to lean at", () => {
   it("takes the delta to a neighbour", () => {
-    expect(swingToward(at(4, 4), at(5, 4))).toEqual({
+    expect(swingToward(at(4, 4), at(5, 4), MELEE)).toEqual({
       kind: "swing",
       dx: 1,
       dy: 0,
@@ -31,23 +35,22 @@ describe("who is close enough to lean at", () => {
   });
 
   it("takes a corner too, which is what the band exists for", () => {
-    expect(swingToward(at(0, 0), at(-1, 1))?.dx).toBe(-1);
-    expect(swingToward(at(0, 0), at(-1, 1))?.dy).toBe(1);
+    expect(swingToward(at(0, 0), at(-1, 1), MELEE)?.dx).toBe(-1);
+    expect(swingToward(at(0, 0), at(-1, 1), MELEE)?.dy).toBe(1);
   });
 
   /**
-   * Height costs a whole cell here — see `./distance` — so the body standing on
-   * the crate beside you is exactly as far off as the one directly north, and
-   * gets exactly as much of a lean.
+   * The melee band is half a level either way — see `./distance` — so the body
+   * standing on the crate beside you is inside it, and gets a lean.
    */
   it("takes the body half a level up, in the same cell or the next one", () => {
-    expect(swingToward(at(0, 0), at(0, 0, HALF_LEVEL))?.dElev).toBe(HALF_LEVEL);
-    expect(swingToward(at(0, 0), at(1, 0, HALF_LEVEL))).not.toBeNull();
+    expect(swingToward(at(0, 0), at(0, 0, HALF_LEVEL), MELEE)?.dElev).toBe(HALF_LEVEL);
+    expect(swingToward(at(0, 0), at(1, 0, HALF_LEVEL), MELEE)).not.toBeNull();
   });
 
   /** The far corner of the melee box: diagonal and up a crate, still a lean. */
   it("takes the last body inside melee reach", () => {
-    expect(swingToward(at(0, 0), at(1, 1, HALF_LEVEL))).not.toBeNull();
+    expect(swingToward(at(0, 0), at(1, 1, HALF_LEVEL), MELEE)).not.toBeNull();
   });
 
   /**
@@ -56,15 +59,25 @@ describe("who is close enough to lean at", () => {
    * somebody two cells away would claim a contact that never happened.
    */
   it("refuses anything past arm's reach", () => {
-    expect(swingToward(at(0, 0), at(2, 0))).toBeNull();
-    // One whole level up, which melee cannot reach either: height costs a cell a
-    // unit, so a storey is two of them. @see ./distance
-    expect(swingToward(at(0, 0), at(0, 0, HEIGHT_PER_LEVEL))).toBeNull();
+    expect(swingToward(at(0, 0), at(2, 0), MELEE)).toBeNull();
+    // A whole level up, which melee cannot reach either: the band is half a
+    // level, and a storey is two height units. @see ./distance
+    expect(swingToward(at(0, 0), at(0, 0, HEIGHT_PER_LEVEL), MELEE)).toBeNull();
+  });
+
+  /**
+   * The gate the distance one cannot stand in for: an archer with somebody in
+   * their face is at point-blank range and still owes no lean, because what
+   * travels is the arrow. @see swingToward
+   */
+  it("refuses a ranged weapon at any distance at all", () => {
+    expect(swingToward(at(0, 0), at(1, 0), RANGED)).toBeNull();
+    expect(swingToward(at(4, 4), at(4, 5), RANGED)).toBeNull();
   });
 
   /** Two bodies in one place: a direction of nothing is not an animation. */
   it("refuses a swing at exactly where the swinger is", () => {
-    expect(swingToward(at(3, 7), at(3, 7))).toBeNull();
+    expect(swingToward(at(3, 7), at(3, 7), MELEE)).toBeNull();
   });
 });
 
@@ -100,7 +113,7 @@ describe("a body that dodges and swings on one tick", () => {
 
   it("gives way once the dodge has been drawn, and to nothing else", () => {
     expect(outranksSwing({ ...dodge(), elapsedMs: 33 })).toBe(false);
-    expect(outranksSwing(swingToward(at(0, 0), at(1, 0)))).toBe(false);
+    expect(outranksSwing(swingToward(at(0, 0), at(1, 0), MELEE))).toBe(false);
     expect(outranksSwing(null)).toBe(false);
   });
 });

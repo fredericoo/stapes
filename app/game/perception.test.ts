@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_MELEE_RANGE } from "../lib/battler";
+import { MELEE_REACH } from "../lib/item";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL, normalizeTileDef } from "../lib/types";
@@ -114,7 +114,7 @@ function canRead(
 
 /** B — can `from` land a blow on `to`? */
 function canHit(map: MapFile, from: Body, to: Body): boolean {
-  return canReach(map, tilesById, from, to, DEFAULT_MELEE_RANGE);
+  return canReach(map, tilesById, from, to, MELEE_REACH);
 }
 
 /**

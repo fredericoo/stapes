@@ -10,7 +10,7 @@ import {
   MIN_CHANCE,
   SPEED_AT_ZERO_RATIO,
 } from "./battler";
-import type { WeaponItem } from "./item";
+import { MELEE_REACH, type WeaponItem } from "./item";
 import { MAX_MASTERY_RATIO } from "./mastery";
 
 /**
@@ -37,6 +37,7 @@ function weapon(overrides: Partial<WeaponItem> = {}): WeaponItem {
     accuracy: 100,
     variance: 0,
     spd: 100,
+    reach: MELEE_REACH,
     mastery: "blunt",
     ...overrides,
   };

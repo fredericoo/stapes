@@ -162,6 +162,7 @@ export function BattleTab({ draft, onChange, tiles }: Props) {
           weapon={battler.naturalWeapon}
           onChange={patchWeapon}
           masteryHint="Which mastery scales this weapon — and which one this body earns by using it."
+          tiles={tiles}
         />
 
         <div className="flex flex-col gap-1 border-t-2 border-border pt-3">

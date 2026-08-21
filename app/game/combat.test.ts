@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import type { FightingStats } from "../lib/battler";
 import {
   DEFAULT_BATTLER,
-  DEFAULT_MELEE_RANGE,
   fightingStats,
   fleeFrom,
   MAX_CHANCE,
@@ -19,7 +18,8 @@ import {
 } from "./combat";
 import { TICK_MS } from "./constants";
 import { HEIGHT_PER_LEVEL } from "../lib/types";
-import { reachDistanceSq } from "./distance";
+import { MELEE_REACH, type Reach } from "../lib/item";
+import { planDistanceSq } from "./distance";
 import { Rng } from "./rng";
 
 /**
@@ -327,7 +327,7 @@ describe("missing, as distinct from being dodged", () => {
 
 describe("reach", () => {
   const here = { x: 4, y: 4, elevAbs: 0 };
-  const melee = DEFAULT_MELEE_RANGE;
+  const melee = MELEE_REACH;
 
   /** Elevation in height units; a level is two of them. */
   function at(dx: number, dy: number, dElev: number) {
@@ -349,7 +349,8 @@ describe("reach", () => {
 
   /**
    * Half a level either way, including on the diagonal — the shape the melee
-   * default exists to draw. See `./distance` for why height costs a whole cell.
+   * default exists to draw, and the reason it takes two numbers rather than one
+   * radius. See `./distance`.
    */
   it("reaches half a level up and down, corners included", () => {
     for (const dElev of [1, -1]) {
@@ -369,20 +370,38 @@ describe("reach", () => {
   });
 
   /**
-   * The corner of the box lands exactly on the radius, which is why the
-   * comparison is squared and never square-rooted: 3 against 3.5, both exact.
+   * The diagonal lands exactly on 2 and the cell two along exactly on 4, which
+   * is why the plan comparison is squared and never square-rooted: both walls
+   * are exact, and the radius sits between them with room on either side.
    */
   it("keeps the boundary case inside", () => {
-    expect(reachDistanceSq(here, at(1, 1, 1))).toBe(3);
-    expect(melee * melee).toBeGreaterThan(3);
-    expect(melee * melee).toBeLessThan(4);
+    expect(planDistanceSq(here, at(1, 1, 0))).toBe(2);
+    expect(melee.cells * melee.cells).toBeGreaterThan(2);
+    expect(melee.cells * melee.cells).toBeLessThan(4);
   });
 
-  it("grows into a sphere for anything with a longer reach", () => {
-    const bow = 6;
+  /**
+   * **The whole reason reach is two numbers.** A bow reaches across the yard
+   * without also reaching three storeys straight up — a shape no single radius
+   * can draw, whatever height is weighted at. @see `./distance`
+   */
+  it("widens the disc without raising the lid", () => {
+    const bow: Reach = { cells: 6, height: HEIGHT_PER_LEVEL };
     expect(inAttackRange(here, at(4, 0, 0), bow)).toBe(true);
-    // Height costs a cell a unit, so a bow of six reaches three levels up.
-    expect(inAttackRange(here, at(0, 0, 3 * HEIGHT_PER_LEVEL), bow)).toBe(true);
-    expect(inAttackRange(here, at(0, 0, 4 * HEIGHT_PER_LEVEL), bow)).toBe(false);
+    expect(inAttackRange(here, at(6, 0, 0), bow)).toBe(true);
+    expect(inAttackRange(here, at(7, 0, 0), bow)).toBe(false);
+
+    // One storey either way, and the storey above that is out — however close
+    // on the plan it is, and even directly overhead.
+    expect(inAttackRange(here, at(0, 0, HEIGHT_PER_LEVEL), bow)).toBe(true);
+    expect(inAttackRange(here, at(5, 0, HEIGHT_PER_LEVEL), bow)).toBe(true);
+    expect(inAttackRange(here, at(0, 0, 2 * HEIGHT_PER_LEVEL), bow)).toBe(false);
+  });
+
+  /** A weapon that can only reach its own floor, which the pair can now say. */
+  it("draws a flat disc when the height is nothing", () => {
+    const flat: Reach = { cells: 4, height: 0 };
+    expect(inAttackRange(here, at(3, 0, 0), flat)).toBe(true);
+    expect(inAttackRange(here, at(3, 0, 1), flat)).toBe(false);
   });
 });

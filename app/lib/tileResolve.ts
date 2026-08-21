@@ -3,10 +3,12 @@ import {
   resolveAutotileSlice,
 } from "./autotile";
 import {
-  DIRECTIONS,
+  facingKeysFor,
   frameAtTime,
   isDirectional,
+  nearestCardinal,
   type Direction,
+  type Octant,
   type Frame,
   type LightDef,
   type MapFile,
@@ -54,10 +56,21 @@ export function resolveTileSprite(
   if (tile.type === "simple") {
     return override?.sprite ?? tile.sprite;
   }
-  if (tile.type === "directional") {
+  if (isDirectional(tile)) {
     const dir = ctx.direction ?? "s";
+    // The bearing itself, then the cardinal it is nearest to, then south. The
+    // middle step is what makes a half-authored eight-way tile usable and a
+    // four-way tile answerable at all when something asks it for a corner: an
+    // arrow authored only on the cardinals points east on its way north-east,
+    // which reads as art not finished rather than as an arrow flying sideways.
+    // Falling straight through to south instead would do exactly that.
+    const cardinal = nearestCardinal(dir);
     return (
-      override?.sprites?.[dir] ?? tile.sprites?.[dir] ?? tile.sprites?.s
+      override?.sprites?.[dir] ??
+      tile.sprites?.[dir] ??
+      override?.sprites?.[cardinal] ??
+      tile.sprites?.[cardinal] ??
+      tile.sprites?.s
     );
   }
   // autotile
@@ -76,7 +89,7 @@ export function resolveTileSprite(
 
 export function getFrames(
   tile: TileDef,
-  ctx: TileResolveContext | Direction = {},
+  ctx: TileResolveContext | Octant = {},
 ): Frame[] | undefined {
   const resolved =
     typeof ctx === "string"
@@ -119,8 +132,10 @@ export function tileLightSignature(tile: TileDef): string {
   const pushState = (prefix: string, from: StateSprites) => {
     if (tile.type === "simple") {
       pushSprite(`${prefix}default`, from.sprite);
-    } else if (tile.type === "directional") {
-      for (const d of DIRECTIONS) pushSprite(`${prefix}${d}`, from.sprites?.[d]);
+    } else if (isDirectional(tile)) {
+      for (const d of facingKeysFor(tile)) {
+        pushSprite(`${prefix}${d}`, from.sprites?.[d]);
+      }
     } else if (from.slices) {
       for (const [k, s] of Object.entries(from.slices)) {
         pushSprite(`${prefix}${k}`, s);

@@ -34,6 +34,7 @@ import { WorldLabelLayer, type WorldLabel } from "./textLabels";
 import { FrameProfiler, type FrameStats } from "./frameProfile";
 import { fallDropPx, fallFootAbs, standingFootAbs } from "./fallAnchor";
 import { slideTileMotions } from "./slideMotion";
+import { projectileViews } from "./projectileMotion";
 import { strikeOffset } from "./strikeMotion";
 import { isHiddenFromCamera } from "./cameraSight";
 import { labelHeadroomPx } from "./labelHeadroom";
@@ -1879,6 +1880,13 @@ export class GameRenderer {
       zoom,
       minutesOfDay: this.minutesOfDay,
       tileMotions: motions.length > 0 ? motions : undefined,
+      // Undefined rather than an empty list on the overwhelmingly common frame
+      // where nothing is in the air, so the renderer can skip the pass outright
+      // — the same shape `tileMotions` above takes, and `spriteStates` below.
+      projectiles:
+        snap.projectiles.length > 0
+          ? projectileViews(snap.projectiles)
+          : undefined,
       spriteStates: spriteStatesFor(snap.actors),
       emitterOverrides: this.emitterOverridesFor(snap),
       hideLevelsAbove: hideAbove ? anchor.z : undefined,

@@ -6,7 +6,7 @@ import {
   WEAPON_MASTERIES,
   type WeaponMastery,
 } from "./mastery";
-import type { TileDef } from "./types";
+import { CELL_SIZE, type TileDef } from "./types";
 
 /**
  * What it takes to be carried.
@@ -51,6 +51,104 @@ import type { TileDef } from "./types";
  *
  * See `./battler` for the derivation and `plans/masteries.md` for the argument.
  */
+/**
+ * How far something reaches: a disc on the plan, and a height either side.
+ *
+ * **Two numbers rather than one radius, and the split is the whole point.** A
+ * single radius cannot say "everything on my floor for six cells, but only half
+ * a level up" — the shape does not exist, because any radius wide enough to
+ * include a cell six away also includes everything within six of you upward.
+ * Weighting height more heavily only moves where the argument happens; it never
+ * produces the shape, and the sphere this replaced spent its whole module doc
+ * discovering that.
+ *
+ * Two independent tests draw it exactly, and it is the shape everything else in
+ * the game was already using in private: `../game/affordances` measures what you
+ * can touch as a disc plus a level slack, and a brain's `in_range` measures plan
+ * steps plus its sight's up and down. This is those, written down once.
+ *
+ * @see `../game/distance` for the metric, and {@link MELEE_REACH} for the shape
+ *   an arm draws.
+ */
+export type Reach = {
+  /**
+   * Radius on the plan in cells, with height ignored entirely.
+   *
+   * Compared squared, and the interesting values land *on* boundaries: the
+   * diagonal neighbour is exactly 2 squared and the cell two along is exactly 4,
+   * so a radius meant to include one and exclude the other wants room on both
+   * sides rather than a value sitting on either.
+   */
+  cells: number;
+  /**
+   * How far up or down it reaches, in height units — two to a level.
+   *
+   * Height units rather than levels, because the question is answered against an
+   * absolute elevation and not against a floor: somebody standing on a crate is
+   * half a level above the floor they share with you, and a rule counting floors
+   * cannot see the crate at all. It is also the only unit in which an arm's
+   * half-level reach can be said.
+   */
+  height: number;
+};
+
+/**
+ * What an arm draws: the eight cells around you, half a level up and down.
+ *
+ * `1.5` on the plan squares to 2.25 — the diagonal neighbour is 2 and the cell
+ * two along is 4, so this is the 3×3 box and nothing else, with room on both
+ * sides of the value rather than sitting on a boundary. The same number, for the
+ * same reason, as `../game/affordances`'s `REACH_CELLS`: what you can hit and
+ * what you can touch are one shape, and they were two constants agreeing by
+ * luck.
+ *
+ * One height unit is half a level, which is exactly the step you can climb — so
+ * anything you could walk up onto in one move, you can also hit.
+ */
+export const MELEE_REACH: Reach = { cells: 1.5, height: 1 };
+
+/**
+ * The thing a ranged weapon puts in the air.
+ *
+ * **Entirely a drawing, and deliberately so.** It collides with nothing, it can
+ * be walked through, and it cannot miss on the way — the whole fight was already
+ * settled on the tick it was loosed, and the arrow is a receipt in flight rather
+ * than the blow itself. That is not a shortcut taken to avoid the physics: a
+ * blow that lands when the arrow arrives is a blow whose outcome depends on
+ * frames, and two clients drawing at different rates would disagree about
+ * whether somebody died. Damage now and the arrow after is the one arrangement
+ * where the picture can lag the truth without ever contradicting it.
+ *
+ * Which also means a shot at a body that dies before the arrow lands still
+ * finishes its flight, and should: the arrow was loosed, and taking it back out
+ * of the air would be the picture editing itself after the fact.
+ */
+export type ProjectileDef = {
+  /**
+   * The tile drawn in flight.
+   *
+   * A tile id rather than sprites inlined here, so an arrow is an ordinary thing
+   * in the catalogue: it animates, it can carry a light, and it is authored with
+   * the same picker as everything else. A `directional8` tile — see
+   * `./types` — because a shot travels on any of eight bearings and a four-way
+   * facing would make half of them point somewhere the arrow is not going.
+   *
+   * A tile the catalogue has lost draws nothing, on the terms every other id in
+   * a kit is honoured: the fact is out of date, not corrupt, and a fight is not
+   * worth refusing over the art.
+   */
+  tileId: string;
+  /**
+   * How fast it travels, in world pixels per millisecond.
+   *
+   * A speed rather than a duration, so a long shot takes longer than a short one
+   * — which is the only thing in the animation carrying any information about
+   * distance. A fixed duration would make an arrow crossing six cells look
+   * exactly like one crossing two, at wildly different apparent speeds.
+   */
+  speedPxPerMs: number;
+};
+
 export type WeaponItem = {
   type: "weapon";
   /**
@@ -116,7 +214,36 @@ export type WeaponItem = {
   variance: number;
   /** 0–100. How often this can be swung. See `../game/combat`. */
   spd: number;
+  /**
+   * How far this reaches, as a disc on the plan and a height either side of it.
+   *
+   * **On the weapon, where it used to be on the body.** `BattlerDef.range` said
+   * in its own doc that this was the wrong home and that ranged weapons would
+   * move it; this is that move. A bow's reach is the bow's, so a rat that picks
+   * one up shoots as far as the bow carries rather than as far as a rat's teeth
+   * go, and the natural weapon a body is born with carries its own reach like
+   * any other weapon.
+   *
+   * See `../game/distance` for the shape and why it is two numbers rather than
+   * one radius.
+   */
+  reach: Reach;
   mastery: WeaponMastery;
+  /**
+   * What this throws at what it is aimed at, or absent for anything that
+   * reaches its target itself.
+   *
+   * **This block is the whole definition of "ranged".** There is no `ranged`
+   * flag beside it and there must not be one: two fields saying the same thing
+   * is a bow authored to fire nothing, or a sword that lunges half a tile and
+   * also puts an arrow in the air. What fires something does not lunge — see
+   * `../game/strike` — and what does not, does.
+   *
+   * Purely a drawing. Nothing here collides, and the damage is settled on the
+   * tick the shot is loosed rather than when the arrow arrives; see
+   * {@link ProjectileDef}.
+   */
+  projectile?: ProjectileDef;
   /**
    * What this asks of whoever swings it, mastery by mastery.
    *
@@ -272,6 +399,33 @@ export const MAX_PERCENT_STAT = 100;
  */
 export const MAX_WEAPON_DAMAGE = 999;
 
+/**
+ * Furthest a weapon may reach, on the plan and in height.
+ *
+ * Sanity bounds rather than balance ones, like {@link MAX_WEAPON_DAMAGE}: a bow
+ * that carries most of a screen is authorable, and a typo'd extra digit reads as
+ * malformed rather than as a weapon that hits everything on the floor. The
+ * height bound is generous in the same spirit — ten units is five levels, taller
+ * than anything the map is authored with.
+ */
+export const MAX_REACH_CELLS = 64;
+export const MAX_REACH_HEIGHT = 10;
+
+/**
+ * How fast a projectile may travel, in world pixels per millisecond.
+ *
+ * The floor is not zero: a speed of zero is an arrow that never arrives and a
+ * flight that never ends, which is a hang rather than a slow shot. A hundredth
+ * of a pixel per millisecond crosses one cell in thirteen seconds, which is as
+ * slow as anything could want to be and still be going somewhere.
+ *
+ * The ceiling is one cell per millisecond — at the tick rate that is thirty
+ * cells between two ticks, so anything faster is a shot nobody sees at all and
+ * may as well have no projectile authored.
+ */
+export const MIN_PROJECTILE_SPEED = 0.01;
+export const MAX_PROJECTILE_SPEED = CELL_SIZE;
+
 /** Widest a container may be, so a contents grid stays a grid. */
 export const MAX_CONTAINER_SIZE = 12;
 
@@ -351,6 +505,9 @@ export const DEFAULT_WEAPON: WeaponItem = {
   accuracy: 85,
   variance: 20,
   spd: 50,
+  // Spread rather than the constant itself, so a draft edited in the tile editor
+  // cannot write through this default into every other weapon that took it.
+  reach: { ...MELEE_REACH },
   mastery: "blade",
 };
 
@@ -408,7 +565,33 @@ export const weaponSchema = v.object({
   accuracy: percent,
   variance: percent,
   spd: percent,
+  // Optional, and absent is an arm's length — every weapon authored before reach
+  // moved off the body, which is all of them. A getter for the reason the
+  // battler's `sight` default is one: two tiles must never share one mutable
+  // block.
+  reach: v.optional(
+    v.object({
+      cells: v.pipe(v.number(), v.minValue(0), v.maxValue(MAX_REACH_CELLS)),
+      height: v.pipe(v.number(), v.minValue(0), v.maxValue(MAX_REACH_HEIGHT)),
+    }),
+    () => ({ ...MELEE_REACH }),
+  ),
   mastery: v.picklist(WEAPON_MASTERIES),
+  // Absent for every melee weapon, which is the overwhelming majority, and
+  // present is the entire definition of a ranged one. Whether the tile id names
+  // anything is the catalogue's question and is asked where the arrow is drawn —
+  // this module resolves no tiles, on exactly the terms a consumable's status
+  // ids are left alone here.
+  projectile: v.optional(
+    v.object({
+      tileId: v.pipe(v.string(), v.trim(), v.minLength(1)),
+      speedPxPerMs: v.pipe(
+        v.number(),
+        v.minValue(MIN_PROJECTILE_SPEED),
+        v.maxValue(MAX_PROJECTILE_SPEED),
+      ),
+    }),
+  ),
   // Optional, and absent is the overwhelmingly common case: most weapons ask
   // nothing. An empty object is allowed through rather than rejected — it says
   // the same thing as no key, and refusing it would make a round trip through
@@ -520,6 +703,25 @@ export function resolveContainer(def: TileDef): ContainerItem | null {
   return item?.type === "container" ? item : null;
 }
 
+/**
+ * Does this weapon put something in the air?
+ *
+ * The one question the rest of the game asks about ranged-ness, and it is a
+ * lookup rather than a flag — see {@link WeaponItem.projectile}. Written down
+ * here so no caller is tempted to test `projectile != null` itself and quietly
+ * disagree with the next one about what counts.
+ *
+ * Structural rather than taking a {@link WeaponItem}, because the question is
+ * asked of a resolved `FightingStats` too — the fight holds the projectile
+ * beside the numbers it rolls with, and a second spelling of this over there is
+ * exactly the disagreement the paragraph above is about.
+ */
+export function isRanged(weapon: {
+  projectile?: ProjectileDef | null;
+}): boolean {
+  return weapon.projectile != null;
+}
+
 /** Parsed weapon config, or null when this tile is not one. */
 export function resolveWeapon(def: TileDef): WeaponItem | null {
   const item = resolveItem(def);
@@ -567,7 +769,20 @@ export function weaponForSave(weapon: WeaponItem): WeaponItem {
     accuracy: weapon.accuracy,
     variance: weapon.variance,
     spd: weapon.spd,
+    // Written whatever it says, unlike the optionals below: reach is a number
+    // every weapon has an opinion about now, and omitting the melee default
+    // would make "an arm's length" and "nobody has said" the same line in the
+    // file — which is fine until somebody changes what an arm's length is.
+    reach: { cells: weapon.reach.cells, height: weapon.reach.height },
     mastery: weapon.mastery,
+    ...(weapon.projectile
+      ? {
+          projectile: {
+            tileId: weapon.projectile.tileId.trim(),
+            speedPxPerMs: weapon.projectile.speedPxPerMs,
+          },
+        }
+      : {}),
     // Written only when true, on the same terms the requirements block is: an
     // explicit `false` on every weapon in the file is a field to skim past that
     // says exactly what its absence says.
