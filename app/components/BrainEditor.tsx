@@ -3,18 +3,31 @@ import {
   ATTACKER_SELECTOR,
   SPEAKER_SELECTOR,
   isSelector,
+  isSpeakerFilter,
   nearest,
   selectorKey,
   slot,
   validateBrain,
   type BrainActionDef,
+  type BrainCondition,
   type BrainConditionDef,
   type BrainDef,
   type BrainEffectDef,
   type BrainStateDef,
   type BrainTransitionDef,
   type Selector,
+  type SpeakerFilter,
 } from "../lib/brain";
+import {
+  appendTo,
+  group,
+  isConditionGroup,
+  removeAt,
+  replaceAt,
+  type Combinator,
+  type ConditionGroup,
+  type ConditionPath,
+} from "../lib/conditions";
 import {
   ACTIONS,
   ACTION_NAMES,
@@ -597,21 +610,18 @@ function TransitionRow({
   onRemove: () => void;
 }) {
   const { ref, handleRef, isDragging } = useSortable({ id, index });
-  const cond = transition.if;
-  const spec = CONDITIONS[cond.cond];
   const fromOptions = [ANY_STATE, ...stateNames].map((n) => ({ value: n, label: n }));
   const toOptions = stateNames.map((n) => ({ value: n, label: n }));
-
-  const setCond = (next: BrainConditionDef) => onChange({ ...transition, if: next });
 
   return (
     <div
       ref={ref}
       className={[
-        "flex flex-wrap items-center gap-2 bg-panel p-1.5",
+        "flex flex-col gap-1.5 bg-panel p-1.5",
         isDragging ? "opacity-60" : "",
       ].join(" ")}
     >
+      <div className="flex flex-wrap items-center gap-2">
       <DragHandle
         handleRef={handleRef}
         label={`Drag to reorder transition ${index + 1}`}
@@ -626,19 +636,6 @@ function TransitionRow({
         options={fromOptions}
         className="min-w-[6rem]"
       />
-      <span className="text-[10px] uppercase text-muted">if</span>
-      <Select
-        value={cond.cond}
-        onValueChange={(v) => v && setCond(CONDITIONS[v as BrainConditionDef["cond"]].make())}
-        options={CONDITION_NAMES.map((n) => ({ value: n, label: CONDITIONS[n].label }))}
-        className="min-w-[7rem]"
-      />
-      <ParamFields
-        item={cond as unknown as Record<string, unknown>}
-        params={spec.params}
-        selectors={selectors}
-        onChange={(next) => setCond(next as unknown as BrainConditionDef)}
-      />
       <BindField transition={transition} selectors={selectors} onChange={onChange} />
       <span className="text-[10px] uppercase text-muted">to</span>
       <Select
@@ -648,11 +645,244 @@ function TransitionRow({
         className="min-w-[6rem]"
         placeholder="…"
       />
-      <Button size="sm" variant="danger" onClick={onRemove} aria-label="Remove transition">
-        ✕
-      </Button>
+        <Button
+          size="sm"
+          variant="danger"
+          onClick={onRemove}
+          aria-label="Remove transition"
+        >
+          ✕
+        </Button>
+      </div>
+      <div className="flex items-start gap-2 pl-7">
+        <span className="pt-1.5 text-[10px] uppercase text-muted">if</span>
+        <ConditionTree
+          root={transition.if}
+          selectors={selectors}
+          onChange={(next) => onChange({ ...transition, if: next })}
+        />
+      </div>
     </div>
   );
+}
+
+/**
+ * A transition's `if`, however deep it goes.
+ *
+ * Two shapes, and which one is on screen is the authored shape rather than a
+ * normalisation: a bare condition draws as one row with nothing around it, and
+ * only somebody reaching for "and" turns it into a box. That matters more here
+ * than the code it costs — nearly every transition ever written asks one
+ * question, and wrapping all of them in a group with a combinator nobody chose
+ * would put a decision on screen that the author never made.
+ *
+ * The tree is edited by *path* rather than by handing each row a callback that
+ * closes over its own copy. A row is a copy React already rendered; what has to
+ * change is the tree it came from, and naming the position is the only way a
+ * nested row can say which node it means. @see ../lib/conditions
+ */
+function ConditionTree({
+  root,
+  selectors,
+  onChange,
+}: {
+  root: BrainCondition;
+  selectors: SelectorOption[];
+  onChange: (next: BrainCondition) => void;
+}) {
+  if (isConditionGroup(root)) {
+    return (
+      <ConditionGroupBox
+        root={root}
+        path={[]}
+        node={root}
+        selectors={selectors}
+        onChange={onChange}
+      />
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <LeafFields
+        leaf={root}
+        selectors={selectors}
+        onChange={(next) => onChange(next)}
+      />
+      <AddButtons
+        onAddCondition={() => onChange(group("and", [root, freshLeaf()]))}
+        onAddGroup={() =>
+          onChange(group("and", [root, group("and", [freshLeaf()])]))
+        }
+      />
+    </div>
+  );
+}
+
+/**
+ * One group and everything under it.
+ *
+ * Carries the whole tree plus its own path rather than just its own subtree,
+ * because every edit it makes is a rewrite of the root: there is no way to hand
+ * a nested group a setter for itself without threading one through every level
+ * above it, and the path already says everything such a setter would know.
+ */
+function ConditionGroupBox({
+  root,
+  path,
+  node,
+  selectors,
+  onChange,
+}: {
+  root: BrainCondition;
+  path: ConditionPath;
+  node: ConditionGroup<BrainConditionDef>;
+  selectors: SelectorOption[];
+  onChange: (next: BrainCondition) => void;
+}) {
+  const set = (next: ConditionGroup<BrainConditionDef>) =>
+    onChange(replaceAt(root, path, next));
+
+  // A tree of one leaf has nothing to delete down to: a transition with no `if`
+  // has nothing to fire on, so the button is simply not offered rather than
+  // offered and refused.
+  const prune = (at: ConditionPath) => {
+    const next = removeAt(root, at);
+    if (next !== null) onChange(next);
+  };
+
+  return (
+    <div className="flex flex-col gap-1 border-2 border-border p-1.5">
+      <div className="flex flex-wrap items-center gap-2">
+        <Segmented
+          value={node.combinator}
+          onChange={(combinator: Combinator) => set({ ...node, combinator })}
+          options={[
+            { value: "and" as Combinator, label: "All" },
+            { value: "or" as Combinator, label: "Any" },
+          ]}
+          size="sm"
+          ariaLabel="Combinator"
+        />
+        <label className="flex items-center gap-1 text-[10px] uppercase text-muted">
+          <Switch
+            checked={Boolean(node.not)}
+            onCheckedChange={(not) => {
+              const { not: _drop, ...rest } = node;
+              set(not ? { ...rest, not } : rest);
+            }}
+            ariaLabel="Invert group"
+          />
+          not
+        </label>
+        <AddButtons
+          onAddCondition={() => onChange(appendTo(root, path, freshLeaf()))}
+          onAddGroup={() =>
+            onChange(appendTo(root, path, group("and", [freshLeaf()])))
+          }
+        />
+        {path.length > 0 ? (
+          <Button
+            size="sm"
+            variant="danger"
+            onClick={() => prune(path)}
+            aria-label="Remove group"
+          >
+            ✕
+          </Button>
+        ) : null}
+      </div>
+      {node.rules.map((rule, i) => {
+        const at = [...path, i];
+        return (
+          <div key={i} className="flex flex-wrap items-center gap-2 pl-3">
+            {isConditionGroup(rule) ? (
+              <ConditionGroupBox
+                root={root}
+                path={at}
+                node={rule}
+                selectors={selectors}
+                onChange={onChange}
+              />
+            ) : (
+              <>
+                <LeafFields
+                  leaf={rule}
+                  selectors={selectors}
+                  onChange={(next) => onChange(replaceAt(root, at, next))}
+                />
+                <Button
+                  size="sm"
+                  variant="danger"
+                  onClick={() => prune(at)}
+                  aria-label="Remove condition"
+                >
+                  ✕
+                </Button>
+              </>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** The condition picker and whatever parameters that condition takes. */
+function LeafFields({
+  leaf,
+  selectors,
+  onChange,
+}: {
+  leaf: BrainConditionDef;
+  selectors: SelectorOption[];
+  onChange: (next: BrainConditionDef) => void;
+}) {
+  return (
+    <>
+      <Select
+        value={leaf.cond}
+        onValueChange={(v) =>
+          v && onChange(CONDITIONS[v as BrainConditionDef["cond"]].make())
+        }
+        options={CONDITION_NAMES.map((n) => ({
+          value: n,
+          label: CONDITIONS[n].label,
+        }))}
+        className="min-w-[7rem]"
+      />
+      <ParamFields
+        item={leaf as unknown as Record<string, unknown>}
+        params={CONDITIONS[leaf.cond].params}
+        selectors={selectors}
+        onChange={(next) => onChange(next as unknown as BrainConditionDef)}
+      />
+    </>
+  );
+}
+
+function AddButtons({
+  onAddCondition,
+  onAddGroup,
+}: {
+  onAddCondition: () => void;
+  onAddGroup: () => void;
+}) {
+  return (
+    <>
+      <Button size="sm" variant="secondary" onClick={onAddCondition}>
+        + condition
+      </Button>
+      <Button size="sm" variant="secondary" onClick={onAddGroup}>
+        + group
+      </Button>
+    </>
+  );
+}
+
+/** What a newly added row asks until the author says otherwise. */
+function freshLeaf(): BrainConditionDef {
+  return CONDITIONS.after.make();
 }
 
 /**
@@ -764,9 +994,14 @@ function ParamFields({
   const write = (spec: ParamSpec, value: unknown) => {
     const next = { ...item };
     // A false boolean is authored by its absence, matching how the rest of
-    // `tiles.json` writes optional flags — so it round-trips clean.
-    if (spec.kind === "boolean" && value === false) delete next[spec.key];
-    else next[spec.key] = value;
+    // `tiles.json` writes optional flags — so it round-trips clean. So is a
+    // filter set back to "anybody": absence *is* the value, not a third state
+    // beside it.
+    if (value === undefined || (spec.kind === "boolean" && value === false)) {
+      delete next[spec.key];
+    } else {
+      next[spec.key] = value;
+    }
     onChange(next);
   };
 
@@ -818,6 +1053,16 @@ function ParamField({
       />
     );
   }
+  if (spec.kind === "speaker") {
+    return (
+      <SpeakerFilterField
+        spec={spec}
+        value={isSpeakerFilter(value) ? value : null}
+        selectors={selectors}
+        onChange={onChange}
+      />
+    );
+  }
   if (spec.kind === "number") {
     return (
       <label className="flex items-center gap-1 text-[10px] uppercase text-muted">
@@ -841,6 +1086,59 @@ function ParamField({
       placeholder={spec.label}
       aria-label={spec.label}
     />
+  );
+}
+
+/**
+ * Whose voice a `heard` counts, as one control rather than two.
+ *
+ * "Anybody" is a value in this picker and the *absence* of the field in the
+ * authored condition, and collapsing the two is what stops the editor writing a
+ * filter with a match and no selector. The selector only appears once there is
+ * somebody to be — a dropdown offering `$partner` beside a match of "anybody"
+ * would read as though it meant something.
+ */
+function SpeakerFilterField({
+  spec,
+  value,
+  selectors,
+  onChange,
+}: {
+  spec: ParamSpec;
+  value: SpeakerFilter | null;
+  selectors: SelectorOption[];
+  onChange: (value: SpeakerFilter | undefined) => void;
+}) {
+  const ANYBODY = "anybody";
+
+  return (
+    <label className="flex items-center gap-1 text-[10px] uppercase text-muted">
+      {spec.label}
+      <Select
+        value={value?.match ?? ANYBODY}
+        onValueChange={(next) => {
+          if (next === null || next === ANYBODY) return onChange(undefined);
+          onChange({
+            match: next as SpeakerFilter["match"],
+            of: value?.of ?? DEFAULT_SELECTOR,
+          });
+        }}
+        options={[
+          { value: ANYBODY, label: "anybody" },
+          { value: "is", label: "is" },
+          { value: "not", label: "is not" },
+        ]}
+        className="min-w-[6rem]"
+      />
+      {value ? (
+        <SelectorPicker
+          value={value.of}
+          selectors={selectors}
+          onChange={(of) => onChange({ ...value, of })}
+          className="min-w-[7rem]"
+        />
+      ) : null}
+    </label>
   );
 }
 

@@ -28,6 +28,13 @@ export type ParamSpec =
   | { key: string; kind: "number"; label: string; min?: number }
   | { key: string; kind: "boolean"; label: string }
   | { key: string; kind: "selector"; label: string }
+  /**
+   * An optional {@link SpeakerFilter} — a match and a selector, or nothing at
+   * all. Its own kind rather than a selector beside a picklist, because
+   * "anybody" is the absence of the whole field and two controls that have to
+   * agree about that would let the editor author half of one.
+   */
+  | { key: string; kind: "speaker"; label: string }
   | { key: string; kind: "text"; label: string };
 
 type CatalogEntry<T> = {
@@ -98,11 +105,12 @@ export const CONDITIONS: Record<
   },
   heard: {
     label: "heard",
-    hint: "Somebody within this many cells said something containing these letters. Fires once per thing said.",
+    hint: "Somebody within this many cells said something containing these letters. Fires once per thing said. Narrow it by voice to tell the one you are talking to from a passer-by.",
     params: [
       { key: "text", kind: "text", label: "text" },
       { key: "cells", kind: "number", label: "cells", min: 0 },
       { key: "los", kind: "boolean", label: "must see them" },
+      { key: "from", kind: "speaker", label: "from" },
     ],
     make: () => ({ cond: "heard", text: "ps", cells: 5, los: true }),
   },
@@ -183,13 +191,13 @@ export const EFFECTS: Record<
 > = {
   say: {
     label: "say",
-    hint: "A speech bubble over the creature's head, once on entry. Named as its speaker — use noise for anything that is not language.",
+    hint: "A speech bubble over the creature's head, once on entry. Named as its speaker — use noise for anything that is not language. {slot} becomes the name of whoever is in that slot.",
     params: [{ key: "text", kind: "text", label: "text" }],
     make: () => ({ effect: "say", text: "hello" }),
   },
   noise: {
     label: "noise",
-    hint: "A sound the room heard, once on entry — hissing, barking, a rustle. Written where it happened, with nobody's name on it.",
+    hint: "A sound the room heard, once on entry — hissing, barking, a rustle. Written where it happened, with nobody's name on it. {slot} becomes the name of whoever is in that slot.",
     params: [{ key: "text", kind: "text", label: "text" }],
     make: () => ({ effect: "noise", text: "sss" }),
   },

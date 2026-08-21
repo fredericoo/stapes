@@ -6,8 +6,12 @@ import {
   nearest,
   resolveBrain,
   slot,
+  type BrainCondition,
+  type BrainConditionDef,
   type BrainDef,
 } from "../lib/brain";
+import { group } from "../lib/conditions";
+import { displayNameFor } from "./displayName";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef, normalizeTiles } from "../lib/types";
@@ -215,6 +219,7 @@ describe("deciding", () => {
       heard: () => [],
       hurtBy: () => [],
       attack: vi.fn(() => false),
+      nameOf: (id: string) => id,
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
   }
@@ -832,6 +837,7 @@ describe("giving up", () => {
       heard: () => [],
       hurtBy: () => [],
       attack: () => false,
+      nameOf: (id: string) => id,
     };
 
     // One tick to try everything and fail; the verdict is read on the next.
@@ -962,6 +968,7 @@ describe("actions that take time", () => {
       heard: () => [],
       hurtBy: () => [],
       attack: vi.fn(() => false),
+      nameOf: (id: string) => id,
       ...overrides,
     } satisfies Parameters<typeof stepBrain>[3];
   }
@@ -1388,6 +1395,7 @@ describe("a deer that yelps", () => {
       heard: () => [],
       hurtBy: () => [],
       attack: () => false,
+      nameOf: (id: string) => id,
     };
 
     for (let tick = 0; tick < 5; tick++) stepBrain(brain, memory, BRAIN_TICK_MS, c);
@@ -1459,6 +1467,7 @@ describe("a deer that yelps", () => {
       heard: () => [],
       hurtBy: () => [],
       attack: () => false,
+      nameOf: (id: string) => id,
     };
 
     stepBrain(brain, memory, BRAIN_TICK_MS, c);
@@ -1844,6 +1853,436 @@ describe("hearing", () => {
     advance(session, TICK_MS);
 
     expect(session.isAtRest()).toBe(true);
+  });
+});
+
+/**
+ * Asking more than one question on a transition.
+ *
+ * The flat machine took exactly one condition per row for a long time, so what
+ * is worth pinning down is that nothing about the old shape moved: a bare
+ * condition is still a condition, and a group is layered over the same
+ * vocabulary rather than replacing it. @see ../lib/conditions
+ */
+describe("composing conditions", () => {
+  function ctx(overrides: Partial<Parameters<typeof stepBrain>[3]> = {}) {
+    return {
+      busy: false,
+      rng: new Rng(1),
+      self: { x: 0, y: 0, z: 0 },
+      nearestOnTile: () => null,
+      positionOf: () => ({ x: 0, y: 0, z: 0 }),
+      wouldDrop: () => false,
+      step: vi.fn(() => true),
+      say: vi.fn(),
+      noise: vi.fn(),
+      canSee: () => true,
+      sight: { up: 0, down: 0 },
+      heard: () => [],
+      hurtBy: () => [],
+      attack: vi.fn(() => false),
+      nameOf: (id: string) => id,
+      ...overrides,
+    } satisfies Parameters<typeof stepBrain>[3];
+  }
+
+  /** Goes to `alert` when `condition` holds, and nowhere otherwise. */
+  function watching(condition: BrainCondition): BrainDef {
+    return {
+      initial: "idle",
+      states: {
+        idle: { do: [{ action: "hold" }] },
+        alert: { do: [{ action: "hold" }] },
+      },
+      transitions: [{ from: "idle", if: condition, to: "alert" }],
+    };
+  }
+
+  function stateAfterOneTick(
+    condition: BrainCondition,
+    overrides: Partial<Parameters<typeof stepBrain>[3]> = {},
+  ): string {
+    const brain = watching(condition);
+    const memory = initialMemory(brain);
+    stepBrain(brain, memory, BRAIN_TICK_MS, ctx(overrides));
+    return memory.state;
+  }
+
+  const NEVER_MS = BRAIN_TICK_MS * 100;
+
+  it("wants every rule of an and", () => {
+    const both = group<BrainConditionDef>("and", [
+      { cond: "after", ms: 0 },
+      { cond: "in_range", of: nearest("player"), cells: 3 },
+    ]);
+    expect(stateAfterOneTick(both, { positionOf: () => ({ x: 1, y: 0, z: 0 }), nearestOnTile: () => "alice" })).toBe("alert");
+    // Same tree, nobody to be in range of.
+    expect(stateAfterOneTick(both, { nearestOnTile: () => null })).toBe("idle");
+  });
+
+  it("wants any one rule of an or", () => {
+    const either = group<BrainConditionDef>("or", [
+      { cond: "after", ms: NEVER_MS },
+      { cond: "stuck" },
+    ]);
+    expect(stateAfterOneTick(either)).toBe("idle");
+    expect(
+      stateAfterOneTick(
+        group<BrainConditionDef>("or", [{ cond: "after", ms: NEVER_MS }, { cond: "after", ms: 0 }]),
+      ),
+    ).toBe("alert");
+  });
+
+  it("inverts a group with not", () => {
+    const notYet = group<BrainConditionDef>("and", [{ cond: "after", ms: NEVER_MS }], true);
+    expect(stateAfterOneTick(notYet)).toBe("alert");
+  });
+
+  it("nests as deep as it is authored", () => {
+    const tree = group<BrainConditionDef>("and", [
+      { cond: "after", ms: 0 },
+      group<BrainConditionDef>("or", [
+        { cond: "stuck" },
+        group<BrainConditionDef>("and", [{ cond: "after", ms: NEVER_MS }], true),
+      ]),
+    ]);
+    expect(stateAfterOneTick(tree)).toBe("alert");
+  });
+
+  /**
+   * The one thing a tree could quietly break. `heard` records *who* spoke as it
+   * answers, and that record is what `bind: { caller: speaker }` writes down —
+   * so a branch asking whether somebody did **not** say something must leave no
+   * fingerprint, or a transition that fired for an entirely different reason
+   * writes down whoever the negated half happened to hear.
+   */
+  it("names nobody for a branch that asked whether something did not happen", () => {
+    const brain: BrainDef = {
+      initial: "idle",
+      states: {
+        idle: { do: [{ action: "hold" }] },
+        alert: { do: [{ action: "hold" }] },
+      },
+      transitions: [
+        {
+          from: "idle",
+          // Fires on the clock, whatever anyone said.
+          if: group<BrainConditionDef>("or", [
+            group<BrainConditionDef>("and", [{ cond: "heard", text: "bye", cells: 5 }], true),
+            { cond: "after", ms: 0 },
+          ]),
+          bind: { caller: SPEAKER_SELECTOR },
+          to: "alert",
+        },
+      ],
+    };
+    const memory = initialMemory(brain);
+
+    stepBrain(
+      brain,
+      memory,
+      BRAIN_TICK_MS,
+      ctx({ heard: () => [{ speakerId: "bob", text: "bye" }] }),
+    );
+
+    expect(memory.state).toBe("alert");
+    // Bob was heard by the negated branch and is nobody's caller for it.
+    expect(memory.blackboard.caller).toBeUndefined();
+  });
+
+  it("refuses a group with nothing in it, and the brain with it", () => {
+    const brain = {
+      initial: "idle",
+      states: { idle: { do: [] } },
+      transitions: [{ from: "idle", if: { combinator: "and", rules: [] }, to: "idle" }],
+    };
+    expect(resolveBrain(tile({ id: "empty-group", height: 1, interactions: { brain } as never }))).toBeNull();
+  });
+});
+
+/**
+ * Talking to one person at a time.
+ *
+ * Everything here is authored rather than built in: engagement is a bound slot,
+ * exclusivity is a `from` on the word that would otherwise start a second
+ * conversation, and both ways out are the conditions the machine already had.
+ * The runtime learned two things and no more — whose voice a `heard` counts, and
+ * how a line names somebody — and this is the test that those two are enough.
+ */
+describe("holding a conversation", () => {
+  const EARSHOT = 4;
+  const GREETING_MS = BRAIN_TICK_MS;
+  const CHAT_TIMEOUT_MS = BRAIN_TICK_MS * 8;
+
+  /** Whoever the brain is currently engaged with, by the slot it binds. */
+  const PARTNER = slot("partner");
+
+  function shopkeeperBrain(): BrainDef {
+    return {
+      initial: "idle",
+      states: {
+        idle: { do: [{ action: "hold" }] },
+        greeting: {
+          onEnter: [{ effect: "say", text: "Hello, {partner}." }],
+          do: [{ action: "hold" }],
+        },
+        talking: { do: [{ action: "hold" }] },
+        // A dead end by design: the only way out is straight back to the
+        // conversation it interrupted, so nothing about the engagement moves.
+        busy: {
+          onEnter: [{ effect: "say", text: "I'm busy with {partner} now." }],
+          do: [{ action: "hold" }],
+        },
+        farewell: {
+          onEnter: [{ effect: "say", text: "See you later." }],
+          do: [{ action: "hold" }],
+        },
+      },
+      transitions: [
+        // Nobody to be busy with, so anybody's greeting is taken.
+        {
+          from: "idle",
+          if: { cond: "heard", text: "hi", cells: EARSHOT, los: true },
+          bind: { partner: SPEAKER_SELECTOR },
+          to: "greeting",
+        },
+        { from: "greeting", if: { cond: "after", ms: GREETING_MS }, to: "talking" },
+        // Above the interruption, so the person being talked to is answered
+        // first when two people speak between one tick and the next.
+        {
+          from: "talking",
+          if: {
+            cond: "heard",
+            text: "bye",
+            cells: EARSHOT,
+            los: true,
+            from: { match: "is", of: PARTNER },
+          },
+          to: "farewell",
+        },
+        {
+          from: "talking",
+          if: {
+            cond: "heard",
+            text: "hi",
+            cells: EARSHOT,
+            los: true,
+            from: { match: "not", of: PARTNER },
+          },
+          to: "busy",
+        },
+        { from: "busy", if: { cond: "after", ms: BRAIN_TICK_MS }, to: "talking" },
+        // Two ways for a conversation to lapse, and one row, because they lead
+        // to the same place: there is no priority between them to bury.
+        {
+          from: "talking",
+          if: group<BrainConditionDef>("or", [
+            { cond: "out_of_los", of: PARTNER, cells: EARSHOT },
+            { cond: "after", ms: CHAT_TIMEOUT_MS },
+          ]),
+          to: "idle",
+        },
+        { from: "farewell", if: { cond: "after", ms: BRAIN_TICK_MS }, to: "idle" },
+      ],
+    };
+  }
+
+  const shopkeepers: TileDef[] = [
+    ...tiles,
+    tile({
+      id: "shopkeeper",
+      height: 1,
+      actor: true,
+      affectedByGravity: true,
+      walkable: false,
+      interactions: { brain: shopkeeperBrain() },
+    }),
+  ];
+
+  /** The shopkeeper at the origin, alice beside it, bob a step further round. */
+  function shop(): GameSession {
+    let map = field(9);
+    map = replaceStack(map, -9, -9, 0, [{ tileId: "grass" }]);
+    map = withDeer(map, 0, 0, "shopkeeper");
+    map = withPlayerAt(map, 2, 0);
+    const session = new GameSession(map, shopkeepers, {
+      actorIds: ["alice"],
+      spawnAt: { x: -9, y: -9, z: 0, stackIndex: 1 },
+    });
+    session.spawn("bob", { at: { x: 0, y: 2, z: 0 } });
+    return session;
+  }
+
+  /** Everything said out loud over one stretch of ticks. */
+  function saidDuring(session: GameSession, ms: number): string[] {
+    const said: string[] = [];
+    for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) {
+      session.tick(TICK_MS);
+      for (const bubble of session.drainSpeech()) said.push(bubble.text);
+    }
+    return said;
+  }
+
+  const ALICE = displayNameFor("alice");
+
+  it("greets whoever says hi, by name", () => {
+    const session = shop();
+    session.hear("alice", "hi there");
+
+    expect(saidDuring(session, BRAIN_TICK_MS * 2)).toEqual([`Hello, ${ALICE}.`]);
+  });
+
+  it("stays out of it for a word it is not listening for", () => {
+    const session = shop();
+    session.hear("alice", "good morning");
+
+    expect(saidDuring(session, BRAIN_TICK_MS * 2)).toEqual([]);
+  });
+
+  it("does not hear a greeting shouted from beyond its earshot", () => {
+    const session = shop();
+    session.despawn("alice");
+    session.spawn("alice", { at: { x: EARSHOT + 2, y: 0, z: 0 } });
+    session.hear("alice", "hi");
+
+    expect(saidDuring(session, BRAIN_TICK_MS * 2)).toEqual([]);
+  });
+
+  /**
+   * The whole point of engaging one person: the second greeting is turned away
+   * *and names who it is turned away for*, which is the difference between an
+   * NPC that is busy and one that is broken.
+   */
+  it("turns away a second greeting, naming who it is busy with", () => {
+    const session = shop();
+    session.hear("alice", "hi");
+    advance(session, GREETING_MS + BRAIN_TICK_MS * 2);
+
+    session.hear("bob", "hi");
+    expect(saidDuring(session, BRAIN_TICK_MS * 2)).toEqual([
+      `I'm busy with ${ALICE} now.`,
+    ]);
+  });
+
+  it("keeps the partner it had after turning somebody away", () => {
+    const session = shop();
+    session.hear("alice", "hi");
+    advance(session, GREETING_MS + BRAIN_TICK_MS * 2);
+    session.hear("bob", "hi");
+    advance(session, BRAIN_TICK_MS * 3);
+
+    // Still alice's conversation to end, which is the test: bob interrupting
+    // must not have quietly rebound the slot.
+    session.hear("alice", "bye");
+    expect(saidDuring(session, BRAIN_TICK_MS * 2)).toEqual(["See you later."]);
+  });
+
+  /**
+   * `from: not` earning its keep. Without it this row fires for the partner's
+   * own second greeting, and the shopkeeper tells you it is busy with you.
+   */
+  it("does not tell the person it is talking to that it is busy", () => {
+    const session = shop();
+    session.hear("alice", "hi");
+    advance(session, GREETING_MS + BRAIN_TICK_MS * 2);
+
+    session.hear("alice", "hi again");
+    expect(saidDuring(session, BRAIN_TICK_MS * 2)).toEqual([]);
+  });
+
+  /** And the mirror: a passer-by cannot end a conversation they are not in. */
+  it("is not dismissed by a stranger saying goodbye", () => {
+    const session = shop();
+    session.hear("alice", "hi");
+    advance(session, GREETING_MS + BRAIN_TICK_MS * 2);
+
+    session.hear("bob", "bye");
+    expect(saidDuring(session, BRAIN_TICK_MS * 2)).toEqual([]);
+  });
+
+  it("says goodbye when its partner does, and takes the next person after", () => {
+    const session = shop();
+    session.hear("alice", "hi");
+    advance(session, GREETING_MS + BRAIN_TICK_MS * 2);
+
+    session.hear("alice", "bye");
+    expect(saidDuring(session, BRAIN_TICK_MS * 3)).toEqual(["See you later."]);
+
+    session.hear("bob", "hi");
+    expect(saidDuring(session, BRAIN_TICK_MS * 2)).toEqual([
+      `Hello, ${displayNameFor("bob")}.`,
+    ]);
+  });
+
+  it("gives up on somebody who stopped talking", () => {
+    const session = shop();
+    session.hear("alice", "hi");
+    advance(session, GREETING_MS + CHAT_TIMEOUT_MS + BRAIN_TICK_MS * 2);
+
+    // The clock ran out, so alice no longer has the floor and bob does.
+    session.hear("bob", "hi");
+    expect(saidDuring(session, BRAIN_TICK_MS * 2)).toEqual([
+      `Hello, ${displayNameFor("bob")}.`,
+    ]);
+  });
+
+  it("gives up on somebody who walked off", () => {
+    const session = shop();
+    session.hear("alice", "hi");
+    advance(session, GREETING_MS + BRAIN_TICK_MS * 2);
+
+    session.despawn("alice");
+    session.spawn("alice", { at: { x: EARSHOT + 3, y: 0, z: 0 } });
+    advance(session, BRAIN_TICK_MS * 2);
+
+    session.hear("bob", "hi");
+    expect(saidDuring(session, BRAIN_TICK_MS * 2)).toEqual([
+      `Hello, ${displayNameFor("bob")}.`,
+    ]);
+  });
+
+  /**
+   * A sentence has to survive its subject going missing. An unbound slot and a
+   * misspelt one are the same thing at the moment the words are spoken, so both
+   * land on the same vaguer word rather than leaking a brace onto the screen.
+   */
+  it("says someone when the slot it names is empty", () => {
+    const brain: BrainDef = {
+      initial: "idle",
+      states: {
+        idle: { do: [{ action: "hold" }] },
+        muttering: {
+          onEnter: [{ effect: "say", text: "Where has {partner} got to?" }],
+          do: [{ action: "hold" }],
+        },
+      },
+      transitions: [
+        { from: "idle", if: { cond: "after", ms: 0 }, to: "muttering" },
+      ],
+    };
+    const forgetful: TileDef[] = [
+      ...tiles,
+      tile({
+        id: "forgetful",
+        height: 1,
+        actor: true,
+        affectedByGravity: true,
+        walkable: false,
+        interactions: { brain },
+      }),
+    ];
+    let map = field(9);
+    map = replaceStack(map, -9, -9, 0, [{ tileId: "grass" }]);
+    map = withDeer(map, 0, 0, "forgetful");
+    map = withPlayerAt(map, 2, 0);
+    const session = new GameSession(map, forgetful, {
+      actorIds: ["alice"],
+      spawnAt: { x: -9, y: -9, z: 0, stackIndex: 1 },
+    });
+
+    expect(saidDuring(session, BRAIN_TICK_MS * 2)).toEqual([
+      "Where has someone got to?",
+    ]);
   });
 });
 

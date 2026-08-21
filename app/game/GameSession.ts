@@ -154,6 +154,7 @@ import {
   standingAbs,
 } from "./movement";
 import { resolveBrain } from "../lib/brain";
+import { bodyNameFor } from "./displayName";
 import {
   initialMemory,
   stepBrain,
@@ -2052,7 +2053,31 @@ export class GameSession implements PlaySession {
       heard: () => this.pendingHeard,
       hurtBy: () => this.pendingHurt.get(actor.id) ?? EMPTY_ATTACKERS,
       attack: (id) => this.tryAttack(actor, id),
+      nameOf: (id) => this.bodyName(id),
     });
+  }
+
+  /**
+   * What a creature calls somebody it is talking about.
+   *
+   * `bodyNameFor`'s answer and nobody else's, which is the point of routing it
+   * here rather than deriving a name inside the brain: the words in a bubble and
+   * the label over the head they are about have to agree, and the moment there
+   * are two ways to name a body they will not.
+   *
+   * Null once they are gone — off the board, or never here. A line naming
+   * somebody who left still has to be a sentence, so what to say instead is the
+   * brain's decision and not this one's.
+   */
+  private bodyName(id: string): string | null {
+    const actor = this.actors.get(id);
+    if (!actor) return null;
+    const loc = this.tryLocate(actor);
+    if (!loc) return null;
+    return bodyNameFor(
+      { actorId: id, tileId: loc.placed.tileId },
+      this.tilesById,
+    );
   }
 
   /**

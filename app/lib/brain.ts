@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { conditionSchema, type ConditionNode } from "./conditions";
 import type { TileDef } from "./types";
 
 /**
@@ -153,6 +154,37 @@ export function selectorKey(selector: Selector): string {
   }
 }
 
+/**
+ * Whose voice a {@link BrainConditionDef} `heard` counts.
+ *
+ * The half of "somebody said something" that a room with two people in it
+ * actually turns on. Every other condition already names who it is about
+ * through a {@link Selector}; `heard` did not, so a creature mid-conversation
+ * could not tell the person it was talking to from a stranger walking past
+ * saying the same word.
+ *
+ * `not` is a separate match rather than a second condition because "anybody but
+ * the one I am busy with" is the *whole* of what an engaged NPC needs to
+ * recognise, and it has to survive somebody reordering the transition table.
+ * The same thing is expressible by putting a `from: is` row above a bare
+ * `heard` and letting the first match swallow it — but then the rule lives in
+ * the gap between two rows rather than on the row that means it, and dragging
+ * one of them past the other silently changes who gets answered.
+ *
+ * A filter naming nobody — an unbound slot, a tile nothing stands on — is what
+ * makes both matches read correctly on their own: `is` matches nobody, because
+ * there is nobody to be; `not` matches everybody, because with no partner every
+ * voice is a stranger's. That is the behaviour an NPC wants on the tick before
+ * anyone has greeted it, and it falls out rather than being special-cased.
+ *
+ * The event selectors (`speaker`, `attacker`) are accepted here and answer
+ * nobody, on the terms every other selector that names nobody does: the
+ * condition asking is the one that would have set `speaker`, so it is not set
+ * yet. Refusing them would mean a second, narrower selector schema and an
+ * editor picker that knows the difference.
+ */
+export type SpeakerFilter = { match: "is" | "not"; of: Selector };
+
 export type BrainConditionDef =
   /** Milliseconds in the current state. */
   | { cond: "after"; ms: number }
@@ -203,8 +235,19 @@ export type BrainConditionDef =
    * `los` adds the sight test to the distance one — a cat that answers a call
    * from the other side of a closed door is a cat that heard through a wall,
    * which is fine for sound and wrong for the summons this exists to express.
+   *
+   * `from` narrows it to one voice, or to every voice but one. Absent, anybody
+   * near enough will do, which is what a cat answering to "ps" wants and what
+   * an NPC already deep in a conversation cannot afford. @see SpeakerFilter
    */
-  | { cond: "heard"; text: string; cells: number; los?: boolean }
+  | {
+      cond: "heard";
+      text: string;
+      cells: number;
+      los?: boolean;
+      /** Whose voice counts. Absent means anybody's. @see SpeakerFilter */
+      from?: SpeakerFilter;
+    }
   /**
    * Somebody hit this creature since it last had a turn.
    *
@@ -230,6 +273,31 @@ export type BrainConditionDef =
    * end in the action that can fail.
    */
   | { cond: "stuck" };
+
+/**
+ * What a transition fires on: one question, or several joined together.
+ *
+ * A bare {@link BrainConditionDef} is a condition, which is what every brain
+ * authored before this was and still is — the tree is `and`/`or`/`not` layered
+ * *over* the vocabulary rather than replacing it, so nothing in `tiles.json`
+ * moved. @see ./conditions
+ *
+ * The flat machine held out against `and` for a long time, and the argument was
+ * a good one: a transition that takes exactly one question cannot hide a
+ * decision inside its condition, so the table is the whole of the behaviour.
+ * What changed is that the same tree is now wanted in places that are not
+ * transitions at all — whether a trade is on offer, whether a door will open for
+ * you — and a second, differently-shaped answer to "several questions at once"
+ * in each of them is a worse outcome than one shared shape here.
+ *
+ * The rule the flat machine was protecting still holds, and it is worth naming
+ * since it is no longer enforced by the shape: **order is still the semantics.**
+ * A group answers one question in more words. Two transitions answer two
+ * questions, in a priority the author can see. Reaching for `or` where two rows
+ * would do buries the priority inside a condition, which is precisely the thing
+ * a node canvas does badly and this table exists to avoid.
+ */
+export type BrainCondition = ConditionNode<BrainConditionDef>;
 
 /**
  * Whether a step may leave the ground beneath it.
@@ -342,7 +410,7 @@ export type BrainStateDef = {
 export type BrainTransitionDef = {
   /** A state name, or {@link ANY_STATE}. */
   from: string;
-  if: BrainConditionDef;
+  if: BrainCondition;
   /**
    * Slots to write on the way through, as `slot: selector`.
    *
@@ -391,7 +459,12 @@ const cells = v.pipe(v.number(), v.integer(), v.minValue(0));
 
 const durationMs = v.pipe(v.number(), v.integer(), v.minValue(0));
 
-const conditionSchema = v.variant("cond", [
+const speakerFilterSchema = v.object({
+  match: v.picklist(["is", "not"]),
+  of: selectorSchema,
+});
+
+const leafSchema = v.variant("cond", [
   v.object({ cond: v.literal("after"), ms: durationMs }),
   v.object({ cond: v.literal("in_range"), of: selectorSchema, cells }),
   v.object({ cond: v.literal("out_of_range"), of: selectorSchema, cells }),
@@ -404,10 +477,13 @@ const conditionSchema = v.variant("cond", [
     text: v.pipe(v.string(), v.minLength(1)),
     cells,
     los: v.optional(v.boolean()),
+    from: v.optional(speakerFilterSchema),
   }),
   v.object({ cond: v.literal("stuck") }),
   v.object({ cond: v.literal("attacked") }),
 ]);
+
+const ifSchema = conditionSchema<BrainConditionDef>(leafSchema);
 
 /**
  * Is this a selector?
@@ -419,6 +495,18 @@ const conditionSchema = v.variant("cond", [
  */
 export function isSelector(value: unknown): value is Selector {
   return v.safeParse(selectorSchema, value).success;
+}
+
+/**
+ * Is this a speaker filter?
+ *
+ * The same question {@link isSelector} answers and asked by the same caller: the
+ * editor holds a `heard` whose `from` may be absent, or may be whatever the
+ * previous condition left in that key. Answered by the schema so the guard
+ * cannot drift from what parses.
+ */
+export function isSpeakerFilter(value: unknown): value is SpeakerFilter {
+  return v.safeParse(speakerFilterSchema, value).success;
 }
 
 const allowDrops = v.optional(v.boolean());
@@ -473,7 +561,7 @@ const brainSchema = v.object({
   transitions: v.array(
     v.object({
       from: stateName,
-      if: conditionSchema,
+      if: ifSchema,
       bind: v.optional(v.record(v.pipe(v.string(), v.minLength(1)), selectorSchema)),
       to: stateName,
     }),
