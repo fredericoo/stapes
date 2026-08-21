@@ -7,6 +7,7 @@ import {
   type Reach,
   weaponSchema,
   type WeaponItem,
+  type WeaponStatus,
 } from "./item";
 import { type Kit, kitSchema } from "./kit";
 import {
@@ -167,6 +168,20 @@ export type FightingStats = {
    */
   projectile: ProjectileDef | null;
   sight: { up: number; down: number };
+  /**
+   * What a connecting blow may leave on whoever it lands on.
+   *
+   * The weapon's own list, carried through untouched — the mastery ratio scales
+   * the three numbers a blow is worth and deliberately stops there. See
+   * `./item`'s {@link WeaponItem.statuses} for why venom is not a skill.
+   *
+   * Here rather than read off the weapon at the point of the swing so that
+   * *what a body fights with* stays one question with one answer: a snake
+   * biting and a player wielding a fang taken off its corpse go down the same
+   * path, and the second case is free rather than something anybody has to
+   * remember to wire up.
+   */
+  statuses: readonly WeaponStatus[];
 };
 
 /**
@@ -364,8 +379,15 @@ export function fightingStats(
     reach: weapon.reach,
     projectile: weapon.projectile ?? null,
     sight: battler.sight,
+    statuses: weapon.statuses ?? NO_WEAPON_STATUSES,
   };
 }
+
+/**
+ * What almost every weapon in the world inflicts, shared so the common case
+ * costs nothing: one frozen empty list rather than one per body per frame.
+ */
+const NO_WEAPON_STATUSES: readonly WeaponStatus[] = [];
 
 /** Floors of perception, up or down. Whole floors — half a look is not a thing. */
 const levelSlack = v.pipe(v.number(), v.integer(), v.minValue(0));

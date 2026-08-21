@@ -9,8 +9,8 @@ import {
 import { resolveSwitch, resolveTeleport } from "../lib/interactions";
 import {
   type ConsumableItem,
-  type ConsumableStatus,
   isRanged,
+  type StatusGrant,
   resolveConsumable,
 } from "../lib/item";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
@@ -2405,6 +2405,13 @@ export class GameSession implements PlaySession {
     }
 
     this.applyDamage(target, outcome.damage);
+    // After the damage, and only for a body still standing: a status is a
+    // condition you are *in*, and a corpse is not in one. Putting venom on
+    // something the same blow killed would queue an announcement about a body
+    // that has already left the board.
+    if (outcome.inflicted.length > 0 && (this.hpOf(target) ?? 0) > 0) {
+      for (const grant of outcome.inflicted) this.grantStatus(target, grant);
+    }
     return true;
   }
 
@@ -2832,11 +2839,11 @@ export class GameSession implements PlaySession {
    *
    * The dice are the world's own — see `./statuses`.
    */
-  private grantStatus(actor: ActorRuntime, grant: ConsumableStatus) {
+  private grantStatus(actor: ActorRuntime, grant: StatusGrant) {
     const def = this.statusDefs[grant.id];
     if (!def) return;
     // The item's range where it states one, and the status's own otherwise —
-    // see `../lib/item`'s `ConsumableStatus`. Both ends or neither, so this
+    // see `../lib/item`'s `StatusGrant`. Both ends or neither, so this
     // cannot end up ordering one source's floor against another's ceiling.
     const range =
       grant.fromMs === undefined || grant.toMs === undefined

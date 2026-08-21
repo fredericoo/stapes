@@ -12,6 +12,7 @@ import {
   MIN_MASTERY,
 } from "../lib/mastery";
 import type { Kit } from "../lib/kit";
+import type { StatusDef } from "../lib/status";
 import type { TileDef } from "../lib/types";
 import { KitEditor } from "./KitEditor";
 import { StatField } from "./StatField";
@@ -22,6 +23,11 @@ type Props = {
   onChange: (next: TileDef) => void;
   /** The whole library — the kit table picks carryable tiles out of it. */
   tiles: TileDef[];
+  /**
+   * The status catalogue, for what this body's bite leaves behind. A natural
+   * weapon is a weapon in every sense, venom included — see `./WeaponFields`.
+   */
+  statusDefs?: Record<string, StatusDef>;
 };
 
 const MASTERY_FIELDS: Array<{ mastery: Mastery; label: string; hint: string }> = [
@@ -78,7 +84,7 @@ function describeDodge(flee: number): string {
  * honest way to show numbers nobody types — a readout that could disagree with
  * the formula would be worse than none.
  */
-export function BattleTab({ draft, onChange, tiles }: Props) {
+export function BattleTab({ draft, onChange, tiles, statusDefs = {} }: Props) {
   const battler = draft.interactions?.battler ?? DEFAULT_BATTLER;
 
   const setBattler = (next: BattlerDef) => {
@@ -163,6 +169,7 @@ export function BattleTab({ draft, onChange, tiles }: Props) {
           onChange={patchWeapon}
           masteryHint="Which mastery scales this weapon — and which one this body earns by using it."
           tiles={tiles}
+          statusDefs={statusDefs}
         />
 
         <div className="flex flex-col gap-1 border-t-2 border-border pt-3">

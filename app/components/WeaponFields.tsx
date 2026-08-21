@@ -3,6 +3,7 @@ import { TICK_MS } from "../game/constants";
 import type { ProjectileDef, Reach, WeaponItem } from "../lib/item";
 import {
   DEFAULT_PROJECTILE_SPEED,
+  DEFAULT_WEAPON_STATUS_CHANCE,
   MAX_PERCENT_STAT,
   MAX_PROJECTILE_SPEED,
   MAX_REACH_CELLS,
@@ -24,8 +25,10 @@ import {
   WEAPON_MASTERIES,
   type WeaponMastery,
 } from "../lib/mastery";
+import type { StatusDef } from "../lib/status";
 import { Segmented, Select } from "../ui";
 import { StatField } from "./StatField";
+import { StatusGrants } from "./StatusGrants";
 
 /**
  * How a weapon fights, authored once and edited in two places.
@@ -147,6 +150,7 @@ export function WeaponFields({
   onChange,
   masteryHint,
   tiles,
+  statusDefs = {},
 }: {
   weapon: WeaponItem;
   onChange: (fields: Partial<WeaponItem>) => void;
@@ -158,6 +162,12 @@ export function WeaponFields({
    * table's is: this component resolves nothing about the world.
    */
   tiles: TileDef[];
+  /**
+   * The status catalogue, so what a blow leaves behind can be picked by name.
+   * Empty where nothing is authored, in which case the section says so rather
+   * than offering an empty dropdown.
+   */
+  statusDefs?: Record<string, StatusDef>;
 }) {
   const projectile = weapon.projectile;
   const patchReach = (fields: Partial<Reach>) =>
@@ -315,6 +325,33 @@ export function WeaponFields({
           ) : null}
         </div>
       </div>
+      <StatusGrants
+        statuses={weapon.statuses ?? []}
+        statusDefs={statusDefs}
+        onChange={(statuses) =>
+          onChange({ statuses: statuses.length ? statuses : undefined })
+        }
+        blank={(id) => ({ id, chance: DEFAULT_WEAPON_STATUS_CHANCE })}
+        blurb={
+          <>
+            What a <strong>connecting blow</strong> leaves on whoever it lands
+            on — venom on a fang, a burn on a brand. Rolled once per entry per
+            blow that got through; a miss and a dodge leave nothing, and armour
+            eating the damage does not save anybody from the venom. The chance
+            is the weapon&rsquo;s own and no mastery moves it.
+          </>
+        }
+        extra={(entry, patch) => (
+          <StatField
+            label="Chance"
+            hint="How often a connecting blow leaves this behind, as a percentage."
+            value={entry.chance}
+            min={MIN_PERCENT_STAT}
+            max={MAX_PERCENT_STAT}
+            onChange={(chance) => patch({ chance })}
+          />
+        )}
+      />
 
       <div className="flex flex-col gap-1 border-t-2 border-border pt-3">
         <span className="text-xs font-bold uppercase text-muted">
