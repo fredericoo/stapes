@@ -16,8 +16,9 @@ import {
 import { MINUTES_PER_DAY, minutesOfDayAt } from "../app/lib/clock";
 import { DEV_DATA_PREFIX } from "../app/lib/devData";
 import { resolvePush } from "../app/lib/interactions";
-import { getStack, listCoords } from "../app/lib/mapData";
+import { chunkKeyFor, getStack, listCoords } from "../app/lib/mapData";
 import { xpForLevel } from "../app/lib/mastery";
+import { CHUNK_SIZE, levelKey } from "../app/lib/types";
 import type { FlatMapFile, MapFile, TileDef } from "../app/lib/types";
 import { tilesByIdFromList } from "../app/lib/validation";
 import { CHAT_MIN_INTERVAL_MS } from "../app/net/chat";
@@ -65,6 +66,20 @@ const AWAY_FROM_SPAWN = 2;
 
 /** Where the authored `player` marker stands, which is where a death sends you. */
 const SPAWN_CELL = 0;
+
+/**
+ * A cell far enough out that it lands in a chunk of its own.
+ *
+ * Off the end of {@link authoredMap} is not enough — the whole strip fits in
+ * one chunk, so a cell just past it shares that chunk's storage key and is
+ * overwritten by any full rewrite of the board. A world reaching *here* is one
+ * that occupies a key the authored world never writes, which is the only thing
+ * a wipe can be caught failing to remove.
+ */
+const OUTLYING_CELL = CHUNK_SIZE * 2;
+
+/** Where {@link OUTLYING_CELL} is written down. */
+const OUTLYING_CHUNK_KEY = `chunk:${levelKey(0)}:${chunkKeyFor(OUTLYING_CELL, 0)}`;
 
 function checkpointWith(owners: string[]): {
   map: FlatMapFile;
@@ -217,6 +232,49 @@ async function putCheckpoint(value: unknown) {
   await runInDurableObject(stub(), async (_instance, state) => {
     await state.storage.put("world", value);
   });
+}
+
+/** How often {@link waitForCheckpointedAt} looks again. */
+const STORAGE_POLL_MS = 20;
+
+/** The ground level of the board as it is written down, chunks reassembled. */
+async function checkpointedGround(): Promise<
+  Record<string, { tileId: string; owner?: string }[]>
+> {
+  return await runInDurableObject(stub(), async (_instance, state) => {
+    const stored = await state.storage.list<
+      Record<string, { tileId: string; owner?: string }[]>
+    >({ prefix: `chunk:${levelKey(0)}:` });
+    const ground: Record<string, { tileId: string; owner?: string }[]> = {};
+    for (const chunk of stored.values()) Object.assign(ground, chunk);
+    return ground;
+  });
+}
+
+/**
+ * Wait until the checkpointed board has somebody standing in a given cell.
+ *
+ * The board is flushed when the world goes quiet, which is soon but at no
+ * particular moment — so a fixed sleep before reading storage is a bet a loaded
+ * machine loses, and losing it leaves the test asserting against a world that
+ * had not saved yet. Position is what tells one checkpoint from the next, since
+ * a save re-seats everybody at the spawn point: waiting for a cell is waiting
+ * for *that* flush rather than for whichever one happens to land first.
+ */
+async function waitForCheckpointedAt(
+  actorId: string,
+  cell: string,
+): Promise<void> {
+  const deadline = Date.now() + MESSAGE_TIMEOUT_MS;
+  while (Date.now() < deadline) {
+    const stack = (await checkpointedGround())[cell] ?? [];
+    const standing = stack.some(
+      (placed) => placed.tileId === PLAYER_TILE_ID && placed.owner === actorId,
+    );
+    if (standing) return;
+    await new Promise((resolve) => setTimeout(resolve, STORAGE_POLL_MS));
+  }
+  throw new Error(`${actorId} was never checkpointed at ${cell}`);
 }
 
 beforeEach(async () => {
@@ -769,13 +827,54 @@ describe("replacing the world", () => {
     expect(contentsOf(hello)).toEqual([]);
   });
 
+  /**
+   * The wipe is only observable where a rewrite cannot reach.
+   *
+   * This used to read `world` out of storage the moment the save returned and
+   * expect nothing there — a race, and one a slow runner loses: `replaceWorld`
+   * wakes the world, and the first flush writes the checkpoint record straight
+   * back out along with every chunk the new board occupies. Asserting an
+   * absence against keys the very next moment refills proves nothing about the
+   * delete and everything about which of the two got there first.
+   *
+   * What no rewrite touches is a chunk of the *previous* world that the new one
+   * never lands in — a corner of a map nobody authored, reassembled as part of
+   * a world it does not belong to and sitting there until somebody edits that
+   * exact chunk. So the world being replaced here reaches a chunk past the end
+   * of the world replacing it, and what is asserted is the board a joiner is
+   * handed once the object has been evicted and has had to resume from storage.
+   */
   it("drops the previous world's checkpoint", async () => {
-    await putCheckpoint(checkpointWith(["ghost"]));
-    await stub().replaceWorld(authoredMap());
+    const who = freshPlayer();
+    const previous = checkpointWith([who]);
+    const outlying = `${OUTLYING_CELL},0`;
+    previous.map.levels["0"]![outlying] = [{ tileId: "water" }];
+    await putCheckpoint(previous);
 
-    await runInDurableObject(stub(), async (_instance, state) => {
-      expect(await state.storage.get("world")).toBeUndefined();
-    });
+    // Checkpointed by the running world rather than planted key by key: the
+    // outlying cell has to reach a storage key of its own by the route a real
+    // world would take, or its survival says nothing about what a real one
+    // leaves behind. Asserted rather than assumed — a previous world that never
+    // reached storage is one this test proves nothing about.
+    await connect(who);
+    await waitForCheckpointedAt(who, `${AWAY_FROM_SPAWN},0`);
+    expect(await storedKeys("chunk:")).toContain(OUTLYING_CHUNK_KEY);
+
+    await stub().replaceWorld(authoredMap());
+    // Waited for, not slept through, and it has to be waited for: the leftovers
+    // are only reassembled into a world that has a checkpoint record to be
+    // resumed from, and the save deletes the previous one. Evicting before the
+    // new world is written down would pass because nothing had been saved yet
+    // rather than because nothing was left behind.
+    await waitForCheckpointedAt(who, `${SPAWN_CELL},0`);
+    await simulateEviction();
+
+    const { hello } = await connect(who);
+    const ground = (hello.map as FlatMapFile).levels["0"] ?? {};
+    expect(ground[outlying]).toBeUndefined();
+    // And the authored world is there in its place, rather than the wipe having
+    // left nothing to resume — an empty board would satisfy the line above too.
+    expect(Object.keys(ground).length).toBe(AUTHORED_CELLS);
   });
 
   /**
