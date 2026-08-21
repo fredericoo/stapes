@@ -1076,3 +1076,169 @@ describe("RemoteSession teleports", () => {
     expect(framesOfType(socket, "interact")).toEqual([]);
   });
 });
+
+/**
+ * A creature killed mid-step never arrives anywhere, and this client is the
+ * only one holding the reservation its walk made.
+ */
+describe("RemoteSession bodies taken off the board", () => {
+  const RAT = "rat";
+  const ratBody: PlacedTile = {
+    tileId: "player",
+    direction: "w",
+    owner: RAT,
+  } as PlacedTile;
+
+  /** The strip again, with a rat standing at x=2 facing the player. */
+  function mapWithRat(): FlatMapFile {
+    const flat = flatMap();
+    const cells = flat.levels["0"] as unknown as Record<string, PlacedTile[]>;
+    cells["2,0"] = [grass, ratBody];
+    return flat;
+  }
+
+  function connectedWithRat(): { socket: FakeSocket; session: RemoteSession } {
+    const socket = new FakeSocket();
+    const session = new RemoteSession(socket as unknown as WebSocket, tiles);
+    socket.deliver({
+      type: "hello",
+      selfId: SELF,
+      map: mapWithRat(),
+      actorIds: [SELF, RAT],
+      playerCount: 1,
+      minutesOfDay: SERVER_MINUTES,
+      hps: [],
+      carriedLights: [],
+      equipment: emptyEquipment(),
+      tags: [],
+      statuses: [],
+    });
+    return { socket, session };
+  }
+
+  it("frees the cell a creature was walking into when it dies on the way", () => {
+    const { socket, session } = connectedWithRat();
+
+    // The rat steps towards the player, and is killed before it lands: the
+    // whole of the news is its body leaving the board.
+    socket.deliver(
+      patch(
+        [],
+        [
+          {
+            kind: "walkStarted",
+            actorId: RAT,
+            from: { x: 2, y: 0, z: 0 },
+            to: { x: 1, y: 0, z: 0 },
+            direction: "w",
+          },
+        ],
+      ),
+    );
+    session.update(WALK_DURATION_MS / 2);
+    socket.deliver(patch([{ x: 2, y: 0, z: 0, stack: [grass] }]));
+
+    session.setInput({ directions: ["e"] });
+    session.update(WALK_DURATION_MS);
+
+    expect(session.getSnapshot().self.x).toBe(1);
+  });
+
+  /**
+   * The order the two arrive in is the trap: forget the rat on the cells and
+   * the event behind them puts the reservation straight back.
+   */
+  it("frees it when the step and the death arrive in one frame", () => {
+    const { socket, session } = connectedWithRat();
+
+    socket.deliver(
+      patch(
+        [{ x: 2, y: 0, z: 0, stack: [grass] }],
+        [
+          {
+            kind: "walkStarted",
+            actorId: RAT,
+            from: { x: 2, y: 0, z: 0 },
+            to: { x: 1, y: 0, z: 0 },
+            direction: "w",
+          },
+        ],
+      ),
+    );
+
+    session.setInput({ directions: ["e"] });
+    session.update(WALK_DURATION_MS);
+
+    expect(session.getSnapshot().self.x).toBe(1);
+  });
+
+  it("still holds the cell for a creature that is only walking into it", () => {
+    const { socket, session } = connectedWithRat();
+
+    socket.deliver(
+      patch(
+        [],
+        [
+          {
+            kind: "walkStarted",
+            actorId: RAT,
+            from: { x: 2, y: 0, z: 0 },
+            to: { x: 1, y: 0, z: 0 },
+            direction: "w",
+          },
+        ],
+      ),
+    );
+
+    session.setInput({ directions: ["e"] });
+    session.update(WALK_DURATION_MS);
+
+    // Two bodies into one cell is the step the server would take back, so it is
+    // the step this client must never draw.
+    expect(session.getSnapshot().self.x).toBe(0);
+  });
+
+  /**
+   * A step empties the cell behind it, which is the same evidence a death
+   * leaves — and the reason absence is asked of the whole board rather than of
+   * the cells one patch happened to carry.
+   */
+  it("keeps holding it across the patch that commits the creature's step", () => {
+    const { socket, session } = connectedWithRat();
+
+    socket.deliver(
+      patch(
+        [
+          { x: 2, y: 0, z: 0, stack: [grass] },
+          { x: 1, y: 0, z: 0, stack: [grass, ratBody] },
+        ],
+        [
+          {
+            kind: "walkStarted",
+            actorId: RAT,
+            from: { x: 1, y: 0, z: 0 },
+            to: { x: 0, y: 0, z: 0 },
+            direction: "w",
+          },
+        ],
+      ),
+    );
+
+    session.setInput({ directions: ["e"] });
+    session.update(WALK_DURATION_MS);
+
+    // Still on the board one cell along, and still walking: the player is
+    // blocked by the rat's body rather than by its reservation.
+    expect(session.getSnapshot().self.x).toBe(0);
+    expect(session.getSnapshot().actors).toHaveLength(2);
+  });
+
+  it("stops drawing a body the board no longer holds", () => {
+    const { socket, session } = connectedWithRat();
+    expect(session.getSnapshot().actors).toHaveLength(2);
+
+    socket.deliver(patch([{ x: 2, y: 0, z: 0, stack: [grass] }]));
+
+    expect(session.getSnapshot().actors).toHaveLength(1);
+  });
+});

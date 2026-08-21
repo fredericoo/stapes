@@ -561,10 +561,11 @@ export class RemoteSession implements PlaySession {
       return;
     }
 
-    this.applyCells(message.cells);
+    const leaving = this.applyCells(message.cells);
     this.applyHps(message.hps);
     this.applyCarriedLights(message.carriedLights);
     for (const event of message.events) this.applyEvent(event);
+    this.forgetDeparted(leaving);
     this.rebuildPredicted();
   };
 
@@ -625,10 +626,87 @@ export class RemoteSession implements PlaySession {
    * derived — see {@link rebuildPredicted} — and writing a patch straight into
    * it would bake this client's guesses into the very thing that is supposed to
    * be able to correct them.
+   *
+   * @returns who these cells may have taken off the board; see
+   *   {@link forgetDeparted}, which is the caller's next-but-one step.
    */
-  private applyCells(cells: CellPatch[]) {
-    if (cells.length === 0) return;
+  private applyCells(cells: CellPatch[]): readonly string[] {
+    if (cells.length === 0) return NO_OWNERS;
+    const leaving = this.ownersLeaving(cells);
     this.serverMap = setStacks(this.serverMap, cells);
+    return leaving;
+  }
+
+  /**
+   * Owners these patches take out of a cell without putting into another.
+   *
+   * The candidates for having left the world entirely, and only the candidates:
+   * a step patches the cell behind and the cell ahead in one batch, so a walker
+   * is in the new stacks and never costs the board search {@link forgetDeparted}
+   * would otherwise run on every creature that moved this tick.
+   *
+   * Read off the board before {@link applyCells} overwrites it, which is the
+   * whole reason this is a separate pass rather than part of the loop that
+   * forgets them.
+   */
+  private ownersLeaving(cells: CellPatch[]): readonly string[] {
+    const left = new Set<string>();
+    for (const cell of cells) {
+      for (const placed of getStack(this.serverMap, cell.x, cell.y, cell.z)) {
+        // Our own body is never judged by its absence; see
+        // {@link forgetDeparted}.
+        if (placed.owner && placed.owner !== this.selfId) left.add(placed.owner);
+      }
+    }
+    if (left.size === 0) return NO_OWNERS;
+    for (const cell of cells) {
+      for (const placed of cell.stack) {
+        if (placed.owner) left.delete(placed.owner);
+      }
+    }
+    return left.size === 0 ? NO_OWNERS : [...left];
+  }
+
+  /**
+   * Forget the actors this frame took off the board for good.
+   *
+   * A death is not on the wire — the body simply stops being in any cell — so
+   * absence from the board the server just described is the only thing that
+   * says it happened. Which is enough here, and is *not* enough for this
+   * client's own body: see {@link dead} for why that one is told rather than
+   * inferred, and {@link ownersLeaving} for where it is excluded.
+   *
+   * What this leaves behind if it is not done is a reservation nobody can ever
+   * release. {@link releaseArrivedWalk} ends another actor's walk when the map
+   * moves them out of the cell it started in, and a creature killed mid-step
+   * never moves anywhere again — so its `walk.to` sits in {@link motions} for
+   * the rest of the session and {@link destinationTaken} goes on refusing that
+   * cell to the player who just cleared it. Reconnecting was the only cure,
+   * because a `hello` clears the table.
+   *
+   * Run after the frame's events rather than beside the patch that carries
+   * them: a creature that started a step and was killed in the same tick is
+   * announced in both, and forgetting it first would leave the walk event to
+   * put the reservation straight back.
+   */
+  private forgetDeparted(leaving: readonly string[]) {
+    for (const id of leaving) {
+      if (locateActor(this.serverMap, id)) continue;
+      this.forgetActor(id);
+    }
+  }
+
+  /**
+   * Drop everything this client is holding about somebody who is gone.
+   *
+   * One place for it because there are two ways to go — a socket closing and a
+   * death — and nothing about what a client remembers distinguishes them.
+   */
+  private forgetActor(id: string) {
+    this.motions.delete(id);
+    this.hps.delete(id);
+    this.carriedLights.delete(id);
+    if (this.targetId === id) this.targetId = null;
   }
 
   private applyEvent(event: MotionEvent) {
@@ -638,10 +716,7 @@ export class RemoteSession implements PlaySession {
       return;
     }
     if (event.kind === "left") {
-      this.motions.delete(event.actorId);
-      this.hps.delete(event.actorId);
-      this.carriedLights.delete(event.actorId);
-      if (this.targetId === event.actorId) this.targetId = null;
+      this.forgetActor(event.actorId);
       this.setPlayers(event.playerCount);
       return;
     }
@@ -1743,6 +1818,13 @@ const NO_TAGS: readonly string[] = [];
 
 /** Shared empty list, since no remote body ever carries statuses. */
 const NO_STATUSES: readonly StatusInstance[] = [];
+
+/**
+ * Shared empty list for the overwhelmingly common patch: one where every body
+ * that moved is still standing somewhere. Allocating per frame for the answer
+ * "nobody died" would be a garbage collection on the render path.
+ */
+const NO_OWNERS: readonly string[] = [];
 
 function emptyMotion(): RemoteMotion {
   return { walk: null, fall: null, slide: null, strike: null, lastSeen: null };
