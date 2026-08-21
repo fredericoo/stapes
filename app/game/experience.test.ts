@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { MELEE_REACH } from "../lib/item";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import {
   levelForXp,
@@ -59,6 +60,7 @@ const sword = {
   spd: 50,
   accuracy: 85,
   variance: 30,
+  reach: MELEE_REACH,
   mastery: "blade" as const,
   requirements: { blade: 5 },
 };

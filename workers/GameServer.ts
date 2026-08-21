@@ -2646,6 +2646,7 @@ export class GameServer extends DurableObject<Env> {
     const actors = session.actorSnapshots();
     this.collectMotionEvents(actors);
     this.collectDamageEvents(session);
+    this.collectProjectileEvents(session);
     this.collectTeleportEvents(session);
     this.noteDeaths(session);
     this.broadcastSpeech(session, actors);
@@ -2933,6 +2934,33 @@ export class GameServer extends DurableObject<Env> {
         y: hit.y,
         z: hit.z,
         stackIndex: hit.stackIndex,
+      });
+    }
+  }
+
+  /**
+   * Turn this tick's shots into events.
+   *
+   * Drained rather than diffed on exactly the terms a blow is, and for one more
+   * reason: an arrow leaves nothing on the board at all. It is on no cell, it
+   * displaces nothing, and the two bodies it was measured between may both have
+   * moved by the time it lands — so there is no pair of readings anything could
+   * recover it from.
+   *
+   * The whole flight is sent in one event and never touched again. There is no
+   * per-tick position stream for the same reason a walk has none: the receiver
+   * has two fixed points and a duration, which is enough to draw every frame of
+   * it without being told any of them.
+   */
+  private collectProjectileEvents(session: GameSession) {
+    for (const flight of session.drainProjectiles()) {
+      this.events.push({
+        kind: "projectileFired",
+        id: flight.id,
+        tileId: flight.tileId,
+        from: flight.from,
+        to: flight.to,
+        durationMs: flight.durationMs,
       });
     }
   }

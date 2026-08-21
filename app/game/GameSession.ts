@@ -10,6 +10,7 @@ import { resolveSwitch, resolveTeleport } from "../lib/interactions";
 import {
   type ConsumableItem,
   type ConsumableStatus,
+  isRanged,
   resolveConsumable,
 } from "../lib/item";
 import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
@@ -114,6 +115,11 @@ import {
   swingToward,
   type StrikeState,
 } from "./strike";
+import type { ReachPoint } from "./distance";
+import {
+  flightDurationMs,
+  type ProjectileFlight,
+} from "./projectile";
 import { pushedColumn } from "./push";
 import { isSpawnFilled, type SpawnPoint } from "./respawn";
 import {
@@ -493,6 +499,20 @@ export type GameSnapshot = {
    * exactly as the online client does.
    */
   damage: DamageNumber[];
+  /**
+   * Arrows still in the air, oldest first.
+   *
+   * Beside {@link damage} rather than inside it, and the split is the same one
+   * the whole protocol is built on: a number is what a blow *came to* and an
+   * arrow is what it *looked like*. They are not one event told twice — a melee
+   * blow floats a number and no arrow, and a shot that killed its target floats
+   * a number over a body that is no longer there while the arrow carries on to
+   * where it used to be.
+   *
+   * Present in every session, on exactly the terms {@link damage} is: a bow
+   * fired in `/play` puts an arrow in the air with nobody to broadcast it to.
+   */
+  projectiles: ProjectileFlight[];
   /**
    * What the viewer is carrying.
    *
@@ -1123,6 +1143,23 @@ export class GameSession implements PlaySession {
    * outlives it by a couple of seconds. Both are fed by the same blow.
    */
   private liveDamage: DamageNumber[] = [];
+  /**
+   * Shots loosed this tick, waiting to be broadcast. Drained by the server
+   * exactly as {@link pendingDamage} is, and emptied at the top of every tick so
+   * a session with no wire cannot accumulate it.
+   */
+  private pendingProjectiles: ProjectileFlight[] = [];
+  /**
+   * Arrows still in the air, aged down by the tick loop.
+   *
+   * The same pair {@link pendingDamage} and {@link liveDamage} make, for the
+   * same reason: one answers "what happened in the last tick" and the other
+   * "what a viewer should still be able to see". A flight outlives its tick by
+   * however long it takes to arrive.
+   */
+  private liveProjectiles: ProjectileFlight[] = [];
+  /** Ticks up per shot, so two arrows in one tick are two flights. */
+  private nextProjectileId = 0;
   /**
    * Sentences waiting to be told to the people they are about.
    *
@@ -1851,9 +1888,11 @@ export class GameSession implements PlaySession {
     this.pendingSpeech = [];
     this.pendingDamage = [];
     this.pendingNoise = [];
+    this.pendingProjectiles = [];
     this.pendingTeleports = [];
     this.ageDamageNumbers(tickMs);
     this.ageNoises(tickMs);
+    this.ageProjectiles(tickMs);
 
     // Before the cooldowns and before anything swings, because a status is the
     // one thing here that can change the numbers the rest of the tick is fought
@@ -2167,6 +2206,20 @@ export class GameSession implements PlaySession {
   }
 
   /**
+   * Every shot loosed this tick, handed over and forgotten.
+   *
+   * The server's to call, right after {@link tick}, exactly as
+   * {@link drainDamage} is. An offline `/play` never drains it and reads
+   * {@link liveProjectiles} through {@link getSnapshot} instead — the same split
+   * damage numbers are under.
+   */
+  drainProjectiles(): ProjectileFlight[] {
+    const loosed = this.pendingProjectiles;
+    this.pendingProjectiles = [];
+    return loosed;
+  }
+
+  /**
    * Everybody who went through a teleport this tick, handed over and forgotten.
    *
    * The server's to call, right after {@link tick}, exactly as
@@ -2277,16 +2330,13 @@ export class GameSession implements PlaySession {
     if (!from || !to) return false;
     const fromPoint = this.reachPointOf(from);
     const toPoint = this.reachPointOf(to);
-    // The attacker's own reach, not a constant: a bow and a fist ask the same
-    // question with different numbers, and the number belongs to whoever swings.
+    // The weapon's own reach, not a constant and not the body's: a bow and a
+    // fist ask the same question with different numbers, and the number belongs
+    // to whatever is being swung. `canReach` is also where the wall costs
+    // something — a target picked through a window stays picked, and the shot
+    // simply does not go.
     if (
-      !canReach(
-        this.map,
-        this.tilesById,
-        fromPoint,
-        toPoint,
-        attackerStats.range,
-      )
+      !canReach(this.map, this.tilesById, fromPoint, toPoint, attackerStats.reach)
     ) {
       return false;
     }
@@ -2304,8 +2354,20 @@ export class GameSession implements PlaySession {
     // Unless this body has just got out of somebody else's way, which is the one
     // thing that outranks its own swing. @see outranksSwing
     if (!outranksSwing(attacker.strike)) {
-      attacker.strike = swingToward(fromPoint, toPoint);
+      attacker.strike = swingToward(
+        fromPoint,
+        toPoint,
+        isRanged(attackerStats),
+      );
     }
+
+    // Beside the lean rather than instead of it, and on the same terms: the two
+    // are the same announcement — *this body attacked that one* — made by
+    // whichever half of the pair the weapon has. Loosed before the dice, so a
+    // shot that misses is a shot somebody saw taken; an arrow that only appeared
+    // on the blows that landed would be a fight where half the traffic came from
+    // nowhere.
+    this.fireProjectile(attackerStats, fromPoint, toPoint);
 
     // Turning into the blow, so a creature that fights while cornered is facing
     // what it is fighting. Free when it already is — `setEntityDirection` guards
@@ -2344,6 +2406,42 @@ export class GameSession implements PlaySession {
 
     this.applyDamage(target, outcome.damage);
     return true;
+  }
+
+  /**
+   * Put this weapon's projectile in the air, if it has one.
+   *
+   * Silently nothing for a melee weapon, which is the overwhelming majority and
+   * is not a special case anybody had to write: `projectile` is absent, so there
+   * is nothing to loose. That is the same shape the lean above has in reverse,
+   * and between them every weapon says exactly one thing about itself.
+   *
+   * The flight is queued twice for the reason a damage number is — see
+   * {@link pendingDamage} and {@link liveDamage}. One list is "what happened in
+   * the last tick", which the wire drains once; the other is "what a viewer
+   * should still be able to see", which outlives it by the length of the flight.
+   */
+  private fireProjectile(
+    attacker: FightingStats,
+    from: ReachPoint,
+    to: ReachPoint,
+  ) {
+    const projectile = attacker.projectile;
+    if (!projectile) return;
+
+    const flight: ProjectileFlight = {
+      id: `shot-${this.nextProjectileId++}`,
+      tileId: projectile.tileId,
+      // Copied rather than handed over, because both ends are `reachPointOf`
+      // results measured against a board that is about to move: the arrow owes
+      // nothing to where either body ends up while it is in the air.
+      from: { x: from.x, y: from.y, elevAbs: from.elevAbs },
+      to: { x: to.x, y: to.y, elevAbs: to.elevAbs },
+      durationMs: flightDurationMs(from, to, projectile),
+      elapsedMs: 0,
+    };
+    this.pendingProjectiles.push(flight);
+    this.liveProjectiles.push(flight);
   }
 
   /**
@@ -2645,6 +2743,27 @@ export class GameSession implements PlaySession {
       this.map = appendTile(this.map, at.x, at.y, at.z, placed);
     }
     return emptyEquipment();
+  }
+
+  /**
+   * Age the arrows out, on the tick clock like every other timer.
+   *
+   * A flight that has arrived is simply dropped: there is nothing to commit
+   * because there was never anything to commit — the blow it depicts was settled
+   * on the tick it was loosed. @see `./projectile`
+   */
+  private ageProjectiles(tickMs: number) {
+    if (this.liveProjectiles.length === 0) return;
+    let arrived = false;
+    for (const flight of this.liveProjectiles) {
+      flight.elapsedMs += tickMs;
+      if (flight.elapsedMs >= flight.durationMs) arrived = true;
+    }
+    if (arrived) {
+      this.liveProjectiles = this.liveProjectiles.filter(
+        (flight) => flight.elapsedMs < flight.durationMs,
+      );
+    }
   }
 
   /** Age the floating numbers out, on the tick clock like every other timer. */
@@ -4099,6 +4218,10 @@ export class GameSession implements PlaySession {
       // has snakes in it.
       noises: this.liveNoise,
       damage: this.liveDamage,
+      // By reference, and aged in place: the renderer reads the elapsed time off
+      // the same object the tick loop is winding forward, exactly as a walk or a
+      // strike is handed over live.
+      projectiles: this.liveProjectiles,
     };
   }
 
@@ -4129,6 +4252,13 @@ export class GameSession implements PlaySession {
     // ticking for half a minute after the last blow; a tile authored to decay
     // in an hour would keep it ticking for an hour.
     if (this.decay.pending()) return false;
+    // An arrow in the air is a clock this loop owns, on exactly the terms a lean
+    // is one below. Falling asleep under it would strand the thing mid-flight
+    // for as long as nobody moved — and unlike a lean, which is over in 150ms,
+    // a slow projectile authored across a courtyard is a visible second of
+    // somebody's screen. The cost is bounded by what an author wrote, which is
+    // the same bargain decay lifetimes are under.
+    if (this.liveProjectiles.length > 0) return false;
 
     let observed = false;
     let thinking = false;

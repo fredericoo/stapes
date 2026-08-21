@@ -3,6 +3,7 @@ import { IconSettings, IconTrash } from "@tabler/icons-react";
 import { DragDropProvider } from "@dnd-kit/react";
 import { isSortable, useSortable } from "@dnd-kit/react/sortable";
 import type { Direction, PlacedTile, TileDef, TilesetDef } from "../lib/types";
+import { isDirectional } from "../lib/types";
 import { getStack, listChannels } from "../lib/mapData";
 import {
   resolveEmit,
@@ -170,7 +171,7 @@ function SortableStackItem({
       <div className="min-w-0 flex-1">
         <div className="truncate text-xs font-bold">{def.name}</div>
         <div className="text-[10px] text-muted">h{def.height}</div>
-        {def.type === "directional" ? (
+        {isDirectional(def) ? (
           <Segmented<Direction>
             size="sm"
             ariaLabel={`Direction for ${def.name}`}

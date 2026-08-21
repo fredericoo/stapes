@@ -8,6 +8,7 @@ import {
   WALK_DURATION_MS,
 } from "../game/constants";
 import type { StatusInstance } from "../game/statuses";
+import type { ProjectileFlight } from "../game/projectile";
 import type { StrikeState } from "../game/strike";
 import {
   actorDirection,
@@ -237,6 +238,16 @@ export class RemoteSession implements PlaySession {
   private masteryXp: MasteryXp = {};
   /** Numbers still floating, with their own clocks. */
   private damage: DamageNumber[] = [];
+  /**
+   * Arrows still in the air, with their own clocks.
+   *
+   * Beside {@link damage} rather than derived from it, and never from the
+   * `hps` patch either: a shot and what it came to are two facts the server
+   * sends in one frame and neither can be recovered from the other. A melee
+   * blow owes a number and no arrow; a shot that killed floats a number over
+   * an empty cell while the arrow finishes its flight.
+   */
+  private projectiles: ProjectileFlight[] = [];
   /** Who this client is pointing at; echoed back in the snapshot for the outline. */
   private targetId: string | null = null;
   /**
@@ -393,6 +404,9 @@ export class RemoteSession implements PlaySession {
       // exists, which would leave them hanging over whatever is there now.
       this.chats = [];
       this.damage = [];
+      // And every arrow is measured between two cells in a world that no longer
+      // exists, on the same terms the bubbles above are.
+      this.projectiles = [];
       // A target in the old world names nobody in this one, and the server has
       // already dropped it — leaving it set here would draw a red outline
       // around whoever happens to answer to that id next.
@@ -647,6 +661,22 @@ export class RemoteSession implements PlaySession {
       return;
     }
 
+    // Before the prediction guard below, on exactly the grounds the lean is: an
+    // arrow is not a claim about where any body *is*, so it can neither confirm
+    // nor contradict a step this client is holding a guess about. It carries no
+    // actor id at all, which is the shortest way of saying the same thing.
+    if (event.kind === "projectileFired") {
+      this.projectiles.push({
+        id: event.id,
+        tileId: event.tileId,
+        from: event.from,
+        to: event.to,
+        durationMs: event.durationMs,
+        elapsedMs: 0,
+      });
+      return;
+    }
+
     if (event.kind === "teleported") {
       // Nothing to animate — the body is simply somewhere else, and the cell
       // patches in this same frame say where. What has to happen is that both
@@ -782,6 +812,32 @@ export class RemoteSession implements PlaySession {
     this.expireChats(dtMs);
     this.expireNoises(dtMs);
     this.expireDamage(dtMs);
+    this.expireProjectiles(dtMs);
+  }
+
+  /**
+   * Land the arrows that have arrived.
+   *
+   * Timed off the render loop's delta exactly as the numbers above are — and,
+   * exactly as they are, dropped with nothing to commit: there was never
+   * anything for the arrow to do on arrival, since the blow it depicts was
+   * settled on the tick it was loosed. @see `../game/projectile`
+   *
+   * Each flight carries its own duration rather than sharing a constant, unlike
+   * every other motion here: how long a shot takes depends on how far it went.
+   */
+  private expireProjectiles(dtMs: number) {
+    if (this.projectiles.length === 0) return;
+    let arrived = false;
+    for (const flight of this.projectiles) {
+      flight.elapsedMs += dtMs;
+      if (flight.elapsedMs >= flight.durationMs) arrived = true;
+    }
+    if (arrived) {
+      this.projectiles = this.projectiles.filter(
+        (flight) => flight.elapsedMs < flight.durationMs,
+      );
+    }
   }
 
   /**
@@ -1327,6 +1383,7 @@ export class RemoteSession implements PlaySession {
       chats: this.chats,
       noises: this.noises,
       damage: this.damage,
+      projectiles: this.projectiles,
     };
   }
 

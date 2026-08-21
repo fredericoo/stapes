@@ -311,7 +311,6 @@ describe("interactionsForSave", () => {
       battler: {
         masteries: { fist: 9, toughness: 14 },
         naturalWeapon: DEFAULT_BATTLER.naturalWeapon,
-        range: DEFAULT_BATTLER.range,
         sight: { up: 0, down: 0 },
       },
     });

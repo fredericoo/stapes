@@ -4,7 +4,7 @@ import { resolveBattler } from "../lib/battler";
 import { ATTACKER_SELECTOR, resolveBrain, slot } from "../lib/brain";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
-import { normalizeTileDef, normalizeTiles } from "../lib/types";
+import { HEIGHT_PER_LEVEL, normalizeTileDef, normalizeTiles } from "../lib/types";
 import { attackIntervalMs, MIN_ATTACK_TICKS } from "./combat";
 import { STRIKE_DURATION_MS, TICK_MS } from "./constants";
 import { GameSession } from "./GameSession";
@@ -83,8 +83,15 @@ const brawlerBrain = {
   ],
 };
 
-/** Certain to hit, certain to hurt, and as fast as the rules allow. */
-const CERTAIN = { acc: 100, spd: 100 };
+/**
+ * Certain to hit, certain to hurt, and as fast as the rules allow.
+ *
+ * The key was `acc` until the field was renamed to `accuracy`, and a stale one
+ * is silently dropped by the schema — so this spread nothing and every fixture
+ * claiming to be certain was landing half its blows. Nothing failed, because
+ * every assertion downstream was about *eventually* doing damage.
+ */
+const CERTAIN = { accuracy: 100, spd: 100 };
 
 /**
  * A natural weapon, spelled out once.
@@ -316,8 +323,8 @@ describe("swinging at a target", () => {
    * The one case the plan alone cannot answer. A body on the plinth next door is
    * one cell away on the plan and is drawn a hand's width from the player's
    * shoulder — and is a whole level up, which at melee reach is out. See
-   * `./distance`: height costs a cell a unit, so a level costs two, and one step
-   * sideways plus a level comes to more than the melee sphere holds.
+   * `./distance`: reach is a disc *and* a lid, and melee's lid is half a level,
+   * so a whole storey clears it however close the plan says the body is.
    */
   it("does nothing to somebody standing a floor up", () => {
     const session = new GameSession(perched(field(), 1, 0, "dummy"), tiles);
@@ -686,5 +693,142 @@ describe("the authored creatures", () => {
     const spook = brain.transitions.find((t) => t.if.cond === "attacked");
     expect(spook?.bind).toEqual({ spooked: ATTACKER_SELECTOR });
     expect(spook?.to).toBe("flee");
+  });
+});
+
+/**
+ * A body that shoots rather than swings.
+ *
+ * The reach is the interesting half — six cells across the floor and a level
+ * either way — and it is on the *weapon*, which is the whole of what moved when
+ * ranged weapons arrived. The projectile beside it is what makes it ranged;
+ * there is no flag saying so. @see `../lib/item`'s `isRanged`
+ */
+const bow = claws({
+  damage: 5,
+  ...CERTAIN,
+  mastery: "ranged" as const,
+  reach: { cells: 6, height: HEIGHT_PER_LEVEL },
+  projectile: { tileId: "arrow", cellsPerSecond: 20 },
+});
+
+const archerTiles: TileDef[] = tiles.map((t) =>
+  t.id === "player"
+    ? tile({
+        ...t,
+        interactions: {
+          battler: { masteries: { toughness: 92, ranged: 50 }, naturalWeapon: bow },
+        },
+      })
+    : t,
+);
+
+/** A wall that stops a look, and therefore a shot. Full height, opaque. */
+const WALL = "wall";
+const archerTilesWithWall: TileDef[] = [
+  ...archerTiles,
+  tile({ id: WALL, height: HEIGHT_PER_LEVEL, walkable: false }),
+];
+
+/** The flights the viewer can see, however far along they are. */
+function arrows(session: GameSession) {
+  return session.getSnapshot().projectiles;
+}
+
+describe("shooting at somebody", () => {
+  /**
+   * The point of a reach that is not an arm's length. Four cells is well past
+   * anything melee can touch, and the blow lands anyway.
+   */
+  it("lands a blow far past arm's reach", () => {
+    const session = new GameSession(withBody(field(6), 4, 0, "dummy"), archerTiles);
+    fight(session, bodyOf(session, "dummy")!.id);
+
+    advance(session, 1000);
+
+    expect(bodyOf(session, "dummy")!.hp).toBeLessThan(DUMMY_MAX_HP);
+  });
+
+  /**
+   * **The half-tile lean is a melee thing, and this is the case that says so.**
+   * The target is the neighbouring cell — squarely inside the melee box — so a
+   * gate written on distance alone would lean here. What decides is the weapon.
+   */
+  it("never leans, even at point-blank range", () => {
+    const session = new GameSession(withBody(field(), 1, 0, "dummy"), archerTiles);
+    fight(session, bodyOf(session, "dummy")!.id);
+
+    advance(session, 1000);
+
+    expect(bodyOf(session, "dummy")!.hp).toBeLessThan(DUMMY_MAX_HP);
+    expect(swingsOver(session, 1000)).toBe(0);
+  });
+
+  /** What a shot puts in the air, aimed from where the shooter is to where they are. */
+  it("puts an arrow in the air, from the bow to the target", () => {
+    const session = new GameSession(withBody(field(6), 4, 0, "dummy"), archerTiles);
+    fight(session, bodyOf(session, "dummy")!.id);
+
+    advanceUntil(session, () => arrows(session).length > 0);
+
+    const [flight] = arrows(session);
+    expect(flight!.tileId).toBe("arrow");
+    expect(flight!.from).toMatchObject({ x: 0, y: 0 });
+    expect(flight!.to).toMatchObject({ x: 4, y: 0 });
+    expect(flight!.durationMs).toBeGreaterThan(0);
+  });
+
+  /**
+   * **The damage is settled when the shot is loosed, not when the arrow lands.**
+   * Hit points come off on the tick the flight begins — see `./projectile` for
+   * why that is the only arrangement two clients can agree about.
+   */
+  it("takes the hit points before the arrow arrives", () => {
+    const session = new GameSession(withBody(field(6), 4, 0, "dummy"), archerTiles);
+    fight(session, bodyOf(session, "dummy")!.id);
+
+    advanceUntil(session, () => arrows(session).length > 0);
+
+    expect(arrows(session)[0]!.elapsedMs).toBeLessThan(
+      arrows(session)[0]!.durationMs,
+    );
+    expect(bodyOf(session, "dummy")!.hp).toBeLessThan(DUMMY_MAX_HP);
+  });
+
+  /**
+   * **A wall does not stop you pointing, only shooting.** The target stays
+   * targeted — its name and its health bar are readable through a window you
+   * cannot shoot through — and no blow lands and no arrow flies while the line
+   * is broken. @see `./combat`'s `canReach`
+   */
+  it("holds the target through a wall and fires nothing at it", () => {
+    let map = withBody(field(6), 4, 0, "dummy");
+    map = replaceStack(map, 2, 0, 0, [{ tileId: "grass" }, { tileId: WALL }]);
+    const session = new GameSession(map, archerTilesWithWall);
+    const dummyId = bodyOf(session, "dummy")!.id;
+    fight(session, dummyId);
+
+    advance(session, 1000);
+
+    expect(session.getSnapshot().targetId).toBe(dummyId);
+    expect(bodyOf(session, "dummy")!.hp).toBe(DUMMY_MAX_HP);
+    expect(arrows(session)).toHaveLength(0);
+  });
+
+  /**
+   * The lid on the reach, which is the half a single radius could never express:
+   * six cells across the floor, and a body two storeys up is out however close
+   * it is on the plan.
+   */
+  it("cannot shoot past the height its reach allows", () => {
+    let map = field(6);
+    map = replaceStack(map, 1, 0, 2, [{ tileId: "grass" }, { tileId: "dummy" }]);
+    const session = new GameSession(map, archerTiles);
+    fight(session, bodyOf(session, "dummy")!.id);
+
+    advance(session, 1000);
+
+    expect(bodyOf(session, "dummy")!.z).toBe(2);
+    expect(bodyOf(session, "dummy")!.hp).toBe(DUMMY_MAX_HP);
   });
 });

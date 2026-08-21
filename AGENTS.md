@@ -508,14 +508,102 @@ The formulas live in `app/game/combat.ts`, kept pure so they can be asserted:
 - **`acc` widens a band downward; it never raises the ceiling.** Full damage is
   always `atk`. Within the band the roll is triangular, so a middling blow is
   common and both a glancing and a shattering one are rare.
-- **`flee` reads against half the attacker's `acc`**, which is what stops perfect
-  accuracy from erasing the stat.
+- **`flee` is contested against the attacker's `acc` on a logistic curve**, which
+  is what stops perfect accuracy from erasing the stat.
 - **`spd` is geometric between 2 and 200 ticks.** Linear would make the whole
   lower half of the stat indistinguishable from zero; on this curve 50 is twenty
   ticks.
 - **A swing always costs three draws**, whatever the stats. The dice are seeded so
   a world is reproducible, and a draw count that varied with accuracy would make
   one creature's stats change what every creature after it rolled.
+
+### Reach is a disc and a lid, and both belong to the weapon
+
+`app/game/distance.ts` measures reach as two independent numbers — a radius on
+the plan and a height either side of it — rather than as one radius in three
+dimensions. It was a sphere, with height weighted at a whole cell per unit so
+the melee box fell out of a single number, and that worked for exactly one shape.
+A bow is the same question with a bigger answer and the sphere gives the wrong
+one: at six cells' radius, "six cells across the yard" necessarily also means
+"six cells straight up", which is three storeys nobody meant to shoot through.
+No weighting fixes it — a weighting decides where the sphere bulges, never that
+the shape has a flat lid.
+
+The pair is also what the rest of the game was already doing in private:
+`affordances` measures what you can touch as a disc plus a level slack, and a
+brain's `in_range` measures plan steps plus its sight's up and down. Neither
+could be written against the sphere, so neither was.
+
+Height is in **height units** (two to a level) and absolute, never in floors: a
+body on a crate is half a level above the floor it shares with you, and half a
+level is the only unit an arm's reach can be said in.
+
+**`BattlerDef.range` is gone, not deprecated.** Reach is `WeaponItem.reach`, so a
+rat that picks up a bow shoots as far as the bow carries — a body has no reach of
+its own, because bare hands are a weapon and a bite is a weapon and each carries
+the distance it works at. A `range` left on a tile parses fine and is dropped.
+
+### A ranged weapon is one with a projectile, and the arrow is only a picture
+
+There is no `ranged` flag and there must not be one: a weapon is ranged exactly
+when it authors a `projectile` block (`isRanged`). Two fields saying the same
+thing is a bow authored to fire nothing, or a sword that lunges *and* puts an
+arrow in the air.
+
+- **A ranged weapon never leans.** `swingToward` asks the weapon before it asks
+  the distance. The half-tile lunge claims a *contact*, and an archer with
+  somebody in their face still looses an arrow — gating it on distance alone read
+  correctly only because a bow's target used to always be far away.
+- **The dodge hop is gated on neither**, which is the asymmetry: it is the only
+  account of a dodge anybody gets, so an arrow avoided at five cells has to show
+  something or the shot vanishes.
+- **The damage is settled on the tick the shot is loosed**, and the arrow arrives
+  later carrying nothing. This is not a shortcut around the physics: a blow that
+  lands when the arrow *arrives* depends on a flight drawn on a clock every
+  client runs differently, so two people would disagree about when somebody died.
+  Damage now and the arrow after is the one arrangement where the picture may lag
+  the truth and can never contradict it. A shot at somebody who dies first still
+  finishes its flight; taking it back would be the picture editing itself.
+- **`canReach` is where a wall costs something, and only there.** Picking a target
+  asks neither range nor line, deliberately: you can read a name and a health bar
+  through a window you cannot shoot through, and the shot simply does not go.
+- **The speed is authored in cells per second, not pixels per millisecond.** The
+  first arrows floated across the yard because `0.03 px/ms` is three and three
+  quarter cells a second — slower than the five a body walks at — and no reader
+  of that number could tell. A speed is only authorable in the unit the map is
+  drawn in. `DEFAULT_PROJECTILE_SPEED` is twenty, four times walking pace, which
+  puts a six-cell shot at about the length of one melee swing.
+- **A flight is one event and never touched again** — two fixed points and a
+  duration, on the terms a walk is announced once. No position stream, and no
+  actor id at either end, because by the time it is drawn there may be nobody
+  there. `GameSession` holds the live flights (aged on the tick clock) and
+  `RemoteSession` holds its own (aged on the render loop), exactly as damage
+  numbers are split.
+- **An arrow in the air holds the world awake**, on the same terms a lean does:
+  this loop is the only clock it has, and a slow shot across a courtyard is a
+  visible second of somebody's screen.
+
+Drawing is `WorldRenderer.applyProjectiles`: one mesh per flight, made once and
+moved ever after, in a group under `world` rather than in a level group — a level
+group is destroyed whenever its floor changes, and a mesh parented in one would
+be disposed underneath the map still holding it. Group membership decides nothing
+about sorting (depth is per-fragment from the box attribute); the one thing it
+did decide, roof-cut visibility, is a line of code instead. The mesh takes the
+material of whichever level its *height* puts it over, re-asked per frame so a
+shot from a balcony is not lit by the room it left for the whole descent.
+
+### Tiles can be eight-way
+
+`TileType` has `directional8` beside `directional`: the same `sprites` field with
+the four corners added, because an `Octant` *is* a `Direction` where the two
+overlap. A lookup written for four keys reads eight without noticing, and a
+missing corner falls back to the cardinal it is nearest before falling back to
+south.
+
+Placement, movement and climbing stay four-way and must. A placement faces one of
+four ways because walking is four ways; climb variants are four because a body is
+walked into from four sides. Only things that travel on an arbitrary bearing —
+projectiles, so far — ever supply an eighth.
 
 **Zero hit points deletes the body, and leaves the kit where it fell.** For a
 player it also removes their actor, so the server ignores everything their socket

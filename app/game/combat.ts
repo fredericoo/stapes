@@ -2,6 +2,7 @@ import {
   clampChance,
   type FightingStats,
 } from "../lib/battler";
+import type { Reach } from "../lib/item";
 import type { MapFile, TileDef } from "../lib/types";
 import { TICK_MS } from "./constants";
 import { type ReachPoint, withinReach } from "./distance";
@@ -33,16 +34,6 @@ export const MIN_ATTACK_TICKS = 6;
 
 /** Ticks between blows at {@link FightingStats.spd} 0 — as slow as it gets. */
 export const MAX_ATTACK_TICKS = 600;
-
-/**
- * How far a blow reaches — now {@link FightingStats.range}, per creature.
- *
- * It was one cell counted as a square, which was the right shape for a swing and
- * had nowhere to go. A bow is the same question with a bigger answer, and a
- * square that had to become a sphere later would have moved every authored
- * creature on the way past. See `./distance` for the metric and for why height
- * costs what it does.
- */
 
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
@@ -210,10 +201,17 @@ export function rollAttack(
 /**
  * Is the defender close enough to swing at?
  *
- * A sphere in the metric `./distance` defines, so a body standing on a crate is
- * measured by the crate and not by which floor the crate happens to sit on. At
- * the melee default that sphere is the eight cells around you plus half a level
- * either way.
+ * **How far a blow reaches is {@link FightingStats.reach}, and it belongs to the
+ * weapon.** It was one cell counted as a square, then a sphere on the body, and
+ * it is now a disc and a height on the thing being swung. Each move was forced
+ * by the one after it: a square could not express a bow, a sphere could not
+ * express a bow that does not also shoot through three storeys, and a number on
+ * the body could not express a rat that picked one up.
+ *
+ * A disc and a height in the metric `./distance` defines, so a body standing on
+ * a crate is measured by the crate and not by which floor the crate happens to
+ * sit on. At the melee default that shape is the eight cells around you plus
+ * half a level either way; a bow widens the disc without raising the lid.
  *
  * **Range is not the only question, and on its own it is wrong.** Once height
  * counts, the nearest thing to you may be directly under your feet through a
@@ -225,9 +223,9 @@ export function rollAttack(
 export function inAttackRange(
   from: ReachPoint,
   to: ReachPoint,
-  rangeCells: number,
+  reach: Reach,
 ): boolean {
-  return withinReach(from, to, rangeCells);
+  return withinReach(from, to, reach);
 }
 
 /**
@@ -238,14 +236,21 @@ export function inAttackRange(
  * and one of them needs the board, but they are asked together everywhere and so
  * are worth having together — a caller that checked range and forgot the wall is
  * a caller that lets a fight happen through a floor.
+ *
+ * **The line is what a wall costs, and it costs it only here.** Picking a target
+ * asks neither half, deliberately: you can point at something across a courtyard
+ * and read its name and its health through a window you cannot shoot through,
+ * and the shot simply does not go. That distinction was free while every blow
+ * was struck at arm's length and is the whole texture of a bow — most of what an
+ * archer can see is not, at this instant, something they can hit.
  */
 export function canReach(
   map: MapFile,
   tilesById: Record<string, TileDef>,
   from: ReachPoint & { z: number },
   to: ReachPoint & { z: number },
-  rangeCells: number,
+  reach: Reach,
 ): boolean {
-  if (!inAttackRange(from, to, rangeCells)) return false;
+  if (!inAttackRange(from, to, reach)) return false;
   return hasLineOfSight(map, tilesById, from, to);
 }

@@ -5,6 +5,7 @@ import type {
   Direction,
   Frame,
   LightDef,
+  Octant,
   SpriteRef,
   OverrideSpriteState,
   SpriteState,
@@ -19,10 +20,13 @@ import type {
 import {
   AUTOTILE_SLICE_COUNT,
   DIRECTIONS,
+  OCTANTS,
   climbFromForSave,
   defaultBase,
+  facingKeysFor,
   isAnimated,
   isDirectional,
+  nearestCardinal,
   resolveClimbFrom,
   resolveIntangible,
   resolveLightPassing,
@@ -87,6 +91,7 @@ function blankTile(tilesets: TilesetDef[]): TileDef {
 }
 
 function expandClimbFrom(tile: TileDef): NonNullable<TileDef["climbFrom"]> {
+  // Four cardinals however wide the art is. @see Octant
   const keys: VariantKey[] = isDirectional(tile) ? [...DIRECTIONS] : ["default"];
   const out: NonNullable<TileDef["climbFrom"]> = {};
   for (const key of keys) {
@@ -121,12 +126,12 @@ function spriteHolder(draft: TileDef, state: SpriteState): StateSprites {
 function currentSprite(
   draft: TileDef,
   state: SpriteState,
-  dir: Direction,
+  dir: Octant,
   slice: AutotileSlice,
 ): TileSprite | undefined {
   const from = spriteHolder(draft, state);
   if (draft.type === "simple") return from.sprite;
-  if (draft.type === "directional") return from.sprites?.[dir];
+  if (isDirectional(draft)) return from.sprites?.[dir];
   return from.slices?.[slice];
 }
 
@@ -134,13 +139,13 @@ function currentSprite(
 function patchHolder(
   draft: TileDef,
   state: SpriteState,
-  dir: Direction,
+  dir: Octant,
   slice: AutotileSlice,
   sprite: TileSprite,
 ): StateSprites {
   const from = spriteHolder(draft, state);
   if (draft.type === "simple") return { sprite };
-  if (draft.type === "directional") {
+  if (isDirectional(draft)) {
     return { sprites: { ...from.sprites, [dir]: sprite } };
   }
   return { slices: { ...from.slices, [slice]: sprite } };
@@ -149,7 +154,7 @@ function patchHolder(
 function setCurrentSprite(
   draft: TileDef,
   state: SpriteState,
-  dir: Direction,
+  dir: Octant,
   slice: AutotileSlice,
   sprite: TileSprite,
 ): TileDef {
@@ -168,7 +173,7 @@ function setCurrentSprite(
  */
 function idleSprites(draft: TileDef): StateSprites {
   if (draft.type === "simple") return { sprite: draft.sprite };
-  if (draft.type === "directional") return { sprites: draft.sprites };
+  if (isDirectional(draft)) return { sprites: draft.sprites };
   return { slices: draft.slices };
 }
 
@@ -178,10 +183,10 @@ function stateSpriteList(
   from: StateSprites,
 ): TileSprite[] {
   if (draft.type === "simple") return from.sprite ? [from.sprite] : [];
-  if (draft.type === "directional") {
-    return DIRECTIONS.map((d) => from.sprites?.[d]).filter(
-      (s): s is TileSprite => s != null,
-    );
+  if (isDirectional(draft)) {
+    return facingKeysFor(draft)
+      .map((d) => from.sprites?.[d])
+      .filter((s): s is TileSprite => s != null);
   }
   return Object.values(from.slices ?? {}).filter(
     (s): s is TileSprite => s != null,
@@ -225,8 +230,8 @@ function footprintMismatch(
   };
 
   if (draft.type === "simple") return check("sprite", idle.sprite, override.sprite);
-  if (draft.type === "directional") {
-    for (const d of DIRECTIONS) {
+  if (isDirectional(draft)) {
+    for (const d of facingKeysFor(draft)) {
       const err = check(d.toUpperCase(), idle.sprites?.[d], override.sprites?.[d]);
       if (err) return err;
     }
@@ -350,7 +355,7 @@ export function TileEditorDialog({
     withLightingDefaults(tile ?? blankTile(tilesets)),
   );
   const [tab, setTab] = useState(TAB_TILE);
-  const [dir, setDir] = useState<Direction>("n");
+  const [dir, setDir] = useState<Octant>("n");
   const [slice, setSlice] = useState<AutotileSlice>(0);
   const [state, setState] = useState<SpriteState>("idle");
   const [frameIndex, setFrameIndex] = useState(0);
@@ -447,21 +452,32 @@ export function TileEditorDialog({
         sprites: undefined,
         slices: undefined,
         states: undefined,
-        climbFrom: { default: resolveClimbFrom(draft, isDirectional(draft) ? dir : "default") },
+        climbFrom: {
+          default: resolveClimbFrom(
+            draft,
+            isDirectional(draft) ? nearestCardinal(dir) : "default",
+          ),
+        },
       });
-    } else if (type === "directional") {
-      const sprites: Partial<Record<Direction, TileSprite>> = {};
+    } else if (type === "directional" || type === "directional8") {
+      // Whatever is already authored on each key survives the switch, which is
+      // the whole reason both resolutions share one `sprites` field: going four
+      // → eight keeps the four and offers four blanks, and going back leaves the
+      // corners in the draft to be dropped on save rather than destroying them
+      // on a mis-click.
+      const sprites: Partial<Record<Octant, TileSprite>> = { ...draft.sprites };
       const climbBase = resolveClimbFrom(draft, "default");
       const climbFrom: NonNullable<TileDef["climbFrom"]> = {};
-      for (const d of DIRECTIONS) {
+      for (const d of type === "directional8" ? OCTANTS : DIRECTIONS) {
         sprites[d] = structuredClone(
           draft.sprites?.[d] ?? draft.sprite ?? from,
         );
-        climbFrom[d] = { ...climbBase };
       }
+      // Four, always: see the note on {@link climbVariant}.
+      for (const d of DIRECTIONS) climbFrom[d] = { ...climbBase };
       setDraft({
         ...draft,
-        type: "directional",
+        type,
         sprite: undefined,
         sprites,
         slices: undefined,
@@ -505,7 +521,13 @@ export function TileEditorDialog({
     i?.push || i?.switch || i?.decay || i?.pressurePlate || i?.emit || i?.receive,
   );
 
-  const climbVariant: VariantKey = isDirectional(draft) ? dir : "default";
+  // A tile faces one of eight ways in its art and is *walked into* from one of
+  // four, so an eight-way tile's corners share their neighbouring cardinal's
+  // climb flags rather than getting variants of their own. Climbing is a
+  // four-way question and stays one. @see Octant
+  const climbVariant: VariantKey = isDirectional(draft)
+    ? nearestCardinal(dir)
+    : "default";
   const climbFlags = resolveClimbFrom(draft, climbVariant);
 
   const setClimbSide = (side: Direction, value: boolean) => {
@@ -553,8 +575,8 @@ export function TileEditorDialog({
         setError(err);
         return;
       }
-    } else if (draft.type === "directional") {
-      for (const d of DIRECTIONS) {
+    } else if (isDirectional(draft)) {
+      for (const d of facingKeysFor(draft)) {
         if (!draft.sprites?.[d]?.frames.length) {
           setError(`Missing frames for direction ${d.toUpperCase()}`);
           return;
@@ -608,6 +630,7 @@ export function TileEditorDialog({
     const climbByVariant: Partial<
       Record<VariantKey, Record<Direction, boolean>>
     > = {};
+    // Four cardinals however wide the art is — climbing is a four-way question.
     const keys: VariantKey[] = isDirectional(draft) ? [...DIRECTIONS] : ["default"];
     for (const key of keys) {
       climbByVariant[key] = resolveClimbFrom(draft, key);
@@ -639,9 +662,13 @@ export function TileEditorDialog({
 
     if (draft.type === "simple" && draft.sprite) {
       saved.sprite = sanitizeSprite(draft.sprite);
-    } else if (draft.type === "directional" && draft.sprites) {
-      const sprites: Partial<Record<Direction, TileSprite>> = {};
-      for (const d of DIRECTIONS) {
+    } else if (isDirectional(draft) && draft.sprites) {
+      // Only the keys this type actually uses, so a tile narrowed from eight
+      // ways back to four writes four — the corners left in the draft are what
+      // makes the narrowing reversible while it is open, and nothing the file
+      // should carry once it is saved.
+      const sprites: Partial<Record<Octant, TileSprite>> = {};
+      for (const d of facingKeysFor(draft)) {
         if (draft.sprites[d]) sprites[d] = sanitizeSprite(draft.sprites[d]!);
       }
       saved.sprites = sprites;
@@ -656,7 +683,10 @@ export function TileEditorDialog({
     onSave(saved);
   };
 
-  const dirTabs = DIRECTIONS.map((d) => ({ value: d, label: d.toUpperCase() }));
+  const dirTabs = facingKeysFor(draft).map((d) => ({
+    value: d,
+    label: d.toUpperCase(),
+  }));
 
   const frameTabs = [
     ...frames.map((_, i) => ({ value: String(i), label: `Frame ${i + 1}` })),
@@ -897,7 +927,7 @@ export function TileEditorDialog({
             tilesets={tilesets}
             size={96}
             state={state}
-            direction={draft.type === "directional" ? dir : undefined}
+            direction={isDirectional(draft) ? dir : undefined}
             autotileSlice={draft.type === "autotile" ? slice : undefined}
           />
         </div>
@@ -993,7 +1023,12 @@ export function TileEditorDialog({
           </TabPanel>
 
           <TabPanel value={TAB_ITEM}>
-            <ItemTab draft={draft} onChange={setDraft} statusDefs={statusDefs} />
+            <ItemTab
+              draft={draft}
+              onChange={setDraft}
+              statusDefs={statusDefs}
+              tiles={tiles}
+            />
           </TabPanel>
 
           <TabPanel value={TAB_RESPAWN}>
@@ -1038,7 +1073,8 @@ export function TileEditorDialog({
               onChange={changeType}
               options={[
                 { value: "simple", label: "Simple" },
-                { value: "directional", label: "Directional" },
+                { value: "directional", label: "4-way" },
+                { value: "directional8", label: "8-way" },
                 { value: "autotile", label: "Autotile" },
               ]}
               size="sm"
@@ -1141,11 +1177,11 @@ export function TileEditorDialog({
 
         {draft.type === "simple" ? (
           frameEditor
-        ) : draft.type === "directional" ? (
+        ) : isDirectional(draft) ? (
           <Tabs
             value={dir}
             onValueChange={(v) => {
-              setDir(v as Direction);
+              setDir(v as Octant);
               setFrameIndex(0);
             }}
             items={dirTabs}

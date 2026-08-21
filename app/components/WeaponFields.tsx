@@ -1,11 +1,18 @@
 import { attackIntervalMs, damageFraction, dodgeChance } from "../game/combat";
 import { TICK_MS } from "../game/constants";
-import type { WeaponItem } from "../lib/item";
+import type { ProjectileDef, Reach, WeaponItem } from "../lib/item";
 import {
+  DEFAULT_PROJECTILE_SPEED,
   MAX_PERCENT_STAT,
+  MAX_PROJECTILE_SPEED,
+  MAX_REACH_CELLS,
+  MAX_REACH_HEIGHT,
   MAX_WEAPON_DAMAGE,
   MIN_PERCENT_STAT,
+  MIN_PROJECTILE_SPEED,
 } from "../lib/item";
+import { flightDurationMs } from "../game/projectile";
+import { HEIGHT_PER_LEVEL, type TileDef } from "../lib/types";
 import {
   MASTERIES,
   MASTERY_BRIDGE,
@@ -17,7 +24,7 @@ import {
   WEAPON_MASTERIES,
   type WeaponMastery,
 } from "../lib/mastery";
-import { Segmented } from "../ui";
+import { Segmented, Select } from "../ui";
 import { StatField } from "./StatField";
 
 /**
@@ -83,16 +90,91 @@ export function describeDodging(accuracy: number): string {
   return `Dodged ${nimble}% by the quick, ${slow}% by the slow.`;
 }
 
+/**
+ * What this radius covers on the plan, said in cells rather than in a radius.
+ *
+ * The number in the box is a radius and nobody reads a shape off one: 1.5 is
+ * "the eight around you" and 2 is "the ring beyond as well", and the difference
+ * between them is not half of anything an author can picture. So the readout
+ * counts, which is the unit the map is drawn in.
+ */
+export function describeReachCells(cells: number): string {
+  const whole = Math.floor(cells);
+  if (whole < 1) return "Only its own cell — it cannot reach a neighbour.";
+  const diagonal = cells * cells >= whole * whole * 2 ? ", corners included" : "";
+  return `Reaches ${whole} cell${whole === 1 ? "" : "s"} across the floor${diagonal}.`;
+}
+
+/**
+ * What this height allowance covers, said in levels.
+ *
+ * Height units are the honest unit — half a level is a real distance and a crate
+ * puts somebody exactly there — and they are also the unit nobody thinks in. The
+ * readout does the halving.
+ */
+export function describeReachHeight(height: number): string {
+  if (height <= 0) return "Its own floor only — nothing up a step, nothing down.";
+  const levels = height / HEIGHT_PER_LEVEL;
+  const said = levels === 0.5 ? "half a level" : `${levels} level${levels === 1 ? "" : "s"}`;
+  return `Reaches ${said} up and ${said} down.`;
+}
+
+/**
+ * How long this weapon's arrow spends in the air, at the far end of its reach.
+ *
+ * Read out of the same function the simulation times a flight with, at the
+ * longest shot the weapon can actually take — which is the one an author is
+ * choosing a speed for. A readout that could disagree with the formula is worse
+ * than none.
+ */
+export function describeFlight(reach: Reach, projectile: ProjectileDef): string {
+  const ms = flightDurationMs(
+    { x: 0, y: 0, elevAbs: 0 },
+    { x: reach.cells, y: 0, elevAbs: 0 },
+    projectile,
+  );
+  return `Its longest shot is ${(ms / 1000).toFixed(2)}s in the air.`;
+}
+
+/** What a weapon with no projectile authored is offered when it grows one. */
+const STARTER_PROJECTILE: ProjectileDef = {
+  tileId: "",
+  cellsPerSecond: DEFAULT_PROJECTILE_SPEED,
+};
+
 export function WeaponFields({
   weapon,
   onChange,
   masteryHint,
+  tiles,
 }: {
   weapon: WeaponItem;
   onChange: (fields: Partial<WeaponItem>) => void;
   /** What answering to this mastery means here — it differs by tab. */
   masteryHint: string;
+  /**
+   * The whole library, so the projectile picker can offer the tiles that can
+   * actually be one. Handed in rather than looked up, on the terms the kit
+   * table's is: this component resolves nothing about the world.
+   */
+  tiles: TileDef[];
 }) {
+  const projectile = weapon.projectile;
+  const patchReach = (fields: Partial<Reach>) =>
+    onChange({ reach: { ...weapon.reach, ...fields } });
+  const patchProjectile = (fields: Partial<ProjectileDef>) =>
+    onChange({
+      projectile: { ...(projectile ?? STARTER_PROJECTILE), ...fields },
+    });
+
+  // Eight-way tiles, plus whatever this weapon already names even if the
+  // catalogue has since changed its mind about it — an id silently dropped from
+  // the picker is an author being told their arrow does not exist while it sits
+  // in the file doing nothing.
+  const projectileTiles = tiles.filter(
+    (tile) => tile.type === "directional8" || tile.id === projectile?.tileId,
+  );
+
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap gap-4">
@@ -138,7 +220,35 @@ export function WeaponFields({
           onChange={(spd) => onChange({ spd })}
           readout={describeInterval(attackIntervalMs(weapon.spd))}
         />
+        <StatField
+          label="Reach"
+          hint="How far it carries across the floor, as a radius in cells."
+          value={weapon.reach.cells}
+          min={0}
+          max={MAX_REACH_CELLS}
+          step={0.5}
+          onChange={(cells) => patchReach({ cells })}
+          readout={describeReachCells(weapon.reach.cells)}
+        />
+        <StatField
+          label="Height"
+          hint="How far up or down it carries, in height units — two to a level."
+          value={weapon.reach.height}
+          min={0}
+          max={MAX_REACH_HEIGHT}
+          step={0.5}
+          onChange={(height) => patchReach({ height })}
+          readout={describeReachHeight(weapon.reach.height)}
+        />
       </div>
+
+      <p className="max-w-lg text-[11px] leading-snug text-muted">
+        <strong>Reach is a disc and a lid, not a ball.</strong> The two numbers
+        are independent, which is the only way to say &ldquo;across the yard,
+        but not three storeys straight up&rdquo;. A blow still needs a clear
+        line to land — a wall between you and your target does not stop you
+        pointing at it, only shooting it.
+      </p>
 
       <div className="flex flex-col gap-1 text-xs">
         <span className="font-bold uppercase text-muted">Mastery</span>
@@ -154,6 +264,56 @@ export function WeaponFields({
         <span className="text-[11px] leading-snug text-muted">
           {masteryHint}
         </span>
+      </div>
+
+      <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
+        <span className="text-xs font-bold uppercase text-muted">
+          Projectile
+        </span>
+        <p className="max-w-lg text-[11px] leading-snug text-muted">
+          Authoring one is what makes this a <strong>ranged</strong> weapon:
+          nothing else says so. A weapon that puts something in the air does not
+          lunge at what it is aimed at, however close that is. The flight is
+          purely a picture — the blow lands the moment it is loosed, so an arrow
+          cannot miss on the way and a shot that killed still finishes its
+          flight.
+        </p>
+        <div className="flex flex-wrap items-end gap-4">
+          <label className="flex flex-col gap-1 text-xs">
+            <span className="font-bold uppercase text-muted">Fires</span>
+            <Select
+              className="w-56"
+              value={projectile?.tileId ?? ""}
+              onValueChange={(tileId) =>
+                tileId
+                  ? patchProjectile({ tileId })
+                  : onChange({ projectile: undefined })
+              }
+              options={[
+                { value: "", label: "Nothing — melee" },
+                ...projectileTiles.map((tile) => ({
+                  value: tile.id,
+                  label: tile.name,
+                })),
+              ]}
+            />
+            <span className="max-w-64 text-[11px] leading-snug text-muted">
+              An 8-way tile, so the arrow points where it is going. Author one on
+              the Tile tab if the list is empty.
+            </span>
+          </label>
+          {projectile ? (
+            <StatField
+              label="Speed"
+              hint="Cells per second. A body walks at five, so an arrow wants to be well past that."
+              value={projectile.cellsPerSecond}
+              min={MIN_PROJECTILE_SPEED}
+              max={MAX_PROJECTILE_SPEED}
+              onChange={(cellsPerSecond) => patchProjectile({ cellsPerSecond })}
+              readout={describeFlight(weapon.reach, projectile)}
+            />
+          ) : null}
+        </div>
       </div>
 
       <div className="flex flex-col gap-1 border-t-2 border-border pt-3">

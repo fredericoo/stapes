@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
+import { isDirectional } from "../lib/types";
 import {
   DEFAULT_EDITOR_MINUTES,
   type MinutesOfDay,
@@ -382,7 +383,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     const check = canPlace(map, x, y, currentLevel, def, tilesById);
     if (!check.ok) return { skipped: true, reason: check.reason };
     const placed: PlacedTile =
-      def.type === "directional"
+      isDirectional(def)
         ? { tileId: def.id, direction: "s" }
         : { tileId: def.id };
     get().commitMap(appendTile(map, x, y, currentLevel, placed), {
@@ -418,7 +419,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       const def = tilesById[armedTileId];
       if (!def) return { skipped: coords.length, reason: "Unknown tile" };
       const placed: PlacedTile =
-        def.type === "directional"
+        isDirectional(def)
           ? { tileId: def.id, direction: "s" }
           : { tileId: def.id };
       for (const { x, y } of coords) {
@@ -452,7 +453,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       tilesById,
     );
     if (!check.ok) return { ok: false, reason: check.reason };
-    const placed: PlacedTile = def.type === "directional"
+    const placed: PlacedTile = isDirectional(def)
       ? { tileId: def.id, direction: "s" }
       : { tileId: def.id };
     get().commitMap(

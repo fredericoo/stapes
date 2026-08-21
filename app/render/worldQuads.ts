@@ -238,6 +238,38 @@ export function buildSingleQuadGeometry(
 }
 
 /**
+ * Retarget a single-quad mesh's light sample. A quad that moves across cells
+ * has to take the light of wherever it is now, or it wears the lighting of the
+ * cell it was built in for as long as it travels.
+ *
+ * Only the origin moves; the *span* is a fixed cell either way, so `aLightScale`
+ * is written once at build time and never touched again.
+ *
+ * A walking tile does not need this — its mesh is rebuilt at the cell it lands
+ * in, and a step is one cell and 200ms. Something that crosses several cells
+ * without ever committing to one does: see `./projectileMotion`.
+ */
+export function writeLightUvAttr(
+  geo: THREE.BufferGeometry,
+  lightX0: number,
+  lightY0: number,
+  lightX1: number,
+  lightY1: number,
+) {
+  const attr = geo.getAttribute("aLightUv") as THREE.BufferAttribute;
+  const uvs = attr.array as Float32Array;
+  uvs[0] = lightX0;
+  uvs[1] = lightY1;
+  uvs[2] = lightX1;
+  uvs[3] = lightY1;
+  uvs[4] = lightX0;
+  uvs[5] = lightY0;
+  uvs[6] = lightX1;
+  uvs[7] = lightY0;
+  attr.needsUpdate = true;
+}
+
+/**
  * Retarget a single-quad mesh's depth box. A moving tile straddles cells, so
  * its box travels with it — call this whenever its position changes, from the
  * same motion snapshot, or the sprite and its depth disagree for a frame.

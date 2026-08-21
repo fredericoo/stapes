@@ -31,6 +31,7 @@ import {
   MAX_LEVEL,
   MIN_LEVEL,
   frameIndexAtTime,
+  isDirectional,
   levelKey,
   physicalHeight,
   tileCanEmitLight,
@@ -841,7 +842,7 @@ export class EditorRenderer {
       const def = s.tilesById[s.armedTileId];
       if (def) {
         brush =
-          def.type === "directional"
+          isDirectional(def)
             ? [{ tileId: def.id, direction: "s" }]
             : [{ tileId: def.id }];
       }
