@@ -1777,6 +1777,13 @@ export class GameServer extends DurableObject<Env> {
       // is. The client offered the row from these rules, on a board and a bag
       // that may both be a round trip old.
       session.transmute(message.ref, message.recipe, actorId);
+    } else if (message.type === "command") {
+      // Nothing is checked here beyond the schema, and nothing about the sender
+      // either: every command in the game is an admin command with no admin —
+      // see `app/game/commands`. The flushes below are why this sits in the
+      // chain rather than returning early like `say` does: a command's whole
+      // output is a notice and a mastery block, and both go out on that tail.
+      session.runCommand(message.text, actorId);
     } else if (message.type === "drop") {
       // Range, sight and room in the stack, all re-asked. The client drew a
       // ghost from these same rules, but it drew it on a board that may be a

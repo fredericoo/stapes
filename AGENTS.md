@@ -854,6 +854,39 @@ These are load-bearing:
   because a reward is a recipe and "1 Bread, 1 Bread, 1 Bread" reads as a
   rendering fault.
 
+## A command is typed where speech goes, and never said out loud
+
+A line beginning with `/` is an instruction rather than something to say.
+`app/game/commands.ts` owns that one rule and the grammar behind it,
+`GameSession.runCommand` is the only place it changes anything, and
+`app/game/notices.ts` turns every refusal into the sentence the player reads.
+Today there is one command — `/mastery <mastery> <level> [player id]`, which
+sets a mastery on yourself or on anybody whose id you can name.
+
+- **Nobody is checked.** Any connected player may set any mastery on anybody.
+  That is deliberate and temporary: it is a world with no accounts and no
+  administrators yet, so a permissions model would be guessing at a shape that
+  does not exist. When it does, the gate goes in `runCommand`, ahead of the work
+  and after the parse — which is the reason a command is a *request* before
+  anything acts on it.
+- **The slash is sorted on the client**, in `RemoteSession.say`, which sends a
+  `command` frame instead of a `say` one. Deciding it at the point of broadcast
+  instead would put a rule about what a player *meant* in the middle of the
+  fan-out, and a bug there is a private line read out to the room.
+- **A refusal is the whole feature.** A command is typed blind — no menu offers
+  it and no row lights up to say it would work — so a mistyped mastery that
+  simply does nothing is indistinguishable from a broken server. Every failure
+  says which word it could not read, and names it back. @see the notice notes
+  above, which this is the sharpest case of.
+- **The level is set by writing the experience**, never by storing a level:
+  `xpForLevel` is what goes into the block, because `../lib/mastery` derives the
+  level from it and a second store of one would be a second answer. The derived
+  body is dropped in the same statement, on exactly the terms `grantExperience`
+  drops it.
+- **A body that does not learn is refused by name.** A creature's masteries are
+  authored and there is no runtime block to write to, so `/mastery` on a deer
+  says "Deer does not learn" rather than explaining the engine.
+
 ## A reward happens to the player, not to the board
 
 `interactions.reward` hands over a list of items once per player — a quest

@@ -62,6 +62,7 @@ import {
   MAX_CHAT_LENGTH,
   MAX_CHATS_PER_CELL,
 } from "./chat";
+import { MAX_COMMAND_LENGTH, isCommand } from "../game/commands";
 import {
   parseServerMessage,
   type CellPatch,
@@ -1299,9 +1300,15 @@ export class RemoteSession implements PlaySession {
    * rest of this class makes: a round trip of latency for never being wrong.
    */
   say(text: string) {
-    const trimmed = text.trim().slice(0, MAX_CHAT_LENGTH);
+    const trimmed = text.trim();
     if (trimmed.length === 0) return;
-    this.send({ type: "say", text: trimmed });
+    // Sorted here rather than on the server, so a command is never a bubble the
+    // world has to take back. @see ../game/commands
+    if (isCommand(trimmed)) {
+      this.send({ type: "command", text: trimmed.slice(0, MAX_COMMAND_LENGTH) });
+      return;
+    }
+    this.send({ type: "say", text: trimmed.slice(0, MAX_CHAT_LENGTH) });
   }
 
   getMap(): MapFile {

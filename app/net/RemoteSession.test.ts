@@ -499,6 +499,28 @@ describe("RemoteSession chat", () => {
     session.say("   ");
     expect(socket.sent).toHaveLength(before);
   });
+
+  it("sends a slashed line as an instruction rather than as speech", () => {
+    const { socket, session } = connected();
+    session.say("  /mastery blade 10  ");
+
+    // The whole reason the sorting happens here: a command that went out as
+    // `say` would be a private line the room reads before the server takes it
+    // back. @see ../game/commands
+    expect(JSON.parse(socket.sent.at(-1)!)).toEqual({
+      type: "command",
+      text: "/mastery blade 10",
+    });
+  });
+
+  it("still says a sentence with a slash inside it", () => {
+    const { socket, session } = connected();
+    session.say("and/or");
+    expect(JSON.parse(socket.sent.at(-1)!)).toEqual({
+      type: "say",
+      text: "and/or",
+    });
+  });
 });
 
 /**

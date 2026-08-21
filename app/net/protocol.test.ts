@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { parseClientMessage, parseServerMessage } from "./protocol";
 import { SWING_OUTCOMES } from "../game/GameSession";
+import { MAX_COMMAND_LENGTH } from "../game/commands";
 
 /**
  * What a browser is allowed to say.
@@ -201,6 +202,19 @@ describe("transmute", () => {
       recipe: 99,
     };
     expect(parsed(message)).toEqual(message);
+  });
+});
+
+describe("command", () => {
+  it("carries the line as typed, because the grammar is not the wire's business", () => {
+    const message = { type: "command", text: "/mastery blade 10 self" };
+    expect(parsed(message)).toEqual(message);
+  });
+
+  it("drops one long enough to be an attack rather than a command", () => {
+    expect(
+      parsed({ type: "command", text: "/".repeat(MAX_COMMAND_LENGTH + 1) }),
+    ).toBeNull();
   });
 });
 
