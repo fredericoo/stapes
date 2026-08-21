@@ -24,14 +24,16 @@ function at(x: number, y: number, elevAbs = 0) {
 }
 
 /**
- * A tenth of a pixel a millisecond, so a duration reads as a distance times ten.
+ * Ten cells a second, so a cell is a round hundred milliseconds.
  *
- * Deliberately slower than the tick floor bites at: at a whole pixel a
- * millisecond every shot worth authoring is over inside one tick, and every
- * assertion below would be measuring {@link MIN_FLIGHT_MS} instead of the
- * arithmetic it is about.
+ * Deliberately slower than {@link MIN_FLIGHT_MS} bites at: much faster and every
+ * shot worth authoring is over inside one tick, and every assertion below would
+ * be measuring the floor instead of the arithmetic it is about.
  */
-const STEADY: ProjectileDef = { tileId: "arrow", speedPxPerMs: 0.1 };
+const STEADY: ProjectileDef = { tileId: "arrow", cellsPerSecond: 10 };
+
+/** One cell at {@link STEADY}, in milliseconds. */
+const CELL_MS = 100;
 
 describe("how far a shot travels on screen", () => {
   it("counts a cell as a cell", () => {
@@ -61,12 +63,24 @@ describe("how long a shot is in the air", () => {
   });
 
   it("divides the screen distance by the speed", () => {
-    expect(flightDurationMs(at(0, 0), at(4, 0), STEADY)).toBeCloseTo(
-      (4 * CELL_SIZE) / STEADY.speedPxPerMs,
-    );
+    expect(flightDurationMs(at(0, 0), at(4, 0), STEADY)).toBeCloseTo(4 * CELL_MS);
     expect(
-      flightDurationMs(at(0, 0), at(4, 0), { ...STEADY, speedPxPerMs: 0.2 }),
-    ).toBeCloseTo((4 * CELL_SIZE) / 0.2);
+      flightDurationMs(at(0, 0), at(4, 0), { ...STEADY, cellsPerSecond: 20 }),
+    ).toBeCloseTo(2 * CELL_MS);
+  });
+
+  /**
+   * **The unit is cells per second, and it is the whole reason this test
+   * exists.** The first arrows in this game were authored at `0.03` in pixels
+   * per millisecond, which is three and three quarter cells a second — slower
+   * than a body walks — and nothing about the number said so. Anchoring a cell
+   * to a round hundred milliseconds is what makes a wrong speed visible here
+   * rather than in somebody's face six cells away.
+   */
+  it("crosses one cell per second at a speed of one", () => {
+    const crawling: ProjectileDef = { tileId: "arrow", cellsPerSecond: 1 };
+    expect(flightDurationMs(at(0, 0), at(1, 0), crawling)).toBeCloseTo(1000);
+    expect(flightDurationMs(at(0, 0), at(6, 0), crawling)).toBeCloseTo(6000);
   });
 
   /**

@@ -2,6 +2,7 @@ import { attackIntervalMs, damageFraction, dodgeChance } from "../game/combat";
 import { TICK_MS } from "../game/constants";
 import type { ProjectileDef, Reach, WeaponItem } from "../lib/item";
 import {
+  DEFAULT_PROJECTILE_SPEED,
   MAX_PERCENT_STAT,
   MAX_PROJECTILE_SPEED,
   MAX_REACH_CELLS,
@@ -138,10 +139,7 @@ export function describeFlight(reach: Reach, projectile: ProjectileDef): string 
 /** What a weapon with no projectile authored is offered when it grows one. */
 const STARTER_PROJECTILE: ProjectileDef = {
   tileId: "",
-  // Around three cells a second, which is fast enough to read as loosed and
-  // slow enough to watch cross a room. An author who wants a crossbow bolt has
-  // one keystroke to make.
-  speedPxPerMs: 0.025,
+  cellsPerSecond: DEFAULT_PROJECTILE_SPEED,
 };
 
 export function WeaponFields({
@@ -307,12 +305,11 @@ export function WeaponFields({
           {projectile ? (
             <StatField
               label="Speed"
-              hint="World pixels per millisecond. A cell is eight of them."
-              value={projectile.speedPxPerMs}
+              hint="Cells per second. A body walks at five, so an arrow wants to be well past that."
+              value={projectile.cellsPerSecond}
               min={MIN_PROJECTILE_SPEED}
               max={MAX_PROJECTILE_SPEED}
-              step={0.005}
-              onChange={(speedPxPerMs) => patchProjectile({ speedPxPerMs })}
+              onChange={(cellsPerSecond) => patchProjectile({ cellsPerSecond })}
               readout={describeFlight(weapon.reach, projectile)}
             />
           ) : null}

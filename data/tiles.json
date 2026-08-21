@@ -6123,7 +6123,7 @@
         },
         "projectile": {
           "tileId": "arrow",
-          "speedPxPerMs": 0.03
+          "cellsPerSecond": 20
         }
       }
     },

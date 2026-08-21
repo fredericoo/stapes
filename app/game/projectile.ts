@@ -113,6 +113,12 @@ export function flightScreenDelta(
  * two-cell shot at wildly different apparent speeds and call them the same
  * weapon.
  *
+ * **The distance is in screen pixels and the speed is in cells per second**, so
+ * one of them has to be converted and it is the speed — an author reasons in
+ * cells, and the projection is the renderer's business. A cell is
+ * {@link CELL_SIZE} pixels across, so a cell a second is `CELL_SIZE / 1000`
+ * pixels a millisecond.
+ *
  * Floored at a single tick. A shot at somebody standing in your own cell has no
  * distance at all, and a duration of zero is a flight that is over before it is
  * drawn — one frame of arrow is a poor picture, and no frames is a shot that
@@ -124,8 +130,12 @@ export function flightDurationMs(
   projectile: ProjectileDef,
 ): number {
   const { dx, dy } = flightScreenDelta(from, to);
-  return Math.max(MIN_FLIGHT_MS, Math.hypot(dx, dy) / projectile.speedPxPerMs);
+  const pxPerMs = (projectile.cellsPerSecond * CELL_SIZE) / MS_PER_SECOND;
+  return Math.max(MIN_FLIGHT_MS, Math.hypot(dx, dy) / pxPerMs);
 }
+
+/** So the conversion above reads as one, rather than as a bare thousand. */
+const MS_PER_SECOND = 1000;
 
 /**
  * The shortest a flight may be, in milliseconds.

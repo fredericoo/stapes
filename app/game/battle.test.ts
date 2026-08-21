@@ -709,7 +709,7 @@ const bow = claws({
   ...CERTAIN,
   mastery: "ranged" as const,
   reach: { cells: 6, height: HEIGHT_PER_LEVEL },
-  projectile: { tileId: "arrow", speedPxPerMs: 0.03 },
+  projectile: { tileId: "arrow", cellsPerSecond: 20 },
 });
 
 const archerTiles: TileDef[] = tiles.map((t) =>

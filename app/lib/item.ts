@@ -139,14 +139,22 @@ export type ProjectileDef = {
    */
   tileId: string;
   /**
-   * How fast it travels, in world pixels per millisecond.
+   * How fast it travels, in cells per second.
    *
    * A speed rather than a duration, so a long shot takes longer than a short one
    * — which is the only thing in the animation carrying any information about
    * distance. A fixed duration would make an arrow crossing six cells look
    * exactly like one crossing two, at wildly different apparent speeds.
+   *
+   * **Cells per second, and it was world pixels per millisecond.** That unit is
+   * the reason the first arrows in this game floated: `0.03` is three and three
+   * quarter cells a second — slower than a person walks — and nothing about the
+   * number says so. A speed is only authorable in the unit the map is drawn in,
+   * where "twenty" is plainly an arrow and "four" is plainly a thrown pebble,
+   * and where anybody can check it against the five cells a second a body walks
+   * at. See {@link DEFAULT_PROJECTILE_SPEED}.
    */
-  speedPxPerMs: number;
+  cellsPerSecond: number;
 };
 
 export type WeaponItem = {
@@ -412,19 +420,36 @@ export const MAX_REACH_CELLS = 64;
 export const MAX_REACH_HEIGHT = 10;
 
 /**
- * How fast a projectile may travel, in world pixels per millisecond.
+ * How fast a projectile may travel, in cells per second.
  *
  * The floor is not zero: a speed of zero is an arrow that never arrives and a
- * flight that never ends, which is a hang rather than a slow shot. A hundredth
- * of a pixel per millisecond crosses one cell in thirteen seconds, which is as
- * slow as anything could want to be and still be going somewhere.
+ * flight that never ends, which is a hang rather than a slow shot. One cell a
+ * second is as slow as anything could want to be and still be going somewhere —
+ * and it is slow enough to be a real cost, since a flight holds the world's tick
+ * loop open for as long as it lasts.
  *
- * The ceiling is one cell per millisecond — at the tick rate that is thirty
- * cells between two ticks, so anything faster is a shot nobody sees at all and
- * may as well have no projectile authored.
+ * The ceiling is a thousand, which crosses the widest authorable reach inside a
+ * single tick. Anything past that is a shot nobody sees at all and may as well
+ * have no projectile authored.
  */
-export const MIN_PROJECTILE_SPEED = 0.01;
-export const MAX_PROJECTILE_SPEED = CELL_SIZE;
+export const MIN_PROJECTILE_SPEED = 1;
+export const MAX_PROJECTILE_SPEED = 1000;
+
+/**
+ * What a fresh projectile travels at, in cells per second.
+ *
+ * **Read against the two speeds already in the game.** A body walks a cell every
+ * `WALK_DURATION_MS`, which is five cells a second, and a melee lean is out and
+ * back in 150ms. Twenty is four times walking pace and crosses a six-cell reach
+ * in about three hundred milliseconds — near enough to the length of one swing
+ * that a shot reads as a blow struck rather than as an object drifting across
+ * the yard.
+ *
+ * The first value here was three and three quarter cells a second, written in a
+ * unit that hid it. An arrow slower than the archer could walk is the failure
+ * this constant exists to make impossible to write by accident.
+ */
+export const DEFAULT_PROJECTILE_SPEED = 20;
 
 /** Widest a container may be, so a contents grid stays a grid. */
 export const MAX_CONTAINER_SIZE = 12;
@@ -585,7 +610,7 @@ export const weaponSchema = v.object({
   projectile: v.optional(
     v.object({
       tileId: v.pipe(v.string(), v.trim(), v.minLength(1)),
-      speedPxPerMs: v.pipe(
+      cellsPerSecond: v.pipe(
         v.number(),
         v.minValue(MIN_PROJECTILE_SPEED),
         v.maxValue(MAX_PROJECTILE_SPEED),
@@ -779,7 +804,7 @@ export function weaponForSave(weapon: WeaponItem): WeaponItem {
       ? {
           projectile: {
             tileId: weapon.projectile.tileId.trim(),
-            speedPxPerMs: weapon.projectile.speedPxPerMs,
+            cellsPerSecond: weapon.projectile.cellsPerSecond,
           },
         }
       : {}),

@@ -567,6 +567,12 @@ arrow in the air.
 - **`canReach` is where a wall costs something, and only there.** Picking a target
   asks neither range nor line, deliberately: you can read a name and a health bar
   through a window you cannot shoot through, and the shot simply does not go.
+- **The speed is authored in cells per second, not pixels per millisecond.** The
+  first arrows floated across the yard because `0.03 px/ms` is three and three
+  quarter cells a second — slower than the five a body walks at — and no reader
+  of that number could tell. A speed is only authorable in the unit the map is
+  drawn in. `DEFAULT_PROJECTILE_SPEED` is twenty, four times walking pace, which
+  puts a six-cell shot at about the length of one melee swing.
 - **A flight is one event and never touched again** — two fixed points and a
   duration, on the terms a walk is announced once. No position stream, and no
   actor id at either end, because by the time it is drawn there may be nobody
