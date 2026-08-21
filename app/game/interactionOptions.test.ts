@@ -414,6 +414,43 @@ describe("listInteractionOptions — battlers", () => {
     expect(actionsIn(targets)).toEqual(["target"]);
   });
 
+  /**
+   * **Line of sight is deliberately not consulted.** Picking somebody out is
+   * pointing at them, not swinging: whether the blow can land is `./combat`'s
+   * `canReach`, asked at the moment of the swing. A list that only offered a
+   * target once you could see one would arrive after the decision it exists
+   * for — choosing who you are walking towards, round the wall, is how a fight
+   * starts.
+   */
+  it("offers a target on a body behind a full-height wall", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "door_shut"]);
+    map = place(map, 2, 0, ["grass", "deer"]);
+    const me = playerAt(map);
+    const deer = actor("npc:deer", "deer", 2, 0, map, 10);
+
+    const targets = listInteractionOptions(map, tilesById, me, [me, deer], null, KIT);
+
+    expect(actionsIn(targets)).toContain("target");
+    expect(targets.find((t) => t.action === "target")!.actorId).toBe("npc:deer");
+  });
+
+  /** And the same through a floor, which is the harder half of the rule. */
+  it("offers a target on a body a level down under solid ground", () => {
+    let map = field();
+    map = replaceStack(map, 1, 0, -1, [{ tileId: "grass" }, { tileId: "deer" }]);
+    const me = playerAt(map);
+    const deer: ActorSnapshot = {
+      ...actor("npc:deer", "deer", 1, 0, map, 10),
+      z: -1,
+      stackIndex: 1,
+    };
+
+    const targets = listInteractionOptions(map, tilesById, me, [me, deer], null, KIT);
+
+    expect(actionsIn(targets)).toContain("target");
+  });
+
   it("never offers the viewer their own body", () => {
     const map = field();
     const me = playerAt(map);
