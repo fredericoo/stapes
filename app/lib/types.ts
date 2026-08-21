@@ -631,6 +631,25 @@ export const MAX_LEVEL = 8;
 export const CELL_SIZE = 8;
 export const CHUNK_SIZE = 16;
 
+/**
+ * How far light travels, in cells — the span of the whole lighting model.
+ *
+ * Sky spill is seeded at this level and every lateral step costs at least 1, so
+ * nothing sky-lit reaches further. {@link clampTileLight} then holds authored
+ * block emitters to the same number, which makes it the single answer to "how
+ * far can light reach from here" rather than one of two.
+ *
+ * That single answer is what the chunked bake is built on. `LIGHT_APRON` in
+ * `./lightingChunks` crops each chunk to its own rect plus this, and the crop is
+ * exact only because nothing can reach in from further away. Raising it widens
+ * every bake in the world; see that file for what the apron costs.
+ *
+ * Lives here rather than beside the flood that seeds it because the clamp is
+ * applied at normalisation, and `./lightingFlood` imports this module. It is
+ * re-exported there, so `MAX_LIGHT_LEVEL` still reads from either.
+ */
+export const MAX_LIGHT_LEVEL = 15;
+
 export function defaultBase(rect: CellRect): { x: number; y: number } {
   return { x: Math.max(0, rect.w - 1), y: Math.max(0, rect.h - 1) };
 }
@@ -706,11 +725,11 @@ export function normalizeTileDef(raw: unknown): TileDef {
   const t = raw as Record<string, unknown>;
   if (t && typeof t.type === "string" && TILE_TYPES.includes(t.type as TileType)) {
     const def = raw as TileDef;
-    return {
+    return clampTileLight({
       ...def,
       attributes: def.attributes ?? {},
       kind: readKind(t),
-    };
+    });
   }
 
   const legacy = raw as {
@@ -755,17 +774,105 @@ export function normalizeTileDef(raw: unknown): TileDef {
       const frames = legacy.variants?.[d];
       if (frames) sprites[d] = framesToSprite(frames, light);
     }
-    return { ...base, sprites };
+    return clampTileLight({ ...base, sprites });
   }
 
-  return {
+  return clampTileLight({
     ...base,
     sprite: framesToSprite(legacy.variants?.default, light),
-  };
+  });
 }
 
 export function normalizeTiles(raw: unknown[]): TileDef[] {
   return raw.map(normalizeTileDef);
+}
+
+/**
+ * A sprite whose frames all emit within {@link MAX_LIGHT_LEVEL}, or the sprite
+ * itself when they already do.
+ *
+ * Identity is preserved on the common path deliberately: every tile on disk is
+ * already inside the cap, so a load that rewrote each one would allocate a whole
+ * new object graph to change nothing.
+ */
+function clampSpriteLight(sprite: TileSprite): TileSprite {
+  if (!sprite.frames.some((f) => f.light && f.light.radius > MAX_LIGHT_LEVEL)) {
+    return sprite;
+  }
+  return {
+    ...sprite,
+    frames: sprite.frames.map((f) =>
+      f.light && f.light.radius > MAX_LIGHT_LEVEL
+        ? { ...f, light: { ...f.light, radius: MAX_LIGHT_LEVEL } }
+        : f,
+    ),
+  };
+}
+
+/** {@link clampSpriteLight} across the three sprite fields a state can hold. */
+function clampStateLight<T extends StateSprites>(state: T): T {
+  const out = { ...state };
+  if (out.sprite) out.sprite = clampSpriteLight(out.sprite);
+  if (out.sprites) {
+    out.sprites = Object.fromEntries(
+      Object.entries(out.sprites).map(([k, v]) => [
+        k,
+        v ? clampSpriteLight(v) : v,
+      ]),
+    ) as typeof out.sprites;
+  }
+  if (out.slices) {
+    out.slices = Object.fromEntries(
+      Object.entries(out.slices).map(([k, v]) => [
+        k,
+        v ? clampSpriteLight(v) : v,
+      ]),
+    ) as typeof out.slices;
+  }
+  return out;
+}
+
+/**
+ * Hold every emitter on a tile to {@link MAX_LIGHT_LEVEL}.
+ *
+ * `LightDef.radius` is a plain number, and the tile editor's input has a minimum
+ * and no maximum, so nothing upstream of here stops a 25 being typed or hand-
+ * edited into `tiles.json`. Left alone, that lamp lights the chunk it stands in
+ * and goes dark in the next one along: the chunked bake crops to `LIGHT_APRON`
+ * cells of margin and simply never reads an emitter beyond it. Nothing throws,
+ * no test fails, and the light swells into existence as you walk back towards
+ * it.
+ *
+ * The cap could instead have been paid for — measure the widest authored radius
+ * and crop to that — and it is the wrong trade. The apron is charged on *every*
+ * bake, so one wide tile takes a 32-cell chunk from baking 3.8x its own area to
+ * 12x it, everywhere in the world, whether or not that tile is anywhere near.
+ * A ceiling equal to the model's own span costs nothing instead, and it is not
+ * an arbitrary one: a block emitter reaching further than sky spill does is
+ * already outside what the rest of the lighting is built to describe.
+ *
+ * **Applied at normalisation, which is the only door in.** Every tile reaches
+ * the game through `DataStore.readTiles` → {@link normalizeTiles} → here — dev
+ * disk and R2 alike, editor saves included, since a save is written and then
+ * read back through the same path. Clamping the editor's input alone would
+ * leave the hand-edited file and the seeded bucket as ways back to the bug.
+ *
+ * Silent rather than rejected. This is one author's own content and a save that
+ * failed over a light radius would be worse than a light that stops at the
+ * distance the editor already shows as its ceiling.
+ */
+function clampTileLight(def: TileDef): TileDef {
+  const out = clampStateLight(def);
+  if (!out.states) return out;
+  return {
+    ...out,
+    states: Object.fromEntries(
+      Object.entries(out.states).map(([k, v]) => [
+        k,
+        v ? clampStateLight(v) : v,
+      ]),
+    ) as typeof out.states,
+  };
 }
 
 /** The TileSprites one {@link StateSprites} holds, on this tile's own axis. */

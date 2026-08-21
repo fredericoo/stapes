@@ -20,6 +20,7 @@ import type {
 import {
   AUTOTILE_SLICE_COUNT,
   DIRECTIONS,
+  MAX_LIGHT_LEVEL,
   OCTANTS,
   climbFromForSave,
   defaultBase,
@@ -845,6 +846,11 @@ export function TileEditorDialog({
               <Input
                 type="number"
                 min={1}
+                // The ceiling the bake is built on, shown here so it is visible
+                // while authoring rather than discovered as light that stops.
+                // `clampTileLight` enforces it on load either way — this input
+                // is not the guard, it is the affordance. See ../lib/types.
+                max={MAX_LIGHT_LEVEL}
                 step={1}
                 className="w-20"
                 value={frame.light.radius}
@@ -852,7 +858,10 @@ export function TileEditorDialog({
                   updateFrame({
                     light: {
                       ...frame.light!,
-                      radius: Number(e.target.value) || 1,
+                      radius: Math.min(
+                        MAX_LIGHT_LEVEL,
+                        Number(e.target.value) || 1,
+                      ),
                     },
                   })
                 }

@@ -51,7 +51,23 @@ import {
  */
 export const LIGHT_CHUNK_SIZE = 32;
 
-/** Cells of map data to read beyond a chunk so its interior bakes correctly. */
+/**
+ * Cells of map data to read beyond a chunk so its interior bakes correctly.
+ *
+ * A crop is exact only when it is wider than everything that can reach into it,
+ * and this is that width for both of the things that can. Sky spill is seeded at
+ * {@link MAX_LIGHT_LEVEL} and decays at least 1 per lateral step, which is a
+ * property of the flood. Block emitters are bounded by the same number only
+ * because `clampTileLight` holds them there — `LightDef.radius` is otherwise an
+ * unbounded field, and an authored 25 would light its own chunk and stop dead at
+ * the edge of the next, with nothing throwing and no test failing.
+ *
+ * **So the clamp is load-bearing, not tidiness.** If it is ever removed or
+ * loosened this constant stops being a sound crop, and the fix is to move the
+ * ceiling in both places at once rather than to widen the apron here: the apron
+ * is charged on every bake in the world, and at 32 cells a chunk already bakes
+ * 3.8x its own area to pay for it.
+ */
 export const LIGHT_APRON = MAX_LIGHT_LEVEL;
 
 export type WorldRect = { x0: number; y0: number; x1: number; y1: number };

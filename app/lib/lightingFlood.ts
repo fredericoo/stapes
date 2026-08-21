@@ -10,6 +10,7 @@ import type { ChunkCells, MapFile, PlacedTile, TileDef } from "./types";
 import {
   HEIGHT_PER_LEVEL,
   MAX_LEVEL,
+  MAX_LIGHT_LEVEL,
   MIN_LEVEL,
   coordKey,
   levelKey,
@@ -28,8 +29,12 @@ import type {
 } from "./lighting";
 import { resolveLight } from "./tileResolve";
 
-/** Max sky level after column seed. Tune to widen/narrow sky spill. */
-export const MAX_LIGHT_LEVEL = 15;
+/**
+ * Max sky level after column seed, and the cap an authored emitter is clamped
+ * to. Defined in `./types` beside the clamp that enforces it; re-exported here
+ * because this is where the sky flood spends it. Tune to widen/narrow spill.
+ */
+export { MAX_LIGHT_LEVEL };
 
 const TRANSMISSION_EPSILON = 1e-3;
 const VERTICAL_FALLOFF = 1;
@@ -348,7 +353,9 @@ function collectLevelCellsIn(
  *
  * Pass `domain` to bake a fixed region — cells outside it are still read for
  * occlusion and emitters, so a caller wanting a correct window must hand in a
- * map cropped no tighter than the window plus {@link MAX_LIGHT_LEVEL}.
+ * map cropped no tighter than the window plus {@link MAX_LIGHT_LEVEL}. That is
+ * enough for a block emitter as well as for sky, but only because
+ * `clampTileLight` holds every authored radius to the same number.
  *
  * `timeMs` is the animation clock: emitters are read from the frame live at
  * that moment, so a torch that flickers bakes the light it is showing rather
@@ -381,8 +388,9 @@ export function computeLightingFlood(
   // A domain also bounds the *gather*, not just the output. Without that the
   // cost of a windowed bake tracks the whole map — the same cliff the chunk
   // cache exists to avoid, one level down. Cells outside the domain cannot
-  // reach into it: the caller pads by MAX_LIGHT_LEVEL, which exceeds every
-  // emitter radius, so dropping them is exact rather than an approximation.
+  // reach into it: the caller pads by MAX_LIGHT_LEVEL, which no emitter radius
+  // exceeds — `clampTileLight` is what makes that true — so dropping them is
+  // exact rather than an approximation.
   for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
     if (domain) {
       collectLevelCellsIn(map, z, domain, cells);
