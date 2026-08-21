@@ -17,6 +17,7 @@ import { MINUTES_PER_DAY, minutesOfDayAt } from "../app/lib/clock";
 import { DEV_DATA_PREFIX } from "../app/lib/devData";
 import { resolvePush } from "../app/lib/interactions";
 import { getStack, listCoords } from "../app/lib/mapData";
+import { xpForLevel } from "../app/lib/mastery";
 import type { FlatMapFile, MapFile, TileDef } from "../app/lib/types";
 import { tilesByIdFromList } from "../app/lib/validation";
 import { CHAT_MIN_INTERVAL_MS } from "../app/net/chat";
@@ -3231,5 +3232,60 @@ describe("statuses across a disconnection", () => {
       stored = await state.storage.get(`hp:${who}`);
     });
     expect(stored).toBeUndefined();
+  });
+});
+
+/**
+ * Commands, which are the one thing a socket can send that changes somebody
+ * *else's* body.
+ *
+ * The grammar and the rules are tested in `app/game/commands.test.ts`, on the
+ * node pool, where they belong. What only this pool can answer is whether the
+ * wire carries any of it: a command arrives on its own frame, and its entire
+ * output is two addressed messages that the session queues and the server has to
+ * remember to flush. A parser that is perfect and wired to nothing is the more
+ * likely failure, and here it would be completely silent.
+ */
+describe("commands", () => {
+  it("answers with what changed and what it now reads", async () => {
+    const who = freshPlayer();
+    const { ws } = await connect(who);
+
+    send(ws, { type: "command", text: "/mastery blade 10" });
+
+    // Both halves, because either alone is a half-finished feature: the sentence
+    // is what the player reads, and the block is what the panel draws.
+    const notice = await nextMessageOfType(ws, "notice");
+    expect(notice.text).toBe("Your blade mastery is now 10");
+    const masteries = await nextMessageOfType(ws, "masteries");
+    expect((masteries.masteryXp as Record<string, number>).blade).toBe(
+      xpForLevel(10),
+    );
+  });
+
+  it("says why, rather than nothing, when the line was not a command", async () => {
+    const who = freshPlayer();
+    const { ws } = await connect(who);
+
+    send(ws, { type: "command", text: "/mastery blad 10" });
+
+    // The refusal has to make the round trip. A command that is dropped in
+    // silence is indistinguishable from a socket that never delivered it.
+    const notice = await nextMessageOfType(ws, "notice");
+    expect(notice.text).toContain("blad");
+  });
+
+  it("never becomes a bubble in the room", async () => {
+    const who = freshPlayer();
+    const { ws } = await connect(who);
+    const onlooker = await connect(freshPlayer());
+
+    send(ws, { type: "command", text: "/mastery blade 10" });
+    await nextMessageOfType(ws, "notice");
+
+    // The client sorts commands out of speech before they are sent, so this is
+    // belt and braces on the wire's side of that rule — a private line read out
+    // to the room is the failure nobody would notice until it happened.
+    expect(await chatWithin(onlooker.ws, QUIET_MS)).toBeNull();
   });
 });

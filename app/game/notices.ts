@@ -1,6 +1,12 @@
 import type { PlacedReward } from "../lib/interactions";
-import type { Mastery } from "../lib/mastery";
+import {
+  MASTERIES,
+  MAX_MASTERY,
+  MIN_MASTERY,
+  type Mastery,
+} from "../lib/mastery";
 import type { TileDef } from "../lib/types";
+import { MASTERY_COMMAND_USAGE, type CommandRefusal } from "./commands";
 
 /**
  * The things the game says to the player in words.
@@ -126,4 +132,61 @@ function countedItems(
   return [...counted]
     .map(([tileId, count]) => `${count} ${tilesById[tileId]?.name ?? tileId}`)
     .join(", ");
+}
+
+/**
+ * What somebody else's mastery moving says, to whoever moved it.
+ *
+ * The sibling of {@link masteryNotice} and not a parameter on it, because the
+ * two are read by different people: the body whose mastery changed is told what
+ * *theirs* now reads, and the admin who changed it is told what *they* just did.
+ * Folding them into one function taking an optional name would put a branch in
+ * the middle of a sentence that has no branch in it.
+ *
+ * Only a command reaches this. Nothing a player does in a fight can move
+ * anybody's masteries but their own.
+ */
+export function otherMasteryNotice(
+  name: string,
+  mastery: Mastery,
+  level: number,
+): string {
+  return `${name}'s ${mastery} mastery is now ${level}`;
+}
+
+/**
+ * Why a command did not happen, in words.
+ *
+ * **The refusal is the whole feature.** A command is typed blind — there is no
+ * menu offering it and no row lighting up to say it would work — so the only
+ * thing separating a mistyped mastery from a broken server is this sentence.
+ * That is the same argument "You cannot fit there" is written under, turned up:
+ * a refusal that shows as nothing occurring is indistinguishable from the input
+ * being dropped, and here *everything* about the input was invisible.
+ *
+ * Every sentence names what was typed back at the player where there is
+ * something to name. "There is no mastery by that name" leaves them re-reading
+ * their own line to find out which word was wrong.
+ *
+ * The lists and the usage line come from `./commands`, so the grammar the parser
+ * enforces and the grammar the player is shown cannot drift apart.
+ */
+export function commandRefusalNotice(refusal: CommandRefusal): string {
+  switch (refusal.kind) {
+    case "unknownCommand":
+      return `There is no ${refusal.typed} command`;
+    case "badArguments":
+      return `Say ${MASTERY_COMMAND_USAGE}`;
+    case "unknownMastery":
+      return `No mastery called "${refusal.typed}". Try ${MASTERIES.join(", ")}`;
+    case "badLevel":
+      return `"${refusal.typed}" is not a mastery between ${MIN_MASTERY} and ${MAX_MASTERY}`;
+    case "noSuchTarget":
+      return `Nobody here answers to "${refusal.typed}"`;
+    case "unteachableTarget":
+      // Named rather than explained, because "a creature's masteries are
+      // authored and there is no runtime block to write to" is a fact about the
+      // engine and the player asked a question about a deer.
+      return `${refusal.name} does not learn`;
+  }
 }

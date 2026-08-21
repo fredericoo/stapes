@@ -7,6 +7,7 @@ import type { ConsumeSource } from "../game/itemUse";
 import { masteryXpBlockSchema, type MasteryXp } from "../lib/mastery";
 import type { PlacedTile } from "../lib/types";
 import { MAX_CHAT_RAW_LENGTH } from "./chat";
+import { MAX_COMMAND_LENGTH } from "../game/commands";
 
 /**
  * The wire between a browser and the game server.
@@ -767,6 +768,21 @@ export type ClientMessage =
     }
   | { type: "say"; text: string }
   /**
+   * "Do this", as opposed to "say this".
+   *
+   * A separate message rather than a slash the server notices inside `say`,
+   * because the two want different things done to them: a command is never
+   * broadcast, never sanitised for a bubble it will not appear in, and never
+   * heard by a creature standing next to you. Routed by `../game/commands`'s
+   * one rule about a leading slash, on the client, so the server never holds a
+   * private line it has to remember not to repeat.
+   *
+   * The text arrives raw and is parsed on the far side. What is *in* a command
+   * is not the wire's business — the schema's only job here is that this is a
+   * string of bounded length, which is the same job it does for a chat line.
+   */
+  | { type: "command"; text: string }
+  /**
    * "This is who I am pointing at" — or null, for nobody.
    *
    * The client picks the target because picking one is pointing at something on
@@ -911,6 +927,13 @@ const clientMessageSchema = v.variant("type", [
     // message actually is, and this only stops a client handing it something
     // unbounded to walk.
     text: v.pipe(v.string(), v.maxLength(MAX_CHAT_RAW_LENGTH)),
+  }),
+  v.object({
+    type: v.literal("command"),
+    // Its own cap rather than chat's, because a command carries a uuid and chat
+    // carries a sentence. Both exist for the same reason: the socket is the
+    // boundary and a client must not hand the parser something unbounded.
+    text: v.pipe(v.string(), v.maxLength(MAX_COMMAND_LENGTH)),
   }),
   v.object({
     type: v.literal("target"),

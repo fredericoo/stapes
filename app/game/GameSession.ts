@@ -56,7 +56,13 @@ import {
   type DropDestination,
   type ObjectRef,
 } from "./affordances";
-import { masteryNotice, rewardNotice } from "./notices";
+import {
+  commandRefusalNotice,
+  masteryNotice,
+  otherMasteryNotice,
+  rewardNotice,
+} from "./notices";
+import { parseCommand } from "./commands";
 import { findEntryCell } from "./entry";
 import {
   BRAIN_TICK_MS,
@@ -85,6 +91,7 @@ import {
   masteriesFromXp,
   type MasteryXp,
   rating,
+  xpForLevel,
   xpFromMasteries,
 } from "../lib/mastery";
 import {
@@ -3892,6 +3899,105 @@ export class GameSession implements PlaySession {
     if (!plan) return false;
 
     this.setEquipment(actor, runTransmute(plan, mintItemId));
+    return true;
+  }
+
+  /**
+   * Carry out something somebody typed, or tell them why it did not happen.
+   *
+   * **The command's one entry point, and the only place the world is changed by
+   * words.** Everything ahead of it is grammar (`./commands`) and everything
+   * behind it is prose (`./notices`); what is left here is the two questions
+   * only a session can answer — is there a body by that name, and does it learn.
+   *
+   * **Nobody is checked.** Any player may set any mastery on anybody, which is
+   * deliberate and temporary; see the note at the top of `./commands`. When that
+   * changes, this is the method that grows the gate — one place, ahead of the
+   * work, because a command is a request until something acts on it.
+   *
+   * The target hears what *their* mastery now reads and the author hears what
+   * they did, which are two sentences because they are two facts. When they are
+   * the same person only the first is said: being told twice that you set your
+   * own blade to 10 reads as a bug.
+   *
+   * One quiet edge, and it is `hasExperience`'s rather than this method's:
+   * zeroing every mastery leaves a block that reads as *absent* on the next
+   * load, so the body seeds itself from its tile again. Nothing worth closing
+   * here — the gate exists to stop a genuinely empty block sticking, and an
+   * admin command is not the reason to weaken it.
+   */
+  runCommand(raw: string, id: string = LOCAL_ACTOR_ID) {
+    const parsed = parseCommand(raw);
+    if (!parsed.ok) {
+      this.say(id, commandRefusalNotice(parsed.refusal));
+      return;
+    }
+
+    const { mastery, level, target } = parsed.command;
+    const targetId = target ?? id;
+    const actor = this.actors.get(targetId);
+    if (!actor) {
+      this.say(
+        id,
+        commandRefusalNotice({ kind: "noSuchTarget", typed: targetId }),
+      );
+      return;
+    }
+
+    if (!this.setMastery(actor, mastery, level)) {
+      this.say(
+        id,
+        commandRefusalNotice({
+          kind: "unteachableTarget",
+          // Their tile's name for a creature and their handle for a person,
+          // through the one function that decides what a body is called.
+          name: this.bodyName(targetId) ?? targetId,
+        }),
+      );
+      return;
+    }
+
+    this.say(actor.id, masteryNotice(mastery, level));
+    if (actor.id === id) return;
+    this.say(
+      id,
+      otherMasteryNotice(this.bodyName(actor.id) ?? actor.id, mastery, level),
+    );
+  }
+
+  /**
+   * Put one mastery exactly where it was asked for, or refuse the body.
+   *
+   * The experience is written rather than the level, because the level is
+   * *derived* — see `../lib/mastery` — and a second place that stored one would
+   * be a second answer to what a body is good at.
+   *
+   * **{@link bodyOf} is called first for its side effect**, which is the one
+   * thing in here that is not obvious. A player who has never been in a fight
+   * has no experience block at all: it is seeded from the authored tile the
+   * first time anybody asks for their body. Writing one mastery into a missing
+   * block would either be dropped or invent a body with six zeroes in it, so the
+   * seeding has to have happened before the write lands on top of it.
+   *
+   * False for a body that does not learn — a creature's masteries are authored
+   * and it has no runtime block to write to, which is exactly what the null here
+   * means. @see ActorRuntime.masteryXp
+   */
+  private setMastery(
+    actor: ActorRuntime,
+    mastery: Mastery,
+    level: number,
+  ): boolean {
+    this.bodyOf(actor);
+    const xp = actor.masteryXp;
+    if (!xp) return false;
+
+    // Replaced rather than mutated, and the derived body dropped, on exactly the
+    // terms `grantExperience` does both: identity is what tells a bar it moved,
+    // and a memo built from the old figures would outlive them.
+    actor.masteryXp = { ...xp, [mastery]: xpForLevel(level) };
+    actor.earnedBody = null;
+    this.masteriesChanged.add(actor.id);
     return true;
   }
 
