@@ -62,6 +62,74 @@ function put(map: MapFile, x: number, y: number, tileId: string): MapFile {
 
 const from = { x: 0, y: 0, z: 0 };
 
+/**
+ * How tall the looker is.
+ *
+ * The rule is one line — you see over anything shorter than you are — and every
+ * case here is that line meeting a different pair of heights. Worth writing out
+ * because the pair is the whole behaviour: neither number means anything on its
+ * own, and the bug this replaced was a threshold that only ever read one of them.
+ */
+describe("seeing over things, by how tall you are", () => {
+  const PERSON = 2;
+  const RAT = 1;
+  const beyond = { x: 5, y: 0, z: 0 };
+
+  it("lets a person see over a crate that stops a rat", () => {
+    const map = put(field(), 2, 0, "crate");
+    expect(hasLineOfSight(map, tilesById, from, beyond, PERSON)).toBe(true);
+    expect(hasLineOfSight(map, tilesById, from, beyond, RAT)).toBe(false);
+  });
+
+  /**
+   * Equal heights block. A rat is exactly as tall as the crate and is looking at
+   * the side of it, not over it.
+   */
+  it("blocks a looker exactly as tall as the thing in the way", () => {
+    const map = put(field(), 2, 0, "crate");
+    expect(hasLineOfSight(map, tilesById, from, beyond, 1)).toBe(false);
+    expect(hasLineOfSight(map, tilesById, from, beyond, 1.5)).toBe(true);
+  });
+
+  it("stops everybody at a full-height wall", () => {
+    const map = put(field(), 2, 0, "wall");
+    expect(hasLineOfSight(map, tilesById, from, beyond, PERSON)).toBe(false);
+    expect(hasLineOfSight(map, tilesById, from, beyond, RAT)).toBe(false);
+  });
+
+  /**
+   * The cap that made this impossible before. Opacity saturates at a full level,
+   * so a crate on a crate and a plain wall were one number — and a looker taller
+   * than a level could never have been told apart from one exactly as tall.
+   */
+  it("counts a stack past a full level, rather than saturating at one", () => {
+    let map = field();
+    map = replaceStack(map, 2, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "crate" },
+      { tileId: "crate" },
+    ]);
+    expect(hasLineOfSight(map, tilesById, from, beyond, PERSON)).toBe(false);
+    // Taller than the two crates together, and over it.
+    expect(hasLineOfSight(map, tilesById, from, beyond, 3)).toBe(true);
+  });
+
+  /** Height decides nothing about glass: a window is see-through to anybody. */
+  it("lets even the shortest looker see through a window", () => {
+    const map = put(field(), 2, 0, "window");
+    expect(hasLineOfSight(map, tilesById, from, beyond, RAT)).toBe(true);
+  });
+
+  /**
+   * A crate is half a level, so it never sealed and never will — what changed is
+   * only who clears it. A floor is height zero and blocks nobody sideways, which
+   * is what keeps a rat from being blinded by the ground it walks on.
+   */
+  it("is not stopped sideways by the ground itself", () => {
+    expect(hasLineOfSight(field(), tilesById, from, beyond, RAT)).toBe(true);
+  });
+});
+
 describe("line of sight", () => {
   it("crosses open ground", () => {
     expect(hasLineOfSight(field(), tilesById, from, { x: 5, y: 0, z: 0 })).toBe(
@@ -76,7 +144,7 @@ describe("line of sight", () => {
     );
   });
 
-  /** Opacity is blocking height over a level, so half a level does not seal. */
+  /** A full level tall by default, which is what every caller but a brain is. */
   it("passes over a crate", () => {
     const map = put(field(), 2, 0, "crate");
     expect(hasLineOfSight(map, tilesById, from, { x: 5, y: 0, z: 0 })).toBe(

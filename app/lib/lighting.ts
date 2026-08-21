@@ -270,6 +270,32 @@ export function stackOcclusion(
 }
 
 /**
+ * How tall the solid part of a stack stands, in height units.
+ *
+ * The same sum {@link stackOcclusion} makes, handed over uncapped — which is the
+ * whole reason it is a separate function. Opacity saturates at a full level
+ * because light does not care how far past that a wall goes, and that cap
+ * destroys exactly the information a *look* needs: whether the thing in the way
+ * is taller than whoever is looking over it. A crate and a crate on a plinth
+ * are one number to a lamp and two different questions to a rat.
+ *
+ * Light-passing tiles are skipped here on the same terms, so a window is still
+ * glass and a pond is still see-across. @see ../game/sight
+ */
+export function stackBlockHeight(
+  stack: PlacedTile[],
+  tilesById: Record<string, TileDef>,
+): number {
+  let blockH = 0;
+  for (const placed of stack) {
+    const def = tilesById[placed.tileId];
+    if (!def || resolveLightPassing(def)) continue;
+    blockH += def.height;
+  }
+  return blockH;
+}
+
+/**
  * Fractional cell-space emit position for a lit tile: XY at the cell centre,
  * Z at the tile's vertical centre (stack base elevation + half its height).
  */

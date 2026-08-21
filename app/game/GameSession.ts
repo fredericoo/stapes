@@ -2085,6 +2085,9 @@ export class GameSession implements PlaySession {
           this.tilesById,
           { x: loc.x, y: loc.y, z: loc.z },
           at,
+          // Its own body's height, so what it can see over falls out of how tall
+          // it is drawn: a person clears the crates a rat has to walk around.
+          this.defFor(actor).height,
         ),
       // A creature with no stat block minds its own floor, which is what every
       // creature did before this was authorable.

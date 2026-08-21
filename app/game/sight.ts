@@ -13,26 +13,51 @@
  * so it is see-through; water is light-passing, so you can see across a pond;
  * and a wall is a wall.
  *
- * `opacity >= 1` rather than `> 0` is the other half of it. Opacity is blocking
- * height over {@link HEIGHT_PER_LEVEL}, so a floor scores 0 and a crate scores a
- * half — which means **you can see over anything shorter than a full level**.
- * A creature that lost sight of somebody behind a barrel would read as blind
- * rather than as careful.
+ * ## You see over anything shorter than you are
+ *
+ * How tall the thing in the way stands is only half the question; the other half
+ * is who is looking over it. A crate is half a level, so a person clears it and
+ * a rat does not — and that is not a special case about crates, it is the whole
+ * rule. The threshold is the looker's own height, so it falls out of the tile
+ * heights an author already sets rather than needing a "blocks sight" flag
+ * beside them.
+ *
+ * It used to be a fixed full level for everybody, which read as blind in one
+ * direction and x-ray in the other: a person lost sight of you behind a barrel
+ * they could plainly see over, and a snake watched you across a room full of
+ * boxes. @see blocksSight
+ *
+ * The *target's* height is deliberately not in it. What has to clear the
+ * obstruction is the looker's eyes, and a rule that also counted the height of
+ * whatever is being looked at would let a rat see the top of your head over a
+ * wall — which makes "am I hidden" impossible to reason about from the board.
  */
 
-import { stackOcclusion } from "../lib/lighting";
+import { stackBlockHeight, stackOcclusion } from "../lib/lighting";
 import { getStack } from "../lib/mapData";
-import type { Coord, MapFile, TileDef } from "../lib/types";
+import { HEIGHT_PER_LEVEL, type Coord, type MapFile, type TileDef } from "../lib/types";
 
-/** Does this cell stop a look crossing it sideways? @see module doc */
+/**
+ * Does this cell stop a look crossing it sideways?
+ *
+ * Blocking height against the looker's, uncapped on both sides — which is why
+ * this reads {@link stackBlockHeight} rather than the opacity beside it. Opacity
+ * saturates at a full level, so a wall and a wall with a crate on top are the
+ * same number, and the comparison a taller creature needs is gone.
+ *
+ * Equal heights block. A rat is exactly as tall as the crate in front of it and
+ * is looking at the side of it, not over it; the alternative reads as a creature
+ * seeing through anything it could just barely stand beside. @see module doc
+ */
 function blocksSight(
   map: MapFile,
   tilesById: Record<string, TileDef>,
   x: number,
   y: number,
   z: number,
+  eyeHeight: number,
 ): boolean {
-  return stackOcclusion(getStack(map, x, y, z), tilesById).opacity >= 1;
+  return stackBlockHeight(getStack(map, x, y, z), tilesById) >= eyeHeight;
 }
 
 /**
@@ -97,12 +122,26 @@ function sealsAgainstVertical(
  * gap between two wall corners reads as visible here, where a stricter sweep
  * would close it. For a creature deciding whether it noticed you, being generous
  * at the corner is the better failure.
+ *
+ * ## How tall the looker is
+ *
+ * `eyeHeight` is the looking body's own height, in the units a tile's `height`
+ * is written in — so it is read off the tile rather than authored twice, and a
+ * creature drawn shorter is short-sighted over furniture without anybody saying
+ * so.
+ *
+ * It defaults to a full level, which is exactly the rule this had before anybody
+ * passed one: every caller whose subject is the player — reaching, shooting,
+ * pointing at a thing — is a full level tall, so leaving it off is not a
+ * placeholder but the right answer. What changed is that a *brain* now passes
+ * its own body's height. @see ../lib/lighting's `stackBlockHeight`
  */
 export function hasLineOfSight(
   map: MapFile,
   tilesById: Record<string, TileDef>,
   from: Coord,
   to: Coord,
+  eyeHeight: number = HEIGHT_PER_LEVEL,
 ): boolean {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
@@ -126,7 +165,9 @@ export function hasLineOfSight(
     }
     prevZ = z;
 
-    if (i < steps && blocksSight(map, tilesById, x, y, z)) return false;
+    if (i < steps && blocksSight(map, tilesById, x, y, z, eyeHeight)) {
+      return false;
+    }
   }
   return true;
 }

@@ -2653,7 +2653,7 @@ describe("the shopkeeper we ship", () => {
   const CHAT_TIMEOUT_MS = 30000;
 
   /** Grass, the shopkeeper at the origin, alice beside it and bob behind. */
-  function counter(): GameSession {
+  function counter(between: string[] = []): GameSession {
     let map = emptyMap();
     for (let x = -9; x <= 9; x++) {
       for (let y = -9; y <= 9; y++) {
@@ -2664,7 +2664,14 @@ describe("the shopkeeper we ship", () => {
       { tileId: "grass" },
       { tileId: "shopkeeper", direction: "w" },
     ]);
-    map = replaceStack(map, 1, 0, 0, [
+    // Whatever the shopkeeper has to look over, one cell short of alice.
+    if (between.length > 0) {
+      map = replaceStack(map, 2, 0, 0, [
+        { tileId: "grass" },
+        ...between.map((tileId) => ({ tileId })),
+      ]);
+    }
+    map = replaceStack(map, 3, 0, 0, [
       { tileId: "grass" },
       { tileId: "player", direction: "e", owner: "alice" },
     ]);
@@ -2767,6 +2774,38 @@ describe("the shopkeeper we ship", () => {
     const session = counter();
     session.despawn("alice");
     session.spawn("alice", { at: { x: EARSHOT + 2, y: 0, z: 0 } });
+    session.hear("alice", "hi");
+
+    expect(saidDuring(session, ENGAGED_MS)).toEqual([]);
+  });
+
+  /**
+   * The reason `heard` takes a sight test at all, met by the thing a player
+   * actually does: put the furniture down and carry on talking.
+   *
+   * A box is half a level and the shopkeeper is a whole one, so it clears them —
+   * and it has to, because a counter with anything on it is the ordinary case
+   * for a shopkeeper rather than an edge one.
+   */
+  it("hears you over the boxes somebody stacked on the counter", () => {
+    const session = counter(["wooden-box"]);
+    session.hear("alice", "hi");
+
+    expect(saidDuring(session, ENGAGED_MS)).toEqual([
+      `Hello, ${ALICE}! Say bye when you're done.`,
+    ]);
+  });
+
+  /** Two of them is a full level, and nobody sees over that. */
+  it("is deaf behind a stack it cannot see over", () => {
+    const session = counter(["wooden-box", "wooden-box"]);
+    session.hear("alice", "hi");
+
+    expect(saidDuring(session, ENGAGED_MS)).toEqual([]);
+  });
+
+  it("is deaf behind a wall", () => {
+    const session = counter(["stone-wall"]);
     session.hear("alice", "hi");
 
     expect(saidDuring(session, ENGAGED_MS)).toEqual([]);
