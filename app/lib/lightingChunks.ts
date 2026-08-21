@@ -262,6 +262,21 @@ function sliceChunk(level: RawLevelLight, rect: WorldRect): Uint8Array {
 }
 
 /**
+ * Furthest cell, in each axis, an emitter of this radius can actually light.
+ *
+ * The flood drops anything beyond the radius and attenuates the rest by
+ * `1 - dist / radius`, so a cell exactly `radius` away is already black — the
+ * lit set is the cells *strictly* inside the sphere. Rounding the radius up
+ * instead of down is not the harmless over-estimate it looks like: for a
+ * flickering emitter it charges chunks it cannot reach an extra phase axis, and
+ * those chunks then rebake every time it ticks, for ever, over light that is
+ * provably zero.
+ */
+function litReach(radius: number): number {
+  return Math.max(0, Math.ceil(radius) - 1);
+}
+
+/**
  * Which chunks each clock-driven emitter can reach, keyed the same way as the
  * cache.
  *
@@ -276,7 +291,7 @@ function animatedByChunk(
 ): Map<string, Set<string>> {
   const out = new Map<string, Set<string>>();
   for (const e of emitters) {
-    const reach = Math.ceil(e.radius);
+    const reach = litReach(e.radius);
     for (let cy = chunkOf(e.y - reach); cy <= chunkOf(e.y + reach); cy++) {
       for (let cx = chunkOf(e.x - reach); cx <= chunkOf(e.x + reach); cx++) {
         const key = chunkCacheKey(cx, cy);
