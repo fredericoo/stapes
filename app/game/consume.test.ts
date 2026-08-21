@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import statusesJson from "../../data/statuses.json";
 import tilesJson from "../../data/tiles.json";
-import { type ConsumableStatus, DEFAULT_CONTAINER } from "../lib/item";
+import { type StatusGrant, DEFAULT_CONTAINER } from "../lib/item";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef, normalizeTiles } from "../lib/types";
@@ -48,7 +48,7 @@ function tile(partial: Record<string, unknown>): TileDef {
 const PLAYER_MAX_HP = 100;
 
 /** A consumable that grants statuses instead of moving hit points on the spot. */
-function granter(id: string, statuses: ConsumableStatus[]): TileDef {
+function granter(id: string, statuses: StatusGrant[]): TileDef {
   return tile({
     id,
     kind: "item",

@@ -315,7 +315,7 @@ type Props = {
   /** Whole library — the interactive tab picks tile ids out of it. */
   tiles: TileDef[];
   tilesets: TilesetDef[];
-  /** The status catalogue, for the consumable's list. See `./ItemTab`. */
+  /** The status catalogue, for the lists a consumable and a weapon carry. */
   statusDefs?: Record<string, StatusDef>;
   isNew: boolean;
   onSave: (tile: TileDef) => void;
@@ -1019,7 +1019,12 @@ export function TileEditorDialog({
           </TabPanel>
 
           <TabPanel value={TAB_BATTLE}>
-            <BattleTab draft={draft} onChange={setDraft} tiles={tiles} />
+            <BattleTab
+              draft={draft}
+              onChange={setDraft}
+              tiles={tiles}
+              statusDefs={statusDefs}
+            />
           </TabPanel>
 
           <TabPanel value={TAB_ITEM}>

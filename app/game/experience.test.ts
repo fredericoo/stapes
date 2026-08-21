@@ -39,18 +39,21 @@ const landed: AttackOutcome = {
   dodged: false,
   damage: 10,
   potentialDamage: 10,
+  inflicted: [],
 };
 const dodged: AttackOutcome = {
   missed: false,
   dodged: true,
   damage: 0,
   potentialDamage: 10,
+  inflicted: [],
 };
 const missed: AttackOutcome = {
   missed: true,
   dodged: false,
   damage: 0,
   potentialDamage: 0,
+  inflicted: [],
 };
 
 const sword = {

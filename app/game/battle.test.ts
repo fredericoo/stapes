@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
+import statusesJson from "../../data/statuses.json";
 import tilesJson from "../../data/tiles.json";
 import { resolveBattler } from "../lib/battler";
 import { ATTACKER_SELECTOR, resolveBrain, slot } from "../lib/brain";
 import { emptyMap, replaceStack } from "../lib/mapData";
+import { statusesById } from "../lib/status";
 import type { MapFile, TileDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL, normalizeTileDef, normalizeTiles } from "../lib/types";
 import { attackIntervalMs, MIN_ATTACK_TICKS } from "./combat";
@@ -156,6 +158,45 @@ const tiles: TileDef[] = [
   }),
   // A body with no battler block at all: swinging at it must fail, not throw.
   tile({ id: "statue", height: 1, actor: true, walkable: false }),
+  // A bite that certainly poisons, so what is asserted below is the plumbing
+  // rather than the odds — `./combat.test` owns the percentage itself.
+  tile({
+    id: "viper",
+    height: 1,
+    actor: true,
+    walkable: false,
+    interactions: {
+      battler: {
+        masteries: { toughness: 22 },
+        naturalWeapon: claws({
+          damage: 1,
+          ...CERTAIN,
+          statuses: [{ id: "venom", chance: 100, fromMs: 30_000, toMs: 60_000 }],
+        }),
+      },
+      brain: brawlerBrain,
+    },
+  }),
+  // The same venom in something a player can pick up, which is the case that
+  // comes free from routing a weapon's statuses through `FightingStats`.
+  tile({
+    id: "venom-fang",
+    height: 0,
+    intangible: true,
+    kind: "item",
+    interactions: {
+      item: {
+        type: "weapon",
+        damage: 1,
+        def: 0,
+        accuracy: 100,
+        variance: 0,
+        spd: 100,
+        mastery: "fist",
+        statuses: [{ id: "venom", chance: 100 }],
+      },
+    },
+  }),
 ];
 
 /** Open grass with the spawn marker at the origin. */
@@ -831,4 +872,131 @@ describe("shooting at somebody", () => {
     expect(bodyOf(session, "dummy")!.z).toBe(2);
     expect(bodyOf(session, "dummy")!.hp).toBe(DUMMY_MAX_HP);
   });
+});
+
+/**
+ * What a bite leaves behind once the hit points have moved.
+ *
+ * The odds are `./combat.test`'s subject; this is the plumbing around them — that
+ * an inflicted status reaches the body that was bitten, that it is rolled inside
+ * the range the weapon asked for rather than the status's own, and that a weapon
+ * somebody picked up poisons exactly as the jaws it came out of did.
+ */
+describe("venom", () => {
+  /**
+   * A ten-second condition that does nothing, because nothing here is about what
+   * a status *does*: `./statuses` owns cadence and expiry, and a venom that also
+   * ticked damage would make every assertion below race the dying.
+   */
+  const catalogue = statusesById([
+    {
+      id: "venom",
+      name: "Envenomed",
+      description: "Something bit you.",
+      tone: "bad",
+      fromMs: 10_000,
+      toMs: 10_000,
+    },
+  ]);
+
+  /** The venom's own range, so an override is visible as a different number. */
+  const OWN_MS = 10_000;
+
+  function statusesOn(session: GameSession, tileId: string) {
+    const id = bodyOf(session, tileId)?.id;
+    return id ? (session.statusesOf(id) ?? []) : [];
+  }
+
+  it("lands on whoever was bitten, for as long as the bite asked", () => {
+    const session = new GameSession(withBody(field(), 1, 0, "viper"), tiles, {
+      statuses: catalogue,
+    });
+    // The viper only fights back, so the player starts it — which is also what
+    // makes the player the one carrying the venom at the end.
+    fight(session, bodyOf(session, "viper")!.id);
+
+    advanceUntil(session, () => (session.statusesOf("local") ?? []).length > 0);
+
+    const held = session.statusesOf("local")!;
+    expect(held.map((status) => status.defId)).toEqual(["venom"]);
+    // The weapon's range, not the status's ten seconds — see `StatusGrant`.
+    expect(held[0]!.durationMs).toBeGreaterThanOrEqual(30_000);
+    expect(held[0]!.durationMs).toBeLessThanOrEqual(60_000);
+  });
+
+  it("says nothing about the body doing the biting", () => {
+    const session = new GameSession(withBody(field(), 1, 0, "viper"), tiles, {
+      statuses: catalogue,
+    });
+    fight(session, bodyOf(session, "viper")!.id);
+
+    advanceUntil(session, () => (session.statusesOf("local") ?? []).length > 0);
+
+    expect(statusesOn(session, "viper")).toEqual([]);
+  });
+
+  /**
+   * The whole argument for carrying this on `FightingStats` rather than reading
+   * it off the creature at the point of the swing: a fang taken off a snake is
+   * as venomous in a hand as it was in a jaw, and nobody had to wire that up.
+   */
+  it("comes with the weapon, not with the body swinging it", () => {
+    const armedPlayer = tiles.map((t) =>
+      t.id === "player"
+        ? tile({
+            ...t,
+            interactions: {
+              battler: {
+                masteries: { toughness: 92 },
+                naturalWeapon: claws({ damage: 5, ...CERTAIN }),
+                kit: [{ slot: "weapon", tileId: "venom-fang", chance: 100 }],
+              },
+            },
+          })
+        : t,
+    );
+    const session = new GameSession(
+      withBody(field(), 1, 0, "dummy"),
+      armedPlayer,
+      { statuses: catalogue },
+    );
+    fight(session, bodyOf(session, "dummy")!.id);
+
+    advanceUntil(session, () => statusesOn(session, "dummy").length > 0);
+
+    const held = statusesOn(session, "dummy");
+    expect(held.map((status) => status.defId)).toEqual(["venom"]);
+    // No override on the fang, so it runs for exactly what the status says.
+    expect(held[0]!.durationMs).toBe(OWN_MS);
+  });
+
+  /**
+   * The authored snake, against the authored catalogue.
+   *
+   * The two files are edited independently and nothing but this notices when
+   * they stop agreeing: a renamed status leaves the bite reading as an effect
+   * that never happens, which is the correct behaviour and an invisible one.
+   */
+  it("is what the snake in data/tiles.json actually bites with", () => {
+    const snake = normalizeTiles(tilesJson as unknown[]).find(
+      (t) => t.id === "snake",
+    );
+    const bite = resolveBattler(snake!)!.naturalWeapon;
+    expect(bite.statuses).toEqual([
+      { id: "poison", chance: 10, fromMs: 30_000, toMs: 60_000 },
+    ]);
+    expect(statusesById(statusesJson as unknown[])).toHaveProperty("poison");
+  });
+
+  /** Bare hands inflict nothing, which is every weapon in the world but a few. */
+  it("leaves an ordinary weapon leaving nothing", () => {
+    const session = new GameSession(withBody(field(), 1, 0, "dummy"), tiles, {
+      statuses: catalogue,
+    });
+    fight(session, bodyOf(session, "dummy")!.id);
+
+    advance(session, ENOUGH_SWINGS_MS);
+
+    expect(bodyOf(session, "dummy")!.hp!).toBeLessThan(DUMMY_MAX_HP);
+    expect(statusesOn(session, "dummy")).toEqual([]);  });
 });

@@ -136,6 +136,33 @@ describe("resolveItem", () => {
       ["a container with no room", { ...DEFAULT_CONTAINER, size: 0 }],
       ["a container past the cap", { ...DEFAULT_CONTAINER, size: MAX_CONTAINER_SIZE + 1 }],
       ["a container missing equippable", { type: "container", size: 2 }],
+      [
+        "a weapon status with no chance on it",
+        { ...DEFAULT_WEAPON, statuses: [{ id: "poison" }] },
+      ],
+      [
+        "a chance past the cap",
+        { ...DEFAULT_WEAPON, statuses: [{ id: "poison", chance: MAX_PERCENT_STAT + 1 }] },
+      ],
+      [
+        "a chance below zero",
+        { ...DEFAULT_WEAPON, statuses: [{ id: "poison", chance: -1 }] },
+      ],
+      [
+        "a nameless status",
+        { ...DEFAULT_WEAPON, statuses: [{ id: "  ", chance: 10 }] },
+      ],
+      [
+        "half a duration override on a weapon",
+        { ...DEFAULT_WEAPON, statuses: [{ id: "poison", chance: 10, fromMs: 1000 }] },
+      ],
+      [
+        "an inverted duration override on a weapon",
+        {
+          ...DEFAULT_WEAPON,
+          statuses: [{ id: "poison", chance: 10, fromMs: 2000, toMs: 1000 }],
+        },
+      ],
     ];
 
     for (const [name, block] of cases) {
@@ -257,6 +284,35 @@ describe("itemForSave", () => {
     expect(
       itemForSave({ type: "consumable", hp: 0, statuses: [{ id: "  " }] }),
     ).toEqual({ type: "consumable", hp: 0 });
+  });
+
+  it("keeps a weapon's statuses and drops an empty list", () => {
+    const venomous = {
+      ...DEFAULT_WEAPON,
+      statuses: [{ id: "poison", chance: 10, fromMs: 30_000, toMs: 60_000 }],
+    };
+    expect(itemForSave(venomous)).toEqual(venomous);
+    expect(itemForSave({ ...DEFAULT_WEAPON, statuses: [] })).toEqual(DEFAULT_WEAPON);
+    expect(
+      itemForSave({ ...DEFAULT_WEAPON, statuses: [{ id: " ", chance: 10 }] }),
+    ).toEqual(DEFAULT_WEAPON);
+  });
+
+  /**
+   * A draft that had an override switched off still carries the two ends, and
+   * writing them would be writing half of one — which is the shape the schema
+   * refuses, so it would come back as a weapon that inflicts nothing.
+   */
+  it("drops half a duration override a draft was still holding", () => {
+    const saved = itemForSave({
+      ...DEFAULT_WEAPON,
+      statuses: [{ id: "poison", chance: 10, fromMs: 30_000 }],
+    });
+    expect(saved).toEqual({
+      ...DEFAULT_WEAPON,
+      statuses: [{ id: "poison", chance: 10 }],
+    });
+    expect(resolveItem(tile("item", { item: saved }))).toEqual(saved);
   });
 
   it("drops weapon fields a draft carried into a consumable", () => {

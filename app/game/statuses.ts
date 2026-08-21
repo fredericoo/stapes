@@ -148,7 +148,7 @@ export function applyStatus(
    * What the thing handing this over says it is worth, if it says anything.
    *
    * Bread and a berry both leave you Fed and differ only in how long — see
-   * `../lib/item`'s `ConsumableStatus`. The ceiling is still the status's own:
+   * `../lib/item`'s `StatusGrant`. The ceiling is still the status's own:
    * `maxMs` is a property of the condition, not of the meal.
    */
   range: DurationRange = def,

@@ -266,6 +266,25 @@ export type WeaponItem = {
    * you go and get that somewhere else.
    */
   requirements?: Masteries;
+  /**
+   * What landing a blow with this may leave on whoever was hit.
+   *
+   * **A fact about the weapon, never about the wielder.** A snake's venom is in
+   * its fangs; how well the snake uses them is its Fist mastery, and that has
+   * already had its say twice over — on whether the bite landed and on how hard.
+   * Scaling the chance by mastery as well would pay one skill three times, and
+   * would make a venomous fang in a novice's hand a *less venomous fang*, which
+   * is not a thing venom does.
+   *
+   * Every entry is rolled on every swing and read only on a blow that connected
+   * — see `../game/combat`'s `rollAttack`, which owns both halves of that
+   * sentence and explains why the draws are taken either way.
+   *
+   * Absent is the overwhelmingly common case: most weapons do nothing but
+   * damage. The duration override means here what it means on a consumable —
+   * see {@link StatusGrant}.
+   */
+  statuses?: WeaponStatus[];
 };
 
 /**
@@ -318,11 +337,15 @@ export type ConsumableItem = {
    * reward naming a missing tile is left alone: renamed content should read as an
    * effect that did not happen, not as a world that will not start.
    */
-  statuses?: ConsumableStatus[];
+  statuses?: StatusGrant[];
 };
 
 /**
- * One status a consumable hands over, and how long for.
+ * One status something hands over, and how long for.
+ *
+ * Shared by a consumable and by a weapon, because the two say the same thing:
+ * *this* status, for *this* long. What differs is whether it is certain, and
+ * that is the one field {@link WeaponStatus} adds.
  *
  * **The range belongs to the food, not only to the condition.** Bread and a berry
  * both leave you Fed — same icon, same line, same 1% a second — and the whole
@@ -338,7 +361,7 @@ export type ConsumableItem = {
  * Absent means the status's own range, which is what every consumable wants
  * until somebody has a reason to differ.
  */
-export type ConsumableStatus = {
+export type StatusGrant = {
   id: string;
   /**
    * Overrides the status's authored range, both ends included.
@@ -349,6 +372,28 @@ export type ConsumableStatus = {
    */
   fromMs?: number;
   toMs?: number;
+};
+
+/**
+ * A status a weapon may inflict, and how often it actually does.
+ *
+ * The one thing a blow has that a drink does not: **a drink always works.** You
+ * chose to swallow it and it went down; a bite has to get through, and then the
+ * venom has to take. So a weapon's grant carries a probability and a
+ * consumable's does not, rather than both carrying one and every consumable in
+ * the world being authored at a hundred percent.
+ */
+export type WeaponStatus = StatusGrant & {
+  /**
+   * 0-100. How often a connecting blow leaves this behind.
+   *
+   * **Not held inside the band every other chance in a fight lives in.** A hit
+   * chance and a dodge are contests, and `MIN_CHANCE`/`MAX_CHANCE` keep both
+   * ends of a contest in doubt; this is neither. It is an authored constant, and
+   * an author who writes 100 means a brand that always burns while one who
+   * writes 0 means an entry they have switched off.
+   */
+  chance: number;
 };
 
 /**
@@ -450,6 +495,16 @@ export const MAX_PROJECTILE_SPEED = 1000;
  * this constant exists to make impossible to write by accident.
  */
 export const DEFAULT_PROJECTILE_SPEED = 20;
+
+/**
+ * What a status a weapon has just been given happens at, until somebody says.
+ *
+ * Uncommon rather than certain, because that is what the field is *for*: a
+ * status that always lands is a second damage number, and an author who wanted
+ * one would have reached for damage. Ten percent is roughly "now and again",
+ * which is the shape of every venom worth authoring.
+ */
+export const DEFAULT_WEAPON_STATUS_CHANCE = 10;
 
 /** Widest a container may be, so a contents grid stays a grid. */
 export const MAX_CONTAINER_SIZE = 12;
@@ -565,6 +620,61 @@ const percent = v.pipe(
   v.maxValue(MAX_PERCENT_STAT),
 );
 
+/** The id, and the duration override when the granter overrides one. */
+const statusGrantEntries = {
+  id: v.pipe(v.string(), v.trim(), v.minLength(1)),
+  fromMs: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0))),
+  toMs: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0))),
+};
+
+/**
+ * Both or neither, and ordered — the same two rules a decay lifetime is under,
+ * and refused here for the same reason: an inverted range authored by hand
+ * should read as a malformed block rather than as a status that never lands.
+ *
+ * Predicates over the two fields alone rather than finished validations, so the
+ * weapon's shape and the consumable's are held to one copy of each rule: a
+ * built `v.check` is pinned to the object it was built against, where a
+ * predicate takes anything that has the two ends on it.
+ */
+type DurationOverride = { fromMs?: number; toMs?: number };
+
+const overrideIsWhole = (raw: DurationOverride) =>
+  (raw.fromMs === undefined) === (raw.toMs === undefined);
+
+const overrideIsOrdered = (raw: DurationOverride) =>
+  raw.fromMs === undefined || raw.toMs! >= raw.fromMs;
+
+const BOTH_ENDS_MESSAGE = "give both ends of a duration override, or neither";
+const ORDERED_MESSAGE = "duration range is inverted";
+
+/** How long a consumable's status runs, when it differs from the status's own. */
+const statusGrantSchema = v.pipe(
+  v.object(statusGrantEntries),
+  // Wrapped rather than passed by reference: `v.check` reads its input type off
+  // the callback, so handing it a predicate over the two ends alone would pin
+  // the whole action to that narrower shape.
+  v.check((raw) => overrideIsWhole(raw), BOTH_ENDS_MESSAGE),
+  v.check((raw) => overrideIsOrdered(raw), ORDERED_MESSAGE),
+);
+
+/**
+ * The same, plus the chance a connecting blow leaves it behind.
+ *
+ * On the percent scale the rest of a weapon is authored on, and required rather
+ * than defaulted: a chance somebody forgot to write is the one number nobody can
+ * guess for them — a hundred and a one are both defensible defaults and they are
+ * a different weapon.
+ */
+const weaponStatusSchema = v.pipe(
+  v.object({ ...statusGrantEntries, chance: percent }),
+  // Wrapped rather than passed by reference: `v.check` reads its input type off
+  // the callback, so handing it a predicate over the two ends alone would pin
+  // the whole action to that narrower shape.
+  v.check((raw) => overrideIsWhole(raw), BOTH_ENDS_MESSAGE),
+  v.check((raw) => overrideIsOrdered(raw), ORDERED_MESSAGE),
+);
+
 /**
  * Exported because a body's natural weapon is validated by it too.
  *
@@ -622,27 +732,11 @@ export const weaponSchema = v.object({
   // the same thing as no key, and refusing it would make a round trip through
   // the editor a validation error.
   requirements: v.optional(masteriesSchema),
+  // Whether an id names anything is the catalogue's question, asked where the
+  // status is granted — see the consumable's list, which this deliberately
+  // mirrors down to the shape of one entry.
+  statuses: v.optional(v.array(weaponStatusSchema)),
 });
-
-/** How long a consumable's status runs, when it differs from the status's own. */
-const statusOverrideSchema = v.pipe(
-  v.object({
-    id: v.pipe(v.string(), v.trim(), v.minLength(1)),
-    fromMs: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0))),
-    toMs: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0))),
-  }),
-  // Both or neither, and ordered — the same two rules a decay lifetime is under,
-  // and refused here for the same reason: an inverted range authored by hand
-  // should read as a malformed block rather than as a status that never lands.
-  v.check(
-    (raw) => (raw.fromMs === undefined) === (raw.toMs === undefined),
-    "give both ends of a duration override, or neither",
-  ),
-  v.check(
-    (raw) => raw.fromMs === undefined || raw.toMs! >= raw.fromMs,
-    "duration range is inverted",
-  ),
-);
 
 const consumableSchema = v.object({
   type: v.literal("consumable"),
@@ -670,7 +764,7 @@ const consumableSchema = v.object({
   // tile editor works on the *raw* block, so the picker saw strings where it
   // expected entries and silently reported every status as unknown. A tolerance
   // that only half the readers apply is worse than eight extra characters.
-  statuses: v.optional(v.array(statusOverrideSchema)),
+  statuses: v.optional(v.array(statusGrantSchema)),
 });
 
 const containerSchema = v.object({
@@ -787,6 +881,8 @@ export function weaponForSave(weapon: WeaponItem): WeaponItem {
     ),
   );
 
+  const statuses = statusGrantsForSave(weapon.statuses);
+
   return {
     type: "weapon",
     damage: weapon.damage,
@@ -813,14 +909,24 @@ export function weaponForSave(weapon: WeaponItem): WeaponItem {
     // says exactly what its absence says.
     ...(weapon.offhand ? { offhand: true } : {}),
     ...(Object.keys(requirements).length > 0 ? { requirements } : {}),
+    ...(statuses ? { statuses } : {}),
   };
 }
 
-function consumableStatusesForSave(
-  statuses: ConsumableStatus[] | undefined,
-): ConsumableStatus[] | undefined {
+/**
+ * A list of grants, named field by field, or nothing where none survive.
+ *
+ * Generic over what one entry carries so a weapon's chance rides along with it:
+ * the fields this function knows about are the ones every grant has, and
+ * whatever else the caller put on an entry is preserved rather than dropped.
+ * A single walk for both kinds, because the rules it enforces — a blank id is
+ * not a grant, half an override is not an override — are the same rules.
+ */
+function statusGrantsForSave<Grant extends StatusGrant>(
+  statuses: Grant[] | undefined,
+): Grant[] | undefined {
   if (!statuses?.length) return undefined;
-  const saved: ConsumableStatus[] = [];
+  const saved: Grant[] = [];
   for (const entry of statuses) {
     const id = entry.id.trim();
     if (!id) continue;
@@ -828,9 +934,12 @@ function consumableStatusesForSave(
     const toMs = entry.toMs;
     // Both or neither — half an override is malformed and the schema refuses it.
     if (fromMs !== undefined && toMs !== undefined) {
-      saved.push({ id, fromMs: Math.round(fromMs), toMs: Math.round(toMs) });
+      saved.push({ ...entry, id, fromMs: Math.round(fromMs), toMs: Math.round(toMs) });
     } else {
-      saved.push({ id });
+      // Spread minus the two ends, so a draft that carried half an override
+      // does not smuggle it onto disk under a key the schema would refuse.
+      const { fromMs: _from, toMs: _to, ...rest } = entry;
+      saved.push({ ...rest, id } as Grant);
     }
   }
   return saved.length ? saved : undefined;
@@ -845,7 +954,7 @@ export function itemForSave(item: ItemDef | undefined): ItemDef | undefined {
     // way of saying what an absent key already says.
     const label = item.label?.trim();
     const sound = item.sound?.trim();
-    const statuses = consumableStatusesForSave(item.statuses);
+    const statuses = statusGrantsForSave(item.statuses);
     return {
       type: "consumable",
       ...(label ? { label } : {}),

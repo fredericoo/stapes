@@ -2,7 +2,7 @@ import {
   clampChance,
   type FightingStats,
 } from "../lib/battler";
-import type { Reach } from "../lib/item";
+import { MAX_PERCENT_STAT, type Reach, type WeaponStatus } from "../lib/item";
 import type { MapFile, TileDef } from "../lib/types";
 import { TICK_MS } from "./constants";
 import { type ReachPoint, withinReach } from "./distance";
@@ -147,7 +147,20 @@ export type AttackOutcome = {
    * front regardless.
    */
   potentialDamage: number;
+  /**
+   * Statuses this blow leaves on the defender, in the order they were authored.
+   *
+   * Empty on a miss and on a dodge, because both mean nothing touched anybody.
+   * **Not empty merely because the damage came to zero**: armour that swallowed
+   * a venomous bite still had a venomous bite land on it, and a weapon whose
+   * whole point is what it inflicts would otherwise be turned off by the one
+   * stat that has nothing to do with it.
+   */
+  inflicted: readonly WeaponStatus[];
 };
+
+/** No status was inflicted, which is the answer for nearly every blow struck. */
+const NOTHING_INFLICTED: readonly WeaponStatus[] = [];
 
 /**
  * Swing once.
@@ -172,12 +185,25 @@ export function rollAttack(
   const missRoll = rng.next();
   const dodgeRoll = rng.next();
   const damageRoll: [number, number] = [rng.next(), rng.next()];
+  // One draw per authored status, taken here with the rest and read only if the
+  // blow gets that far — the same arrangement the three above are under, for the
+  // same reason. The count varies with the *weapon* and never with what
+  // happened, so a snake that misses and a snake that bites advance the world's
+  // dice by exactly as much. Last in the order, so a weapon that inflicts
+  // nothing rolls precisely what it rolled before this existed.
+  const statusRolls = attacker.statuses.map(() => rng.next());
 
   // Missing first, because it happens first: a blow that never went where it was
   // aimed gave the defender nothing to get out of the way of, and crediting them
   // with a dodge for it would pay agility for standing still.
   if (missRoll >= attacker.hitChance) {
-    return { missed: true, dodged: false, damage: 0, potentialDamage: 0 };
+    return {
+      missed: true,
+      dodged: false,
+      damage: 0,
+      potentialDamage: 0,
+      inflicted: NOTHING_INFLICTED,
+    };
   }
 
   // Rolled before the dodge is asked about rather than after, so a blow that is
@@ -187,7 +213,13 @@ export function rollAttack(
   );
 
   if (dodgeRoll < dodgeChance(defender.flee, attacker.accuracy)) {
-    return { missed: false, dodged: true, damage: 0, potentialDamage };
+    return {
+      missed: false,
+      dodged: true,
+      damage: 0,
+      potentialDamage,
+      inflicted: NOTHING_INFLICTED,
+    };
   }
 
   return {
@@ -195,7 +227,29 @@ export function rollAttack(
     dodged: false,
     damage: Math.max(0, potentialDamage - defender.def),
     potentialDamage,
+    inflicted: inflictedBy(attacker.statuses, statusRolls),
   };
+}
+
+/**
+ * Which of a weapon's statuses took, given a draw apiece.
+ *
+ * **Read against the authored percentage directly, and not through
+ * `clampChance`.** That band exists to keep a *contest* in doubt at both ends —
+ * nothing in a fight between two bodies is ever certain. This is not a contest:
+ * it is the author saying how often a thing happens, and a hundred that landed
+ * ninety-five percent of the time would be a number that quietly means something
+ * else.
+ */
+function inflictedBy(
+  statuses: readonly WeaponStatus[],
+  rolls: readonly number[],
+): readonly WeaponStatus[] {
+  if (statuses.length === 0) return NOTHING_INFLICTED;
+  const took = statuses.filter(
+    (status, index) => rolls[index] * MAX_PERCENT_STAT < status.chance,
+  );
+  return took.length === 0 ? NOTHING_INFLICTED : took;
 }
 
 /**

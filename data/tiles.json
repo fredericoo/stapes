@@ -7003,7 +7003,15 @@
           "accuracy": 88,
           "variance": 55,
           "spd": 50,
-          "mastery": "fist"
+          "mastery": "fist",
+          "statuses": [
+            {
+              "id": "poison",
+              "chance": 10,
+              "fromMs": 30000,
+              "toMs": 60000
+            }
+          ]
         },
         "range": 1.87,
         "sight": {

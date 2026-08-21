@@ -263,6 +263,147 @@ describe("swinging", () => {
 });
 
 /**
+ * What a blow leaves behind after the hit points have moved.
+ *
+ * A percentage is the kind of number nobody can eyeball: a venom that fires
+ * every time and a venom that never fires both look like "a snake bit me" from
+ * inside the game, and only a count over many swings can tell them apart. These
+ * are the claims the field makes, written where they can fail.
+ */
+describe("statuses a weapon inflicts", () => {
+  const certain = { id: "poison", chance: 100 };
+  const never = { id: "poison", chance: 0 };
+  const connects = { accuracy: 100, hitChance: 1 };
+
+  it("leaves nothing behind for the weapons that inflict nothing", () => {
+    const attacker = battler(connects);
+    const defender = battler({ flee: 0 });
+    for (let seed = 0; seed < 20; seed++) {
+      expect(rollAttack(attacker, defender, new Rng(seed)).inflicted).toEqual([]);
+    }
+  });
+
+  it("inflicts a certainty on every blow that lands, and a zero on none", () => {
+    const defender = battler({ flee: 0 });
+    let landed = 0;
+    for (let seed = 0; seed < 50; seed++) {
+      const always = rollAttack(
+        battler({ ...connects, statuses: [certain] }),
+        defender,
+        new Rng(seed),
+      );
+      const nothing = rollAttack(
+        battler({ ...connects, statuses: [never] }),
+        defender,
+        new Rng(seed),
+      );
+      expect(nothing.inflicted).toEqual([]);
+      if (always.missed || always.dodged) continue;
+      landed++;
+      expect(always.inflicted).toEqual([certain]);
+    }
+    expect(landed).toBeGreaterThan(0);
+  });
+
+  /**
+   * The one case that would otherwise be decided by the stat with least to do
+   * with it: a fang that cannot get through armour still went in far enough to
+   * be a fang.
+   */
+  it("still inflicts through armour that ate the whole blow", () => {
+    const attacker = battler({ ...connects, damage: 5, statuses: [certain] });
+    const defender = battler({ def: 100, flee: 0 });
+    let landed = 0;
+    for (let seed = 0; seed < 50; seed++) {
+      const outcome = rollAttack(attacker, defender, new Rng(seed));
+      if (outcome.missed || outcome.dodged) continue;
+      landed++;
+      expect(outcome.damage).toBe(0);
+      expect(outcome.inflicted).toEqual([certain]);
+    }
+    expect(landed).toBeGreaterThan(0);
+  });
+
+  it("leaves nothing on a miss or on a dodge", () => {
+    const missing = battler({ hitChance: 0, statuses: [certain] });
+    const dodgeable = battler({
+      accuracy: 0,
+      hitChance: 1,
+      statuses: [certain],
+    });
+    for (let seed = 0; seed < 20; seed++) {
+      const missed = rollAttack(missing, battler({ flee: 0 }), new Rng(seed));
+      const dodged = rollAttack(dodgeable, battler({ flee: 100 }), new Rng(seed));
+      if (missed.missed) expect(missed.inflicted).toEqual([]);
+      expect(dodged.dodged).toBe(true);
+      expect(dodged.inflicted).toEqual([]);
+    }
+  });
+
+  /**
+   * A tenth, near enough — the snake's bite as `data/tiles.json` authors it.
+   * Counted over blows that landed, since a miss was never eligible.
+   */
+  it("fires about as often as it says", () => {
+    const attacker = battler({ ...connects, statuses: [{ id: "poison", chance: 10 }] });
+    const defender = battler({ flee: 0 });
+    let landed = 0;
+    let poisoned = 0;
+    for (let seed = 0; seed < 3000; seed++) {
+      const outcome = rollAttack(attacker, defender, new Rng(seed));
+      if (outcome.missed || outcome.dodged) continue;
+      landed++;
+      if (outcome.inflicted.length > 0) poisoned++;
+    }
+    expect(poisoned / landed).toBeGreaterThan(0.08);
+    expect(poisoned / landed).toBeLessThan(0.12);
+  });
+
+  /**
+   * The same discipline the four draws above are under, one step further: a
+   * weapon's list decides how many draws a swing costs, and nothing about how
+   * the swing turned out may. Otherwise a snake that missed and a snake that bit
+   * would leave the world's dice in different places.
+   */
+  it("costs one draw per authored status, whatever the blow came to", () => {
+    const reference = new Rng(7);
+    for (let i = 0; i < 6; i++) reference.next();
+    const after = reference.save();
+
+    for (const [attacker, defender] of [
+      [battler({ hitChance: 0, statuses: [certain, never] }), battler({ flee: 0 })],
+      [battler({ ...connects, statuses: [certain, never] }), battler({ flee: 100 })],
+      [battler({ ...connects, statuses: [certain, never] }), battler({ flee: 0 })],
+      [battler({ ...connects, statuses: [never, never] }), battler({ flee: 0 })],
+    ] as const) {
+      const rng = new Rng(7);
+      rollAttack(attacker, defender, rng);
+      expect(rng.save()).toBe(after);
+    }
+  });
+
+  /**
+   * Rolled per entry rather than once for the list, so a weapon that inflicts
+   * two things is not a weapon that inflicts both or neither.
+   */
+  it("decides each authored status on its own draw", () => {
+    const attacker = battler({
+      ...connects,
+      statuses: [certain, never, { id: "fed", chance: 100 }],
+    });
+    const defender = battler({ flee: 0 });
+    for (let seed = 0; seed < 50; seed++) {
+      const outcome = rollAttack(attacker, defender, new Rng(seed));
+      if (outcome.missed || outcome.dodged) continue;
+      expect(outcome.inflicted.map((status) => status.id)).toEqual([
+        "poison",
+        "fed",
+      ]);
+    }
+  });
+});
+
+/**
  * Missing and dodging are the same absence of damage and must never be the same
  * event: one is the swinger out of their depth, the other is the target being
  * quick, and in the phase after this they pay experience to opposite parties.
@@ -280,6 +421,9 @@ describe("missing, as distinct from being dodged", () => {
         // Nothing was ever rolled: a swing that went nowhere was never worth
         // anything, so there is no potential for the defender to be paid for.
         potentialDamage: 0,
+        // And nothing was left behind either — a blow that touched nobody
+        // cannot have poisoned them.
+        inflicted: [],
       });
     }
   });
