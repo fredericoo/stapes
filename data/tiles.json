@@ -2341,6 +2341,565 @@
     }
   },
   {
+    "id": "shopkeeper",
+    "name": "Shopkeeper",
+    "height": 2,
+    "type": "directional",
+    "kind": "battler",
+    "attributes": {},
+    "lightPassing": true,
+    "affectedByGravity": true,
+    "walkable": false,
+    "interactions": {
+      "battler": {
+        "masteries": {
+          "fist": 5,
+          "blade": 5,
+          "blunt": 5,
+          "ranged": 5,
+          "arcane": 5,
+          "toughness": 8,
+          "agility": 5
+        },
+        "naturalWeapon": {
+          "type": "weapon",
+          "damage": 4,
+          "def": 0,
+          "accuracy": 82,
+          "variance": 25,
+          "spd": 58,
+          "mastery": "fist"
+        },
+        "range": 1.87,
+        "sight": {
+          "up": 0,
+          "down": 0
+        },
+        "kit": []
+      },
+      "brain": {
+        "initial": "idle",
+        "states": {
+          "idle": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "greeting": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "Hello, {partner}! Say bye when you're done."
+              }
+            ],
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "talking": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "busy": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "I'm busy with {partner} now."
+              }
+            ],
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "farewell": {
+            "onEnter": [
+              {
+                "effect": "say",
+                "text": "See you later."
+              }
+            ],
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          }
+        },
+        "transitions": [
+          {
+            "from": "idle",
+            "if": {
+              "cond": "heard",
+              "text": "hi",
+              "cells": 4,
+              "los": true
+            },
+            "bind": {
+              "partner": {
+                "type": "speaker"
+              }
+            },
+            "to": "greeting"
+          },
+          {
+            "from": "greeting",
+            "if": {
+              "cond": "after",
+              "ms": 400
+            },
+            "to": "talking"
+          },
+          {
+            "from": "talking",
+            "if": {
+              "cond": "heard",
+              "text": "bye",
+              "cells": 4,
+              "los": true,
+              "from": {
+                "match": "is",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "partner"
+                  }
+                }
+              }
+            },
+            "to": "farewell"
+          },
+          {
+            "from": "talking",
+            "if": {
+              "cond": "heard",
+              "text": "hi",
+              "cells": 4,
+              "los": true,
+              "from": {
+                "match": "not",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "partner"
+                  }
+                }
+              }
+            },
+            "to": "busy"
+          },
+          {
+            "from": "busy",
+            "if": {
+              "cond": "after",
+              "ms": 600
+            },
+            "to": "talking"
+          },
+          {
+            "from": "talking",
+            "if": {
+              "combinator": "or",
+              "rules": [
+                {
+                  "cond": "out_of_los",
+                  "of": {
+                    "type": "slot",
+                    "data": {
+                      "name": "partner"
+                    }
+                  },
+                  "cells": 4
+                },
+                {
+                  "cond": "after",
+                  "ms": 30000
+                }
+              ]
+            },
+            "to": "idle"
+          },
+          {
+            "from": "farewell",
+            "if": {
+              "cond": "after",
+              "ms": 600
+            },
+            "to": "idle"
+          }
+        ]
+      }
+    },
+    "states": {
+      "moving": {
+        "sprites": {
+          "n": {
+            "frames": [
+              {
+                "sprite": {
+                  "tilesetId": "townsfolk",
+                  "rect": {
+                    "x": 4,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "townsfolk",
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "townsfolk",
+                  "rect": {
+                    "x": 0,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "townsfolk",
+                  "rect": {
+                    "x": 2,
+                    "y": 6,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "e": {
+            "frames": [
+              {
+                "sprite": {
+                  "tilesetId": "townsfolk",
+                  "rect": {
+                    "x": 4,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "townsfolk",
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "townsfolk",
+                  "rect": {
+                    "x": 0,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "townsfolk",
+                  "rect": {
+                    "x": 2,
+                    "y": 2,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "s": {
+            "frames": [
+              {
+                "sprite": {
+                  "tilesetId": "townsfolk",
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "townsfolk",
+                  "rect": {
+                    "x": 4,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "townsfolk",
+                  "rect": {
+                    "x": 2,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "townsfolk",
+                  "rect": {
+                    "x": 0,
+                    "y": 0,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          },
+          "w": {
+            "frames": [
+              {
+                "sprite": {
+                  "tilesetId": "townsfolk",
+                  "rect": {
+                    "x": 4,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "townsfolk",
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "townsfolk",
+                  "rect": {
+                    "x": 0,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              },
+              {
+                "sprite": {
+                  "tilesetId": "townsfolk",
+                  "rect": {
+                    "x": 2,
+                    "y": 4,
+                    "w": 2,
+                    "h": 2
+                  },
+                  "base": {
+                    "x": 1,
+                    "y": 1
+                  }
+                },
+                "durationMs": 200
+              }
+            ]
+          }
+        }
+      }
+    },
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "townsfolk",
+              "rect": {
+                "x": 2,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "townsfolk",
+              "rect": {
+                "x": 2,
+                "y": 2,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "townsfolk",
+              "rect": {
+                "x": 2,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "townsfolk",
+              "rect": {
+                "x": 2,
+                "y": 4,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
     "id": "sw2",
     "name": "Wall",
     "height": 2,

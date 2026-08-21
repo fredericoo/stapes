@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { nearest, resolveBrain, validateBrain, type BrainDef } from "./brain";
+import {
+  nearest,
+  resolveBrain,
+  slot,
+  validateBrain,
+  type BrainConditionDef,
+  type BrainDef,
+} from "./brain";
+import { group } from "./conditions";
 import {
   ACTIONS,
   ACTION_NAMES,
@@ -92,6 +100,111 @@ describe("the authoring catalog", () => {
     expect(parsed).toEqual(brain);
     // And byte-for-byte through JSON, which is the actual disk trip.
     expect(JSON.parse(JSON.stringify(parsed))).toEqual(brain);
+  });
+});
+
+/**
+ * The two things the editor can now author that a flat `make()` does not cover:
+ * a condition narrowed to one voice, and several conditions joined into one.
+ * Both are optional shapes layered over the same vocabulary, so the round trip
+ * is the whole test — a field dropped on the way to disk is an NPC that stops
+ * telling its partner from a passer-by, silently.
+ */
+describe("the shapes a condition can grow", () => {
+  it("round-trips a heard narrowed to one voice, either way round", () => {
+    const brain: BrainDef = {
+      initial: "idle",
+      states: { idle: { do: [] }, busy: { do: [] } },
+      transitions: [
+        {
+          from: "idle",
+          if: {
+            cond: "heard",
+            text: "bye",
+            cells: 4,
+            los: true,
+            from: { match: "is", of: slot("partner") },
+          },
+          to: "busy",
+        },
+        {
+          from: "idle",
+          if: {
+            cond: "heard",
+            text: "hi",
+            cells: 4,
+            from: { match: "not", of: slot("partner") },
+          },
+          to: "busy",
+        },
+      ],
+    };
+
+    expect(resolveBrain(tileWithBrain(brain))).toEqual(brain);
+  });
+
+  it("refuses a filter that names a match it does not have", () => {
+    const brain = {
+      initial: "idle",
+      states: { idle: { do: [] } },
+      transitions: [
+        {
+          from: "idle",
+          if: {
+            cond: "heard",
+            text: "hi",
+            cells: 4,
+            from: { match: "maybe", of: slot("partner") },
+          },
+          to: "idle",
+        },
+      ],
+    };
+    expect(resolveBrain(tileWithBrain(brain as unknown as BrainDef))).toBeNull();
+  });
+
+  it("round-trips a nested group of conditions", () => {
+    const brain: BrainDef = {
+      initial: "idle",
+      states: { idle: { do: [] }, alert: { do: [] } },
+      transitions: [
+        {
+          from: "idle",
+          if: group<BrainConditionDef>("or", [
+            CONDITIONS.out_of_los.make(),
+            group<BrainConditionDef>(
+              "and",
+              [CONDITIONS.after.make(), CONDITIONS.stuck.make()],
+              true,
+            ),
+          ]),
+          to: "alert",
+        },
+      ],
+    };
+
+    const parsed = resolveBrain(tileWithBrain(brain));
+    expect(parsed).toEqual(brain);
+    expect(JSON.parse(JSON.stringify(parsed))).toEqual(brain);
+  });
+
+  /** A group is a condition, so validation still walks the states it names. */
+  it("still flags a transition whose grouped condition leads nowhere", () => {
+    const issues = validateBrain({
+      initial: "idle",
+      states: { idle: { do: [] } },
+      transitions: [
+        {
+          from: "idle",
+          if: group<BrainConditionDef>("and", [CONDITIONS.stuck.make()]),
+          to: "gone",
+        },
+      ],
+    });
+    expect(issues).toContainEqual({
+      severity: "error",
+      message: 'Transition 1: goes to "gone", which is not a state.',
+    });
   });
 });
 

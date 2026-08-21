@@ -3,6 +3,7 @@ import statusesJson from "../../data/statuses.json";
 import tilesJson from "../../data/tiles.json";
 import { resolveBattler } from "../lib/battler";
 import { ATTACKER_SELECTOR, resolveBrain, slot } from "../lib/brain";
+import { conditionLeaves } from "../lib/conditions";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import { statusesById } from "../lib/status";
 import type { MapFile, TileDef } from "../lib/types";
@@ -719,8 +720,8 @@ describe("the authored creatures", () => {
 
   it("sends the cat after whoever hit it", () => {
     const brain = resolveBrain(byId.cat!)!;
-    const retaliation = brain.transitions.find(
-      (t) => t.if.cond === "attacked",
+    const retaliation = brain.transitions.find((t) =>
+      conditionLeaves(t.if).some((leaf) => leaf.cond === "attacked"),
     );
     expect(retaliation?.bind).toEqual({ foe: ATTACKER_SELECTOR });
     expect(brain.states[retaliation!.to]?.do[0]).toEqual({
@@ -731,7 +732,9 @@ describe("the authored creatures", () => {
 
   it("spooks the deer at whoever hit it", () => {
     const brain = resolveBrain(byId.deer!)!;
-    const spook = brain.transitions.find((t) => t.if.cond === "attacked");
+    const spook = brain.transitions.find((t) =>
+      conditionLeaves(t.if).some((leaf) => leaf.cond === "attacked"),
+    );
     expect(spook?.bind).toEqual({ spooked: ATTACKER_SELECTOR });
     expect(spook?.to).toBe("flee");
   });

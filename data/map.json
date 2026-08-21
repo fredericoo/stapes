@@ -100537,6 +100537,10 @@
       "-9,55": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "shopkeeper",
+          "direction": "w"
         }
       ],
       "-9,56": [

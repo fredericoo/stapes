@@ -1,11 +1,14 @@
 import {
   ANY_STATE,
+  type BrainCondition,
   type BrainActionDef,
   type BrainConditionDef,
   type BrainDef,
   type BrainTransitionDef,
   type Selector,
+  type SpeakerFilter,
 } from "../lib/brain";
+import { evaluateCondition } from "../lib/conditions";
 import type { BattlerDef } from "../lib/battler";
 import { DIRECTIONS, type Coord, type Direction } from "../lib/types";
 import { DIR_DELTA } from "./movement";
@@ -207,6 +210,16 @@ export type BrainContext = {
    * — the three ways the `attack` action falls through to the next line.
    */
   attack(actorId: string): boolean;
+  /**
+   * What to call somebody out loud, or null once they are off the board.
+   *
+   * The one capability here that exists purely for words. Everything else an
+   * action can ask is about position or reach; this is about how a body is
+   * *addressed*, which is a question the session already answers for every name
+   * tag and every speech bubble. Asking it rather than re-deriving it is what
+   * keeps an NPC calling you exactly what the label over your head calls you.
+   */
+  nameOf(actorId: string): string | null;
 };
 
 /** Something somebody said, as a listening brain sees it. */
@@ -230,13 +243,60 @@ export function initialMemory(brain: BrainDef): BrainMemory {
   };
 }
 
+/**
+ * A slot name in braces, anywhere in an authored line.
+ *
+ * The one place a brain has a syntax rather than a shape, and it is confined to
+ * the inside of a sentence — which is the one thing an object could not express,
+ * because what an author is positioning is a *word within a line*. The charset
+ * is the slot name's own, so `{partner}` is a placeholder and `{ }` or `{3d6}`
+ * is text somebody typed.
+ */
+const SLOT_PLACEHOLDER = /\{([A-Za-z0-9_]+)\}/g;
+
+/**
+ * Who a line means when the slot it names is empty.
+ *
+ * A sentence has to survive its subject going missing: an NPC whose partner
+ * logged out mid-word still has to finish saying something, and "I'm busy with
+ * {partner}" leaking a brace onto the screen is worse than a vaguer sentence.
+ * Deliberately indistinguishable from an author's typo — a misspelt slot is an
+ * unbound slot, and at the moment the words are spoken there is nothing to tell
+ * them apart.
+ */
+const NOBODY = "someone";
+
+/**
+ * An authored line with its slots filled in.
+ *
+ * Slots only, not selectors: the thing worth naming out loud is always somebody
+ * the creature has *committed* to, which is exactly what a bind wrote down. A
+ * live query would let a line name whoever happened to be nearest as it was
+ * spoken, and a sentence whose subject can change between the state deciding to
+ * say it and the words appearing is not a sentence anybody meant to author.
+ */
+function fillSlots(
+  text: string,
+  memory: BrainMemory,
+  ctx: BrainContext,
+): string {
+  // The overwhelmingly common line has no placeholder at all, and this keeps it
+  // from touching the regex on every state entry in the world.
+  if (!text.includes("{")) return text;
+  return text.replace(SLOT_PLACEHOLDER, (_whole, name: string) => {
+    const id = memory.blackboard[name];
+    return (id === undefined ? null : ctx.nameOf(id)) ?? NOBODY;
+  });
+}
+
 /** Run a state's entry effects — once, when it is entered. */
 function runOnEnter(brain: BrainDef, memory: BrainMemory, ctx: BrainContext) {
   const onEnter = brain.states[memory.state]?.onEnter;
   if (!onEnter) return;
   for (const effect of onEnter) {
-    if (effect.effect === "say") ctx.say(effect.text);
-    else ctx.noise(effect.text);
+    const text = fillSlots(effect.text, memory, ctx);
+    if (effect.effect === "say") ctx.say(text);
+    else ctx.noise(text);
   }
 }
 
@@ -343,6 +403,7 @@ function heardFrom(
   const wanted = condition.text.toLowerCase();
   for (const utterance of ctx.heard()) {
     if (!utterance.text.toLowerCase().includes(wanted)) continue;
+    if (!voiceCounts(condition.from, utterance.speakerId, memory, ctx)) continue;
     const at = ctx.positionOf(utterance.speakerId);
     if (at === null) continue;
     if (!within(ctx.self, at, condition.cells, ctx.sight)) continue;
@@ -353,7 +414,62 @@ function heardFrom(
   return false;
 }
 
+/**
+ * Is this a voice the condition was listening for?
+ *
+ * Asked before the distance and sight tests rather than after, because it is the
+ * cheapest of the four and the one most likely to say no — a creature deep in a
+ * conversation rejects every word its partner did not say, and that is most of
+ * what it hears.
+ *
+ * A filter whose selector names nobody resolves to `null`, and both matches read
+ * correctly against it without a case of their own: nobody *is* the person, and
+ * everybody is *not* them. @see SpeakerFilter
+ */
+function voiceCounts(
+  filter: SpeakerFilter | undefined,
+  speakerId: string,
+  memory: BrainMemory,
+  ctx: BrainContext,
+): boolean {
+  if (!filter) return true;
+  const wanted = identify(filter.of, memory, ctx);
+  return filter.match === "is" ? wanted === speakerId : wanted !== speakerId;
+}
+
+/**
+ * Does a transition's `if` hold — one question or a tree of them?
+ *
+ * The negated branch is the whole reason this is not a bare call to
+ * {@link evaluateCondition}. Two leaves record *who* set them off as they
+ * answer, and that recording is what the `speaker` and `attacker` selectors
+ * read on the same transition. A branch under an odd number of `not`s is asking
+ * whether something did **not** happen, so a match inside it is precisely the
+ * case where there is nobody to name — and leaving a fingerprint there would let
+ * `bind: { partner: speaker }` on a transition that fired for some other reason
+ * write down whoever the negated half happened to hear.
+ *
+ * Putting back what was there, rather than clearing, is what keeps a sibling's
+ * legitimate match from being wiped by a negated one asked after it.
+ */
 function holds(
+  condition: BrainCondition,
+  memory: BrainMemory,
+  ctx: BrainContext,
+): boolean {
+  return evaluateCondition(condition, (leaf, negated) => {
+    if (!negated) return leafHolds(leaf, memory, ctx);
+
+    const speaker = memory.heardFrom;
+    const attacker = memory.hurtBy;
+    const held = leafHolds(leaf, memory, ctx);
+    memory.heardFrom = speaker;
+    memory.hurtBy = attacker;
+    return held;
+  });
+}
+
+function leafHolds(
   condition: BrainConditionDef,
   memory: BrainMemory,
   ctx: BrainContext,
