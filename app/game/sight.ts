@@ -13,26 +13,125 @@
  * so it is see-through; water is light-passing, so you can see across a pond;
  * and a wall is a wall.
  *
- * `opacity >= 1` rather than `> 0` is the other half of it. Opacity is blocking
- * height over {@link HEIGHT_PER_LEVEL}, so a floor scores 0 and a crate scores a
- * half — which means **you can see over anything shorter than a full level**.
- * A creature that lost sight of somebody behind a barrel would read as blind
- * rather than as careful.
+ * ## You see over anything shorter than you are
+ *
+ * How tall the thing in the way stands is only half the question; the other half
+ * is who is looking over it. A crate is half a level, so a person clears it and
+ * a rat does not — and that is not a special case about crates, it is the whole
+ * rule. The threshold is the looker's own height, so it falls out of the tile
+ * heights an author already sets rather than needing a "blocks sight" flag
+ * beside them.
+ *
+ * It used to be a fixed full level for everybody, which read as blind in one
+ * direction and x-ray in the other: a person lost sight of you behind a barrel
+ * they could plainly see over, and a snake watched you across a room full of
+ * boxes. @see blocksSight
+ *
+ * The *target's* height is deliberately not in it. What has to clear the
+ * obstruction is the looker's eyes, and a rule that also counted the height of
+ * whatever is being looked at would let a rat see the top of your head over a
+ * wall — which makes "am I hidden" impossible to reason about from the board.
+ *
+ * ## Everything is measured from the bottom of the world
+ *
+ * Height alone is not enough, because a creature standing on something is
+ * looking from further up. Both the obstruction and the looker's eyes are put on
+ * one absolute scale — level, plus whatever solid is stacked under them — so
+ * what decides a look is the *difference*, and two bodies raised equally see
+ * each other exactly as they would on the flat.
+ *
+ * Measuring the looker's own ground with the same function that measures the
+ * obstruction is what makes that hold, and skipping it is a real bug rather than
+ * a rounding error: a rat on a half-level floor was blind, because the floor
+ * scored its full height as something in the way while the rat's eye was
+ * measured from zero. The ground it walked on was taller than it was.
+ *
+ * A body stands on top of whatever is solid beneath it, and a body is
+ * light-passing, so it is not counted in its own column — which is why none of
+ * this needs to know where in a stack the body sits.
  */
 
-import { stackOcclusion } from "../lib/lighting";
+import { stackBlockHeight, stackOcclusion } from "../lib/lighting";
 import { getStack } from "../lib/mapData";
-import type { Coord, MapFile, TileDef } from "../lib/types";
+import { HEIGHT_PER_LEVEL, type Coord, type MapFile, type TileDef } from "../lib/types";
 
-/** Does this cell stop a look crossing it sideways? @see module doc */
+/**
+ * How high the solid part of a cell stands, measured from the bottom of the
+ * world rather than from the cell's own floor.
+ *
+ * The level is worth its full {@link HEIGHT_PER_LEVEL} here because that is what
+ * a level *is* — the storey above starts a level up whatever is under it — and
+ * putting both the obstruction and the looker on one scale is the whole job of
+ * this function. Two numbers measured from different floors cannot be compared,
+ * and the bug that made this necessary is exactly that comparison.
+ *
+ * Reads {@link stackBlockHeight} rather than the opacity beside it, because
+ * opacity saturates at a full level: a wall and a wall with a crate on top are
+ * one number to a lamp, and the difference is the entire question here.
+ */
+function solidTopAbs(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  x: number,
+  y: number,
+  z: number,
+): number {
+  return (
+    z * HEIGHT_PER_LEVEL +
+    stackBlockHeight(getStack(map, x, y, z), tilesById)
+  );
+}
+
+/**
+ * Where a body's eyes are, on that same scale.
+ *
+ * A body stands on top of whatever is solid beneath it, so the ground it is
+ * standing on is {@link solidTopAbs} of its own cell — and that works without
+ * knowing where in the stack the body sits, because a body is light-passing and
+ * therefore is not counted in its own column. Its eyes are its height above
+ * that.
+ *
+ * Measuring the floor with the same function that measures the obstruction is
+ * the point. A rat on a half-level floor used to be blind: the floor scored its
+ * full height as something in the way while the rat's eye was measured from
+ * zero, so the ground it walked on was taller than it was.
+ */
+function eyeAbs(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  at: Coord,
+  eyeHeight: number,
+): number {
+  return solidTopAbs(map, tilesById, at.x, at.y, at.z) + eyeHeight;
+}
+
+/**
+ * Does this cell stop a look crossing it sideways?
+ *
+ * Both sides on one scale, so what decides it is the difference in elevation
+ * rather than either number alone: two creatures raised equally see each other
+ * exactly as they would on the flat, and a creature standing on a crate really
+ * does see over the next crate along.
+ *
+ * Equal heights block. A rat is exactly as tall as the crate in front of it and
+ * is looking at the side of it, not over it; the alternative reads as a creature
+ * seeing through anything it could just barely stand beside. @see module doc
+ */
 function blocksSight(
   map: MapFile,
   tilesById: Record<string, TileDef>,
   x: number,
   y: number,
   z: number,
+  eyeAt: number,
 ): boolean {
-  return stackOcclusion(getStack(map, x, y, z), tilesById).opacity >= 1;
+  const blockH = stackBlockHeight(getStack(map, x, y, z), tilesById);
+  // Nothing solid standing here at all, so there is nothing to be behind. The
+  // guard is load-bearing rather than an optimisation: without it an *empty*
+  // cell reports the floor of its own level as a top, and a look travelling
+  // upward through open air is stopped by the air.
+  if (blockH === 0) return false;
+  return z * HEIGHT_PER_LEVEL + blockH >= eyeAt;
 }
 
 /**
@@ -97,12 +196,26 @@ function sealsAgainstVertical(
  * gap between two wall corners reads as visible here, where a stricter sweep
  * would close it. For a creature deciding whether it noticed you, being generous
  * at the corner is the better failure.
+ *
+ * ## How tall the looker is
+ *
+ * `eyeHeight` is the looking body's own height, in the units a tile's `height`
+ * is written in — so it is read off the tile rather than authored twice, and a
+ * creature drawn shorter is short-sighted over furniture without anybody saying
+ * so. It is measured from that body's own feet; where those feet are is this
+ * function's to work out, from the ground under `from`.
+ *
+ * It defaults to a full level, which is what every caller whose subject is the
+ * player — reaching, shooting, pointing at a thing — should pass, since that is
+ * how tall the player is. What passes something else is a brain, out of the body
+ * it drives. @see ../lib/lighting's `stackBlockHeight`
  */
 export function hasLineOfSight(
   map: MapFile,
   tilesById: Record<string, TileDef>,
   from: Coord,
   to: Coord,
+  eyeHeight: number = HEIGHT_PER_LEVEL,
 ): boolean {
   const dx = to.x - from.x;
   const dy = to.y - from.y;
@@ -110,6 +223,8 @@ export function hasLineOfSight(
   const steps = Math.max(Math.abs(dx), Math.abs(dy), Math.abs(dz));
   // The same cell: there is nothing in between to be in the way.
   if (steps === 0) return true;
+
+  const eyeAt = eyeAbs(map, tilesById, from, eyeHeight);
 
   let prevZ = from.z;
   for (let i = 1; i <= steps; i++) {
@@ -126,7 +241,9 @@ export function hasLineOfSight(
     }
     prevZ = z;
 
-    if (i < steps && blocksSight(map, tilesById, x, y, z)) return false;
+    if (i < steps && blocksSight(map, tilesById, x, y, z, eyeAt)) {
+      return false;
+    }
   }
   return true;
 }

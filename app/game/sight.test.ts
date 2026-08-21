@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
+import tilesJson from "../../data/tiles.json";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
-import { normalizeTileDef } from "../lib/types";
+import {
+  normalizeTileDef,
+  normalizeTiles,
+  resolveActor,
+  resolveLightPassing,
+} from "../lib/types";
 import { hasLineOfSight } from "./sight";
 
 /**
@@ -41,6 +47,11 @@ const tiles: TileDef[] = [
   tile({ id: "crate", height: 1, walkable: false }),
   // Solid to a body, transparent to light — so, transparent to a look.
   tile({ id: "window", height: 2, walkable: false, lightPassing: true }),
+  // Half a level of *floor*: ground you stand on top of, not something in the
+  // way. The distinction is the whole of the elevation cases below.
+  tile({ id: "step", height: 1 }),
+  // Light-passing, like every body in the game, so it never walls itself in.
+  tile({ id: "body", height: 1, walkable: false, lightPassing: true }),
 ];
 
 const tilesById = Object.fromEntries(tiles.map((t) => [t.id, t]));
@@ -62,6 +73,175 @@ function put(map: MapFile, x: number, y: number, tileId: string): MapFile {
 
 const from = { x: 0, y: 0, z: 0 };
 
+/**
+ * How tall the looker is.
+ *
+ * The rule is one line — you see over anything shorter than you are — and every
+ * case here is that line meeting a different pair of heights. Worth writing out
+ * because the pair is the whole behaviour: neither number means anything on its
+ * own, and the bug this replaced was a threshold that only ever read one of them.
+ */
+describe("seeing over things, by how tall you are", () => {
+  const PERSON = 2;
+  const RAT = 1;
+  const beyond = { x: 5, y: 0, z: 0 };
+
+  it("lets a person see over a crate that stops a rat", () => {
+    const map = put(field(), 2, 0, "crate");
+    expect(hasLineOfSight(map, tilesById, from, beyond, PERSON)).toBe(true);
+    expect(hasLineOfSight(map, tilesById, from, beyond, RAT)).toBe(false);
+  });
+
+  /**
+   * Equal heights block. A rat is exactly as tall as the crate and is looking at
+   * the side of it, not over it.
+   */
+  it("blocks a looker exactly as tall as the thing in the way", () => {
+    const map = put(field(), 2, 0, "crate");
+    expect(hasLineOfSight(map, tilesById, from, beyond, 1)).toBe(false);
+    expect(hasLineOfSight(map, tilesById, from, beyond, 1.5)).toBe(true);
+  });
+
+  it("stops everybody at a full-height wall", () => {
+    const map = put(field(), 2, 0, "wall");
+    expect(hasLineOfSight(map, tilesById, from, beyond, PERSON)).toBe(false);
+    expect(hasLineOfSight(map, tilesById, from, beyond, RAT)).toBe(false);
+  });
+
+  /**
+   * The cap that made this impossible before. Opacity saturates at a full level,
+   * so a crate on a crate and a plain wall were one number — and a looker taller
+   * than a level could never have been told apart from one exactly as tall.
+   */
+  it("counts a stack past a full level, rather than saturating at one", () => {
+    let map = field();
+    map = replaceStack(map, 2, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "crate" },
+      { tileId: "crate" },
+    ]);
+    expect(hasLineOfSight(map, tilesById, from, beyond, PERSON)).toBe(false);
+    // Taller than the two crates together, and over it.
+    expect(hasLineOfSight(map, tilesById, from, beyond, 3)).toBe(true);
+  });
+
+  /** Height decides nothing about glass: a window is see-through to anybody. */
+  it("lets even the shortest looker see through a window", () => {
+    const map = put(field(), 2, 0, "window");
+    expect(hasLineOfSight(map, tilesById, from, beyond, RAT)).toBe(true);
+  });
+
+  /**
+   * A crate is half a level, so it never sealed and never will — what changed is
+   * only who clears it. A floor is height zero and blocks nobody sideways, which
+   * is what keeps a rat from being blinded by the ground it walks on.
+   */
+  it("is not stopped sideways by the ground itself", () => {
+    expect(hasLineOfSight(field(), tilesById, from, beyond, RAT)).toBe(true);
+  });
+});
+
+/**
+ * Standing on something.
+ *
+ * Height alone decides nothing; what decides a look is the *difference* between
+ * where the eyes are and where the top of the obstruction is. Every case here is
+ * one pair of elevations, and together they say the one thing worth promising:
+ * raise both ends by the same amount and nothing changes.
+ */
+describe("looking from higher up", () => {
+  const RAT = 1;
+  const beyond = { x: 4, y: 0, z: 0 };
+
+  /** Ground of `floor` everywhere, with `on` stacked on the named cells. */
+  function ground(floor: string, on: Record<string, string> = {}): MapFile {
+    let map = emptyMap();
+    for (let x = -6; x <= 6; x++) {
+      for (let y = -6; y <= 6; y++) {
+        const extra = on[`${x},${y}`];
+        map = replaceStack(
+          map,
+          x,
+          y,
+          0,
+          extra
+            ? [{ tileId: floor }, { tileId: extra }]
+            : [{ tileId: floor }],
+        );
+      }
+    }
+    return map;
+  }
+
+  /**
+   * The bug that made this necessary. A half-level floor scored its full height
+   * as something in the way while the rat's eye was measured from zero, so a rat
+   * standing on a raised floor could not see across it — the ground it walked on
+   * was taller than it was.
+   */
+  it("is not blinded by the floor it is standing on", () => {
+    expect(hasLineOfSight(ground("step"), tilesById, from, beyond, RAT)).toBe(
+      true,
+    );
+  });
+
+  it("reads the same raised as it does on the flat", () => {
+    const flat = ground("grass");
+    const raised = ground("step");
+    for (const eye of [RAT, 2]) {
+      expect(hasLineOfSight(raised, tilesById, from, beyond, eye)).toBe(
+        hasLineOfSight(flat, tilesById, from, beyond, eye),
+      );
+    }
+  });
+
+  /** Both ends up by the same crate, and the look between them is unchanged. */
+  it("is unchanged when both ends are raised together", () => {
+    const bothUp = ground("grass", { "0,0": "crate", "4,0": "crate" });
+    expect(hasLineOfSight(bothUp, tilesById, from, beyond, RAT)).toBe(
+      hasLineOfSight(ground("grass"), tilesById, from, beyond, RAT),
+    );
+  });
+
+  /** And standing on one really does let a rat see over the next one along. */
+  it("lets a rat on a crate see over a crate that would stop it on the floor", () => {
+    const inTheWay = { "2,0": "crate" };
+    expect(
+      hasLineOfSight(ground("grass", inTheWay), tilesById, from, beyond, RAT),
+    ).toBe(false);
+    expect(
+      hasLineOfSight(
+        ground("grass", { ...inTheWay, "0,0": "crate" }),
+        tilesById,
+        from,
+        beyond,
+        RAT,
+      ),
+    ).toBe(true);
+  });
+
+  /**
+   * A body does not wall itself in, and nor does one standing beside the look.
+   * Every body in the game is light-passing, which is what keeps it out of its
+   * own column — and is why none of this has to know where in a stack it sits.
+   */
+  it("does not count a body as ground or as an obstruction", () => {
+    const crowded = ground("grass", { "0,0": "body", "2,0": "body" });
+    expect(hasLineOfSight(crowded, tilesById, from, beyond, RAT)).toBe(true);
+  });
+
+  /**
+   * Open air is not a floor. Without a guard for a cell holding nothing solid,
+   * an empty cell reports the bottom of its own level as a top, and a look
+   * travelling upward is stopped by the sky.
+   */
+  it("still looks up through open air", () => {
+    expect(
+      hasLineOfSight(ground("grass"), tilesById, from, { x: 3, y: 0, z: 1 }, RAT),
+    ).toBe(true);
+  });
+});
+
 describe("line of sight", () => {
   it("crosses open ground", () => {
     expect(hasLineOfSight(field(), tilesById, from, { x: 5, y: 0, z: 0 })).toBe(
@@ -76,7 +256,7 @@ describe("line of sight", () => {
     );
   });
 
-  /** Opacity is blocking height over a level, so half a level does not seal. */
+  /** A full level tall by default, which is what every caller but a brain is. */
   it("passes over a crate", () => {
     const map = put(field(), 2, 0, "crate");
     expect(hasLineOfSight(map, tilesById, from, { x: 5, y: 0, z: 0 })).toBe(
@@ -182,5 +362,49 @@ describe("line of sight", () => {
     expect(hasLineOfSight(map, tilesById, from, { x: 0, y: 0, z: 1 })).toBe(
       false,
     );
+  });
+});
+
+/**
+ * What the shipped library has to be true of, for any of the above to mean
+ * anything on the real map.
+ *
+ * A rule about heights is only as good as the heights authored under it, and the
+ * failure mode is invisible: nothing errors, a creature simply stops noticing
+ * you and there is no way to tell from the board why.
+ */
+describe("the library we ship", () => {
+  const authored = normalizeTiles(tilesJson as unknown[]);
+
+  /**
+   * A thing you can pick up is not a wall.
+   *
+   * A potion standing on a shop counter was half a level of solid, which put the
+   * counter at a full level and left the shopkeeper unable to see the customer
+   * in front of it. Every other item in the file was already light-passing —
+   * including the *other* potion — so this was one tile disagreeing with its own
+   * twin, which is exactly the kind of slip a rule cannot catch and a list can.
+   */
+  it("has no item that blocks a look", () => {
+    const blocking = authored
+      .filter((tile) => tile.kind === "item" && !resolveLightPassing(tile))
+      .map((tile) => tile.id);
+    expect(blocking).toEqual([]);
+  });
+
+  /**
+   * A body is not part of the scenery it is standing in.
+   *
+   * Load-bearing twice over. A body that blocked light would cast a shadow on
+   * itself, and — because a looker's ground is read as the solid part of its own
+   * cell — it would also stand on its own shoulders and see over the wall in
+   * front of it. That second one is silent: nothing errors, a creature simply
+   * gets x-ray vision, which is why it is a list rather than a comment.
+   */
+  it("has no body that blocks a look, including the one it is standing in", () => {
+    const blocking = authored
+      .filter((tile) => resolveActor(tile) && !resolveLightPassing(tile))
+      .map((tile) => tile.id);
+    expect(blocking).toEqual([]);
   });
 });

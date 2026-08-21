@@ -120,6 +120,10 @@ const tiles: TileDef[] = [
     height: 2,
     directional: true,
     walkable: false,
+    // Like every authored body: a thing that blocks light would shadow itself,
+    // and would stand on its own shoulders when working out what it can see
+    // over. @see ./sight
+    lightPassing: true,
     variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
     interactions: {
       // 92 Toughness is the hundred hit points these tests count in.
