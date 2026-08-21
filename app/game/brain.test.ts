@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import mapJson from "../../data/map.json";
 import tilesJson from "../../data/tiles.json";
 import {
   ANY_STATE,
@@ -13,7 +14,7 @@ import {
 import { group } from "../lib/conditions";
 import { displayNameFor } from "./displayName";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
-import type { MapFile, TileDef } from "../lib/types";
+import type { FlatMapFile, MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef, normalizeTiles } from "../lib/types";
 import { initialMemory, stepBrain } from "./brainRuntime";
 import { fightingStats, resolveBattler } from "../lib/battler";
@@ -2629,5 +2630,160 @@ describe("the vermin we ship", () => {
 
     const after = bodies(session, "rat")[0]!;
     expect(`${after.x},${after.y}`).not.toBe(before);
+  });
+});
+
+/**
+ * The shopkeeper as authored, not as a fixture.
+ *
+ * The same guard `the cat we ship` exists for, and it bites harder here: this
+ * brain leans on a slot in three separate places — the two voice filters, the
+ * lapse condition, and the names in what it says — and every one of them fails
+ * *silently* if the slot is misspelt. An unbound slot answers nobody, which is
+ * a shopkeeper that greets you and then treats you as a stranger, with nothing
+ * anywhere to say why.
+ */
+describe("the shopkeeper we ship", () => {
+  const authored = normalizeTiles(tilesJson as unknown[]);
+
+  /** Authored on the tile; the test would rather fail than drift from them. */
+  const EARSHOT = 4;
+  const GREETING_MS = 400;
+  const BEAT_MS = 600;
+  const CHAT_TIMEOUT_MS = 30000;
+
+  /** Grass, the shopkeeper at the origin, alice beside it and bob behind. */
+  function counter(): GameSession {
+    let map = emptyMap();
+    for (let x = -9; x <= 9; x++) {
+      for (let y = -9; y <= 9; y++) {
+        map = replaceStack(map, x, y, 0, [{ tileId: "grass" }]);
+      }
+    }
+    map = replaceStack(map, 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "shopkeeper", direction: "w" },
+    ]);
+    map = replaceStack(map, 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "player", direction: "e", owner: "alice" },
+    ]);
+    const session = new GameSession(map, authored, {
+      actorIds: ["alice"],
+      spawnAt: { x: -9, y: -9, z: 0, stackIndex: 1 },
+    });
+    session.spawn("bob", { at: { x: 0, y: 1, z: 0 } });
+    return session;
+  }
+
+  function saidDuring(session: GameSession, ms: number): string[] {
+    const said: string[] = [];
+    for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) {
+      session.tick(TICK_MS);
+      for (const bubble of session.drainSpeech()) said.push(bubble.text);
+    }
+    return said;
+  }
+
+  /** Long enough for the greeting to settle into the talking state. */
+  const ENGAGED_MS = GREETING_MS + BRAIN_TICK_MS * 2;
+
+  const ALICE = displayNameFor("alice");
+  const BOB = displayNameFor("bob");
+
+  it("greets by name, and tells you how to leave", () => {
+    const session = counter();
+    session.hear("alice", "hi");
+
+    expect(saidDuring(session, ENGAGED_MS)).toEqual([
+      `Hello, ${ALICE}! Say bye when you're done.`,
+    ]);
+  });
+
+  it("holds one conversation at a time, and says whose", () => {
+    const session = counter();
+    session.hear("alice", "hi");
+    advance(session, ENGAGED_MS);
+
+    session.hear("bob", "hi");
+    expect(saidDuring(session, BEAT_MS + BRAIN_TICK_MS)).toEqual([
+      `I'm busy with ${ALICE} now.`,
+    ]);
+
+    // And it is still alice's conversation afterwards, not bob's.
+    session.hear("alice", "bye");
+    expect(saidDuring(session, BRAIN_TICK_MS * 2)).toEqual(["See you later."]);
+  });
+
+  it("is not sent away by a stranger", () => {
+    const session = counter();
+    session.hear("alice", "hi");
+    advance(session, ENGAGED_MS);
+
+    session.hear("bob", "bye");
+    expect(saidDuring(session, BRAIN_TICK_MS * 2)).toEqual([]);
+  });
+
+  it("takes the next person once the first has gone", () => {
+    const session = counter();
+    session.hear("alice", "hi");
+    advance(session, ENGAGED_MS);
+    session.hear("alice", "bye");
+    advance(session, BEAT_MS + BRAIN_TICK_MS * 2);
+
+    session.hear("bob", "hi");
+    expect(saidDuring(session, ENGAGED_MS)).toEqual([
+      `Hello, ${BOB}! Say bye when you're done.`,
+    ]);
+  });
+
+  it("lets go of somebody who walked out of earshot", () => {
+    const session = counter();
+    session.hear("alice", "hi");
+    advance(session, ENGAGED_MS);
+
+    session.despawn("alice");
+    session.spawn("alice", { at: { x: EARSHOT + 3, y: 0, z: 0 } });
+    advance(session, BRAIN_TICK_MS * 2);
+
+    session.hear("bob", "hi");
+    expect(saidDuring(session, ENGAGED_MS)).toEqual([
+      `Hello, ${BOB}! Say bye when you're done.`,
+    ]);
+  });
+
+  it("lets go of somebody who stopped talking", () => {
+    const session = counter();
+    session.hear("alice", "hi");
+    advance(session, ENGAGED_MS + CHAT_TIMEOUT_MS + BRAIN_TICK_MS * 2);
+
+    session.hear("bob", "hi");
+    expect(saidDuring(session, ENGAGED_MS)).toEqual([
+      `Hello, ${BOB}! Say bye when you're done.`,
+    ]);
+  });
+
+  it("does not answer a greeting shouted from too far off", () => {
+    const session = counter();
+    session.despawn("alice");
+    session.spawn("alice", { at: { x: EARSHOT + 2, y: 0, z: 0 } });
+    session.hear("alice", "hi");
+
+    expect(saidDuring(session, ENGAGED_MS)).toEqual([]);
+  });
+
+  /** Standing where the world puts it, which is the half a brain cannot say. */
+  it("is on the shipped map, within earshot of where a player arrives", () => {
+    const map = mapJson as unknown as FlatMapFile;
+    const placed: string[] = [];
+    for (const [key, stack] of Object.entries(map.levels["-1"] ?? {})) {
+      for (const tile of stack) {
+        if (tile.tileId === "shopkeeper" || tile.tileId === "player") {
+          placed.push(`${tile.tileId}@${key}`);
+        }
+      }
+    }
+    // Sorted, because cell order in the file is nobody's decision.
+    expect(placed.sort()).toEqual(["player@-10,55", "shopkeeper@-9,55"]);
   });
 });

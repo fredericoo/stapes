@@ -56,6 +56,13 @@
     "height": 128
   },
   {
+    "id": "townsfolk",
+    "name": "Townsfolk",
+    "file": "townsfolk.png",
+    "width": 128,
+    "height": 128
+  },
+  {
     "id": "equipment",
     "name": "Equipment",
     "file": "equipment.png",
