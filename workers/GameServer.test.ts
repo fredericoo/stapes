@@ -1422,6 +1422,27 @@ async function storedKeys(prefix: string): Promise<string[]> {
   return keys;
 }
 
+/**
+ * What one prefix holds after a load, minus the row the joiner that triggered
+ * it goes on to write for itself.
+ *
+ * The cap is enforced when the world loads and nowhere else, so somebody
+ * arriving afterwards legitimately puts the store one row over it until the
+ * next load. Their row lands on the first tick — `actorsSavedAt` starts at zero,
+ * so the first flush is always due — which is a handful of milliseconds after
+ * the `hello` these tests wait for. Counting it makes them a race against that
+ * flush rather than a test of what the prune dropped, and a slow enough machine
+ * loses: this is the whole of why the masteries case failed on CI and passed on
+ * every laptop it was run on.
+ */
+async function keptAfterJoin(
+  prefix: string,
+  joined: string,
+): Promise<string[]> {
+  const keys = await storedKeys(prefix);
+  return keys.filter((key) => key !== `${prefix}${joined}`);
+}
+
 /** What the object wrote down about one player's kit, if anything. */
 async function savedEquipment(
   actorId: string,
@@ -1596,9 +1617,10 @@ describe("player permanence", () => {
 
     // Pruning happens on load, so the world has to be brought in fresh.
     await simulateEviction();
-    await connect(freshPlayer());
+    const joined = freshPlayer();
+    await connect(joined);
 
-    const kept = await storedKeys("pos:");
+    const kept = await keptAfterJoin("pos:", joined);
     expect(kept).toHaveLength(MAX_REMEMBERED_ACTORS);
     expect(kept).not.toContain("pos:backfill-0");
     expect(kept).toContain(`pos:backfill-${MAX_REMEMBERED_ACTORS + overflow - 1}`);
@@ -1680,9 +1702,10 @@ describe("player permanence", () => {
     });
 
     await simulateEviction();
-    await connect(freshPlayer());
+    const joined = freshPlayer();
+    await connect(joined);
 
-    const kept = await storedKeys("equip:");
+    const kept = await keptAfterJoin("equip:", joined);
     expect(kept).toHaveLength(MAX_REMEMBERED_ACTORS);
     expect(kept).not.toContain("equip:backfill-0");
     expect(kept).toContain(`equip:backfill-${MAX_REMEMBERED_ACTORS + overflow - 1}`);
@@ -1753,9 +1776,10 @@ describe("player permanence", () => {
     });
 
     await simulateEviction();
-    await connect(freshPlayer());
+    const joined = freshPlayer();
+    await connect(joined);
 
-    const kept = await storedKeys("tags:");
+    const kept = await keptAfterJoin("tags:", joined);
     expect(kept).toHaveLength(MAX_REMEMBERED_ACTORS);
     expect(kept).not.toContain("tags:backfill-0");
     expect(kept).toContain(`tags:backfill-${MAX_REMEMBERED_ACTORS + overflow - 1}`);
@@ -1839,9 +1863,10 @@ describe("player permanence", () => {
     });
 
     await simulateEviction();
-    await connect(freshPlayer());
+    const joined = freshPlayer();
+    await connect(joined);
 
-    const kept = await storedKeys("mast:");
+    const kept = await keptAfterJoin("mast:", joined);
     expect(kept).toHaveLength(MAX_REMEMBERED_ACTORS);
     expect(kept).not.toContain("mast:backfill-0");
     expect(kept).toContain(`mast:backfill-${MAX_REMEMBERED_ACTORS + overflow - 1}`);
