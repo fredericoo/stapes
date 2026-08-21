@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
+import tilesJson from "../../data/tiles.json";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
-import { normalizeTileDef } from "../lib/types";
+import { normalizeTileDef, normalizeTiles, resolveLightPassing } from "../lib/types";
 import { hasLineOfSight } from "./sight";
 
 /**
@@ -250,5 +251,33 @@ describe("line of sight", () => {
     expect(hasLineOfSight(map, tilesById, from, { x: 0, y: 0, z: 1 })).toBe(
       false,
     );
+  });
+});
+
+/**
+ * What the shipped library has to be true of, for any of the above to mean
+ * anything on the real map.
+ *
+ * A rule about heights is only as good as the heights authored under it, and the
+ * failure mode is invisible: nothing errors, a creature simply stops noticing
+ * you and there is no way to tell from the board why.
+ */
+describe("the library we ship", () => {
+  const authored = normalizeTiles(tilesJson as unknown[]);
+
+  /**
+   * A thing you can pick up is not a wall.
+   *
+   * A potion standing on a shop counter was half a level of solid, which put the
+   * counter at a full level and left the shopkeeper unable to see the customer
+   * in front of it. Every other item in the file was already light-passing —
+   * including the *other* potion — so this was one tile disagreeing with its own
+   * twin, which is exactly the kind of slip a rule cannot catch and a list can.
+   */
+  it("has no item that blocks a look", () => {
+    const blocking = authored
+      .filter((tile) => tile.kind === "item" && !resolveLightPassing(tile))
+      .map((tile) => tile.id);
+    expect(blocking).toEqual([]);
   });
 });

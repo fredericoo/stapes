@@ -8414,6 +8414,7 @@
     "type": "simple",
     "kind": "item",
     "attributes": {},
+    "lightPassing": true,
     "interactions": {
       "item": {
         "type": "consumable",
@@ -8597,6 +8598,7 @@
     "type": "simple",
     "kind": "item",
     "attributes": {},
+    "lightPassing": true,
     "interactions": {
       "item": {
         "type": "consumable",
