@@ -385,11 +385,25 @@ find a dead player's socket still open, see no body, and seat them again.
 
 ### Armour is worn, and it may care what hit it
 
-**Defence has two sources and they add** (`wornDefence`): a `WeaponItem.def` in
-the off hand — a shield, a bracer, what you hold up — and an `ArmorItem` on the
-body. Two slots rather than one, because a shield is a thing you *hold*: making
-it armour would put it in the square a breastplate belongs in and let a body wear
-one instead of the other.
+**Defence has three sources and they add** (`wornDefence`): a `WeaponItem.def`
+in *either* hand — a shield, a bracer, a parrying sword — and an `ArmorItem` on
+the body. A shield stays a `weapon` rather than becoming armour because it is a
+thing you *hold*: making it armour would put it in the square a breastplate
+belongs in and let a body wear one instead of the other. Two shields are twice
+the shield.
+
+**The main hand replaces rather than adds, within its own slot.** What counts
+there is `weaponInHand` — the held weapon or the body's natural one — so taking
+up a shield trades your claws' `def` for the shield's along with trading your
+bite for whatever the shield swings like. That is the same replacement rule the
+swing is under, and it is what stops a main-hand shield being free.
+
+`wornDefence` is the only honest answer to "how protected is this body", and
+`effectiveBattler` **assigns** it rather than adding it to what `fightingStats`
+worked out — `fightingStats` resolves the weapon and therefore already counted
+the main hand. That split is worth knowing about: it is why a comment on
+`WeaponItem.def` once claimed a main-hand `def` did nothing, which was false when
+it was written.
 
 **A resistance is keyed by the attacker's weapon mastery** (`ArmorItem.resist`),
 and that is not a taxonomy invented for it — `WeaponItem.mastery` is already on

@@ -169,7 +169,7 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
           <div className="flex flex-col gap-3">
             <p className="max-w-lg text-[11px] leading-snug text-muted">
               Worn on the body, and defence is the whole of what it does. It{" "}
-              <strong>adds</strong> to whatever is in the off hand — a shield and
+              <strong>adds</strong> to whatever is in either hand — a shield and
               a mail shirt are two different answers to being hit, and a body
               with both gets both.
             </p>

@@ -177,10 +177,18 @@ export type WeaponItem = {
    * worth keeping: {@link ArmorItem} is what you wear and this is what you
    * hold, and a body wearing mail behind a shield should get both.
    *
-   * Read off the off hand only — see `../game/equipment`'s `offhandDefence`.
-   * A parrying main-hand weapon is authorable and does nothing, on the terms
-   * that slot's doc sets out: what reaches a fight from the swinging hand is
-   * the swing.
+   * **Read off whichever hand is holding it.** The off hand's goes through
+   * `offhandDefence` and the swinging hand's rides on `weaponInHand`, since a
+   * held weapon replaces the natural one and its `def` travels with the rest of
+   * it — so a parrying sword parries, and two shields are twice the shield.
+   * `../game/equipment`'s `wornDefence` is where the two are added, along with
+   * what is worn, and is the only honest answer to "how protected is this
+   * body".
+   *
+   * A comment here once said the opposite — that a main-hand `def` was
+   * authorable and did nothing — which was false on the day it was written and
+   * is worth leaving a scar over: the arithmetic lived in two functions and
+   * neither one's name admitted the other existed.
    */
   def: number;
   /**

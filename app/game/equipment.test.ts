@@ -57,6 +57,26 @@ const base: BattlerDef = {
 };
 
 /**
+ * Something that turns blows aside and does nothing else, so a defence figure is
+ * traceable to one slot.
+ *
+ * A `weapon` block with no damage on it, which is what a shield *is* in this
+ * game: defence rides on a weapon and armour is the thing you wear. See
+ * `WeaponItem.def`.
+ */
+const SHIELD = normalizeTileDef({
+  id: "shield",
+  name: "Shield",
+  height: 0,
+  kind: "item",
+  directional: false,
+  attributes: {},
+  variants: { default: [] },
+  intangible: true,
+  interactions: { item: { ...DEFAULT_WEAPON, damage: 0, def: 3 } },
+});
+
+/**
  * Which weapon a body swings, and what the masteries do regardless.
  *
  * The claim under test is **replacement, not addition** — the rule the whole
@@ -513,18 +533,7 @@ describe("the off hand", () => {
    * a breastplate belongs in and let a body wear one instead of the other.
    */
   it("adds what it turns aside to your defence", () => {
-    const shield = normalizeTileDef({
-      id: "shield",
-      name: "Shield",
-      height: 0,
-      kind: "item",
-      directional: false,
-      attributes: {},
-      variants: { default: [] },
-      intangible: true,
-      interactions: { item: { ...DEFAULT_WEAPON, damage: 0, def: 3 } },
-    });
-    const withShield = { ...shipped, shield };
+    const withShield = { ...shipped, shield: SHIELD };
 
     const bare = effectiveBattler(player, holding(null), withShield);
     const guarded = effectiveBattler(player, holding("shield"), withShield);
@@ -533,6 +542,54 @@ describe("the off hand", () => {
     // Still swinging your own fists, which is the point of it being the *other*
     // hand rather than a second weapon.
     expect(guarded.damage).toBe(bare.damage);
+  });
+
+  /**
+   * **Both hands count, and the main hand's contribution is not new** — it has
+   * always reached a fight through `weaponInHand`, since a held weapon replaces
+   * the natural one and carries its `def` along with everything else. What
+   * changed is that `wornDefence` now says so: it was the off hand and the body
+   * only, so "how protected is this body" had two answers in two functions and
+   * `WeaponItem.def`'s own comment claimed the swinging hand contributed
+   * nothing. It does, and here is the arithmetic that proves it.
+   */
+  it("counts a shield in each hand, twice", () => {
+    const tiles = { ...shipped, shield: SHIELD };
+    const oneHanded = holding("shield");
+    const twoHanded = holding("shield", "shield");
+
+    expect(wornDefence(player, holding(null), tiles)).toBe(0);
+    expect(wornDefence(player, oneHanded, tiles)).toBe(3);
+    expect(wornDefence(player, twoHanded, tiles)).toBe(6);
+    expect(effectiveBattler(player, twoHanded, tiles).def).toBe(6);
+  });
+
+  /**
+   * The replacement rule, which is what stops the main hand being three free
+   * points: a shield in your fist is what you swing, so you gave up your fists
+   * to hold it.
+   */
+  it("charges the main hand its swing for the privilege", () => {
+    const tiles = { ...shipped, shield: SHIELD };
+    const bare = effectiveBattler(player, holding(null), tiles);
+    const shielded = effectiveBattler(player, holding(null, "shield"), tiles);
+
+    expect(shielded.def).toBe(bare.def + 3);
+    expect(shielded.damage).toBe(0);
+    expect(bare.damage).toBeGreaterThan(0);
+  });
+
+  /** A body whose own hide turns blows aside keeps it while its hands are empty. */
+  it("reads an empty fist off the body's natural weapon", () => {
+    const hided: BattlerDef = {
+      ...base,
+      naturalWeapon: { ...CLAWS, def: 4 },
+    };
+    expect(wornDefence(hided, emptyEquipment(), shipped)).toBe(4);
+    // And loses it the moment something else is in that hand, on the
+    // replacement rule the swing is under.
+    const tiles = { ...shipped, shield: SHIELD };
+    expect(wornDefence(hided, holding(null, "shield"), tiles)).toBe(3);
   });
 
   it("turns nothing aside when it is empty or holding a torch", () => {
@@ -576,28 +633,19 @@ describe("the body", () => {
   });
 
   /**
-   * The whole reason the two are separate slots. A shield is what you put in the
+   * The whole reason these are separate slots. A shield is what you put in the
    * way and a shirt is what you have on, and a body with both should be
    * protected by both — one number replacing the other would make wearing mail a
    * reason to drop your shield.
    */
   it("adds to the off hand rather than replacing it", () => {
-    const shield = normalizeTileDef({
-      id: "shield",
-      name: "Shield",
-      height: 0,
-      kind: "item",
-      directional: false,
-      attributes: {},
-      variants: { default: [] },
-      intangible: true,
-      interactions: { item: { ...DEFAULT_WEAPON, damage: 0, def: 3 } },
-    });
-    const tiles = { ...shipped, shield };
+    const tiles = { ...shipped, shield: SHIELD };
+    const kit = wearing("chain-mail", "shield");
 
-    expect(wornDefence(wearing("chain-mail", "shield"), tiles)).toBe(3 + 3);
-    expect(armorDefence(wearing("chain-mail", "shield"), tiles)).toBe(3);
-    expect(offhandDefence(wearing("chain-mail", "shield"), tiles)).toBe(3);
+    // Bare hands, so the main hand contributes the player's own zero.
+    expect(wornDefence(player, kit, tiles)).toBe(3 + 3);
+    expect(armorDefence(kit, tiles)).toBe(3);
+    expect(offhandDefence(kit, tiles)).toBe(3);
   });
 
   /** What a body *is* cannot be put on, exactly as it cannot be picked up. */

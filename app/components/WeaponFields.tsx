@@ -211,7 +211,7 @@ export function WeaponFields({
         />
         <StatField
           label="Def"
-          hint="Taken off every blow that lands on the wielder. What you hold up: a shield, a bracer. What you wear is armour, and has a slot of its own."
+          hint="Taken off every blow that lands on the wielder, in either hand. What you hold up: a shield, a bracer. What you wear is armour, and has a slot of its own."
           value={weapon.def}
           min={0}
           onChange={(def) => onChange({ def })}
