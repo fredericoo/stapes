@@ -330,9 +330,21 @@ export type BrainActionDef =
   | { action: "step_random"; allowDrops?: boolean }
   /** Stand still, successfully. The usual last line of a priority list. */
   | { action: "hold" }
-  /** Step so as to close the distance. Fails when nothing gets closer. */
+  /**
+   * Set off along a route to somebody, one step of it per turn.
+   *
+   * Fails on both ways of having nothing to walk: already standing beside them,
+   * and no way to them at all. The second is what makes a `stuck` transition
+   * out of a chase meaningful — a creature shut out by a wall gives up rather
+   * than pressing itself against the nearest side of it. @see ../game/pathfinding
+   */
   | ({ action: "step_toward" } & Steering)
-  /** Step so as to open it. Fails when nothing gets further — cornered. */
+  /**
+   * Step so as to open the distance. Fails when nothing gets further — cornered.
+   *
+   * Judged one step at a time, unlike its mirror, and deliberately: "away" is a
+   * direction rather than a place, so there is no destination to route to.
+   */
   | ({ action: "step_away_from" } & Steering)
   /** Stand still for a stretch, then get out of the way of the next line. */
   | { action: "wait"; ms: number }

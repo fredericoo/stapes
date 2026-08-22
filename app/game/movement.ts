@@ -109,6 +109,34 @@ export function listStandingSurfaces(
   return out;
 }
 
+/**
+ * Surfaces at (x,y) a body with its feet at `fromAbs` could step onto.
+ *
+ * The climb band and nothing else — no fit check, no direction, no opinion
+ * about what is standing there. That narrowness is what lets three callers
+ * share it: {@link canWalk} picks the surface it will land on, a creature asks
+ * whether a step this way would leave it in mid-air, and a route search asks
+ * the same question one cell ahead of where anybody is standing.
+ *
+ * Empty means open air. The board deliberately allows walking into it so
+ * gravity can pull an actor through a steeper drop, so an empty answer is a
+ * *caution* rather than a refusal, and whose caution it is belongs to the
+ * caller.
+ */
+export function surfacesInClimbBand(
+  map: MapFile,
+  x: number,
+  y: number,
+  fromAbs: number,
+  tilesById: Record<string, TileDef>,
+): StandingSurface[] {
+  return listStandingSurfaces(map, x, y, tilesById).filter(
+    (surface) =>
+      surface.abs >= fromAbs - MAX_CLIMB_HEIGHT &&
+      surface.abs <= fromAbs + MAX_CLIMB_HEIGHT,
+  );
+}
+
 /** Scenery tile whose solid top is at absolute `abs`, if any. */
 function solidTopAt(
   map: MapFile,
@@ -190,14 +218,13 @@ export function canWalk(
     tilesById,
   );
 
-  const lo = fromAbs - MAX_CLIMB_HEIGHT;
-  const hi = fromAbs + MAX_CLIMB_HEIGHT;
-
-  const candidates = listStandingSurfaces(map, destX, destY, tilesById)
-    .filter((s) => s.abs >= lo && s.abs <= hi)
-    .sort((a, b) =>
-      opts?.preferDescend ? a.abs - b.abs : b.abs - a.abs,
-    );
+  const candidates = surfacesInClimbBand(
+    map,
+    destX,
+    destY,
+    fromAbs,
+    tilesById,
+  ).sort((a, b) => (opts?.preferDescend ? a.abs - b.abs : b.abs - a.abs));
 
   for (const surface of candidates) {
     if (

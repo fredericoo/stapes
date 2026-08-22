@@ -150,6 +150,18 @@ export type BrainContext = {
    */
   step(direction: Direction): boolean;
   /**
+   * Which way to set off, to end up standing beside `at`.
+   *
+   * A question about the board, so it belongs to whoever holds the board — the
+   * same split `canSee` is under, and for the same reason: this side only
+   * decides what to do with the answer.
+   *
+   * Three answers, and the difference between the last two is what a priority
+   * list reads: a direction to take, `"arrived"` for a creature already there,
+   * and null for somewhere there is no way to. @see ./pathfinding
+   */
+  routeTo(at: Coord, allowDrops: boolean | undefined): Direction | "arrived" | null;
+  /**
    * Say something over this creature's head.
    *
    * The only capability here that is not a question or a step: an effect, run on
@@ -520,29 +532,64 @@ function struckBy(memory: BrainMemory, ctx: BrainContext): boolean {
 }
 
 /**
- * Step so as to change the distance to `target` in the direction `want` asks
- * for: `closer` for a chase, `further` for a flight.
+ * Set off along a route to `target`.
+ *
+ * The whole of what A* buys a creature, and it is one line here because the
+ * search belongs to the board — see `./pathfinding`. What matters at this level
+ * is that all three of its answers are ones a priority list already knows how
+ * to read:
+ *
+ * - a direction, which is a step to take;
+ * - `"arrived"`, for a creature already standing beside its target, which
+ *   **fails** so the line below it gets its turn — the same thing the old
+ *   greedy version did when no step could get it any closer, and what lets
+ *   "hit them, else close on them, else hold" read straight down;
+ * - null for somewhere with no way there at all, which also fails, and is the
+ *   improvement worth naming. A creature shut out by a wall now gives up and
+ *   goes `stuck` rather than pressing itself against the nearest side of it.
+ *
+ * Only the first leg is used, and the rest is thrown away rather than
+ * remembered. A route held across ticks is a plan about a world that has since
+ * moved — the target walked on, a crate was shoved into the third step, another
+ * creature filled the fourth — and re-asking is both cheaper to reason about
+ * and, at one decision per step, barely more expensive than checking whether
+ * the kept one is still true.
+ */
+function stepAlongRoute(
+  target: Coord,
+  allowDrops: boolean | undefined,
+  ctx: BrainContext,
+): ActionStatus {
+  if (ctx.busy) return "running";
+
+  const direction = ctx.routeTo(target, allowDrops);
+  if (direction === null || direction === "arrived") return "failure";
+  return ctx.step(direction) ? "success" : "failure";
+}
+
+/**
+ * Step so as to open the distance to `target` — cornered when nothing does.
+ *
+ * Deliberately greedy, and deliberately not the search {@link stepAlongRoute}
+ * runs: fleeing has no destination to route to. "Away" is a direction rather
+ * than a place, so the question a fleeing animal asks really is the local one,
+ * and inventing a goal cell to run at would be this module deciding where
+ * something wants to hide.
  *
  * Only directions that genuinely improve matters are tried, and that filter is
- * doing real work — without it a blocked chaser would take a sideways or
- * backward step, which reads as a creature changing its mind rather than one
- * stuck. Failing instead lets the priority list fall through to whatever the
- * author put underneath.
- *
- * No route-finding: this is one step, judged on its own. A cat that rounds a
- * corner will press itself flat against the wall and follow in spirit, which is
- * the known cost of leaving A* out and the reason it is written down.
+ * doing real work — without it a cornered creature would take a sideways or
+ * backward step, which reads as one changing its mind rather than one with
+ * nowhere to go. Failing instead lets the priority list fall through to
+ * whatever the author put underneath.
  */
-function stepRelativeTo(
+function stepAwayFrom(
   target: Coord,
-  want: "closer" | "further",
   allowDrops: boolean | undefined,
   ctx: BrainContext,
 ): ActionStatus {
   if (ctx.busy) return "running";
 
   const now = stepsApart(ctx.self, target);
-  const sign = want === "closer" ? 1 : -1;
 
   // Shuffled before sorting, so the tie between two equally good directions —
   // which is most of the board when a target is diagonal — breaks differently
@@ -555,7 +602,7 @@ function stepRelativeTo(
         { x: ctx.self.x + dx, y: ctx.self.y + dy, z: ctx.self.z },
         target,
       );
-      return { direction, gain: (now - after) * sign };
+      return { direction, gain: after - now };
     })
     .filter((candidate) => candidate.gain > 0)
     .sort((a, b) => b.gain - a.gain);
@@ -632,12 +679,9 @@ function runAction(
       // Nobody to move relative to. A failure rather than a stand-still, so the
       // author's next line gets its turn.
       if (!at) return "failure";
-      return stepRelativeTo(
-        at,
-        action.action === "step_toward" ? "closer" : "further",
-        action.allowDrops,
-        ctx,
-      );
+      return action.action === "step_toward"
+        ? stepAlongRoute(at, action.allowDrops, ctx)
+        : stepAwayFrom(at, action.allowDrops, ctx);
     }
   }
 }

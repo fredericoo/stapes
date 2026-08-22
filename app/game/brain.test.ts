@@ -14,7 +14,7 @@ import {
 import { group } from "../lib/conditions";
 import { displayNameFor } from "./displayName";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
-import type { FlatMapFile, MapFile, TileDef } from "../lib/types";
+import type { Coord, Direction, FlatMapFile, MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef, normalizeTiles } from "../lib/types";
 import { initialMemory, stepBrain } from "./brainRuntime";
 import { fightingStats, resolveBattler } from "../lib/battler";
@@ -131,6 +131,22 @@ function advance(session: GameSession, ms: number) {
   }
 }
 
+/**
+ * What a route looks like on an empty board: straight at them.
+ *
+ * The stub behind `routeTo` in every hand-built context here. These cases are
+ * about the *machine* — which line runs, what a failure falls through to — so
+ * the board they run against is deliberately the one with nothing in it, and
+ * the searching itself is pinned in `pathfinding.test.ts` instead.
+ */
+function openRoute(self: Coord, at: Coord): Direction | "arrived" | null {
+  const dx = at.x - self.x;
+  const dy = at.y - self.y;
+  if (at.z === self.z && Math.abs(dx) + Math.abs(dy) <= 1) return "arrived";
+  if (Math.abs(dx) >= Math.abs(dy)) return dx > 0 ? "e" : "w";
+  return dy > 0 ? "s" : "n";
+}
+
 /** Where the one creature is, as a string worth comparing. */
 function deerCell(session: GameSession): string {
   const deer = session
@@ -203,13 +219,15 @@ describe("authoring a brain", () => {
 
 describe("deciding", () => {
   function ctx(overrides: Partial<Parameters<typeof stepBrain>[3]> = {}) {
+    const self = overrides.self ?? { x: 0, y: 0, z: 0 };
     return {
       busy: false,
       rng: new Rng(1),
-      self: { x: 0, y: 0, z: 0 },
+      self,
       nearestOnTile: () => null,
       positionOf: () => null,
       wouldDrop: () => false,
+      routeTo: (at: Coord) => openRoute(self, at),
       step: vi.fn(() => true),
       say: vi.fn(),
       noise: vi.fn(),
@@ -604,6 +622,115 @@ describe("noticing you", () => {
 });
 
 /**
+ * Finding a way round, which is the difference between a chase and a shove
+ * against a wall.
+ *
+ * The report this exists for: a rat, a crate, and somebody standing behind it.
+ * Closing the distance used to be judged one step at a time, so every direction
+ * that got the rat any nearer was the one the crate was in — and a creature
+ * that could plainly see you was defeated by a single box. `step_toward` now
+ * asks the board for a route (`./pathfinding`), and these are the two answers
+ * that route can come back with, seen from the outside.
+ */
+describe("chasing round an obstacle", () => {
+  /** Notice at a distance, then commit — with room to detour before giving up. */
+  const HUNT_CELLS = 8;
+  const GIVE_UP_CELLS = 20;
+
+  function huntBrain(): BrainDef {
+    return {
+      initial: "idle",
+      states: {
+        idle: { do: [{ action: "hold" }] },
+        // No `hold` under it, deliberately: a state that ends in the action
+        // which can fail is the only kind `stuck` can ever read.
+        hunt: { do: [{ action: "step_toward", of: slot("prey") }] },
+        giving_up: { onEnter: [{ effect: "noise", text: "tsk" }], do: [] },
+      },
+      transitions: [
+        {
+          from: "idle",
+          if: { cond: "in_range", of: nearest("player"), cells: HUNT_CELLS },
+          bind: { prey: nearest("player") },
+          to: "hunt",
+        },
+        { from: "hunt", if: { cond: "stuck" }, to: "giving_up" },
+        {
+          from: "hunt",
+          if: { cond: "out_of_range", of: slot("prey"), cells: GIVE_UP_CELLS },
+          to: "idle",
+        },
+      ],
+    };
+  }
+
+  const hunters: TileDef[] = [
+    ...tiles,
+    tile({
+      id: "hunter",
+      height: 1,
+      actor: true,
+      affectedByGravity: true,
+      walkable: false,
+      interactions: { brain: huntBrain() },
+    }),
+  ];
+
+  /** A hunter at the origin, somebody three cells east, and a wall between. */
+  function penned(wall: readonly (readonly [number, number])[]): GameSession {
+    let map = field(9);
+    map = replaceStack(map, -9, -9, 0, [{ tileId: "grass" }]);
+    map = withDeer(map, 0, 0, "hunter");
+    map = withPlayerAt(map, 3, 0);
+    for (const [x, y] of wall) {
+      map = replaceStack(map, x, y, 0, [{ tileId: "grass" }, { tileId: "wall" }]);
+    }
+    return new GameSession(map, hunters, {
+      actorIds: ["alice"],
+      spawnAt: { x: -9, y: -9, z: 0, stackIndex: 1 },
+    });
+  }
+
+  /** Steps between the hunter and the player, on the plan. */
+  function between(session: GameSession): number {
+    const actors = session.actorSnapshots();
+    const hunter = actors.find((a) => a.tileId === "hunter")!;
+    const player = actors.find((a) => a.tileId === "player")!;
+    return Math.abs(hunter.x - player.x) + Math.abs(hunter.y - player.y);
+  }
+
+  it("walks round the box it used to stand behind", () => {
+    // A three-cell screen: every step that shortens the gap is into it.
+    const session = penned([[1, -1], [1, 0], [1, 1]]);
+    expect(between(session)).toBe(3);
+
+    advance(session, BRAIN_TICK_MS * 10);
+
+    // Round the end of the screen and back, ending within reach.
+    expect(between(session)).toBe(1);
+  });
+
+  /**
+   * The other half, and the reason a failed route is not a step towards the
+   * wall. A creature that cannot get to you at all now says so — which is a
+   * `stuck` its author can transition on — rather than spending forever making
+   * visible progress in the direction of somewhere it will never arrive.
+   */
+  it("gives up on somebody it has no way of reaching", () => {
+    const session = penned([[2, -1], [2, 0], [2, 1], [3, -1], [3, 1], [4, 0]]);
+
+    const heard: string[] = [];
+    for (let elapsed = 0; elapsed < BRAIN_TICK_MS * 6; elapsed += TICK_MS) {
+      session.tick(TICK_MS);
+      for (const noise of session.drainNoise()) heard.push(noise.text);
+    }
+
+    expect(heard).toContain("tsk");
+    expect(between(session)).toBe(3);
+  });
+});
+
+/**
  * Flocking, which is a creature named as somebody else's `nearest:`.
  *
  * Tested through the session rather than a stub, because the whole of a
@@ -830,6 +957,7 @@ describe("giving up", () => {
       nearestOnTile: () => null,
       positionOf: () => null,
       wouldDrop: () => false,
+      routeTo: () => null,
       step: () => false,
       say: () => {},
       noise: () => {},
@@ -952,13 +1080,15 @@ describe("watching its footing", () => {
  */
 describe("actions that take time", () => {
   function ctx(overrides: Partial<Parameters<typeof stepBrain>[3]> = {}) {
+    const self = overrides.self ?? { x: 0, y: 0, z: 0 };
     return {
       busy: false,
       rng: new Rng(1),
-      self: { x: 0, y: 0, z: 0 },
+      self,
       nearestOnTile: () => null,
       positionOf: () => null,
       wouldDrop: () => false,
+      routeTo: (at: Coord) => openRoute(self, at),
       step: vi.fn(() => true),
       say: vi.fn(),
       noise: vi.fn(),
@@ -1388,6 +1518,7 @@ describe("a deer that yelps", () => {
       nearestOnTile: () => null,
       positionOf: () => null,
       wouldDrop: () => false,
+      routeTo: () => null,
       step: () => true,
       say,
       noise: vi.fn(),
@@ -1460,6 +1591,7 @@ describe("a deer that yelps", () => {
       nearestOnTile: () => null,
       positionOf: () => null,
       wouldDrop: () => false,
+      routeTo: () => null,
       step: () => false,
       say: vi.fn(),
       noise: vi.fn(),
@@ -1874,6 +2006,7 @@ describe("composing conditions", () => {
       nearestOnTile: () => null,
       positionOf: () => ({ x: 0, y: 0, z: 0 }),
       wouldDrop: () => false,
+      routeTo: () => "arrived" as const,
       step: vi.fn(() => true),
       say: vi.fn(),
       noise: vi.fn(),
