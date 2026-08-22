@@ -900,6 +900,29 @@ type ActorRuntime = {
   statuses: readonly StatusInstance[];
   /** Milliseconds until this body may swing again. See `./combat`. */
   attackCooldownMs: number;
+  /**
+   * Milliseconds until this body may take a step again, having just swung.
+   *
+   * **Its own clock rather than a second reading of {@link attackCooldownMs},
+   * because the two answer to different things.** How often you may swing
+   * belongs to the weapon, through {@link FightingStats.spd}. How long a blow
+   * plants you belongs to the *body* and to nothing it is holding — which is
+   * the whole point of it: a fight where the nimble could swing and keep
+   * walking was a fight decided by who was willing to hold a movement key down,
+   * and a plant that scaled with a stat would be one more thing to train out of
+   * the way.
+   *
+   * Exactly one of this body's steps, read off the tile it is — see
+   * {@link resolveWalkDurationMs}. Not a constant of its own, and that is what
+   * makes it fair rather than merely fixed: a blow costs a creature one step of
+   * *its* walking, so something authored to move slowly is not punished twice
+   * for it.
+   *
+   * Only the *start* of a step is gated. A walk already in flight when the blow
+   * goes out finishes it — a body cannot be stopped mid-cell without leaving it
+   * standing between two of them.
+   */
+  attackRecoveryMs: number;
   /** Who this actor is set on, for a body driven by somebody pointing at things. */
   targetId: string | null;
   /**
@@ -1199,6 +1222,14 @@ export class GameSession implements PlaySession {
    */
   private pendingTeleports: string[] = [];
   /**
+   * Everybody who threw a blow this tick.
+   *
+   * Ids alone, because the only thing anybody does with one is start a clock
+   * whose length the receiver can already work out — a body's recovery is a
+   * body's walk, and both sides read that off the tile. @see drainSwings
+   */
+  private pendingSwings: string[] = [];
+  /**
    * Noises still on screen, aged down by the tick loop.
    *
    * The pair works the way damage's does rather than the way speech's does, and
@@ -1426,6 +1457,7 @@ export class GameSession implements PlaySession {
       // remembering that a deer is uninjured.
       statuses: resident ? NO_STATUSES : (opts.statuses ?? NO_STATUSES),
       attackCooldownMs: 0,
+      attackRecoveryMs: 0,
       targetId: null,
       attacking: false,
       input: { directions: [] },
@@ -1898,6 +1930,7 @@ export class GameSession implements PlaySession {
     this.pendingNoise = [];
     this.pendingProjectiles = [];
     this.pendingTeleports = [];
+    this.pendingSwings = [];
     this.ageDamageNumbers(tickMs);
     this.ageNoises(tickMs);
     this.ageProjectiles(tickMs);
@@ -2269,6 +2302,25 @@ export class GameSession implements PlaySession {
   }
 
   /**
+   * Everybody who threw a blow this tick, handed over and forgotten.
+   *
+   * The server's to call, right after {@link tick}, exactly as
+   * {@link drainTeleports} is — and an offline `/play` never does, which costs
+   * nothing: the local simulation *is* the thing holding the recovery, so there
+   * is no second guess anywhere for this to correct.
+   *
+   * Not recoverable from two readings of anything, which is why it is drained
+   * rather than diffed: a recovery is a number winding down, and a body that
+   * swung again a tick before the last one expired looks identical from
+   * outside to one that never did.
+   */
+  drainSwings(): string[] {
+    const swung = this.pendingSwings;
+    this.pendingSwings = [];
+    return swung;
+  }
+
+  /**
    * Everybody whose body ran out of hit points this tick, handed over once.
    *
    * Not cleared by the next tick, unlike speech and damage: a death is the one
@@ -2282,11 +2334,21 @@ export class GameSession implements PlaySession {
     return died;
   }
 
-  /** Wind every cooldown down towards its next swing. */
+  /**
+   * Wind every cooldown down towards its next swing, and every recovery down
+   * towards its next step.
+   *
+   * The two together because they are the same kind of clock started by the
+   * same act — see {@link ActorRuntime.attackRecoveryMs} for why they are not
+   * the same number.
+   */
   private advanceCooldowns(tickMs: number) {
     for (const actor of this.actors.values()) {
       if (actor.attackCooldownMs > 0) {
         actor.attackCooldownMs = Math.max(0, actor.attackCooldownMs - tickMs);
+      }
+      if (actor.attackRecoveryMs > 0) {
+        actor.attackRecoveryMs = Math.max(0, actor.attackRecoveryMs - tickMs);
       }
     }
   }
@@ -2379,6 +2441,15 @@ export class GameSession implements PlaySession {
     // Spent whether or not the blow connects: the swing happened, and a dodge
     // that cost the attacker nothing would let a fast creature flail for free.
     attacker.attackCooldownMs = attackIntervalMs(attackerStats.spd);
+
+    // And the body is planted for exactly one of its own steps, on the same
+    // terms and for the balance the cooldown alone could not buy: see
+    // {@link ActorRuntime.attackRecoveryMs}. Announced as well as stored,
+    // because the one client that predicts its own footwork has to refuse the
+    // same steps this side is about to — a browser that walked through its
+    // recovery would spend the whole fight being told to walk back.
+    attacker.attackRecoveryMs = resolveWalkDurationMs(this.defFor(attacker));
+    this.pendingSwings.push(attacker.id);
 
     // Thrown before the dice, and on the same grounds the cooldown is spent
     // before them: what the lean says is *this body swung at that one*, which is
@@ -4405,6 +4476,11 @@ export class GameSession implements PlaySession {
     let thinking = false;
     for (const actor of this.actors.values()) {
       if (actor.walk || actor.fall || actor.slide || actor.strike) return false;
+      // A recovery is a clock this loop is the only thing winding, exactly as a
+      // lean is. Falling asleep under one would plant a body until the next
+      // time somebody happened to move — and unlike the lean beside it, this
+      // one is holding a *step* the player has already asked for.
+      if (actor.attackRecoveryMs > 0) return false;
       if (actor.input.directions.length > 0) return false;
       // Somebody standing still next to the thing they are fighting is not an
       // idle world: the next swing is on a cooldown that only this loop winds
@@ -4538,6 +4614,11 @@ export class GameSession implements PlaySession {
     );
 
     if (!choice.step) return false;
+    // After the turn, not before it. A body planted by its own blow can still
+    // face where it wants to go — what a swing costs is the *step*, and
+    // refusing the turn as well would make a fought corner impossible to aim
+    // out of. It is also the same split `chooseStep` already draws.
+    if (actor.attackRecoveryMs > 0) return false;
 
     actor.walk = {
       from: { x: loc.x, y: loc.y, z: loc.z },
@@ -4577,6 +4658,12 @@ export class GameSession implements PlaySession {
     const actor = this.actor(id);
     if (actor.fall || actor.slide) return "refused";
     if (actor.walk) return "later";
+    // `"later"` on the same grounds a walk is, and not a refusal: a recovery is
+    // a wait, so the step the client drew is one it is going to get. Rejecting
+    // it would drag the body back to where it swung from, which is the one
+    // thing the client would then have to *animate* — a correction for
+    // something neither side disagrees about.
+    if (actor.attackRecoveryMs > 0) return "later";
 
     const started = this.applyStepRequest(actor, {
       directions: [direction],

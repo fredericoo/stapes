@@ -2030,6 +2030,36 @@ async function boxX(): Promise<number | null> {
   return found;
 }
 
+/**
+ * The plant a blow costs its thrower has to reach the one client that decides
+ * its own footwork, or that client walks through a recovery the server is
+ * holding it in and spends the fight being corrected. Nothing else on the wire
+ * says a swing happened *to the swinger*: a lean is only owed by melee, and a
+ * damage number names the body that took it.
+ */
+describe("announcing a swing", () => {
+  it("tells the room each time somebody throws a blow", async () => {
+    const alice = await connect("alice");
+    const bob = await connect("bob");
+    // Two bodies arriving at one spawn stand on each other's shoulders, and a
+    // storey is outside melee's lid — so somebody has to step off before there
+    // is a fight to announce at all. @see `app/game/distance`
+    await walkEast(alice.ws);
+
+    // Listening before the fight starts, so the first blow is not missed.
+    const swings = eventsWithin(alice.ws, "swung", QUIET_MS * 3);
+    alice.ws.send(JSON.stringify({ type: "target", actorId: "bob" }));
+    alice.ws.send(JSON.stringify({ type: "attackMode", enabled: true }));
+
+    // Loudly rather than flakily: a fight out of reach announces nothing, which
+    // would be a broken fixture rather than the bug under test.
+    const thrown = await swings;
+    expect(thrown.length).toBeGreaterThan(0);
+    expect(thrown[0]).toEqual({ kind: "swung", actorId: "alice" });
+    expect(bob.hello.actorIds).toEqual(["alice", "bob"]);
+  });
+});
+
 describe("pushing", () => {
   it("announces one shove once", async () => {
     await putCheckpoint(stripWithABox());
