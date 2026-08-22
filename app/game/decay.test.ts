@@ -29,6 +29,12 @@ const JITTER_TO_MS = 5000;
 const BERRY_MS = 3000;
 const ROTTEN_MS = 4000;
 
+/**
+ * A lifetime longer than a fight, for the one thing that has to survive being
+ * fought over. See the `scarecrow` tile.
+ */
+const GOURD_MS = 60_000;
+
 function tile(
   partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
 ): TileDef {
@@ -208,6 +214,38 @@ const tiles: TileDef[] = [
     tileId: "",
     fromMs: BERRY_MS,
     toMs: BERRY_MS,
+  }),
+  // Long enough to outlive the fight that spills it, which is the whole point
+  // of it: a berry would have gone off in the hand that was still holding it.
+  itemTile("gourd", EDIBLE, {
+    tileId: "rotten-berry",
+    fromMs: GOURD_MS,
+    toMs: GOURD_MS,
+  }),
+  // Something to kill: hit points, one thing to its name, and no way to fight
+  // back. Toughness 1 rather than 0 — a body with no stats has no hit points
+  // and cannot die at all, which is what a statue is.
+  tile({
+    id: "scarecrow",
+    height: 1,
+    actor: true,
+    walkable: false,
+    kind: "battler",
+    interactions: {
+      battler: {
+        masteries: { toughness: 1 },
+        naturalWeapon: {
+          type: "weapon",
+          damage: 0,
+          def: 0,
+          accuracy: 0,
+          variance: 0,
+          spd: 50,
+          mastery: "fist",
+        },
+        kit: [{ slot: "weapon", tileId: "gourd", chance: 100 }],
+      },
+    },
   }),
 ];
 
@@ -732,5 +770,82 @@ describe("things that decay while somebody is holding them", () => {
     expect(turned?.itemId).toBeUndefined();
     run(session, STAIN_MS);
     expect(asideStack(session).map((p) => p.tileId)).toEqual(["grass"]);
+  });
+});
+
+/**
+ * What a body was carrying does not stop ageing because the body stopped.
+ *
+ * A kit is armed the moment it is assigned — see `GameSession.setEquipment` —
+ * and a killing blow puts every piece of it on the floor still wearing the
+ * identity it was minted with (`dropKit`, via `placementFromInstance`). Between
+ * them the clock never notices the death: the same entry that was counting down
+ * in a hand goes on counting down in the pile.
+ *
+ * Which is worth pinning precisely because the alternative is so plausible. A
+ * pile that started fresh where it fell would be the obvious reading of "loot
+ * decays", and it is the reading that lets a player farm a camp forever by
+ * killing the same body before anything it carries can go off.
+ */
+describe("what a dead battler leaves on the floor", () => {
+  /** The scarecrow standing beside the idle player, holding its one thing. */
+  function withScarecrow(): GameSession {
+    const map = replaceStack(
+      withIdlePlayer(emptyMap()),
+      BESIDE.x,
+      BESIDE.y,
+      BESIDE.z,
+      [{ tileId: "grass" }, { tileId: "scarecrow" }],
+    );
+    return new GameSession(map, tiles);
+  }
+
+  /**
+   * Swing until the body is gone, and say how long it took.
+   *
+   * The dice are seeded, so this is reproducible — but it is read rather than
+   * hard-coded, because a rebalance that changes how long a fight lasts should
+   * not silently change what this test is measuring from.
+   */
+  function killBeside(session: GameSession): number {
+    const victim = session.actorIds().find((id) => id !== LOCAL_ACTOR_ID);
+    if (!victim) throw new Error("nobody to kill");
+    const held = session.equipmentOf(victim)?.weapon;
+    if (!held) throw new Error("the scarecrow rolled no kit to drop");
+    session.setTarget(victim);
+    session.setAttackMode(true);
+    for (let elapsed = 0; elapsed < GOURD_MS; elapsed += TICK_MS) {
+      session.tick(TICK_MS);
+      if (!session.actorIds().includes(victim)) return elapsed;
+    }
+    throw new Error("the fight outlasted the thing it was fought over");
+  }
+
+  it("is the very thing the body was holding, identity and all", () => {
+    const session = withScarecrow();
+    const held = session.equipmentOf(
+      session.actorIds().find((id) => id !== LOCAL_ACTOR_ID)!,
+    )!.weapon!;
+
+    killBeside(session);
+
+    expect(asideStack(session)).toEqual([
+      { tileId: "grass" },
+      { tileId: "gourd", itemId: held.id },
+    ]);
+  });
+
+  it("goes off on the clock it started in the kit, not the one it fell on", () => {
+    const session = withScarecrow();
+    const diedAtMs = killBeside(session);
+
+    // The rest of the lifetime the kit began, and no more. A pile that started
+    // over where it landed would still be a gourd here.
+    run(session, GOURD_MS - diedAtMs);
+
+    expect(stackIds(session.getMap(), BESIDE.x, BESIDE.y, BESIDE.z)).toEqual([
+      "grass",
+      "rotten-berry",
+    ]);
   });
 });

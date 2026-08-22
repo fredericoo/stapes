@@ -9,6 +9,7 @@ import {
 import { resolveSwitch, resolveTeleport } from "../lib/interactions";
 import {
   type ConsumableItem,
+  isItem,
   isRanged,
   type StatusGrant,
   resolveConsumable,
@@ -128,7 +129,11 @@ import {
   type ProjectileFlight,
 } from "./projectile";
 import { pushedColumn } from "./push";
-import { isSpawnFilled, type SpawnPoint } from "./respawn";
+import {
+  isSpawnFilled,
+  type RespawnOutcome,
+  type SpawnPoint,
+} from "./respawn";
 import {
   applyItemMove,
   canMoveItem,
@@ -1626,34 +1631,41 @@ export class GameSession implements PlaySession {
   /**
    * Grow back what was authored at a spawn point, if it is still owed.
    *
-   * True means this deadline is spent — the point is filled, something grew,
+   * Done means this deadline is spent — the point is filled, something grew,
    * or nothing ever will — and the server can drop it. One call grows one
    * placement, so a point authored with several identical objects refills one
    * per window: the growth itself changes the cell, and the server's
    * changed-cell sweep is what notices the count is still short and arms the
    * next.
-   * False means "not now": the placement no longer fits under whatever has
-   * been stacked in its cell, and the server retries rather than abandons,
-   * because unlike a decay that cannot happen, a monster that never comes back
-   * is a hole in the world rather than a mess left un-tidied.
    *
    * A tile that has left the catalogue reads as settled, not as a retry: no
    * amount of waiting authors it back, and the registry is rebuilt from the
    * catalogue on the next save anyway.
+   *
+   * See {@link RespawnOutcome} for what the two answers oblige the caller to.
    */
-  respawnAt(point: SpawnPoint): boolean {
-    if (isSpawnFilled(this.map, point)) return true;
+  respawnAt(point: SpawnPoint): RespawnOutcome {
+    if (isSpawnFilled(this.map, point)) return { kind: "done" };
     const def = this.tilesById[point.placed.tileId];
-    if (!def) return true;
+    if (!def) return { kind: "done" };
     const { x, y, z } = point.cell;
-    if (!canPlace(this.map, x, y, z, def, this.tilesById).ok) return false;
+    if (!canPlace(this.map, x, y, z, def, this.tilesById).ok) {
+      return { kind: "blocked" };
+    }
 
+    // A respawned item is a new item — the authored placement carries no ids
+    // (see `authoredPlacement`). Minted here rather than left to the sweep
+    // below because the id is half the answer: a point that knows which thing
+    // it grew can tell that thing going stale where it stands from somebody
+    // carrying it off, and one that knows only a tile id cannot.
+    const itemId = isItem(def) ? mintItemId() : undefined;
     this.map = appendTile(this.map, x, y, z, {
       ...point.placed,
+      ...(itemId ? { itemId } : {}),
       ...(point.ownerId ? { owner: point.ownerId } : {}),
     });
-    // A respawned item is a new item — the authored placement carries no ids
-    // (see `authoredPlacement`), and this is what stamps fresh ones on.
+    // Still swept, for what the placement is *holding*: a respawned chest
+    // arrives full of anonymous contents, which need identities of their own.
     this.map = mintItemIds(this.map, this.tilesById);
     // A body that grew back rolls its kit again, on the same terms its hit
     // points are rebuilt from the tile: what respawned is a new creature, not
@@ -1667,7 +1679,7 @@ export class GameSession implements PlaySession {
     // What grew back may be a plate's load, a wire's emitter or a decaying
     // tile, so the cell's indexes are rebuilt exactly as they are after a kill.
     this.reindexCells([point.cell]);
-    return true;
+    return { kind: "done", ...(itemId ? { itemId } : {}) };
   }
 
   actorIds(): string[] {

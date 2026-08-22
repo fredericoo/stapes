@@ -11,8 +11,10 @@ import { cellKey } from "../app/game/pressurePlates";
 import {
   findSpawnPoints,
   isSpawnFilled,
+  presentItemIds,
   rollRespawnDelayMs,
   type SpawnPoint,
+  withMigratedItemIds,
 } from "../app/game/respawn";
 import {
   type Equipment,
@@ -797,14 +799,23 @@ export class GameServer extends DurableObject<Env> {
     // A stored point whose tile has left the catalogue, or stopped respawning,
     // is the author changing their mind — honoured here because the registry
     // outlives the tiles it was derived against.
-    const points = (
-      stored ?? findSpawnPoints(session.getMap(), tilesById)
-    ).filter((point) => {
-      const def = tilesById[point.placed.tileId];
-      return def != null && resolveRespawn(def) != null;
-    });
+    const points = (stored ?? findSpawnPoints(session.getMap(), tilesById))
+      .filter((point) => {
+        const def = tilesById[point.placed.tileId];
+        return def != null && resolveRespawn(def) != null;
+      })
+      // The one-time migration for points stored before identities were
+      // tracked. Points derived fresh already carry theirs and pass through.
+      .map((point) => withMigratedItemIds(session.getMap(), point));
     this.setRespawnPoints(points);
-    if (!stored) this.persistRespawnPoints();
+    // And forget whatever left its cell while the world was asleep, which no
+    // changed-cell sweep was awake to notice.
+    for (const point of this.respawnPoints.values()) {
+      this.forgetDepartedItems(point);
+    }
+    // Written back on a resume too, now that a point carries state the stored
+    // copy can be behind on: the pass above is only a migration if it sticks.
+    this.persistRespawnPoints();
 
     const pending = await this.ctx.storage.get<Record<string, number>>(
       RESPAWN_PENDING_KEY,
@@ -919,6 +930,7 @@ export class GameServer extends DurableObject<Env> {
     if (!session || this.respawnPending.size === 0) return;
 
     let dirty = false;
+    let pointsDirty = false;
     for (const [key, dueAtMs] of this.respawnPending) {
       if (dueAtMs > nowMs) continue;
       dirty = true;
@@ -927,21 +939,43 @@ export class GameServer extends DurableObject<Env> {
         this.respawnPending.delete(key);
         continue;
       }
-      if (session.respawnAt(point)) {
-        this.respawnPending.delete(key);
-        // The old death is spent the moment a new body exists. Left in place
-        // it would only be a leak — nothing seats a creature by id — but the
-        // set is checkpointed, and a record that no longer records anything
-        // has no business surviving the world that wrote it.
-        this.dead.delete(key);
-      } else {
+      const outcome = session.respawnAt(point);
+      if (outcome.kind === "blocked") {
         this.respawnPending.set(key, nowMs + RESPAWN_RETRY_MS);
+        continue;
       }
+      this.respawnPending.delete(key);
+      // The old death is spent the moment a new body exists. Left in place
+      // it would only be a leak — nothing seats a creature by id — but the
+      // set is checkpointed, and a record that no longer records anything
+      // has no business surviving the world that wrote it.
+      this.dead.delete(key);
+      if (this.adoptSpawnedItem(point, outcome.itemId)) pointsDirty = true;
     }
+    if (pointsDirty) this.persistRespawnPoints();
     if (dirty) {
       this.persistRespawnPending();
       this.scheduleRespawnAlarm();
     }
+  }
+
+  /**
+   * Put what just grew on the point's books, and take off whatever is no longer
+   * standing there.
+   *
+   * The one place an id is ever *added* to a point. Everywhere else prunes, so
+   * a point can only come to be watching something by having grown it — which
+   * is what makes an emptied point stay owed no matter what is dropped into its
+   * cell afterwards. See {@link SpawnPoint.itemIds}.
+   *
+   * Nothing to do when nothing grew, which covers a point found already filled
+   * and every object that is not an item.
+   */
+  private adoptSpawnedItem(point: SpawnPoint, itemId: string | undefined) {
+    const map = this.session?.getMap();
+    if (!itemId || !map) return false;
+    point.itemIds = [...presentItemIds(map, point), itemId];
+    return true;
   }
 
   /**
@@ -956,15 +990,40 @@ export class GameServer extends DurableObject<Env> {
     const session = this.session;
     if (!session || this.respawnPointsByCell.size === 0) return;
     const nowMs = Date.now();
+    let pointsDirty = false;
     for (const cell of cells) {
       const points = this.respawnPointsByCell.get(cellKey(cell));
       if (!points) continue;
       for (const point of points) {
+        // Before the filled test rather than after, and before the pending
+        // check rather than behind it: this is the moment the departure is
+        // visible, and a point that is already owed still has to forget what
+        // left it, or dropping the berry back would pay a debt it did not.
+        if (this.forgetDepartedItems(point)) pointsDirty = true;
         if (this.respawnPending.has(point.key)) continue;
         if (isSpawnFilled(session.getMap(), point)) continue;
         this.armRespawn(point, nowMs);
       }
     }
+    if (pointsDirty) this.persistRespawnPoints();
+  }
+
+  /**
+   * Take off a point's books everything that is no longer standing in its cell.
+   *
+   * The counterpart to {@link adoptSpawnedItem}, and the half that runs
+   * constantly. Reports whether anything was struck off, so a quiet cell —
+   * which is nearly all of them — costs one stack read and no write.
+   */
+  private forgetDepartedItems(point: SpawnPoint): boolean {
+    const map = this.session?.getMap();
+    if (!map || !point.itemIds) return false;
+    const present = presentItemIds(map, point);
+    // Present is always a subset of what was owed, so equal lengths are equal
+    // sets and there is nothing to rewrite.
+    if (present.length === point.itemIds.length) return false;
+    point.itemIds = present;
+    return true;
   }
 
   /**
