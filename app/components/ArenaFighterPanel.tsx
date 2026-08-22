@@ -25,7 +25,7 @@ import {
   requirementShare,
 } from "../lib/mastery";
 import type { TileDef, TilesetDef } from "../lib/types";
-import { Input, Select, Tooltip } from "../ui";
+import { Input, Select } from "../ui";
 import { TilePreview } from "./TilePreview";
 
 /**
@@ -46,34 +46,19 @@ import { TilePreview } from "./TilePreview";
  * ## The derived block is the point of the panel
  *
  * Nothing above it is what a fight is fought with. `effectiveBattler` folds the
- * body, the masteries and both hands into eight numbers, and *those* are what
- * `../game/combat` reads — so showing them beside the inputs is what makes the
- * derivation legible instead of something to be inferred from the outcome.
+ * body, the masteries and every worn slot into the numbers `../game/combat`
+ * reads — so showing them beside the inputs is what makes the derivation legible
+ * instead of something to be inferred from the outcome.
+ *
+ * ## Nothing here explains a formula in words
+ *
+ * There were tooltips on every mastery and every slot saying what each one did
+ * to a fight. They are gone, and their absence is the design: a sentence
+ * describing a curve is a second copy of that curve which no test can fail when
+ * the first one moves, and this panel exists to be trusted while those curves
+ * are being tuned. Every string below is either a label, a slot name, or a
+ * number that came out of a function.
  */
-
-const SLOT_LABEL: Record<EquipSlot, string> = {
-  weapon: "Weapon hand",
-  offhand: "Off hand",
-  bag: "Back",
-};
-
-const SLOT_HINT: Record<EquipSlot, string> = {
-  weapon:
-    "A held weapon replaces the natural one rather than adding to it. Empty means bare hands — which are a weapon like any other.",
-  offhand:
-    "Adds its defence and nothing else. It does not swing: a shield and a torch are what this slot is for.",
-  bag: "Worn, and worth nothing in a fight. Here because it is a slot a body has, not because it changes a number.",
-};
-
-const MASTERY_HINT: Record<Mastery, string> = {
-  fist: "What bare hands and every natural weapon answer to.",
-  blade: "Swords and axes.",
-  blunt: "Hammers, staves that are swung, anything that does not cut.",
-  ranged: "Bows.",
-  arcane: "Staves. Swinging one is how you get better at magic.",
-  toughness: "Hit points, at one apiece over a base of 8.",
-  agility: "Evasion, at one apiece over a base of 20. Contested, never a flat chance.",
-};
 
 export function ArenaFighterPanel({
   title,
@@ -174,9 +159,7 @@ function Masteries({
       <div className="grid grid-cols-4 gap-2">
         {MASTERIES.map((mastery) => (
           <label key={mastery} className="flex flex-col gap-0.5 text-[11px]">
-            <Tooltip content={<span className="block max-w-64">{MASTERY_HINT[mastery]}</span>}>
-              <span className="cursor-help uppercase text-muted">{mastery}</span>
-            </Tooltip>
+            <span className="uppercase text-muted">{mastery}</span>
             <Input
               type="number"
               min={MIN_MASTERY}
@@ -228,11 +211,11 @@ function Equipment({
               size={28}
               still
             />
-            <Tooltip content={<span className="block max-w-64">{SLOT_HINT[slot]}</span>}>
-              <span className="w-24 shrink-0 cursor-help text-[11px] uppercase text-muted">
-                {SLOT_LABEL[slot]}
-              </span>
-            </Tooltip>
+            {/* The slot's own name, so a slot added to the game names itself
+                here rather than waiting for somebody to write a label for it. */}
+            <span className="w-20 shrink-0 text-[11px] uppercase text-muted">
+              {slot}
+            </span>
             <Select
               value={held ?? EMPTY_SLOT}
               onValueChange={(tileId) =>
@@ -252,7 +235,7 @@ function Equipment({
                 })),
               ]}
               className="min-w-0 flex-1"
-              ariaLabel={`${title} ${SLOT_LABEL[slot]}`}
+              ariaLabel={`${title} ${slot}`}
             />
           </div>
         );
@@ -282,52 +265,44 @@ function NaturalWeapon({
   const body = bodyOf(fighter, tilesById);
   if (!body) return null;
   // What is actually swung, not what the body was born with — a held weapon
-  // replaces the natural one, and a ratio quoted against the wrong one of the
-  // two is the single most misleading number this panel could show.
+  // replaces the natural one, and a readout quoting the wrong one of the two is
+  // the single most misleading thing this panel could show.
   const weapon = weaponInHand(body, equipmentOf(fighter, tilesById), tilesById);
   const natural = weapon === body.naturalWeapon;
 
   return (
     <div className="flex flex-col gap-1 border-2 border-border/40 bg-paper p-2">
-      <div className="flex items-baseline justify-between">
-        <span className="text-[11px] font-bold uppercase text-muted">
-          {natural ? "Natural weapon" : "Weapon in hand"}
-        </span>
-        <span className="text-[10px] text-muted">read-only — edit on /tiles</span>
-      </div>
+      <span className="text-[11px] font-bold uppercase text-muted">
+        {natural ? "Natural weapon" : "Weapon in hand"}
+      </span>
       <dl className="grid grid-cols-3 gap-x-2 gap-y-0.5 text-[11px] tabular-nums">
         <Figure label="damage" value={weapon.damage} />
         <Figure label="def" value={weapon.def} />
         <Figure label="spd" value={weapon.spd} />
         <Figure label="accuracy" value={weapon.accuracy} />
         <Figure label="variance" value={weapon.variance} />
-        <Figure label="mastery" value={weapon.mastery ?? "—"} />
+        <Figure label="mastery" value={weapon.mastery} />
       </dl>
-      <MasteryDemand fighter={fighter} weapon={weapon} natural={natural} />
+      <MasteryDemand fighter={fighter} weapon={weapon} />
     </div>
   );
 }
 
 /**
- * What this weapon asks of its wielder, what meeting it is worth, and what being
- * good with it adds on top.
+ * What this weapon asks, how much of it the body brings, and what that comes to.
  *
- * **The most diagnostic block on the page, and it exists because its absence was
- * actively misleading.** Requirements and skill are two separate axes that both
- * arrive as the same three numbers, and neither is visible in the stats beside
- * them. A weapon that asks *nothing* is at full readiness however untrained the
- * body holding it — so training the mastery it names moves damage and accuracy
- * but never speed, and reading that off an unchanging speed figure looks like a
- * broken stat rather than the rule it is.
+ * **The most diagnostic block on the page, and every figure in it is computed.**
+ * Requirements and skill are two axes that both arrive as the same three numbers
+ * and neither is visible in the stats beside them, so they are printed — as
+ * numbers, not as a sentence about what they do. `../lib/weaponDemand` says the
+ * same thing to a player looking at the same weapon in the world.
  */
 function MasteryDemand({
   fighter,
   weapon,
-  natural,
 }: {
   fighter: ArenaFighter;
   weapon: WeaponItem;
-  natural: boolean;
 }) {
   const asked = MASTERIES.filter(
     (mastery) => (weapon.requirements?.[mastery] ?? 0) > 0,
@@ -337,45 +312,25 @@ function MasteryDemand({
   const skill = fighter.masteries[weapon.mastery] ?? 0;
 
   return (
-    <div className="flex flex-col gap-0.5">
-      {asked.length === 0 ? (
-        <p className="text-[10px] leading-snug text-muted">
-          Asks no mastery, so it is at <strong className="text-ink">full</strong>{" "}
-          readiness for anybody.
-          {natural ? " True of every natural weapon in the game." : ""}
-        </p>
-      ) : (
-        <p className="text-[10px] leading-snug text-muted">
-          Asks{" "}
-          {asked.map((mastery, index) => (
-            <span key={mastery}>
-              {index > 0 ? ", " : ""}
-              <strong className="text-ink">
-                {mastery} {weapon.requirements?.[mastery]}
-              </strong>{" "}
-              (you {fighter.masteries[mastery] ?? 0})
-            </span>
-          ))}
-          . Pooled{" "}
-          <strong className="text-ink">{Math.round(share * 100)}%</strong> met ⇒{" "}
-          <strong className="text-ink">{Math.round(readiness * 100)}%</strong> of
-          the weapon
-          {share >= 1 ? " — met in full, and nothing more is owed." : ""}
-        </p>
-      )}
-      <p className="text-[10px] leading-snug text-muted">
-        {weapon.mastery} <strong className="text-ink">{skill}</strong> adds{" "}
-        <strong className="text-ink">
-          +{((skill / MAX_MASTERY) * DAMAGE_AT_MAX_MASTERY).toFixed(1)}
-        </strong>{" "}
-        damage and{" "}
-        <strong className="text-ink">
-          +{((skill / MAX_MASTERY) * ACCURACY_AT_MAX_MASTERY).toFixed(1)}
-        </strong>{" "}
-        accuracy flat, plus a quarter of what the weapon brings. Speed is
-        Agility's to give, not this one's.
-      </p>
-    </div>
+    <dl className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[11px] tabular-nums">
+      {asked.map((mastery) => (
+        <Figure
+          key={mastery}
+          label={`asks ${mastery}`}
+          value={`${weapon.requirements?.[mastery]} / ${fighter.masteries[mastery] ?? 0}`}
+        />
+      ))}
+      <Figure label="requirements met" value={`${Math.round(share * 100)}%`} />
+      <Figure label="weapon at" value={`${Math.round(readiness * 100)}%`} />
+      <Figure
+        label={`${weapon.mastery} adds dmg`}
+        value={`+${((skill / MAX_MASTERY) * DAMAGE_AT_MAX_MASTERY).toFixed(1)}`}
+      />
+      <Figure
+        label={`${weapon.mastery} adds acc`}
+        value={`+${((skill / MAX_MASTERY) * ACCURACY_AT_MAX_MASTERY).toFixed(1)}`}
+      />
+    </dl>
   );
 }
 
@@ -396,7 +351,16 @@ function DerivedStats({ stats }: { stats: FightingStats | null }) {
         <Figure label="flee" value={stats.flee} />
         <Figure label="hit" value={`${Math.round(stats.hitChance * 100)}%`} />
         <Figure label="reach" value={`${stats.reach.cells}c`} />
+        <Figure label="haste" value={`${stats.haste.toFixed(2)}×`} />
+        <Figure label="strikes as" value={stats.mastery} />
       </dl>
+      {Object.entries(stats.resist).length === 0 ? null : (
+        <dl className="grid grid-cols-3 gap-x-2 gap-y-0.5 border-t-2 border-border/30 pt-1 text-[11px] tabular-nums">
+          {Object.entries(stats.resist).map(([mastery, amount]) => (
+            <Figure key={mastery} label={`resists ${mastery}`} value={amount} />
+          ))}
+        </dl>
+      )}
     </div>
   );
 }

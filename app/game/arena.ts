@@ -6,7 +6,7 @@ import {
 import { EQUIP_SLOTS, type EquipSlot } from "../lib/kit";
 import { type Masteries, MASTERIES } from "../lib/mastery";
 import type { TileDef } from "../lib/types";
-import { effectiveBattler, type Equipment } from "./equipment";
+import { effectiveBattler, emptyEquipment, type Equipment } from "./equipment";
 import { slotTakes } from "./itemMoves";
 
 /**
@@ -51,9 +51,18 @@ export type ArenaFighter = {
   equipment: Record<EquipSlot, string | null>;
 };
 
-/** Nothing in any square, which is what a body starts the page with. */
+/**
+ * Nothing in any square, which is what a body starts the page with.
+ *
+ * Built from {@link EQUIP_SLOTS} rather than written out, so a slot added to the
+ * game arrives here on its own. A hand-written literal is how the Arena would
+ * come to offer three of the four squares a body actually has.
+ */
 function emptySlots(): Record<EquipSlot, string | null> {
-  return { weapon: null, offhand: null, bag: null };
+  return Object.fromEntries(EQUIP_SLOTS.map((slot) => [slot, null])) as Record<
+    EquipSlot,
+    string | null
+  >;
 }
 
 /**
@@ -114,7 +123,7 @@ export function equipmentOf(
   fighter: ArenaFighter,
   tilesById: Record<string, TileDef>,
 ): Equipment {
-  const equipment: Equipment = { weapon: null, offhand: null, bag: null };
+  const equipment = emptyEquipment();
   for (const slot of EQUIP_SLOTS) {
     const tileId = fighter.equipment[slot];
     if (!tileId) continue;

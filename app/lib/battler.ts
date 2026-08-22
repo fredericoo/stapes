@@ -542,6 +542,20 @@ export const DEFAULT_BATTLER: BattlerDef = {
 };
 
 /**
+ * What this body turns aside on its own, wearing and holding nothing.
+ *
+ * **Toughness's share of defence, and the one part of it that is not worn.**
+ * `../game/equipment`'s `wornDefence` sums the three squares — hand, off hand,
+ * chest — and `effectiveBattler` *assigns* that total rather than adding to it,
+ * which is what stops the main hand being counted twice. This is the term that
+ * survives that assignment, so it is named here and added by both callers rather
+ * than spelled out in either.
+ */
+export function bodyDefence(battler: BattlerDef): number {
+  return defFrom(masteryLevel(battler.masteries, "toughness"));
+}
+
+/**
  * A body and what it is swinging, resolved into numbers.
  *
  * The weapon is passed in rather than read off the body because *which* weapon
@@ -582,10 +596,18 @@ export function fightingStats(
   // all — a Blade 100 hero picking up something whose Toughness requirement they
   // could not meet still swung it for twenty, which is a gate with a hole cut in
   // it exactly where the strongest players stand.
+  // **A weapon authored at no damage does none, however skilled its wielder.**
+  // The flat term is what skill adds *to a weapon*, and a shield is not one —
+  // it is a `def` with a handle, and `../game/equipment` puts it in the main
+  // hand precisely so that taking one up costs you your swing. Without this,
+  // skill manufactured damage out of a thing whose author wrote zero, and a
+  // shielded body chipped away at whatever it was hiding from.
   const damage =
-    readiness *
-    (weapon.damage * (1 + skill * MASTERY_DAMAGE_BONUS) +
-      skill * DAMAGE_AT_MAX_MASTERY);
+    weapon.damage <= 0
+      ? 0
+      : readiness *
+        (weapon.damage * (1 + skill * MASTERY_DAMAGE_BONUS) +
+          skill * DAMAGE_AT_MAX_MASTERY);
   const accuracy =
     readiness *
     (weapon.accuracy * (1 + skill * MASTERY_ACCURACY_BONUS) +
@@ -597,7 +619,7 @@ export function fightingStats(
     damage: Math.round(damage),
     // The weapon's own plus the body's, which is the first time defence has had
     // a source that is not a held item — see {@link defFrom}.
-    def: weapon.def + defFrom(masteryLevel(battler.masteries, "toughness")),
+    def: weapon.def + bodyDefence(battler),
     // Nothing from the weapon and nothing from the body: resistance is worn, and
     // what a body is wearing is `../game/equipment`'s question. This function
     // knows only a profile and a set of masteries, so it says "none" and

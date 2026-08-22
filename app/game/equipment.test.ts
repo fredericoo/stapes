@@ -4,6 +4,7 @@ import type { BattlerDef } from "../lib/battler";
 import {
   DEFAULT_BATTLER,
   ACCURACY_AT_MAX_MASTERY,
+  bodyDefence,
   DAMAGE_AT_MAX_MASTERY,
   defFrom,
   fleeFrom,
@@ -587,7 +588,11 @@ describe("the off hand", () => {
     expect(wornDefence(player, holding(null), tiles)).toBe(0);
     expect(wornDefence(player, oneHanded, tiles)).toBe(3);
     expect(wornDefence(player, twoHanded, tiles)).toBe(6);
-    expect(effectiveBattler(player, twoHanded, tiles).def).toBe(6);
+    // Plus what the body turns aside on its own, which `wornDefence` does not
+    // count — see `../lib/battler`'s `bodyDefence`.
+    expect(effectiveBattler(player, twoHanded, tiles).def).toBe(
+      6 + bodyDefence(player),
+    );
   });
 
   /**

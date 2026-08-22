@@ -2,6 +2,7 @@ import type { FightingStats } from "../lib/battler";
 import { MAX_PERCENT_STAT, MAX_WEAPON_DAMAGE } from "../lib/item";
 import {
   damageAfterDefence,
+  defenceAgainst,
   dodgeChance,
   landChance,
   potentialDamageFrom,
@@ -145,6 +146,17 @@ function triangularCdf(mean: number): number {
  * these and they are not symmetric — see the two columns the Arena draws.
  */
 export type SwingOdds = {
+  /**
+   * What this attacker's blows have to get through — the defender's flat
+   * defence plus whatever they are wearing that has an opinion about *this kind*
+   * of blow.
+   *
+   * Reported rather than left implicit because armour is keyed by the attacker's
+   * weapon mastery: the same defender turns aside a sword and a hammer by
+   * different amounts, and a table quoting one number for "defence" would hide
+   * the whole reason armour is a choice.
+   */
+  defence: number;
   /** Milliseconds the attacker waits between blows. */
   intervalMs: number;
   attacksPerSecond: number;
@@ -243,7 +255,7 @@ export function swingOdds(
   let meanPotential = 0;
   let meanConnectingDamage = 0;
   for (const { value, chance } of band) {
-    const landed = damageAfterDefence(value, defender);
+    const landed = damageAfterDefence(value, defender, attacker);
     meanPotential += value * chance;
     meanConnectingDamage += landed * chance;
     if (landed === 0) absorbedGivenConnect += chance;
@@ -253,6 +265,7 @@ export function swingOdds(
   const damagePerSecond = meanSwingDamage * attacksPerSecond;
 
   return {
+    defence: defenceAgainst(defender, attacker),
     intervalMs,
     attacksPerSecond,
     missed,
@@ -261,8 +274,12 @@ export function swingOdds(
     connected,
     absorbed: connected * absorbedGivenConnect,
     wounded: connected * (1 - absorbedGivenConnect),
-    minDamage: damageAfterDefence(band[0]?.value ?? 0, defender),
-    maxDamage: damageAfterDefence(band[band.length - 1]?.value ?? 0, defender),
+    minDamage: damageAfterDefence(band[0]?.value ?? 0, defender, attacker),
+    maxDamage: damageAfterDefence(
+      band[band.length - 1]?.value ?? 0,
+      defender,
+      attacker,
+    ),
     meanConnectingDamage,
     meanSwingDamage,
     damagePerSecond,

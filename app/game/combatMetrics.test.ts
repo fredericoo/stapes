@@ -29,6 +29,8 @@ function statsOf(over: Partial<FightingStats>): FightingStats {
     maxHp: 20,
     damage: 10,
     def: 0,
+    resist: {},
+    mastery: "blade",
     accuracy: 80,
     variance: 40,
     spd: 50,

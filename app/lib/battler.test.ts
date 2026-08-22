@@ -221,6 +221,24 @@ describe("what a weapon is worth in the hand", () => {
     expect(able.damage).toBeGreaterThan(100);
   });
 
+  /**
+   * **An author's zero is the author speaking.** A shield goes in the main hand,
+   * where it replaces what you swing — that is what makes taking one up a
+   * decision rather than three free points. The flat half of the skill bonus
+   * does not depend on the weapon's own damage, so without this rule a skilled
+   * body chipped away at things with a shield, and the trade quietly stopped
+   * being a trade.
+   */
+  it("leaves a weapon authored at no damage doing none, however skilled", () => {
+    for (const blunt of [0, 50, 100]) {
+      const shield = fightingStats(body({ blunt }), weapon({ damage: 0 }));
+      expect(shield.damage).toBe(0);
+    }
+    // And a weapon that does *any* damage is still paid the bonus in full.
+    expect(fightingStats(body({ blunt: 100 }), weapon({ damage: 1 })).damage)
+      .toBeGreaterThan(1);
+  });
+
   /** Speed is Agility's to give, and mastery of the weapon may not pay it twice. */
   it("gives skill no say over speed", () => {
     const master = fightingStats(

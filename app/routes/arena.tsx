@@ -42,6 +42,16 @@ import { Button, Input, Segmented } from "../ui";
  * The seed is on the page for the same reason it is in the world: a fight
  * somebody watched and wants to ask about has to be the same fight when they
  * run it again.
+ *
+ * ## Nothing on this page describes a formula in words
+ *
+ * The premise used to be stated in a paragraph at the top and every metric had a
+ * tooltip explaining the curve behind it. Both are gone. A sentence describing
+ * arithmetic is a second copy of that arithmetic which no test fails when the
+ * first one is tuned — and this page exists precisely to be trusted *while* the
+ * curves are moving. Every string it renders is a label, a slot name, or a
+ * number that came out of a function; the reasoning lives in the modules that
+ * have to stay true to it.
  */
 
 export async function loader({ context }: Route.LoaderArgs) {
@@ -216,12 +226,6 @@ export default function ArenaPage() {
   return (
     <AppShell>
       <div className="flex h-full flex-col gap-3 overflow-auto p-3">
-        <p className="text-xs leading-snug text-muted">
-          Both bodies stand one cell apart on the same floor, facing each other,
-          in reach, with nothing in the way and nowhere to run. Everything else —
-          terrain, brains, walking — is left out, because none of it is balance.
-        </p>
-
         <div className="flex flex-wrap items-center gap-2 border-2 border-border bg-panel p-2">
           <Button
             size="sm"
