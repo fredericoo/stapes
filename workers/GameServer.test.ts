@@ -11,6 +11,7 @@ import {
   BRAIN_TICK_MS,
   PLAYER_TILE_ID,
   PUSH_STEP_MS,
+  TICK_MS,
   WALK_DURATION_MS,
 } from "../app/game/constants";
 import { MINUTES_PER_DAY, minutesOfDayAt } from "../app/lib/clock";
@@ -739,11 +740,14 @@ describe("replacing the world", () => {
     const armed = (await equipmentWithin(alice.ws))!;
     expect(contentsOf(armed).map((i) => i.tileId)).toEqual(["rusty-sword"]);
 
-    const fresh = nextMessage(alice.ws);
+    // By kind rather than "whatever comes next": the pickup above emptied a
+    // cell, so a patch describing it is already on its way and would otherwise
+    // be caught here instead of the hello. Still subscribed before the save,
+    // because the hello goes out *during* it.
+    const fresh = nextMessageOfType(alice.ws, "hello");
     await stub().replaceWorld(withSword);
     const hello = await fresh;
 
-    expect(hello.type).toBe("hello");
     // The same bag, holding the same sword. Not a new one that happens to look
     // like it: a reset kit mints a fresh bag, so the id is what tells them apart.
     expect(kitOf(hello).bag.id).toBe(bagId);
@@ -789,7 +793,8 @@ describe("replacing the world", () => {
     send(alice.ws, { type: "pickUp", ref: { x: 1, y: 0, z: 0, stackIndex: 1 } });
     await equipmentWithin(alice.ws);
 
-    const fresh = nextMessage(alice.ws);
+    // By kind, for the reason above: the pickup's patch is in flight.
+    const fresh = nextMessageOfType(alice.ws, "hello");
     await stub().replaceWorld(withSword);
     const hello = await fresh;
 
@@ -817,7 +822,8 @@ describe("replacing the world", () => {
     );
     await env.DATA.put("tiles.json", JSON.stringify(asProps));
 
-    const fresh = nextMessage(alice.ws);
+    // By kind, for the reason above: the pickup's patch is in flight.
+    const fresh = nextMessageOfType(alice.ws, "hello");
     await stub().replaceWorld(withSword);
     const hello = await fresh;
 
@@ -2455,6 +2461,155 @@ describe("respawn", () => {
       state.storage.get<Record<string, number>>("respawnPending"),
     );
     expect(Object.keys(pending ?? {})).toEqual([]);
+  });
+
+  /**
+   * The half of respawn that has to tell a thing changing from a thing leaving.
+   *
+   * A berry goes off where it stands: the placement keeps its `itemId` and
+   * takes a new tile id (see `app/game/decay.ts`). A point that watched the
+   * *tile* would read its cell as empty at that moment and grow a second berry
+   * beside the stale one, which is the bug these cases pin shut. The rule they
+   * describe between them: a point is owed the moment the thing it grew leaves
+   * the cell, and nothing that arrives afterwards can pay that debt.
+   */
+  describe("an item that decays where it stands", () => {
+    const BERRY_X = 1;
+    const BERRY_REF = { x: BERRY_X, y: 0, z: 0, stackIndex: 1 };
+    /** Long enough to pick a berry up before it turns, short enough to wait on. */
+    const DECAY_MS = 300;
+
+    function berryTiles() {
+      const sprite = {
+        frames: [
+          {
+            sprite: {
+              tilesetId: "tiny-ranch-tiles",
+              rect: { x: 0, y: 0, w: 1, h: 1 },
+              base: { x: 0, y: 0 },
+            },
+            durationMs: 200,
+          },
+        ],
+      };
+      const common = {
+        name: "Berry",
+        height: 0,
+        type: "simple",
+        kind: "item",
+        attributes: {},
+        lightPassing: true,
+        sprite,
+      };
+      return [
+        {
+          ...common,
+          id: "test-berry",
+          interactions: {
+            item: { type: "consumable", label: "Eat", hp: 0 },
+            respawn: { fromMs: RESPAWN_WINDOW_MS, toMs: RESPAWN_WINDOW_MS },
+            decay: { tileId: "test-stale-berry", fromMs: DECAY_MS, toMs: DECAY_MS },
+          },
+        },
+        {
+          ...common,
+          id: "test-stale-berry",
+          interactions: { item: { type: "consumable", label: "Eat", hp: -2 } },
+        },
+      ];
+    }
+
+    function mapWithBerry(): FlatMapFile {
+      const flat = authoredMap();
+      flat.levels["0"]![`${BERRY_X},0`] = [
+        { tileId: "grass" },
+        { tileId: "test-berry" },
+      ];
+      return flat;
+    }
+
+    /** The live board's stack at the berry's cell, tile ids in order. */
+    async function berryCell() {
+      return await runInDurableObject(stub(), (instance: GameServer) => {
+        const session = (
+          instance as unknown as { session: { getMap(): MapFile } }
+        ).session;
+        return getStack(session.getMap(), BERRY_X, 0, 0).map((p) => p.tileId);
+      });
+    }
+
+    /** Long enough for the decay to fire and any respawn to follow it. */
+    async function settle() {
+      await new Promise((resolve) => setTimeout(resolve, DECAY_MS * 3));
+    }
+
+    /**
+     * Long enough for the tick loop to diff the board.
+     *
+     * Spawn points are swept against the cells a tick *changed*, so two edits
+     * to one cell inside a single tick cancel out and the world never sees the
+     * moment between them. That is the existing bargain the whole registry runs
+     * on, and it costs nothing in play — nobody picks a berry up and puts it
+     * back inside 30ms — but a test does exactly that unless it waits.
+     */
+    async function tickPasses() {
+      await new Promise((resolve) => setTimeout(resolve, TICK_MS * 2));
+    }
+
+    beforeEach(async () => {
+      await env.DATA.put(
+        "tiles.json",
+        JSON.stringify([...tilesJson, gnomeTile(), ...berryTiles()]),
+      );
+      await env.DATA.put("map.json", JSON.stringify(mapWithBerry()));
+    });
+
+    it("does not grow a second one while the first is merely going off", async () => {
+      await connect("alice");
+      await settle();
+
+      expect(await berryCell()).toEqual(["grass", "test-stale-berry"]);
+    });
+
+    it("grows one back once the stale one is taken", async () => {
+      const alice = await connect("alice");
+      await settle();
+      expect(await berryCell()).toEqual(["grass", "test-stale-berry"]);
+
+      send(alice.ws, { type: "pickUp", ref: BERRY_REF });
+      await equipmentWithin(alice.ws);
+      await settle();
+
+      // A berry, not the one that was taken: what grew is fresh, and has had
+      // time to go off again on the same short clock the first one ran on.
+      expect(await berryCell()).toEqual(["grass", "test-stale-berry"]);
+    });
+
+    /**
+     * **Putting it back does not talk the world out of it.** The dropped berry
+     * carries the id it left with, so a point that re-adopted what it found in
+     * its cell would settle the debt and the bush would stay bare. The point
+     * forgot that berry the moment it was taken, and owes one regardless.
+     */
+    it("still grows one back when the same berry is dropped where it was found", async () => {
+      const alice = await connect("alice");
+
+      send(alice.ws, { type: "pickUp", ref: BERRY_REF });
+      await equipmentWithin(alice.ws);
+      await tickPasses();
+
+      // Out of the bag rather than the bag itself, so what lands is the very
+      // berry that was taken — same identity, same cell.
+      send(alice.ws, {
+        type: "drop",
+        from: { kind: "contents", index: 0 },
+        to: { x: BERRY_X, y: 0, z: 0 },
+      });
+      await settle();
+
+      const cell = await berryCell();
+      expect(cell.filter((id) => id.endsWith("berry"))).toHaveLength(2);
+    });
   });
 });
 

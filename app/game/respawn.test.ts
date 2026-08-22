@@ -9,8 +9,10 @@ import { GameSession } from "./GameSession";
 import {
   findSpawnPoints,
   isSpawnFilled,
+  presentItemIds,
   rollRespawnDelayMs,
   type SpawnPoint,
+  withMigratedItemIds,
 } from "./respawn";
 
 /**
@@ -92,6 +94,24 @@ const tiles: TileDef[] = [
     height: 0,
     kind: "item",
     interactions: { item: DEFAULT_WEAPON, respawn: RESPAWN },
+  }),
+  // The motivating pair: something that grows back *and* goes off where it
+  // stands, so the two clocks run over one placement at once.
+  tile({
+    id: "berry",
+    height: 0,
+    kind: "item",
+    interactions: {
+      item: DEFAULT_WEAPON,
+      respawn: RESPAWN,
+      decay: { tileId: "stale-berry", fromMs: 1000, toMs: 1000 },
+    },
+  }),
+  tile({
+    id: "stale-berry",
+    height: 0,
+    kind: "item",
+    interactions: { item: DEFAULT_WEAPON },
   }),
   // Malformed ranges read as "does not respawn", like decay's do.
   tile({
@@ -191,6 +211,35 @@ describe("findSpawnPoints", () => {
     expect(coin.placed).toEqual({ tileId: "coin" });
   });
 
+  it("records the identities of the authored items it is answerable for", () => {
+    const map = replaceStack(strip(6), 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "coin", itemId: "item-a" },
+      { tileId: "coin", itemId: "item-b" },
+    ]);
+    const point = objectPointAt(map, 1, "coin");
+    expect(point.itemIds).toEqual(["item-a", "item-b"]);
+  });
+
+  /**
+   * An unminted map is an editor's or a test's, never a running world's — the
+   * server derives after `mintItemIds`. Absent rather than empty, because empty
+   * is a claim: "I watch things, and none of mine are here".
+   */
+  it("records no identities for a tile that is not an item", () => {
+    const map = replaceStack(strip(6), 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "backwards" },
+      { tileId: "zero" },
+    ]);
+    expect(findSpawnPoints(map, tilesById)).toEqual([]);
+    const unminted = replaceStack(strip(6), 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "coin" },
+    ]);
+    expect(objectPointAt(unminted, 1, "coin").itemIds).toBeUndefined();
+  });
+
   it("folds identical objects in one cell into a count", () => {
     const map = replaceStack(strip(6), 1, 0, 0, [
       { tileId: "grass" },
@@ -248,6 +297,109 @@ describe("isSpawnFilled", () => {
   });
 });
 
+describe("isSpawnFilled, by identity", () => {
+  /** The authored berry at x=1, and the point that watches it. */
+  function berryAt(itemId: string) {
+    const map = replaceStack(strip(6), 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "berry", itemId },
+    ]);
+    return { map, point: objectPointAt(map, 1, "berry") };
+  }
+
+  /**
+   * **A berry that goes off is still a berry.** Decay rewrites the tile id and
+   * keeps the `itemId`, so the thing the point is watching is still standing
+   * where it was — and the world does not grow a second berry to sit beside a
+   * stale one nobody has touched.
+   */
+  it("counts a thing that decayed where it stands", () => {
+    const { map, point } = berryAt("item-a");
+    const stale = replaceStack(map, 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "stale-berry", itemId: "item-a" },
+    ]);
+    expect(isSpawnFilled(stale, point)).toBe(true);
+  });
+
+  it("counts nothing once the thing has left the cell", () => {
+    const { map, point } = berryAt("item-a");
+    const taken = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }]);
+    expect(isSpawnFilled(taken, point)).toBe(false);
+  });
+
+  /**
+   * A point does not adopt what wanders in. Only a respawn writes an id onto
+   * one, so a lookalike — a second berry off another bush, or the very berry
+   * this point lost, dropped back where it was found — settles no debt.
+   */
+  it("does not count a lookalike, or the thing it has already forgotten", () => {
+    const { map, point } = berryAt("item-a");
+    const emptied = { ...point, itemIds: [] };
+    const dropped = replaceStack(map, 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "berry", itemId: "item-a" },
+      { tileId: "berry", itemId: "item-b" },
+    ]);
+    expect(isSpawnFilled(dropped, emptied)).toBe(false);
+  });
+
+  it("falls back to counting tiles for a point that watches nothing", () => {
+    const { map } = berryAt("item-a");
+    const point = objectPointAt(map, 1, "berry");
+    const { itemIds: _itemIds, ...untracked } = point;
+    expect(isSpawnFilled(map, untracked)).toBe(true);
+  });
+});
+
+describe("presentItemIds", () => {
+  it("is empty for a point that watches nothing, and for one holding none", () => {
+    const map = replaceStack(strip(6), 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "coin", itemId: "item-a" },
+    ]);
+    const point = objectPointAt(map, 1, "coin");
+    expect(presentItemIds(map, point)).toEqual(["item-a"]);
+    expect(presentItemIds(map, { ...point, itemIds: [] })).toEqual([]);
+    expect(presentItemIds(map, { ...point, itemIds: undefined })).toEqual([]);
+  });
+});
+
+describe("withMigratedItemIds", () => {
+  /**
+   * The one-time pass for points stored before identities were tracked. By
+   * tile, which is all a point with no ids can ask — so a world resumed with a
+   * berry already gone stale backfills nothing for it and tops that point up
+   * once more before it settles.
+   */
+  it("backfills a stored point off the cell, by tile", () => {
+    const map = replaceStack(strip(6), 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "berry", itemId: "item-a" },
+    ]);
+    const point = objectPointAt(map, 1, "berry");
+    const { itemIds: _itemIds, ...stored } = point;
+    expect(withMigratedItemIds(map, stored).itemIds).toEqual(["item-a"]);
+
+    const stale = replaceStack(map, 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "stale-berry", itemId: "item-a" },
+    ]);
+    expect(withMigratedItemIds(stale, stored).itemIds).toBeUndefined();
+  });
+
+  it("leaves a point that already knows, and a creature, alone", () => {
+    const map = replaceStack(strip(6), 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "berry", itemId: "item-a" },
+    ]);
+    const point = objectPointAt(map, 1, "berry");
+    expect(withMigratedItemIds(map, point)).toBe(point);
+    const gnome = pointFor(withGnome(strip(6)), GNOME_OWNER);
+    expect(withMigratedItemIds(map, gnome)).toBe(gnome);
+  });
+});
+
 describe("GameSession.respawnAt", () => {
   const authored = withGnome(strip(6));
   const gnomePoint = pointFor(authored, GNOME_OWNER);
@@ -256,7 +408,7 @@ describe("GameSession.respawnAt", () => {
     // The world after the gnome died: its placement is simply not there.
     const session = new GameSession(strip(6), tiles);
 
-    expect(session.respawnAt(gnomePoint)).toBe(true);
+    expect(session.respawnAt(gnomePoint).kind).toBe("done");
     const stack = getStack(session.getMap(), GNOME_X, 0, 0);
     expect(stack.map((p) => p.tileId)).toEqual(["grass", "gnome"]);
     expect(stack[1]?.owner).toBe(GNOME_OWNER);
@@ -266,7 +418,7 @@ describe("GameSession.respawnAt", () => {
   it("reports a filled point settled without growing a second body", () => {
     const session = new GameSession(authored, tiles);
 
-    expect(session.respawnAt(gnomePoint)).toBe(true);
+    expect(session.respawnAt(gnomePoint).kind).toBe("done");
     const gnomes = getStack(session.getMap(), GNOME_X, 0, 0).filter(
       (p) => p.tileId === "gnome",
     );
@@ -281,7 +433,7 @@ describe("GameSession.respawnAt", () => {
     ]);
     const session = new GameSession(blocked, tiles);
 
-    expect(session.respawnAt(gnomePoint)).toBe(false);
+    expect(session.respawnAt(gnomePoint).kind).toBe("blocked");
     expect(session.actorIds()).not.toContain(GNOME_OWNER);
   });
 
@@ -294,7 +446,7 @@ describe("GameSession.respawnAt", () => {
     const point = objectPointAt(map, 1, "coin");
 
     const session = new GameSession(strip(6), tiles);
-    expect(session.respawnAt(point)).toBe(true);
+    expect(session.respawnAt(point).kind).toBe("done");
     const coin = getStack(session.getMap(), 1, 0, 0)[1];
     expect(coin?.tileId).toBe("coin");
     expect(coin?.itemId).toBeTruthy();
@@ -317,17 +469,38 @@ describe("GameSession.respawnAt", () => {
     const point = pointFor(authoredRat, owner);
     const session = new GameSession(strip(6), tiles);
 
-    expect(session.respawnAt(point)).toBe(true);
+    expect(session.respawnAt(point).kind).toBe("done");
     const first = session.equipmentOf(owner)!.weapon;
     expect(first?.tileId).toBe("coin");
 
     // Cleared again: the body is off the board and the point is owed another.
     session.despawn(owner);
-    expect(session.respawnAt(point)).toBe(true);
+    expect(session.respawnAt(point).kind).toBe("done");
     const second = session.equipmentOf(owner)!.weapon;
 
     expect(second?.tileId).toBe("coin");
     expect(second?.id).not.toBe(first?.id);
+  });
+
+  it("hands back the identity it minted, so the point can watch it", () => {
+    const map = replaceStack(strip(6), 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "coin" },
+    ]);
+    const point = objectPointAt(map, 1, "coin");
+    const session = new GameSession(strip(6), tiles);
+
+    const outcome = session.respawnAt(point);
+    expect(outcome).toEqual({ kind: "done", itemId: expect.any(String) });
+    const grown = getStack(session.getMap(), 1, 0, 0)[1];
+    expect(outcome.kind === "done" && outcome.itemId).toBe(grown?.itemId);
+  });
+
+  it("hands back no identity when nothing grew, or what grew is not an item", () => {
+    const filled = new GameSession(authored, tiles);
+    expect(filled.respawnAt(gnomePoint)).toEqual({ kind: "done" });
+    const empty = new GameSession(strip(6), tiles);
+    expect(empty.respawnAt(gnomePoint)).toEqual({ kind: "done" });
   });
 
   it("treats a tile that has left the catalogue as settled, not retryable", () => {
@@ -336,6 +509,6 @@ describe("GameSession.respawnAt", () => {
       ...gnomePoint,
       placed: { tileId: "nope" },
     };
-    expect(session.respawnAt(orphan)).toBe(true);
+    expect(session.respawnAt(orphan).kind).toBe("done");
   });
 });
