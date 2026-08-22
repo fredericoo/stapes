@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { defFrom } from "../lib/battler";
 import { MELEE_REACH } from "../lib/item";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import {
@@ -209,9 +210,20 @@ function tile(
   });
 }
 
+/**
+ * How tough both sides of a sparring fixture are.
+ *
+ * Named above the claws because the claws have to *clear* it: Toughness grants
+ * defence now — see `../lib/battler`'s `defFrom` — and a fixture bred to stand
+ * there trading blows for a whole test had quietly grown enough armour to make
+ * every blow in the file worth nothing, which reads as experience never being
+ * earned rather than as damage never landing.
+ */
+const SPARRING_TOUGHNESS = 95;
+
 const claws = (fields: Record<string, unknown>) => ({
   type: "weapon" as const,
-  damage: 3,
+  damage: defFrom(SPARRING_TOUGHNESS) + 3,
   def: 0,
   accuracy: 90,
   variance: 20,
@@ -229,7 +241,7 @@ const claws = (fields: Record<string, unknown>) => ({
  * body that dies half way through stops having experience at all, and every
  * delta after that reads as a mastery going backwards.
  */
-const EVENLY_MATCHED = { fist: 20, toughness: 95, agility: 20 };
+const EVENLY_MATCHED = { fist: 20, toughness: SPARRING_TOUGHNESS, agility: 20 };
 
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),

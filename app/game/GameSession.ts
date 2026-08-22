@@ -96,7 +96,7 @@ import {
 } from "../lib/mastery";
 import {
   type AttackOutcome,
-  attackIntervalMs,
+  swingIntervalMs,
   canReach,
   rollAttack,
 } from "./combat";
@@ -2440,7 +2440,7 @@ export class GameSession implements PlaySession {
 
     // Spent whether or not the blow connects: the swing happened, and a dodge
     // that cost the attacker nothing would let a fast creature flail for free.
-    attacker.attackCooldownMs = attackIntervalMs(attackerStats.spd);
+    attacker.attackCooldownMs = swingIntervalMs(attackerStats);
 
     // And the body is planted for exactly one of its own steps, on the same
     // terms and for the balance the cooldown alone could not buy: see

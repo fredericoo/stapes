@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { defFrom } from "../lib/battler";
 import { DEFAULT_CONTAINER, DEFAULT_WEAPON } from "../lib/item";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import { levelForXp } from "../lib/mastery";
@@ -65,9 +66,17 @@ function tile(
   });
 }
 
+/**
+ * How tough both sides are, named above the claws because the claws must clear
+ * it: Toughness grants defence now — see `../lib/battler`'s `defFrom` — and a
+ * fixture bred to trade blows for a whole test had quietly grown enough armour
+ * to swallow every blow in the file, which reads as level-ups never happening.
+ */
+const SPARRING_TOUGHNESS = 95;
+
 const claws = {
   type: "weapon" as const,
-  damage: 3,
+  damage: defFrom(SPARRING_TOUGHNESS) + 3,
   def: 0,
   accuracy: 90,
   variance: 20,
@@ -76,7 +85,7 @@ const claws = {
 };
 
 /** Both sides rated alike, and tough enough to trade blows for a whole test. */
-const EVENLY_MATCHED = { fist: 20, toughness: 95, agility: 20 };
+const EVENLY_MATCHED = { fist: 20, toughness: SPARRING_TOUGHNESS, agility: 20 };
 
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),

@@ -78,128 +78,106 @@ export function masteryLevel(masteries: Masteries, mastery: Mastery): number {
 }
 
 /**
- * The most a weapon can be improved by a wielder who has outgrown it.
+ * What a fully-met set of requirements is worth: all of it, and never more.
  *
- * **Performance only.** A Blade-100 hero holding a requirement-1 dagger performs
- * as though they had 1.25 — no twinking, and no veteran clearing a dungeon with
- * a stick. It says nothing about learning.
- *
- * It used to say both, and the two jobs pulled apart under their own weight. As
- * a ratio, how far a weapon carries you depends on its tier: `req × 1.25` is one
- * whole point of progress on a requirement-5 sword and twenty on a
- * requirement-80 one. That is backwards — the starter weapon a player has just
- * met is the one they outgrow before they have finished reading its name, and
- * the endgame weapon they have worked for is the one that lasts forever.
- * {@link MASTERY_BRIDGE} answers the learning half additively instead, so every
- * weapon is worth the same amount of progress whatever tier it sits at.
- *
- * The cap stayed a ratio because its job genuinely is proportional: what a
- * weapon is worth in the hand scales with what it asks, where what it can teach
- * you does not.
+ * **A gate rather than a scaling term**, which is the whole of the change this
+ * replaced. There used to be a `MAX_MASTERY_RATIO` of 1.25 letting a wielder who
+ * had outgrown a weapon squeeze a little extra out of it, and it answered the
+ * wrong question: being *good with blades* is not the same as *exceeding what
+ * this blade asks*, and only the first of those should keep paying. Requirements
+ * now say when a weapon unlocks and nothing else; how good you are with it is
+ * `./battler`'s separate business.
  */
-export const MAX_MASTERY_RATIO = 1.25;
+export const REQUIREMENTS_MET = 1;
 
 /**
- * How far past its requirement a weapon still teaches at full rate, in mastery
- * points.
+ * How much of what a weapon asks this body actually brings, as a fraction of 1.
  *
- * **A weapon is a bridge of fixed length.** Five points, whether it asks Blade 5
- * or Blade 80 — so a starter sword carries a new player from 5 to 10 rather than
- * from 5 to 6, and an endgame sword carries a veteran from 80 to 85 rather than
- * from 80 to 100. The ladder is the same number of rungs the whole way up, which
- * is the property a ratio cannot have.
+ * **Pooled across every requirement, and capped at each one.** An axe asking
+ * Blunt 35 and Toughness 20 asks for fifty-five points in total; a wielder with
+ * Blunt 35 and Toughness 10 brings forty-five of them, and is 82% of the way
+ * there. Surplus never carries — `min(required, level)` — so a Blunt 100 brute
+ * with no Toughness cannot muscle their way past the half of the weapon that is
+ * about being able to hold it.
  *
- * Five, because it is a real stretch at the bottom without being the whole early
- * game: at the rates in `../game/experience` it is several sessions of a starter
- * weapon rather than several kills, and a player meets the next tier because
- * they have earned it rather than because the arithmetic pushed them.
+ * **This used to be the worst single requirement**, and pooling is a softer and
+ * more legible rule: under the old one, being one point short of a secondary
+ * requirement halved the weapon outright, which read to a player as the weapon
+ * being broken rather than as them being short. Pooling makes partial progress
+ * visible — every point put in moves the number — while the cap keeps each
+ * requirement genuinely required.
  *
- * Past the bridge a weapon keeps teaching, at a rate that fades — see
- * {@link learningRate}. This is emphatically not a wall: a wall here is what
- * deadlocked the design once already.
+ * A requirement of zero is not a requirement, and a weapon that asks nothing at
+ * all is {@link REQUIREMENTS_MET}: bare hands should not be worse than a sword
+ * for being simpler.
  */
-export const MASTERY_BRIDGE = 5;
-
-/** What a weapon asking nothing is worth: neither penalty nor bonus. */
-export const UNREQUIRED_RATIO = 1;
-
-/**
- * How well a body meets what a weapon asks of it, as a fraction of 1.
- *
- * **The worst ratio across every requirement decides**, so a Double Axe asking
- * Blunt 35 and Toughness 20 is held back by whichever of yours is further
- * behind. That is worth knowing rather than hiding: a secondary requirement can
- * quietly halve this, and the player will feel it as the weapon simply not
- * working. Whatever shows a weapon's requirements has to show them one by one.
- *
- * A requirement of zero is not a requirement — it reads as absent, on the same
- * terms {@link masteryLevel} reads an unwritten mastery as zero. A weapon that
- * asks nothing at all is {@link UNREQUIRED_RATIO}, which is neither a penalty
- * nor a gift: bare hands should not be better than a sword for being simpler.
- */
-export function masteryRatio(
+export function requirementShare(
   masteries: Masteries,
   requirements: Masteries | undefined,
 ): number {
-  if (!requirements) return UNREQUIRED_RATIO;
+  if (!requirements) return REQUIREMENTS_MET;
 
-  let worst = Infinity;
+  let asked = 0;
+  let brought = 0;
   for (const mastery of MASTERIES) {
     const required = requirements[mastery] ?? 0;
     if (required <= 0) continue;
-    worst = Math.min(worst, masteryLevel(masteries, mastery) / required);
+    asked += required;
+    // Capped at what this requirement asked, so a surplus here cannot stand in
+    // for a shortfall somewhere else.
+    brought += Math.min(required, masteryLevel(masteries, mastery));
   }
 
-  if (worst === Infinity) return UNREQUIRED_RATIO;
-  return Math.max(0, Math.min(MAX_MASTERY_RATIO, worst));
+  if (asked === 0) return REQUIREMENTS_MET;
+  return brought / asked;
 }
 
 /**
- * The highest a weapon asking this much still teaches at full rate.
+ * How sharply a weapon stops teaching you once you have passed what it asks.
  *
- * {@link MASTERY_BRIDGE} above the requirement, so it is the same distance for
- * every weapon in the game. No flooring is needed — both terms are whole
- * masteries, which is the other quiet advantage over the ratio it replaced.
+ * **Six, and the steepness is the whole design.** A fifth past the requirement
+ * already pays a third of the rate; twice the requirement pays a sixtieth. The
+ * intent is that you cannot grind one mastery on one weapon: the thing that
+ * makes you better is picking up the next weapon up, so a player who wants to
+ * climb has to keep moving rather than keep swinging.
  *
- * **Meaningless for a weapon that asks nothing**, which has no ceiling at all
- * and teaches forever. {@link learningRate} answers that case before it gets
- * here, and callers that show this figure gate on a requirement above zero for
- * the same reason.
- *
- * **No longer a wall** — see {@link learningRate}. Past this you keep learning,
- * at a rate that fades.
+ * It replaced a five-point bridge followed by a gentle `ceiling / level` fade,
+ * which was far too generous to stand still on — a starter sword taken to
+ * mastery 100 was slow but perfectly viable, and "viable" is all a grind needs
+ * to be.
  */
-export function trainingCeiling(requirement: number): number {
-  return requirement + MASTERY_BRIDGE;
-}
+export const OUTGROWN_FALLOFF = 6;
 
 /**
  * How much of the usual experience a weapon is still worth to you, as a fraction
  * of 1.
  *
- * Full rate across the whole bridge, then `ceiling / level`: at twice the
- * ceiling you learn half as much, at four times a quarter, and it never quite
- * reaches nothing. The point is pacing rather than prohibition — grinding a
- * starter sword to 100 should be possible and absurd, not impossible.
+ * `(requirement / your level)` raised to {@link OUTGROWN_FALLOFF}, and **held at
+ * full rate anywhere at or below the requirement**. The cap is the important
+ * half: below what a weapon asks the ratio is greater than one, and paying a
+ * *bonus* for swinging something you cannot use would be exactly backwards.
  *
- * Read off {@link trainingCeiling} rather than recomputing the boundary, so
- * "a weapon you have outgrown" has exactly one definition. When that definition
- * was a ratio the two were the same sentence either way; now that it is a bridge
- * they would be two sentences that drift.
- *
- * **The other direction is deliberately not here.** A weapon far *above* you
+ * **The other direction is deliberately not discounted.** A weapon far above you
  * already teaches you less, because experience comes from landing blows and you
- * land far fewer of them — see `./battler`'s `hitChanceFrom`. Discounting it a
- * second time here would be charging twice for the same difficulty.
+ * land far fewer of them — see `./battler`'s `weaponReadiness`, which now drags
+ * damage down too, and damage is what experience is counted in. Discounting it a
+ * second time here would be charging twice for the same difficulty, and it is
+ * what deadlocked the old training wall.
  *
  * A weapon asking nothing teaches at full rate forever, which is what makes a
- * requirement-free weapon the thing that gets a mastery off zero.
+ * requirement-free weapon — bare hands — the thing that gets a mastery off zero.
+ *
+ * **Only the weapon's own mastery is ever consulted**, by the one caller there
+ * is: see `../game/experience`'s `attackerEarnings`, which looks up
+ * `requirements[weapon.mastery]` and credits that mastery alone. An axe asking
+ * Blade 8 and Toughness 20 is a Blade weapon that is also heavy; leaving
+ * Toughness untrained must not turn it into a Blade trainer that never stops
+ * paying.
  */
 export function learningRate(masteryLevel: number, requirement: number): number {
   if (requirement <= 0) return 1;
-  const ceiling = trainingCeiling(requirement);
-  if (masteryLevel <= ceiling) return 1;
-  return ceiling / masteryLevel;
+  if (masteryLevel <= requirement) return 1;
+  return (requirement / masteryLevel) ** OUTGROWN_FALLOFF;
 }
 
 /**

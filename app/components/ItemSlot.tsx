@@ -5,7 +5,7 @@ import { consumeVerb, equipVerb, resolveConsumable } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { MasteryXp } from "../lib/mastery";
 import type { TileDef, TilesetDef } from "../lib/types";
-import { weaponFeelFor } from "../lib/weaponFeel";
+import { weaponDemandFor } from "../lib/weaponDemand";
 import type { ItemDrag } from "./useItemDrag";
 import { TilePreview } from "./TilePreview";
 
@@ -206,7 +206,7 @@ export function ItemSlot({
     : [
         tile?.name ?? instance?.tileId ?? "",
         instance?.description?.trim() ?? "",
-        tile ? weaponFeelFor(tile, masteryXp) : null,
+        ...(tile ? weaponDemandFor(tile, masteryXp) : []),
       ].filter((line): line is string => Boolean(line));
 
   const held = drag.held;

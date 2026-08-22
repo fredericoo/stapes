@@ -11,6 +11,8 @@ pnpm dev
 ```
 
 Open http://localhost:5173 — redirects to `/online`. Tile database lives at `/tiles`.
+Weapons and creatures are balanced at `/arena`, which fights two of them without
+a world in the way.
 
 ## Scripts
 

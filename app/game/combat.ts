@@ -51,10 +51,31 @@ function clamp(value: number, min: number, max: number): number {
  *
  * Rounded to a whole tick, which is what the cooldown is counted in.
  */
-export function attackIntervalMs(spd: number): number {
+export function attackIntervalMs(spd: number, haste = 1): number {
   const t = clamp(spd, 0, 100) / 100;
   const ticks = MAX_ATTACK_TICKS * (MIN_ATTACK_TICKS / MAX_ATTACK_TICKS) ** t;
-  return Math.round(ticks) * TICK_MS;
+  // **Floored at the same whole-tick minimum an unhastened body has**, which is
+  // not a grudging clamp but the thing the rest of the loop is built on:
+  // `STRIKE_DURATION_MS` is chosen to fit inside this gap, so a body that swung
+  // faster than it would start its next lean before the last one came home and
+  // simply live half a tile from where it stands. A speed limit is a speed
+  // limit however you arrive at it.
+  const hastened = Math.max(MIN_ATTACK_TICKS, ticks / Math.max(1, haste));
+  return Math.round(hastened) * TICK_MS;
+}
+
+/**
+ * Milliseconds between this body's blows, its Agility included.
+ *
+ * **The one every caller in a fight should use.** {@link attackIntervalMs} is
+ * the weapon's curve on its own, which is what an editor showing a weapon's
+ * speed wants and what nothing swinging at anybody wants — a body's haste is not
+ * the weapon's business and cannot be folded into `spd`. Named for the same
+ * reason {@link landChance} is: two expressions of "how often does this swing"
+ * is one of them being forgotten.
+ */
+export function swingIntervalMs(attacker: FightingStats): number {
+  return attackIntervalMs(attacker.spd, attacker.haste);
 }
 
 /**
@@ -92,6 +113,26 @@ export function dodgeChance(flee: number, attackerAccuracy: number): number {
 }
 
 /**
+ * The chance a swing finds its target at all, as a fraction of 1.
+ *
+ * A field read, and a function anyway. **What it names is the rule rather than
+ * the number**: "a swing lands exactly when the draw comes in under
+ * {@link FightingStats.hitChance}, and nothing else bears on it." Two things
+ * read that rule — {@link rollAttack}, which rolls against it, and
+ * `./combatMetrics`, which reports how often it holds — and a rule with two
+ * expressions is a rule that will be changed in one of them. A flat penalty for
+ * a heavy weapon, a floor, a term for the defender: whatever arrives, it arrives
+ * here and both readers get it.
+ *
+ * Deliberately unclamped, because {@link hitChanceFrom} has already held it
+ * inside the band nothing in a fight escapes. A second clamp here would be a
+ * second ceiling, and the lower of the two would win silently.
+ */
+export function landChance(attacker: FightingStats): number {
+  return attacker.hitChance;
+}
+
+/**
  * The share of {@link FightingStats.damage} one blow is worth, before defence.
  *
  * Accuracy sets how *wide* the band is, not where the good end of it is: the top
@@ -111,6 +152,48 @@ export function damageFraction(variance: number, roll: [number, number]): number
   const spread = clamp(variance, 0, 100) / 100;
   const peaked = (roll[0] + roll[1]) / 2;
   return 1 - spread + spread * peaked;
+}
+
+/**
+ * What one blow is worth before defence, given its two draws.
+ *
+ * The rounding is the whole reason this is a function of its own. A blow is
+ * worth a whole number of hit points, so the continuous band above is really a
+ * *discrete* distribution over the integers in it — and an average taken before
+ * the rounding is an average of a fight nobody has. `./combatMetrics` works that
+ * distribution out exactly by asking this where each whole number begins, which
+ * it can only do if the rounding lives somewhere it can reach.
+ */
+export function potentialDamageFrom(
+  attacker: FightingStats,
+  roll: [number, number],
+): number {
+  return Math.round(attacker.damage * damageFraction(attacker.variance, roll));
+}
+
+/**
+ * What is left of a blow once the defender's armour has had it.
+ *
+ * Floors at zero rather than going negative: a blow that cannot get through
+ * armour is a blow worth nothing, not a heal.
+ *
+ * **The attacker is a parameter because armour may care what hit it.** What has
+ * to be got through is {@link defenceAgainst} — flat defence plus whatever the
+ * defender is wearing that has an opinion about this *kind* of blow — so a
+ * caller cannot subtract `defender.def` on its own and quietly forget the
+ * resistance.
+ *
+ * Named for the same reason {@link landChance} is: `rollAttack` strikes through
+ * it and `./combatMetrics` reports through it, so the day mitigation stops being
+ * a subtraction, the Arena's table follows without anybody remembering it
+ * exists.
+ */
+export function damageAfterDefence(
+  potentialDamage: number,
+  defender: FightingStats,
+  attacker: Pick<FightingStats, "mastery">,
+): number {
+  return Math.max(0, potentialDamage - defenceAgainst(defender, attacker));
 }
 
 /** What one swing came to. */
@@ -198,7 +281,7 @@ export function rollAttack(
   // Missing first, because it happens first: a blow that never went where it was
   // aimed gave the defender nothing to get out of the way of, and crediting them
   // with a dodge for it would pay agility for standing still.
-  if (missRoll >= attacker.hitChance) {
+  if (missRoll >= landChance(attacker)) {
     return {
       missed: true,
       dodged: false,
@@ -210,9 +293,7 @@ export function rollAttack(
 
   // Rolled before the dodge is asked about rather than after, so a blow that is
   // avoided still knows what it was worth. See {@link AttackOutcome.potentialDamage}.
-  const potentialDamage = Math.round(
-    attacker.damage * damageFraction(attacker.variance, damageRoll),
-  );
+  const potentialDamage = potentialDamageFrom(attacker, damageRoll);
 
   if (dodgeRoll < dodgeChance(defender.flee, attacker.accuracy)) {
     return {
@@ -227,7 +308,7 @@ export function rollAttack(
   return {
     missed: false,
     dodged: false,
-    damage: Math.max(0, potentialDamage - defenceAgainst(defender, attacker)),
+    damage: damageAfterDefence(potentialDamage, defender, attacker),
     potentialDamage,
     inflicted: inflictedBy(attacker.statuses, statusRolls),
   };

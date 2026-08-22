@@ -1,5 +1,5 @@
 import type { BattlerDef, FightingStats } from "../lib/battler";
-import { fightingStats, NO_RESISTANCES } from "../lib/battler";
+import { bodyDefence, fightingStats, NO_RESISTANCES } from "../lib/battler";
 import type { WeaponItem, WeaponResistances } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import { mintItemId } from "../lib/itemInstance";
@@ -329,7 +329,11 @@ export function effectiveBattler(
   // {@link wornDefence} has already counted that: the weapon in hand is one of
   // its three sources. Adding here is exactly the double count that splitting
   // defence across two functions used to invite — and did.
-  const guard = wornDefence(base, equipment, tilesById);
+  // The three worn squares, plus what the body turns aside on its own — see
+  // `../lib/battler`'s {@link bodyDefence}. Toughness's share is the one part of
+  // defence `wornDefence` does not count, so it is the one part that has to
+  // survive the assignment below.
+  const guard = wornDefence(base, equipment, tilesById) + bodyDefence(base);
   const resist = armorResistances(equipment, tilesById);
   if (guard === stats.def && resist === NO_RESISTANCES) return stats;
   return { ...stats, def: guard, resist };

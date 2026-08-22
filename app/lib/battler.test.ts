@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-  DAMAGE_AT_ZERO_RATIO,
+  ACCURACY_AT_MAX_MASTERY,
+  DAMAGE_AT_MAX_MASTERY,
   DEFAULT_BATTLER,
   fightingStats,
   fleeFrom,
@@ -8,10 +9,11 @@ import {
   maxHpFrom,
   MAX_CHANCE,
   MIN_CHANCE,
-  SPEED_AT_ZERO_RATIO,
+  MASTERY_ACCURACY_BONUS,
+  MASTERY_DAMAGE_BONUS,
+  REQUIREMENT_FALLOFF,
 } from "./battler";
 import { MELEE_REACH, type WeaponItem } from "./item";
-import { MAX_MASTERY_RATIO } from "./mastery";
 
 /**
  * A body plus what it is swinging, resolved into numbers.
@@ -74,10 +76,9 @@ describe("hit points and flee", () => {
 });
 
 describe("hitChanceFrom", () => {
-  it("is at its best when both halves are", () => {
-    expect(hitChanceFrom(1, 100)).toBe(MAX_CHANCE);
-    expect(hitChanceFrom(1, 50)).toBeCloseTo(0.5, 10);
-    expect(hitChanceFrom(0, 100)).toBe(MIN_CHANCE);
+  it("reads accuracy straight off as a probability", () => {
+    expect(hitChanceFrom(100)).toBe(MAX_CHANCE);
+    expect(hitChanceFrom(50)).toBeCloseTo(0.5, 10);
   });
 
   /**
@@ -86,110 +87,202 @@ describe("hitChanceFrom", () => {
    * mastery it asks for.
    */
   it("never drops to nothing however outclassed the wielder is", () => {
-    expect(hitChanceFrom(0, 100)).toBe(MIN_CHANCE);
-    expect(hitChanceFrom(0.0001, 100)).toBe(MIN_CHANCE);
+    expect(hitChanceFrom(0)).toBe(MIN_CHANCE);
+    expect(hitChanceFrom(0.01)).toBe(MIN_CHANCE);
   });
 
   /** Nothing is ever certain, so even a perfect swing can go wide. */
   it("never reaches certainty either", () => {
-    expect(hitChanceFrom(5, 100)).toBe(MAX_CHANCE);
-  });
-
-  it("rises with mastery, and bites hardest low down", () => {
-    const low = hitChanceFrom(0.3, 100) - hitChanceFrom(0, 100);
-    const high = hitChanceFrom(1, 100) - hitChanceFrom(0.7, 100);
-    // Squared, so the same step in q buys more the further up you already are.
-    expect(high).toBeGreaterThan(low);
-  });
-
-  /**
-   * The weapon's own precision, which mastery cannot make up for: a clumsy thing
-   * whiffs in expert hands. This is what `acc` gained when it stopped being only
-   * a damage band.
-   */
-  it("cannot be mastered past the weapon's own precision", () => {
-    expect(hitChanceFrom(MAX_MASTERY_RATIO, 60)).toBeCloseTo(0.6, 10);
-    expect(hitChanceFrom(5, 60)).toBeCloseTo(0.6, 10);
-  });
-
-  it("is as bad as it gets for a weapon with no precision", () => {
-    expect(hitChanceFrom(1, 0)).toBe(MIN_CHANCE);
+    expect(hitChanceFrom(100)).toBe(MAX_CHANCE);
+    expect(hitChanceFrom(500)).toBe(MAX_CHANCE);
   });
 });
 
-describe("what the mastery ratio does to a weapon", () => {
-  it("takes the profile at face value when nothing is asked", () => {
+/**
+ * What a weapon is worth in a given pair of hands.
+ *
+ * Two axes, and keeping them apart is the whole design:
+ *
+ * - **Readiness** — how much of what the weapon asks you brought, cubed. It
+ *   scales damage, accuracy *and* speed, and it caps at fully met. A requirement
+ *   is a gate.
+ * - **Skill** — the absolute level of the mastery the weapon answers to. It adds
+ *   damage and accuracy and never speed, and it goes on paying long after the
+ *   requirement stopped mattering.
+ */
+describe("what a weapon is worth in the hand", () => {
+  it("takes the profile at face value when nothing is asked of an untrained body", () => {
     const stats = fightingStats(body({ blunt: 0 }), weapon());
     expect(stats.damage).toBe(100);
     expect(stats.spd).toBe(100);
+    expect(stats.accuracy).toBe(100);
     expect(stats.hitChance).toBe(MAX_CHANCE);
   });
 
   /**
-   * The character the whole system exists to produce: a novice with an oversized
-   * axe rarely connects, and hits hard when they do. Speed and damage only sag —
-   * which is why an unmastered weapon is still worth picking up, and the floor on
-   * landing is why it can still teach.
+   * **A weapon you have not earned is bad at everything, not merely clumsy.**
+   * This is the change the cubed falloff exists to make: speed and damage used
+   * to only sag, which made an oversized axe a perfectly reasonable thing to
+   * carry around while you grew into it. Now it is close to inert, and the
+   * moment it unlocks is a moment.
+   *
+   * The floor on landing is untouched, and is what lets it still teach you.
    */
-  it("makes a novice rarely land, but not feeble", () => {
-    const stats = fightingStats(body({ blunt: 0 }), weapon({ requirements: { blunt: 40 } }));
-
+  it("leaves a weapon far beyond its wielder worth almost nothing", () => {
+    const stats = fightingStats(
+      body({ blunt: 0 }),
+      weapon({ requirements: { blunt: 40 } }),
+    );
     expect(stats.hitChance).toBe(MIN_CHANCE);
-    // Rounded, because these are whole numbers a fight is fought in — and
-    // `100 * 0.55` is not exactly 55 in binary floating point.
-    expect(stats.damage).toBe(Math.round(100 * DAMAGE_AT_ZERO_RATIO));
-    expect(stats.spd).toBe(Math.round(100 * SPEED_AT_ZERO_RATIO));
+    expect(stats.damage).toBe(0);
+    expect(stats.spd).toBe(0);
   });
 
-  it("is exactly the authored profile at the requirement", () => {
-    const stats = fightingStats(
+  /** Cubed, so falling short costs far more than proportionally. */
+  it("falls away faster than the shortfall itself", () => {
+    const half = fightingStats(
+      body({ blunt: 20 }),
+      weapon({ requirements: { blunt: 40 } }),
+    );
+    // Half the requirement is an eighth of the weapon, not half of it.
+    expect(half.spd).toBe(Math.round(100 * 0.5 ** REQUIREMENT_FALLOFF));
+    expect(half.spd).toBeLessThan(50);
+  });
+
+  /**
+   * At the requirement the weapon is *whole* — every one of its authored numbers
+   * is on the table. Anything beyond that is the wielder rather than the weapon.
+   */
+  it("is the authored profile the moment the requirement is met", () => {
+    const barely = fightingStats(
       body({ blunt: 40 }),
       weapon({ requirements: { blunt: 40 } }),
     );
-    expect(stats.damage).toBe(100);
-    expect(stats.spd).toBe(100);
-    expect(stats.hitChance).toBe(MAX_CHANCE);
-  });
-
-  it("pays a master in speed and damage, since landing is already certain", () => {
-    const mastered = fightingStats(
+    const far = fightingStats(
       body({ blunt: 100 }),
-      weapon({ damage: 100, spd: 50, requirements: { blunt: 40 } }),
+      weapon({ requirements: { blunt: 40 } }),
     );
-    const met = fightingStats(
-      body({ blunt: 40 }),
-      weapon({ damage: 100, spd: 50, requirements: { blunt: 40 } }),
-    );
-
-    expect(mastered.damage).toBeGreaterThan(met.damage);
-    expect(mastered.spd).toBeGreaterThan(met.spd);
-    expect(mastered.hitChance).toBe(met.hitChance);
+    expect(barely.spd).toBe(100);
+    // Speed is readiness only, so meeting the requirement is all it can be.
+    expect(far.spd).toBe(barely.spd);
   });
 
   /**
-   * The ratio *reads* accuracy — it is half of the hit chance — but never scales
-   * it. Accuracy is the weapon's own, and mastery does not sharpen the blade;
-   * what mastery changes is whether you can point it, which the hit chance
-   * already says. Scaling the stored value too would charge twice, and it is
-   * also what a defender's evasion is contested against.
+   * **Being good with a weapon keeps paying after its requirement has stopped.**
+   * The half of mastery a gate cannot express: a hundred-Blade hero and a
+   * five-Blade novice both meet a requirement-1 dagger in full, and should not
+   * swing it identically.
    */
-  it("passes the weapon's accuracy through unscaled", () => {
-    for (const blunt of [0, 20, 40, 100]) {
-      const stats = fightingStats(
-        body({ blunt }),
-        weapon({ accuracy: 73, requirements: { blunt: 40 } }),
-      );
-      expect(stats.accuracy).toBe(73);
-    }
+  it("pays skill on damage and accuracy long past the requirement", () => {
+    const master = fightingStats(
+      body({ blunt: 100 }),
+      weapon({ requirements: { blunt: 1 } }),
+    );
+    const novice = fightingStats(
+      body({ blunt: 1 }),
+      weapon({ requirements: { blunt: 1 } }),
+    );
+
+    expect(master.damage).toBeGreaterThan(novice.damage);
+    expect(master.accuracy).toBeGreaterThan(novice.accuracy);
+    // A flat share plus a quarter of what the weapon brings.
+    expect(master.damage).toBe(
+      Math.round(100 + 100 * MASTERY_DAMAGE_BONUS + DAMAGE_AT_MAX_MASTERY),
+    );
+    expect(master.accuracy).toBe(
+      Math.round(100 + 100 * MASTERY_ACCURACY_BONUS + ACCURACY_AT_MAX_MASTERY),
+    );
   });
 
-  /** Both halves multiply: a clumsy weapon caps what mastery can buy. */
-  it("multiplies the wielder's control by the weapon's precision", () => {
+  /**
+   * **A hole in the gate, closed.** The skill bonus has a flat term that does not
+   * depend on the weapon, and while it sat outside readiness a Blade 100 hero
+   * could pick up something whose *other* requirement they came nowhere near and
+   * still swing it for the whole flat amount. That is a gate with a hole cut in
+   * it exactly where the strongest players stand, so readiness now multiplies
+   * the skill bonus as well: what mastery buys is more out of *this* weapon, and
+   * a weapon you cannot lift has nothing more to give.
+   */
+  it("gives a master nothing extra from a weapon they cannot lift", () => {
     const stats = fightingStats(
-      body({ blunt: 40 }),
-      weapon({ accuracy: 50, requirements: { blunt: 40 } }),
+      // Blunt mastered outright, and not one point of the Toughness the weapon
+      // also asks for.
+      body({ blunt: 100, toughness: 0 }),
+      weapon({ requirements: { blunt: 5, toughness: 100 } }),
     );
-    expect(stats.hitChance).toBeCloseTo(0.5, 10);
+    expect(stats.damage).toBe(0);
+    expect(stats.hitChance).toBe(MIN_CHANCE);
+
+    // And the same body with the Toughness for it gets everything.
+    const able = fightingStats(
+      body({ blunt: 100, toughness: 100 }),
+      weapon({ requirements: { blunt: 5, toughness: 100 } }),
+    );
+    expect(able.damage).toBeGreaterThan(100);
+  });
+
+  /**
+   * **An author's zero is the author speaking.** A shield goes in the main hand,
+   * where it replaces what you swing — that is what makes taking one up a
+   * decision rather than three free points. The flat half of the skill bonus
+   * does not depend on the weapon's own damage, so without this rule a skilled
+   * body chipped away at things with a shield, and the trade quietly stopped
+   * being a trade.
+   */
+  it("leaves a weapon authored at no damage doing none, however skilled", () => {
+    for (const blunt of [0, 50, 100]) {
+      const shield = fightingStats(body({ blunt }), weapon({ damage: 0 }));
+      expect(shield.damage).toBe(0);
+    }
+    // And a weapon that does *any* damage is still paid the bonus in full.
+    expect(fightingStats(body({ blunt: 100 }), weapon({ damage: 1 })).damage)
+      .toBeGreaterThan(1);
+  });
+
+  /** Speed is Agility's to give, and mastery of the weapon may not pay it twice. */
+  it("gives skill no say over speed", () => {
+    const master = fightingStats(
+      body({ blunt: 100 }),
+      weapon({ spd: 50, requirements: { blunt: 40 } }),
+    );
+    const met = fightingStats(
+      body({ blunt: 40 }),
+      weapon({ spd: 50, requirements: { blunt: 40 } }),
+    );
+    expect(master.spd).toBe(met.spd);
+  });
+
+  /**
+   * **Accuracy is scaled now, where it used to pass through untouched.** It is
+   * both the input to a hit chance and what a defender's evasion is contested
+   * against, so a master is harder to dodge as well as harder to escape — and a
+   * body swinging something it cannot lift is easy to read.
+   */
+  it("moves accuracy with both readiness and skill", () => {
+    const outclassed = fightingStats(
+      body({ blunt: 10 }),
+      weapon({ accuracy: 80, requirements: { blunt: 40 } }),
+    );
+    const met = fightingStats(
+      body({ blunt: 40 }),
+      weapon({ accuracy: 80, requirements: { blunt: 40 } }),
+    );
+    const master = fightingStats(
+      body({ blunt: 100 }),
+      weapon({ accuracy: 80, requirements: { blunt: 40 } }),
+    );
+
+    expect(outclassed.accuracy).toBeLessThan(met.accuracy);
+    expect(master.accuracy).toBeGreaterThan(met.accuracy);
+    // Past the percent scale, deliberately: the ceiling on a *chance* is
+    // `MAX_CHANCE`, and holding accuracy at 100 as well would be a second one.
+    expect(master.accuracy).toBeGreaterThan(100);
+    expect(master.hitChance).toBe(MAX_CHANCE);
+  });
+
+  it("is as bad as it gets for a weapon with no precision at all", () => {
+    const stats = fightingStats(body({ blunt: 0 }), weapon({ accuracy: 0 }));
+    expect(stats.hitChance).toBe(MIN_CHANCE);
   });
 
   /** `attackIntervalMs` reads speed as a position on a curve, not a free number. */
@@ -214,16 +307,19 @@ describe("what the mastery ratio does to a weapon", () => {
     expect(gated.flee).toBe(bare.flee);
   });
 
-  /** The surprising rule, end to end: a gate on a mastery the weapon never trains. */
-  it("is held back by a requirement the weapon does not train", () => {
+  /**
+   * A requirement on a mastery the weapon never trains still counts — but it is
+   * pooled with the rest rather than deciding on its own, so being short on it
+   * costs a share rather than halving the weapon outright.
+   */
+  it("counts a requirement the weapon does not train, pooled with the others", () => {
     const stats = fightingStats(
       body({ blunt: 35, toughness: 10 }),
       weapon({ requirements: { blunt: 35, toughness: 20 } }),
     );
-    // Toughness is the worse half at 0.5, so the control term is
-    // 0.35 + 0.65 × 0.25 rather than a full 1.
-    // q = 0.5 → control = 0.25, times a perfect weapon's precision.
-    expect(stats.hitChance).toBeCloseTo(0.25, 10);
+    // 45 of the 55 points asked for, cubed.
+    const readiness = (45 / 55) ** REQUIREMENT_FALLOFF;
+    expect(stats.spd).toBe(Math.round(100 * readiness));
     expect(stats.hitChance).toBeLessThan(MAX_CHANCE);
   });
 });
