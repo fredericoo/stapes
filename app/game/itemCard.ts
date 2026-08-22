@@ -6,6 +6,7 @@ import {
   MELEE_REACH,
   reachOf,
   resolveItem,
+  type ArmorItem,
   type ConsumableItem,
   type ContainerItem,
   type ItemDef,
@@ -15,11 +16,14 @@ import {
 import type { ItemInstance } from "../lib/itemInstance";
 import {
   MASTERIES,
+  MASTERY_LABELS,
   masteriesFromXp,
   masteryLevel,
   type Mastery,
   type MasteryXp,
   requirementShare,
+  WEAPON_MASTERIES,
+  type WeaponMastery,
 } from "../lib/mastery";
 import type { StatusDef } from "../lib/status";
 import type { SpriteRef } from "../lib/types";
@@ -122,6 +126,23 @@ export type ItemCardEffect = {
   duration: string;
 };
 
+/**
+ * One kind of blow a piece of armour is unusually good against.
+ *
+ * **The total, not the bonus.** A resistance is authored as extra on top of the
+ * flat number — see `../lib/item`'s `ArmorItem.resist` — but "+3" is a figure a
+ * reader has to add to something else before it means anything, and what they
+ * actually want to know is what a blade loses when it lands. {@link extra} rides
+ * along so the card can still say which kinds are the special ones.
+ */
+export type ItemCardResist = {
+  mastery: WeaponMastery;
+  /** Everything a blow of this kind loses: the flat defence plus the extra. */
+  total: number;
+  /** What this kind gets over and above every other. Always above zero. */
+  extra: number;
+};
+
 export type ItemCard = {
   /** The tile's name, never the instance's. See {@link ItemCard.description}. */
   name: string;
@@ -162,6 +183,15 @@ export type ItemCard = {
    */
   effectiveness: number | null;
   effects: ItemCardEffect[];
+  /**
+   * The kinds of blow this is unusually good against, worst-hit first.
+   *
+   * Empty for everything that is not armour, and for the plain clothing that is
+   * the common case: a piece that says nothing about kinds is the same against
+   * all of them, and a table of five equal rows would be five ways of writing
+   * the flat number again.
+   */
+  resists: ItemCardResist[];
   /**
    * The whole card as one string, for anything reading the page aloud.
    *
@@ -355,6 +385,49 @@ function toneOf(yours: number, own: number): ItemCardTone {
   return "plain";
 }
 
+/**
+ * What a worn thing does, which is one number and sometimes a table.
+ *
+ * **No "in your hands" figure anywhere here, and that is the design rather than
+ * an omission.** Armour has no requirements to meet — see `../lib/item`'s
+ * `ArmorItem` — so there is no ratio to scale it by and nothing about the reader
+ * changes what it is worth. A half-understood breastplate is a breastplate.
+ */
+function armorStats(armor: ArmorItem): ItemCardStat[] {
+  return [
+    {
+      key: "def",
+      // The same word a shield's row uses, so a thing you hold and a thing you
+      // wear read alike — they are the same field and they add up. See
+      // `./equipment`'s `wornDefence`, which is where the adding happens.
+      label: "Blocks",
+      value: `${armor.def} a blow`,
+      tone: "good",
+    },
+  ];
+}
+
+/**
+ * What each kind of blow loses against this, for the kinds that lose more.
+ *
+ * Totals rather than bonuses, and sorted by how much they stop — the piece's
+ * best answer first, because "what is this *for*" is the question a resistance
+ * table exists to answer.
+ */
+function resistsFrom(armor: ArmorItem): ItemCardResist[] {
+  const rows: ItemCardResist[] = [];
+  for (const mastery of WEAPON_MASTERIES) {
+    const extra = armor.resist?.[mastery] ?? 0;
+    // Zero is not a resistance, on exactly the terms a requirement of zero is
+    // not a requirement: an editor round trip writes the key either way, and a
+    // row saying this armour is ordinary against blades is the flat number
+    // again under another name.
+    if (extra <= 0) continue;
+    rows.push({ mastery, total: armor.def + extra, extra });
+  }
+  return rows.sort((a, b) => b.total - a.total);
+}
+
 function consumableStats(consumable: ConsumableItem): ItemCardStat[] {
   if (consumable.hp === 0) return [];
   const healing = consumable.hp > 0;
@@ -404,17 +477,37 @@ function containerStats(
  */
 function kindOf(item: ItemDef): string {
   if (item.type === "weapon") {
-    // How many hands it costs, because that is the fact that decides whether it
-    // can be in a kit at all — a two-hander refuses the other square, and no
-    // amount of reading the numbers tells you so. See `../lib/item`'s
+    // How many hands it costs. A two-handed weapon refuses the other square
+    // outright, and nothing in the numbers says so. See `../lib/item`'s
     // `twoHanded`.
     const hands = item.twoHanded ? "Both hands" : "One hand";
-    // The mastery it trains, capitalised: it is the name of a thing on the
-    // stats panel, and a lower-case "blade" here would read as the noun.
-    return `${hands} — ${item.mastery[0]!.toUpperCase()}${item.mastery.slice(1)}`;
+    // Through the shared label table rather than upper-casing the key here, so
+    // the card and the editor field that authored it use one spelling.
+    return `${hands} — ${MASTERY_LABELS[item.mastery]}`;
   }
+  if (item.type === "armor") return "Worn on the body";
   if (item.type === "consumable") return consumeVerb(item);
   return "Container";
+}
+
+/**
+ * The rows for whichever kind of item this is.
+ *
+ * A function rather than a chain of ternaries at the call site: there are seven
+ * kinds now, and an eighth would push the expression past the nesting this
+ * codebase allows. Kinds with nothing to say return no rows, which is the right
+ * answer for an artifact — see {@link artifactStats}.
+ */
+function statsFor(
+  item: ItemDef,
+  instance: ItemInstance | null,
+  masteries: BattlerDef["masteries"],
+): ItemCardStat[] {
+  if (item.type === "weapon") return weaponStats(item, masteries);
+  if (item.type === "armor") return armorStats(item);
+  if (item.type === "consumable") return consumableStats(item);
+  if (item.type === "container") return containerStats(item, instance);
+  return [];
 }
 
 /**
@@ -446,14 +539,7 @@ export function itemCard(
     name: def.name || def.id,
     kind: kindOf(item),
     description: instance?.description?.trim() || null,
-    stats:
-      item.type === "weapon"
-        ? weaponStats(item, masteries)
-        : item.type === "consumable"
-          ? consumableStats(item)
-          : item.type === "container"
-            ? containerStats(item, instance)
-            : [],
+    stats: statsFor(item, instance, masteries),
     requirements: weapon ? requirementsFrom(weapon, masteries) : [],
     effectiveness: weapon
       ? percent(weaponReadiness(requirementShare(masteries, weapon.requirements)))
@@ -462,6 +548,7 @@ export function itemCard(
       item.type === "weapon" || item.type === "consumable" ? item.statuses : undefined,
       statusDefs,
     ),
+    resists: item.type === "armor" ? resistsFrom(item) : [],
     speech: "",
   };
 
@@ -493,9 +580,17 @@ function speak(card: ItemCard): string {
         : `${stat.label}: ${stat.value}`,
     );
   }
+  for (const row of card.resists) {
+    // The flat number restated rather than looked up off the stat row, which is
+    // a formatted string ("4 a blow") and would read as "lose 7 rather than 4 a
+    // blow" the moment it was dropped into this sentence.
+    lines.push(
+      `${MASTERY_LABELS[row.mastery]} blows lose ${row.total} rather than ${row.total - row.extra}`,
+    );
+  }
   for (const row of card.requirements) {
     lines.push(
-      `Requires ${row.mastery} ${row.required}, you have ${row.have}`,
+      `Requires ${MASTERY_LABELS[row.mastery]} ${row.required}, you have ${row.have}`,
     );
   }
   if (card.effectiveness !== null && card.requirements.length > 0) {

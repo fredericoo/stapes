@@ -3,9 +3,10 @@ import type {
   ItemCard as ItemCardData,
   ItemCardEffect,
   ItemCardRequirement,
+  ItemCardResist,
   ItemCardStat,
 } from "../game/itemCard";
-
+import { MASTERY_LABELS } from "../lib/mastery";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { SpritePreview, TilePreview } from "./TilePreview";
 
@@ -18,10 +19,16 @@ import { SpritePreview, TilePreview } from "./TilePreview";
  * copying because it was arrived at the same way: a player comparing two swords
  * reads top-down and stops as soon as they have their answer. So the order is
  * fixed and never conditional on content — picture and name, what kind of thing
- * it is, what is written on this one, the profile, what it asks, what you get
- * out of it, what it leaves behind, and the sentence about your hands last. A
- * card whose rows moved about depending on the item would have to be *read*
- * rather than scanned.
+ * it is, what is written on this one, the profile, what it stops better than
+ * everything else, what it asks, what you get out of it, what it leaves behind,
+ * and the sentence about your hands last. A card whose rows moved about
+ * depending on the item would have to be *read* rather than scanned.
+ *
+ * Every section but the first two disappears when it has nothing to say, and
+ * that is the same rule rather than an exception to it: what remains keeps its
+ * order. A weapon shows the profile and what it asks; a breastplate shows the
+ * profile and what it resists; both are read top-down and neither has a row in
+ * a place the other put something else.
  *
  * ## Light, over a dark game
  *
@@ -111,6 +118,16 @@ export function ItemCard({
             <StatRow key={stat.key} stat={stat} />
           ))}
         </dl>
+      ) : null}
+
+      {card.resists.length > 0 ? (
+        <Section title="Resists">
+          <ul className="flex flex-col gap-0.5">
+            {card.resists.map((row) => (
+              <ResistRow key={row.mastery} row={row} />
+            ))}
+          </ul>
+        </Section>
       ) : null}
 
       {card.requirements.length > 0 ? (
@@ -212,7 +229,7 @@ function RequirementRow({ row }: { row: ItemCardRequirement }) {
       <span className={`shrink-0 font-bold ${row.met ? "text-accent" : "text-danger"}`}>
         {row.met ? "✓" : "✕"}
       </span>
-      <span className="shrink-0 capitalize text-ink/80">{row.mastery}</span>
+      <span className="shrink-0 text-ink/80">{MASTERY_LABELS[row.mastery]}</span>
       <span className="min-w-0 flex-1 self-center border-b border-dotted border-ink/20" />
       <span className="shrink-0 tabular-nums text-ink/70">
         <span className={`font-bold ${row.met ? "text-accent" : "text-danger"}`}>
@@ -220,6 +237,30 @@ function RequirementRow({ row }: { row: ItemCardRequirement }) {
         </span>
         {" / "}
         {row.required}
+      </span>
+    </li>
+  );
+}
+
+/**
+ * One kind of blow this piece is unusually good against.
+ *
+ * **The total is what is set in bold, and the flat number sits behind it struck
+ * through** — the same shape a weapon's rows use for "yours against the item's
+ * own", because it is the same question: this is what a blade loses, and *that*
+ * is what everything else does. A bare "+3" would be a figure the reader has to
+ * add to something further up the card before it says anything.
+ */
+function ResistRow({ row }: { row: ItemCardResist }) {
+  return (
+    <li className="flex items-baseline gap-2 text-[11px] leading-tight">
+      <span className="shrink-0 text-ink/80">{MASTERY_LABELS[row.mastery]}</span>
+      <span className="min-w-0 flex-1 self-center border-b border-dotted border-ink/20" />
+      <span className="shrink-0 tabular-nums text-ink/50 line-through">
+        {row.total - row.extra}
+      </span>
+      <span className="shrink-0 font-bold tabular-nums text-accent">
+        {row.total}
       </span>
     </li>
   );

@@ -281,6 +281,67 @@ describe("itemCard", () => {
     });
   });
 
+  describe("something worn", () => {
+    it("says what it is and what it stops", () => {
+      const card = itemCard(
+        tileWith({ type: "armor", def: 4 }),
+        null,
+        NOTHING_LEARNT,
+      )!;
+      expect(card.kind).toBe("Worn on the body");
+      // The same word a shield's row uses, because they are the same field and
+      // `../game/equipment`'s `wornDefence` adds them.
+      expect(statAt(card.stats, "def")).toMatchObject({
+        label: "Blocks",
+        value: "4 a blow",
+      });
+    });
+
+    /**
+     * **No requirements and no share.** Armour asks nothing of a body — see
+     * `../lib/item`'s `ArmorItem` — so there is no gate to state and no scale to
+     * place the reader on, and a card offering one would be inventing a
+     * mechanic.
+     */
+    it("has nothing to say about the hands wearing it", () => {
+      const card = itemCard(tileWith({ type: "armor", def: 4 }), null, {
+        blade: xpForLevel(60),
+      })!;
+      expect(card.requirements).toEqual([]);
+      expect(card.effectiveness).toBeNull();
+    });
+
+    it("gives a resistance as the total, best first", () => {
+      const card = itemCard(
+        tileWith({ type: "armor", def: 4, resist: { blunt: 2, blade: 5 } }),
+        null,
+        NOTHING_LEARNT,
+      )!;
+      // Sorted by what it actually stops rather than by declaration order: what
+      // a piece is *for* is the first thing a reader wants off the table.
+      expect(card.resists).toEqual([
+        { mastery: "blade", total: 9, extra: 5 },
+        { mastery: "blunt", total: 6, extra: 2 },
+      ]);
+      expect(card.speech).toContain("Blade blows lose 9 rather than 4");
+    });
+
+    it("reads a resistance of zero as no resistance at all", () => {
+      // An editor round trip writes the key either way, and a row saying this
+      // armour is ordinary against blades is the flat number under another name.
+      const card = itemCard(
+        tileWith({ type: "armor", def: 4, resist: { blade: 0 } }),
+        null,
+        NOTHING_LEARNT,
+      )!;
+      expect(card.resists).toEqual([]);
+    });
+
+    it("leaves the table empty for everything that is not armour", () => {
+      expect(itemCard(tileWith(SWORD), null, NOTHING_LEARNT)!.resists).toEqual([]);
+    });
+  });
+
   it("says a poison costs you rather than restores you", () => {
     const card = itemCard(
       tileWith({ type: "consumable", hp: -6 }),
@@ -399,7 +460,7 @@ describe("itemCard", () => {
     const card = itemCard(tileWith(SWORD), null, { blade: xpForLevel(5) })!;
     expect(card.speech).toContain("Thing");
     expect(card.speech).toContain("One hand — Blade");
-    expect(card.speech).toContain("Requires blade 20, you have 5");
+    expect(card.speech).toContain("Requires Blade 20, you have 5");
     expect(card.speech).toContain(`You get ${card.effectiveness}% out of it`);
     // The item's own figure as a clause, because a screen reader reads "(12)" as
     // "twelve" and the comparison disappears.
