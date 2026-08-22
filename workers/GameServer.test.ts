@@ -740,11 +740,14 @@ describe("replacing the world", () => {
     const armed = (await equipmentWithin(alice.ws))!;
     expect(contentsOf(armed).map((i) => i.tileId)).toEqual(["rusty-sword"]);
 
-    const fresh = nextMessage(alice.ws);
+    // By kind rather than "whatever comes next": the pickup above emptied a
+    // cell, so a patch describing it is already on its way and would otherwise
+    // be caught here instead of the hello. Still subscribed before the save,
+    // because the hello goes out *during* it.
+    const fresh = nextMessageOfType(alice.ws, "hello");
     await stub().replaceWorld(withSword);
     const hello = await fresh;
 
-    expect(hello.type).toBe("hello");
     // The same bag, holding the same sword. Not a new one that happens to look
     // like it: a reset kit mints a fresh bag, so the id is what tells them apart.
     expect(kitOf(hello).bag.id).toBe(bagId);
@@ -790,7 +793,8 @@ describe("replacing the world", () => {
     send(alice.ws, { type: "pickUp", ref: { x: 1, y: 0, z: 0, stackIndex: 1 } });
     await equipmentWithin(alice.ws);
 
-    const fresh = nextMessage(alice.ws);
+    // By kind, for the reason above: the pickup's patch is in flight.
+    const fresh = nextMessageOfType(alice.ws, "hello");
     await stub().replaceWorld(withSword);
     const hello = await fresh;
 
@@ -818,7 +822,8 @@ describe("replacing the world", () => {
     );
     await env.DATA.put("tiles.json", JSON.stringify(asProps));
 
-    const fresh = nextMessage(alice.ws);
+    // By kind, for the reason above: the pickup's patch is in flight.
+    const fresh = nextMessageOfType(alice.ws, "hello");
     await stub().replaceWorld(withSword);
     const hello = await fresh;
 
