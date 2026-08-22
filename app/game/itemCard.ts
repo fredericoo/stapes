@@ -90,7 +90,13 @@ export type ItemCardStat = {
   tone: ItemCardTone;
 };
 
-/** One mastery an item asks for, against the one the reader has. */
+/**
+ * One mastery an item asks for, against the one the reader has.
+ *
+ * Both figures, because the pooled share cannot be worked back to them: a card
+ * saying only "63%" leaves a player who wants to *fix* it with nowhere to go.
+ * See `../lib/weaponDemand`, which says the same pair over the canvas.
+ */
 export type ItemCardRequirement = {
   mastery: Mastery;
   required: number;
@@ -286,7 +292,23 @@ function effectsFrom(
   return effects;
 }
 
-/** Every mastery this asks for, against what the reader has, worst first. */
+/**
+ * Every mastery this asks for, against what the reader has, worst first.
+ *
+ * **"Worst" is how many points are missing, not how far behind proportionally**,
+ * because that is the term `requirementShare` is built out of: the share is
+ * pooled — points brought over points asked — so an axe wanting Toughness 20
+ * from a body with 8 is held back by the twelve missing points, whatever the
+ * other requirements are. Sorting this way puts the requirement that is costing
+ * the most at the top, which is where a player looking for what to go and train
+ * should find it.
+ *
+ * Requirements that are already met still get a row, and sort to the bottom with
+ * nothing missing. What a weapon asks is part of what it *is* — somebody
+ * choosing between two swords wants to know what the better one will ask of them
+ * before they have it — and it is the same call `../lib/weaponDemand` makes for
+ * the world's look label.
+ */
 function requirementsFrom(
   weapon: WeaponItem,
   masteries: BattlerDef["masteries"],
@@ -295,17 +317,15 @@ function requirementsFrom(
   for (const mastery of MASTERIES) {
     const required = weapon.requirements?.[mastery] ?? 0;
     // A requirement of zero is not a requirement — the same reading
-    // `masteryRatio` gives it, and the reason an absent key needs no special
+    // `requirementShare` gives it, and the reason an absent key needs no special
     // case here.
     if (required <= 0) continue;
     const have = masteryLevel(masteries, mastery);
     rows.push({ mastery, required, have, met: have >= required });
   }
-  // Furthest behind first, so the one thing standing between the reader and the
-  // weapon is the first line they read — it is also the requirement the ratio
-  // was decided by, and burying it under the ones already met would be showing
-  // the answer below the working.
-  return rows.sort((a, b) => a.have - a.required - (b.have - b.required));
+  const missing = (row: ItemCardRequirement) =>
+    Math.max(0, row.required - row.have);
+  return rows.sort((a, b) => missing(b) - missing(a));
 }
 
 function weaponStats(
@@ -316,6 +336,13 @@ function weaponStats(
   // profiles come out of the same function so the comparison cannot be between
   // two different definitions of what a weapon is worth.
   const yours = fightingStats(bodyWith(masteries, weapon), weapon);
+  // **The weapon as authored**: a body that has learnt nothing, holding a copy
+  // with its requirements struck off. That is exactly the profile the editor's
+  // fields describe — see `../components/WeaponFields`, which says these numbers
+  // are what the weapon is worth with every requirement exactly met — because
+  // readiness comes out at one, the skill terms at zero and haste at one. It has
+  // to be built rather than read off the block: `damage` and `accuracy` are no
+  // longer the authored figures once anybody is holding them.
   const own = fightingStats(bodyWith({}, weapon), { ...weapon, requirements: undefined });
 
   // Through `swingIntervalMs` rather than the weapon's curve alone, because
@@ -347,6 +374,14 @@ function weaponStats(
     },
     {
       key: "hit",
+      // The probability rather than the accuracy behind it, and the choice is
+      // worth stating because accuracy now does two jobs: it decides this, and
+      // it is what a defender's evasion is contested against. Only the first is
+      // a fact about you and the weapon alone; the second needs somebody to
+      // swing at, which is the Arena's question and not a card's. The figure is
+      // held inside the band nothing in a fight escapes, so a master and a
+      // grandmaster can both read 95% here and differ in the Arena — the price
+      // of a row that means one thing.
       label: "Chance to land",
       value: `${yourHit}%`,
       ...(yourHit === ownHit ? {} : { base: `${ownHit}%` }),
@@ -370,6 +405,9 @@ function weaponStats(
     stats.push({
       key: "def",
       label: "Blocks",
+      // The weapon's own, never `yours.def` — which now carries the body's
+      // Toughness as well (see `../lib/battler`'s `defFrom`) and would have a
+      // sword in a veteran's hand claiming credit for their ribs.
       value: `${weapon.def} a blow`,
       tone: "good",
     });

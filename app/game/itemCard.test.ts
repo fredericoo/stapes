@@ -2,8 +2,14 @@ import { describe, expect, it } from "vitest";
 import { fightingStats, weaponReadiness } from "../lib/battler";
 import { MELEE_REACH, type ItemDef, type WeaponItem } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
-import { masteriesFromXp, xpForLevel, type MasteryXp } from "../lib/mastery";
+import {
+  MASTERY_LABELS,
+  masteriesFromXp,
+  xpForLevel,
+  type MasteryXp,
+} from "../lib/mastery";
 import type { StatusDef } from "../lib/status";
+import { weaponDemandFor } from "../lib/weaponDemand";
 import type { TileDef } from "../lib/types";
 import { attackIntervalMs, swingIntervalMs } from "./combat";
 import { itemCard, type ItemCardStat } from "./itemCard";
@@ -209,12 +215,13 @@ describe("itemCard", () => {
   });
 
   /**
-   * **The worst requirement leads**, on exactly the terms `masteryRatio` and
-   * `weaponFeel` use it: the one thing standing between a reader and the weapon
-   * is the first line they read, and a list in declaration order would bury it
-   * under the ones already met.
+   * **The requirement costing the most leads**, and "most" is points missing
+   * rather than how far behind proportionally — which is the term
+   * `requirementShare` is built out of now that requirements pool. Here Blunt is
+   * a single point short and Toughness twelve, so Toughness is what a player
+   * should go and train and Toughness is the first line they read.
    */
-  it("puts the requirement furthest behind first, and marks what is met", () => {
+  it("puts the requirement costing the most first, and marks what is met", () => {
     const axe: WeaponItem = { ...SWORD, requirements: { blunt: 35, toughness: 20 } };
     const card = itemCard(tileWith(axe), null, {
       blunt: xpForLevel(34),
@@ -224,6 +231,11 @@ describe("itemCard", () => {
     expect(card.requirements.map((row) => row.mastery)).toEqual(["toughness", "blunt"]);
     expect(card.requirements[0]).toMatchObject({ required: 20, have: 8, met: false });
     expect(card.requirements[1]).toMatchObject({ required: 35, have: 34, met: false });
+
+    // Proportionally Blunt is the *closer* of the two (34 of 35 against 8 of
+    // 20), so a sort by ratio would put it first and point the player at the
+    // one point rather than at the twelve.
+    expect(20 - 8).toBeGreaterThan(35 - 34);
 
     const met = itemCard(tileWith(axe), null, {
       blunt: xpForLevel(40),
@@ -449,6 +461,31 @@ describe("itemCard", () => {
         [],
       );
     });
+  });
+
+  /**
+   * **The card and the world's look label must never disagree.**
+   *
+   * A sword on the floor and the same sword in your bag are one thing being
+   * asked one question. `weaponDemand` answers it over the canvas in the pixel
+   * font and this answers it in a panel; they say a different *amount* — the
+   * card has a whole profile around it — and they must not say a different
+   * thing. Asserted against the other module's output rather than against
+   * literals, so a rebalance that moves the share moves both or fails here.
+   */
+  it("agrees with what the world's look label says", () => {
+    const learnt = { blade: xpForLevel(12) };
+    const card = itemCard(tileWith(SWORD), null, learnt)!;
+    const lines = weaponDemandFor(tileWith(SWORD), learnt);
+
+    expect(lines).toContain(`You get ${card.effectiveness}% out of it`);
+    for (const row of card.requirements) {
+      expect(lines).toContain(
+        row.met
+          ? `${MASTERY_LABELS[row.mastery]} ${row.required} — met`
+          : `${MASTERY_LABELS[row.mastery]} ${row.required} — you have ${row.have}`,
+      );
+    }
   });
 
   /**
