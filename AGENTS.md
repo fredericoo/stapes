@@ -314,6 +314,60 @@ from two tiles pointing at each other says which half opens and which shuts. The
 field is optional and blank is legal — every switch in `data/` predates it — so
 anything offering the action falls back to naming the kind.
 
+## A chase is a route, and it stops being one
+
+`step_toward` used to judge one step on its own: of the four directions, take
+whichever gets nearer. That is defeated by a single crate. Everything that would
+close the distance to somebody due east is east, so a rat with a box in front of
+it stood there being unable to reach a player it could plainly see.
+
+`app/game/pathfinding.ts` answers with a route instead, and three decisions
+carry it.
+
+- **Every leg is one `canWalk`** — the same call the player's own step goes
+  through. Climb bands, level promotion, climb-from flags and whether a body
+  fits are not written down a second time, so a route can never contain a step
+  the walk loop then refuses. It is also how a route gets heights and floors for
+  nothing: a node is a *standing cell*, and two cells on different levels are
+  neighbours exactly when a body could walk between them. The cost of that reuse
+  is that `canWalk` is a column scan and a fit check per direction, which is
+  most of what the two caps below exist for.
+- **Arriving is standing beside them, on their own floor.** A body is not
+  walkable, so a search for the target's own cell would exhaust the board every
+  time. Requiring the same level rather than plan distance alone is what makes
+  somebody on the balcony worth walking a staircase for — standing underneath
+  them is not standing beside them, and a route that thought otherwise stopped
+  dead at the foot of the stairs. An **empty** route is a creature that has
+  arrived and is a different fact from there being no way there, which is why
+  the two are not both null: the first falls through to the next line of the
+  priority list, and so does the second, but only the second is a `stuck` an
+  author can transition on.
+- **A drop is a one-way edge and it is opt-in**, on the same `allowDrops` the
+  action already carried. Where gravity would put the body down is resolved as
+  part of the edge, because a route planned from mid-air is a route about a cell
+  nobody is ever standing in.
+
+**Two caps, doing two different jobs, and it is worth not confusing them.**
+`PATH_DETOUR_SLACK` is about *behaviour*: a route far longer than the gap is not
+a chase, it is a creature that has worked out where the door is. `PATH_MAX_NODES`
+is about *cost*, and the numbers either side of it are far apart — routes
+anybody actually walks settle in seven to twenty-five cells, while proving a
+target unreachable means exhausting every cell a body could stand on. Running
+out of either reads as no route at all, deliberately: a half-explored search has
+a best-so-far cell it could head for, and walking towards that is exactly how a
+creature ends up pressed against the nearest wall having made progress.
+
+**Nothing is kept between two decisions.** A route is recomputed each brain
+tick rather than followed, because a kept plan is a plan about a world that has
+since moved — the target walked on, a crate was shoved into the third step,
+another creature filled the fourth. At one decision per step the check that a
+kept route was still true would cost about what recomputing it does.
+
+**Fleeing is still greedy, and that is not an oversight.** `step_away_from` has
+no destination to route to; "away" is a direction rather than a place, so the
+question a fleeing animal asks really is the local one. Inventing a goal cell to
+run at would be the pathfinder deciding where something wants to hide.
+
 ## The wire is patches plus motion events
 
 Two kinds of thing travel, and keeping them apart is what makes it cheap.
@@ -1723,5 +1777,13 @@ Not yet fixed, and worth knowing before you profile something else:
   roof-cut. Depth itself is safe — it comes from the per-quad box attribute
   resolved in the shader, not from draw order — but verify visually in a real
   browser regardless.
+- **A creature that has bound a target it cannot reach re-proves it every brain
+  tick.** A route search that fails costs the full `PATH_MAX_NODES` — about five
+  milliseconds on the shipped map, against well under one for a route it finds —
+  and brains all tick on the same frame, so a roomful of creatures watching
+  somebody through a window pay it together. The authored way out is a `stuck`
+  transition, which every shipped brain has; the structural one would be
+  remembering the failure for a few ticks, which is the only piece of route
+  state worth keeping and has not been needed yet.
 - **The editor is a second, unchunked lighting path** and will hit the same wall
   the play renderer already climbed.

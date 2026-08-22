@@ -146,7 +146,7 @@ export const ACTIONS: Record<
   },
   step_toward: {
     label: "step toward",
-    hint: "Close the distance to a target. Fails when nothing gets closer.",
+    hint: "Walk a route to a target. Fails once beside them, or with no way there.",
     params: [
       { key: "of", kind: "selector", label: "of" },
       { key: "allowDrops", kind: "boolean", label: "allow drops" },

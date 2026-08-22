@@ -162,10 +162,11 @@ import {
 import {
   canWalk,
   DIR_DELTA,
-  listStandingSurfaces,
   resolveWalkDurationMs,
   standingAbs,
+  surfacesInClimbBand,
 } from "./movement";
+import { findPath } from "./pathfinding";
 import { resolveBrain } from "../lib/brain";
 import { bodyNameFor } from "./displayName";
 import {
@@ -2117,6 +2118,7 @@ export class GameSession implements PlaySession {
       wouldDrop: (direction) => this.stepLeavesGround(loc, direction),
       step: (direction) =>
         this.applyStepRequest(actor, { directions: [direction] }),
+      routeTo: (at, allowDrops) => this.routeStep(actor, loc, at, allowDrops),
       say: (text) => this.recordSpeech(actor, loc, text),
       noise: (text) => this.recordNoise(loc, text),
       canSee: (at) =>
@@ -3203,16 +3205,47 @@ export class GameSession implements PlaySession {
       loc.stackIndex,
       this.tilesById,
     );
-    return !listStandingSurfaces(
-      this.map,
-      loc.x + dx,
-      loc.y + dy,
-      this.tilesById,
-    ).some(
-      (surface) =>
-        surface.abs >= fromAbs - MAX_CLIMB_HEIGHT &&
-        surface.abs <= fromAbs + MAX_CLIMB_HEIGHT,
+    return (
+      surfacesInClimbBand(
+        this.map,
+        loc.x + dx,
+        loc.y + dy,
+        fromAbs,
+        this.tilesById,
+      ).length === 0
     );
+  }
+
+  /**
+   * Which way a creature should set off to end up beside `at`.
+   *
+   * The session's half of the brain's route-finding, and it is thin on purpose:
+   * the search is a pure question about a board (`./pathfinding`) and this is
+   * only the place that happens to hold one. It hands back the first leg and
+   * throws the rest away — see {@link stepAlongRoute} for why a route is not
+   * worth keeping between two decisions.
+   *
+   * `"arrived"` and null are kept apart all the way out here rather than
+   * collapsed to "no step", because the two are different facts about the world
+   * and the brain reads them differently: one creature is standing next to what
+   * it wanted, and the other cannot get there at all.
+   */
+  private routeStep(
+    actor: ActorRuntime,
+    loc: ActorLocation,
+    at: Coord,
+    allowDrops: boolean | undefined,
+  ): Direction | "arrived" | null {
+    const path = findPath(
+      this.map,
+      { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex },
+      at,
+      this.defFor(actor),
+      this.tilesById,
+      { allowDrops },
+    );
+    if (path === null) return null;
+    return path[0]?.direction ?? "arrived";
   }
 
   /**
