@@ -213,10 +213,12 @@ them apart is what makes the kit both permissive and legible.
   is `equippable: false` — an author saying "this is a chest, opened where it
   lies" — and the inside of a bag, where nesting still bites.
 - `equipSlotOf` answers the first, from the tile alone: a weapon goes in the hand
-  you swing with, a `WeaponItem.offhand` thing (a torch, a shield) in the other,
-  an `ArmorItem` on your body, an equippable container on your back. It is what
-  happens when nobody has said. A drag is somebody saying, so `slotAccepts` stays
-  the looser of the two.
+  you swing with, a `WeaponItem.offhand` thing (a shield) or an `ArtifactItem` (a
+  torch) in the other, an `ArmorItem` on your body, an equippable container on
+  your back. It is what happens when nobody has said. A drag is somebody saying,
+  so `slotAccepts` stays the looser of the two. It reads the parsed union
+  directly rather than asking four resolvers in turn, so an arm added to
+  `ItemDef` and forgotten here fails to compile.
 
 **The body slot is the one square that refuses a drag**, and the exception is
 deliberate. Both hands are generous because a hand *is* generous; defence is the
@@ -227,10 +229,21 @@ above give the same answer. A hand will still hold a breastplate — you can car
 one without wearing it.
 
 `WeaponItem.offhand` is the exact counterpart of `ContainerItem.equippable`:
-nothing about a tile says which hand it is for, since a torch and a sword are
-both `weapon` blocks here (light and defence both ride on one), so the author
-says it. It used to be guessed from whether the tile gave off light; `itemUseFor`
-asked that question too, and now both read the flag.
+nothing about a tile says which hand a block of weapon numbers is for, so the
+author says it. It used to be guessed from whether the tile gave off light;
+`itemUseFor` asked that question too, and now both read the flag.
+
+**`ArtifactItem` is the arm with no fields, and a torch is what it is for.** A
+torch had to be a `weapon` because holding a thing needed a block and that was
+the only block with an off hand — so a body holding one *fought with it*, and
+`weaponInHand` replaces your natural weapon with whatever is held, which made a
+torch strictly worse than a pair of fists. The light was coming off the sprite's
+frames the whole time; none of those numbers were ever wanted. They are gone
+rather than tuned upward: no `resolveWeapon`, so the natural weapon stands and
+`offhandDefence` reads zero, and the thing's whole effect is being a placement
+that emits light. It needs no `offhand` flag either — nothing inert is ever meant
+for the hand that stands in for what you fight with, so `equipSlotOf` sends every
+artifact to the off hand and a flag with one legal value stays unwritten.
 
 **Putting a thing on is not picking it up.** `equipSlotFrom` offers the natural
 slot only while it is *empty* — equipping never displaces what you are holding,

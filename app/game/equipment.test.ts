@@ -554,6 +554,24 @@ describe("the off hand", () => {
   });
 
   /**
+   * The slot was only half an answer, and this is the other half. A torch
+   * authored as a weapon *replaced* your fists wherever it was put, so the off
+   * hand rescued the common case and left the wrong hand quietly ruinous:
+   * dragging the lamp one square over cost a player most of their fight, and the
+   * numbers doing it were invented purely to get a stick into a hand. There are
+   * none now — see `../lib/item`'s `ArtifactItem` — so there is nothing left for
+   * `weaponInHand` to prefer over what the body already had.
+   */
+  it("is no worse than bare hands in the hand you swing with either", () => {
+    const bare = effectiveBattler(player, holding(null), shipped);
+    const lamp = effectiveBattler(player, holding(null, "hand-lantern"), shipped);
+
+    expect(lamp.damage).toBe(bare.damage);
+    expect(lamp.spd).toBe(bare.spd);
+    expect(lamp.hitChance).toBe(bare.hitChance);
+  });
+
+  /**
    * And the other half of "a torch or a shield": defence, read off the `def` a
    * weapon carries — which stays where it is now that armour has a slot, because
    * a shield is a thing you *hold*. Making it armour would put it in the square
