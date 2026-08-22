@@ -202,8 +202,17 @@ them apart is what makes the kit both permissive and legible.
   lies" — and the inside of a bag, where nesting still bites.
 - `equipSlotOf` answers the first, from the tile alone: a weapon goes in the hand
   you swing with, a `WeaponItem.offhand` thing (a torch, a shield) in the other,
-  an equippable container on your back. It is what happens when nobody has said.
-  A drag is somebody saying, so `slotAccepts` stays the looser of the two.
+  an `ArmorItem` on your body, an equippable container on your back. It is what
+  happens when nobody has said. A drag is somebody saying, so `slotAccepts` stays
+  the looser of the two.
+
+**The body slot is the one square that refuses a drag**, and the exception is
+deliberate. Both hands are generous because a hand *is* generous; defence is the
+entirety of what the armour square contributes to a fight, so a sword worn as a
+shirt would be a number about nothing. `slotTakes("armor", …)` is
+`resolveArmor(def) != null`, which is also the one case where the two questions
+above give the same answer. A hand will still hold a breastplate — you can carry
+one without wearing it.
 
 `WeaponItem.offhand` is the exact counterpart of `ContainerItem.equippable`:
 nothing about a tile says which hand it is for, since a torch and a sword are
@@ -229,7 +238,7 @@ emptied. `carriedInstances` walks every slot's contents for the same reason: a
 thing it misses is a thing the id-minting pass never reaches.
 
 **The verb is read off the item, never off the slot** (`equipVerb`): you wield a
-sword, you hold a torch, you put on a pack. Since both hands take anything, a
+sword, you hold a torch, you wear a mail shirt, you put on a pack. Since both hands take anything, a
 verb named after the square would have to call a backpack in your fist
 "wielding" it. `ItemSlot`'s press hint uses the same function, so the panel and
 the world say one word.
@@ -374,6 +383,53 @@ survive somebody editing the tile's maximum. What *is* checkpointed is the set o
 evidence to recover, and without carrying it the first hibernation wake would
 find a dead player's socket still open, see no body, and seat them again.
 
+### Armour is worn, and it may care what hit it
+
+**Defence has three sources and they add** (`wornDefence`): a `WeaponItem.def`
+in *either* hand — a shield, a bracer, a parrying sword — and an `ArmorItem` on
+the body. A shield stays a `weapon` rather than becoming armour because it is a
+thing you *hold*: making it armour would put it in the square a breastplate
+belongs in and let a body wear one instead of the other. Two shields are twice
+the shield.
+
+**The main hand replaces rather than adds, within its own slot.** What counts
+there is `weaponInHand` — the held weapon or the body's natural one — so taking
+up a shield trades your claws' `def` for the shield's along with trading your
+bite for whatever the shield swings like. That is the same replacement rule the
+swing is under, and it is what stops a main-hand shield being free.
+
+`wornDefence` is the only honest answer to "how protected is this body", and
+`effectiveBattler` **assigns** it rather than adding it to what `fightingStats`
+worked out — `fightingStats` resolves the weapon and therefore already counted
+the main hand. That split is worth knowing about: it is why a comment on
+`WeaponItem.def` once claimed a main-hand `def` did nothing, which was false when
+it was written.
+
+**A resistance is keyed by the attacker's weapon mastery** (`ArmorItem.resist`),
+and that is not a taxonomy invented for it — `WeaponItem.mastery` is already on
+every weapon in the world, deciding how it scales and what swinging it teaches.
+Inventing a damage-type axis beside it would be a second list of kinds to keep in
+step with the first. `FightingStats` therefore carries two new fields: `mastery`,
+so a blow can say what it is, and `resist`, so a body can say what it is wearing.
+`defenceAgainst` in `app/game/combat.ts` is the one place they meet, and it is
+the only thing that should ever read `defender.def` on its own.
+
+**It is the attacker's *weapon* mastery, never the wielder's best skill.** A
+novice swinging a sword is still striking with a blade, and mail turns it aside
+on the same terms it turns aside an expert's.
+
+**Additive and never a share.** Defence is subtracted from a blow, so a
+percentage resistance would be a second arithmetic beside the first and nobody
+reading a fight could hold both. The most a piece of armour can do is
+`def + resist[kind]`, which an author reads straight off the block. This is what
+makes armour a choice rather than a ladder: with a flat number alone every piece
+is strictly better or worse than every other, and the only decision left is which
+one you have found.
+
+Resistance is **read, never rolled for**, so a warded defender costs a swing
+exactly the four draws a bare one does — the same rule everything in a fight is
+under.
+
 ### A body is born carrying what its tile says
 
 Every battler has a **kit** (`app/lib/kit.ts`), authored on the same block as its
@@ -386,11 +442,14 @@ directly, and it is gone — one place decides what a body owns, rather than one
 people and one for everything else.
 
 - **The shape is the slots, not a loot table.** Every row names an equip slot —
-  the same three squares a player drags things between — so a wolf authored with
-  a torch in its off hand *lights the wood it is standing in* and one authored
-  with a sword *swings it*. Nothing downstream knows a wolf is not a person:
-  `carriedLightTileIds`, `weaponInHand` and `effectiveBattler` were already
-  reading an actor's equipment and needed no changes at all.
+  the same squares a player drags things between — so a wolf authored with a
+  torch in its off hand *lights the wood it is standing in*, one authored with a
+  sword *swings it*, and a goblin authored in mail *is protected by it, in full*.
+  Nothing downstream knows a wolf is not a person: `carriedLightTileIds`,
+  `weaponInHand` and `effectiveBattler` were already reading an actor's equipment
+  and needed no changes at all — armour was one more slot on `Equipment` and one
+  more term in `effectiveBattler`, and every creature in the world could wear it
+  the same afternoon.
 - **Several rows may name one slot, and the first success takes it.** That is how
   a weighted table is written: put the rare blade above the rusty one. Chance is
   a percent and floats are allowed, because a quarter of a percent is the shape a

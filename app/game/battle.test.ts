@@ -147,7 +147,9 @@ const tiles: TileDef[] = [
     actor: true,
     walkable: false,
     interactions: {
-      // Defence is the weapon's, until there is armour to put it on.
+      // Defence is the weapon's here: nothing is worn, and what a held thing
+      // turns aside is its own `def`. Armour is the other source — see
+      // `./equipment`'s `wornDefence`.
       battler: { masteries: { toughness: 2 }, naturalWeapon: claws({ def: 99 }) },
     },
   }),

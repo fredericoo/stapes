@@ -1,12 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_BATTLER } from "../lib/battler";
+import { DEFAULT_BATTLER, resolveBattler } from "../lib/battler";
 import { DEFAULT_CONTAINER, DEFAULT_WEAPON } from "../lib/item";
 import type { Kit } from "../lib/kit";
 import type { TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { equipmentForBody, equipmentFromKit } from "./battlerKit";
-import { emptyEquipment } from "./equipment";
+import {
+  effectiveBattler,
+  emptyEquipment,
+  wornInstances,
+} from "./equipment";
 
 /**
  * Rolling an authored kit into a body's equipment.
@@ -52,6 +56,7 @@ const tiles = tilesByIdFromList([
   itemTile("meat", { type: "consumable", hp: 1 }),
   itemTile("bag", DEFAULT_CONTAINER),
   itemTile("chest", { ...DEFAULT_CONTAINER, equippable: false }),
+  itemTile("mail", { type: "armor", def: 4, resist: { blade: 6 } }),
   tile("rock"),
 ]);
 
@@ -254,6 +259,79 @@ describe("what a slot will take from a kit", () => {
     const kit: Kit = [{ slot: "weapon", tileId: "rock", chance: 100 }];
 
     expect(equipmentFromKit(kit, tiles, dice([HIT]).random).weapon).toBeNull();
+  });
+
+  /**
+   * The strict square, and the one place a kit is held to a stricter rule than a
+   * hand: defence is the entirety of what the body slot contributes to a fight,
+   * so a sword worn as a shirt would be a number about nothing.
+   */
+  it("refuses the body to anything that is not armour", () => {
+    const kit: Kit = [
+      { slot: "armor", tileId: "sword", chance: 100 },
+      { slot: "armor", tileId: "meat", chance: 100 },
+      { slot: "armor", tileId: "bag", chance: 100 },
+    ];
+
+    expect(
+      equipmentFromKit(kit, tiles, dice([HIT, HIT, HIT]).random).armor,
+    ).toBeNull();
+  });
+
+  it("dresses a body authored to be wearing something", () => {
+    const kit: Kit = [{ slot: "armor", tileId: "mail", chance: 100 }];
+
+    expect(equipmentFromKit(kit, tiles, dice([HIT]).random).armor?.tileId).toBe(
+      "mail",
+    );
+  });
+});
+
+/**
+ * A creature spawned in armour fights in it.
+ *
+ * **The claim is that there is no special case for people**, which is the whole
+ * reason a kit names slots rather than listing drops: a goblin authored wearing
+ * mail is protected by that mail to exactly the extent a player carrying the same
+ * shirt would be, because the simulation reads a body's equipment for defence and
+ * has no idea the goblin is not a person. Nothing in the code below is
+ * armour-aware — it is `equipmentForBody` and `effectiveBattler`, the two calls
+ * every body in the world already goes through.
+ */
+describe("a body born in armour", () => {
+  const armoured = tile("goblin", {
+    kind: "battler",
+    interactions: {
+      battler: {
+        ...DEFAULT_BATTLER,
+        kit: [{ slot: "armor", tileId: "mail", chance: 100 }],
+      },
+    },
+  });
+  const world = tilesByIdFromList([
+    ...Object.values(tiles),
+    armoured,
+    tile("naked-goblin", {
+      kind: "battler",
+      interactions: { battler: { ...DEFAULT_BATTLER, kit: [] } },
+    }),
+  ]);
+  const body = resolveBattler(world["goblin"]!)!;
+
+  it("gets the whole of what it is wearing", () => {
+    const kit = equipmentForBody("goblin", world, dice([HIT]).random);
+    const bare = effectiveBattler(body, emptyEquipment(), world);
+    const dressed = effectiveBattler(body, kit, world);
+
+    expect(kit.armor?.tileId).toBe("mail");
+    expect(dressed.def).toBe(bare.def + 4);
+    expect(dressed.resist.blade).toBe(6);
+  });
+
+  /** And it is worth killing for: worn things go on the floor when a body does. */
+  it("is carrying it in the sense a death understands", () => {
+    const kit = equipmentForBody("goblin", world, dice([HIT]).random);
+    expect(wornInstances(kit).map((one) => one.tileId)).toEqual(["mail"]);
   });
 });
 

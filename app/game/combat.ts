@@ -175,7 +175,9 @@ const NOTHING_INFLICTED: readonly WeaponStatus[] = [];
  * return is free of consequence.
  *
  * Damage floors at zero rather than going negative: a blow that cannot get
- * through armour is a blow worth nothing, not a heal.
+ * through armour is a blow worth nothing, not a heal. What counts as armour here
+ * is {@link defenceAgainst}, which is the defender's flat defence plus whatever
+ * they are wearing that has an opinion about this kind of blow.
  */
 export function rollAttack(
   attacker: FightingStats,
@@ -225,10 +227,34 @@ export function rollAttack(
   return {
     missed: false,
     dodged: false,
-    damage: Math.max(0, potentialDamage - defender.def),
+    damage: Math.max(0, potentialDamage - defenceAgainst(defender, attacker)),
     potentialDamage,
     inflicted: inflictedBy(attacker.statuses, statusRolls),
   };
+}
+
+/**
+ * What this particular blow has to get through.
+ *
+ * **Two numbers, added, and the split is what makes armour a choice.** The flat
+ * `def` is everything the defender is wearing and holding that stops a blow
+ * whatever it was; the resistance is what their armour says about *this kind* of
+ * blow, keyed by the attacker's weapon mastery. A mail shirt authored with a
+ * blade resistance is why a sword bounces off it and a hammer does not.
+ *
+ * Read off the attacker's `mastery` rather than off the wielder's best skill: a
+ * novice swinging a sword is still striking with a blade. See
+ * `../lib/battler`'s {@link FightingStats.mastery}.
+ *
+ * The one place the two halves of defence are put together, so nothing else has
+ * to know there are two — and so a resistance can never be forgotten by a caller
+ * that reached for `defender.def` on its own.
+ */
+export function defenceAgainst(
+  defender: FightingStats,
+  attacker: Pick<FightingStats, "mastery">,
+): number {
+  return defender.def + (defender.resist[attacker.mastery] ?? 0);
 }
 
 /**

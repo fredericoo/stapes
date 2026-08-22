@@ -12,6 +12,7 @@ import {
   MIN_ATTACK_TICKS,
   attackIntervalMs,
   damageFraction,
+  defenceAgainst,
   dodgeChance,
   inAttackRange,
   rollAttack,
@@ -259,6 +260,88 @@ describe("swinging", () => {
       rollAttack(stats[0], stats[1], rng);
       expect(rng.save()).toBe(after);
     }
+  });
+});
+
+/**
+ * Armour that cares what hit it.
+ *
+ * **Two numbers, added, and the kind decides whether the second one counts.**
+ * The claim these make is the asymmetry: the same armour has to be worth more
+ * against one weapon than against another, or the whole feature is a flat bonus
+ * with extra bookkeeping. The kind is the attacker's *weapon* mastery and never
+ * the wielder's best skill, which is the second claim — a novice with a sword is
+ * still striking with a blade, and mail should turn it aside on the same terms.
+ */
+describe("resisting a kind of blow", () => {
+  const mailed = battler({ def: 2, resist: { blade: 5 } });
+
+  it("adds the matching resistance to the flat defence", () => {
+    expect(defenceAgainst(mailed, battler({ mastery: "blade" }))).toBe(7);
+  });
+
+  it("charges the flat defence alone for anything else", () => {
+    expect(defenceAgainst(mailed, battler({ mastery: "blunt" }))).toBe(2);
+    expect(defenceAgainst(mailed, battler({ mastery: "arcane" }))).toBe(2);
+  });
+
+  it("is the flat defence for a body wearing nothing opinionated", () => {
+    const plain = battler({ def: 3, resist: {} });
+    expect(defenceAgainst(plain, battler({ mastery: "blade" }))).toBe(3);
+  });
+
+  /**
+   * The one that matters in play: the same shirt against two weapons that are
+   * identical apart from what they are made of.
+   */
+  it("makes one blow worth less than the other through the same armour", () => {
+    const sword = battler({
+      damage: 9,
+      variance: 0,
+      accuracy: 100,
+      hitChance: 1,
+      mastery: "blade",
+    });
+    const hammer = { ...sword, mastery: "blunt" } as const;
+    const defender = battler({ def: 2, resist: { blade: 5 }, flee: 0 });
+
+    let landed = 0;
+    for (let seed = 0; seed < 50; seed++) {
+      const cut = rollAttack(sword, defender, new Rng(seed));
+      const thump = rollAttack(hammer, defender, new Rng(seed));
+      if (cut.missed || cut.dodged) continue;
+      landed++;
+      expect(cut.damage).toBe(2);
+      expect(thump.damage).toBe(7);
+    }
+    expect(landed).toBeGreaterThan(0);
+  });
+
+  /** A resistance deeper than the blow is worth is a blow worth nothing. */
+  it("never heals, however much of it there is", () => {
+    const attacker = battler({ damage: 5, accuracy: 100, hitChance: 1, mastery: "arcane" });
+    const warded = battler({ def: 0, resist: { arcane: 100 }, flee: 0 });
+    for (let seed = 0; seed < 50; seed++) {
+      expect(rollAttack(attacker, warded, new Rng(seed)).damage).toBe(0);
+    }
+  });
+
+  /**
+   * The dice again: resistance is read, never rolled for, so a warded defender
+   * must cost a swing exactly what a bare one does.
+   */
+  it("costs the swing no extra draws", () => {
+    const reference = new Rng(11);
+    rollAttack(battler({ mastery: "blade" }), battler(), reference);
+    const after = reference.save();
+
+    const rng = new Rng(11);
+    rollAttack(
+      battler({ mastery: "blade" }),
+      battler({ resist: { blade: 40, blunt: 3 } }),
+      rng,
+    );
+    expect(rng.save()).toBe(after);
   });
 });
 

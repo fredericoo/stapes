@@ -7,12 +7,19 @@ import {
   maxHpFrom,
   resolveBattler,
 } from "../lib/battler";
-import { DEFAULT_CONTAINER, DEFAULT_WEAPON, MELEE_REACH } from "../lib/item";
+import {
+  DEFAULT_CONTAINER,
+  DEFAULT_WEAPON,
+  MELEE_REACH,
+  resolveArmor,
+} from "../lib/item";
 import type { TileDef } from "../lib/types";
 import { normalizeTileDef, normalizeTiles } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import type { Equipment } from "./equipment";
 import {
+  armorDefence,
+  armorResistances,
   carriedInstances,
   carriedLightTileIds,
   effectiveBattler,
@@ -21,6 +28,7 @@ import {
   offhandDefence,
   restoredEquipment,
   weaponInHand,
+  wornDefence,
 } from "./equipment";
 
 /**
@@ -49,6 +57,26 @@ const base: BattlerDef = {
 };
 
 /**
+ * Something that turns blows aside and does nothing else, so a defence figure is
+ * traceable to one slot.
+ *
+ * A `weapon` block with no damage on it, which is what a shield *is* in this
+ * game: defence rides on a weapon and armour is the thing you wear. See
+ * `WeaponItem.def`.
+ */
+const SHIELD = normalizeTileDef({
+  id: "shield",
+  name: "Shield",
+  height: 0,
+  kind: "item",
+  directional: false,
+  attributes: {},
+  variants: { default: [] },
+  intangible: true,
+  interactions: { item: { ...DEFAULT_WEAPON, damage: 0, def: 3 } },
+});
+
+/**
  * Which weapon a body swings, and what the masteries do regardless.
  *
  * The claim under test is **replacement, not addition** — the rule the whole
@@ -64,6 +92,7 @@ describe("weaponInHand", () => {
 
   it("takes what is in the hand instead, rather than as well", () => {
     const kit = { weapon: { id: "w", tileId: "sword" }, offhand: null,
+  armor: null,
   bag: null };
     expect(weaponInHand(base, kit, lightTiles)).toEqual(DEFAULT_WEAPON);
   });
@@ -73,6 +102,7 @@ describe("weaponInHand", () => {
     const kit = {
       weapon: null,
       offhand: null,
+      armor: null,
       bag: { id: "b", tileId: "bag", contents: [{ id: "c", tileId: "sword" }] },
     };
     expect(weaponInHand(base, kit, lightTiles)).toEqual(CLAWS);
@@ -80,6 +110,7 @@ describe("weaponInHand", () => {
 
   it("falls back when the slot holds something that is not a weapon", () => {
     const kit = { weapon: { id: "w", tileId: "bag" }, offhand: null,
+  armor: null,
   bag: null };
     expect(weaponInHand(base, kit, lightTiles)).toEqual(CLAWS);
   });
@@ -91,6 +122,7 @@ describe("weaponInHand", () => {
    */
   it("falls back when the held tile is gone from the catalogue", () => {
     const kit = { weapon: { id: "w", tileId: "no-such-tile" }, offhand: null,
+  armor: null,
   bag: null };
     expect(weaponInHand(base, kit, lightTiles)).toEqual(CLAWS);
   });
@@ -108,6 +140,7 @@ describe("effectiveBattler", () => {
 
   it("replaces all four when a weapon is held, adding none of them", () => {
     const kit = { weapon: { id: "w", tileId: "sword" }, offhand: null,
+  armor: null,
   bag: null };
     const out = effectiveBattler(base, kit, lightTiles);
     expect(out.damage).toBe(DEFAULT_WEAPON.damage);
@@ -122,6 +155,7 @@ describe("effectiveBattler", () => {
    */
   it("takes hit points and flee from the masteries, whatever is held", () => {
     const kit = { weapon: { id: "w", tileId: "sword" }, offhand: null,
+  armor: null,
   bag: null };
     for (const equipment of [null, emptyEquipment(), kit]) {
       const out = effectiveBattler(base, equipment, lightTiles);
@@ -142,6 +176,7 @@ describe("effectiveBattler", () => {
   it("does not mutate the body it was asked about", () => {
     const snapshot = structuredClone(base);
     effectiveBattler(base, { weapon: { id: "w", tileId: "sword" }, offhand: null,
+  armor: null,
   bag: null }, lightTiles);
     expect(base).toEqual(snapshot);
   });
@@ -190,6 +225,7 @@ describe("carriedInstances", () => {
     const ids = carriedInstances({
       weapon: { id: "w", tileId: "sword" },
       offhand: null,
+      armor: null,
       bag: {
         id: "b",
         tileId: "bag",
@@ -203,18 +239,21 @@ describe("carriedInstances", () => {
 describe("carriedLightTileIds", () => {
   it("is empty when nothing carried gives off light", () => {
     const kit = { weapon: { id: "w", tileId: "sword" }, offhand: null,
+  armor: null,
   bag: null };
     expect(carriedLightTileIds(kit, lightTiles)).toEqual([]);
   });
 
   it("finds a light in the hand", () => {
     const kit = { weapon: { id: "w", tileId: "torch" }, offhand: null,
+  armor: null,
   bag: null };
     expect(carriedLightTileIds(kit, lightTiles)).toEqual(["torch"]);
   });
 
   it("finds a light in a bag that is itself lit, because a bag is worn", () => {
     const kit = { weapon: null, offhand: null,
+  armor: null,
   bag: { id: "b", tileId: "lamp-bag" } };
     expect(carriedLightTileIds(kit, lightTiles)).toEqual(["lamp-bag"]);
   });
@@ -228,6 +267,7 @@ describe("carriedLightTileIds", () => {
     const kit = {
       weapon: null,
       offhand: null,
+      armor: null,
       bag: { id: "b", tileId: "bag", contents: [{ id: "c", tileId: "torch" }] },
     };
     expect(carriedLightTileIds(kit, lightTiles)).toEqual([]);
@@ -242,6 +282,7 @@ describe("carriedLightTileIds", () => {
     const kit = {
       weapon: { id: "w", tileId: "torch" },
       offhand: null,
+      armor: null,
       bag: {
         id: "b",
         tileId: "lamp-bag",
@@ -253,6 +294,7 @@ describe("carriedLightTileIds", () => {
 
   it("ignores a tile the catalogue has never heard of", () => {
     const kit = { weapon: { id: "w", tileId: "ghost" }, offhand: null,
+  armor: null,
   bag: null };
     expect(carriedLightTileIds(kit, lightTiles)).toEqual([]);
   });
@@ -282,6 +324,7 @@ describe("restoredEquipment", () => {
     const saved = {
       weapon: { id: "itm_w", tileId: "sword" },
       offhand: null,
+      armor: null,
       bag: bag("bag", [{ id: "itm_a", tileId: "sword" }]),
     };
     expect(restoredEquipment(saved, tiles)).toEqual(saved);
@@ -290,6 +333,7 @@ describe("restoredEquipment", () => {
   it("drops a weapon whose tile has left the world", () => {
     const restored = restoredEquipment(
       { weapon: { id: "itm_w", tileId: "gone" }, offhand: null,
+  armor: null,
   bag: null },
       tiles,
     );
@@ -300,7 +344,7 @@ describe("restoredEquipment", () => {
   it("keeps a pack held in a hand", () => {
     const held = { id: "itm_w", tileId: "bag" };
     const restored = restoredEquipment(
-      { weapon: held, offhand: null, bag: null },
+      { weapon: held, offhand: null, armor: null, bag: null },
       tiles,
     );
     expect(restored.weapon).toEqual(held);
@@ -308,7 +352,7 @@ describe("restoredEquipment", () => {
 
   it("drops a chest held in a hand, since no hand may carry one", () => {
     const restored = restoredEquipment(
-      { weapon: { id: "itm_w", tileId: "chest" }, offhand: null, bag: null },
+      { weapon: { id: "itm_w", tileId: "chest" }, offhand: null, armor: null, bag: null },
       tiles,
     );
     expect(restored.weapon).toBeNull();
@@ -320,6 +364,7 @@ describe("restoredEquipment", () => {
   it("drops the whole bag when its tile is no longer wearable", () => {
     const restored = restoredEquipment(
       { weapon: null, offhand: null,
+  armor: null,
   bag: bag("chest", [{ id: "itm_a", tileId: "sword" }]) },
       tiles,
     );
@@ -329,6 +374,7 @@ describe("restoredEquipment", () => {
   it("keeps a weapon whose bag went", () => {
     const restored = restoredEquipment(
       { weapon: { id: "itm_w", tileId: "sword" }, offhand: null,
+  armor: null,
   bag: bag("gone", []) },
       tiles,
     );
@@ -341,6 +387,7 @@ describe("restoredEquipment", () => {
       {
         weapon: null,
         offhand: null,
+        armor: null,
         bag: bag("bag", [
           { id: "itm_a", tileId: "sword" },
           { id: "itm_b", tileId: "gone" },
@@ -357,6 +404,7 @@ describe("restoredEquipment", () => {
   it("drops a container that has found its way inside a bag", () => {
     const restored = restoredEquipment(
       { weapon: null, offhand: null,
+  armor: null,
   bag: bag("bag", [{ id: "itm_a", tileId: "chest" }]) },
       tiles,
     );
@@ -368,6 +416,7 @@ describe("restoredEquipment", () => {
       {
         weapon: null,
         offhand: null,
+        armor: null,
         bag: bag("small-bag", [
           { id: "itm_a", tileId: "sword" },
           { id: "itm_b", tileId: "sword" },
@@ -391,6 +440,7 @@ describe("restoredEquipment", () => {
       {
         weapon: null,
         offhand: null,
+        armor: null,
         bag: {
           id: "itm_bag",
           tileId: "bag",
@@ -408,6 +458,7 @@ describe("restoredEquipment", () => {
       {
         weapon: { tileId: "sword" } as never,
         offhand: null,
+        armor: null,
         bag: { tileId: "bag", contents: [] } as never,
       },
       tiles,
@@ -440,6 +491,7 @@ describe("the off hand", () => {
   const holding = (offhand: string | null, weapon: string | null = null): Equipment => ({
     weapon: weapon ? { id: `itm_${weapon}`, tileId: weapon } : null,
     offhand: offhand ? { id: `itm_${offhand}`, tileId: offhand } : null,
+    armor: null,
     bag: null,
   });
 
@@ -475,23 +527,13 @@ describe("the off hand", () => {
   });
 
   /**
-   * And the other half of "a torch or a shield": defence, read off the `def`
-   * that already lives on a weapon as a stopgap until armour exists — so a
-   * shield is authorable today without a new item type being invented for it.
+   * And the other half of "a torch or a shield": defence, read off the `def` a
+   * weapon carries — which stays where it is now that armour has a slot, because
+   * a shield is a thing you *hold*. Making it armour would put it in the square
+   * a breastplate belongs in and let a body wear one instead of the other.
    */
   it("adds what it turns aside to your defence", () => {
-    const shield = normalizeTileDef({
-      id: "shield",
-      name: "Shield",
-      height: 0,
-      kind: "item",
-      directional: false,
-      attributes: {},
-      variants: { default: [] },
-      intangible: true,
-      interactions: { item: { ...DEFAULT_WEAPON, damage: 0, def: 3 } },
-    });
-    const withShield = { ...shipped, shield };
+    const withShield = { ...shipped, shield: SHIELD };
 
     const bare = effectiveBattler(player, holding(null), withShield);
     const guarded = effectiveBattler(player, holding("shield"), withShield);
@@ -500,6 +542,54 @@ describe("the off hand", () => {
     // Still swinging your own fists, which is the point of it being the *other*
     // hand rather than a second weapon.
     expect(guarded.damage).toBe(bare.damage);
+  });
+
+  /**
+   * **Both hands count, and the main hand's contribution is not new** — it has
+   * always reached a fight through `weaponInHand`, since a held weapon replaces
+   * the natural one and carries its `def` along with everything else. What
+   * changed is that `wornDefence` now says so: it was the off hand and the body
+   * only, so "how protected is this body" had two answers in two functions and
+   * `WeaponItem.def`'s own comment claimed the swinging hand contributed
+   * nothing. It does, and here is the arithmetic that proves it.
+   */
+  it("counts a shield in each hand, twice", () => {
+    const tiles = { ...shipped, shield: SHIELD };
+    const oneHanded = holding("shield");
+    const twoHanded = holding("shield", "shield");
+
+    expect(wornDefence(player, holding(null), tiles)).toBe(0);
+    expect(wornDefence(player, oneHanded, tiles)).toBe(3);
+    expect(wornDefence(player, twoHanded, tiles)).toBe(6);
+    expect(effectiveBattler(player, twoHanded, tiles).def).toBe(6);
+  });
+
+  /**
+   * The replacement rule, which is what stops the main hand being three free
+   * points: a shield in your fist is what you swing, so you gave up your fists
+   * to hold it.
+   */
+  it("charges the main hand its swing for the privilege", () => {
+    const tiles = { ...shipped, shield: SHIELD };
+    const bare = effectiveBattler(player, holding(null), tiles);
+    const shielded = effectiveBattler(player, holding(null, "shield"), tiles);
+
+    expect(shielded.def).toBe(bare.def + 3);
+    expect(shielded.damage).toBe(0);
+    expect(bare.damage).toBeGreaterThan(0);
+  });
+
+  /** A body whose own hide turns blows aside keeps it while its hands are empty. */
+  it("reads an empty fist off the body's natural weapon", () => {
+    const hided: BattlerDef = {
+      ...base,
+      naturalWeapon: { ...CLAWS, def: 4 },
+    };
+    expect(wornDefence(hided, emptyEquipment(), shipped)).toBe(4);
+    // And loses it the moment something else is in that hand, on the
+    // replacement rule the swing is under.
+    const tiles = { ...shipped, shield: SHIELD };
+    expect(wornDefence(hided, holding(null, "shield"), tiles)).toBe(3);
   });
 
   it("turns nothing aside when it is empty or holding a torch", () => {
@@ -512,5 +602,178 @@ describe("the off hand", () => {
   it("restores a kit that predates it", () => {
     const old = { weapon: null, bag: null } as unknown as Equipment;
     expect(restoredEquipment(old, shipped).offhand).toBeNull();
+  });
+});
+
+/**
+ * The body.
+ *
+ * The slot armour goes in, and the one square in the game that refuses things:
+ * both hands take anything you can carry, and a chest takes armour. Against the
+ * shipped catalogue, because what an author actually wrote down is half the
+ * claim — a base armour nobody starts in, or one that is not the weakest thing
+ * in the world, is a design that has quietly stopped being true.
+ */
+describe("the body", () => {
+  const shipped = tilesByIdFromList(normalizeTiles(tilesJson as unknown[]));
+  const player = resolveBattler(shipped["player"]!)!;
+
+  const wearing = (armor: string | null, offhand: string | null = null): Equipment => ({
+    weapon: null,
+    offhand: offhand ? { id: `itm_${offhand}`, tileId: offhand } : null,
+    armor: armor ? { id: `itm_${armor}`, tileId: armor } : null,
+    bag: null,
+  });
+
+  it("adds what it turns aside to your defence", () => {
+    const bare = effectiveBattler(player, wearing(null), shipped);
+    const mailed = effectiveBattler(player, wearing("chain-mail"), shipped);
+
+    expect(mailed.def).toBe(bare.def + 3);
+  });
+
+  /**
+   * The whole reason these are separate slots. A shield is what you put in the
+   * way and a shirt is what you have on, and a body with both should be
+   * protected by both — one number replacing the other would make wearing mail a
+   * reason to drop your shield.
+   */
+  it("adds to the off hand rather than replacing it", () => {
+    const tiles = { ...shipped, shield: SHIELD };
+    const kit = wearing("chain-mail", "shield");
+
+    // Bare hands, so the main hand contributes the player's own zero.
+    expect(wornDefence(player, kit, tiles)).toBe(3 + 3);
+    expect(armorDefence(kit, tiles)).toBe(3);
+    expect(offhandDefence(kit, tiles)).toBe(3);
+  });
+
+  /** What a body *is* cannot be put on, exactly as it cannot be picked up. */
+  it("leaves what you swing with entirely alone", () => {
+    const bare = effectiveBattler(player, wearing(null), shipped);
+    const plated = effectiveBattler(player, wearing("steel-plate"), shipped);
+
+    expect(plated.damage).toBe(bare.damage);
+    expect(plated.spd).toBe(bare.spd);
+    expect(plated.hitChance).toBe(bare.hitChance);
+    expect(plated.maxHp).toBe(bare.maxHp);
+  });
+
+  it("turns nothing aside when it is bare, or when the tile is gone", () => {
+    expect(armorDefence(wearing(null), shipped)).toBe(0);
+    expect(armorDefence(null, shipped)).toBe(0);
+    expect(armorDefence(wearing("no-such-tile"), shipped)).toBe(0);
+  });
+
+  /**
+   * The strict square. A hand refusing a thing you could obviously hold is the
+   * interface arguing with you; a chest wearing a sword is a number about
+   * nothing, since defence is the entirety of what the slot contributes.
+   */
+  it("comes back empty when what was saved in it is not armour", () => {
+    const restored = restoredEquipment(
+      { ...emptyEquipment(), armor: { id: "itm_w", tileId: "rusty-sword" } },
+      shipped,
+    );
+    expect(restored.armor).toBeNull();
+  });
+
+  it("keeps armour it can still read", () => {
+    const restored = restoredEquipment(wearing("chain-mail"), shipped);
+    expect(restored.armor?.tileId).toBe("chain-mail");
+  });
+
+  /** A kit saved before the slot existed comes back with a bare chest. */
+  it("restores a kit that predates it", () => {
+    const old = { weapon: null, offhand: null, bag: null } as unknown as Equipment;
+    expect(restoredEquipment(old, shipped).armor).toBeNull();
+  });
+});
+
+/**
+ * Armour that cares what hit it.
+ *
+ * **The claim is that resistance is a choice rather than a rung.** With a flat
+ * number alone every piece is strictly better or worse than every other, and the
+ * only decision left is which one you have found; a mail shirt that shrugs off
+ * blades and does nothing about a hammer is one you pick for the fight in front
+ * of you. So these assert the *asymmetry* and not merely that the number lands.
+ */
+describe("resisting a kind of blow", () => {
+  const shipped = tilesByIdFromList(normalizeTiles(tilesJson as unknown[]));
+  const player = resolveBattler(shipped["player"]!)!;
+
+  const wearing = (armor: string): Equipment => ({
+    ...emptyEquipment(),
+    armor: { id: `itm_${armor}`, tileId: armor },
+  });
+
+  it("carries the armour's own block through to the fight", () => {
+    const mailed = effectiveBattler(player, wearing("chain-mail"), shipped);
+    expect(mailed.resist.blade).toBe(4);
+    expect(mailed.resist.blunt).toBeUndefined();
+  });
+
+  it("says nothing for a bare chest or for armour with no opinion", () => {
+    expect(armorResistances(null, shipped)).toEqual({});
+    expect(armorResistances(emptyEquipment(), shipped)).toEqual({});
+    expect(armorResistances(wearing("cloth-tunic"), shipped)).toEqual({});
+  });
+
+  /**
+   * The content claim, and the one a player feels: the four resisting armours in
+   * the world disagree about which blow they are for. A catalogue where they all
+   * happened to resist blades would type-check and pass every unit above it.
+   */
+  it("is authored differently across the armours we ship", () => {
+    const kinds = ["padded-gambeson", "leather-jerkin", "warded-robe", "chain-mail"]
+      .map((id) => resolveArmor(shipped[id]!)!)
+      .flatMap((armor) => Object.keys(armor.resist ?? {}));
+    expect(new Set(kinds).size).toBeGreaterThan(1);
+    expect(kinds).toContain("blunt");
+    expect(kinds).toContain("blade");
+    expect(kinds).toContain("arcane");
+  });
+});
+
+/**
+ * What the player is wearing the first time they arrive.
+ *
+ * Content rather than machinery, on the terms `the vermin we ship` is: the slot
+ * working and the world being dressed are separate ways to end up with a player
+ * standing in their underwear.
+ */
+describe("the armour we ship", () => {
+  const shipped = tilesByIdFromList(normalizeTiles(tilesJson as unknown[]));
+  const player = resolveBattler(shipped["player"]!)!;
+
+  it("puts the base armour on the player, certainly", () => {
+    const worn = (player.kit ?? []).filter((entry) => entry.slot === "armor");
+    expect(worn).toEqual([
+      { slot: "armor", tileId: "cloth-tunic", chance: 100 },
+    ]);
+  });
+
+  /**
+   * **Very weak, and weakest**, which is what makes it a floor rather than a
+   * choice: a starting armour that beat anything findable would make the whole
+   * slot a thing you never touch again.
+   */
+  it("makes what the player starts in the least of them", () => {
+    const base = resolveArmor(shipped["cloth-tunic"]!)!;
+    const others = Object.values(shipped)
+      .map(resolveArmor)
+      .filter((armor): armor is NonNullable<typeof armor> => armor != null)
+      .filter((armor) => armor !== base);
+
+    expect(others.length).toBeGreaterThan(0);
+    for (const armor of others) {
+      const best = Math.max(
+        ...Object.values(armor.resist ?? { none: 0 }),
+        0,
+      );
+      expect(armor.def + best).toBeGreaterThan(base.def);
+    }
+    expect(base.resist).toBeUndefined();
   });
 });

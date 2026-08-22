@@ -515,6 +515,7 @@ function kitWith(
   return {
     weapon: null,
     offhand: null,
+    armor: null,
     bag: { id: "itm_bag", tileId: BAG_TILE_ID, contents },
     ...slots,
   };

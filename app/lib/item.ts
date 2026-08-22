@@ -171,9 +171,24 @@ export type WeaponItem = {
   /**
    * Flat reduction on every blow that lands on the wielder.
    *
-   * The only source of defence in the game, and deliberately a thin one: armour
-   * is where this belongs and armour has no slot yet. A parrying weapon is the
-   * one honest way to author it in the meantime.
+   * **What a thing turns aside by being in the way of it** — a shield, a
+   * bracer, a blade held up. It was once the only source of defence in the game
+   * because armour had no slot; it is now the *other* one, and the split is
+   * worth keeping: {@link ArmorItem} is what you wear and this is what you
+   * hold, and a body wearing mail behind a shield should get both.
+   *
+   * **Read off whichever hand is holding it.** The off hand's goes through
+   * `offhandDefence` and the swinging hand's rides on `weaponInHand`, since a
+   * held weapon replaces the natural one and its `def` travels with the rest of
+   * it — so a parrying sword parries, and two shields are twice the shield.
+   * `../game/equipment`'s `wornDefence` is where the two are added, along with
+   * what is worn, and is the only honest answer to "how protected is this
+   * body".
+   *
+   * A comment here once said the opposite — that a main-hand `def` was
+   * authorable and did nothing — which was false on the day it was written and
+   * is worth leaving a scar over: the arithmetic lived in two functions and
+   * neither one's name admitted the other existed.
    */
   def: number;
   /**
@@ -422,15 +437,92 @@ export type ContainerItem = {
 };
 
 /**
+ * Something worn on the body, and the only thing it does is stop blows.
+ *
+ * **One number, on purpose.** Armour that also weighed you down, or slowed a
+ * swing, or asked a mastery of you would be a second stat block arguing with the
+ * weapon's over the same fight — and the mastery model exists precisely so that
+ * one block decides. What a body is good at is its masteries, what it fights
+ * with is its weapon, and what it is wearing takes the edge off what lands. Three
+ * questions, three answers, none of them opinions about the others.
+ *
+ * It is deliberately the *same* field a shield's {@link WeaponItem.def} is, and
+ * they add: a shield is what you put in the way and this is what you have on,
+ * and a body with both is protected by both. See `../game/equipment`'s
+ * `wornDefence`, which is the one place they are summed.
+ *
+ * No `requirements` block, unlike a weapon. A requirement scales what a weapon
+ * is *worth* through `masteryRatio`, and there is no such scale here to hang it
+ * on — a half-understood breastplate is a breastplate. The dials an author has
+ * are {@link def} and {@link resist}, and a heavy armour nobody should have yet
+ * is one they cannot reach rather than one that punishes them for wearing it.
+ */
+export type ArmorItem = {
+  type: "armor";
+  /**
+   * Flat reduction on every blow that lands on the wearer, whatever struck it.
+   *
+   * Flat rather than a share, because that is what defence already is in this
+   * game — `../game/combat` subtracts it — and a second kind of defence that
+   * scaled would be two rules for one word. It follows that armour is worth most
+   * against a swarm of small blows and least against one big one, which is a
+   * real characterisation and the right way round: a mail shirt is why a rat is
+   * no longer a threat, and it is not why a bear is.
+   */
+  def: number;
+  /**
+   * Extra reduction against blows of one *kind*, on top of {@link def}.
+   *
+   * **Keyed by the attacking weapon's mastery, because that is already the game's
+   * word for what kind of blow a thing strikes.** A weapon names one — see
+   * {@link WeaponItem.mastery} — and it is not a label bolted on for this: it is
+   * the same field that decides how the weapon scales and what swinging it
+   * teaches. Inventing a damage-type axis beside it would be a second taxonomy
+   * of weapons to keep in step with the first, and the first is authored on
+   * every weapon in the world already.
+   *
+   * This is what makes armour a *choice* rather than a ladder. With `def` alone
+   * every piece is strictly better or worse than every other and the only
+   * decision is which you have found; a mail shirt that shrugs off blades and
+   * does nothing about a hammer is a thing you pick for the fight in front of
+   * you. It also gives a boss a real answer — a creature spawned in warded robes
+   * is a creature you do not beat with the staff.
+   *
+   * **Additive with {@link def} and never a multiplier or a share.** Defence is
+   * subtracted from a blow, so a resistance expressed as a percentage would be
+   * a second arithmetic nobody reading a fight could hold beside the first. It
+   * follows that the *most* an armour can do is `def + resist[kind]`, which is a
+   * number an author can read straight off the block.
+   *
+   * Absent is the common case and means "the same against everything", which is
+   * what plain clothing is. Only weapon masteries can be named: Toughness and
+   * Agility are what a body *is*, and nothing swings them.
+   */
+  resist?: WeaponResistances;
+};
+
+/**
+ * Extra defence, kind by kind. Every entry optional, so a block says only what
+ * the armour has an opinion about — an absent kind means the flat {@link
+ * ArmorItem.def} and nothing more.
+ */
+export type WeaponResistances = Partial<Record<WeaponMastery, number>>;
+
+/**
  * A discriminated union rather than a flat block of optional fields, so a weapon
  * cannot have a size and a container cannot have a mastery. The editor picks the
  * arm and the schema refuses anything else.
  */
-export type ItemDef = WeaponItem | ConsumableItem | ContainerItem;
+export type ItemDef = WeaponItem | ConsumableItem | ContainerItem | ArmorItem;
 
 export type ItemType = ItemDef["type"];
 
-export const ITEM_TYPES: ItemType[] = ["weapon", "consumable", "container"];
+export const ITEM_TYPES: ItemType[] = [
+  "weapon",
+  "armor",
+  "consumable",
+  "container",
+];
 
 /**
  * Both ends of the 0–100 stats, named so the editor and the schema agree.
@@ -510,6 +602,19 @@ export const DEFAULT_WEAPON_STATUS_CHANCE = 10;
 export const MAX_CONTAINER_SIZE = 12;
 
 /**
+ * Most a piece of armour may turn aside.
+ *
+ * A sanity bound rather than a balance one, on the terms {@link MAX_WEAPON_DAMAGE}
+ * is — and deliberately the *same* number, because the two are subtracted from
+ * each other. A ceiling below the widest authorable blow would be this constant
+ * quietly deciding that no armour can stop the heaviest weapon, which is a
+ * balance opinion and not a bound's to hold; a ceiling above it would let a typo
+ * author invulnerability. Equal is the one value that says only "these are the
+ * same scale".
+ */
+export const MAX_ARMOR_DEF = MAX_WEAPON_DAMAGE;
+
+/**
  * Furthest a consumable may move hit points, in either direction.
  *
  * Hit points have no authored ceiling the way percent stats do, so this is a
@@ -551,14 +656,15 @@ export function consumeVerb(consumable: ConsumableItem): string {
  * sword, you hold a torch, you put on a pack, whichever hand ends up with it.
  *
  * Not authored, unlike a consumable's, because there is nothing for an author
- * to add: the three kinds of item are the three verbs, and "Wield" is what every
- * weapon in every game has always been called. `offhand` is the one distinction
- * inside a kind, and it is already written down for other reasons.
+ * to add: the kinds of item are the verbs, and "Wield" is what every weapon in
+ * every game has always been called. `offhand` is the one distinction inside a
+ * kind, and it is already written down for other reasons.
  */
 export function equipVerb(def: TileDef): string {
   const item = resolveItem(def);
   if (!item) return EQUIP_FALLBACK_VERB;
   if (item.type === "container") return "Put on";
+  if (item.type === "armor") return "Wear";
   if (item.type === "weapon") return item.offhand ? "Hold" : "Wield";
   // Anything you are merely carrying rather than using. Nothing reaches this
   // through the interaction list — a consumable has no slot it belongs in — but
@@ -603,6 +709,19 @@ export const DEFAULT_CONSUMABLE: ConsumableItem = {
   // Something rather than nothing, so a fresh consumable shows what the field
   // is for the moment it is used. It goes with the "Eat" above.
   sound: "crunch",
+};
+
+/**
+ * What a tile gets the moment somebody makes it armour.
+ *
+ * Small, and the smallness is the point: armour is subtracted from every blow
+ * that lands, so a generous default would make the first thing an author ticks
+ * the box on stronger than the mail shirt they were about to write. Two is
+ * roughly a padded coat — plainly better than nothing and plainly not plate.
+ */
+export const DEFAULT_ARMOR: ArmorItem = {
+  type: "armor",
+  def: 2,
 };
 
 /** The starting backpack's shape, and what a fresh container tile gets. */
@@ -780,8 +899,66 @@ const containerSchema = v.object({
   equippable: v.boolean(),
 });
 
+/**
+ * Every weapon mastery optional, and body masteries deliberately absent.
+ *
+ * Built from {@link WEAPON_MASTERIES} rather than written out, on exactly the
+ * terms `masteriesSchema` is built from `MASTERIES`: a kind of weapon added to
+ * the union should be a kind of blow armour can be authored against, without
+ * anybody remembering to come back here.
+ */
+const weaponResistancesSchema = v.object(
+  Object.fromEntries(
+    WEAPON_MASTERIES.map((mastery) => [
+      mastery,
+      v.optional(
+        v.pipe(
+          v.number(),
+          v.integer(),
+          v.minValue(0),
+          v.maxValue(MAX_ARMOR_DEF),
+        ),
+      ),
+    ]),
+  ) as Record<
+    WeaponMastery,
+    v.OptionalSchema<
+      v.SchemaWithPipe<
+        [
+          v.NumberSchema<undefined>,
+          v.IntegerAction<number, undefined>,
+          v.MinValueAction<number, number, undefined>,
+          v.MaxValueAction<number, number, undefined>,
+        ]
+      >,
+      undefined
+    >
+  >,
+);
+
+const armorSchema = v.object({
+  type: v.literal("armor"),
+  // Unsigned, unlike a consumable's `hp`: armour that made blows land harder is
+  // a curse, and a curse is a status rather than a negative on a worn thing —
+  // `../game/combat` subtracts this, so a negative here would read as the
+  // attacker's weapon getting better and nothing in the panel would say why.
+  def: v.pipe(
+    v.number(),
+    v.integer(),
+    v.minValue(0),
+    v.maxValue(MAX_ARMOR_DEF),
+  ),
+  // Optional, and absent is the overwhelmingly common case: most armour is the
+  // same against everything. An empty object is allowed through rather than
+  // refused, on the terms a weapon's empty `requirements` is — it says what no
+  // key says, and refusing it would make a round trip through the editor a
+  // validation error.
+  resist: v.optional(weaponResistancesSchema),
+});
+
 const itemSchema = v.variant("type", [
   weaponSchema,
+  armorSchema,
   consumableSchema,
   containerSchema,
 ]);
@@ -820,6 +997,12 @@ export function isItem(def: TileDef): boolean {
 export function resolveContainer(def: TileDef): ContainerItem | null {
   const item = resolveItem(def);
   return item?.type === "container" ? item : null;
+}
+
+/** Parsed armour config, or null when this tile is not a piece of it. */
+export function resolveArmor(def: TileDef): ArmorItem | null {
+  const item = resolveItem(def);
+  return item?.type === "armor" ? item : null;
 }
 
 /**
@@ -966,9 +1149,33 @@ function statusGrantsForSave<Grant extends StatusGrant>(
   return saved.length ? saved : undefined;
 }
 
+/**
+ * An armour's fields, named, with the zeroes dropped.
+ *
+ * The same rule a weapon's requirements block is saved under and for the same
+ * reason: a resistance of zero is not a resistance, and a breastplate carrying
+ * `resist: {}` would read as "resists something" to anybody skimming the file.
+ * A draft that has been through the editor collects a key per mastery the moment
+ * anybody touches one of the fields, so this is what stops all five reaching
+ * disk to say nothing.
+ */
+function armorForSave(armor: ArmorItem): ArmorItem {
+  const resist = Object.fromEntries(
+    WEAPON_MASTERIES.filter((mastery) => (armor.resist?.[mastery] ?? 0) > 0).map(
+      (mastery) => [mastery, armor.resist?.[mastery]],
+    ),
+  );
+  return {
+    type: "armor",
+    def: armor.def,
+    ...(Object.keys(resist).length > 0 ? { resist } : {}),
+  };
+}
+
 export function itemForSave(item: ItemDef | undefined): ItemDef | undefined {
   if (!item) return undefined;
   if (item.type === "weapon") return weaponForSave(item);
+  if (item.type === "armor") return armorForSave(item);
   if (item.type === "consumable") {
     // A blank verb is dropped rather than written as `""`, exactly as a
     // switch's actionName is: an empty string that means "no name" is a second

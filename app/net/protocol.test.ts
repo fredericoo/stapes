@@ -45,6 +45,27 @@ index: 0 },
     });
   });
 
+  it("takes the body as either end of a move", () => {
+    expect(
+      parsed({ type: "moveItem", from: { kind: "armor" }, to: { kind: "weapon" } }),
+    ).toEqual({
+      type: "moveItem",
+      from: { kind: "armor" },
+      to: { kind: "weapon" },
+    });
+    expect(
+      parsed({
+        type: "moveItem",
+        from: { kind: "contents", index: 0 },
+        to: { kind: "armor" },
+      }),
+    ).toEqual({
+      type: "moveItem",
+      from: { kind: "contents", index: 0 },
+      to: { kind: "armor" },
+    });
+  });
+
   /** A pack in a hand is a container too, and `of` is which one. */
   it("takes a contents slot naming the hand it is inside", () => {
     const from = { kind: "contents", index: 1, of: "offhand" };
@@ -320,14 +341,19 @@ describe("a kit that will not parse", () => {
 
   it("still lets the world through, and hands back an empty kit", () => {
     const message = parseServerMessage(
-      helloWith({ weapon: null, offhand: null,
-  bag: { id: "itm_bag", tileId: "basic-bag", contents: [badItem] } }),
+      helloWith({
+        weapon: null,
+        offhand: null,
+        armor: null,
+        bag: { id: "itm_bag", tileId: "basic-bag", contents: [badItem] },
+      }),
     );
     expect(message).not.toBeNull();
     expect(message).toMatchObject({ type: "hello", selfId: "a", playerCount: 1 });
     expect(message?.type === "hello" && message.equipment).toEqual({
       weapon: null,
       offhand: null,
+      armor: null,
       bag: null,
     });
   });
@@ -340,6 +366,7 @@ describe("a kit that will not parse", () => {
       helloWith({
         weapon: { id: "itm_w", tileId: "rusty-sword" },
         offhand: null,
+        armor: null,
         bag: { id: "itm_bag", tileId: "basic-bag", contents: [badItem] },
       }),
     );
@@ -348,13 +375,42 @@ describe("a kit that will not parse", () => {
 
   it("does the same for the equipment message on its own", () => {
     const message = parseServerMessage(
-      JSON.stringify({ type: "equipment", equipment: { weapon: badItem, offhand: null,
-  bag: null } }),
+      JSON.stringify({
+        type: "equipment",
+        equipment: { weapon: badItem, offhand: null, armor: null, bag: null },
+      }),
     );
     expect(message).not.toBeNull();
     expect(message?.type === "equipment" && message.equipment).toEqual({
       weapon: null,
       offhand: null,
+      armor: null,
+      bag: null,
+    });
+  });
+
+  /**
+   * A kit written by a build that had no body slot, which is every kit in
+   * storage before this one. Absent reads as an empty chest — the same answer
+   * every other part of the kit gives to a thing the world no longer holds — and
+   * deliberately not as a `hello` that will not parse, which is a player who
+   * never finishes joining.
+   */
+  it("reads a kit saved before the body slot existed", () => {
+    const message = parseServerMessage(
+      JSON.stringify({
+        type: "equipment",
+        equipment: {
+          weapon: { id: "itm_w", tileId: "rusty-sword" },
+          offhand: null,
+          bag: null,
+        },
+      }),
+    );
+    expect(message?.type === "equipment" && message.equipment).toEqual({
+      weapon: { id: "itm_w", tileId: "rusty-sword" },
+      offhand: null,
+      armor: null,
       bag: null,
     });
   });
@@ -363,7 +419,12 @@ describe("a kit that will not parse", () => {
     const equipment = {
       weapon: { id: "itm_w", tileId: "rusty-sword" },
       offhand: null,
-      bag: { id: "itm_b", tileId: "basic-bag", contents: [{ id: "itm_c", tileId: "hand-lantern" }] },
+      armor: { id: "itm_a", tileId: "chain-mail" },
+      bag: {
+        id: "itm_b",
+        tileId: "basic-bag",
+        contents: [{ id: "itm_c", tileId: "hand-lantern" }],
+      },
     };
     const message = parseServerMessage(JSON.stringify({ type: "equipment", equipment }));
     expect(message?.type === "equipment" && message.equipment).toEqual(equipment);

@@ -1,4 +1,5 @@
 import type {
+  ArmorItem,
   ConsumableItem,
   ContainerItem,
   ItemDef,
@@ -7,20 +8,23 @@ import type {
 } from "../lib/item";
 import {
   CONSUME_FALLBACK_VERB,
+  DEFAULT_ARMOR,
   DEFAULT_CONSUMABLE,
   DEFAULT_CONTAINER,
   DEFAULT_WEAPON,
+  MAX_ARMOR_DEF,
   MAX_CONSUMABLE_HP_SHIFT,
   MAX_CONSUMABLE_SOUND_LENGTH,
   MAX_CONTAINER_SIZE,
 } from "../lib/item";
 import { hasAnyInteraction, type TileInteractions } from "../lib/interactions";
+import { WEAPON_MASTERIES } from "../lib/mastery";
 import type { StatusDef } from "../lib/status";
 import type { TileDef } from "../lib/types";
 import { Input, Segmented, Switch } from "../ui";
 import { StatField } from "./StatField";
 import { StatusGrants } from "./StatusGrants";
-import { WeaponFields } from "./WeaponFields";
+import { MASTERY_LABELS, WeaponFields } from "./WeaponFields";
 
 type Props = {
   draft: TileDef;
@@ -42,6 +46,7 @@ type Props = {
 
 const TYPE_OPTIONS: Array<{ value: ItemType; label: string }> = [
   { value: "weapon", label: "Weapon" },
+  { value: "armor", label: "Armour" },
   { value: "consumable", label: "Consumable" },
   { value: "container", label: "Container" },
 ];
@@ -76,12 +81,18 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
   const setType = (type: ItemType) => {
     if (type === item.type) return;
     if (type === "weapon") setItem({ ...DEFAULT_WEAPON });
+    else if (type === "armor") setItem({ ...DEFAULT_ARMOR });
     else if (type === "consumable") setItem({ ...DEFAULT_CONSUMABLE });
     else setItem({ ...DEFAULT_CONTAINER });
   };
 
   const patchWeapon = (fields: Partial<WeaponItem>) => {
     if (item.type !== "weapon") return;
+    setItem({ ...item, ...fields });
+  };
+
+  const patchArmor = (fields: Partial<ArmorItem>) => {
+    if (item.type !== "armor") return;
     setItem({ ...item, ...fields });
   };
 
@@ -153,6 +164,64 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
                 </span>
               </span>
             </label>
+          </div>
+        ) : item.type === "armor" ? (
+          <div className="flex flex-col gap-3">
+            <p className="max-w-lg text-[11px] leading-snug text-muted">
+              Worn on the body, and defence is the whole of what it does. It{" "}
+              <strong>adds</strong> to whatever is in either hand — a shield and
+              a mail shirt are two different answers to being hit, and a body
+              with both gets both.
+            </p>
+
+            <StatField
+              label="Defence"
+              hint="Taken off every blow that lands, whatever struck it."
+              value={item.def}
+              min={0}
+              max={MAX_ARMOR_DEF}
+              onChange={(def) => patchArmor({ def })}
+              readout={describeDefence(item.def)}
+            />
+
+            <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
+              <span className="text-xs font-bold uppercase text-muted">
+                Resists
+              </span>
+              <p className="max-w-lg text-[11px] leading-snug text-muted">
+                Extra defence against one <strong>kind</strong> of blow, on top
+                of the flat number above — the kind being the attacking
+                weapon&rsquo;s mastery. Mail that shrugs off blades and does
+                nothing about a hammer is armour you choose for the fight in
+                front of you, rather than one more rung on a ladder.
+              </p>
+
+              <div className="flex flex-wrap gap-4">
+                {WEAPON_MASTERIES.map((mastery) => {
+                  const against = item.resist?.[mastery] ?? 0;
+                  return (
+                    <StatField
+                      key={mastery}
+                      label={MASTERY_LABELS[mastery]}
+                      hint=""
+                      value={against}
+                      min={0}
+                      max={MAX_ARMOR_DEF}
+                      onChange={(level) =>
+                        patchArmor({
+                          resist: { ...item.resist, [mastery]: level },
+                        })
+                      }
+                      readout={
+                        against > 0
+                          ? `${MASTERY_LABELS[mastery]} blows do ${item.def + against} less.`
+                          : undefined
+                      }
+                    />
+                  );
+                })}
+              </div>
+            </div>
           </div>
         ) : item.type === "consumable" ? (
           <div className="flex flex-col gap-3">
@@ -250,6 +319,19 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
       </section>
     </div>
   );
+}
+
+/**
+ * What a piece of armour is worth, in words.
+ *
+ * Flat and subtracted, so the sentence can say the thing outright rather than
+ * gesturing at a curve: every blow that lands is worth this much less, and an
+ * author reading it back knows immediately whether they have just written a
+ * padded coat or a wall.
+ */
+function describeDefence(def: number): string {
+  if (def === 0) return "Nothing on its own — see Resists below.";
+  return `Every blow that lands does ${def} less.`;
 }
 
 /**

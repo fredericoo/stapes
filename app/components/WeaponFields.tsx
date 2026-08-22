@@ -40,7 +40,14 @@ import { StatusGrants } from "./StatusGrants";
  * of these four fields would be two places to forget a rename.
  */
 
-const MASTERY_LABELS: Record<Mastery, string> = {
+/**
+ * What each mastery is called on screen.
+ *
+ * Exported because armour is authored against the same list — a resistance names
+ * a kind of blow and a kind of blow *is* a weapon mastery — and a second table
+ * of the same seven words is a second place a rename has to reach.
+ */
+export const MASTERY_LABELS: Record<Mastery, string> = {
   fist: "Fist",
   blade: "Blade",
   blunt: "Blunt",
@@ -204,7 +211,7 @@ export function WeaponFields({
         />
         <StatField
           label="Def"
-          hint="Taken off every blow that lands on the wielder. Armour's job, until there is armour."
+          hint="Taken off every blow that lands on the wielder, in either hand. What you hold up: a shield, a bracer. What you wear is armour, and has a slot of its own."
           value={weapon.def}
           min={0}
           onChange={(def) => onChange({ def })}

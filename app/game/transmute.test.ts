@@ -139,6 +139,7 @@ function carrying(...contents: string[]): Equipment {
   return {
     weapon: null,
     offhand: null,
+    armor: null,
     bag: {
       id: "itm_bag",
       tileId: BAG_TILE_ID,
@@ -298,6 +299,7 @@ describe("whether a recipe is on offer", () => {
     const bagless: Equipment = {
       weapon: null,
       offhand: { id: "itm_held", tileId: "raw-meat" },
+      armor: null,
       bag: null,
     };
 

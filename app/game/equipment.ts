@@ -1,9 +1,14 @@
 import type { BattlerDef, FightingStats } from "../lib/battler";
-import { fightingStats } from "../lib/battler";
-import type { WeaponItem } from "../lib/item";
+import { fightingStats, NO_RESISTANCES } from "../lib/battler";
+import type { WeaponItem, WeaponResistances } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import { mintItemId } from "../lib/itemInstance";
-import { resolveContainer, resolveItem, resolveWeapon } from "../lib/item";
+import {
+  resolveArmor,
+  resolveContainer,
+  resolveItem,
+  resolveWeapon,
+} from "../lib/item";
 import { EQUIP_SLOTS, type EquipSlot } from "../lib/kit";
 import { resolveLight } from "../lib/tileResolve";
 import type { TileDef } from "../lib/types";
@@ -50,6 +55,22 @@ export type Equipment = {
    * exactly what a torch and a shield are for.
    */
   offhand: ItemInstance | null;
+  /**
+   * What is worn on the body — a tunic, a mail shirt, a breastplate.
+   *
+   * The one slot that takes exactly one kind of thing, and the strictness is
+   * the point. Both hands are deliberately generous because a hand *is* generous
+   * — you can hold a backpack if you would rather — but there is no honest
+   * reading of a body under which a sword or a loaf of bread is what you are
+   * wearing. So `slotTakes` refuses everything that is not {@link ArmorItem}
+   * here, and that refusal is what makes the square legible: whatever is in it
+   * is protecting you, and the number it is worth is the whole of what it does.
+   *
+   * It adds to whatever is in either hand rather than replacing it — see
+   * {@link wornDefence}. A shield and a mail shirt are two different answers to
+   * being hit, and a body with both should get both.
+   */
+  armor: ItemInstance | null;
   /** An equippable container. Its `contents` is the inventory. */
   bag: ItemInstance | null;
 };
@@ -65,7 +86,7 @@ export type { EquipSlot };
 
 /** Carrying nothing at all — a body that was never given a kit. */
 export function emptyEquipment(): Equipment {
-  return { weapon: null, offhand: null, bag: null };
+  return { weapon: null, offhand: null, armor: null, bag: null };
 }
 
 /**
@@ -106,10 +127,19 @@ export function restoredEquipment(
       ? identified(saved.offhand)
       : null;
 
+  // Held to what the slot takes rather than to what a hand takes, because this
+  // slot is the strict one — a sword that was armour while somebody was away
+  // comes back off their chest rather than staying on it.
+  const armorDef = saved.armor ? tilesById[saved.armor.tileId] : undefined;
+  const armor =
+    saved.armor && armorDef && resolveArmor(armorDef)
+      ? identified(saved.armor)
+      : null;
+
   const bagDef = saved.bag ? tilesById[saved.bag.tileId] : undefined;
   const container = bagDef ? resolveContainer(bagDef) : null;
   if (!saved.bag || !container?.equippable) {
-    return { weapon, offhand, bag: null };
+    return { weapon, offhand, armor, bag: null };
   }
 
   // Truncated to what the bag holds *now*, because an author who shrank it did
@@ -125,7 +155,12 @@ export function restoredEquipment(
     .slice(0, container.size)
     .map(identified);
 
-  return { weapon, offhand, bag: { ...identified(saved.bag), contents } };
+  return {
+    weapon,
+    offhand,
+    armor,
+    bag: { ...identified(saved.bag), contents },
+  };
 }
 
 /**
@@ -155,7 +190,7 @@ function identified(instance: ItemInstance): ItemInstance {
  * *authored* list — an author names a slot in a kit, so `../lib/kit` had to own
  * the names — and this is where the runtime shape is held to it.
  */
-const EQUIPMENT_SLOTS: readonly (keyof Equipment)[] = EQUIP_SLOTS;
+export const EQUIPMENT_SLOTS: readonly (keyof Equipment)[] = EQUIP_SLOTS;
 
 /**
  * A slot added to {@link Equipment} and not to `EQUIP_SLOTS` would be a thing
@@ -290,8 +325,101 @@ export function effectiveBattler(
   tilesById: Record<string, TileDef>,
 ): FightingStats {
   const stats = fightingStats(base, weaponInHand(base, equipment, tilesById));
-  const guard = offhandDefence(equipment, tilesById);
-  return guard === 0 ? stats : { ...stats, def: stats.def + guard };
+  // Assigned rather than added to what `fightingStats` worked out, because
+  // {@link wornDefence} has already counted that: the weapon in hand is one of
+  // its three sources. Adding here is exactly the double count that splitting
+  // defence across two functions used to invite — and did.
+  const guard = wornDefence(base, equipment, tilesById);
+  const resist = armorResistances(equipment, tilesById);
+  if (guard === stats.def && resist === NO_RESISTANCES) return stats;
+  return { ...stats, def: guard, resist };
+}
+
+/**
+ * What the thing on this body's chest turns aside *extra*, kind by kind.
+ *
+ * The armour's own block, handed on rather than merged with anything: the flat
+ * half of defence is summed across three slots in {@link wornDefence} because a
+ * sword, a shield and a shirt all stop blows, and this half is not, because
+ * neither hand has an opinion about what *kind* of blow it is stopping. One
+ * armour, one table.
+ *
+ * Shared-empty for a bare chest and for the overwhelmingly common armour that
+ * says nothing — see {@link NO_RESISTANCES} — so `effectiveBattler` can tell
+ * "nothing to add" by identity and hand back the stats it was given.
+ */
+export function armorResistances(
+  equipment: Equipment | null,
+  tilesById: Record<string, TileDef>,
+): WeaponResistances {
+  const worn = equipment?.armor;
+  if (!worn) return NO_RESISTANCES;
+  const def = tilesById[worn.tileId];
+  return (def ? resolveArmor(def)?.resist : null) ?? NO_RESISTANCES;
+}
+
+/**
+ * Everything this body has between it and a blow, added up.
+ *
+ * **Three sources and they sum**: what you are swinging, what you are holding
+ * up, and what you have on. A sword with a `def` is a parrying sword and a
+ * shield in your fist is a shield, so the main hand counts on exactly the terms
+ * the other two do — a body with a shield in each hand is protected twice, and
+ * one wearing mail behind them three times. There is deliberately no cap and no
+ * diminishing return: the numbers an author writes are the numbers, on the terms
+ * a weapon's damage is, and a ceiling imposed here would be balance hiding in a
+ * helper.
+ *
+ * **The main hand replaces rather than adds, and only within its own slot.**
+ * What is counted is {@link weaponInHand} — the held weapon, or the body's
+ * natural one — so taking up a shield trades your claws' `def` for the shield's,
+ * along with trading your bite for whatever the shield swings like. That is the
+ * same replacement rule the swing itself is under, and it is what makes a shield
+ * in the main hand a decision rather than three free points.
+ *
+ * **This was already the arithmetic; it was not in one place.** The main hand's
+ * `def` reached a fight through `fightingStats`, which resolves the weapon,
+ * while the other two were summed here — so "how protected is this body" had two
+ * answers and neither function's name admitted it. The comment on
+ * `WeaponItem.def` confidently said a main-hand `def` did nothing, which was
+ * false the day it was written. It is one function now, and `effectiveBattler`
+ * *assigns* what this returns rather than adding to it.
+ *
+ * Takes the body for the same reason {@link weaponInHand} does: bare hands are a
+ * weapon, and what an empty fist turns aside is a fact about whose fist it is.
+ */
+export function wornDefence(
+  base: BattlerDef,
+  equipment: Equipment | null,
+  tilesById: Record<string, TileDef>,
+): number {
+  return (
+    weaponInHand(base, equipment, tilesById).def +
+    offhandDefence(equipment, tilesById) +
+    armorDefence(equipment, tilesById)
+  );
+}
+
+/**
+ * What the thing on this body's chest turns aside.
+ *
+ * The slot takes armour and nothing else — see `./itemMoves`' `slotTakes` — so
+ * unlike the off hand there is no "and anything else with an opinion about
+ * defence" to allow for: whatever is in the square is armour, and its `def` is
+ * the entirety of what it does.
+ *
+ * Zero for an empty chest and for a tile the catalogue has lost, on the terms
+ * every other lookup here answers a missing tile: the fact is out of date, and a
+ * fight is not worth refusing over it.
+ */
+export function armorDefence(
+  equipment: Equipment | null,
+  tilesById: Record<string, TileDef>,
+): number {
+  const worn = equipment?.armor;
+  if (!worn) return 0;
+  const def = tilesById[worn.tileId];
+  return def ? (resolveArmor(def)?.def ?? 0) : 0;
 }
 
 /**
@@ -305,10 +433,16 @@ export function effectiveBattler(
  * of {@link carriedLightTileIds} and defence comes out of here, so both halves
  * of that choice work and neither invents a second attack.
  *
- * Read off a weapon's `def`, which is where defence already lives as a stopgap
- * until armour exists — so a shield is authorable today as an item with a `def`
- * and nothing to speak of anywhere else, and needs no new item type to be
- * invented for it.
+ * Read off a weapon's `def` rather than off {@link ArmorItem}, and it stays that
+ * way now that armour has a slot of its own: a shield is a thing you *hold*, and
+ * making it armour would put it in the square a breastplate belongs in and let a
+ * body wear one instead of the other. Two kinds, two squares, and
+ * {@link wornDefence} adds them.
+ *
+ * **This is the off hand's contribution alone.** The main hand's rides on
+ * {@link weaponInHand}, because a held weapon replaces the natural one and its
+ * `def` goes along with the rest of it. {@link wornDefence} is where the two
+ * meet, and is what any caller asking "how protected is this body" should ask.
  *
  * Zero for an empty hand, a tile the catalogue has lost, and anything with no
  * opinion about defence.
@@ -334,7 +468,8 @@ export function offhandDefence(
  *
  * The one refusal is a container nobody may carry: `equippable: false` is an
  * author saying "this is a chest, it is opened where it lies", and a chest in a
- * fist would be that flag meaning nothing.
+ * fist would be that flag meaning nothing. Armour is *not* a refusal — you can
+ * carry a breastplate in your hands, you simply are not wearing it while you do.
  *
  * Here rather than in `./itemMoves` because it is a fact about the slot, and the
  * slot is defined by this module. `restoredEquipment` and the move rules both

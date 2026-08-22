@@ -57,6 +57,11 @@ const tiles = [
     kind: "item",
     interactions: { item: { type: "consumable", hp: 5 } },
   }),
+  tile({
+    id: "mail",
+    kind: "item",
+    interactions: { item: { type: "armor", def: 4 } },
+  }),
   tile({ id: "bag", kind: "item", interactions: { item: DEFAULT_CONTAINER } }),
   tile({
     id: "chest",
@@ -71,11 +76,13 @@ const tilesById = tilesByIdFromList(tiles);
 const KIT: Equipment = {
   weapon: null,
   offhand: null,
+  armor: null,
   bag: { id: "itm_bag", tileId: "bag", contents: [] },
 };
 const FULL_KIT: Equipment = {
   weapon: null,
   offhand: null,
+  armor: null,
   bag: {
     id: "itm_bag",
     tileId: "bag",
@@ -307,6 +314,7 @@ describe("equipSlotFrom", () => {
   it("sends each thing to the slot its tile names", () => {
     expect(slotFor("sword", emptyEquipment())).toBe("weapon");
     expect(slotFor("torch", emptyEquipment())).toBe("offhand");
+    expect(slotFor("mail", emptyEquipment())).toBe("armor");
     expect(slotFor("bag", emptyEquipment())).toBe("bag");
   });
 
@@ -329,6 +337,18 @@ describe("equipSlotFrom", () => {
 
   it("refuses a bag when one is already worn", () => {
     expect(slotFor("bag", KIT)).toBeNull();
+  });
+
+  /**
+   * Equipping never displaces what is already on you — a swap is two deliberate
+   * acts — and armour is under the same rule as every other square.
+   */
+  it("refuses the body when something is already worn on it", () => {
+    const dressed: Equipment = {
+      ...emptyEquipment(),
+      armor: { id: "itm_worn", tileId: "mail" },
+    };
+    expect(slotFor("mail", dressed)).toBeNull();
   });
 
   it("never equips a chest, which is looted where it lies", () => {
