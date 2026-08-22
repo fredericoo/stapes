@@ -510,12 +510,52 @@ The formulas live in `app/game/combat.ts`, kept pure so they can be asserted:
   common and both a glancing and a shattering one are rare.
 - **`flee` is contested against the attacker's `acc` on a logistic curve**, which
   is what stops perfect accuracy from erasing the stat.
-- **`spd` is geometric between 2 and 200 ticks.** Linear would make the whole
+- **`spd` is geometric between 6 and 600 ticks.** Linear would make the whole
   lower half of the stat indistinguishable from zero; on this curve 50 is twenty
   ticks.
 - **A swing always costs three draws**, whatever the stats. The dice are seeded so
   a world is reproducible, and a draw count that varied with accuracy would make
   one creature's stats change what every creature after it rolled.
+
+### A blow costs the thrower a step
+
+Swinging is automatic and used to cost the body doing it nothing, so the
+strictly better way to fight was to never stand still: hold a movement key, let
+the cooldown do the swinging, and a fight was decided by whoever was willing to
+keep walking. Every blow now plants its thrower — `ActorRuntime.attackRecoveryMs`,
+spent in `tryAttack` beside the cooldown and wound down beside it.
+
+- **The length is that body's own step**, read off the tile through
+  `resolveWalkDurationMs`, not a constant of its own. A creature authored to walk
+  slowly would otherwise be punished twice for it. It has nothing to do with
+  Agility, deliberately: this is the one cost in a fight nobody can train away.
+- **Only the *start* of a step is gated.** A walk already in flight when the blow
+  goes out finishes — a body cannot be stopped mid-cell without leaving it
+  standing between two of them.
+- **The turn is free.** A blow costs the step, not the aim, or a cornered fighter
+  could point nowhere but at what is already hitting them. `applyStepRequest`
+  gates after the facing, and `RemoteSession.predictStep` gates in the same place
+  so a planted player faces the same way on both sides.
+- **A queued step is `"later"`, never `"refused"`.** A recovery is a wait, so the
+  step the client drew is one it is going to get; rejecting it would drag the body
+  back to where it swung from.
+
+At the end of the curve a weapon whose blows come round faster than its holder
+walks roots them for as long as they keep swinging, because each recovery is
+reset before it runs out. Nothing authored is near it — the quickest natural
+weapon in `data/tiles.json` is the rat's, a blow every 867ms against a 150ms step
+— and that gap is the room the rule leaves for footwork.
+
+**The client has to re-run this rule, which is why `swung` is on the wire.** It
+is the only combat fact the browser cannot be told the outcome of: steps are the
+one thing it decides for itself, so a client predicting through a recovery draws
+a run the server holds a cell at a time and spends the fight being corrected.
+The event carries an id and nothing else — how long a body is planted is how long
+it takes to walk, and both ends read that off the tile, exactly as neither end is
+ever sent a walk's duration. It is its own event rather than a flag on
+`strikeStarted` because half the blows in the game do not lean: an archer never
+throws itself at anything, and a bow whose holder could keep walking while a fist
+could not would apply the rule to whoever picked the wrong weapon.
 
 ### Reach is a disc and a lid, and both belong to the weapon
 

@@ -325,6 +325,25 @@ export type MotionEvent =
    * else's it is a lerp that must stop rather than drag a sprite across the map.
    */
   | { kind: "teleported"; actorId: string }
+  /**
+   * A body threw a blow, and is planted for one of its own steps because of it.
+   *
+   * **Its own event rather than a flag on `strikeStarted`, because half the
+   * blows in the game do not lean.** An archer never throws itself at anything
+   * — the arrow is what travels — and a bow that let its holder keep walking
+   * while a fist did not would be the balance rule applying to whoever picked
+   * the wrong weapon.
+   *
+   * Carries no duration, on exactly the terms a walk carries none: how long a
+   * body is planted is how long that body takes to walk one cell, and both ends
+   * read that off the tile it is. See `../game/movement`'s
+   * `resolveWalkDurationMs`.
+   *
+   * What it is *for* is the one body a client decides the footwork of — its
+   * own. Everybody else's walking arrives as `walkStarted` already gated, so
+   * this tells them nothing they are not about to be shown.
+   */
+  | { kind: "swung"; actorId: string }
   | { kind: "joined"; actorId: string; playerCount: number }
   | { kind: "left"; actorId: string; playerCount: number }
   /**
@@ -1032,6 +1051,10 @@ const serverMessageSchema = v.variant("type", [
         }),
         v.object({
           kind: v.literal("teleported"),
+          actorId: v.string(),
+        }),
+        v.object({
+          kind: v.literal("swung"),
           actorId: v.string(),
         }),
         v.object({

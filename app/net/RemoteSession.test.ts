@@ -600,6 +600,82 @@ describe("RemoteSession strikes", () => {
   });
 });
 
+/** The plant a blow costs its thrower, as the server announces it. */
+const swung: MotionEvent = { kind: "swung", actorId: SELF };
+
+/**
+ * The one rule this side has to re-run rather than be told the outcome of.
+ *
+ * Everything else about a fight arrives settled — what a blow came to, what a
+ * body has left. A recovery is different because it refuses a *step*, and steps
+ * are the one thing this client decides for itself: predict through one and
+ * every cell of the run is a guess the server holds back, so the body walks at
+ * the pace of the socket. @see `../game/GameSession`
+ */
+describe("RemoteSession attack recovery", () => {
+  it("refuses to predict a step while this body is recovering", () => {
+    const { socket, session } = connected();
+    socket.deliver(patch([], [swung]));
+
+    session.setInput({ directions: ["e"] });
+
+    expect(session.getSnapshot().self.walk).toBeNull();
+    expect(stepsSent(socket)).toEqual([]);
+  });
+
+  it("takes the step the frame the recovery runs out", () => {
+    const { socket, session } = connected();
+    socket.deliver(patch([], [swung]));
+    session.setInput({ directions: ["e"] });
+
+    session.update(WALK_DURATION_MS);
+
+    expect(session.getSnapshot().self.walk?.to).toEqual({ x: 1, y: 0, z: 0 });
+    expect(stepsSent(socket)).toHaveLength(1);
+  });
+
+  /**
+   * A blow costs the step, not the aim — the same split the simulation draws,
+   * and it has to be drawn in the same place or a planted player would face one
+   * way here and another there.
+   */
+  it("still turns a planted body to face where it is asked to go", () => {
+    const { socket, session } = connected();
+    socket.deliver(patch([], [swung]));
+
+    session.setInput({ directions: ["n"] });
+
+    expect(session.getSnapshot().self.direction).toBe("n");
+    expect(framesOfType(socket, "face")).toHaveLength(1);
+  });
+
+  /**
+   * Only the start of a step. A walk already drawn cannot be taken back without
+   * dragging the sprite backwards across a cell it has half crossed — which is
+   * the one thing the simulation, which lets that walk finish, would never ask
+   * for.
+   */
+  it("never interrupts a step already being drawn", () => {
+    const { socket, session } = connected();
+    session.setInput({ directions: ["e"] });
+    const predicted = session.getSnapshot().self.walk;
+
+    socket.deliver(patch([], [swung]));
+
+    expect(session.getSnapshot().self.walk).toBe(predicted);
+  });
+
+  /** Somebody else's blow says nothing about this body's footwork. */
+  it("ignores a blow thrown by anybody else", () => {
+    const { socket, session } = connected();
+    socket.deliver(patch([], [{ kind: "swung", actorId: "somebody-else" }]));
+
+    session.setInput({ directions: ["e"] });
+
+    expect(session.getSnapshot().self.walk?.to).toEqual({ x: 1, y: 0, z: 0 });
+  });
+});
+
 describe("RemoteSession prediction", () => {
   it("walks on the key press, without waiting for the server", () => {
     const { socket, session } = connected();

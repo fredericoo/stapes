@@ -168,6 +168,20 @@ export class RemoteSession implements PlaySession {
   private held: GameInput = { directions: [] };
   /** Last facing sent, so a held key does not resend it every frame. */
   private facing: Direction | null = null;
+  /**
+   * Milliseconds until this body may take a step again, having just swung.
+   *
+   * The one thing this side has to re-run rather than be told: the simulation
+   * refuses a step from a body still recovering, and a client that kept
+   * predicting through it would draw a run the server holds a cell at a time.
+   * Every step of it is a guess that turns out true a moment later, so nothing
+   * is ever corrected on screen — the body simply walks at whatever pace the
+   * socket answers, which is the exact latency prediction exists to hide.
+   *
+   * Held for this body alone. Everybody else's walking arrives as an event that
+   * has already been through that refusal. @see `./protocol`'s `swung`
+   */
+  private attackRecoveryMs = 0;
   /** Where the server last had us, so finding it stays a cell lookup. */
   private serverSeen: ActorLocation | null = null;
   private chats: LiveChat[] = [];
@@ -397,6 +411,10 @@ export class RemoteSession implements PlaySession {
       // A restart moves everyone, so nothing that was animating still applies —
       // including every step this client was still holding a guess about.
       this.pending = [];
+      // Beside them, because a recovery is a clock on a body the restart has
+      // just replaced: the session on the other side is holding none, and one
+      // left running here would plant the new body for a step it never earned.
+      this.attackRecoveryMs = 0;
       this.facing = null;
       this.serverSeen = null;
       this.lastSelf = null;
@@ -526,6 +544,10 @@ export class RemoteSession implements PlaySession {
       // that could confirm or refuse it.
       this.held = { directions: [] };
       this.pending = [];
+      // Beside them, and for the same reason: a body that no longer exists is
+      // not recovering from anything, and a recovery left running would plant
+      // the one it comes back in for the rest of its length.
+      this.attackRecoveryMs = 0;
       // Stated locally rather than sent, unlike the kit beside it. What is left
       // in the bag is a real question — normally nothing, sometimes the whole
       // kit the cell refused — so the server has to answer it. What a corpse is
@@ -784,6 +806,27 @@ export class RemoteSession implements PlaySession {
       return;
     }
 
+    // Before the prediction guard for the third time, and for the reason the
+    // two above are: a blow moves nobody, so it can neither confirm nor
+    // contradict a step this client is holding a guess about. Run through that
+    // guard, it would throw away the footwork of everybody who swung mid-stride
+    // — which is exactly the step a recovery lets through, since only the start
+    // of one is ever gated.
+    //
+    // Only our own, because a recovery is only ever asked about by the body
+    // predicting its own steps. @see `./protocol`
+    if (event.kind === "swung") {
+      if (event.actorId !== this.selfId) return;
+      const def = this.tilesById[PLAYER_TILE_ID];
+      // The body's own pace, not the constant, so a player authored to walk
+      // slowly is planted for one of *their* steps — the same reading the
+      // simulation takes. @see `../game/movement`
+      this.attackRecoveryMs = def
+        ? resolveWalkDurationMs(def)
+        : WALK_DURATION_MS;
+      return;
+    }
+
     if (event.actorId === this.selfId) {
       // A walk of our own is one we drew a round trip ago and are still holding
       // a guess about; this is the server agreeing, not news, and replaying it
@@ -883,6 +926,13 @@ export class RemoteSession implements PlaySession {
       }
     }
 
+    // Before the prediction below rather than after it, so a recovery that runs
+    // out this frame is a step taken this frame. Left until afterwards, every
+    // blow would cost a frame more than it says it does, and how much more
+    // would depend on the frame rate.
+    if (this.attackRecoveryMs > 0) {
+      this.attackRecoveryMs = Math.max(0, this.attackRecoveryMs - dtMs);
+    }
     this.agePendingSteps(dtMs);
     this.advancePrediction();
     this.expireChats(dtMs);
@@ -1053,6 +1103,9 @@ export class RemoteSession implements PlaySession {
 
     this.face(loc, choice.facing);
     if (!choice.step) return;
+    // After the turn, exactly as the simulation gates it after the turn: a blow
+    // costs the step and not the aim. @see `../game/GameSession`
+    if (this.attackRecoveryMs > 0) return;
 
     const seq = this.nextStepSeq++;
     motion.walk = {

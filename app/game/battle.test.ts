@@ -9,7 +9,7 @@ import { statusesById } from "../lib/status";
 import type { MapFile, TileDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL, normalizeTileDef, normalizeTiles } from "../lib/types";
 import { attackIntervalMs, MIN_ATTACK_TICKS } from "./combat";
-import { STRIKE_DURATION_MS, TICK_MS } from "./constants";
+import { STRIKE_DURATION_MS, TICK_MS, WALK_DURATION_MS } from "./constants";
 import { GameSession } from "./GameSession";
 
 /**
@@ -1006,4 +1006,184 @@ describe("venom", () => {
 
     expect(bodyOf(session, "dummy")!.hp!).toBeLessThan(DUMMY_MAX_HP);
     expect(statusesOn(session, "dummy")).toEqual([]);  });
+});
+
+/**
+ * What a blow costs the body that threw it, in footwork.
+ *
+ * A fight used to be winnable by holding a movement key: the swinging is
+ * automatic and cost nothing, so the strictly better way to fight was to never
+ * stand still. Every blow now plants its thrower for exactly one of that body's
+ * steps — read off the tile rather than from a constant, so a creature authored
+ * to walk slowly is not punished twice for it, and off the tile rather than off
+ * Agility, so it is the one thing in a fight nobody can train away.
+ */
+describe("what a swing costs in footwork", () => {
+  /**
+   * A body whose walking is slow enough to watch.
+   *
+   * Three steps' worth, and the length is what makes these readable rather than
+   * a race with the tick: a recovery of one ordinary step is over in six ticks,
+   * the same order as the lean and the cooldown it sits between.
+   */
+  const PLODDER_WALK_MS = WALK_DURATION_MS * 3;
+
+  /**
+   * A player who swings once and then not again for twenty seconds.
+   *
+   * Deliberately not {@link CERTAIN}'s speed. At 100 the blows come every
+   * 200ms, which is a walk — so the second swing lands on the very tick the
+   * first recovery expires and resets it, and what is under test here is one
+   * recovery rather than the pile-up. That pile-up has a test of its own below.
+   */
+  function ponderous(walkDurationMs?: number): TileDef[] {
+    return tiles.map((t) =>
+      t.id === "player"
+        ? tile({
+            ...t,
+            ...(walkDurationMs == null ? {} : { walkDurationMs }),
+            interactions: {
+              battler: {
+                masteries: { toughness: 92 },
+                naturalWeapon: claws({ damage: 5, accuracy: 100, spd: 0 }),
+              },
+            },
+          })
+        : t,
+    );
+  }
+
+  /**
+   * A fight against something nothing can get through.
+   *
+   * The anvil rather than the dummy, because these run for whole seconds and a
+   * punching bag that died half way through would release the body under test:
+   * a target that has left the world stops the swinging, and with it the thing
+   * being measured.
+   */
+  function planted(defs: TileDef[]) {
+    const session = new GameSession(withBody(field(), 1, 0, "anvil"), defs);
+    fight(session, bodyOf(session, "anvil")!.id);
+    return session;
+  }
+
+  it("refuses to start a step while the swinger is recovering", () => {
+    const session = planted(ponderous(PLODDER_WALK_MS));
+    session.setInput({ directions: ["n"] });
+
+    session.tick(TICK_MS);
+    expect(self(session).strike).not.toBeNull();
+
+    advance(session, PLODDER_WALK_MS - TICK_MS * 2);
+    expect(self(session).walk).toBeNull();
+    expect(self(session).y).toBe(0);
+  });
+
+  it("lets the step go the moment the recovery is spent", () => {
+    const session = planted(ponderous(PLODDER_WALK_MS));
+    session.setInput({ directions: ["n"] });
+
+    session.tick(TICK_MS);
+    advance(session, PLODDER_WALK_MS + TICK_MS);
+
+    expect(self(session).walk).not.toBeNull();
+  });
+
+  /**
+   * The recovery is the body's own step, not a constant. A slow walker planted
+   * for a quick walker's step would be planted for a fraction of what a step
+   * costs it, which is the fairness the whole rule turns on.
+   */
+  it("plants a slow walker for longer than a quick one", () => {
+    const quick = planted(ponderous());
+    quick.setInput({ directions: ["n"] });
+    quick.tick(TICK_MS);
+    advance(quick, WALK_DURATION_MS + TICK_MS);
+
+    const slow = planted(ponderous(PLODDER_WALK_MS));
+    slow.setInput({ directions: ["n"] });
+    slow.tick(TICK_MS);
+    advance(slow, WALK_DURATION_MS + TICK_MS);
+
+    expect(self(quick).walk).not.toBeNull();
+    expect(self(slow).walk).toBeNull();
+  });
+
+  /**
+   * A blow costs the step, not the aim. Refusing the turn as well would leave a
+   * cornered fighter unable to point anywhere but at what is already hitting
+   * them.
+   */
+  it("still turns a planted body to face where it is asked to go", () => {
+    const session = planted(ponderous(PLODDER_WALK_MS));
+    session.tick(TICK_MS);
+
+    session.setInput({ directions: ["n"] });
+    session.tick(TICK_MS);
+
+    expect(self(session).direction).toBe("n");
+    expect(self(session).walk).toBeNull();
+  });
+
+  /**
+   * Only the *start* of a step is gated. A body cannot be stopped mid-cell
+   * without leaving it standing between two of them, so a walk in flight when
+   * the blow goes out finishes.
+   */
+  it("never interrupts a walk already in flight", () => {
+    const session = new GameSession(
+      withBody(field(), 1, 0, "anvil"),
+      ponderous(PLODDER_WALK_MS),
+    );
+    session.setInput({ directions: ["n"] });
+    session.tick(TICK_MS);
+    expect(self(session).walk).not.toBeNull();
+
+    fight(session, bodyOf(session, "anvil")!.id);
+    advance(session, PLODDER_WALK_MS + TICK_MS);
+
+    expect(self(session).y).toBe(-1);
+  });
+
+  /**
+   * The end of the curve, stated so nobody has to rediscover it: a weapon whose
+   * blows come round faster than its holder walks roots them for as long as
+   * they keep swinging, because each recovery is reset before it runs out.
+   *
+   * Nothing authored is anywhere near it — the quickest natural weapon in
+   * `data/tiles.json` is the rat's, at a blow every 867ms against a 150ms step
+   * — and that gap is the room the rule leaves for footwork. Standing perfectly
+   * still is what the *extreme* costs, not what a fight costs.
+   */
+  it("roots a fighter whose blows come round faster than it walks", () => {
+    const session = planted(tiles);
+    session.setInput({ directions: ["n"] });
+
+    advance(session, attackIntervalMs(100) * 5);
+
+    expect(self(session).y).toBe(0);
+    expect(self(session).walk).toBeNull();
+  });
+
+  /**
+   * The recovery is a clock this loop is the only thing winding, exactly as the
+   * lean beside it is — and unlike the lean, it is holding a step somebody has
+   * already asked for. A world that fell asleep under one would plant the body
+   * until the next time anything happened to move.
+   */
+  it("keeps the world awake for as long as somebody is planted", () => {
+    const session = planted(ponderous(PLODDER_WALK_MS));
+    session.tick(TICK_MS);
+    session.setAttackMode(false);
+    session.setTarget(null);
+
+    // Past the lean and past the blow's own paperwork, so what is left holding
+    // the loop open is the recovery and nothing else.
+    advance(session, STRIKE_DURATION_MS + TICK_MS * 2);
+    expect(self(session).strike).toBeNull();
+    expect(session.isAtRest()).toBe(false);
+
+    advance(session, PLODDER_WALK_MS);
+    expect(session.isAtRest()).toBe(true);
+  });
 });

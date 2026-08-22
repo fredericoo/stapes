@@ -2655,6 +2655,7 @@ export class GameServer extends DurableObject<Env> {
     this.collectDamageEvents(session);
     this.collectProjectileEvents(session);
     this.collectTeleportEvents(session);
+    this.collectSwingEvents(session);
     this.noteDeaths(session);
     this.broadcastSpeech(session, actors);
     this.broadcastNoise(session, actors);
@@ -2984,6 +2985,24 @@ export class GameServer extends DurableObject<Env> {
   private collectTeleportEvents(session: GameSession) {
     for (const actorId of session.drainTeleports()) {
       this.events.push({ kind: "teleported", actorId });
+    }
+  }
+
+  /**
+   * Turn this tick's blows into the plant each one costs.
+   *
+   * Drained rather than diffed, on the same terms a teleport is: what the
+   * client needs is that a recovery *started*, and a number winding down cannot
+   * say that — a body that swung again a tick early reads identically to one
+   * that never stopped.
+   *
+   * The event is only ever acted on by the body that threw the blow, which is
+   * why it carries nothing else: everybody else's footwork arrives already
+   * gated, as `walkStarted` or as nothing at all.
+   */
+  private collectSwingEvents(session: GameSession) {
+    for (const actorId of session.drainSwings()) {
+      this.events.push({ kind: "swung", actorId });
     }
   }
 
