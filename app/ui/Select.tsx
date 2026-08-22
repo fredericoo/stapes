@@ -6,12 +6,22 @@ export function Select({
   options,
   placeholder = "Select…",
   className = "",
+  ariaLabel,
 }: {
   value: string | null;
   onValueChange: (value: string | null) => void;
   options: Array<{ value: string; label: string }>;
   placeholder?: string;
   className?: string;
+  /**
+   * What this select is *for*, where the surrounding text cannot say it.
+   *
+   * The trigger is a button rather than a form control, so a `<label>` beside it
+   * labels nothing — a caller whose caption is a `<span>` has a control that
+   * reads out as its current value and no more. Optional, because most callers
+   * sit inside a labelled row that already answers the question.
+   */
+  ariaLabel?: string;
 }) {
   return (
     <BaseSelect.Root
@@ -20,6 +30,7 @@ export function Select({
       items={options.map((o) => ({ value: o.value, label: o.label }))}
     >
       <BaseSelect.Trigger
+        aria-label={ariaLabel}
         className={[
           "inline-flex min-w-[10rem] items-center justify-between gap-2 border-2 border-border bg-paper px-2 py-1 text-sm shadow-hard",
           "focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-accent",

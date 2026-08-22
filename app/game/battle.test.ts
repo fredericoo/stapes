@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import statusesJson from "../../data/statuses.json";
 import tilesJson from "../../data/tiles.json";
-import { resolveBattler } from "../lib/battler";
+import { defFrom, maxHpFrom, resolveBattler } from "../lib/battler";
 import { ATTACKER_SELECTOR, resolveBrain, slot } from "../lib/brain";
 import { conditionLeaves } from "../lib/conditions";
 import { emptyMap, replaceStack } from "../lib/mapData";
@@ -102,6 +102,35 @@ const CERTAIN = { accuracy: 100, spd: 100 };
  * Every body has one now, and most of these fixtures only care about two of its
  * numbers — so the rest are defaulted here rather than repeated five times.
  */
+/**
+ * The Toughness these fixtures buy their hit points with, and what it now costs
+ * them.
+ *
+ * **Toughness is no longer a pure hit-point dial** — see `../lib/battler`'s
+ * `defFrom`, which gives every body a share of defence on the same curve. These
+ * tests are about reach, targeting and the plumbing of a blow, so what they need
+ * is a body with a lot of health that a swing still visibly dents; a fixture
+ * that quietly grew eighteen points of armour turned every one of them into an
+ * assertion about mitigation instead.
+ *
+ * So the figures are *derived* rather than typed. A hundred hit points was
+ * written as `92` and read as `100` in six places, and the day the curve moved,
+ * all six were wrong in a way that read as a broken swing.
+ */
+const PLAYER_TOUGHNESS = 92;
+const PLAYER_MAX_HP = maxHpFrom(PLAYER_TOUGHNESS);
+const DUMMY_TOUGHNESS = 42;
+const BRAWLER_TOUGHNESS = 22;
+
+/**
+ * A blow that is felt through whatever armour the target's Toughness grants.
+ *
+ * Stated as "the target's defence, and then some" rather than as a number, so
+ * these tests keep asserting what they were written to assert — that a swing
+ * lands — rather than re-deriving the defence curve every time it is tuned.
+ */
+const feltBy = (toughness: number) => defFrom(toughness) + 5;
+
 const claws = (fields: Record<string, unknown>) => ({
   type: "weapon" as const,
   damage: 0,
@@ -126,8 +155,10 @@ const tiles: TileDef[] = [
     lightPassing: true,
     variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
     interactions: {
-      // 92 Toughness is the hundred hit points these tests count in.
-      battler: { masteries: { toughness: 92 }, naturalWeapon: claws({ damage: 5, ...CERTAIN }) },
+      battler: {
+        masteries: { toughness: PLAYER_TOUGHNESS },
+        naturalWeapon: claws({ damage: feltBy(DUMMY_TOUGHNESS), ...CERTAIN }),
+      },
     },
   }),
   // Hit points, no mind. What a target that cannot fight back looks like.
@@ -137,7 +168,7 @@ const tiles: TileDef[] = [
     actor: true,
     walkable: false,
     interactions: {
-      battler: { masteries: { toughness: 42 }, naturalWeapon: claws({}) },
+      battler: { masteries: { toughness: DUMMY_TOUGHNESS }, naturalWeapon: claws({}) },
     },
   }),
   // Armoured past anything the player can do to it.
@@ -159,7 +190,10 @@ const tiles: TileDef[] = [
     actor: true,
     walkable: false,
     interactions: {
-      battler: { masteries: { toughness: 22 }, naturalWeapon: claws({ damage: 3, ...CERTAIN }) },
+      battler: {
+        masteries: { toughness: BRAWLER_TOUGHNESS },
+        naturalWeapon: claws({ damage: feltBy(PLAYER_TOUGHNESS), ...CERTAIN }),
+      },
       brain: brawlerBrain,
     },
   }),
@@ -174,9 +208,11 @@ const tiles: TileDef[] = [
     walkable: false,
     interactions: {
       battler: {
-        masteries: { toughness: 22 },
+        masteries: { toughness: BRAWLER_TOUGHNESS },
         naturalWeapon: claws({
-          damage: 1,
+          // Enough to be felt, because a venom that only ever landed on a blow
+          // armour swallowed would assert the plumbing by accident.
+          damage: feltBy(PLAYER_TOUGHNESS),
           ...CERTAIN,
           statuses: [{ id: "venom", chance: 100, fromMs: 30_000, toMs: 60_000 }],
         }),
@@ -303,8 +339,8 @@ describe("hit points", () => {
   it("start full, and only exist on a body that has stats", () => {
     const session = new GameSession(withBody(withBody(field(), 1, 0, "dummy"), 2, 0, "statue"), tiles);
 
-    expect(self(session).hp).toBe(100);
-    expect(self(session).maxHp).toBe(100);
+    expect(self(session).hp).toBe(PLAYER_MAX_HP);
+    expect(self(session).maxHp).toBe(PLAYER_MAX_HP);
     expect(bodyOf(session, "dummy")?.hp).toBe(DUMMY_MAX_HP);
     // Not zero: zero means dead, and this body cannot be either.
     expect(bodyOf(session, "statue")?.hp).toBeNull();
@@ -324,7 +360,7 @@ describe("hit points", () => {
 const ENOUGH_SWINGS_MS = TICK_MS * MIN_ATTACK_TICKS * 6;
 
 /** What the punching bag starts at, so "it took damage" is one comparison. */
-const DUMMY_MAX_HP = 50;
+const DUMMY_MAX_HP = maxHpFrom(DUMMY_TOUGHNESS);
 
 /**
  * Long enough to finish it off, with room for the swings that come to nothing.
@@ -391,7 +427,10 @@ describe("swinging at a target", () => {
         ? tile({
             ...t,
             interactions: {
-              battler: { masteries: { toughness: 92 }, naturalWeapon: claws({ damage: 1, accuracy: 100 }) },
+              battler: {
+                masteries: { toughness: PLAYER_TOUGHNESS },
+                naturalWeapon: claws({ damage: 1, accuracy: 100 }),
+              },
             },
           })
         : t,
@@ -689,7 +728,7 @@ describe("a creature that fights back", () => {
     // and the answer to come back.
     advance(session, 1000);
 
-    expect(self(session).hp!).toBeLessThan(100);
+    expect(self(session).hp!).toBeLessThan(PLAYER_MAX_HP);
   });
 
   it("does nothing to anybody who has not touched it", () => {
@@ -697,7 +736,7 @@ describe("a creature that fights back", () => {
 
     advance(session, 2000);
 
-    expect(self(session).hp).toBe(100);
+    expect(self(session).hp).toBe(PLAYER_MAX_HP);
   });
 });
 
@@ -755,7 +794,7 @@ describe("the authored creatures", () => {
  * there is no flag saying so. @see `../lib/item`'s `isRanged`
  */
 const bow = claws({
-  damage: 5,
+  damage: feltBy(DUMMY_TOUGHNESS),
   ...CERTAIN,
   mastery: "ranged" as const,
   reach: { cells: 6, height: HEIGHT_PER_LEVEL },
@@ -767,7 +806,15 @@ const archerTiles: TileDef[] = tiles.map((t) =>
     ? tile({
         ...t,
         interactions: {
-          battler: { masteries: { toughness: 92, ranged: 50 }, naturalWeapon: bow },
+          battler: {
+            // No Ranged mastery, deliberately: the bow asks for none, so the
+            // level would buy nothing but the flat skill bonus — and these
+            // tests are about reach and arrows, not about how hard an archer
+            // hits. With it, the dummy died mid-test and the assertions started
+            // reading a body that was no longer there.
+            masteries: { toughness: PLAYER_TOUGHNESS },
+            naturalWeapon: bow,
+          },
         },
       })
     : t,
@@ -956,7 +1003,7 @@ describe("venom", () => {
             ...t,
             interactions: {
               battler: {
-                masteries: { toughness: 92 },
+                masteries: { toughness: PLAYER_TOUGHNESS },
                 naturalWeapon: claws({ damage: 5, ...CERTAIN }),
                 kit: [{ slot: "weapon", tileId: "venom-fang", chance: 100 }],
               },

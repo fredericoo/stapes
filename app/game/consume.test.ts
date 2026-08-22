@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import statusesJson from "../../data/statuses.json";
 import tilesJson from "../../data/tiles.json";
+import { maxHpFrom } from "../lib/battler";
 import { type StatusGrant, DEFAULT_CONTAINER } from "../lib/item";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
@@ -45,7 +46,18 @@ function tile(partial: Record<string, unknown>): TileDef {
   });
 }
 
-const PLAYER_MAX_HP = 100;
+/**
+ * The Toughness these tests count their hit points in, and the maximum it now
+ * buys.
+ *
+ * **Derived rather than pinned.** It used to be the other way round — a hundred
+ * hit points written as `PLAYER_MAX_HP - 8` Toughness — which was exact only for
+ * as long as a point of Toughness was worth exactly one hit point. It is not any
+ * more: the curve accelerates, so the last points are worth three each. See
+ * `../lib/battler`'s `maxHpFrom`.
+ */
+const PLAYER_TOUGHNESS = 92;
+const PLAYER_MAX_HP = maxHpFrom(PLAYER_TOUGHNESS);
 
 /** A consumable that grants statuses instead of moving hit points on the spot. */
 function granter(id: string, statuses: StatusGrant[]): TileDef {
@@ -84,7 +96,7 @@ const tiles: TileDef[] = [
     variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
     interactions: {
       battler: {
-        masteries: { toughness: PLAYER_MAX_HP - 8 },
+        masteries: { toughness: PLAYER_TOUGHNESS },
         naturalWeapon: { type: "weapon", damage: 5, def: 0, accuracy: 100, variance: 0, spd: 100, mastery: "fist" },
         // Where the bag on a player's back comes from — see `app/lib/kit.ts`.
         kit: [{ slot: "bag", tileId: BAG_TILE_ID, chance: 100 }],
@@ -564,8 +576,11 @@ describe("eating something that grants a status", () => {
     const start = hpOf(session)!;
 
     runSeconds(session, 3);
-    // `ceil(100 / 100)` is 1, three times over.
-    expect(hpOf(session)).toBe(start + 3);
+    // The authored formula is `ceil(MAX_HP / 100)`, paid once a second — so the
+    // figure is read off the maximum rather than typed, since Toughness no
+    // longer buys a hit point a point and the maximum moves with its curve.
+    const perSecond = Math.ceil(PLAYER_MAX_HP / 100);
+    expect(hpOf(session)).toBe(start + perSecond * 3);
   });
 
   /** The cap still holds: a berry cannot make anybody overfull. */

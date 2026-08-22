@@ -4,16 +4,14 @@ import {
   experienceMultiplier,
   learningRate,
   MAX_MASTERY,
-  MASTERY_BRIDGE,
-  MAX_MASTERY_RATIO,
   MAX_XP_MULTIPLIER,
   MIN_RATING,
   masteriesFromXp,
-  masteryRatio,
+  requirementShare,
   NOTHING_BELOW_RATIO,
   rating,
-  trainingCeiling,
-  UNREQUIRED_RATIO,
+  OUTGROWN_FALLOFF,
+  REQUIREMENTS_MET,
   levelForXp,
   progressToNextLevel,
   xpForLevel,
@@ -21,69 +19,82 @@ import {
 } from "./mastery";
 
 /**
- * How well a body meets what a weapon asks of it.
+ * How much of what a weapon asks a body actually brings.
  *
- * One number, and almost every rule in the mastery design hangs off it — hit
- * chance, speed, damage, and in the phase after this the point at which a weapon
- * stops teaching you anything. It is also the kind of arithmetic that is quietly
- * wrong for months: it returns a plausible fraction whatever it does.
+ * One number, and what a weapon is worth in the hand hangs off it — damage,
+ * accuracy and speed all fall on it together. It is also the kind of arithmetic
+ * that is quietly wrong for months: it returns a plausible fraction whatever it
+ * does.
  */
 
-describe("masteryRatio", () => {
-  it("is neither a penalty nor a gift when a weapon asks nothing", () => {
-    expect(masteryRatio({ blade: 0 }, undefined)).toBe(UNREQUIRED_RATIO);
-    expect(masteryRatio({ blade: 50 }, {})).toBe(UNREQUIRED_RATIO);
+describe("requirementShare", () => {
+  it("is fully met when a weapon asks nothing", () => {
+    expect(requirementShare({ blade: 0 }, undefined)).toBe(REQUIREMENTS_MET);
+    expect(requirementShare({ blade: 50 }, {})).toBe(REQUIREMENTS_MET);
   });
 
   /**
    * A requirement of zero reads as absent, on the same terms an unwritten
    * mastery reads as zero. Otherwise a block that had been through the editor
-   * and back would divide by it.
+   * and back would count a requirement nobody wrote.
    */
-  it("ignores a requirement of zero rather than dividing by it", () => {
-    expect(masteryRatio({ blade: 10 }, { blade: 0, blunt: 0 })).toBe(
-      UNREQUIRED_RATIO,
+  it("ignores a requirement of zero rather than counting it", () => {
+    expect(requirementShare({ blade: 10 }, { blade: 0, blunt: 0 })).toBe(
+      REQUIREMENTS_MET,
     );
-    // Blade is asked for zero and so is not asked for at all; if it counted,
-    // the division would be by zero and the worst ratio would be Infinity.
-    expect(masteryRatio({ blade: 10, blunt: 10 }, { blade: 0, blunt: 20 })).toBe(
-      0.5,
-    );
+    expect(
+      requirementShare({ blade: 10, blunt: 10 }, { blade: 0, blunt: 20 }),
+    ).toBe(0.5);
   });
 
   it("is one when the wielder exactly meets what is asked", () => {
-    expect(masteryRatio({ blunt: 35 }, { blunt: 35 })).toBe(1);
+    expect(requirementShare({ blunt: 35 }, { blunt: 35 })).toBe(1);
   });
 
   /**
-   * **The worst ratio decides**, and this is the rule most likely to surprise:
-   * a secondary requirement on a mastery the weapon does not even train can
-   * halve the whole thing, and the player only feels it as the weapon not
-   * working.
+   * **Pooled, not weakest-link.** Every point asked for counts once, wherever it
+   * was asked, so partial progress towards a second requirement is visible
+   * rather than invisible until it is complete. Under the rule this replaced,
+   * being one point short of a secondary requirement halved the weapon outright.
    */
-  it("takes the worst ratio across every requirement", () => {
+  it("pools every requirement rather than taking the worst", () => {
     const wielder = { blunt: 35, toughness: 10 };
-    // Blunt alone would be 1; Toughness alone would be 0.5.
-    expect(masteryRatio(wielder, { blunt: 35, toughness: 20 })).toBe(0.5);
+    // 35 of 35 Blunt and 10 of 20 Toughness: 45 of the 55 points asked.
+    expect(requirementShare(wielder, { blunt: 35, toughness: 20 })).toBeCloseTo(
+      45 / 55,
+      10,
+    );
+  });
+
+  /**
+   * **A surplus never carries.** The cap is what keeps each requirement
+   * genuinely required: a brute with enormous Blunt and no Toughness must not be
+   * able to muscle past the half of a weapon that is about being able to hold
+   * it.
+   */
+  it("never lets a surplus in one mastery cover a shortfall in another", () => {
+    expect(
+      requirementShare({ blunt: 100, toughness: 0 }, { blunt: 35, toughness: 20 }),
+    ).toBeCloseTo(35 / 55, 10);
   });
 
   it("counts a mastery the wielder has never trained as nothing", () => {
-    expect(masteryRatio({ blade: 40 }, { arcane: 20 })).toBe(0);
+    expect(requirementShare({ blade: 40 }, { arcane: 20 })).toBe(0);
   });
 
   /**
-   * The performance ceiling. Without it, a hero who had outgrown everything
-   * could pick up the weakest weapon in the world and swing it like a god —
-   * which is exactly the twinking the training ceiling exists to prevent, coming
-   * back in through the other door.
+   * **A gate, not a scale.** However far past the requirement a wielder is, a
+   * met requirement is met and nothing further is owed here — being good with a
+   * weapon is paid by `../lib/battler`, against the absolute mastery rather than
+   * against the requirement.
    */
-  it("caps however far past the requirement the wielder is", () => {
-    expect(masteryRatio({ blunt: 100 }, { blunt: 1 })).toBe(MAX_MASTERY_RATIO);
-    expect(masteryRatio({ blunt: 100 }, { blunt: 35 })).toBe(MAX_MASTERY_RATIO);
+  it("stops at fully met however far past it the wielder is", () => {
+    expect(requirementShare({ blunt: 100 }, { blunt: 1 })).toBe(REQUIREMENTS_MET);
+    expect(requirementShare({ blunt: 100 }, { blunt: 35 })).toBe(REQUIREMENTS_MET);
   });
 
   it("never goes below zero", () => {
-    expect(masteryRatio({}, { blade: 30 })).toBe(0);
+    expect(requirementShare({}, { blade: 30 })).toBe(0);
   });
 });
 
@@ -97,94 +108,46 @@ describe("masteryRatio", () => {
  * 0 to Blade 1 anywhere in the game.
  */
 describe("learningRate", () => {
-  it("is full rate all the way to the ceiling", () => {
+  it("pays in full anywhere at or below what the weapon asks", () => {
     expect(learningRate(0, 40)).toBe(1);
+    expect(learningRate(20, 40)).toBe(1);
     expect(learningRate(40, 40)).toBe(1);
-    expect(learningRate(trainingCeiling(40), 40)).toBe(1);
-  });
-
-  it("halves for each doubling past the ceiling", () => {
-    const requirement = 40;
-    const ceiling = trainingCeiling(requirement);
-    expect(learningRate(ceiling * 2, requirement)).toBeCloseTo(0.5, 10);
-    expect(learningRate(ceiling * 4, requirement)).toBeCloseTo(0.25, 10);
-  });
-
-  it("never reaches nothing, however far outgrown", () => {
-    expect(learningRate(100, 1)).toBeGreaterThan(0);
   });
 
   /**
-   * What gets a mastery off zero. A weapon that asks nothing has no ceiling to
-   * fall off, so it teaches at full rate forever — absurd at the top end, and
-   * the only way in at the bottom.
+   * **The cap is the important half.** Below the requirement the ratio is
+   * greater than one, and paying a bonus for swinging something you cannot use
+   * would be exactly backwards — you are already earning less there, because
+   * experience is counted in damage and an unready weapon barely does any.
    */
-  it("never fades for a weapon that asks nothing", () => {
+  it("never pays more than full, however far beneath the weapon the wielder is", () => {
+    expect(learningRate(1, 90)).toBe(1);
+    expect(learningRate(0, 90)).toBe(1);
+  });
+
+  /**
+   * The whole point of the sixth power: standing still with one weapon stops
+   * being worth it almost immediately, so climbing means picking up the next
+   * one rather than swinging this one for longer.
+   */
+  it("falls away steeply the moment the requirement is passed", () => {
+    expect(learningRate(48, 40)).toBeCloseTo((40 / 48) ** OUTGROWN_FALLOFF, 10);
+    expect(learningRate(48, 40)).toBeLessThan(0.4);
+    expect(learningRate(80, 40)).toBeLessThan(0.02);
+  });
+
+  it("keeps falling rather than stopping", () => {
+    // Never a wall: a wall here is what deadlocked the design once already.
+    expect(learningRate(100, 1)).toBeGreaterThan(0);
+    expect(learningRate(100, 40)).toBeGreaterThan(0);
+  });
+
+  it("teaches forever at full rate when the weapon asks nothing", () => {
     expect(learningRate(0, 0)).toBe(1);
     expect(learningRate(100, 0)).toBe(1);
   });
-
-  /**
-   * A weapon far *above* you is not discounted here, and must not be: you
-   * already earn less from it by landing fewer blows. Charging twice for the
-   * same difficulty is exactly what made the old wall a deadlock.
-   */
-  it("does not also discount a weapon that outclasses the wielder", () => {
-    expect(learningRate(1, 90)).toBe(1);
-  });
 });
 
-describe("trainingCeiling", () => {
-  /** The worked example from the design, kept honest. */
-  it("takes a Double Axe's Blunt 35 to 40", () => {
-    expect(trainingCeiling(35)).toBe(40);
-  });
-
-  /**
-   * The whole point of the bridge, and the thing the old ratio could not do: a
-   * starter weapon and an endgame weapon are worth the same amount of progress.
-   * Under `req × 1.25` the requirement-5 sword carried a player one single point
-   * and the requirement-80 sword carried a veteran twenty.
-   */
-  it("is the same distance whatever tier the weapon sits at", () => {
-    for (const requirement of [1, 5, 20, 40, 80]) {
-      expect(trainingCeiling(requirement) - requirement).toBe(MASTERY_BRIDGE);
-    }
-  });
-
-  /**
-   * No flooring, unlike the ratio it replaced: both terms are whole masteries,
-   * so there is no half a level to lose on the way through.
-   */
-  it("lands on a whole mastery without having to round", () => {
-    expect(trainingCeiling(10)).toBe(15);
-    expect(Number.isInteger(trainingCeiling(7))).toBe(true);
-  });
-
-  /**
-   * **The two ceilings are deliberately no longer the same number.** They were,
-   * and the shared constant is what forced the learning half to be proportional
-   * when it wanted to be additive — see `MAX_MASTERY_RATIO`. Past the bridge a
-   * weapon can still be improving in the hand while it has stopped teaching, and
-   * that is the intended reading rather than a drift to be tidied up.
-   */
-  it("is independent of the performance cap", () => {
-    const requirement = 40;
-    expect(
-      masteryRatio({ blunt: trainingCeiling(requirement) }, { blunt: requirement }),
-    ).toBeLessThan(MAX_MASTERY_RATIO);
-    expect(learningRate(trainingCeiling(requirement), requirement)).toBe(1);
-  });
-});
-
-/**
- * Experience, and the level read out of it.
- *
- * The pair has to round-trip exactly, because seeding is what a new player is:
- * the authored block becomes experience and the level is read straight back out
- * of it, and any drift there is a player who starts one point below what the
- * tile says.
- */
 describe("the experience curve", () => {
   it("reads back exactly the level it was seeded from", () => {
     for (const level of [0, 1, 5, 40, 99, MAX_MASTERY]) {

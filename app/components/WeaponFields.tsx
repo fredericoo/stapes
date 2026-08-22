@@ -1,4 +1,9 @@
 import { attackIntervalMs, damageFraction, dodgeChance } from "../game/combat";
+import {
+  ACCURACY_AT_MAX_MASTERY,
+  DAMAGE_AT_MAX_MASTERY,
+  REQUIREMENT_FALLOFF,
+} from "../lib/battler";
 import { TICK_MS } from "../game/constants";
 import type { ProjectileDef, Reach, WeaponItem } from "../lib/item";
 import {
@@ -17,12 +22,10 @@ import { flightDurationMs } from "../game/projectile";
 import { HEIGHT_PER_LEVEL, type TileDef } from "../lib/types";
 import {
   MASTERIES,
-  MASTERY_BRIDGE,
   MAX_MASTERY,
-  MAX_MASTERY_RATIO,
   type Mastery,
   MIN_MASTERY,
-  trainingCeiling,
+  OUTGROWN_FALLOFF,
   WEAPON_MASTERIES,
   type WeaponMastery,
 } from "../lib/mastery";
@@ -417,7 +420,7 @@ export function WeaponFields({
               }
               readout={
                 mastery === weapon.mastery && required > 0
-                  ? `Full learning to ${MASTERY_LABELS[mastery]} ${trainingCeiling(required)} — a ${MASTERY_BRIDGE}-point bridge — then fading.`
+                  ? `Teaches at full rate up to ${MASTERY_LABELS[mastery]} ${required}, then falls away fast: a fifth past it pays ${Math.round((1 / 1.2) ** OUTGROWN_FALLOFF * 100)}%, twice it pays ${Math.round(0.5 ** OUTGROWN_FALLOFF * 100)}%.`
                   : undefined
               }
             />
@@ -426,20 +429,33 @@ export function WeaponFields({
       </div>
 
       <p className="max-w-lg text-[11px] leading-snug text-muted">
-        A wielder who exactly meets every requirement swings at full effect. Below
-        that, <strong>landing carries the penalty</strong> and speed and damage
-        only sag — an outclassed weapon still connects sometimes, so it is poor
-        rather than useless and can still teach. Above it, up to{" "}
-        {MAX_MASTERY_RATIO}×, speed and damage keep improving and landing does
-        not, since it is already certain.
+        <strong>These numbers are what the weapon is worth with every
+        requirement exactly met.</strong> Requirements are pooled and capped:
+        bringing 45 of the 55 points an axe asks for is 82% of the way there, and
+        a surplus in one mastery never covers a shortfall in another. Below that,
+        damage, accuracy and speed all fall on the cube of what you brought — 90%
+        of the way there is {Math.round(0.9 ** REQUIREMENT_FALLOFF * 100)}% of
+        the weapon, half way there is{" "}
+        {Math.round(0.5 ** REQUIREMENT_FALLOFF * 100)}%. Above it nothing more is
+        owed: a requirement is a gate, not a scale.
       </p>
 
       <p className="max-w-lg text-[11px] leading-snug text-muted">
-        <strong>How far it carries a wielder is a separate question.</strong>{" "}
-        Every weapon teaches {MASTERY_BRIDGE} points past what it asks, whatever
-        tier it sits at, and fades after that rather than stopping. So a
-        requirement is not just a gate — it is where this weapon's stretch of the
-        ladder begins.
+        <strong>Being good with it is paid separately.</strong> The{" "}
+        {MASTERY_LABELS[weapon.mastery]} mastery adds up to{" "}
+        {DAMAGE_AT_MAX_MASTERY} damage and{" "}
+        {ACCURACY_AT_MAX_MASTERY} accuracy flat, plus a quarter of what the
+        weapon already brings — so a mastered starter weapon is a real weapon
+        rather than a rounding error, and it keeps paying long after its
+        requirements stopped.
+      </p>
+
+      <p className="max-w-lg text-[11px] leading-snug text-muted">
+        <strong>How far it carries a wielder is a separate question.</strong> A
+        weapon teaches at full rate right up to what it asks and then falls away
+        on the sixth power, so there is very little to be had by standing still
+        with it. Climbing means picking up the next weapon rather than swinging
+        this one longer.
       </p>
     </div>
   );

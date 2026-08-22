@@ -15,7 +15,8 @@ import {
   type Masteries,
   masteriesSchema,
   masteryLevel,
-  masteryRatio,
+  MAX_MASTERY,
+  requirementShare,
   type WeaponMastery,
 } from "./mastery";
 import type { TileDef } from "./types";
@@ -165,6 +166,19 @@ export type FightingStats = {
    */
   mastery: WeaponMastery;
   /**
+   * How much faster than {@link spd} alone this body swings — Agility's doing.
+   *
+   * A multiplier on the rate rather than a term in {@link spd}, and that is
+   * load-bearing: `spd` is a position on a geometric curve that tops out at 100,
+   * so a body three times as fast as a maxed weapon has no `spd` to say so with.
+   * It is applied where the interval is worked out — `../game/combat`'s
+   * `swingIntervalMs` — so the result is still a whole number of ticks.
+   *
+   * One for a body with no Agility, which is every authored creature that has
+   * not been given any.
+   */
+  haste: number;
+  /**
    * The chance a swing connects with anything at all, as a fraction of 1.
    *
    * The weapon's own {@link accuracy} multiplied by how well its wielder meets
@@ -225,8 +239,47 @@ export type FightingStats = {
  */
 export const BASE_HP = 8;
 
-/** Hit points each point of Toughness is worth. */
+/**
+ * Hit points the **first** point of Toughness is worth.
+ *
+ * The first rather than every one, because the curve accelerates — see
+ * {@link MASTERY_ACCELERATION}. One, which is what every point used to be
+ * worth, so nothing authored today loses anything at the bottom of the scale.
+ */
 export const HP_PER_TOUGHNESS = 1;
+
+/**
+ * How much more the last point of a mastery is worth than the first.
+ *
+ * **Toughness used to be flat, and flat is what made it the only mastery worth
+ * training and never worth finishing.** A hundredth point that pays exactly what
+ * the first paid is a hundredth point nobody feels, so the top of the scale was
+ * a grind with no moment in it. Three means the climb from 99 to 100 is worth
+ * three times the climb from 0 to 1, and the whole stretch in between rises
+ * smoothly rather than in steps.
+ *
+ * Shared by everything a body mastery buys — hit points, defence and haste —
+ * which is the point of it being one constant. Two masteries that paid out at
+ * different paces would make one of them the obvious first hundred points and
+ * the other something you got round to.
+ */
+export const MASTERY_ACCELERATION = 3;
+
+/**
+ * Defence the whole of Toughness is worth, at the top of the scale.
+ *
+ * **Stated as an endpoint rather than as a rate**, unlike hit points, because
+ * that is the honest way to think about it: defence is subtracted from every
+ * blow that lands, so what matters is what a fully-trained body turns aside, and
+ * the rate is whatever gets it there. Twenty is a bite off most things in the
+ * world and the whole of a rat's.
+ *
+ * Before this, **defence came only from a weapon's `def` and every weapon in the
+ * world authors zero** — so mitigation was a stat the game had a formula for and
+ * no source of. Toughness is the obvious source: it is the mastery that already
+ * answers "how much can this body take".
+ */
+export const DEF_AT_MAX_TOUGHNESS = 20;
 
 /**
  * Flee a body has before Agility adds any.
@@ -275,9 +328,111 @@ export function clampChance(chance: number): number {
   return Math.max(MIN_CHANCE, Math.min(MAX_CHANCE, chance));
 }
 
-/** Hit points a body with this much Toughness starts at. */
+/**
+ * What a mastery has paid out by the time it reaches this level.
+ *
+ * A quadratic through the origin, fixed by two facts an author can actually
+ * hold in their head: what the whole scale is worth, and how much more the last
+ * point is worth than the first. Everything in between follows, and follows
+ * *smoothly* — there is no tier, no breakpoint and nothing to memorise, which is
+ * what separates a curve that rewards the grind from one that turns it into a
+ * series of cliffs.
+ *
+ * Written as `c·level + d·level²` where `c` is the first point's worth. Solving
+ * `total(max) = atMax` and `gain(max) / gain(0) = acceleration` gives both.
+ *
+ * Floored at zero rather than clamped at the top: a mastery above the scale is
+ * `../lib/mastery`'s business to refuse, and a curve that flattened out here
+ * would be a second ceiling quietly beating the schema's.
+ */
+function acceleratingTotal(
+  level: number,
+  atMax: number,
+  acceleration: number,
+): number {
+  const reach = Math.max(0, level);
+  const first = (2 * atMax) / (MAX_MASTERY * (acceleration + 1));
+  const curve = (first * (acceleration - 1)) / (2 * MAX_MASTERY);
+  return first * reach + curve * reach * reach;
+}
+
+/**
+ * What the whole of Toughness is worth in hit points.
+ *
+ * Derived from the first point's worth rather than authored beside it, because
+ * the number an author has an opinion about is "a point of Toughness is worth an
+ * HP" — the top of the scale is then whatever the acceleration makes of it,
+ * rather than a second figure that has to be kept in step with the first.
+ */
+export const HP_AT_MAX_TOUGHNESS =
+  (HP_PER_TOUGHNESS * MAX_MASTERY * (MASTERY_ACCELERATION + 1)) / 2;
+
+/**
+ * Hit points a body with this much Toughness starts at.
+ *
+ * Rounded to a whole hit point, which is the only unit health is ever counted
+ * in — a fractional maximum would put a health bar at 13.25 and a damage number
+ * against it that never quite empties it.
+ */
 export function maxHpFrom(toughness: number): number {
-  return BASE_HP + Math.round(HP_PER_TOUGHNESS * toughness);
+  return (
+    BASE_HP +
+    Math.round(
+      acceleratingTotal(toughness, HP_AT_MAX_TOUGHNESS, MASTERY_ACCELERATION),
+    )
+  );
+}
+
+/**
+ * How much every blow that lands on this body is reduced by, from Toughness
+ * alone.
+ *
+ * On the same curve as hit points and for the same reason — see
+ * {@link MASTERY_ACCELERATION}. It is deliberately worth almost nothing early:
+ * the authored creatures sit between Toughness 3 and 22, so a curve that paid
+ * out flatly here would hand every rat in the world enough armour to shrug off
+ * the other rats, and turn the opening hour of the game into two bodies unable
+ * to hurt each other.
+ *
+ * **Added to the weapon's `def` rather than replacing it.** A parrying weapon
+ * and a shield in the off hand are still what they were; this is the body's own
+ * share, and the three sum. Whole numbers, because damage is.
+ */
+export function defFrom(toughness: number): number {
+  return Math.round(
+    acceleratingTotal(toughness, DEF_AT_MAX_TOUGHNESS, MASTERY_ACCELERATION),
+  );
+}
+
+/**
+ * How much faster Agility 100 swings than an untrained body: three times the
+ * rate, stated as the *bonus* on top of the one it already had.
+ *
+ * **Speed used to be entirely the weapon's**, which made Agility a stat that
+ * only mattered when somebody swung at you — a defensive investment with no
+ * answer to "what does this do for me on the attack". A fast body should be fast
+ * at both, and the weapon still decides the *shape*: a heavy axe hastened is
+ * still slower than a hastened dagger, because this multiplies whatever the
+ * weapon's own rate is rather than replacing it.
+ *
+ * Three times the rate of Agility 0. From Agility *1* it is 2.97 times, because
+ * the first point of an accelerating curve is worth almost nothing — which is
+ * the curve doing its job rather than the figure being off.
+ */
+export const HASTE_AT_MAX_AGILITY = 2;
+
+/**
+ * How much faster than its weapon's own rate this body swings, as a multiplier.
+ *
+ * One at Agility 0, so a body that has never trained it swings exactly as fast
+ * as whatever it is holding — which is what every body in the world did before
+ * this existed, and is why no authored creature changes pace unless somebody
+ * gives it Agility.
+ */
+export function hasteFrom(agility: number): number {
+  return (
+    1 + acceleratingTotal(agility, HASTE_AT_MAX_AGILITY, MASTERY_ACCELERATION)
+  );
 }
 
 /**
@@ -295,53 +450,74 @@ export function fleeFrom(agility: number): number {
 }
 
 /**
- * What the mastery ratio does to the three things a weapon is worth.
+ * How steeply a weapon falls off below what it asks.
  *
- * **Accuracy carries the penalty, and speed and damage degrade gently.** A
- * novice swinging a double axe hits almost nothing and hits hard when they
- * connect, which is the character the whole system is built to produce — the
- * alternative, spreading the penalty evenly, gives you a weapon that is simply
- * worse at everything and reads as a number going down rather than as a person
- * out of their depth.
+ * **A weapon’s authored numbers are what it is worth with its requirements
+ * *exactly* met** — not a ceiling to be approached, and not a floor to be
+ * exceeded. Everything below that is this curve, and cubing it means falling
+ * short hurts far more than proportionally: nine tenths of the way there is
+ * barely three quarters of the weapon, and half way there is an eighth of it.
  *
- * The floors are why an unmastered weapon is still worth picking up: at `q = 0`
- * you keep 55% of its speed and 70% of its damage. What you do not keep is the
- * ability to land it.
+ * That shape is the point. A gate that degraded linearly is not a gate — it is
+ * a discount, and a player who can have 90% of an endgame weapon for 90% of the
+ * work will take it every time. Cubed, an unearned weapon is genuinely bad, so
+ * the moment it unlocks is a moment.
  */
-export const SPEED_AT_ZERO_RATIO = 0.55;
-export const SPEED_PER_RATIO = 0.45;
-export const DAMAGE_AT_ZERO_RATIO = 0.7;
-export const DAMAGE_PER_RATIO = 0.3;
+export const REQUIREMENT_FALLOFF = 3;
+
+/** What a weapon is worth right now, as a fraction of its authored numbers. */
+export function weaponReadiness(share: number): number {
+  return Math.max(0, Math.min(1, share)) ** REQUIREMENT_FALLOFF;
+}
+
+/**
+ * What being good with a weapon adds, over and above being *allowed* to use it.
+ *
+ * **The half of mastery that requirements deliberately do not cover.** A Blade
+ * 100 hero holding a requirement-1 dagger has met that requirement a hundred
+ * times over and gets nothing for it from {@link weaponReadiness}, which caps at
+ * fully-met. This is what pays them instead, and it is keyed to the *absolute*
+ * level of the mastery the weapon answers to rather than to any ratio — so it
+ * scales with how good you are, not with how demanding the thing in your hand
+ * happens to be.
+ *
+ * Two terms, and they do different jobs:
+ *
+ * - **A share of the weapon’s own worth**, so a better weapon rewards mastery
+ *   more in absolute terms and the tiers stay ordered.
+ * - **A flat amount**, so mastery is worth training even with something small in
+ *   your hand, and a starter weapon in expert hands is a real weapon rather than
+ *   a rounding error.
+ *
+ * The flat term is the louder of the two on anything low-tier, which is
+ * intended: it is what makes a mastered fist worth having at all.
+ */
+export const MASTERY_DAMAGE_BONUS = 0.25;
+export const DAMAGE_AT_MAX_MASTERY = 20;
+export const MASTERY_ACCURACY_BONUS = 0.25;
+export const ACCURACY_AT_MAX_MASTERY = 5;
 
 /**
  * The chance a swing connects at all.
  *
- * Two independent failures, multiplied: **the weapon has to find its target, and
- * you have to be able to control it.**
+ * Now simply the wielder’s accuracy read as a probability, because the two
+ * failures it used to multiply have collapsed into one place. Falling short of a
+ * weapon’s requirements already drags {@link FightingStats.accuracy} down
+ * through {@link weaponReadiness}, and being good with it already pushes that
+ * accuracy up — so charging for either a second time here would be charging
+ * twice for the same fact.
  *
- * - `accuracy / 100` is the weapon's own. A clumsy weapon whiffs in expert hands,
- *   which is the thing it was missing — before this, mastery was the only input
- *   and a beautifully balanced blade you could not control whiffed exactly as
- *   often as a lump of iron you could not control.
- * - The ratio term is you. Squared, so the penalty bites hardest low down.
+ * Held inside the band nothing in a fight escapes: a weapon far beyond you still
+ * lands one swing in twenty, so it is poor rather than inert and can still teach
+ * you; and a master still whiffs one in twenty, because nothing is ever certain.
  *
- * **The ratio is capped at 1 where speed and damage are not.** Above `q = 1`
- * there is no such thing as more than landing, so the surplus a 1.25 ratio buys
- * goes into the other two rather than being spent on a probability that cannot
- * exceed certainty.
- *
- * Clamped by `../game/combat`'s shared band, which is where the old dedicated
- * floor on this went: a weapon far beyond you still lands one swing in twenty,
- * so it is poor rather than inert and can still teach you. One rule in one place
- * rather than a second constant here saying the same thing.
+ * **Accuracy above 100 is meaningful and deliberately not wasted.** It cannot
+ * buy more than {@link MAX_CHANCE} here, but it is also what a defender’s
+ * evasion is contested against — so a master is harder to dodge as well as
+ * harder to escape.
  */
-export function hitChanceFrom(ratio: number, accuracy: number): number {
-  const control = Math.min(1, ratio * ratio);
-  const precision = Math.max(
-    0,
-    Math.min(1, accuracy / MAX_PERCENT_STAT),
-  );
-  return clampChance(precision * control);
+export function hitChanceFrom(accuracy: number): number {
+  return clampChance(accuracy / MAX_PERCENT_STAT);
 }
 
 /**
@@ -386,35 +562,67 @@ export function fightingStats(
   battler: BattlerDef,
   weapon: WeaponItem,
 ): FightingStats {
-  const ratio = masteryRatio(battler.masteries, weapon.requirements);
+  // How much of what the weapon asks this body brings, and what the weapon is
+  // therefore worth right now. One number, applied to all three of the things a
+  // weapon is: falling short makes it weaker, clumsier *and* slower.
+  const readiness = weaponReadiness(
+    requirementShare(battler.masteries, weapon.requirements),
+  );
+
+  // The mastery the weapon itself answers to, read at its absolute level. This
+  // is the "you are simply good with blades" term, and it is deliberately not a
+  // ratio against the requirement — see {@link MASTERY_DAMAGE_BONUS}.
+  const skill = masteryLevel(battler.masteries, weapon.mastery) / MAX_MASTERY;
+
+  // **Readiness gates the skill bonus too, flat part included.** It is the
+  // outermost factor rather than something applied to the weapon's own numbers
+  // and then added to, and that placement is the whole rule: what mastery buys
+  // you is *more out of this weapon*, so a weapon you cannot lift has nothing
+  // more to give. Left ungated, the flat term did not depend on the weapon at
+  // all — a Blade 100 hero picking up something whose Toughness requirement they
+  // could not meet still swung it for twenty, which is a gate with a hole cut in
+  // it exactly where the strongest players stand.
+  const damage =
+    readiness *
+    (weapon.damage * (1 + skill * MASTERY_DAMAGE_BONUS) +
+      skill * DAMAGE_AT_MAX_MASTERY);
+  const accuracy =
+    readiness *
+    (weapon.accuracy * (1 + skill * MASTERY_ACCURACY_BONUS) +
+      skill * ACCURACY_AT_MAX_MASTERY);
 
   return {
     maxHp: maxHpFrom(masteryLevel(battler.masteries, "toughness")),
     flee: fleeFrom(masteryLevel(battler.masteries, "agility")),
-    hitChance: hitChanceFrom(ratio, weapon.accuracy),
-    damage: Math.round(
-      weapon.damage * (DAMAGE_AT_ZERO_RATIO + DAMAGE_PER_RATIO * ratio),
-    ),
-    def: weapon.def,
+    damage: Math.round(damage),
+    // The weapon's own plus the body's, which is the first time defence has had
+    // a source that is not a held item — see {@link defFrom}.
+    def: weapon.def + defFrom(masteryLevel(battler.masteries, "toughness")),
     // Nothing from the weapon and nothing from the body: resistance is worn, and
     // what a body is wearing is `../game/equipment`'s question. This function
     // knows only a profile and a set of masteries, so it says "none" and
     // `effectiveBattler` fills it in.
     resist: NO_RESISTANCES,
     mastery: weapon.mastery,
-    accuracy: weapon.accuracy,
+    // **Deliberately allowed past 100.** It is a position in a contest against a
+    // defender's evasion as well as the input to a hit chance, and the hit
+    // chance has a ceiling of its own. Clamping here would put the ceiling in
+    // two places and the lower one would win silently — the same reason
+    // `fleeFrom` is unbounded above.
+    accuracy: Math.round(accuracy),
+    hitChance: hitChanceFrom(accuracy),
     variance: weapon.variance,
-    // Clamped, because a 1.25 ratio can push an already-fast weapon past the top
-    // of the scale, and `attackIntervalMs` reads this as a position on a curve
-    // rather than as a number that may run off the end of it.
-    spd: Math.min(
-      MAX_PERCENT_STAT,
-      Math.round(weapon.spd * (SPEED_AT_ZERO_RATIO + SPEED_PER_RATIO * ratio)),
-    ),
-    // Both off the weapon, not off the body — the one place a bow differs from a
-    // fist in kind rather than in degree. Untouched by the mastery ratio above:
-    // a novice archer is worse at hitting what they aim at, and the arrow still
-    // flies as far as the bow throws it.
+    // Off the body, not the weapon: how quick you are is yours, and a heavy axe
+    // in quick hands is a hastened heavy axe rather than a dagger.
+    haste: hasteFrom(masteryLevel(battler.masteries, "agility")),
+    // Scaled by readiness like the other two and by nothing else: mastery's
+    // reward for speed is Agility's to give, and paying it twice would make a
+    // trained blade both harder-hitting and faster for the same points.
+    spd: Math.max(0, Math.round(weapon.spd * readiness)),
+    // Both off the weapon, not the body — the one place a bow differs from a
+    // fist in kind rather than in degree. Untouched by readiness above: a novice
+    // archer is worse at hitting what they aim at, and the arrow still flies as
+    // far as the bow throws it.
     reach: weapon.reach,
     projectile: weapon.projectile ?? null,
     sight: battler.sight,

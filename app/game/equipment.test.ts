@@ -3,7 +3,12 @@ import tilesJson from "../../data/tiles.json";
 import type { BattlerDef } from "../lib/battler";
 import {
   DEFAULT_BATTLER,
+  ACCURACY_AT_MAX_MASTERY,
+  DAMAGE_AT_MAX_MASTERY,
+  defFrom,
   fleeFrom,
+  MASTERY_ACCURACY_BONUS,
+  MASTERY_DAMAGE_BONUS,
   maxHpFrom,
   resolveBattler,
 } from "../lib/battler";
@@ -13,6 +18,7 @@ import {
   MELEE_REACH,
   resolveArmor,
 } from "../lib/item";
+import { MAX_MASTERY } from "../lib/mastery";
 import type { TileDef } from "../lib/types";
 import { normalizeTileDef, normalizeTiles } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
@@ -131,9 +137,29 @@ describe("weaponInHand", () => {
 describe("effectiveBattler", () => {
   it("takes damage, defence, accuracy and speed from the weapon", () => {
     const out = effectiveBattler(base, null, lightTiles);
-    expect(out.damage).toBe(CLAWS.damage);
-    expect(out.def).toBe(CLAWS.def);
-    expect(out.accuracy).toBe(CLAWS.accuracy);
+    // **The weapon's numbers plus what being good with it adds.** A weapon that
+    // asks nothing is at full readiness for anybody, so what separates this from
+    // the authored figure is Fist alone — see `../lib/battler`'s two axes.
+    const skill = base.masteries.fist! / MAX_MASTERY;
+    expect(out.damage).toBe(
+      Math.round(
+        CLAWS.damage +
+          skill * CLAWS.damage * MASTERY_DAMAGE_BONUS +
+          skill * DAMAGE_AT_MAX_MASTERY,
+      ),
+    );
+    expect(out.accuracy).toBe(
+      Math.round(
+        CLAWS.accuracy +
+          skill * CLAWS.accuracy * MASTERY_ACCURACY_BONUS +
+          skill * ACCURACY_AT_MAX_MASTERY,
+      ),
+    );
+    // **The weapon's defence plus the body's own.** Defence used to come only
+    // from what you were holding, and every weapon in the world authors zero —
+    // so it was a rule with no source. Toughness is the source now, and the two
+    // sum. @see `../lib/battler`'s `defFrom`
+    expect(out.def).toBe(CLAWS.def + defFrom(20));
     expect(out.variance).toBe(CLAWS.variance);
     expect(out.spd).toBe(CLAWS.spd);
   });

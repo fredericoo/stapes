@@ -1959,9 +1959,15 @@
           "accuracy": 82,
           "variance": 25,
           "spd": 58,
-          "mastery": "fist"
+          "reach": {
+            "cells": 1.5,
+            "height": 1
+          },
+          "mastery": "fist",
+          "requirements": {
+            "fist": 1
+          }
         },
-        "range": 1.87,
         "sight": {
           "up": 0,
           "down": 0
@@ -6649,6 +6655,51 @@
             "rect": {
               "x": 0,
               "y": 25,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "knights-sword",
+    "name": "Knight's Sword",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "weapon",
+        "damage": 24,
+        "def": 0,
+        "accuracy": 90,
+        "variance": 30,
+        "spd": 42,
+        "mastery": "blade",
+        "requirements": {
+          "blade": 20
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "equipment",
+            "rect": {
+              "x": 4,
+              "y": 16,
               "w": 1,
               "h": 1
             },

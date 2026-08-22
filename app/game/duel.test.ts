@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import statusesJson from "../../data/statuses.json";
 import tilesJson from "../../data/tiles.json";
 import {
   type BattlerDef,
@@ -8,9 +9,11 @@ import {
 } from "../lib/battler";
 import { resolveWeapon, type WeaponItem } from "../lib/item";
 import { experienceMultiplier, type Mastery, rating } from "../lib/mastery";
+import { statusesById } from "../lib/status";
 import { normalizeTiles } from "../lib/types";
-import { attackIntervalMs, rollAttack } from "./combat";
+import { attackIntervalMs, MIN_ATTACK_TICKS, rollAttack } from "./combat";
 import { TICK_MS } from "./constants";
+import { Duel, type DuelResult, MAX_DUEL_TICKS, runDuel } from "./duel";
 import { Rng } from "./rng";
 
 /**
@@ -53,65 +56,38 @@ function playerAt(mastery: Mastery, level: number): BattlerDef {
   return { ...player, masteries: { ...player.masteries, [mastery]: level } };
 }
 
-type DuelResult = {
-  /** Which side was left standing, or null if neither ran out of time first. */
-  winner: "a" | "b" | null;
-  ticks: number;
-  /** What the winner had left, as a fraction of their maximum. */
-  survivorHealth: number;
-};
-
 /**
  * How long a body has to wait for its first swing.
  *
  * Both sides start ready, so the faster one lands first — which is what makes
- * speed worth having beyond the long-run rate.
+ * speed worth having beyond the long-run rate. `./duel` seats its fighters on
+ * the same terms; this is here for {@link damagePerSecond}, which swings at a
+ * dummy rather than fighting anybody.
  */
 const READY = 0;
 
 /**
- * Run one fight to the end.
+ * One fight to the end, in the terms the rest of this file is written in.
  *
- * Time-stepped rather than turn-based, because the real session is: cooldowns
- * come off `attackIntervalMs` and are spent against the same tick the world
- * runs on, so a creature that swings twice as often really does get twice the
- * blows. A turn-based approximation would quietly erase speed.
+ * The loop itself is `./duel`, which is production code: an assertion about
+ * whether the numbers add up to a game is worth nothing if the fight it ran was
+ * a private approximation of the one the world runs. What is left here is the
+ * adapter — two stat blocks in, a result out — because a test that had to say
+ * `{ stats }` at every call site would be harder to read for no gain.
  *
- * Both sides draw from one dice stream, exactly as they do in a session.
+ * **No status catalogue is passed**, which switches statuses off entirely. That
+ * is deliberate rather than an omission: what these tests measure is what the
+ * masteries and the weapons are worth, and a snake's venom is a separate axis
+ * that would put its thumb on every scale below. It also keeps the dice where
+ * they were — an inflicted status costs a draw.
  */
 function duel(
   a: FightingStats,
   b: FightingStats,
   rng: Rng,
-  maxTicks = 20_000,
+  maxTicks = MAX_DUEL_TICKS,
 ): DuelResult {
-  let aHp = a.maxHp;
-  let bHp = b.maxHp;
-  let aCooldown = READY;
-  let bCooldown = READY;
-
-  for (let tick = 1; tick <= maxTicks; tick++) {
-    aCooldown -= TICK_MS;
-    bCooldown -= TICK_MS;
-
-    if (aCooldown <= 0) {
-      aCooldown = attackIntervalMs(a.spd);
-      bHp -= rollAttack(a, b, rng).damage;
-      if (bHp <= 0) {
-        return { winner: "a", ticks: tick, survivorHealth: aHp / a.maxHp };
-      }
-    }
-
-    if (bCooldown <= 0) {
-      bCooldown = attackIntervalMs(b.spd);
-      aHp -= rollAttack(b, a, rng).damage;
-      if (aHp <= 0) {
-        return { winner: "b", ticks: tick, survivorHealth: bHp / b.maxHp };
-      }
-    }
-  }
-
-  return { winner: null, ticks: maxTicks, survivorHealth: 0 };
+  return runDuel({ stats: a }, { stats: b }, rng, { maxTicks });
 }
 
 /** How often the first side wins, over enough fights for the answer to settle. */
@@ -172,15 +148,26 @@ describe("learning a weapon", () => {
    * is worth something until the requirement is met — a plateau in the middle
    * would mean levels the player earns and cannot feel.
    */
-  it("pays for every point of mastery up to the requirement", () => {
+  /**
+   * **The climb never reverses, and it is deliberately not smooth.** Readiness
+   * is the cube of what you brought, so the bottom of a requirement is nearly
+   * flat — a couple of points into a five-point sword is still a sword you
+   * cannot use, and the figures round to nothing. What matters is that no point
+   * ever costs you anything and that the last one before the gate is worth a
+   * great deal, which is what makes meeting it a moment rather than a gradient.
+   */
+  it("never goes backwards on the way to the requirement", () => {
     const curve = [];
     for (let blade = 0; blade <= required; blade++) {
       curve.push(damagePerSecond(armed(playerAt("blade", blade), SWORD)));
     }
 
     for (let i = 1; i < curve.length; i++) {
-      expect(curve[i]!).toBeGreaterThan(curve[i - 1]!);
+      expect(curve[i]!).toBeGreaterThanOrEqual(curve[i - 1]!);
     }
+    // And the gate itself is a cliff rather than a step: the last point before
+    // it is worth several times every point before that put together.
+    expect(curve[required]!).toBeGreaterThan(curve[required - 1]! * 5);
   });
 
   /**
@@ -207,13 +194,25 @@ describe("learning a weapon", () => {
    * capped at 1.25, and the point of the cap is that the next weapon is where
    * the growth is, not this one.
    */
-  it("gives diminishing returns past the requirement", () => {
-    const met = damagePerSecond(armed(playerAt("blade", required), SWORD));
-    const double = damagePerSecond(armed(playerAt("blade", required * 2), SWORD));
-    const tenfold = damagePerSecond(armed(playerAt("blade", required * 10), SWORD));
+  /**
+   * **Past the requirement the weapon stops improving and the wielder does not.**
+   * The two axes, in one comparison: readiness caps the moment the requirement
+   * is met, so speed never moves again — but skill keeps paying damage and
+   * accuracy for the whole rest of the scale, which is what makes a
+   * hundred-Blade hero with a starter sword something other than a novice with
+   * a starter sword.
+   */
+  it("keeps paying the wielder past the requirement, but not the weapon", () => {
+    const met = armed(playerAt("blade", required), SWORD);
+    const double = armed(playerAt("blade", required * 2), SWORD);
+    const tenfold = armed(playerAt("blade", required * 10), SWORD);
 
-    expect(double).toBeGreaterThan(met);
-    expect(tenfold).toBe(double);
+    expect(damagePerSecond(double)).toBeGreaterThan(damagePerSecond(met));
+    expect(damagePerSecond(tenfold)).toBeGreaterThan(damagePerSecond(double));
+
+    // The weapon itself is done the moment its requirement is met.
+    expect(double.spd).toBe(met.spd);
+    expect(tenfold.spd).toBe(met.spd);
   });
 });
 
@@ -372,15 +371,38 @@ describe("the wolf", () => {
     }
   });
 
-  /** A wall for a fresh player, and a fight for somebody who has earned one. */
-  it("is out of reach until the sword is learnt and then merely hard", () => {
+  /**
+   * **A wall for a fresh player, and a fight for somebody who has earned the
+   * right weapon.**
+   *
+   * The rung this names moved, and it moved on purpose. A rusty sword used to be
+   * enough; it is not any more, because Toughness now buys defence and a wolf
+   * carries three points of it — which eats most of what a starter blade can do
+   * however well you swing it. What answers a wolf is the Knight's Sword, and
+   * needing it is the whole point: defence is what makes a better weapon
+   * necessary rather than merely nicer.
+   *
+   * Held from both ends, because either one alone is a worse game: a wolf a
+   * fresh player can beat is not a rung, and one a properly-equipped player
+   * cannot is a wall.
+   */
+  it("is out of reach until the right sword is earned, and then a real fight", () => {
     const fresh = winRate(fists(bodyOf("player")), fists(wolf));
-    const veteran = playerAt("blade", 22);
-    const armedRate = winRate(armed(veteran, "rusty-sword"), fists(wolf));
+    const starter = winRate(armed(playerAt("blade", 22), "rusty-sword"), fists(wolf));
 
-    expect(fresh).toBeLessThan(0.1);
-    expect(armedRate).toBeGreaterThan(fresh);
-    expect(armedRate).toBeLessThan(0.6);
+    const earned = {
+      ...bodyOf("player"),
+      masteries: { ...bodyOf("player").masteries, blade: 20, toughness: 20, agility: 20 },
+    };
+    const properly = winRate(armed(earned, "knights-sword"), fists(wolf));
+
+    expect(fresh).toBeLessThan(0.05);
+    // A starter blade is no longer an answer to a wolf, whatever your Blade is.
+    expect(starter).toBeLessThan(0.1);
+    // The right weapon in trained hands makes it a coin-toss rather than a
+    // formality in either direction.
+    expect(properly).toBeGreaterThan(0.35);
+    expect(properly).toBeLessThan(0.8);
   });
 });
 
@@ -392,11 +414,188 @@ describe("what a fight feels like", () => {
    */
   it("lasts long enough to react to and not so long it drags", () => {
     const player = fists(bodyOf("player"));
-    for (const id of ["rat", "cat", "snake"]) {
+    // **The creatures a fresh player is meant to take on.** The list is shorter
+    // than it was, and deliberately: a wolf now carries enough defence to end a
+    // bare-handed player in under a second, and a snake is not far behind. That
+    // is the ladder working — see the wolf's own tests — but it means "long
+    // enough to read and choose to run" is a promise about the fights you are
+    // *supposed* to be in, not about every fight you can pick.
+    for (const id of ["rat", "deer"]) {
       const seconds =
         (duel(player, fists(bodyOf(id)), new Rng(3)).ticks * TICK_MS) / 1000;
       expect(seconds).toBeGreaterThan(2);
       expect(seconds).toBeLessThan(90);
     }
+  });
+
+  /**
+   * The other half of that, stated rather than left as a gap: the things above
+   * your station kill you fast, and *that* is the signal to run. A ladder whose
+   * every rung took the same time to lose to would have nothing to read.
+   */
+  it("ends a fight nobody should have picked quickly", () => {
+    const player = fists(bodyOf("player"));
+    for (const id of ["snake", "wolf"]) {
+      const result = duel(player, fists(bodyOf(id)), new Rng(3));
+      expect(result.winner).toBe("b");
+      expect((result.ticks * TICK_MS) / 1000).toBeLessThan(5);
+    }
+  });
+});
+
+/**
+ * The loop itself, rather than what the world's numbers add up to.
+ *
+ * Everything above reads `duel()` as a black box and asserts an ordering. These
+ * assert the box: that the same seed replays the same fight, that the tick's
+ * order is the session's, and that a status is a thing the fight can be lost to
+ * rather than a decoration on the log.
+ */
+describe("the duel loop", () => {
+  const statusDefs = statusesById(statusesJson as unknown[]);
+
+  const dummy = (over: Partial<FightingStats>): FightingStats => ({
+    ...fists(bodyOf("player")),
+    ...over,
+  });
+
+  /**
+   * The reason the dice are seeded at all: a fight somebody watched and wants to
+   * ask about has to be the same fight when they run it again.
+   */
+  it("replays a fight blow for blow on the same seed", () => {
+    const a = fists(bodyOf("player"));
+    const b = fists(bodyOf("wolf"));
+    const once = runDuel({ stats: a }, { stats: b }, new Rng(7));
+    const twice = runDuel({ stats: a }, { stats: b }, new Rng(7));
+    expect(twice).toEqual(once);
+  });
+
+  it("gives a different fight on a different seed", () => {
+    const a = fists(bodyOf("player"));
+    const b = fists(bodyOf("wolf"));
+    const results = new Set(
+      [1, 2, 3, 4, 5, 6, 7, 8].map(
+        (seed) => runDuel({ stats: a }, { stats: b }, new Rng(seed)).ticks,
+      ),
+    );
+    expect(results.size).toBeGreaterThan(1);
+  });
+
+  /**
+   * Both sides start ready, which is what makes speed worth having beyond the
+   * long-run rate — and what makes the opening blow the fast one's.
+   */
+  it("lets the faster body land the opening blow", () => {
+    const quick = dummy({ spd: 100, hitChance: 1, damage: 1, variance: 0 });
+    const slow = dummy({ spd: 1, hitChance: 1, damage: 1, variance: 0 });
+    const duel = new Duel({ stats: quick }, { stats: slow }, new Rng(1));
+    const swings = duel.tick().filter((event) => event.kind === "swing");
+    expect(swings.map((event) => event.by)).toEqual(["a", "b"]);
+
+    const second = new Duel({ stats: slow }, { stats: quick }, new Rng(1));
+    second.tick();
+    // A whole cooldown on — `MIN_ATTACK_TICKS`, the floor between two blows —
+    // and only the quick one has come round again, wherever it is sitting.
+    const next: string[] = [];
+    for (let tick = 0; tick < MIN_ATTACK_TICKS; tick++) {
+      for (const event of second.tick()) {
+        if (event.kind === "swing") next.push(event.by);
+      }
+    }
+    expect(next).toEqual(["b"]);
+  });
+
+  /**
+   * A body taken off the board does not swing back, which is the one thing a
+   * tick's order decides that a player can actually feel.
+   */
+  it("takes the killing blow's target out before it can answer", () => {
+    const killer = dummy({ spd: 100, hitChance: 1, damage: 999, variance: 0 });
+    const victim = dummy({ spd: 100, hitChance: 1, damage: 999, variance: 0, flee: 0 });
+    // Enough fights that the defender's one-in-twenty escape cannot carry the
+    // assertion — see `MIN_CHANCE`.
+    for (let seed = 0; seed < 50; seed++) {
+      const duel = new Duel({ stats: killer }, { stats: victim }, new Rng(seed));
+      const events = duel.tick();
+      const answered = events.some(
+        (event) => event.kind === "swing" && event.by === "b",
+      );
+      if (duel.winner !== "a") continue;
+      expect(answered).toBe(false);
+    }
+  });
+
+  /** No catalogue means no statuses, and — just as load-bearing — no draws. */
+  it("leaves a venomous weapon inert when nothing is authored", () => {
+    const snake = fists(bodyOf("snake"));
+    expect(snake.statuses.length).toBeGreaterThan(0);
+
+    const duel = new Duel(
+      { stats: snake },
+      { stats: fists(bodyOf("player")) },
+      new Rng(3),
+    );
+    for (let tick = 0; tick < 200; tick++) duel.tick();
+    expect(duel.b.statuses).toEqual([]);
+  });
+
+  /**
+   * The other half of the same switch: with the catalogue in, a bite leaves
+   * something behind, and what it leaves behind costs hit points on its own
+   * clock.
+   */
+  it("poisons a body a snake bit, and the poison bites after the snake", () => {
+    const snake = fists(bodyOf("snake"));
+    const victim = dummy({ spd: 0, hitChance: 0, maxHp: 500 });
+
+    // Long enough for a 10% venom to take at the snake's rate, over enough
+    // seeds that the assertion is about the mechanism and not about one roll.
+    const poisoned = [0, 1, 2, 3, 4].map((seed) => {
+      const duel = new Duel({ stats: snake }, { stats: victim }, new Rng(seed), {
+        statusDefs,
+      });
+      const ailments: number[] = [];
+      for (let tick = 0; tick < 3_000; tick++) {
+        for (const event of duel.tick()) {
+          if (event.kind === "ailment") ailments.push(event.hp);
+        }
+      }
+      return { ailments, statuses: duel.b.statuses };
+    });
+
+    const bitten = poisoned.filter((run) => run.ailments.length > 0);
+    expect(bitten.length).toBeGreaterThan(0);
+    for (const run of bitten) {
+      // Harm, not help: every payout signed the way `advanceStatuses` hands it
+      // over, and every one of them attributed to the status that owed it.
+      expect(run.ailments.every((hp) => hp < 0)).toBe(true);
+    }
+  });
+
+  /** A status that names nothing in the catalogue is skipped, never a throw. */
+  it("survives a weapon whose status the catalogue has never heard of", () => {
+    const attacker = dummy({
+      hitChance: 1,
+      statuses: [{ id: "nonesuch", chance: 100 }],
+    });
+    const duel = new Duel(
+      { stats: attacker },
+      { stats: dummy({ flee: 0, maxHp: 500, hitChance: 0 }) },
+      new Rng(1),
+      { statusDefs },
+    );
+    for (let tick = 0; tick < 100; tick++) duel.tick();
+    expect(duel.b.statuses).toEqual([]);
+  });
+
+  /** A fight nobody can win is called rather than hung. */
+  it("calls a draw when neither side can get through", () => {
+    const stone = dummy({ damage: 0, def: 99, maxHp: 50 });
+    const result = runDuel({ stats: stone }, { stats: stone }, new Rng(1), {
+      maxTicks: 500,
+    });
+    expect(result.winner).toBeNull();
+    expect(result.ticks).toBe(500);
   });
 });

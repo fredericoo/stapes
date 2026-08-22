@@ -710,6 +710,86 @@ sends. They come back at the door they came in by, on full hit points, wearing a
 empty bag, with everything they were carrying lying where they died. The walk
 back is the cost.
 
+## Balancing happens in the Arena, not in the world
+
+`/arena` is a fight with the world taken out of it: two bodies, a cell apart, on
+one floor, facing each other, both in reach, with nothing between them and
+nowhere to run. Everything a world contributes — terrain, a brain deciding to
+back off, whether somebody was standing on a crate — is left out on purpose,
+because none of it is balance and all of it is noise in the measurement. Before
+this existed, "is the axe worth drawing" was answered by walking somewhere and
+hitting something, which folds the answer together with all three.
+
+**Three modules, and the split between them is the design.**
+
+- **`app/game/duel.ts` runs the fight**, on `GameSession`'s own tick order —
+  statuses, then cooldowns, then swings, with both sides starting ready so the
+  faster one lands first. It reaches for no dice of its own and re-derives no
+  curve: a swing costs what `rollAttack` costs and nothing more.
+- **`app/game/combatMetrics.ts` works the odds out**, in closed form. Exact
+  rather than sampled, and that is the whole point of it: a balance figure with
+  sampling noise in it is one nobody can tune against — move a weapon's accuracy
+  by a point, watch the number move by three, and you cannot tell which of the
+  two was you.
+
+**No rule of a fight is written down twice.** The obvious way to write a closed
+form is to work the arithmetic out on paper and type the result in, and it is a
+trap with a long fuse: the day somebody changes how accuracy works, the fight
+changes and the table quietly does not — and the table is what they are changing
+it *against*. So `combat.ts` names each rule once — `landChance`,
+`dodgeChance`, `potentialDamageFrom`, `damageAfterDefence`, `attackIntervalMs` —
+`rollAttack` rolls against them and `combatMetrics` reports on them. Where the
+closed form needs something the functions do not hand over — *where* in the draw
+one whole number of damage becomes the next — it **bisects `potentialDamageFrom`
+to find out** rather than inverting the band on paper. A curve changed in
+`combat.ts` moves the Arena's table on the next render.
+
+Two things are still assumed, and **both are facts about the dice rather than
+about combat**: the draws are independent uniforms, and the damage band's two
+draws enter only through their mean — which is what makes the triangular measure
+right and `[t, t]` a faithful probe. Both are asserted in
+`combatMetrics.test.ts`, against `Rng` and against `damageFraction` itself, so a
+band rolled some other way fails loudly instead of drifting. `combat.test.ts`'s
+draw-count assertions are the other half of that net: a *new* roll in a swing —
+a block, a crit — changes what a swing costs the dice and fails there first.
+- **`app/game/arena.ts` assembles a body**, and `app/routes/arena.tsx` draws it.
+
+**There is one duel loop, and `duel.test.ts` uses it.** That file used to hold a
+private one, and an assertion about whether the numbers add up to a game is
+worth nothing if the fight it ran was an approximation of the one the world
+runs. Extracting it left every seeded assertion in that file green, which is the
+evidence the two were the same fight.
+
+**Statuses are off unless a catalogue is passed**, and that is a setting rather
+than an oversight. An inflicted status costs a draw, so handing `Duel` a
+catalogue moves the dice for everything after it — which is why `duel.test.ts`
+passes none and gets the stream it always had, and why a caller comparing two
+damage curves can take the venom out of the comparison.
+
+**Masteries and equipment are overridable; a natural weapon is not.** The first
+two are things the world can produce — a mastery is earned, a weapon is picked
+up — so a fight tuned around either is a fight that can happen. A natural weapon
+is what the creature *is*: it is the axis that stops every animal being a bigger
+or smaller version of the same one, and editing it in a tuning tool would be
+authoring a creature with nowhere to save it. It is shown in full, read-only,
+naming `/tiles` as where it changes.
+
+Picking a different creature loads **that creature's masteries** and keeps
+whatever is in its hands. Those are the two halves of what the page is for: a
+body is what it is good at, and a weapon is a thing anybody can pick up, so
+"what is this axe worth to a wolf rather than a rat" has to survive swapping the
+wolf for the rat.
+
+**"Block" is not a mechanic and the table does not pretend otherwise.** Defence
+is a flat subtraction from a blow that has already landed, so what reads as a
+block is a blow whose whole worth the armour ate. That is reported as
+**Absorbed** — how often — beside **Mitigated** — how much. Both, because a
+defence that swallows a third of the blows outright and one that shaves a third
+off each of them are very different fights and can produce the same mean.
+
+The seed is on the page for the reason it is in the world: a fight somebody
+watched and wants to ask about has to be the same fight when they run it again.
+
 ## Dying is a screen, and the socket goes quiet behind it
 
 Being dead is the one state a client cannot infer. A body missing from the board
@@ -822,45 +902,54 @@ player standing in front of it. `WorldLabelLayer` orders the *elements* rather
 than writing z-indexes, so the stylesheet's bands — name under speech under
 damage — keep deciding everything they already decided.
 
-## The player is told sentences; the simulation keeps the numbers
+## A gate must say what it is, and the rest can be prose
 
-**A figure a player can read is a figure a player will optimise against, and
-this game is played by picking things up and finding out.** So the rule is that
-player-facing surfaces *describe*, and the arithmetic stays where it decides
-things. It is not a style preference — it is what separates a game about
-exploring from a game about arithmetic, and the two want opposite interfaces.
+**A figure a player can read is a figure a player will optimise against**, and
+this game is played by picking things up and finding out. So the default is that
+player-facing surfaces *describe* and the arithmetic stays where it decides
+things. That default has exactly one class of exception, and weapon requirements
+are it.
 
-The first thing decided this way was weapon requirements. There was a panel
-under the hand slot listing every mastery a weapon asked for against the one you
-had — "Blade 3 / 5", the worst one in red — and it was a spreadsheet. It is gone.
-What replaced it is one sentence you get by *inspecting* the weapon
-(`app/lib/weaponFeel.ts`): "You can confidently wield it", "You can mostly wield
-it", "You can barely wield it". A number tells you exactly how far short you are,
-which is a thing to compute against; a sentence tells you that you are short,
-which is a thing to go and do something about.
+### The sentence, and why it was wrong
 
-Three rules fall out of it, and they apply to the next one of these as much as
-to this one:
+Requirements went through three shapes. First a panel under the hand slot
+listing every mastery against the one you had — "Blade 3 / 5", the worst in red —
+which was a spreadsheet. Then one sentence you got by *inspecting* the weapon:
+"You can confidently wield it", "You can mostly wield it", "You can barely wield
+it". The argument was that a number tells you exactly how far short you are,
+which is a thing to compute against, where a sentence tells you that you are
+short, which is a thing to go and do something about.
 
-- **Bands are counted in the design's own constants, never in fractions.** Every
-  threshold in `weaponFeel` is a whole `MASTERY_BRIDGE` away from what the weapon
-  asks — one, two and four, the same distances either side of the gate — for
-  exactly the reason that constant beat a ratio in `app/lib/mastery.ts`: as a
-  fraction, "a quarter short" is one point on a starter dagger and twenty on an
-  endgame blade, so the ladder would have a different number of rungs at every
-  tier. In points it is the same ladder the whole way up. The rungs widen as they
-  go out because the precision stops being worth anything there, and the first
-  band above meeting it lands on the training ceiling — so "you can confidently
-  wield it" and "this has little left to teach you" are one fact rather than two
-  that drift apart.
-- **The sentence is derived in one place and read in every surface.**
-  `weaponFeelFor` is what the world's look label and a slot in a panel both call,
-  so the sword on the floor and the sword in your bag cannot come to say
-  different things about the same hands. A second copy of the ladder is how a
-  panel and a label end up disagreeing in front of a player.
+**The sentence is gone, and the argument was wrong about which fact it was
+withholding.** A player holding a sword that does nothing does not need to be
+told they are short — the sword doing nothing already told them. What they need
+is *which mastery* and *by how much*, and no amount of atmosphere carries that.
+Worse, the rule underneath stopped being guessable: requirements pool across
+every mastery a weapon asks for, and what you get out of one is the **cube** of
+what you brought — so four fifths of the way there is barely half the weapon.
+Nobody infers that from "you can mostly wield it", and a player who cannot infer
+it reads a working gate as a broken sword.
+
+Roleplay is a good reason to be vague about a story and a bad one to be vague
+about a gate. `app/lib/weaponDemand.ts` now states it: every requirement, your
+level against it, and the share of the weapon that comes to.
+
+Two of the three rules the sentence was built on survive it, and they apply to
+the next one of these as much as to this one:
+
+- **Derived in one place and read in every surface.** `weaponDemandFor` is what
+  the world's look label and a slot in a panel both call, so the sword on the
+  floor and the sword in your bag cannot come to say different things about the
+  same hands. A second copy is how a panel and a label end up disagreeing in
+  front of a player.
 - **Silence is an answer.** A weapon that asks nothing says nothing, because an
-  unrequirement is a fact about the weapon rather than about you. A line on every
-  item turns the sentence back into a stat readout with words in it.
+  unrequirement is a fact about the weapon rather than about you — and it is
+  every natural weapon in the world. A line reading "100%" where there was never
+  a question is noise on every fist in the game.
+
+The third rule was that bands are counted in the design's own constants rather
+than in fractions, and it went with the bands: there are no bands left to place.
+`MASTERY_BRIDGE` went with them, having no consumer once the phrasing did.
 
 **Inspecting is a mode, and the mode is what makes the sentence reachable.** Look
 mode (shift, or the eye) already meant "I am asking about things rather than
@@ -883,7 +972,7 @@ can be pressed halfway through one.
 
 The bottom of the view carries at most two lines of white text — "Your blade
 mastery is now 10", "You open Quest Chest and receive 1 Hand Lantern, 1 Rusty
-Sword" — and they are the same idea as `weaponFeel` one step on: prose for a fact
+Sword" — and they are prose for a fact
 that has no picture. Three kinds qualify. Something crossed a threshold you were
 not watching, so the mastery bars mattered for one frame while you were looking
 at a rat. Something happened that the board deliberately does not show — a reward

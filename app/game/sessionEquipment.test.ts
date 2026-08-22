@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { defFrom } from "../lib/battler";
 import { DEFAULT_CONTAINER } from "../lib/item";
 import { emptyMap, getStack, parseMap, replaceStack, serializeMap } from "../lib/mapData";
 import { parseServerMessage } from "../net/protocol";
@@ -46,6 +47,25 @@ function tile(partial: Record<string, unknown>): TileDef {
 /** Certain to hit, certain to hurt, and as fast as the rules allow. */
 const CERTAIN = { accuracy: 100, variance: 0, spd: 100 };
 
+/**
+ * The bodies these tests measure blows between.
+ *
+ * **Toughness buys defence as well as hit points now** — see `../lib/battler`'s
+ * `defFrom` — so a punching bag bred for a long life quietly grew twenty points
+ * of armour and swallowed every blow in the file whole. Rather than soften the
+ * bag, every weapon here is authored as *what should land* plus what the bag
+ * turns aside, so the figures the tests assert are the figures they always
+ * asserted and the arithmetic in between is the game's.
+ */
+const PLAYER_TOUGHNESS = 92;
+const DUMMY_TOUGHNESS = 100;
+const DUMMY_DEF = defFrom(DUMMY_TOUGHNESS);
+
+/** What a bare-handed blow should come to once the bag has had its share. */
+const BARE_DAMAGE = 5;
+/** What the light sword should come to — twice bare hands, as it always was. */
+const SWORD_DAMAGE = 10;
+
 const tiles: TileDef[] = [
   tile({ id: "grass" }),
   // Something with volume, which is what it takes to bury a thing: a flat tile
@@ -61,9 +81,18 @@ const tiles: TileDef[] = [
     interactions: {
       battler: {
         // Toughness alone, since nothing here is ever dodged at or measured for
-        // speed as a defender — 92 is the hundred hit points these tests count in.
-        masteries: { toughness: 92 },
-        naturalWeapon: { type: "weapon", damage: 5, def: 0, ...CERTAIN, mastery: "fist" },
+        // speed as a defender. No Fist either: a weapon that asks nothing is at
+        // full readiness for anybody, so the mastery would buy only the flat
+        // skill bonus — and these tests assert exact damage numbers, which is
+        // the one thing that bonus makes unreadable.
+        masteries: { toughness: PLAYER_TOUGHNESS },
+        naturalWeapon: {
+          type: "weapon",
+          damage: BARE_DAMAGE + DUMMY_DEF,
+          def: 0,
+          ...CERTAIN,
+          mastery: "fist",
+        },
         // Where the bag on a player's back comes from — see `app/lib/kit.ts`.
         kit: [{ slot: "bag", tileId: BAG_TILE_ID, chance: 100 }],
       },
@@ -76,10 +105,11 @@ const tiles: TileDef[] = [
     actor: true,
     walkable: false,
     interactions: {
-      // As much of a punching bag as the mastery scale allows: 100 Toughness is
-      // 108 hit points, and it never swings back.
+      // As much of a punching bag as the mastery scale allows, and it never
+      // swings back. Its Toughness now buys armour as well as health — see
+      // {@link DUMMY_DEF}, which every blow in this file is written to clear.
       battler: {
-        masteries: { toughness: 100 },
+        masteries: { toughness: DUMMY_TOUGHNESS },
         naturalWeapon: { type: "weapon", damage: 0, def: 0, accuracy: 50, variance: 0, spd: 0, mastery: "fist" },
       },
     },
@@ -129,7 +159,7 @@ const tiles: TileDef[] = [
     kind: "item",
     intangible: true,
     interactions: {
-      item: { type: "weapon", damage: 10, def: 0, accuracy: 100, variance: 0, spd: 100, mastery: "blade" },
+      item: { type: "weapon", damage: SWORD_DAMAGE + DUMMY_DEF, def: 0, accuracy: 100, variance: 0, spd: 100, mastery: "blade" },
     },
   }),
   tile({
@@ -175,7 +205,12 @@ const tiles: TileDef[] = [
     kind: "item",
     intangible: true,
     interactions: {
-      item: { type: "weapon", damage: 10, def: 2, accuracy: 90, variance: 60, spd: 20, mastery: "blade" },
+      // **Variance is stated so the band lands where the test reads it.** Flat
+      // defence amplifies a relative spread: 20% of variance on a 30-damage
+      // weapon is a 24–30 blow, which the bag's twenty points turn into a 4–10
+      // one. The weapon is narrow and what gets through is wide, which is the
+      // honest behaviour of subtracting armour rather than scaling it.
+      item: { type: "weapon", damage: SWORD_DAMAGE + DUMMY_DEF, def: 2, accuracy: 90, variance: 20, spd: 20, mastery: "blade" },
     },
   }),
 ];
@@ -342,8 +377,8 @@ describe("a weapon reaches the blow", () => {
     const armed = fightingSession();
     arm(armed, "light-sword");
 
-    expect(damageOver(bare, TICK_MS * 3)).toBe(5);
-    expect(damageOver(armed, TICK_MS * 3)).toBe(10);
+    expect(damageOver(bare, TICK_MS * 3)).toBe(BARE_DAMAGE);
+    expect(damageOver(armed, TICK_MS * 3)).toBe(SWORD_DAMAGE);
   });
 
   /**
@@ -380,7 +415,7 @@ describe("a weapon reaches the blow", () => {
 
   it("leaves an empty-handed body fighting with its natural weapon", () => {
     const session = fightingSession();
-    expect(damageOver(session, TICK_MS * 3)).toBe(5);
+    expect(damageOver(session, TICK_MS * 3)).toBe(BARE_DAMAGE);
   });
 });
 
@@ -803,7 +838,7 @@ index: 0 }, { kind: "weapon" });
     // The sword's damage, not the sword's on top of the body's: drawing a
     // weapon out of the bag has to reach the blow by the same replacement every
     // other path uses.
-    expect(before - after).toBe(10);
+    expect(before - after).toBe(SWORD_DAMAGE);
   });
 
   it("loots a chest on the floor, rewriting the placement it came out of", () => {

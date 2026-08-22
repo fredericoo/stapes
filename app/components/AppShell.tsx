@@ -7,7 +7,7 @@ import { useMediaQuery } from "../lib/useMediaQuery";
 /**
  * The header, which on a phone is mostly in the way.
  *
- * Five destinations and a lighting switch are worth their room on a desktop and
+ * The destinations and a lighting switch are worth their room on a desktop and
  * are not on a 375px screen: they wrapped the bar onto a second and third line,
  * and every one of those lines came out of the game underneath. So below the
  * breakpoint the whole set folds into one button, and the bar keeps a single
@@ -30,6 +30,7 @@ const DESTINATIONS: { to: string; label: string }[] = [
   { to: "/statuses", label: "Statuses" },
   { to: "/map", label: "Map" },
   { to: "/play", label: "Play" },
+  { to: "/arena", label: "Arena" },
   { to: "/online", label: "Online" },
   { to: "/voxel", label: "Voxel" },
 ];

@@ -17,7 +17,7 @@ import { PLAYER_TILE_ID } from "../game/constants";
 import { bodyNameFor, sizedUpName } from "../game/displayName";
 import type { Equipment } from "../game/equipment";
 import type { MasteryXp } from "../lib/mastery";
-import { weaponFeelFor } from "../lib/weaponFeel";
+import { weaponDemandFor } from "../lib/weaponDemand";
 import type { Vitals } from "../game/GameSession";
 import { statusReading } from "../game/statuses";
 import type { OpenedContainer, SlotRef } from "../game/itemMoves";
@@ -1532,13 +1532,13 @@ export class GameRenderer {
 
   /**
    * What look mode says: the tile's name, what the placement reads, and — for a
-   * weapon — what it would be like in your hands.
+   * weapon — what it asks of you and what you are getting out of it.
    *
-   * The feel goes last because it is the only line that is not a fact about the
-   * object: the name and the writing on it are the same for everybody who walks
-   * past, and "You can barely handle it" is about the person doing the looking.
-   * See `../lib/weaponFeel` for why that is a sentence rather than the table of
-   * requirements this replaced.
+   * The demand goes last because it is the only part that is not a fact about
+   * the object: the name and the writing on it are the same for everybody who
+   * walks past, where "Blade 20 — you have 12" is about the person doing the
+   * looking. See `../lib/weaponDemand` for why it is a table of numbers rather
+   * than the sentence it replaced.
    */
   private lookLines(snap: GameSnapshot): PointerLabel | null {
     const target = this.lookTarget(snap);
@@ -1548,8 +1548,9 @@ export class GameRenderer {
     if (placed.description) {
       lines.push({ id: "description", text: placed.description });
     }
-    const feel = weaponFeelFor(def, snap.masteryXp);
-    if (feel) lines.push({ id: "feel", text: feel });
+    for (const [index, text] of weaponDemandFor(def, snap.masteryXp).entries()) {
+      lines.push({ id: `demand-${index}`, text });
+    }
     // No colour: the stylesheet's blue is the mode's own, and look mode is the
     // only thing wearing it.
     return { ref, height: def.height, lines };

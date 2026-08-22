@@ -6,6 +6,7 @@ export default [
   route("statuses", "routes/statuses.tsx"),
   route("map", "routes/map.tsx"),
   route("play", "routes/play.tsx"),
+  route("arena", "routes/arena.tsx"),
   route("reset", "routes/reset.ts"),
   route("online", "routes/online.tsx"),
   route("voxel", "routes/voxel.tsx"),
