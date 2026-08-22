@@ -10,7 +10,7 @@ pnpm generate   # regenerate tilesets + demo map into data/
 pnpm dev
 ```
 
-Open http://localhost:5173 — redirects to `/map`. Tile database lives at `/tiles`.
+Open http://localhost:5173 — redirects to `/online`. Tile database lives at `/tiles`.
 
 ## Scripts
 
