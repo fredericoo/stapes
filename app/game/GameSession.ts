@@ -179,6 +179,7 @@ import {
   initialMemory,
   stepBrain,
   type BrainMemory,
+  type Sound,
   type Utterance,
 } from "./brainRuntime";
 import type { ConsumeSource } from "./itemUse";
@@ -616,6 +617,13 @@ export const LOCAL_ACTOR_ID = "local";
 const EMPTY_ATTACKERS: readonly string[] = [];
 
 /**
+ * Shared empty list for the overwhelmingly common silent tick, on the same terms
+ * {@link EMPTY_ATTACKERS} is shared: a world where nothing made a sound should
+ * not allocate one array per creature to say so.
+ */
+const EMPTY_SOUNDS: readonly Sound[] = [];
+
+/**
  * Shared empty list for everybody who has taken no reward yet — which is every
  * creature in the world for ever, and every player until the first chest.
  *
@@ -627,6 +635,24 @@ const NO_TAGS: readonly string[] = [];
 
 /** Shared empty list for a tile nobody in the world is standing on. */
 const NO_ACTORS: readonly string[] = [];
+
+/**
+ * Everything in a round of sounds that this body could have heard — which is
+ * everything but its own.
+ *
+ * Excluding itself here rather than in the brain, for the reason
+ * `nearestOnTile` excludes itself there: the runtime has no notion of which body
+ * it is running, and giving it one to solve this would widen the narrowest
+ * interface in the simulation. It is also the rule that keeps a state which
+ * howls on entry from howling forever at itself.
+ */
+function soundsHeardBy(
+  sounds: readonly Sound[],
+  actorId: string,
+): readonly Sound[] {
+  if (sounds.length === 0) return EMPTY_SOUNDS;
+  return sounds.filter((sound) => sound.sourceId !== actorId);
+}
 
 /**
  * Which way to turn to face a neighbouring cell.
@@ -1184,6 +1210,31 @@ export class GameSession implements PlaySession {
    * struck anywhere in the world.
    */
   private pendingHurt = new Map<string, string[]>();
+  /**
+   * Every sound made since the brains last had a turn, oldest first.
+   *
+   * The third of the same family as {@link pendingHeard} and
+   * {@link pendingHurt}, on the same slower clock and emptied for the same
+   * reason: a noise is an event, and one left lying here would be heard again by
+   * whoever ticks next.
+   *
+   * **Handed over at the top of the pass rather than cleared at the bottom**,
+   * which is the one way it differs from those two, and the difference is about
+   * where the events come from. A word is said by a player and a blow is usually
+   * thrown by one, so both are already on the page before any brain wakes up. A
+   * sound is overwhelmingly made by a *brain*, on its way into a state — so
+   * clearing at the bottom would mean a creature ticking before the howler heard
+   * the howl and one ticking after did not, and which of those you are is the
+   * order of a Map. Taking the batch first costs one brain tick of delay and
+   * buys the whole pack hearing the same thing. @see tickBrains
+   *
+   * Not {@link pendingNoise}, which looks like it and is not. That one empties
+   * every tick on its way to the wire, so a brain ticking once per six ticks
+   * would miss five sixths of everything the world made a sound about — the
+   * exact reason speech needed a second list too. This one also carries who made
+   * the sound, which the wire deliberately does not. @see NoiseEmission
+   */
+  private pendingSound: Sound[] = [];
   /**
    * Damage dealt this tick, waiting to be broadcast. Drained by the server
    * exactly as {@link pendingSpeech} is, and emptied at the top of every tick so
@@ -2093,6 +2144,7 @@ export class GameSession implements PlaySession {
       // of the door from greeting the next person to walk in.
       this.pendingHeard = [];
       this.pendingHurt.clear();
+      this.pendingSound = [];
       return;
     }
 
@@ -2100,9 +2152,14 @@ export class GameSession implements PlaySession {
     if (this.brainAccumulatorMs < BRAIN_TICK_MS) return;
     this.brainAccumulatorMs -= BRAIN_TICK_MS;
 
+    // Taken before anybody decides anything, so a howl made during this pass is
+    // next pass's business for every ear alike. @see pendingSound
+    const sounds = this.pendingSound;
+    this.pendingSound = [];
+
     for (const actor of this.actors.values()) {
       if (!actor.resident) continue;
-      this.tickOneBrain(actor);
+      this.tickOneBrain(actor, sounds);
     }
 
     // Every brain has now had its one chance at this round of speech. Clearing
@@ -2124,15 +2181,17 @@ export class GameSession implements PlaySession {
    * Words that no creature is listening for cost a push and a clear.
    *
    * Deliberately not called for {@link recordSpeech}: creatures do not hear each
-   * other yet. Wiring it would be one line and the machinery is ready for it,
-   * but a deer's yelp setting off every brain in earshot is a world's worth of
-   * behaviour to think about rather than a side effect of this.
+   * other *speak*. They do hear each other's noises, which is a different
+   * channel and a deliberate difference — a hiss is a sound the room heard and
+   * every animal in it is entitled to react, while an NPC's line is addressed to
+   * somebody and putting it in every brain's ear would have a shopkeeper's
+   * greeting summon a wolf. @see recordNoise
    */
   hear(speakerId: string, text: string) {
     this.pendingHeard.push({ speakerId, text });
   }
 
-  private tickOneBrain(actor: ActorRuntime) {
+  private tickOneBrain(actor: ActorRuntime, sounds: readonly Sound[]) {
     // A body with no brain, or one whose authored brain did not hold together,
     // simply stands there. Resolving is memoised on def identity, so asking
     // every tick costs a map lookup rather than a parse.
@@ -2153,7 +2212,7 @@ export class GameSession implements PlaySession {
         this.applyStepRequest(actor, { directions: [direction] }),
       routeTo: (at, allowDrops) => this.routeStep(actor, loc, at, allowDrops),
       say: (text) => this.recordSpeech(actor, loc, text),
-      noise: (text) => this.recordNoise(loc, text),
+      noise: (text) => this.recordNoise(actor.id, loc, text),
       canSee: (at) =>
         hasLineOfSight(
           this.map,
@@ -2168,6 +2227,7 @@ export class GameSession implements PlaySession {
       // creature did before this was authorable.
       sight: this.battlerOf(actor)?.sight ?? DEFAULT_BATTLER.sight,
       heard: () => this.pendingHeard,
+      heardNoise: () => soundsHeardBy(sounds, actor.id),
       hurtBy: () => this.pendingHurt.get(actor.id) ?? EMPTY_ATTACKERS,
       attack: (id) => this.tryAttack(actor, id),
       nameOf: (id) => this.bodyName(id),
@@ -2235,7 +2295,7 @@ export class GameSession implements PlaySession {
    * see two seconds from now. That second list is what makes a noise audible in
    * a single-player world, where speech never has been.
    */
-  private recordNoise(loc: ActorLocation, raw: string) {
+  private recordNoise(sourceId: string, loc: ActorLocation, raw: string) {
     const text = sanitizeChatText(raw);
     if (!text) return;
     const noise: NoiseEmission = {
@@ -2249,6 +2309,11 @@ export class GameSession implements PlaySession {
     };
     this.pendingNoise.push(noise);
     this.liveNoise.push(noise);
+    // A third list, and the only one that knows who made the sound. Nothing
+    // drawn is told — that is the whole of what keeps a crunch from arriving as
+    // "Amethyst Piranha says: crunch" — but a creature going to look for it
+    // needs somebody to walk towards. @see Sound
+    this.pendingSound.push({ sourceId, text });
   }
 
   /** Age the noises out, on the tick clock like every other timer. */
@@ -3602,10 +3667,11 @@ export class GameSession implements PlaySession {
    * exists for: biting an apple is not the eater *saying* anything, so it must
    * not arrive attributed to them. See {@link NoiseEmission}.
    *
-   * Deliberately not handed to {@link hear}, matching what {@link recordSpeech}
-   * already decided for creatures: a crunch setting off every brain in earshot
-   * is a world's worth of behaviour to think about rather than a side effect of
-   * eating an apple.
+   * A crunch *does* set off every brain in earshot listening for one, which is
+   * the point rather than a side effect: eating in the woods is a thing a wolf
+   * gets to notice. It goes out through {@link recordNoise} and never through
+   * {@link hear} — the eater is not saying anything, and the two channels stay
+   * apart all the way down.
    */
   private recordConsumeSound(actor: ActorRuntime, consumable: ConsumableItem) {
     if (!consumable.sound?.trim()) return;
@@ -3614,7 +3680,7 @@ export class GameSession implements PlaySession {
     // noise on nothing.
     const loc = this.tryLocate(actor);
     if (!loc) return;
-    this.recordNoise(loc, consumable.sound);
+    this.recordNoise(actor.id, loc, consumable.sound);
   }
 
   /** Take a consumable placement off the board. Null when refused. */
@@ -4523,6 +4589,8 @@ export class GameSession implements PlaySession {
     // next brain tick is what delivers it, and stopping the clock now would drop
     // it entirely rather than merely delay it.
     if (this.pendingHurt.size > 0) return false;
+    // A sound nobody has had a turn to hear, on exactly those grounds again.
+    if (this.pendingSound.length > 0) return false;
     // Something is counting down, and this loop is the only clock it has. The
     // world therefore stays awake for as long as the longest lifetime on the
     // board — which is the price of decay being simulated rather than read off

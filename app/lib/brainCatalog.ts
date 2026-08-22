@@ -35,7 +35,14 @@ export type ParamSpec =
    * agree about that would let the editor author half of one.
    */
   | { key: string; kind: "speaker"; label: string }
-  | { key: string; kind: "text"; label: string };
+  /**
+   * A line of text. `optional` makes an empty box mean the *absence* of the
+   * field rather than an empty string — which is a real distinction wherever
+   * blank is authorable: a `heard_noise` with no word listens for any sound at
+   * all, and writing `""` there would be a word of length zero that nothing
+   * parses.
+   */
+  | { key: string; kind: "text"; label: string; optional?: boolean };
 
 type CatalogEntry<T> = {
   label: string;
@@ -113,6 +120,15 @@ export const CONDITIONS: Record<
       { key: "from", kind: "speaker", label: "from" },
     ],
     make: () => ({ cond: "heard", text: "ps", cells: 5, los: true }),
+  },
+  heard_noise: {
+    label: "heard noise",
+    hint: "Something within this many cells made a sound. Leave the text empty for any sound at all. Goes round corners — sound always does. Bind the speaker selector to remember what made it.",
+    params: [
+      { key: "text", kind: "text", label: "text", optional: true },
+      { key: "cells", kind: "number", label: "cells", min: 0 },
+    ],
+    make: () => ({ cond: "heard_noise", cells: 8 }),
   },
   attacked: {
     label: "attacked",
