@@ -25,6 +25,7 @@ import { Button, Input, Select } from "../ui";
 const SLOT_LABELS: Record<EquipSlot, string> = {
   weapon: "Weapon hand",
   offhand: "Off hand",
+  armor: "Body",
   bag: "Back",
 };
 

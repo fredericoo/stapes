@@ -48,6 +48,11 @@ const tiles = [
     kind: "item",
     interactions: { item: DEFAULT_CONSUMABLE },
   }),
+  tile({
+    id: "mail",
+    kind: "item",
+    interactions: { item: { type: "armor", def: 4 } },
+  }),
   tile({ id: "sign" }),
 ];
 const tilesById = tilesByIdFromList(tiles);
@@ -75,6 +80,26 @@ describe("itemUseFor", () => {
     expect(
       itemUseFor(instance("sword"), { kind: "weapon" }, tilesById),
     ).toEqual({ type: "move", to: { kind: "contents", index: 0 } });
+  });
+
+  it("wears armour from wherever it is", () => {
+    for (const slot of [
+      { kind: "contents", index: 2 } as const,
+      { kind: "offhand" } as const,
+      { kind: "ground", ref: GROUND, index: 0 } as const,
+    ]) {
+      expect(itemUseFor(instance("mail"), slot, tilesById)).toEqual({
+        type: "move",
+        to: { kind: "armor" },
+      });
+    }
+  });
+
+  it("takes off what is already worn", () => {
+    expect(itemUseFor(instance("mail"), { kind: "armor" }, tilesById)).toEqual({
+      type: "move",
+      to: { kind: "contents", index: 0 },
+    });
   });
 
   it("opens the bag on your back", () => {

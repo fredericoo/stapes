@@ -7,7 +7,11 @@ import { getStack, listCoords, replaceStack, setStacks } from "../lib/mapData";
 import type { Coord, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 import { canReplaceStack } from "../lib/validation";
-import { carriedInstances, type Equipment } from "./equipment";
+import {
+  carriedInstances,
+  EQUIPMENT_SLOTS,
+  type Equipment,
+} from "./equipment";
 import { type SlotKind, slotAccepts } from "./itemMoves";
 import { cellKey } from "./pressurePlates";
 import type { Rng } from "./rng";
@@ -503,7 +507,7 @@ const UNCHANGED: SlotAfter = { changed: false, instance: null };
  *
  * Every slot walks its contents, not just the bag: a hand takes a spare pack
  * now, so the thing on your back is no longer the only thing on a body with
- * things inside it. One function over all three is what stops that staying true
+ * things inside it. One function over every slot is what stops that staying true
  * of the *decay* rules a release after it stopped being true of the kit.
  */
 function slotAfter(
@@ -527,21 +531,28 @@ function slotAfter(
   return { changed: true, instance: { ...inside, tileId: turn.tileId } };
 }
 
-/** A kit after the clock, or null when nothing in it turned. */
+/**
+ * A kit after the clock, or null when nothing in it turned.
+ *
+ * Over `EQUIPMENT_SLOTS` rather than over the fields by name, which it was: a
+ * slot left out here is a square whose contents never rot, and this function had
+ * already been the second place the off hand was forgotten. The list is the one
+ * the runtime shape is held to, so a square that exists is a square that ages.
+ */
 function decayedEquipment(
   equipment: Equipment,
   due: ReadonlyMap<string, string>,
   tilesById: Record<string, TileDef>,
 ): Equipment | null {
-  const weapon = slotAfter(equipment.weapon, "weapon", due, tilesById);
-  const offhand = slotAfter(equipment.offhand, "offhand", due, tilesById);
-  const bag = slotAfter(equipment.bag, "bag", due, tilesById);
-  if (!weapon.changed && !offhand.changed && !bag.changed) return null;
-  return {
-    weapon: weapon.instance,
-    offhand: offhand.instance,
-    bag: bag.instance,
-  };
+  const next = { ...equipment };
+  let changed = false;
+  for (const slot of EQUIPMENT_SLOTS) {
+    const after = slotAfter(equipment[slot], slot, due, tilesById);
+    if (!after.changed) continue;
+    changed = true;
+    next[slot] = after.instance;
+  }
+  return changed ? next : null;
 }
 
 /**

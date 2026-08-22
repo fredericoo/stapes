@@ -14,11 +14,13 @@ import {
   resolveTransmute,
 } from "../lib/interactions";
 import {
+  resolveArmor,
   resolveConsumable,
   resolveContainer,
   resolveItem,
   resolveWeapon,
 } from "../lib/item";
+import type { EquipSlot } from "../lib/kit";
 import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { physicalHeight } from "../lib/types";
 import { canReplaceStack, fitsTile } from "../lib/validation";
@@ -330,8 +332,9 @@ export function reachableItemDefAt(
  *
  * **One slot per thing, and the tile decides which.** A sword is for the hand
  * you swing with, a torch or a shield for the other one (`WeaponItem.offhand`),
- * a backpack for your back (`ContainerItem.equippable`). Everything else — a
- * berry, a chest, a rock — has no slot and can only be carried in a bag.
+ * a mail shirt for your body (`ArmorItem`), a backpack for your back
+ * (`ContainerItem.equippable`). Everything else — a berry, a chest, a rock — has
+ * no slot and can only be carried in a bag.
  *
  * One rather than "every slot that would take it", because the alternative is a
  * list that offers to Wield *and* Hold the same sword and a player who has to
@@ -340,9 +343,14 @@ export function reachableItemDefAt(
  *
  * It is not the same question as "may this slot hold this" — `itemMoves`'
  * `slotAccepts` is looser and stays looser, because a drag is somebody saying
- * exactly what they want. This is what happens when they do not say.
+ * exactly what they want. This is what happens when they do not say. **Armour is
+ * the one thing the two agree about**, since its square takes nothing else.
+ *
+ * Re-exported from `../lib/kit` rather than spelled out here, which it was: a
+ * second list of the slots is a second list to forget a slot from, and this one
+ * had already been written before the body square existed.
  */
-export type EquipSlot = "weapon" | "offhand" | "bag";
+export type { EquipSlot };
 
 export function equipSlotOf(def: TileDef): EquipSlot | null {
   const container = resolveContainer(def);
@@ -350,6 +358,8 @@ export function equipSlotOf(def: TileDef): EquipSlot | null {
   // a back. A chest or a corpse is looted where it lies — that is what `open`
   // is for — and has no slot at all.
   if (container) return container.equippable ? "bag" : null;
+
+  if (resolveArmor(def)) return "armor";
 
   const weapon = resolveWeapon(def);
   if (!weapon) return null;

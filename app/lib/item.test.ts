@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   CONSUME_FALLBACK_VERB,
+  DEFAULT_ARMOR,
   DEFAULT_CONSUMABLE,
   DEFAULT_CONTAINER,
   DEFAULT_WEAPON,
+  MAX_ARMOR_DEF,
   MAX_CONSUMABLE_HP_SHIFT,
   MAX_CONSUMABLE_SOUND_LENGTH,
   MAX_CONTAINER_SIZE,
@@ -11,8 +13,10 @@ import {
   MAX_WEAPON_DAMAGE,
   MELEE_REACH,
   consumeVerb,
+  equipVerb,
   isItem,
   itemForSave,
+  resolveArmor,
   resolveConsumable,
   resolveContainer,
   resolveItem,
@@ -136,6 +140,11 @@ describe("resolveItem", () => {
       ["a fractional hp", { ...DEFAULT_CONSUMABLE, hp: 2.5 }],
       ["an hp past the cap", { ...DEFAULT_CONSUMABLE, hp: MAX_CONSUMABLE_HP_SHIFT + 1 }],
       ["an hp past the floor", { ...DEFAULT_CONSUMABLE, hp: -MAX_CONSUMABLE_HP_SHIFT - 1 }],
+      ["armour with a fractional defence", { ...DEFAULT_ARMOR, def: 1.5 }],
+      ["armour that makes blows worse", { ...DEFAULT_ARMOR, def: -1 }],
+      ["armour past the cap", { ...DEFAULT_ARMOR, def: MAX_ARMOR_DEF + 1 }],
+      ["armour resisting by a fraction", { ...DEFAULT_ARMOR, resist: { blade: 0.5 } }],
+      ["armour resisting a kind negatively", { ...DEFAULT_ARMOR, resist: { blade: -1 } }],
       ["a container with no room", { ...DEFAULT_CONTAINER, size: 0 }],
       ["a container past the cap", { ...DEFAULT_CONTAINER, size: MAX_CONTAINER_SIZE + 1 }],
       ["a container missing equippable", { type: "container", size: 2 }],
@@ -286,6 +295,32 @@ describe("itemForSave", () => {
     expect(weaponForSave(bow).reach).toEqual({ cells: 6, height: 2 });
   });
 
+  it("keeps armour's defence, and drops the resistances that say nothing", () => {
+    // What a draft looks like after somebody has touched one of the five fields:
+    // the editor writes a key per mastery, and zero is not a resistance.
+    const draft = {
+      type: "armor",
+      def: 3,
+      resist: { blade: 4, blunt: 0, fist: 0, ranged: 0, arcane: 0 },
+    } as const;
+    expect(itemForSave(draft)).toEqual({
+      type: "armor",
+      def: 3,
+      resist: { blade: 4 },
+    });
+  });
+
+  it("writes no resist block at all when none of them survive", () => {
+    const draft = { type: "armor", def: 3, resist: { blade: 0 } } as const;
+    expect(itemForSave(draft)).toEqual({ type: "armor", def: 3 });
+    expect(itemForSave(draft)).not.toHaveProperty("resist");
+  });
+
+  it("drops a weapon's fields from a draft that has been armour and back", () => {
+    const draft = { ...DEFAULT_ARMOR, mastery: "blade", damage: 9 } as never;
+    expect(itemForSave(draft)).toEqual(DEFAULT_ARMOR);
+  });
+
   it("keeps a container's own fields", () => {
     const container = { type: "container", size: 2, equippable: false } as const;
     expect(itemForSave(container)).toEqual(container);
@@ -428,5 +463,74 @@ describe("normalizeTileDef and kind", () => {
     });
     expect(def.kind).toBe("item");
     expect(def.type).toBe("simple");
+  });
+});
+
+/**
+ * Armour, as a kind of item.
+ *
+ * The parsing claims, kept beside the other three arms of the union: an armour
+ * block that does not parse reads as "not an item" exactly as a malformed weapon
+ * does, and the resistances are optional because most armour is the same against
+ * everything.
+ */
+describe("resolveArmor", () => {
+  it("reads an armour block", () => {
+    const def = tile("item", { item: { ...DEFAULT_ARMOR } });
+    expect(resolveArmor(def)).toEqual(DEFAULT_ARMOR);
+    expect(isItem(def)).toBe(true);
+    // The other resolvers say no, which is what the union is for.
+    expect(resolveWeapon(def)).toBeNull();
+    expect(resolveContainer(def)).toBeNull();
+    expect(resolveConsumable(def)).toBeNull();
+  });
+
+  it("reads the resistances beside it", () => {
+    const def = tile("item", {
+      item: { type: "armor", def: 2, resist: { blade: 4, arcane: 1 } },
+    });
+    expect(resolveArmor(def)?.resist).toEqual({ blade: 4, arcane: 1 });
+  });
+
+  /** An empty block says what no block says, and a round trip must survive it. */
+  it("takes an empty resist block rather than refusing it", () => {
+    const def = tile("item", { item: { type: "armor", def: 2, resist: {} } });
+    expect(resolveArmor(def)).toEqual({ type: "armor", def: 2, resist: {} });
+  });
+
+  /**
+   * Stripped rather than fatal, matching every other resolver here: the file is
+   * hand-edited, and a kind of blow that does not exist should cost the armour
+   * that line and not the tile. Toughness and Agility are the interesting case —
+   * they are real masteries, and they are what a body *is* rather than something
+   * anybody swings.
+   */
+  it("drops a resistance against something no weapon strikes with", () => {
+    const def = tile("item", {
+      item: { type: "armor", def: 2, resist: { blade: 4, toughness: 9, sonic: 9 } },
+    });
+    expect(resolveArmor(def)?.resist).toEqual({ blade: 4 });
+  });
+
+  it("is null for a weapon, and for a tile that is not an item", () => {
+    expect(resolveArmor(tile("item", { item: { ...DEFAULT_WEAPON } }))).toBeNull();
+    expect(resolveArmor(tile("prop", { item: { ...DEFAULT_ARMOR } }))).toBeNull();
+  });
+});
+
+/**
+ * The word the interface uses, read off the thing and never off the square —
+ * "Press to wield it" over a backpack is what reading the destination produced.
+ */
+describe("equipVerb", () => {
+  it("wears armour, wields a sword, holds a torch, puts on a pack", () => {
+    expect(equipVerb(tile("item", { item: { ...DEFAULT_ARMOR } }))).toBe("Wear");
+    expect(equipVerb(tile("item", { item: { ...DEFAULT_WEAPON } }))).toBe("Wield");
+    expect(
+      equipVerb(tile("item", { item: { ...DEFAULT_WEAPON, offhand: true } })),
+    ).toBe("Hold");
+    expect(equipVerb(tile("item", { item: { ...DEFAULT_CONTAINER } }))).toBe(
+      "Put on",
+    );
   });
 });

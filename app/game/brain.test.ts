@@ -2398,12 +2398,16 @@ describe("the vermin we ship", () => {
    * weather. It has to be pinned *here* rather than inherited, because the
    * default stream shifts whenever anything else in the world draws from it —
    * authoring a kit onto the rat moved it, and this file went red for a wander
-   * rather than for a brain.
+   * rather than for a brain. A pin is not a fix for that, only a place to stand:
+   * it holds the *stream*, and a kit authored onto anything at all — the player's
+   * armour, most recently — changes how many draws are taken before the rat
+   * wanders, so re-pinning is the maintenance this constant exists to make
+   * cheap. Any seed where neither animal drifts inward will do.
    *
    * The rule itself is proved by the neighbouring test: from seven both of them
    * close, on any dice at all.
    */
-  const YARD_SEED = 20260820;
+  const YARD_SEED = 20260821;
 
   /**
    * Somewhere for a creature nobody is meant to notice to stand: far enough that

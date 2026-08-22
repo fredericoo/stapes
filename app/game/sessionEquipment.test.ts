@@ -1303,6 +1303,7 @@ describe("dying with something on you", () => {
     expect(death?.equipment).toEqual({
       weapon: null,
       offhand: null,
+      armor: null,
       bag: null,
     });
   });

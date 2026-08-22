@@ -1,7 +1,4 @@
-import {
-  IconBackpack,
-  IconHandStop,
-} from "@tabler/icons-react";
+import { IconBackpack, IconHandStop, IconShirt } from "@tabler/icons-react";
 import { useMemo, type ReactNode } from "react";
 import type { Equipment } from "../game/equipment";
 import type { MasteryXp } from "../lib/mastery";
@@ -20,20 +17,20 @@ import type { ItemDrag } from "./useItemDrag";
  * a bag that needed its own gesture would be the one exception. So it is a slot,
  * beside the hand, and the strip button went back to being only an opener.
  *
- * Three slots is a thin panel, and that is the honest state of the game rather
- * than a placeholder: armour is out of scope, and a panel pretending to more
- * slots than exist would be describing a game nobody can play yet.
- *
- * The off hand sits between them because that is the order they are reached for:
- * what you swing, what you hold, what you carry it all in.
+ * Four slots, and the panel says exactly what the game has: what you swing,
+ * what you hold, what you are wearing, what you carry it all in — the order
+ * `EQUIP_SLOTS` is written in, because that is the order a person would say it.
+ * A panel pretending to more squares than exist would be describing a game
+ * nobody can play yet, which is why this one grew only when the body square
+ * did.
  *
  * **Each square is captioned and each empty one is pictured**, which the bag's
  * grid deliberately is not. A slot inside a bag is a square — anything goes in
- * it and there is nothing to say — where these three are each *for* something,
- * and a panel of three identical dashed squares is one you have to be taught
+ * it and there is nothing to say — where these are each *for* something,
+ * and a panel of identical dashed squares is one you have to be taught
  * rather than one you can read. The caption is the short name (`Main`,
- * `Offhand`, `Back`) rather than the accessible one, which stays the longer
- * phrase a screen reader wants.
+ * `Offhand`, `Body`, `Back`) rather than the accessible one, which stays the
+ * longer phrase a screen reader wants.
  *
  * **Nothing in here is a number.** There was a table under the hand for a while
  * listing every mastery the weapon in it asked for against the one you had, and
@@ -131,6 +128,20 @@ export function EquipmentPanel({
             emptyHint="Off hand — nothing held"
             emptyIcon={OffHandIcon}
             open={handOpen === "offhand"}
+            drag={drag}
+            inspecting={inspecting}
+            masteryXp={masteryXp}
+          />
+        </CaptionedSlot>
+        <CaptionedSlot caption="Body">
+          <ItemSlot
+            slot={{ kind: "armor" }}
+            instance={equipment.armor}
+            tilesById={tilesById}
+            tilesets={tilesets}
+            label="Armour"
+            emptyHint="Armour — nothing worn"
+            emptyIcon={IconShirt}
             drag={drag}
             inspecting={inspecting}
             masteryXp={masteryXp}

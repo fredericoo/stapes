@@ -44,6 +44,11 @@ const tiles = [
       item: { ...DEFAULT_CONTAINER, size: 2, equippable: false },
     },
   }),
+  tile({
+    id: "mail",
+    kind: "item",
+    interactions: { item: { type: "armor", def: 4 } },
+  }),
 ];
 const tilesById = tilesByIdFromList(tiles);
 
@@ -58,7 +63,12 @@ function kit(
   weapon: ItemInstance | null = null,
   offhand: ItemInstance | null = null,
 ): Equipment {
-  return { weapon, offhand, bag: { id: "itm_bag", tileId: "bag", contents } };
+  return {
+    weapon,
+    offhand,
+    armor: null,
+    bag: { id: "itm_bag", tileId: "bag", contents },
+  };
 }
 
 /** A chest one cell east, holding whatever it is given. */
@@ -445,8 +455,12 @@ index: 0,
   });
 
   it("refuses everything when there is no bag on your back", () => {
-    const bagless: Equipment = { weapon: null, offhand: null,
-  bag: null };
+    const bagless: Equipment = {
+      weapon: null,
+      offhand: null,
+      armor: null,
+      bag: null,
+    };
     const { map, ref } = chestAt(1, [sword("itm_a")]);
     expect(
       canMoveItem(map, tilesById, ME, bagless, { kind: "ground", ref, index: 0 }, {
@@ -500,6 +514,7 @@ describe("the bag slot", () => {
 
   it("is empty, and refuses everything, on a bare back", () => {
     const bagless: Equipment = { weapon: null, offhand: null,
+  armor: null,
   bag: null };
     expect(
       canMoveItem(emptyMap(), tilesById, ME, bagless, { kind: "bag" }, {
@@ -512,6 +527,113 @@ describe("the bag slot", () => {
     expect(slotKey({ kind: "bag" })).not.toBe(
       slotKey({ kind: "contents", index: 0 }),
     );
+  });
+});
+
+/**
+ * The body slot.
+ *
+ * **The one square in the game that refuses a drag**, and these are the tests
+ * that keep it that way. Both hands are deliberately generous — a drag is
+ * somebody saying exactly what they want, and a hand refusing a thing you could
+ * obviously hold is the interface arguing with them — but defence is the whole
+ * of what this square contributes to a fight, so a sword worn as a shirt would
+ * be a number about nothing.
+ */
+describe("the armour slot", () => {
+  /** Wearing nothing, with a shirt and a sword in the bag to try on. */
+  function undressed(): Equipment {
+    return {
+      weapon: null,
+      offhand: null,
+      armor: null,
+      bag: {
+        id: "itm_bag",
+        tileId: "bag",
+        contents: [
+          { id: "itm_mail", tileId: "mail" },
+          { id: "itm_sword", tileId: "sword" },
+        ],
+      },
+    };
+  }
+
+  const from = (index: number) => ({ kind: "contents", index }) as const;
+
+  it("takes armour out of the bag and puts it on", () => {
+    const moved = applyItemMove(
+      emptyMap(),
+      tilesById,
+      ME,
+      undressed(),
+      from(0),
+      { kind: "armor" },
+    );
+    expect(moved?.equipment.armor?.tileId).toBe("mail");
+    expect(moved?.equipment.bag?.contents).toHaveLength(1);
+  });
+
+  it("refuses everything that is not armour", () => {
+    for (const index of [1]) {
+      expect(
+        canMoveItem(emptyMap(), tilesById, ME, undressed(), from(index), {
+          kind: "armor",
+        }),
+      ).toBe(false);
+    }
+    // Including the pack on your own back, which a hand would happily take.
+    expect(
+      canMoveItem(emptyMap(), tilesById, ME, undressed(), { kind: "bag" }, {
+        kind: "armor",
+      }),
+    ).toBe(false);
+  });
+
+  /** A hand is still a hand: you may carry a breastplate without wearing it. */
+  it("does not stop a hand holding one", () => {
+    const moved = applyItemMove(
+      emptyMap(),
+      tilesById,
+      ME,
+      undressed(),
+      from(0),
+      { kind: "weapon" },
+    );
+    expect(moved?.equipment.weapon?.tileId).toBe("mail");
+  });
+
+  it("takes it off again, exactly as every other square is emptied", () => {
+    const dressed: Equipment = {
+      ...undressed(),
+      armor: { id: "itm_mail", tileId: "mail" },
+    };
+    const moved = applyItemMove(
+      emptyMap(),
+      tilesById,
+      ME,
+      dressed,
+      { kind: "armor" },
+      { kind: "weapon" },
+    );
+    expect(moved?.equipment.armor).toBeNull();
+    expect(moved?.equipment.weapon?.tileId).toBe("mail");
+  });
+
+  it("will not take a second thing while it is occupied", () => {
+    const dressed: Equipment = {
+      ...undressed(),
+      armor: { id: "itm_worn", tileId: "mail" },
+    };
+    expect(
+      canMoveItem(emptyMap(), tilesById, ME, dressed, from(0), {
+        kind: "armor",
+      }),
+    ).toBe(false);
+  });
+
+  it("has a key of its own", () => {
+    expect(slotKey({ kind: "armor" })).not.toBe(slotKey({ kind: "bag" }));
+    expect(slotKey({ kind: "armor" })).not.toBe(slotKey({ kind: "offhand" }));
   });
 });
 
@@ -532,6 +654,7 @@ describe("a container held in a hand", () => {
     return {
       weapon: null,
       offhand: { id: "itm_held", tileId: "bag", contents: held },
+      armor: null,
       bag: { id: "itm_bag", tileId: "bag", contents: worn },
     };
   }

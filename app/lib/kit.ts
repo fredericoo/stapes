@@ -13,8 +13,8 @@ import { MAX_CONTAINER_SIZE } from "./item";
  *
  * ## The shape is the slots, not a loot table
  *
- * Every entry names an {@link EquipSlot} — the same three squares a player
- * drags things between — rather than a bag of drops with no home. That is what
+ * Every entry names an {@link EquipSlot} — the same squares a player drags
+ * things between — rather than a bag of drops with no home. That is what
  * makes a creature's kit *work* rather than merely fall out of it: a wolf
  * authored with a torch in its off hand lights the wood it is standing in, and
  * one authored with a sword swings it, because the simulation reads a body's
@@ -42,8 +42,14 @@ import { MAX_CONTAINER_SIZE } from "./item";
  * shape is checked against this list rather than the other way round — see
  * `EQUIPMENT_SLOTS` there, which is this list, and the guard beside it that
  * makes a slot added to one and not the other a type error.
+ *
+ * The order is the order a body is dressed in, hands outward: what you swing,
+ * what you hold, what you are wearing, what you carry it all in. It is also the
+ * order a kit is rolled in and the order a death puts things on the floor, and
+ * neither of those cares — which is why it may as well read the way a person
+ * would say it.
  */
-export const EQUIP_SLOTS = ["weapon", "offhand", "bag"] as const;
+export const EQUIP_SLOTS = ["weapon", "offhand", "armor", "bag"] as const;
 
 /** Which square a thing is worn in. */
 export type EquipSlot = (typeof EQUIP_SLOTS)[number];
@@ -97,7 +103,7 @@ export type Kit = KitEntry[];
 /**
  * Most entries one body may be authored with.
  *
- * Three slots plus what fits in the largest container there is, which is the
+ * Every slot plus what fits in the largest container there is, which is the
  * most a *rolled* kit could ever land, doubled so a weighted table has room to
  * offer alternatives for every square. A bound rather than a balance decision:
  * wide enough for anything worth authoring, narrow enough that a file with a

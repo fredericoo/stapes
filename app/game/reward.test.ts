@@ -139,6 +139,7 @@ function bagWith(count: number): Equipment {
   return {
     weapon: null,
     offhand: null,
+    armor: null,
     bag: {
       id: "itm_bag",
       tileId: BAG_TILE_ID,

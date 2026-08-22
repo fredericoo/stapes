@@ -18,9 +18,9 @@ import type { SlotRef } from "./itemMoves";
  * and every kind of item answers it in its own terms:
  *
  * - a container is for looking inside, so a tap opens it;
- * - a weapon is for holding, so a tap puts it in the hand it belongs in — and
- *   taps the one in that hand back into your bag, because the inverse of a use
- *   is the same gesture again;
+ * - a weapon is for holding and armour is for wearing, so a tap puts either in
+ *   the square it belongs in — and taps the thing already there back into your
+ *   bag, because the inverse of a use is the same gesture again;
  * - a consumable is for eating or drinking, so a tap spends it — the case this
  *   module was written expecting to gain.
  *
@@ -101,8 +101,11 @@ export function itemUseFor(
   // used to be guessed from whether the tile gave off light, because a lantern
   // is authored as a weapon and the swinging hand was once the only hand; the
   // guess is gone now that `WeaponItem.offhand` says it outright.
+  // Every slot but the bag, which the container branch above has already
+  // answered — the only things that belong on a back are containers, and looking
+  // into one beats taking it off.
   const belongs = equipSlotOf(def);
-  if (belongs === "weapon" || belongs === "offhand") {
+  if (belongs === "weapon" || belongs === "offhand" || belongs === "armor") {
     return slot.kind === belongs
       ? { type: "move", to: FIRST_BAG_SLOT }
       : { type: "move", to: { kind: belongs } };

@@ -1,5 +1,5 @@
 import { getStack, replaceStack } from "../lib/mapData";
-import { resolveContainer, resolveWeapon } from "../lib/item";
+import { resolveArmor, resolveContainer } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { MapFile, PlacedTile, TileDef } from "../lib/types";
 import { reachableItemDefAt, type Actor, type ObjectRef } from "./affordances";
@@ -52,6 +52,14 @@ export type SlotRef =
    * `./equipment`'s `offhand` for why it exists at all.
    */
   | { kind: "offhand" }
+  /**
+   * On the body — a tunic, a mail shirt, a breastplate.
+   *
+   * The strict square: it takes armour and nothing else, where both hands take
+   * anything you can carry. See `./equipment`'s `Equipment.armor` for why the
+   * one slot in the game that refuses things is this one.
+   */
+  | { kind: "armor" }
   /**
    * On your back — the bag itself, not a place inside it.
    *
@@ -134,6 +142,7 @@ function contentsHolder(slot: {
 export function slotKey(slot: SlotRef): string {
   if (slot.kind === "weapon") return "weapon";
   if (slot.kind === "offhand") return "offhand";
+  if (slot.kind === "armor") return "armor";
   if (slot.kind === "bag") return "bag";
   if (slot.kind === "contents") {
     return `contents:${contentsHolder(slot)}:${slot.index}`;
@@ -228,6 +237,11 @@ export function slotTakes(kind: SlotKind, def: TileDef): boolean {
   // could obviously hold is the interface arguing with them. Which slot a thing
   // *belongs* in is `equipSlotOf`'s question, asked only when nobody has said.
   if (kind === "weapon" || kind === "offhand") return handAccepts(def);
+  // The one square that refuses on kind rather than on capacity, and the whole
+  // reason it can: what a hand is *for* is anything, and what a chest is for is
+  // armour. A sword worn as a shirt would make the slot's number — the only
+  // thing it contributes to a fight — a number about nothing.
+  if (kind === "armor") return resolveArmor(def) != null;
   // The one slot a container may go in besides a hand, and only a wearable one.
   if (kind === "bag") return resolveContainer(def)?.equippable === true;
   // Inside a bag, where the nesting rule still bites: a pack in a pack is the
@@ -252,6 +266,7 @@ export function itemInSlot(
 ): ItemInstance | null {
   if (slot.kind === "weapon") return equipment.weapon;
   if (slot.kind === "offhand") return equipment.offhand;
+  if (slot.kind === "armor") return equipment.armor;
   if (slot.kind === "bag") return equipment.bag;
   if (slot.kind === "contents") {
     return equipment[contentsHolder(slot)]?.contents?.[slot.index] ?? null;
@@ -276,6 +291,7 @@ function slotHasRoom(
 ): boolean {
   if (slot.kind === "weapon") return equipment.weapon === null;
   if (slot.kind === "offhand") return equipment.offhand === null;
+  if (slot.kind === "armor") return equipment.armor === null;
   if (slot.kind === "bag") return equipment.bag === null;
   if (slot.kind === "contents") {
     const holder = equipment[contentsHolder(slot)];
@@ -407,6 +423,11 @@ export function clearSlot(
     return { map, equipment: { ...equipment, offhand: null } };
   }
 
+  if (slot.kind === "armor") {
+    if (!equipment.armor) return null;
+    return { map, equipment: { ...equipment, armor: null } };
+  }
+
   if (slot.kind === "bag") {
     if (!equipment.bag) return null;
     return { map, equipment: { ...equipment, bag: null } };
@@ -456,6 +477,10 @@ function fillSlot(
 
   if (slot.kind === "offhand") {
     return { map, equipment: { ...equipment, offhand: instance } };
+  }
+
+  if (slot.kind === "armor") {
+    return { map, equipment: { ...equipment, armor: instance } };
   }
 
   if (slot.kind === "bag") {

@@ -7,6 +7,7 @@ import {
   type Reach,
   weaponSchema,
   type WeaponItem,
+  type WeaponResistances,
   type WeaponStatus,
 } from "./item";
 import { type Kit, kitSchema } from "./kit";
@@ -15,6 +16,7 @@ import {
   masteriesSchema,
   masteryLevel,
   masteryRatio,
+  type WeaponMastery,
 } from "./mastery";
 import type { TileDef } from "./types";
 
@@ -117,8 +119,28 @@ export type FightingStats = {
    * A ceiling rather than an average — see `../game/combat`.
    */
   damage: number;
-  /** Flat reduction on every blow that lands. */
+  /**
+   * Flat reduction on every blow that lands, whatever kind of blow it was.
+   *
+   * The unconditional half of defence. What a particular blow actually has to
+   * get through is this plus whatever {@link resist} says about *that* kind —
+   * see `../game/combat`'s `defenceAgainst`, which is the one place the two are
+   * put together.
+   */
   def: number;
+  /**
+   * Extra reduction against blows of one kind, from what this body is wearing.
+   *
+   * Carried on the resolved stats rather than looked up off the armour at the
+   * moment of the blow, on exactly the terms {@link statuses} and
+   * {@link projectile} are: the fight already holds both bodies resolved, and a
+   * second trip to the tile catalogue from inside `rollAttack` would be a second
+   * answer that can disagree with this one.
+   *
+   * Empty for a body wearing nothing and for armour with no opinion, which is
+   * most of them — see {@link NO_RESISTANCES}.
+   */
+  resist: WeaponResistances;
   /**
    * 0–100. How reliably this finds its target.
    *
@@ -131,6 +153,17 @@ export type FightingStats = {
   variance: number;
   /** 0–100. How often this body can swing. See `../game/combat`. */
   spd: number;
+  /**
+   * What kind of blow this body strikes — its weapon's mastery.
+   *
+   * **Here so a blow can say what it is**, which is what armour keyed by kind
+   * needs of the attacking side: the defender's {@link resist} is a table and
+   * this is the key read out of it. It is the weapon's own field carried
+   * through untouched, never the wielder's best mastery — a novice swinging a
+   * sword is still striking with a blade, and mail should turn it aside on the
+   * same terms it turns aside an expert's.
+   */
+  mastery: WeaponMastery;
   /**
    * The chance a swing connects with anything at all, as a fraction of 1.
    *
@@ -363,6 +396,12 @@ export function fightingStats(
       weapon.damage * (DAMAGE_AT_ZERO_RATIO + DAMAGE_PER_RATIO * ratio),
     ),
     def: weapon.def,
+    // Nothing from the weapon and nothing from the body: resistance is worn, and
+    // what a body is wearing is `../game/equipment`'s question. This function
+    // knows only a profile and a set of masteries, so it says "none" and
+    // `effectiveBattler` fills it in.
+    resist: NO_RESISTANCES,
+    mastery: weapon.mastery,
     accuracy: weapon.accuracy,
     variance: weapon.variance,
     // Clamped, because a 1.25 ratio can push an already-fast weapon past the top
@@ -388,6 +427,12 @@ export function fightingStats(
  * costs nothing: one frozen empty list rather than one per body per frame.
  */
 const NO_WEAPON_STATUSES: readonly WeaponStatus[] = [];
+
+/**
+ * What a body with nothing worn resists, shared on exactly those terms: one
+ * empty block rather than one per body per frame.
+ */
+export const NO_RESISTANCES: WeaponResistances = {};
 
 /** Floors of perception, up or down. Whole floors — half a look is not a thing. */
 const levelSlack = v.pipe(v.number(), v.integer(), v.minValue(0));

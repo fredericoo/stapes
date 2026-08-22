@@ -136,10 +136,13 @@ const itemInstanceSchema = v.object({
 const equipmentSchema = v.object({
   weapon: v.nullable(itemInstanceSchema),
   // Defaulted rather than required, so a client from before the off hand existed
-  // still reads a `hello` from a server that has one. Every other field here is
-  // required on purpose; this one has a right answer for its own absence, which
-  // is the same answer an empty hand gives.
+  // still reads a `hello` from a server that has one. Every slot added after the
+  // first two is defaulted for that reason and keeps it: a square nobody had yet
+  // has a right answer for its own absence, which is the same answer an empty
+  // one gives. `weapon` and `bag` stay required because no build that could
+  // reach this schema has ever been without them.
   offhand: v.optional(v.nullable(itemInstanceSchema), null),
+  armor: v.optional(v.nullable(itemInstanceSchema), null),
   bag: v.nullable(itemInstanceSchema),
 });
 
@@ -171,6 +174,7 @@ const equipmentSchema = v.object({
 const tolerantEquipmentSchema = v.fallback(equipmentSchema, {
   weapon: null,
   offhand: null,
+  armor: null,
   bag: null,
 });
 
@@ -849,6 +853,7 @@ const inboundRefSchema = v.object({
 const inboundSlotRefSchema = v.variant("kind", [
   v.object({ kind: v.literal("weapon") }),
   v.object({ kind: v.literal("offhand") }),
+  v.object({ kind: v.literal("armor") }),
   v.object({ kind: v.literal("bag") }),
   v.object({
     kind: v.literal("contents"),

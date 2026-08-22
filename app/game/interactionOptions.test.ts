@@ -225,6 +225,7 @@ function playerAt(map: MapFile, x = 0, y = 0): ActorSnapshot {
 const KIT: Equipment = {
   weapon: null,
   offhand: null,
+  armor: null,
   bag: { id: "itm_bag", tileId: "bag", contents: [] },
 };
 
@@ -232,6 +233,7 @@ const KIT: Equipment = {
 const FULL_KIT: Equipment = {
   weapon: null,
   offhand: null,
+  armor: null,
   bag: {
     id: "itm_bag",
     tileId: "bag",
@@ -249,6 +251,7 @@ const NO_BAG: Equipment = emptyEquipment();
 const ARMED: Equipment = {
   weapon: { id: "itm_held", tileId: "sword" },
   offhand: { id: "itm_lit", tileId: "torch" },
+  armor: null,
   bag: { id: "itm_bag", tileId: "bag", contents: [] },
 };
 
