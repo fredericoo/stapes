@@ -10,6 +10,7 @@ import {
   type BrainCondition,
   type BrainConditionDef,
   type BrainDef,
+  type Selector,
 } from "../lib/brain";
 import { group } from "../lib/conditions";
 import { displayNameFor } from "./displayName";
@@ -224,6 +225,7 @@ describe("deciding", () => {
       busy: false,
       rng: new Rng(1),
       self,
+      home: null,
       nearestOnTile: () => null,
       positionOf: () => null,
       wouldDrop: () => false,
@@ -954,6 +956,7 @@ describe("giving up", () => {
       busy: false,
       rng: new Rng(1),
       self: { x: 0, y: 0, z: 0 },
+      home: null,
       nearestOnTile: () => null,
       positionOf: () => null,
       wouldDrop: () => false,
@@ -1085,6 +1088,7 @@ describe("actions that take time", () => {
       busy: false,
       rng: new Rng(1),
       self,
+      home: null,
       nearestOnTile: () => null,
       positionOf: () => null,
       wouldDrop: () => false,
@@ -1515,6 +1519,7 @@ describe("a deer that yelps", () => {
       busy: false,
       rng: new Rng(1),
       self: { x: 0, y: 0, z: 0 },
+      home: null,
       nearestOnTile: () => null,
       positionOf: () => null,
       wouldDrop: () => false,
@@ -1588,6 +1593,7 @@ describe("a deer that yelps", () => {
       busy: false,
       rng: new Rng(1),
       self: { x: 0, y: 0, z: 0 },
+      home: null,
       nearestOnTile: () => null,
       positionOf: () => null,
       wouldDrop: () => false,
@@ -2003,6 +2009,7 @@ describe("composing conditions", () => {
       busy: false,
       rng: new Rng(1),
       self: { x: 0, y: 0, z: 0 },
+      home: null,
       nearestOnTile: () => null,
       positionOf: () => ({ x: 0, y: 0, z: 0 }),
       wouldDrop: () => false,
@@ -2513,6 +2520,182 @@ describe("the cat we ship", () => {
  * past. Both are written against the one number a player can feel — the seven
  * cells at which being seen becomes being attacked.
  */
+/**
+ * The one selector that names a place.
+ *
+ * Everything in these cases turns on the same distinction: `home` is answered
+ * without asking the world who is standing anywhere, so the verbs that want a
+ * *body* get nobody from it and the verbs that want a *cell* get one. Both
+ * halves are the point — a leash is worthless if `step_toward home` works and
+ * `out_of_range of home` does not, and it is worse than worthless if
+ * `attack home` throws rather than falling through.
+ */
+describe("knowing where it belongs", () => {
+  const HOME: Selector = { type: "home" };
+  const BURROW = { x: 4, y: 0, z: 0 };
+
+  function ctx(overrides: Partial<Parameters<typeof stepBrain>[3]> = {}) {
+    const self = overrides.self ?? { x: 0, y: 0, z: 0 };
+    return {
+      busy: false,
+      rng: new Rng(1),
+      self,
+      home: BURROW,
+      nearestOnTile: () => null,
+      positionOf: () => null,
+      wouldDrop: () => false,
+      routeTo: (at: Coord) => openRoute(self, at),
+      step: vi.fn(() => true),
+      say: vi.fn(),
+      noise: vi.fn(),
+      canSee: () => true,
+      // The floor-bound reckoning every creature we ship has. Home is measured
+      // past it, which is the case below.
+      sight: { up: 0, down: 0 },
+      heard: () => [],
+      hurtBy: () => [],
+      attack: vi.fn(() => false),
+      nameOf: (id: string) => id,
+      ...overrides,
+    } satisfies Parameters<typeof stepBrain>[3];
+  }
+
+  /** Wander until home is more than `cells` away, then walk back to it. */
+  function leashed(cells: number): BrainDef {
+    return {
+      initial: "roaming",
+      states: {
+        roaming: { do: [{ action: "step_random" }] },
+        homing: { do: [{ action: "step_toward", of: HOME }, { action: "hold" }] },
+      },
+      transitions: [
+        {
+          from: "roaming",
+          if: { cond: "out_of_range", of: HOME, cells },
+          to: "homing",
+        },
+        {
+          from: "homing",
+          if: { cond: "in_range", of: HOME, cells: 0 },
+          to: "roaming",
+        },
+      ],
+    };
+  }
+
+  it("stays where it is while home is near enough", () => {
+    const brain = leashed(4);
+    const memory = initialMemory(brain);
+
+    stepBrain(brain, memory, BRAIN_TICK_MS, ctx());
+
+    expect(memory.state).toBe("roaming");
+  });
+
+  it("turns for home once it has gone too far", () => {
+    const brain = leashed(3);
+    const memory = initialMemory(brain);
+
+    stepBrain(brain, memory, BRAIN_TICK_MS, ctx());
+
+    expect(memory.state).toBe("homing");
+  });
+
+  /**
+   * The step itself, and only the ones that close the distance: `step_toward`
+   * filters to directions that genuinely improve matters, so a creature four
+   * cells east of nothing walks east.
+   */
+  it("steps the way home rather than any way at all", () => {
+    const brain = leashed(3);
+    const memory = initialMemory(brain);
+    const c = ctx();
+
+    stepBrain(brain, memory, BRAIN_TICK_MS, c);
+
+    expect(c.step).toHaveBeenCalledWith("e");
+  });
+
+  /**
+   * A creature the world did not author has nowhere to be — and `out_of_range`
+   * of nowhere holds, on exactly the terms it holds for a target that has left
+   * the board. That is what makes a `home` authored onto something with no
+   * authored cell inert rather than a body pinned to the origin.
+   */
+  it("is always far from a home it does not have", () => {
+    const brain = leashed(99);
+    const memory = initialMemory(brain);
+    const c = ctx({ home: null });
+
+    stepBrain(brain, memory, BRAIN_TICK_MS, c);
+
+    expect(memory.state).toBe("homing");
+    // And nothing to walk towards, so the priority list falls through to hold.
+    expect(c.step).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Home is measured on the same terms a body is, sight levels and all, so a
+   * creature that minds its own storey reads a home one floor up as away.
+   *
+   * That is only the right answer because `step_toward` routes: standing under
+   * your own burrow was somewhere to settle for as long as nothing could climb,
+   * and a staircase is now a thing a creature walks. Making home the one
+   * distance that ignored elevation would stop it at the bottom of the stairs.
+   */
+  it("counts a home on another floor as one to walk back to", () => {
+    const brain = leashed(4);
+    const memory = initialMemory(brain);
+    const c = ctx({ home: { ...BURROW, z: 1 } });
+
+    stepBrain(brain, memory, BRAIN_TICK_MS, c);
+
+    expect(memory.state).toBe("homing");
+    expect(c.step).toHaveBeenCalled();
+  });
+
+  it("cannot be swung at, and falls through rather than failing loudly", () => {
+    const brain: BrainDef = {
+      initial: "striking",
+      states: {
+        striking: {
+          do: [{ action: "attack", of: HOME }, { action: "step_random" }],
+        },
+      },
+      transitions: [],
+    };
+    const memory = initialMemory(brain);
+    const c = ctx();
+
+    stepBrain(brain, memory, BRAIN_TICK_MS, c);
+
+    expect(c.attack).not.toHaveBeenCalled();
+    expect(c.step).toHaveBeenCalled();
+  });
+
+  /** A bind naming nobody clears its slot, which is what home names. */
+  it("writes nobody down when bound to a slot", () => {
+    const brain: BrainDef = {
+      initial: "idle",
+      states: { idle: { do: [] }, next: { do: [] } },
+      transitions: [
+        {
+          from: "idle",
+          if: { cond: "after", ms: 0 },
+          bind: { target: HOME },
+          to: "next",
+        },
+      ],
+    };
+    const memory = initialMemory(brain);
+    memory.blackboard.target = "someone-else";
+
+    stepBrain(brain, memory, BRAIN_TICK_MS, ctx());
+
+    expect(memory.blackboard.target).toBeUndefined();
+  });
+});
+
 describe("the vermin we ship", () => {
   const authored = normalizeTiles(tilesJson as unknown[]);
 
@@ -2757,6 +2940,109 @@ describe("the vermin we ship", () => {
     expect(crowdedBeats / beats).toBeLessThan(0.55);
     // …and not locked in the diagonal chain that releasing at one cell left.
     expect(lockedBeats / beats).toBeLessThan(0.4);
+  });
+
+  /**
+   * The leash, and the one case it exists for.
+   *
+   * A creature is placed eleven cells from the cell its *name* says it was
+   * authored on — which is exactly the shape a resumed world has, since the
+   * checkpoint stores where a snake wandered to and its owner id is the only
+   * thing left that remembers where it started. Adopting it here is the same
+   * path a reload takes.
+   *
+   * Without a home the snake carries on diffusing from wherever it woke up,
+   * which is the whole complaint: a random walk has no restoring force, so given
+   * a long enough afternoon it is anywhere. With one it turns round.
+   */
+  it("walks back to the cell it was authored on, not the one it woke in", () => {
+    const STRAYED_TO = 11;
+    let map = emptyMap();
+    for (let x = -12; x <= 12; x++) {
+      for (let y = -12; y <= 12; y++) {
+        map = replaceStack(map, x, y, 0, [{ tileId: "dirt" }]);
+      }
+    }
+    // The name a first load would have minted from the authored cell, on a body
+    // standing a long way from it. @see residentOwnerId
+    map = replaceStack(map, STRAYED_TO, 0, 0, [
+      { tileId: "dirt" },
+      { tileId: "snake", owner: "npc:0,0,0,1" },
+    ]);
+    map = replaceStack(map, OFF_IN_THE_CORNER.x, OFF_IN_THE_CORNER.y, 0, [
+      { tileId: "dirt" },
+      { tileId: "player", direction: "e", owner: "alice" },
+    ]);
+    const session = new GameSession(map, authored, {
+      actorIds: ["alice"],
+      spawnAt: { x: 12, y: 12, z: 0, stackIndex: 1 },
+      seed: YARD_SEED,
+    });
+
+    advance(session, BRAIN_TICK_MS * 8);
+
+    expect(bodies(session, "snake")[0]!.x).toBeLessThan(STRAYED_TO);
+  });
+
+  /**
+   * The walk home is a *route*, and this is what that buys.
+   *
+   * A wall stands between the snake and its burrow with one gap in it, several
+   * cells off the straight line. The greedy step this used to be would have
+   * pressed the snake flat against the near side of the wall and held it there
+   * — closing the plan distance is exactly what walking into a wall does — so
+   * the leash would have worked only in the open. @see ./pathfinding
+   */
+  it("walks round a wall to get home", () => {
+    const STRAYED_TO = 11;
+    const WALL_X = 5;
+    const GAP_Y = 4;
+    let map = emptyMap();
+    for (let x = -12; x <= 12; x++) {
+      for (let y = -12; y <= 12; y++) {
+        map = replaceStack(map, x, y, 0, [{ tileId: "dirt" }]);
+      }
+    }
+    for (let y = -12; y <= 12; y++) {
+      if (y === GAP_Y) continue;
+      map = replaceStack(map, WALL_X, y, 0, [
+        { tileId: "dirt" },
+        { tileId: "stone-wall" },
+      ]);
+    }
+    map = replaceStack(map, STRAYED_TO, 0, 0, [
+      { tileId: "dirt" },
+      { tileId: "snake", owner: "npc:0,0,0,1" },
+    ]);
+    map = replaceStack(map, OFF_IN_THE_CORNER.x, OFF_IN_THE_CORNER.y, 0, [
+      { tileId: "dirt" },
+      { tileId: "player", direction: "e", owner: "alice" },
+    ]);
+    const session = new GameSession(map, authored, {
+      actorIds: ["alice"],
+      spawnAt: { x: 12, y: 12, z: 0, stackIndex: 1 },
+      seed: YARD_SEED,
+    });
+
+    advance(session, BRAIN_TICK_MS * 24);
+
+    // Through the gap and out the far side, rather than stalled against the
+    // wall at x = 6 with the plan distance dutifully closed.
+    expect(bodies(session, "snake")[0]!.x).toBeLessThan(WALL_X);
+  });
+
+  /**
+   * And it stops, rather than homing forever: the band between the ten cells
+   * that pull it back and the two that let it go is what keeps a settled
+   * creature wandering instead of twitching on its own doorstep.
+   */
+  it("goes back to wandering once it is home again", () => {
+    const session = yard([["snake", 0, 0]]);
+
+    advance(session, BRAIN_TICK_MS * 20);
+
+    const snake = bodies(session, "snake")[0]!;
+    expect(Math.abs(snake.x) + Math.abs(snake.y)).toBeLessThanOrEqual(10);
   });
 
   it("wanders on its own when there is no other rat to join", () => {

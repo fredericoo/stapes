@@ -85,6 +85,18 @@ names it (`LOCAL_ACTOR_ID`); the game server will spawn one per connection.
   single `player` tile is a *spawn marker*, and `requireSinglePlayer` now exists
   only to read it. Nothing in the tick loop calls that function: the invariant
   it enforces is broken deliberately the moment a second actor joins.
+- **A resident's name is also its address, and that is load-bearing.**
+  `residentOwnerId` mints `npc:<x>,<y>,<z>,<stackIndex>` from the *authored*
+  placement, and `residentHome` reads it straight back out. Nothing else records
+  where a creature belongs: the id is minted once from `data/map.json`, rides on
+  the placement through every checkpoint, and is handed back to whatever respawns
+  there — so it survives the reload that a birthplace recorded at adoption cannot,
+  because a resumed world adopts a body wherever it had already wandered to. That
+  is what the brain's `home` selector reads, and it is why a leashed snake goes
+  back to the cell the author put it on rather than to the one it woke up in.
+  Change the format in one of those two functions and you have changed it in
+  both, three lines apart; change it anywhere else and every creature in the world
+  forgets where it lives.
 - **Locate through `./actors`, never by sweeping.** `locateActor` tries the
   actor's last cell, then the neighbourhood, then the board — the same
   cheapest-first discipline the single-player memo had, and for the same reason:

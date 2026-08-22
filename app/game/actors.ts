@@ -192,11 +192,47 @@ export function listResidentBodies(
  * Derived from where it was authored, because that reads in a log in a way a
  * counter does not, and because it is stable across reloads of the same map.
  * The stack slot is part of it so that two bodies in one cell — a cat asleep on
- * a crate — do not collide. It stops describing where they are the moment they
- * move, which is fine: it is a name, not an address.
+ * a crate — do not collide. It stops describing where they *are* the moment they
+ * move: it is a name, and the address inside it is the one the author gave them,
+ * not the one they are standing at. @see residentHome
  */
 export function residentOwnerId(at: Coord & { stackIndex: number }): string {
-  return `npc:${at.x},${at.y},${at.z},${at.stackIndex}`;
+  return `${RESIDENT_ID_PREFIX}${at.x},${at.y},${at.z},${at.stackIndex}`;
+}
+
+const RESIDENT_ID_PREFIX = "npc:";
+
+/**
+ * The cell a resident was authored on, read back out of the name it was given
+ * there.
+ *
+ * The exact inverse of {@link residentOwnerId}, and it lives against it so the
+ * two cannot drift — a change to the format is a change to both, three lines
+ * apart, rather than a decoder somewhere else that quietly stops matching.
+ *
+ * This is the whole of how a creature knows where it belongs, and the reason it
+ * needs no storage of its own is that the answer was already being written down.
+ * An owner id is minted once, from the authored placement, and then persists on
+ * that placement through every checkpoint — so it survives the reload that a
+ * "where did I start" recorded at adoption could not, because a resumed world
+ * adopts a body wherever it had already wandered to. A respawned body is handed
+ * the same id back (see `SpawnPoint.ownerId`), so what grows back knows the same
+ * home the original did.
+ *
+ * Null for any name this did not mint — a player's cookie, an owner some future
+ * path invents. Those are bodies with no authored cell rather than bodies whose
+ * cell failed to parse, and a brain asking about home gets the same "nowhere"
+ * either way.
+ */
+export function residentHome(ownerId: string): Coord | null {
+  if (!ownerId.startsWith(RESIDENT_ID_PREFIX)) return null;
+  const parts = ownerId.slice(RESIDENT_ID_PREFIX.length).split(",");
+  if (parts.length !== 4) return null;
+  const [x, y, z] = parts.map(Number);
+  if (x === undefined || y === undefined || z === undefined) return null;
+  return Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z)
+    ? { x, y, z }
+    : null;
 }
 
 /** Tag a placement as belonging to `ownerId`, keeping its slot in the stack. */
