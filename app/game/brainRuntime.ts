@@ -132,6 +132,16 @@ export type BrainContext = {
   /** Where this creature is standing. */
   self: Coord;
   /**
+   * The cell this body was authored on, or null for one the world did not
+   * author — every player, and anything seated without a home.
+   *
+   * A fact about the body rather than a question about the board, which is why
+   * it is a field beside `self` and not a method beside `positionOf`: nothing
+   * has to be looked up to answer it, and nothing can change it while the
+   * creature lives. @see ../lib/brain HOME_SELECTOR
+   */
+  home: Coord | null;
+  /**
    * Nearest other body standing on `tileId`, or null when there is none — a
    * world with nobody in it, or a creature that is the last of its kind. Never
    * this creature itself. @see NEAREST_PREFIX
@@ -343,15 +353,23 @@ function identify(
       return memory.hurtBy;
     case "nearest":
       return ctx.nearestOnTile(selector.data.tileId);
+    // A place is not a body, and this is the question about bodies. Answering
+    // nobody is what makes `attack: home` fall through and `bind: { x: home }`
+    // clear its slot, rather than either needing a case of its own.
+    case "home":
+      return null;
   }
 }
 
-/** Where a selector's subject is, or null when there is nobody to point at. */
+/** Where a selector's subject is, or null when there is nothing to point at. */
 function locate(
   selector: Selector,
   memory: BrainMemory,
   ctx: BrainContext,
 ): Coord | null {
+  // The one selector that is already a place. Everything else is a body, and a
+  // body has to be found before it can be pointed at.
+  if (selector.type === "home") return ctx.home;
   const id = identify(selector, memory, ctx);
   return id === null ? null : ctx.positionOf(id);
 }
@@ -499,7 +517,8 @@ function leafHolds(
       const at = locate(condition.of, memory, ctx);
       // A target that has left the world is as out of range as one that walked
       // off, and answering anything else would strand a creature chasing a
-      // ghost. This is also what makes the two conditions exact complements.
+      // ghost. This is also what makes the two conditions exact complements —
+      // and what makes a body with no authored cell always far from home.
       return at === null || !within(ctx.self, at, condition.cells, ctx.sight);
     }
     case "in_los":

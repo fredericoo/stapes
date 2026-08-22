@@ -110,10 +110,40 @@ export type Selector =
    * where nobody did. Meant to be bound, so the state that follows fights a slot
    * rather than re-asking a question whose answer has already expired.
    */
-  | { type: "attacker" };
+  | { type: "attacker" }
+  /**
+   * The cell this creature was authored on — the one place selector, and the
+   * only one that names somewhere rather than somebody.
+   *
+   * It is here rather than in a union of its own because every verb that would
+   * want it already takes a {@link Selector} and already means the same thing by
+   * it: `out_of_range` asks how far away something is, `step_toward` closes on
+   * it, and neither has any use for the fact that the something has a pulse. A
+   * second, place-shaped selector type would mean a second arm on all four
+   * distance conditions and both steering actions, to say what they already say.
+   *
+   * The price is that the verbs which genuinely need a *body* — `attack`, a
+   * `bind`, a `heard` filter — can be authored against it, and they answer the
+   * way every selector naming nobody answers: an `attack` falls through, a
+   * `bind` clears its slot. That is the documented behaviour of an unbound slot
+   * rather than a new failure mode, which is what makes the one union tolerable.
+   *
+   * Measured on exactly the terms a body is, sight levels included — so a rat
+   * that minds its own storey reads a home one floor up as away, and stays
+   * walking until it is back on the right one. That is the reading that became
+   * correct when `step_toward` learned to route: a staircase is a thing a
+   * creature can now walk, so "directly below home" stopped being a place worth
+   * settling for. @see ../game/pathfinding
+   *
+   * Nowhere at all for a body the world did not author — a player's, or one some
+   * later path seats without a home. `out_of_range` of nowhere holds, exactly as
+   * it does for a target that has left the world.
+   */
+  | { type: "home" };
 
 export const SPEAKER_SELECTOR: Selector = { type: "speaker" };
 export const ATTACKER_SELECTOR: Selector = { type: "attacker" };
+export const HOME_SELECTOR: Selector = { type: "home" };
 
 /** The selector naming the nearest body on `tileId`. */
 export function nearest(tileId: string): Selector {
@@ -465,6 +495,7 @@ const selectorSchema = v.variant("type", [
   }),
   v.object({ type: v.literal("speaker") }),
   v.object({ type: v.literal("attacker") }),
+  v.object({ type: v.literal("home") }),
 ]);
 
 const cells = v.pipe(v.number(), v.integer(), v.minValue(0));

@@ -107,13 +107,15 @@ describe("offering selectors", () => {
     };
     // Every one of these is answerable without anything having been bound: one
     // `nearest` per tile a body can be, then the two that ask the transition who
-    // just spoke and who just swung.
+    // just spoke and who just swung, then the one that names a place instead of
+    // a body.
     expect(selectorOptions(brain, LIBRARY).map((o) => o.key)).toEqual([
       "nearest:player",
       "nearest:cat",
       "nearest:rat",
       "speaker",
       "attacker",
+      "home",
     ]);
   });
 
@@ -136,6 +138,7 @@ describe("offering selectors", () => {
       "nearest:rat",
       "speaker",
       "attacker",
+      "home",
       "$spooked",
     ]);
   });

@@ -25,6 +25,7 @@ import {
   adoptAuthoredPlayer,
   adoptBodyAt,
   listResidentBodies,
+  residentHome,
   residentOwnerId,
   despawnActor,
   findActorAnywhere,
@@ -872,6 +873,24 @@ type ActorRuntime = {
    */
   brain: BrainMemory | null;
   /**
+   * The cell this body was authored on, or null for one nobody authored.
+   *
+   * What the brain's `home` selector reads, and the only piece of a creature's
+   * bearings that is *not* rebuilt from the world each load: it is decoded from
+   * the actor's own name, which was minted from the authored placement the first
+   * time the map was seen and has ridden on that placement through every
+   * checkpoint since. @see residentHome
+   *
+   * Resolved here rather than per tick because it can never change: a body does
+   * not get a second birthplace, and re-deriving one every brain tick would be a
+   * string parse per creature per turn for an answer that was already settled.
+   *
+   * Null for every player, who has a spawn point rather than a home — see
+   * `GameServer`'s `spawn:` rows, which are a different fact about a different
+   * kind of body.
+   */
+  home: Coord | null;
+  /**
    * Hit points, or null for a body that has never had any read.
    *
    * Filled on first use rather than at creation, which is what makes it free:
@@ -1444,6 +1463,7 @@ export class GameSession implements PlaySession {
       earnedBody: null,
       defensiveDecay: null,
       brain: null,
+      home: residentHome(id),
       // Restored where a returning player had any, and null otherwise — null
       // still means "ask the tile", which is what a fresh body and every
       // creature in the world wants. A stored zero would be a corpse, so it
@@ -2113,6 +2133,7 @@ export class GameSession implements PlaySession {
       busy: !this.idle(actor),
       rng: this.rng,
       self: { x: loc.x, y: loc.y, z: loc.z },
+      home: actor.home,
       nearestOnTile: (tileId) => this.nearestOnTile(actor.id, loc, tileId),
       positionOf: (id) => this.actorCell(id),
       wouldDrop: (direction) => this.stepLeavesGround(loc, direction),

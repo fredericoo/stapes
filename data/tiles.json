@@ -7302,6 +7302,22 @@
                 "steps": 3
               }
             ]
+          },
+          "homing": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "step_random"
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -7350,6 +7366,61 @@
                 }
               },
               "cells": 10
+            },
+            "to": "scurry"
+          },
+          {
+            "from": "scurry",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 10
+            },
+            "to": "homing"
+          },
+          {
+            "from": "sniffing",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 10
+            },
+            "to": "homing"
+          },
+          {
+            "from": "following",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 10
+            },
+            "to": "homing"
+          },
+          {
+            "from": "loitering",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 10
+            },
+            "to": "homing"
+          },
+          {
+            "from": "homing",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 2
             },
             "to": "scurry"
           },
@@ -7779,6 +7850,22 @@
                 "action": "hold"
               }
             ]
+          },
+          "homing": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "step_random"
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -7827,6 +7914,39 @@
                 }
               },
               "cells": 10
+            },
+            "to": "coiled"
+          },
+          {
+            "from": "coiled",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 10
+            },
+            "to": "homing"
+          },
+          {
+            "from": "slither",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 10
+            },
+            "to": "homing"
+          },
+          {
+            "from": "homing",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 2
             },
             "to": "coiled"
           },
@@ -8325,6 +8445,22 @@
                 "steps": 1
               }
             ]
+          },
+          "homing": {
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "home"
+                }
+              },
+              {
+                "action": "step_random"
+              },
+              {
+                "action": "hold"
+              }
+            ]
           }
         },
         "transitions": [
@@ -8373,6 +8509,50 @@
                 }
               },
               "cells": 14
+            },
+            "to": "prowling"
+          },
+          {
+            "from": "prowling",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 10
+            },
+            "to": "homing"
+          },
+          {
+            "from": "following",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 10
+            },
+            "to": "homing"
+          },
+          {
+            "from": "casting",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 10
+            },
+            "to": "homing"
+          },
+          {
+            "from": "homing",
+            "if": {
+              "cond": "in_range",
+              "of": {
+                "type": "home"
+              },
+              "cells": 2
             },
             "to": "prowling"
           },

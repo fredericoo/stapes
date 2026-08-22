@@ -1,6 +1,7 @@
 import {
   ANY_STATE,
   ATTACKER_SELECTOR,
+  HOME_SELECTOR,
   SPEAKER_SELECTOR,
   isSelector,
   isSpeakerFilter,
@@ -120,6 +121,12 @@ export type SelectorOption = {
  * transitions that hear or are hit, because the editor would have to know which
  * condition a bind sits beside to say otherwise — and a selector that answers
  * nobody is already the documented behaviour, not a broken brain.
+ *
+ * `home` is offered on the same terms and is the odd one out of the set: it
+ * names a place, so the verbs wanting a body answer nobody with it. Listing it
+ * beside the rest rather than only under the distance verbs is the same
+ * decision — the picker does not know what it sits next to, and the fallback is
+ * documented rather than broken.
  */
 export function selectorOptions(
   brain: BrainDef,
@@ -135,6 +142,7 @@ export function selectorOptions(
   options.push(
     { key: "speaker", label: "speaker", selector: SPEAKER_SELECTOR },
     { key: "attacker", label: "attacker", selector: ATTACKER_SELECTOR },
+    { key: "home", label: "home", selector: HOME_SELECTOR },
   );
 
   const slots = new Set<string>();
