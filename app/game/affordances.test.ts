@@ -47,10 +47,19 @@ const tiles = [
   // where sight is light and you see over anything shorter than a level.
   tile({ id: "wall", height: 2 }),
   tile({ id: "sword", kind: "item", interactions: { item: DEFAULT_WEAPON } }),
+  // An off-hand *weapon* — a shield. What a torch used to be authored as, and
+  // the reason `WeaponItem.offhand` exists: only the author knows which hand a
+  // block of weapon numbers was meant for.
   tile({
-    id: "torch",
+    id: "shield",
     kind: "item",
     interactions: { item: { ...DEFAULT_WEAPON, offhand: true } },
+  }),
+  // And the other way into that hand: no numbers at all, so no flag either.
+  tile({
+    id: "lantern",
+    kind: "item",
+    interactions: { item: { type: "artifact" } },
   }),
   tile({
     id: "berry",
@@ -239,7 +248,7 @@ describe("canPickUpFrom", () => {
     expect(
       pickUpDestination(mapWith(1, 0, "berry"), tilesById, ME, ref(1, 0), {
         ...FULL_KIT,
-        offhand: { id: "itm_lit", tileId: "torch" },
+        offhand: { id: "itm_lit", tileId: "shield" },
       }),
     ).toEqual({ kind: "slot", slot: "weapon" });
   });
@@ -277,7 +286,7 @@ describe("canPickUpFrom", () => {
     const laden: Equipment = {
       ...FULL_KIT,
       weapon: { id: "itm_a", tileId: "sword" },
-      offhand: { id: "itm_b", tileId: "torch" },
+      offhand: { id: "itm_b", tileId: "shield" },
     };
     expect(
       canPickUpFrom(mapWith(1, 0, "sword"), tilesById, ME, ref(1, 0), laden),
@@ -313,7 +322,8 @@ describe("equipSlotFrom", () => {
 
   it("sends each thing to the slot its tile names", () => {
     expect(slotFor("sword", emptyEquipment())).toBe("weapon");
-    expect(slotFor("torch", emptyEquipment())).toBe("offhand");
+    expect(slotFor("shield", emptyEquipment())).toBe("offhand");
+    expect(slotFor("lantern", emptyEquipment())).toBe("offhand");
     expect(slotFor("mail", emptyEquipment())).toBe("armor");
     expect(slotFor("bag", emptyEquipment())).toBe("bag");
   });
@@ -397,7 +407,7 @@ describe("canOpenFrom", () => {
     const laden: Equipment = {
       ...FULL_KIT,
       weapon: { id: "itm_a", tileId: "sword" },
-      offhand: { id: "itm_b", tileId: "torch" },
+      offhand: { id: "itm_b", tileId: "shield" },
     };
     const map = mapWith(1, 0, "bag");
     expect(canOpenFrom(map, tilesById, ME, ref(1, 0))).toBe(true);

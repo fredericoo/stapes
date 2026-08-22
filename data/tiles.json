@@ -6868,14 +6868,7 @@
     "affectedByGravity": true,
     "interactions": {
       "item": {
-        "type": "weapon",
-        "damage": 1,
-        "def": 0,
-        "accuracy": 45,
-        "variance": 70,
-        "spd": 40,
-        "mastery": "blunt",
-        "offhand": true
+        "type": "artifact"
       }
     },
     "sprite": {

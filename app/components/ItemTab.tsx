@@ -9,6 +9,7 @@ import type {
 import {
   CONSUME_FALLBACK_VERB,
   DEFAULT_ARMOR,
+  DEFAULT_ARTIFACT,
   DEFAULT_CONSUMABLE,
   DEFAULT_CONTAINER,
   DEFAULT_WEAPON,
@@ -49,6 +50,7 @@ const TYPE_OPTIONS: Array<{ value: ItemType; label: string }> = [
   { value: "armor", label: "Armour" },
   { value: "consumable", label: "Consumable" },
   { value: "container", label: "Container" },
+  { value: "artifact", label: "Artifact" },
 ];
 
 /**
@@ -83,6 +85,7 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
     if (type === "weapon") setItem({ ...DEFAULT_WEAPON });
     else if (type === "armor") setItem({ ...DEFAULT_ARMOR });
     else if (type === "consumable") setItem({ ...DEFAULT_CONSUMABLE });
+    else if (type === "artifact") setItem({ ...DEFAULT_ARTIFACT });
     else setItem({ ...DEFAULT_CONTAINER });
   };
 
@@ -285,6 +288,16 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
               }
             />
           </div>
+        ) : item.type === "artifact" ? (
+          <p className="max-w-lg text-[11px] leading-snug text-muted">
+            <strong>Nothing to configure, and that is what it is for.</strong> It
+            can be picked up, carried and held in the off hand, and it does
+            nothing else: it never replaces what its holder fights with, adds no
+            defence, and cannot be used. A torch is the case this exists for
+            &mdash; its light is authored on the sprite&rsquo;s frames, not here
+            &mdash; so anything that lights a room, or is merely worth carrying,
+            belongs on this type rather than on a weapon nobody wants to swing.
+          </p>
         ) : (
           <div className="flex flex-col gap-3">
             <StatField

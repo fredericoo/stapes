@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   CONSUME_FALLBACK_VERB,
   DEFAULT_ARMOR,
+  DEFAULT_ARTIFACT,
   DEFAULT_CONSUMABLE,
   DEFAULT_CONTAINER,
   DEFAULT_WEAPON,
@@ -321,6 +322,14 @@ describe("itemForSave", () => {
     expect(itemForSave(draft)).toEqual(DEFAULT_ARMOR);
   });
 
+  it("writes an artifact as the bare type, whatever the draft carried", () => {
+    // A torch was a weapon until this type existed, so this is the exact draft
+    // an author produces by switching the arm on the tile it was authored on.
+    const draft = { ...DEFAULT_ARTIFACT, damage: 1, offhand: true } as never;
+    expect(itemForSave(draft)).toEqual({ type: "artifact" });
+    expect(itemForSave(draft)).not.toHaveProperty("damage");
+  });
+
   it("keeps a container's own fields", () => {
     const container = { type: "container", size: 2, equippable: false } as const;
     expect(itemForSave(container)).toEqual(container);
@@ -519,6 +528,41 @@ describe("resolveArmor", () => {
 });
 
 /**
+ * The arm with nothing on it. What it is worth is entirely what it is *not*: a
+ * torch was a `weapon` block with numbers nobody wanted, and the point of this
+ * type is that no combat resolver can see it at all.
+ */
+describe("resolveItem, for an artifact", () => {
+  it("reads a bare block, and every other resolver refuses it", () => {
+    const def = tile("item", { item: { ...DEFAULT_ARTIFACT } });
+    expect(resolveItem(def)).toEqual(DEFAULT_ARTIFACT);
+    expect(isItem(def)).toBe(true);
+    // The whole reason the type exists: a body holding one has, as far as a
+    // fight is concerned, an empty hand.
+    expect(resolveWeapon(def)).toBeNull();
+    expect(resolveArmor(def)).toBeNull();
+    expect(resolveContainer(def)).toBeNull();
+    expect(resolveConsumable(def)).toBeNull();
+  });
+
+  /**
+   * The block a torch is left holding when somebody flips the arm in the editor
+   * and saves before the rebuild drops the rest. Parsing it as an artifact is
+   * what stops the leftovers meaning anything.
+   */
+  it("ignores what a block it used to be left behind", () => {
+    const def = tile("item", {
+      item: { type: "artifact", damage: 9, mastery: "blade" },
+    });
+    expect(resolveItem(def)).toEqual({ type: "artifact" });
+  });
+
+  it("is not an item at all on a tile whose kind is not one", () => {
+    expect(resolveItem(tile("prop", { item: { ...DEFAULT_ARTIFACT } }))).toBeNull();
+  });
+});
+
+/**
  * The word the interface uses, read off the thing and never off the square —
  * "Press to wield it" over a backpack is what reading the destination produced.
  */
@@ -531,6 +575,11 @@ describe("equipVerb", () => {
     ).toBe("Hold");
     expect(equipVerb(tile("item", { item: { ...DEFAULT_CONTAINER } }))).toBe(
       "Put on",
+    );
+    // The same word an off-hand weapon gets, from the other direction: an
+    // artifact is nothing *but* a thing you hold.
+    expect(equipVerb(tile("item", { item: { ...DEFAULT_ARTIFACT } }))).toBe(
+      "Hold",
     );
   });
 });

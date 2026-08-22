@@ -509,11 +509,46 @@ export type ArmorItem = {
 export type WeaponResistances = Partial<Record<WeaponMastery, number>>;
 
 /**
+ * Something you carry that the fight knows nothing about.
+ *
+ * **An arm with no fields at all, and that is the whole of it.** A torch had to
+ * be authored as a {@link WeaponItem} because holding a thing needed a block and
+ * that was the only block with an off hand — which made the torch a weapon, so a
+ * body holding one *fought with it*, and fought worse than with its own hands:
+ * `../game/equipment`'s `weaponInHand` replaces the natural weapon with whatever
+ * is held, and the numbers somebody had to invent to get a stick into a hand
+ * were beneath a pair of fists. The light was coming off the sprite the entire
+ * time. Nothing about that block was ever wanted.
+ *
+ * So the numbers are gone rather than tuned upward. **A body holding one of
+ * these has, as far as a fight is concerned, an empty hand** — `resolveWeapon`
+ * refuses it, so the natural weapon stands and `offhandDefence` reads zero — and
+ * everything the thing does it does by being a placement: its light, its sprite,
+ * its weight, its being in the way. That is what `./kit` is relying on when it
+ * hands a wolf a torch.
+ *
+ * **It belongs in the off hand, and unlike a weapon it does not have to say
+ * so.** {@link WeaponItem.offhand} exists because a shield and a sword are one
+ * kind of block and only the author knows which hand was meant; nothing here is
+ * ever meant for the hand you swing with, since that is the hand whose contents
+ * replace what you fight with. A flag with one legal value is a flag to forget.
+ * See `../game/affordances`' `equipSlotOf`.
+ */
+export type ArtifactItem = {
+  type: "artifact";
+};
+
+/**
  * A discriminated union rather than a flat block of optional fields, so a weapon
  * cannot have a size and a container cannot have a mastery. The editor picks the
  * arm and the schema refuses anything else.
  */
-export type ItemDef = WeaponItem | ConsumableItem | ContainerItem | ArmorItem;
+export type ItemDef =
+  | WeaponItem
+  | ConsumableItem
+  | ContainerItem
+  | ArmorItem
+  | ArtifactItem;
 
 export type ItemType = ItemDef["type"];
 
@@ -522,6 +557,7 @@ export const ITEM_TYPES: ItemType[] = [
   "armor",
   "consumable",
   "container",
+  "artifact",
 ];
 
 /**
@@ -666,9 +702,11 @@ export function equipVerb(def: TileDef): string {
   if (item.type === "container") return "Put on";
   if (item.type === "armor") return "Wear";
   if (item.type === "weapon") return item.offhand ? "Hold" : "Wield";
-  // Anything you are merely carrying rather than using. Nothing reaches this
-  // through the interaction list — a consumable has no slot it belongs in — but
-  // a hand will take one, and the square it lands in has to be able to say so.
+  // A torch and everything like it, plus the consumable that has no slot to
+  // belong in at all. Holding is the whole of what an artifact is for, so it is
+  // the word the floor's row says; a consumable never reaches this through the
+  // interaction list, but a hand will take one and the square it lands in has to
+  // be able to name it.
   return "Hold";
 }
 
@@ -730,6 +768,17 @@ export const DEFAULT_CONTAINER: ContainerItem = {
   size: 4,
   equippable: true,
 };
+
+/**
+ * Nothing to author, so this exists only so the editor's type select has
+ * something to write when somebody picks the arm.
+ *
+ * Spread at the call site like every other default, out of the same care rather
+ * than any real need: an object with no fields cannot be mutated into a
+ * different one, but "some defaults are copied and some are shared" is not a
+ * rule anybody can keep.
+ */
+export const DEFAULT_ARTIFACT: ArtifactItem = { type: "artifact" };
 
 /** Both percent stats, on the one scale a fight reads them against. */
 const percent = v.pipe(
@@ -956,11 +1005,23 @@ const armorSchema = v.object({
   resist: v.optional(weaponResistancesSchema),
 });
 
+/**
+ * The discriminator and nothing beside it.
+ *
+ * Unknown keys are dropped rather than refused, on the terms every other arm
+ * here treats them — so a block that used to be a weapon parses clean and its
+ * leftover `damage` stops meaning anything the moment the type changes. What
+ * actually keeps it out of the file is {@link itemForSave}, which names fields
+ * rather than passing a draft through.
+ */
+const artifactSchema = v.object({ type: v.literal("artifact") });
+
 const itemSchema = v.variant("type", [
   weaponSchema,
   armorSchema,
   consumableSchema,
   containerSchema,
+  artifactSchema,
 ]);
 
 const itemCache = new WeakMap<TileDef, ItemDef | null>();
@@ -1191,6 +1252,11 @@ export function itemForSave(item: ItemDef | undefined): ItemDef | undefined {
       ...(statuses ? { statuses } : {}),
     };
   }
+  // Nothing to name, and it is still rebuilt rather than passed through: the
+  // draft arriving here is whatever the last arm left behind, and an artifact
+  // carrying a dead weapon's `damage` onto disk would read as a weapon somebody
+  // half-edited.
+  if (item.type === "artifact") return { type: "artifact" };
   return {
     type: "container",
     size: item.size,

@@ -14,11 +14,9 @@ import {
   resolveTransmute,
 } from "../lib/interactions";
 import {
-  resolveArmor,
   resolveConsumable,
   resolveContainer,
   resolveItem,
-  resolveWeapon,
 } from "../lib/item";
 import type { EquipSlot } from "../lib/kit";
 import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
@@ -331,10 +329,12 @@ export function reachableItemDefAt(
  * The slot on a body this thing belongs in, from the tile alone.
  *
  * **One slot per thing, and the tile decides which.** A sword is for the hand
- * you swing with, a torch or a shield for the other one (`WeaponItem.offhand`),
- * a mail shirt for your body (`ArmorItem`), a backpack for your back
- * (`ContainerItem.equippable`). Everything else — a berry, a chest, a rock — has
- * no slot and can only be carried in a bag.
+ * you swing with, a shield for the other one (`WeaponItem.offhand`), a mail
+ * shirt for your body (`ArmorItem`), a backpack for your back
+ * (`ContainerItem.equippable`), and an `ArtifactItem` — a torch, a lantern — for
+ * the off hand always, since the swinging hand is the one that replaces what you
+ * fight with. Everything else — a berry, a chest, a rock — has no slot and can
+ * only be carried in a bag.
  *
  * One rather than "every slot that would take it", because the alternative is a
  * list that offers to Wield *and* Hold the same sword and a player who has to
@@ -353,17 +353,20 @@ export function reachableItemDefAt(
 export type { EquipSlot };
 
 export function equipSlotOf(def: TileDef): EquipSlot | null {
-  const container = resolveContainer(def);
+  const item = resolveItem(def);
+  if (!item) return null;
+
   // Never into a bag: containers do not nest, so the only place one can go is
   // a back. A chest or a corpse is looted where it lies — that is what `open`
   // is for — and has no slot at all.
-  if (container) return container.equippable ? "bag" : null;
-
-  if (resolveArmor(def)) return "armor";
-
-  const weapon = resolveWeapon(def);
-  if (!weapon) return null;
-  return weapon.offhand ? "offhand" : "weapon";
+  if (item.type === "container") return item.equippable ? "bag" : null;
+  if (item.type === "armor") return "armor";
+  // Needs no flag of its own to say so, where a weapon does: an artifact has no
+  // fight in it, and the hand you swing with is the square whose contents stand
+  // in for your natural weapon. See `../lib/item`'s `ArtifactItem`.
+  if (item.type === "artifact") return "offhand";
+  if (item.type === "weapon") return item.offhand ? "offhand" : "weapon";
+  return null;
 }
 
 /**
