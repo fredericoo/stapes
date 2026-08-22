@@ -26,7 +26,7 @@ import { SpellBar } from "./SpellBar";
 import type { PlayMode } from "./usePlayModes";
 import { BagButton, EquipmentToggle, StatsToggle } from "./PanelToggle";
 import { StatsPanel } from "./StatsPanel";
-import type { ActiveStatus } from "../lib/status";
+import type { ActiveStatus, StatusDef } from "../lib/status";
 import { StatusStrip } from "./StatusStrip";
 import { useItemDrag } from "./useItemDrag";
 import { useNoZoom } from "./useNoZoom";
@@ -36,6 +36,9 @@ const NO_VITALS: Vitals = { hp: null, maxHp: null, rating: null, statuses: [] };
 
 /** Nobody is under anything, which is almost everybody almost always. */
 const NO_STATUSES: ActiveStatus[] = [];
+
+/** No catalogue wired, so no item card can name what it would inflict. */
+const NO_STATUS_DEFS: Record<string, StatusDef> = {};
 
 /**
  * Nobody is carrying a stone, which is almost everybody almost always. Shared,
@@ -106,6 +109,7 @@ export function GameViewport({
   masteryXp = {},
   vitals = NO_VITALS,
   statuses = NO_STATUSES,
+  statusDefs = NO_STATUS_DEFS,
   openedContainer = null,
   onOpenContainer,
   canMoveItem = () => false,
@@ -193,6 +197,15 @@ export function GameViewport({
    * statuses, so nothing needs telling about them. See `./StatusStrip`.
    */
   statuses?: ActiveStatus[];
+  /**
+   * Every status the world has, by id — the catalogue, not what is running.
+   *
+   * Beside {@link statuses} rather than derived from it, because they answer
+   * different questions: that is what is on *you*, and this is what a venom on a
+   * blade in your bag would be called if it ever landed. An item's card names
+   * the second — see `./ItemSlot`.
+   */
+  statusDefs?: Record<string, StatusDef>;
   /**
    * The container on the floor currently being looked into, resolved off the
    * live board by whoever owns the renderer.
@@ -552,6 +565,7 @@ export function GameViewport({
         <EquipmentPanel
           equipment={equipment}
           masteryXp={masteryXp}
+          statusDefs={statusDefs}
           bagOpen={showBag}
           handOpen={heldContainer ? openHand : null}
           tiles={tiles}
@@ -575,6 +589,7 @@ export function GameViewport({
           drag={drag}
           inspecting={looking}
           masteryXp={masteryXp}
+          statusDefs={statusDefs}
         />
       ) : null}
       {/* A pack in a hand, between the one on your back and whatever is on the
@@ -590,6 +605,7 @@ export function GameViewport({
           drag={drag}
           inspecting={looking}
           masteryXp={masteryXp}
+          statusDefs={statusDefs}
         />
       ) : null}
       {/* Whatever is on the floor, under whatever is on your back, so the two
@@ -609,6 +625,7 @@ export function GameViewport({
           drag={drag}
           inspecting={looking}
           masteryXp={masteryXp}
+          statusDefs={statusDefs}
         />
       ) : null}
     </>
