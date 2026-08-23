@@ -8,7 +8,12 @@ WORKDIR /app
 
 FROM base AS deps
 COPY package.json bun.lock ./
-# `--frozen-lockfile` so a lockfile that disagrees with the manifest fails the
+# `--production`, and `package.json` is split so that it means something: the
+# client's packages — React, three, the icon sets — are devDependencies, because
+# only the *build* needs them and the build happens in continuous integration.
+# Shipping them here cost 233MB of image for code this process never loads.
+#
+# `--frozen-lockfile` so a lockfile disagreeing with the manifest fails the
 # build rather than silently resolving something else.
 RUN bun install --frozen-lockfile --production
 

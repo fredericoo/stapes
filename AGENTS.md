@@ -94,6 +94,25 @@ is not one.
   like joining is broken. Use `localhost` in one and `127.0.0.1` in the other.
   Unchanged, and still the first thing that will waste somebody an hour.
 
+## `dependencies` is what the *server* needs, and nothing else
+
+React, three, the icon sets and the rest of the client's packages are
+**devDependencies**, which looks wrong for a web app and is not. The client is
+built in continuous integration and shipped as files; the image runs
+`bun install --production` and loads none of them. Leaving them in
+`dependencies` made the image 672MB instead of 439MB, all of it code the process
+never opens.
+
+The four that stay are the ones `server/` actually reaches: `elysia`,
+`@tursodatabase/database`, `valibot` and `unique-names-generator`. If a server
+module ever needs a fifth, move it — and if the image starts growing again, this
+is the first place to look.
+
+(Unrelated but adjacent: `@react-router/dev` declares `wrangler` as an optional
+peer dependency, so a dev install still pulls workerd's binaries. They are
+devDependencies of a devDependency and never reach the image — 23 packages go in
+it — so this is disk on your laptop, not weight in production.)
+
 ## The client is files on the volume, not in the image
 
 `server/clientBundle.ts` serves the built client out of `<DATA_DIR>/clients/`,

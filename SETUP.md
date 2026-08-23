@@ -33,9 +33,14 @@ ARM needs nothing special if the pricing flips back.
 Pick a location near your players. This is the single-region latency cost the
 migration accepted deliberately — one box means one place.
 
-Add your SSH key during creation, and **enable backups** (+20%, so about €1.10).
-They snapshot the whole disk, which is the cheapest possible safety net under
-`stapes.db` and independent of the `VACUUM INTO` backups in step 7.
+Add your SSH key during creation.
+
+**Hetzner's own backups are +20% and are off on this deployment.** They snapshot
+the whole disk, which is the only thing that survives the disk itself failing —
+so with them off, the world's durability rests entirely on step 7's snapshots
+*and on those being copied off the box*. A `VACUUM INTO` file sitting on the
+volume it was taken from protects against a bad reset, not a dead server. If the
+world ever stops being disposable, this is the first €1.32 to spend.
 
 Then:
 
@@ -279,11 +284,18 @@ curl -X POST https://stapes.example.com/api/reset \
 
 ## What it costs
 
-| | Monthly |
-| --- | --- |
-| CX23 | €5.49 |
-| Hetzner backups (20%) | €1.10 |
-| **Total** | **€6.59** |
+Prices below are **gross** — what actually leaves your account. Hetzner's site
+and most blog posts quote net, which is where the widely-repeated €5.49 comes
+from; the API returns both.
+
+| | net | gross |
+| --- | --- | --- |
+| CX23, Falkenstein | €5.49 | **€6.59** |
+| Hetzner backups (+20%, off here) | €1.10 | €1.32 |
+| **Total as deployed** | €5.49 | **€6.59** |
+
+Billed hourly at €0.0106 gross, so destroying the server stops the cost the same
+hour.
 
 One line item. Nothing else is bought, and nothing outside Hetzner is depended
 on.
