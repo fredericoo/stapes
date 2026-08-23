@@ -999,20 +999,6 @@ function ParamFields({
   selectors: SelectorOption[];
   onChange: (next: Record<string, unknown>) => void;
 }) {
-  const write = (spec: ParamSpec, value: unknown) => {
-    const next = { ...item };
-    // A false boolean is authored by its absence, matching how the rest of
-    // `tiles.json` writes optional flags — so it round-trips clean. So is a
-    // filter set back to "anybody": absence *is* the value, not a third state
-    // beside it.
-    if (value === undefined || (spec.kind === "boolean" && value === false)) {
-      delete next[spec.key];
-    } else {
-      next[spec.key] = value;
-    }
-    onChange(next);
-  };
-
   return (
     <>
       {params.map((spec) => (
@@ -1021,11 +1007,42 @@ function ParamFields({
           spec={spec}
           value={item[spec.key]}
           selectors={selectors}
-          onChange={(value) => write(spec, value)}
+          onChange={(value) => onChange(paramPatch(item, spec, value))}
         />
       ))}
     </>
   );
+}
+
+/**
+ * One field of a condition or action, written back into it.
+ *
+ * **A value that means "not set" deletes the key rather than writing a falsy
+ * one**, which is the whole of what this exists to get right. A false boolean is
+ * authored by its absence, matching how the rest of `tiles.json` writes optional
+ * flags, so it round-trips clean. So is a filter set back to "anybody": absence
+ * *is* the value, not a third state beside it. An emptied optional text is the
+ * same shape of thing — "any sound" is the field not being there, and writing
+ * `""` would author a word of length zero that the schema refuses, turning the
+ * creature inert for what looks like an empty box.
+ *
+ * A *required* text is deliberately not covered by that last rule: an empty one
+ * there is a mistake rather than a meaning, and removing the key would hide it
+ * behind a default instead of showing it as the broken condition it is.
+ */
+export function paramPatch(
+  item: Record<string, unknown>,
+  spec: ParamSpec,
+  value: unknown,
+): Record<string, unknown> {
+  const next = { ...item };
+  const cleared =
+    value === undefined ||
+    (spec.kind === "boolean" && value === false) ||
+    (spec.kind === "text" && spec.optional === true && value === "");
+  if (cleared) delete next[spec.key];
+  else next[spec.key] = value;
+  return next;
 }
 
 function ParamField({
@@ -1091,7 +1108,9 @@ function ParamField({
       value={typeof value === "string" ? value : ""}
       onChange={(e) => onChange(e.target.value)}
       className="w-28"
-      placeholder={spec.label}
+      // An optional box says what leaving it empty means, since that is a value
+      // rather than a field somebody has not filled in yet.
+      placeholder={spec.optional ? "any" : spec.label}
       aria-label={spec.label}
     />
   );

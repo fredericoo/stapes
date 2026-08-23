@@ -88,14 +88,19 @@ export type Selector =
   /** Whoever a transition wrote down earlier, under this name. */
   | { type: "slot"; data: { name: string } }
   /**
-   * Whoever the {@link BrainConditionDef} `heard` on this very transition
-   * matched.
+   * Whoever this transition just heard — the one who spoke, for a
+   * {@link BrainConditionDef} `heard`, or the one who made the sound, for a
+   * `heard_noise`.
    *
-   * A live query, but one with a window of exactly one transition: it is how a
-   * `heard` names the person who spoke, and it answers nothing on a transition
-   * that did not just hear something. That is the point of it — "the one who
-   * called me" is not "the one standing nearest", and a room with two people in
-   * it is precisely where the difference shows.
+   * A live query, but one with a window of exactly one transition: it answers
+   * nothing on a transition that did not just hear something. That is the point
+   * of it — "the one who called me" is not "the one standing nearest", and a
+   * room with two people in it is precisely where the difference shows.
+   *
+   * One selector for both conditions rather than a second one named for sounds,
+   * because they ask the same question and would read the same answer off the
+   * same field. What is heard is a voice or a crunch; who was heard is one
+   * question either way.
    *
    * Meant to be bound rather than read from a state: binding it to `caller`
    * writes it down, and the state that follows chases that slot.
@@ -278,6 +283,41 @@ export type BrainConditionDef =
       /** Whose voice counts. Absent means anybody's. @see SpeakerFilter */
       from?: SpeakerFilter;
     }
+  /**
+   * Something within `cells` made a sound — a crunch, a hiss, a howl.
+   *
+   * The other half of {@link heard}, and the halves are split rather than joined
+   * by a channel flag because the two questions want different parameters.
+   * Speech is language, so it is asked about by *word*; a sound is not, so the
+   * useful thing to ask about it is usually that there was one at all.
+   *
+   * Edge triggered, on exactly the terms {@link heard} is: a noise is over the
+   * instant it is made, so a transition on this fires once per sound rather than
+   * for as long as the label hangs in the air.
+   *
+   * **`text` is optional, and absent means any sound whatever.** That is the
+   * opposite of `heard`, which refuses an empty word — and both readings are
+   * right for what they are about. "Any word ever said" is authorable and is
+   * never what anybody meant to type; "anything at all" is precisely what an
+   * animal's ears do, and it is the whole of why a wolf comes to look. Given, it
+   * matches as a case-insensitive substring, like a word does.
+   *
+   * **No sight test, and deliberately not even the option of one.** `heard` has
+   * `los` because a summons through a closed door is wrong, and its own note
+   * says why: sight is wrong *for sound*. This condition is only ever about
+   * sound, so a flag turning it into a look would be the mistake rather than the
+   * guard against it.
+   *
+   * A creature never hears itself, so a state that howls on entry cannot set
+   * itself off. It does hear every other body, which is what makes one howl
+   * gather a pack.
+   *
+   * Whoever made it is named by the `speaker` selector for the length of this
+   * transition, so "go and look" is a bind and a `step_toward` rather than a new
+   * kind of target. A maker who has since left the board is not heard at all —
+   * the same rule a `heard` follows for a speaker who logged out.
+   */
+  | { cond: "heard_noise"; text?: string; cells: number }
   /**
    * Somebody hit this creature since it last had a turn.
    *
@@ -521,6 +561,14 @@ const leafSchema = v.variant("cond", [
     cells,
     los: v.optional(v.boolean()),
     from: v.optional(speakerFilterSchema),
+  }),
+  v.object({
+    cond: v.literal("heard_noise"),
+    // Optional, unlike `heard`'s: a sound worth reacting to is often just a
+    // sound. Non-empty when given, so the absent case is the only way to say
+    // "anything" and an empty box in the editor cannot mean a third thing.
+    text: v.optional(v.pipe(v.string(), v.minLength(1))),
+    cells,
   }),
   v.object({ cond: v.literal("stuck") }),
   v.object({ cond: v.literal("attacked") }),

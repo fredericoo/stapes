@@ -238,6 +238,7 @@ describe("deciding", () => {
       canSee: () => true,
       sight: { up: 0, down: 0 },
       heard: () => [],
+      heardNoise: () => [],
       hurtBy: () => [],
       attack: vi.fn(() => false),
       nameOf: (id: string) => id,
@@ -967,6 +968,7 @@ describe("giving up", () => {
       canSee: () => true,
       sight: { up: 0, down: 0 },
       heard: () => [],
+      heardNoise: () => [],
       hurtBy: () => [],
       attack: () => false,
       nameOf: (id: string) => id,
@@ -1101,6 +1103,7 @@ describe("actions that take time", () => {
       canSee: () => true,
       sight: { up: 0, down: 0 },
       heard: () => [],
+      heardNoise: () => [],
       hurtBy: () => [],
       attack: vi.fn(() => false),
       nameOf: (id: string) => id,
@@ -1530,6 +1533,7 @@ describe("a deer that yelps", () => {
       canSee: () => true,
       sight: { up: 0, down: 0 },
       heard: () => [],
+      heardNoise: () => [],
       hurtBy: () => [],
       attack: () => false,
       nameOf: (id: string) => id,
@@ -1604,6 +1608,7 @@ describe("a deer that yelps", () => {
       canSee: () => true,
       sight: { up: 0, down: 0 },
       heard: () => [],
+      heardNoise: () => [],
       hurtBy: () => [],
       attack: () => false,
       nameOf: (id: string) => id,
@@ -1996,6 +2001,240 @@ describe("hearing", () => {
 });
 
 /**
+ * Hearing something that nobody said.
+ *
+ * The other channel, and the tests are written against the three things that
+ * make it a different question from being called. A sound needs no word to react
+ * to, it goes round corners because sound does, and a creature never sets itself
+ * off with its own. Everything else — once per event, everybody at once, the
+ * world staying awake to deliver it — it shares with speech, and is asserted
+ * here rather than assumed because the two run on separate lists.
+ */
+describe("hearing a sound", () => {
+  const EARSHOT = 6;
+
+  /** Yaps the once, on its very first turn, and then stands there. */
+  function yappingBrain() {
+    return {
+      initial: "barking",
+      states: {
+        barking: {
+          onEnter: [{ effect: "noise", text: "woof" }],
+          do: [{ action: "hold" }],
+        },
+      },
+      transitions: [],
+    } satisfies BrainDef;
+  }
+
+  /** Goes to look at whatever it heard, saying so, so a test can read it. */
+  function nosyBrain(text?: string): BrainDef {
+    return {
+      initial: "idle",
+      states: {
+        idle: { do: [{ action: "hold" }] },
+        looking: {
+          onEnter: [{ effect: "say", text: "?" }],
+          do: [{ action: "step_toward", of: slot("source") }, { action: "hold" }],
+        },
+      },
+      transitions: [
+        {
+          from: "idle",
+          if: { cond: "heard_noise", cells: EARSHOT, ...(text ? { text } : {}) },
+          bind: { source: SPEAKER_SELECTOR },
+          to: "looking",
+        },
+      ],
+    };
+  }
+
+  /** A nosy creature that also yaps on its way into the state it listens from. */
+  function yappingWhileNosy(): BrainDef {
+    const brain = nosyBrain();
+    return {
+      ...brain,
+      states: {
+        ...brain.states,
+        idle: {
+          onEnter: [{ effect: "noise", text: "woof" }],
+          do: [{ action: "hold" }],
+        },
+      },
+    };
+  }
+
+  const creatures: TileDef[] = [
+    ...tiles,
+    tile({
+      id: "yapper",
+      height: 1,
+      actor: true,
+      affectedByGravity: true,
+      walkable: false,
+      interactions: { brain: yappingBrain() },
+    }),
+    tile({
+      id: "nosy",
+      height: 1,
+      actor: true,
+      affectedByGravity: true,
+      walkable: false,
+      interactions: { brain: nosyBrain() },
+    }),
+    /** The same yap, with a different word in it. */
+    tile({
+      id: "meower",
+      height: 1,
+      actor: true,
+      affectedByGravity: true,
+      walkable: false,
+      interactions: {
+        brain: {
+          ...yappingBrain(),
+          states: {
+            barking: {
+              onEnter: [{ effect: "noise", text: "meow" }],
+              do: [{ action: "hold" }],
+            },
+          },
+        },
+      },
+    }),
+    /** Listening for one word rather than for any sound at all. */
+    tile({
+      id: "picky",
+      height: 1,
+      actor: true,
+      affectedByGravity: true,
+      walkable: false,
+      interactions: { brain: nosyBrain("meow") },
+    }),
+    /**
+     * Both at once: it yaps on entry and listens for anything. The whole of
+     * whether a creature can set itself off.
+     */
+    tile({
+      id: "yapping-nosy",
+      height: 1,
+      actor: true,
+      affectedByGravity: true,
+      walkable: false,
+      interactions: { brain: yappingWhileNosy() },
+    }),
+  ];
+
+  /**
+   * A listener at the origin, a `maker` `apart` cells east, alice parked in the
+   * corner because a world with nobody connected freezes every brain in it.
+   */
+  function room(listener: string, maker: string | null, apart = 3): GameSession {
+    let map = field(9);
+    map = replaceStack(map, -9, -9, 0, [{ tileId: "grass" }]);
+    map = withDeer(map, 0, 0, listener);
+    if (maker) map = withDeer(map, apart, 0, maker);
+    map = withPlayerAt(map, -9, 9);
+    return new GameSession(map, creatures, {
+      actorIds: ["alice"],
+      spawnAt: { x: -9, y: -9, z: 0, stackIndex: 1 },
+    });
+  }
+
+  /** Everything said out loud over one stretch of ticks. */
+  function saidDuring(session: GameSession, ms: number): string[] {
+    const said: string[] = [];
+    for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) {
+      session.tick(TICK_MS);
+      for (const bubble of session.drainSpeech()) said.push(bubble.text);
+    }
+    return said;
+  }
+
+  function bodyAt(session: GameSession, tileId: string) {
+    return session.actorSnapshots().find((actor) => actor.tileId === tileId)!;
+  }
+
+  /**
+   * The batch is handed over at the top of a pass, so a sound made *during* one
+   * is heard on the next — which is why every window here is three brain ticks
+   * rather than two. That delay is the price of the whole room hearing the same
+   * thing whatever order the creatures happen to tick in.
+   */
+  const AUDIBLE_MS = BRAIN_TICK_MS * 3;
+
+  it("notices a sound with no word in it at all", () => {
+    const session = room("nosy", "yapper");
+
+    expect(saidDuring(session, AUDIBLE_MS)).toEqual(["?"]);
+  });
+
+  it("goes to look at whatever made it", () => {
+    const session = room("nosy", "yapper", 5);
+    advance(session, BRAIN_TICK_MS * 6);
+
+    expect(bodyAt(session, "nosy").x).toBeGreaterThan(0);
+  });
+
+  /**
+   * The one asymmetry with being called. `heard` can be told to insist on
+   * seeing whoever spoke, because a summons through a closed door is wrong;
+   * there is no such flag here, because a sound through a closed door is the
+   * whole of what a sound is.
+   */
+  it("hears it through a wall", () => {
+    let map = field(9);
+    map = replaceStack(map, -9, -9, 0, [{ tileId: "grass" }]);
+    map = withDeer(map, 0, 0, "nosy");
+    map = replaceStack(map, 2, 0, 0, [{ tileId: "grass" }, { tileId: "wall" }]);
+    map = withDeer(map, 4, 0, "yapper");
+    map = withPlayerAt(map, -9, 9);
+    const session = new GameSession(map, creatures, {
+      actorIds: ["alice"],
+      spawnAt: { x: -9, y: -9, z: 0, stackIndex: 1 },
+    });
+
+    expect(saidDuring(session, AUDIBLE_MS)).toEqual(["?"]);
+  });
+
+  it("ignores one made further off than it can hear", () => {
+    const session = room("nosy", "yapper", EARSHOT + 1);
+
+    expect(saidDuring(session, AUDIBLE_MS)).toEqual([]);
+  });
+
+  /**
+   * Otherwise a creature that barks on the way into a state barks its way
+   * straight back into it, for ever.
+   */
+  it("never hears itself", () => {
+    const session = room("yapping-nosy", null);
+
+    expect(saidDuring(session, BRAIN_TICK_MS * 8)).toEqual([]);
+  });
+
+  it("matches a word in the sound when it is given one", () => {
+    expect(saidDuring(room("picky", "meower"), AUDIBLE_MS)).toEqual(["?"]);
+    // Same distance, same channel, a sound it was not listening for.
+    expect(saidDuring(room("picky", "yapper"), AUDIBLE_MS)).toEqual([]);
+  });
+
+  it("is heard by every creature in earshot at once", () => {
+    let map = field(9);
+    map = replaceStack(map, -9, -9, 0, [{ tileId: "grass" }]);
+    map = withDeer(map, 0, 0, "nosy");
+    map = withDeer(map, 0, 1, "nosy");
+    map = withDeer(map, 3, 0, "yapper");
+    map = withPlayerAt(map, -9, 9);
+    const session = new GameSession(map, creatures, {
+      actorIds: ["alice"],
+      spawnAt: { x: -9, y: -9, z: 0, stackIndex: 1 },
+    });
+
+    expect(saidDuring(session, AUDIBLE_MS)).toEqual(["?", "?"]);
+  });
+});
+
+/**
  * Asking more than one question on a transition.
  *
  * The flat machine took exactly one condition per row for a long time, so what
@@ -2020,6 +2259,7 @@ describe("composing conditions", () => {
       canSee: () => true,
       sight: { up: 0, down: 0 },
       heard: () => [],
+      heardNoise: () => [],
       hurtBy: () => [],
       attack: vi.fn(() => false),
       nameOf: (id: string) => id,
@@ -2513,6 +2753,165 @@ describe("the cat we ship", () => {
 });
 
 /**
+ * The wolf we ship, and the one sense it has that nothing else does.
+ *
+ * Here for the reason the cat and the vermin are: the machinery being right and
+ * the content being right are separate ways to end up with a wolf that ignores
+ * a scream twelve cells away. Written against the two numbers a player can feel
+ * — the twenty cells it hears from, and the nine at which being seen becomes
+ * being hunted.
+ */
+describe("the wolf we ship", () => {
+  const authored = normalizeTiles(tilesJson as unknown[]);
+
+  /** What the brain in `data/tiles.json` is authored to hear from. */
+  const EARSHOT_CELLS = 20;
+
+  /**
+   * Open dirt, the wolf at the origin, a cat `apart` cells east, and alice
+   * standing beside the cat.
+   *
+   * The cat is the noise: it meows on the noise channel when called, which is a
+   * sound made by a body somewhere in the world rather than a fixture reaching
+   * into the session. Alice is next to it because that is the only way to make
+   * it meow — and far enough from the wolf that being seen is not what moves it.
+   */
+  function moor(apart: number, wallAtX?: number): GameSession {
+    let map = emptyMap();
+    for (let x = -4; x <= 30; x++) {
+      for (let y = -6; y <= 6; y++) {
+        map = replaceStack(map, x, y, 0, [{ tileId: "dirt" }]);
+      }
+    }
+    // A wall with a way round it. Sealing the moor off end to end would test
+    // something else entirely now that `step_toward` routes: with no path at
+    // all the action fails outright, so a wolf standing still would prove that
+    // the wall is solid rather than that it heard anything.
+    if (wallAtX !== undefined) {
+      for (let y = -6; y <= 4; y++) {
+        map = replaceStack(map, wallAtX, y, 0, [
+          { tileId: "dirt" },
+          { tileId: "stone-wall" },
+        ]);
+      }
+    }
+    map = replaceStack(map, 0, 0, 0, [{ tileId: "dirt" }, { tileId: "wolf" }]);
+    map = replaceStack(map, apart, 0, 0, [{ tileId: "dirt" }, { tileId: "cat" }]);
+    map = replaceStack(map, apart, 2, 0, [
+      { tileId: "dirt" },
+      { tileId: "player", direction: "e", owner: "alice" },
+    ]);
+    return new GameSession(map, authored, {
+      actorIds: ["alice"],
+      spawnAt: { x: 30, y: 6, z: 0, stackIndex: 1 },
+      seed: 20260822,
+    });
+  }
+
+  /** Steps between the wolf and the thing it heard. */
+  function gapToCat(session: GameSession): number {
+    const actors = session.actorSnapshots();
+    const wolf = actors.find((a) => a.tileId === "wolf")!;
+    const cat = actors.find((a) => a.tileId === "cat")!;
+    return Math.abs(wolf.x - cat.x) + Math.abs(wolf.y - cat.y);
+  }
+
+  it("has a brain that holds together", () => {
+    const wolf = authored.find((def) => def.id === "wolf")!;
+    expect(resolveBrain(wolf)?.initial).toBe("prowling");
+  });
+
+  /**
+   * Twelve cells is well outside the nine it hunts on sight from, so nothing
+   * about this is the wolf noticing anybody. It heard a cat.
+   */
+  it("comes to look at a sound from twelve cells off", () => {
+    const session = moor(12);
+    session.hear("alice", "psps");
+
+    advance(session, BRAIN_TICK_MS * 12);
+
+    expect(gapToCat(session)).toBeLessThanOrEqual(7);
+  });
+
+  /**
+   * The same call, from one cell beyond earshot. A prowling wolf wanders, so
+   * this is read against a pinned stream: what is asserted is that it did not
+   * *set off*, which on these dice means it did not close the gap.
+   */
+  it("ignores one from further off than it can hear", () => {
+    const session = moor(EARSHOT_CELLS + 1);
+    session.hear("alice", "psps");
+
+    advance(session, BRAIN_TICK_MS * 12);
+
+    expect(gapToCat(session)).toBeGreaterThanOrEqual(EARSHOT_CELLS);
+  });
+
+  /**
+   * Sound goes round corners, so a wall between the two of them changes nothing
+   * about being heard — and the wolf then walks round the wall to get there.
+   * This is the whole difference between the ears it has just grown and the eyes
+   * it already had: a wolf with only `in_los` never leaves the spot it is
+   * standing on, because there is nothing to see from it.
+   */
+  /**
+   * What the sniff on the way into `investigating` buys, and it is the reason
+   * that effect is authored at all: a wolf going to look is itself something to
+   * be heard, so word travels through a pack in twenty-cell hops.
+   *
+   * Read off the noise channel rather than off positions, because the count is
+   * the whole claim. The second sniff can only have come from the wolf that
+   * never heard the cat.
+   */
+  it("passes word to a wolf that heard nothing itself", () => {
+    let map = emptyMap();
+    for (let x = -4; x <= 40; x++) {
+      for (let y = -6; y <= 6; y++) {
+        map = replaceStack(map, x, y, 0, [{ tileId: "dirt" }]);
+      }
+    }
+    // Twelve apart: past the eight cells at which they fall in with a packmate
+    // they can see, inside the twenty at which they hear one.
+    map = replaceStack(map, 0, 0, 0, [{ tileId: "dirt" }, { tileId: "wolf" }]);
+    map = replaceStack(map, 12, 0, 0, [{ tileId: "dirt" }, { tileId: "wolf" }]);
+    // Thirty cells from the far wolf, which is ten beyond its hearing.
+    map = replaceStack(map, 30, 0, 0, [{ tileId: "dirt" }, { tileId: "cat" }]);
+    map = replaceStack(map, 30, 3, 0, [
+      { tileId: "dirt" },
+      { tileId: "player", direction: "e", owner: "alice" },
+    ]);
+    const session = new GameSession(map, authored, {
+      actorIds: ["alice"],
+      spawnAt: { x: 40, y: 6, z: 0, stackIndex: 1 },
+      seed: 20260822,
+    });
+
+    session.hear("alice", "psps");
+    const heard: string[] = [];
+    for (let elapsed = 0; elapsed < BRAIN_TICK_MS * 5; elapsed += TICK_MS) {
+      session.tick(TICK_MS);
+      for (const noise of session.drainNoise()) heard.push(noise.text);
+    }
+
+    expect(heard).toEqual(["meow", "sniff", "sniff"]);
+  });
+
+  it("hears it through a wall it cannot see over", () => {
+    const session = moor(12, 6);
+    session.hear("alice", "psps");
+
+    advance(session, BRAIN_TICK_MS * 20);
+
+    // Round the end of the wall and out the other side, having never once had
+    // the cat in view.
+    const wolf = session.actorSnapshots().find((a) => a.tileId === "wolf")!;
+    expect(wolf.x).toBeGreaterThan(6);
+    expect(gapToCat(session)).toBeLessThan(12);
+  });
+});
+
+/**
  * The two things in the world that want to hurt you, as authored.
  *
  * Here for the same reason the cat is: the machinery being right and the content
@@ -2553,6 +2952,7 @@ describe("knowing where it belongs", () => {
       // past it, which is the case below.
       sight: { up: 0, down: 0 },
       heard: () => [],
+      heardNoise: () => [],
       hurtBy: () => [],
       attack: vi.fn(() => false),
       nameOf: (id: string) => id,

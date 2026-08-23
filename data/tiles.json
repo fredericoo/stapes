@@ -8454,6 +8454,29 @@
                 "action": "hold"
               }
             ]
+          },
+          "investigating": {
+            "onEnter": [
+              {
+                "effect": "noise",
+                "text": "sniff"
+              }
+            ],
+            "do": [
+              {
+                "action": "step_toward",
+                "of": {
+                  "type": "slot",
+                  "data": {
+                    "name": "quarry"
+                  }
+                }
+              },
+              {
+                "action": "walk_n_steps",
+                "steps": 2
+              }
+            ]
           }
         },
         "transitions": [
@@ -8552,6 +8575,19 @@
           {
             "from": "prowling",
             "if": {
+              "cond": "heard_noise",
+              "cells": 20
+            },
+            "bind": {
+              "quarry": {
+                "type": "speaker"
+              }
+            },
+            "to": "investigating"
+          },
+          {
+            "from": "prowling",
+            "if": {
               "cond": "in_los",
               "of": {
                 "type": "nearest",
@@ -8606,6 +8642,35 @@
               "ms": 700
             },
             "to": "prowling"
+          },
+          {
+            "from": "investigating",
+            "if": {
+              "cond": "out_of_range",
+              "of": {
+                "type": "slot",
+                "data": {
+                  "name": "quarry"
+                }
+              },
+              "cells": 22
+            },
+            "to": "prowling"
+          },
+          {
+            "from": "investigating",
+            "if": {
+              "cond": "after",
+              "ms": 10000
+            },
+            "to": "prowling"
+          },
+          {
+            "from": "investigating",
+            "if": {
+              "cond": "stuck"
+            },
+            "to": "casting"
           }
         ]
       },

@@ -5,9 +5,11 @@ import { normalizeTileDef, normalizeTiles, type TileDef } from "../lib/types";
 import {
   arrayMove,
   bodyTileIds,
+  paramPatch,
   renamedState,
   selectorOptions,
 } from "./BrainEditor";
+import { CONDITIONS } from "../lib/brainCatalog";
 
 const frame = {
   sprite: {
@@ -205,5 +207,62 @@ describe("offering selectors", () => {
       "wolf",
     ]);
     expect(offered.length).toBeLessThan(authored.length / 4);
+  });
+});
+
+/**
+ * Writing one field back into a condition.
+ *
+ * The interesting half is what happens to a field somebody emptied: a value
+ * meaning "not set" has to leave the key off entirely, because the schema reads
+ * absence and a falsy value as two different things — and one of them makes the
+ * creature inert.
+ */
+describe("editing a parameter", () => {
+  /** The text box on `heard noise`, which is authored as optional. */
+  const NOISE_TEXT = CONDITIONS.heard_noise.params.find(
+    (spec) => spec.key === "text",
+  )!;
+
+  it("writes a value somebody typed", () => {
+    expect(paramPatch({ cond: "heard_noise", cells: 20 }, NOISE_TEXT, "howl")).toEqual({
+      cond: "heard_noise",
+      cells: 20,
+      text: "howl",
+    });
+  });
+
+  /** An empty box on an optional field is "any sound", not a word of no letters. */
+  it("takes the key away again when the box is emptied", () => {
+    const patched = paramPatch(
+      { cond: "heard_noise", cells: 20, text: "howl" },
+      NOISE_TEXT,
+      "",
+    );
+
+    expect(patched).toEqual({ cond: "heard_noise", cells: 20 });
+    expect(patched).not.toHaveProperty("text");
+  });
+
+  /**
+   * The same emptied box on a field that requires one stays empty and stays
+   * broken, which is the honest outcome: there is no "any word" to fall back to.
+   */
+  it("leaves a required text where it is, empty and all", () => {
+    const required = CONDITIONS.heard.params.find((spec) => spec.key === "text")!;
+
+    expect(paramPatch({ cond: "heard", text: "ps", cells: 5 }, required, "")).toEqual({
+      cond: "heard",
+      text: "",
+      cells: 5,
+    });
+  });
+
+  it("authors a false flag as its absence", () => {
+    const los = CONDITIONS.heard.params.find((spec) => spec.key === "los")!;
+
+    expect(
+      paramPatch({ cond: "heard", text: "ps", cells: 5, los: true }, los, false),
+    ).toEqual({ cond: "heard", text: "ps", cells: 5 });
   });
 });

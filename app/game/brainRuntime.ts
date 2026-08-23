@@ -85,8 +85,8 @@ export type BrainMemory = {
    */
   started: boolean;
   /**
-   * Who the `heard` condition that just matched was about, for the length of one
-   * transition.
+   * Who the `heard` or `heard_noise` condition that just matched was about, for
+   * the length of one transition.
    *
    * The plumbing behind the `speaker` selector, and it lives here rather than in
    * the blackboard because it is not a commitment — it is cleared at the top of
@@ -218,6 +218,22 @@ export type BrainContext = {
    */
   heard(): readonly Utterance[];
   /**
+   * Every sound made within this creature's earshot since it last had a turn,
+   * oldest first — and never one of its own.
+   *
+   * Its own list rather than utterances with a blank speaker, because a sound is
+   * not a degenerate sentence: nothing about it is a word, and the conditions
+   * that read the two ask different questions. What they share is the shape of
+   * the answer — a maker, resolved to a position through
+   * {@link BrainContext.positionOf}, so `cells` means the same thing here as
+   * everywhere else.
+   *
+   * Empty on almost every tick, and a list for the reason {@link heard} is one:
+   * two things can make a noise between one brain tick and the next, and
+   * dropping either would make behaviour depend on where the brain clock fell.
+   */
+  heardNoise(): readonly Sound[];
+  /**
    * Everybody who has hit this creature since it last had a turn, oldest first.
    *
    * The mirror of {@link heard}, and a list for the same reason: two things can
@@ -251,6 +267,21 @@ export type Utterance = {
   text: string;
 };
 
+/**
+ * Something that made a sound, as a listening brain sees it.
+ *
+ * The maker rather than the cell it happened in, which is the one decision in
+ * this type. A sound is drawn as a thing that happened at a place — see
+ * `NoiseEmission`, which is what reaches a screen and carries no maker at all —
+ * but a creature going to look for it wants a body to walk towards, and a body
+ * moves. Following the place would send a wolf to where the crunch *was* and
+ * leave it standing there sniffing the grass.
+ */
+export type Sound = {
+  /** Who made it. Resolved to a position through {@link BrainContext.positionOf}. */
+  sourceId: string;
+  text: string;
+};
 
 export function initialMemory(brain: BrainDef): BrainMemory {
   return {
@@ -445,6 +476,42 @@ function heardFrom(
 }
 
 /**
+ * Whatever just made a sound, near enough to have been heard.
+ *
+ * Oldest first and the first match wins, on the grounds {@link heardFrom}
+ * resolves two callers by who spoke first: two things making a noise between one
+ * tick and the next is a real race, and oldest-first is the only tie-break that
+ * does not smuggle in an iteration order from somewhere else.
+ *
+ * No word to match is not a bug in the caller — it is the authored way to say
+ * "any sound at all", so the text test is skipped rather than defaulted. And no
+ * sight test anywhere in here: a sound goes round a corner, which is most of
+ * what makes hearing worth having beside looking.
+ *
+ * The maker is remembered for the length of this tick even though the caller
+ * only wanted a yes or no, so `bind: { quarry: "speaker" }` on this transition
+ * has an id to write.
+ */
+function heardNoiseFrom(
+  condition: Extract<BrainConditionDef, { cond: "heard_noise" }>,
+  memory: BrainMemory,
+  ctx: BrainContext,
+): boolean {
+  const wanted = condition.text?.toLowerCase();
+  for (const sound of ctx.heardNoise()) {
+    if (wanted !== undefined && !sound.text.toLowerCase().includes(wanted)) {
+      continue;
+    }
+    const at = ctx.positionOf(sound.sourceId);
+    if (at === null) continue;
+    if (!within(ctx.self, at, condition.cells, ctx.sight)) continue;
+    memory.heardFrom = sound.sourceId;
+    return true;
+  }
+  return false;
+}
+
+/**
  * Is this a voice the condition was listening for?
  *
  * Asked before the distance and sight tests rather than after, because it is the
@@ -529,6 +596,8 @@ function leafHolds(
       return !inSight(locate(condition.of, memory, ctx), condition.cells, ctx);
     case "heard":
       return heardFrom(condition, memory, ctx);
+    case "heard_noise":
+      return heardNoiseFrom(condition, memory, ctx);
     case "attacked":
       return struckBy(memory, ctx);
   }

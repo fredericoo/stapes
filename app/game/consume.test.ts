@@ -6,7 +6,7 @@ import { type StatusGrant, DEFAULT_CONTAINER } from "../lib/item";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef, normalizeTiles } from "../lib/types";
-import { NOISE_LIFETIME_MS, TICK_MS } from "./constants";
+import { BRAIN_TICK_MS, NOISE_LIFETIME_MS, TICK_MS } from "./constants";
 import { GameSession } from "./GameSession";
 import { statusesById } from "../lib/status";
 
@@ -451,6 +451,30 @@ describe("the noise a consumable makes", () => {
 
     session.tick();
     expect(session.drainNoise()).toEqual([]);
+  });
+
+  /**
+   * The simulation's third copy, which is neither of the other two: it carries
+   * who made the sound, it is never drawn, and it empties on the slower brain
+   * clock so a creature deciding once every few ticks does not miss it.
+   *
+   * Provable here and nowhere else in the tests, because nothing in this file
+   * has a brain — a world with any wildlife in it is held awake by the clause
+   * that keeps their timers running, which would swallow the assertion whole.
+   */
+  it("keeps the world awake until the brains have had a turn at it", () => {
+    const session = withItem(1, 0, "cherry");
+    expect(session.isAtRest()).toBe(true);
+
+    session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
+    expect(session.isAtRest()).toBe(false);
+
+    // One round of decisions is all it takes, after which the crunch is gone
+    // rather than lying about waiting to be heard a second time.
+    for (let elapsed = 0; elapsed < BRAIN_TICK_MS; elapsed += TICK_MS) {
+      session.tick(TICK_MS);
+    }
+    expect(session.isAtRest()).toBe(true);
   });
 
   /**
