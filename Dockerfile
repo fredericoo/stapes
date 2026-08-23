@@ -20,6 +20,15 @@ RUN bun install --frozen-lockfile --production
 FROM base AS runtime
 ENV NODE_ENV=production
 
+# `curl`, purely so an orchestrator can probe us. Coolify's healthcheck runs
+# inside the container and shells out to `curl` or `wget`; this base image has
+# neither, so without it every deploy is marked unhealthy and rolled back while
+# the process sits there serving happily. Roughly 12MB, and it also makes the
+# HEALTHCHECK below work when this image is run by hand.
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends curl \
+ && rm -rf /var/lib/apt/lists/*
+
 COPY --from=deps /app/node_modules ./node_modules
 COPY package.json ./
 COPY server ./server
@@ -39,7 +48,7 @@ EXPOSE 3000
 # The healthcheck is what takes a draining container out of rotation before its
 # sockets close, so it has to fail while draining rather than merely report it.
 HEALTHCHECK --interval=10s --timeout=3s --start-period=20s --retries=3 \
-  CMD bun -e "const r = await fetch('http://127.0.0.1:'+(process.env.PORT??3000)+'/api/health'); const b = await r.json(); process.exit(b.status === 'ok' ? 0 : 1)"
+  CMD curl -fsS "http://127.0.0.1:${PORT:-3000}/api/health" | grep -q '"status":"ok"' 
 
 # Exec form, so the process is PID 1 and receives SIGTERM directly. Through a
 # shell it would not, the drain would never run, and every deploy would lose up
