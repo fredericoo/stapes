@@ -667,7 +667,24 @@ export type ServerMessage =
    * the cell refused the pile, which is the one case where the dead still own
    * what they were holding.
    */
-  | { type: "died"; equipment: Equipment };
+  | { type: "died"; equipment: Equipment }
+  /**
+   * The world is going away for a moment, and will be back.
+   *
+   * Sent before the sockets are closed on a deploy, so the page can say the
+   * world is updating rather than showing the face it shows for a crash.
+   */
+  /** Nothing to say, said on purpose. See the schema below. */
+  | { type: "keepalive" }
+  | { type: "serverRestarting" }
+  /**
+   * This tab speaks a protocol the server no longer does.
+   *
+   * Followed immediately by a close carrying {@link CLOSE_OUTDATED_CLIENT},
+   * which is what the page acts on — a rejected upgrade would reach it as an
+   * indistinguishable failure, so the socket is accepted in order to say this.
+   */
+  | { type: "outdated"; serverVersion: number };
 
 export type ClientMessage =
   /**
@@ -1137,6 +1154,54 @@ const serverMessageSchema = v.variant("type", [
     type: v.literal("died"),
     equipment: tolerantEquipmentSchema,
   }),
+  /**
+   * Nothing to say, said on purpose.
+   *
+   * A world at rest sends nothing at all — `sleepIfIdle` stops the tick when
+   * everybody is standing still — and a silent socket is one a proxy is
+   * entitled to close. Reconnecting costs a whole `hello`, which carries the
+   * map, so an idle player behind a proxy would re-download the world on a
+   * loop. This is cheaper than that by four orders of magnitude.
+   */
+  v.object({
+    type: v.literal("keepalive"),
+  }),
+  /**
+   * Nothing to say, said on purpose.
+   *
+   * A world at rest sends nothing at all — `sleepIfIdle` stops the tick when
+   * everybody is standing still — and a silent socket is one a proxy is
+   * entitled to close. Reconnecting costs a whole `hello`, which carries the
+   * map, so an idle player behind a proxy would re-download the world on a
+   * loop. This is cheaper than that by four orders of magnitude.
+   */
+  v.object({
+    type: v.literal("keepalive"),
+  }),
+  /**
+   * The world is going away for a moment, and will be back.
+   *
+   * Sent before the sockets are closed on a deploy, so the client can say the
+   * world is updating rather than showing the face it shows for a crash. It
+   * carries nothing: what follows is a close and a reconnect, and the `hello`
+   * on the other side is the whole state again.
+   */
+  v.object({
+    type: v.literal("serverRestarting"),
+  }),
+  /**
+   * This tab is running against a protocol the server no longer speaks.
+   *
+   * Sent on a socket that is then closed, rather than refused at the upgrade,
+   * and the difference is the point: a browser hands a rejected upgrade to the
+   * page as an indistinguishable failure, so a client told that way cannot tell
+   * "you are stale" from "the server is down" and would sit in its reconnect
+   * backoff forever.
+   */
+  v.object({
+    type: v.literal("outdated"),
+    serverVersion: v.number(),
+  }),
 ]);
 
 /**
@@ -1159,6 +1224,46 @@ export function parseServerMessage(raw: string): ServerMessage | null {
 
 /** Path the browser opens its socket on. */
 export const GAME_SOCKET_PATH = "/online/ws";
+
+/**
+ * What this build of the wire looks like.
+ *
+ * **Bump it in the same commit as any change to the schemas above.** Client and
+ * server import this one constant, so they always agree on what the current
+ * value is; the question the handshake asks is whether the two halves that are
+ * actually running were built from the same one.
+ *
+ * The client sends it as `?v=` when it opens the socket and the server compares
+ * exactly. A mismatch is a forced reload for everybody connected, which is both
+ * honest and rare — and far better than the alternative, which is a tab quietly
+ * mis-parsing a message it half understands.
+ *
+ * This is deliberately not the build id. A client deploy that changes no
+ * messages should not disconnect anybody, and most client deploys are that.
+ */
+export const PROTOCOL_VERSION = 2;
+
+/**
+ * How often the world says nothing, to keep a proxy from hanging up.
+ *
+ * Well inside the shortest idle timeout worth designing against — Cloudflare
+ * and most reverse proxies sit around a minute or two — and small enough that
+ * the cost is invisible: a dozen bytes per player per interval.
+ */
+export const KEEPALIVE_INTERVAL_MS = 30_000;
+
+/** Query parameter carrying {@link PROTOCOL_VERSION} on the socket URL. */
+export const PROTOCOL_VERSION_PARAM = "v";
+
+/**
+ * Close code for a socket closed because the client is stale.
+ *
+ * In the 4000–4999 range, which RFC 6455 reserves for the application. 1012
+ * (Service Restart) is the other code this server sends, and the two mean
+ * opposite things to the client: reconnect promptly, versus do not reconnect
+ * until you have reloaded.
+ */
+export const CLOSE_OUTDATED_CLIENT = 4001;
 
 /** Cookie carrying the actor id, minted by the /online loader. */
 export const ACTOR_COOKIE = "stapes_uid";

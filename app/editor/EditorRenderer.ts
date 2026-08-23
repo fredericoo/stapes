@@ -3,6 +3,7 @@
  * Play mode uses the shared world draw in `app/render/WorldRenderer.ts`.
  */
 import * as THREE from "three";
+import { tilesetUrl } from "../lib/api";
 import {
   absoluteElevation,
   baseCellWorldOrigin,
@@ -450,7 +451,7 @@ export class EditorRenderer {
       this.tilesets.map(async (ts) => {
         if (this.textures.has(ts.id)) return;
         const loader = new THREE.TextureLoader();
-        const tex = await loader.loadAsync(`/tilesets/${ts.file}`);
+        const tex = await loader.loadAsync(tilesetUrl(ts.file));
         tex.magFilter = THREE.NearestFilter;
         tex.minFilter = THREE.NearestFilter;
         tex.generateMipmaps = false;

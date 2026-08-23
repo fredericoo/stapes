@@ -1,4 +1,4 @@
-import { DurableObject } from "cloudflare:workers";
+import type { GameSocket, WorldContext } from "./sockets";
 import * as v from "valibot";
 import {
   GameSession,
@@ -34,7 +34,7 @@ import {
   getStack,
   mapFromChunks,
 } from "../app/lib/mapData";
-import { dataStoreFor, type DataStore } from "../app/lib/storage.server";
+import type { DataStore } from "../app/lib/storage.server";
 import { tilesByIdFromList } from "../app/lib/validation";
 import { type StatusDef, statusesById } from "../app/lib/status";
 import type { StatusInstance } from "../app/game/statuses";
@@ -332,6 +332,9 @@ export const MAX_REMEMBERED_ACTORS = 1_000;
  */
 const ACTOR_FLUSH_INTERVAL_MS = 30_000;
 
+/** How often a repeating tick failure is reported. See {@link GameServer.tickSafely}. */
+const TICK_FAILURE_LOG_INTERVAL = 300;
+
 /**
  * Where somebody was standing, kept against their return.
  *
@@ -516,7 +519,19 @@ type SentMotion = {
  * anti-pattern. It does mean concurrent players are capped by what one object
  * can tick.
  */
-export class GameServer extends DurableObject<Env> {
+export class GameServer {
+  /**
+   * Named `ctx` and `env` because that is what they were called when a platform
+   * base class supplied them. Several hundred `this.ctx.storage.*` and
+   * `this.ctx.getWebSockets()` call sites below are unchanged as a result, and
+   * so is the suite that guards them — which matters more than the names do,
+   * since that suite is the only reason to believe this file still works.
+   */
+  constructor(
+    protected readonly ctx: WorldContext,
+    protected readonly env: { dataStore: DataStore },
+  ) {}
+
   private session: GameSession | null = null;
   private tiles: TileDef[] = [];
   /**
@@ -548,9 +563,10 @@ export class GameServer extends DurableObject<Env> {
   /** Steps clients say they have taken, oldest first, per actor. */
   private readonly queuedSteps = new Map<string, QueuedStep[]>();
   private timer: ReturnType<typeof setInterval> | null = null;
+  /** Consecutive throwing ticks, for the rate-limited report. See {@link tickSafely}. */
+  private consecutiveTickFailures = 0;
   private loading: Promise<void> | null = null;
   /** Where `data/` is served in dev, told to us by whoever called in. */
-  private dataOrigin: string | null = null;
   /** When each actor last said something, for the rate limit. */
   private lastSaidAt = new Map<string, number>();
   /** When positions were last written out. See {@link saveActorsIfDue}. */
@@ -651,29 +667,16 @@ export class GameServer extends DurableObject<Env> {
   /**
    * Find authored content.
    *
-   * The origin is remembered from whoever called in, because in dev the answer
-   * is only knowable from a request: under `pnpm dev` the file middleware lives
-   * on the Vite server's own origin, and the object has no way to name it.
-   * Without it the object fell back to R2 while every loader read `data/` on
-   * disk, so it ran the world against whatever a past `pnpm seed` left in the
-   * bucket. `pnpm dev:worker` sets `DATA_ORIGIN`, which takes priority, and
-   * production ignores both and takes R2.
-   *
-   * Both ways in carry it — {@link replaceWorld} from the editor's save, and
-   * the socket handshake from `workers/app.ts`. The save alone was not enough:
-   * it only holds for as long as this object stays in memory, so the first
-   * reload after an eviction went back to the bucket. That is a divergence
-   * nothing announces — the map comes from the checkpoint and is current, while
-   * the tile defs are a seed old, so an object authored since is on the board
-   * and inert, its interactions belonging to a tile this side has never heard
-   * of.
-   *
-   * The handshake origin is the host the client reached, so it is only ever
-   * consulted in dev — `workers/app.ts` does not send it otherwise, and
-   * {@link dataStoreFor} would ignore it in a production build regardless.
+   * Handed in whole, which is all this needs to be now. It used to work out an
+   * origin and remember it, because the Worker had no filesystem: a dev build
+   * reached `data/` over HTTP through a middleware whose address only a request
+   * could reveal, and a Durable Object has no request of its own — so the
+   * origin was threaded through the socket handshake and the editor's save, and
+   * getting that wrong ran the world against a stale bucket while every loader
+   * read the disk. This process opens the directory.
    */
   private store(): DataStore {
-    return dataStoreFor(this.env, this.dataOrigin ?? undefined);
+    return this.env.dataStore;
   }
 
   /**
@@ -1666,34 +1669,23 @@ export class GameServer extends DurableObject<Env> {
     await this.ctx.storage.delete(doomed);
   }
 
-  async fetch(request: Request): Promise<Response> {
-    if (request.headers.get("Upgrade") !== "websocket") {
-      return new Response("Expected websocket", { status: 426 });
-    }
-    const params = new URL(request.url).searchParams;
-    const actorId = params.get("actor");
-    if (!actorId) return new Response("Missing actor", { status: 400 });
-
-    // Before the world is loaded, which is the whole point of taking it here: a
-    // socket is what wakes an evicted object, and loading without an origin
-    // reads authored content out of R2 instead of off disk. See {@link store}.
-    const dataOrigin = params.get("dataOrigin");
-    if (dataOrigin) this.dataOrigin = dataOrigin;
-
-    const pair = new WebSocketPair();
-    const [client, server] = [pair[0]!, pair[1]!];
-    // acceptWebSocket rather than accept(): lets the object be evicted while
-    // connections stay open, which is what makes an idle world free.
-    //
-    // Accepted *before* the world is loaded, and the order matters. This
-    // request is usually what wakes an evicted object, and loading reaps any
-    // actor in the checkpoint with no socket — so loading first would find this
-    // actor connectionless, throw away the body the checkpoint was keeping for
-    // them, and put them back at spawn. Every reconnect after a hibernation
-    // would silently lose its position. Messages arriving in the gap are safe:
-    // `webSocketMessage` loads for itself.
-    this.ctx.acceptWebSocket(server);
-    server.serializeAttachment({ actorId } satisfies Attachment);
+  /**
+   * Seat somebody who has just connected.
+   *
+   * Was a `fetch` returning a 101 with a socket attached, because a Durable
+   * Object could only be reached by request. The upgrade is the HTTP layer's
+   * business now — `server/index.ts` does it — and what is left here is the
+   * part that was always about the world.
+   *
+   * **The socket is registered before the world is loaded, and the order still
+   * matters.** Loading reaps any actor in the checkpoint with no connection, so
+   * loading first would find this actor connectionless, throw away the body the
+   * checkpoint was keeping for them, and put them back at spawn. Messages
+   * arriving in the gap are safe: {@link webSocketMessage} loads for itself.
+   */
+  async join(socket: GameSocket, actorId: string): Promise<void> {
+    this.ctx.acceptWebSocket(socket);
+    socket.serializeAttachment({ actorId } satisfies Attachment);
 
     await this.ensureLoaded();
 
@@ -1708,12 +1700,10 @@ export class GameServer extends DurableObject<Env> {
       playerCount: this.playerCount(),
     });
 
-    this.sendHello(server, actorId);
+    this.sendHello(socket, actorId);
     // A join moves the board, so it has to be broadcast even if nobody is
     // pressing anything.
     this.wake();
-
-    return new Response(null, { status: 101, webSocket: client });
   }
 
   /**
@@ -1729,7 +1719,7 @@ export class GameServer extends DurableObject<Env> {
    *   listed here, and the person it carried has already gone — though their id
    *   stays counted if they still have another tab open.
    */
-  private playerCount(excluding?: WebSocket): number {
+  private playerCount(excluding?: GameSocket): number {
     const ids = new Set<string>();
     for (const ws of this.ctx.getWebSockets()) {
       if (ws === excluding) continue;
@@ -1739,7 +1729,7 @@ export class GameServer extends DurableObject<Env> {
     return ids.size;
   }
 
-  private sendHello(ws: WebSocket, actorId: string) {
+  private sendHello(ws: GameSocket, actorId: string) {
     const session = this.session!;
     const actors = session.actorSnapshots();
     const message: ServerMessage = {
@@ -1776,7 +1766,7 @@ export class GameServer extends DurableObject<Env> {
     // patch be a no-op for them rather than replaying it.
   }
 
-  async webSocketMessage(ws: WebSocket, raw: string | ArrayBuffer) {
+  async webSocketMessage(ws: GameSocket, raw: string | ArrayBuffer) {
     if (typeof raw !== "string") return;
     await this.ensureLoaded();
 
@@ -2120,6 +2110,21 @@ export class GameServer extends DurableObject<Env> {
     if (!session) return;
 
     for (const [actorId, queue] of this.queuedSteps) {
+      // **A queued step can outlive the body that asked for it.** The step is
+      // taken from the wire on one tick and applied on the next, and in between
+      // its owner can die — walking into a fire is exactly that, with a step
+      // still queued behind the one that killed them. `noteDeaths` clears the
+      // queue, but it runs *after* this in `tick`, so by the time it would have
+      // tidied up this loop has already asked the session for an actor that is
+      // no longer in it.
+      //
+      // Dropping the queue is the whole correction: steps address a body, and
+      // there is no longer a body to move.
+      if (!session.hasActor(actorId)) {
+        this.queuedSteps.delete(actorId);
+        continue;
+      }
+
       while (queue.length > 0) {
         const step = queue[0]!;
         const outcome = session.requestStep(actorId, step.direction, {
@@ -2330,15 +2335,15 @@ export class GameServer extends DurableObject<Env> {
     );
   }
 
-  async webSocketClose(ws: WebSocket) {
+  async webSocketClose(ws: GameSocket) {
     await this.dropSocket(ws);
   }
 
-  async webSocketError(ws: WebSocket) {
+  async webSocketError(ws: GameSocket) {
     await this.dropSocket(ws);
   }
 
-  private async dropSocket(ws: WebSocket) {
+  private async dropSocket(ws: GameSocket) {
     const attachment = ws.deserializeAttachment() as Attachment | null;
     if (!attachment) return;
     await this.ensureLoaded();
@@ -2398,9 +2403,6 @@ export class GameServer extends DurableObject<Env> {
    * running map carries an `owner` on every actor's tile, and those have no
    * business in an authored file.
    *
-   * `dataOrigin` is the editor's own origin — see {@link store} for why the
-   * object cannot work that out for itself in dev.
-   *
    * **Nothing is persisted until the new world has been proved to start, and
    * the running one is never loaded to get here.** Both halves of that are
    * load-bearing, and the order they used to be in cost a live world.
@@ -2421,8 +2423,7 @@ export class GameServer extends DurableObject<Env> {
    * and every actor is re-seated below, so loading it was only ever a way for
    * its failures to become this one's.
    */
-  async replaceWorld(flat: FlatMapFile, dataOrigin?: string): Promise<void> {
-    if (dataOrigin) this.dataOrigin = dataOrigin;
+  async replaceWorld(flat: FlatMapFile): Promise<void> {
     const store = this.store();
     const tiles = await store.readTiles();
     // Re-read rather than reused, on exactly the terms the tiles are: a save is
@@ -2610,12 +2611,8 @@ export class GameServer extends DurableObject<Env> {
    * destructive by design — every position, kit, tag and mastery in the world
    * is dropped, and everyone still connected re-enters as somebody this world
    * has never met.
-   *
-   * `dataOrigin` is the caller's own origin, for the same reason
-   * {@link replaceWorld} takes one — see {@link store}.
    */
-  async resetWorld(dataOrigin?: string): Promise<void> {
-    if (dataOrigin) this.dataOrigin = dataOrigin;
+  async resetWorld(): Promise<void> {
 
     // The tick and the session go together, and *before the first await*.
     // A flush is the one thing here that writes the world back out, and one
@@ -2691,7 +2688,42 @@ export class GameServer extends DurableObject<Env> {
    */
   private wake() {
     if (this.timer !== null) return;
-    this.timer = setInterval(() => this.tick(), TICK_MS);
+    this.timer = setInterval(() => this.tickSafely(), TICK_MS);
+  }
+
+  /**
+   * Run a tick, and survive one that throws.
+   *
+   * **A platform used to do this.** An exception inside a Durable Object's
+   * timer was caught by the runtime and cost that tick; the same exception
+   * inside `setInterval` here is an uncaught exception, which ends the process
+   * — so one bad tick disconnected everybody, lost up to a checkpoint interval,
+   * and handed the whole world to the restart policy. A queued step belonging
+   * to somebody who had just walked into a fire was enough to do it.
+   *
+   * Ticking continues afterwards, deliberately. A world frozen at the moment it
+   * first went wrong is worse than one that skips a frame and says so: the skip
+   * is visible in the log and survivable, where the freeze looks like a running
+   * world to every socket watching it.
+   *
+   * The repeat counter is because a fault in the simulation is rarely a one-off
+   * — at thirty ticks a second, an unguarded log would bury the first and most
+   * useful report under thousands of copies within a minute.
+   */
+  private tickSafely() {
+    try {
+      this.tick();
+      this.consecutiveTickFailures = 0;
+    } catch (error) {
+      this.consecutiveTickFailures += 1;
+      const n = this.consecutiveTickFailures;
+      if (n === 1 || n % TICK_FAILURE_LOG_INTERVAL === 0) {
+        console.error(
+          `[world] tick failed (${n} in a row, still ticking)`,
+          error,
+        );
+      }
+    }
   }
 
   /**
@@ -2996,7 +3028,7 @@ export class GameServer extends DurableObject<Env> {
    *   {@link playerCount} — so it has to be excluded by identity rather than by
    *   its attachment, which is indistinguishable from the ones that are staying.
    */
-  private hasSocket(actorId: string, excluding?: WebSocket): boolean {
+  private hasSocket(actorId: string, excluding?: GameSocket): boolean {
     for (const ws of this.ctx.getWebSockets()) {
       if (ws === excluding) continue;
       const attachment = ws.deserializeAttachment() as Attachment | null;
@@ -3190,7 +3222,7 @@ export class GameServer extends DurableObject<Env> {
   }
 
   /** Whether this socket belongs to somebody the world has stopped telling. */
-  private isSilenced(ws: WebSocket): boolean {
+  private isSilenced(ws: GameSocket): boolean {
     const attachment = ws.deserializeAttachment() as Attachment | null;
     return attachment ? this.silenced.has(attachment.actorId) : false;
   }

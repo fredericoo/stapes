@@ -1,3 +1,4 @@
+import { LoadingScreen } from "./components/LoadingScreen";
 import {
   isRouteErrorResponse,
   Links,
@@ -52,6 +53,18 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </body>
     </html>
   );
+}
+
+/**
+ * What the tab shows before the first route's data has arrived.
+ *
+ * SPA mode allows this only on the root route, and it needs one: with no server
+ * rendering, the very first paint happens while `clientLoader` is still asking
+ * the server what the world looks like, and without this that moment is a blank
+ * white page.
+ */
+export function HydrateFallback() {
+  return <LoadingScreen />;
 }
 
 export default function App() {

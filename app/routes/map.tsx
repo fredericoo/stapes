@@ -1,4 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  fetchMapText,
+  fetchTiles,
+  fetchTilesets,
+  saveMapText,
+} from "../lib/api";
+import { parseMap, serializeMap } from "../lib/mapData";
 import { useFetcher, useLoaderData } from "react-router";
 import {
   IconArrowBackUp,
@@ -17,22 +24,19 @@ import {
   ZOOM_LEVELS,
   snapZoom,
 } from "../editor/store";
-import { cloudflareContext, dataStore } from "../context";
 import { flattenMap } from "../lib/mapData";
-import { gameServer } from "../net/gameServer.server";
 import { formatClock, MINUTES_PER_DAY } from "../lib/clock";
 import type { MapFile } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL, clampLevel } from "../lib/types";
 import { Button, Input, Toggle, Tooltip, useToast } from "../ui";
 
-export async function loader({ context }: Route.LoaderArgs) {
-  const store = dataStore(context);
-  const [map, tiles, tilesets] = await Promise.all([
-    store.readMap(),
-    store.readTiles(),
-    store.readTilesets(),
+export async function clientLoader() {
+  const [mapText, tiles, tilesets] = await Promise.all([
+    fetchMapText(),
+    fetchTiles(),
+    fetchTilesets(),
   ]);
-  return { map, tiles, tilesets };
+  return { map: parseMap(mapText), tiles, tilesets };
 }
 
 /**
@@ -44,7 +48,7 @@ export async function loader({ context }: Route.LoaderArgs) {
  * that no longer exists. It also means saves and the tick loop cannot interleave
  * into a world that half-changed.
  */
-export async function action({ context, request }: Route.ActionArgs) {
+export async function clientAction({ request }: Route.ClientActionArgs) {
   const form = await request.formData();
   const raw = String(form.get("map") ?? "");
   try {
@@ -52,16 +56,11 @@ export async function action({ context, request }: Route.ActionArgs) {
     if (map.version !== 1) {
       return { ok: false, error: "Unsupported map version" };
     }
-    // Flattened here, not in the server: the chunked shape is a runtime detail,
-    // and the on-disk file stays the hand-editable flat one.
-    const env = context.get(cloudflareContext).env;
-    // The origin travels with the map because the Durable Object has no request
-    // of its own to read it from, and in dev that is the only way to find the
-    // `data/` middleware — see GameServer's `store`.
-    await gameServer(env).replaceWorld(
-      flattenMap(map),
-      new URL(request.url).origin,
-    );
+    // Sent as text, because `serializeMap` round-trips byte for byte: saving an
+    // unmodified map leaves `git status` clean in development rather than
+    // reformatting the file. The server writes it and restarts the world onto
+    // it in one call.
+    await saveMapText(serializeMap(map));
     return { ok: true };
   } catch (err) {
     return {
@@ -72,8 +71,8 @@ export async function action({ context, request }: Route.ActionArgs) {
 }
 
 export default function MapPage() {
-  const data = useLoaderData<typeof loader>();
-  const fetcher = useFetcher<typeof action>();
+  const data = useLoaderData<typeof clientLoader>();
+  const fetcher = useFetcher<typeof clientAction>();
   const { show: showToast } = useToast();
 
   const dirty = useEditorStore((s) => s.dirty);

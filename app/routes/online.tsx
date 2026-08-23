@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
-import { data, useLoaderData } from "react-router";
+import { useLoaderData } from "react-router";
 import type { Route } from "./+types/online";
 import { AppShell } from "../components/AppShell";
 import { DeathScreen } from "../components/DeathScreen";
@@ -16,7 +16,6 @@ import {
   applyInteraction,
   type InteractionOption,
 } from "../game/interactionOptions";
-import { dataStore } from "../context";
 import { activeStatuses, statusesById } from "../lib/status";
 import { useGameAssets } from "../lib/gameAssets";
 import {
@@ -27,61 +26,51 @@ import {
 import type { ObjectRef } from "../game/affordances";
 import type { OpenedContainer, SlotRef } from "../game/itemMoves";
 import type { Direction } from "../lib/types";
-import { ACTOR_COOKIE, GAME_SOCKET_PATH } from "../net/protocol";
+import {
+  CLOSE_OUTDATED_CLIENT,
+  GAME_SOCKET_PATH,
+  PROTOCOL_VERSION,
+  PROTOCOL_VERSION_PARAM,
+} from "../net/protocol";
+import { fetchBootstrap, startSession } from "../lib/api";
 import type { Vitals } from "../game/GameSession";
 import { RemoteSession } from "../net/RemoteSession";
 import type { FrameStats } from "../render/frameProfile";
 import { GameRenderer } from "../render/GameRenderer";
 
-/** A year. The id is a handle for an avatar, not an account. */
-const COOKIE_MAX_AGE_SECONDS = 60 * 60 * 24 * 365;
-
-function readCookie(request: Request, name: string): string | null {
-  const header = request.headers.get("Cookie");
-  if (!header) return null;
-  for (const part of header.split(";")) {
-    const [key, ...rest] = part.trim().split("=");
-    if (key === name) return decodeURIComponent(rest.join("="));
-  }
-  return null;
-}
-
-export async function loader({ context, request }: Route.LoaderArgs) {
-  const store = dataStore(context);
-  const [tiles, tilesets, statuses] = await Promise.all([
-    store.readTiles(),
-    store.readTilesets(),
-    store.readStatuses(),
+export async function clientLoader() {
+  // The session call is what mints the `HttpOnly` actor cookie, and it has to
+  // land before the socket opens: identity comes from that cookie and never
+  // from anything this page could say about itself.
+  const [{ protocolVersion }, bootstrap] = await Promise.all([
+    startSession(),
+    fetchBootstrap(),
   ]);
-
-  // Identity is a random id in an HttpOnly cookie: enough to tell two players
-  // apart and give someone their avatar back on reload, and deliberately not a
-  // login. HttpOnly because page scripts never need it — the socket handshake
-  // sends it automatically, which is also how the server learns who is
-  // connecting without trusting anything the client says.
-  const existing = readCookie(request, ACTOR_COOKIE);
-  const actorId = existing ?? crypto.randomUUID();
-
-  const payload = { tiles, tilesets, statuses, socketPath: GAME_SOCKET_PATH };
-  if (existing) return payload;
-
-  return data(payload, {
-    headers: {
-      "Set-Cookie": `${ACTOR_COOKIE}=${actorId}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${COOKIE_MAX_AGE_SECONDS}${
-        new URL(request.url).protocol === "https:" ? "; Secure" : ""
-      }`,
-    },
-  });
+  return { ...bootstrap, socketPath: GAME_SOCKET_PATH, protocolVersion };
 }
 
 /** Backoff between reconnect attempts, capped. */
 const RECONNECT_BASE_MS = 500;
 const RECONNECT_MAX_MS = 10_000;
 
-type Status = "connecting" | "live" | "reconnecting";
+/**
+ * How soon to come back after an announced restart, and how much to smear it.
+ *
+ * A deploy closes every socket in the same instant. Without the jitter they all
+ * return in the same instant too, and the fresh process pays for its cold load
+ * once per player simultaneously.
+ */
+const RESTART_RECONNECT_MS = 250;
+const RESTART_RECONNECT_JITTER_MS = 750;
+
+/** Guards the reload-on-stale-client path against looping. */
+const RELOADED_FOR_VERSION = "stapes:reloaded-for-version";
+
+type Status = "connecting" | "live" | "reconnecting" | "restarting" | "outdated";
 
 export default function OnlinePage() {
-  const { tiles, tilesets, statuses, socketPath } = useLoaderData<typeof loader>();
+  const { tiles, tilesets, statuses, socketPath } =
+    useLoaderData<typeof clientLoader>();
   // Both ends load the same catalogue: the server to run the effects, this side
   // to name and draw them. Only ids and clocks travel, which is what keeps a
   // status running for an hour to a handful of small messages.
@@ -245,6 +234,8 @@ export default function OnlinePage() {
     let renderer: GameRenderer | null = null;
     let attempt = 0;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    /** Whether the world said it was going before it closed the socket. */
+    let restarting = false;
 
     // Reads `session` at call time, not at construction: a reconnect swaps the
     // session underneath while the same keys are still held.
@@ -283,9 +274,16 @@ export default function OnlinePage() {
       if (disposed) return;
       const url = new URL(socketPath, window.location.href);
       url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+      url.searchParams.set(PROTOCOL_VERSION_PARAM, String(PROTOCOL_VERSION));
       socket = new WebSocket(url);
 
       const remote = new RemoteSession(socket, tiles);
+      // Read in the close handler below, which is where the difference between
+      // "the world went away" and "the world is being replaced" is acted on.
+      restarting = false;
+      remote.setOnRestarting(() => {
+        restarting = true;
+      });
       session = remote;
       sessionRef.current = remote;
       // Before the socket has said anything, so the count in the first `hello`
@@ -332,16 +330,36 @@ export default function OnlinePage() {
         remote.setAttackMode(attackingRef.current);
       });
 
-      socket.addEventListener("close", () => {
+      socket.addEventListener("close", (event) => {
         if (disposed) return;
+
+        // A stale tab cannot be fixed by reconnecting — the next socket would
+        // be refused the same way — so it reloads instead. Guarded, because a
+        // cached bundle that reloads into the same stale build would loop
+        // forever: the second time round, say so and let the person choose.
+        if (event.code === CLOSE_OUTDATED_CLIENT) {
+          if (sessionStorage.getItem(RELOADED_FOR_VERSION) === "1") {
+            setStatus("outdated");
+            return;
+          }
+          sessionStorage.setItem(RELOADED_FOR_VERSION, "1");
+          window.location.reload();
+          return;
+        }
+        sessionStorage.removeItem(RELOADED_FOR_VERSION);
+
         teardownRenderer();
-        setStatus("reconnecting");
+        setStatus(restarting ? "restarting" : "reconnecting");
         setStats(null);
         setPlayers(null);
-        const delay = Math.min(
-          RECONNECT_MAX_MS,
-          RECONNECT_BASE_MS * 2 ** attempt,
-        );
+
+        // A deploy closes every socket at once. Backing off would leave
+        // everybody staring at a world that is already up; reconnecting in
+        // lockstep would make them all pay for its cold load at the same
+        // moment. So: promptly, and jittered.
+        const delay = restarting
+          ? RESTART_RECONNECT_MS + Math.random() * RESTART_RECONNECT_JITTER_MS
+          : Math.min(RECONNECT_MAX_MS, RECONNECT_BASE_MS * 2 ** attempt);
         attempt += 1;
         retryTimer = setTimeout(connect, delay);
       });

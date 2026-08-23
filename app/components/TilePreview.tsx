@@ -1,4 +1,5 @@
 import { useEffect, useRef } from "react";
+import { tilesetUrl } from "../lib/api";
 import type {
   AutotileSlice,
   Frame,
@@ -119,7 +120,7 @@ export async function drawSprite(
   }
 
   try {
-    const img = await loadImage(`/tilesets/${tileset.file}`);
+    const img = await loadImage(tilesetUrl(tileset.file));
     const { rect } = sprite;
     const sx = rect.x * 8;
     const sy = rect.y * 8;

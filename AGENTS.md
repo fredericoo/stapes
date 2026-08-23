@@ -1,79 +1,171 @@
 # Agent notes — Stapes
 
-## The server is a Cloudflare Worker
+## The server is a Bun process that stays up
 
-`app/` and `workers/` run in workerd, not Node. There is no filesystem, so
-authored content (map, tiles, tilesets, PNGs) is reached through
-`app/lib/storage.server.ts`, never through `node:fs`.
+`server/` runs on Bun and holds one world in memory. `app/` is a static bundle
+that runs in a tab. There is no server rendering and no shared runtime between
+them — only shared *modules*, which is why `app/game/` and `app/lib/` are
+imported by both.
 
-- Bindings arrive via React Router 8's context, not the v7 `AppLoadContext`.
-  A loader or action gets the store with `dataStore(context)`; both contexts are
-  set once per request in `workers/app.ts`. Docs and older examples showing
-  `context.cloudflare.env` are written for v7 and will not typecheck.
-- `tsconfig.json` covers `app/` and `workers/` and deliberately excludes Node
-  types, so a `node:` import fails at typecheck rather than on deploy. Build
-  tooling and tests that genuinely run in Node live under `tsconfig.node.json`.
+- **`server/GameServer.ts` is the world**, and it is very nearly the file that
+  used to be a Durable Object. It takes `{ ctx, env }` in its constructor, where
+  `ctx.storage` is a `WorldStore` and `ctx.getWebSockets()` is a `SocketHub`.
+  Those names are deliberate: several hundred call sites read `this.ctx.storage`
+  and did not have to change, and neither did the suite that guards them.
+- **`server/world.ts` is everything the platform used to do around it** — the
+  checkpoint loop, the alarm timer, the drain. About two hundred lines, none of
+  which is simulation.
+- **Nothing under `app/game/` or `server/GameServer.ts` may import Elysia.** The
+  framework's whole footprint is `server/index.ts` and `server/api.ts`. That
+  containment is what makes the version choice cheap to revisit.
 
-### Two storage backends, one interface
+### One process, enforced
 
-`DataStore` owns every decision about what the bytes mean — parsing a map,
-normalising tile defs, guarding a tileset filename. Underneath it, `Blobs` is a
-dumb get/put by key with two implementations, and that split is the point: the
-backends stay small enough to see through and cannot drift in how they read a
-map.
+The Durable Object guaranteed exactly one instance of the world existed
+anywhere, and every line that treats the in-memory board as authoritative
+depends on it. Nothing on a virtual machine provides that, and two processes on
+one database write a board blended from two timelines — which then persists,
+because the checkpoint is preferred over the authored map on load.
 
-- **Dev — `DevDiskBlobs`, over `data/` on disk.** Art iteration is a tight loop,
-  and making it a `pnpm seed` away was a real regression when this moved to
-  Workers. Disk stays the single source of truth while developing: an edited PNG
-  is live on the next request, an editor Save lands in `data/map.json` as a
-  reviewable diff, and there is nothing to sync back. The Worker reaches the
-  directory through a dev-only Vite middleware in `vite.config.ts`.
-- **Production — `R2Blobs`.** `pnpm seed` uploads `data/` into the bucket; a
-  fresh environment loads blank until it runs.
+`server/lock.ts` opens the database with `PRAGMA locking_mode = EXCLUSIVE`, so a
+second process fails at open rather than after two seconds of divergence. It is
+tested across real processes in `server/lock.test.ts`, because POSIX locks are
+per-process and an in-process test would report a guarantee that does not exist.
 
-`pnpm dev:r2` (`VITE_USE_R2=1`) runs dev against R2, since the default dev path
-otherwise never exercises it.
+**Do not remove this to make a rolling deploy work.** Drain-then-start is the
+deployment model; the overlap a rolling deploy wants is the thing being
+prevented.
 
-Do not add a second write path that bypasses `DataStore`. The reason the two
-directions stay consistent is that there is only ever one copy of the truth in a
-given environment, never a sync between two.
+### Storage is one file
 
-**There is a third copy, and it is not `DataStore`'s.** The Durable Object holds
-the world being played, prefers its own checkpoint to the bucket on every load,
-and carries each player's kit, tags and masteries across a save on purpose — so
-a seed can replace every byte of authored content and change nothing anybody can
-see. Nothing reconciles the two, by design: `GameServer.resetWorld` is the one
-place that does, over the `/reset` endpoint and `pnpm reset`, and it is
-destructive. Reach for it when the world has drifted from `data/`; not for
-anything a save could do.
+`stapes.db`, through Turso — a SQLite-compatible engine, which is the same
+storage model the Durable Object had, since `ctx.storage` was SQLite underneath.
 
-## Two dev servers, and `pnpm dev` is the one you want
+- **`server/WorldStore.ts` keeps the Durable Object's key/value shape.** Values
+  live in a `kv` table rather than normalised into per-actor and per-chunk
+  tables. That is on purpose and is not the end state: reshaping the persistence
+  of the most heavily tested file in the repo, in the same change that moved its
+  runtime, would have meant the suite proved nothing about either. Normalise
+  later, with the suite green on both sides.
+- **Writes are buffered and committed together.** `put` records synchronously
+  and `flush` commits the batch in one transaction, which is what lets
+  `saveActors` stay synchronous inside a tick. It is also what makes a death
+  atomic — `pendingDeathWrites` exists to work around a board write and an actor
+  write landing separately, and can be deleted once somebody covers it.
+- **Turso is not fully SQLite yet.** `WITH RECURSIVE` is unsupported, which one
+  test hit. Expect to meet more of these; the production statements are all
+  simple.
 
-`pnpm dev` runs everything, `/online` included: the Cloudflare Vite plugin
-proxies WebSocket upgrades through to the Worker and Durable Object, so you get
-multiplayer *and* HMR *and* `data/` on disk. Use it.
+### Authored content
 
-`pnpm dev:worker` builds and runs real workerd. It is for production fidelity —
-actual DO hibernation and checkpointing, actual eviction — not for day-to-day
-work, since it serves a build and has no HMR. It runs a file server over `data/`
-beside the Worker and points at it with `DATA_ORIGIN`, so the art loop and
-git-diffable saves behave the same in both.
+`DataStore` is unchanged, and `Blobs` still has two implementations:
 
-Two traps when testing multiplayer, both of which have cost real time:
+- **Dev — `DiskBlobs`, over `data/` on disk.** Still the single source of truth
+  while developing: an edited PNG is live on the next request, and the editor's
+  Save lands in `data/map.json` as a reviewable diff. It is a file read now. The
+  Worker had no filesystem, so this used to be an HTTP call to a Vite middleware
+  at an origin threaded through the socket handshake — all of that is gone.
+- **Deployed — `SqliteBlobs`**, in the `blob` table. A fresh deployment seeds
+  itself from the `data/` in its image on first boot, so there is no seed step in
+  any pipeline.
 
-- **Two browser tabs share a cookie**, so they are the *same* actor and it looks
-  like joining is broken. Use `localhost` in one and `127.0.0.1` in the other
-  for two cookie jars — which is why the dev server binds `--host`.
-- **`curl` is not a WebSocket client.** An upgrade probe against Vite returns an
-  empty reply while the same probe against workerd returns 101, and that
-  difference means nothing about whether the app works. Test upgrades in a
-  browser. A previous revision of this file confidently claimed Vite could not
-  proxy WebSockets at all, on exactly that evidence, while a browser tab sat
-  there connected.
-- **`pnpm dev:worker` needs an absolute `--persist-to`** (the script has one).
-  With `-c build/server/wrangler.json` the default state directory resolves next
-  to that config, so wrangler quietly creates an empty `build/server/.wrangler`,
-  every R2 read misses, and the world loads blank.
+**There is still a third copy, and it is still not `DataStore`'s.** The world
+being played prefers its own checkpoint to the authored content and carries each
+player's kit, tags and masteries across a save on purpose — so a seed can replace
+every byte and change nothing anybody can see. `POST /api/reset` is the way out,
+and it is destructive.
+
+## `bun dev` runs both halves
+
+One command, two processes: Vite for the client and `bun --watch` for the server,
+on ports `scripts/dev.ts` asks the OS for. It picks free ports because several
+worktrees run at once — with a fixed server port, the second worktree's client
+proxies to the *first* worktree's world, which looks exactly like a state bug and
+is not one.
+
+- **The database is a file in the worktree** (`./.dev/stapes.db`, gitignored), so
+  worktrees cannot collide. `rm -rf .dev` resets a branch's world.
+- **`bun --watch` runs the drain on every restart.** It sends SIGTERM before
+  restarting, so a server edit checkpoints the world, closes sockets with 1012,
+  and the page reconnects to where you were standing. The most safety-critical
+  path in the system is therefore exercised constantly by people not thinking
+  about it.
+- **Two browser tabs share a cookie**, so they are the same actor and it looks
+  like joining is broken. Use `localhost` in one and `127.0.0.1` in the other.
+  Unchanged, and still the first thing that will waste somebody an hour.
+
+## `dependencies` is what the *server* needs, and nothing else
+
+React, three, the icon sets and the rest of the client's packages are
+**devDependencies**, which looks wrong for a web app and is not. The client is
+built in continuous integration and shipped as files; the image runs
+`bun install --production` and loads none of them. Leaving them in
+`dependencies` made the image 672MB instead of 439MB, all of it code the process
+never opens.
+
+The four that stay are the ones `server/` actually reaches: `elysia`,
+`@tursodatabase/database`, `valibot` and `unique-names-generator`. If a server
+module ever needs a fifth, move it — and if the image starts growing again, this
+is the first place to look.
+
+(Unrelated but adjacent: `@react-router/dev` declares `wrangler` as an optional
+peer dependency, so a dev install still pulls workerd's binaries. They are
+devDependencies of a devDependency and never reach the image — 23 packages go in
+it — so this is disk on your laptop, not weight in production.)
+
+## The client is files on the volume, not in the image
+
+`server/clientBundle.ts` serves the built client out of `<DATA_DIR>/clients/`,
+where continuous integration posts it — `POST /api/client/upload` takes a tar
+archive, `POST /api/client/activate` makes it live. There is no bucket, no S3
+credentials and no MinIO: on a single box, object storage would mean either
+paying somebody else or running a service to talk to itself over HTTP.
+
+Two properties hold this together, and both have tests because both are easy to
+break by accident:
+
+- **A server deploy must not take the client down.** Builds are on the mounted
+  volume rather than in the image, and the server writes down which one it is
+  serving (`clients/active`) so a fresh container comes back on the same page.
+  Trusting `CLIENT_BUILD_ID` instead would roll the client back to whatever the
+  first deploy set.
+- **Upload and activate are separate.** An upload that half-finished must never
+  become the live page, and a tab that loaded five minutes ago must still be able
+  to fetch *its* chunks — so old builds stay resident and are still served.
+
+## Known: a rebirth inherits the status that killed you
+
+**Not fixed, and deliberately left for a design decision.** Reported from the
+live server: an unarmoured player walks onto a `flame`, takes `burned`, dies —
+and on rebirth burns to death again, repeatedly.
+
+The mechanism, so nobody has to find it twice:
+
+- Hit points *are* restored. `lastHpOf` reads a stored value below 1 as
+  `undefined`, which `spawn` takes as "ask the tile", so the new body is at
+  full. That is why this reads as "health is not restored" and is not.
+- **Statuses are restored verbatim.** `burned` runs up to 24 seconds and stacks,
+  so a body reborn inside that window is already burning and goes down again
+  before anybody sees the full health bar.
+- The cause is that `restoredActor` serves two events that want opposite things.
+  A **reconnect** is the same body and should keep its statuses; a **rebirth**
+  is a new body and should not inherit what killed the old one. `seatActor` is
+  on both paths and cannot currently tell them apart.
+
+The small fix is to clear statuses when seating a body whose predecessor died,
+leaving kit, tags and masteries alone. It is left undone because "what a death
+costs you" is a game design question rather than a bug — see the same tension in
+`resetWorld`, which carries kit and masteries across on purpose.
+
+## The wire has a version on it
+
+`PROTOCOL_VERSION` in `app/net/protocol.ts`. **Bump it in the same commit as any
+change to the message schemas.** The client sends it as `?v=`; a mismatch gets an
+`outdated` message and a close with 4001, and the page reloads once.
+
+Accepted-then-closed rather than refused at the upgrade, because a browser hands
+a rejected upgrade to the page as an indistinguishable failure — a client refused
+that way cannot tell "reload me" from "the server is down".
 
 ## The simulation holds N actors
 
@@ -147,12 +239,14 @@ rows wholesale for exactly that reason: a save can move the marker, and a
 remembered door into a building that no longer stands is worse than no memory
 at all.
 
-**The write must not gate the broadcast.** A Durable Object holds outgoing
-messages until preceding writes are durable, which is right for anything the
+**The write must not gate the broadcast.** The platform used to hold outgoing
+messages until preceding writes were durable, which was right for anything the
 world's consistency rests on and wrong for this: a position is a convenience,
-and paying for it with every client's latency thirty times a second is the one
-trade this object cannot afford. Hence `allowUnconfirmed: true`, and hence a
-throttled flush (`POSITION_FLUSH_INTERVAL_MS`) rather than a write per tick — a
+and paying for it with every client's latency thirty times a second is a trade
+the world cannot afford. Nothing enforces that ordering now — `WorldStore.put`
+buffers and returns — so the property holds by construction rather than by the
+old `allowUnconfirmed` flag, and the throttled flush
+(`POSITION_FLUSH_INTERVAL_MS`) stays for its own sake — a
 walking actor's cell is superseded 200ms later anyway. The guaranteed writes are
 the ones on paths that are already rare: a socket closing, and the world going
 to sleep. The rejection is swallowed on purpose; there is nothing useful to do
@@ -626,9 +720,10 @@ are load-bearing.
   neither the timing nor the range.
 - **`isAtRest` is gated on it.** A standing target used to hold the tick loop open
   by itself — correctly, since a fight is a cooldown counting down — and with
-  targeting now free of intent, that would keep a Durable Object awake for as
-  long as somebody stood watching a deer. It is a target *and* the mode that
-  costs a world its sleep.
+  targeting now free of intent, that would hold the tick loop open for as long
+  as somebody stood watching a deer. It is a target *and* the mode that costs a
+  world its sleep. The cost is a busy core rather than a bill now, and on a box
+  shared with several preview worlds that is still worth not paying.
 - **The stance is re-sent, not remembered.** `hello` seats a fresh body that is
   not swinging at anybody, so `RemoteSession` says the mode again on a world
   replacement and the page says it again on a reconnect, exactly as held
@@ -1322,8 +1417,8 @@ depend on how fast the test ran. Three things follow:
 - **`isAtRest` is gated on it**, because this loop is the only clock a countdown
   has. A world with anything decaying in it keeps ticking until that lifetime is
   up — half a minute of blood after a fight is the intended cost, an hour-long
-  lifetime would be an hour of Durable Object, and it is the *longest* end of
-  the range that sets it. Lifetimes are authored in seconds so that cost is
+  lifetime would be an hour of ticking, and it is the *longest* end of the range
+  that sets it. Lifetimes are authored in seconds so that cost is
   visible while writing one.
 - **An anonymous placement is keyed by cell plus tile id**, not by stack index:
   an index shifts the moment anything is placed under it, and blood in a doorway
@@ -1723,18 +1818,40 @@ therefore calls `invalidateAll` and drops the grid identity; the editor clears
 `lightingKey` for the same reason. Anything cleverer here would have to reason
 about edits nobody was watching.
 
-## Testing the Durable Object
+## Testing the world
 
-`workers/` runs under `@cloudflare/vitest-pool-workers` (`pnpm test:workers`),
-inside workerd with real DO storage and the bindings from `wrangler.jsonc`.
-`app/` stays on the node pool, which is far faster for plain logic.
+`server/` runs under `bun test` (`bun run test:server`), on the runtime it
+deploys to, against a real database file in a temporary directory. `app/` stays
+on vitest, which is far faster for plain logic.
 
-The split exists because **three bugs in `GameServer` all lived in the
-load / restore / checkpoint path and were invisible to a node test** — the
-object has to be constructed from a checkpoint for any of them to appear. That
-path is not exotic: every hibernation wake runs it.
+The split is the one this repo already had, and for the same reason: **three
+bugs in `GameServer` all lived in the load / restore / checkpoint path and were
+invisible to a test against a stub** — the world has to be built from a real
+checkpoint for any of them to appear. What has changed is only which runtime is
+"real". It was workerd because that is where the code ran; it is Bun now, and a
+real on-disk database rather than `:memory:` because WAL behaviour and reopening
+are exactly what those paths turn on.
 
-Two rules learned the hard way here:
+Vitest cannot be that runner. It drives tests through worker threads and the
+database is a native module that does not survive the trip — a `connect()` that
+throws in a second flat under `bun test` hangs indefinitely under vitest.
+
+`server/testHarness.ts` provides what `cloudflare:test` used to. Two things about
+it are worth knowing before writing a test:
+
+- **Each test gets its own world**, on its own database file, created in
+  `beforeEach`. This was not true of the workerd suite — every test there shared
+  one object, one disk and every socket ever opened, and tests had to use a fresh
+  actor id per case (`freshPlayer()`) to avoid inheriting the previous one's
+  stored state and a phantom connection. That hazard is gone; the `freshPlayer`
+  discipline is now belt and braces rather than load-bearing.
+- **Frames are queued, not delivered straight to whoever is listening.** A
+  browser buffers what arrives until the page next runs, so `await thing(); await
+  nextMessage(ws)` works — delivering eagerly would drop the frame before the
+  listener existed. A test that wants only what comes *next* says so with
+  `record(ws)`, which discards what is pending first.
+
+Two rules learned the hard way, which still hold:
 
 - **Revert one fix at a time when proving a test can fail.** Reverting all three
   at once made two of the three tests pass, because the first revert changed
@@ -1742,18 +1859,10 @@ Two rules learned the hard way here:
   player tile as the marker, so without the carried spawn point it deleted the
   very body the duplication test was looking for. Three green tests, nothing
   tested.
-- **Assert position, not just count.** "Exactly one body" passes whether an
-  actor was re-seated on the body they had or handed a fresh one at spawn.
-  Checkpoint them away from the spawn cell so the two outcomes differ; that is
-  what caught the accept-before-load bug.
-- **Every test in the file shares one world, one disk and every socket ever
-  opened.** Nothing resets the object between tests, and a socket a previous
-  test left open still answers `getWebSockets()` — so its owner is still "live"
-  at the next wake. Reusing an actor name therefore carries the previous test's
-  stored state *and* a phantom connection into the next one, which is fatal for
-  anything about outliving a connection: use a fresh id per test
-  (`freshPlayer()`). Two permanence tests passed for the wrong reason before
-  that, and a third failed for it.
+- **Assert position, not just count.** "Exactly one body" passes whether an actor
+  was re-seated on the body they had or handed a fresh one at spawn. Checkpoint
+  them away from the spawn cell so the two outcomes differ; that is what caught
+  the accept-before-load bug.
 
 ## Verifying performance work
 

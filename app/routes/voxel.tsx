@@ -4,8 +4,14 @@ import type { Route } from "./+types/voxel";
 import { AppShell } from "../components/AppShell";
 import { DirectionPreview } from "../components/voxel/DirectionPreview";
 import { SliceEditor, type SliceTool } from "../components/voxel/SliceEditor";
-import { dataStore } from "../context";
-import { readPngSize } from "../lib/storage.server";
+import {
+  fetchTiles,
+  fetchTilesets,
+  saveTiles,
+  saveTilesets,
+  uploadTileset,
+} from "../lib/api";
+import { readPngSize } from "../lib/png";
 import { CELL_SIZE, DIRECTIONS } from "../lib/types";
 import type { TileDef, TileHeight, TilesetDef } from "../lib/types";
 import {
@@ -43,8 +49,7 @@ const DEFAULT_PALETTE = [
   "#e8e0cf",
 ];
 
-export async function action({ context, request }: Route.ActionArgs) {
-  const store = dataStore(context);
+export async function clientAction({ request }: Route.ClientActionArgs) {
   const form = await request.formData();
   const intent = String(form.get("intent") ?? "");
   if (intent !== "export-tileset") return { ok: false, error: "Unknown intent" };
@@ -64,8 +69,8 @@ export async function action({ context, request }: Route.ActionArgs) {
 
   const id = slugify(name);
   const fileName = `${id}.png`;
-  await store.writeTilesetPng(fileName, bytes);
-  const tilesets = await store.readTilesets();
+  await uploadTileset(new File([bytes], fileName, { type: "image/png" }), fileName);
+  const tilesets = await fetchTilesets();
   const def: TilesetDef = {
     id,
     name,
@@ -76,16 +81,16 @@ export async function action({ context, request }: Route.ActionArgs) {
   const idx = tilesets.findIndex((t) => t.id === id);
   if (idx >= 0) tilesets[idx] = def;
   else tilesets.push(def);
-  await store.writeTilesets(tilesets);
+  await saveTilesets(tilesets);
 
   const tileRaw = String(form.get("tile") ?? "");
   if (tileRaw) {
     const tile = JSON.parse(tileRaw) as TileDef;
-    const tiles = await store.readTiles();
+    const tiles = await fetchTiles();
     const tileIdx = tiles.findIndex((t) => t.id === tile.id);
     if (tileIdx >= 0) tiles[tileIdx] = tile;
     else tiles.push(tile);
-    await store.writeTiles(tiles);
+    await saveTiles(tiles);
   }
 
   return { ok: true, intent, tilesetId: id };
@@ -721,7 +726,7 @@ function ExportDialog({
   project: VoxelProject;
   render: RenderOptions;
 }) {
-  const fetcher = useFetcher<typeof action>();
+  const fetcher = useFetcher<typeof clientAction>();
   const toast = useToast();
   const [name, setName] = useState(project.name);
   const [createTile, setCreateTile] = useState(true);

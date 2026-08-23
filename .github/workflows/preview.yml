@@ -1,144 +1,110 @@
-# A whole Worker per pull request, at a URL you can open and play.
+# A world per pull request.
 #
-# Cloudflare does not generate preview URLs for a Worker that implements a
-# Durable Object, and this one does — so there is no version to point at and a
-# preview has to be a Worker of its own. `stapes-pr-<n>` is a distinct name,
-# which means a distinct Durable Object namespace: the `v1` migration runs
-# fresh, the world has no checkpoint, and it loads from R2 on first request.
+# One container, because the server serves its own client: there is no separate
+# static site and no per-PR proxy rule beyond the hostname. And nothing to
+# provision for state — the container comes up against an empty volume, builds
+# its own world from the `data/` in its image, and Coolify destroys the volume
+# with the PR.
 #
-# The bucket is `stapes-data-preview`, never production's. The deployed editor
-# writes to `DATA`, so a preview bound to `stapes-data` could publish a branch's
-# map over the live world.
+# **Coolify owns the container; this workflow owns the client.** The pull-request
+# webhook is what creates and deploys a preview, and what destroys it on close —
+# the deploy API cannot do the first of those. `POST /api/v1/deploy?pr=N` only
+# looks up a preview record that a webhook already made, and answers
+# "Pull request N not found for this resource" when none exists. So there is
+# nothing here to trigger a deploy with, and nothing to tear down.
+#
+# What is left is the one thing Coolify cannot do: the client is deliberately
+# not in the image — see `Dockerfile` — so a preview that is only deployed comes
+# up healthy and serves a 404. This builds one and posts it, the same three
+# steps `deploy.yml` uses for production.
+#
+# It does not comment the URL either. The same webhook that deploys the preview
+# has already said so on the pull request, with links to the build and container
+# logs beside it — a second comment carrying the same link is noise.
 name: PR preview
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, closed]
+    types: [opened, synchronize, reopened]
 
-# A branch pushed twice in a minute does not need the first deploy. Keyed on the
-# PR rather than the ref so the teardown below cannot race its own deploy.
 concurrency:
   group: preview-${{ github.event.number }}
   cancel-in-progress: true
 
-env:
-  WRANGLER_SEND_METRICS: "false"
-
 jobs:
-  deploy:
-    name: deploy preview
-    # Forks do not get the repository's secrets, so the deploy would fail on
+  client:
+    name: client for preview
+    # Forks do not get the repository's secrets, so this would fail on
     # authentication rather than on anything the contributor did.
-    if: >-
-      github.event.action != 'closed' &&
-      github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      pull-requests: write
+    env:
+      # Deterministic rather than read back: Coolify's compose deployments have
+      # a known gap where the preview URL is not returned, and every step below
+      # needs the hostname before the deploy has finished.
+      PREVIEW_ORIGIN: https://pr-${{ github.event.number }}.${{ vars.PREVIEW_DOMAIN }}
     steps:
       - uses: actions/checkout@v5
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10
-
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: pnpm
-
-      - run: pnpm install --frozen-lockfile
-
-      # `CLOUDFLARE_ENV` is read by the Cloudflare Vite plugin, which resolves
-      # wrangler.jsonc at *build* time into `build/server/wrangler.json`. That
-      # generated config is what `wrangler deploy` reads, so passing `--env` at
-      # deploy time would be silently ignored — the environment has to be chosen
-      # here or the preview comes up bound to the production bucket.
-      - name: Build
-        run: pnpm build
+      # Production and every preview share one machine, so the count is worth
+      # saying out loud. This is a **warning and not a gate**: the container is
+      # already coming up by the time this runs, because Coolify deploys it
+      # straight off the pull-request webhook. Failing here would leave a red
+      # mark and an oversubscribed box rather than just an oversubscribed box.
+      # The real ceiling is the memory limit on the preview application, which
+      # is what keeps a crowded box from taking production down with it.
+      - name: Say if the box is crowded
         env:
-          CLOUDFLARE_ENV: preview
-
-      # Before the deploy, not after. A fresh Worker's Durable Object loads the
-      # world from R2 on its first request and then keeps its own checkpoint, so
-      # content that lands after somebody has opened the preview is content
-      # nobody sees.
-      #
-      # One bucket serves every open PR. A second PR's seed replaces the first's
-      # `map.json`, but the first's world is already checkpointed and carries on
-      # unaffected. Tiles have no checkpoint, so a preview can draw with another
-      # branch's tile definitions — the price of not creating a bucket per PR.
-      - name: Seed preview bucket
-        run: pnpm seed --remote
-        env:
-          CLOUDFLARE_ENV: preview
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-
-      - name: Deploy
-        id: deploy
+          GH_TOKEN: ${{ github.token }}
         run: |
-          set -o pipefail
-          npx wrangler deploy --name "stapes-pr-${{ github.event.number }}" \
-            | tee deploy.log
-          url="$(grep -oE 'https://stapes-pr-[0-9]+\.[a-z0-9-]+\.workers\.dev' deploy.log | head -1)"
-          if [ -z "$url" ]; then
-            echo "No workers.dev URL in the deploy output." >&2
-            exit 1
+          OPEN=$(gh pr list --state open --json number --jq 'length')
+          MAX=${{ vars.MAX_PREVIEWS || 4 }}
+          if [ "$OPEN" -gt "$MAX" ]; then
+            echo "::warning::$OPEN pull requests are open and about $MAX previews fit on this box. Close one, or raise MAX_PREVIEWS once the machine is bigger."
           fi
-          echo "url=$url" >> "$GITHUB_OUTPUT"
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
-      - name: Summary
-        # A block scalar, and not for length: an unquoted `run:` value is a
-        # plain YAML scalar, where a colon-and-space is read as the start of a
-        # mapping key. "Preview: " made the whole file fail to load.
-        run: |
-          echo "Preview: ${{ steps.deploy.outputs.url }}" >> "$GITHUB_STEP_SUMMARY"
-
-      # Only when the PR opens. The name is derived from the PR number, so the
-      # URL is the same for every push to it and a comment per push would be the
-      # same sentence over and over.
-      - name: Comment the link
-        if: github.event.action == 'opened' || github.event.action == 'reopened'
-        run: |
-          printf '%s\n\n%s\n' \
-            "Preview: ${{ steps.deploy.outputs.url }}" \
-            "A world of its own, seeded from this branch's \`data/\`. It goes when the PR closes." \
-            > comment.md
-          gh pr comment "${{ github.event.number }}" --body-file comment.md
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  destroy:
-    name: destroy preview
-    if: >-
-      github.event.action == 'closed' &&
-      github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: pnpm/action-setup@v4
+      - uses: oven-sh/setup-bun@v2
         with:
-          version: 10
+          bun-version: 1.3.8
 
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 24
-          cache: pnpm
+      - run: bun install --frozen-lockfile
+      - run: bun run build
 
-      - run: pnpm install --frozen-lockfile
+      # A first deploy builds the image from scratch on a shared box, so this is
+      # generous. It also covers Traefik's first Let's Encrypt issuance for the
+      # hostname, which is why the failures are tolerated rather than fatal
+      # until the budget runs out.
+      - name: Wait for the world to come up
+        run: |
+          for i in $(seq 1 90); do
+            if curl -fsS --max-time 5 "${PREVIEW_ORIGIN}/api/health" | grep -q '"status":"ok"'; then
+              echo "healthy after ${i} attempts"; exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::preview did not come up healthy within fifteen minutes"
+          exit 1
 
-      # `--force` because the Worker owns a Durable Object namespace and the
-      # prompt that guards deleting one has nobody to answer it here. Nothing
-      # else binds to it: the namespace was created by this Worker and dies
-      # with it, taking the preview's world with it.
-      - name: Delete the Worker
-        run: npx wrangler delete "stapes-pr-${{ github.event.number }}" --force
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      # Upload then activate, the same two steps as production. There is no old
+      # client in front of this server, so the ordering that matters there does
+      # not here — but the split is what keeps a half-finished upload from
+      # becoming the live page.
+      - name: Upload the client
+        run: |
+          tar -cf client.tar -C build/client .
+          curl --fail-with-body -sS -X POST "${PREVIEW_ORIGIN}/api/client/upload" \
+            -H "Authorization: Bearer ${{ secrets.PREVIEW_ADMIN_SECRET }}" \
+            -F "buildId=${{ github.event.pull_request.head.sha }}" \
+            -F "archive=@client.tar"
+
+      - name: Activate the client
+        run: |
+          curl --fail-with-body -sS -X POST "${PREVIEW_ORIGIN}/api/client/activate" \
+            -H "Authorization: Bearer ${{ secrets.PREVIEW_ADMIN_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{"buildId":"${{ github.event.pull_request.head.sha }}"}'
+
+      - name: Say what is live
+        run: curl -sS "${PREVIEW_ORIGIN}/api/health"

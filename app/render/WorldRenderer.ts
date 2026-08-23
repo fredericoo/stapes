@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { tilesetUrl } from "../lib/api";
 import {
   absoluteElevation,
   baseCellWorldOrigin,
@@ -1268,7 +1269,7 @@ export class WorldRenderer {
         if (this.textures.has(ts.id)) return;
         const loader = new THREE.TextureLoader();
         try {
-          const tex = await loader.loadAsync(`/tilesets/${ts.file}`);
+          const tex = await loader.loadAsync(tilesetUrl(ts.file));
           tex.magFilter = THREE.NearestFilter;
           tex.minFilter = THREE.NearestFilter;
           tex.generateMipmaps = false;
