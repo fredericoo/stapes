@@ -1010,6 +1010,7 @@ export function TileEditorDialog({
               onChange={setDraft}
               tiles={tiles}
               tilesets={tilesets}
+              statusDefs={statusDefs}
             />
           </TabPanel>
 

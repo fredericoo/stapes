@@ -24,6 +24,7 @@ import {
   canPushFrom,
   canRewardFrom,
   canSwitchFrom,
+  canAddStatusFrom,
   canTeleportFrom,
   type ObjectRef,
 } from "../game/affordances";
@@ -1590,6 +1591,12 @@ export class RemoteSession implements PlaySession {
       // has room is a question about who is making the trip.
       this.canTeleport(loc, ref) ||
       canSwitchFrom(this.map, this.tilesById, loc, ref) ||
+      // No wrapper, unlike the teleport above: a status asks nothing about the
+      // body taking it that this side would have to look up. Whether the presser
+      // has hit points to lose is the server's question and it is asked there —
+      // everything this client can drive is a battler, so a row this offers is
+      // one the server will honour.
+      canAddStatusFrom(this.map, this.tilesById, loc, ref) ||
       canEquipFrom(this.map, this.tilesById, loc, ref, this.equipment) ||
       canPickUpFrom(this.map, this.tilesById, loc, ref, this.equipment) ||
       canPushFrom(this.map, this.tilesById, loc, ref)

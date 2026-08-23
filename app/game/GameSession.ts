@@ -6,7 +6,11 @@ import {
   removeTileAt,
   replaceStack,
 } from "../lib/mapData";
-import { resolveSwitch, resolveTeleport } from "../lib/interactions";
+import {
+  resolveAddStatus,
+  resolveSwitch,
+  resolveTeleport,
+} from "../lib/interactions";
 import {
   type ConsumableItem,
   isItem,
@@ -38,6 +42,7 @@ import {
   type ActorLocation,
 } from "./actors";
 import {
+  canAddStatusFrom,
   canConsumeFrom,
   canEquipFrom,
   dropDestinationAt,
@@ -49,6 +54,7 @@ import {
   canTeleportFrom,
   equipSlotFrom,
   interactiveDefAt,
+  reachableAddStatusAt,
   reachableRewardAt,
   reachableTeleportAt,
   rewardFits,
@@ -4310,6 +4316,74 @@ export class GameSession implements PlaySession {
     return true;
   }
 
+  canAddStatus(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
+    const actor = this.actor(id);
+    if (!this.idle(actor)) return false;
+    if (this.hpOf(actor) === null) return false;
+    return canAddStatusFrom(this.map, this.tilesById, this.locate(actor), ref);
+  }
+
+  /**
+   * Put the authored condition on whoever pressed this. Returns false when the
+   * gesture is not on offer.
+   *
+   * The pressed half only — a `step` one never arrives here, because there is no
+   * press to route. See {@link statusOnArrival}, which fires those.
+   *
+   * **Only a body with hit points takes it**, which is the one refusal this has
+   * that the board cannot answer: every effect a status has is arithmetic on hit
+   * points or on the stats a fight is fought with, so a crate left burning would
+   * be a countdown nobody could see and a row that visibly did nothing. That
+   * makes it the same rule `tickStatuses` already runs on — a bearer with no
+   * battler is skipped — asked one step earlier so the row is never offered.
+   */
+  activateAddStatus(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
+    const actor = this.actor(id);
+    if (!this.idle(actor)) return false;
+    if (this.hpOf(actor) === null) return false;
+
+    const loc = this.locate(actor);
+    const addStatus = reachableAddStatusAt(this.map, this.tilesById, loc, ref);
+    if (!addStatus) return false;
+
+    this.grantStatus(actor, { id: addStatus.statusId });
+    return true;
+  }
+
+  /**
+   * Take on whatever this actor has just arrived on top of.
+   *
+   * The `step` trigger, and the twin of {@link teleportOnArrival} in every way
+   * that matters: asked once per tick per actor whose cell changed, asked of
+   * every actor rather than only of players, and read top down so a pad with a
+   * rug over it can be buried by its author.
+   *
+   * **Before the teleport, and that is the order that makes a trapdoor of fire
+   * work**: it burns you where you landed and *then* takes you elsewhere. The
+   * other way round the flame would be a tile the traveller was never on.
+   *
+   * A body with no hit points is left alone, on {@link activateAddStatus}'s own
+   * argument: nothing a status does is visible on something that cannot be hurt.
+   */
+  private statusOnArrival(actor: ActorRuntime) {
+    if (this.hpOf(actor) === null) return;
+
+    const loc = this.locate(actor);
+    const stack = getStack(this.map, loc.x, loc.y, loc.z);
+
+    for (let i = stack.length - 1; i >= 0; i--) {
+      // Their own body, and anything riding above it. Neither is the floor they
+      // stepped onto.
+      if (i >= loc.stackIndex) continue;
+      const placed = stack[i]!;
+      const def = this.tilesById[placed.tileId];
+      const addStatus = def ? resolveAddStatus(def) : null;
+      if (!addStatus || addStatus.trigger !== "step") continue;
+      this.grantStatus(actor, { id: addStatus.statusId });
+      return;
+    }
+  }
+
   /**
    * Put a body down at the far end of a teleport, whatever set it off.
    *
@@ -4411,6 +4485,10 @@ export class GameSession implements PlaySession {
       // tap on its hinge and leave them standing where they were.
       this.activateTeleport(ref, id) ||
       this.activateSwitch(ref, id) ||
+      // Below the switch, because a brazier authored to both light a room and
+      // burn the hand that lit it should light the room: the half of the tap the
+      // player can see is the half they were aiming at.
+      this.activateAddStatus(ref, id) ||
       this.equip(ref, id) ||
       this.pickUp(ref, id) ||
       this.push(ref, id);
@@ -4424,6 +4502,7 @@ export class GameSession implements PlaySession {
       this.canTakeReward(ref, id) ||
       this.canTeleport(ref, id) ||
       this.canSwitch(ref, id) ||
+      this.canAddStatus(ref, id) ||
       this.canEquip(ref, id) ||
       this.canPickUp(ref, id) ||
       this.canPush(ref, id)
@@ -4457,6 +4536,7 @@ export class GameSession implements PlaySession {
 
     const to = this.locate(actor);
     if (to.x === from.x && to.y === from.y && to.z === from.z) return;
+    this.statusOnArrival(actor);
     this.teleportOnArrival(actor);
   }
 
