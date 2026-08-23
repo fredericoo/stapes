@@ -185,13 +185,18 @@ PREVIEW_DOMAIN=preview.example.com
 MAX_PREVIEWS=4
 ```
 
-Push to `main`. The client job builds, posts the archive to
-`/api/client/upload`, and calls `/api/client/activate` — the page goes live
-without the server restarting and without anybody being disconnected.
+Push to `main` and both halves deploy. There are no players yet, so a couple of
+seconds of downtime per merge costs nothing and buys a pipeline nobody has to
+think about.
 
-**The server only redeploys when a commit message contains `[server]`**, or when
-you run the workflow by hand. Most commits are client-only, and restarting for
-those would disconnect everybody to ship a colour.
+The order in `deploy.yml` is the one thing worth knowing: it uploads the client
+*without activating it*, restarts the server, waits for health, and only then
+activates. Uploading is inert and the files survive the restart on the volume,
+so this keeps a `PROTOCOL_VERSION` bump survivable — the other order puts a new
+client in front of an old server and every tab reload-loops until they match.
+
+`workflow_dispatch` is on the same workflow, so you can redeploy from GitHub's
+mobile app or with `gh workflow run deploy.yml` without an empty commit.
 
 ---
 
