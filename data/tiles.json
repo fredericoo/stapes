@@ -1437,34 +1437,6 @@
     }
   },
   {
-    "id": "roof-2",
-    "name": "Roof",
-    "height": 2,
-    "type": "simple",
-    "kind": "prop",
-    "attributes": {},
-    "sprite": {
-      "frames": [
-        {
-          "sprite": {
-            "tilesetId": "tiny-ranch-tiles",
-            "rect": {
-              "x": 14,
-              "y": 5,
-              "w": 2,
-              "h": 1
-            },
-            "base": {
-              "x": 1,
-              "y": 0
-            }
-          },
-          "durationMs": 200
-        }
-      ]
-    }
-  },
-  {
     "id": "roof-3",
     "name": "Roof",
     "height": 1,
@@ -1827,8 +1799,8 @@
           "sprite": {
             "tilesetId": "tiny-ranch-tiles",
             "rect": {
-              "x": 18,
-              "y": 6,
+              "x": 0,
+              "y": 10,
               "w": 2,
               "h": 2
             },
