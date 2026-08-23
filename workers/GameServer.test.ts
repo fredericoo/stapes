@@ -3269,6 +3269,77 @@ describe("dying and coming back", () => {
     expect(equipment.bag?.contents).toEqual([]);
   });
 
+  /**
+   * Hurt somebody, put something on them, and make both facts durable — the
+   * state a death has to undo rather than inherit.
+   *
+   * White-box on the same terms {@link killAndTick} is, and the forced flush is
+   * the load-bearing part: the periodic one is thirty seconds away, and what is
+   * under test is what a death does to rows a *previous* flush already wrote.
+   */
+  async function hurtAndPoisoned(actorId: string) {
+    await runInDurableObject(stub(), (instance: GameServer) => {
+      const internals = instance as unknown as {
+        session: {
+          actors: Map<string, unknown>;
+          actorIds(): Iterable<string>;
+          applyDamage(actor: unknown, amount: number): void;
+          grantStatus(actor: unknown, grant: { id: string }): void;
+        };
+        saveActors(actorIds: Iterable<string>, force: boolean): void;
+      };
+      const body = internals.session.actors.get(actorId);
+      expect(body).toBeDefined();
+      internals.session.applyDamage(body, 1);
+      // Every five seconds, so nothing it does can land inside a test — what is
+      // wanted here is a condition that is *running*, not one that is ticking.
+      internals.session.grantStatus(body, { id: "poison" });
+      internals.saveActors(internals.session.actorIds(), true);
+    });
+  }
+
+  async function storedBody(actorId: string) {
+    return await runInDurableObject(stub(), async (_instance, state) => ({
+      hp: await state.storage.get<{ hp: number | null }>(`hp:${actorId}`),
+      statuses: await state.storage.get<{ statuses: { defId: string }[] }>(
+        `status:${actorId}`,
+      ),
+    }));
+  }
+
+  it("writes away the health and the conditions they died with", async () => {
+    await armedAlice();
+    await hurtAndPoisoned("alice");
+    // The premise: storage holds a hurt, poisoned body. Without this the test
+    // passes on a world that never wrote either row.
+    const before = await storedBody("alice");
+    expect(before.hp?.hp).toBeGreaterThan(0);
+    expect(before.statuses?.statuses).toHaveLength(1);
+
+    await killAndTick("alice");
+
+    const after = await storedBody("alice");
+    // Null rather than absent, because a delete cannot ride in the batch that
+    // drops the body — and it reads as "ask the tile" either way.
+    expect(after.hp?.hp).toBeNull();
+    expect(after.statuses?.statuses).toEqual([]);
+  });
+
+  it("brings them back under nothing, on full health", async () => {
+    const alice = await armedAlice();
+    await hurtAndPoisoned("alice");
+    await killAndTick("alice");
+
+    send(alice.ws, { type: "rebirth" });
+    const hello = await messageWithin(alice.ws, "hello", 1000);
+
+    expect(hello!.statuses).toEqual([]);
+    const mine = (
+      hello!.hps as { actorId: string; hp: number; maxHp: number }[]
+    ).find((entry) => entry.actorId === "alice");
+    expect(mine!.hp).toBe(mine!.maxHp);
+  });
+
   it("brings them back on full hit points", async () => {
     await armedAlice();
     await killAndTick("alice");

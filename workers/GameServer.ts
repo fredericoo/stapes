@@ -1539,6 +1539,29 @@ export class GameServer extends DurableObject<Env> {
           savedAt,
         };
       }
+      // **Reset, not remembered — and unconditionally, like the kit above.**
+      // These are the two rows a death would otherwise leave exactly as they
+      // were, because the loop above skips a body with no position and this one
+      // never touched them. What storage holds at that moment is whatever the
+      // last flush caught: a fraction of a health bar, and whatever was eating
+      // through it. Coming back on three hit points still poisoned is coming
+      // back to die again, and by a debt run up by a body that no longer
+      // exists.
+      //
+      // The rule underneath is that a rebirth is a fresh `player` body and not
+      // a repaired corpse. Position, kit and these two are all there is to that
+      // body; the tags and the masteries are the person rather than the body,
+      // which is why they ride across a death and these do not.
+      //
+      // A stored null and an empty list rather than two deletes, on exactly the
+      // grounds the kit is written rather than deleted: a delete cannot ride in
+      // this `put`, and a second call is a second moment at which these and the
+      // board can disagree. Both read back as "nothing to restore" — see
+      // {@link lastHpOf}, which takes a stored null and an absent key as the
+      // same fact, and {@link GameSession.spawn}, which takes an empty list as
+      // under nothing.
+      entries[this.hpKey(actorId)] = { hp: null, savedAt };
+      entries[this.statusesKey(actorId)] = { statuses: [], savedAt };
     }
     this.pendingDeathWrites.clear();
 
