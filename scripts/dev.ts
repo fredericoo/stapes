@@ -31,8 +31,26 @@ function freePort(): Promise<number> {
   });
 }
 
-const serverPort = await freePort();
-const clientPort = await freePort();
+/**
+ * A port somebody asked for, or a free one.
+ *
+ * Free ports are right for a person at a keyboard and wrong for anything that
+ * has to *find* the result: Playwright needs a URL before the thing it points
+ * at exists, so it has to be the one choosing. Pinning is opt-in so the
+ * several-worktrees case above keeps working untouched.
+ */
+async function portFor(variable: string): Promise<number> {
+  const pinned = process.env[variable];
+  if (pinned === undefined) return await freePort();
+  const port = Number(pinned);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new Error(`${variable} is "${pinned}", which is not a port`);
+  }
+  return port;
+}
+
+const serverPort = await portFor("STAPES_SERVER_PORT");
+const clientPort = await portFor("STAPES_CLIENT_PORT");
 const serverOrigin = `http://localhost:${serverPort}`;
 
 const children: ChildProcess[] = [];
