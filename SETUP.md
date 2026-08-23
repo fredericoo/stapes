@@ -293,6 +293,17 @@ races `deploy.yml`. Leaving production on its deploy key is what keeps the two
 apart — a GitHub App's webhook only matches applications whose source is that
 app.
 
+**Create the preview application against the GitHub App from the start.** An
+existing application cannot be moved onto one: `PATCH /applications/{uuid}` with
+a `github_app_uuid` answers `422 {"github_app_uuid":["This field is not
+allowed."]}`, even though the field is in its schema. There is nothing to do but
+delete it and post it again to `/applications/private-github-app`, and deletion
+is queued rather than immediate — the domain stays claimed for a few seconds
+after the call returns, so a recreate that races it fails on a domain conflict.
+
+`git_repository` changes shape with the source, too: `owner/repo` for a GitHub
+App, the `git@github.com:owner/repo.git` URL for a deploy key.
+
 A second Coolify application, same repository, same server:
 
 - **Domain**: `https://pr-{{pr_id}}.preview.example.com`
