@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { chunkifyMap } from "./mapData";
 import type { FlatMapFile } from "./types";
-import mapFile from "../../data/map.json";
 import tilesFile from "../../data/tiles.json";
 import {
   VIEW_RADIUS,
@@ -202,29 +201,71 @@ describe("levelsAboveShouldHide", () => {
   });
 });
 
-describe("levelsAboveShouldHide on the current map", () => {
-  const map = chunkifyMap(mapFile as FlatMapFile);
+/**
+ * The scenarios the shipped map used to be read for, rebuilt cell by cell out
+ * of the real tile catalogue.
+ *
+ * Reading `data/map.json` meant each case pinned a coordinate in a file the
+ * editor rewrites: swapping one wall of the square for a window flipped an
+ * expectation and broke the build, which says nothing about this code. What is
+ * worth keeping is that the shipped tiles — their heights, their light-passing
+ * flags — really do drive the roof-cut, so the tile definitions stay real and
+ * only the geometry is local.
+ */
+describe("levelsAboveShouldHide with the shipped tiles", () => {
   const mapTiles = tilesByIdFromList(
     (tilesFile as Array<Parameters<typeof normalizeTileDef>[0]>).map((t) =>
       normalizeTileDef(t),
     ),
   );
+  const origin = { x: 0, y: 0, z: 0 };
 
-  it.each([
-    // Covered house doorway at 12,5 — within 2.5 and clear LOS
-    [{ x: 10, y: 5, z: 0 }, true],
-    [{ x: 10, y: 4, z: 0 }, true],
-    [{ x: 10, y: 6, z: 0 }, true],
-    // Outside radius of the house
-    [{ x: 9, y: 5, z: 0 }, false],
-    // Against the solid east wall — no LOS in
-    [{ x: 17, y: 5, z: 0 }, false],
-    // Next to the window looking into the tall covered building
-    [{ x: 17, y: -6, z: 0 }, true],
-    // Against the solid wall, away from the window
-    [{ x: 17, y: -4, z: 0 }, false],
-  ] as const)("%j → hide=%s", (view, hide) => {
-    expect(levelsAboveShouldHide(map, mapTiles, view)).toBe(hide);
+  it("hides on the path two cells from a roofed doorway", () => {
+    const map = mapAt([
+      { x: 0, y: 0, tiles: ["grass-2", "cobblestone"] },
+      { x: 1, y: 0, tiles: ["grass-2", "cobblestone"] },
+      { x: 2, y: 0, tiles: ["wooden-floor"] },
+      { x: 2, y: 0, z: 1, tiles: ["roof-1"] },
+    ]);
+    expect(levelsAboveShouldHide(map, mapTiles, origin)).toBe(true);
+  });
+
+  it("does not hide one cell further back, outside the radius", () => {
+    const map = mapAt([
+      { x: 0, y: 0, tiles: ["grass-2", "cobblestone"] },
+      { x: 1, y: 0, tiles: ["grass-2", "cobblestone"] },
+      { x: 2, y: 0, tiles: ["grass-2", "cobblestone"] },
+      { x: 3, y: 0, tiles: ["wooden-floor"] },
+      { x: 3, y: 0, z: 1, tiles: ["roof-1"] },
+    ]);
+    expect(levelsAboveShouldHide(map, mapTiles, origin)).toBe(false);
+  });
+
+  it("does not hide standing against a roofed building's solid wall", () => {
+    const map = mapAt([
+      { x: 0, y: 0, tiles: ["grass-2", "dirt"] },
+      { x: 1, y: 0, tiles: ["grass-2", "dirt", "wooden-floor", "sw2"] },
+      { x: 1, y: 0, z: 1, tiles: ["roof-1"] },
+    ]);
+    expect(levelsAboveShouldHide(map, mapTiles, origin)).toBe(false);
+  });
+
+  it("hides next to a window into a building with a storey above", () => {
+    const map = mapAt([
+      { x: 0, y: 0, tiles: ["grass-2", "dirt"] },
+      { x: 1, y: 0, tiles: ["grass-2", "dirt", "wooden-floor", "window-1"] },
+      { x: 1, y: 0, z: 1, tiles: ["wooden-floor", "sw2"] },
+    ]);
+    expect(levelsAboveShouldHide(map, mapTiles, origin)).toBe(true);
+  });
+
+  it("does not hide against that same building away from the window", () => {
+    const map = mapAt([
+      { x: 0, y: 0, tiles: ["grass-2", "dirt"] },
+      { x: 1, y: 0, tiles: ["grass-2", "dirt", "wooden-floor", "sw2"] },
+      { x: 1, y: 0, z: 1, tiles: ["wooden-floor", "sw2"] },
+    ]);
+    expect(levelsAboveShouldHide(map, mapTiles, origin)).toBe(false);
   });
 });
 
