@@ -1,10 +1,6 @@
-import {
-  env,
-  fetchMock,
-  runDurableObjectAlarm,
-  runInDurableObject,
-} from "cloudflare:test";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "bun:test";
+import { Harness, Pair, type TestSocket } from "./testHarness";
+import type { WorldStore } from "./WorldStore";
 import tilesJson from "../data/tiles.json";
 import statusesJson from "../data/statuses.json";
 import {
@@ -15,7 +11,6 @@ import {
   WALK_DURATION_MS,
 } from "../app/game/constants";
 import { MINUTES_PER_DAY, minutesOfDayAt } from "../app/lib/clock";
-import { DEV_DATA_PREFIX } from "../app/lib/devData";
 import { resolvePush } from "../app/lib/interactions";
 import { chunkKeyFor, getStack, listCoords } from "../app/lib/mapData";
 import { xpForLevel } from "../app/lib/mastery";
@@ -35,6 +30,9 @@ import {
  * content now, so there is no constant in the engine left to import.
  */
 const BAG_TILE_ID = "basic-bag";
+
+/** Content type for the authored JSON the tests seed. */
+const JSON_TYPE = "application/json";
 
 /**
  * The Durable Object's load / restore / checkpoint path, in the runtime it
@@ -115,8 +113,38 @@ function playerCells(map: FlatMapFile): number[] {
   return found.sort();
 }
 
-function stub() {
-  return env.GAME.getByName("world");
+/**
+ * The world under test, rebuilt for each case.
+ *
+ * A module-level handle rather than a parameter, because that is the shape the
+ * suite was already written against — `stub()` returned the one world, and
+ * every test below reads like it still does.
+ */
+let harness: Harness;
+
+function stub(): Harness["server"] {
+  return harness.server;
+}
+
+/**
+ * `runInDurableObject`, without a Durable Object.
+ *
+ * The platform version crossed an RPC boundary to reach inside a live instance
+ * for its private fields and its raw storage. There is no boundary now, so the
+ * white-box access it existed to provide is simply a function call — and the
+ * `state.storage` the callbacks read is the real store, against a real file.
+ */
+async function runInDurableObject<T>(
+  server: Harness["server"],
+  fn: (instance: Harness["server"], state: { storage: WorldStore }) => T | Promise<T>,
+): Promise<T> {
+  return await fn(server, { storage: harness.store });
+}
+
+/** `runDurableObjectAlarm`. The alarm is an ordinary method now. */
+async function runDurableObjectAlarm(server: Harness["server"]): Promise<boolean> {
+  await server.alarm();
+  return true;
 }
 
 /** Every player placement in a flat map, as `owner` values. */
@@ -132,10 +160,15 @@ function playerOwners(map: FlatMapFile): (string | undefined)[] {
   return found;
 }
 
+/** workerd's `scheduler.wait`, which this no longer runs on. */
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /** How long a test waits for the world to say something before giving up. */
 const MESSAGE_TIMEOUT_MS = 5000;
 
-function nextMessage(ws: WebSocket): Promise<Record<string, unknown>> {
+function nextMessage(ws: TestSocket): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     const timer = setTimeout(
       () => reject(new Error("no message")),
@@ -145,7 +178,7 @@ function nextMessage(ws: WebSocket): Promise<Record<string, unknown>> {
       "message",
       (event) => {
         clearTimeout(timer);
-        resolve(JSON.parse(event.data as string) as Record<string, unknown>);
+        resolve(JSON.parse(event.data) as Record<string, unknown>);
       },
       { once: true },
     );
@@ -162,12 +195,12 @@ function nextMessage(ws: WebSocket): Promise<Record<string, unknown>> {
  * nothing else happening in between.
  */
 function nextMessageOfType(
-  ws: WebSocket,
+  ws: TestSocket,
   type: string,
 ): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
-    const onMessage = (event: MessageEvent) => {
-      const message = JSON.parse(event.data as string) as Record<
+    const onMessage = (event: { data: string }) => {
+      const message = JSON.parse(event.data) as Record<
         string,
         unknown
       >;
@@ -184,18 +217,36 @@ function nextMessageOfType(
   });
 }
 
-/** Join the world, and read the `hello` that says what is in it. */
+/**
+ * Join the world, and read the `hello` that says what is in it.
+ *
+ * No upgrade here: the 101 belongs to `server/index.ts` now, and what the world
+ * is handed is an already-open socket and an id. The id still never comes from
+ * the client — that check moved out with the upgrade, and is covered in
+ * `server/index.test.ts`.
+ */
 async function connect(actorId: string) {
-  const res = await stub().fetch(
-    new Request(`https://world/online/ws?actor=${actorId}`, {
-      headers: { Upgrade: "websocket" },
-    }),
-  );
-  expect(res.status).toBe(101);
-  const ws = res.webSocket!;
-  ws.accept();
+  const pair = new Pair();
+  const ws = pair.client();
+  // The client half talks back through here. `server/index.ts` does the same
+  // wiring off Elysia's `message` handler.
+  pair.onClientMessage = (data) => {
+    void stub().webSocketMessage(pair.server, data);
+  };
+  pair.onClientClose = () => {
+    harness.hub.drop(pair.server);
+    void stub().webSocketClose(pair.server);
+  };
+  const joined = stub().join(pair.server, actorId);
   const hello = await nextMessage(ws);
-  return { ws, hello };
+  await joined;
+  return { ws, hello, pair };
+}
+
+/** Close a connection the way a browser going away does. */
+async function disconnect(pair: Pair) {
+  harness.hub.drop(pair.server);
+  await stub().webSocketClose(pair.server);
 }
 
 /**
@@ -204,29 +255,7 @@ async function connect(actorId: string) {
  * test, and there is no public API that forces a Durable Object out of memory.
  */
 async function simulateEviction() {
-  await runInDurableObject(stub(), (instance: GameServer) => {
-    const internals = instance as unknown as Record<string, unknown>;
-    internals.session = null;
-    internals.broadcastMap = null;
-    internals.loading = null;
-  });
-}
-
-/** Stands in for the dev server that hosts `data/`. */
-const DEV_DATA_ORIGIN = "http://data.test";
-
-function dataPath(key: string) {
-  return `${DEV_DATA_PREFIX}/${key}`;
-}
-
-/**
- * Intercept the dev data server. Net access is off while it is mocked, so a
- * request to a path with no interceptor fails loudly rather than escaping.
- */
-function devDataPool() {
-  fetchMock.activate();
-  fetchMock.disableNetConnect();
-  return fetchMock.get(DEV_DATA_ORIGIN);
+  harness.evict();
 }
 
 async function putCheckpoint(value: unknown) {
@@ -279,15 +308,22 @@ async function waitForCheckpointedAt(
 }
 
 beforeEach(async () => {
-  await env.DATA.put("tiles.json", JSON.stringify(tilesJson));
-  await env.DATA.put("statuses.json", JSON.stringify(statusesJson));
-  await env.DATA.put("map.json", JSON.stringify(authoredMap()));
+  // A fresh world per test, against a real database file in its own temporary
+  // directory. Real rather than in-memory, for the reason this suite used to
+  // run inside workerd: the load and restore paths are what it exists to cover,
+  // and a store that cannot be closed and reopened cannot exercise them.
+  harness = await Harness.create();
+  await harness.blobs.put("tiles.json", JSON.stringify(tilesJson), JSON_TYPE);
+  await harness.blobs.put(
+    "statuses.json",
+    JSON.stringify(statusesJson),
+    JSON_TYPE,
+  );
+  await harness.blobs.put("map.json", JSON.stringify(authoredMap()), JSON_TYPE);
 });
 
-// Only the dev-origin case mocks fetch; leaving the agent active would make
-// every later test's outbound request fail with no interceptor.
-afterEach(() => {
-  fetchMock.deactivate();
+afterEach(async () => {
+  await harness.dispose();
 });
 
 describe("joining and leaving", () => {
@@ -555,8 +591,8 @@ function deerCells(map: FlatMapFile): number[] {
 
 describe("residents", () => {
   beforeEach(async () => {
-    await env.DATA.put("tiles.json", JSON.stringify(tilesWithDeer()));
-    await env.DATA.put("map.json", JSON.stringify(mapWithDeer()));
+    await harness.blobs.put("tiles.json", JSON.stringify(tilesWithDeer()), JSON_TYPE);
+    await harness.blobs.put("map.json", JSON.stringify(mapWithDeer()), JSON_TYPE);
   });
 
   it("is in the world a joiner is handed, driving itself", async () => {
@@ -707,8 +743,8 @@ describe("replacing the world", () => {
 
     // What lands in storage is what the editor sent — never the running map,
     // which carries an owner on every actor's tile.
-    const stored = await env.DATA.get("map.json");
-    const text = await stored!.text();
+    const stored = await harness.blobs.getText("map.json");
+    const text = stored!;
     expect(text).not.toContain('"owner"');
   });
 
@@ -731,7 +767,7 @@ describe("replacing the world", () => {
       { tileId: "grass" },
       { tileId: "rusty-sword" },
     ];
-    await env.DATA.put("map.json", JSON.stringify(withSword));
+    await harness.blobs.put("map.json", JSON.stringify(withSword), JSON_TYPE);
 
     const alice = await connect("alice");
     const bagId = kitOf(alice.hello).bag.id;
@@ -764,7 +800,7 @@ describe("replacing the world", () => {
       { tileId: "grass" },
       { tileId: "rusty-sword" },
     ];
-    await env.DATA.put("map.json", JSON.stringify(withSword));
+    await harness.blobs.put("map.json", JSON.stringify(withSword), JSON_TYPE);
 
     const alice = await connect("alice");
     send(alice.ws, { type: "equip", ref: { x: 1, y: 0, z: 0, stackIndex: 1 } });
@@ -787,7 +823,7 @@ describe("replacing the world", () => {
       { tileId: "grass" },
       { tileId: "rusty-sword" },
     ];
-    await env.DATA.put("map.json", JSON.stringify(withSword));
+    await harness.blobs.put("map.json", JSON.stringify(withSword), JSON_TYPE);
 
     const alice = await connect("alice");
     send(alice.ws, { type: "pickUp", ref: { x: 1, y: 0, z: 0, stackIndex: 1 } });
@@ -808,7 +844,7 @@ describe("replacing the world", () => {
       { tileId: "grass" },
       { tileId: "rusty-sword" },
     ];
-    await env.DATA.put("map.json", JSON.stringify(withSword));
+    await harness.blobs.put("map.json", JSON.stringify(withSword), JSON_TYPE);
 
     const alice = await connect("alice");
     const bagId = kitOf(alice.hello).bag.id;
@@ -820,7 +856,7 @@ describe("replacing the world", () => {
     const asProps = (tilesJson as Array<Record<string, unknown>>).map((t) =>
       t.id === "rusty-sword" ? { ...t, kind: "prop" } : t,
     );
-    await env.DATA.put("tiles.json", JSON.stringify(asProps));
+    await harness.blobs.put("tiles.json", JSON.stringify(asProps), JSON_TYPE);
 
     // By kind, for the reason above: the pickup's patch is in flight.
     const fresh = nextMessageOfType(alice.ws, "hello");
@@ -890,37 +926,6 @@ describe("replacing the world", () => {
    * while every loader kept reading disk: the save reported success, the
    * revalidation read the untouched file, and the edit vanished.
    */
-  it("writes through the origin it is given rather than R2", async () => {
-    const replacement = authoredMap();
-    replacement.levels["0"]![`${AWAY_FROM_SPAWN},0`] = [{ tileId: "water" }];
-
-    const pool = devDataPool();
-    // Two reads, and neither is the map: a save replaces the world wholesale, so
-    // it deliberately never reads the one it is replacing. No `map.json` GET is
-    // stubbed here, and that is the assertion — with net access off, reaching
-    // for one would fail the test rather than quietly pass.
-    pool
-      .intercept({ path: dataPath("tiles.json") })
-      .reply(200, JSON.stringify(tilesJson));
-    pool
-      .intercept({ path: dataPath("statuses.json") })
-      .reply(200, JSON.stringify(statusesJson));
-    let written = "";
-    pool
-      .intercept({ path: dataPath("map.json"), method: "PUT" })
-      .reply(200, (options) => {
-        written = String(options.body);
-        return "";
-      });
-
-    await stub().replaceWorld(replacement, DEV_DATA_ORIGIN);
-
-    expect(written).toContain('"water"');
-    // And R2 is left holding what it held before, rather than quietly taking
-    // the write the author will never read back.
-    const stored = await env.DATA.get("map.json");
-    expect(await stored!.text()).toBe(JSON.stringify(authoredMap()));
-  });
 });
 
 describe("finding authored content", () => {
@@ -933,34 +938,6 @@ describe("finding authored content", () => {
    * board, drawn, offered as pushable by a client reading fresh defs, and inert
    * — this side has never heard of its tile.
    */
-  it("reads through the origin a joiner arrives with, rather than R2", async () => {
-    const onDisk = authoredMap();
-    onDisk.levels["0"]![`${AWAY_FROM_SPAWN},0`] = [{ tileId: "water" }];
-
-    const pool = devDataPool();
-    pool
-      .intercept({ path: dataPath("tiles.json") })
-      .reply(200, JSON.stringify(tilesJson));
-    pool
-      .intercept({ path: dataPath("statuses.json") })
-      .reply(200, JSON.stringify(statusesJson));
-    pool
-      .intercept({ path: dataPath("map.json") })
-      .reply(200, JSON.stringify(onDisk));
-
-    const res = await stub().fetch(
-      new Request(
-        `https://world/online/ws?actor=alice&dataOrigin=${DEV_DATA_ORIGIN}`,
-        { headers: { Upgrade: "websocket" } },
-      ),
-    );
-    const ws = res.webSocket!;
-    ws.accept();
-    const hello = await nextMessage(ws);
-
-    // R2 is holding the plain strip, so the water can only have come off disk.
-    expect(JSON.stringify(hello.map)).toContain("water");
-  });
 });
 
 /**
@@ -1000,7 +977,7 @@ function checkpointOnTwoLevels(): {
  * one fail on an unrelated one. Both happened before this filtered.
  */
 function chatWithin(
-  ws: WebSocket,
+  ws: TestSocket,
   ms: number,
 ): Promise<Record<string, unknown> | null> {
   return new Promise((resolve) => {
@@ -1009,8 +986,8 @@ function chatWithin(
       ws.removeEventListener("message", onMessage);
       resolve(value);
     };
-    const onMessage = (event: MessageEvent) => {
-      const message = JSON.parse(event.data as string) as Record<string, unknown>;
+    const onMessage = (event: { data: string }) => {
+      const message = JSON.parse(event.data) as Record<string, unknown>;
       if (message.type === "chat") done(message);
     };
     const timer = setTimeout(() => done(null), ms);
@@ -1021,7 +998,7 @@ function chatWithin(
 /** Long enough for a tick to have happened if one was going to. */
 const QUIET_MS = 200;
 
-function say(ws: WebSocket, text: string) {
+function say(ws: TestSocket, text: string) {
   ws.send(JSON.stringify({ type: "say", text }));
 }
 
@@ -1035,11 +1012,7 @@ async function isTicking(): Promise<boolean> {
 }
 
 async function chatRows(): Promise<Record<string, unknown>[]> {
-  let rows: Record<string, unknown>[] = [];
-  await runInDurableObject(stub(), (_instance, state) => {
-    rows = [...state.storage.sql.exec("SELECT * FROM chat ORDER BY id")];
-  });
-  return rows;
+  return await harness.query("SELECT * FROM chat ORDER BY id");
 }
 
 /**
@@ -1154,12 +1127,12 @@ describe("chat", () => {
   it("goes back to sleep once the word has been heard", async () => {
     const alice = await connect("alice");
     // Let the join's own wake settle first, or this measures that instead.
-    await scheduler.wait(QUIET_MS);
+    await wait(QUIET_MS);
     expect(await isTicking()).toBe(false);
 
     say(alice.ws, "hey there!");
     await chatWithin(alice.ws, 1000);
-    await scheduler.wait(BRAIN_TICK_MS + QUIET_MS);
+    await wait(BRAIN_TICK_MS + QUIET_MS);
 
     expect(await isTicking()).toBe(false);
   });
@@ -1186,22 +1159,22 @@ describe("chat", () => {
 
     // Backfill past the cap directly — the rate limit makes it impossible to
     // reach from the wire, and the prune is what is under test, not the sending.
-    await runInDurableObject(stub(), (_instance, state) => {
-      state.storage.sql.exec(
-        `WITH RECURSIVE seq(n) AS (
-           SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < ?
-         )
-         INSERT INTO chat (at, actor, x, y, z, text)
-         SELECT 0, 'backfill', 0, 0, 0, 'old' FROM seq`,
-        CHAT_LOG_MAX_ROWS + 100,
+    //
+    // A loop rather than the recursive CTE this used to be: Turso does not
+    // support `WITH RECURSIVE` yet. Nothing under test cares how the rows got
+    // there, so the plainer statement says the same thing.
+    for (let i = 0; i < CHAT_LOG_MAX_ROWS + 100; i++) {
+      harness.store.sql.exec(
+        "INSERT INTO chat (at, actor, x, y, z, text) VALUES (0, 'backfill', 0, 0, 0, 'old')",
       );
-    });
+    }
+    await harness.store.flush();
 
     const beforePrune = await chatRows();
     expect(beforePrune.length).toBeGreaterThan(CHAT_LOG_MAX_ROWS);
 
     // One more real message, which is what runs the prune.
-    await scheduler.wait(CHAT_MIN_INTERVAL_MS);
+    await wait(CHAT_MIN_INTERVAL_MS);
     say(alice.ws, "and another");
     await chatWithin(alice.ws, 1000);
 
@@ -1281,12 +1254,12 @@ describe("calling a creature", () => {
  * the client can put itself back.
  */
 
-function send(ws: WebSocket, message: unknown) {
+function send(ws: TestSocket, message: unknown) {
   ws.send(JSON.stringify(message));
 }
 
 /** Wait for the kit the server sends its owner alone. */
-function equipmentWithin(ws: WebSocket) {
+function equipmentWithin(ws: TestSocket) {
   return messageWithin(ws, "equipment", 1000);
 }
 
@@ -1298,18 +1271,18 @@ function contentsOf(message: Record<string, unknown>): Array<{ tileId: string }>
   return equipment.bag?.contents ?? [];
 }
 
-function step(ws: WebSocket, seq: number, direction: string) {
+function step(ws: TestSocket, seq: number, direction: string) {
   ws.send(JSON.stringify({ type: "step", seq, direction, preferDescend: false }));
 }
 
 /** Wait for a noise, which carries no speaker. @see ServerMessage `noise` */
-function noiseWithin(ws: WebSocket, ms: number) {
+function noiseWithin(ws: TestSocket, ms: number) {
   return messageWithin(ws, "noise", ms);
 }
 
 /** Wait for the first message of a type, or null if it never comes. */
 function messageWithin(
-  ws: WebSocket,
+  ws: TestSocket,
   type: string,
   ms: number,
 ): Promise<Record<string, unknown> | null> {
@@ -1319,8 +1292,8 @@ function messageWithin(
       ws.removeEventListener("message", onMessage);
       resolve(value);
     };
-    const onMessage = (event: MessageEvent) => {
-      const message = JSON.parse(event.data as string) as Record<string, unknown>;
+    const onMessage = (event: { data: string }) => {
+      const message = JSON.parse(event.data) as Record<string, unknown>;
       if (message.type === type) done(message);
     };
     const timer = setTimeout(() => done(null), ms);
@@ -1334,10 +1307,14 @@ function messageWithin(
  * For the assertions no single-message helper can make: that things arrived in
  * a particular order, and — the harder one — that nothing arrived at all.
  */
-function record(ws: WebSocket) {
+function record(ws: TestSocket) {
+  // From here, not from the beginning. Anything the world sent before this call
+  // belongs to whatever the test was setting up, and the assertions below are
+  // about what happens next — several of them are that *nothing* does.
+  ws.discardPending();
   const seen: Record<string, unknown>[] = [];
   ws.addEventListener("message", (event) => {
-    seen.push(JSON.parse(event.data as string) as Record<string, unknown>);
+    seen.push(JSON.parse(event.data) as Record<string, unknown>);
   });
   return {
     types: () => seen.map((message) => message.type as string),
@@ -1347,7 +1324,7 @@ function record(ws: WebSocket) {
 
 /** Wait for a patch carrying a `walkStarted`, and hand back that event. */
 function walkWithin(
-  ws: WebSocket,
+  ws: TestSocket,
   ms: number,
 ): Promise<Record<string, unknown> | null> {
   return new Promise((resolve) => {
@@ -1356,8 +1333,8 @@ function walkWithin(
       ws.removeEventListener("message", onMessage);
       resolve(value);
     };
-    const onMessage = (event: MessageEvent) => {
-      const message = JSON.parse(event.data as string) as Record<string, unknown>;
+    const onMessage = (event: { data: string }) => {
+      const message = JSON.parse(event.data) as Record<string, unknown>;
       if (message.type !== "patch") return;
       const events = message.events as Record<string, unknown>[];
       const walk = events.find((e) => e.kind === "walkStarted");
@@ -1580,14 +1557,14 @@ function kitOf(hello: Record<string, unknown>): { bag: { id: string } } {
 const ONE_STEP_EAST = 1;
 
 /** Walk one cell east and wait for it to land on the board. */
-async function walkEast(ws: WebSocket) {
+async function walkEast(ws: TestSocket) {
   step(ws, 0, "e");
   await walkWithin(ws, 1000);
   await new Promise((resolve) => setTimeout(resolve, WALK_DURATION_MS + 200));
 }
 
 /** Close a socket and let the object finish tidying up after it. */
-async function leave(ws: WebSocket) {
+async function leave(ws: TestSocket) {
   ws.close();
   await new Promise((resolve) => setTimeout(resolve, QUIET_MS));
 }
@@ -2097,14 +2074,14 @@ function stripWithABox(): {
 
 /** Every event of one kind that arrives in a window. */
 function eventsWithin(
-  ws: WebSocket,
+  ws: TestSocket,
   kind: string,
   ms: number,
 ): Promise<Record<string, unknown>[]> {
   return new Promise((resolve) => {
     const found: Record<string, unknown>[] = [];
-    const onMessage = (event: MessageEvent) => {
-      const message = JSON.parse(event.data as string) as Record<string, unknown>;
+    const onMessage = (event: { data: string }) => {
+      const message = JSON.parse(event.data) as Record<string, unknown>;
       if (message.type !== "patch") return;
       for (const e of message.events as Record<string, unknown>[]) {
         if (e.kind === kind) found.push(e);
@@ -2212,8 +2189,8 @@ function markerlessMap(): FlatMapFile {
 
 /** The authored map as it currently sits in the bucket. */
 async function storedMap(): Promise<FlatMapFile> {
-  const stored = await env.DATA.get("map.json");
-  return JSON.parse(await stored!.text()) as FlatMapFile;
+  const stored = await harness.blobs.getText("map.json");
+  return JSON.parse(stored!) as FlatMapFile;
 }
 
 describe("saving a map that cannot start", () => {
@@ -2247,18 +2224,26 @@ describe("saving a map that cannot start", () => {
    * out of — and it cannot do that by loading the world first.
    */
   it("saves onto a world too broken to load", async () => {
-    // An object of its own, and that is not tidiness. This test has to leave
-    // storage holding a map that cannot start, and the world every other test
-    // shares has live sockets on it — any one of them touching it in that
-    // window would load the broken map and take the run down with it. A fresh
-    // name has no checkpoint and no session, which is the wedged state exactly:
-    // the only copy of the world is one that cannot be started.
-    const wedged = env.GAME.getByName("wedged-world");
-    await env.DATA.put("map.json", JSON.stringify(markerlessMap()));
+    // A world of its own, and that is not tidiness. This test has to leave
+    // storage holding a map that cannot start, and touching the one the rest of
+    // the case is using would load that broken map and take the run down with
+    // it. A fresh world has no checkpoint and no session, which is the wedged
+    // state exactly: the only copy of it is one that cannot be started.
+    const wedged = await Harness.create();
+    try {
+      await wedged.blobs.put(
+        "map.json",
+        JSON.stringify(markerlessMap()),
+        JSON_TYPE,
+      );
 
-    await wedged.replaceWorld(authoredMap());
+      await wedged.server.replaceWorld(authoredMap());
 
-    expect(playerCells(await storedMap())).toEqual([0]);
+      const saved = await wedged.blobs.getText("map.json");
+      expect(playerCells(JSON.parse(saved!) as FlatMapFile)).toEqual([0]);
+    } finally {
+      await wedged.dispose();
+    }
   });
 });
 
@@ -2302,7 +2287,7 @@ describe("consuming", () => {
   }
 
   it("takes the berry off the board", async () => {
-    await env.DATA.put("map.json", JSON.stringify(mapWithBerry()));
+    await harness.blobs.put("map.json", JSON.stringify(mapWithBerry()), JSON_TYPE);
     const alice = await connect("alice");
     expect(await liveTilesAt(1, 0, 0)).toEqual(["grass", BERRY]);
 
@@ -2318,7 +2303,7 @@ describe("consuming", () => {
    * this waits for a sound that never comes.
    */
   it("makes the noise it makes, to the floor it was eaten on", async () => {
-    await env.DATA.put("map.json", JSON.stringify(mapWithBerry()));
+    await harness.blobs.put("map.json", JSON.stringify(mapWithBerry()), JSON_TYPE);
     const alice = await connect("alice");
 
     send(alice.ws, { type: "consume", from: { kind: "floor", ref: BERRY_REF } });
@@ -2336,7 +2321,7 @@ describe("consuming", () => {
    * puts a name in front of it.
    */
   it("never sends it as chat, which would name a speaker", async () => {
-    await env.DATA.put("map.json", JSON.stringify(mapWithBerry()));
+    await harness.blobs.put("map.json", JSON.stringify(mapWithBerry()), JSON_TYPE);
     const alice = await connect("alice");
 
     send(alice.ws, { type: "consume", from: { kind: "floor", ref: BERRY_REF } });
@@ -2405,11 +2390,12 @@ describe("respawn", () => {
   }
 
   beforeEach(async () => {
-    await env.DATA.put(
+    await harness.blobs.put(
       "tiles.json",
       JSON.stringify([...tilesJson, gnomeTile()]),
+      JSON_TYPE,
     );
-    await env.DATA.put("map.json", JSON.stringify(mapWithGnome()));
+    await harness.blobs.put("map.json", JSON.stringify(mapWithGnome()), JSON_TYPE);
   });
 
   it("derives and stores the spawn points when a fresh world loads", async () => {
@@ -2557,11 +2543,12 @@ describe("respawn", () => {
     }
 
     beforeEach(async () => {
-      await env.DATA.put(
+      await harness.blobs.put(
         "tiles.json",
         JSON.stringify([...tilesJson, gnomeTile(), ...berryTiles()]),
+        JSON_TYPE,
       );
-      await env.DATA.put("map.json", JSON.stringify(mapWithBerry()));
+      await harness.blobs.put("map.json", JSON.stringify(mapWithBerry()), JSON_TYPE);
     });
 
     it("does not grow a second one while the first is merely going off", async () => {
@@ -2767,11 +2754,9 @@ describe("resetting the world", () => {
     // The table itself, not its rows: `chatRows` would throw on a dropped one,
     // which is the same assertion made in a way that cannot tell a drop from a
     // typo. `logChat` creates it again the next time anybody speaks.
-    const tables = await runInDurableObject(stub(), (_instance, state) => [
-      ...state.storage.sql.exec(
-        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'chat'",
-      ),
-    ]);
+    const tables = await harness.query(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'chat'",
+    );
     expect(tables).toHaveLength(0);
   });
 
@@ -2858,11 +2843,12 @@ describe("what a flush writes", () => {
   }
 
   beforeEach(async () => {
-    await env.DATA.put(
+    await harness.blobs.put(
       "tiles.json",
       JSON.stringify([...tilesJson, gnomeTile()]),
+      JSON_TYPE,
     );
-    await env.DATA.put("map.json", JSON.stringify(mapWithGnome()));
+    await harness.blobs.put("map.json", JSON.stringify(mapWithGnome()), JSON_TYPE);
   });
 
   /**
@@ -2969,7 +2955,7 @@ describe("what a flush writes", () => {
   it("retracts a status row once the status has run out", async () => {
     const map = authoredMap();
     map.levels["0"]!["1,0"] = [{ tileId: "grass" }, { tileId: "berry" }];
-    await env.DATA.put("map.json", JSON.stringify(map));
+    await harness.blobs.put("map.json", JSON.stringify(map), JSON_TYPE);
 
     const who = freshPlayer();
     const { ws } = await connect(who);
@@ -3541,7 +3527,7 @@ describe("statuses across a disconnection", () => {
   }
 
   it("writes down what is running as the world settles", async () => {
-    await env.DATA.put("map.json", JSON.stringify(mapWithBerry()));
+    await harness.blobs.put("map.json", JSON.stringify(mapWithBerry()), JSON_TYPE);
     const who = freshPlayer();
     const { ws } = await connect(who);
 
@@ -3566,7 +3552,7 @@ describe("statuses across a disconnection", () => {
    * about.
    */
   it("comes back exactly where it left off", async () => {
-    await env.DATA.put("map.json", JSON.stringify(mapWithBerry()));
+    await harness.blobs.put("map.json", JSON.stringify(mapWithBerry()), JSON_TYPE);
     const who = freshPlayer();
     const first = await connect(who);
 
@@ -3597,7 +3583,7 @@ describe("statuses across a disconnection", () => {
    * visitor for the fact that nothing has happened to them.
    */
   it("writes no health down for a body that is not hurt", async () => {
-    await env.DATA.put("map.json", JSON.stringify(mapWithBerry()));
+    await harness.blobs.put("map.json", JSON.stringify(mapWithBerry()), JSON_TYPE);
     const who = freshPlayer();
     const { ws } = await connect(who);
 

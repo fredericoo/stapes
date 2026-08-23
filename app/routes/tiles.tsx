@@ -4,42 +4,42 @@ import type { Route } from "./+types/tiles";
 import { AppShell } from "../components/AppShell";
 import { TileEditorDialog, tileIsAnimated } from "../components/TileEditorDialog";
 import { TilePreview } from "../components/TilePreview";
-import { dataStore } from "../context";
 import { statusesById } from "../lib/status";
 import { readPngSize } from "../lib/storage.server";
+import {
+  fetchBootstrap,
+  fetchTiles,
+  fetchTilesets,
+  saveTiles,
+  saveTilesets,
+  uploadTilesetBytes,
+} from "../lib/api";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { Button, Dialog, Input, useToast } from "../ui";
 
-export async function loader({ context }: Route.LoaderArgs) {
-  const store = dataStore(context);
-  const [tiles, tilesets, statuses] = await Promise.all([
-    store.readTiles(),
-    store.readTilesets(),
-    store.readStatuses(),
-  ]);
-  return { tiles, tilesets, statuses };
+export async function clientLoader() {
+  return await fetchBootstrap();
 }
 
-export async function action({ context, request }: Route.ActionArgs) {
-  const store = dataStore(context);
+export async function clientAction({ request }: Route.ClientActionArgs) {
   const form = await request.formData();
   const intent = String(form.get("intent") ?? "");
 
   if (intent === "save-tile") {
     const raw = String(form.get("tile") ?? "");
     const tile = JSON.parse(raw) as TileDef;
-    const tiles = await store.readTiles();
+    const tiles = await fetchTiles();
     const idx = tiles.findIndex((t) => t.id === tile.id);
     if (idx >= 0) tiles[idx] = tile;
     else tiles.push(tile);
-    await store.writeTiles(tiles);
+    await saveTiles(tiles);
     return { ok: true, intent };
   }
 
   if (intent === "delete-tile") {
     const id = String(form.get("id") ?? "");
-    const tiles = await store.readTiles();
-    await store.writeTiles(tiles.filter((t) => t.id !== id));
+    const tiles = await fetchTiles();
+    await saveTiles(tiles.filter((t) => t.id !== id));
     return { ok: true, intent };
   }
 
@@ -66,8 +66,8 @@ export async function action({ context, request }: Route.ActionArgs) {
       .replace(/[^a-z0-9]+/g, "-")
       .replace(/^-|-$/g, "");
     const fileName = `${id}.png`;
-    await store.writeTilesetPng(fileName, bytes);
-    const tilesets = await store.readTilesets();
+    await uploadTilesetBytes(fileName, bytes);
+    const tilesets = await fetchTilesets();
     const def: TilesetDef = {
       id,
       name,
@@ -78,7 +78,7 @@ export async function action({ context, request }: Route.ActionArgs) {
     const idx = tilesets.findIndex((t) => t.id === id);
     if (idx >= 0) tilesets[idx] = def;
     else tilesets.push(def);
-    await store.writeTilesets(tilesets);
+    await saveTilesets(tilesets);
     return { ok: true, intent };
   }
 
@@ -86,12 +86,12 @@ export async function action({ context, request }: Route.ActionArgs) {
 }
 
 export default function TilesPage() {
-  const { tiles, tilesets, statuses } = useLoaderData<typeof loader>();
+  const { tiles, tilesets, statuses } = useLoaderData<typeof clientLoader>();
   // Compiled once per load, not per render: `statusesById` parses every formula
   // in the catalogue. Only the names and the ranges are read here, but there is
   // one function that decides what a status is and this is it.
   const statusDefs = useMemo(() => statusesById(statuses), [statuses]);
-  const fetcher = useFetcher<typeof action>();
+  const fetcher = useFetcher<typeof clientAction>();
   const toast = useToast();
   const [editing, setEditing] = useState<TileDef | null>(null);
   const [isNew, setIsNew] = useState(false);

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { tilesetUrl } from "../lib/api";
 import type { SpriteRef, TilesetDef } from "../lib/types";
 import { defaultBase } from "../lib/types";
 
@@ -33,7 +34,7 @@ export function SpriteSelector({
       return;
     }
     const image = new Image();
-    image.src = `/tilesets/${tileset.file}`;
+    image.src = tilesetUrl(tileset.file);
     image.onload = () => setImg(image);
   }, [tileset]);
 

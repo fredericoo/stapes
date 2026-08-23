@@ -4,7 +4,7 @@ import type { Route } from "./+types/statuses";
 import { AppShell } from "../components/AppShell";
 import { StatusEditorDialog } from "../components/StatusEditorDialog";
 import { SpritePreview } from "../components/TilePreview";
-import { dataStore } from "../context";
+import { fetchStatuses, fetchTilesets, saveStatuses } from "../lib/api";
 import { TITLE_SPRITE_SIZE_PX } from "../components/ContainerPanel";
 import {
   completeSprite,
@@ -26,17 +26,15 @@ import { Button, useToast } from "../ui";
  * about — see `StatusEditorDialog`.
  */
 
-export async function loader({ context }: Route.LoaderArgs) {
-  const store = dataStore(context);
+export async function clientLoader() {
   const [statuses, tilesets] = await Promise.all([
-    store.readStatuses(),
-    store.readTilesets(),
+    fetchStatuses(),
+    fetchTilesets(),
   ]);
   return { statuses: statuses as StatusSource[], tilesets };
 }
 
-export async function action({ context, request }: Route.ActionArgs) {
-  const store = dataStore(context);
+export async function clientAction({ request }: Route.ClientActionArgs) {
   const form = await request.formData();
   const intent = String(form.get("intent") ?? "");
 
@@ -50,18 +48,18 @@ export async function action({ context, request }: Route.ActionArgs) {
     if (!resolveStatus(status)) {
       return { ok: false, error: "That is not a valid status" };
     }
-    const statuses = (await store.readStatuses()) as StatusSource[];
+    const statuses = (await fetchStatuses()) as StatusSource[];
     const idx = statuses.findIndex((s) => s.id === status.id);
     if (idx >= 0) statuses[idx] = status;
     else statuses.push(status);
-    await store.writeStatuses(statuses);
+    await saveStatuses(statuses);
     return { ok: true, intent };
   }
 
   if (intent === "delete-status") {
     const id = String(form.get("id") ?? "");
-    const statuses = (await store.readStatuses()) as StatusSource[];
-    await store.writeStatuses(statuses.filter((s) => s.id !== id));
+    const statuses = (await fetchStatuses()) as StatusSource[];
+    await saveStatuses(statuses.filter((s) => s.id !== id));
     return { ok: true, intent };
   }
 
@@ -69,8 +67,8 @@ export async function action({ context, request }: Route.ActionArgs) {
 }
 
 export default function StatusesPage() {
-  const { statuses, tilesets } = useLoaderData<typeof loader>();
-  const fetcher = useFetcher<typeof action>();
+  const { statuses, tilesets } = useLoaderData<typeof clientLoader>();
+  const fetcher = useFetcher<typeof clientAction>();
   const toast = useToast();
   const [editing, setEditing] = useState<StatusSource | null>(null);
 

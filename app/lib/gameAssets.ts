@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { tilesetUrl } from "./api";
 import type { TilesetDef } from "./types";
 
 /**
@@ -142,7 +143,7 @@ async function loadLabelFont(): Promise<void> {
  */
 async function loadTileset(tileset: TilesetDef): Promise<void> {
   const image = new Image();
-  image.src = `/tilesets/${tileset.file}`;
+  image.src = tilesetUrl(tileset.file);
   await image.decode();
 }
 

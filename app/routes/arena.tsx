@@ -10,7 +10,7 @@ import { swingOdds } from "../game/combatMetrics";
 import { DAMAGE_NUMBER_LIFETIME_MS, TICK_MS } from "../game/constants";
 import { type DuelEvent, Duel, opponentOf, type Side, SIDES } from "../game/duel";
 import { Rng } from "../game/rng";
-import { dataStore } from "../context";
+import { fetchBootstrap } from "../lib/api";
 import type { FightingStats } from "../lib/battler";
 import { isRanged } from "../lib/item";
 import { type StatusDef, statusesById } from "../lib/status";
@@ -54,14 +54,8 @@ import { Button, Input, Segmented } from "../ui";
  * have to stay true to it.
  */
 
-export async function loader({ context }: Route.LoaderArgs) {
-  const store = dataStore(context);
-  const [tiles, tilesets, statuses] = await Promise.all([
-    store.readTiles(),
-    store.readTilesets(),
-    store.readStatuses(),
-  ]);
-  return { tiles, tilesets, statuses };
+export async function clientLoader() {
+  return await fetchBootstrap();
 }
 
 /** Real time per simulated second. The extremes are for different questions. */
@@ -127,7 +121,7 @@ function emptySnapshot(): Snapshot {
 }
 
 export default function ArenaPage() {
-  const { tiles, tilesets, statuses } = useLoaderData<typeof loader>();
+  const { tiles, tilesets, statuses } = useLoaderData<typeof clientLoader>();
   const tilesById = useMemo(
     () => Object.fromEntries(tiles.map((tile) => [tile.id, tile])),
     [tiles],

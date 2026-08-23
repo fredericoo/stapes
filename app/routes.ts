@@ -7,8 +7,6 @@ export default [
   route("map", "routes/map.tsx"),
   route("play", "routes/play.tsx"),
   route("arena", "routes/arena.tsx"),
-  route("reset", "routes/reset.ts"),
   route("online", "routes/online.tsx"),
   route("voxel", "routes/voxel.tsx"),
-  route("tilesets/:file", "routes/tilesets.$file.ts"),
 ] satisfies RouteConfig;

@@ -1,0 +1,70 @@
+# Two deploys, and only one of them restarts anything.
+#
+# The client is files: CI pushes them to an immutable prefix in the bucket and
+# then flips a pointer, so a UI change reaches everybody without the world
+# process stopping and without anybody being disconnected.
+#
+# The server is an image, and deploying it *is* a restart — announced, drained,
+# and about two seconds long. See `server/world.ts`.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  client:
+    name: client
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.8
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+
+      # Assets first, `index.html` last. Within a build the order does not
+      # matter — the prefix is not live until the pointer flips below — but it
+      # costs nothing and means a half-finished upload can never be activated
+      # into a page whose chunks are missing.
+      - name: Push build to the bucket
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.CLIENT_BUCKET_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.CLIENT_BUCKET_SECRET_ACCESS_KEY }}
+          AWS_DEFAULT_REGION: ${{ vars.CLIENT_BUCKET_REGION }}
+        run: |
+          aws s3 sync build/client "s3://${{ vars.CLIENT_BUCKET }}/builds/${{ github.sha }}" \
+            --endpoint-url "${{ vars.CLIENT_BUCKET_ENDPOINT }}" \
+            --exclude "index.html" --delete
+          aws s3 cp build/client/index.html \
+            "s3://${{ vars.CLIENT_BUCKET }}/builds/${{ github.sha }}/index.html" \
+            --endpoint-url "${{ vars.CLIENT_BUCKET_ENDPOINT }}"
+
+      # The flip. The server downloads the prefix, swaps it in when the whole of
+      # it is resident, and goes on serving throughout.
+      - name: Activate
+        run: |
+          curl --fail-with-body -X POST "${{ vars.PUBLIC_ORIGIN }}/api/client/activate" \
+            -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{"buildId":"${{ github.sha }}"}'
+
+  server:
+    name: server
+    runs-on: ubuntu-latest
+    # Only when the world itself changed. Most commits are client-only, and
+    # restarting for those would disconnect everybody to ship a colour.
+    if: contains(github.event.head_commit.message, '[server]') || github.event_name == 'workflow_dispatch'
+    steps:
+      - uses: actions/checkout@v5
+      - name: Trigger Coolify deploy
+        run: |
+          curl --fail-with-body -X GET \
+            "${{ vars.COOLIFY_URL }}/api/v1/deploy?uuid=${{ vars.COOLIFY_APP_UUID }}&force=false" \
+            -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}"

@@ -3,6 +3,13 @@ import { configDefaults, defineConfig } from "vitest/config";
 export default defineConfig({
   test: {
     environment: "node",
+    // `app/` only. `server/` runs under `bun test` instead — see `test:server`
+    // in package.json. The split is the same one this repo already had, and for
+    // the same reason: pure logic runs in the fast generic runner, while the
+    // world runs in the runtime it actually deploys to, against a real database.
+    // Vitest cannot be that runner here — it drives tests through worker
+    // threads, and the database is a native module that does not survive the
+    // trip.
     include: ["app/**/*.test.ts"],
     exclude: [...configDefaults.exclude, "e2e/**", ".worktrees/**"],
     /**

@@ -5,9 +5,9 @@ Mini Tibia-inspired tile/map editor. Each tile is 8×8 pixels, rendered with an 
 ## Setup
 
 ```bash
-pnpm install
-pnpm generate   # regenerate tilesets + demo map into data/
-pnpm dev
+bun install
+bun run generate   # regenerate tilesets + demo map into data/
+bun dev
 ```
 
 Open http://localhost:5173 — redirects to `/online`. Tile database lives at `/tiles`.
@@ -16,20 +16,19 @@ a world in the way.
 
 ## Scripts
 
-- `pnpm dev` — dev server, reading and writing `data/` on disk. Runs everything
-  including `/online`, with HMR
-- `pnpm dev:r2` — same, but against the local R2 bucket (needs `pnpm seed` first)
-- `pnpm dev:worker` — build and run real workerd, with `data/` still on disk.
-  For production fidelity — real Durable Object hibernation, checkpointing and
-  eviction. No HMR, since it serves a build
-- `pnpm generate` — regenerate placeholder tileset + seed JSON in `data/`
-- `pnpm seed` — upload `data/` into the local R2 bucket (`--remote` for the deployed one)
-- `pnpm reset` — seed, then wipe the running world so it reloads from the seed.
-  Destroys every position, kit, reward and mastery. Needs `RESET_SECRET`
-- `pnpm typecheck` — route typegen + `wrangler types` + tsc, for both tsconfigs
-- `pnpm test:unit` — `app/` logic, node pool
-- `pnpm test:workers` — `workers/` inside workerd, with real Durable Object storage
-- `pnpm build` / `pnpm deploy` — production build and deploy to Cloudflare Workers
+- `bun dev` — both halves at once: Vite for the client, `bun --watch` for the
+  server, on ports it asks the OS for so several worktrees can run together.
+  Prints both URLs; open the client one
+- `bun run generate` — regenerate placeholder tileset + seed JSON in `data/`
+- `bun run seed` — load `data/` into a database that already has content. Rarely
+  needed: a fresh one seeds itself on boot
+- `bun run typecheck` — route typegen, then all three tsconfigs
+- `bun run test:unit` — `app/` logic, in vitest
+- `bun run test:server` — the world, on Bun, against a real database file
+- `bun run test:perf` — renderer budgets, in Playwright
+- `bun run build` — the client bundle, which CI pushes to the bucket
+
+Deploying is in [SETUP.md](SETUP.md).
 
 ## Multiplayer
 
@@ -44,6 +43,11 @@ the server never trusts a client-supplied id.
 Saving in `/map` writes the map and restarts the world: everyone re-enters a
 fresh game on the new map.
 
+Deploying the server also restarts the world, and that is announced: the page
+shows that the world is updating, and puts you back where you were standing a
+couple of seconds later. Deploying the *client* restarts nothing — it is a push
+to a bucket and a pointer flip.
+
 Two tabs in one browser share the cookie and are therefore the *same* player.
 To test two players locally, open one on `localhost` and one on `127.0.0.1` —
 different hosts, different cookie jars.
@@ -56,41 +60,34 @@ Authored content is:
 - `tiles.json` — tile definitions
 - `map.json` — sparse stacked map (levels -8..+8)
 
-It has two homes, behind one interface (`app/lib/storage.server.ts`):
+It has two homes behind one interface (`app/lib/storage.server.ts`):
 
 - **In dev, `data/` on disk is the source of truth.** A tileset edited in an
   external tool is live on the next request, and the map editor's Save writes
-  `data/map.json` — so changes show up in `git diff` and stay reviewable. The
-  Worker has no filesystem, so it reaches the directory through a dev-only Vite
-  middleware (`vite.config.ts`).
-- **In production, the `DATA` R2 bucket**, at keys mirroring the same paths.
-  `pnpm seed` uploads `data/` into it; a fresh bucket is empty and every page
-  loads blank until that runs.
+  `data/map.json` — so changes show up in `git diff` and stay reviewable.
+- **Deployed, the `blob` table** in `stapes.db`, at keys mirroring the same
+  paths. A fresh deployment fills it from the `data/` in its image on first
+  boot, so there is nothing to seed by hand.
 
-`pnpm dev:r2` runs dev against R2 instead, for when you want to exercise that
-path locally.
+There is a third source of truth that seeding cannot reach: the world people are
+actually in. It prefers its own checkpoint to the authored content, so a seeded
+map changes nothing anybody can see, and it deliberately carries each player's
+kit, tags and masteries across a save. `POST /api/reset` is the way out — it
+destroys every position, kit, reward and mastery, and needs `ADMIN_SECRET`.
 
-There is a third source of truth that seeding cannot reach: the Durable Object
-holding the world people are actually in. It prefers its own checkpoint to the
-bucket, so a seeded map changes nothing anybody can see, and it deliberately
-carries each player's kit, tags and masteries across a save. `pnpm reset` is the
-way out — it seeds and then tells the deployment to forget everything. It needs
-`RESET_SECRET`, the secret that deployment was given with `wrangler secret put`;
-without one set, the endpoint is not there at all.
-
-Map edits are in-memory until you hit **Save** (or Cmd/Ctrl+S). Tile DB edits save immediately via route actions.
+Map edits are in-memory until you hit **Save** (or Cmd/Ctrl+S). Tile DB edits
+save immediately.
 
 `serializeMap` round-trips byte-for-byte, so saving an unmodified map leaves
 `git status` clean rather than reformatting the file.
 
 ## TypeScript
 
-Two configs, because the codebase spans two runtimes:
+Three configs, because the code spans three places:
 
-- `tsconfig.json` — `app/` and `workers/`, typed for workerd. Deliberately has no
-  Node types, so a `node:` import here fails to typecheck rather than on deploy.
-- `tsconfig.node.json` — `scripts/`, `e2e/` and the `*.config.ts` files, which do
-  run in Node.
+- `tsconfig.json` — `app/`, typed for a browser tab. No Node types
+- `tsconfig.server.json` — `server/`, plus the modules it shares with `app/`
+- `tsconfig.node.json` — `scripts/`, `e2e/` and the `*.config.ts` files
 
 ## Third-party assets
 

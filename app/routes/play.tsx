@@ -25,25 +25,25 @@ import type { ObjectRef } from "../game/affordances";
 import type { OpenedContainer, SlotRef } from "../game/itemMoves";
 import { useGameAssets } from "../lib/gameAssets";
 import type { Direction } from "../lib/types";
-import { dataStore } from "../context";
+import { fetchBootstrap, fetchMapText } from "../lib/api";
+import { parseMap } from "../lib/mapData";
 import { activeStatuses, statusesById } from "../lib/status";
 import { GameRenderer } from "../render/GameRenderer";
 import { FrameStatsReadout } from "../components/FrameStatsReadout";
 import type { FrameStats } from "../render/frameProfile";
 
-export async function loader({ context }: Route.LoaderArgs) {
-  const store = dataStore(context);
-  const [map, tiles, tilesets, statuses] = await Promise.all([
-    store.readMap(),
-    store.readTiles(),
-    store.readTilesets(),
-    store.readStatuses(),
+export async function clientLoader() {
+  const [mapText, bootstrap] = await Promise.all([
+    fetchMapText(),
+    fetchBootstrap(),
   ]);
-  return { map, tiles, tilesets, statuses };
+  // Parsed here rather than on the wire: `parseMap` is what decides what the
+  // bytes mean, and there is exactly one of it.
+  return { map: parseMap(mapText), ...bootstrap };
 }
 
 export default function PlayPage() {
-  const { map, tiles, tilesets, statuses } = useLoaderData<typeof loader>();
+  const { map, tiles, tilesets, statuses } = useLoaderData<typeof clientLoader>();
   // Resolved once per load rather than per render: `statusesById` compiles every
   // formula in the catalogue, which is exactly the work that must not happen on
   // a frame. @see ../lib/status

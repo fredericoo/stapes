@@ -300,6 +300,8 @@ export class RemoteSession implements PlaySession {
    */
   private dead = false;
   private onDead: ((dead: boolean) => void) | null = null;
+  /** Told when the world says it is restarting. See {@link setOnRestarting}. */
+  private onRestarting: (() => void) | null = null;
   /** How many people the server last said were here. */
   private players = 0;
   private onPlayers: ((count: number) => void) | null = null;
@@ -330,6 +332,18 @@ export class RemoteSession implements PlaySession {
    * boolean that is almost always false. Fires on registration too, so a
    * listener that arrives after the death still learns about it.
    */
+  /**
+   * Told when the world announces it is going away for a deploy.
+   *
+   * Separate from the close that follows, because the two mean different things
+   * to the person watching: a socket that simply drops is a problem, and one
+   * that was announced is a wait. The page uses it to choose a message and to
+   * come back promptly rather than backing off.
+   */
+  setOnRestarting(cb: (() => void) | null) {
+    this.onRestarting = cb;
+  }
+
   setOnDead(cb: ((dead: boolean) => void) | null) {
     this.onDead = cb;
     cb?.(this.dead);
@@ -403,6 +417,21 @@ export class RemoteSession implements PlaySession {
     if (typeof event.data !== "string") return;
     const message = parseServerMessage(event.data);
     if (!message) return;
+
+    // First, because it is the one message that is about the connection rather
+    // than the world: everything below describes a board, and this says the
+    // board is about to go away for a moment.
+    if (message.type === "serverRestarting") {
+      this.onRestarting?.();
+      return;
+    }
+
+    if (message.type === "outdated") {
+      // Nothing to do here — the close that follows carries the code the page
+      // acts on. Consumed so it does not fall through to a warning about a
+      // message this side does not know.
+      return;
+    }
 
     if (message.type === "hello") {
       this.selfId = message.selfId;
