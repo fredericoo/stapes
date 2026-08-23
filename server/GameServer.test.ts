@@ -3150,6 +3150,88 @@ describe("dying and coming back", () => {
     });
   }
 
+  it("survives dying with a step still queued", async () => {
+    // **This crashed the production server the first evening it was up.**
+    // Somebody walked into a fire: the step that killed them was applied, and
+    // the one queued behind it was applied on the same tick — after the death
+    // had already taken their body out of the session. `applyQueuedSteps` asked
+    // for an actor that was no longer there and threw, and a throw inside the
+    // tick ends the process, so one death took the whole world down.
+    //
+    // `noteDeaths` does clear the queue. It runs *after* `applyQueuedSteps` in
+    // the tick, which is exactly why clearing it there was never enough.
+    const alice = await connect("alice");
+
+    step(alice.ws, 1, "e");
+    step(alice.ws, 2, "e");
+
+    // **Wait until the steps are actually queued.** They travel over the socket
+    // and are queued on arrival, so killing immediately after sending races the
+    // very thing under test — and wins, quietly, leaving a test that passes
+    // against the bug it was written for.
+    const deadline = Date.now() + MESSAGE_TIMEOUT_MS;
+    let queued = false;
+    while (Date.now() < deadline && !queued) {
+      queued = await runInDurableObject(stub(), (instance: GameServer) => {
+        const internals = instance as unknown as {
+          queuedSteps: Map<string, unknown[]>;
+        };
+        return (internals.queuedSteps.get("alice")?.length ?? 0) > 0;
+      });
+      if (!queued) await wait(10);
+    }
+    expect(queued).toBe(true);
+
+    // Killed with those steps still waiting to be applied.
+    await killAndTick("alice");
+
+    // The world is still ticking, and still talking to everybody else.
+    const bob = await connect("bob");
+    expect(bob.hello.type).toBe("hello");
+
+    await runInDurableObject(stub(), (instance: GameServer) => {
+      const internals = instance as unknown as {
+        queuedSteps: Map<string, unknown[]>;
+      };
+      // Dropped rather than left to rot: a step addresses a body, and there is
+      // no body to move.
+      expect(internals.queuedSteps.has("alice")).toBe(false);
+    });
+  });
+
+  it("keeps ticking when a tick throws", async () => {
+    // The structural half of the same bug. A Durable Object's platform caught
+    // an exception in its timer and cost that tick; `setInterval` here ends the
+    // process instead, so *any* fault in the simulation became an outage for
+    // everybody rather than a skipped frame for one person.
+    const alice = await connect("alice");
+
+    await runInDurableObject(stub(), (instance: GameServer) => {
+      const internals = instance as unknown as {
+        tick(): void;
+        tickSafely(): void;
+        consecutiveTickFailures: number;
+      };
+      const good = internals.tick.bind(internals);
+      internals.tick = () => {
+        throw new Error("simulated fault");
+      };
+
+      // Would have taken the process with it before.
+      expect(() => internals.tickSafely()).not.toThrow();
+      expect(internals.consecutiveTickFailures).toBe(1);
+
+      internals.tick = good;
+      internals.tickSafely();
+      // And it recovers rather than staying broken.
+      expect(internals.consecutiveTickFailures).toBe(0);
+    });
+
+    // Still a live world afterwards.
+    step(alice.ws, 1, "e");
+    expect(await walkWithin(alice.ws, 1000)).not.toBeNull();
+  });
+
   /** Alice, standing over a sword she has just taken off the floor. */
   async function armedAlice() {
     await putCheckpoint(checkpointWithSword());

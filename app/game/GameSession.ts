@@ -1765,6 +1765,19 @@ export class GameSession implements PlaySession {
   }
 
   /**
+   * Whether this session still has a body for an id.
+   *
+   * Exists because a caller holding an id across a tick cannot assume it is
+   * still there: a death removes the runtime, and so does a world being
+   * replaced. Everything else that reaches for an actor throws when it is gone,
+   * which is right for the paths that genuinely require one — this is for the
+   * paths that are asking.
+   */
+  hasActor(id: string): boolean {
+    return this.actors.has(id);
+  }
+
+  /**
    * Whether this actor is a body the world owns rather than one a person drives.
    *
    * The distinction the server needs is "where does this actor come back from".

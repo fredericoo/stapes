@@ -332,6 +332,9 @@ export const MAX_REMEMBERED_ACTORS = 1_000;
  */
 const ACTOR_FLUSH_INTERVAL_MS = 30_000;
 
+/** How often a repeating tick failure is reported. See {@link GameServer.tickSafely}. */
+const TICK_FAILURE_LOG_INTERVAL = 300;
+
 /**
  * Where somebody was standing, kept against their return.
  *
@@ -560,6 +563,8 @@ export class GameServer {
   /** Steps clients say they have taken, oldest first, per actor. */
   private readonly queuedSteps = new Map<string, QueuedStep[]>();
   private timer: ReturnType<typeof setInterval> | null = null;
+  /** Consecutive throwing ticks, for the rate-limited report. See {@link tickSafely}. */
+  private consecutiveTickFailures = 0;
   private loading: Promise<void> | null = null;
   /** Where `data/` is served in dev, told to us by whoever called in. */
   /** When each actor last said something, for the rate limit. */
@@ -2105,6 +2110,21 @@ export class GameServer {
     if (!session) return;
 
     for (const [actorId, queue] of this.queuedSteps) {
+      // **A queued step can outlive the body that asked for it.** The step is
+      // taken from the wire on one tick and applied on the next, and in between
+      // its owner can die — walking into a fire is exactly that, with a step
+      // still queued behind the one that killed them. `noteDeaths` clears the
+      // queue, but it runs *after* this in `tick`, so by the time it would have
+      // tidied up this loop has already asked the session for an actor that is
+      // no longer in it.
+      //
+      // Dropping the queue is the whole correction: steps address a body, and
+      // there is no longer a body to move.
+      if (!session.hasActor(actorId)) {
+        this.queuedSteps.delete(actorId);
+        continue;
+      }
+
       while (queue.length > 0) {
         const step = queue[0]!;
         const outcome = session.requestStep(actorId, step.direction, {
@@ -2668,7 +2688,42 @@ export class GameServer {
    */
   private wake() {
     if (this.timer !== null) return;
-    this.timer = setInterval(() => this.tick(), TICK_MS);
+    this.timer = setInterval(() => this.tickSafely(), TICK_MS);
+  }
+
+  /**
+   * Run a tick, and survive one that throws.
+   *
+   * **A platform used to do this.** An exception inside a Durable Object's
+   * timer was caught by the runtime and cost that tick; the same exception
+   * inside `setInterval` here is an uncaught exception, which ends the process
+   * — so one bad tick disconnected everybody, lost up to a checkpoint interval,
+   * and handed the whole world to the restart policy. A queued step belonging
+   * to somebody who had just walked into a fire was enough to do it.
+   *
+   * Ticking continues afterwards, deliberately. A world frozen at the moment it
+   * first went wrong is worse than one that skips a frame and says so: the skip
+   * is visible in the log and survivable, where the freeze looks like a running
+   * world to every socket watching it.
+   *
+   * The repeat counter is because a fault in the simulation is rarely a one-off
+   * — at thirty ticks a second, an unguarded log would bury the first and most
+   * useful report under thousands of copies within a minute.
+   */
+  private tickSafely() {
+    try {
+      this.tick();
+      this.consecutiveTickFailures = 0;
+    } catch (error) {
+      this.consecutiveTickFailures += 1;
+      const n = this.consecutiveTickFailures;
+      if (n === 1 || n % TICK_FAILURE_LOG_INTERVAL === 0) {
+        console.error(
+          `[world] tick failed (${n} in a row, still ticking)`,
+          error,
+        );
+      }
+    }
   }
 
   /**
