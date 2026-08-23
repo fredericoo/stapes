@@ -68,6 +68,36 @@ All pointing at the one IP:
 The wildcard is what gives each pull request `pr-42.preview.example.com` without
 touching DNS again.
 
+The Coolify panel needs its own route, and setting the instance domain in the
+UI is **not** enough. Coolify labels the containers it deploys, but its own
+container is created by the installer's compose file and carries no Traefik
+labels — so the panel stays on plain HTTP no matter what the setting says. The
+route is declared instead in
+`/data/coolify/proxy/dynamic/coolify-panel.yaml`, which also puts it out of
+reach of anything Coolify rewrites later.
+
+Close the plaintext port once HTTPS works, or the fix is decorative — anyone
+with the IP can still log in over `http://<ip>:8000`:
+
+```bash
+iptables -I DOCKER-USER -i eth0 -p tcp -m conntrack --ctorigdstport 8000 -j DROP
+netfilter-persistent save
+```
+
+Three things about that rule, each of which cost an attempt:
+
+- **`DOCKER-USER`, not `INPUT` or `ufw`.** Docker inserts its own rules ahead of
+  those, so a published port ignores them entirely.
+- **`--ctorigdstport 8000`, not `--dport 8000`.** Docker has already rewritten
+  the destination to the container's port by the time the filter chains see the
+  packet, so matching the published port never fires.
+- **Match `--ctorigdstport`, not the container's address.** A rule naming
+  `10.0.1.x` stops matching the moment the container is recreated, and the admin
+  port reopens with nothing to say so.
+
+Loopback is deliberately untouched, so `ssh -L 8000:localhost:8000 root@<ip>`
+is still a way in if the HTTPS route ever breaks.
+
 In Coolify → **Settings → Instance Domain**, set the `coolify.*` name. Traefik
 gets Let's Encrypt certificates automatically once DNS resolves, and routes by
 hostname — so production and every preview share port 443 without conflicting.
