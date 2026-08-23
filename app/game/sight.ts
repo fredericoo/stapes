@@ -174,9 +174,18 @@ function sealsAgainstVertical(
  * across levels at all: with only the sideways test, a creature in a sealed
  * basement is in plain view of the sky.
  *
- * Crossing between two levels is refused by the *upper* cell's ground, whichever
- * way the look is travelling — the floor of the room above is the ceiling of the
- * room below, and it is one tile doing both jobs.
+ * Crossing between two levels is refused by **the ground over whichever end of
+ * the step is lower** — the column the step enters on the way down, the column
+ * it leaves on the way up. One slab either way, which is what makes a look
+ * reversible: what you can see from the ledge can see you back.
+ *
+ * Reading it off the column being *entered* regardless of direction, which it
+ * did, is a look that climbs being stopped by the floor its own target is
+ * standing on. Directly overhead the two readings are the same tile and it went
+ * unnoticed; one cell across they are two different tiles, and the wrong one is
+ * not in the way at all — it is what holds the target up. That is what made a
+ * chest on the ledge beside you unreachable while the one in the cellar under
+ * your feet was not.
  *
  * ## The endpoints
  *
@@ -184,10 +193,12 @@ function sealsAgainstVertical(
  * blind themselves, and a target behind a full-height door they are standing
  * *in* would be invisible while in plain sight.
  *
- * They are very much tested vertically, and that asymmetry is deliberate. The
+ * Their *ceilings* are very much tested, and that asymmetry is deliberate. The
  * floor you are standing on is between you and anything below it, including
  * something directly underfoot — the cave in the scenarios is exactly this, and
- * an endpoint rule that skipped it would see straight through the rock.
+ * an endpoint rule that skipped it would see straight through the rock. What is
+ * never counted is the ground the higher end stands *on*: a body on a ledge is
+ * on top of that slab, not behind it.
  *
  * ## Sampling
  *
@@ -226,6 +237,8 @@ export function hasLineOfSight(
 
   const eyeAt = eyeAbs(map, tilesById, from, eyeHeight);
 
+  let prevX = from.x;
+  let prevY = from.y;
   let prevZ = from.z;
   for (let i = 1; i <= steps; i++) {
     const t = i / steps;
@@ -233,12 +246,18 @@ export function hasLineOfSight(
     const y = Math.round(from.y + dy * t);
     const z = Math.round(from.z + dz * t);
 
+    // The ground over whichever end of the step is *lower* — see the doc above
+    // for why the column that answers depends on which way the look travels.
+    const lowerX = z < prevZ ? x : prevX;
+    const lowerY = z < prevZ ? y : prevY;
     if (
       z !== prevZ &&
-      sealsAgainstVertical(map, tilesById, x, y, Math.max(z, prevZ))
+      sealsAgainstVertical(map, tilesById, lowerX, lowerY, Math.max(z, prevZ))
     ) {
       return false;
     }
+    prevX = x;
+    prevY = y;
     prevZ = z;
 
     if (i < steps && blocksSight(map, tilesById, x, y, z, eyeAt)) {

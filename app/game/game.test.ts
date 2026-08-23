@@ -886,6 +886,24 @@ describe("GameSession canInteract", () => {
     expect(session.canInteract({ x: 1, y: 0, z: 1, stackIndex: 1 })).toBe(true);
   });
 
+  /**
+   * The floor of slack is not a hole in the floor. Asked of the session rather
+   * than of the list because this is the half that has to hold: a client that
+   * offered the row anyway must still be refused when it acts on it.
+   */
+  it("ignores a switch a floor below the ground it is standing on", () => {
+    let map = mapWithCrate(3);
+    map = replaceStack(map, 1, 0, -1, [
+      { tileId: "grass" },
+      { tileId: "door-closed" },
+    ]);
+    const session = new GameSession(map, tiles);
+    const ref = { x: 1, y: 0, z: -1, stackIndex: 1 };
+
+    expect(session.canInteract(ref)).toBe(false);
+    expect(session.activateSwitch(ref)).toBe(false);
+  });
+
   it("ignores a hover two floors away", () => {
     let map = mapWithCrate(3);
     map = replaceStack(map, 1, 0, 2, [{ tileId: "grass" }, { tileId: "crate" }]);

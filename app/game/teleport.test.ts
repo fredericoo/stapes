@@ -256,6 +256,43 @@ describe("reachableTeleportAt", () => {
     ).not.toBeNull();
   });
 
+  /**
+   * The floor of slack a press is allowed (see `INTERACT_LEVEL_SLACK`) is not a
+   * licence to press through rock. A doorway in the cellar is a doorway you
+   * open from the cellar.
+   */
+  it("refuses an `interact` portal a floor down under solid ground", () => {
+    let map = replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "player", direction: "e" },
+    ]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }]);
+    map = replaceStack(map, 1, 0, -1, [
+      { tileId: "grass" },
+      { tileId: "portal", teleportTo: { x: 5, y: 5, z: 0 } },
+    ]);
+    const ref = { x: 1, y: 0, z: -1, stackIndex: 1 };
+    expect(
+      reachableTeleportAt(map, tilesById, { x: 0, y: 0, z: 0 }, ref),
+    ).toBeNull();
+  });
+
+  /** And the same doorway with a hole in the floor above it. */
+  it("offers one a floor down where that ground is missing", () => {
+    let map = replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "player", direction: "e" },
+    ]);
+    map = replaceStack(map, 1, 0, -1, [
+      { tileId: "grass" },
+      { tileId: "portal", teleportTo: { x: 5, y: 5, z: 0 } },
+    ]);
+    const ref = { x: 1, y: 0, z: -1, stackIndex: 1 };
+    expect(
+      reachableTeleportAt(map, tilesById, { x: 0, y: 0, z: 0 }, ref)?.to,
+    ).toEqual({ x: 5, y: 5, z: 0 });
+  });
+
   it("never offers a `step` pad, which answers to no press", () => {
     let map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "grass" },
