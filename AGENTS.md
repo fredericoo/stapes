@@ -133,6 +133,30 @@ break by accident:
   become the live page, and a tab that loaded five minutes ago must still be able
   to fetch *its* chunks — so old builds stay resident and are still served.
 
+## Known: a rebirth inherits the status that killed you
+
+**Not fixed, and deliberately left for a design decision.** Reported from the
+live server: an unarmoured player walks onto a `flame`, takes `burned`, dies —
+and on rebirth burns to death again, repeatedly.
+
+The mechanism, so nobody has to find it twice:
+
+- Hit points *are* restored. `lastHpOf` reads a stored value below 1 as
+  `undefined`, which `spawn` takes as "ask the tile", so the new body is at
+  full. That is why this reads as "health is not restored" and is not.
+- **Statuses are restored verbatim.** `burned` runs up to 24 seconds and stacks,
+  so a body reborn inside that window is already burning and goes down again
+  before anybody sees the full health bar.
+- The cause is that `restoredActor` serves two events that want opposite things.
+  A **reconnect** is the same body and should keep its statuses; a **rebirth**
+  is a new body and should not inherit what killed the old one. `seatActor` is
+  on both paths and cannot currently tell them apart.
+
+The small fix is to clear statuses when seating a body whose predecessor died,
+leaving kit, tags and masteries alone. It is left undone because "what a death
+costs you" is a game design question rather than a bug — see the same tension in
+`resetWorld`, which carries kit and masteries across on purpose.
+
 ## The wire has a version on it
 
 `PROTOCOL_VERSION` in `app/net/protocol.ts`. **Bump it in the same commit as any
