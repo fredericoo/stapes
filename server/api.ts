@@ -1,6 +1,7 @@
 import { Elysia, t } from "elysia";
 import { parseMap, serializeMap } from "../app/lib/mapData";
-import { readPngSize } from "../app/lib/storage.server";
+import { readPngSize } from "../app/lib/png";
+import { untar } from "./untar";
 import type { World } from "./world";
 import type { ClientBundle } from "./clientBundle";
 import type { Config } from "./config";
@@ -138,6 +139,42 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
           return { ok: true as const };
         },
         { detail: { summary: "Destroy every position, kit, reward and mastery" } },
+      )
+      /**
+       * Take a built client from continuous integration.
+       *
+       * A tar archive rather than a file per request: a build is a few hundred
+       * files, and a request each would be a deploy that can half-finish. This
+       * either stores the whole thing or throws, and the build does not become
+       * the live page until it is activated separately.
+       */
+      .post(
+        "/backup",
+        async ({ headers, status }) => {
+          if (!(await authorized(headers.authorization, config))) {
+            return status(404, "Not found");
+          }
+          // Taken from inside this process because nothing outside it can open
+          // the database — see `World.snapshot`.
+          const path = await world.snapshot(config.BACKUP_DIR);
+          return { ok: true as const, path };
+        },
+      )
+      .post(
+        "/client/upload",
+        async ({ headers, body, status }) => {
+          if (!(await authorized(headers.authorization, config))) {
+            return status(404, "Not found");
+          }
+          const archive = new Uint8Array(await (body.archive as File).arrayBuffer());
+          const files = untar(archive);
+          if (files.size === 0) return status(400, "Empty archive");
+          await bundle.store(body.buildId, files);
+          return { ok: true as const, files: files.size };
+        },
+        {
+          body: t.Object({ buildId: t.String(), archive: t.File() }),
+        },
       )
       .post(
         "/client/activate",

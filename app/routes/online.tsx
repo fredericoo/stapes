@@ -49,11 +49,6 @@ export async function clientLoader() {
   return { ...bootstrap, socketPath: GAME_SOCKET_PATH, protocolVersion };
 }
 
-/** Nothing to render on the server; there is no server rendering. */
-export function HydrateFallback() {
-  return <LoadingScreen />;
-}
-
 /** Backoff between reconnect attempts, capped. */
 const RECONNECT_BASE_MS = 500;
 const RECONNECT_MAX_MS = 10_000;

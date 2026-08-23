@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { readPngSize } from "./storage.server";
+import { readPngSize } from "./png";
 
 const SIGNATURE = [137, 80, 78, 71, 13, 10, 26, 10];
 

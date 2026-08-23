@@ -26,12 +26,10 @@ const config = readConfig();
 const world = await World.open(config);
 const bundle = new ClientBundle(config);
 
-if (bundle.enabled && config.CLIENT_BUILD_ID) {
-  // A fresh container comes up on a known build without being told. Failing
-  // here is correct: a server that cannot serve its client is not healthy, and
-  // discovering that at the first page load is worse than at boot.
-  await bundle.activate(config.CLIENT_BUILD_ID);
-}
+// Come back up on whatever was being served before this process replaced the
+// last one. Builds are on the mounted volume, so a server deploy does not touch
+// them — see `ClientBundle.restore`.
+await bundle.restore(config.CLIENT_BUILD_ID);
 
 /** Actor id per connection, for the close handler after the socket is gone. */
 const sockets = new WeakMap<object, GameSocket>();

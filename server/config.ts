@@ -35,28 +35,25 @@ const schema = v.object({
   SEED_DIR: v.optional(v.string(), "./data"),
 
   /**
-   * Where the built client lives, as `s3://bucket/prefix`-style parts.
+   * Which client build to fall back to if nothing has been activated yet.
    *
-   * Absent in development, where Vite serves the client and this server only
-   * answers `/api` and the socket. Present in every deployed environment.
-   */
-  CLIENT_BUCKET: v.optional(v.string()),
-  CLIENT_BUCKET_ENDPOINT: v.optional(v.string()),
-  CLIENT_BUCKET_REGION: v.optional(v.string(), "auto"),
-  CLIENT_BUCKET_ACCESS_KEY_ID: v.optional(v.string()),
-  CLIENT_BUCKET_SECRET_ACCESS_KEY: v.optional(v.string()),
-
-  /**
-   * Build to serve, as the prefix written by CI: `builds/<sha>`.
-   *
-   * Set at deploy time so a fresh container comes up on a known build without
-   * having to be told. `POST /api/client/activate` changes it at runtime, which
-   * is what makes a client deploy free of a restart.
+   * Almost never needed. The server writes down what it is serving and comes
+   * back up on it, so this only matters for the very first deploy — see
+   * `ClientBundle.restore`. Builds themselves live on the volume under
+   * `clients/`, put there by `POST /api/client/upload`; there is no bucket.
    */
   CLIENT_BUILD_ID: v.optional(v.string()),
 
-  /** Bearer token for `/api/reset` and `/api/client/activate`. Unset disables both. */
+  /** Bearer token for the admin endpoints. Unset makes them 404 rather than open. */
   ADMIN_SECRET: v.optional(v.string()),
+
+  /**
+   * Where `POST /api/backup` writes snapshots.
+   *
+   * A separate mount from `DATA_DIR` in production, because a backup sitting on
+   * the volume it is protecting is not a backup.
+   */
+  BACKUP_DIR: v.optional(v.string(), "./.dev/backups"),
 
   /**
    * Public origin, for logs and for the health payload.
@@ -76,8 +73,14 @@ const schema = v.object({
 export type Config = v.InferOutput<typeof schema> & {
   /** `DATA_DIR` joined to the database filename. */
   databasePath: string;
-  /** Whether a client bundle should be fetched and served. */
-  servesClient: boolean;
+  /**
+   * Whether authored content lives in the database rather than in `data/`.
+   *
+   * Development reads the repository directory so an edited tileset is live on
+   * the next request and an editor Save lands in `git diff`. A deployment has
+   * no repository, so it reads the blob table and seeds it from the image.
+   */
+  deployed: boolean;
 };
 
 export function readConfig(env: NodeJS.ProcessEnv = process.env): Config {
@@ -85,6 +88,6 @@ export function readConfig(env: NodeJS.ProcessEnv = process.env): Config {
   return {
     ...parsed,
     databasePath: `${parsed.DATA_DIR.replace(/\/+$/, "")}/stapes.db`,
-    servesClient: Boolean(parsed.CLIENT_BUCKET),
+    deployed: env.NODE_ENV === "production",
   };
 }

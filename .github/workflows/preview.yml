@@ -30,6 +30,22 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # Production and every preview share one machine, so the count is bounded
+      # here rather than discovered when the box runs out of memory. Failing the
+      # deploy with a sentence is a far better outcome than a preview that boots
+      # and takes the live world down with it.
+      - name: Check there is room
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          OPEN=$(gh pr list --state open --json number --jq 'length')
+          MAX=${{ vars.MAX_PREVIEWS || 4 }}
+          if [ "$OPEN" -gt "$MAX" ]; then
+            echo "::error::$OPEN pull requests are open and at most $MAX previews fit on this box."
+            echo "Close one, or raise MAX_PREVIEWS once the machine is bigger."
+            exit 1
+          fi
+
       - name: Deploy
         run: |
           curl --fail-with-body -X GET \

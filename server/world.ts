@@ -7,6 +7,8 @@ import { openWorldDatabaseExclusively } from "./lock";
 import { seedFromDirectory } from "./seed";
 import type { Config } from "./config";
 import type { Database } from "./db";
+import { mkdir } from "node:fs/promises";
+import { join } from "node:path";
 
 /**
  * Everything the platform used to do around `GameServer`.
@@ -45,7 +47,7 @@ export class World {
     // `data/map.json` as a reviewable diff. Deployed, it lives in the database —
     // and seeds itself from the image on first boot, which is what makes a
     // fresh environment come up playable with no seed step in the pipeline.
-    const blobs = config.servesClient
+    const blobs = config.deployed
       ? new SqliteBlobs(db)
       : new DiskBlobs(config.SEED_DIR);
     if (blobs instanceof SqliteBlobs && (await blobs.isEmpty())) {
@@ -132,6 +134,29 @@ export class World {
     await this.server.webSocketClose(socket);
   }
 
+  /**
+   * Write a consistent snapshot of the database beside it.
+   *
+   * **This has to happen in here**, and that is not a preference. The world
+   * holds its database with `PRAGMA locking_mode = EXCLUSIVE`, so no other
+   * process can even open the file — a cron job running `sqlite3` against the
+   * volume gets `database is locked` and a backup that has never worked. The
+   * process holding the lock is the only one that can take the copy.
+   *
+   * `VACUUM INTO` rather than copying the file: it is consistent against a
+   * database being written to, which this one is, and it leaves the WAL behind
+   * rather than requiring the sidecars to travel too.
+   */
+  async snapshot(directory: string): Promise<string> {
+    await mkdir(directory, { recursive: true });
+    // Flushed first, so the snapshot includes the last couple of seconds of
+    // play rather than everything up to the previous checkpoint.
+    await this.store.flush();
+    const path = join(directory, `stapes-${stamp()}.db`);
+    await this.db.exec(`VACUUM INTO '${path.replaceAll("'", "''")}'`);
+    return path;
+  }
+
   /** Whether the world is still accepting connections. Drives `/health`. */
   get accepting(): boolean {
     return !this.draining;
@@ -184,6 +209,11 @@ export class World {
 
     await this.db.close?.();
   }
+}
+
+/** A filename-safe UTC timestamp, so a listing sorts chronologically. */
+function stamp(): string {
+  return new Date().toISOString().replace(/[:.]/g, "-").replace("Z", "Z");
 }
 
 /** RFC 6455's Service Restart. The client treats it as "reconnect promptly". */

@@ -94,6 +94,26 @@ is not one.
   like joining is broken. Use `localhost` in one and `127.0.0.1` in the other.
   Unchanged, and still the first thing that will waste somebody an hour.
 
+## The client is files on the volume, not in the image
+
+`server/clientBundle.ts` serves the built client out of `<DATA_DIR>/clients/`,
+where continuous integration posts it — `POST /api/client/upload` takes a tar
+archive, `POST /api/client/activate` makes it live. There is no bucket, no S3
+credentials and no MinIO: on a single box, object storage would mean either
+paying somebody else or running a service to talk to itself over HTTP.
+
+Two properties hold this together, and both have tests because both are easy to
+break by accident:
+
+- **A server deploy must not take the client down.** Builds are on the mounted
+  volume rather than in the image, and the server writes down which one it is
+  serving (`clients/active`) so a fresh container comes back on the same page.
+  Trusting `CLIENT_BUILD_ID` instead would roll the client back to whatever the
+  first deploy set.
+- **Upload and activate are separate.** An upload that half-finished must never
+  become the live page, and a tab that loaded five minutes ago must still be able
+  to fetch *its* chunks — so old builds stay resident and are still served.
+
 ## The wire has a version on it
 
 `PROTOCOL_VERSION` in `app/net/protocol.ts`. **Bump it in the same commit as any

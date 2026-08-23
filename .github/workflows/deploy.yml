@@ -29,25 +29,19 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run build
 
-      # Assets first, `index.html` last. Within a build the order does not
-      # matter — the prefix is not live until the pointer flips below — but it
-      # costs nothing and means a half-finished upload can never be activated
-      # into a page whose chunks are missing.
-      - name: Push build to the bucket
-        env:
-          AWS_ACCESS_KEY_ID: ${{ secrets.CLIENT_BUCKET_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.CLIENT_BUCKET_SECRET_ACCESS_KEY }}
-          AWS_DEFAULT_REGION: ${{ vars.CLIENT_BUCKET_REGION }}
+      # One archive, one request. A file per request would be a deploy that can
+      # half-finish, and the server only makes a build live once the whole of it
+      # has landed.
+      - name: Upload the build
         run: |
-          aws s3 sync build/client "s3://${{ vars.CLIENT_BUCKET }}/builds/${{ github.sha }}" \
-            --endpoint-url "${{ vars.CLIENT_BUCKET_ENDPOINT }}" \
-            --exclude "index.html" --delete
-          aws s3 cp build/client/index.html \
-            "s3://${{ vars.CLIENT_BUCKET }}/builds/${{ github.sha }}/index.html" \
-            --endpoint-url "${{ vars.CLIENT_BUCKET_ENDPOINT }}"
+          tar -cf client.tar -C build/client .
+          curl --fail-with-body -X POST "${{ vars.PUBLIC_ORIGIN }}/api/client/upload" \
+            -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}" \
+            -F "buildId=${{ github.sha }}" \
+            -F "archive=@client.tar"
 
-      # The flip. The server downloads the prefix, swaps it in when the whole of
-      # it is resident, and goes on serving throughout.
+      # The flip. The server reads the build in, swaps it when the whole of it
+      # is resident, and goes on serving throughout — nobody is disconnected.
       - name: Activate
         run: |
           curl --fail-with-body -X POST "${{ vars.PUBLIC_ORIGIN }}/api/client/activate" \
@@ -63,6 +57,14 @@ jobs:
     if: contains(github.event.head_commit.message, '[server]') || github.event_name == 'workflow_dispatch'
     steps:
       - uses: actions/checkout@v5
+
+      # Before the container is replaced, not after. A deploy is the most likely
+      # moment for something to go wrong, and this is the copy you would want.
+      - name: Snapshot the world first
+        run: |
+          curl --fail-with-body -X POST "${{ vars.PUBLIC_ORIGIN }}/api/backup" \
+            -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}"
+
       - name: Trigger Coolify deploy
         run: |
           curl --fail-with-body -X GET \

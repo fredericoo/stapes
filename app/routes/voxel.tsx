@@ -11,7 +11,7 @@ import {
   saveTilesets,
   uploadTileset,
 } from "../lib/api";
-import { readPngSize } from "../lib/storage.server";
+import { readPngSize } from "../lib/png";
 import { CELL_SIZE, DIRECTIONS } from "../lib/types";
 import type { TileDef, TileHeight, TilesetDef } from "../lib/types";
 import {

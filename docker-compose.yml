@@ -1,8 +1,8 @@
 # Production, and the shape Coolify deploys.
 #
-# One service. There is no database container, no object storage for state and
-# no static host: the world is a file on a volume, and the client comes from a
-# bucket at boot.
+# One service, and nothing else: no database container, no object storage, no
+# static host. The world is a file on a volume and so is the client, which
+# continuous integration posts straight to the server.
 services:
   stapes:
     build: .
@@ -13,18 +13,26 @@ services:
       DATA_DIR: /data
       PUBLIC_ORIGIN: ${PUBLIC_ORIGIN:?set this}
       ADMIN_SECRET: ${ADMIN_SECRET:?set this}
-      CLIENT_BUCKET: ${CLIENT_BUCKET:?set this}
-      CLIENT_BUCKET_ENDPOINT: ${CLIENT_BUCKET_ENDPOINT:?set this}
-      CLIENT_BUCKET_REGION: ${CLIENT_BUCKET_REGION:-auto}
-      CLIENT_BUCKET_ACCESS_KEY_ID: ${CLIENT_BUCKET_ACCESS_KEY_ID:?set this}
-      CLIENT_BUCKET_SECRET_ACCESS_KEY: ${CLIENT_BUCKET_SECRET_ACCESS_KEY:?set this}
-      CLIENT_BUILD_ID: ${CLIENT_BUILD_ID:-}
       CHECKPOINT_INTERVAL_MS: ${CHECKPOINT_INTERVAL_MS:-2000}
+      BACKUP_DIR: /backups
     volumes:
       - stapes-data:/data
+      # A separate volume, because a backup on the disk it is protecting is not
+      # a backup. Bind this to somewhere you sync off the box.
+      - stapes-backups:/backups
     # Generous on purpose. The drain is budgeted at about two seconds, and the
     # one failure that loses somebody's world is a SIGKILL arriving mid-flush.
     stop_grace_period: 30s
+    # A ceiling, and on a single box it is what keeps previews from being able
+    # to take production down with them.
+    #
+    # An idle world is about 90 MB resident. Without a limit, a container that
+    # runs away hands the problem to the kernel's OOM killer, which chooses by
+    # badness score — and the largest resident process on a box full of preview
+    # worlds is production. With a limit, the offender is killed inside its own
+    # cgroup and nothing else notices.
+    mem_limit: ${MEM_LIMIT:-512m}
 
 volumes:
   stapes-data:
+  stapes-backups:

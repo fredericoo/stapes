@@ -5,7 +5,7 @@ import { AppShell } from "../components/AppShell";
 import { TileEditorDialog, tileIsAnimated } from "../components/TileEditorDialog";
 import { TilePreview } from "../components/TilePreview";
 import { statusesById } from "../lib/status";
-import { readPngSize } from "../lib/storage.server";
+import { readPngSize } from "../lib/png";
 import {
   fetchBootstrap,
   fetchTiles,

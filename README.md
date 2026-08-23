@@ -45,8 +45,9 @@ fresh game on the new map.
 
 Deploying the server also restarts the world, and that is announced: the page
 shows that the world is updating, and puts you back where you were standing a
-couple of seconds later. Deploying the *client* restarts nothing — it is a push
-to a bucket and a pointer flip.
+couple of seconds later. Deploying the *client* restarts nothing — CI posts the
+build to the running server, which stores it beside the world and flips a
+pointer. Nobody is disconnected, and a later server deploy does not undo it.
 
 Two tabs in one browser share the cookie and are therefore the *same* player.
 To test two players locally, open one on `localhost` and one on `127.0.0.1` —
@@ -68,6 +69,10 @@ It has two homes behind one interface (`app/lib/storage.server.ts`):
 - **Deployed, the `blob` table** in `stapes.db`, at keys mirroring the same
   paths. A fresh deployment fills it from the `data/` in its image on first
   boot, so there is nothing to seed by hand.
+
+The whole of a deployment is one directory on one volume: `stapes.db` and its
+write-ahead log, plus `clients/` holding the last few client builds. That is
+everything worth backing up, and it is what `POST /api/backup` snapshots.
 
 There is a third source of truth that seeding cannot reach: the world people are
 actually in. It prefers its own checkpoint to the authored content, so a seeded
