@@ -674,6 +674,8 @@ export type ServerMessage =
    * Sent before the sockets are closed on a deploy, so the page can say the
    * world is updating rather than showing the face it shows for a crash.
    */
+  /** Nothing to say, said on purpose. See the schema below. */
+  | { type: "keepalive" }
   | { type: "serverRestarting" }
   /**
    * This tab speaks a protocol the server no longer does.
@@ -1153,6 +1155,30 @@ const serverMessageSchema = v.variant("type", [
     equipment: tolerantEquipmentSchema,
   }),
   /**
+   * Nothing to say, said on purpose.
+   *
+   * A world at rest sends nothing at all — `sleepIfIdle` stops the tick when
+   * everybody is standing still — and a silent socket is one a proxy is
+   * entitled to close. Reconnecting costs a whole `hello`, which carries the
+   * map, so an idle player behind a proxy would re-download the world on a
+   * loop. This is cheaper than that by four orders of magnitude.
+   */
+  v.object({
+    type: v.literal("keepalive"),
+  }),
+  /**
+   * Nothing to say, said on purpose.
+   *
+   * A world at rest sends nothing at all — `sleepIfIdle` stops the tick when
+   * everybody is standing still — and a silent socket is one a proxy is
+   * entitled to close. Reconnecting costs a whole `hello`, which carries the
+   * map, so an idle player behind a proxy would re-download the world on a
+   * loop. This is cheaper than that by four orders of magnitude.
+   */
+  v.object({
+    type: v.literal("keepalive"),
+  }),
+  /**
    * The world is going away for a moment, and will be back.
    *
    * Sent before the sockets are closed on a deploy, so the client can say the
@@ -1215,7 +1241,16 @@ export const GAME_SOCKET_PATH = "/online/ws";
  * This is deliberately not the build id. A client deploy that changes no
  * messages should not disconnect anybody, and most client deploys are that.
  */
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
+
+/**
+ * How often the world says nothing, to keep a proxy from hanging up.
+ *
+ * Well inside the shortest idle timeout worth designing against — Cloudflare
+ * and most reverse proxies sit around a minute or two — and small enough that
+ * the cost is invisible: a dozen bytes per player per interval.
+ */
+export const KEEPALIVE_INTERVAL_MS = 30_000;
 
 /** Query parameter carrying {@link PROTOCOL_VERSION} on the socket URL. */
 export const PROTOCOL_VERSION_PARAM = "v";

@@ -5,6 +5,7 @@ import { WorldStore } from "./WorldStore";
 import { GameSocket, SocketHub, type WorldContext } from "./sockets";
 import { openWorldDatabaseExclusively } from "./lock";
 import { seedFromDirectory } from "./seed";
+import { KEEPALIVE_INTERVAL_MS } from "../app/net/protocol";
 import type { Config } from "./config";
 import type { Database } from "./db";
 import { mkdir } from "node:fs/promises";
@@ -20,6 +21,7 @@ import { join } from "node:path";
  */
 export class World {
   private checkpointTimer: ReturnType<typeof setInterval> | null = null;
+  private keepaliveTimer: ReturnType<typeof setInterval> | null = null;
   private alarmTimer: ReturnType<typeof setTimeout> | null = null;
   private draining = false;
 
@@ -69,6 +71,7 @@ export class World {
     world.rearmAlarm(store.alarmAt());
     store.onAlarmChange = (atMs) => world.rearmAlarm(atMs);
     world.startCheckpointing();
+    world.startKeepalive();
     return world;
   }
 
@@ -90,6 +93,23 @@ export class World {
         console.error("[world] checkpoint failed", error);
       });
     }, this.config.CHECKPOINT_INTERVAL_MS);
+  }
+
+  /**
+   * Say nothing, out loud, on a fixed cadence.
+   *
+   * **Lives here rather than in the tick, which is the entire point.** A world
+   * at rest stops ticking, so anything hung off the tick goes quiet exactly
+   * when a proxy is deciding whether this connection is still alive. A player
+   * standing alone in a still world would be disconnected and reconnected
+   * forever, paying a full `hello` — the whole map — each time.
+   */
+  private startKeepalive() {
+    const frame = JSON.stringify({ type: "keepalive" });
+    this.keepaliveTimer = setInterval(() => {
+      if (this.draining) return;
+      for (const socket of this.hub.all()) socket.send(frame);
+    }, KEEPALIVE_INTERVAL_MS);
   }
 
   /**
@@ -191,8 +211,10 @@ export class World {
 
     if (this.checkpointTimer) clearInterval(this.checkpointTimer);
     if (this.alarmTimer) clearTimeout(this.alarmTimer);
+    if (this.keepaliveTimer) clearInterval(this.keepaliveTimer);
     this.checkpointTimer = null;
     this.alarmTimer = null;
+    this.keepaliveTimer = null;
 
     const notice = JSON.stringify({ type: "serverRestarting" });
     for (const socket of this.hub.all()) socket.send(notice);

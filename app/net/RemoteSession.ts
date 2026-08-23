@@ -426,6 +426,12 @@ export class RemoteSession implements PlaySession {
       return;
     }
 
+    if (message.type === "keepalive") {
+      // Nothing to do. Its arrival is the whole content: it exists so the
+      // socket has traffic on it while the world is at rest.
+      return;
+    }
+
     if (message.type === "outdated") {
       // Nothing to do here — the close that follows carries the code the page
       // acts on. Consumed so it does not fall through to a warning about a
