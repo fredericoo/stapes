@@ -183,6 +183,23 @@ describe("withinReach", () => {
   });
 
   /**
+   * The same rule the other way up, and it reads off a different tile: what
+   * separates you from the ledge beside you is your own ceiling, not the ground
+   * the chest is sitting on. @see `./sight`
+   */
+  it("reaches up onto a ledge with ground of its own", () => {
+    const ledge = mapWith(1, 0, "chest", 1);
+    expect(withinReach(ledge, tilesById, ME, ref(1, 0, 1))).toBe(true);
+  });
+
+  it("refuses that ledge from under a ceiling", () => {
+    const roofed = replaceStack(mapWith(1, 0, "chest", 1), 0, 0, 1, [
+      { tileId: "grass" },
+    ]);
+    expect(withinReach(roofed, tilesById, ME, ref(1, 0, 1))).toBe(false);
+  });
+
+  /**
    * Sideways is untouched. A look never tests its own endpoints, so what you
    * are standing beside stays within arm's length, wall or no wall.
    */

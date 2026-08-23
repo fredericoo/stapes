@@ -296,6 +296,67 @@ describe("listInteractionOptions — objects", () => {
     expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
   });
 
+  /**
+   * A shove and a switch reach a floor either way — see `INTERACT_LEVEL_SLACK`
+   * — and on their own that slack reached straight through the ground. A crate
+   * in the cellar is a crate you can see the top of only if there is a hole in
+   * the floor.
+   */
+  it("says nothing about a crate a floor down under solid ground", () => {
+    let map = field();
+    map = replaceStack(map, 1, 0, -1, [
+      { tileId: "grass" },
+      { tileId: "crate" },
+    ]);
+    const me = playerAt(map);
+
+    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
+  });
+
+  /** And the case the slack exists for: the same crate, down an open shaft. */
+  it("offers a push on a crate a floor down where that ground is missing", () => {
+    let map = field();
+    map = replaceStack(map, 1, 0, 0, []);
+    map = replaceStack(map, 1, 0, -1, [
+      { tileId: "grass" },
+      { tileId: "crate" },
+    ]);
+    // Somewhere for the shove to land, a cellar being one floor rather than
+    // one cell.
+    map = replaceStack(map, 2, 0, -1, [{ tileId: "grass" }]);
+    const me = playerAt(map);
+
+    const targets = listInteractionOptions(map, tilesById, me, [me], null, KIT);
+
+    expect(actionsIn(targets)).toEqual(["push"]);
+  });
+
+  /** The door that started it: shut from the storey above, through the floor. */
+  it("says nothing about a door a floor down under solid ground", () => {
+    let map = field();
+    map = replaceStack(map, 1, 0, -1, [
+      { tileId: "grass" },
+      { tileId: "door_shut" },
+    ]);
+    const me = playerAt(map);
+
+    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
+  });
+
+  it("offers a door a floor down where that ground is missing", () => {
+    let map = field();
+    map = replaceStack(map, 1, 0, 0, []);
+    map = replaceStack(map, 1, 0, -1, [
+      { tileId: "grass" },
+      { tileId: "door_shut" },
+    ]);
+    const me = playerAt(map);
+
+    const targets = listInteractionOptions(map, tilesById, me, [me], null, KIT);
+
+    expect(actionsIn(targets)).toEqual(["switch"]);
+  });
+
   it("drops a push with nowhere to go", () => {
     let map = field();
     map = place(map, 1, 0, ["grass", "crate"]);

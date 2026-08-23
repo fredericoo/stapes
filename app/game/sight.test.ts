@@ -351,10 +351,10 @@ describe("line of sight", () => {
 
   /**
    * A ceiling stops a look going up exactly as a floor stops one going down —
-   * it is one tile doing both jobs, belonging to the upper level. Note this is
-   * the *endpoint's* own cell and is still tested: the sideways exemption for
-   * endpoints does not extend to the surface between two floors, or a body could
-   * see through the ground it is standing on.
+   * it is one tile doing both jobs, belonging to the upper level. Straight up,
+   * so the ceiling over the viewer and the endpoint's own cell are the same
+   * tile: the sideways exemption for endpoints does not extend to the surface
+   * between two floors, or a body could see through the ground it stands on.
    */
   it("is stopped going up by a ceiling overhead", () => {
     const map = replaceStack(field(), 0, 0, 1, [{ tileId: "wall" }]);
@@ -362,6 +362,45 @@ describe("line of sight", () => {
     expect(hasLineOfSight(map, tilesById, from, { x: 0, y: 0, z: 1 })).toBe(
       false,
     );
+  });
+
+  /**
+   * One cell across, those two stop being the same tile, and only one of them
+   * is in the way: **the ground over whichever end is lower**. A body standing
+   * on the ledge beside you is on top of its slab, not behind it, and a rule
+   * that read the column being entered had that slab blinding you to the very
+   * thing it was holding up.
+   */
+  it("sees onto a ledge a cell over, over the lip of it", () => {
+    const ledge = replaceStack(field(), 1, 0, 1, [{ tileId: "grass" }]);
+
+    expect(hasLineOfSight(ledge, tilesById, from, { x: 1, y: 0, z: 1 })).toBe(
+      true,
+    );
+  });
+
+  /** Roof the *viewer* instead and the same look is refused. */
+  it("loses that ledge from under a ceiling of its own", () => {
+    let map = replaceStack(field(), 1, 0, 1, [{ tileId: "grass" }]);
+    map = replaceStack(map, 0, 0, 1, [{ tileId: "grass" }]);
+
+    expect(hasLineOfSight(map, tilesById, from, { x: 1, y: 0, z: 1 })).toBe(
+      false,
+    );
+  });
+
+  /**
+   * And it reads the same from either end, which is the point of naming one
+   * slab rather than one direction: what you can see from the ledge can see you
+   * back, and a reach and the reach back cannot disagree.
+   */
+  it("crosses a floor the same way whichever end is looking", () => {
+    const ledge = replaceStack(field(), 1, 0, 1, [{ tileId: "grass" }]);
+    const up = { x: 1, y: 0, z: 1 };
+    const roofed = replaceStack(ledge, 0, 0, 1, [{ tileId: "grass" }]);
+
+    expect(hasLineOfSight(ledge, tilesById, up, from)).toBe(true);
+    expect(hasLineOfSight(roofed, tilesById, up, from)).toBe(false);
   });
 });
 

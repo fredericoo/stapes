@@ -51,6 +51,41 @@ export const INTERACT_LEVEL_SLACK = 1;
  */
 
 /**
+ * Is the object on a floor this actor can get at from where they stand?
+ *
+ * The half of reaching that has nothing to do with plan distance, split out
+ * because the gestures disagree about the plan and agree about this. Taking a
+ * thing reaches the round {@link REACH_CELLS}; a shove, a switch and a doorway
+ * take push's orthogonal step. All of them mean the same thing by "a floor up
+ * or down, if there is a way through".
+ *
+ * {@link INTERACT_LEVEL_SLACK} on its own is what lets you crouch at the lip of
+ * a ledge and work the lever below it; on its own it also let you shut a door in
+ * the cellar while standing on the ground above it, which reads as reaching
+ * through solid earth because that is exactly what it was.
+ *
+ * {@link hasLineOfSight} answers the "way through" half, rather than a fresh
+ * test for a floor in between, because it is the same question
+ * {@link dropDestinationAt} already asks of the same slack: a cell you can lob a
+ * torch into is one you could have touched had it been nearer. Sharing the
+ * question means a reach, a throw and a shove can never disagree about which
+ * floors are joined.
+ *
+ * **Reaching sideways is untouched.** A look never tests its own endpoints
+ * sideways — see `./sight` — so the door beside you is still the door beside
+ * you, and only crossing a floor can be refused here.
+ */
+function reachesAcrossFloors(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  to: Coord,
+): boolean {
+  if (Math.abs(to.z - actor.z) > INTERACT_LEVEL_SLACK) return false;
+  return hasLineOfSight(map, tilesById, actor, to);
+}
+
+/**
  * Interactive object at a stack slot, if the actor could be looking at it.
  *
  * Buried under something solid is out, read through {@link coveredBySomething}
@@ -64,7 +99,7 @@ export function interactiveDefAt(
   actor: Actor,
   ref: ObjectRef,
 ): TileDef | null {
-  if (Math.abs(ref.z - actor.z) > INTERACT_LEVEL_SLACK) return null;
+  if (!reachesAcrossFloors(map, tilesById, actor, ref)) return null;
   const stack = getStack(map, ref.x, ref.y, ref.z);
   if (coveredBySomething(stack, ref.stackIndex, tilesById)) return null;
   const placed = stack[ref.stackIndex];
@@ -96,7 +131,7 @@ export function pushableDefAt(
   actor: Actor,
   ref: ObjectRef,
 ): TileDef | null {
-  if (Math.abs(ref.z - actor.z) > INTERACT_LEVEL_SLACK) return null;
+  if (!reachesAcrossFloors(map, tilesById, actor, ref)) return null;
   const stack = getStack(map, ref.x, ref.y, ref.z);
   const placed = stack[ref.stackIndex];
   if (!placed) return null;
@@ -207,23 +242,10 @@ const REACH_CELLS_SQUARED = REACH_CELLS * REACH_CELLS;
 /**
  * Can this actor actually put a hand on the object?
  *
- * {@link REACH_CELLS} of plan distance, a floor of slack either way, **and
- * nothing solid in between** — and the last of those is the one that has to be
- * asked of the board rather than of the coordinates.
- * {@link INTERACT_LEVEL_SLACK} is there so you can crouch at the lip of a ledge
- * and take what is lying below it; on its own it also opened a crate buried
- * under the ground you were standing on, which reads as reaching through solid
- * earth because that is exactly what it was.
- *
- * {@link hasLineOfSight} answers it, rather than a fresh test for a floor in the
- * way, because it is the same question {@link dropDestinationAt} already asks of
- * the same slack: a cell you can lob a torch into is one you could have touched
- * had it been nearer. Sharing the question means a reach and a throw can never
- * disagree about which floors are joined.
- *
- * **Reaching sideways is untouched.** A look never tests its own endpoints — see
- * `./sight` — so the chest beside you is still the chest beside you, wall or no
- * wall, and only crossing a floor can now be refused.
+ * {@link REACH_CELLS} of plan distance and then the floors question every other
+ * gesture asks — see {@link reachesAcrossFloors}, which owns the slack and the
+ * "is there a way through" half. The plan test comes first because it is two
+ * multiplications and rules out most of what is ever asked about.
  */
 export function withinReach(
   map: MapFile,
@@ -231,11 +253,10 @@ export function withinReach(
   actor: Actor,
   ref: ObjectRef,
 ): boolean {
-  if (Math.abs(ref.z - actor.z) > INTERACT_LEVEL_SLACK) return false;
   const dx = ref.x - actor.x;
   const dy = ref.y - actor.y;
   if (dx * dx + dy * dy > REACH_CELLS_SQUARED) return false;
-  return hasLineOfSight(map, tilesById, actor, ref);
+  return reachesAcrossFloors(map, tilesById, actor, ref);
 }
 
 /**

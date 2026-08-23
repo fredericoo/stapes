@@ -274,9 +274,17 @@ describe("4 — me on a platform, rat on the ground below", () => {
     expect(notices(board(), rat, me, { up: 2, down: 2 })).toBe(true);
   });
 
-  /** A hawk indoors still sees nothing through a ceiling: both halves apply. */
+  /**
+   * A hawk indoors still sees nothing through a ceiling: both halves apply.
+   *
+   * The roof goes over the *hawk*, which is what "indoors" means and what the
+   * vertical rule reads — the ground over whichever end is lower. It used to be
+   * laid over the far cell instead and this passed anyway, because a climbing
+   * look was being stopped by the slab its own target was standing on. That is
+   * a body on a ledge, in the open, one cell away: plainly visible.
+   */
   it("but not through a floor, however far it looks", () => {
-    const roofed = put(board(), 4, 1, 1, "floor");
+    const roofed = put(board(), 3, 0, 1, "floor");
     const under = on(3, 0, 0);
     const above = on(4, 1, 1);
     expect(notices(roofed, under, above, { up: 2, down: 2 })).toBe(false);
