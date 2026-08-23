@@ -274,6 +274,25 @@ mobile app or with `gh workflow run deploy.yml` without an empty commit.
 
 ## 6. Previews, on the same box
 
+**Previews need Coolify connected to GitHub as a source** — a GitHub App under
+Coolify → Sources, installed on this repository — and this is not optional the
+way it looks. Coolify's deploy API cannot start a preview: `POST /api/v1/deploy`
+with `pr=N` only *looks up* a preview record and answers `Pull request N not
+found for this resource` when there is none, and the only things that create one
+are the pull-request webhook and the button in the UI (which itself calls the
+GitHub API through the source). A deploy-key application has no source, so it
+has no way to get its first preview.
+
+That is why the workflow does not deploy previews. The webhook creates and
+deploys them on `opened` and `synchronize`, destroys them on `closed`, and
+`preview.yml` only builds and posts the client.
+
+The one thing to turn off afterwards: the production application must **not** be
+bound to that source, or a push to its branch deploys it behind CI's back and
+races `deploy.yml`. Leaving production on its deploy key is what keeps the two
+apart — a GitHub App's webhook only matches applications whose source is that
+app.
+
 A second Coolify application, same repository, same server:
 
 - **Domain**: `https://pr-{{pr_id}}.preview.example.com`
@@ -299,11 +318,14 @@ does: it waits for the world to answer `/api/health`, posts the build to
 `/api/client/upload`, and activates it. That is what `PREVIEW_ADMIN_SECRET` is
 for, and it is why the workflow is slower than a deploy call.
 
-`MAX_PREVIEWS` is enforced in the workflow before deploying, so the fifth
-concurrent pull request fails with a sentence rather than by exhausting the box.
-Raise it when the machine is bigger; at 90 MB a world you have far more room than
-4, and the low cap is only there because nothing has measured this under real
-load yet.
+`MAX_PREVIEWS` is a **warning, not a gate**. It used to be a gate, back when the
+workflow was the thing that started previews; now the webhook does, and the
+container is already coming up by the time any job could object. What actually
+bounds the box is the memory limit above — that is the number to trust, and the
+one that keeps a crowded box from taking production with it. Raise the warning
+threshold when the machine is bigger; at 90 MB a world there is far more room
+than 4, and the low number is only there because nothing has measured this under
+real load yet.
 
 Open a throwaway pull request and **verify the volume is actually destroyed** on
 close (`docker volume ls` before and after). A preview volume that quietly

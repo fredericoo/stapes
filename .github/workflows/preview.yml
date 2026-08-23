@@ -6,28 +6,33 @@
 # its own world from the `data/` in its image, and Coolify destroys the volume
 # with the PR.
 #
-# The client is the one thing the container does *not* bring with it. It is not
-# in the image — see `Dockerfile` — so a preview that is only deployed comes up
-# healthy and serves a 404 page. This workflow builds and posts one, the same
-# way `deploy.yml` does for production.
+# **Coolify owns the container; this workflow owns the client.** The pull-request
+# webhook is what creates and deploys a preview, and what destroys it on close —
+# the deploy API cannot do the first of those. `POST /api/v1/deploy?pr=N` only
+# looks up a preview record that a webhook already made, and answers
+# "Pull request N not found for this resource" when none exists. So there is
+# nothing here to trigger a deploy with, and nothing to tear down.
+#
+# What is left is the one thing Coolify cannot do: the client is deliberately
+# not in the image — see `Dockerfile` — so a preview that is only deployed comes
+# up healthy and serves a 404. This builds one and posts it, the same three
+# steps `deploy.yml` uses for production.
 name: PR preview
 
 on:
   pull_request:
-    types: [opened, synchronize, reopened, closed]
+    types: [opened, synchronize, reopened]
 
 concurrency:
   group: preview-${{ github.event.number }}
   cancel-in-progress: true
 
 jobs:
-  deploy:
-    name: deploy preview
+  client:
+    name: client for preview
     # Forks do not get the repository's secrets, so this would fail on
     # authentication rather than on anything the contributor did.
-    if: >-
-      github.event.action != 'closed' &&
-      github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -40,29 +45,22 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # Production and every preview share one machine, so the count is bounded
-      # here rather than discovered when the box runs out of memory. Failing the
-      # deploy with a sentence is a far better outcome than a preview that boots
-      # and takes the live world down with it.
-      - name: Check there is room
+      # Production and every preview share one machine, so the count is worth
+      # saying out loud. This is a **warning and not a gate**: the container is
+      # already coming up by the time this runs, because Coolify deploys it
+      # straight off the pull-request webhook. Failing here would leave a red
+      # mark and an oversubscribed box rather than just an oversubscribed box.
+      # The real ceiling is the memory limit on the preview application, which
+      # is what keeps a crowded box from taking production down with it.
+      - name: Say if the box is crowded
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           OPEN=$(gh pr list --state open --json number --jq 'length')
           MAX=${{ vars.MAX_PREVIEWS || 4 }}
           if [ "$OPEN" -gt "$MAX" ]; then
-            echo "::error::$OPEN pull requests are open and at most $MAX previews fit on this box."
-            echo "Close one, or raise MAX_PREVIEWS once the machine is bigger."
-            exit 1
+            echo "::warning::$OPEN pull requests are open and about $MAX previews fit on this box. Close one, or raise MAX_PREVIEWS once the machine is bigger."
           fi
-
-      # First, because it returns as soon as the deploy is queued: Coolify
-      # builds the image on the box while the client is built here.
-      - name: Deploy the world
-        run: |
-          curl --fail-with-body -sS -X POST \
-            "${{ vars.COOLIFY_URL }}/api/v1/deploy?uuid=${{ vars.COOLIFY_PREVIEW_APP_UUID }}&pr=${{ github.event.number }}" \
-            -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}"
 
       - uses: oven-sh/setup-bun@v2
         with:
@@ -88,8 +86,8 @@ jobs:
 
       # Upload then activate, the same two steps as production. There is no old
       # client in front of this server, so the ordering that matters there does
-      # not here — but the split is what makes a half-finished upload not become
-      # the live page.
+      # not here — but the split is what keeps a half-finished upload from
+      # becoming the live page.
       - name: Upload the client
         run: |
           tar -cf client.tar -C build/client .
@@ -126,34 +124,3 @@ jobs:
             } else {
               await github.rest.issues.createComment({ ...context.repo, issue_number: context.issue.number, body });
             }
-
-  teardown:
-    name: destroy preview
-    # Same fork guard as above: a fork's pull request never got a preview, and
-    # closing it must not fail on a token it was never given.
-    if: >-
-      github.event.action == 'closed' &&
-      github.event.pull_request.head.repo.full_name == github.repository
-    runs-on: ubuntu-latest
-    steps:
-      # Coolify removes the container, volume and network scoped to the PR id.
-      # Verify that against a throwaway pull request before trusting it: a
-      # preview volume that quietly survives is a slow disk leak whose first
-      # symptom is a full disk months later.
-      #
-      # `previews`, plural. The singular path is a 404 that reads like a missing
-      # preview rather than a missing route, which is a slow way to discover
-      # that nothing has ever been cleaned up.
-      - name: Delete
-        run: |
-          CODE=$(curl -sS -o /tmp/body.txt -w '%{http_code}' -X DELETE \
-            "${{ vars.COOLIFY_URL }}/api/v1/applications/${{ vars.COOLIFY_PREVIEW_APP_UUID }}/previews/${{ github.event.number }}" \
-            -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}")
-          cat /tmp/body.txt; echo
-          # A pull request whose preview never deployed has nothing to destroy,
-          # and failing here would leave a red mark on every such close.
-          if [ "$CODE" = "404" ]; then
-            echo "::notice::no preview to destroy for #${{ github.event.number }}"
-            exit 0
-          fi
-          [ "$CODE" -lt 400 ]
