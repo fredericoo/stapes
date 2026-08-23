@@ -42,13 +42,28 @@ function run(name: string, command: string[], env: Record<string, string>) {
     stdio: "inherit",
     env: { ...process.env, ...env },
   });
-  child.on("exit", (code) => {
-    // One half dying should take the other with it. A client proxying to a
-    // server that is gone reports every request as a network error, which reads
-    // like a bug in the app rather than a process that is not running.
-    if (code !== 0 && code !== null) console.error(`[dev] ${name} exited ${code}`);
+
+  child.on("error", (error) => {
+    console.error(`[dev] ${name} could not start:`, error.message);
     stop();
   });
+
+  child.on("exit", (code, signal) => {
+    // **Say which half died, and say it for a signal too.** A process killed by
+    // one exits with a null code, so reporting only on `code` means a crash —
+    // which is exactly the case somebody needs told about — prints nothing at
+    // all, and the only thing on screen is the *other* half draining. That is
+    // how a Vite abort looked like the server deciding to stop on its own.
+    if (!stopping) {
+      const how = signal ? `killed by ${signal}` : `exited ${code}`;
+      if (signal || code !== 0) console.error(`\n[dev] ${name} ${how}`);
+    }
+    // One half dying takes the other with it. A client proxying to a server
+    // that is gone reports every request as a network error, which reads like a
+    // bug in the app rather than a process that is not running.
+    stop();
+  });
+
   children.push(child);
 }
 
@@ -72,7 +87,11 @@ run("server", ["bun", "--watch", "server/index.ts"], {
   PUBLIC_ORIGIN: `http://localhost:${clientPort}`,
 });
 
-run("client", ["bunx", "--bun", "vite", "dev", "--host"], {
+// Vite runs on Node, deliberately. Forcing it onto Bun with `--bun` aborts the
+// process a few seconds after start — Vite 8 drives rolldown through native
+// bindings, and they do not survive the swap. Nothing here wants Vite on Bun
+// either: it is a build tool, and the code it serves runs in a browser.
+run("client", ["bunx", "vite", "dev", "--host"], {
   PORT: String(clientPort),
   STAPES_SERVER_ORIGIN: serverOrigin,
 });
