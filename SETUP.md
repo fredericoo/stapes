@@ -55,7 +55,7 @@ until you do, anybody who finds the port can.
 
 ---
 
-## 2. DNS
+## 2. DNS and Cloudflare
 
 All pointing at the one IP:
 
@@ -71,6 +71,37 @@ touching DNS again.
 In Coolify → **Settings → Instance Domain**, set the `coolify.*` name. Traefik
 gets Let's Encrypt certificates automatically once DNS resolves, and routes by
 hostname — so production and every preview share port 443 without conflicting.
+
+### Which records are proxied, and why it matters
+
+- **`stapes.frederic.ooo` is orange (proxied), SSL/TLS mode Full (strict).**
+  Cloudflare gives it a hidden origin IP, bot and DDoS filtering, and edge
+  caching for the content-hashed client assets — which is the CDN this
+  single-region deployment otherwise gives up. WebSockets pass through it fine;
+  verified with a live `wss://` handshake.
+- **Everything else stays grey.** The Coolify panel gains nothing from being
+  proxied, and `next.stapes` needs an unobstructed ACME renewal.
+
+**Never use Flexible.** It sends Cloudflare→origin in plaintext, so the traffic
+is encrypted for only half its journey, and the origin would see `http` and stop
+marking the actor cookie `Secure`.
+
+**Delete stale AAAA records when you repoint a hostname.** An `AAAA` left
+pointing at Cloudflare while the `A` moved to the box made Let's Encrypt fail
+issuance: it preferred IPv6, reached Cloudflare, and got a 404 for the challenge.
+The error names a `2606:4700:…` address, which is the tell.
+
+### On Cloudflare Origin Certificates
+
+There is one installed at `/data/coolify/proxy/certs/`, and Traefik is **not**
+using it. Coolify attaches an ACME resolver to the router, which wins for the
+same hostname, and stripping that would be undone by the next deploy.
+
+It is not needed. The renewal risk it insures against — Cloudflare masking a
+failed renewal until the certificate lapses — was checked rather than assumed:
+ACME challenges reach the origin through the proxy, so Let's Encrypt renews
+normally. The deploy workflow warns when the origin certificate is inside three
+weeks of expiry, which is the cheaper version of the same insurance.
 
 ---
 

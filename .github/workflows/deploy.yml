@@ -89,3 +89,20 @@ jobs:
       - name: Say what is live
         run: |
           curl -sS "${{ vars.PUBLIC_ORIGIN }}/api/health"
+
+      # Cloudflare hides a renewal failure completely: it goes on serving its
+      # own edge certificate to visitors, so the first symptom of a broken
+      # renewal is the day the origin certificate lapses and Full (strict)
+      # starts refusing to talk to us. Checked here because a deploy is the
+      # cheapest place to notice, and a warning is enough — this fails soft.
+      - name: Warn if the origin certificate is running out
+        continue-on-error: true
+        run: |
+          HOST=$(echo "${{ vars.PUBLIC_ORIGIN }}" | sed 's|https\?://||')
+          END=$(echo | openssl s_client -servername "$HOST" -connect "${{ vars.ORIGIN_IP }}:443" 2>/dev/null \
+                | openssl x509 -noout -enddate | cut -d= -f2)
+          LEFT=$(( ( $(date -d "$END" +%s) - $(date +%s) ) / 86400 ))
+          echo "origin certificate expires in ${LEFT} days ($END)"
+          if [ "$LEFT" -lt 21 ]; then
+            echo "::warning::origin certificate expires in ${LEFT} days and Cloudflare will not tell you — check ACME renewal on the box"
+          fi
