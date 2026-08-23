@@ -1,4 +1,6 @@
 import type {
+  ActivationTrigger,
+  AddStatusInteraction,
   ClimbAbility,
   DecayInteraction,
   EmitInteraction,
@@ -12,12 +14,12 @@ import type {
   SwitchInteraction,
   TeleportDestinationKind,
   TeleportInteraction,
-  TeleportTrigger,
   TileInteractions,
   Transmutation,
   TransmuteInteraction,
 } from "../lib/interactions";
 import {
+  DEFAULT_ADD_STATUS,
   DEFAULT_DECAY,
   DEFAULT_EMIT,
   DEFAULT_PRESSURE_PLATE,
@@ -36,9 +38,10 @@ import {
 } from "../lib/interactions";
 import { DEFAULT_BATTLER } from "../lib/battler";
 import { DEFAULT_WEAPON, resolveContainer, resolveItem } from "../lib/item";
+import type { StatusDef } from "../lib/status";
 import type { TileDef, TileKind, TilesetDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL } from "../lib/types";
-import { Button, Input, Segmented, Switch } from "../ui";
+import { Button, Input, Segmented, Select, Switch } from "../ui";
 import { TileIdMultiSelect } from "./TileIdMultiSelect";
 
 /** Symbols read left-to-right after the "load is" label. */
@@ -51,17 +54,23 @@ const COMPARISON_OPTIONS: Array<{ value: PlateComparison; label: string }> = [
   { value: "lte", label: "≤" },
 ];
 
-const TRIGGER_OPTIONS: Array<{ value: TeleportTrigger; label: string }> = [
+const TRIGGER_OPTIONS: Array<{ value: ActivationTrigger; label: string }> = [
   { value: "step", label: "Step on" },
   { value: "interact", label: "Press beside" },
   { value: "interactOver", label: "Press on" },
 ];
 
-/** What choosing each trigger gets you, in one line under the control. */
-const TRIGGER_HINTS: Record<TeleportTrigger, string> = {
-  step: "Walking onto it does it, with nothing to press — a portal you fall through. No row, no outline: it has already happened by the time you could read about it.",
+/**
+ * What choosing each trigger gets you, in one line under the control.
+ *
+ * Written for the gesture rather than for the teleport it started on, because
+ * both the sections that offer it read the same three lines — what changes
+ * between them is what happens afterwards, not how you set it off.
+ */
+const TRIGGER_HINTS: Record<ActivationTrigger, string> = {
+  step: "Walking onto it does it, with nothing to press — a portal you fall through, a fire you walk into. No row, no outline: it has already happened by the time you could read about it.",
   interact:
-    "Pressing it from the next square over, squarely — the same reach a switch takes. A doorway you step into.",
+    "Pressing it from the next square over, squarely — the same reach a switch takes. A doorway you step into, a brazier you reach for.",
   interactOver:
     "Pressing it while standing on it. A ladder: you walk onto the rungs, then climb.",
 };
@@ -134,18 +143,32 @@ type Props = {
   onChange: (next: TileDef) => void;
   tiles: TileDef[];
   tilesets: TilesetDef[];
+  /**
+   * The status catalogue, so the picker can offer conditions by name rather than
+   * asking an author to type an id. Passed in for the reason the tile list is:
+   * this tab knows what a tile may reference and nothing about where either
+   * catalogue is loaded from.
+   */
+  statusDefs: Record<string, StatusDef>;
 };
 
 /**
  * Ways the player can interact with this tile in play mode. One section per
  * interaction kind.
  */
-export function InteractiveTab({ draft, onChange, tiles, tilesets }: Props) {
+export function InteractiveTab({
+  draft,
+  onChange,
+  tiles,
+  tilesets,
+  statusDefs,
+}: Props) {
   const push = draft.interactions?.push;
   const sw = draft.interactions?.switch;
   const reward = draft.interactions?.reward;
   const transmute = draft.interactions?.transmute;
   const teleport = draft.interactions?.teleport;
+  const addStatus = draft.interactions?.addStatus;
   const decay = draft.interactions?.decay;
   const plate = draft.interactions?.pressurePlate;
   const emit = draft.interactions?.emit;
@@ -258,6 +281,20 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets }: Props) {
     const recipes = transmute.recipes.filter((_, i) => i !== index);
     setTransmute(recipes.length > 0 ? { recipes } : undefined);
   };
+
+  const setAddStatus = (next: AddStatusInteraction | undefined) => {
+    patchKind("addStatus", next ?? null);
+  };
+
+  const patchAddStatus = (patch: Partial<AddStatusInteraction>) => {
+    if (!addStatus) return;
+    setAddStatus({ ...addStatus, ...patch });
+  };
+
+  const statusOptions = Object.values(statusDefs).map((def) => ({
+    value: def.id,
+    label: def.name,
+  }));
 
   const setTeleport = (next: TeleportInteraction | undefined) => {
     patchKind("teleport", next ?? null);
@@ -670,7 +707,7 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets }: Props) {
           <div className="flex flex-col gap-3 border-t-2 border-border pt-3">
             <div className="flex flex-col gap-1 text-xs font-bold">
               Trigger
-              <Segmented<TeleportTrigger>
+              <Segmented<ActivationTrigger>
                 value={teleport.trigger}
                 onChange={(trigger) => patchTeleport({ trigger })}
                 options={TRIGGER_OPTIONS}
@@ -738,6 +775,89 @@ export function InteractiveTab({ draft, onChange, tiles, tilesets }: Props) {
                   rather than to the spot: every ladder cut from this tile is
                   climbed, wherever they go. Leave it blank and it reads as
                   “Enter”.
+                </span>
+              </label>
+            )}
+          </div>
+        ) : null}
+      </section>
+
+      <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
+        <label className="flex items-center gap-2 text-sm font-bold">
+          <Switch
+            checked={Boolean(addStatus)}
+            onCheckedChange={(on) =>
+              setAddStatus(on ? { ...DEFAULT_ADD_STATUS } : undefined)
+            }
+            ariaLabel="Grants a status"
+          />
+          Status
+        </label>
+        <p className="text-[11px] leading-snug text-muted">
+          Puts a condition on whoever sets it off — a flame that burns, a shrine
+          that blesses. Only a body with hit points takes it: everything a status
+          does is arithmetic on health or on the numbers a fight is fought with,
+          so a crate walking through fire is a crate.
+        </p>
+        <p className="text-[11px] leading-snug text-muted">
+          Nothing is spent and nothing is remembered — walk back in and it
+          happens again. <strong>How long it lasts is the status’s own</strong>,
+          set on the Statuses page, because being burned is being burned however
+          you came to be.
+        </p>
+
+        {addStatus ? (
+          <div className="flex flex-col gap-3 border-t-2 border-border pt-3">
+            <div className="flex flex-col gap-1 text-xs font-bold">
+              Trigger
+              <Segmented<ActivationTrigger>
+                value={addStatus.trigger}
+                onChange={(trigger) => patchAddStatus({ trigger })}
+                options={TRIGGER_OPTIONS}
+                size="sm"
+                ariaLabel="Status trigger"
+              />
+              <span className="text-[11px] font-normal leading-snug text-muted">
+                {TRIGGER_HINTS[addStatus.trigger]}
+              </span>
+            </div>
+
+            <label className="flex flex-col gap-1 text-xs font-bold">
+              Status
+              {statusOptions.length === 0 ? (
+                <span className="text-[11px] font-normal leading-snug text-muted">
+                  Nothing authored yet — statuses live on the Statuses page.
+                </span>
+              ) : (
+                <>
+                  <Select
+                    value={addStatus.statusId || null}
+                    onValueChange={(id) => id && patchAddStatus({ statusId: id })}
+                    options={statusOptions}
+                  />
+                  <span className="text-[11px] font-normal leading-snug text-muted">
+                    Which condition this hands over. Until one is picked the tile
+                    grants nothing and offers no row — a block naming no status
+                    reads as unauthored rather than as something that shrugs.
+                  </span>
+                </>
+              )}
+            </label>
+
+            {addStatus.trigger === "step" ? null : (
+              <label className="flex flex-col gap-1 text-xs font-bold">
+                Action name
+                <Input
+                  value={addStatus.actionName ?? ""}
+                  onChange={(e) =>
+                    patchAddStatus({ actionName: e.target.value })
+                  }
+                  placeholder="Touch"
+                />
+                <span className="text-[11px] font-normal leading-snug text-muted">
+                  What the player is doing, as they would say it — “Touch” a
+                  brazier, “Pray” at a shrine. Leave it blank and it reads as
+                  “Touch”.
                 </span>
               </label>
             )}

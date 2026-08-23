@@ -52,5 +52,32 @@
     "effects": {
       "hp": "0 - min(5, max(1, ceil(REMAINING_SEC * 5 / 600)))"
     }
+  },
+  {
+    "id": "burned",
+    "name": "Burned",
+    "description": "Searing. Hurts fast, and is over fast.",
+    "tone": "bad",
+    "icon": {
+      "tilesetId": "ultima-vi",
+      "rect": {
+        "x": 24,
+        "y": 72,
+        "w": 2,
+        "h": 2
+      },
+      "base": {
+        "x": 1,
+        "y": 1
+      }
+    },
+    "fromMs": 4000,
+    "toMs": 8000,
+    "stacks": true,
+    "maxMs": 24000,
+    "everyMs": 1000,
+    "effects": {
+      "hp": "0 - max(4, ceil(MAX_HP / 10))"
+    }
   }
 ]

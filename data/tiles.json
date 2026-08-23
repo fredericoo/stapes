@@ -9294,6 +9294,7 @@
     "kind": "prop",
     "attributes": {},
     "lightPassing": true,
+    "intangible": true,
     "interactions": {
       "transmute": {
         "recipes": [
@@ -9305,6 +9306,10 @@
             ]
           }
         ]
+      },
+      "addStatus": {
+        "trigger": "step",
+        "statusId": "burned"
       }
     },
     "sprite": {

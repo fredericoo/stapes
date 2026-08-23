@@ -1,6 +1,7 @@
 import { getStack } from "../lib/mapData";
 import type { InteractionKind } from "../lib/interactions";
 import {
+  resolveAddStatus,
   resolveRewardDef,
   resolveSwitch,
   resolveTeleportDef,
@@ -15,6 +16,7 @@ import {
 import type { MapFile, TileDef } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 import {
+  canAddStatusFrom,
   canConsumeFrom,
   canOpenFrom,
   canPickUpFrom,
@@ -153,6 +155,10 @@ const LABELS: Record<InteractionAction, string> = {
   // portal is "Enter" and a ladder is "Climb", and nothing derivable from a
   // tile that moves you says which. See `TeleportInteraction.actionName`.
   teleport: "Enter",
+  // The fallback only, on the same terms: nothing derivable from a tile that
+  // leaves you burning says whether you reached into it or knelt at it. See
+  // `AddStatusInteraction.actionName`.
+  addStatus: "Touch",
   // Never actually read: a transmute row is named by its *recipe* rather than
   // by its tile — see `transmuteVerb` — because one fire may cook and trade.
   // Present because the record is exhaustive, which is what stops an action
@@ -203,30 +209,35 @@ const ACTION_ORDER: Record<InteractionAction, number> = {
   // half that takes you somewhere is the one with consequences.
   teleport: 2,
   switch: 3,
+  // Below the switch, on the session's own precedence: this is the only entry
+  // here that changes the *presser* rather than the board, so a brazier that
+  // both lights a room and burns the hand that lit it spends the tap on the
+  // half the player can see.
+  addStatus: 4,
   // Below the switch and above everything to do with carrying, which is where
   // an explicit authored act belongs — and it never competes with the tap
   // anyway, since a transmute row is reached by name and a tile that both
   // cooked and swung open would spend its tap on the hinge either way.
-  transmute: 4,
+  transmute: 5,
   // Above pick-up, and this is the one that decides what a plain tap on a sword
   // does. An empty hand is the strongest thing a player can be saying about what
   // they want done with a weapon on the floor, and stowing it afterwards is one
   // drag; the reverse — fishing a sword back out of a bag you did not mean it to
   // go into — is the annoying direction. It only ever appears when the slot is
   // free, so it cannot take a tap away from anybody who is already armed.
-  equip: 5,
+  equip: 6,
   // Above pick-up, and only ever up against it on a container: a pack you are
   // already wearing the twin of can be taken into a hand now, and a tap that
   // picked it up rather than looking inside would be answering the less
   // interesting of the two questions. Nothing else in the game is both.
-  open: 6,
-  pickUp: 7,
+  open: 7,
+  pickUp: 8,
   // Below pick-up on purpose, and pick-up is what a plain tap on the tile runs:
   // eating destroys the thing where lifting it is reversible, so the row you
   // have to *find* is the destructive one and the gesture you can fire by
   // accident is the safe one.
-  consume: 8,
-  push: 9,
+  consume: 9,
+  push: 10,
 };
 
 /**
@@ -605,6 +616,7 @@ function objectAction(
     return "teleport";
   }
   if (canSwitchFrom(map, tilesById, self, ref)) return "switch";
+  if (canAddStatusFrom(map, tilesById, self, ref)) return "addStatus";
   if (equipSlot) return "equip";
   if (canPickUpFrom(map, tilesById, self, ref, equipment)) return "pickUp";
   if (canPushFrom(map, tilesById, self, ref)) return "push";
@@ -640,6 +652,11 @@ function objectActionLabel(
   // is on its placement.
   if (action === "teleport") {
     return resolveTeleportDef(def)?.actionName?.trim() || LABELS.teleport;
+  }
+  // The whole of it is the def's, there being no placement half at all — see
+  // `resolveAddStatus`.
+  if (action === "addStatus") {
+    return resolveAddStatus(def)?.actionName?.trim() || LABELS.addStatus;
   }
   return LABELS[action];
 }

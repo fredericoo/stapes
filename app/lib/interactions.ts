@@ -240,10 +240,20 @@ export type ReceiveInteraction = {
   mode: SignalMode;
 };
 
-/** When a teleport fires. */
-export type TeleportTrigger = "step" | "interact" | "interactOver";
+/**
+ * When an authored gesture fires — the three ways a tile can be set off.
+ *
+ * Shared rather than restated per interaction, because each answer is a rule
+ * about the *gesture* and not about what happens afterwards: `step` has no
+ * reach and no row, `interact` is the orthogonal square a switch takes, and
+ * `interactOver` is your own cell. A portal and a fire that burns whoever
+ * stands in it differ in what they do to you and in nothing at all about how
+ * they are reached, so two copies of this union would be two places for those
+ * reaches to drift apart.
+ */
+export type ActivationTrigger = "step" | "interact" | "interactOver";
 
-export const TELEPORT_TRIGGERS: TeleportTrigger[] = [
+export const ACTIVATION_TRIGGERS: ActivationTrigger[] = [
   "step",
   "interact",
   "interactOver",
@@ -332,7 +342,7 @@ export type TeleportInteraction = {
    * - `interactOver` — pressing it while standing in its cell. A ladder: you
    *   walk onto the rungs and then climb, which is two acts and reads as two.
    */
-  trigger: TeleportTrigger;
+  trigger: ActivationTrigger;
   /**
    * Where it leads, and which half of the authoring says so. See
    * {@link TeleportDestination}.
@@ -354,9 +364,57 @@ export type TeleportInteraction = {
  */
 export type PlacedTeleport = {
   actionName?: string;
-  trigger: TeleportTrigger;
+  trigger: ActivationTrigger;
   /** Where the traveller ends up, absolute. */
   to: Coord;
+};
+
+/**
+ * Put a status on whoever sets this off — a flame that burns you, a shrine that
+ * blesses you.
+ *
+ * **Wholly on the tile, with no placement half at all**, on the terms
+ * {@link TransmuteInteraction} has none: what standing in a fire does to a body
+ * is a fact about fire, and every flame cut from the tile does it. There is
+ * nothing left for a slot to vary.
+ *
+ * **How long it lasts is the status's own**, unlike an item's `StatusGrant`,
+ * which may override the range. Bread and a berry are two helpings of one
+ * condition and only the food knows which is the meal; a fire has no such
+ * reading — being burned is being burned, and an author who wants a longer one
+ * has authored a longer status.
+ *
+ * Nothing is spent and nothing is remembered, exactly as nothing is for a
+ * teleport: walk back into the fire and it burns you again. What keeps that
+ * from being unbounded is the status itself — a second application refreshes
+ * rather than piles up unless its author said `stacks`, and even then it clamps
+ * at `maxMs`. See `../game/statuses`'s `applyStatus`.
+ */
+export type AddStatusInteraction = {
+  /**
+   * What doing it is called — "Touch" a brazier, "Pray" at a shrine.
+   *
+   * Authored for the reason every other verb in this file is: nothing derivable
+   * from a tile that leaves you burning says whether you reached into it or
+   * were blessed by it. Optional, and blank reads as "Touch".
+   *
+   * Read only where the player has something to press. A {@link trigger} of
+   * `step` offers no row and never shows this.
+   */
+  actionName?: string;
+  /** What sets it off. See {@link ActivationTrigger}. */
+  trigger: ActivationTrigger;
+  /**
+   * The status handed over, by id — see `./status`.
+   *
+   * An id the catalogue does not hold is an effect that does not happen, on the
+   * same terms a consumable naming a missing status is: renamed content should
+   * cost one effect rather than stop the world starting. A **blank** one is a
+   * different thing and reads as unauthored — {@link resolveAddStatus} refuses
+   * it, so a block somebody switched on and never filled in offers no row and
+   * outlines nothing.
+   */
+  statusId: string;
 };
 
 /**
@@ -531,6 +589,7 @@ export type TileInteractions = {
   reward?: RewardInteraction;
   transmute?: TransmuteInteraction;
   teleport?: TeleportInteraction;
+  addStatus?: AddStatusInteraction;
   decay?: DecayInteraction;
   respawn?: RespawnInteraction;
   pressurePlate?: PressurePlateInteraction;
@@ -571,6 +630,21 @@ export const DEFAULT_TELEPORT: TeleportInteraction = {
   actionName: "",
   trigger: "interactOver",
   destination: { kind: "relative", delta: { x: 0, y: 0, z: 1 } },
+};
+
+/**
+ * A fire you walk into, which is the shape this was authored for: it happens
+ * underfoot, and there is nothing to press.
+ *
+ * The status is left blank on purpose. Only the author knows which condition
+ * this is, and a block naming none is refused rather than guessed at — so
+ * switching it on leaves them the one field they came to fill in, exactly as
+ * switching a switch on leaves them a target to pick.
+ */
+export const DEFAULT_ADD_STATUS: AddStatusInteraction = {
+  actionName: "",
+  trigger: "step",
+  statusId: "",
 };
 
 /**
@@ -855,7 +929,7 @@ const coordSchema = v.object({
 
 const teleportSchema = v.object({
   actionName: v.optional(v.string()),
-  trigger: v.picklist(TELEPORT_TRIGGERS),
+  trigger: v.picklist(ACTIVATION_TRIGGERS),
   destination: v.variant("kind", [
     v.object({ kind: v.literal("relative"), delta: coordSchema }),
     v.object({ kind: v.literal("absolute") }),
@@ -961,6 +1035,44 @@ function authoredDestination(placed: PlacedTile): Coord | null {
   const authored = parsed.success ? parsed.output.teleportTo : null;
   authoredTeleportCache.set(placed, authored);
   return authored;
+}
+
+const addStatusSchema = v.object({
+  actionName: v.optional(v.string()),
+  trigger: v.picklist(ACTIVATION_TRIGGERS),
+  // The one field with nothing to fall back on, so blank is refused where every
+  // other verb here treats it as "unnamed": a block naming no status is a block
+  // that could only do nothing, and it should read as unauthored rather than as
+  // a row that takes a press and shrugs.
+  statusId: v.pipe(v.string(), v.trim(), v.minLength(1)),
+});
+
+const addStatusCache = new WeakMap<TileDef, AddStatusInteraction | null>();
+
+/**
+ * Parsed status-granting config for a tile def — whether this tile puts
+ * anything on anybody, what the gesture is called, and how it is set off.
+ *
+ * Same trust model as {@link resolvePush}: malformed → grants nothing. The
+ * whole of it is here, with no placement half to join, on the terms
+ * {@link resolveTransmute} is — so unlike a teleport there is no second
+ * resolver that could refuse what this one allowed.
+ *
+ * Whether the named status *exists* is deliberately not asked. The catalogue is
+ * the session's and this is the tile's, and the two are loaded from different
+ * files by different owners; an id that has been renamed away is an effect that
+ * does not happen, which is exactly what `GameSession.grantStatus` already does
+ * with one.
+ */
+export function resolveAddStatus(def: TileDef): AddStatusInteraction | null {
+  const cached = addStatusCache.get(def);
+  if (cached !== undefined) return cached;
+
+  const raw = def.interactions?.addStatus;
+  const parsed = raw == null ? null : v.safeParse(addStatusSchema, raw);
+  const addStatus = parsed?.success ? parsed.output : null;
+  addStatusCache.set(def, addStatus);
+  return addStatus;
 }
 
 const decaySchema = v.pipe(
@@ -1119,7 +1231,11 @@ export function receiveTriggers(
  * to know it is the second.
  *
  * Switch comes next: it is an explicit authored swap, and an author who put
- * one on a tile meant it to be what happens. Transmute follows it and for the
+ * one on a tile meant it to be what happens. A status follows the switch and
+ * for its own reason: it is the only kind here that changes the *presser*
+ * rather than the board, so a brazier authored to both light a room and burn
+ * the hand that lit it lights the room first — the visible half of the tap is
+ * the one the player was aiming at. Transmute follows both and for the
  * same argument one step weaker — it is authored and explicit, but it is the
  * only kind here that can offer *several* rows on one tile, so it is named by
  * its row rather than reached by a bare tap. Pick-up comes after, because
@@ -1138,6 +1254,7 @@ export type InteractionKind =
   | "reward"
   | "teleport"
   | "switch"
+  | "addStatus"
   | "transmute"
   | "pickUp"
   | "push";
@@ -1153,8 +1270,12 @@ export function interactionKinds(def: TileDef): InteractionKind[] {
   // teleport is not player-activated at all, so a portal you walk onto is no
   // more tappable than a pressure plate is. Only the two triggers that wait for
   // a press are ever a kind.
-  if (pressableTeleport(def)) kinds.push("teleport");
+  if (pressable(resolveTeleportDef(def))) kinds.push("teleport");
   if (resolveSwitch(def)) kinds.push("switch");
+  // The same second question a teleport's asks, and for the same reason: a fire
+  // you walk into answers to no press, so listing it would outline a floor tile
+  // and offer a row for something that has already happened.
+  if (pressable(resolveAddStatus(def))) kinds.push("addStatus");
   // The def's half and the whole of it — a transmuter carries no placement
   // half at all. Whether the player has anything to spend is a question about
   // *them*, which is the affordances', not this one's.
@@ -1164,10 +1285,9 @@ export function interactionKinds(def: TileDef): InteractionKind[] {
   return kinds;
 }
 
-/** Does this tile's teleport wait for a press, rather than firing underfoot? */
-function pressableTeleport(def: TileDef): boolean {
-  const teleport = resolveTeleportDef(def);
-  return teleport != null && teleport.trigger !== "step";
+/** Does this gesture wait for a press, rather than firing underfoot? */
+function pressable(gesture: { trigger: ActivationTrigger } | null): boolean {
+  return gesture != null && gesture.trigger !== "step";
 }
 
 /**
@@ -1270,6 +1390,7 @@ export function hasAnyInteraction(
       interactions?.reward ||
       interactions?.transmute ||
       interactions?.teleport ||
+      interactions?.addStatus ||
       interactions?.decay ||
       interactions?.respawn ||
       interactions?.pressurePlate ||
@@ -1358,6 +1479,19 @@ export function interactionsForSave(
                 },
               }
             : { kind: "absolute" as const },
+      }
+    : undefined;
+  // Gated on the status rather than on the block, unlike the reward and the
+  // teleport above: those two have a placement half that carries the answer, and
+  // this has none — a block naming nothing is a block that could only do
+  // nothing, and the resolver refuses it either way.
+  const addStatus = interactions?.addStatus;
+  const addStatusActionName = addStatus?.actionName?.trim();
+  const savedAddStatus = addStatus?.statusId.trim()
+    ? {
+        ...(addStatusActionName ? { actionName: addStatusActionName } : {}),
+        trigger: addStatus.trigger,
+        statusId: addStatus.statusId.trim(),
       }
     : undefined;
   // Gated on the lifetime rather than on the target, unlike every other block
@@ -1460,6 +1594,7 @@ export function interactionsForSave(
     !savedReward &&
     !savedTransmute &&
     !savedTeleport &&
+    !savedAddStatus &&
     !savedDecay &&
     !savedRespawn &&
     !savedPlate &&
@@ -1477,6 +1612,7 @@ export function interactionsForSave(
     ...(savedReward ? { reward: savedReward } : {}),
     ...(savedTransmute ? { transmute: savedTransmute } : {}),
     ...(savedTeleport ? { teleport: savedTeleport } : {}),
+    ...(savedAddStatus ? { addStatus: savedAddStatus } : {}),
     ...(savedDecay ? { decay: savedDecay } : {}),
     ...(savedRespawn ? { respawn: savedRespawn } : {}),
     ...(savedPlate ? { pressurePlate: savedPlate } : {}),

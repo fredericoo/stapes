@@ -1,12 +1,14 @@
 import { getStack } from "../lib/mapData";
 import { hasLineOfSight } from "./sight";
 import type {
+  AddStatusInteraction,
   PlacedReward,
   PlacedTeleport,
   TransmuteInteraction,
 } from "../lib/interactions";
 import {
   isInteractive,
+  resolveAddStatus,
   resolvePush,
   resolveReward,
   resolveSwitch,
@@ -820,6 +822,64 @@ export function canTeleportFrom(
   const teleport = reachableTeleportAt(map, tilesById, actor, ref);
   if (!teleport) return false;
   return teleportFits(map, tilesById, travellerDef, teleport.to);
+}
+
+/**
+ * The status-granting gesture at a stack slot, if this actor could set it off by
+ * pressing it.
+ *
+ * The tile's half and all of it — there is no placement to join, on the terms
+ * {@link reachableTransmuteAt} has none. So this is `resolveAddStatus` plus the
+ * reach, and the reach is the *teleport's* rather than the reward's: the two
+ * pressed triggers mean the same two things here as they do there, and a
+ * brazier you could touch diagonally while a doorway one square further round
+ * refused would be two readings of one gesture.
+ *
+ * A `step` one is never here, for the reason a `step` teleport is not: nothing
+ * about it answers to a press, so offering it would put a row on screen for
+ * something that has already happened. See `../game/GameSession.statusOnArrival`,
+ * which is what fires those.
+ *
+ * Says nothing about whether the presser has hit points to lose. That is a
+ * question about a *body* and it is the session's — see `GameSession.addStatus`,
+ * which is where the catalogue lives too.
+ */
+export function reachableAddStatusAt(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  ref: ObjectRef,
+): AddStatusInteraction | null {
+  const def = interactiveDefAt(map, tilesById, actor, ref);
+  if (!def) return null;
+
+  const addStatus = resolveAddStatus(def);
+  if (!addStatus) return null;
+
+  if (addStatus.trigger === "interact") {
+    return pushDirectionFrom(actor, ref) ? addStatus : null;
+  }
+  if (addStatus.trigger === "interactOver") {
+    const over = actor.x === ref.x && actor.y === ref.y && actor.z === ref.z;
+    return over ? addStatus : null;
+  }
+  return null;
+}
+
+/**
+ * Could this actor take the condition on right now?
+ *
+ * Nothing beyond the gesture being reachable, unlike a teleport's far end or a
+ * reward's room in the bag: a status has nowhere to fit and nothing to be
+ * already holding, so there is no second question to ask of the board.
+ */
+export function canAddStatusFrom(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  ref: ObjectRef,
+): boolean {
+  return reachableAddStatusAt(map, tilesById, actor, ref) != null;
 }
 
 /**

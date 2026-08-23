@@ -2,6 +2,7 @@ import {
   IconApple,
   IconBoxSeam,
   IconDoorEnter,
+  IconFlame,
   IconGift,
   IconHandGrab,
   IconHandMove,
@@ -71,6 +72,11 @@ const ICONS: Record<InteractionAction, typeof IconTarget> = {
   // A doorway rather than a ladder or a swirl, because the row covers both and
   // the one thing every teleport has in common is that you end up through it.
   teleport: IconDoorEnter,
+  // A flame, because the motivating case is one and because every other shape
+  // that says "a condition" says it with an icon a status already owns. The row
+  // covers a blessing too, and the authored verb beside it is what tells them
+  // apart — the same trade the transmute row makes below.
+  addStatus: IconFlame,
   // An apple for every consumable, drink included: the icon says "this gets
   // used up", and the authored verb beside it says how.
   consume: IconApple,

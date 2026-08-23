@@ -98646,10 +98646,6 @@
         },
         {
           "tileId": "dirt"
-        },
-        {
-          "tileId": "torch",
-          "direction": "e"
         }
       ],
       "-12,58": [
@@ -99101,11 +99097,20 @@
       "-11,55": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "dirt"
         }
       ],
       "-11,56": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "flame"
         }
       ],
       "-11,57": [
@@ -99546,15 +99551,14 @@
       "-10,55": [
         {
           "tileId": "grass-2"
-        },
-        {
-          "tileId": "player",
-          "direction": "s"
         }
       ],
       "-10,56": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "dirt"
         }
       ],
       "-10,57": [
@@ -99980,6 +99984,10 @@
       "-9,53": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "player",
+          "direction": "s"
         }
       ],
       "-9,54": [
