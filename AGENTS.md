@@ -196,12 +196,14 @@ rows wholesale for exactly that reason: a save can move the marker, and a
 remembered door into a building that no longer stands is worse than no memory
 at all.
 
-**The write must not gate the broadcast.** A Durable Object holds outgoing
-messages until preceding writes are durable, which is right for anything the
+**The write must not gate the broadcast.** The platform used to hold outgoing
+messages until preceding writes were durable, which was right for anything the
 world's consistency rests on and wrong for this: a position is a convenience,
-and paying for it with every client's latency thirty times a second is the one
-trade this object cannot afford. Hence `allowUnconfirmed: true`, and hence a
-throttled flush (`POSITION_FLUSH_INTERVAL_MS`) rather than a write per tick — a
+and paying for it with every client's latency thirty times a second is a trade
+the world cannot afford. Nothing enforces that ordering now — `WorldStore.put`
+buffers and returns — so the property holds by construction rather than by the
+old `allowUnconfirmed` flag, and the throttled flush
+(`POSITION_FLUSH_INTERVAL_MS`) stays for its own sake — a
 walking actor's cell is superseded 200ms later anyway. The guaranteed writes are
 the ones on paths that are already rare: a socket closing, and the world going
 to sleep. The rejection is swallowed on purpose; there is nothing useful to do
@@ -675,9 +677,10 @@ are load-bearing.
   neither the timing nor the range.
 - **`isAtRest` is gated on it.** A standing target used to hold the tick loop open
   by itself — correctly, since a fight is a cooldown counting down — and with
-  targeting now free of intent, that would keep a Durable Object awake for as
-  long as somebody stood watching a deer. It is a target *and* the mode that
-  costs a world its sleep.
+  targeting now free of intent, that would hold the tick loop open for as long
+  as somebody stood watching a deer. It is a target *and* the mode that costs a
+  world its sleep. The cost is a busy core rather than a bill now, and on a box
+  shared with several preview worlds that is still worth not paying.
 - **The stance is re-sent, not remembered.** `hello` seats a fresh body that is
   not swinging at anybody, so `RemoteSession` says the mode again on a world
   replacement and the page says it again on a reconnect, exactly as held
@@ -1371,8 +1374,8 @@ depend on how fast the test ran. Three things follow:
 - **`isAtRest` is gated on it**, because this loop is the only clock a countdown
   has. A world with anything decaying in it keeps ticking until that lifetime is
   up — half a minute of blood after a fight is the intended cost, an hour-long
-  lifetime would be an hour of Durable Object, and it is the *longest* end of
-  the range that sets it. Lifetimes are authored in seconds so that cost is
+  lifetime would be an hour of ticking, and it is the *longest* end of the range
+  that sets it. Lifetimes are authored in seconds so that cost is
   visible while writing one.
 - **An anonymous placement is keyed by cell plus tile id**, not by stack index:
   an index shifts the moment anything is placed under it, and blood in a doorway
@@ -1772,18 +1775,40 @@ therefore calls `invalidateAll` and drops the grid identity; the editor clears
 `lightingKey` for the same reason. Anything cleverer here would have to reason
 about edits nobody was watching.
 
-## Testing the Durable Object
+## Testing the world
 
-`workers/` runs under `@cloudflare/vitest-pool-workers` (`pnpm test:workers`),
-inside workerd with real DO storage and the bindings from `wrangler.jsonc`.
-`app/` stays on the node pool, which is far faster for plain logic.
+`server/` runs under `bun test` (`bun run test:server`), on the runtime it
+deploys to, against a real database file in a temporary directory. `app/` stays
+on vitest, which is far faster for plain logic.
 
-The split exists because **three bugs in `GameServer` all lived in the
-load / restore / checkpoint path and were invisible to a node test** — the
-object has to be constructed from a checkpoint for any of them to appear. That
-path is not exotic: every hibernation wake runs it.
+The split is the one this repo already had, and for the same reason: **three
+bugs in `GameServer` all lived in the load / restore / checkpoint path and were
+invisible to a test against a stub** — the world has to be built from a real
+checkpoint for any of them to appear. What has changed is only which runtime is
+"real". It was workerd because that is where the code ran; it is Bun now, and a
+real on-disk database rather than `:memory:` because WAL behaviour and reopening
+are exactly what those paths turn on.
 
-Two rules learned the hard way here:
+Vitest cannot be that runner. It drives tests through worker threads and the
+database is a native module that does not survive the trip — a `connect()` that
+throws in a second flat under `bun test` hangs indefinitely under vitest.
+
+`server/testHarness.ts` provides what `cloudflare:test` used to. Two things about
+it are worth knowing before writing a test:
+
+- **Each test gets its own world**, on its own database file, created in
+  `beforeEach`. This was not true of the workerd suite — every test there shared
+  one object, one disk and every socket ever opened, and tests had to use a fresh
+  actor id per case (`freshPlayer()`) to avoid inheriting the previous one's
+  stored state and a phantom connection. That hazard is gone; the `freshPlayer`
+  discipline is now belt and braces rather than load-bearing.
+- **Frames are queued, not delivered straight to whoever is listening.** A
+  browser buffers what arrives until the page next runs, so `await thing(); await
+  nextMessage(ws)` works — delivering eagerly would drop the frame before the
+  listener existed. A test that wants only what comes *next* says so with
+  `record(ws)`, which discards what is pending first.
+
+Two rules learned the hard way, which still hold:
 
 - **Revert one fix at a time when proving a test can fail.** Reverting all three
   at once made two of the three tests pass, because the first revert changed
@@ -1791,18 +1816,10 @@ Two rules learned the hard way here:
   player tile as the marker, so without the carried spawn point it deleted the
   very body the duplication test was looking for. Three green tests, nothing
   tested.
-- **Assert position, not just count.** "Exactly one body" passes whether an
-  actor was re-seated on the body they had or handed a fresh one at spawn.
-  Checkpoint them away from the spawn cell so the two outcomes differ; that is
-  what caught the accept-before-load bug.
-- **Every test in the file shares one world, one disk and every socket ever
-  opened.** Nothing resets the object between tests, and a socket a previous
-  test left open still answers `getWebSockets()` — so its owner is still "live"
-  at the next wake. Reusing an actor name therefore carries the previous test's
-  stored state *and* a phantom connection into the next one, which is fatal for
-  anything about outliving a connection: use a fresh id per test
-  (`freshPlayer()`). Two permanence tests passed for the wrong reason before
-  that, and a third failed for it.
+- **Assert position, not just count.** "Exactly one body" passes whether an actor
+  was re-seated on the body they had or handed a fresh one at spawn. Checkpoint
+  them away from the spawn cell so the two outcomes differ; that is what caught
+  the accept-before-load bug.
 
 ## Verifying performance work
 
