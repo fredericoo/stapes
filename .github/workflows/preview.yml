@@ -5,6 +5,11 @@
 # provision for state — the container comes up against an empty volume, builds
 # its own world from the `data/` in its image, and Coolify destroys the volume
 # with the PR.
+#
+# The client is the one thing the container does *not* bring with it. It is not
+# in the image — see `Dockerfile` — so a preview that is only deployed comes up
+# healthy and serves a 404 page. This workflow builds and posts one, the same
+# way `deploy.yml` does for production.
 name: PR preview
 
 on:
@@ -27,6 +32,11 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
+    env:
+      # Deterministic rather than read back: Coolify's compose deployments have
+      # a known gap where the preview URL is not returned, and every step below
+      # needs the hostname before the deploy has finished.
+      PREVIEW_ORIGIN: https://pr-${{ github.event.number }}.${{ vars.PREVIEW_DOMAIN }}
     steps:
       - uses: actions/checkout@v5
 
@@ -46,20 +56,65 @@ jobs:
             exit 1
           fi
 
-      - name: Deploy
+      # First, because it returns as soon as the deploy is queued: Coolify
+      # builds the image on the box while the client is built here.
+      - name: Deploy the world
         run: |
-          curl --fail-with-body -X GET \
+          curl --fail-with-body -sS -X POST \
             "${{ vars.COOLIFY_URL }}/api/v1/deploy?uuid=${{ vars.COOLIFY_PREVIEW_APP_UUID }}&pr=${{ github.event.number }}" \
             -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}"
 
-      # Posted from a deterministic hostname rather than read back. Coolify's
-      # compose deployments have a known gap where the preview URL is not
-      # returned, and a comment that waits for one never appears.
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.8
+
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+
+      # A first deploy builds the image from scratch on a shared box, so this is
+      # generous. It also covers Traefik's first Let's Encrypt issuance for the
+      # hostname, which is why the failures are tolerated rather than fatal
+      # until the budget runs out.
+      - name: Wait for the world to come up
+        run: |
+          for i in $(seq 1 90); do
+            if curl -fsS --max-time 5 "${PREVIEW_ORIGIN}/api/health" | grep -q '"status":"ok"'; then
+              echo "healthy after ${i} attempts"; exit 0
+            fi
+            sleep 10
+          done
+          echo "::error::preview did not come up healthy within fifteen minutes"
+          exit 1
+
+      # Upload then activate, the same two steps as production. There is no old
+      # client in front of this server, so the ordering that matters there does
+      # not here — but the split is what makes a half-finished upload not become
+      # the live page.
+      - name: Upload the client
+        run: |
+          tar -cf client.tar -C build/client .
+          curl --fail-with-body -sS -X POST "${PREVIEW_ORIGIN}/api/client/upload" \
+            -H "Authorization: Bearer ${{ secrets.PREVIEW_ADMIN_SECRET }}" \
+            -F "buildId=${{ github.event.pull_request.head.sha }}" \
+            -F "archive=@client.tar"
+
+      - name: Activate the client
+        run: |
+          curl --fail-with-body -sS -X POST "${PREVIEW_ORIGIN}/api/client/activate" \
+            -H "Authorization: Bearer ${{ secrets.PREVIEW_ADMIN_SECRET }}" \
+            -H "Content-Type: application/json" \
+            -d '{"buildId":"${{ github.event.pull_request.head.sha }}"}'
+
+      - name: Say what is live
+        run: curl -sS "${PREVIEW_ORIGIN}/api/health"
+
       - name: Comment the URL
         uses: actions/github-script@v7
+        env:
+          PREVIEW_ORIGIN: ${{ env.PREVIEW_ORIGIN }}
         with:
           script: |
-            const url = `https://pr-${{ github.event.number }}.${{ vars.PREVIEW_DOMAIN }}`;
+            const url = process.env.PREVIEW_ORIGIN;
             const marker = '<!-- stapes-preview -->';
             const body = `${marker}\nA world of its own: ${url}\n\nIts own database, seeded from this branch's \`data/\`. Destroyed when this closes.`;
             const { data: comments } = await github.rest.issues.listComments({
@@ -74,15 +129,31 @@ jobs:
 
   teardown:
     name: destroy preview
-    if: github.event.action == 'closed'
+    # Same fork guard as above: a fork's pull request never got a preview, and
+    # closing it must not fail on a token it was never given.
+    if: >-
+      github.event.action == 'closed' &&
+      github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     steps:
       # Coolify removes the container, volume and network scoped to the PR id.
       # Verify that against a throwaway pull request before trusting it: a
       # preview volume that quietly survives is a slow disk leak whose first
       # symptom is a full disk months later.
+      #
+      # `previews`, plural. The singular path is a 404 that reads like a missing
+      # preview rather than a missing route, which is a slow way to discover
+      # that nothing has ever been cleaned up.
       - name: Delete
         run: |
-          curl --fail-with-body -X DELETE \
-            "${{ vars.COOLIFY_URL }}/api/v1/applications/${{ vars.COOLIFY_PREVIEW_APP_UUID }}/preview/${{ github.event.number }}" \
-            -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}"
+          CODE=$(curl -sS -o /tmp/body.txt -w '%{http_code}' -X DELETE \
+            "${{ vars.COOLIFY_URL }}/api/v1/applications/${{ vars.COOLIFY_PREVIEW_APP_UUID }}/previews/${{ github.event.number }}" \
+            -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}")
+          cat /tmp/body.txt; echo
+          # A pull request whose preview never deployed has nothing to destroy,
+          # and failing here would leave a red mark on every such close.
+          if [ "$CODE" = "404" ]; then
+            echo "::notice::no preview to destroy for #${{ github.event.number }}"
+            exit 0
+          fi
+          [ "$CODE" -lt 400 ]

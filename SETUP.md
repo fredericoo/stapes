@@ -231,7 +231,8 @@ pushes a client — that is expected.
 Secrets:
 
 ```
-ADMIN_SECRET                        same value as the box
+ADMIN_SECRET                        same value as the production app's env
+PREVIEW_ADMIN_SECRET                same value as the preview app's env, step 6
 COOLIFY_TOKEN                       Coolify → Keys & Tokens → API tokens
 ```
 
@@ -244,7 +245,17 @@ COOLIFY_APP_UUID=<from the app's URL in Coolify>
 COOLIFY_PREVIEW_APP_UUID=<step 6>
 PREVIEW_DOMAIN=preview.example.com
 MAX_PREVIEWS=4
+ORIGIN_IP=<the box's address>
 ```
+
+`PUBLIC_ORIGIN` is where continuous integration posts the built client, so point
+it at a name that reaches the box **directly**. Behind Cloudflare the upload
+inherits the proxy's body-size and request-time limits for no benefit — nothing
+about this step wants a CDN. It is also the host the deploy's certificate-expiry
+warning inspects, so a grey name reports on Traefik's own renewal.
+
+`ORIGIN_IP` is only read by that warning, which connects by address so it sees
+what the origin serves rather than what Cloudflare serves.
 
 Push to `main` and both halves deploy. There are no players yet, so a couple of
 seconds of downtime per merge costs nothing and buys a pipeline nobody has to
@@ -272,10 +283,21 @@ A second Coolify application, same repository, same server:
   before it can crowd the live world.
 - Persistent storage `/data`, same as production. Coolify scopes the volume to
   the pull request, so each gets its own world.
-- Same environment variables, except `PUBLIC_ORIGIN` (use the templated domain)
-  and a **different** `ADMIN_SECRET`.
+- Same environment variables, except `PUBLIC_ORIGIN` (any `https://` name under
+  the preview domain — the server only reads its scheme, to decide whether the
+  actor cookie is marked `Secure`) and a **different** `ADMIN_SECRET`, which
+  goes into `PREVIEW_ADMIN_SECRET`.
+- **Never deploy the base application.** Only its `pr-N` children are wanted;
+  the parent exists to hold the settings and to give `{{domain}}` a value.
 
 Copy the app UUID into `COOLIFY_PREVIEW_APP_UUID`.
+
+**A preview builds its own client.** The client is not in the image, so a
+container that is merely deployed comes up healthy and serves a 404 — see
+`Dockerfile`. `preview.yml` therefore does the same three steps `deploy.yml`
+does: it waits for the world to answer `/api/health`, posts the build to
+`/api/client/upload`, and activates it. That is what `PREVIEW_ADMIN_SECRET` is
+for, and it is why the workflow is slower than a deploy call.
 
 `MAX_PREVIEWS` is enforced in the workflow before deploying, so the fifth
 concurrent pull request fails with a sentence rather than by exhausting the box.
