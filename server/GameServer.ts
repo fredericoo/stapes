@@ -2422,8 +2422,20 @@ export class GameServer {
    * when it is needed. Nothing here reads the old session: the tiles are re-read
    * and every actor is re-seated below, so loading it was only ever a way for
    * its failures to become this one's.
+   *
+   * `keepPositions` re-seats everyone where they were standing instead of at
+   * the new world's spawn. It is what a *deploy* wants — the map changed under
+   * people who were just playing, and marching them all to spawn makes every
+   * merge to main an event — and it is safe against the map having changed
+   * shape, because a remembered cell is a wish: {@link findEntryCell} bubbles
+   * outward from it and falls back to spawn when nothing nearby fits. The
+   * editor's save deliberately does not pass it, so an author watching their
+   * own edit still sees the world start over.
    */
-  async replaceWorld(flat: FlatMapFile): Promise<void> {
+  async replaceWorld(
+    flat: FlatMapFile,
+    options: { keepPositions?: boolean } = {},
+  ): Promise<void> {
     const store = this.store();
     const tiles = await store.readTiles();
     // Re-read rather than reused, on exactly the terms the tiles are: a save is
@@ -2456,9 +2468,20 @@ export class GameServer {
     const learnt = new Map<string, MasteryXp>();
     const running = new Map<string, readonly StatusInstance[]>();
     const health = new Map<string, number>();
+    const standing = new Map<string, ActorPosition>();
     for (const ws of this.ctx.getWebSockets()) {
       const attachment = ws.deserializeAttachment() as Attachment | null;
       if (!attachment) continue;
+      // Where they are standing, if anybody asked for that to survive. Off the
+      // runtime rather than the `pos:` rows because a flush is up to
+      // `ACTOR_FLUSH_INTERVAL_MS` behind — the same staleness argument the kit
+      // read above makes. A dead player has no runtime and lands nothing here,
+      // which is right: `dead` is cleared below, and where a body that no
+      // longer exists last stood is not a place anybody should come back to.
+      if (options.keepPositions) {
+        const position = this.session?.actorPosition(attachment.actorId);
+        if (position) standing.set(attachment.actorId, position);
+      }
       const kit = this.session?.equipmentOf(attachment.actorId);
       if (kit) carried.set(attachment.actorId, kit);
       // Read here rather than from storage alone, for the reason the kit is: a
@@ -2501,7 +2524,7 @@ export class GameServer {
     this.scheduleRespawnAlarm();
     this.sentMotion.clear();
     this.sentHp.clear();
-    // Everybody is about to be re-seated at the new world's spawn, so every
+    // Everybody is about to be re-seated in the new world, so every
     // position this instance believed it had written is now a claim about a
     // board that no longer exists. Cleared rather than corrected: the next flush
     // then writes each of them once, which is the same self-healing pass
@@ -2531,7 +2554,8 @@ export class GameServer {
     this.queuedSteps.clear();
     this.events = [];
 
-    // Everyone still connected re-enters the new world at its spawn point,
+    // Everyone still connected re-enters the new world — at its spawn point,
+    // or where they were standing when `keepPositions` asks for that —
     // carrying what they were carrying and everything they have already taken.
     //
     // **A save re-creates the world, not the people in it.** Items on the floor
@@ -2561,6 +2585,10 @@ export class GameServer {
       if (!attachment) continue;
       const kit = carried.get(attachment.actorId);
       this.session.spawn(attachment.actorId, {
+        // Honoured only if the cell still has room for them; `findEntryCell`
+        // bubbles outward and gives up at the new spawn, so a position kept
+        // across a deploy can never seat somebody inside a wall.
+        at: standing.get(attachment.actorId),
         carrying: kit
           ? restoredEquipment(kit, tilesById)
           : await this.lastEquipmentOf(attachment.actorId),

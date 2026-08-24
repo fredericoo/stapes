@@ -141,6 +141,24 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
         { detail: { summary: "Destroy every position, kit, reward and mastery" } },
       )
       /**
+       * Overwrite the authored content with this image's `data/` and restart
+       * the world on it. The deploy pipeline calls this after every merge to
+       * main, so what is live is what is in the repo. Unlike `/reset`, players
+       * keep their positions, kit, tags and masteries — only the world around
+       * them is replaced.
+       */
+      .post(
+        "/seed",
+        async ({ headers, status }) => {
+          if (!(await authorized(headers.authorization, config))) {
+            return status(404, "Not found");
+          }
+          await world.reseed();
+          return { ok: true as const };
+        },
+        { detail: { summary: "Replace the authored content with the image's" } },
+      )
+      /**
        * Take a built client from continuous integration.
        *
        * A tar archive rather than a file per request: a build is a few hundred

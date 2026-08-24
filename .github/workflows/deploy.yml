@@ -135,6 +135,18 @@ jobs:
             -H "Content-Type: application/json" \
             -d '{"buildId":"${{ github.sha }}"}'
 
+      # The boot-time seed only fills an empty store, so without this the live
+      # tiles and map stop tracking the repo after the first deploy ever. This
+      # makes every merge to main also a content deploy: the server copies its
+      # image's data/ over the store and restarts the world on it. Players keep
+      # their positions, kit, tags and masteries; the map around them resets.
+      # After the container wait on purpose — the new server is the one whose
+      # image holds this commit's data/.
+      - name: Sync the world's content to this commit
+        run: |
+          curl --fail-with-body -sS -X POST "${{ vars.PUBLIC_ORIGIN }}/api/seed" \
+            -H "Authorization: Bearer ${{ secrets.ADMIN_SECRET }}"
+
       - name: Say what is live
         run: |
           curl -sS "${{ vars.PUBLIC_ORIGIN }}/api/health"
