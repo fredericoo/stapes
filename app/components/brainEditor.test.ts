@@ -200,6 +200,7 @@ describe("offering selectors", () => {
     expect(offered).toEqual([
       "player",
       "cat",
+      "cave-troll",
       "deer",
       "rat",
       "shopkeeper",
