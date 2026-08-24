@@ -35,14 +35,16 @@ export const PERF_BUDGETS = {
    *
    * A ceiling in absolute triangles can only ever say "the fixture grew", and
    * it says it by failing — this was 40k against a 7.3k-quad map, and the
-   * tutorial's 29.6k quads walked straight through it at 118k. What it is
-   * still worth keeping for is the case where a map grows so far that the
-   * frame budget below is next, so raise it deliberately with the map and read
-   * a failure here as "look at the map", not "look at the renderer".
+   * tutorial's 29.6k quads walked straight through it at 118k. The walled
+   * city took it from 31k quads / 124k tris to 38.6k / 154k against the 150k
+   * this replaces. What it is still worth keeping for is the case where a map
+   * grows so far that the frame budget below is next, so raise it deliberately
+   * with the map and read a failure here as "look at the map", not "look at
+   * the renderer".
    *
    * Whether the *renderer* regressed is {@link maxTrianglesPerQuad}'s question.
    */
-  maxTriangles: 150_000,
+  maxTriangles: 200_000,
   /**
    * Triangles per placed quad — the renderer's own share, independent of how
    * big the map is.
@@ -57,9 +59,13 @@ export const PERF_BUDGETS = {
   maxTrianglesPerQuad: 4.5,
   /**
    * World meshes should be O(levels × tilesets + animated), not O(quads).
-   * Today: a handful of levels × ~1–2 tilesets + animated instances.
+   * Today: a handful of levels × ~1–2 tilesets + animated instances. The
+   * walled city measures 75 — it lit its streets and buildings with torches
+   * (animated, so each occupied level adds instances) and put a roof on a
+   * sixth level. Still O(levels × tilesets + animated); the ratio guard below
+   * is what would catch a real O(quads) regression.
    */
-  maxWorldMeshes: 64,
+  maxWorldMeshes: 96,
   /** Hard ceiling: meshes must stay well below placed quads (merged path). */
   maxMeshToQuadRatio: 0.05,
   /** Local — fail if p95 renderFrame exceeds this. */
@@ -73,9 +79,14 @@ export const PERF_BUDGETS = {
    *
    * This runs synchronously on any non-player map change — a push landing, a
    * door switching — so the budget is counted in dropped frames, not in "does
-   * it finish". Measures ~25ms p50 / ~28ms p95 today. The old 200ms ceiling
-   * was wide enough to hide a 147ms stall, so keep this tight to the real
-   * number and treat a regression as a visible hitch rather than a warning.
+   * it finish". The old 200ms ceiling was wide enough to hide a 147ms stall,
+   * so keep this tight to the real number and treat a regression as a visible
+   * hitch rather than a warning.
+   *
+   * Was 40/70 against ~25ms p50 / ~28ms p95, on the map before the walled
+   * city. The city grew the fixture again — 16.3k cells to 20.9k, and 10
+   * torches to 46 — for 1.6× the bake (torches cost more than cells: each is
+   * its own spherical flood). Same code, bigger map.
    *
    * Was 30/55 against ~13ms p50 / ~19ms p95, which is what the same code still
    * measures on the map as it stood before the tutorial. The tutorial did not
@@ -98,8 +109,8 @@ export const PERF_BUDGETS = {
    * re-run it. 1.4× the p95 is a slightly tighter ratio than the 30 this
    * replaces held over its own.
    */
-  lightingBakeMsP95: 40,
-  lightingBakeMsP95Ci: 70,
+  lightingBakeMsP95: 65,
+  lightingBakeMsP95Ci: 115,
   /** Player light overlay atop cached bake. */
   lightingOverlayMsP95: 15,
   lightingOverlayMsP95Ci: 25,
