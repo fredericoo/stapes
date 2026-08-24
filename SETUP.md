@@ -338,10 +338,49 @@ threshold when the machine is bigger; at 90 MB a world there is far more room
 than 4, and the low number is only there because nothing has measured this under
 real load yet.
 
-Open a throwaway pull request and **verify the volume is actually destroyed** on
-close (`docker volume ls` before and after). A preview volume that quietly
-survives is a slow disk leak whose first symptom is a full disk months later —
-and on a shared box, a full disk takes production down too.
+### Closing a pull request does not delete its volume
+
+It looks like it does. The container goes, the hostname stops answering, and
+Coolify reports the preview destroyed — but the volume is still there, holding
+that world, forever.
+
+This is Coolify 4.3.10 itself, not a setting: `DeleteResourceJob::handle`
+returns early for an `ApplicationPreview` into `deleteApplicationPreview`, which
+cancels deployments, removes the containers and force-deletes the record, and
+never reaches the `deleteVolumes` branch — whose `true` default only ever
+applied to the resource types it returned before. Measured here at roughly 6 MB
+per closed pull request, which is slow enough that the first symptom would be a
+full disk months later, on a box where a full disk takes production with it.
+
+So the box prunes them. The script is `scripts/prune-preview-volumes.sh` in this
+repository — it lives here rather than only on the server so the reasoning is
+reviewable and the guards are not something a future reader has to reconstruct
+from a file they found in `/usr/local/bin`:
+
+```bash
+scp scripts/prune-preview-volumes.sh root@<ip>:/usr/local/bin/stapes-prune-preview-volumes.sh
+ssh root@<ip> 'chmod 755 /usr/local/bin/stapes-prune-preview-volumes.sh &&
+  echo "23 4 * * * root /usr/local/bin/stapes-prune-preview-volumes.sh >/dev/null" \
+  > /etc/cron.d/stapes-preview-volumes'
+```
+
+Three guards, each ruling out a different way it could eat something live: the
+preview application's uuid prefix, a `-pr-N` suffix, and
+dangling-and-over-a-day-old. Together they cannot match production, cannot match
+the preview application's own base volume, and cannot catch the seconds-long
+window in which a redeploying preview has let go of its volume. **The uuid in it
+is the preview application's**, so it has to be changed if that application is
+ever recreated — which is exactly what happened once already, when the app had
+to be rebuilt against the GitHub App source.
+
+**Do not reach for Coolify's `delete_unused_volumes` instead.** It prunes every
+unused volume on the server, and production's data *and* its backups are both
+detached for about fifteen seconds while a deploy replaces the container. A
+deploy landing on the nightly cleanup would take the world and every backup of
+it in the same sweep.
+
+Worth re-checking after a Coolify upgrade — if upstream starts deleting preview
+volumes, this becomes a no-op rather than a conflict, but the note should go.
 
 ---
 
