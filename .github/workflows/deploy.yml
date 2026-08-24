@@ -59,14 +59,63 @@ jobs:
             -F "archive=@client.tar"
 
       - name: Deploy the server
+        id: deploy
         run: |
-          curl --fail-with-body -sS -X POST "${{ vars.COOLIFY_URL }}/api/v1/deploy" \
+          RESPONSE=$(curl --fail-with-body -sS -X POST "${{ vars.COOLIFY_URL }}/api/v1/deploy" \
             -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}" \
             -H "Content-Type: application/json" \
-            -d '{"uuid":"${{ vars.COOLIFY_APP_UUID }}","force":false}'
+            -d '{"uuid":"${{ vars.COOLIFY_APP_UUID }}","force":false}')
+          echo "$RESPONSE"
+          # Named, because the wait below has to watch *this* deploy. Coolify
+          # answers with one entry per resource it queued; there is one.
+          ID=$(printf '%s' "$RESPONSE" | jq -r '.deployments[0].deployment_uuid // empty')
+          if [ -z "$ID" ]; then
+            echo "::error::Coolify queued no deployment — check the app uuid"
+            exit 1
+          fi
+          echo "id=$ID" >> "$GITHUB_OUTPUT"
 
-      # Coolify returns as soon as the deploy is queued, so the activation below
-      # would otherwise race a server that is still restarting.
+      # ---------------------------------------------------------------------
+      # **Watch the deploy, not the origin.** Coolify returns as soon as the
+      # deploy is *queued*, and the container it is replacing goes on serving
+      # perfectly until the moment it is swapped — so asking `/api/health`
+      # whether the server is back gets `ok` on the first attempt, from the
+      # process this deploy exists to replace. It is not a slow check, it is a
+      # check that cannot fail: measured at 0 seconds against a container that
+      # was not built for another 26.
+      #
+      # That silently undid the ordering the top of this file is about. The
+      # activation below ran against the *old* server while the new one was
+      # still building, which is the new-client-in-front-of-old-server case a
+      # `PROTOCOL_VERSION` bump turns into a reload loop.
+      #
+      # So the deployment record is what is waited on, and the origin is only
+      # asked afterwards — by then a healthy answer can only come from the
+      # container this deploy built.
+      # ---------------------------------------------------------------------
+      - name: Wait for the new container
+        run: |
+          for i in $(seq 1 120); do
+            STATUS=$(curl -fsS --max-time 10 \
+              "${{ vars.COOLIFY_URL }}/api/v1/deployments/${{ steps.deploy.outputs.id }}" \
+              -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}" | jq -r '.status')
+            case "$STATUS" in
+              finished)
+                echo "deployment finished after $((i * 5))s"
+                break
+                ;;
+              failed|cancelled-by-user)
+                echo "::error::Coolify deployment $STATUS — see its log in the panel"
+                exit 1
+                ;;
+            esac
+            if [ "$i" = 120 ]; then
+              echo "::error::deployment still ${STATUS} after ten minutes"
+              exit 1
+            fi
+            sleep 5
+          done
+
       - name: Wait for it to come back
         run: |
           for i in $(seq 1 60); do
