@@ -22,10 +22,15 @@ const TILESET_DIRECTORY = "tilesets";
  * container starts against an empty volume, builds its own world from the image
  * it was built with, and needs nothing provisioned for it.
  *
- * Deliberately *not* a sync. It runs when there is nothing to overwrite, so it
- * can never put a branch's authored content over a world somebody is playing —
- * the failure the separate preview bucket existed to prevent. Replacing content
- * in a live environment is the editor's job, or `POST /api/reset`.
+ * It has one other caller, and that one *is* an overwrite: `World.reseed`,
+ * behind `POST /api/seed`, which the deploy pipeline hits after every merge to
+ * main so the live content tracks the repo. The write is the same straight
+ * copy either way — what makes the boot path safe is its gate (an empty
+ * store), and what makes the deploy path safe is that `reseed` immediately
+ * replaces the running world with what was copied, keeping the players in it.
+ *
+ * A copy, not a reconciliation: a key the repo has since deleted stays in the
+ * store, unreferenced by the content that replaced it.
  */
 export async function seedFromDirectory(
   blobs: Blobs,

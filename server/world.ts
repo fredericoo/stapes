@@ -1,4 +1,5 @@
-import { DataStore } from "../app/lib/storage.server";
+import { DataStore, type Blobs } from "../app/lib/storage.server";
+import { flattenMap } from "../app/lib/mapData";
 import { GameServer } from "./GameServer";
 import { SqliteBlobs, DiskBlobs } from "./blobs";
 import { WorldStore } from "./WorldStore";
@@ -30,6 +31,7 @@ export class World {
     readonly store: WorldStore,
     readonly hub: SocketHub,
     readonly blobs: DataStore,
+    private readonly rawBlobs: Blobs,
     private readonly db: Database,
     private readonly config: Config,
   ) {}
@@ -65,7 +67,15 @@ export class World {
     };
 
     const server = new GameServer(context, { dataStore: new DataStore(blobs) });
-    const world = new World(server, store, hub, new DataStore(blobs), db, config);
+    const world = new World(
+      server,
+      store,
+      hub,
+      new DataStore(blobs),
+      blobs,
+      db,
+      config,
+    );
 
     await store.loadAlarm();
     world.rearmAlarm(store.alarmAt());
@@ -175,6 +185,27 @@ export class World {
     const path = join(directory, `stapes-${stamp()}.db`);
     await this.db.exec(`VACUUM INTO '${path.replaceAll("'", "''")}'`);
     return path;
+  }
+
+  /**
+   * Make the authored content match this image, and restart the world on it.
+   *
+   * The boot-time seed runs only against an empty store, so a deployment's
+   * `data/` stops mattering the moment the first one has run — the live world
+   * goes on serving whatever was last authored in it, however many merges
+   * ago that was. This is the deliberate overwrite: copy the image's `data/`
+   * over the store, then replace the running world with the copied map, on the
+   * editor-save path — so players keep their kit, tags, masteries and
+   * positions, and only the world around them changes.
+   *
+   * The map is read back out of the store rather than handed straight from
+   * disk so that what the world starts on is provably what the store now
+   * holds — the same file a crash would reload.
+   */
+  async reseed(): Promise<void> {
+    await seedFromDirectory(this.rawBlobs, this.config.SEED_DIR);
+    const map = await this.blobs.readMap();
+    await this.server.replaceWorld(flattenMap(map), { keepPositions: true });
   }
 
   /** Whether the world is still accepting connections. Drives `/health`. */

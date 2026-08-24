@@ -66,14 +66,20 @@ storage model the Durable Object had, since `ctx.storage` was SQLite underneath.
   Worker had no filesystem, so this used to be an HTTP call to a Vite middleware
   at an origin threaded through the socket handshake — all of that is gone.
 - **Deployed — `SqliteBlobs`**, in the `blob` table. A fresh deployment seeds
-  itself from the `data/` in its image on first boot, so there is no seed step in
-  any pipeline.
+  itself from the `data/` in its image on first boot, and after that the deploy
+  pipeline keeps the store tracking the repo: its last step is
+  `POST /api/seed`, which copies the image's `data/` over the store and
+  restarts the world on it (`World.reseed`). Merging a map or tile change to
+  main is therefore all it takes for it to be live.
 
 **There is still a third copy, and it is still not `DataStore`'s.** The world
 being played prefers its own checkpoint to the authored content and carries each
-player's kit, tags and masteries across a save on purpose — so a seed can replace
-every byte and change nothing anybody can see. `POST /api/reset` is the way out,
-and it is destructive.
+player's kit, tags and masteries across a save on purpose — so writing blobs
+alone changes nothing anybody can see; the world has to be replaced with them.
+`/api/seed` does that on the editor-save path with positions kept
+(`replaceWorld` with `keepPositions`), so a deploy resets the map around the
+players without resetting the players. `POST /api/reset` remains the
+destructive way out — every position, kit, tag and mastery goes with it.
 
 ## `bun dev` runs both halves
 

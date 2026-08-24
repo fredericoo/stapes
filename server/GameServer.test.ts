@@ -749,6 +749,39 @@ describe("replacing the world", () => {
   });
 
   /**
+   * The deploy pipeline replaces the world on every merge to main, and that
+   * must not march everyone back to spawn — `keepPositions` re-seats each
+   * connected player where they stood.
+   */
+  it("keeps a connected player where they stood when asked to", async () => {
+    const alice = await connect("alice");
+    await walkEast(alice.ws);
+    expect(await actorX("alice")).toBe(ONE_STEP_EAST);
+
+    const fresh = nextMessageOfType(alice.ws, "hello");
+    await stub().replaceWorld(authoredMap(), { keepPositions: true });
+    await fresh;
+
+    expect(await actorX("alice")).toBe(ONE_STEP_EAST);
+  });
+
+  /**
+   * And the editor's save deliberately does not ask: an author saving a map
+   * still restarts everyone on it at its spawn point.
+   */
+  it("restarts a connected player at spawn when nobody asks", async () => {
+    const alice = await connect("alice");
+    await walkEast(alice.ws);
+    expect(await actorX("alice")).toBe(ONE_STEP_EAST);
+
+    const fresh = nextMessageOfType(alice.ws, "hello");
+    await stub().replaceWorld(authoredMap());
+    await fresh;
+
+    expect(await actorX("alice")).toBe(SPAWN_CELL);
+  });
+
+  /**
    * A save re-creates the world. It does not re-create the people in it.
    *
    * Items on the floor coming back is the point of authoring them there — the
