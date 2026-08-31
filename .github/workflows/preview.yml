@@ -87,6 +87,20 @@ jobs:
           echo "::error::preview did not come up healthy within fifteen minutes"
           exit 1
 
+      # The boot-time seed only fills an empty store, and a preview's volume
+      # outlives every push to its branch — so without this, the tiles and map
+      # stay whatever the pull request's first deploy held. Same call the
+      # production deploy makes on merge. Coolify redeploys the container off
+      # the same synchronize event that started this workflow, and the client
+      # build above takes longer than its ~40s redeploy, so the container
+      # answering here is all but always the new one; a push that ever does
+      # lose that race seeds the previous commit's content and heals on the
+      # next one.
+      - name: Sync the world's content to this commit
+        run: |
+          curl --fail-with-body -sS -X POST "${PREVIEW_ORIGIN}/api/seed" \
+            -H "Authorization: Bearer ${{ secrets.PREVIEW_ADMIN_SECRET }}"
+
       # Upload then activate, the same two steps as production. There is no old
       # client in front of this server, so the ordering that matters there does
       # not here — but the split is what keeps a half-finished upload from
