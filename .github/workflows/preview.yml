@@ -18,6 +18,11 @@
 # up healthy and serves a 404. This builds one and posts it, the same three
 # steps `deploy.yml` uses for production.
 #
+# Not owning the deploy does mean having to watch one. Both halves of a push
+# start from the same webhook, so this workflow can get to the hostname while
+# the previous commit's container is still serving it, and Coolify's deployment
+# record is the only thing that says which is which. See the wait below.
+#
 # It does not comment the URL either. The same webhook that deploys the preview
 # has already said so on the pull request, with links to the build and container
 # logs beside it — a second comment carrying the same link is noise.
@@ -72,30 +77,103 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run build
 
-      # A first deploy builds the image from scratch on a shared box, so this is
-      # generous. It also covers Traefik's first Let's Encrypt issuance for the
-      # hostname, which is why the failures are tolerated rather than fatal
-      # until the budget runs out.
-      - name: Wait for the world to come up
+      # **Watch the deployment record, not the origin.** Coolify redeploys this
+      # preview off the same pull-request webhook that starts this workflow, so
+      # for the first ~40s of every push there is a container answering on this
+      # hostname that belongs to the *previous* commit. It answers `/api/health`
+      # with `ok`, and the `build` it reports is the activated client bundle,
+      # which lives on the volume and survives the swap — so nothing in that
+      # answer distinguishes the container about to be destroyed from the one
+      # replacing it.
+      #
+      # Asking the origin was therefore not a slow check but a check that could
+      # not fail: it took its `ok` on the first attempt, fifteen seconds into
+      # the job, from the very container the redeploy existed to replace. That
+      # was written assuming the client build above would always take longer
+      # than the redeploy, and with a warm bun cache it is ~8s and does not —
+      # so run 33415151709 seeded the doomed container and was three seconds
+      # into uploading the client when Coolify swapped it out, and got a 502.
+      # Retrying that upload would have been worse than the red mark: the seed
+      # had already landed somewhere about to be destroyed, so the preview would
+      # have come up serving this commit's client over the previous commit's
+      # authored content, and said nothing.
+      #
+      # So the deployment Coolify queued for *this* head sha is what is waited
+      # on, the same way `deploy.yml` waits on the deployment it triggers. The
+      # only difference is how the record is found: production knows the uuid
+      # because it asked for the deploy, and here the webhook did — but the
+      # record carries the pull request number and the commit it was queued for,
+      # which picks it out. Newest first, and twenty is far more deployments
+      # than the handful of previews on this box can queue in between. A record
+      # that has not appeared yet reads the same as one still queued, and means
+      # the same thing: keep waiting. Fifteen minutes, because a first deploy
+      # builds the image from scratch and may sit behind another preview's build
+      # to do it.
+      #
+      # A record that never appears is the one case worth a word, since it is
+      # the difference between this and a check on the origin: Coolify declines
+      # to queue a preview at all when the application has watch paths that this
+      # push misses, or when the pull request title or head commit carries a
+      # skip marker — and GitHub does not always skip this workflow for the same
+      # markers. That is a red mark on a preview nobody redeployed, which is
+      # true, and the message below says where to look.
+      - name: Wait for Coolify to finish deploying this commit
+        env:
+          PR: ${{ github.event.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           for i in $(seq 1 90); do
-            if curl -fsS --max-time 5 "${PREVIEW_ORIGIN}/api/health" | grep -q '"status":"ok"'; then
-              echo "healthy after ${i} attempts"; exit 0
+            STATUS=$(curl -fsS --max-time 10 \
+              "${{ vars.COOLIFY_URL }}/api/v1/deployments/applications/${{ vars.COOLIFY_PREVIEW_APP_UUID }}?take=20" \
+              -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}" \
+              | jq -r --argjson pr "$PR" --arg sha "$SHA" \
+                  '[.deployments[] | select(.pull_request_id == $pr and .commit == $sha)][0].status // "absent"')
+            # A Coolify that cannot be reached answers with no status at all —
+            # `jq` reads the empty body and prints nothing — and that is as much
+            # a reason to keep waiting as a queued deployment is. Named only so
+            # the message at the end of the budget can say it.
+            STATUS=${STATUS:-unreachable}
+            case "$STATUS" in
+              finished)
+                echo "deployment finished after $((i * 10))s"; break
+                ;;
+              failed|cancelled-by-user)
+                echo "::error::Coolify deployment $STATUS — see its log in the panel"
+                exit 1
+                ;;
+            esac
+            if [ "$i" = 90 ]; then
+              echo "::error::Coolify has not finished a deployment of ${SHA} for pull request ${PR} in fifteen minutes — the last it said was ${STATUS}. An absent one was never queued: look at the preview application's watch paths, and at whether the title or the head commit carries a skip marker."
+              exit 1
             fi
             sleep 10
           done
-          echo "::error::preview did not come up healthy within fifteen minutes"
+
+      # Only the new container is behind the hostname by now, so this is not
+      # identifying anything — the wait above did that. It is waiting on
+      # Traefik, which has to route the container that just replaced the one it
+      # was routing and, on a preview's first deploy, get Let's Encrypt to issue
+      # a certificate for a hostname nobody has ever asked for. Both fail for a
+      # while and then work, which is why the failures are tolerated rather than
+      # fatal until the budget runs out.
+      - name: Wait for the world to answer
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS --max-time 5 "${PREVIEW_ORIGIN}/api/health" | grep -q '"status":"ok"'; then
+              echo "healthy after ${i} attempts"; exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::preview did not come up healthy within five minutes"
           exit 1
 
       # The boot-time seed only fills an empty store, and a preview's volume
       # outlives every push to its branch — so without this, the tiles and map
       # stay whatever the pull request's first deploy held. Same call the
-      # production deploy makes on merge. Coolify redeploys the container off
-      # the same synchronize event that started this workflow, and the client
-      # build above takes longer than its ~40s redeploy, so the container
-      # answering here is all but always the new one; a push that ever does
-      # lose that race seeds the previous commit's content and heals on the
-      # next one.
+      # production deploy makes on merge. After both waits on purpose, and that
+      # ordering is the whole point of them: the container answering here is the
+      # one whose image holds this commit's `data/`, and seeding the container
+      # it replaced is the failure the wait above exists to prevent.
       - name: Sync the world's content to this commit
         run: |
           curl --fail-with-body -sS -X POST "${PREVIEW_ORIGIN}/api/seed" \
