@@ -5,8 +5,8 @@ import {
   MIN_MASTERY,
   type Mastery,
 } from "../lib/mastery";
-import type { TileDef } from "../lib/types";
-import { MASTERY_COMMAND_USAGE, type CommandRefusal } from "./commands";
+import type { Coord, TileDef } from "../lib/types";
+import { COMMAND_USAGE, type CommandRefusal } from "./commands";
 
 /**
  * The things the game says to the player in words.
@@ -176,7 +176,7 @@ export function commandRefusalNotice(refusal: CommandRefusal): string {
     case "unknownCommand":
       return `There is no ${refusal.typed} command`;
     case "badArguments":
-      return `Say ${MASTERY_COMMAND_USAGE}`;
+      return `Say ${COMMAND_USAGE[refusal.command]}`;
     case "unknownMastery":
       return `No mastery called "${refusal.typed}". Try ${MASTERIES.join(", ")}`;
     case "badLevel":
@@ -188,5 +188,50 @@ export function commandRefusalNotice(refusal: CommandRefusal): string {
       // authored and there is no runtime block to write to" is a fact about the
       // engine and the player asked a question about a deer.
       return `${refusal.name} does not learn`;
+    case "badCoordinate":
+      // Both spellings shown, because the sign is the whole grammar and a
+      // player who typed one of them wrote the other by mistake.
+      return `"${refusal.typed}" is not a coordinate. A number is a cell of the map, +1 and -1 are steps from where you stand`;
+    case "unknownTile":
+      // No list, unlike the masteries above: there are as many tiles as an
+      // author cares to draw, and a sentence that tried to name them all would
+      // be longer than the chat log it lands in.
+      return `No tile called "${refusal.typed}"`;
+    case "spawnMarkerTile":
+      // The one tile that cannot be put down, and the reason is worth saying:
+      // it is not that the tile is special-cased, it is that a map is allowed
+      // exactly one of them and a second would be a world that cannot open.
+      return `"${refusal.typed}" marks where the world starts, and there is only ever one`;
+    case "nowhereToPlace":
+      return "You are not standing anywhere";
+    case "noRoom":
+      return `Nothing will fit at ${cellName(refusal.at)}`;
   }
+}
+
+/**
+ * A cell, as a player reads one back.
+ *
+ * Three numbers in the order they are typed, so the sentence a refusal comes
+ * back with can be edited into the command that would have worked.
+ */
+function cellName(at: Coord): string {
+  return `${at.x}, ${at.y}, ${at.z}`;
+}
+
+/**
+ * What a tile called into the world says.
+ *
+ * **Said even though the thing is right there**, which is the opposite of this
+ * module's usual rule, and absolute coordinates are why: `/tile apple 0 0 0`
+ * puts an apple somewhere the summoner is almost certainly not looking, and a
+ * command whose whole effect is off screen is indistinguishable from one that
+ * was dropped. Naming the cell back is also the only confirmation that `+1`
+ * went the way the player thought it did.
+ *
+ * The tile's own name, so what the catalogue calls a thing and what the game
+ * calls it are one string.
+ */
+export function tileNotice(name: string, at: Coord): string {
+  return `${name} appears at ${cellName(at)}`;
 }
