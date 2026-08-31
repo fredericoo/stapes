@@ -1,15 +1,23 @@
 import type { BattlerDef, FightingStats } from "../lib/battler";
 import { bodyDefence, fightingStats, NO_RESISTANCES } from "../lib/battler";
-import type { WeaponItem, WeaponResistances } from "../lib/item";
+import type {
+  ArmorItem,
+  ArmorSlot,
+  WeaponItem,
+  WeaponResistances,
+} from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import { mintItemId } from "../lib/itemInstance";
 import {
+  ARMOR_SLOTS,
+  armorSlotOf,
   resolveArmor,
   resolveContainer,
   resolveItem,
   resolveWeapon,
 } from "../lib/item";
 import { EQUIP_SLOTS, type EquipSlot } from "../lib/kit";
+import { WEAPON_MASTERIES } from "../lib/mastery";
 import { resolveLight } from "../lib/tileResolve";
 import type { TileDef } from "../lib/types";
 
@@ -58,19 +66,50 @@ export type Equipment = {
   /**
    * What is worn on the body — a tunic, a mail shirt, a breastplate.
    *
-   * The one slot that takes exactly one kind of thing, and the strictness is
-   * the point. Both hands are deliberately generous because a hand *is* generous
-   * — you can hold a backpack if you would rather — but there is no honest
-   * reading of a body under which a sword or a loaf of bread is what you are
-   * wearing. So `slotTakes` refuses everything that is not {@link ArmorItem}
-   * here, and that refusal is what makes the square legible: whatever is in it
-   * is protecting you, and the number it is worth is the whole of what it does.
+   * The first of the four squares that take exactly one kind of thing, and the
+   * strictness is the point. Both hands are deliberately generous because a hand
+   * *is* generous — you can hold a backpack if you would rather — but there is
+   * no honest reading of a body under which a sword or a loaf of bread is what
+   * you are wearing. So `slotTakes` refuses everything that is not an
+   * {@link ArmorItem} *for this square* here, and that refusal is what makes it
+   * legible: whatever is in it is protecting you, and the number it is worth is
+   * the whole of what it does.
    *
    * It adds to whatever is in either hand rather than replacing it — see
    * {@link wornDefence}. A shield and a mail shirt are two different answers to
    * being hit, and a body with both should get both.
    */
   armor: ItemInstance | null;
+  /**
+   * What is on the head — a cap, a helm, a crown.
+   *
+   * One of the four squares that take {@link ArmorItem} and nothing else, and
+   * the one that decides which is the armour's own `slot` — see `../lib/item`'s
+   * {@link ARMOR_SLOTS}. Everything the body square does, this does: it adds to
+   * whatever else is worn rather than replacing it, and its `def` and `resist`
+   * reach a fight through {@link wornDefence} and {@link armorResistances}.
+   */
+  head: ItemInstance | null;
+  /**
+   * What is round the neck or on a finger — a ring, an amulet, a charm.
+   *
+   * Armour, on the same terms a helmet is, and the fact that it is not obviously
+   * *armour* is the point of having a square for it: a thing that turns a blow
+   * aside without being a plate is how an author writes a warding trinket, and
+   * the alternative — a fifth kind of item with its own arithmetic — would be a
+   * second answer to the question `def` already answers.
+   */
+  charm: ItemInstance | null;
+  /**
+   * What is on the feet — boots, shoes, sabatons.
+   *
+   * The last of the worn squares, and it does exactly what the other three do.
+   * There is deliberately nothing about *movement* here: how fast a body gets
+   * about is a fact about the body, and a boot that changed it would be a second
+   * stat block arguing with the weapon's, which is the thing the whole item
+   * model exists to avoid.
+   */
+  footwear: ItemInstance | null;
   /** An equippable container. Its `contents` is the inventory. */
   bag: ItemInstance | null;
 };
@@ -84,9 +123,17 @@ export type Equipment = {
  */
 export type { EquipSlot };
 
-/** Carrying nothing at all — a body that was never given a kit. */
+/**
+ * Carrying nothing at all — a body that was never given a kit.
+ *
+ * Built from {@link EQUIPMENT_SLOTS} rather than written out, so a square added
+ * to the game arrives here empty on its own. A hand-written literal is how a
+ * body would come to be born missing a slot it has.
+ */
 export function emptyEquipment(): Equipment {
-  return { weapon: null, offhand: null, armor: null, bag: null };
+  return Object.fromEntries(
+    EQUIPMENT_SLOTS.map((slot) => [slot, null]),
+  ) as Equipment;
 }
 
 /**
@@ -127,19 +174,25 @@ export function restoredEquipment(
       ? identified(saved.offhand)
       : null;
 
-  // Held to what the slot takes rather than to what a hand takes, because this
-  // slot is the strict one — a sword that was armour while somebody was away
-  // comes back off their chest rather than staying on it.
-  const armorDef = saved.armor ? tilesById[saved.armor.tileId] : undefined;
-  const armor =
-    saved.armor && armorDef && resolveArmor(armorDef)
-      ? identified(saved.armor)
-      : null;
+  // Held to what the *square* takes rather than to what a hand takes, because
+  // these are the strict ones — a sword that was armour while somebody was away
+  // comes back off their chest rather than staying on it, and a helm an author
+  // moved to the feet comes off the head rather than staying above it.
+  const worn = {} as Record<ArmorSlot, ItemInstance | null>;
+  for (const slot of ARMOR_SLOTS) {
+    // Absent on a kit saved before this square existed, which reads as an empty
+    // one — the same answer the rest of this function gives to anything the
+    // world no longer agrees with.
+    const instance = saved[slot];
+    const def = instance ? tilesById[instance.tileId] : undefined;
+    worn[slot] =
+      instance && def && armorForSlot(slot, def) ? identified(instance) : null;
+  }
 
   const bagDef = saved.bag ? tilesById[saved.bag.tileId] : undefined;
   const container = bagDef ? resolveContainer(bagDef) : null;
   if (!saved.bag || !container?.equippable) {
-    return { weapon, offhand, armor, bag: null };
+    return { ...worn, weapon, offhand, bag: null };
   }
 
   // Truncated to what the bag holds *now*, because an author who shrank it did
@@ -156,9 +209,9 @@ export function restoredEquipment(
     .map(identified);
 
   return {
+    ...worn,
     weapon,
     offhand,
-    armor,
     bag: { ...identified(saved.bag), contents },
   };
 }
@@ -329,7 +382,7 @@ export function effectiveBattler(
   // {@link wornDefence} has already counted that: the weapon in hand is one of
   // its three sources. Adding here is exactly the double count that splitting
   // defence across two functions used to invite — and did.
-  // The three worn squares, plus what the body turns aside on its own — see
+  // Everything worn, plus what the body turns aside on its own — see
   // `../lib/battler`'s {@link bodyDefence}. Toughness's share is the one part of
   // defence `wornDefence` does not count, so it is the one part that has to
   // survive the assignment below.
@@ -340,15 +393,20 @@ export function effectiveBattler(
 }
 
 /**
- * What the thing on this body's chest turns aside *extra*, kind by kind.
+ * What everything worn on this body turns aside *extra*, kind by kind.
  *
- * The armour's own block, handed on rather than merged with anything: the flat
- * half of defence is summed across three slots in {@link wornDefence} because a
- * sword, a shield and a shirt all stop blows, and this half is not, because
- * neither hand has an opinion about what *kind* of blow it is stopping. One
- * armour, one table.
+ * **Summed across the armour squares, exactly as the flat half is**, and it did
+ * not use to be: when the chest was the only place armour went, "one armour, one
+ * table" was the same sentence as "the armour's table". It is not any more, and
+ * a helm that shrugs off hammers beside a shirt that shrugs off blades should
+ * do both — the alternative is one square silently deciding what the other three
+ * are worth.
  *
- * Shared-empty for a bare chest and for the overwhelmingly common armour that
+ * Neither hand is counted, and that stays true: what a shield stops is a `def`,
+ * and it has no opinion about what *kind* of blow it stopped. See
+ * {@link wornDefence}, which is where the flat halves meet.
+ *
+ * Shared-empty for a bare body and for the overwhelmingly common armour that
  * says nothing — see {@link NO_RESISTANCES} — so `effectiveBattler` can tell
  * "nothing to add" by identity and hand back the stats it was given.
  */
@@ -356,23 +414,31 @@ export function armorResistances(
   equipment: Equipment | null,
   tilesById: Record<string, TileDef>,
 ): WeaponResistances {
-  const worn = equipment?.armor;
-  if (!worn) return NO_RESISTANCES;
-  const def = tilesById[worn.tileId];
-  return (def ? resolveArmor(def)?.resist : null) ?? NO_RESISTANCES;
+  let summed: WeaponResistances | null = null;
+  for (const armor of wornArmor(equipment, tilesById)) {
+    if (!armor.resist) continue;
+    summed ??= {};
+    for (const mastery of WEAPON_MASTERIES) {
+      const against = armor.resist[mastery];
+      if (against == null) continue;
+      summed[mastery] = (summed[mastery] ?? 0) + against;
+    }
+  }
+  return summed ?? NO_RESISTANCES;
 }
 
 /**
  * Everything this body has between it and a blow, added up.
  *
  * **Three sources and they sum**: what you are swinging, what you are holding
- * up, and what you have on. A sword with a `def` is a parrying sword and a
- * shield in your fist is a shield, so the main hand counts on exactly the terms
- * the other two do — a body with a shield in each hand is protected twice, and
- * one wearing mail behind them three times. There is deliberately no cap and no
- * diminishing return: the numbers an author writes are the numbers, on the terms
- * a weapon's damage is, and a ceiling imposed here would be balance hiding in a
- * helper.
+ * up, and what you have on — the last of which is itself the sum of the four
+ * worn squares, see {@link armorDefence}. A sword with a `def` is a parrying
+ * sword and a shield in your fist is a shield, so the main hand counts on
+ * exactly the terms the others do — a body with a shield in each hand is
+ * protected twice, and one wearing a helm and mail behind them twice more.
+ * There is deliberately no cap and no diminishing return: the numbers an author
+ * writes are the numbers, on the terms a weapon's damage is, and a ceiling
+ * imposed here would be balance hiding in a helper.
  *
  * **The main hand replaces rather than adds, and only within its own slot.**
  * What is counted is {@link weaponInHand} — the held weapon, or the body's
@@ -405,25 +471,73 @@ export function wornDefence(
 }
 
 /**
- * What the thing on this body's chest turns aside.
+ * What everything worn on this body turns aside, added up.
  *
- * The slot takes armour and nothing else — see `./itemMoves`' `slotTakes` — so
- * unlike the off hand there is no "and anything else with an opinion about
- * defence" to allow for: whatever is in the square is armour, and its `def` is
- * the entirety of what it does.
+ * The four armour squares and nothing else — a head, a chest, a charm and a
+ * pair of boots. Each takes armour and nothing else, and only armour *for that
+ * square* — see {@link armorForSlot} — so unlike the off hand there is no "and
+ * anything else with an opinion about defence" to allow for: whatever is in a
+ * square is armour, and its `def` is the entirety of what it does.
  *
- * Zero for an empty chest and for a tile the catalogue has lost, on the terms
- * every other lookup here answers a missing tile: the fact is out of date, and a
- * fight is not worth refusing over it.
+ * **They sum, with no cap and no diminishing return**, on exactly the terms the
+ * three sources in {@link wornDefence} do. A body in a helm, mail and boots is
+ * protected by all three, which is the whole reason to have squares for them;
+ * the numbers an author writes are the numbers, and a ceiling imposed here would
+ * be balance hiding in a helper.
+ *
+ * Zero for a bare body and for a tile the catalogue has lost, on the terms every
+ * other lookup here answers a missing tile: the fact is out of date, and a fight
+ * is not worth refusing over it.
  */
 export function armorDefence(
   equipment: Equipment | null,
   tilesById: Record<string, TileDef>,
 ): number {
-  const worn = equipment?.armor;
-  if (!worn) return 0;
-  const def = tilesById[worn.tileId];
-  return def ? (resolveArmor(def)?.def ?? 0) : 0;
+  let total = 0;
+  for (const armor of wornArmor(equipment, tilesById)) total += armor.def;
+  return total;
+}
+
+/**
+ * The armour blocks this body is actually wearing, square by square.
+ *
+ * One walk of {@link ARMOR_SLOTS} shared by the two things that read them, so
+ * "which squares are armour, and what counts as armour in one" has a single
+ * answer rather than one per arithmetic. Silent about anything the catalogue has
+ * lost or no longer agrees belongs in the square it is sitting in.
+ */
+function wornArmor(
+  equipment: Equipment | null,
+  tilesById: Record<string, TileDef>,
+): ArmorItem[] {
+  if (!equipment) return [];
+  const out: ArmorItem[] = [];
+  for (const slot of ARMOR_SLOTS) {
+    const instance = equipment[slot];
+    if (!instance) continue;
+    const def = tilesById[instance.tileId];
+    const armor = def ? armorForSlot(slot, def) : null;
+    if (armor) out.push(armor);
+  }
+  return out;
+}
+
+/**
+ * This tile's armour block, if it is armour *and* it belongs in this square.
+ *
+ * **The one place "which square does this go in" is asked of a tile**, which is
+ * what stops a helmet being wearable as boots: `./itemMoves`' `slotTakes` asks
+ * it of a drag, `restoredEquipment` asks it of a kit coming back from storage,
+ * and the two would otherwise be two readings of `ArmorItem.slot` to keep in
+ * step.
+ *
+ * Here rather than beside `slotTakes` because it is a fact about the slot, and
+ * the slots are defined by this module — the same reason {@link handAccepts}
+ * lives here.
+ */
+export function armorForSlot(slot: ArmorSlot, def: TileDef): ArmorItem | null {
+  const armor = resolveArmor(def);
+  return armor && armorSlotOf(armor) === slot ? armor : null;
 }
 
 /**

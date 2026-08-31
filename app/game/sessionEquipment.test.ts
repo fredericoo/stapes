@@ -7,6 +7,7 @@ import type { ItemInstance } from "../lib/itemInstance";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { TICK_MS } from "./constants";
+import { emptyEquipment } from "./equipment";
 import { GameSession, LOCAL_ACTOR_ID } from "./GameSession";
 
 /**
@@ -1335,12 +1336,7 @@ describe("dying with something on you", () => {
     advance(session, LONG_ENOUGH_TO_KILL_MS);
 
     const death = session.drainDeaths().find((one) => one.id === playerId);
-    expect(death?.equipment).toEqual({
-      weapon: null,
-      offhand: null,
-      armor: null,
-      bag: null,
-    });
+    expect(death?.equipment).toEqual(emptyEquipment());
   });
 
   /**

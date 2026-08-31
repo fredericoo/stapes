@@ -1,48 +1,177 @@
-import { IconBackpack, IconHandStop, IconShirt } from "@tabler/icons-react";
-import { useMemo, type ReactNode } from "react";
+import {
+  IconBackpack,
+  IconDiamond,
+  IconHandStop,
+  IconMoodEmpty,
+  IconShirt,
+  IconShoe,
+} from "@tabler/icons-react";
+import { useMemo, type ComponentType } from "react";
 import type { Equipment } from "../game/equipment";
+import type { BodySlotRef } from "../game/itemMoves";
 import type { MasteryXp } from "../lib/mastery";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
-import { ItemSlot } from "./ItemSlot";
+import { ItemSlot, ITEM_SLOT_SIZE_PX } from "./ItemSlot";
 import type { ItemDrag } from "./useItemDrag";
 
 /**
- * What you are wearing: what is in your hand, and what is on your back.
+ * What you are wearing, drawn as a body rather than as a row.
  *
- * The bag was deliberately *not* here for a while — it had its own opener in the
- * action strip, and burying the most-used slot behind the least-used panel would
- * have been backwards. What changed is that a bag became something you take
- * *off*: dragging a thing out of its slot is how everything else is removed, and
- * a bag that needed its own gesture would be the one exception. So it is a slot,
- * beside the hand, and the strip button went back to being only an opener.
+ * ## The arrangement is the label
  *
- * Four slots, and the panel says exactly what the game has: what you swing,
- * what you hold, what you are wearing, what you carry it all in — the order
- * `EQUIP_SLOTS` is written in, because that is the order a person would say it.
- * A panel pretending to more squares than exist would be describing a game
- * nobody can play yet, which is why this one grew only when the body square
- * did.
+ * Seven squares laid out where the things go: the head above, the hands to
+ * either side, the chest between them, a charm and the pack below, boots at the
+ * bottom. **Nothing is captioned**, and the layout is why it does not have to
+ * be — a square directly above the middle of a body is a hat, and a word saying
+ * so underneath it would be the picture explaining itself. What an empty square
+ * is for is drawn in it instead, faintly, which is a hint you stop noticing
+ * once the square is full rather than a label you keep reading.
  *
- * **Each square is captioned and each empty one is pictured**, which the bag's
- * grid deliberately is not. A slot inside a bag is a square — anything goes in
- * it and there is nothing to say — where these are each *for* something,
- * and a panel of identical dashed squares is one you have to be taught
- * rather than one you can read. The caption is the short name (`Main`,
- * `Offhand`, `Body`, `Back`) rather than the accessible one, which stays the
- * longer phrase a screen reader wants.
+ * It was a captioned wrapping row of four for as long as there *were* four, and
+ * the captions were carrying it: `Main Offhand Body Back` in a line is an
+ * arbitrary order somebody has to learn, and it stops being readable the moment
+ * there are seven of them. A body is the arrangement everybody already knows.
  *
- * **Nothing in here is a number.** There was a table under the hand for a while
- * listing every mastery the weapon in it asked for against the one you had, and
- * it is gone: what a weapon asks is now a sentence you get by looking at it, on
- * exactly the terms a sword on the floor tells you — see `../lib/weaponFeel`.
- * What a weapon is *worth* has always been absent, and for the reason that
- * decided the rest: this game is played by picking things up and finding out,
- * and a panel that ranked your weapons would be answering the only question the
- * fighting has to offer. What you are good at is not here either — it moved to
- * its own panel, since it answers a different question and does not change when
- * you move an item. See `./StatsPanel`.
+ * The squares still say what they are to anything reading the page aloud — see
+ * `ItemSlot`'s `label` — because position is exactly the cue a screen reader
+ * does not get.
+ *
+ * ## Which squares exist is the game's list, not this one's
+ *
+ * {@link SQUARES} names every one with its place on the grid, so a panel
+ * pretending to more squares than the body has is a type error rather than a
+ * drawing nobody can use. A slot added to `EQUIP_SLOTS` and not to that list is
+ * a slot a player can never take a thing out of.
+ *
+ * ## Nothing in here is a number
+ *
+ * There was a table under the hand for a while listing every mastery the weapon
+ * in it asked for against the one you had, and it is gone: what a weapon asks is
+ * now a sentence you get by looking at it, on exactly the terms a sword on the
+ * floor tells you — see `../lib/weaponFeel`. What a weapon is *worth* has always
+ * been absent, and for the reason that decided the rest: this game is played by
+ * picking things up and finding out, and a panel that ranked your weapons would
+ * be answering the only question the fighting has to offer. What you are good at
+ * is not here either — it moved to its own panel, since it answers a different
+ * question and does not change when you move an item. See `./StatsPanel`.
  */
+
+/** Between two squares side by side, and between two stacked in a column. */
+const SQUARE_GAP_PX = 6;
+
+/**
+ * The grid's row, which is *half* a square tall.
+ *
+ * The whole of how the stagger is built: every square spans two of these, and
+ * the columns beside the middle start one row down. That is the offset the
+ * middle column's three squares and the sides' two each need in order to
+ * interleave, and expressing it as a half-height row is what lets the browser
+ * work out the rest rather than this file carrying six hand-computed offsets.
+ */
+const HALF_ROW_PX = (ITEM_SLOT_SIZE_PX + SQUARE_GAP_PX) / 2;
+
+/** How many of those rows one square covers. */
+const ROWS_PER_SQUARE = 2;
+
+/** Left, middle, right — the body seen from the front. */
+const LEFT_COLUMN = 1;
+const MIDDLE_COLUMN = 2;
+const RIGHT_COLUMN = 3;
+const COLUMN_COUNT = 3;
+
+type IconComponent = ComponentType<{
+  size?: number;
+  stroke?: number;
+  className?: string;
+}>;
+
+type Square = {
+  slot: BodySlotRef;
+  /** What this square is, for anything reading the page aloud. */
+  label: string;
+  /** The browser's tooltip on an empty one — what belongs here. */
+  emptyHint: string;
+  /** Drawn faintly while the square is empty. */
+  icon: IconComponent;
+  column: number;
+  /**
+   * Which half-row it starts on, counting from one.
+   *
+   * Written down rather than derived from the order, because the arrangement is
+   * a body and a body is not a sequence: the hands are level with each other and
+   * one row below the head, which no walk of a list produces.
+   */
+  row: number;
+};
+
+const SQUARES: readonly Square[] = [
+  {
+    slot: { kind: "head" },
+    label: "Head",
+    emptyHint: "Head — nothing worn",
+    // A face rather than a helmet, which Tabler's is a motorcycle one — a
+    // visored crash helmet over a world of caps and mail reads as a different
+    // game. The square is the head, and a bare head is the honest picture of it
+    // being empty; the others draw the thing that goes in them because a hand
+    // and a foot are not what you put there.
+    icon: IconMoodEmpty,
+    column: MIDDLE_COLUMN,
+    row: 1,
+  },
+  {
+    slot: { kind: "offhand" },
+    label: "Off hand",
+    emptyHint: "Off hand — nothing held",
+    icon: OffHandIcon,
+    column: LEFT_COLUMN,
+    row: 2,
+  },
+  {
+    slot: { kind: "armor" },
+    label: "Armour",
+    emptyHint: "Armour — nothing worn",
+    icon: IconShirt,
+    column: MIDDLE_COLUMN,
+    row: 3,
+  },
+  {
+    slot: { kind: "weapon" },
+    label: "Weapon",
+    emptyHint: "Weapon — nothing in hand",
+    icon: MainHandIcon,
+    column: RIGHT_COLUMN,
+    row: 2,
+  },
+  {
+    slot: { kind: "charm" },
+    label: "Charm",
+    emptyHint: "Charm — nothing worn",
+    icon: IconDiamond,
+    column: LEFT_COLUMN,
+    row: 4,
+  },
+  {
+    slot: { kind: "footwear" },
+    label: "Footwear",
+    emptyHint: "Footwear — nothing on your feet",
+    icon: IconShoe,
+    column: MIDDLE_COLUMN,
+    row: 5,
+  },
+  {
+    slot: { kind: "bag" },
+    label: "Bag",
+    emptyHint: "Bag — nothing on your back",
+    icon: IconBackpack,
+    column: RIGHT_COLUMN,
+    row: 4,
+  },
+];
+
+/** The bottom of the deepest square, so the grid claims exactly its own height. */
+const ROW_COUNT = Math.max(...SQUARES.map((square) => square.row)) + ROWS_PER_SQUARE - 1;
+
 export function EquipmentPanel({
   equipment,
   masteryXp = {},
@@ -102,69 +231,55 @@ export function EquipmentPanel({
       <h2 className="text-[11px] font-bold uppercase tracking-wide text-paper/50">
         Equipment
       </h2>
-      <div className="flex flex-wrap gap-1">
-        <CaptionedSlot caption="Main">
-          <ItemSlot
-            slot={{ kind: "weapon" }}
-            instance={equipment.weapon}
-            tilesById={tilesById}
-            tilesets={tilesets}
-            label="Weapon"
-            emptyHint="Weapon — nothing in hand"
-            emptyIcon={MainHandIcon}
-            open={handOpen === "weapon"}
-            drag={drag}
-            inspecting={inspecting}
-            masteryXp={masteryXp}
-          />
-        </CaptionedSlot>
-        <CaptionedSlot caption="Offhand">
-          <ItemSlot
-            slot={{ kind: "offhand" }}
-            instance={equipment.offhand}
-            tilesById={tilesById}
-            tilesets={tilesets}
-            label="Off hand"
-            emptyHint="Off hand — nothing held"
-            emptyIcon={OffHandIcon}
-            open={handOpen === "offhand"}
-            drag={drag}
-            inspecting={inspecting}
-            masteryXp={masteryXp}
-          />
-        </CaptionedSlot>
-        <CaptionedSlot caption="Body">
-          <ItemSlot
-            slot={{ kind: "armor" }}
-            instance={equipment.armor}
-            tilesById={tilesById}
-            tilesets={tilesets}
-            label="Armour"
-            emptyHint="Armour — nothing worn"
-            emptyIcon={IconShirt}
-            drag={drag}
-            inspecting={inspecting}
-            masteryXp={masteryXp}
-          />
-        </CaptionedSlot>
-        <CaptionedSlot caption="Back">
-          <ItemSlot
-            slot={{ kind: "bag" }}
-            instance={equipment.bag}
-            tilesById={tilesById}
-            tilesets={tilesets}
-            label="Bag"
-            emptyHint="Bag — nothing on your back"
-            emptyIcon={IconBackpack}
-            open={bagOpen}
-            drag={drag}
-            inspecting={inspecting}
-            masteryXp={masteryXp}
-          />
-        </CaptionedSlot>
+      <div
+        className="grid self-start"
+        style={{
+          gridTemplateColumns: `repeat(${COLUMN_COUNT}, ${ITEM_SLOT_SIZE_PX}px)`,
+          gridTemplateRows: `repeat(${ROW_COUNT}, ${HALF_ROW_PX}px)`,
+          columnGap: SQUARE_GAP_PX,
+        }}
+      >
+        {SQUARES.map((square) => (
+          <div
+            key={square.slot.kind}
+            style={{
+              gridColumn: square.column,
+              gridRow: `${square.row} / span ${ROWS_PER_SQUARE}`,
+            }}
+          >
+            <ItemSlot
+              slot={square.slot}
+              instance={equipment[square.slot.kind]}
+              tilesById={tilesById}
+              tilesets={tilesets}
+              label={square.label}
+              emptyHint={square.emptyHint}
+              emptyIcon={square.icon}
+              open={isOpen(square.slot, { bagOpen, handOpen })}
+              drag={drag}
+              inspecting={inspecting}
+              masteryXp={masteryXp}
+            />
+          </div>
+        ))}
       </div>
     </section>
   );
+}
+
+/**
+ * Whether the thing in this square is a container the player is looking into.
+ *
+ * Only three squares can be, and only because a container can be in them: the
+ * pack on your back and whatever either hand is holding. The four worn squares
+ * take armour and nothing else, so there is nothing in one to open.
+ */
+function isOpen(
+  slot: BodySlotRef,
+  { bagOpen, handOpen }: { bagOpen: boolean; handOpen: "weapon" | "offhand" | null },
+): boolean {
+  if (slot.kind === "bag") return bagOpen;
+  return slot.kind === handOpen;
 }
 
 /**
@@ -189,31 +304,4 @@ function OffHandIcon({
   className?: string;
 }) {
   return <IconHandStop {...props} className={`-scale-x-100 ${className}`} />;
-}
-
-/**
- * One equipment square with its name over it.
- *
- * `aria-hidden`, because the square underneath already says what it is — a
- * screen reader that heard "Main" and then "Weapon: empty" would be hearing the
- * same fact twice, in two vocabularies.
- */
-function CaptionedSlot({
-  caption,
-  children,
-}: {
-  caption: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="flex flex-col items-center gap-0.5">
-      <span
-        aria-hidden
-        className="text-[9px] font-bold uppercase leading-none tracking-wide text-paper/40"
-      >
-        {caption}
-      </span>
-      {children}
-    </div>
-  );
 }

@@ -11,7 +11,7 @@ import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import type { ObjectRef } from "./affordances";
-import type { Equipment } from "./equipment";
+import { emptyEquipment, type Equipment } from "./equipment";
 import { GameSession } from "./GameSession";
 import { listInteractionOptions } from "./interactionOptions";
 import { canTransmuteFrom, offeredTransmutations } from "./transmute";
@@ -137,9 +137,7 @@ function board(tileId = "flame"): MapFile {
 /** A kit with a bag holding exactly these tiles, and nothing in either hand. */
 function carrying(...contents: string[]): Equipment {
   return {
-    weapon: null,
-    offhand: null,
-    armor: null,
+    ...emptyEquipment(),
     bag: {
       id: "itm_bag",
       tileId: BAG_TILE_ID,
@@ -297,10 +295,8 @@ describe("whether a recipe is on offer", () => {
 
   it("is, with no bag at all, when the input is in a hand", () => {
     const bagless: Equipment = {
-      weapon: null,
+      ...emptyEquipment(),
       offhand: { id: "itm_held", tileId: "raw-meat" },
-      armor: null,
-      bag: null,
     };
 
     expect(canTransmuteFrom(board(), tilesById, ME, bagless, FLAME, 0)).toBe(

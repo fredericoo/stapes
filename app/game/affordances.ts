@@ -16,6 +16,7 @@ import {
   resolveTransmute,
 } from "../lib/interactions";
 import {
+  armorSlotOf,
   resolveConsumable,
   resolveContainer,
   resolveItem,
@@ -352,12 +353,13 @@ export function reachableItemDefAt(
  * The slot on a body this thing belongs in, from the tile alone.
  *
  * **One slot per thing, and the tile decides which.** A sword is for the hand
- * you swing with, a shield for the other one (`WeaponItem.offhand`), a mail
- * shirt for your body (`ArmorItem`), a backpack for your back
- * (`ContainerItem.equippable`), and an `ArtifactItem` — a torch, a lantern — for
- * the off hand always, since the swinging hand is the one that replaces what you
- * fight with. Everything else — a berry, a chest, a rock — has no slot and can
- * only be carried in a bag.
+ * you swing with, a shield for the other one (`WeaponItem.offhand`), a piece of
+ * armour for whichever worn square it names (`ArmorItem.slot` — a mail shirt for
+ * your body, a helm for your head, boots for your feet, a ring for your charm),
+ * a backpack for your back (`ContainerItem.equippable`), and an `ArtifactItem` —
+ * a torch, a lantern — for the off hand always, since the swinging hand is the
+ * one that replaces what you fight with. Everything else — a berry, a chest, a
+ * rock — has no slot and can only be carried in a bag.
  *
  * One rather than "every slot that would take it", because the alternative is a
  * list that offers to Wield *and* Hold the same sword and a player who has to
@@ -383,7 +385,9 @@ export function equipSlotOf(def: TileDef): EquipSlot | null {
   // a back. A chest or a corpse is looted where it lies — that is what `open`
   // is for — and has no slot at all.
   if (item.type === "container") return item.equippable ? "bag" : null;
-  if (item.type === "armor") return "armor";
+  // The armour's own square, which is the whole of what separates a helmet from
+  // a breastplate — see `../lib/item`'s `ArmorItem.slot`.
+  if (item.type === "armor") return armorSlotOf(item);
   // Needs no flag of its own to say so, where a weapon does: an artifact has no
   // fight in it, and the hand you swing with is the square whose contents stand
   // in for your natural weapon. See `../lib/item`'s `ArtifactItem`.

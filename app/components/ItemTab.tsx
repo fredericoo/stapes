@@ -1,5 +1,6 @@
 import type {
   ArmorItem,
+  ArmorSlot,
   ConsumableItem,
   ContainerItem,
   ItemDef,
@@ -7,6 +8,8 @@ import type {
   WeaponItem,
 } from "../lib/item";
 import {
+  ARMOR_SLOTS,
+  armorSlotOf,
   CONSUME_FALLBACK_VERB,
   DEFAULT_ARMOR,
   DEFAULT_ARTIFACT,
@@ -19,6 +22,7 @@ import {
   MAX_CONTAINER_SIZE,
 } from "../lib/item";
 import { hasAnyInteraction, type TileInteractions } from "../lib/interactions";
+import { SLOT_LABELS } from "../lib/kit";
 import { WEAPON_MASTERIES } from "../lib/mastery";
 import type { StatusDef } from "../lib/status";
 import type { TileDef } from "../lib/types";
@@ -44,6 +48,15 @@ type Props = {
    */
   tiles: TileDef[];
 };
+
+/**
+ * Where a piece of armour goes, in the order a body wears it.
+ *
+ * Named by `SLOT_LABELS` rather than here, so the square a helmet is authored
+ * into is called what the kit table calls it — see `../lib/kit`.
+ */
+const ARMOR_SLOT_OPTIONS: Array<{ value: ArmorSlot; label: string }> =
+  ARMOR_SLOTS.map((slot) => ({ value: slot, label: SLOT_LABELS[slot] }));
 
 const TYPE_OPTIONS: Array<{ value: ItemType; label: string }> = [
   { value: "weapon", label: "Weapon" },
@@ -171,11 +184,31 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
         ) : item.type === "armor" ? (
           <div className="flex flex-col gap-3">
             <p className="max-w-lg text-[11px] leading-snug text-muted">
-              Worn on the body, and defence is the whole of what it does. It{" "}
-              <strong>adds</strong> to whatever is in either hand — a shield and
-              a mail shirt are two different answers to being hit, and a body
-              with both gets both.
+              Worn, and defence is the whole of what it does. It{" "}
+              <strong>adds</strong> to everything else being worn and to whatever
+              is in either hand — a helm, a mail shirt and a shield are three
+              different answers to being hit, and a body with all three gets all
+              three.
             </p>
+
+            <div className="flex flex-col gap-1 text-xs">
+              <span className="font-bold uppercase text-muted">Worn on</span>
+              <div>
+                <Segmented<ArmorSlot>
+                  value={armorSlotOf(item)}
+                  onChange={(slot) => patchArmor({ slot })}
+                  options={ARMOR_SLOT_OPTIONS}
+                  size="sm"
+                  ariaLabel="Worn on"
+                />
+              </div>
+              <span className="max-w-lg text-[11px] leading-snug text-muted">
+                Which square it goes in, and the only thing separating a helmet
+                from a breastplate. A body wears one of each, so four pieces
+                stack; the square refuses anything authored for another one, so
+                a helm cannot be worn as boots.
+              </span>
+            </div>
 
             <StatField
               label="Defence"

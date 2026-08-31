@@ -7,6 +7,7 @@ import {
   MAX_KIT_CHANCE,
   MAX_KIT_ENTRIES,
   MIN_KIT_CHANCE,
+  SLOT_LABELS,
 } from "../lib/kit";
 import type { TileDef } from "../lib/types";
 import { Button, Input, Select } from "../ui";
@@ -20,14 +21,6 @@ import { Button, Input, Select } from "../ui";
  * backpack — is that same table with one row in it, which is the whole reason
  * people and rats can share a control.
  */
-
-/** How the slots read to somebody filling this in, rather than in code. */
-const SLOT_LABELS: Record<EquipSlot, string> = {
-  weapon: "Weapon hand",
-  offhand: "Off hand",
-  armor: "Body",
-  bag: "Back",
-};
 
 const SLOT_OPTIONS = EQUIP_SLOTS.map((slot) => ({
   value: slot,
