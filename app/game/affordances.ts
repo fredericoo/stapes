@@ -25,7 +25,7 @@ import type { EquipSlot } from "../lib/kit";
 import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { physicalHeight } from "../lib/types";
 import { canReplaceStack, fitsTile } from "../lib/validation";
-import { handAccepts, type Equipment } from "./equipment";
+import { handAccepts, handHasRoomFor, type Equipment } from "./equipment";
 import { pushDestination } from "./push";
 
 /** A specific placed tile in the map — cell plus slot in its stack. */
@@ -424,8 +424,15 @@ export function equipSlotFrom(
 ): EquipSlot | null {
   const def = reachableItemDefAt(map, tilesById, actor, ref);
   const slot = def && equipSlotOf(def);
-  if (!slot) return null;
-  return equipment[slot] ? null : slot;
+  if (!slot || !def) return null;
+  if (equipment[slot]) return null;
+  // And, for a hand, what the other hand is doing — a greatsword has nowhere to
+  // go while you are holding a dagger, even though the square it wants is free.
+  // See `./equipment`'s `handHasRoomFor`.
+  if (slot === "weapon" || slot === "offhand") {
+    return handHasRoomFor(equipment, tilesById, slot, def) ? slot : null;
+  }
+  return slot;
 }
 
 /** Could this actor equip the thing where it lies? @see equipSlotFrom */
@@ -492,8 +499,14 @@ export function pickUpDestination(
   if (belongs && !equipment[belongs]) return null;
 
   if (!handAccepts(def)) return null;
-  if (!equipment.offhand) return { kind: "slot", slot: "offhand" };
-  if (!equipment.weapon) return { kind: "slot", slot: "weapon" };
+  // A free square is not enough for a hand: the other one may have spoken for
+  // it, or may be too full to spare for a two-handed weapon.
+  for (const hand of ["offhand", "weapon"] as const) {
+    if (equipment[hand]) continue;
+    if (handHasRoomFor(equipment, tilesById, hand, def)) {
+      return { kind: "slot", slot: hand };
+    }
+  }
   return null;
 }
 

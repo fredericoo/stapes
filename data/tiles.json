@@ -6810,6 +6810,53 @@
     }
   },
   {
+    "id": "greatsword",
+    "name": "Greatsword",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "weapon",
+        "damage": 34,
+        "def": 1,
+        "twoHanded": true,
+        "accuracy": 74,
+        "variance": 30,
+        "spd": 34,
+        "mastery": "blade",
+        "requirements": {
+          "blade": 22,
+          "toughness": 14
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "equipment",
+            "rect": {
+              "x": 4,
+              "y": 20,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
     "id": "simple-bow",
     "name": "Simple Bow",
     "height": 0,
@@ -6838,7 +6885,8 @@
         "projectile": {
           "tileId": "arrow",
           "cellsPerSecond": 20
-        }
+        },
+        "twoHanded": true
       }
     },
     "sprite": {
@@ -6883,7 +6931,8 @@
         "mastery": "arcane",
         "requirements": {
           "arcane": 5
-        }
+        },
+        "twoHanded": true
       }
     },
     "sprite": {

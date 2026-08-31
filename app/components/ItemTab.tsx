@@ -171,6 +171,26 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
               tiles={tiles}
               statusDefs={statusDefs}
             />
+
+            <label className="flex items-start gap-2 text-xs">
+              <Switch
+                checked={item.twoHanded === true}
+                onCheckedChange={(twoHanded) => patchWeapon({ twoHanded })}
+                ariaLabel="Two handed"
+              />
+              <span className="flex flex-col gap-1">
+                <span className="font-bold uppercase text-muted">
+                  Two handed
+                </span>
+                <span className="max-w-72 text-[11px] leading-snug text-muted">
+                  On, it takes both hands: a greatsword, a bow, a pike. It sits
+                  in one hand and spoken-for the other, so nothing else can be
+                  held — and with no second weapon there is nothing to alternate
+                  with. What it trades that second swing for is whatever you
+                  write above.
+                </span>
+              </span>
+            </label>
           </div>
         ) : item.type === "armor" ? (
           <div className="flex flex-col gap-3">

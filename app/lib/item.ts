@@ -230,6 +230,32 @@ export type WeaponItem = {
    * one radius.
    */
   reach: Reach;
+  /**
+   * Whether swinging this takes both hands — a greatsword, a bow, a pike.
+   *
+   * **It occupies one square and claims the other**, rather than being stored
+   * in two. A slot holds one instance; putting the same one in both would be two
+   * references to a thing there is one of, and every rule that empties a slot
+   * would have to learn to empty its twin. So the weapon sits in whichever hand
+   * took it, the other hand is genuinely empty, and what a player sees in that
+   * empty square is a picture rather than an item — see
+   * `../components/EquipmentPanel`.
+   *
+   * **The first rule in the game where one square's answer depends on another.**
+   * Both hands take anything you can carry, and this is the single exception:
+   * `../game/itemMoves`' `slotHasRoom` refuses a hand whose partner is holding
+   * one of these, and refuses one of these to a hand whose partner is occupied.
+   * That asymmetry is worth it because the alternative is a body wielding a pike
+   * and a shield, which nothing about a pike can be read to allow.
+   *
+   * It follows that a two-handed weapon never takes turns with anything: there
+   * is no second weapon to alternate with, so `handToSwing` finds one hand and
+   * stops. What it trades a second swing for is whatever the author wrote on it.
+   *
+   * Absent means one-handed, which is every weapon authored before this existed
+   * and most of them after.
+   */
+  twoHanded?: boolean;
   mastery: WeaponMastery;
   /**
    * What this throws at what it is aimed at, or absent for anything that
@@ -945,6 +971,9 @@ export const weaponSchema = v.object({
     v.maxValue(MAX_WEAPON_DAMAGE),
   ),
   def: v.pipe(v.number(), v.integer(), v.minValue(0)),
+  // Optional, and absent means one-handed — the overwhelmingly common case, and
+  // every weapon authored before both hands could hold one thing.
+  twoHanded: v.optional(v.boolean()),
   // Unsigned, where both were signed shifts: these are the wielder's accuracy
   // and speed now, not adjustments to numbers the body brought with it, and a
   // negative accuracy is not a worse one — it is a broken one.
@@ -1168,6 +1197,17 @@ export function resolveArmor(def: TileDef): ArmorItem | null {
   return item?.type === "armor" ? item : null;
 }
 
+/**
+ * Whether this tile is a weapon that needs both hands.
+ *
+ * False for everything that is not a weapon at all, which is what lets the move
+ * rules ask it of any instance without narrowing first: a loaf of bread does not
+ * need two hands, and neither does a shield.
+ */
+export function isTwoHanded(def: TileDef): boolean {
+  return resolveWeapon(def)?.twoHanded === true;
+}
+
 /** Held config for a tile, or null when it is not a shield. */
 export function resolveShield(def: TileDef): ShieldItem | null {
   const item = resolveItem(def);
@@ -1277,6 +1317,10 @@ export function weaponForSave(weapon: WeaponItem): WeaponItem {
           },
         }
       : {}),
+    // Written only when true, on the same terms the requirements block is: an
+    // explicit `false` on every weapon in the file is a field to skim past that
+    // says exactly what its absence says.
+    ...(weapon.twoHanded ? { twoHanded: true } : {}),
     ...(Object.keys(requirements).length > 0 ? { requirements } : {}),
     ...(statuses ? { statuses } : {}),
   };

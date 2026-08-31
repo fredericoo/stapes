@@ -4,7 +4,13 @@ import type { ItemInstance } from "../lib/itemInstance";
 import { EQUIP_SLOTS, type EquipSlot } from "../lib/kit";
 import type { MapFile, PlacedTile, TileDef } from "../lib/types";
 import { reachableItemDefAt, type Actor, type ObjectRef } from "./affordances";
-import { armorForSlot, type Equipment, handAccepts } from "./equipment";
+import {
+  armorForSlot,
+  type Equipment,
+  type Hand,
+  handAccepts,
+  handHasRoomFor,
+} from "./equipment";
 
 /**
  * Moving one carried thing from where it is to somewhere else.
@@ -299,6 +305,11 @@ export function slotTakes(kind: SlotKind, def: TileDef): boolean {
   return armorForSlot(kind, def) != null;
 }
 
+/** Whether this square is one of the two hands. */
+function isHand(kind: SlotKind): kind is Hand {
+  return kind === "weapon" || kind === "offhand";
+}
+
 /**
  * What is in a slot right now, or null when it is empty or unreachable.
  *
@@ -335,8 +346,15 @@ function slotHasRoom(
   actor: Actor,
   equipment: Equipment,
   slot: SlotRef,
+  instance: ItemInstance,
 ): boolean {
-  if (isBodySlot(slot)) return equipment[slot.kind] === null;
+  if (isBodySlot(slot)) {
+    if (equipment[slot.kind] !== null) return false;
+    const def = tilesById[instance.tileId];
+    return isHand(slot.kind) && def
+      ? handHasRoomFor(equipment, tilesById, slot.kind, def)
+      : true;
+  }
   if (slot.kind === "contents") {
     const holder = equipment[contentsHolder(slot)];
     if (!holder) return false;
@@ -418,7 +436,7 @@ export function applyItemMove(
   // owner's own client throws away.
   if (!instance.id) return null;
   if (!slotAccepts(to.kind, instance, tilesById)) return null;
-  if (!slotHasRoom(map, tilesById, actor, equipment, to)) return null;
+  if (!slotHasRoom(map, tilesById, actor, equipment, to, instance)) return null;
 
   const emptied = clearSlot(map, tilesById, actor, equipment, from);
   if (!emptied) return null;

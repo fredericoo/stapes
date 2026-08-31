@@ -11,6 +11,7 @@ import { mintItemId } from "../lib/itemInstance";
 import {
   ARMOR_SLOTS,
   armorSlotOf,
+  isTwoHanded,
   resolveArmor,
   resolveContainer,
   resolveItem,
@@ -133,6 +134,16 @@ export const HANDS = ["weapon", "offhand"] as const;
 export type Hand = (typeof HANDS)[number];
 
 /**
+ * Just the two hands, which is all the two-handed rule ever reads.
+ *
+ * Narrower than {@link Equipment} on purpose: `restoredEquipment` has to ask
+ * "does this pair break the rule" while it is still assembling the rest of the
+ * kit, and a signature demanding a whole body would make it invent squares it
+ * has not decided yet. Every `Equipment` is one of these.
+ */
+export type Hands = Pick<Equipment, Hand>;
+
+/**
  * The hand a body takes its turn with after this one.
  *
  * A pair, so the rotation is a lookup rather than a conditional at every site
@@ -198,10 +209,22 @@ export function restoredEquipment(
   // hand — the same answer the rest of this function gives to anything the world
   // no longer agrees with.
   const offhandDef = saved.offhand ? tilesById[saved.offhand.tileId] : undefined;
-  const offhand =
+  const offhandHeld =
     saved.offhand && offhandDef && handAccepts(offhandDef)
       ? identified(saved.offhand)
       : null;
+
+  // **A weapon an author made two-handed while somebody was away.** Both hands
+  // were legally full when this kit was saved and cannot both be now, so one has
+  // to go — on exactly the terms a sword that became armour comes off a chest.
+  // The two-hander stays and its partner is dropped: it is the thing that is
+  // still in a square it belongs in, where the other now has nowhere to be. Two
+  // of them is the same answer read in `HANDS` order, so the main hand keeps its
+  // weapon and the other is emptied.
+  const hands = { weapon, offhand: offhandHeld };
+  const claimed = handClaimedByTwoHander(hands, tilesById);
+  const offhand = claimed === "offhand" ? null : offhandHeld;
+  if (claimed === "weapon") hands.weapon = null;
 
   // Held to what the *square* takes rather than to what a hand takes, because
   // these are the strict ones — a sword that was armour while somebody was away
@@ -221,7 +244,7 @@ export function restoredEquipment(
   const bagDef = saved.bag ? tilesById[saved.bag.tileId] : undefined;
   const container = bagDef ? resolveContainer(bagDef) : null;
   if (!saved.bag || !container?.equippable) {
-    return { ...worn, weapon, offhand, bag: null };
+    return { ...worn, weapon: hands.weapon, offhand, bag: null };
   }
 
   // Truncated to what the bag holds *now*, because an author who shrank it did
@@ -239,7 +262,7 @@ export function restoredEquipment(
 
   return {
     ...worn,
-    weapon,
+    weapon: hands.weapon,
     offhand,
     bag: { ...identified(saved.bag), contents },
   };
@@ -460,6 +483,50 @@ export function handToSwing(
   if (weaponSwungBy(equipment, tilesById, preferred)) return preferred;
   const other = otherHand(preferred);
   return weaponSwungBy(equipment, tilesById, other) ? other : null;
+}
+
+/**
+ * The hand holding a weapon that needs both, or null when neither is.
+ *
+ * **Where the "one square claims the other" rule is read from.** A two-handed
+ * weapon sits in whichever hand took it and leaves its partner genuinely empty
+ * — see `../lib/item`'s {@link WeaponItem.twoHanded} for why it is not stored
+ * twice — so everything that has to know about the arrangement has to find it,
+ * and this is the one place that looks.
+ *
+ * Either hand may be the one holding it, because both hands are the same square
+ * and refusing the left would be reintroducing the asymmetry ambidexterity just
+ * removed. It follows that the *empty* hand is the one a panel draws a ghost in,
+ * which is why this answers with a hand rather than a boolean.
+ */
+export function twoHandedHand(
+  equipment: Hands | null,
+  tilesById: Record<string, TileDef>,
+): Hand | null {
+  for (const hand of HANDS) {
+    const held = equipment?.[hand];
+    if (!held) continue;
+    const def = tilesById[held.tileId];
+    if (def && isTwoHanded(def)) return hand;
+  }
+  return null;
+}
+
+/**
+ * The hand a two-handed weapon is *claiming* rather than sitting in, if there is
+ * one.
+ *
+ * Empty in the model and spoken for in the fiction, which is exactly the state a
+ * panel has to draw and the move rules have to refuse. Null when no two-handed
+ * weapon is held — including when a hand simply happens to be empty, which is
+ * an ordinary free square and not this.
+ */
+export function handClaimedByTwoHander(
+  equipment: Hands | null,
+  tilesById: Record<string, TileDef>,
+): Hand | null {
+  const holding = twoHandedHand(equipment, tilesById);
+  return holding ? otherHand(holding) : null;
 }
 
 /** Whether this body has a weapon in each hand, and so a rotation at all. */
@@ -729,6 +796,45 @@ export function heldDefence(
     total += resolveWeapon(def)?.def ?? resolveShield(def)?.def ?? 0;
   }
   return total;
+}
+
+/**
+ * Whether this hand can take this thing, given what the *other* hand is doing.
+ *
+ * **The one rule in the game where a square's answer depends on its neighbour**,
+ * and the only reason it is worth the exception: a two-handed weapon occupies
+ * one square and claims the other — see `../lib/item`'s
+ * {@link WeaponItem.twoHanded} — so without this a body could wield a pike and
+ * a shield, which nothing about a pike can be read to allow.
+ *
+ * Two refusals, and they are the same rule read from either end. A hand whose
+ * partner is holding a two-hander is already spoken for, so nothing may go in
+ * it; and a two-hander may not go into a hand whose partner is occupied, because
+ * there would be no second hand to give it. Everything else about a hand stays
+ * exactly as generous as it was — see {@link handAccepts}, which is the separate
+ * question of what a hand will take at all.
+ *
+ * **Deliberately not a swap.** Arriving with a greatsword does not put down the
+ * dagger in your other fist, on the terms equipping never displaces what you are
+ * already holding: a swap is two deliberate acts, and one that quietly emptied a
+ * hand is the kind of thing you notice a fight later.
+ *
+ * Here rather than in `./itemMoves` for the reason {@link handAccepts} is: it is
+ * a fact about the squares, and the squares are defined by this module. The move
+ * rules ask it of a drag, `./battlerKit` asks it of a kit being rolled, and
+ * `./affordances` asks it of a thing on the floor — three callers who must not
+ * be allowed to disagree.
+ */
+export function handHasRoomFor(
+  equipment: Hands | null,
+  tilesById: Record<string, TileDef>,
+  hand: Hand,
+  def: TileDef,
+): boolean {
+  const other = otherHand(hand);
+  if (twoHandedHand(equipment, tilesById) === other) return false;
+  if (isTwoHanded(def)) return equipment?.[other] == null;
+  return true;
 }
 
 /**
