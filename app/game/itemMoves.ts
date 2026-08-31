@@ -1,9 +1,10 @@
 import { getStack, replaceStack } from "../lib/mapData";
-import { resolveArmor, resolveContainer } from "../lib/item";
+import { resolveContainer } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
+import { EQUIP_SLOTS, type EquipSlot } from "../lib/kit";
 import type { MapFile, PlacedTile, TileDef } from "../lib/types";
 import { reachableItemDefAt, type Actor, type ObjectRef } from "./affordances";
-import { type Equipment, handAccepts } from "./equipment";
+import { armorForSlot, type Equipment, handAccepts } from "./equipment";
 
 /**
  * Moving one carried thing from where it is to somewhere else.
@@ -55,11 +56,27 @@ export type SlotRef =
   /**
    * On the body — a tunic, a mail shirt, a breastplate.
    *
-   * The strict square: it takes armour and nothing else, where both hands take
+   * A strict square: it takes armour and nothing else, where both hands take
    * anything you can carry. See `./equipment`'s `Equipment.armor` for why the
-   * one slot in the game that refuses things is this one.
+   * slots in this game that refuse things are the worn ones.
    */
   | { kind: "armor" }
+  /**
+   * On the head — a cap, a helm, a crown.
+   *
+   * Strict on exactly the terms the body is, and strict about *which* armour on
+   * top of that: a breastplate is armour and still may not go here, because the
+   * armour itself names its square. See `../lib/item`'s `ArmorItem.slot`.
+   */
+  | { kind: "head" }
+  /**
+   * Round the neck or on a finger — a ring, an amulet, a charm.
+   */
+  | { kind: "charm" }
+  /**
+   * On the feet — boots, shoes, sabatons.
+   */
+  | { kind: "footwear" }
   /**
    * On your back — the bag itself, not a place inside it.
    *
@@ -133,6 +150,36 @@ function contentsHolder(slot: {
   return slot.of ?? "bag";
 }
 
+const BODY_SLOT_KINDS: ReadonlySet<string> = new Set(EQUIP_SLOTS);
+
+/**
+ * A slot that is a square on a body, rather than a place inside something.
+ *
+ * Exported for the panel that draws them: a list of the squares is a list of
+ * these, and typing it as a bare {@link SlotRef} would let a square in a bag
+ * into a row that has nowhere to put one.
+ */
+export type BodySlotRef = Extract<SlotRef, { kind: EquipSlot }>;
+
+/**
+ * Whether this slot is a square on a body.
+ *
+ * **The one distinction the five functions below actually turn on.** Every
+ * square on a body holds one thing and is named; a position in a container holds
+ * one of many and is numbered. Written out per square — which it was, back when
+ * there were four — each of those functions grows a near-identical branch every
+ * time a square is added, and there are seven squares now.
+ *
+ * Read off {@link EQUIP_SLOTS} rather than a list of its own, so a square added
+ * to the game is a square these functions already handle. A predicate rather
+ * than a boolean, because "this is one of the squares" and "so `slot.kind` may
+ * index `Equipment`" are the same fact, and returning only the first would leave
+ * every caller re-narrowing it by hand.
+ */
+function isBodySlot(slot: SlotRef): slot is BodySlotRef {
+  return BODY_SLOT_KINDS.has(slot.kind);
+}
+
 /**
  * A stable string for a slot, for anything keying a collection by one.
  *
@@ -140,10 +187,7 @@ function contentsHolder(slot: {
  * identity for a UI to hold, never something that crosses the wire.
  */
 export function slotKey(slot: SlotRef): string {
-  if (slot.kind === "weapon") return "weapon";
-  if (slot.kind === "offhand") return "offhand";
-  if (slot.kind === "armor") return "armor";
-  if (slot.kind === "bag") return "bag";
+  if (isBodySlot(slot)) return slot.kind;
   if (slot.kind === "contents") {
     return `contents:${contentsHolder(slot)}:${slot.index}`;
   }
@@ -237,16 +281,22 @@ export function slotTakes(kind: SlotKind, def: TileDef): boolean {
   // could obviously hold is the interface arguing with them. Which slot a thing
   // *belongs* in is `equipSlotOf`'s question, asked only when nobody has said.
   if (kind === "weapon" || kind === "offhand") return handAccepts(def);
-  // The one square that refuses on kind rather than on capacity, and the whole
-  // reason it can: what a hand is *for* is anything, and what a chest is for is
-  // armour. A sword worn as a shirt would make the slot's number — the only
-  // thing it contributes to a fight — a number about nothing.
-  if (kind === "armor") return resolveArmor(def) != null;
   // The one slot a container may go in besides a hand, and only a wearable one.
   if (kind === "bag") return resolveContainer(def)?.equippable === true;
-  // Inside a bag, where the nesting rule still bites: a pack in a pack is the
-  // one arrangement nothing in the model has an answer for.
-  return resolveContainer(def) == null;
+  // Inside a bag or a box, where the nesting rule still bites: a pack in a pack
+  // is the one arrangement nothing in the model has an answer for.
+  if (kind === "contents" || kind === "ground") {
+    return resolveContainer(def) == null;
+  }
+  // The four squares that refuse on kind rather than on capacity, and the whole
+  // reason they can: what a hand is *for* is anything, and what a chest is for
+  // is armour. A sword worn as a shirt would make the square's number — the only
+  // thing it contributes to a fight — a number about nothing.
+  //
+  // Refused for the *wrong* armour too, which is what stops a helmet from being
+  // worn as boots. The armour names its own square — see `../lib/item`'s
+  // `ArmorItem.slot` — and this is the one place a drag is held to it.
+  return armorForSlot(kind, def) != null;
 }
 
 /**
@@ -264,10 +314,7 @@ export function itemInSlot(
   equipment: Equipment,
   slot: SlotRef,
 ): ItemInstance | null {
-  if (slot.kind === "weapon") return equipment.weapon;
-  if (slot.kind === "offhand") return equipment.offhand;
-  if (slot.kind === "armor") return equipment.armor;
-  if (slot.kind === "bag") return equipment.bag;
+  if (isBodySlot(slot)) return equipment[slot.kind];
   if (slot.kind === "contents") {
     return equipment[contentsHolder(slot)]?.contents?.[slot.index] ?? null;
   }
@@ -289,10 +336,7 @@ function slotHasRoom(
   equipment: Equipment,
   slot: SlotRef,
 ): boolean {
-  if (slot.kind === "weapon") return equipment.weapon === null;
-  if (slot.kind === "offhand") return equipment.offhand === null;
-  if (slot.kind === "armor") return equipment.armor === null;
-  if (slot.kind === "bag") return equipment.bag === null;
+  if (isBodySlot(slot)) return equipment[slot.kind] === null;
   if (slot.kind === "contents") {
     const holder = equipment[contentsHolder(slot)];
     if (!holder) return false;
@@ -413,24 +457,9 @@ export function clearSlot(
   equipment: Equipment,
   slot: SlotRef,
 ): ItemMoveResult | null {
-  if (slot.kind === "weapon") {
-    if (!equipment.weapon) return null;
-    return { map, equipment: { ...equipment, weapon: null } };
-  }
-
-  if (slot.kind === "offhand") {
-    if (!equipment.offhand) return null;
-    return { map, equipment: { ...equipment, offhand: null } };
-  }
-
-  if (slot.kind === "armor") {
-    if (!equipment.armor) return null;
-    return { map, equipment: { ...equipment, armor: null } };
-  }
-
-  if (slot.kind === "bag") {
-    if (!equipment.bag) return null;
-    return { map, equipment: { ...equipment, bag: null } };
+  if (isBodySlot(slot)) {
+    if (!equipment[slot.kind]) return null;
+    return { map, equipment: { ...equipment, [slot.kind]: null } };
   }
 
   if (slot.kind === "contents") {
@@ -471,20 +500,8 @@ function fillSlot(
   slot: SlotRef,
   instance: ItemInstance,
 ): ItemMoveResult | null {
-  if (slot.kind === "weapon") {
-    return { map, equipment: { ...equipment, weapon: instance } };
-  }
-
-  if (slot.kind === "offhand") {
-    return { map, equipment: { ...equipment, offhand: instance } };
-  }
-
-  if (slot.kind === "armor") {
-    return { map, equipment: { ...equipment, armor: instance } };
-  }
-
-  if (slot.kind === "bag") {
-    return { map, equipment: { ...equipment, bag: instance } };
+  if (isBodySlot(slot)) {
+    return { map, equipment: { ...equipment, [slot.kind]: instance } };
   }
 
   if (slot.kind === "contents") {

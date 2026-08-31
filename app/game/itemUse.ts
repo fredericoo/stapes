@@ -105,7 +105,7 @@ export function itemUseFor(
   // answered — the only things that belong on a back are containers, and looking
   // into one beats taking it off.
   const belongs = equipSlotOf(def);
-  if (belongs === "weapon" || belongs === "offhand" || belongs === "armor") {
+  if (belongs && belongs !== "bag") {
     return slot.kind === belongs
       ? { type: "move", to: FIRST_BAG_SLOT }
       : { type: "move", to: { kind: belongs } };

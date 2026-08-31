@@ -137,9 +137,7 @@ function rewardAt(map: MapFile, x: number, y: number) {
 
 function bagWith(count: number): Equipment {
   return {
-    weapon: null,
-    offhand: null,
-    armor: null,
+    ...emptyEquipment(),
     bag: {
       id: "itm_bag",
       tileId: BAG_TILE_ID,

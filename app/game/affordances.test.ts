@@ -71,6 +71,21 @@ const tiles = [
     kind: "item",
     interactions: { item: { type: "armor", def: 4 } },
   }),
+  tile({
+    id: "helm",
+    kind: "item",
+    interactions: { item: { type: "armor", slot: "head", def: 2 } },
+  }),
+  tile({
+    id: "boots",
+    kind: "item",
+    interactions: { item: { type: "armor", slot: "footwear", def: 1 } },
+  }),
+  tile({
+    id: "ring",
+    kind: "item",
+    interactions: { item: { type: "armor", slot: "charm", def: 1 } },
+  }),
   tile({ id: "bag", kind: "item", interactions: { item: DEFAULT_CONTAINER } }),
   tile({
     id: "chest",
@@ -83,15 +98,11 @@ const tiles = [
 const tilesById = tilesByIdFromList(tiles);
 
 const KIT: Equipment = {
-  weapon: null,
-  offhand: null,
-  armor: null,
+  ...emptyEquipment(),
   bag: { id: "itm_bag", tileId: "bag", contents: [] },
 };
 const FULL_KIT: Equipment = {
-  weapon: null,
-  offhand: null,
-  armor: null,
+  ...emptyEquipment(),
   bag: {
     id: "itm_bag",
     tileId: "bag",
@@ -342,7 +353,22 @@ describe("equipSlotFrom", () => {
     expect(slotFor("shield", emptyEquipment())).toBe("offhand");
     expect(slotFor("lantern", emptyEquipment())).toBe("offhand");
     expect(slotFor("mail", emptyEquipment())).toBe("armor");
+    // Four armours, four squares, and nothing but `ArmorItem.slot` telling them
+    // apart — which is what makes picking a helmet up put it on your head.
+    expect(slotFor("helm", emptyEquipment())).toBe("head");
+    expect(slotFor("boots", emptyEquipment())).toBe("footwear");
+    expect(slotFor("ring", emptyEquipment())).toBe("charm");
     expect(slotFor("bag", emptyEquipment())).toBe("bag");
+  });
+
+  /** A full head is no reason to refuse a bare chest: the squares are separate. */
+  it("fills one worn square while another is occupied", () => {
+    const helmed: Equipment = {
+      ...emptyEquipment(),
+      head: { id: "itm_helm", tileId: "helm" },
+    };
+    expect(slotFor("helm", helmed)).toBeNull();
+    expect(slotFor("mail", helmed)).toBe("armor");
   });
 
   /** The point of the whole thing: a sword with nothing to put it in. */

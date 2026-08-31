@@ -143,6 +143,9 @@ const equipmentSchema = v.object({
   // reach this schema has ever been without them.
   offhand: v.optional(v.nullable(itemInstanceSchema), null),
   armor: v.optional(v.nullable(itemInstanceSchema), null),
+  head: v.optional(v.nullable(itemInstanceSchema), null),
+  charm: v.optional(v.nullable(itemInstanceSchema), null),
+  footwear: v.optional(v.nullable(itemInstanceSchema), null),
   bag: v.nullable(itemInstanceSchema),
 });
 
@@ -175,6 +178,9 @@ const tolerantEquipmentSchema = v.fallback(equipmentSchema, {
   weapon: null,
   offhand: null,
   armor: null,
+  head: null,
+  charm: null,
+  footwear: null,
   bag: null,
 });
 
@@ -890,6 +896,9 @@ const inboundSlotRefSchema = v.variant("kind", [
   v.object({ kind: v.literal("weapon") }),
   v.object({ kind: v.literal("offhand") }),
   v.object({ kind: v.literal("armor") }),
+  v.object({ kind: v.literal("head") }),
+  v.object({ kind: v.literal("charm") }),
+  v.object({ kind: v.literal("footwear") }),
   v.object({ kind: v.literal("bag") }),
   v.object({
     kind: v.literal("contents"),

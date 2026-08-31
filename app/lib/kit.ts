@@ -1,5 +1,5 @@
 import * as v from "valibot";
-import { MAX_CONTAINER_SIZE } from "./item";
+import { ARMOR_SLOTS, MAX_CONTAINER_SIZE } from "./item";
 
 /**
  * What a body is born carrying.
@@ -43,16 +43,59 @@ import { MAX_CONTAINER_SIZE } from "./item";
  * `EQUIPMENT_SLOTS` there, which is this list, and the guard beside it that
  * makes a slot added to one and not the other a type error.
  *
- * The order is the order a body is dressed in, hands outward: what you swing,
- * what you hold, what you are wearing, what you carry it all in. It is also the
- * order a kit is rolled in and the order a death puts things on the floor, and
- * neither of those cares — which is why it may as well read the way a person
- * would say it.
+ * The order is roughly head to toe, with the hands where the hands are: what is
+ * on your head, what you swing, what you hold, what you are wearing, what is
+ * round your neck, what is on your feet, what you carry it all in. It is also
+ * the order a kit is rolled in and the order a death puts things on the floor,
+ * and neither of those cares — which is why it may as well read the way a
+ * person would say it.
+ *
+ * **Four of these seven are armour squares**, and which four is `./item`'s
+ * {@link ARMOR_SLOTS} rather than a second list here — see the guard below.
  */
-export const EQUIP_SLOTS = ["weapon", "offhand", "armor", "bag"] as const;
+export const EQUIP_SLOTS = [
+  "head",
+  "weapon",
+  "offhand",
+  "armor",
+  "charm",
+  "footwear",
+  "bag",
+] as const;
 
 /** Which square a thing is worn in. */
 export type EquipSlot = (typeof EQUIP_SLOTS)[number];
+
+/**
+ * An armour square that is not a square on a body would be a piece of armour
+ * nothing can wear: `slotTakes` would accept it into a slot the runtime shape
+ * has no field for. This is what makes that a type error here rather than a
+ * `undefined` read somewhere in a fight.
+ */
+const _everyArmorSlotIsWorn: readonly EquipSlot[] = ARMOR_SLOTS;
+
+/**
+ * How the squares read to a person, rather than in code.
+ *
+ * Here beside the list itself, because two places in the editor name the same
+ * squares — the kit table picks one for a row, the item tab picks one for a
+ * piece of armour — and a square that was "Body" in one and "Armour" in the
+ * other would be two names for one thing in a tool whose whole job is saying
+ * where things go.
+ *
+ * Physical rather than mechanical: an author places things on a body, so the
+ * words are parts of a body. The game's own panel captions nothing at all — see
+ * `../components/EquipmentPanel`, where the arrangement says it instead.
+ */
+export const SLOT_LABELS: Record<EquipSlot, string> = {
+  head: "Head",
+  weapon: "Weapon hand",
+  offhand: "Off hand",
+  armor: "Body",
+  charm: "Charm",
+  footwear: "Feet",
+  bag: "Back",
+};
 
 /** Percent, both ends included. Nothing is ever more certain than certain. */
 export const MIN_KIT_CHANCE = 0;

@@ -6,7 +6,7 @@ import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { TICK_MS } from "./constants";
 import { DecayIndex, applyDecay, findDecayCells } from "./decay";
-import type { Equipment } from "./equipment";
+import { emptyEquipment, type Equipment } from "./equipment";
 import { GameSession, LOCAL_ACTOR_ID } from "./GameSession";
 import { Rng } from "./rng";
 
@@ -551,9 +551,7 @@ function kitWith(
   slots: Partial<Equipment> = {},
 ): Equipment {
   return {
-    weapon: null,
-    offhand: null,
-    armor: null,
+    ...emptyEquipment(),
     bag: { id: "itm_bag", tileId: BAG_TILE_ID, contents },
     ...slots,
   };

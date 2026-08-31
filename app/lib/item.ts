@@ -437,7 +437,51 @@ export type ContainerItem = {
 };
 
 /**
- * Something worn on the body, and the only thing it does is stop blows.
+ * The squares on a body that armour goes in.
+ *
+ * Here rather than in `./kit` beside `EQUIP_SLOTS` — the list this is a subset
+ * of — because `./kit` already imports this module, and an edge back the other
+ * way would be a cycle. The guard that holds the two lists together lives
+ * there, where both are in scope.
+ *
+ * **A helmet, a boot and an amulet are all armour.** They are worn, they take
+ * the edge off what lands, and the only thing that separates them is which
+ * square they go in. Four arms of {@link ItemDef} with the same two fields
+ * would be four places to fix the day resistances change, and four kinds an
+ * author has to learn where one would do.
+ *
+ * The body's square is called `armor` rather than `body` because that is what
+ * it has been called since it was the only one: on the wire, in every saved
+ * kit, and in every authored file. Renaming it now would take a breastplate off
+ * everybody who is wearing one.
+ */
+export const ARMOR_SLOTS = ["head", "armor", "footwear", "charm"] as const;
+
+/** Which of the worn squares a piece of armour belongs in. */
+export type ArmorSlot = (typeof ARMOR_SLOTS)[number];
+
+/**
+ * Where armour is worn when it does not say.
+ *
+ * The body, because every armour authored before there was anywhere else to put
+ * one is on a chest. An absent field has to mean what the file already meant,
+ * or the merge that adds a head turns every mail shirt into a hat.
+ */
+export const DEFAULT_ARMOR_SLOT: ArmorSlot = "armor";
+
+/**
+ * Which square this armour is worn in, with the default applied.
+ *
+ * Read through here rather than off {@link ArmorItem.slot}, so "absent means the
+ * body" is written down once instead of at every call site that has to allow
+ * for it.
+ */
+export function armorSlotOf(armor: ArmorItem): ArmorSlot {
+  return armor.slot ?? DEFAULT_ARMOR_SLOT;
+}
+
+/**
+ * Something worn, and the only thing it does is stop blows.
  *
  * **One number, on purpose.** Armour that also weighed you down, or slowed a
  * swing, or asked a mastery of you would be a second stat block arguing with the
@@ -459,6 +503,19 @@ export type ContainerItem = {
  */
 export type ArmorItem = {
   type: "armor";
+  /**
+   * Which square it is worn in — a helmet on the head, boots on the feet, a
+   * ring or an amulet on the charm.
+   *
+   * **The only thing separating a helmet from a breastplate.** Both are a `def`
+   * and a `resist` on a thing you put on; what a player feels is that you can
+   * wear one of each, and that is a fact about the squares rather than about
+   * the objects. See {@link ARMOR_SLOTS}.
+   *
+   * Absent means the body — see {@link DEFAULT_ARMOR_SLOT} — and is read
+   * through {@link armorSlotOf} rather than off the field.
+   */
+  slot?: ArmorSlot;
   /**
    * Flat reduction on every blow that lands on the wearer, whatever struck it.
    *
@@ -987,6 +1044,11 @@ const weaponResistancesSchema = v.object(
 
 const armorSchema = v.object({
   type: v.literal("armor"),
+  // Optional rather than defaulted here, so the parsed shape is the authored
+  // one and there stays a single answer to "where is this worn" — see
+  // `armorSlotOf`. A schema default would be a second copy of that rule, in the
+  // one place a stale copy is hardest to notice.
+  slot: v.optional(v.picklist(ARMOR_SLOTS)),
   // Unsigned, unlike a consumable's `hp`: armour that made blows land harder is
   // a curse, and a curse is a status rather than a negative on a worn thing —
   // `../game/combat` subtracts this, so a negative here would read as the
@@ -1226,8 +1288,13 @@ function armorForSave(armor: ArmorItem): ArmorItem {
       (mastery) => [mastery, armor.resist?.[mastery]],
     ),
   );
+  const slot = armorSlotOf(armor);
   return {
     type: "armor",
+    // Written only when it is not the body, on the terms the zeroed resistances
+    // above are dropped: absent already says "worn on the chest", and spelling
+    // it out would rewrite every armour in the file to say what it said before.
+    ...(slot === DEFAULT_ARMOR_SLOT ? {} : { slot }),
     def: armor.def,
     ...(Object.keys(resist).length > 0 ? { resist } : {}),
   };

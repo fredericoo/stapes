@@ -6,7 +6,7 @@ import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import type { ObjectRef } from "./affordances";
-import type { Equipment } from "./equipment";
+import { emptyEquipment, type Equipment } from "./equipment";
 import { applyItemMove, canMoveItem, slotIn, slotKey } from "./itemMoves";
 
 /**
@@ -49,6 +49,11 @@ const tiles = [
     kind: "item",
     interactions: { item: { type: "armor", def: 4 } },
   }),
+  tile({
+    id: "helm",
+    kind: "item",
+    interactions: { item: { type: "armor", slot: "head", def: 2 } },
+  }),
 ];
 const tilesById = tilesByIdFromList(tiles);
 
@@ -64,9 +69,9 @@ function kit(
   offhand: ItemInstance | null = null,
 ): Equipment {
   return {
+    ...emptyEquipment(),
     weapon,
     offhand,
-    armor: null,
     bag: { id: "itm_bag", tileId: "bag", contents },
   };
 }
@@ -456,10 +461,7 @@ index: 0,
 
   it("refuses everything when there is no bag on your back", () => {
     const bagless: Equipment = {
-      weapon: null,
-      offhand: null,
-      armor: null,
-      bag: null,
+      ...emptyEquipment(),
     };
     const { map, ref } = chestAt(1, [sword("itm_a")]);
     expect(
@@ -513,9 +515,9 @@ describe("the bag slot", () => {
   });
 
   it("is empty, and refuses everything, on a bare back", () => {
-    const bagless: Equipment = { weapon: null, offhand: null,
-  armor: null,
-  bag: null };
+    const bagless: Equipment = {
+      ...emptyEquipment(),
+    };
     expect(
       canMoveItem(emptyMap(), tilesById, ME, bagless, { kind: "bag" }, {
         kind: "weapon",
@@ -544,9 +546,7 @@ describe("the armour slot", () => {
   /** Wearing nothing, with a shirt and a sword in the bag to try on. */
   function undressed(): Equipment {
     return {
-      weapon: null,
-      offhand: null,
-      armor: null,
+      ...emptyEquipment(),
       bag: {
         id: "itm_bag",
         tileId: "bag",
@@ -635,6 +635,49 @@ describe("the armour slot", () => {
     expect(slotKey({ kind: "armor" })).not.toBe(slotKey({ kind: "bag" }));
     expect(slotKey({ kind: "armor" })).not.toBe(slotKey({ kind: "offhand" }));
   });
+
+  /**
+   * The four worn squares are one rule with one extra clause, and this is the
+   * clause: armour goes where its author said and nowhere else. Without it "you
+   * may wear one of each" is "you may wear four helmets".
+   */
+  it("refuses armour authored for another square, in either direction", () => {
+    const packed: Equipment = {
+      ...emptyEquipment(),
+      bag: {
+        id: "itm_bag",
+        tileId: "bag",
+        contents: [
+          { id: "itm_mail", tileId: "mail" },
+          { id: "itm_helm", tileId: "helm" },
+        ],
+      },
+    };
+    const mail = from(0);
+    const helm = from(1);
+
+    expect(
+      canMoveItem(emptyMap(), tilesById, ME, packed, helm, { kind: "armor" }),
+    ).toBe(false);
+    expect(
+      canMoveItem(emptyMap(), tilesById, ME, packed, mail, { kind: "head" }),
+    ).toBe(false);
+    expect(
+      canMoveItem(emptyMap(), tilesById, ME, packed, helm, { kind: "footwear" }),
+    ).toBe(false);
+
+    // And lands where it does belong, so the refusal above is about the square
+    // rather than about the helm being unwearable at all.
+    const worn = applyItemMove(emptyMap(), tilesById, ME, packed, helm, {
+      kind: "head",
+    });
+    expect(worn?.equipment.head?.tileId).toBe("helm");
+
+    // A hand is still a hand: you may carry a helmet without putting it on.
+    expect(
+      canMoveItem(emptyMap(), tilesById, ME, packed, helm, { kind: "weapon" }),
+    ).toBe(true);
+  });
 });
 
 /**
@@ -652,9 +695,8 @@ describe("a container held in a hand", () => {
     held: ItemInstance[] = [],
   ): Equipment {
     return {
-      weapon: null,
+      ...emptyEquipment(),
       offhand: { id: "itm_held", tileId: "bag", contents: held },
-      armor: null,
       bag: { id: "itm_bag", tileId: "bag", contents: worn },
     };
   }

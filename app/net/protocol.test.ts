@@ -323,6 +323,23 @@ describe("drop", () => {
 describe("a kit that will not parse", () => {
   const badItem = { tileId: "rusty-sword" };
 
+  /**
+   * Every square empty, written out rather than taken from `emptyEquipment`.
+   *
+   * The wire's own answer to a kit it cannot read is a literal in the schema,
+   * and a test that built its expectation from the runtime shape would pass
+   * whatever that literal said. Two lists, on purpose.
+   */
+  const EMPTY_KIT = {
+    weapon: null,
+    offhand: null,
+    armor: null,
+    head: null,
+    charm: null,
+    footwear: null,
+    bag: null,
+  };
+
   function helloWith(equipment: unknown) {
     return JSON.stringify({
       type: "hello",
@@ -350,12 +367,7 @@ describe("a kit that will not parse", () => {
     );
     expect(message).not.toBeNull();
     expect(message).toMatchObject({ type: "hello", selfId: "a", playerCount: 1 });
-    expect(message?.type === "hello" && message.equipment).toEqual({
-      weapon: null,
-      offhand: null,
-      armor: null,
-      bag: null,
-    });
+    expect(message?.type === "hello" && message.equipment).toEqual(EMPTY_KIT);
   });
 
   it("empties the kit rather than salvaging the half it could read", () => {
@@ -381,22 +393,17 @@ describe("a kit that will not parse", () => {
       }),
     );
     expect(message).not.toBeNull();
-    expect(message?.type === "equipment" && message.equipment).toEqual({
-      weapon: null,
-      offhand: null,
-      armor: null,
-      bag: null,
-    });
+    expect(message?.type === "equipment" && message.equipment).toEqual(EMPTY_KIT);
   });
 
   /**
-   * A kit written by a build that had no body slot, which is every kit in
-   * storage before this one. Absent reads as an empty chest — the same answer
-   * every other part of the kit gives to a thing the world no longer holds — and
-   * deliberately not as a `hello` that will not parse, which is a player who
-   * never finishes joining.
+   * A kit written by a build that had fewer squares than this one, which is
+   * every kit in storage from before each of them. Absent reads as an empty
+   * square — the same answer every other part of the kit gives to a thing the
+   * world no longer holds — and deliberately not as a `hello` that will not
+   * parse, which is a player who never finishes joining.
    */
-  it("reads a kit saved before the body slot existed", () => {
+  it("reads a kit saved before the worn slots existed", () => {
     const message = parseServerMessage(
       JSON.stringify({
         type: "equipment",
@@ -408,18 +415,19 @@ describe("a kit that will not parse", () => {
       }),
     );
     expect(message?.type === "equipment" && message.equipment).toEqual({
+      ...EMPTY_KIT,
       weapon: { id: "itm_w", tileId: "rusty-sword" },
-      offhand: null,
-      armor: null,
-      bag: null,
     });
   });
 
   it("still takes a kit it can read", () => {
     const equipment = {
+      ...EMPTY_KIT,
       weapon: { id: "itm_w", tileId: "rusty-sword" },
-      offhand: null,
       armor: { id: "itm_a", tileId: "chain-mail" },
+      head: { id: "itm_h", tileId: "iron-helm" },
+      charm: { id: "itm_r", tileId: "copper-ring" },
+      footwear: { id: "itm_f", tileId: "worn-boots" },
       bag: {
         id: "itm_b",
         tileId: "basic-bag",

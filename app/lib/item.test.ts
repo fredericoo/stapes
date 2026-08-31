@@ -317,6 +317,23 @@ describe("itemForSave", () => {
     expect(itemForSave(draft)).not.toHaveProperty("resist");
   });
 
+  /**
+   * Absent already says "worn on the chest" — see `DEFAULT_ARMOR_SLOT` — so
+   * writing it would rewrite every armour in the file to say what it said
+   * before, on the terms a zeroed resistance is dropped.
+   */
+  it("writes an armour's square only when it is not the body", () => {
+    expect(itemForSave({ type: "armor", def: 2, slot: "armor" })).toEqual({
+      type: "armor",
+      def: 2,
+    });
+    expect(itemForSave({ type: "armor", def: 2, slot: "head" })).toEqual({
+      type: "armor",
+      slot: "head",
+      def: 2,
+    });
+  });
+
   it("drops a weapon's fields from a draft that has been armour and back", () => {
     const draft = { ...DEFAULT_ARMOR, mastery: "blade", damage: 9 } as never;
     expect(itemForSave(draft)).toEqual(DEFAULT_ARMOR);
