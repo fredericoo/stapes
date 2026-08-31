@@ -1,10 +1,12 @@
-import { useState, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Form, useFetcher, useLoaderData, useNavigation } from "react-router";
 import type { Route } from "./+types/tiles";
 import { AppShell } from "../components/AppShell";
 import { TileEditorDialog, tileIsAnimated } from "../components/TileEditorDialog";
 import { TilePreview } from "../components/TilePreview";
 import { statusesById } from "../lib/status";
+import { isTypingTarget } from "../game/heldDirections";
+import { filterTiles, TILE_FILTER_KINDS, type TileFilterKind } from "../lib/tileFilter";
 import { readPngSize } from "../lib/png";
 import {
   fetchBootstrap,
@@ -15,7 +17,10 @@ import {
   uploadTilesetBytes,
 } from "../lib/api";
 import type { TileDef, TilesetDef } from "../lib/types";
-import { Button, Dialog, Input, useToast } from "../ui";
+import { Button, Dialog, Input, Segmented, useToast } from "../ui";
+
+/** Reaches for the search field from anywhere on the page. */
+const SEARCH_KEY = "/";
 
 export async function clientLoader() {
   return await fetchBootstrap();
@@ -98,6 +103,9 @@ export default function TilesPage() {
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadName, setUploadName] = useState("");
   const navigation = useNavigation();
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<TileFilterKind>("all");
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const openNew = () => {
     setIsNew(true);
@@ -110,6 +118,33 @@ export default function TilesPage() {
   };
 
   const dialogOpen = isNew || editing !== null;
+
+  const visible = useMemo(
+    () => filterTiles(tiles, query, filter),
+    [tiles, query, filter],
+  );
+
+  /**
+   * Slash reaches for the search field.
+   *
+   * Gated on {@link isTypingTarget} so the character still reaches any field
+   * that already has focus — including this one, where slash is just a slash —
+   * and on the dialogs, whose focus trap would fight a field behind them for
+   * the caret and win, leaving the keystroke swallowed and nothing focused.
+   */
+  useEffect(() => {
+    if (dialogOpen || uploadOpen) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== SEARCH_KEY || event.repeat) return;
+      if (event.metaKey || event.ctrlKey || event.altKey) return;
+      if (isTypingTarget(event.target)) return;
+      event.preventDefault();
+      searchRef.current?.focus();
+      searchRef.current?.select();
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [dialogOpen, uploadOpen]);
 
   return (
     <AppShell
@@ -124,43 +159,112 @@ export default function TilesPage() {
         </>
       }
     >
-      <div className="h-full overflow-auto p-4">
-        {tiles.length === 0 ? (
-          <div className="border-2 border-border bg-panel p-6 text-sm shadow-hard">
-            No tiles yet. Generate placeholders with{" "}
-            <code className="bg-paper px-1">pnpm generate</code> or create one.
-          </div>
-        ) : (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3">
-            {tiles.map((tile) => (
-              <button
-                key={tile.id}
-                type="button"
-                onClick={() => openEdit(tile)}
-                className="flex flex-col items-stretch gap-2 border-2 border-border bg-panel p-2 text-left shadow-hard hover:bg-paper"
+      <div className="flex h-full flex-col">
+        <div className="flex flex-wrap items-center gap-2 border-b-2 border-border bg-panel px-4 py-2">
+          <div className="relative w-56 max-w-full">
+            <Input
+              ref={searchRef}
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key !== "Escape") return;
+                // Escape empties a field with something in it and lets go of an
+                // empty one, so the same key always means "back out of this" and
+                // never strands the caret in a box it just cleared.
+                if (query) setQuery("");
+                else e.currentTarget.blur();
+              }}
+              placeholder="Search tiles"
+              aria-label="Search tiles"
+              autoComplete="off"
+              className="w-full pr-7"
+            />
+            {/*
+              Only while the field is empty, which is what keeps it out of the
+              way of the native clear button `type="search"` puts in this exact
+              spot the moment there is something to clear. The two never show at
+              once, so one corner does both jobs.
+
+              Hidden below the breakpoint as well: a phone has no key to press,
+              and the hint would be the one thing in the bar earning none of its
+              room.
+            */}
+            {query === "" ? (
+              <kbd
+                aria-hidden="true"
+                className="pointer-events-none absolute top-1/2 right-2 hidden -translate-y-1/2 border border-border bg-paper px-1 text-[10px] leading-tight text-muted md:block"
               >
-                <TilePreview tile={tile} tilesets={tilesets} size={64} />
-                <div>
-                  <div className="text-sm font-bold">{tile.name}</div>
-                  <div className="text-xs text-muted">{tile.id}</div>
-                </div>
-                <div className="flex flex-wrap gap-1">
-                  <span className="border border-border bg-paper px-1 text-[10px] font-bold">
-                    h{tile.height}
-                  </span>
-                  <span className="border border-border bg-paper px-1 text-[10px]">
-                    {tile.type}
-                  </span>
-                  {tileIsAnimated(tile) ? (
-                    <span className="border border-border bg-paper px-1 text-[10px]">
-                      anim
-                    </span>
-                  ) : null}
-                </div>
-              </button>
-            ))}
+                {SEARCH_KEY}
+              </kbd>
+            ) : null}
           </div>
-        )}
+          <Segmented
+            value={filter}
+            options={TILE_FILTER_KINDS}
+            onChange={setFilter}
+            size="sm"
+            ariaLabel="Filter tiles"
+          />
+          <span role="status" className="text-xs text-muted">
+            {visible.length === tiles.length
+              ? `${tiles.length} tiles`
+              : `${visible.length} of ${tiles.length} tiles`}
+          </span>
+        </div>
+
+        <div className="min-h-0 flex-1 overflow-auto p-4">
+          {tiles.length === 0 ? (
+            <div className="border-2 border-border bg-panel p-6 text-sm shadow-hard">
+              No tiles yet. Generate placeholders with{" "}
+              <code className="bg-paper px-1">pnpm generate</code> or create one.
+            </div>
+          ) : visible.length === 0 ? (
+            <div className="flex flex-col items-start gap-3 border-2 border-border bg-panel p-6 text-sm shadow-hard">
+              <span>Nothing here matches.</span>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setQuery("");
+                  setFilter("all");
+                  searchRef.current?.focus();
+                }}
+              >
+                Clear search and filter
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(140px,1fr))] gap-3">
+              {visible.map((tile) => (
+                <button
+                  key={tile.id}
+                  type="button"
+                  onClick={() => openEdit(tile)}
+                  className="flex flex-col items-stretch gap-2 border-2 border-border bg-panel p-2 text-left shadow-hard hover:bg-paper"
+                >
+                  <TilePreview tile={tile} tilesets={tilesets} size={64} />
+                  <div>
+                    <div className="text-sm font-bold">{tile.name}</div>
+                    <div className="text-xs text-muted">{tile.id}</div>
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    <span className="border border-border bg-paper px-1 text-[10px] font-bold">
+                      h{tile.height}
+                    </span>
+                    <span className="border border-border bg-paper px-1 text-[10px]">
+                      {tile.type}
+                    </span>
+                    {tileIsAnimated(tile) ? (
+                      <span className="border border-border bg-paper px-1 text-[10px]">
+                        anim
+                      </span>
+                    ) : null}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       <TileEditorDialog
