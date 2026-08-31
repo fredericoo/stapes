@@ -6988,6 +6988,9 @@
       "-33,-31": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "apple"
         }
       ],
       "-33,-30": [
@@ -7021,6 +7024,9 @@
       "-33,-25": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "apple"
         }
       ],
       "-33,-24": [
@@ -8807,6 +8813,9 @@
       "-31,-31": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "apple"
         }
       ],
       "-31,-30": [
@@ -9731,6 +9740,9 @@
       "-30,-25": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "apple"
         }
       ],
       "-30,-24": [
@@ -10609,6 +10621,9 @@
       "-29,-27": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "apple"
         }
       ],
       "-29,-26": [
@@ -12477,6 +12492,9 @@
       "-27,-28": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "apple"
         }
       ],
       "-27,-27": [
@@ -14655,6 +14673,9 @@
         },
         {
           "tileId": "counter-top"
+        },
+        {
+          "tileId": "apple"
         }
       ],
       "-25,-5": [
@@ -14735,11 +14756,20 @@
         },
         {
           "tileId": "wooden-box"
+        },
+        {
+          "tileId": "cheese"
         }
       ],
       "-25,5": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "wooden-box"
+        },
+        {
+          "tileId": "apple"
         }
       ],
       "-25,6": [
@@ -18687,6 +18717,12 @@
       "-21,-25": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "table"
+        },
+        {
+          "tileId": "ale"
         }
       ],
       "-21,-24": [
@@ -19665,6 +19701,9 @@
       "-20,-25": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "chair"
         }
       ],
       "-20,-24": [
@@ -26579,6 +26618,9 @@
       "-13,-24": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "stool"
         }
       ],
       "-13,-23": [
@@ -26812,6 +26854,12 @@
       "-13,5": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "table"
+        },
+        {
+          "tileId": "apple"
         }
       ],
       "-13,6": [
@@ -27574,6 +27622,9 @@
       "-12,-24": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "table"
         }
       ],
       "-12,-23": [
@@ -27648,11 +27699,17 @@
       "-12,-14": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "table"
         }
       ],
       "-12,-13": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "stool"
         }
       ],
       "-12,-12": [
@@ -27707,6 +27764,9 @@
         },
         {
           "tileId": "counter-top"
+        },
+        {
+          "tileId": "ale"
         }
       ],
       "-12,-6": [
@@ -27717,6 +27777,9 @@
       "-12,-5": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "stool"
         }
       ],
       "-12,-4": [
@@ -27792,6 +27855,9 @@
       "-12,5": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "stool"
         }
       ],
       "-12,6": [
@@ -28655,11 +28721,17 @@
       "-11,-14": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "table"
         }
       ],
       "-11,-13": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "stool"
         }
       ],
       "-11,-12": [
@@ -28713,7 +28785,7 @@
           "tileId": "counter-top"
         },
         {
-          "tileId": "red-potion"
+          "tileId": "ale"
         }
       ],
       "-11,-6": [
@@ -28724,11 +28796,20 @@
       "-11,-5": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "table"
+        },
+        {
+          "tileId": "ale"
         }
       ],
       "-11,-4": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "stool"
         }
       ],
       "-11,-3": [
@@ -29713,11 +29794,17 @@
       "-10,-14": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "table"
         }
       ],
       "-10,-13": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "stool"
         }
       ],
       "-10,-12": [
@@ -30780,11 +30867,20 @@
       "-9,-5": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "stool"
         }
       ],
       "-9,-4": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "table"
+        },
+        {
+          "tileId": "cheese"
         }
       ],
       "-9,-3": [
@@ -31842,6 +31938,9 @@
       "-8,-4": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "stool"
         }
       ],
       "-8,-3": [
@@ -32972,6 +33071,12 @@
       "-7,5": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "table"
+        },
+        {
+          "tileId": "apple"
         }
       ],
       "-7,6": [
@@ -33957,7 +34062,7 @@
           "tileId": "counter-top"
         },
         {
-          "tileId": "bread"
+          "tileId": "cheese"
         }
       ],
       "-6,-4": [
@@ -34032,6 +34137,9 @@
       "-6,5": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "stool"
         }
       ],
       "-6,6": [
@@ -36877,6 +36985,9 @@
       "-3,-28": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "chair"
         }
       ],
       "-3,-27": [
@@ -37878,6 +37989,9 @@
       "-2,-28": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "chair"
         }
       ],
       "-2,-27": [
@@ -38888,11 +39002,17 @@
         },
         {
           "tileId": "counter-top"
+        },
+        {
+          "tileId": "cheese"
         }
       ],
       "-1,-28": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "chair"
         }
       ],
       "-1,-27": [
@@ -39915,6 +40035,9 @@
       "0,-28": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "chair"
         }
       ],
       "0,-27": [
@@ -40075,7 +40198,7 @@
           "tileId": "counter-top"
         },
         {
-          "tileId": "berry"
+          "tileId": "cheese"
         }
       ],
       "0,-1": [
@@ -40918,11 +41041,17 @@
         },
         {
           "tileId": "counter-top"
+        },
+        {
+          "tileId": "ale"
         }
       ],
       "1,-28": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "chair"
         }
       ],
       "1,-27": [
@@ -41925,6 +42054,9 @@
       "2,-28": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "chair"
         }
       ],
       "2,-27": [
@@ -46248,7 +46380,7 @@
           "tileId": "counter-top"
         },
         {
-          "tileId": "red-potion"
+          "tileId": "apple"
         }
       ],
       "6,-1": [
@@ -46343,6 +46475,9 @@
       "6,8": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "stool"
         }
       ],
       "6,9": [
@@ -47380,7 +47515,7 @@
           "tileId": "counter-top"
         },
         {
-          "tileId": "green-potion"
+          "tileId": "ale"
         }
       ],
       "7,-1": [
@@ -47471,6 +47606,9 @@
       "7,8": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "table"
         }
       ],
       "7,9": [
@@ -51409,6 +51547,9 @@
       "11,-24": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "stool"
         }
       ],
       "11,-23": [
@@ -52443,6 +52584,9 @@
       "12,-24": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "table"
         }
       ],
       "12,-23": [
@@ -57741,6 +57885,9 @@
       "17,-24": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "stool"
         }
       ],
       "17,-23": [
@@ -58758,6 +58905,9 @@
       "18,-24": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "table"
         }
       ],
       "18,-23": [
@@ -103447,7 +103597,8 @@
       ],
       "-37,-10": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-37,-9": [
@@ -103515,7 +103666,8 @@
       ],
       "-36,-10": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-36,-9": [
@@ -103586,7 +103738,8 @@
       ],
       "-35,-10": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-35,-9": [
@@ -103657,7 +103810,8 @@
       ],
       "-34,-10": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-34,-9": [
@@ -103725,7 +103879,8 @@
       ],
       "-33,-10": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-33,-9": [
@@ -103796,7 +103951,8 @@
       ],
       "-32,-10": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-32,-9": [
@@ -106184,6 +106340,9 @@
             },
             {
               "tileId": "green-potion"
+            },
+            {
+              "tileId": "cheese"
             }
           ]
         }
@@ -109033,7 +109192,8 @@
       ],
       "-27,4": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-27,5": [
@@ -109100,7 +109260,8 @@
       ],
       "-26,4": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-26,5": [
@@ -109167,7 +109328,8 @@
       ],
       "-25,4": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-25,5": [
@@ -109278,7 +109440,8 @@
       ],
       "-24,4": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-24,5": [
@@ -109379,7 +109542,8 @@
       ],
       "-23,4": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-23,5": [
@@ -109450,7 +109614,8 @@
       ],
       "-22,4": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-22,5": [
@@ -109521,7 +109686,8 @@
       ],
       "-21,4": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-21,5": [
@@ -109592,7 +109758,8 @@
       ],
       "-20,4": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-20,5": [
@@ -109751,7 +109918,8 @@
       ],
       "-14,-15": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-14,-14": [
@@ -109882,7 +110050,8 @@
       ],
       "-13,-15": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-13,-14": [
@@ -110033,7 +110202,8 @@
       ],
       "-12,-15": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-12,-14": [
@@ -110164,7 +110334,8 @@
       ],
       "-11,-15": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-11,-14": [
@@ -110235,7 +110406,8 @@
       ],
       "-10,-15": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-10,-14": [
@@ -110306,7 +110478,8 @@
       ],
       "-9,-15": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-9,-14": [
@@ -110377,7 +110550,8 @@
       ],
       "-8,-15": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-8,-14": [
@@ -110478,7 +110652,8 @@
       ],
       "-7,-15": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-7,-14": [
@@ -112399,7 +112574,8 @@
     "3": {
       "-27,5": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-27,6": [
@@ -112440,7 +112616,8 @@
       ],
       "-26,5": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-26,6": [
@@ -112491,7 +112668,8 @@
       ],
       "-25,5": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-25,6": [
@@ -112502,7 +112680,8 @@
       ],
       "-24,-27": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-24,-26": [
@@ -112559,7 +112738,8 @@
       ],
       "-24,5": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-24,6": [
@@ -112570,7 +112750,8 @@
       ],
       "-23,-27": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-23,-26": [
@@ -112597,7 +112778,8 @@
       ],
       "-23,5": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-23,6": [
@@ -112608,7 +112790,8 @@
       ],
       "-22,-27": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-22,-26": [
@@ -112635,7 +112818,8 @@
       ],
       "-22,5": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-22,6": [
@@ -112646,7 +112830,8 @@
       ],
       "-21,-27": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-21,-26": [
@@ -112673,7 +112858,8 @@
       ],
       "-21,5": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-21,6": [
@@ -112684,7 +112870,8 @@
       ],
       "-20,-27": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-20,-26": [
@@ -112711,7 +112898,8 @@
       ],
       "-20,5": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-20,6": [
@@ -112722,7 +112910,8 @@
       ],
       "-19,-27": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-19,-26": [
@@ -112749,7 +112938,8 @@
       ],
       "-18,-27": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-18,-26": [
@@ -112776,7 +112966,8 @@
       ],
       "-17,-27": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-17,-26": [
@@ -112803,7 +112994,8 @@
       ],
       "-14,-14": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-14,-13": [
@@ -112814,7 +113006,8 @@
       ],
       "-14,-7": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-14,-6": [
@@ -112841,7 +113034,8 @@
       ],
       "-13,-14": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-13,-13": [
@@ -112852,7 +113046,8 @@
       ],
       "-13,-7": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-13,-6": [
@@ -112939,7 +113134,8 @@
       ],
       "-12,-14": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-12,-13": [
@@ -112950,7 +113146,8 @@
       ],
       "-12,-7": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-12,-6": [
@@ -112977,7 +113174,8 @@
       ],
       "-11,-14": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-11,-13": [
@@ -112988,7 +113186,8 @@
       ],
       "-11,-7": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-11,-6": [
@@ -113015,7 +113214,8 @@
       ],
       "-10,-14": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-10,-13": [
@@ -113026,7 +113226,8 @@
       ],
       "-10,-7": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-10,-6": [
@@ -113053,7 +113254,8 @@
       ],
       "-9,-14": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-9,-13": [
@@ -113064,7 +113266,8 @@
       ],
       "-9,-7": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-9,-6": [
@@ -113091,7 +113294,8 @@
       ],
       "-8,-14": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-8,-13": [
@@ -113102,7 +113306,8 @@
       ],
       "-8,-7": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-8,-6": [
@@ -113129,7 +113334,8 @@
       ],
       "-7,-14": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-7,-13": [
@@ -113140,7 +113346,8 @@
       ],
       "-7,-7": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-7,-6": [
@@ -113197,7 +113404,8 @@
       ],
       "-6,-31": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-6,-30": [
@@ -113240,7 +113448,8 @@
       ],
       "-6,-7": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-6,-6": [
@@ -113267,7 +113476,8 @@
       ],
       "-5,-31": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-5,-30": [
@@ -113310,7 +113520,8 @@
       ],
       "-5,-7": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-5,-6": [
@@ -113337,7 +113548,8 @@
       ],
       "-4,-31": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-4,-30": [
@@ -113380,7 +113592,8 @@
       ],
       "-3,-31": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-3,-30": [
@@ -113423,7 +113636,8 @@
       ],
       "-2,-31": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-2,-30": [
@@ -113466,7 +113680,8 @@
       ],
       "-1,-31": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-1,-30": [
@@ -113509,7 +113724,8 @@
       ],
       "0,-31": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "0,-30": [
@@ -113552,7 +113768,8 @@
       ],
       "1,-31": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "1,-30": [
@@ -113595,7 +113812,8 @@
       ],
       "2,-31": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "2,-30": [
@@ -113638,7 +113856,8 @@
       ],
       "3,-31": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "3,-30": [
@@ -113681,7 +113900,8 @@
       ],
       "4,-31": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "4,-30": [
@@ -113724,7 +113944,8 @@
       ],
       "5,-31": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "5,-30": [
@@ -113767,7 +113988,8 @@
       ],
       "6,-31": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "6,-30": [
@@ -113810,7 +114032,8 @@
       ],
       "7,-31": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "7,-30": [
@@ -113853,7 +114076,8 @@
       ],
       "7,-7": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "7,-6": [
@@ -113910,7 +114134,8 @@
       ],
       "8,-7": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "8,-6": [
@@ -113937,7 +114162,8 @@
       ],
       "9,-7": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "9,-6": [
@@ -113964,7 +114190,8 @@
       ],
       "10,-7": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "10,-6": [
@@ -113991,7 +114218,8 @@
       ],
       "11,-7": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "11,-6": [
@@ -114048,7 +114276,8 @@
       ],
       "12,-7": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "12,-6": [
@@ -114075,7 +114304,8 @@
       ],
       "13,-7": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "13,-6": [
@@ -114102,7 +114332,8 @@
       ],
       "14,-7": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "14,-6": [
@@ -114159,7 +114390,8 @@
       ],
       "15,-7": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "15,-6": [
@@ -114186,7 +114418,8 @@
       ],
       "16,-7": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "16,-6": [
@@ -114275,7 +114508,8 @@
       ],
       "-24,-26": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-24,-25": [
@@ -114286,7 +114520,8 @@
       ],
       "-23,-26": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-23,-25": [
@@ -114297,7 +114532,8 @@
       ],
       "-22,-26": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-22,-25": [
@@ -114308,7 +114544,8 @@
       ],
       "-21,-26": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-21,-25": [
@@ -114319,7 +114556,8 @@
       ],
       "-20,-26": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-20,-25": [
@@ -114330,7 +114568,8 @@
       ],
       "-19,-26": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-19,-25": [
@@ -114341,7 +114580,8 @@
       ],
       "-18,-26": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-18,-25": [
@@ -114352,7 +114592,8 @@
       ],
       "-17,-26": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-17,-25": [
@@ -114363,7 +114604,8 @@
       ],
       "-14,-6": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-14,-5": [
@@ -114374,7 +114616,8 @@
       ],
       "-13,-6": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-13,-5": [
@@ -114385,7 +114628,8 @@
       ],
       "-12,-6": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-12,-5": [
@@ -114396,7 +114640,8 @@
       ],
       "-11,-6": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-11,-5": [
@@ -114407,7 +114652,8 @@
       ],
       "-10,-6": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-10,-5": [
@@ -114418,7 +114664,8 @@
       ],
       "-9,-6": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-9,-5": [
@@ -114429,7 +114676,8 @@
       ],
       "-8,-6": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-8,-5": [
@@ -114440,7 +114688,8 @@
       ],
       "-7,-6": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-7,-5": [
@@ -114451,7 +114700,8 @@
       ],
       "-6,-30": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-6,-29": [
@@ -114478,7 +114728,8 @@
       ],
       "-6,-6": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-6,-5": [
@@ -114489,7 +114740,8 @@
       ],
       "-5,-30": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-5,-29": [
@@ -114516,7 +114768,8 @@
       ],
       "-5,-6": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-5,-5": [
@@ -114527,7 +114780,8 @@
       ],
       "-4,-30": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-4,-29": [
@@ -114554,7 +114808,8 @@
       ],
       "-3,-30": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-3,-29": [
@@ -114581,7 +114836,8 @@
       ],
       "-2,-30": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-2,-29": [
@@ -114608,7 +114864,8 @@
       ],
       "-1,-30": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-1,-29": [
@@ -114635,7 +114892,8 @@
       ],
       "0,-30": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "0,-29": [
@@ -114662,7 +114920,8 @@
       ],
       "1,-30": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "1,-29": [
@@ -114689,7 +114948,8 @@
       ],
       "2,-30": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "2,-29": [
@@ -114716,7 +114976,8 @@
       ],
       "3,-30": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "3,-29": [
@@ -114743,7 +115004,8 @@
       ],
       "4,-30": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "4,-29": [
@@ -114770,7 +115032,8 @@
       ],
       "5,-30": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "5,-29": [
@@ -114797,7 +115060,8 @@
       ],
       "6,-30": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "6,-29": [
@@ -114824,7 +115088,8 @@
       ],
       "7,-30": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "7,-29": [
@@ -114851,7 +115116,8 @@
       ],
       "7,-6": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "7,-5": [
@@ -114862,7 +115128,8 @@
       ],
       "8,-6": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "8,-5": [
@@ -114873,7 +115140,8 @@
       ],
       "9,-6": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "9,-5": [
@@ -114884,7 +115152,8 @@
       ],
       "10,-6": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "10,-5": [
@@ -114895,7 +115164,8 @@
       ],
       "11,-6": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "11,-5": [
@@ -114906,7 +115176,8 @@
       ],
       "12,-6": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "12,-5": [
@@ -114917,7 +115188,8 @@
       ],
       "13,-6": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "13,-5": [
@@ -114928,7 +115200,8 @@
       ],
       "14,-6": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "14,-5": [
@@ -114939,7 +115212,8 @@
       ],
       "15,-6": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "15,-5": [
@@ -114950,7 +115224,8 @@
       ],
       "16,-6": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "16,-5": [
@@ -114963,7 +115238,8 @@
     "5": {
       "-6,-29": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-6,-28": [
@@ -114974,7 +115250,8 @@
       ],
       "-5,-29": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-5,-28": [
@@ -114985,7 +115262,8 @@
       ],
       "-4,-29": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-4,-28": [
@@ -114996,7 +115274,8 @@
       ],
       "-3,-29": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-3,-28": [
@@ -115007,7 +115286,8 @@
       ],
       "-2,-29": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-2,-28": [
@@ -115018,7 +115298,8 @@
       ],
       "-1,-29": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "-1,-28": [
@@ -115029,7 +115310,8 @@
       ],
       "0,-29": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "0,-28": [
@@ -115040,7 +115322,8 @@
       ],
       "1,-29": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "1,-28": [
@@ -115051,7 +115334,8 @@
       ],
       "2,-29": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "2,-28": [
@@ -115062,7 +115346,8 @@
       ],
       "3,-29": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "3,-28": [
@@ -115073,7 +115358,8 @@
       ],
       "4,-29": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "4,-28": [
@@ -115084,7 +115370,8 @@
       ],
       "5,-29": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "5,-28": [
@@ -115095,7 +115382,8 @@
       ],
       "6,-29": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "6,-28": [
@@ -115106,7 +115394,8 @@
       ],
       "7,-29": [
         {
-          "tileId": "roof-2"
+          "tileId": "roof-1",
+          "direction": "s"
         }
       ],
       "7,-28": [
