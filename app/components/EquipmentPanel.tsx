@@ -2,7 +2,7 @@ import {
   IconBackpack,
   IconDiamond,
   IconHandStop,
-  IconHelmet,
+  IconMoodEmpty,
   IconShirt,
   IconShoe,
 } from "@tabler/icons-react";
@@ -20,8 +20,8 @@ import type { ItemDrag } from "./useItemDrag";
  *
  * ## The arrangement is the label
  *
- * Seven squares laid out where the things go: a helm above, the hands to either
- * side, the chest between them, a charm and the pack below, boots at the
+ * Seven squares laid out where the things go: the head above, the hands to
+ * either side, the chest between them, a charm and the pack below, boots at the
  * bottom. **Nothing is captioned**, and the layout is why it does not have to
  * be — a square directly above the middle of a body is a hat, and a word saying
  * so underneath it would be the picture explaining itself. What an empty square
@@ -110,7 +110,12 @@ const SQUARES: readonly Square[] = [
     slot: { kind: "head" },
     label: "Head",
     emptyHint: "Head — nothing worn",
-    icon: IconHelmet,
+    // A face rather than a helmet, which Tabler's is a motorcycle one — a
+    // visored crash helmet over a world of caps and mail reads as a different
+    // game. The square is the head, and a bare head is the honest picture of it
+    // being empty; the others draw the thing that goes in them because a hand
+    // and a foot are not what you put there.
+    icon: IconMoodEmpty,
     column: MIDDLE_COLUMN,
     row: 1,
   },
