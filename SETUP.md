@@ -329,6 +329,15 @@ does: it waits for the world to answer `/api/health`, posts the build to
 `/api/client/upload`, and activates it. That is what `PREVIEW_ADMIN_SECRET` is
 for, and it is why the workflow is slower than a deploy call.
 
+Before any of that it waits on Coolify, which is what `COOLIFY_PREVIEW_APP_UUID`
+and `COOLIFY_TOKEN` are for here. The webhook that starts the workflow also
+starts the redeploy, so until that deployment finishes the hostname is served by
+the *previous* commit's container — and `/api/health` cannot say so, because the
+`build` it reports is the client bundle on the volume, which outlives the swap.
+The workflow polls `GET /api/v1/deployments/applications/{uuid}` for the
+deployment whose `pull_request_id` and `commit` are this push's, and only seeds
+and uploads once it reads `finished`.
+
 `MAX_PREVIEWS` is a **warning, not a gate**. It used to be a gate, back when the
 workflow was the thing that started previews; now the webhook does, and the
 container is already coming up by the time any job could object. What actually
