@@ -1,5 +1,11 @@
 import * as v from "valibot";
 import { type Formula, parseFormula } from "./formula";
+import {
+  NO_VFX,
+  resolveStatusVfx,
+  type StatusVfx,
+  statusVfxSchema,
+} from "./statusVfx";
 import { type CellRect, defaultBase, type SpriteRef } from "./types";
 
 /**
@@ -114,6 +120,15 @@ export type StatusDef = {
   effects: { hp?: Formula };
   /** What holding this does to the numbers a fight is fought with. */
   modifiers: StatusModifiers;
+  /**
+   * What it looks like: a colour on the body, a plume over the tile.
+   *
+   * Never {@link NO_VFX} by accident — a status with nothing authored gets it on
+   * purpose, and every status written before this existed is exactly that case.
+   * The renderers read this and the simulation never does; see `./statusVfx` for
+   * why that separation is worth a file.
+   */
+  vfx: StatusVfx;
 };
 
 /**
@@ -150,6 +165,10 @@ export const DEFAULT_STATUS_SOURCE = {
   everyMs: 1_000,
   effects: {},
   modifiers: {},
+  // Neither half authored, so a new status looks like every existing one until
+  // somebody turns an effect on. The editor's defaults for each half live in
+  // `./statusVfx`, and are only reached when an author asks for one.
+  vfx: { tint: null, particles: null, light: null, taperMs: 0 },
 };
 
 /**
@@ -221,6 +240,15 @@ const statusSourceSchema = v.pipe(
       ),
       () => ({}),
     ),
+    // Optional and defaulted, which is the whole compatibility story: every
+    // status in `data/statuses.json` predates this field, and an absent block
+    // has to keep loading rather than dropping the status from the catalogue.
+    vfx: v.optional(statusVfxSchema, () => ({
+      tint: null,
+      particles: null,
+      light: null,
+      taperMs: 0,
+    })),
   }),
   // An inverted range is malformed and reads as "not a status", exactly as an
   // inverted decay lifetime does — the editor keeps the pair ordered, so nothing
@@ -267,6 +295,7 @@ function compileStatus(raw: StatusSource): StatusDef | null {
     everyMs: raw.everyMs,
     effects,
     modifiers,
+    vfx: resolveStatusVfx(raw.vfx),
   };
 }
 

@@ -4,7 +4,7 @@ import type { Route } from "./+types/statuses";
 import { AppShell } from "../components/AppShell";
 import { StatusEditorDialog } from "../components/StatusEditorDialog";
 import { SpritePreview } from "../components/TilePreview";
-import { fetchStatuses, fetchTilesets, saveStatuses } from "../lib/api";
+import { fetchStatuses, fetchTiles, fetchTilesets, saveStatuses } from "../lib/api";
 import { TITLE_SPRITE_SIZE_PX } from "../components/ContainerPanel";
 import {
   completeSprite,
@@ -27,11 +27,15 @@ import { Button, useToast } from "../ui";
  */
 
 export async function clientLoader() {
-  const [statuses, tilesets] = await Promise.all([
+  // The tiles are here for the effects preview, which draws on any of them —
+  // see `StatusVfxPreview`. Fetched beside the rest rather than lazily, because
+  // the dialog is the only thing on this page and it needs all three.
+  const [statuses, tilesets, tiles] = await Promise.all([
     fetchStatuses(),
     fetchTilesets(),
+    fetchTiles(),
   ]);
-  return { statuses: statuses as StatusSource[], tilesets };
+  return { statuses: statuses as StatusSource[], tilesets, tiles };
 }
 
 export async function clientAction({ request }: Route.ClientActionArgs) {
@@ -67,7 +71,7 @@ export async function clientAction({ request }: Route.ClientActionArgs) {
 }
 
 export default function StatusesPage() {
-  const { statuses, tilesets } = useLoaderData<typeof clientLoader>();
+  const { statuses, tilesets, tiles } = useLoaderData<typeof clientLoader>();
   const fetcher = useFetcher<typeof clientAction>();
   const toast = useToast();
   const [editing, setEditing] = useState<StatusSource | null>(null);
@@ -151,6 +155,7 @@ export default function StatusesPage() {
       {editing ? (
         <StatusEditorDialog
           draft={editing}
+          tiles={tiles}
           tilesets={tilesets}
           onCancel={() => setEditing(null)}
           onSave={save}

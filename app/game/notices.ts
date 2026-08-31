@@ -206,6 +206,20 @@ export function commandRefusalNotice(refusal: CommandRefusal): string {
       return "You are not standing anywhere";
     case "noRoom":
       return `Nothing will fit at ${cellName(refusal.at)}`;
+    case "badHealth":
+      return `"${refusal.typed}" is not a number of hit points. Say a figure, or one with a + or - in front of it`;
+    case "unharmableTarget":
+      // Named rather than explained, on the terms `unteachableTarget` is: "that
+      // body has no battler block" is a fact about the engine, and the player
+      // asked a question about a crate.
+      return `${refusal.name} has no health to change`;
+    case "unknownStatus":
+      // The known ids rather than a count, on the terms the mastery refusal is
+      // written under: a player re-reading their own line to work out which word
+      // was wrong is the failure both of these avoid.
+      return refusal.known.length === 0
+        ? `No status called "${refusal.typed}", and this world authored none`
+        : `No status called "${refusal.typed}". Try ${refusal.known.join(", ")}`;
   }
 }
 
@@ -234,4 +248,25 @@ function cellName(at: Coord): string {
  */
 export function tileNotice(name: string, at: Coord): string {
   return `${name} appears at ${cellName(at)}`;
+}
+
+/** What a body is told when a status is put on it by hand. */
+export function statusGrantedNotice(name: string): string {
+  return `${name}.`;
+}
+
+/** What a body is told when everything running on it is taken off. */
+export function statusesClearedNotice(): string {
+  return "Nothing is on you now.";
+}
+
+/**
+ * What health reads at, after a command moved it.
+ *
+ * The figure and its ceiling together, because every one of the three forms —
+ * set, heal, harm — is asking the same question underneath, which is *where
+ * that leaves them*. A bare "healed 10" leaves the person who typed it counting.
+ */
+export function healthNotice(hp: number, maxHp: number): string {
+  return `${hp}/${maxHp} health.`;
 }

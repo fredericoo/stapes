@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { parseFormula, type FormulaScope } from "../lib/formula";
 import {
   completeSprite,
@@ -10,10 +10,13 @@ import {
   type StatusSource,
 } from "../lib/status";
 import { snapToTick } from "../game/statuses";
-import { defaultBase, type SpriteRef, type TilesetDef } from "../lib/types";
+import type { StatusVfx } from "../lib/statusVfx";
+import { defaultBase, type SpriteRef, type TileDef, type TilesetDef } from "../lib/types";
 import { Button, Dialog, Input, Select, Switch } from "../ui";
 import { SpritePreview } from "./TilePreview";
 import { SpriteSelector } from "./SpriteSelector";
+import { StatusVfxFields } from "./StatusVfxFields";
+import { StatusVfxPreview } from "./StatusVfxPreview";
 import { TITLE_SPRITE_SIZE_PX } from "./ContainerPanel";
 
 /**
@@ -112,11 +115,14 @@ function MsField({
 
 export function StatusEditorDialog({
   draft,
+  tiles,
   tilesets,
   onCancel,
   onSave,
 }: {
   draft: StatusSource;
+  /** The catalogue the preview's subject is picked from. @see StatusVfxPreview */
+  tiles: TileDef[];
   tilesets: TilesetDef[];
   onCancel: () => void;
   onSave: (status: StatusSource) => void;
@@ -124,6 +130,25 @@ export function StatusEditorDialog({
   const [status, setStatus] = useState<StatusSource>(draft);
   const patch = (fields: Partial<StatusSource>) =>
     setStatus((current) => ({ ...current, ...fields }));
+
+  /**
+   * The effect as the preview and the fields both want it.
+   *
+   * The stored shape allows an absent block; both consumers want the two nulls
+   * spelled out, so the widening happens once here rather than as a `?? null` at
+   * every field. `useMemo` because it is the dependency of an effect that pushes
+   * into the renderer — a fresh object every keystroke would push on keystrokes
+   * that changed nothing about the effect.
+   */
+  const vfx = useMemo<StatusVfx>(
+    () => ({
+      tint: status.vfx?.tint ?? null,
+      particles: status.vfx?.particles ?? null,
+      light: status.vfx?.light ?? null,
+      taperMs: status.vfx?.taperMs ?? 0,
+    }),
+    [status.vfx],
+  );
 
   const icon = completeSprite(status.icon);
   const iconTileset = tilesets.find((t) => t.id === icon?.tilesetId) ?? null;
@@ -351,6 +376,25 @@ export function StatusEditorDialog({
               }}
             />
           ))}
+        </div>
+
+        <div className="flex flex-col gap-1 border-t-2 border-border pt-3">
+          <span className="text-xs font-bold uppercase text-muted">
+            What it looks like
+          </span>
+          <p className="max-w-lg text-[11px] leading-snug text-muted">
+            Client-side only, and never on the wire — a body under this is
+            coloured where it is drawn, and the particles are simulated by
+            whoever is watching. Walking off screen and back starts a new plume
+            rather than resuming one, which is what makes it affordable.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-start gap-4">
+          <StatusVfxFields
+            vfx={vfx}
+            onChange={(next) => patch({ vfx: next })}
+          />
+          <StatusVfxPreview vfx={vfx} tiles={tiles} tilesets={tilesets} />
         </div>
 
         {valid ? null : (

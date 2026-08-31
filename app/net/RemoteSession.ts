@@ -7,7 +7,10 @@ import {
   STRIKE_DURATION_MS,
   WALK_DURATION_MS,
 } from "../game/constants";
-import type { StatusInstance } from "../game/statuses";
+import {
+  UNKNOWN_REMAINING_MS,
+  type StatusInstance,
+} from "../game/statuses";
 import type { ProjectileFlight } from "../game/projectile";
 import type { StrikeState } from "../game/strike";
 import {
@@ -69,6 +72,7 @@ import {
   type CellPatch,
   type ClientMessage,
   type CarriedLightsPatch,
+  type StatusIdsPatch,
   type HpPatch,
   type MotionEvent,
 } from "./protocol";
@@ -217,6 +221,18 @@ export class RemoteSession implements PlaySession {
    * exists to avoid.
    */
   private readonly carriedLights = new Map<string, string[]>();
+  /**
+   * Everybody's statuses as instances, rebuilt from the ids the wire broadcasts.
+   *
+   * Held built rather than as raw ids so the list handed to a snapshot is the
+   * same array every frame — the renderer walks it per actor per frame, and
+   * rebuilding one per frame would allocate for a list that almost never
+   * changes. It is replaced wholesale when a patch says the set has changed.
+   *
+   * Every instance in here reads {@link UNKNOWN_REMAINING_MS}, because the
+   * countdown is not broadcast. @see StatusIdsPatch
+   */
+  private readonly statusesById = new Map<string, StatusInstance[]>();
   /**
    * What this viewer is carrying, as the server last said.
    *
@@ -474,6 +490,7 @@ export class RemoteSession implements PlaySession {
       if (this.attacking) this.send({ type: "attackMode", enabled: true });
       this.hps.clear();
       this.carriedLights.clear();
+      this.statusesById.clear();
       // Replaced outright rather than kept: the body at the other end is a
       // fresh one, and what it is carrying is whatever the server just said —
       // not what the body in the previous world had on it.
@@ -497,6 +514,7 @@ export class RemoteSession implements PlaySession {
       for (const id of message.actorIds) this.motions.set(id, emptyMotion());
       this.applyHps(message.hps);
       this.applyCarriedLights(message.carriedLights);
+      this.applyStatusIds(message.statusIds);
       this.setPlayers(message.playerCount);
       // A `hello` is a body, whichever of the two sent it: the answer to
       // `rebirth`, or a world replaced under a socket that happened to be dead
@@ -623,6 +641,7 @@ export class RemoteSession implements PlaySession {
     const leaving = this.applyCells(message.cells);
     this.applyHps(message.hps);
     this.applyCarriedLights(message.carriedLights);
+    this.applyStatusIds(message.statusIds);
     for (const event of message.events) this.applyEvent(event);
     this.forgetDeparted(leaving);
     this.rebuildPredicted();
@@ -659,6 +678,32 @@ export class RemoteSession implements PlaySession {
   private applyCarriedLights(patches: CarriedLightsPatch[]) {
     for (const patch of patches) {
       this.carriedLights.set(patch.actorId, patch.tileIds);
+    }
+  }
+
+  /**
+   * Rebuild what each body is under from the ids the server broadcast.
+   *
+   * An empty list is stored rather than deleted, on the terms
+   * {@link applyCarriedLights} keeps one: it is the server saying "this one is
+   * clear now", which is not the same as never having heard about them.
+   *
+   * The countdown is not on the wire, so every instance is built with
+   * {@link UNKNOWN_REMAINING_MS} — which falls through `taperAt` as "not winding
+   * down". Somebody else's poison therefore burns at full strength until it
+   * ends, and that is the documented trade rather than a bug to fix here.
+   */
+  private applyStatusIds(patches: StatusIdsPatch[]) {
+    for (const patch of patches) {
+      this.statusesById.set(
+        patch.actorId,
+        patch.defIds.map((defId) => ({
+          defId,
+          remainingMs: UNKNOWN_REMAINING_MS,
+          durationMs: UNKNOWN_REMAINING_MS,
+          sinceEffectMs: 0,
+        })),
+      );
     }
   }
 
@@ -765,6 +810,7 @@ export class RemoteSession implements PlaySession {
     this.motions.delete(id);
     this.hps.delete(id);
     this.carriedLights.delete(id);
+    this.statusesById.delete(id);
     if (this.targetId === id) this.targetId = null;
   }
 
@@ -1509,10 +1555,14 @@ export class RemoteSession implements PlaySession {
       hp: health?.hp ?? null,
       maxHp: health?.maxHp ?? null,
       rating: health?.rating ?? null,
-      // The viewer's own, and nobody else's: statuses do not travel with a body,
-      // so every other snapshot carries none. That is not a gap — nothing draws
-      // another body's statuses, which is why the wire never sends them.
-      statuses: id === this.selfId ? this.statuses : NO_STATUSES,
+      // The viewer's own list where there is one, because it is the only one
+      // with a real countdown on it — which is what lets their own effects wind
+      // down smoothly. Everybody else's is rebuilt from the broadcast ids and
+      // reads as "not running out". @see applyStatusIds
+      statuses:
+        id === this.selfId
+          ? this.statuses
+          : (this.statusesById.get(id) ?? NO_STATUSES),
       // Shared by reference and never mutated in place, exactly as it is on the
       // simulation side: the array the server sent *is* the answer, and copying
       // it per actor per frame would be an allocation for a list that is almost

@@ -75,15 +75,24 @@ import {
   commandRefusalNotice,
   masteryNotice,
   otherMasteryNotice,
+  healthNotice,
   rewardNotice,
+  statusesClearedNotice,
+  statusGrantedNotice,
   tileNotice,
 } from "./notices";
 import {
+  HEALTH_COMMAND,
   MASTERY_COMMAND,
   parseCommand,
   resolveCell,
+  STATUS_COMMAND,
+  TILE_COMMAND,
+  type Command,
   type CommandRefusal,
+  type HealthCommand,
   type MasteryCommand,
+  type StatusCommand,
   type TileCommand,
 } from "./commands";
 import { findEntryCell } from "./entry";
@@ -4168,11 +4177,25 @@ export class GameSession implements PlaySession {
     // said in one place. The alternative — every arm saying its own — is how a
     // command comes to refuse silently: the return is the only thing that
     // reminds you there was something left to tell them.
-    const refusal =
-      parsed.command.name === MASTERY_COMMAND
-        ? this.runMasteryCommand(parsed.command, id)
-        : this.runTileCommand(parsed.command, id);
+    const refusal = this.runParsedCommand(parsed.command, id);
     if (refusal) this.say(id, commandRefusalNotice(refusal));
+  }
+
+  /** One arm per verb, each answering with a refusal or with nothing. */
+  private runParsedCommand(
+    command: Command,
+    id: string,
+  ): CommandRefusal | null {
+    switch (command.name) {
+      case MASTERY_COMMAND:
+        return this.runMasteryCommand(command, id);
+      case TILE_COMMAND:
+        return this.runTileCommand(command, id);
+      case STATUS_COMMAND:
+        return this.runStatusCommand(command, id);
+      case HEALTH_COMMAND:
+        return this.runHealthCommand(command, id);
+    }
   }
 
   /**
@@ -4316,6 +4339,106 @@ export class GameSession implements PlaySession {
   private summonedOwnerId(at: Coord & { stackIndex: number }): string {
     const home = residentOwnerId(at);
     return this.actors.has(home) ? `${home},${crypto.randomUUID()}` : home;
+  }
+
+  /**
+   * Put a status on a body by hand, or take everything off it.
+   *
+   * **A debugging door, and the only way to see an effect without earning it.**
+   * Every other route to a status is a thing that happens to you — eating,
+   * stepping into a flame, being bitten — which is right for a game and useless
+   * for tuning what one looks like: nobody wants to walk a rat into a fire
+   * forty times to judge a colour ramp. It goes through {@link grantStatus}
+   * rather than writing the list itself, so what an author sees here is a real
+   * application with a real rolled duration and not a special case that could
+   * drift from one.
+   *
+   * The catalogue is checked here rather than in the parser for the reason
+   * `noSuchTarget` is: it is the world's, and the parser has never seen it.
+   */
+  private runStatusCommand(
+    command: StatusCommand,
+    authorId: string,
+  ): CommandRefusal | null {
+    const targetId = command.target ?? authorId;
+    const actor = this.actors.get(targetId);
+    if (!actor) return { kind: "noSuchTarget", typed: targetId };
+
+    const { statusId } = command;
+    if (statusId === null) {
+      actor.statuses = [];
+      this.noteStatusReading(actor);
+      this.say(authorId, statusesClearedNotice());
+      return null;
+    }
+
+    const def = this.statusDefs[statusId];
+    if (!def) {
+      return {
+        kind: "unknownStatus",
+        typed: statusId,
+        known: Object.keys(this.statusDefs),
+      };
+    }
+
+    this.grantStatus(actor, { id: def.id });
+    // Said to whoever typed it rather than to the body it landed on: this is a
+    // debugging acknowledgement, not something that happened in the world, and
+    // a deer announcing that it is on fire because somebody set it on fire from
+    // a console is a bubble the room should not see.
+    this.say(authorId, statusGrantedNotice(def.name));
+    return null;
+  }
+
+  /**
+   * Move a body's hit points by hand.
+   *
+   * **A set is turned into a shift and then there is one path**, because the
+   * alternative is two places that decide what reaching zero means — and the one
+   * that forgot would leave a body standing at nothing. So this works out the
+   * difference, and hands it to the same two doors everything else uses: harm
+   * through {@link applyDamage}, so it shows its number, tells the brains and
+   * can kill; a heal clamped at the maximum, which is the only thing a heal has
+   * ever been allowed to do.
+   *
+   * A set above the maximum is the maximum rather than a refusal. "Full health"
+   * is what somebody typing a big number meant, and making them look the ceiling
+   * up first would be a worse debugging tool.
+   */
+  private runHealthCommand(
+    command: HealthCommand,
+    authorId: string,
+  ): CommandRefusal | null {
+    const targetId = command.target ?? authorId;
+    const actor = this.actors.get(targetId);
+    if (!actor) return { kind: "noSuchTarget", typed: targetId };
+
+    const change = command.health;
+    const stats = this.battlerOf(actor);
+    const before = this.hpOf(actor);
+    if (!stats || before === null) {
+      return {
+        kind: "unharmableTarget",
+        name: this.bodyName(actor.id) ?? actor.id,
+      };
+    }
+
+    const target =
+      change.kind === "set"
+        ? Math.min(stats.maxHp, Math.max(0, change.hp))
+        : Math.min(stats.maxHp, Math.max(0, before + change.by));
+    const delta = target - before;
+
+    if (delta < 0) {
+      this.applyDamage(actor, -delta);
+    } else if (delta > 0) {
+      actor.hp = before + delta;
+    }
+
+    // Read back rather than computed, because a fatal blow takes the body off
+    // the board and `hpOf` is the only thing that knows that happened.
+    this.say(authorId, healthNotice(this.hpOf(actor) ?? 0, stats.maxHp));
+    return null;
   }
 
   /**

@@ -75,6 +75,10 @@ import {
   pulseAlphaAt,
 } from "./overlayMeshes";
 import { animationKey, type SpriteQuadAssets, spriteQuadFor } from "./spriteQuad";
+import { noTintUniforms, tintCacheKey, tintUniforms } from "./spriteTint";
+import type { StatusTint } from "../lib/statusVfx";
+import { ParticleLayer } from "./particleLayer";
+import type { ParticleEmitterSpec } from "./particles";
 import { PLAYER_TILE_ID } from "../game/constants";
 
 /**
@@ -153,6 +157,10 @@ type BuildItem = Quad & {
   anim?: Omit<AnimatedInstance, "mesh" | "key">;
 };
 
+/** Shared empties, so the common frame allocates nothing to say "none". */
+const EMPTY_EMITTERS: readonly ParticleEmitterSpec[] = [];
+const EMPTY_TINTS: ReadonlyMap<string, StatusTint> = new Map();
+
 const DEFAULT_BACKGROUND = sampleIllumination(12 * 60).background;
 const LIGHT_MAP_CELL_OFFSET = 0.5;
 
@@ -176,6 +184,20 @@ export type TileInstanceKey = {
  */
 export function tileInstanceKey(k: TileInstanceKey): string {
   return `${k.z}:${k.x},${k.y}:${k.stackIndex}`;
+}
+
+/**
+ * The level out of an instance key.
+ *
+ * Beside the function it inverts, and NaN-guarded, because the whole hazard of a
+ * string key is that the two halves drift apart in different files: a parser
+ * living next to the builder is one edit away from staying right, and one that
+ * silently returned NaN would fetch a material against a level nothing else uses
+ * and light the sprite by a room that does not exist.
+ */
+export function tileInstanceLevel(key: string): number {
+  const z = Number.parseInt(key, 10);
+  return Number.isNaN(z) ? 0 : z;
 }
 
 /**
@@ -246,6 +268,27 @@ export type WorldView = {
    * (player roof-cut). Omit to show all levels (editor / preview).
    */
   hideLevelsAbove?: number;
+  /**
+   * The colour each placement is wearing, keyed by {@link TileInstanceKey}.
+   *
+   * Sparse, on the terms {@link spriteStates} is: almost nobody is ever under
+   * anything, and an absent key is the answer for all of them.
+   *
+   * **Only reaches placements that have their own mesh** — every actor, and
+   * nothing that is merged into its floor's batch. A tint is a material uniform
+   * (see `./spriteTint`), and a merged tile shares its material with the whole
+   * floor, so tinting one would tint the ground it is standing on. A key naming
+   * a merged tile is dropped rather than approximated.
+   */
+  spriteTints?: ReadonlyMap<string, StatusTint>;
+  /**
+   * The plumes on screen this frame.
+   *
+   * Reconciled by id rather than replaced, so a plume that moved is the same
+   * plume and keeps its particles — see `./particles`. A plume that stops being
+   * listed is retired and its last sparks are allowed to finish.
+   */
+  particleEmitters?: readonly ParticleEmitterSpec[];
 };
 
 /** Silhouette outline around one placed tile, drawn over the finished frame. */
@@ -529,6 +572,25 @@ export class WorldRenderer {
   private raf = 0;
   private palettePass = new PalettePass();
   private profiler: FrameProfiler | null = null;
+  /**
+   * The plumes, and every spark in the air. Built in the constructor because it
+   * owns GPU buffers sized once — see `./particleLayer`.
+   */
+  private particles: ParticleLayer;
+  /**
+   * Placements currently wearing a tint, and what it takes to take one off.
+   *
+   * The texture and level are held rather than re-derived, because taking a tint
+   * off is `materialFor(sameTexture, sameLevel, null)` and the instance key does
+   * not carry either. The mesh is held so a placement whose level was rebuilt
+   * under it can be recognised: the rebuilt mesh is already untinted, and
+   * restoring a material onto a mesh that no longer exists is a no-op worth not
+   * doing.
+   */
+  private tintedMeshes = new Map<
+    string,
+    { mesh: THREE.Mesh; texture: THREE.Texture; z: number; tintKey: string }
+  >();
 
   constructor(canvas: HTMLCanvasElement) {
     this.canvas = canvas;
@@ -573,6 +635,18 @@ export class WorldRenderer {
     this.whiteTex.minFilter = THREE.LinearFilter;
     this.whiteTex.generateMipmaps = false;
     this.whiteTex.needsUpdate = true;
+
+    // Last, because `ensureLightUniforms` needs `whiteTex` to exist.
+    // Per level, because a lit spark has to be lit by the room it is in — see
+    // `ParticleLayer`. Bound rather than passed once, so a plume on a storey
+    // nobody has visited yet still gets that storey's light map.
+    this.particles = new ParticleLayer((z) => this.ensureLightUniforms(z));
+    this.world.add(this.particles.mesh);
+    // Once, and never again: particle positions are baked into the vertices, so
+    // the mesh's own matrix is the identity for its whole life. The scene does
+    // not update matrices itself (see above), so without this the mesh keeps an
+    // identity `matrixWorld` it was never given.
+    this.particles.mesh.updateMatrixWorld(true);
 
     this.bindResize();
   }
@@ -630,12 +704,22 @@ export class WorldRenderer {
     }
     // After applyMap, so a mesh rebuilt this frame is in the registry to be
     // reached; before nothing, since a swap only touches its own quad.
-    this.time("state", () => this.applySpriteStates(view.spriteStates));
+    this.time("state", () => {
+      this.applySpriteStates(view.spriteStates);
+      // Beside the states, and after them, because both answer "what does this
+      // placement look like right now" and a state change rebuilds the very
+      // mesh a tint is worn by.
+      this.applySpriteTints(view.spriteTints);
+    });
     this.time("motion", () => {
       this.applyTileMotions(view.tileMotions);
       // Beside the motions, because it is the same kind of work at the same
       // point in the frame: something that is not where the map says it is.
       this.applyProjectiles(view.projectiles);
+      // The plumes are only *reconciled* here. Advancing them is `tick`'s job,
+      // because a plume moves with the clock rather than with the world: a
+      // frame in which nothing at all changed still has sparks in it.
+      this.particles.setEmitters(view.particleEmitters ?? EMPTY_EMITTERS);
     });
     this.needsRender = true;
   }
@@ -854,6 +938,13 @@ export class WorldRenderer {
     // light bake reads the same clock, and an emitter can sit outside the built
     // geometry while its light still reaches inside the window.
     this.animClock += dt;
+    // Before the animation check, for the reason the pulse is: a plume is a
+    // thing that moves while the world is perfectly still, which is exactly the
+    // case `updateAnimations` reports nothing to do in.
+    if (this.particles.active) {
+      this.particles.update(dt, this.hideLevelsAbove);
+      this.needsRender = true;
+    }
     if (!this.updateAnimations()) return;
     this.needsRender = true;
   }
@@ -938,6 +1029,8 @@ export class WorldRenderer {
     this.stop();
     this.resizeObserver?.disconnect();
     this.palettePass.dispose();
+    this.particles.dispose();
+    this.tintedMeshes.clear();
     disposeGroupChildren(this.overlays);
     disposeGroupChildren(this.projectileGroup);
     this.projectileMeshes.clear();
@@ -1314,17 +1407,33 @@ export class WorldRenderer {
     return u;
   }
 
-  private materialFor(texture: THREE.Texture, z: number): THREE.MeshBasicMaterial {
-    const key = `${texture.uuid}:${z}`;
+  /**
+   * The material for a texture on a level, optionally wearing a status's colour.
+   *
+   * Cached on all three, because a tint is a property of the *material* rather
+   * than of the geometry — see `./spriteTint` for why it is a uniform and what
+   * that costs. The cache therefore grows by one entry per (sheet, level, tint)
+   * actually seen, and the tint population is the authored status catalogue, so
+   * in practice it grows by a handful and then stops.
+   */
+  private materialFor(
+    texture: THREE.Texture,
+    z: number,
+    tint: StatusTint | null = null,
+  ): THREE.MeshBasicMaterial {
+    const key = `${texture.uuid}:${z}:${tintCacheKey(tint)}`;
     let mat = this.materials.get(key);
     if (!mat) {
       const lightUniforms = this.ensureLightUniforms(z);
+      // Resolved once, here, rather than per frame: the uniforms are the tint,
+      // so a material that has one never needs telling about it again.
+      const tintU = tint && tint.strength > 0 ? tintUniforms(tint) : noTintUniforms();
       mat = new THREE.MeshBasicMaterial({
         map: texture,
         side: THREE.DoubleSide,
       });
       mat.onBeforeCompile = (shader) => {
-        injectWorldShader(shader, lightUniforms);
+        injectWorldShader(shader, lightUniforms, tintU);
       };
       mat.customProgramCacheKey = () => WORLD_SHADER_CACHE_KEY;
       this.materials.set(key, mat);
@@ -1515,13 +1624,23 @@ export class WorldRenderer {
 
   private rebuildAll(map: MapFile) {
     this.clearMotionGhosts();
-    // Every level group, and deliberately not the arrows: a map edit is not a
-    // reason for a shot already in the air to vanish, and the group's contents
-    // are keyed by flight rather than by cell so there is nothing in it a
-    // rebuilt board could invalidate. It is also the only child of `world` that
-    // this function does not own. @see projectileGroup
+    // Every level group, and deliberately not the arrows or the plumes: a map
+    // edit is not a reason for a shot already in the air to vanish, nor for a
+    // fire to go out. Neither is keyed by cell — an arrow is keyed by flight and
+    // a particle by nothing at all — so there is nothing in either that a
+    // rebuilt board could invalidate.
+    //
+    // **Anything parented to `world` that this function does not own has to be
+    // named here**, and the failure when it is not is total rather than subtle:
+    // the child is removed *and disposed*, so its geometry is freed underneath a
+    // renderer that goes on thinking it is drawing. The particle mesh is built
+    // once in the constructor and the first map build ate it, which looked
+    // exactly like a particle system that had never been wired up at all.
+    // @see projectileGroup
     for (const child of [...this.world.children]) {
-      if (child === this.projectileGroup) continue;
+      if (child === this.projectileGroup || child === this.particles.mesh) {
+        continue;
+      }
       this.world.remove(child);
       disposeObject3D(child);
     }
@@ -1981,6 +2100,54 @@ export class WorldRenderer {
    * `base` — the same constraint the animation path has always had between the
    * frames of one sprite, applied one level up. See `validateStateFootprints`.
    */
+  /**
+   * Put each placement in the colour its statuses say it is wearing, and take
+   * the colour off anything that has stopped wearing one.
+   *
+   * Reaches only placements with their own mesh, which is every actor — see
+   * {@link WorldView.spriteTints}. A key naming a merged tile finds nothing in
+   * {@link movableMeshes} and is dropped; that is the documented limit rather
+   * than a miss, and it is why the status editor draws its subject as a mesh of
+   * its own.
+   *
+   * The whole pass is skipped on the overwhelmingly common frame where nobody is
+   * tinted and nobody was tinted last frame, which is every frame of a world
+   * where nothing has been poisoned.
+   */
+  private applySpriteTints(tints: ReadonlyMap<string, StatusTint> | undefined) {
+    if (!tints?.size && this.tintedMeshes.size === 0) return;
+
+    for (const [key, worn] of this.tintedMeshes) {
+      if (tints?.has(key)) continue;
+      // A level rebuilt under a tinted placement hands back a fresh, untinted
+      // mesh, and the one held here is off the graph. Restoring onto it would
+      // write to a mesh nobody draws.
+      if (this.movableMeshes.get(key) === worn.mesh) {
+        worn.mesh.material = this.materialFor(worn.texture, worn.z, null);
+      }
+      this.tintedMeshes.delete(key);
+    }
+
+    for (const [key, tint] of tints ?? EMPTY_TINTS) {
+      const mesh = this.movableMeshes.get(key);
+      if (!mesh) continue;
+      const tintKey = tintCacheKey(tint);
+      const held = this.tintedMeshes.get(key);
+      // Nothing to do for a placement already wearing this exact colour on this
+      // exact mesh, which is every frame after the first. It is not merely a
+      // saving: `materialFor` marks the material it hands back as needing an
+      // update, and doing that per frame asks the driver to revisit the program
+      // sixty times a second for a uniform that has not moved.
+      if (held && held.mesh === mesh && held.tintKey === tintKey) continue;
+
+      const texture = held?.texture ?? (mesh.material as THREE.MeshBasicMaterial).map;
+      if (!texture) continue;
+      const z = tileInstanceLevel(key);
+      mesh.material = this.materialFor(texture, z, tint);
+      this.tintedMeshes.set(key, { mesh, texture, z, tintKey });
+    }
+  }
+
   private applySpriteStates(states: ReadonlyMap<string, SpriteState> | undefined) {
     if (this.animated.length === 0) return;
     let swapped = false;

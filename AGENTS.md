@@ -1584,6 +1584,183 @@ Every change to map data (`MapFile` / placed tiles) **must** go through `useEdit
 - Paint drags use `beginStroke` → `commitMap(next, { coalesceInStroke: true })` → `endStroke` so the whole drag is one undo step.
 - If you add a new map-editing path, wire it through `commitMap` and confirm ⌘Z undoes it before considering the work done.
 
+## A status is drawn twice: on the body, and over the tile
+
+`app/lib/statusVfx.ts` is the vocabulary — a tint and an emitter — and it is a
+fourth file rather than more of `app/lib/status.ts` because **the simulation
+never reads it**. A status's numbers are the server's business; what it looks
+like is not on the wire, is not ticked, and cannot kill anybody. Keeping the two
+in separate files is what stops an effect quietly growing a consequence.
+
+Everything below is **client-side and deliberately amnesiac**. Particles are
+simulated by whoever is watching, from their own frame clock and their own dice
+(`app/render/particles.ts` — the one place in this codebase that does *not* roll
+on the world's seeded generator, on purpose: a per-frame per-spark consumer in
+front of the simulation's rolls would desync two otherwise identical clients).
+Walking off screen and back starts a new plume rather than resuming one. That is
+the whole reason it can cost what it costs.
+
+### The tint is a uniform, so only a separately-meshed tile can wear one
+
+`app/render/spriteTint.ts` mixes in OKLab — an even mix looks even, and pulling
+the lightness back out (`keepLuma`) leaves the artist's shading intact, which is
+what makes the strong case a *palette swap* rather than fog.
+
+It is a **uniform and not a vertex attribute**, because almost nothing is ever
+tinted: an attribute would be four floats per vertex of a map-sized buffer to
+carry zero. The price is a material per tint, and the consequence worth knowing
+before you reach for this: `WorldRenderer.applySpriteTints` can only reach
+placements in `movableMeshes`. That is every actor, because a tile that can move
+gets its own mesh. **A bush cannot be tinted yet** — it is merged into its
+floor's batch, and tinting that material would tint the ground. The status
+editor draws its subject as its own mesh, so a bush on fire can be designed
+before it can be lit.
+
+### A spark either lights itself or is lit by the room, per emitter
+
+`StatusParticles.lit` decides, and the default is **off** — a spark is usually
+its own light source, and dimming a fire's embers with the light of the cellar
+it is in gets it backwards. Turn it on for anything that is merely matter:
+smoke, gas, the bubbles off a poisoned body. That case is the reason it exists —
+a plume that stayed bright in an unlit room is a poisoned enemy you can track
+through the dark.
+
+Lighting it costs a per-particle light sample and, more importantly, **puts the
+plume in its level's draw group**. The light map is bound per level, so
+`ParticleLayer` buckets live particles by level, writes one geometry group per
+level and hands the mesh an array of per-level materials. Usually that is one
+group: every plume on screen is normally on the storey the player is standing on.
+
+Two traps in that machinery, both of which draw *nothing at all* rather than
+degrading:
+
+- **Groups are intersected with `drawRange`, not a replacement for it.** A
+  geometry pinned to `setDrawRange(0, 0)` draws nothing however many groups it
+  carries. The range stays wide open; the groups bound the draw, and
+  `mesh.visible` covers the frame with no particles.
+- **A particle samples the light map at its cell's *integer* coordinate.** A
+  texel centre sits at the cell coordinate (see `uLightOrigin`), so a fractional
+  position lands on a texel boundary and a nearest sample picks a neighbour at
+  random. `aLightScale` stays zero — a particle is smaller than the cell lighting
+  it, so there is no gradient to walk.
+
+`app/render/particleLayer.test.ts` asserts all of this against the buffers,
+because none of it has a visible failure mode short of looking at the screen.
+
+### A status can cast light, and it rides the road a torch already travels
+
+`StatusVfx.light` is a `LightDef` — the same shape a frame's light is — and it
+reaches the world as one more entry on the `EmitterOverride` that
+`emitterOverridesFor` already paints for every actor every frame. Nothing about
+the *static* bake changes: the overlay is add-only, so this is one more light in
+a list that is already being walked. Measured at 120fps with a lit burn running,
+worst frame inside budget.
+
+The one thing it must never become is a **flicker**. `emitterOverridesKey` has
+the lights in it, so a light that changed per frame would miss the overlay cache
+every frame and rebake the window. A status light is therefore steady by
+construction — there is no phase on it, and there should not be one without
+reading the flicker note above first.
+
+### A plume sorts as a two-high tile on top of the affected stack
+
+Not per particle. Every spark of one emitter carries the same depth box, so a
+particle that has drifted a cell away still sorts where the fire is. Boxes
+derived per particle would have sparks crossing the sprite's own depth as they
+rose, and a fire that flickers *behind* the thing on fire reads as a bug.
+
+Opacity is legal here for one reason: particles are blended into the scene
+target **before** `app/render/palettePass.ts` quantises, so a half-faded spark is
+composited and then snapped, and what lands on the canvas is a solid palette
+entry. Fading *after* the quantise — which is what the editor's level fade does —
+puts colours on screen that are not in the palette.
+
+### Anything parented to `world` that a map rebuild does not own must be named
+
+`WorldRenderer.rebuildAll` sweeps every child of `this.world`, removes it **and
+disposes it**. The exemption list is currently the projectile group and the
+particle mesh. Forgetting to add something there does not degrade gracefully: the
+geometry is freed underneath a renderer that goes on thinking it is drawing, so
+the feature looks like it was never wired up at all. That is exactly how the
+particle layer failed on its first run.
+
+### A status winds down, and one scalar does all of it
+
+`StatusVfx.taperMs` is **milliseconds of remaining lifetime**, not a share of the
+whole, and that is the point: a poison stacked to ten minutes and one that rolled
+ten seconds should both fade over their final few seconds. A fraction would give
+the stacked one a two-and-a-half-minute sunset. Zero means never, which is how
+every status behaved before this existed.
+
+`taperAt` turns what is left into one scalar, and everything the status draws is
+multiplied by it — emission rate, particle size, tint strength, cast-light
+intensity. One scalar rather than four because "this is nearly over" is one fact,
+and halves that faded at different rates would read as a bug.
+
+Two things about it are load-bearing:
+
+- **It is quantised to `TAPER_STEPS`.** Not smoothing — a bound on two caches. A
+  tint is baked into a material keyed by its strength, and a cast light rides a
+  cache key with its intensity in it, so a continuously varying taper would
+  compile a material a frame. Sixteen steps caps both.
+- **A particle keeps the taper it was born under.** Read live, every spark in the
+  air would visibly shrink each time the status ticked down. Frozen at birth, the
+  plume emits fewer and smaller sparks while the ones already flying finish the
+  size they started — which is what a fire dying down looks like.
+
+The figure driving it is smoothed by `app/render/statusTaper.ts`, because online
+a status's remaining time arrives about **once a second**: the server compares at
+whole-second grain (`statusReading`) and only sends when that changes, which is
+right for a countdown badge and far too coarse for a fade. The clock is carried
+forward locally between messages and re-anchored by each one. Two rules there,
+both tested: compare the snapshot against the **last snapshot** rather than
+against the carried value (or it re-anchors every frame and smooths nothing), and
+age each clock once per frame however many passes read it — the tint pass and the
+light pass both do.
+
+### Other bodies get the status ids, and no countdown
+
+`app/net/protocol.ts` sends statuses to one socket, addressed to that viewer,
+and deliberately keeps them out of the tick patch — a patch is diffed and
+serialized once for everybody, and folding per-body statuses in would turn one
+serialization per tick into one per player. That was written when nothing drew
+another body's statuses.
+
+That reasoning holds for `StatusPatch`, which is why it is still per-socket. It
+does **not** hold for the ids: `StatusIdsPatch` broadcasts which statuses each
+body is under, keyed by actor, and that is the *same bytes for everybody* — one
+diff, one serialization, an empty array on almost every tick. It is diffed by
+`GameServer.diffStatusIds` on exactly the terms `diffCarriedLights` is, and sent
+in full on `hello` so a joiner sees a rat that is already on fire.
+
+**The countdown is deliberately not broadcast.** A remaining time is a
+per-second message per body that only a wind-down would read, so every remote
+instance is built with `UNKNOWN_REMAINING_MS` (`Infinity`), which falls through
+`taperAt` as "not winding down" with no special case. The consequence, stated
+plainly: **somebody else's poison burns at full strength until it ends.** Your
+own tapers, because your own countdown is on the wire in full. A local
+`GameSession` (`/play`, `/arena`) has neither limit — every actor's statuses are
+on its snapshots at tick rate.
+
+`diffStatusIds` is not `drainStatusChanges`. That queue is drained to send a
+viewer their own countdown; reading it in the broadcast would take the message
+out of their mouth.
+
+### Seeing one without earning it
+
+`/status <id|clear> [player]` and `/health <n|+n|-n> [player]` are admin
+commands (`app/game/commands.ts`), typed where speech goes. Every real route to
+a status is something that happens to you — eating, stepping into a flame, being
+bitten — which is right for a game and useless for tuning what one looks like.
+Both go through the same functions the world does: `grantStatus` rolls a real
+duration, and a negative health shift goes through `applyDamage` so it shows its
+number, tells the brains and can kill. Nobody is checked; see the note at the top
+of that file.
+
+Worth knowing while tuning: a burn is genuinely lethal at authored values, so
+`/mastery toughness 100` and `/health +999` are what keep a body standing long
+enough to look at one.
+
 ## Renderer and simulation performance
 
 The game targets **120fps — an 8.3ms frame budget**, and the whole budget is
