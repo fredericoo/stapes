@@ -18,8 +18,14 @@ import {
   type StatusGrant,
   resolveConsumable,
 } from "../lib/item";
-import type { Coord, Direction, MapFile, TileDef } from "../lib/types";
-import { MIN_LEVEL } from "../lib/types";
+import type {
+  Coord,
+  Direction,
+  MapFile,
+  PlacedTile,
+  TileDef,
+} from "../lib/types";
+import { MIN_LEVEL, isDirectional, resolveActor } from "../lib/types";
 import {
   canPlace,
   canReplaceStack,
@@ -29,6 +35,7 @@ import {
   actorDirection,
   adoptAuthoredPlayer,
   adoptBodyAt,
+  DEFAULT_FACING,
   listResidentBodies,
   residentHome,
   residentOwnerId,
@@ -69,8 +76,16 @@ import {
   masteryNotice,
   otherMasteryNotice,
   rewardNotice,
+  tileNotice,
 } from "./notices";
-import { parseCommand } from "./commands";
+import {
+  MASTERY_COMMAND,
+  parseCommand,
+  resolveCell,
+  type CommandRefusal,
+  type MasteryCommand,
+  type TileCommand,
+} from "./commands";
 import { findEntryCell } from "./entry";
 import {
   BRAIN_TICK_MS,
@@ -4132,13 +4147,36 @@ export class GameSession implements PlaySession {
    *
    * **The command's one entry point, and the only place the world is changed by
    * words.** Everything ahead of it is grammar (`./commands`) and everything
-   * behind it is prose (`./notices`); what is left here is the two questions
-   * only a session can answer — is there a body by that name, and does it learn.
+   * behind it is prose (`./notices`); what is left is the questions only a
+   * session can answer — is there a body by that name, does it learn, does the
+   * catalogue hold that tile, and is there room for it.
    *
-   * **Nobody is checked.** Any player may set any mastery on anybody, which is
-   * deliberate and temporary; see the note at the top of `./commands`. When that
-   * changes, this is the method that grows the gate — one place, ahead of the
-   * work, because a command is a request until something acts on it.
+   * **Nobody is checked.** Any player may set any mastery on anybody and call
+   * anything into the world, which is deliberate and temporary; see the note at
+   * the top of `./commands`. When that changes, this is the method that grows
+   * the gate — one place, ahead of the work, because a command is a request
+   * until something acts on it.
+   */
+  runCommand(raw: string, id: string = LOCAL_ACTOR_ID) {
+    const parsed = parseCommand(raw);
+    if (!parsed.ok) {
+      this.say(id, commandRefusalNotice(parsed.refusal));
+      return;
+    }
+
+    // Each command answers with a refusal or with nothing, and the sentence is
+    // said in one place. The alternative — every arm saying its own — is how a
+    // command comes to refuse silently: the return is the only thing that
+    // reminds you there was something left to tell them.
+    const refusal =
+      parsed.command.name === MASTERY_COMMAND
+        ? this.runMasteryCommand(parsed.command, id)
+        : this.runTileCommand(parsed.command, id);
+    if (refusal) this.say(id, commandRefusalNotice(refusal));
+  }
+
+  /**
+   * Put one mastery on one body, whoever asked.
    *
    * The target hears what *their* mastery now reads and the author hears what
    * they did, which are two sentences because they are two facts. When they are
@@ -4151,43 +4189,133 @@ export class GameSession implements PlaySession {
    * here — the gate exists to stop a genuinely empty block sticking, and an
    * admin command is not the reason to weaken it.
    */
-  runCommand(raw: string, id: string = LOCAL_ACTOR_ID) {
-    const parsed = parseCommand(raw);
-    if (!parsed.ok) {
-      this.say(id, commandRefusalNotice(parsed.refusal));
-      return;
-    }
-
-    const { mastery, level, target } = parsed.command;
+  private runMasteryCommand(
+    command: MasteryCommand,
+    id: string,
+  ): CommandRefusal | null {
+    const { mastery, level, target } = command;
     const targetId = target ?? id;
     const actor = this.actors.get(targetId);
-    if (!actor) {
-      this.say(
-        id,
-        commandRefusalNotice({ kind: "noSuchTarget", typed: targetId }),
-      );
-      return;
-    }
+    if (!actor) return { kind: "noSuchTarget", typed: targetId };
 
     if (!this.setMastery(actor, mastery, level)) {
-      this.say(
-        id,
-        commandRefusalNotice({
-          kind: "unteachableTarget",
-          // Their tile's name for a creature and their handle for a person,
-          // through the one function that decides what a body is called.
-          name: this.bodyName(targetId) ?? targetId,
-        }),
-      );
-      return;
+      return {
+        kind: "unteachableTarget",
+        // Their tile's name for a creature and their handle for a person,
+        // through the one function that decides what a body is called.
+        name: this.bodyName(targetId) ?? targetId,
+      };
     }
 
     this.say(actor.id, masteryNotice(mastery, level));
-    if (actor.id === id) return;
-    this.say(
-      id,
-      otherMasteryNotice(this.bodyName(actor.id) ?? actor.id, mastery, level),
-    );
+    if (actor.id !== id) {
+      this.say(
+        id,
+        otherMasteryNotice(this.bodyName(actor.id) ?? actor.id, mastery, level),
+      );
+    }
+    return null;
+  }
+
+  /**
+   * Call a tile into the world, wherever the summoner pointed.
+   *
+   * **Any tile in the catalogue, on the same terms the editor places one.**
+   * `canPlace` is the editor's own fit check and it is asked here for the
+   * reason it is asked there — a stack that would overflow two levels is not a
+   * thing the world can hold, and a command that wrote one anyway would leave a
+   * cell no renderer or gravity pass agrees about.
+   *
+   * **A cell of your own lands underfoot, not overhead.** Typing `/tile apple`
+   * while standing somewhere means an apple at your feet; appending it to the
+   * top of your stack — the obvious reading of "put it here" — balances it on
+   * your head instead, riding you around the map. The same rule holds however
+   * the cell was named, so `+0 +0 +0` and no coordinates at all do not quietly
+   * differ. Somebody *else's* stack is not special-cased: an admin dropping a
+   * crate on a rat asked for exactly that.
+   *
+   * A summoned body is adopted here rather than left to the load-time sweep,
+   * which is the same trade `respawnAt` makes: placing the tile is the whole of
+   * putting a creature in the world, and the sweep only exists because an
+   * authored map arrives with its residents already on the board.
+   */
+  private runTileCommand(
+    command: TileCommand,
+    id: string,
+  ): CommandRefusal | null {
+    const actor = this.actors.get(id);
+    const from = actor ? this.tryLocate(actor) : null;
+    // Refused even for three absolute coordinates, which need no origin: a
+    // command is something a body in the world does, and there is no body here.
+    if (!from) return { kind: "nowhereToPlace" };
+
+    const def = this.tilesById[command.tileId];
+    if (!def) return { kind: "unknownTile", typed: command.tileId };
+    // A map is allowed exactly one — see `requireSinglePlayer`, which throws
+    // rather than choosing — so a second one is a world that cannot be opened
+    // again. The one tile worth refusing, and refused ahead of the fit check so
+    // the answer does not depend on where you were standing.
+    if (def.id === PLAYER_TILE_ID) {
+      return { kind: "spawnMarkerTile", typed: command.tileId };
+    }
+
+    const at = resolveCell(command.at, from);
+    if (!canPlace(this.map, at.x, at.y, at.z, def, this.tilesById).ok) {
+      return { kind: "noRoom", at };
+    }
+
+    const stack = getStack(this.map, at.x, at.y, at.z);
+    const underfoot = at.x === from.x && at.y === from.y && at.z === from.z;
+    const stackIndex = underfoot ? from.stackIndex : stack.length;
+    const placed: PlacedTile = {
+      tileId: def.id,
+      // The editor's rule for an armed tile, so a lamp post summoned into the
+      // world faces the way one stamped into it does.
+      ...(isDirectional(def) ? { direction: DEFAULT_FACING } : {}),
+      // A summoned item is a new item, on the terms a respawned one is: minted
+      // here rather than left to the load sweep, because nothing between now
+      // and the next load would give it one.
+      ...(isItem(def) ? { itemId: mintItemId() } : {}),
+      ...(resolveActor(def)
+        ? { owner: this.summonedOwnerId({ ...at, stackIndex }) }
+        : {}),
+    };
+
+    const next = [...stack];
+    next.splice(stackIndex, 0, placed);
+    this.map = replaceStack(this.map, at.x, at.y, at.z, next);
+
+    if (placed.owner) {
+      this.addActor(placed.owner, { resident: true, bodyTileId: def.id });
+    }
+    // What arrived may be a plate, may be wired, and is very likely subject to
+    // gravity — the same three indexes a respawn rebuilds, for the same reason.
+    this.reindexCells([at]);
+    this.settleBoardNow();
+    this.say(id, tileNotice(def.name, at));
+    return null;
+  }
+
+  /**
+   * A name for a body somebody summoned.
+   *
+   * The authored scheme first ({@link residentOwnerId}), so a called creature
+   * knows the cell it was called into as its home in exactly the way a placed
+   * one does — that name *is* the cell and slot, and it is the whole of how a
+   * brain answers "where do I belong".
+   *
+   * Which is also why it can collide: the name stops describing where a body
+   * *is* the moment it walks off, leaving its slot free to be named a second
+   * time. Two bodies under one owner is the one shape nothing recovers from —
+   * `despawn` removes a single tile, so the other stands there forever, driven
+   * by a runtime that has been replaced out from under it. So a taken name
+   * falls back to a unique one, and the body wearing it is simply homeless:
+   * `residentHome` answers "nowhere" for any name it did not mint, which is
+   * already a case brains handle.
+   */
+  private summonedOwnerId(at: Coord & { stackIndex: number }): string {
+    const home = residentOwnerId(at);
+    return this.actors.has(home) ? `${home},${crypto.randomUUID()}` : home;
   }
 
   /**

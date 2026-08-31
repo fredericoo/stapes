@@ -1853,8 +1853,9 @@ export class GameServer {
       // Nothing is checked here beyond the schema, and nothing about the sender
       // either: every command in the game is an admin command with no admin —
       // see `app/game/commands`. The flushes below are why this sits in the
-      // chain rather than returning early like `say` does: a command's whole
-      // output is a notice and a mastery block, and both go out on that tail.
+      // chain rather than returning early like `say` does: a command answers
+      // with a notice and, depending on the verb, a mastery block or a cell of
+      // the board — and all of them go out on that tail.
       session.runCommand(message.text, actorId);
     } else if (message.type === "drop") {
       // Range, sight and room in the stack, all re-asked. The client drew a

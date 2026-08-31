@@ -1228,15 +1228,17 @@ A line beginning with `/` is an instruction rather than something to say.
 `app/game/commands.ts` owns that one rule and the grammar behind it,
 `GameSession.runCommand` is the only place it changes anything, and
 `app/game/notices.ts` turns every refusal into the sentence the player reads.
-Today there is one command — `/mastery <mastery> <level> [player id]`, which
-sets a mastery on yourself or on anybody whose id you can name.
+Today there are two — `/mastery <mastery> <level> [player id]`, which sets a
+mastery on yourself or on anybody whose id you can name, and
+`/tile <tile> [x] [y] [z]`, which calls any tile in the catalogue into the
+world.
 
-- **Nobody is checked.** Any connected player may set any mastery on anybody.
-  That is deliberate and temporary: it is a world with no accounts and no
-  administrators yet, so a permissions model would be guessing at a shape that
-  does not exist. When it does, the gate goes in `runCommand`, ahead of the work
-  and after the parse — which is the reason a command is a *request* before
-  anything acts on it.
+- **Nobody is checked.** Any connected player may set any mastery on anybody and
+  put anything anywhere. That is deliberate and temporary: it is a world with no
+  accounts and no administrators yet, so a permissions model would be guessing
+  at a shape that does not exist. When it does, the gate goes in `runCommand`,
+  ahead of the work and after the parse — which is the reason a command is a
+  *request* before anything acts on it.
 - **The slash is sorted on the client**, in `RemoteSession.say`, which sends a
   `command` frame instead of a `say` one. Deciding it at the point of broadcast
   instead would put a rule about what a player *meant* in the middle of the
@@ -1254,6 +1256,38 @@ sets a mastery on yourself or on anybody whose id you can name.
 - **A body that does not learn is refused by name.** A creature's masteries are
   authored and there is no runtime block to write to, so `/mastery` on a deer
   says "Deer does not learn" rather than explaining the engine.
+
+### `/tile` puts anything anywhere, on the editor's own terms
+
+- **The sign is the whole of the coordinate grammar.** `3` is the third column
+  of the map and `+3` is three columns from where you are standing, per axis and
+  independently — so `/tile apple +0 -2 3` is "my column, two rows north, level
+  3". An unnamed axis is `+0`, which is what makes `/tile apple +1` mean "one
+  east of me, same row, same level" without a second shape for a partly-named
+  cell. The cost is that an *absolute* negative cannot be written: column -1 and
+  level -1 are reachable only by offset, which is what an admin standing in the
+  world types anyway.
+- **A cell of your own lands underfoot, not overhead.** Appending to the top of
+  your own stack — the obvious reading of "put it here" — balances the thing on
+  your head and carries it around the map. Somebody *else's* stack is not
+  special-cased: an admin dropping a crate on a rat asked for exactly that.
+- **`canPlace` is the editor's fit check, asked here for the editor's reason.**
+  A stack that would overflow two levels is not a thing the world can hold, and
+  a command that wrote one would leave a cell no renderer or gravity pass agrees
+  about. The refusal names the cell back, so the line that failed can be edited
+  into the one that works.
+- **Summoning a body adopts it on the spot**, rather than leaving it to the
+  load-time sweep — the same trade `respawnAt` makes. Placing the tile is the
+  whole of putting a creature in the world, and without the runtime it is
+  scenery shaped like a deer. Its owner id is the authored one
+  (`residentOwnerId`), so a called creature knows the cell it was called into as
+  its home; that name is the cell and slot, though, so it can already be taken
+  by a body that has since walked off, and a taken name falls back to a unique
+  one. Two bodies under one owner is the shape nothing recovers from — `despawn`
+  removes a single tile.
+- **The `player` tile is the one refusal that is about the file.** A map is
+  allowed exactly one, and `requireSinglePlayer` throws rather than choosing, so
+  a second one is a world that cannot be opened again.
 
 ## A reward happens to the player, not to the board
 

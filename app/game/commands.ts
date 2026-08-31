@@ -4,6 +4,7 @@ import {
   MIN_MASTERY,
   type Mastery,
 } from "../lib/mastery";
+import type { Coord } from "../lib/types";
 
 /**
  * Things typed into the chat field that are instructions rather than speech.
@@ -61,46 +62,104 @@ export function isCommand(text: string): boolean {
 }
 
 export const MASTERY_COMMAND = "mastery";
+export const TILE_COMMAND = "tile";
+
+/** Every verb this module knows, which is every verb there is. */
+export type CommandName = typeof MASTERY_COMMAND | typeof TILE_COMMAND;
 
 /**
- * How the mastery command is written, in one place.
+ * How each command is written, in one place.
  *
  * Shown back to whoever got it wrong, so it is the documentation as well as the
  * grammar — which is why it lives beside the parser that implements it rather
- * than in the sentence that quotes it.
+ * than in the sentence that quotes it. Keyed by verb rather than exported one
+ * constant at a time so that a refusal can carry *which* command was misspelt
+ * and the sentence can look up the line without a switch of its own.
  */
-export const MASTERY_COMMAND_USAGE = `${COMMAND_PREFIX}${MASTERY_COMMAND} <mastery> <${MIN_MASTERY}-${MAX_MASTERY}> [player id]`;
+export const COMMAND_USAGE: Record<CommandName, string> = {
+  [MASTERY_COMMAND]: `${COMMAND_PREFIX}${MASTERY_COMMAND} <mastery> <${MIN_MASTERY}-${MAX_MASTERY}> [player id]`,
+  [TILE_COMMAND]: `${COMMAND_PREFIX}${TILE_COMMAND} <tile> [x] [y] [z]`,
+};
+
+/**
+ * Where a command was pointed, before anything has looked at the board.
+ *
+ * A coordinate is *typed* one of two ways and the sign is the whole of the
+ * difference: `3` is the third column of the map and `+3` is three columns from
+ * wherever you are standing. Kept as the distinction the player made rather
+ * than resolved here, because resolving needs an origin and the parser has no
+ * business knowing where anybody is — see {@link resolveCell}, which is handed
+ * one.
+ *
+ * The cost of spelling it this way is that an *absolute* negative cannot be
+ * written: `-1` is a step back, so column -1 and level -1 are reachable only by
+ * offset. That is the trade the sign buys, and the offsets are what an admin
+ * standing in the world actually types.
+ */
+export type Coordinate =
+  | { kind: "absolute"; value: number }
+  | { kind: "relative"; offset: number };
+
+/** A cell named on all three axes, each independently absolute or relative. */
+export type CellRequest = {
+  x: Coordinate;
+  y: Coordinate;
+  z: Coordinate;
+};
 
 /**
  * A command that parsed, with everything it needs to be carried out.
  *
  * A request rather than an action: nothing here has looked at the world, so a
- * target is still only an id somebody typed. Whether anybody answers to it is
- * the session's question, and it is asked once, where the actors are.
+ * target is still only an id somebody typed and a tile is still only a key.
+ * Whether anybody answers to it — and whether the catalogue holds that tile —
+ * is the session's question, and it is asked once, where the world is.
  */
-export type Command = {
-  name: typeof MASTERY_COMMAND;
-  mastery: Mastery;
-  level: number;
-  /** Null for the body that typed it — either `self` or nothing at all. */
-  target: string | null;
-};
+export type Command =
+  | {
+      name: typeof MASTERY_COMMAND;
+      mastery: Mastery;
+      level: number;
+      /** Null for the body that typed it — either `self` or nothing at all. */
+      target: string | null;
+    }
+  | {
+      name: typeof TILE_COMMAND;
+      /**
+       * The key of the tile to put down, lowercased.
+       *
+       * Not checked against anything: the catalogue is world data the parser
+       * has never been handed, so "there is no tile called that" is a sentence
+       * only the session is in a position to say.
+       */
+      tileId: string;
+      at: CellRequest;
+    };
+
+export type MasteryCommand = Extract<Command, { name: typeof MASTERY_COMMAND }>;
+export type TileCommand = Extract<Command, { name: typeof TILE_COMMAND }>;
 
 /**
  * Why a command did not happen.
  *
- * Both halves of the journey are in one union: the first three come out of the
- * parser and the last two out of the session, because "that is not a mastery"
- * and "nobody by that name is here" are the same kind of answer to the player
- * and differ only in which module was in a position to notice.
+ * Both halves of the journey are in one union: the parser's failures and the
+ * session's sit together, because "that is not a mastery" and "nobody by that
+ * name is here" are the same kind of answer to the player and differ only in
+ * which module was in a position to notice.
  */
 export type CommandRefusal =
   | { kind: "unknownCommand"; typed: string }
-  | { kind: "badArguments" }
+  | { kind: "badArguments"; command: CommandName }
   | { kind: "unknownMastery"; typed: string }
   | { kind: "badLevel"; typed: string }
+  | { kind: "badCoordinate"; typed: string }
   | { kind: "noSuchTarget"; typed: string }
-  | { kind: "unteachableTarget"; name: string };
+  | { kind: "unteachableTarget"; name: string }
+  | { kind: "unknownTile"; typed: string }
+  | { kind: "spawnMarkerTile"; typed: string }
+  /** The summoner has no body, so there is no "here" to place anything near. */
+  | { kind: "nowhereToPlace" }
+  | { kind: "noRoom"; at: Coord };
 
 export type CommandParse =
   | { ok: true; command: Command }
@@ -119,6 +178,9 @@ export type CommandParse =
  *
  * Whitespace is collapsed rather than counted, so a double space between
  * arguments is not a syntax error. Nobody typing into a game meant it.
+ *
+ * The verb is read here and its arguments nowhere near here, so that adding a
+ * command is a function rather than another arm of a growing branch.
  */
 export function parseCommand(raw: string): CommandParse {
   const body = raw.slice(0, MAX_COMMAND_LENGTH).trim();
@@ -129,17 +191,33 @@ export function parseCommand(raw: string): CommandParse {
   const [verb = "", ...args] = body.slice(COMMAND_PREFIX.length).split(/\s+/);
   // Lowercased because a command is typed, not aimed: "/Mastery" at the start of
   // a sentence is the phone's doing rather than the player's.
-  if (verb.toLowerCase() !== MASTERY_COMMAND) {
-    return {
-      ok: false,
-      refusal: { kind: "unknownCommand", typed: `${COMMAND_PREFIX}${verb}` },
-    };
+  switch (verb.toLowerCase()) {
+    case MASTERY_COMMAND:
+      return parseMasteryArguments(args);
+    case TILE_COMMAND:
+      return parseTileArguments(args);
+    default:
+      return {
+        ok: false,
+        refusal: { kind: "unknownCommand", typed: `${COMMAND_PREFIX}${verb}` },
+      };
   }
+}
 
+const MIN_MASTERY_ARGUMENTS = 2;
+const MAX_MASTERY_ARGUMENTS = 3;
+
+function parseMasteryArguments(args: string[]): CommandParse {
   // The target is the one optional argument, so anything past it is a typo
   // rather than a command with something extra on the end.
-  if (args.length < 2 || args.length > 3) {
-    return { ok: false, refusal: { kind: "badArguments" } };
+  if (
+    args.length < MIN_MASTERY_ARGUMENTS ||
+    args.length > MAX_MASTERY_ARGUMENTS
+  ) {
+    return {
+      ok: false,
+      refusal: { kind: "badArguments", command: MASTERY_COMMAND },
+    };
   }
 
   const [masteryToken, levelToken, targetToken] = args;
@@ -170,4 +248,100 @@ export function parseCommand(raw: string): CommandParse {
     ok: true,
     command: { name: MASTERY_COMMAND, mastery, level, target },
   };
+}
+
+/** One axis per coordinate, and there are three axes. */
+const MAX_TILE_COORDINATES = 3;
+
+/**
+ * The coordinate an axis takes when nobody named it: wherever the summoner is.
+ *
+ * Which is what makes `/tile apple +1` mean "one east of me, same row, same
+ * level" without the grammar having a second shape for a partly-named cell.
+ */
+const HERE: Coordinate = { kind: "relative", offset: 0 };
+
+/**
+ * A tile to put down, and up to three coordinates saying where.
+ *
+ * Naming no coordinates at all is the common case and means "here", which the
+ * session reads as *underfoot* rather than on top of the stack — see
+ * `GameSession.runTileCommand`. Nothing in the grammar says so, because where a
+ * thing lands in a stack is a fact about bodies standing in it.
+ */
+function parseTileArguments(args: string[]): CommandParse {
+  const [tileToken, ...coordinateTokens] = args;
+  if (
+    tileToken === undefined ||
+    coordinateTokens.length > MAX_TILE_COORDINATES
+  ) {
+    return {
+      ok: false,
+      refusal: { kind: "badArguments", command: TILE_COMMAND },
+    };
+  }
+
+  const coordinates: Coordinate[] = [];
+  for (const token of coordinateTokens) {
+    const coordinate = parseCoordinate(token);
+    if (!coordinate) {
+      return { ok: false, refusal: { kind: "badCoordinate", typed: token } };
+    }
+    coordinates.push(coordinate);
+  }
+
+  const [x = HERE, y = HERE, z = HERE] = coordinates;
+  return {
+    ok: true,
+    // Lowercased on the same grounds the verb is: tile keys are kebab-case and
+    // a phone capitalises the word after a space as readily as the first one.
+    command: {
+      name: TILE_COMMAND,
+      tileId: tileToken.toLowerCase(),
+      at: { x, y, z },
+    },
+  };
+}
+
+/**
+ * A whole number, with the sign — and only the sign — making it an offset.
+ *
+ * Anchored at both ends, so "1.5", "1e3" and "12px" are refused rather than
+ * read as twelve. The magnitude is bounded by what a number can represent
+ * exactly, because a coordinate that has already lost precision names a cell
+ * nobody typed.
+ */
+const COORDINATE_PATTERN = /^([+-]?)(\d+)$/;
+
+function parseCoordinate(token: string): Coordinate | null {
+  const match = COORDINATE_PATTERN.exec(token);
+  if (!match) return null;
+
+  const [, sign = "", digits = ""] = match;
+  const magnitude = Number(digits);
+  if (!Number.isSafeInteger(magnitude)) return null;
+  if (sign === "") return { kind: "absolute", value: magnitude };
+  return { kind: "relative", offset: sign === "-" ? -magnitude : magnitude };
+}
+
+/**
+ * The cell a request names, given where the body that typed it is standing.
+ *
+ * Here rather than in the session because it is the other half of the grammar:
+ * what `+1` *means* is settled in the file that decided `+1` was a thing anyone
+ * could type, and the session's business is only which body the origin comes
+ * from.
+ */
+export function resolveCell(at: CellRequest, from: Coord): Coord {
+  return {
+    x: resolveCoordinate(at.x, from.x),
+    y: resolveCoordinate(at.y, from.y),
+    z: resolveCoordinate(at.z, from.z),
+  };
+}
+
+function resolveCoordinate(coordinate: Coordinate, origin: number): number {
+  return coordinate.kind === "absolute"
+    ? coordinate.value
+    : origin + coordinate.offset;
 }

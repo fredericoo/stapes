@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { emptyMap, replaceStack } from "../lib/mapData";
+import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import { MASTERIES, xpForLevel } from "../lib/mastery";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
-import { MASTERY_COMMAND_USAGE, isCommand, parseCommand } from "./commands";
+import { COMMAND_USAGE, isCommand, parseCommand } from "./commands";
 import { displayNameFor } from "./displayName";
 import { GameSession } from "./GameSession";
 
@@ -78,17 +78,17 @@ describe("reading a typed line", () => {
   it("asks for the arguments it is short of, and the ones it is over", () => {
     expect(parseCommand("/mastery")).toEqual({
       ok: false,
-      refusal: { kind: "badArguments" },
+      refusal: { kind: "badArguments", command: "mastery" },
     });
     expect(parseCommand("/mastery blade")).toEqual({
       ok: false,
-      refusal: { kind: "badArguments" },
+      refusal: { kind: "badArguments", command: "mastery" },
     });
     // The target is the last argument there is, so a fifth word is a typo
     // rather than something to ignore.
     expect(parseCommand("/mastery blade 10 self please")).toEqual({
       ok: false,
-      refusal: { kind: "badArguments" },
+      refusal: { kind: "badArguments", command: "mastery" },
     });
   });
 
@@ -120,6 +120,93 @@ describe("reading a typed line", () => {
     // Both ends of the scale are levels, not edge cases.
     expect(parseCommand("/mastery blade 0")).toMatchObject({ ok: true });
     expect(parseCommand("/mastery blade 100")).toMatchObject({ ok: true });
+  });
+
+  it("reads a tile named with nowhere in particular as here", () => {
+    // Three relative zeroes rather than a fourth shape meaning "unset": the
+    // session resolves one kind of cell, and "here" is a cell like any other.
+    expect(parseCommand("/tile apple")).toEqual({
+      ok: true,
+      command: {
+        name: "tile",
+        tileId: "apple",
+        at: {
+          x: { kind: "relative", offset: 0 },
+          y: { kind: "relative", offset: 0 },
+          z: { kind: "relative", offset: 0 },
+        },
+      },
+    });
+  });
+
+  it("reads a sign as a step from where you stand", () => {
+    expect(parseCommand("/tile apple +1")).toMatchObject({
+      ok: true,
+      command: { at: { x: { kind: "relative", offset: 1 } } },
+    });
+    expect(parseCommand("/tile apple -1")).toMatchObject({
+      ok: true,
+      command: { at: { x: { kind: "relative", offset: -1 } } },
+    });
+  });
+
+  it("reads a bare number as a cell of the map", () => {
+    expect(parseCommand("/tile apple 0 0 0")).toMatchObject({
+      ok: true,
+      command: {
+        at: {
+          x: { kind: "absolute", value: 0 },
+          y: { kind: "absolute", value: 0 },
+          z: { kind: "absolute", value: 0 },
+        },
+      },
+    });
+  });
+
+  it("lets the axes disagree about which kind they are", () => {
+    // Each axis is read on its own, so "the column I am in, two rows north, on
+    // level 3" is one line rather than arithmetic done in the player's head.
+    expect(parseCommand("/tile apple +0 -2 3")).toMatchObject({
+      ok: true,
+      command: {
+        at: {
+          x: { kind: "relative", offset: 0 },
+          y: { kind: "relative", offset: -2 },
+          z: { kind: "absolute", value: 3 },
+        },
+      },
+    });
+  });
+
+  it("names the word that is not a coordinate", () => {
+    for (const typed of ["east", "1.5", "1e3", "12px", "++1"]) {
+      expect(parseCommand(`/tile apple ${typed}`)).toEqual({
+        ok: false,
+        refusal: { kind: "badCoordinate", typed },
+      });
+    }
+  });
+
+  it("asks for the arguments the tile command is short of, and over", () => {
+    expect(parseCommand("/tile")).toEqual({
+      ok: false,
+      refusal: { kind: "badArguments", command: "tile" },
+    });
+    // There are three axes, so a fourth number is a typo rather than something
+    // to ignore.
+    expect(parseCommand("/tile apple 1 2 3 4")).toEqual({
+      ok: false,
+      refusal: { kind: "badArguments", command: "tile" },
+    });
+  });
+
+  it("forgives capitals in a tile key too", () => {
+    // Tile keys are kebab-case, and a phone capitalises the word after a space
+    // as readily as the first one.
+    expect(parseCommand("/Tile Apple")).toMatchObject({
+      ok: true,
+      command: { tileId: "apple" },
+    });
   });
 });
 
@@ -168,6 +255,13 @@ const AUTHORED = { fist: 5, toughness: 5, agility: 5 };
 
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
+  tile({
+    id: "apple",
+    name: "Apple",
+    height: 0,
+    kind: "item",
+    interactions: { item: { type: "consumable", label: "Eat", hp: 1 } },
+  }),
   tile({
     id: "player",
     height: 2,
@@ -300,12 +394,166 @@ describe("what a command does to a body", () => {
     session.runCommand("/mastery blade", "me");
     // The one thing this whole feature is for: a command typed blind that does
     // nothing is indistinguishable from a command that never arrived.
-    expect(session.drainNotices("me")).toEqual([`Say ${MASTERY_COMMAND_USAGE}`]);
+    expect(session.drainNotices("me")).toEqual([
+      `Say ${COMMAND_USAGE.mastery}`,
+    ]);
   });
 
   it("says which word it did not understand", () => {
     const session = world();
     session.runCommand("/mastery blad 10", "me");
     expect(session.drainNotices("me")[0]).toContain('"blad"');
+  });
+});
+
+
+/**
+ * The same again for the tile command, where "did anything happen" is a
+ * question about the board rather than about a number on a body.
+ *
+ * The fixture is a five-by-five field of grass with the player standing on
+ * `0,0` and a deer on `1,0`, so every case below is one line from that: a cell
+ * of your own, a cell one step away, and a cell named outright.
+ */
+
+function stackAt(session: GameSession, x: number, y: number, z: number) {
+  return getStack(session.getMap(), x, y, z);
+}
+
+describe("what a command does to the board", () => {
+  it("puts a thing at your feet when you name nowhere", () => {
+    const session = world();
+    session.runCommand("/tile apple", "me");
+
+    // Under the body rather than on top of it: appending would balance the
+    // apple on the summoner's head and carry it around the map.
+    expect(stackAt(session, 0, 0, 0).map((placed) => placed.tileId)).toEqual([
+      "grass",
+      "apple",
+      "player",
+    ]);
+  });
+
+  it("reads your own cell as your feet however it was named", () => {
+    const session = world();
+    // The long spelling of "here". Landing somewhere else than `/tile apple`
+    // does would make the shorthand a different command.
+    session.runCommand("/tile apple +0 +0 +0", "me");
+    expect(stackAt(session, 0, 0, 0).map((placed) => placed.tileId)).toEqual([
+      "grass",
+      "apple",
+      "player",
+    ]);
+  });
+
+  it("gives a summoned item an identity", () => {
+    const session = world();
+    session.runCommand("/tile apple", "me");
+
+    // Minted here rather than left to the load sweep: nothing between now and
+    // the next load would hand it one, and an anonymous item is one the client
+    // cannot parse out of a container.
+    expect(stackAt(session, 0, 0, 0)[1]?.itemId).toMatch(/^itm_/);
+  });
+
+  it("steps east and west from where you stand", () => {
+    const session = world();
+    session.runCommand("/tile apple +1", "me");
+    session.runCommand("/tile apple -1", "me");
+
+    // Somebody else's cell is not special-cased — an admin putting an apple on
+    // a deer asked for exactly that — so this lands on top of the stack.
+    expect(stackAt(session, 1, 0, 0).map((placed) => placed.tileId)).toEqual([
+      "grass",
+      "deer",
+      "apple",
+    ]);
+    expect(stackAt(session, -1, 0, 0).map((placed) => placed.tileId)).toEqual([
+      "grass",
+      "apple",
+    ]);
+  });
+
+  it("takes a cell of the map when the sign is left off", () => {
+    const session = world();
+    session.runCommand("/tile apple 2 -2 0", "me");
+    expect(stackAt(session, 2, -2, 0).map((placed) => placed.tileId)).toEqual([
+      "grass",
+      "apple",
+    ]);
+  });
+
+  it("gives a summoned body somebody to drive it", () => {
+    const session = world();
+    const before = session.actorIds();
+    session.runCommand("/tile deer 0 1 0", "me");
+
+    // Placing the tile is the whole of putting a creature in the world, and
+    // this is what makes that true of a summoned one as well as an authored
+    // one: without the runtime it is scenery shaped like a deer.
+    const summoned = session
+      .actorIds()
+      .filter((id) => !before.includes(id));
+    expect(summoned).toEqual(["npc:0,1,0,1"]);
+    expect(session.isResident("npc:0,1,0,1")).toBe(true);
+    expect(stackAt(session, 0, 1, 0)[1]?.owner).toBe("npc:0,1,0,1");
+  });
+
+  it("never names two bodies the same thing", () => {
+    const session = world();
+    // The name is the cell and the slot, so it comes free the moment its body
+    // walks off. Taken here the short way rather than by waiting for a deer to
+    // wander: what matters is that the name is already spoken for.
+    session.spawn("npc:0,1,0,1");
+    session.runCommand("/tile deer 0 1 0", "me");
+
+    // Two bodies under one owner is the shape nothing recovers from: `despawn`
+    // removes a single tile, and the other would stand there for ever.
+    const owner = stackAt(session, 0, 1, 0)[1]?.owner;
+    expect(owner).not.toBe("npc:0,1,0,1");
+    expect(session.isResident(owner!)).toBe(true);
+  });
+
+  it("says what appeared and where", () => {
+    const session = world();
+    session.runCommand("/tile apple 2 -2 0", "me");
+
+    // Said even though the thing is on the board, because an absolute cell is
+    // very likely off screen — and because it is the only confirmation that a
+    // step went the way the player thought it did.
+    expect(session.drainNotices("me")).toEqual(["Apple appears at 2, -2, 0"]);
+  });
+
+  it("names the tile the catalogue does not have", () => {
+    const session = world();
+    session.runCommand("/tile aple", "me");
+    expect(session.drainNotices("me")).toEqual(['No tile called "aple"']);
+  });
+
+  it("refuses the tile that marks where the world starts", () => {
+    const session = world();
+    session.runCommand("/tile player", "me");
+
+    // A map is allowed exactly one, and a second is a world that cannot be
+    // opened again — see `requireSinglePlayer`, which throws rather than
+    // choosing.
+    expect(session.drainNotices("me")[0]).toContain("where the world starts");
+    expect(stackAt(session, 0, 0, 0)).toHaveLength(2);
+  });
+
+  it("says where nothing will fit", () => {
+    const session = world();
+    // Grass and a body already fill the level, and the deer is a whole unit
+    // tall. The editor's own fit check answers this, on the same terms.
+    session.runCommand("/tile deer", "me");
+
+    expect(session.drainNotices("me")).toEqual(["Nothing will fit at 0, 0, 0"]);
+    expect(stackAt(session, 0, 0, 0)).toHaveLength(2);
+  });
+
+  it("hands back the grammar when the line was not one", () => {
+    const session = world();
+    session.runCommand("/tile", "me");
+    expect(session.drainNotices("me")).toEqual([`Say ${COMMAND_USAGE.tile}`]);
   });
 });
