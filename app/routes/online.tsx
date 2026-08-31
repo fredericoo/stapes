@@ -8,6 +8,7 @@ import { GameViewport } from "../components/GameViewport";
 import { InkDocument } from "../components/InkDocument";
 import { LightingToggle } from "../components/LightingToggle";
 import { LoadingScreen } from "../components/LoadingScreen";
+import { WorldClock } from "../components/WorldClock";
 import { type Equipment, emptyEquipment } from "../game/equipment";
 import type { MasteryXp } from "../lib/mastery";
 import { bindKeyboard, HeldDirections } from "../game/heldDirections";
@@ -18,11 +19,7 @@ import {
 } from "../game/interactionOptions";
 import { activeStatuses, statusesById } from "../lib/status";
 import { useGameAssets } from "../lib/gameAssets";
-import {
-  DEFAULT_PLAY_MINUTES,
-  formatClock,
-  type MinutesOfDay,
-} from "../lib/clock";
+import { DEFAULT_PLAY_MINUTES, type MinutesOfDay } from "../lib/clock";
 import type { ObjectRef } from "../game/affordances";
 import type { OpenedContainer, SlotRef } from "../game/itemMoves";
 import type { Direction } from "../lib/types";
@@ -194,7 +191,7 @@ export default function OnlinePage() {
   );
 
   const [lightingEnabled, setLightingEnabled] = useState(true);
-  const { looking, attacking, setLookLatched, setAttacking } = usePlayModes();
+  const { mode, looking, attacking, setMode } = usePlayModes();
   // Same reason as the lighting ref below: a reconnect builds a fresh renderer,
   // and it has to come up in whatever mode the player is already in.
   const lookingRef = useRef(looking);
@@ -384,10 +381,10 @@ export default function OnlinePage() {
   }, [tiles, tilesets, socketPath, assetsReady]);
 
   // Held in a variable because it rides in one of two slots. A world that is
-  // simply connected is not news and folds away with everything else on a
-  // phone; a world that is *not* has to be on screen, because it is the only
-  // thing explaining why nothing is moving — and a player who has to open a
-  // menu to find that out has already concluded the game is broken.
+  // simply connected is not news and folds away into the menu with everything
+  // else; a world that is *not* has to be on screen, beside the clock, because
+  // it is the only thing explaining why nothing is moving — and a player who has
+  // to open a menu to find that out has already concluded the game is broken.
   const statusChip = (
     <span
       className="border-2 border-paper/40 px-1.5 py-0.5 text-xs uppercase text-paper"
@@ -430,19 +427,12 @@ export default function OnlinePage() {
               />
             </>
           }
-          trailing={
-            <>
-              {status === "live" ? null : statusChip}
-              <span
-                className="border-2 border-paper/40 px-1.5 py-0.5 text-xs tabular-nums text-paper"
-                // Named rather than announced: the hour changes every second, so
-                // a live region here would talk over everything else.
-                aria-label={`Time of day, ${formatClock(minutesOfDay)}`}
-              >
-                {formatClock(minutesOfDay)}
-              </span>
-            </>
-          }
+          // The bar goes away entirely on a phone, because the game draws the
+          // menu itself — see `AppMenuButton` in the row of controls under the
+          // world. Which is also why the readings below are handed to the
+          // viewport rather than to the header: there is no header to hand them
+          // to, and beside the world is where they belonged anyway.
+          menuInPage
         >
           {/* Outside the wrapper below and not inside the viewport it is about: the
               viewport waits on its assets, and the document would be cream around
@@ -459,10 +449,14 @@ export default function OnlinePage() {
                 onDirectionRelease={releaseDirection}
                 onSay={say}
                 onTypingChange={noteTyping}
-                looking={looking}
-                onLookingChange={setLookLatched}
-                attacking={attacking}
-                onAttackingChange={setAttacking}
+                mode={mode}
+                onModeChange={setMode}
+                readouts={
+                  <>
+                    {status === "live" ? null : statusChip}
+                    <WorldClock minutesOfDay={minutesOfDay} />
+                  </>
+                }
                 interactions={interactions}
                 onInteract={act}
                 onHoverInteraction={hoverInteraction}

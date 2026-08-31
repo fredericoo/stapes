@@ -3,23 +3,12 @@
   "configurations": [
     {
       "name": "stapes-dev",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["dev", "--host"],
-      "port": 5176,
-      "autoPort": true
-    },
-    {
-      "name": "stapes-dev-alt",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["dev", "--host"],
-      "port": 5177,
-      "autoPort": true
-    },
-    {
-      "name": "stapes-worker",
-      "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["dev:worker"],
-      "port": 5180
+      "runtimeExecutable": "sh",
+      "runtimeArgs": [
+        "-c",
+        "STAPES_SERVER_PORT=5185 STAPES_CLIENT_PORT=5186 bun run dev"
+      ],
+      "port": 5186
     }
   ]
 }

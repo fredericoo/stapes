@@ -4,7 +4,7 @@ import { resolveContainer } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { Tooltip } from "../ui/Tooltip";
-import { MODE_TOGGLE_SIZE_CLASS, type ModeToggleSize } from "./ModeToggle";
+import { ACTION_BUTTON_SIZE_CLASS, type ActionButtonSize } from "./ModeSwitch";
 import type { ItemDrag } from "./useItemDrag";
 import { useTap } from "./useTap";
 
@@ -18,10 +18,10 @@ import { useTap } from "./useTap";
  * clearly not one of the two modes.
  */
 
-function toggleClass(on: boolean, size: ModeToggleSize): string {
+function toggleClass(on: boolean, size: ActionButtonSize): string {
   return [
     "flex items-center justify-center border-2 shadow-hard",
-    MODE_TOGGLE_SIZE_CLASS[size],
+    ACTION_BUTTON_SIZE_CLASS[size],
     "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
     on
       ? "border-paper bg-paper text-ink"
@@ -37,7 +37,7 @@ export function StatsToggle({
 }: {
   open: boolean;
   onChange: (open: boolean) => void;
-  size?: ModeToggleSize;
+  size?: ActionButtonSize;
 }) {
   // Pointer-driven rather than click-driven, so the row still answers a thumb
   // that is holding the d-pad down. See `./useTap`.
@@ -70,7 +70,7 @@ export function EquipmentToggle({
 }: {
   open: boolean;
   onChange: (open: boolean) => void;
-  size?: ModeToggleSize;
+  size?: ActionButtonSize;
 }) {
   // Pointer-driven rather than click-driven, so the row still answers a thumb
   // that is holding the d-pad down. See `./useTap`.
@@ -150,7 +150,7 @@ export function BagButton({
   tilesById: Record<string, TileDef>;
   /** The one move in progress, page-wide. See `./useItemDrag`. */
   drag: ItemDrag;
-  size?: ModeToggleSize;
+  size?: ActionButtonSize;
 }) {
   const tile = bag ? (tilesById[bag.tileId] ?? null) : null;
   const name = tile?.name ?? "Bag";

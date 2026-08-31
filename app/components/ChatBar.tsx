@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { MAX_CHAT_LENGTH } from "../net/chat";
 import { isTypingTarget } from "../game/heldDirections";
 import { Tooltip } from "../ui/Tooltip";
-import { MODE_TOGGLE_SIZE_CLASS } from "./ModeToggle";
+import { ACTION_BUTTON_SIZE_CLASS } from "./ModeSwitch";
 
 /**
  * Where you type what you say, in the two shapes it needs to be.
@@ -183,7 +183,7 @@ export function ChatButton({
           aria-label="Say something"
           className={[
             "flex items-center justify-center border-2 shadow-hard",
-            MODE_TOGGLE_SIZE_CLASS.touch,
+            ACTION_BUTTON_SIZE_CLASS.touch,
             "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
             // Lit while the field is open, on the same terms the mode toggles
             // are lit: something is claiming your taps and the screen says so.

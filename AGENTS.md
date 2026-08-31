@@ -739,8 +739,27 @@ are load-bearing.
 The colour of the outline follows from the mode rather than from having a target
 at all: white while you are only watching, red once it is a fight, and pulsing in
 both cases because the pulse is what separates a *chosen* body from one the
-cursor happens to be over. Attack mode and look mode are independent — you can
-look at things with your sword out.
+cursor happens to be over.
+
+**What a tap means is one setting with three positions, not a pair of switches.**
+Interact, inspect and attack are the three, exactly one holds at a time, and the
+machine is `app/components/usePlayModes.ts`. They were two independent latches
+and the failure was reported rather than guessed at: with no *name* for "neither
+one is on", people drew the sword, walked off, and never connected the red
+outline under everything they pointed at with a button they had pressed a minute
+before. Two consequences worth knowing about:
+
+- **Shift covers the chosen mode rather than replacing it.** The key is momentary
+  and the buttons latch, so the chosen mode is kept in its own piece of state and
+  shift is read over the top of it — which is the whole of "revert on release",
+  with no previous-mode bookkeeping to fall out of step. Holding shift in attack
+  mode suspends the fight and letting go resumes it.
+- **A body's row is renamed rather than replaced.** In attack mode the row on a
+  battler says "Attack Rat" instead of "Target Rat"; it is the same row running
+  the same `target` action, because the tap does one thing either way. Which
+  means the label is part of what `GameRenderer` diffs before handing the list to
+  React — a key of ids and health would recompute the right words and then decide
+  nothing had changed.
 
 The formulas live in `app/game/combat.ts`, kept pure so they can be asserted:
 

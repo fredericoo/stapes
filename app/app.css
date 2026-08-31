@@ -82,6 +82,25 @@
   border-radius: 0 !important;
 }
 
+/**
+ * The exceptions to the corner above, and there are two of them.
+ *
+ * The rule is a house style — everything in this interface is a hard rectangle —
+ * and it is stated with `!important` because it has to beat a component library
+ * rounding its own widgets. Which means anything that genuinely is round has to
+ * say so at the same weight, exactly as the slider's thumb below does.
+ *
+ * The direction pad is round because it is a stick, not four keys. It was drawn
+ * as four squares, and people tapped the squares one at a time — the picture was
+ * of four buttons, however the pointer was actually read underneath. A disc with
+ * a knob in it is a picture of the thing it really is. See `./components/
+ * DirectionPad.tsx`, which is the only thing that may use these.
+ */
+.pad-disc,
+.pad-knob {
+  border-radius: 9999px !important;
+}
+
 html,
 body,
 #root {

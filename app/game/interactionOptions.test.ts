@@ -515,6 +515,33 @@ describe("listInteractionOptions — battlers", () => {
     expect(actionsIn(targets)).toContain("target");
   });
 
+  /**
+   * The row is the same row and does one thing either way; what changes is the
+   * word, because "Target Deer" describes the mechanism and "Attack Deer"
+   * describes what is about to happen. In attack mode the tap *is* the first
+   * swing, and people were reading the neutral verb and being surprised by the
+   * fight.
+   */
+  it("names a body's row for the fight while the sword is out", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "deer"]);
+    const me = playerAt(map);
+    const deer = actor("npc:deer", "deer", 1, 0, map, 10);
+
+    const peaceful = listInteractionOptions(
+      map, tilesById, me, [me, deer], null, KIT, null, [], false,
+    );
+    const armed = listInteractionOptions(
+      map, tilesById, me, [me, deer], null, KIT, null, [], true,
+    );
+
+    expect(peaceful[0]!.label).toBe("Target");
+    expect(armed[0]!.label).toBe("Attack");
+    // Same row, same act: only the word changed.
+    expect(armed[0]!.action).toBe("target");
+    expect(armed[0]!.id).toBe(peaceful[0]!.id);
+  });
+
   it("never offers the viewer their own body", () => {
     const map = field();
     const me = playerAt(map);
