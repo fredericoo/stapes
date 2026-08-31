@@ -11,6 +11,7 @@ import { emptyEquipment } from "../game/equipment";
 import { CHAT_LIFETIME_MS } from "./chat";
 import { RemoteSession, STEP_CONFIRM_TIMEOUT_MS } from "./RemoteSession";
 import type { CellPatch, HpPatch, MotionEvent } from "./protocol";
+import { UNKNOWN_REMAINING_MS } from "../game/statuses";
 
 /**
  * The client's half of the shared world: what it draws between the event that
@@ -1213,6 +1214,62 @@ describe("RemoteSession bodies taken off the board", () => {
     });
     return { socket, session };
   }
+
+  it("draws another body under a status the wire broadcast the ids of", () => {
+    const { socket, session } = connectedWithRat();
+    expect(session.getSnapshot().actors.find((a) => a.id === RAT)?.statuses)
+      .toEqual([]);
+
+    socket.deliver({
+      ...patch([]),
+      statusIds: [{ actorId: RAT, defIds: ["burned"] }],
+    });
+
+    const rat = session.getSnapshot().actors.find((a) => a.id === RAT);
+    expect(rat?.statuses.map((s) => s.defId)).toEqual(["burned"]);
+    // No countdown is broadcast, so the instance says so rather than guessing a
+    // number — which reads through `taperAt` as "not winding down". Somebody
+    // else's fire burns at full strength until it ends. @see StatusIdsPatch
+    expect(rat?.statuses[0]?.remainingMs).toBe(UNKNOWN_REMAINING_MS);
+  });
+
+  it("takes a status off a body the wire says is clear", () => {
+    const { socket, session } = connectedWithRat();
+    socket.deliver({
+      ...patch([]),
+      statusIds: [{ actorId: RAT, defIds: ["burned"] }],
+    });
+
+    // An empty list is the server saying "put out", which is not the same as
+    // never having heard about it.
+    socket.deliver({
+      ...patch([]),
+      statusIds: [{ actorId: RAT, defIds: [] }],
+    });
+    expect(session.getSnapshot().actors.find((a) => a.id === RAT)?.statuses)
+      .toEqual([]);
+  });
+
+  it("keeps the viewer's own countdown rather than the broadcast ids", () => {
+    const { socket, session } = connectedWithRat();
+    // Both arrive: the broadcast names everybody, the addressed message carries
+    // the viewer's own figures. Their own has to win, or their effects would
+    // stop winding down the moment somebody else caught fire.
+    socket.deliver({
+      type: "statuses",
+      statuses: [{ defId: "poison", remainingMs: 4_000, durationMs: 9_000 }],
+    });
+    socket.deliver({
+      ...patch([]),
+      statusIds: [
+        { actorId: SELF, defIds: ["poison"] },
+        { actorId: RAT, defIds: ["burned"] },
+      ],
+    });
+
+    const self = session.getSnapshot().actors.find((a) => a.id === SELF);
+    expect(self?.statuses[0]?.remainingMs).toBe(4_000);
+  });
 
   it("frees the cell a creature was walking into when it dies on the way", () => {
     const { socket, session } = connectedWithRat();

@@ -3,8 +3,15 @@ import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import { MASTERIES, xpForLevel } from "../lib/mastery";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
-import { COMMAND_USAGE, isCommand, parseCommand } from "./commands";
+import {
+  COMMAND_USAGE,
+  MAX_COMMAND_HP,
+  isCommand,
+  parseCommand,
+} from "./commands";
 import { displayNameFor } from "./displayName";
+import { NO_VFX } from "../lib/statusVfx";
+import type { StatusDef } from "../lib/status";
 import { GameSession } from "./GameSession";
 
 /**
@@ -89,6 +96,45 @@ describe("reading a typed line", () => {
     expect(parseCommand("/mastery blade 10 self please")).toEqual({
       ok: false,
       refusal: { kind: "badArguments", command: "mastery" },
+    });
+  });
+
+
+  it("reads a status by the id it was written with", () => {
+    // Not lower-cased, unlike a mastery: a status id is a key out of an authored
+    // file rather than a word from a list this module owns, and folding its case
+    // would refuse a perfectly good `Poison`.
+    expect(parseCommand("/status Poison")).toEqual({
+      ok: true,
+      command: { name: "status", statusId: "Poison", target: null },
+    });
+    expect(parseCommand("/status burned somebody")).toEqual({
+      ok: true,
+      command: { name: "status", statusId: "burned", target: "somebody" },
+    });
+    expect(parseCommand("/status burned self")).toEqual({
+      ok: true,
+      command: { name: "status", statusId: "burned", target: null },
+    });
+  });
+
+  it("reads clear as taking everything off, whatever its case", () => {
+    for (const line of ["/status clear", "/status CLEAR"]) {
+      expect(parseCommand(line)).toEqual({
+        ok: true,
+        command: { name: "status", statusId: null, target: null },
+      });
+    }
+  });
+
+  it("hands back the status grammar for a status line, not the mastery one", () => {
+    expect(parseCommand("/status")).toEqual({
+      ok: false,
+      refusal: { kind: "badArguments", command: "status" },
+    });
+    expect(parseCommand("/status burned me please")).toEqual({
+      ok: false,
+      refusal: { kind: "badArguments", command: "status" },
     });
   });
 
@@ -296,6 +342,30 @@ function field(): MapFile {
 
 function world(actorIds: string[] = ["me"]) {
   return new GameSession(field(), tiles, { actorIds, seed: 1 });
+}
+
+/** A world that has a status to hand out. @see statusWorld */
+const BURN: StatusDef = {
+  id: "burned",
+  name: "Burned",
+  description: "Searing.",
+  tone: "bad",
+  fromMs: 10_000,
+  toMs: 10_000,
+  stacks: false,
+  maxMs: 10_000,
+  everyMs: 0,
+  effects: {},
+  modifiers: {},
+  vfx: NO_VFX,
+};
+
+function statusWorld() {
+  return new GameSession(field(), tiles, {
+    actorIds: ["me"],
+    seed: 1,
+    statuses: { burned: BURN },
+  });
 }
 
 describe("what a command does to a body", () => {
@@ -555,5 +625,197 @@ describe("what a command does to the board", () => {
     const session = world();
     session.runCommand("/tile", "me");
     expect(session.drainNotices("me")).toEqual([`Say ${COMMAND_USAGE.tile}`]);
+  });
+});
+
+/**
+ * The debugging door.
+ *
+ * There is no other way to see an effect without earning it — every real route
+ * to a status is something that happens to you — so these assert the one thing
+ * that makes it worth having: that it is a *real* application, through the same
+ * function eating a berry goes through, and not a special case that could come
+ * to disagree with one.
+ */
+describe("putting a status on by hand", () => {
+  it("puts it on, with a real rolled duration", () => {
+    const session = statusWorld();
+    session.runCommand("/status burned", "me");
+
+    const [running] = session.getSnapshot("me").self.statuses;
+    expect(running?.defId).toBe("burned");
+    // Rolled from the def's own range rather than set to some debug constant,
+    // which is what makes this the same event a flame produces.
+    expect(running?.durationMs).toBe(BURN.fromMs);
+    expect(session.drainNotices("me")).toEqual(["Burned."]);
+  });
+
+  it("takes everything off again", () => {
+    const session = statusWorld();
+    session.runCommand("/status burned", "me");
+    session.drainNotices("me");
+
+    session.runCommand("/status clear", "me");
+    expect(session.getSnapshot("me").self.statuses).toEqual([]);
+    expect(session.drainNotices("me")).toEqual(["Nothing is on you now."]);
+  });
+
+  it("names the ids it does have when it does not have that one", () => {
+    const session = statusWorld();
+    session.runCommand("/status frozen", "me");
+    const [notice = ""] = session.drainNotices("me");
+    expect(notice).toContain('"frozen"');
+    // The alternatives, on the terms the mastery refusal names its own: a player
+    // re-reading their line to find the wrong word is what both of these avoid.
+    expect(notice).toContain("burned");
+  });
+
+  it("says so rather than nothing when the world authored no statuses", () => {
+    const session = world();
+    session.runCommand("/status burned", "me");
+    expect(session.drainNotices("me")).toHaveLength(1);
+  });
+
+  it("names the id nobody answers to, before looking at the status", () => {
+    const session = statusWorld();
+    session.runCommand("/status burned nobody", "me");
+    expect(session.drainNotices("me")).toEqual([
+      'Nobody here answers to "nobody"',
+    ]);
+  });
+
+  it("hands back the status grammar when the line was not one", () => {
+    const session = statusWorld();
+    session.runCommand("/status", "me");
+    expect(session.drainNotices("me")).toEqual([`Say ${COMMAND_USAGE.status}`]);
+  });
+
+  it("reaches somebody else by their id", () => {
+    const session = new GameSession(field(), tiles, {
+      actorIds: ["me", "you"],
+      seed: 1,
+      statuses: { burned: BURN },
+    });
+    session.runCommand("/status burned you", "me");
+
+    expect(session.getSnapshot("you").self.statuses[0]?.defId).toBe("burned");
+    // And not on the person who typed it, which is the whole point of a target.
+    expect(session.getSnapshot("me").self.statuses).toEqual([]);
+  });
+});
+
+describe("moving health by hand", () => {
+  it("reads a bare figure as a place to put somebody", () => {
+    expect(parseCommand("/health 12")).toEqual({
+      ok: true,
+      command: { name: "health", health: { kind: "set", hp: 12 }, target: null },
+    });
+  });
+
+  it("reads a sign as a thing to do to them", () => {
+    // The distinction `Number` cannot make: "+10" and "10" are the same ten, and
+    // the difference between them is the difference between healing somebody
+    // and moving them.
+    expect(parseCommand("/health +10")).toEqual({
+      ok: true,
+      command: { name: "health", health: { kind: "shift", by: 10 }, target: null },
+    });
+    expect(parseCommand("/health -10")).toEqual({
+      ok: true,
+      command: { name: "health", health: { kind: "shift", by: -10 }, target: null },
+    });
+  });
+
+  it("carries a target the way every other command does", () => {
+    expect(parseCommand("/health +5 somebody")).toEqual({
+      ok: true,
+      command: { name: "health", health: { kind: "shift", by: 5 }, target: "somebody" },
+    });
+    expect(parseCommand("/health +5 self")).toEqual(parseCommand("/health +5"));
+  });
+
+  it("refuses anything that is not plainly a number", () => {
+    // `Number` alone takes all of these, and one of them is a thousand.
+    for (const typed of ["1e3", "0x10", "ten", "", "1.5"]) {
+      expect(parseCommand(`/health ${typed}`).ok).toBe(false);
+    }
+  });
+
+  it("refuses a figure past the sanity bound", () => {
+    expect(parseCommand(`/health ${MAX_COMMAND_HP + 1}`)).toEqual({
+      ok: false,
+      refusal: { kind: "badHealth", typed: String(MAX_COMMAND_HP + 1) },
+    });
+  });
+
+  it("puts a body exactly where it was asked for", () => {
+    const session = world();
+    const max = session.getSnapshot("me").self.maxHp!;
+    session.runCommand("/health 3", "me");
+
+    expect(session.getSnapshot("me").self.hp).toBe(3);
+    expect(session.drainNotices("me")).toEqual([`3/${max} health.`]);
+  });
+
+  it("caps a set at the most that body can have", () => {
+    const session = world();
+    const max = session.getSnapshot("me").self.maxHp!;
+    // Not a refusal: "full health" is what somebody typing a big number meant,
+    // and making them look the ceiling up first is a worse debugging tool.
+    session.runCommand("/health 9999", "me");
+    expect(session.getSnapshot("me").self.hp).toBe(max);
+  });
+
+  it("heals up to the ceiling and no further", () => {
+    const session = world();
+    const max = session.getSnapshot("me").self.maxHp!;
+    session.runCommand("/health 1", "me");
+    session.drainNotices("me");
+
+    session.runCommand("/health +2", "me");
+    expect(session.getSnapshot("me").self.hp).toBe(3);
+
+    session.runCommand(`/health +${max}`, "me");
+    expect(session.getSnapshot("me").self.hp).toBe(max);
+  });
+
+  it("takes hit points off through the same door a blow uses", () => {
+    const session = world();
+    const before = session.getSnapshot("me").self.hp!;
+    session.runCommand("/health -2", "me");
+    expect(session.getSnapshot("me").self.hp).toBe(before - 2);
+  });
+
+  it("kills a body taken to nothing", () => {
+    const session = world();
+    expect(session.actorSnapshots().some((a) => a.id === "me")).toBe(true);
+
+    session.runCommand("/health 0", "me");
+    // Off the board entirely rather than standing at zero. A death by command
+    // and a death by blows must not be two codepaths to keep alive, and this is
+    // what proves it went through the same door: `kill` takes the runtime out,
+    // so there is no longer anybody in this world by that name.
+    expect(session.actorSnapshots().some((a) => a.id === "me")).toBe(false);
+  });
+
+  it("reaches somebody else by their id", () => {
+    const session = world(["me", "you"]);
+    session.runCommand("/health 4 you", "me");
+    expect(session.getSnapshot("you").self.hp).toBe(4);
+    expect(session.getSnapshot("me").self.hp).not.toBe(4);
+  });
+
+  it("names the id nobody answers to", () => {
+    const session = world();
+    session.runCommand("/health 4 nobody", "me");
+    expect(session.drainNotices("me")).toEqual([
+      'Nobody here answers to "nobody"',
+    ]);
+  });
+
+  it("hands back the health grammar when the line was not one", () => {
+    const session = world();
+    session.runCommand("/health", "me");
+    expect(session.drainNotices("me")).toEqual([`Say ${COMMAND_USAGE.health}`]);
   });
 });

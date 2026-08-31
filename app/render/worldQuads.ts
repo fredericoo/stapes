@@ -11,6 +11,11 @@ import {
   RAY_DEPTH_ELEV,
 } from "../lib/geometry";
 import { CELL_SIZE, HEIGHT_PER_LEVEL } from "../lib/types";
+import {
+  TINT_GLSL_COMMON,
+  TINT_GLSL_FRAGMENT,
+  type TintUniforms,
+} from "./spriteTint";
 
 /**
  * One tile sprite: a screen-space rectangle of texture, plus the solid box it
@@ -53,7 +58,7 @@ const VERTS_PER_QUAD = 4;
 const BOX_COMPONENTS = 4;
 
 /** Both renderers must agree, or the same tile sorts differently in each. */
-export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v7";
+export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v8";
 
 function glsl(n: number): string {
   return Number.isInteger(n) ? `${n}.0` : `${n}`;
@@ -304,12 +309,17 @@ export function writeBoxAttr(
  * entry plane, which sorts them with the cell they hang over.
  *
  * Lighting: per-level light map sampled in cell space.
+ *
+ * Tint: an optional OKLab wash worn by whatever is carrying a status, applied to
+ * the sampled texel before the light reaches it. Free on the materials that do
+ * not have one — see `./spriteTint`.
  */
 export function injectWorldShader(
   shader: { vertexShader: string; fragmentShader: string; uniforms: object },
   lightUniforms: LevelLightUniforms,
+  tint: TintUniforms,
 ) {
-  Object.assign(shader.uniforms, lightUniforms);
+  Object.assign(shader.uniforms, lightUniforms, tint);
   shader.vertexShader = shader.vertexShader
     .replace(
       "#include <common>",
@@ -351,11 +361,13 @@ varying float vUnlit;
 varying vec4 vBox;
 varying float vStack;
 varying vec2 vWorldPx;
-varying vec2 vLightScale;`,
+varying vec2 vLightScale;
+${TINT_GLSL_COMMON}`,
     )
     .replace(
       "#include <map_fragment>",
       /* glsl */ `#include <map_fragment>
+${TINT_GLSL_FRAGMENT}
 // Everything below samples at the centre of the art pixel this fragment falls
 // in, not at the fragment itself. A fragment is smaller than a texel once
 // zoomed (16 of them per texel at 4x), so sampling per fragment lets a value

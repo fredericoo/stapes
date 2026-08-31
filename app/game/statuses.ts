@@ -39,6 +39,24 @@ export type StatusBearer = {
 export const NO_STATUSES: readonly StatusInstance[] = [];
 
 /**
+ * What a status's remaining time reads as when nobody has said.
+ *
+ * Online, only the viewer's own countdown is on the wire; every other body's
+ * statuses arrive as bare ids (`StatusIdsPatch`), because a per-second countdown
+ * per body is a message nothing else would use. So a remote body's instance has
+ * to say "unknown" rather than guess a number.
+ *
+ * Infinity rather than a sentinel, because it is *true* in the only sense that
+ * is read: as far as this client knows, that status is not running out. It falls
+ * through `taperAt` as "not winding down" without a special case, which is the
+ * documented consequence of the trade — see {@link StatusIdsPatch}.
+ *
+ * Nothing formats it. Countdowns are drawn only for the viewer's own body, and
+ * that body's figures come off the wire in full.
+ */
+export const UNKNOWN_REMAINING_MS = Number.POSITIVE_INFINITY;
+
+/**
  * Round a cadence up to a whole number of ticks.
  *
  * A cadence that did not divide the tick rate would drift against the loop and

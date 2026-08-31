@@ -1,5 +1,7 @@
 import {
+  absoluteElevation,
   baseCellWorldOrigin,
+  depthBox,
   depthStackBias,
   drawOrder,
   elevationScreenOffset,
@@ -47,7 +49,7 @@ import {
   type MinutesOfDay,
 } from "../lib/clock";
 import { emitterCenter } from "../lib/lighting";
-import { getStack, stackHeight } from "../lib/mapData";
+import { elevationAt, getStack, stackHeight } from "../lib/mapData";
 import {
   levelsAboveShouldHide,
   viewAnchorFor,
@@ -66,8 +68,18 @@ import { tilesByIdFromList } from "../lib/validation";
 import {
   type OverlaySpec,
   type TileMotion,
+  tileInstanceKey,
   WorldRenderer,
 } from "./WorldRenderer";
+import type { ParticleEmitterSpec } from "./particles";
+import type { StatusDef } from "../lib/status";
+import {
+  taperAt,
+  taperedGlow,
+  taperedTint,
+  type StatusTint,
+} from "../lib/statusVfx";
+import { SmoothedRemaining, taperKey } from "./statusTaper";
 import { spriteStatesFor } from "./spriteState";
 import {
   pickBattlerAt,
@@ -249,6 +261,15 @@ type PointerLabel = {
  * sum that has not moved. Collisions cost nothing worse than a bar redrawn at
  * the next commit instead of the next frame.
  */
+/**
+ * Middle of a cell, in cells — where a plume hangs from.
+ *
+ * A cell is one unit across, so its centre is half of one. Named rather than
+ * written as `0.5` at the two places that want it, because `+ 0.5` next to a
+ * coordinate reads as a rounding nudge and this is a position.
+ */
+const CELL_CENTRE = 0.5;
+
 function healthSignature(actors: readonly ActorSnapshot[]): number {
   let signature = 0;
   for (const actor of actors) {
@@ -286,6 +307,26 @@ export class GameRenderer {
   private session: PlaySession;
   private canvas: HTMLCanvasElement;
   private tilesById: Record<string, TileDef>;
+  /**
+   * The status catalogue, for what statuses *look* like and nothing else.
+   *
+   * The simulation has its own copy and reads the formulas off it; this one is
+   * only ever asked for `vfx`. Held rather than reached through the session
+   * because the online session is a socket with no catalogue behind it, and both
+   * routes already resolve one to draw the strip with — see `routes/play`.
+   *
+   * Empty until {@link setStatuses}, which is the honest state for a renderer
+   * built before its route has finished loading: no tint, no plume, and a world
+   * that draws exactly as it did before this feature existed.
+   */
+  private statusDefs: Record<string, StatusDef> = {};
+  /**
+   * Remaining time per running status, carried between the wire's updates.
+   *
+   * A wind-down is drawn from what a status has left, and online that arrives
+   * about once a second — see `./statusTaper`.
+   */
+  private readonly remaining = new SmoothedRemaining();
   private minutesOfDay: number = DEFAULT_PLAY_MINUTES;
   /**
    * Last known reading of the clock and the frame time it was taken at. The
@@ -475,6 +516,18 @@ export class GameRenderer {
    * local rate carries it from there, so one anchor keeps every client in step
    * for as long as the tab is open.
    */
+  /**
+   * Hand over the status catalogue, so a poisoned body can be drawn poisoned.
+   *
+   * Separate from the constructor because it is not needed to draw a frame: a
+   * renderer with no catalogue draws an untinted world, which is the right
+   * answer while one is still loading and the right answer forever for a world
+   * that authored no effects.
+   */
+  setStatuses(defs: Record<string, StatusDef>) {
+    this.statusDefs = defs;
+  }
+
   setMinutesOfDay(m: MinutesOfDay) {
     this.minutesOfDay = wrapMinutes(m);
     this.reanchorClock(this.minutesOfDay);
@@ -782,7 +835,7 @@ export class GameRenderer {
       this.profiler.measure("sim", () => this.session.update(dt));
       // `view` nests the sync/map/light/motion phases recorded inside setView,
       // so it is their total rather than a separate slice.
-      this.profiler.measure("view", () => this.pushView(now));
+      this.profiler.measure("view", () => this.pushView(now, dt));
       this.profiler.measure("anim", () => this.world.tick(dt));
       // CPU cost of submitting the frame. GPU time lands after this returns and
       // is not counted — a low `draw` does not by itself mean the GPU is idle.
@@ -1846,7 +1899,7 @@ export class GameRenderer {
     return { x: visual.x - half, y: visual.y - half };
   }
 
-  private pushView(nowMs: number) {
+  private pushView(nowMs: number, dtMs: number) {
     const snap = this.session.getSnapshot();
     const fit = currentFit(this.canvas);
     // The buffer is a whole multiple of the view, so the world lands on a clean
@@ -1873,6 +1926,7 @@ export class GameRenderer {
     this.repickPointer(snap, camera);
 
     const motions = this.tileMotionsFor(snap);
+    const vfx = this.statusVfxFor(snap, dtMs);
 
     this.world.setView({
       map: snap.map,
@@ -1890,6 +1944,8 @@ export class GameRenderer {
           : undefined,
       spriteStates: spriteStatesFor(snap.actors),
       emitterOverrides: this.emitterOverridesFor(snap),
+      spriteTints: vfx.tints,
+      particleEmitters: vfx.emitters,
       hideLevelsAbove: hideAbove ? anchor.z : undefined,
     });
 
@@ -2115,6 +2171,122 @@ export class GameRenderer {
    * Always returned when the player emits light — standing uses the tile
    * centre so the static bake can omit the player and never re-run on each step.
    */
+  /**
+   * What every body on the board is wearing and emitting this frame.
+   *
+   * Both halves come out of one sweep because they are read off the same list —
+   * a body's statuses — and separating them would mean resolving every status
+   * def twice per actor per frame for no gain.
+   *
+   * Returns undefined for each half that is empty, which is the shape
+   * {@link WorldView.tileMotions} takes and for the same reason: a world where
+   * nobody is under anything is the overwhelmingly common one, and it should
+   * cost the renderer a null check rather than an empty map.
+   */
+  private statusVfxFor(
+    snap: GameSnapshot,
+    dtMs: number,
+  ): {
+    tints: ReadonlyMap<string, StatusTint> | undefined;
+    emitters: ParticleEmitterSpec[] | undefined;
+  } {
+    let tints: Map<string, StatusTint> | undefined;
+    let emitters: ParticleEmitterSpec[] | undefined;
+    this.remaining.beginFrame(dtMs);
+
+    for (const actor of snap.actors) {
+      if (actor.statuses.length === 0) continue;
+
+      let strongest: StatusTint | null = null;
+
+      for (const instance of actor.statuses) {
+        const vfx = this.statusDefs[instance.defId]?.vfx;
+        if (!vfx) continue;
+
+        const taper = taperAt(
+          this.remaining.read(
+            taperKey(actor.id, instance.defId),
+            instance.remainingMs,
+          ),
+          vfx.taperMs,
+        );
+
+        // Two statuses that both colour a body cannot both be worn — a tint is
+        // one uniform — so the loudest wins. Not a blend: mixing purple poison
+        // with amber burn gives a brown nobody authored, and "the worse thing
+        // showing" is the reading a player can act on.
+        //
+        // Compared *after* the taper, so a status that is nearly over stops
+        // outranking one that has just landed.
+        if (vfx.tint) {
+          const worn = taperedTint(vfx.tint, taper);
+          if (!strongest || worn.strength > strongest.strength) strongest = worn;
+        }
+        if (!vfx.particles) continue;
+        (emitters ??= []).push(
+          this.emitterFor(snap, actor, instance.defId, vfx.particles, taper),
+        );
+      }
+
+      if (strongest) {
+        (tints ??= new Map()).set(
+          tileInstanceKey({
+            x: actor.x,
+            y: actor.y,
+            z: actor.z,
+            stackIndex: actor.stackIndex,
+          }),
+          strongest,
+        );
+      }
+    }
+
+    this.remaining.endFrame();
+    return { tints, emitters };
+  }
+
+  /**
+   * One plume over one body.
+   *
+   * **Anchored to the cell, not to the sprite.** A body mid-step is drawn a
+   * fraction of a cell from where the map says it is, and a plume that chased
+   * that offset would drag its whole column of already-airborne sparks sideways
+   * with it. Leaving it on the cell means a walking creature lays a trail of
+   * what it is doing, which is both cheaper and a better reading.
+   *
+   * The draw order is the rule stated in `./particles`: a two-high tile standing
+   * on top of this body's stack. That puts the plume in front of the body at
+   * every pixel they share, and behind whatever is genuinely nearer.
+   */
+  private emitterFor(
+    snap: GameSnapshot,
+    actor: ActorSnapshot,
+    defId: string,
+    particles: NonNullable<StatusDef["vfx"]["particles"]>,
+    taper: number,
+  ): ParticleEmitterSpec {
+    const stack = getStack(snap.map, actor.x, actor.y, actor.z);
+    const foot = absoluteElevation(
+      actor.z,
+      elevationAt(stack, actor.stackIndex, this.tilesById),
+    );
+    const bodyHeight = this.tilesById[actor.tileId]?.height ?? HEIGHT_PER_LEVEL;
+    const top = foot + bodyHeight;
+    return {
+      // Per body per status, so one creature can burn and be poisoned at once
+      // and neither plume inherits the other's particles.
+      id: `${actor.id}:${defId}`,
+      config: particles,
+      cx: actor.x + CELL_CENTRE,
+      cy: actor.y + CELL_CENTRE,
+      footElev: foot,
+      z: actor.z,
+      box: depthBox(actor.x, actor.y, top, top + HEIGHT_PER_LEVEL),
+      stackBias: depthStackBias(actor.z, actor.stackIndex + 1),
+      taper,
+    };
+  }
+
   private emitterOverridesFor(
     snap: GameSnapshot,
   ): EmitterOverride[] | undefined {
@@ -2138,7 +2310,8 @@ export class GameRenderer {
     const overrides: EmitterOverride[] = [];
     for (const actor of snap.actors) {
       const carried = this.carriedLightsFor(actor);
-      if (!bodyEmits && !carried) continue;
+      const fromStatuses = this.statusLightsFor(actor);
+      if (!bodyEmits && !carried && !fromStatuses) continue;
       const at = this.actorEmitter(snap.map, actor, playerDef.height ?? 0);
       // The body's own light is found by reading the stack it is standing in,
       // which is what an override has always meant. What is in the bag is not in
@@ -2147,8 +2320,49 @@ export class GameRenderer {
       // lantern at your hip.
       if (bodyEmits) overrides.push(at);
       if (carried) overrides.push({ ...at, lights: carried });
+      // A third emitter at the same position rather than a merge, on the terms
+      // the carried one is: the cast accumulates, and there is no blending rule
+      // to invent between a lantern in your hand and the fire on your back.
+      if (fromStatuses) overrides.push({ ...at, lights: fromStatuses });
     }
     return overrides.length > 0 ? overrides : undefined;
+  }
+
+  /**
+   * The lights this body is casting because of what is running on it.
+   *
+   * Undefined rather than an empty array for the usual case of none, on the
+   * terms {@link carriedLightsFor} is: this runs per actor per frame and almost
+   * nobody is under anything.
+   *
+   * **This is the same door a torch goes through, and that is the whole reason
+   * it is cheap.** An override is already painted for every actor every frame,
+   * and the overlay is add-only — so a status light costs one more `LightDef` in
+   * a list that is already being walked, and nothing about the *static* bake
+   * changes. What it must not become is a flicker: `emitterOverridesKey` has the
+   * lights in it, so a light that changed per frame would miss the overlay cache
+   * every frame and rebake. A status light is therefore steady by construction —
+   * see `StatusVfx.light`, which has no phase to vary.
+   */
+  private statusLightsFor(actor: ActorSnapshot): LightDef[] | undefined {
+    if (actor.statuses.length === 0) return undefined;
+    let lights: LightDef[] | undefined;
+    for (const instance of actor.statuses) {
+      const vfx = this.statusDefs[instance.defId]?.vfx;
+      if (!vfx?.light) continue;
+      // Read rather than written: `statusVfxFor` already carried every clock
+      // forward this frame, and aging them twice would run a taper at double
+      // speed. A status with no plume and no tint was still read there.
+      const taper = taperAt(
+        this.remaining.read(
+          taperKey(actor.id, instance.defId),
+          instance.remainingMs,
+        ),
+        vfx.taperMs,
+      );
+      (lights ??= []).push(taperedGlow(vfx.light, taper));
+    }
+    return lights;
   }
 
   /**

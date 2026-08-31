@@ -107,6 +107,11 @@ const carriedLightsPatchSchema = v.object({
   tileIds: v.array(v.string()),
 });
 
+const statusIdsPatchSchema = v.object({
+  actorId: v.string(),
+  defIds: v.array(v.string()),
+});
+
 /**
  * One carried thing, as it travels.
  *
@@ -259,6 +264,31 @@ export type StatusPatch = {
 export type CarriedLightsPatch = {
   actorId: string;
   tileIds: string[];
+};
+
+/**
+ * Which statuses a body is under, and deliberately **not how long they have
+ * left**.
+ *
+ * Broadcast, unlike {@link StatusPatch}, and the difference between the two is
+ * the whole design. `StatusPatch` is the viewer's own: it carries a countdown
+ * because a countdown is drawn beside their icons, and it is per-socket data, so
+ * folding it into the shared patch would cost one serialization per player.
+ * This is the same list stripped of everything only the bearer needs, which
+ * makes it the *same bytes for everybody* — one diff, one serialization, and an
+ * empty array on almost every tick.
+ *
+ * The ids are enough for what other bodies are drawn with: a tint, a plume and a
+ * cast light are all properties of the *def*, so a client that knows a rat is
+ * poisoned can draw a poisoned rat. What it cannot do is wind the effect down —
+ * see `../lib/statusVfx`'s `taperMs` — because that needs a remaining time, and
+ * a remaining time is a per-second message per body that nothing else would use.
+ * Somebody else's poison therefore burns at full strength until it ends. That is
+ * a deliberate trade, not an oversight.
+ */
+export type StatusIdsPatch = {
+  actorId: string;
+  defIds: string[];
 };
 
 export type MotionEvent =
@@ -455,6 +485,13 @@ export type ServerMessage =
        * frame rather than on the next time they pick something up.
        */
       carriedLights: CarriedLightsPatch[];
+      /**
+       * Everybody's statuses as of this moment, on the terms
+       * {@link carriedLights} is sent in full here: a joiner has nothing to
+       * patch against, and a rat that is already on fire has to be on fire on
+       * the first frame rather than the next time somebody sets it alight.
+       */
+      statusIds: StatusIdsPatch[];
       /** What this viewer is carrying. Theirs alone — see {@link Equipment}. */
       equipment: Equipment;
       /**
@@ -578,6 +615,8 @@ export type ServerMessage =
       hps: HpPatch[];
       /** Only the actors whose carried lights changed since the last patch. */
       carriedLights: CarriedLightsPatch[];
+      /** Only the actors whose statuses changed since the last patch. */
+      statusIds: StatusIdsPatch[];
     }
   /**
    * Something somebody said, pinned to the cell they said it in.
@@ -1014,6 +1053,10 @@ const serverMessageSchema = v.variant("type", [
     minutesOfDay: v.number(),
     hps: v.array(hpPatchSchema),
     carriedLights: v.array(carriedLightsPatchSchema),
+    // Optional with an empty default, so a version skew degrades to "nobody
+    // else's effects are drawn" rather than to a handshake that fails to parse.
+    // The output type is still required, because the server always sends it.
+    statusIds: v.optional(v.array(statusIdsPatchSchema), () => []),
     equipment: tolerantEquipmentSchema,
     tags: v.array(v.string()),
     masteryXp: tolerantMasteryXpSchema,
@@ -1126,6 +1169,10 @@ const serverMessageSchema = v.variant("type", [
     ),
     hps: v.array(hpPatchSchema),
     carriedLights: v.array(carriedLightsPatchSchema),
+    // Optional with an empty default, so a version skew degrades to "nobody
+    // else's effects are drawn" rather than to a handshake that fails to parse.
+    // The output type is still required, because the server always sends it.
+    statusIds: v.optional(v.array(statusIdsPatchSchema), () => []),
   }),
   v.object({
     type: v.literal("chat"),

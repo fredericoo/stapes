@@ -51,6 +51,42 @@
     "everyMs": 5000,
     "effects": {
       "hp": "0 - min(5, max(1, ceil(REMAINING_SEC * 5 / 600)))"
+    },
+    "vfx": {
+      "tint": {
+        "color": "#00ff62",
+        "strength": 0.6,
+        "keepLuma": 1
+      },
+      "particles": {
+        "ratePerSecond": 9,
+        "ttlFromMs": 800,
+        "ttlToMs": 1600,
+        "spawnRadiusCells": 0.35,
+        "spawnElevFrom": 0,
+        "spawnElevTo": 0,
+        "riseFrom": 1.5,
+        "riseTo": 3,
+        "driftCellsPerSecond": 0.2,
+        "gravity": -0.8,
+        "radiusFromPx": 1,
+        "radiusToPx": 1,
+        "alphaFrom": 0.9,
+        "alphaTo": 0,
+        "ramp": [
+          {
+            "at": 0,
+            "color": "#3c791b"
+          },
+          {
+            "at": 1,
+            "color": "#000000"
+          }
+        ],
+        "lit": true
+      },
+      "light": null,
+      "taperMs": 5000
     }
   },
   {
@@ -78,6 +114,53 @@
     "everyMs": 1000,
     "effects": {
       "hp": "0 - max(4, ceil(MAX_HP / 10))"
+    },
+    "vfx": {
+      "tint": {
+        "color": "#fb6b1d",
+        "strength": 1,
+        "keepLuma": 0.6
+      },
+      "particles": {
+        "ratePerSecond": 40,
+        "ttlFromMs": 350,
+        "ttlToMs": 900,
+        "spawnRadiusCells": 0.3,
+        "spawnElevFrom": 0,
+        "spawnElevTo": 2,
+        "riseFrom": 2,
+        "riseTo": 5,
+        "driftCellsPerSecond": 0.3,
+        "gravity": -1,
+        "radiusFromPx": 1,
+        "radiusToPx": 3,
+        "alphaFrom": 1,
+        "alphaTo": 0.25,
+        "ramp": [
+          {
+            "at": 0,
+            "color": "#ffffff"
+          },
+          {
+            "at": 0.3,
+            "color": "#fbb954"
+          },
+          {
+            "at": 0.62,
+            "color": "#e83b3b"
+          },
+          {
+            "at": 1,
+            "color": "#313638"
+          }
+        ]
+      },
+      "light": {
+        "radius": 4,
+        "intensity": 0.6,
+        "color": "#fb6b1d"
+      },
+      "taperMs": 2000
     }
   }
 ]

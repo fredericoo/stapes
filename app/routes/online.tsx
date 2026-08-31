@@ -207,12 +207,25 @@ export default function OnlinePage() {
   attackingRef.current = attacking;
   // Through a ref because the renderer is built on `hello`, and a reconnect
   // builds another one — both must come up at whatever the toggle says now.
+  // Held in a ref as well as pushed, because the renderer is built by an effect
+  // that deliberately does not depend on the catalogue: an editor save must not
+  // tear down and rebuild a running world just to recolour a plume.
+  const statusDefsRef = useRef(statusDefs);
+  statusDefsRef.current = statusDefs;
   const lightingRef = useRef(lightingEnabled);
   lightingRef.current = lightingEnabled;
 
   useEffect(() => {
     rendererRef.current?.setLightingEnabled(lightingEnabled);
   }, [lightingEnabled]);
+
+  // A re-authored catalogue reaches a world that is already running: saving a
+  // status in the editor should recolour what is on screen, not require a
+  // reload. Statuses are held by id, so a body under one keeps it — what
+  // changes is only what that id looks like.
+  useEffect(() => {
+    rendererRef.current?.setStatuses(statusDefs);
+  }, [statusDefs]);
 
   useEffect(() => {
     rendererRef.current?.setLookMode(looking);
@@ -309,6 +322,10 @@ export default function OnlinePage() {
           tiles,
           labelRef.current,
         );
+        // Before the first frame: a renderer that draws once without a catalogue
+        // draws a poisoned body untinted, and the correction on the next frame
+        // is a visible flicker on the frame a player is most likely watching.
+        renderer.setStatuses(statusDefsRef.current);
         renderer.setLightingEnabled(lightingRef.current);
         renderer.setLookMode(lookingRef.current);
         renderer.setMinutesOfDay(remote.minutesOfDay());

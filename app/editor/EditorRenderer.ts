@@ -51,6 +51,7 @@ import {
   buildSingleQuadGeometry,
   injectWorldShader,
 } from "../render/worldQuads";
+import { noTintUniforms } from "../render/spriteTint";
 import {
   createLevelFadeCompositeMaterial,
   PalettePass,
@@ -495,7 +496,11 @@ export class EditorRenderer {
         side: THREE.DoubleSide,
       });
       mat.onBeforeCompile = (shader) => {
-        injectWorldShader(shader, lightUniforms);
+        // No tint in the map editor: a status is a thing that happens in a
+        // running world, and there is no running world here. The inert uniforms
+        // keep one shader program shared with play rather than compiling a
+        // second one that differs only by a branch nothing takes.
+        injectWorldShader(shader, lightUniforms, noTintUniforms());
       };
       mat.customProgramCacheKey = () => WORLD_SHADER_CACHE_KEY;
       mat.userData.lightUniforms = lightUniforms;

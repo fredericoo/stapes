@@ -50,6 +50,7 @@ import { CHAT_MIN_INTERVAL_MS, sanitizeChatText } from "../app/net/chat";
 import {
   parseClientMessage,
   type CarriedLightsPatch,
+  type StatusIdsPatch,
   type CellPatch,
   type HpPatch,
   type MotionEvent,
@@ -169,6 +170,28 @@ function currentCarriedLights(actors: ActorSnapshot[]): CarriedLightsPatch[] {
     out.push({ actorId: actor.id, tileIds: actor.carriedLights });
   }
   return out;
+}
+
+/** Everybody's statuses, as ids. @see currentCarriedLights for the omission rule. */
+function currentStatusIds(actors: ActorSnapshot[]): StatusIdsPatch[] {
+  const out: StatusIdsPatch[] = [];
+  for (const actor of actors) {
+    if (actor.statuses.length === 0) continue;
+    out.push({ actorId: actor.id, defIds: statusIdsOf(actor) });
+  }
+  return out;
+}
+
+/**
+ * The ids a body is under, and nothing else about them.
+ *
+ * **The countdown is dropped on purpose**, which is what keeps this broadcast
+ * the same bytes for everybody — see `StatusIdsPatch`. Sorted, so two orderings
+ * of one set of statuses do not read as a change and send a patch that says
+ * nothing.
+ */
+function statusIdsOf(actor: ActorSnapshot): string[] {
+  return actor.statuses.map((status) => status.defId).sort();
 }
 
 /**
@@ -559,6 +582,8 @@ export class GameServer {
    * somebody moved a sword between two pockets.
    */
   private sentCarriedLights = new Map<string, string>();
+  /** Last broadcast status ids per actor, joined. @see diffStatusIds */
+  private sentStatusIds = new Map<string, string>();
   private events: MotionEvent[] = [];
   /** Steps clients say they have taken, oldest first, per actor. */
   private readonly queuedSteps = new Map<string, QueuedStep[]>();
@@ -1739,6 +1764,7 @@ export class GameServer {
       actorIds: session.actorIds(),
       hps: currentHps(actors),
       carriedLights: currentCarriedLights(actors),
+      statusIds: currentStatusIds(actors),
       // Theirs alone, and sent in full here for the same reason the map and the
       // hit points are: a joiner has nothing to patch against.
       equipment: session.equipmentOf(actorId) ?? emptyEquipment(),
@@ -2681,6 +2707,7 @@ export class GameServer {
     this.sentMotion.clear();
     this.sentHp.clear();
     this.sentCarriedLights.clear();
+    this.sentStatusIds.clear();
     this.queuedSteps.clear();
     this.lastSaidAt.clear();
     this.events = [];
@@ -2807,11 +2834,13 @@ export class GameServer {
     this.sweepRespawnCells(cells);
     const hps = this.diffHps(actors);
     const carriedLights = this.diffCarriedLights(actors);
+    const statusIds = this.diffStatusIds(actors);
     if (
       cells.length > 0 ||
       this.events.length > 0 ||
       hps.length > 0 ||
-      carriedLights.length > 0
+      carriedLights.length > 0 ||
+      statusIds.length > 0
     ) {
       this.broadcast({
         type: "patch",
@@ -2819,6 +2848,7 @@ export class GameServer {
         events: this.events,
         hps,
         carriedLights,
+        statusIds,
       });
       this.broadcastMap = session.getMap();
       this.events = [];
@@ -3204,6 +3234,34 @@ export class GameServer {
     }
     for (const id of this.sentCarriedLights.keys()) {
       if (!live.has(id)) this.sentCarriedLights.delete(id);
+    }
+    return out;
+  }
+
+  /**
+   * Whose statuses have changed since the last patch, as ids.
+   *
+   * A diff of its own rather than a read of `drainStatusChanges`, and the two
+   * must not be confused: that queue is drained to send the viewer their *own*
+   * countdown, and reading it here would take the message out of their mouth.
+   * This compares what was last broadcast, on exactly the terms
+   * {@link diffCarriedLights} does — including forgetting a body that has left,
+   * so a returning one is diffed against nothing rather than against whatever
+   * its last life was under.
+   */
+  private diffStatusIds(actors: ActorSnapshot[]): StatusIdsPatch[] {
+    const out: StatusIdsPatch[] = [];
+    const live = new Set<string>();
+    for (const actor of actors) {
+      live.add(actor.id);
+      const defIds = statusIdsOf(actor);
+      const joined = defIds.join(",");
+      if ((this.sentStatusIds.get(actor.id) ?? "") === joined) continue;
+      this.sentStatusIds.set(actor.id, joined);
+      out.push({ actorId: actor.id, defIds });
+    }
+    for (const id of this.sentStatusIds.keys()) {
+      if (!live.has(id)) this.sentStatusIds.delete(id);
     }
     return out;
   }

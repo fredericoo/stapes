@@ -1,3 +1,4 @@
+import { MAX_CONSUMABLE_HP_SHIFT } from "../lib/item";
 import {
   MASTERIES,
   MAX_MASTERY,
@@ -63,9 +64,18 @@ export function isCommand(text: string): boolean {
 
 export const MASTERY_COMMAND = "mastery";
 export const TILE_COMMAND = "tile";
+export const STATUS_COMMAND = "status";
+export const HEALTH_COMMAND = "health";
+
+/** The argument that takes everything off instead of putting something on. */
+export const STATUS_CLEAR_ARGUMENT = "clear";
 
 /** Every verb this module knows, which is every verb there is. */
-export type CommandName = typeof MASTERY_COMMAND | typeof TILE_COMMAND;
+export type CommandName =
+  | typeof MASTERY_COMMAND
+  | typeof TILE_COMMAND
+  | typeof STATUS_COMMAND
+  | typeof HEALTH_COMMAND;
 
 /**
  * How each command is written, in one place.
@@ -79,6 +89,17 @@ export type CommandName = typeof MASTERY_COMMAND | typeof TILE_COMMAND;
 export const COMMAND_USAGE: Record<CommandName, string> = {
   [MASTERY_COMMAND]: `${COMMAND_PREFIX}${MASTERY_COMMAND} <mastery> <${MIN_MASTERY}-${MAX_MASTERY}> [player id]`,
   [TILE_COMMAND]: `${COMMAND_PREFIX}${TILE_COMMAND} <tile> [x] [y] [z]`,
+  // `clear` is part of the grammar rather than a second verb, because it is the
+  // same sentence with the same target and only the thing being put on differs.
+  // A debugging command that can only be switched *on* is a poor one: tuning
+  // what a burn looks like means seeing it start, and then not having to wait
+  // half a minute to see it start again.
+  [STATUS_COMMAND]: `${COMMAND_PREFIX}${STATUS_COMMAND} <status id | ${STATUS_CLEAR_ARGUMENT}> [player id]`,
+  // The sign is the whole grammar, and it is the reason this is one command
+  // rather than three: `50` is a place to put somebody, `+10` and `-10` are
+  // things to do to them, and somebody debugging a fight wants both without
+  // learning two verbs.
+  [HEALTH_COMMAND]: `${COMMAND_PREFIX}${HEALTH_COMMAND} <n | +n | -n> [player id]`,
 };
 
 /**
@@ -108,6 +129,16 @@ export type CellRequest = {
 };
 
 /**
+ * The most hit points one command may name.
+ *
+ * A sanity bound rather than a balance one, borrowed from the figure a
+ * consumable is allowed to move — the two are the same kind of number, and a
+ * second answer to "how big can a hit point figure be" is a second thing to keep
+ * in step.
+ */
+export const MAX_COMMAND_HP = MAX_CONSUMABLE_HP_SHIFT;
+
+/**
  * A command that parsed, with everything it needs to be carried out.
  *
  * A request rather than an action: nothing here has looked at the world, so a
@@ -134,10 +165,44 @@ export type Command =
        */
       tileId: string;
       at: CellRequest;
+    }
+  | {
+      name: typeof STATUS_COMMAND;
+      /**
+       * The status to put on, or null to take everything off.
+       *
+       * Not checked against a catalogue here either, and for the reason
+       * {@link TileCommand}'s `tileId` is not: a status id names an entry in a
+       * file the world loaded, which this module has never seen.
+       */
+      statusId: string | null;
+      /** Null for the body that typed it — either `self` or nothing at all. */
+      target: string | null;
+    }
+  | {
+      name: typeof HEALTH_COMMAND;
+      health: HealthChange;
+      /** Null for the body that typed it — either `self` or nothing at all. */
+      target: string | null;
     };
 
 export type MasteryCommand = Extract<Command, { name: typeof MASTERY_COMMAND }>;
 export type TileCommand = Extract<Command, { name: typeof TILE_COMMAND }>;
+export type StatusCommand = Extract<Command, { name: typeof STATUS_COMMAND }>;
+export type HealthCommand = Extract<Command, { name: typeof HEALTH_COMMAND }>;
+
+/**
+ * What a health command asks for.
+ *
+ * Two shapes rather than one signed number, because "put them at 10" and "take
+ * 10 off them" are different requests that a bare `10` cannot tell apart — and
+ * the session answers them differently: a shift downwards goes through the same
+ * damage a blow does, and a set is worked out against a maximum first.
+ */
+export type HealthChange =
+  | { kind: "set"; hp: number }
+  /** Signed: positive heals, negative harms. */
+  | { kind: "shift"; by: number };
 
 /**
  * Why a command did not happen.
@@ -159,7 +224,14 @@ export type CommandRefusal =
   | { kind: "spawnMarkerTile"; typed: string }
   /** The summoner has no body, so there is no "here" to place anything near. */
   | { kind: "nowhereToPlace" }
-  | { kind: "noRoom"; at: Coord };
+  | { kind: "noRoom"; at: Coord }
+  // From the session rather than the parser — the catalogue is the world's.
+  // The known ids ride along so the answer names the alternatives, the way the
+  // mastery refusal does.
+  | { kind: "unknownStatus"; typed: string; known: readonly string[] }
+  | { kind: "badHealth"; typed: string }
+  /** A body with no hit points to move — a crate, a sign, a tuft of grass. */
+  | { kind: "unharmableTarget"; name: string };
 
 export type CommandParse =
   | { ok: true; command: Command }
@@ -196,6 +268,10 @@ export function parseCommand(raw: string): CommandParse {
       return parseMasteryArguments(args);
     case TILE_COMMAND:
       return parseTileArguments(args);
+    case STATUS_COMMAND:
+      return parseStatusArguments(args);
+    case HEALTH_COMMAND:
+      return parseHealthArguments(args);
     default:
       return {
         ok: false,
@@ -220,7 +296,7 @@ function parseMasteryArguments(args: string[]): CommandParse {
     };
   }
 
-  const [masteryToken, levelToken, targetToken] = args;
+  const [masteryToken = "", levelToken = "", targetToken] = args;
 
   const mastery = MASTERIES.find(
     (candidate) => candidate === masteryToken.toLowerCase(),
@@ -239,14 +315,14 @@ function parseMasteryArguments(args: string[]): CommandParse {
     return { ok: false, refusal: { kind: "badLevel", typed: levelToken } };
   }
 
-  const target =
-    targetToken === undefined || targetToken.toLowerCase() === SELF_TARGET
-      ? null
-      : targetToken;
-
   return {
     ok: true,
-    command: { name: MASTERY_COMMAND, mastery, level, target },
+    command: {
+      name: MASTERY_COMMAND,
+      mastery,
+      level,
+      target: targetOf(targetToken),
+    },
   };
 }
 
@@ -303,6 +379,98 @@ function parseTileArguments(args: string[]): CommandParse {
   };
 }
 
+/** The id is required; the target is the one optional argument. */
+const MIN_STATUS_ARGUMENTS = 1;
+const MAX_STATUS_ARGUMENTS = 2;
+
+/**
+ * `/status <id|clear> [player]`.
+ *
+ * The id keeps the case it was typed in, unlike a mastery and unlike a tile: a
+ * status id is an authored key rather than a word from a list this module owns,
+ * and lower-casing it would quietly refuse a perfectly good `Poison` that
+ * somebody chose to write that way. Only `clear` — this module's own word — is
+ * matched case-insensitively.
+ */
+function parseStatusArguments(args: string[]): CommandParse {
+  if (
+    args.length < MIN_STATUS_ARGUMENTS ||
+    args.length > MAX_STATUS_ARGUMENTS
+  ) {
+    return {
+      ok: false,
+      refusal: { kind: "badArguments", command: STATUS_COMMAND },
+    };
+  }
+
+  const [statusToken = "", targetToken] = args;
+  const clearing = statusToken.toLowerCase() === STATUS_CLEAR_ARGUMENT;
+
+  return {
+    ok: true,
+    command: {
+      name: STATUS_COMMAND,
+      statusId: clearing ? null : statusToken,
+      target: targetOf(targetToken),
+    },
+  };
+}
+
+/** The figure is required; the target is the one optional argument. */
+const MIN_HEALTH_ARGUMENTS = 1;
+const MAX_HEALTH_ARGUMENTS = 2;
+
+/**
+ * A whole number of hit points, with an optional leading sign.
+ *
+ * Anchored at both ends on the terms {@link COORDINATE_PATTERN} is: `Number`
+ * alone accepts "1e3", " 10 " and "0x10", none of which anybody typed on
+ * purpose, and one of them is a thousand hit points.
+ */
+const HEALTH_PATTERN = /^[+-]?\d+$/;
+
+/**
+ * `/health <n|+n|-n> [player]`.
+ *
+ * The sign is read off the **text**, not off the number, and it has to be:
+ * `Number("+10")` and `Number("10")` are the same ten, and the difference
+ * between them is the whole difference between healing somebody and moving them.
+ * The same trick the tile command's coordinates turn on.
+ */
+function parseHealthArguments(args: string[]): CommandParse {
+  if (
+    args.length < MIN_HEALTH_ARGUMENTS ||
+    args.length > MAX_HEALTH_ARGUMENTS
+  ) {
+    return {
+      ok: false,
+      refusal: { kind: "badArguments", command: HEALTH_COMMAND },
+    };
+  }
+
+  const [amountToken = "", targetToken] = args;
+  if (!HEALTH_PATTERN.test(amountToken)) {
+    return { ok: false, refusal: { kind: "badHealth", typed: amountToken } };
+  }
+
+  const magnitude = Number(amountToken);
+  if (Math.abs(magnitude) > MAX_COMMAND_HP) {
+    return { ok: false, refusal: { kind: "badHealth", typed: amountToken } };
+  }
+
+  const signed = amountToken.startsWith("+") || amountToken.startsWith("-");
+  return {
+    ok: true,
+    command: {
+      name: HEALTH_COMMAND,
+      health: signed
+        ? { kind: "shift", by: magnitude }
+        : { kind: "set", hp: magnitude },
+      target: targetOf(targetToken),
+    },
+  };
+}
+
 /**
  * A whole number, with the sign — and only the sign — making it an offset.
  *
@@ -344,4 +512,11 @@ function resolveCoordinate(coordinate: Coordinate, origin: number): number {
   return coordinate.kind === "absolute"
     ? coordinate.value
     : origin + coordinate.offset;
+}
+
+/** `self` and an absent argument are the same request: whoever typed it. */
+function targetOf(token: string | undefined): string | null {
+  return token === undefined || token.toLowerCase() === SELF_TARGET
+    ? null
+    : token;
 }
