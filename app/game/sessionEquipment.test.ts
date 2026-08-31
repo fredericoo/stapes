@@ -473,12 +473,17 @@ describe("a weapon reaches the blow", () => {
     }
 
     /**
-     * **The property the whole design rests on.** Two of the same weapon is the
-     * same fight as one of them — same blows, same worth, same rate. If this
-     * ever fails, dual wielding has become a damage increase by accident, which
-     * is exactly what alternating rather than adding exists to avoid.
+     * **The property the whole design rests on.** Two of the same weapon throws
+     * the same blows as one of them — same worth, same rate. If this ever fails,
+     * dual wielding has become a damage increase by accident, which is exactly
+     * what alternating rather than adding exists to avoid.
+     *
+     * About the blows and nothing else: a second copy of a weapon that guards
+     * still guards, which is `./equipment.test`'s to pin and is not visible from
+     * here. `light-sword` is authored `def: 0`, so this session is measuring
+     * only what it claims to.
      */
-    it("makes two of the same weapon the same fight as one", () => {
+    it("throws the same blows with two of a weapon as with one", () => {
       const one = fightingSession();
       arm(one, "light-sword");
       const two = fightingSession();

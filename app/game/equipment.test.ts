@@ -100,6 +100,8 @@ const base: BattlerDef = {
  */
 /** A parrying sword: something a hand swings *and* turns blows aside with. */
 const SWORD_DEF = 2;
+/** The same idea under the name the rotation's tests reach for. */
+const PARRY_DEF = SWORD_DEF;
 const SWORD = normalizeTileDef({
   id: "sword",
   name: "Sword",
@@ -826,6 +828,7 @@ describe("taking turns between two hands", () => {
     ...shipped,
     shield: SHIELD,
     sword: SWORD,
+    parry: SWORD,
   };
   // The shipped player rather than the bare fixture above: a body with no
   // masteries meets no weapon's requirements, so every blow it throws resolves
@@ -850,19 +853,44 @@ describe("taking turns between two hands", () => {
 
   /**
    * The property every change here should be checked against: alternating
-   * between two identical weapons is the same fight as swinging one of them.
-   * If it ever stops being true, the rotation has grown a rule it should not
-   * have.
+   * between two identical weapons *swings* exactly as one of them does. If that
+   * ever stops being true, the rotation has grown a rule it should not have.
+   *
+   * **Deliberately asserted with a weapon that guards.** Every weapon shipped
+   * today is authored `def: 0`, so a fixture picked off the catalogue would pass
+   * this whether or not the guard were counted twice — a test agreeing with the
+   * code for a reason neither of them is about. The parrying sword separates the
+   * half that must not move from the half that must.
    */
-  it("makes two of the same weapon the same fight as one", () => {
-    const one = held("rusty-sword", null);
-    const two = held("rusty-sword", "rusty-sword");
+  it("swings two of the same weapon exactly as it swings one", () => {
+    const one = held("parry", null);
+    const two = held("parry", "parry");
 
     for (const hand of HANDS) {
-      expect(effectiveBattler(base, two, tiles, hand)).toEqual(
-        effectiveBattler(base, one, tiles, "weapon"),
-      );
+      const swung = effectiveBattler(base, two, tiles, hand);
+      const alone = effectiveBattler(base, one, tiles, "weapon");
+      // Everything the blow is made of, and nothing about being hit.
+      expect(swung.damage).toBe(alone.damage);
+      expect(swung.spd).toBe(alone.spd);
+      expect(swung.mastery).toBe(alone.mastery);
+      expect(swung.accuracy).toBe(alone.accuracy);
+      expect(swung.reach).toEqual(alone.reach);
     }
+  });
+
+  /**
+   * And the half that *does* move: a second blade is a second thing in the way.
+   *
+   * Not an exception and not a bonus — {@link heldDefence} counts both hands
+   * because both hands are holding something, and it has no idea the two are the
+   * same weapon. Realistic, and a poor use of a hand: a shield is worth more
+   * guard for the same square without pretending to be a weapon.
+   */
+  it("guards with both copies, because both are in the way", () => {
+    const one = effectiveBattler(base, held("parry", null), tiles, "weapon");
+    const two = effectiveBattler(base, held("parry", "parry"), tiles, "weapon");
+
+    expect(two.def).toBe(one.def + PARRY_DEF);
   });
 
   /**

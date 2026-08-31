@@ -429,9 +429,16 @@ export function weaponSwungBy(
  * **The rotation skips hands that have nothing to swing**, and that is the rule
  * that makes one sword no worse than it was. A body alternating between a sword
  * and an empty fist would land half the blows it used to for holding exactly
- * what it held before — so an empty hand is not a turn, it is an absence. It
- * follows that two of the same weapon is the same fight as one of them, which
- * is the property worth checking any change here against.
+ * what it held before — so an empty hand is not a turn, it is an absence.
+ *
+ * It follows that **two of the same weapon swing exactly as one of them does**:
+ * same damage, same speed, same mastery, whichever hand is up. That is the
+ * property worth checking any change here against, and note what it does *not*
+ * say — a second sword still guards, because {@link heldDefence} counts what is
+ * in both hands and a blade held up is a blade in the way. Two parrying swords
+ * are twice the parry and exactly one sword's worth of swing. Nothing
+ * special-cases this; it falls out of alternating rather than adding, which is
+ * the whole reason the rotation is worth having.
  *
  * `preferred` is whose turn it is, and it is honoured only if that hand has
  * something to swing. A body that drops the sword it was about to use swings the
