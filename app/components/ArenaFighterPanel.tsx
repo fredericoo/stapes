@@ -6,7 +6,7 @@ import {
   statsOf,
   tilesForSlot,
 } from "../game/arena";
-import { weaponInHand } from "../game/equipment";
+import { handToSwing, HANDS, weaponInHand } from "../game/equipment";
 import {
   ACCURACY_AT_MAX_MASTERY,
   DAMAGE_AT_MAX_MASTERY,
@@ -267,7 +267,18 @@ function NaturalWeapon({
   // What is actually swung, not what the body was born with — a held weapon
   // replaces the natural one, and a readout quoting the wrong one of the two is
   // the single most misleading thing this panel could show.
-  const weapon = weaponInHand(body, equipmentOf(fighter, tilesById), tilesById);
+  //
+  // The hand a body starts on, rather than no hand at all: this row names a
+  // weapon, and "none in particular" would name the claws of a body plainly
+  // holding a sword. A fighter with one in each hand is showing the first of the
+  // two, which the Arena's own equipment rows say outright beside it.
+  const equipment = equipmentOf(fighter, tilesById);
+  const weapon = weaponInHand(
+    body,
+    equipment,
+    tilesById,
+    handToSwing(equipment, tilesById, HANDS[0]),
+  );
   const natural = weapon === body.naturalWeapon;
 
   return (

@@ -20,26 +20,50 @@ import {
   DEFAULT_WEAPON,
   MELEE_REACH,
   resolveArmor,
+  resolveWeapon,
 } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import { MAX_MASTERY } from "../lib/mastery";
 import type { TileDef } from "../lib/types";
 import { normalizeTileDef, normalizeTiles } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
-import type { Equipment } from "./equipment";
+import type { Equipment, Hand } from "./equipment";
 import {
   armorDefence,
   armorResistances,
+  fightsWithBothHands,
+  HANDS,
+  handToSwing,
+  heldDefence,
   carriedInstances,
   carriedLightTileIds,
   effectiveBattler,
   emptyEquipment,
   handAccepts,
-  offhandDefence,
   restoredEquipment,
+  otherHand,
   weaponInHand,
+  weaponSwungBy,
   wornDefence,
 } from "./equipment";
+
+
+/**
+ * The hand a body starts a fight on, which is what nearly every case here means.
+ *
+ * Both hands swing now, so "the numbers this body fights with" is a question
+ * about a *turn* rather than about a body — see `./equipment`'s
+ * `effectiveBattler`. Almost nothing below is about the rotation, so almost
+ * everything below asks for the first hand that has something to swing and lets
+ * `handToSwing` fall back to bare hands on its own. The cases that *are* about
+ * the rotation name their hand outright.
+ */
+function firstHand(
+  equipment: Equipment | null,
+  tiles: Record<string, TileDef>,
+): Hand | null {
+  return handToSwing(equipment, tiles, HANDS[0]);
+}
 
 /**
  * A body with recognisable claws, so "which weapon won" is answerable by
@@ -74,6 +98,20 @@ const base: BattlerDef = {
  * game: defence rides on a weapon and armour is the thing you wear. See
  * `WeaponItem.def`.
  */
+/** A parrying sword: something a hand swings *and* turns blows aside with. */
+const SWORD_DEF = 2;
+const SWORD = normalizeTileDef({
+  id: "sword",
+  name: "Sword",
+  height: 0,
+  kind: "item",
+  directional: false,
+  attributes: {},
+  variants: { default: [] },
+  intangible: true,
+  interactions: { item: { ...DEFAULT_WEAPON, def: SWORD_DEF } },
+});
+
 const SHIELD = normalizeTileDef({
   id: "shield",
   name: "Shield",
@@ -83,7 +121,7 @@ const SHIELD = normalizeTileDef({
   attributes: {},
   variants: { default: [] },
   intangible: true,
-  interactions: { item: { ...DEFAULT_WEAPON, damage: 0, def: 3 } },
+  interactions: { item: { type: "shield", def: 3 } },
 });
 
 /**
@@ -96,8 +134,8 @@ const SHIELD = normalizeTileDef({
  */
 describe("weaponInHand", () => {
   it("falls back to the natural weapon with an empty hand", () => {
-    expect(weaponInHand(base, null, lightTiles)).toEqual(CLAWS);
-    expect(weaponInHand(base, emptyEquipment(), lightTiles)).toEqual(CLAWS);
+    expect(weaponInHand(base, null, lightTiles, firstHand(null, lightTiles))).toEqual(CLAWS);
+    expect(weaponInHand(base, emptyEquipment(), lightTiles, firstHand(emptyEquipment(), lightTiles))).toEqual(CLAWS);
   });
 
   it("takes what is in the hand instead, rather than as well", () => {
@@ -105,7 +143,7 @@ describe("weaponInHand", () => {
       ...emptyEquipment(),
       weapon: { id: "w", tileId: "sword" },
     };
-    expect(weaponInHand(base, kit, lightTiles)).toEqual(DEFAULT_WEAPON);
+    expect(weaponInHand(base, kit, lightTiles, firstHand(kit, lightTiles))).toEqual(DEFAULT_WEAPON);
   });
 
   /** The bag is carried, not wielded — nothing in it reaches a blow. */
@@ -114,7 +152,7 @@ describe("weaponInHand", () => {
       ...emptyEquipment(),
       bag: { id: "b", tileId: "bag", contents: [{ id: "c", tileId: "sword" }] },
     };
-    expect(weaponInHand(base, kit, lightTiles)).toEqual(CLAWS);
+    expect(weaponInHand(base, kit, lightTiles, firstHand(kit, lightTiles))).toEqual(CLAWS);
   });
 
   it("falls back when the slot holds something that is not a weapon", () => {
@@ -122,7 +160,7 @@ describe("weaponInHand", () => {
       ...emptyEquipment(),
       weapon: { id: "w", tileId: "bag" },
     };
-    expect(weaponInHand(base, kit, lightTiles)).toEqual(CLAWS);
+    expect(weaponInHand(base, kit, lightTiles, firstHand(kit, lightTiles))).toEqual(CLAWS);
   });
 
   /**
@@ -135,13 +173,13 @@ describe("weaponInHand", () => {
       ...emptyEquipment(),
       weapon: { id: "w", tileId: "no-such-tile" },
     };
-    expect(weaponInHand(base, kit, lightTiles)).toEqual(CLAWS);
+    expect(weaponInHand(base, kit, lightTiles, firstHand(kit, lightTiles))).toEqual(CLAWS);
   });
 });
 
 describe("effectiveBattler", () => {
   it("takes damage, defence, accuracy and speed from the weapon", () => {
-    const out = effectiveBattler(base, null, lightTiles);
+    const out = effectiveBattler(base, null, lightTiles, firstHand(null, lightTiles));
     // **The weapon's numbers plus what being good with it adds.** A weapon that
     // asks nothing is at full readiness for anybody, so what separates this from
     // the authored figure is Fist alone — see `../lib/battler`'s two axes.
@@ -174,7 +212,7 @@ describe("effectiveBattler", () => {
       ...emptyEquipment(),
       weapon: { id: "w", tileId: "sword" },
     };
-    const out = effectiveBattler(base, kit, lightTiles);
+    const out = effectiveBattler(base, kit, lightTiles, firstHand(kit, lightTiles));
     expect(out.damage).toBe(DEFAULT_WEAPON.damage);
     expect(out.accuracy).toBe(DEFAULT_WEAPON.accuracy);
     expect(out.spd).toBe(DEFAULT_WEAPON.spd);
@@ -191,14 +229,14 @@ describe("effectiveBattler", () => {
       weapon: { id: "w", tileId: "sword" },
     };
     for (const equipment of [null, emptyEquipment(), kit]) {
-      const out = effectiveBattler(base, equipment, lightTiles);
+      const out = effectiveBattler(base, equipment, lightTiles, firstHand(equipment, lightTiles));
       expect(out.maxHp).toBe(maxHpFrom(20));
       expect(out.flee).toBe(fleeFrom(6));
     }
   });
 
   it("takes its reach from the weapon and its sight from the body", () => {
-    const out = effectiveBattler(base, null, lightTiles);
+    const out = effectiveBattler(base, null, lightTiles, firstHand(null, lightTiles));
     // The natural weapon's, because that is what an empty hand swings — and the
     // whole of why reach moved off the body: a bow in that hand would answer
     // differently, where a tile-level number could not.
@@ -211,7 +249,10 @@ describe("effectiveBattler", () => {
     effectiveBattler(base, {
       ...emptyEquipment(),
       weapon: { id: "w", tileId: "sword" },
-    }, lightTiles);
+    }, lightTiles, firstHand({
+      ...emptyEquipment(),
+      weapon: { id: "w", tileId: "sword" },
+    }, lightTiles));
     expect(base).toEqual(snapshot);
   });
 });
@@ -548,8 +589,8 @@ describe("the off hand", () => {
   });
 
   it("leaves what you swing with entirely alone", () => {
-    const bare = effectiveBattler(player, holding(null), shipped);
-    const lamp = effectiveBattler(player, holding("hand-lantern"), shipped);
+    const bare = effectiveBattler(player, holding(null), shipped, firstHand(holding(null), shipped));
+    const lamp = effectiveBattler(player, holding("hand-lantern"), shipped, firstHand(holding("hand-lantern"), shipped));
 
     expect(lamp.damage).toBe(bare.damage);
     expect(lamp.spd).toBe(bare.spd);
@@ -566,8 +607,8 @@ describe("the off hand", () => {
    * `weaponInHand` to prefer over what the body already had.
    */
   it("is no worse than bare hands in the hand you swing with either", () => {
-    const bare = effectiveBattler(player, holding(null), shipped);
-    const lamp = effectiveBattler(player, holding(null, "hand-lantern"), shipped);
+    const bare = effectiveBattler(player, holding(null), shipped, firstHand(holding(null), shipped));
+    const lamp = effectiveBattler(player, holding(null, "hand-lantern"), shipped, firstHand(holding(null, "hand-lantern"), shipped));
 
     expect(lamp.damage).toBe(bare.damage);
     expect(lamp.spd).toBe(bare.spd);
@@ -583,8 +624,8 @@ describe("the off hand", () => {
   it("adds what it turns aside to your defence", () => {
     const withShield = { ...shipped, shield: SHIELD };
 
-    const bare = effectiveBattler(player, holding(null), withShield);
-    const guarded = effectiveBattler(player, holding("shield"), withShield);
+    const bare = effectiveBattler(player, holding(null), withShield, firstHand(holding(null), withShield));
+    const guarded = effectiveBattler(player, holding("shield"), withShield, firstHand(holding("shield"), withShield));
 
     expect(guarded.def).toBe(bare.def + 3);
     // Still swinging your own fists, which is the point of it being the *other*
@@ -611,43 +652,71 @@ describe("the off hand", () => {
     expect(wornDefence(player, twoHanded, tiles)).toBe(6);
     // Plus what the body turns aside on its own, which `wornDefence` does not
     // count — see `../lib/battler`'s `bodyDefence`.
-    expect(effectiveBattler(player, twoHanded, tiles).def).toBe(
+    expect(effectiveBattler(player, twoHanded, tiles, firstHand(twoHanded, tiles)).def).toBe(
       6 + bodyDefence(player),
     );
   });
 
   /**
-   * The replacement rule, which is what stops the main hand being three free
-   * points: a shield in your fist is what you swing, so you gave up your fists
-   * to hold it.
+   * **A shield costs you nothing to hold, in either fist**, and that is the
+   * whole reason it stopped being a weapon.
+   *
+   * It used to cost the swinging hand its swing — a shield was a `damage: 0`
+   * weapon and the main hand's contents replaced your fists, so taking one up
+   * meant punching for nothing. That was a rule nobody wrote: it fell out of a
+   * shield having to be authored as the only kind of block that fitted in a
+   * hand. Now it is a {@link ShieldItem}, `weaponSwungBy` refuses it, and the
+   * hand holding it simply sits out — which is what a shield *is*.
    */
-  it("charges the main hand its swing for the privilege", () => {
+  it("costs neither hand its swing", () => {
     const tiles = { ...shipped, shield: SHIELD };
-    const bare = effectiveBattler(player, holding(null), tiles);
-    const shielded = effectiveBattler(player, holding(null, "shield"), tiles);
+    const bare = holding(null);
+    const inEitherHand = [holding("shield"), holding(null, "shield")];
 
-    expect(shielded.def).toBe(bare.def + 3);
-    expect(shielded.damage).toBe(0);
-    expect(bare.damage).toBeGreaterThan(0);
+    for (const kit of inEitherHand) {
+      const shielded = effectiveBattler(player, kit, tiles, firstHand(kit, tiles));
+      const fists = effectiveBattler(player, bare, tiles, firstHand(bare, tiles));
+
+      expect(shielded.def).toBe(fists.def + 3);
+      // Still your own fists, whichever hand the shield went in — where the main
+      // hand used to be the one that punished you for it.
+      expect(shielded.damage).toBe(fists.damage);
+      expect(fists.damage).toBeGreaterThan(0);
+    }
   });
 
-  /** A body whose own hide turns blows aside keeps it while its hands are empty. */
-  it("reads an empty fist off the body's natural weapon", () => {
+  /**
+   * A body whose own hide turns blows aside keeps it until it is fighting with
+   * something else — and a shield is not something else.
+   *
+   * **The case the old asymmetry got wrong in both directions.** What counted
+   * was whether the *main* hand was full, so claws-plus-a-shield depended on
+   * which fist the shield was in: 3 in the right, 7 in the left, for a body
+   * holding one thing. Now it is whether either hand has anything to *swing*,
+   * which is one question with one answer — see `natureDefence`.
+   */
+  it("keeps a body's own hide until it is swinging something else", () => {
     const hided: BattlerDef = {
       ...base,
       naturalWeapon: { ...CLAWS, def: 4 },
     };
-    expect(wornDefence(hided, emptyEquipment(), shipped)).toBe(4);
-    // And loses it the moment something else is in that hand, on the
-    // replacement rule the swing is under.
-    const tiles = { ...shipped, shield: SHIELD };
-    expect(wornDefence(hided, holding(null, "shield"), tiles)).toBe(3);
+    const tiles = { ...shipped, shield: SHIELD, sword: SWORD };
+
+    expect(wornDefence(hided, emptyEquipment(), tiles)).toBe(4);
+    // A shield in either hand: still fighting with its claws, so still 4 — plus
+    // the shield. The two hands answer identically, which they did not before.
+    expect(wornDefence(hided, holding("shield"), tiles)).toBe(4 + 3);
+    expect(wornDefence(hided, holding(null, "shield"), tiles)).toBe(4 + 3);
+    // And loses the hide the moment either hand takes up something it swings,
+    // which is the same replacement rule the swing itself is under.
+    expect(wornDefence(hided, holding(null, "sword"), tiles)).toBe(SWORD_DEF);
+    expect(wornDefence(hided, holding("sword"), tiles)).toBe(SWORD_DEF);
   });
 
   it("turns nothing aside when it is empty or holding a torch", () => {
-    expect(offhandDefence(holding(null), shipped)).toBe(0);
-    expect(offhandDefence(holding("hand-lantern"), shipped)).toBe(0);
-    expect(offhandDefence(null, shipped)).toBe(0);
+    expect(heldDefence(holding(null), shipped)).toBe(0);
+    expect(heldDefence(holding("hand-lantern"), shipped)).toBe(0);
+    expect(heldDefence(null, shipped)).toBe(0);
   });
 
   /** A kit saved before the slot existed comes back with an empty hand. */
@@ -678,8 +747,8 @@ describe("the body", () => {
   });
 
   it("adds what it turns aside to your defence", () => {
-    const bare = effectiveBattler(player, wearing(null), shipped);
-    const mailed = effectiveBattler(player, wearing("chain-mail"), shipped);
+    const bare = effectiveBattler(player, wearing(null), shipped, firstHand(wearing(null), shipped));
+    const mailed = effectiveBattler(player, wearing("chain-mail"), shipped, firstHand(wearing("chain-mail"), shipped));
 
     expect(mailed.def).toBe(bare.def + 3);
   });
@@ -697,13 +766,13 @@ describe("the body", () => {
     // Bare hands, so the main hand contributes the player's own zero.
     expect(wornDefence(player, kit, tiles)).toBe(3 + 3);
     expect(armorDefence(kit, tiles)).toBe(3);
-    expect(offhandDefence(kit, tiles)).toBe(3);
+    expect(heldDefence(kit, tiles)).toBe(3);
   });
 
   /** What a body *is* cannot be put on, exactly as it cannot be picked up. */
   it("leaves what you swing with entirely alone", () => {
-    const bare = effectiveBattler(player, wearing(null), shipped);
-    const plated = effectiveBattler(player, wearing("steel-plate"), shipped);
+    const bare = effectiveBattler(player, wearing(null), shipped, firstHand(wearing(null), shipped));
+    const plated = effectiveBattler(player, wearing("steel-plate"), shipped, firstHand(wearing("steel-plate"), shipped));
 
     expect(plated.damage).toBe(bare.damage);
     expect(plated.spd).toBe(bare.spd);
@@ -739,6 +808,141 @@ describe("the body", () => {
   it("restores a kit that predates it", () => {
     const old = { weapon: null, offhand: null, bag: null } as unknown as Equipment;
     expect(restoredEquipment(old, shipped).armor).toBeNull();
+  });
+});
+
+/**
+ * Two hands, and they are the same hand twice.
+ *
+ * **The claim is that a hand is a square rather than a rank.** What used to make
+ * the main hand special was one field being read where two existed: a second
+ * sword was inert, a shield dragged into the right fist replaced what you fought
+ * with, and neither was a rule anybody wrote down. These pin the rotation and,
+ * just as importantly, what it deliberately does *not* do.
+ */
+describe("taking turns between two hands", () => {
+  const shipped = tilesByIdFromList(normalizeTiles(tilesJson as unknown[]));
+  const tiles: Record<string, TileDef> = {
+    ...shipped,
+    shield: SHIELD,
+    sword: SWORD,
+  };
+  // The shipped player rather than the bare fixture above: a body with no
+  // masteries meets no weapon's requirements, so every blow it throws resolves
+  // to zero and two different weapons would look identical for the wrong reason.
+  const base = resolveBattler(shipped["player"]!)!;
+
+  const held = (weapon: string | null, offhand: string | null): Equipment => ({
+    ...emptyEquipment(),
+    weapon: weapon ? { id: `itm_${weapon}`, tileId: weapon } : null,
+    offhand: offhand ? { id: `itm_${offhand}`, tileId: offhand } : null,
+  });
+
+  it("swings whichever hand it is up to, and then the other", () => {
+    const both = held("sword", "rusty-sword");
+
+    expect(handToSwing(both, tiles, "weapon")).toBe("weapon");
+    expect(handToSwing(both, tiles, "offhand")).toBe("offhand");
+    expect(otherHand("weapon")).toBe("offhand");
+    expect(otherHand("offhand")).toBe("weapon");
+    expect(fightsWithBothHands(both, tiles)).toBe(true);
+  });
+
+  /**
+   * The property every change here should be checked against: alternating
+   * between two identical weapons is the same fight as swinging one of them.
+   * If it ever stops being true, the rotation has grown a rule it should not
+   * have.
+   */
+  it("makes two of the same weapon the same fight as one", () => {
+    const one = held("rusty-sword", null);
+    const two = held("rusty-sword", "rusty-sword");
+
+    for (const hand of HANDS) {
+      expect(effectiveBattler(base, two, tiles, hand)).toEqual(
+        effectiveBattler(base, one, tiles, "weapon"),
+      );
+    }
+  });
+
+  /**
+   * **An empty hand is not a turn.** A body alternating a sword and a fist would
+   * land half the blows it used to for holding exactly what it held before,
+   * which is the one way ambidexterity could quietly be a nerf.
+   */
+  it("never takes a turn with an empty hand", () => {
+    for (const kit of [held("rusty-sword", null), held(null, "rusty-sword")]) {
+      // Whosever turn it nominally is, the hand with the sword answers.
+      for (const preferred of HANDS) {
+        const hand = handToSwing(kit, tiles, preferred);
+        expect(hand).not.toBeNull();
+        expect(weaponInHand(base, kit, tiles, hand).damage).toBe(
+          resolveWeapon(tiles["rusty-sword"]!)!.damage,
+        );
+      }
+    }
+  });
+
+  /** Nor is a hand holding something a fight cannot see, or will not swing. */
+  it("skips a hand holding a shield, a torch or a loaf", () => {
+    for (const inert of ["shield", "hand-lantern", "bread"]) {
+      const kit = held("rusty-sword", inert);
+      expect(weaponSwungBy(kit, tiles, "offhand")).toBeNull();
+      expect(handToSwing(kit, tiles, "offhand")).toBe("weapon");
+      expect(fightsWithBothHands(kit, tiles)).toBe(false);
+    }
+  });
+
+  /** Bare hands are still a weapon, and still the answer when nothing else is. */
+  it("falls back to what the body was born with", () => {
+    for (const kit of [emptyEquipment(), held("shield", "hand-lantern")]) {
+      expect(handToSwing(kit, tiles, "weapon")).toBeNull();
+      expect(weaponInHand(base, kit, tiles, null)).toEqual(base.naturalWeapon);
+    }
+  });
+
+  /**
+   * Each hand brings its own everything, which is what "the appropriate damage"
+   * has to mean: a body alternating a blade and a hammer strikes as a blade and
+   * then as a hammer, and armour keyed by kind sees both.
+   */
+  it("gives each hand its own blow, speed and mastery", () => {
+    const mixed = held("rusty-sword", "simple-hammer");
+    const blade = effectiveBattler(base, mixed, tiles, "weapon");
+    const blunt = effectiveBattler(base, mixed, tiles, "offhand");
+
+    expect(blade.mastery).toBe("blade");
+    expect(blunt.mastery).toBe("blunt");
+    expect(blade.damage).not.toBe(blunt.damage);
+    expect(blade.spd).not.toBe(blunt.spd);
+  });
+
+  /**
+   * **The hand changes the blow and never the body.** A health bar reads the
+   * same block a swing does, and one that flickered as somebody alternated would
+   * be the rotation leaking into a thing it has no business touching.
+   */
+  it("leaves what the body is alone", () => {
+    const mixed = held("rusty-sword", "simple-hammer");
+    const blade = effectiveBattler(base, mixed, tiles, "weapon");
+    const blunt = effectiveBattler(base, mixed, tiles, "offhand");
+
+    expect(blunt.maxHp).toBe(blade.maxHp);
+    expect(blunt.flee).toBe(blade.flee);
+    expect(blunt.haste).toBe(blade.haste);
+    // Defence is both hands plus what is worn, so it does not move either.
+    expect(blunt.def).toBe(blade.def);
+  });
+
+  /** Both hands' `def` counts, whichever one is swinging. */
+  it("counts both hands' guard on either turn", () => {
+    const two = held("sword", "sword");
+    for (const hand of HANDS) {
+      expect(effectiveBattler(base, two, tiles, hand).def).toBe(
+        effectiveBattler(base, held("sword", null), tiles, "weapon").def +
+          SWORD_DEF,
+      );
+    }
   });
 });
 
@@ -780,8 +984,8 @@ describe("the other worn squares", () => {
       helm.def + mail.def + boots.def + ring.def,
     );
     // And it reaches the fight, on the terms one shirt always did.
-    const bare = effectiveBattler(player, emptyEquipment(), shipped);
-    expect(effectiveBattler(player, dressed, shipped).def).toBe(
+    const bare = effectiveBattler(player, emptyEquipment(), shipped, firstHand(emptyEquipment(), shipped));
+    expect(effectiveBattler(player, dressed, shipped, firstHand(dressed, shipped)).def).toBe(
       bare.def + armorDefence(dressed, shipped),
     );
   });
@@ -883,7 +1087,7 @@ describe("resisting a kind of blow", () => {
   });
 
   it("carries the armour's own block through to the fight", () => {
-    const mailed = effectiveBattler(player, wearing("chain-mail"), shipped);
+    const mailed = effectiveBattler(player, wearing("chain-mail"), shipped, firstHand(wearing("chain-mail"), shipped));
     expect(mailed.resist.blade).toBe(4);
     expect(mailed.resist.blunt).toBeUndefined();
   });

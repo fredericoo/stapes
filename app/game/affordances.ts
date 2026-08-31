@@ -353,7 +353,7 @@ export function reachableItemDefAt(
  * The slot on a body this thing belongs in, from the tile alone.
  *
  * **One slot per thing, and the tile decides which.** A sword is for the hand
- * you swing with, a shield for the other one (`WeaponItem.offhand`), a piece of
+ * you swing with, a shield for the other one (`ShieldItem`), a piece of
  * armour for whichever worn square it names (`ArmorItem.slot` — a mail shirt for
  * your body, a helm for your head, boots for your feet, a ring for your charm),
  * a backpack for your back (`ContainerItem.equippable`), and an `ArtifactItem` —
@@ -392,7 +392,12 @@ export function equipSlotOf(def: TileDef): EquipSlot | null {
   // fight in it, and the hand you swing with is the square whose contents stand
   // in for your natural weapon. See `../lib/item`'s `ArtifactItem`.
   if (item.type === "artifact") return "offhand";
-  if (item.type === "weapon") return item.offhand ? "offhand" : "weapon";
+  // A shield is held and never swung — see `../lib/item`'s `ShieldItem` — so it
+  // goes where the things you merely hold go. Both hands would take it and both
+  // hands swing, so this is a default rather than a rule: put it in your right
+  // if you would rather, and you have simply chosen to fight one-handed.
+  if (item.type === "shield") return "offhand";
+  if (item.type === "weapon") return "weapon";
   return null;
 }
 
@@ -452,10 +457,12 @@ export function canEquipFrom(
  * follows that the two rows can never name one outcome, and neither has to ask
  * about the other.
  *
- * The off hand before the weapon hand. What you swing with is the slot with
- * consequences — see `weaponInHand` — and a pickup with nowhere else to go
- * should reach for the spare hand rather than rewrite what you are fighting
- * with.
+ * The off hand before the weapon hand, though it no longer matters which: both
+ * hands swing, so neither is the one with consequences and a thing picked up
+ * into either joins the rotation. It stays in this order because a stable
+ * answer is worth more than an arbitrary one, and because the other hand is
+ * where `equipSlotOf` sends a weapon that *belongs* somewhere — leaving it free
+ * keeps the two rows out of each other's way.
  *
  * A container never goes in the bag, wearable or not: nothing nests. A wearable
  * one can still end up in a hand, since a hand takes anything you can carry.

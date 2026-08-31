@@ -177,12 +177,11 @@ export type WeaponItem = {
    * worth keeping: {@link ArmorItem} is what you wear and this is what you
    * hold, and a body wearing mail behind a shield should get both.
    *
-   * **Read off whichever hand is holding it.** The off hand's goes through
-   * `offhandDefence` and the swinging hand's rides on `weaponInHand`, since a
-   * held weapon replaces the natural one and its `def` travels with the rest of
-   * it — so a parrying sword parries, and two shields are twice the shield.
-   * `../game/equipment`'s `wornDefence` is where the two are added, along with
-   * what is worn, and is the only honest answer to "how protected is this
+   * **Read off whichever hand is holding it**, and both hands are read the
+   * same way now that both of them swing — see `../game/equipment`'s
+   * `heldDefence`. A parrying sword parries in either fist.
+   * `../game/equipment`'s `wornDefence` is where every source is added, along
+   * with what is worn, and is the only honest answer to "how protected is this
    * body".
    *
    * A comment here once said the opposite — that a main-hand `def` was
@@ -191,26 +190,6 @@ export type WeaponItem = {
    * neither one's name admitted the other existed.
    */
   def: number;
-  /**
-   * This belongs in the *other* hand — a shield, a torch, a lantern.
-   *
-   * **Authored rather than derived, and that is the whole point.** The off hand
-   * used to take anything that was not a container, which made every sword in
-   * the game a second sword you could hold: dual wielding, arrived at by
-   * accident, with no rule anywhere for what two weapons do. Nothing about a
-   * tile says whether it is meant for that hand — a torch and a sword are both
-   * weapons here, because defence and light both ride on this block — so the
-   * author says it.
-   *
-   * The exact counterpart of {@link ContainerItem.equippable}: a container is
-   * only a backpack if somebody said so, and a weapon is only off-hand kit if
-   * somebody said so. Absent is the common case and means the main hand.
-   *
-   * It does not *exclude* the main hand. A shield in your fist is legal, just
-   * not what the game offers you; what this decides is which slot a thing goes
-   * to when it is equipped off the floor, and which slot will accept it at all.
-   */
-  offhand?: boolean;
   /**
    * 0–100. How reliably this finds its target.
    *
@@ -579,20 +558,59 @@ export type WeaponResistances = Partial<Record<WeaponMastery, number>>;
  *
  * So the numbers are gone rather than tuned upward. **A body holding one of
  * these has, as far as a fight is concerned, an empty hand** — `resolveWeapon`
- * refuses it, so the natural weapon stands and `offhandDefence` reads zero — and
- * everything the thing does it does by being a placement: its light, its sprite,
- * its weight, its being in the way. That is what `./kit` is relying on when it
- * hands a wolf a torch.
+ * refuses it, so a hand holding one takes no turn in the rotation and adds no
+ * defence — and everything the thing does it does by being a placement: its
+ * light, its sprite, its weight, its being in the way. That is what `./kit` is
+ * relying on when it hands a wolf a torch.
  *
- * **It belongs in the off hand, and unlike a weapon it does not have to say
- * so.** {@link WeaponItem.offhand} exists because a shield and a sword are one
- * kind of block and only the author knows which hand was meant; nothing here is
- * ever meant for the hand you swing with, since that is the hand whose contents
- * replace what you fight with. A flag with one legal value is a flag to forget.
- * See `../game/affordances`' `equipSlotOf`.
+ * **It belongs in a hand, and it does not have to say which.** Neither hand is
+ * the swinging one any more, so "which hand was meant" stopped being a question
+ * an author could be asked — see `../game/equipment`'s `HANDS`. What separates
+ * this from {@link ShieldItem} is only that a fight cannot see it at all, where
+ * a shield stops blows.
  */
 export type ArtifactItem = {
   type: "artifact";
+};
+
+/**
+ * Something held in the way of a blow that is not swung at anybody — a shield,
+ * a buckler, a warding charm on a strap.
+ *
+ * **A kind of its own because both hands swing now.** It was a
+ * {@link WeaponItem} carrying `damage: 0` and an `offhand: true` flag, which
+ * worked only for exactly as long as the off hand was decorative: the moment a
+ * body takes turns between its hands, a shield authored as a weapon is a weapon
+ * in the rotation, and half your swings are a `damage: 0` blow. The flag is gone
+ * rather than repurposed — nothing in the world ever set it, so there was
+ * nothing to migrate and no reason to keep two ways of saying "held".
+ *
+ * **It is deliberately not {@link ArmorItem}.** A shield is a thing you *hold*,
+ * and making it armour would put it in the square a breastplate belongs in and
+ * let a body wear one instead of the other. Two kinds, two squares, and
+ * `../game/equipment`'s `wornDefence` adds them.
+ *
+ * **And deliberately not {@link ArtifactItem} with a number bolted on.** An
+ * artifact is a thing a fight knows nothing about — that is the entirety of what
+ * it is for, and it is the reason a torch stopped being a weapon. A shield is a
+ * thing a fight very much knows about; it simply never attacks.
+ *
+ * One number, on the terms armour has one: `def`, flat, subtracted from every
+ * blow whatever struck it. No `resist`, because neither hand has an opinion
+ * about what *kind* of blow it is stopping — see `../game/equipment`'s
+ * `armorResistances`, which is where that half lives and why it is worn only.
+ */
+export type ShieldItem = {
+  type: "shield";
+  /**
+   * Flat reduction on every blow that lands on whoever is holding it.
+   *
+   * The same field a weapon's {@link WeaponItem.def} is and they add: a body
+   * with a parrying sword in one fist and a shield in the other is protected by
+   * both, which is the whole reason a hand is a square rather than a slot with
+   * a rule.
+   */
+  def: number;
 };
 
 /**
@@ -605,6 +623,7 @@ export type ItemDef =
   | ConsumableItem
   | ContainerItem
   | ArmorItem
+  | ShieldItem
   | ArtifactItem;
 
 export type ItemType = ItemDef["type"];
@@ -612,6 +631,7 @@ export type ItemType = ItemDef["type"];
 export const ITEM_TYPES: ItemType[] = [
   "weapon",
   "armor",
+  "shield",
   "consumable",
   "container",
   "artifact",
@@ -750,15 +770,15 @@ export function consumeVerb(consumable: ConsumableItem): string {
  *
  * Not authored, unlike a consumable's, because there is nothing for an author
  * to add: the kinds of item are the verbs, and "Wield" is what every weapon in
- * every game has always been called. `offhand` is the one distinction inside a
- * kind, and it is already written down for other reasons.
+ * every game has always been called. There is no distinction left *inside* a
+ * kind — a shield is its own kind now, so the verb falls out of the type alone.
  */
 export function equipVerb(def: TileDef): string {
   const item = resolveItem(def);
   if (!item) return EQUIP_FALLBACK_VERB;
   if (item.type === "container") return "Put on";
   if (item.type === "armor") return "Wear";
-  if (item.type === "weapon") return item.offhand ? "Hold" : "Wield";
+  if (item.type === "weapon") return "Wield";
   // A torch and everything like it, plus the consumable that has no slot to
   // belong in at all. Holding is the whole of what an artifact is for, so it is
   // the word the floor's row says; a consumable never reaches this through the
@@ -836,6 +856,15 @@ export const DEFAULT_CONTAINER: ContainerItem = {
  * rule anybody can keep.
  */
 export const DEFAULT_ARTIFACT: ArtifactItem = { type: "artifact" };
+
+/**
+ * What a tile gets the moment somebody makes it a shield.
+ *
+ * Two, matching {@link DEFAULT_ARMOR} and for the same reason: a shield and a
+ * padded coat are the two obvious first answers to being hit, and neither should
+ * arrive stronger than the thing an author was about to write.
+ */
+export const DEFAULT_SHIELD: ShieldItem = { type: "shield", def: 2 };
 
 /** Both percent stats, on the one scale a fight reads them against. */
 const percent = v.pipe(
@@ -916,9 +945,6 @@ export const weaponSchema = v.object({
     v.maxValue(MAX_WEAPON_DAMAGE),
   ),
   def: v.pipe(v.number(), v.integer(), v.minValue(0)),
-  // Optional, and absent means the main hand — the overwhelmingly common case,
-  // and every weapon authored before the slot existed.
-  offhand: v.optional(v.boolean()),
   // Unsigned, where both were signed shifts: these are the wielder's accuracy
   // and speed now, not adjustments to numbers the body brought with it, and a
   // negative accuracy is not a worse one — it is a broken one.
@@ -1078,9 +1104,23 @@ const armorSchema = v.object({
  */
 const artifactSchema = v.object({ type: v.literal("artifact") });
 
+const shieldSchema = v.object({
+  type: v.literal("shield"),
+  // Unsigned and bounded on exactly the terms armour's is: a shield that made
+  // blows land harder is a curse, and a curse is a status rather than a negative
+  // on a held thing.
+  def: v.pipe(
+    v.number(),
+    v.integer(),
+    v.minValue(0),
+    v.maxValue(MAX_ARMOR_DEF),
+  ),
+});
+
 const itemSchema = v.variant("type", [
   weaponSchema,
   armorSchema,
+  shieldSchema,
   consumableSchema,
   containerSchema,
   artifactSchema,
@@ -1126,6 +1166,12 @@ export function resolveContainer(def: TileDef): ContainerItem | null {
 export function resolveArmor(def: TileDef): ArmorItem | null {
   const item = resolveItem(def);
   return item?.type === "armor" ? item : null;
+}
+
+/** Held config for a tile, or null when it is not a shield. */
+export function resolveShield(def: TileDef): ShieldItem | null {
+  const item = resolveItem(def);
+  return item?.type === "shield" ? item : null;
 }
 
 /**
@@ -1231,10 +1277,6 @@ export function weaponForSave(weapon: WeaponItem): WeaponItem {
           },
         }
       : {}),
-    // Written only when true, on the same terms the requirements block is: an
-    // explicit `false` on every weapon in the file is a field to skim past that
-    // says exactly what its absence says.
-    ...(weapon.offhand ? { offhand: true } : {}),
     ...(Object.keys(requirements).length > 0 ? { requirements } : {}),
     ...(statuses ? { statuses } : {}),
   };
@@ -1324,6 +1366,7 @@ export function itemForSave(item: ItemDef | undefined): ItemDef | undefined {
   // carrying a dead weapon's `damage` onto disk would read as a weapon somebody
   // half-edited.
   if (item.type === "artifact") return { type: "artifact" };
+  if (item.type === "shield") return { type: "shield", def: item.def };
   return {
     type: "container",
     size: item.size,

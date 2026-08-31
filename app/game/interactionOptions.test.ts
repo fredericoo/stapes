@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { DEFAULT_PUSH } from "../lib/interactions";
 import {
+  DEFAULT_ARTIFACT,
   DEFAULT_CONSUMABLE,
   DEFAULT_CONTAINER,
   DEFAULT_WEAPON,
@@ -76,7 +77,7 @@ const tiles: TileDef[] = [
     height: 0,
     kind: "item",
     intangible: true,
-    interactions: { item: { ...DEFAULT_WEAPON, offhand: true } },
+    interactions: { item: { ...DEFAULT_ARTIFACT } },
   }),
   tile({
     id: "bag",

@@ -148,7 +148,16 @@ export function statsOf(
 ): FightingStats | null {
   const body = bodyOf(fighter, tilesById);
   if (!body) return null;
-  return effectiveBattler(body, equipmentOf(fighter, tilesById), tilesById);
+  // No hand in particular: the Arena is a tuner, and a row whose numbers
+  // depended on which fist an imaginary body happened to be up to would be a
+  // reading that changed under somebody watching it. Null is the body's own
+  // weapon — see `./equipment`'s `effectiveBattler`.
+  return effectiveBattler(
+    body,
+    equipmentOf(fighter, tilesById),
+    tilesById,
+    null,
+  );
 }
 
 /** Every tile that could stand in the ring, in the order the catalogue holds. */

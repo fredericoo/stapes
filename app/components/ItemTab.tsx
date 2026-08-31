@@ -5,6 +5,7 @@ import type {
   ContainerItem,
   ItemDef,
   ItemType,
+  ShieldItem,
   WeaponItem,
 } from "../lib/item";
 import {
@@ -15,6 +16,7 @@ import {
   DEFAULT_ARTIFACT,
   DEFAULT_CONSUMABLE,
   DEFAULT_CONTAINER,
+  DEFAULT_SHIELD,
   DEFAULT_WEAPON,
   MAX_ARMOR_DEF,
   MAX_CONSUMABLE_HP_SHIFT,
@@ -61,6 +63,7 @@ const ARMOR_SLOT_OPTIONS: Array<{ value: ArmorSlot; label: string }> =
 const TYPE_OPTIONS: Array<{ value: ItemType; label: string }> = [
   { value: "weapon", label: "Weapon" },
   { value: "armor", label: "Armour" },
+  { value: "shield", label: "Shield" },
   { value: "consumable", label: "Consumable" },
   { value: "container", label: "Container" },
   { value: "artifact", label: "Artifact" },
@@ -97,6 +100,7 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
     if (type === item.type) return;
     if (type === "weapon") setItem({ ...DEFAULT_WEAPON });
     else if (type === "armor") setItem({ ...DEFAULT_ARMOR });
+    else if (type === "shield") setItem({ ...DEFAULT_SHIELD });
     else if (type === "consumable") setItem({ ...DEFAULT_CONSUMABLE });
     else if (type === "artifact") setItem({ ...DEFAULT_ARTIFACT });
     else setItem({ ...DEFAULT_CONTAINER });
@@ -114,6 +118,11 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
 
   const patchConsumable = (fields: Partial<ConsumableItem>) => {
     if (item.type !== "consumable") return;
+    setItem({ ...item, ...fields });
+  };
+
+  const patchShield = (fields: Partial<ShieldItem>) => {
+    if (item.type !== "shield") return;
     setItem({ ...item, ...fields });
   };
 
@@ -162,24 +171,6 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
               tiles={tiles}
               statusDefs={statusDefs}
             />
-
-            <label className="flex items-start gap-2 text-xs">
-              <Switch
-                checked={item.offhand === true}
-                onCheckedChange={(offhand) => patchWeapon({ offhand })}
-                ariaLabel="Off hand"
-              />
-              <span className="flex flex-col gap-1">
-                <span className="font-bold uppercase text-muted">Off hand</span>
-                <span className="max-w-72 text-[11px] leading-snug text-muted">
-                  On, it belongs in the other hand: a shield, a torch, a
-                  lantern. Picking it up off the floor holds it there, and the
-                  slot takes nothing that is not marked this way — otherwise
-                  every sword is a second sword and the game is quietly dual
-                  wielding.
-                </span>
-              </span>
-            </label>
           </div>
         ) : item.type === "armor" ? (
           <div className="flex flex-col gap-3">
@@ -331,6 +322,31 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
             &mdash; so anything that lights a room, or is merely worth carrying,
             belongs on this type rather than on a weapon nobody wants to swing.
           </p>
+        ) : item.type === "shield" ? (
+          <div className="flex flex-col gap-3">
+            <p className="max-w-lg text-[11px] leading-snug text-muted">
+              Held in the way of a blow, and never swung at anybody. Both hands
+              take turns attacking, so a shield is a kind of its own rather than
+              a weapon with no damage &mdash; a hand holding one simply sits the
+              rotation out, and the other hand fights on alone.
+            </p>
+
+            <StatField
+              label="Defence"
+              hint="Taken off every blow that lands, whatever struck it."
+              value={item.def}
+              min={0}
+              max={MAX_ARMOR_DEF}
+              onChange={(def) => patchShield({ def })}
+              readout={describeDefence(item.def)}
+            />
+
+            <p className="max-w-lg text-[11px] leading-snug text-muted">
+              It <strong>adds</strong> to armour and to whatever is in the other
+              hand. No resists here: what turns aside one <em>kind</em> of blow
+              is worn, not held.
+            </p>
+          </div>
         ) : (
           <div className="flex flex-col gap-3">
             <StatField
