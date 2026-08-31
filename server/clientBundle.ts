@@ -82,13 +82,33 @@ export class ClientBundle {
     }
   }
 
-  /** Build ids on disk, newest last. */
+  /**
+   * Build ids on disk, oldest first — ordered by when they were written.
+   *
+   * **Not by name.** A build id is a commit sha, so sorting ids alphabetically
+   * sorts builds at random, and everything below that says "newest" would mean
+   * "whose sha happens to sort highest". That is not a cosmetic difference:
+   * `collectGarbage` deletes everything outside this list's tail, and a deploy
+   * uploads its build *before* the restart that collects, so an alphabetical
+   * order deleted the build the deploy was about to activate whenever its sha
+   * sorted low. Three deploys died that way before the cause was in one place.
+   */
   async stored(): Promise<string[]> {
+    let ids: string[];
     try {
-      return (await readdir(this.root)).filter((n) => n !== POINTER_FILE).sort();
+      ids = (await readdir(this.root)).filter((n) => n !== POINTER_FILE);
     } catch {
       return [];
     }
+
+    const dated = await Promise.all(
+      ids.map(async (id) => ({ id, writtenAt: await writtenAt(join(this.root, id)) })),
+    );
+    // The name only breaks ties, where two builds share a millisecond and any
+    // order is as true as another — it keeps the result deterministic.
+    return dated
+      .sort((a, b) => a.writtenAt - b.writtenAt || a.id.localeCompare(b.id))
+      .map((build) => build.id);
   }
 
   /**
@@ -244,6 +264,21 @@ function safeJoin(root: string, path: string): string {
     throw new Error(`Refusing to write outside ${root}: ${path}`);
   }
   return joined;
+}
+
+/**
+ * When a build was last written, as milliseconds.
+ *
+ * A build that has gone missing between the `readdir` and here sorts oldest,
+ * which puts it first in line to be collected — the right answer for a
+ * directory that is not there.
+ */
+async function writtenAt(directory: string): Promise<number> {
+  try {
+    return (await stat(directory)).mtimeMs;
+  } catch {
+    return 0;
+  }
 }
 
 async function walk(directory: string): Promise<string[]> {
