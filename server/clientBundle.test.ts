@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from "bun:test";
-import { mkdtemp, rm, readdir } from "node:fs/promises";
+import { mkdtemp, rm, readdir, utimes } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ClientBundle } from "./clientBundle";
@@ -138,6 +138,42 @@ describe("across a server deploy", () => {
 });
 
 describe("housekeeping", () => {
+  /**
+   * Stamp a build's write time, because the clock is too coarse to test with.
+   *
+   * Six builds stored in a row land in the same millisecond or two, and what
+   * this section is about is ordering *by time* — so the times are stated
+   * rather than raced for.
+   */
+  async function writtenAt(id: string, secondsApart: number) {
+    const when = new Date(EPOCH_MS + secondsApart * 1000);
+    await utimes(join(dir, "clients", id), when, when);
+  }
+
+  it("does not delete a build that is uploaded but not yet activated", async () => {
+    // The shape of a production deploy, and the bug that killed three of them.
+    // Continuous integration uploads, restarts the server, and only *then*
+    // activates — so the restart collects garbage while the new build is on
+    // disk and nothing points at it yet. Build ids are commit shas, so keeping
+    // "the last five by name" kept five arbitrary builds and threw away the one
+    // the deploy was seconds from serving.
+    const alreadyDeployed = ["ff", "ee", "dd", "cc", "bb"];
+    for (const [index, id] of alreadyDeployed.entries()) {
+      await bundle.store(id, build(id));
+      await writtenAt(id, index);
+      await bundle.activate(id);
+    }
+
+    await bundle.store("aa", build("aa"));
+    await writtenAt("aa", alreadyDeployed.length);
+
+    const replacement = new ClientBundle(configFor(dir));
+    await replacement.restore();
+    await replacement.activate("aa");
+
+    expect(await text(replacement.respond("/"))).toContain("aa");
+  });
+
   it("deletes builds nobody is on", async () => {
     // The volume is shared with the world, and a full disk stops it
     // checkpointing — so this is not optional tidying.
@@ -150,6 +186,9 @@ describe("housekeeping", () => {
     expect(left).toContain("b7");
   });
 });
+
+/** An arbitrary fixed instant, so stamped write times are reproducible. */
+const EPOCH_MS = Date.UTC(2026, 0, 1);
 
 describe("untar", () => {
   it("reads what tar writes", async () => {
