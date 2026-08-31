@@ -1,10 +1,18 @@
-import { useCallback, useState, type ComponentType } from "react";
+import {
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ComponentType,
+} from "react";
 import { slotKey, type SlotRef } from "../game/itemMoves";
 import { itemUseFor } from "../game/itemUse";
 import { consumeVerb, equipVerb, resolveConsumable } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { MasteryXp } from "../lib/mastery";
 import type { TileDef, TilesetDef } from "../lib/types";
+import { useCoarsePointer } from "../lib/useMediaQuery";
 import { weaponDemandFor } from "../lib/weaponDemand";
 import type { ItemDrag } from "./useItemDrag";
 import { TilePreview } from "./TilePreview";
@@ -40,13 +48,40 @@ import { TilePreview } from "./TilePreview";
 /** Which sprite stands for a tile in a slot — the one facing the reader. */
 const FRONT: "s" = "s";
 
-/** Big enough to read a 2×2 sprite at, small enough to sit four in a row. */
+/**
+ * How long a finger has to rest on a square before it is asking about it.
+ *
+ * Long enough that a tap never trips it — a tap is a tenth of a second and this
+ * is four — and short enough that it does not feel like waiting. It also has to
+ * clear the drag threshold in *practice* rather than in principle: a thumb on
+ * its way to another slot has crossed six pixels long before this is up.
+ */
+const DWELL_MS = 400;
+
+/**
+ * Big enough to read a 2×2 sprite at, small enough to sit four in a row.
+ *
+ * The **natural** size rather than the only one: a container works out how big
+ * its squares should be from the column it was given — see `./ContainerPanel`'s
+ * `containerSlotGrid` — because a bag on a phone gets half the width the same
+ * bag gets in a desktop column and a square that ignored that is either cramped
+ * or lost. This is what everything that has no opinion draws at, which is the
+ * equipment panel and anything with a fixed row to fill.
+ */
 export const ITEM_SLOT_SIZE_PX = 44;
 
-const SPRITE_SIZE_PX = 32;
+/**
+ * How much of the square the sprite takes, leaving the rest as its mount.
+ *
+ * A share rather than a size, because the square is no longer one size. The
+ * sprite itself stays chunky at any of them: `drawSprite` snaps to an integer
+ * scale internally and centres what is left over, so a fluid number here buys
+ * bigger art without ever buying interpolated art.
+ */
+const SPRITE_SHARE = 32 / ITEM_SLOT_SIZE_PX;
 
 /** Smaller than a sprite, so a hint never reads as the thing itself. */
-const EMPTY_ICON_SIZE_PX = 20;
+const EMPTY_ICON_SHARE = 20 / ITEM_SLOT_SIZE_PX;
 
 const EMPTY_ICON_STROKE = 1.5;
 
@@ -96,6 +131,7 @@ export function ItemSlot({
   drag,
   inspecting = false,
   masteryXp = {},
+  sizePx = ITEM_SLOT_SIZE_PX,
 }: {
   /** Where this square is, in the terms a move is expressed in. */
   slot: SlotRef;
@@ -156,6 +192,11 @@ export function ItemSlot({
    * has never fought is told it can barely handle the sword, which is true.
    */
   masteryXp?: MasteryXp;
+  /**
+   * How big to draw, where the caller has worked that out from the room it has.
+   * Defaults to the natural size — see {@link ITEM_SLOT_SIZE_PX}.
+   */
+  sizePx?: number;
 }) {
   const tile = instance ? (tilesById[instance.tileId] ?? null) : null;
   const name = instance
@@ -185,7 +226,66 @@ export function ItemSlot({
    * finger landing and leaves when it lifts — which is what makes "held over"
    * mean the same thing on both.
    */
+  // The one question the interface asks about the device, asked here because a
+  // held finger is a gesture a mouse does not make. See `../lib/useMediaQuery`.
+  const coarse = useCoarsePointer();
   const [pointedAt, setPointedAt] = useState(false);
+  /**
+   * A finger has been resting on this square long enough to be asking about it.
+   *
+   * **The thumb's version of hovering.** Look mode was the only way to read a
+   * square without also using what was in it, and on a phone that means finding
+   * a mode before you can find out what you are carrying — where a mouse gets
+   * the same sentence for free by not clicking. A held finger is the gesture
+   * that already means "this one, but wait": it costs no mode, and it is the one
+   * press a player can make that unambiguously is not a tap.
+   *
+   * Only ever set on a coarse pointer. A mouse held down on a square is the
+   * start of a drag and nothing else, and it has hover for the asking.
+   */
+  const [dwelling, setDwelling] = useState(false);
+  /**
+   * The same fact as {@link dwelling}, readable *now*.
+   *
+   * A state updater does not run when it is called — React defers it — so a
+   * handler that decided "was I dwelling?" inside `setDwelling` would be
+   * deciding after the event it was deciding about. That is not hypothetical:
+   * written that way, the flag below was raised after the click it existed to
+   * swallow, and went on to eat the next honest tap instead.
+   */
+  const dwellingRef = useRef(false);
+  const dwellTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /**
+   * The lift that ends a hold must not also use the thing.
+   *
+   * The whole point of the gesture is looking at food you want to keep — the
+   * same trade look mode makes — so once the square has answered, the click the
+   * browser synthesises behind the finger is swallowed rather than eaten.
+   */
+  const swallowClick = useRef(false);
+
+  const endDwell = useCallback(() => {
+    if (dwellTimer.current !== null) {
+      clearTimeout(dwellTimer.current);
+      dwellTimer.current = null;
+    }
+    if (!dwellingRef.current) return;
+    dwellingRef.current = false;
+    swallowClick.current = true;
+    setDwelling(false);
+  }, []);
+
+  // A press that turned into a drag is not a question. `held` goes up six
+  // pixels into the gesture — see `./useItemDrag` — which is well before the
+  // dwell is up, so a thumb on its way somewhere never gets a tooltip.
+  const dragging = drag.held != null;
+  useEffect(() => {
+    if (dragging) endDwell();
+  }, [dragging, endDwell]);
+
+  // A square taken off the screen mid-hold — a bag closing under the finger —
+  // must not leave its timer running against a component that is gone.
+  useEffect(() => endDwell, [endDwell]);
   /**
    * What looking at this square says, in the order the world already says it:
    * what the thing is, what is written on it, and what it would be like to use.
@@ -201,7 +301,8 @@ export function ItemSlot({
    * panel redraws with the board — the same reason `pressHintFor` is the only
    * other thing here that touches an item's interactions.
    */
-  const inspectLines = !inspecting
+  const asking = inspecting || dwelling;
+  const inspectLines = !asking
     ? []
     : [
         tile?.name ?? instance?.tileId ?? "",
@@ -223,7 +324,11 @@ export function ItemSlot({
   const pressHint = inspecting
     ? null
     : pressHintFor(instance, slot, tilesById, isOpen);
-  const showTooltip = inspecting && pointedAt && instance != null;
+  // Dwelling is already "a finger is on this square", so it needs no second
+  // test that the pointer is here; looking wants one, because every square in
+  // the bag is in look mode at once and only the pointed-at one has a question.
+  const showTooltip =
+    instance != null && (dwelling || (inspecting && pointedAt));
 
   return (
     <button
@@ -231,12 +336,32 @@ export function ItemSlot({
       ref={attach}
       onPointerDown={(event) => {
         if (instance && !inspecting) startDrag(event, slot, instance);
+        // Started alongside the drag rather than instead of it, because which
+        // gesture this is has not been decided yet: whichever of the two
+        // resolves first — six pixels of travel, or {@link DWELL_MS} of
+        // stillness — calls the other off.
+        if (coarse && instance && !inspecting) {
+          dwellTimer.current = setTimeout(() => {
+            dwellTimer.current = null;
+            dwellingRef.current = true;
+            setDwelling(true);
+          }, DWELL_MS);
+        }
       }}
+      onPointerUp={endDwell}
+      onPointerCancel={endDwell}
       onClick={() => {
+        if (swallowClick.current) {
+          swallowClick.current = false;
+          return;
+        }
         if (!inspecting) tap(slot, instance);
       }}
       onPointerEnter={() => setPointedAt(true)}
-      onPointerLeave={() => setPointedAt(false)}
+      onPointerLeave={() => {
+        setPointedAt(false);
+        endDwell();
+      }}
       // A keyboard has no pointer to rest anywhere, and focus is the gesture it
       // has instead — so tabbing through a bag while looking reads it out.
       onFocus={() => setPointedAt(true)}
@@ -266,8 +391,8 @@ export function ItemSlot({
                     "border-dashed border-paper/25 bg-transparent",
       ].join(" ")}
       style={{
-        width: ITEM_SLOT_SIZE_PX,
-        height: ITEM_SLOT_SIZE_PX,
+        width: sizePx,
+        height: sizePx,
         // Without this a finger dragging off a slot scrolls the panel instead of
         // moving the item, and the pointermove events stop arriving entirely.
         touchAction: "none",
@@ -276,7 +401,7 @@ export function ItemSlot({
       // looking, and it stands down while you are: its half-second delay is
       // precisely what look mode is promising to skip, and two tooltips over one
       // square would be the page answering a question twice.
-      title={inspecting ? undefined : instance ? name : emptyHint}
+      title={asking ? undefined : instance ? name : emptyHint}
       // What is here, and what pressing it would do. The second half is the
       // whole of the label's job now that a press uses a thing rather than
       // moving it: "Rusty Sword" says what you are on, and only the hint says
@@ -300,7 +425,7 @@ export function ItemSlot({
         <TilePreview
           tile={tile}
           tilesets={tilesets}
-          size={SPRITE_SIZE_PX}
+          size={Math.round(sizePx * SPRITE_SHARE)}
           direction={FRONT}
           still
           chrome={false}
@@ -310,7 +435,7 @@ export function ItemSlot({
         // Faint enough to read as a hint rather than as contents: the square is
         // empty, and an icon at full strength would be something in it.
         <EmptyIcon
-          size={EMPTY_ICON_SIZE_PX}
+          size={Math.round(sizePx * EMPTY_ICON_SHARE)}
           stroke={EMPTY_ICON_STROKE}
           className="text-paper/25"
         />
@@ -338,16 +463,47 @@ export function ItemSlot({
  * pointer, so it cannot come between a finger and the square it is describing —
  * which would take the pointer off the slot and dismiss the very tooltip that
  * had just appeared.
+ *
+ * **And nudged back on screen when centring would take it off.** It is wider
+ * than the square it names and the leftmost column of a phone's panel sits
+ * against the edge of the display, so centred it read "asic Bag". One
+ * measurement when it appears, not per frame: it is up for as long as a finger
+ * rests, and nothing about it moves in between.
  */
+
+/** How close to the edge of the screen a tooltip may come before it is nudged. */
+const TOOLTIP_MARGIN_PX = 8;
+
 function SlotTooltip({ lines }: { lines: string[] }) {
   const [name, ...rest] = lines;
+  const ref = useRef<HTMLSpanElement>(null);
+  /** How far to slide it back from whichever edge it was about to fall off. */
+  const [shiftPx, setShiftPx] = useState(0);
+
+  // Measured on the way in, while the shift is still zero — the tooltip is
+  // mounted fresh every time it appears, so this reads the centred position
+  // rather than one it has already been moved to.
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const offLeft = TOOLTIP_MARGIN_PX - rect.left;
+    const offRight = rect.right - (window.innerWidth - TOOLTIP_MARGIN_PX);
+    // Left wins a tie, which only happens on a tooltip wider than the screen:
+    // the beginning of a name is the half worth keeping.
+    if (offLeft > 0) setShiftPx(offLeft);
+    else if (offRight > 0) setShiftPx(-offRight);
+  }, [lines]);
+
   return (
     <span
+      ref={ref}
       // Announced by the button's own label instead: to a screen reader this is
       // a second copy of what `aria-label` already says, and the two together
       // read the name twice.
       aria-hidden
-      className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1 -translate-x-1/2 border border-paper/40 bg-ink px-1 py-0.5 text-center text-[11px] leading-tight whitespace-nowrap text-paper"
+      className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-1 border border-paper/40 bg-ink px-1 py-0.5 text-center text-[11px] leading-tight whitespace-nowrap text-paper"
+      style={{ transform: `translateX(calc(-50% + ${shiftPx}px))` }}
     >
       {name}
       {rest.map((line) => (

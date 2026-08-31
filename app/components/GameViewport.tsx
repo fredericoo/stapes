@@ -9,15 +9,17 @@ import type { ItemInstance } from "../lib/itemInstance";
 import type { MasteryXp } from "../lib/mastery";
 import type { Vitals } from "../game/GameSession";
 import type { Direction, TileDef, TilesetDef } from "../lib/types";
-import { useMediaQuery } from "../lib/useMediaQuery";
+import { useCoarsePointer } from "../lib/useMediaQuery";
 import { tilesByIdFromList } from "../lib/validation";
+import { AppMenuButton } from "./AppShell";
 import { ChatBar, ChatButton } from "./ChatBar";
 import { ContainerPanel } from "./ContainerPanel";
 import { DirectionPad, MAX_PAD_SIZE_PX } from "./DirectionPad";
 import { EquipmentPanel } from "./EquipmentPanel";
 import { DragLayer } from "./DragLayer";
 import { InteractionList } from "./InteractionList";
-import { AttackToggle, LookToggle, type ModeToggleSize } from "./ModeToggle";
+import { ModeSwitch, type ActionButtonSize } from "./ModeSwitch";
+import type { PlayMode } from "./usePlayModes";
 import { BagButton, EquipmentToggle, StatsToggle } from "./PanelToggle";
 import { StatsPanel } from "./StatsPanel";
 import type { ActiveStatus } from "../lib/status";
@@ -58,34 +60,22 @@ const NO_STATUSES: ActiveStatus[] = [];
 const INTERACTION_PANEL_WIDTH_PX = 224;
 
 /**
- * Narrowest the list of what is in reach may get on a phone.
+ * Narrowest the reading column may get on a phone — the list of what is in
+ * reach, or whichever panel is standing in for it.
  *
- * **The list wins ties with the pad, and that is the whole point of it being a
+ * **The column wins ties with the pad, and that is the whole point of it being a
  * number here.** Both share one row, and only one of them is text: a d-pad that
  * loses twenty pixels is a smaller d-pad, where a list that loses twenty wraps
  * "Nothing in reach." onto two lines and then wraps every verb off its own row.
- * So the list states a floor and `DirectionPad` shrinks into whatever is left —
+ * So the column states a floor and `DirectionPad` shrinks into whatever is left —
  * down to `MIN_PAD_SIZE_PX`, past which there is nothing left to give and both
  * are simply on a phone too narrow for either.
+ *
+ * The panels are the reason this floor is now load-bearing in a second way: they
+ * used to take the whole screen, where now they live in this column beside the
+ * arrows, and a slot is 44px. Below about this width a row of them holds two.
  */
 const INTERACTION_LIST_MIN_WIDTH_PX = 168;
-
-const COARSE_POINTER = "(pointer: coarse)";
-
-/**
- * Is the primary input a finger?
- *
- * Drives whether the on-screen arrows are there at all. Deliberately about the
- * input device and not the window's shape — a desktop window dragged narrow is
- * still played with a keyboard, and growing a d-pad nobody will tap would just
- * take space away from the game.
- *
- * Server-rendered as false: the server cannot know, and a keyboard layout that
- * gains a pad on hydration is a smaller lie than a pad that vanishes.
- */
-export function useCoarsePointer(): boolean {
-  return useMediaQuery(COARSE_POINTER);
-}
 
 export function GameViewport({
   canvasRef,
@@ -94,10 +84,9 @@ export function GameViewport({
   onDirectionRelease,
   onSay,
   onTypingChange,
-  looking = false,
-  onLookingChange,
-  attacking = false,
-  onAttackingChange,
+  mode = "interact",
+  onModeChange,
+  readouts,
   interactions = [],
   onInteract,
   onHoverInteraction,
@@ -128,20 +117,26 @@ export function GameViewport({
   onSay?: (text: string) => void;
   onTypingChange?: (typing: boolean) => void;
   /**
-   * Look mode. Shift is still the fastest way to do this with a keyboard, but
-   * the button is drawn on every device now: a modifier is only discoverable to
-   * somebody who already knows about it, so the mode was effectively invisible
-   * on the machines that had the better way of reaching it.
+   * What a tap on the world means, of which exactly one thing is true at a time.
+   * See `./usePlayModes`, which owns the machine and the keys that drive it.
+   *
+   * Defaulted to plain interaction so a route that has not wired the switch up
+   * still behaves like a game rather than like nothing.
    */
-  looking?: boolean;
-  onLookingChange?: (looking: boolean) => void;
+  mode?: PlayMode;
+  /** Absent on a route with no switch to draw; the row folds away without it. */
+  onModeChange?: (mode: PlayMode) => void;
   /**
-   * Attack mode: whether the thing you are pointing at is somebody you are
-   * fighting. Same shape as look mode, and drawn beside it, because they are the
-   * same kind of thing — what a tap on the world means — and they can both be on.
+   * What the world says about itself — the hour, and on a connected world
+   * whether the connection is up.
+   *
+   * Given by the page rather than read here, because the page is what knows the
+   * time; drawn here rather than in the header because the header is gone on a
+   * phone, and because a reading about the *world* belongs beside the world
+   * rather than beside the navigation. It sits with the statuses on a desktop
+   * and in the far corner under the arrows on a phone.
    */
-  attacking?: boolean;
-  onAttackingChange?: (attacking: boolean) => void;
+  readouts?: React.ReactNode;
   /**
    * What is within reach right now, worked out by whoever owns the session —
    * see `../game/interactionOptions`. Empty by default so a route that has not
@@ -221,6 +216,11 @@ export function GameViewport({
   tilesets?: TilesetDef[];
 }) {
   const coarse = useCoarsePointer();
+  // Read off the one mode rather than carried as two flags of their own: the
+  // panels want to know whether the player is inspecting and the list wants to
+  // know whether a target is a fight, and both of those are this one answer.
+  const looking = mode === "inspect";
+  const attacking = mode === "attack";
   // Zooming a fixed-square world only crops the controls off the screen. Held
   // to the game rather than declared for the whole site, so the editor keeps
   // the magnifying glass it has a real use for. See `./useNoZoom`.
@@ -388,8 +388,18 @@ export function GameViewport({
     if (openHand && !equipment[openHand]) setOpenHand(null);
   }, [openHand, equipment]);
 
-  /** A panel is covering the arrows and the list. Only ever true on a phone. */
-  const panelCoversMain =
+  /**
+   * A panel is standing in for the list of what is in reach. Only on a phone.
+   *
+   * **It takes the list's column and nothing else.** It used to take the whole
+   * main area, arrows included, which made checking your bag a decision to stop
+   * walking — and people said so: a panel opened to compare two swords is a panel
+   * you want open *while* backing away from the thing you are about to use them
+   * on. The arrows keep their column at every width; what a panel replaces is the
+   * one thing it is genuinely an alternative to, which is the other reading
+   * surface beside them.
+   */
+  const panelCoversList =
     coarse &&
     (showEquipment ||
       showBag ||
@@ -431,31 +441,27 @@ export function GameViewport({
   );
 
   /**
-   * The modes, in whichever size the hand reaching for them wants.
+   * The two halves of the controls, in whichever size the hand reaching for them
+   * wants: what a tap on the world means, and what you can open.
    *
-   * One row on both devices and in the same order, so the thing you learned on
-   * a phone is where you left it on a desktop. What differs is only where the
-   * row sits: above the list on a desktop, and up under the game beside the
-   * talk button on a phone, where a thumb can reach it without crossing the
-   * arrows.
+   * Kept apart because a phone and a desktop want them arranged differently and
+   * for opposite reasons. A thumb wants one row, in one order, everything under
+   * it at once. The desktop column is 224px wide and cannot hold that row —
+   * seven controls in it wrapped, and what wrapped was the bag, alone, on a
+   * second line under a rule that no longer meant anything. So there it is two
+   * deliberate rows in the order the column already reads in: what a tap means,
+   * then what you have.
+   *
+   * The same buttons in the same order either way, so what you learned on a
+   * phone is where you left it on a desktop.
    */
-  const hasModes = Boolean(onLookingChange || onAttackingChange);
-  const modes = (size: ModeToggleSize) => (
+  const hasModes = Boolean(onModeChange);
+  const modeSwitch = (size: ActionButtonSize) =>
+    onModeChange ? (
+      <ModeSwitch mode={mode} onChange={onModeChange} size={size} />
+    ) : null;
+  const panelButtons = (size: ActionButtonSize) => (
     <>
-      {onLookingChange ? (
-        <LookToggle looking={looking} onChange={onLookingChange} size={size} />
-      ) : null}
-      {onAttackingChange ? (
-        <AttackToggle
-          attacking={attacking}
-          onChange={onAttackingChange}
-          size={size}
-        />
-      ) : null}
-      {/* Ruled off from the modes beside them, because they are a different
-          kind of button: the two on the left change what a tap on the world
-          means, and these two only open something. */}
-      <span className="h-8 w-px shrink-0 bg-paper/20" aria-hidden="true" />
       <StatsToggle open={showStats} onChange={openStats} size={size} />
       <EquipmentToggle
         open={showEquipment}
@@ -470,6 +476,11 @@ export function GameViewport({
         drag={drag}
         size={size}
       />
+      {/* Last, and only ever drawn where the shell has given up its header —
+          see {@link AppMenuButton}. Everything about the page rather than about
+          the world, which is why it sits with the things that only open
+          something rather than beside the switch. */}
+      <AppMenuButton size={size} />
     </>
   );
 
@@ -618,21 +629,18 @@ export function GameViewport({
             {onSay ? (
               <ChatButton onSay={onSay} onTypingChange={noteTyping} />
             ) : null}
-            {modes("touch")}
+            {modeSwitch("touch")}
+            {/* Ruled off from the switch beside it, because they are a
+                different kind of button: the switch changes what a tap on the
+                world means, and these only open something. */}
+            <span className="h-8 w-px shrink-0 bg-paper/20" aria-hidden="true" />
+            {panelButtons("touch")}
           </div>
         ) : onSay ? (
           <ChatBar onSay={onSay} onTypingChange={noteTyping} />
         ) : null}
 
-        {coarse && panelCoversMain ? (
-          // A panel takes the whole main area — the arrows and the list both go.
-          // The button row above it stays, which is the point: the thing that
-          // opened this is still under the thumb that opened it, so getting back
-          // to walking is one tap and never a hunt.
-          <div className="flex w-full min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain px-3 pb-3">
-            {panels}
-          </div>
-        ) : coarse ? (
+        {coarse ? (
           // Reading hand on the left, walking thumb on the right. The arrows go
           // to the side most thumbs are, and the list of what is in reach — the
           // thing you *read* before acting — sits on the other, out from under
@@ -642,7 +650,17 @@ export function GameViewport({
               className="flex min-h-0 flex-1 flex-col items-start gap-2"
               style={{ minWidth: INTERACTION_LIST_MIN_WIDTH_PX }}
             >
-              {list}
+              {panelCoversList ? (
+                // Scrolls on its own rather than growing the row: a bag with
+                // thirty things in it must not be able to push the arrows off
+                // the bottom of the screen, which is the whole reason they are
+                // still here.
+                <div className="flex w-full min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain">
+                  {panels}
+                </div>
+              ) : (
+                list
+              )}
             </div>
             {/* The lane sits *above* the pad rather than beside it, and that is
                 what buys the pad its size back: a column on the screen edge cost
@@ -679,6 +697,15 @@ export function GameViewport({
               <div className="mt-auto w-full">
                 <DirectionPad onPress={press} onRelease={release} />
               </div>
+              {/* The far corner, under the arrows, which is the one place on a
+                  phone that is never on the way to anything: the thumb steering
+                  arrives from above and the row of controls is a screen away. A
+                  reading is worth exactly that much room and no more. */}
+              {readouts ? (
+                <div className="flex w-full shrink-0 items-center justify-end gap-2 pt-1">
+                  {readouts}
+                </div>
+              ) : null}
             </div>
           </div>
         ) : null}
@@ -692,22 +719,35 @@ export function GameViewport({
           {/* Above the modes and ruled off from them, so the column reads top to
               bottom as: what you are under, what a tap means, what you have,
               what is in reach. Always present, so nothing below it moves when a
-              status lands. */}
-          <div className="shrink-0 border-b-2 border-paper/20 pb-2">
+              status lands.
+
+              The hour rides at the end of it, out of the header it used to be
+              in: both halves of this line are the world reporting on itself
+              rather than anything you can press, and the strip is the one row
+              that was already that. The lane takes what is left after the
+              reading, so a clock of fixed width never squeezes it to nothing. */}
+          <div className="flex shrink-0 items-center gap-2 border-b-2 border-paper/20 pb-2">
             <StatusStrip
               statuses={statuses}
               interactive
               tilesets={tilesets}
             />
+            {readouts ? (
+              <div className="flex shrink-0 items-center gap-2">{readouts}</div>
+            ) : null}
           </div>
           {/* Modes above the list and ruled off from it, because they are a
               different kind of thing: the rows below say what you could do to
               one particular object, and these say what doing anything means. */}
           {hasModes ? (
-            <div className="flex shrink-0 flex-wrap items-center gap-1 border-b-2 border-paper/20 pb-2">
-              {modes("compact")}
+            <div className="flex shrink-0 items-center gap-1 border-b-2 border-paper/20 pb-2">
+              {modeSwitch("compact")}
             </div>
           ) : null}
+          {/* And what you can open, on its own line under them. */}
+          <div className="flex shrink-0 items-center gap-1 border-b-2 border-paper/20 pb-2">
+            {panelButtons("compact")}
+          </div>
           {/* Under the buttons that open them and above the list, so the column
               reads top to bottom as: what a tap means, what you have, what is
               in reach. `shrink-0` because the list below is the thing that

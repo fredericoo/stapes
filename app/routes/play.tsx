@@ -6,6 +6,7 @@ import { GameViewport } from "../components/GameViewport";
 import { InkDocument } from "../components/InkDocument";
 import { LightingToggle } from "../components/LightingToggle";
 import { LoadingScreen } from "../components/LoadingScreen";
+import { WorldClock } from "../components/WorldClock";
 import { GameSession, type Vitals } from "../game/GameSession";
 import { type Equipment, emptyEquipment } from "../game/equipment";
 import type { MasteryXp } from "../lib/mastery";
@@ -89,7 +90,7 @@ export default function PlayPage() {
   // Held outside the renderer and the session because the buttons have to show
   // it: a key and a button are two ways into one mode, and only one of them is
   // in a position to know what the other did.
-  const { looking, attacking, setLookLatched, setAttacking } = usePlayModes();
+  const { mode, looking, attacking, setMode } = usePlayModes();
   const [lightingEnabled, setLightingEnabled] = useState(true);
   const [stats, setStats] = useState<FrameStats | null>(null);
   const [interactions, setInteractions] = useState<InteractionOption[]>([]);
@@ -285,21 +286,9 @@ export default function PlayPage() {
           </div>
         </>
       }
-      // The hour stays out, on every screen. It is the one readout that is
-      // about the world rather than about working on it — it says whether the
-      // dark you are looking at is night or a roof — and a reading you have to
-      // open a menu to take is not a reading.
-      trailing={
-        <span
-          className="border-2 border-paper/40 px-1.5 py-0.5 text-xs tabular-nums text-paper"
-          // Named rather than announced: the hour changes every second, so a
-          // live region here would talk over everything else. The label is what
-          // the "Time" caption used to be, now that the caption folds away.
-          aria-label={`Time of day, ${formatClock(minutesOfDay)}`}
-        >
-          {formatClock(minutesOfDay)}
-        </span>
-      }
+      // The bar goes away entirely on a phone, because the game draws the menu
+      // itself — see `AppMenuButton` in the row of controls under the world.
+      menuInPage
     >
       {/* Outside the wrapper below and not inside the viewport it is about: the
           viewport waits on its assets, and the document would be cream around
@@ -314,10 +303,9 @@ export default function PlayPage() {
             labelRef={labelRef}
             onDirectionPress={pressDirection}
             onDirectionRelease={releaseDirection}
-            looking={looking}
-            onLookingChange={setLookLatched}
-            attacking={attacking}
-            onAttackingChange={setAttacking}
+            mode={mode}
+            onModeChange={setMode}
+            readouts={<WorldClock minutesOfDay={minutesOfDay} />}
             interactions={interactions}
             onInteract={act}
             onHoverInteraction={hoverInteraction}

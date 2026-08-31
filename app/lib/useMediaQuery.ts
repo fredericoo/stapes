@@ -30,3 +30,26 @@ export function useMediaQuery(query: string): boolean {
     () => false,
   );
 }
+
+/** A pointer you cannot aim precisely, and that has no hover: a finger. */
+const COARSE_POINTER = "(pointer: coarse)";
+
+/**
+ * Is the primary input a finger?
+ *
+ * The one place the interface asks "phone or desktop", and it asks it about the
+ * *input device* rather than the window's shape on purpose: a desktop window
+ * dragged narrow is still played with a keyboard and a mouse, and it still has
+ * the hover that half these decisions turn on.
+ *
+ * It decides whether the on-screen arrows are drawn at all, and it decides the
+ * things that follow from having no hover — a container captioning its squares
+ * (`../components/ContainerPanel`), a square answering a held finger with the
+ * description a mouse would have got for free (`../components/ItemSlot`).
+ *
+ * Server-rendered as false: the server cannot know, and a keyboard layout that
+ * gains a pad on hydration is a smaller lie than a pad that vanishes.
+ */
+export function useCoarsePointer(): boolean {
+  return useMediaQuery(COARSE_POINTER);
+}

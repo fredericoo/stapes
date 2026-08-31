@@ -15,46 +15,89 @@ import { bindAttackKey, bindLookKey } from "../game/heldDirections";
  * which is the part that differs between a local simulation and a reconnecting
  * one.
  */
+
+/**
+ * The three things a tap can mean, of which exactly one is true.
+ *
+ * **They used to be two independent switches and that was the bug.** Looking and
+ * fighting were separate latches, so a player could be in both at once, in
+ * neither, and — the case people actually hit — in attack mode without any idea
+ * they were, because nothing said what the *absence* of a mode was called.
+ * Naming the third state is what makes the other two legible: "interact" is a
+ * mode you can see you are in and can deliberately go back to, where "neither
+ * button is lit" was a state you had to infer.
+ */
+export type PlayMode = "interact" | "inspect" | "attack";
+
 export type PlayModes = {
-  /** Shift is down, or the button is latched on. */
+  /**
+   * The mode in force, which is what the buttons draw and what the world obeys.
+   * Shift, while it is down, overrides whatever was chosen.
+   */
+  mode: PlayMode;
+  /** Shorthand the renderer and the panels are already written in terms of. */
   looking: boolean;
   attacking: boolean;
-  /** The button's half of look mode. The keyboard's half is not overwritten. */
-  setLookLatched: (looking: boolean) => void;
-  setAttacking: (attacking: boolean) => void;
+  /** Choose a mode. Shift being down still wins until it comes up. */
+  setMode: (mode: PlayMode) => void;
 };
+
+/**
+ * What the switch reads as, given what was chosen and whether shift is down.
+ *
+ * The whole of "revert to the previous one on release": the chosen mode is never
+ * overwritten, only covered, so letting go of the key uncovers it. There is no
+ * remembered previous mode to get out of step with what the buttons say.
+ */
+export function modeInForce(chosen: PlayMode, lookHeld: boolean): PlayMode {
+  return lookHeld ? "inspect" : chosen;
+}
+
+/**
+ * Where the attack key takes the machine from here.
+ *
+ * A way in and a way out, so E is the whole of the keyboard's story about
+ * fighting: pressed while already fighting it puts the sword away, which is the
+ * same thing tapping the lit button does. It returns to plain interaction rather
+ * than to whatever came before, because "before" was very often inspect and
+ * ending a fight by dropping into look mode is not what anybody means.
+ */
+export function modeAfterAttackKey(chosen: PlayMode): PlayMode {
+  return chosen === "attack" ? "interact" : "attack";
+}
 
 export function usePlayModes(): PlayModes {
   /**
-   * Two booleans for looking, and that is the point.
+   * What was chosen, and separately whether shift is down.
    *
-   * Shift is momentary and the button is a latch, and folding them into one flag
-   * makes them fight: with a single flag, tapping shift and letting go turns off
-   * a mode the player had clicked on, because a keyup cannot tell what turned
-   * the mode on in the first place. Kept apart, each input only ever says its
-   * own half and the mode is on while either says so.
+   * Two pieces of state for one mode, and that is the point. Shift is momentary
+   * and a button is a latch, and folding them into one value makes them fight: a
+   * keyup cannot tell whether the mode it is ending was one the key started, so
+   * with a single value a tap of shift would quietly cancel a mode the player had
+   * chosen with a button. Kept apart, the key says only "held" and the choice
+   * survives underneath it — which is exactly what "revert to the previous one on
+   * release" means, with no previous-mode bookkeeping to get wrong.
    */
-  const [lookLatched, setLookLatched] = useState(false);
+  const [chosen, setChosen] = useState<PlayMode>("interact");
   const [lookHeld, setLookHeld] = useState(false);
-  const [attacking, setAttacking] = useState(false);
 
   useEffect(() => {
     const unbindLook = bindLookKey(setLookHeld);
     // Reported as a press rather than a state, so the key and the button are
-    // toggling the one flag instead of each holding an opinion about it.
-    const unbindAttack = bindAttackKey(() =>
-      setAttacking((current) => !current),
-    );
+    // moving the one machine instead of each holding an opinion about it.
+    const unbindAttack = bindAttackKey(() => setChosen(modeAfterAttackKey));
     return () => {
       unbindLook();
       unbindAttack();
     };
   }, []);
 
+  const mode = modeInForce(chosen, lookHeld);
+
   return {
-    looking: lookLatched || lookHeld,
-    attacking,
-    setLookLatched,
-    setAttacking,
+    mode,
+    looking: mode === "inspect",
+    attacking: mode === "attack",
+    setMode: setChosen,
   };
 }

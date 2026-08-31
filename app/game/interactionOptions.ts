@@ -177,6 +177,22 @@ const LABELS: Record<InteractionAction, string> = {
 const CLOSE_LABEL = "Close";
 
 /**
+ * What a target row says while the sword is out.
+ *
+ * The row is the same row — picking somebody out is still one act, and attack
+ * mode is still what decides whether it turns into blows — but "Target Rat" is
+ * an honest description of a mechanism and a poor description of what is about
+ * to happen. People read the list, tapped it, and were surprised to find
+ * themselves in a fight, which is the report that put this here: in attack mode
+ * the tap *is* the first swing, so the verb says so.
+ *
+ * A label rather than a second action, deliberately. Two actions would be two
+ * ranks to keep in {@link ACTION_ORDER}, two icons, and two paths through
+ * {@link applyInteraction} for one press that does one thing.
+ */
+const ATTACK_LABEL = "Attack";
+
+/**
  * One entry as a sentence: the verb and what it is about.
  *
  * The list draws these on two lines because it has a column to fill; anything
@@ -296,6 +312,10 @@ const LEVEL_DISTANCE_WEIGHT = 100;
  *   inside the view. Attacking is picking a target rather than swinging, so it
  *   is offered at any distance you can point at, and how far the view reaches
  *   is the renderer's question rather than this one's.
+ * @param attacking whether the sword is out, which changes what a body's row is
+ *   *called* and nothing else about it. See {@link ATTACK_LABEL}. Defaulted, so
+ *   a caller that has no stance to report gets the neutral verb rather than
+ *   having to invent an answer.
  */
 export function listInteractionOptions(
   map: MapFile,
@@ -306,11 +326,12 @@ export function listInteractionOptions(
   equipment: Equipment,
   openedRef: ObjectRef | null = null,
   tags: readonly string[] = [],
+  attacking: boolean = false,
 ): InteractionOption[] {
   const bodies = bodiesByCell(self, visibleActors);
 
   return [
-    ...targetOptions(tilesById, bodies, targetId),
+    ...targetOptions(tilesById, bodies, targetId, attacking),
     ...objectOptions(map, tilesById, self, bodies, equipment, openedRef, tags),
   ].sort(
     (a, b) =>
@@ -680,6 +701,7 @@ function targetOptions(
   tilesById: Record<string, TileDef>,
   bodies: Map<string, ActorSnapshot>,
   targetId: string | null,
+  attacking: boolean,
 ): InteractionOption[] {
   const out: InteractionOption[] = [];
 
@@ -695,7 +717,7 @@ function targetOptions(
     out.push({
       id: `target:${actor.id}`,
       action: "target",
-      label: LABELS.target,
+      label: attacking ? ATTACK_LABEL : LABELS.target,
       ref,
       actorId: actor.id,
       recipeIndex: null,

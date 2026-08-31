@@ -1956,7 +1956,11 @@ export class GameRenderer {
     // on the board having moved.
     const box = this.openedRef;
     const opened = box ? `${box.x},${box.y},${box.z},${box.stackIndex}` : "";
-    const at = `${snap.self.x},${snap.self.y},${snap.self.z},${snap.targetId},${opened}`;
+    // The stance is in the key for the same reason the target and the opened box
+    // are: it is a state a row is *named* for — "Target Rat" against "Attack
+    // Rat" — so drawing a sword renames a row without anything on the board
+    // having moved.
+    const at = `${snap.self.x},${snap.self.y},${snap.self.z},${snap.targetId},${opened},${snap.attacking}`;
     const health = healthSignature(snap.actors);
     if (
       snap.map === this.interactionsMap &&
@@ -1982,13 +1986,20 @@ export class GameRenderer {
       snap.equipment,
       this.openedRef,
       snap.tags,
+      snap.attacking,
     );
     // Held whether or not it is handed on, because the *references* inside it go
     // stale even when the list reads the same: a walking deer keeps its row and
     // changes cell, and the hover outline follows the reference.
     this.interactionsSent = options;
+    // **Everything the row draws, and the label is part of that.** The key is
+    // what decides whether React hears about the new list at all, so anything
+    // visible that is missing from it is a change that silently never arrives:
+    // drawing a sword renames a body's row without moving anything on the board,
+    // so an id-and-health key would have recomputed the right words and then
+    // refused to hand them over.
     const key = options
-      .map((o) => `${o.id}/${o.active}/${o.health?.hp ?? ""}`)
+      .map((o) => `${o.id}/${o.label}/${o.active}/${o.health?.hp ?? ""}`)
       .join("|");
     if (key === this.interactionsKey) return;
     this.interactionsKey = key;
