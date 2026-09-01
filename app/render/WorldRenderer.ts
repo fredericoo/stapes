@@ -21,6 +21,7 @@ import {
   listCoords,
   stackHeight,
 } from "../lib/mapData";
+import { countOf } from "../lib/piles";
 import type {
   Frame,
   MapFile,
@@ -74,6 +75,11 @@ import {
   OUTLINE_ALPHA_UNIFORM,
   pulseAlphaAt,
 } from "./overlayMeshes";
+import {
+  NO_PILE_OFFSET,
+  pileDepthNudge,
+  pileOffsets,
+} from "./pileLayout";
 import { animationKey, type SpriteQuadAssets, spriteQuadFor } from "./spriteQuad";
 import { noTintUniforms, tintCacheKey, tintUniforms } from "./spriteTint";
 import type { StatusTint } from "../lib/statusVfx";
@@ -1918,42 +1924,66 @@ export class WorldRenderer {
       const separate = isAnimated || isMobileTile(def);
       const animKey = animationKey(def, placed, x, y, z, state);
 
-      items.push({
-        x: origin.x,
-        y: origin.y,
-        w,
-        h,
-        u0,
-        v0,
-        u1,
-        v1,
-        box,
-        stackBias: depthStackBias(z, stackIndex),
-        texture,
-        lightX0: x,
-        lightY0: y,
-        lightX1: x + 1,
-        lightY1: y + 1,
-        unlit: tileCanEmitLight(def),
-        tileKey: separate ? instanceKey : undefined,
-        // Registered when it merely *can* change state, not only when it
-        // animates: a creature standing still on one frame becomes a four-frame
-        // walk cycle the moment it steps, and the registry is what the state
-        // pass reaches it through.
-        anim:
-          (isAnimated || hasSpriteStates(def)) && frames
-            ? {
-                frames,
-                tileset,
-                animKey,
-                def,
-                placed,
-                cell: { x, y, z },
-                state,
-                frameIdx,
-              }
-            : undefined,
-      });
+      // **A pile draws once per thing in it**, laid out like the pips on a die —
+      // see `./pileLayout`. Everything else in the world is a pile of one and
+      // takes the single centred offset, so this loop runs once and moves
+      // nothing for all but a handful of cells.
+      //
+      // A tile with a mesh of its own draws once whatever its count says, and
+      // the reason is `tileKey` and `anim` below: both name *one* mesh, and a
+      // second copy carrying either would collide in `movableMeshes` or leave a
+      // stale entry in the animated list. Nothing that piles is animated or
+      // mobile — only food piles — so this is a rule that keeps the invariant
+      // rather than one anybody trips over.
+      const offsets = separate ? NO_PILE_OFFSET : pileOffsets(countOf(placed));
+      const stackBias = depthStackBias(z, stackIndex);
+
+      // An indexed loop rather than `forEach`: this runs once per placement on a
+      // floor — thousands of them per rebuild — and a callback here is a closure
+      // allocated per tile to walk a list that is one long for all but a handful
+      // of them.
+      for (let i = 0; i < offsets.length; i++) {
+        const offset = offsets[i]!;
+        items.push({
+          x: origin.x + offset.dx,
+          y: origin.y + offset.dy,
+          w,
+          h,
+          u0,
+          v0,
+          u1,
+          v1,
+          box,
+          // Inside one stack index, so the sprites of a heap overlap front to
+          // back without the heap moving relative to anything above or below it
+          // in the stack. See `pileDepthNudge`.
+          stackBias: stackBias + pileDepthNudge(i, offsets.length),
+          texture,
+          lightX0: x,
+          lightY0: y,
+          lightX1: x + 1,
+          lightY1: y + 1,
+          unlit: tileCanEmitLight(def),
+          tileKey: separate ? instanceKey : undefined,
+          // Registered when it merely *can* change state, not only when it
+          // animates: a creature standing still on one frame becomes a four-frame
+          // walk cycle the moment it steps, and the registry is what the state
+          // pass reaches it through.
+          anim:
+            (isAnimated || hasSpriteStates(def)) && frames
+              ? {
+                  frames,
+                  tileset,
+                  animKey,
+                  def,
+                  placed,
+                  cell: { x, y, z },
+                  state,
+                  frameIdx,
+                }
+              : undefined,
+        });
+      }
 
       elev += physicalHeight(def);
     });

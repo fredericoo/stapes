@@ -1634,6 +1634,49 @@ Three verbs meet it, and the split between the first two is the interesting one:
   three ways an item reaches a cell, which is what makes "two berries in one
   tile" a fact about the board rather than about the verb that put them there.
 
+### A heap is drawn as a heap, laid out like the pips on a die
+
+`app/render/pileLayout.ts` decides where each sprite of a pile sits inside the
+cell they share, and `cellItems` — the single place a placement becomes geometry
+— emits one quad per thing rather than one per placement. Three berries look
+like three berries; the `×3` beside the name is what carries the number once the
+picture stops being countable.
+
+**Nothing about it is random**, despite it looking like jitter. A heap that
+re-scattered on every rebuild would shimmer whenever anything else in its cell
+changed, and two clients would draw the same pile differently — the map is the
+only state and it carries a count, not a seed.
+
+**Two arrangements, and there have to be two.** Up to six it is the die face,
+from a table, because a die's faces are not a fill order and cannot be
+generated: the centre pip is present at one, gone at two, back at three, gone at
+four, back at five and gone at six. Past six there is no face left to copy, so
+it becomes the whole-pixel positions inside a small disc, chosen centre-first by
+farthest-point — four lines, never picks a pixel twice, and takes any number.
+
+Three things were arrived at by looking at it rather than by reasoning:
+
+- **The pips sit three pixels out, not two.** A tile's sprite is as wide as its
+  cell, so pips four apart overlap by half their own width and a four and a five
+  come out as the same blob. A face reads only when the pips are small against
+  the gaps.
+- **The disc's radius grows with the count and stops at four.** It has to grow —
+  the offsets are whole pixels, so a fixed disc holds a fixed number of them —
+  and it has to stop, or a full pile reads as berries scattered over the three
+  tiles around it rather than a heap on one.
+- **Twelve sprites at most**, which is the widest authored pile. Counting by eye
+  gives out long before that; past six a heap says *how big* rather than how
+  many, which is the honest thing for it to say.
+
+Two constraints the code has to keep. Offsets are **whole pixels**, because a
+merged static quad at a fractional offset samples off the pixel grid forever —
+a walker gets to be between pixels because it is going somewhere. And a tile
+with a **mesh of its own draws once** whatever its count says: `tileKey` and
+`anim` each name one mesh, so a second copy carrying either would collide in
+`movableMeshes` or strand an entry in the animated list. Nothing that piles is
+animated or mobile, so that is an invariant kept rather than a limit anybody
+meets.
+
 Two deliberate gaps. **A recipe's outputs do not pour** — `landingsFor`
 (`app/game/transmute.ts`) decides where a result goes by counting *empty*
 squares, so pouring in `runTransmute` alone would leave a plan reaching for a
