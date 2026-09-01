@@ -450,6 +450,104 @@ describe("canReplaceStack", () => {
       ).ok,
     ).toBe(false);
   });
+
+  /**
+   * The one measurement a body is part of: this asks what a tile may *become*
+   * under whoever is standing on it, not what may walk in. @see the doc on
+   * `canReplaceStack` itself.
+   */
+  describe("with bodies in the stack", () => {
+    const body = (owner: string) => ({
+      tileId: "player",
+      direction: "s" as const,
+      owner,
+    });
+
+    it("refuses to close a door through the person standing in it", () => {
+      const map = replaceStack(emptyMap(), 0, 0, 0, [
+        { tileId: "grass" },
+        { tileId: "door-ajar" },
+        body("a"),
+      ]);
+      expect(
+        canReplaceStack(
+          map,
+          0,
+          0,
+          0,
+          [{ tileId: "grass" }, { tileId: "door-tall" }, body("a")],
+          tilesById,
+        ).ok,
+      ).toBe(false);
+    });
+
+    it("refuses it through two of them just as firmly", () => {
+      const map = replaceStack(emptyMap(), 0, 0, 0, [
+        { tileId: "grass" },
+        { tileId: "door-ajar" },
+        body("a"),
+        body("b"),
+      ]);
+      expect(
+        canReplaceStack(
+          map,
+          0,
+          0,
+          0,
+          [
+            { tileId: "grass" },
+            { tileId: "door-tall" },
+            body("a"),
+            body("b"),
+          ],
+          tilesById,
+        ).ok,
+      ).toBe(false);
+    });
+
+    it("lets a flat tile swap under a crowd", () => {
+      // A plate pressing, a signal firing, something decaying: the scenery is
+      // the same height afterwards, and two people standing on it are side by
+      // side rather than one on the other's shoulders. Summing them would put
+      // four units of person in a two-unit level and jam the plate.
+      const map = replaceStack(emptyMap(), 0, 0, 0, [
+        { tileId: "grass" },
+        body("a"),
+        body("b"),
+        body("c"),
+      ]);
+      expect(
+        canReplaceStack(
+          map,
+          0,
+          0,
+          0,
+          [{ tileId: "dirt" }, body("a"), body("b"), body("c")],
+          tilesById,
+        ).ok,
+      ).toBe(true);
+    });
+
+    it("still measures the one body against the scenery under it", () => {
+      // slab(1) + player(2) = 3, which overflows and needs the level above
+      // free — the same answer a lone body has always got here.
+      let map = replaceStack(emptyMap(), 0, 0, 0, [
+        { tileId: "grass" },
+        body("a"),
+      ]);
+      map = replaceStack(map, 0, 0, 1, [{ tileId: "roof" }]);
+      expect(
+        canReplaceStack(
+          map,
+          0,
+          0,
+          0,
+          [{ tileId: "slab" }, body("a")],
+          tilesById,
+        ).ok,
+      ).toBe(false);
+    });
+  });
 });
 
 describe("canWalk climb", () => {

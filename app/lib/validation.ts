@@ -307,6 +307,22 @@ export function fitsHeightAtElevation(
 /**
  * Can we replace the entire stack at (x,y,z) with `newStack`?
  * Validates the whole stack as if built from empty, plus overflow/below rules.
+ *
+ * **Bodies keep their volume here, and they are the reason this is not
+ * {@link fitsTile}.** Everywhere else a body is skipped, because everywhere else
+ * the question is what somebody may walk into. Here the question is what a tile
+ * may *become* underneath whoever is already standing on it — a door swinging
+ * shut in an occupied doorway, a plate whose pressed form is taller than its
+ * resting one — and a body that weighed nothing would let both close through the
+ * person in them. So this is the one measurement in the codebase that a body is
+ * part of. @see ../lib/mapData's `isPlayerBody`, and docs/notes.md, "A body is
+ * not terrain".
+ *
+ * **They do not stack on each other, though.** People share a cell, and two of
+ * them standing in one doorway are side by side rather than shoulder-on-head —
+ * summing them would put four units of person in a two-unit level and refuse
+ * every plate, signal and decay in the cell for as long as they both stood
+ * there. Only the tallest counts, and it counts from the scenery under it.
  */
 export function canReplaceStack(
   map: MapFile,
@@ -337,6 +353,7 @@ export function canReplaceStack(
   }
 
   let e = 0;
+  let bodies = 0;
   for (const placed of newStack) {
     const def = tilesById[placed.tileId];
     const h = def ? physicalHeight(def) : 0;
@@ -348,8 +365,15 @@ export function canReplaceStack(
         reason: "Stack already reaches the next level; place there instead",
       };
     }
+    // A body stands on the scenery, beside any other body, so it does not carry
+    // the running total upward — the tallest of them is added once at the end.
+    if (isPlayerBody(placed)) {
+      bodies = Math.max(bodies, h);
+      continue;
+    }
     e += h;
   }
+  e += bodies;
 
   if (e <= HEIGHT_PER_LEVEL) {
     return { ok: true };

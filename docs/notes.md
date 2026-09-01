@@ -260,6 +260,21 @@ blocking is a tactic worth keeping, and this is the rule Tibia arrived at too.
 It is why the flag is a fact about the *pair* rather than a property of the tile:
 "can be walked through" is not true of a body, only of a body *by a person*.
 
+**One measurement still counts a body, and it is `canReplaceStack`.** Everywhere
+else the question is what somebody may walk into, and there a body weighs
+nothing. There the question is what a tile may *become* underneath whoever is
+already standing on it — a door swinging shut in an occupied doorway, a plate
+whose pressed form is taller than its resting one — and a weightless body would
+let both close through the person in them. Closing a door on somebody is refused,
+and it is refused for two people as firmly as for one.
+
+They do not stack on each other there either, which is the half the crowd made
+necessary: two people in a doorway are side by side, not shoulder-on-head, and
+summing them puts four units of person in a two-unit level. That refused every
+plate, signal and decay in the cell for as long as two people stood in it — a
+pressure plate you could jam by standing on it with a friend. Only the tallest
+body counts, and it counts from the scenery under it.
+
 **What pays for the crowd is `guardShare`, not the floor plan.** Standing in one
 cell used to be impossible, so nothing had to price it; now eight people can
 share a doorway. They are already paid for — see "Eight rats used to be one rat,
