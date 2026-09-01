@@ -130,10 +130,12 @@ import {
   xpFromMasteries,
 } from "../lib/mastery";
 import {
+  ASSAILANT_GRACE_MS,
   type AttackOutcome,
   swingIntervalMs,
   canReach,
   rollAttack,
+  underPressure,
 } from "./combat";
 import type { Equipment, Hand } from "./equipment";
 import {
@@ -1003,6 +1005,29 @@ type ActorRuntime = {
    */
   defensiveDecay: Map<string, { payouts: number; idleMs: number }> | null;
   /**
+   * Who is currently swinging at this body, and how long each of them has left
+   * before they stop counting.
+   *
+   * The whole of "how outnumbered am I" — `../game/combat`'s `underPressure`
+   * reads nothing but the size of this. **Kept per defender rather than derived
+   * on demand**, because the honest question is who is *attacking* you, and
+   * there is nothing on the board to derive that from: a creature's target lives
+   * inside its brain's memory as a bound slot, and a body standing next to you
+   * minding its own business is not an assailant. A swing is the only thing that
+   * says for certain, so a swing is what writes here.
+   *
+   * The value is milliseconds left, wound down by the tick loop exactly as
+   * {@link defensiveDecay} is — the same reason too: a timestamp compared later
+   * would disagree with the rest of the session about how long a second is, and
+   * a world nobody is ticking would quietly empty while it slept.
+   *
+   * **Not durable**, like {@link hp} and {@link defensiveDecay}: it is the state
+   * of a fight, and a fight does not survive the world being unloaded. Null until
+   * something first swings at this body, so the great majority of actors never
+   * allocate one.
+   */
+  assailants: Map<string, number> | null;
+  /**
    * Where this creature is in its state machine, or null for a body with no
    * brain — every player, and any creature whose authored brain did not parse.
    * Built on first use rather than at adoption, which is what makes "brain
@@ -1693,6 +1718,7 @@ export class GameSession implements PlaySession {
       masteryXp: resident || !hasExperience(opts.earned) ? null : opts.earned,
       earnedBody: null,
       defensiveDecay: null,
+      assailants: null,
       brain: null,
       home: residentHome(id),
       // Restored where a returning player had any, and null otherwise — null
@@ -2225,6 +2251,10 @@ export class GameSession implements PlaySession {
     // Beside the cooldowns, because it is the same kind of thing: a countdown
     // somebody spent by swinging, winding back down while they do not.
     this.recoverDefensiveDecay(tickMs);
+    // And beside that, for the same reason it sits here: a body that stopped
+    // swinging has to fall out of the crowd it was part of before anybody rolls
+    // against a guard the crowd is no longer pressing on.
+    this.forgetSpentAssailants(tickMs);
     // And beside those, before anything is cast: a stone whose last second runs
     // out on this tick is ready on this tick, whether the press comes from a
     // player below or from a charm that fires on its own.
@@ -2817,7 +2847,8 @@ export class GameSession implements PlaySession {
     // The interval is this hand's own — a dagger's turn is a dagger's wait, so a
     // body alternating a dagger and an axe keeps an uneven rhythm rather than
     // averaging into one that belongs to neither.
-    attacker.attackCooldownMs = swingIntervalMs(attackerStats);
+    const interval = swingIntervalMs(attackerStats);
+    attacker.attackCooldownMs = interval;
 
     // Read before the rotation moves and carried down, rather than asked again
     // where the experience is settled: that would be the *next* hand's weapon
@@ -2878,7 +2909,16 @@ export class GameSession implements PlaySession {
       );
     }
 
-    const outcome = rollAttack(attackerStats, targetStats, this.rng);
+    // Counted before the dice and including this swing, so the body throwing it
+    // is one of the ones bearing down on the target: a lone attacker is an
+    // assailant of one and `underPressure` hands the stats straight back. Its own
+    // interval is what buys it a place in the count — see `ASSAILANT_GRACE_MS`.
+    const assailants = this.noteAssailant(target, attacker.id, interval);
+    const outcome = rollAttack(
+      attackerStats,
+      underPressure(targetStats, assailants),
+      this.rng,
+    );
     // Noted even on a dodge: what a creature reacts to is being swung at, and a
     // cat that only fought back when a blow landed would stand there being
     // missed. Before the damage, so a killing blow still tells the room.
@@ -3208,6 +3248,49 @@ export class GameSession implements PlaySession {
     }
   }
 
+  /**
+   * Count this body among the ones swinging at that one, and say how many that
+   * now is.
+   *
+   * The window is the attacker's own swing interval plus the grace on top, set
+   * afresh on every blow — so anything that keeps swinging keeps its place in the
+   * count, and anything that wanders off loses it one interval later without
+   * anybody having to notice it left. @see ASSAILANT_GRACE_MS
+   *
+   * Returns the size rather than the map, because the size is the only thing the
+   * rule wants and handing out the map is handing out something a caller can
+   * quietly hold past the tick it was true in.
+   */
+  private noteAssailant(
+    target: ActorRuntime,
+    attackerId: string,
+    swingMs: number,
+  ): number {
+    const onMe = (target.assailants ??= new Map());
+    onMe.set(attackerId, swingMs + ASSAILANT_GRACE_MS);
+    return onMe.size;
+  }
+
+  /**
+   * Drop everything that has gone quiet for longer than it had left, and forget
+   * the map entirely once nobody is on this body.
+   *
+   * Wound down on the tick clock rather than stamped and compared, exactly as
+   * {@link recoverDefensiveDecay} is and for the same reasons.
+   */
+  private forgetSpentAssailants(tickMs: number) {
+    for (const actor of this.actors.values()) {
+      const onMe = actor.assailants;
+      if (!onMe) continue;
+      for (const [attackerId, remainingMs] of onMe) {
+        const left = remainingMs - tickMs;
+        if (left > 0) onMe.set(attackerId, left);
+        else onMe.delete(attackerId);
+      }
+      if (onMe.size === 0) actor.assailants = null;
+    }
+  }
+
   /** Remember who hit whom, for the brains' next round of decisions. */
   private notePendingHurt(targetId: string, attackerId: string) {
     const attackers = this.pendingHurt.get(targetId);
@@ -3264,6 +3347,10 @@ export class GameSession implements PlaySession {
     this.pendingHurt.delete(target.id);
     for (const actor of this.actors.values()) {
       if (actor.targetId === target.id) actor.targetId = null;
+      // A corpse presses on nobody's guard. It would time out on its own within
+      // the grace, and waiting for that would mean the last swing of a fight you
+      // just won was still fought outnumbered.
+      actor.assailants?.delete(target.id);
     }
 
     // After the despawn, so the pile lands in the room the corpse just made

@@ -8,7 +8,11 @@ import { emptyMap, replaceStack } from "../lib/mapData";
 import { statusesById } from "../lib/status";
 import type { MapFile, TileDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL, normalizeTileDef, normalizeTiles } from "../lib/types";
-import { attackIntervalMs, MIN_ATTACK_TICKS } from "./combat";
+import {
+  ASSAILANT_GRACE_MS,
+  attackIntervalMs,
+  MIN_ATTACK_TICKS,
+} from "./combat";
 import { STRIKE_DURATION_MS, TICK_MS, WALK_DURATION_MS } from "./constants";
 import { GameSession } from "./GameSession";
 
@@ -1234,5 +1238,98 @@ describe("what a swing costs in footwork", () => {
 
     advance(session, PLODDER_WALK_MS);
     expect(session.isAtRest()).toBe(true);
+  });
+});
+
+/**
+ * A crowd, on a board.
+ *
+ * Every one of these swings a blow the target's armour would swallow whole in a
+ * duel — `feltBy(DUMMY_TOUGHNESS)` against a player wearing `PLAYER_TOUGHNESS`
+ * — so nothing lands here until the crowd itself is what makes it land. That is
+ * the exact fight this rule was written for: eight rats gnawing a well-armoured
+ * ankle for nothing.
+ */
+const SURROUNDING_CELLS = [
+  [1, 0],
+  [-1, 0],
+  [0, 1],
+  [0, -1],
+  [1, 1],
+  [1, -1],
+  [-1, 1],
+  [-1, -1],
+] as const;
+
+/** One exchange of blows at the fastest the rules allow. */
+const ONE_ROUND_MS = MIN_ATTACK_TICKS * TICK_MS;
+
+/**
+ * The player, and this many bodies stood around them already swinging.
+ *
+ * Actors rather than creatures, so who is attacking whom is set here and stays
+ * set: a brain would put the assertions at the mercy of a state machine, and
+ * what is being measured is the crowd rather than the decision to be part of one.
+ */
+function surrounded(count: number) {
+  const session = new GameSession(field(), tiles, {
+    actorIds: ["me"],
+    seed: 1,
+  });
+  const crowd = SURROUNDING_CELLS.slice(0, count).map(([x, y], index) => {
+    const id = `mob-${index}`;
+    session.spawn(id, { at: { x, y, z: 0 } });
+    session.setTarget("me", id);
+    session.setAttackMode(true, id);
+    return id;
+  });
+  return { session, crowd };
+}
+
+const hpOfMe = (session: GameSession) =>
+  session.actorSnapshots().find((actor) => actor.id === "me")?.hp ?? 0;
+
+describe("being outnumbered", () => {
+  /**
+   * The control, and the reason the fixture is armoured: one of these cannot
+   * scratch the player however long it swings, so every hit point lost below is
+   * the crowd's doing and nothing else's.
+   */
+  it("leaves a lone attacker unable to get through armour at all", () => {
+    const { session } = surrounded(1);
+
+    advance(session, ONE_ROUND_MS * 4);
+    expect(hpOfMe(session)).toBe(PLAYER_MAX_HP);
+  });
+
+  /** The reported fight: eight of the same thing is not one thing, eight times. */
+  it("opens a body up once a crowd is on it", () => {
+    const { session } = surrounded(SURROUNDING_CELLS.length);
+
+    advance(session, ONE_ROUND_MS);
+    const hp = hpOfMe(session);
+    expect(hp).toBeLessThan(PLAYER_MAX_HP);
+    expect(hp).toBeGreaterThan(0);
+  });
+
+  /**
+   * And the crowd has to *disperse*, or one bad moment would follow a body for
+   * the rest of its life. What counts is who is still swinging — see
+   * `./combat`'s `ASSAILANT_GRACE_MS`, which is how long after its last blow a
+   * body is still one of them.
+   */
+  it("gives the guard back once the crowd stops swinging", () => {
+    const { session, crowd } = surrounded(SURROUNDING_CELLS.length);
+
+    advance(session, ONE_ROUND_MS);
+    for (const id of crowd.slice(1)) session.setAttackMode(false, id);
+    advance(session, ONE_ROUND_MS + ASSAILANT_GRACE_MS);
+    const settled = hpOfMe(session);
+
+    // The one left swinging is back to being a lone attacker, which this
+    // fixture's armour eats whole.
+    advance(session, ONE_ROUND_MS * 4);
+    expect(hpOfMe(session)).toBe(settled);
+    expect(settled).toBeGreaterThan(0);
   });
 });

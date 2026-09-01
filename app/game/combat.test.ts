@@ -14,8 +14,10 @@ import {
   damageFraction,
   defenceAgainst,
   dodgeChance,
+  guardShare,
   inAttackRange,
   rollAttack,
+  underPressure,
 } from "./combat";
 import { TICK_MS } from "./constants";
 import { HEIGHT_PER_LEVEL } from "../lib/types";
@@ -184,6 +186,89 @@ describe("dodging", () => {
 
     expect(halfway).toBeGreaterThan(untrained * 3);
     expect(mastered).toBeGreaterThan(halfway * 1.5);
+  });
+});
+
+describe("being outnumbered", () => {
+  /**
+   * The fight every authored number was tuned against. One attacker has to leave
+   * the block exactly as it was, or every creature in the world quietly changes
+   * the day this lands.
+   */
+  it("costs a body nothing at all when only one thing is on it", () => {
+    const defender = battler({ flee: 60, def: 10 });
+
+    expect(guardShare(0)).toBe(1);
+    expect(guardShare(1)).toBe(1);
+    expect(underPressure(defender, 1)).toBe(defender);
+  });
+
+  /**
+   * The reported bug, as arithmetic: eight rats were exactly one rat, eight
+   * times over.
+   */
+  it("takes evasion and armour down together as the crowd grows", () => {
+    const defender = battler({ flee: 60, def: 12, resist: { blade: 8 } });
+    const crowded = underPressure(defender, 8);
+
+    expect(crowded.flee).toBeLessThan(defender.flee / 3);
+    expect(crowded.def).toBeLessThan(defender.def / 3);
+    // The resistances go with the flat armour, or being surrounded is survivable
+    // by wearing the right coat. @see defenceAgainst
+    expect(defenceAgainst(crowded, battler({ mastery: "blade" }))).toBeLessThan(
+      defenceAgainst(defender, battler({ mastery: "blade" })) / 3,
+    );
+  });
+
+  /** Hit points are whole, so what is subtracted from them has to be. */
+  it("leaves a whole number of armour behind", () => {
+    for (let assailants = 1; assailants <= 12; assailants++) {
+      const crowded = underPressure(
+        battler({ def: 17, resist: { blunt: 5 } }),
+        assailants,
+      );
+      expect(Number.isInteger(crowded.def)).toBe(true);
+      expect(Number.isInteger(crowded.resist.blunt ?? 0)).toBe(true);
+    }
+  });
+
+  /**
+   * The shape of the curve, which is the whole reason it is hyperbolic: the
+   * second body on you is the one that costs, and no crowd is ever large enough
+   * to leave you with nothing.
+   */
+  it("costs less for every further body, and never reaches nothing", () => {
+    let previous = guardShare(1);
+    let lastCost = Infinity;
+    for (let assailants = 2; assailants <= 40; assailants++) {
+      const here = guardShare(assailants);
+      const cost = previous - here;
+      expect(here).toBeGreaterThan(0);
+      expect(here).toBeLessThan(previous);
+      expect(cost).toBeLessThan(lastCost);
+      previous = here;
+      lastCost = cost;
+    }
+  });
+
+  /**
+   * End to end through the swing: a bite that armour swallowed on its own draws
+   * blood once there are enough of them. This is the fight the player actually
+   * had.
+   */
+  it("lets a blow through that one attacker could never land", () => {
+    const attacker = battler({ damage: 6, accuracy: 100, hitChance: 1 });
+    const defender = battler({ def: 10, flee: 0 });
+
+    let aloneDrew = 0;
+    let crowdDrew = 0;
+    for (let seed = 0; seed < 50; seed++) {
+      aloneDrew += rollAttack(attacker, underPressure(defender, 1), new Rng(seed)).damage;
+      crowdDrew += rollAttack(attacker, underPressure(defender, 8), new Rng(seed)).damage;
+    }
+
+    expect(aloneDrew).toBe(0);
+    expect(crowdDrew).toBeGreaterThan(0);
   });
 });
 
