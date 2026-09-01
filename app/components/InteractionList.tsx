@@ -14,7 +14,13 @@ import {
 import { useMemo } from "react";
 import type {
   InteractionAction,
+  InteractionGroup,
   InteractionOption,
+} from "../game/interactionOptions";
+import {
+  groupInteractionOptions,
+  groupSubject,
+  interactionText,
 } from "../game/interactionOptions";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
@@ -39,16 +45,19 @@ import { useTap } from "./useTap";
  * you can see. It earns its place on a desktop for the same reason a quest log
  * does — knowing what is *possible* is a different question from doing it.
  *
- * Each row is one action and the whole row is its button: the sprite says what,
- * the top line says what you would be doing, the bottom line says which one it
- * is. A body you can both shove and fight is two rows, because the verb is what
- * is being scanned for and there is nothing to be gained by making the reader
- * find it inside a group.
+ * **One box per thing, one button per verb.** The box says which thing — its
+ * sprite and its name, once — and inside it is a button for each of the things
+ * you could do to it. A body you can both shove and fight used to be two full
+ * rows, which drew the same rat twice and said its name twice in a column
+ * barely wide enough to say it once; the verbs are still separate, because the
+ * verb is what a player scans for, but they no longer each drag a sprite and a
+ * name along behind them. See `groupInteractionOptions`, which decides what
+ * counts as one thing.
  *
- * A row about a body carries its health under the name, on the same ramp the
- * bar over its head is drawn on. Two rats read as two identical rows otherwise,
- * and the one thing you want to know before swinging is which of them is the
- * one you have nearly finished and which just walked into view.
+ * A box about a body carries its health under the name, on the same ramp the
+ * bar over its head is drawn on. Two rats read as two identical boxes
+ * otherwise, and the one thing you want to know before swinging is which of
+ * them is the one you have nearly finished and which just walked into view.
  *
  * Rows carry the option and nothing else; {@link onAct} hands it back to
  * whoever owns the session. Nothing in here knows what a push is.
@@ -128,6 +137,7 @@ export function InteractionList({
   className?: string;
 }) {
   const tilesById = useMemo(() => tilesByIdFromList(tiles), [tiles]);
+  const groups = useMemo(() => groupInteractionOptions(options), [options]);
 
   return (
     <div
@@ -150,11 +160,11 @@ export function InteractionList({
         // empty frame reads as something failing to load.
         <p className="px-1 py-2 text-xs text-paper/50">Nothing in reach.</p>
       ) : (
-        options.map((option) => (
-          <InteractionRow
-            key={option.id}
-            option={option}
-            tile={tilesById[option.tileId] ?? null}
+        groups.map((group) => (
+          <InteractionBox
+            key={group.key}
+            group={group}
+            tile={tilesById[groupSubject(group).tileId] ?? null}
             tilesets={tilesets}
             attacking={attacking}
             onAct={onAct}
@@ -188,65 +198,91 @@ function litClass(option: InteractionOption, attacking: boolean): string {
 }
 
 /**
- * What a row wears, lit or not.
+ * What a box wears, lit or not.
  *
- * A reward is the one row that carries its colour without being lit, and it has
- * to: everything else here is a state you can be *in* — pointing at somebody,
- * having a box open — and lighting up is how the list says which one you are in.
- * "You can only do this once" is not a state, it is a property of the offer, so
- * it is on the row from the moment the row exists. Which is also why it is a
- * tint rather than the full lit treatment: it must not read as the row being
- * selected.
+ * Lit by whatever inside it you are in the middle of — the body you are
+ * pointing at, the chest you have open — because that state belongs to the
+ * *thing*, and the thing is what the box is. Only one verb in a box can ever be
+ * a state you are in, so there is nothing to arbitrate.
+ *
+ * A reward is the one box that carries its colour without being lit, and it has
+ * to: everything else here is a state you can be *in*, and lighting up is how
+ * the list says which one you are in. "You can only do this once" is not a
+ * state, it is a property of the offer, so it is on the box from the moment the
+ * box exists. Which is also why it is a tint rather than the full lit
+ * treatment: it must not read as the box being selected.
  */
-function rowClass(option: InteractionOption, attacking: boolean): string {
-  if (option.active) return litClass(option, attacking);
-  if (option.action === "reward") {
+function boxClass(
+  group: InteractionGroup,
+  active: InteractionOption | null,
+  attacking: boolean,
+): string {
+  if (active) return litClass(active, attacking);
+  if (group.options.some((option) => option.action === "reward")) {
     return "border-reward/60 bg-reward/10 text-paper hover:border-reward";
   }
   return "border-paper/40 bg-ink text-paper hover:border-paper";
 }
 
-function InteractionRow({
-  option,
+/**
+ * What a verb wears inside the box.
+ *
+ * Quieter than the box around it by a whole border width, and on purpose: the
+ * box is what you find in a scan of the column, and the buttons are what you
+ * read once you have found it. The one exception is the verb naming a state you
+ * are in — "Close" on the chest that is open — which wears the same colour its
+ * box does, so that pressing it again reads as the way out.
+ *
+ * A reward's verb carries the purple as text rather than as a fill: the box has
+ * already said the offer is a one-off, and "Receive" in the same colour is what
+ * says which of the verbs in it is the offer.
+ */
+function actionClass(option: InteractionOption, attacking: boolean): string {
+  if (option.active) return litClass(option, attacking);
+  if (option.action === "reward") {
+    return "border-reward/60 text-reward hover:border-reward hover:bg-reward/10";
+  }
+  return "border-paper/30 text-paper hover:border-paper hover:bg-paper/10";
+}
+
+/**
+ * One thing and everything you could do to it.
+ *
+ * The box is not a button — the buttons are inside it. What is outside them is
+ * the answer to "which one is this": the sprite, the name, and what is left of
+ * the body if it has one, said once however many verbs are stacked underneath.
+ * Pointing at any part of the box asks the world to outline the thing, because
+ * every button in here is about the same thing and the box is what says so.
+ *
+ * The border carries the state of whatever inside it is in one — the body you
+ * are pointing at, the box you have open — so the thing is lit rather than the
+ * verb, which is how it is lit out in the world.
+ */
+function InteractionBox({
+  group,
   tile,
   tilesets,
   attacking,
   onAct,
   onHover,
 }: {
-  option: InteractionOption;
+  group: InteractionGroup;
   tile: TileDef | null;
   tilesets: TilesetDef[];
   attacking: boolean;
   onAct: (option: InteractionOption) => void;
   onHover?: (optionId: string | null) => void;
 }) {
-  const Icon = ICONS[option.action];
-  // Pointer-driven rather than click-driven: a row has to answer a thumb that
-  // is already holding the d-pad, and a click never arrives while it is. See
-  // `./useTap`.
-  const tap = useTap(() => onAct(option));
+  const subject = groupSubject(group);
+  const active = group.options.find((option) => option.active) ?? null;
 
   return (
-    <button
-      type="button"
-      {...tap}
-      onMouseEnter={() => onHover?.(option.id)}
+    <div
+      onMouseEnter={() => onHover?.(subject.id)}
       onMouseLeave={() => onHover?.(null)}
-      onFocus={() => onHover?.(option.id)}
-      onBlur={() => onHover?.(null)}
-      // Pointing at somebody and having a box open are states you are in, and
-      // both rows toggle out of them; a push happens and is over, and a button
-      // that claimed otherwise would be announced as stuck on.
-      aria-pressed={
-        option.action === "target" || option.action === "open"
-          ? option.active
-          : undefined
-      }
       className={[
-        "flex w-full shrink-0 items-center gap-2 border-2 p-1 text-left",
-        "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-        rowClass(option, attacking),
+        "flex w-full shrink-0 items-start gap-2 border-2 p-1",
+        boxClass(group, active, attacking),
       ].join(" ")}
     >
       <TilePreview
@@ -259,23 +295,100 @@ function InteractionRow({
         background={null}
         className="shrink-0"
       />
-      <span className="flex min-w-0 flex-1 flex-col">
-        <span
-          className={[
-            "flex items-center gap-1 text-xs font-medium uppercase",
-            // The verb is what the row is scanned for, so it is the verb that
-            // carries the colour — a purple border alone is decoration until you
-            // know what it means, and "Receive" in purple teaches it in one row.
-            option.action === "reward" ? "text-reward" : "",
-          ]
-            .filter(Boolean)
-            .join(" ")}
-        >
-          <Icon size={14} stroke={2} aria-hidden="true" />
-          {option.label}
-        </span>
-        <span className="truncate text-xs text-paper/70">{option.name}</span>
-        {option.health ? <RowHealth health={option.health} /> : null}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <span className="truncate text-xs text-paper/70">{subject.name}</span>
+        {subject.health ? <RowHealth health={subject.health} /> : null}
+        {/* Under the name and hard against it: the name is a heading for these
+            and a gap would let it float between the box above and this one. */}
+        <div className="mt-1 flex flex-col gap-px">
+          {group.options.map((option) => (
+            <ActionButton
+              key={option.id}
+              option={option}
+              subjectId={subject.id}
+              attacking={attacking}
+              onAct={onAct}
+              onHover={onHover}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * One verb, and pressing it is what runs it.
+ *
+ * Named for a screen reader with the thing it acts on — "Push Crate" and not
+ * "Push" — because the name is now outside the button and a list of buttons
+ * read aloud would otherwise be a list of bare verbs. The words on screen stay
+ * the verb alone: the sprite two centimetres to the left has already said which
+ * crate this is, and repeating it in every button is what the box exists to
+ * stop.
+ */
+function ActionButton({
+  option,
+  subjectId,
+  attacking,
+  onAct,
+  onHover,
+}: {
+  option: InteractionOption;
+  /**
+   * The entry the box as a whole stands for, which is what the world goes back
+   * to outlining when the pointer leaves this button for the box around it. The
+   * outline is the same either way — every verb in a box acts on one placement —
+   * but its *colour* is the verb's, so a pointer sliding off "Push" and onto
+   * nothing in particular must not leave the world claiming a shove.
+   */
+  subjectId: string;
+  attacking: boolean;
+  onAct: (option: InteractionOption) => void;
+  onHover?: (optionId: string | null) => void;
+}) {
+  const Icon = ICONS[option.action];
+  // Pointer-driven rather than click-driven: a button has to answer a thumb
+  // that is already holding the d-pad, and a click never arrives while it is.
+  // See `./useTap`.
+  const tap = useTap(() => onAct(option));
+
+  return (
+    <button
+      type="button"
+      {...tap}
+      onMouseEnter={() => onHover?.(option.id)}
+      onMouseLeave={() => onHover?.(subjectId)}
+      onFocus={() => onHover?.(option.id)}
+      onBlur={() => onHover?.(null)}
+      aria-label={interactionText(option)}
+      // Pointing at somebody and having a box open are states you are in, and
+      // both buttons toggle out of them; a push happens and is over, and a
+      // button that claimed otherwise would be announced as stuck on.
+      aria-pressed={
+        option.action === "target" || option.action === "open"
+          ? option.active
+          : undefined
+      }
+      className={[
+        // Tall enough to hit with a thumb where there is a thumb, and no taller
+        // than it needs to be where there is a cursor: the phone shows this
+        // same list, and a verb that used to be a whole row with a sprite in it
+        // must not become a line of text you have to aim at.
+        "flex w-full min-h-6 items-center gap-1 border px-1 py-0.5 text-left pointer-coarse:min-h-9",
+        "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+        actionClass(option, attacking),
+      ].join(" ")}
+    >
+      <Icon size={14} stroke={2} aria-hidden="true" className="shrink-0" />
+      {/* The type is on the span and not on the button, because `button { font:
+          inherit }` in `app.css` is unlayered and beats a utility class: a size
+          set on the button itself is silently the page's. Set small and tight,
+          and in sentence case — the verbs are authored ("Climb", "Warm your
+          hands"), a column this narrow truncates a long one, and capitals cost
+          width to shout a heading the box above no longer needs shouted. */}
+      <span className="truncate text-[11px] leading-snug font-medium tracking-tight">
+        {option.label}
       </span>
     </button>
   );

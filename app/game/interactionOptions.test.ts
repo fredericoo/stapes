@@ -14,6 +14,7 @@ import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import type { ActorSnapshot } from "./GameSession";
 import {
+  groupInteractionOptions,
   interactionText,
   listInteractionOptions,
   topInteractionAt,
@@ -1263,5 +1264,134 @@ describe("interactionText", () => {
     const options = listInteractionOptions(map, tilesById, me, [me], null, KIT);
 
     expect(options.map(interactionText)).toContain("Pick up Sword");
+  });
+});
+
+describe("groupInteractionOptions", () => {
+  /** An entry with only the parts grouping reads, for the cases the map cannot pose. */
+  function option(
+    partial: Partial<InteractionOption> & Pick<InteractionOption, "id">,
+  ): InteractionOption {
+    return {
+      action: "push",
+      label: "Push",
+      ref: { x: 1, y: 0, z: 0, stackIndex: 1 },
+      actorId: null,
+      recipeIndex: null,
+      tileId: "crate",
+      name: "Crate",
+      health: null,
+      active: false,
+      ...partial,
+    };
+  }
+
+  it("says one body once and both of its verbs under it", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "player"]);
+    const me = playerAt(map);
+    const them = actor("them", "player", 1, 0, map, 10);
+
+    const groups = groupInteractionOptions(
+      listInteractionOptions(map, tilesById, me, [me, them], null, KIT),
+    );
+
+    expect(groups).toHaveLength(1);
+    expect(actionsIn(groups[0]!.options)).toEqual(["target", "push"]);
+  });
+
+  it("keeps two things apart, however near each other they are", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "crate"]);
+    map = place(map, 0, 1, ["grass", "sword"]);
+    const me = playerAt(map);
+
+    const groups = groupInteractionOptions(
+      listInteractionOptions(map, tilesById, me, [me], null, KIT),
+    );
+
+    expect(groups.map((g) => g.options[0]!.name).sort()).toEqual([
+      "Crate",
+      "Sword",
+    ]);
+  });
+
+  // The transmute row is the one entry whose subject is not its placement: a
+  // fire offering to cook meat and to cook fish wears two sprites and two
+  // names, and a box that merged them would have to pick one of the two to lie
+  // with.
+  it("keeps two entries on one placement apart when they are about different things", () => {
+    const fire = { x: 2, y: 2, z: 0, stackIndex: 1 };
+    const groups = groupInteractionOptions([
+      option({
+        id: "transmute:2,2,0,1:0",
+        action: "transmute",
+        label: "Cook",
+        ref: fire,
+        recipeIndex: 0,
+        tileId: "raw_meat",
+        name: "Raw Meat",
+      }),
+      option({
+        id: "transmute:2,2,0,1:1",
+        action: "transmute",
+        label: "Cook",
+        ref: fire,
+        recipeIndex: 1,
+        tileId: "raw_fish",
+        name: "Raw Fish",
+      }),
+    ]);
+
+    expect(groups.map((g) => g.options[0]!.name)).toEqual([
+      "Raw Meat",
+      "Raw Fish",
+    ]);
+  });
+
+  // Two people share a tile, and the handle is the only thing that says they
+  // are two subjects rather than one.
+  it("keeps two bodies apart even where one stands where the other is listed", () => {
+    const ref = { x: 1, y: 0, z: 0, stackIndex: 1 };
+    const groups = groupInteractionOptions([
+      option({ id: "target:a", action: "target", ref, tileId: "player", name: "Ada" }),
+      option({ id: "target:b", action: "target", ref, tileId: "player", name: "Bo" }),
+    ]);
+
+    expect(groups).toHaveLength(2);
+  });
+
+  // The flat list is sorted by nearness first, so two subjects the same
+  // distance away interleave their verbs; a box is what un-interleaves them,
+  // and it does so without re-ordering anything the list had settled.
+  it("gathers a subject's verbs into the place its first one had", () => {
+    let map = field();
+    map = place(map, 1, 0, ["grass", "player"]);
+    map = place(map, 0, 1, ["grass", "crate"]);
+    const me = playerAt(map);
+    const them = actor("them", "player", 1, 0, map, 10);
+    const options = listInteractionOptions(
+      map,
+      tilesById,
+      me,
+      [me, them],
+      null,
+      KIT,
+    );
+
+    const groups = groupInteractionOptions(options);
+
+    // The body comes first because its fight does, and its shove comes with it
+    // rather than staying behind the crate it was sorted against.
+    expect(groups.map((g) => actionsIn(g.options))).toEqual([
+      ["target", "push"],
+      ["push"],
+    ]);
+    expect(groups[1]!.options[0]!.name).toBe("Crate");
+    expect(groups.flatMap((g) => g.options)).toHaveLength(options.length);
+  });
+
+  it("has nothing to say about an empty list", () => {
+    expect(groupInteractionOptions([])).toEqual([]);
   });
 });
