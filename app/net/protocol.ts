@@ -6,6 +6,7 @@ import { SWING_OUTCOMES, type SwingOutcome } from "../game/GameSession";
 import { STRIKE_KINDS, type StrikeKind } from "../game/strike";
 import type { ConsumeSource } from "../game/itemUse";
 import { masteryXpBlockSchema, type MasteryXp } from "../lib/mastery";
+import type { ExtractCooling } from "../game/extract";
 import type { PlacedTile } from "../lib/types";
 import { MAX_CHAT_RAW_LENGTH } from "./chat";
 import { MAX_COMMAND_LENGTH } from "../game/commands";
@@ -99,6 +100,21 @@ const hpPatchSchema = v.object({
  */
 const statusPatchSchema = v.object({
   defId: v.string(),
+  remainingMs: v.number(),
+  durationMs: v.number(),
+});
+
+/**
+ * One resource this viewer is waiting on, and how far through the wait they
+ * are.
+ *
+ * The shape `../game/extract` already holds it in — see `ExtractCooling`, whose
+ * note argues why both numbers travel. Validated rather than trusted like
+ * everything else here, and the remainder is not clamped against the duration:
+ * a client that draws a bar reads them as a fraction and clamps it there.
+ */
+const extractCoolingSchema = v.object({
+  key: v.string(),
   remainingMs: v.number(),
   durationMs: v.number(),
 });
@@ -546,7 +562,7 @@ export type ServerMessage =
        * that one only fires when something changes and a wait already running
        * changes nothing.
        */
-      extractCooling: string[];
+      extractCooling: ExtractCooling[];
       /**
        * What this viewer has learnt, as raw experience.
        *
@@ -604,13 +620,14 @@ export type ServerMessage =
    * events would strand a row hidden for ever the first time a message went
    * missing.
    *
-   * **Keys, not deadlines.** A remaining-ms per entry would be a message every
-   * tick for the whole of every cooldown; what the client actually needs is the
-   * boolean, so this is sent twice per pull — once when a placement starts
-   * cooling, once when it stops — and says nothing in between. The keys are
-   * `../game/extract`'s `extractKey`, which both ends mint the same way.
+   * **Two messages a pull, and none in between.** One when a placement starts
+   * cooling and one when it stops; nothing is sent while a wait merely runs
+   * down. That is what the `durationMs` beside the remainder buys — the client
+   * has both halves of the fraction from the first message, so it can draw the
+   * bar filling on its own rather than being told where it is thirty times a
+   * second. Exactly the trade {@link StatusPatch} makes.
    */
-  | { type: "extractCooling"; keys: string[] }
+  | { type: "extractCooling"; cooling: ExtractCooling[] }
   /**
    * "Here is something to tell you."
    *
@@ -1154,7 +1171,7 @@ const serverMessageSchema = v.variant("type", [
     // Optional with an empty default, on `statusIds`' terms: a version skew
     // should degrade to "every resource looks ready" — one refused tap — rather
     // than to a handshake that fails to parse.
-    extractCooling: v.optional(v.array(v.string()), () => []),
+    extractCooling: v.optional(v.array(extractCoolingSchema), () => []),
     masteryXp: tolerantMasteryXpSchema,
     statuses: v.array(statusPatchSchema),
   }),
@@ -1168,7 +1185,7 @@ const serverMessageSchema = v.variant("type", [
   }),
   v.object({
     type: v.literal("extractCooling"),
-    keys: v.array(v.string()),
+    cooling: v.array(extractCoolingSchema),
   }),
   v.object({
     type: v.literal("notice"),

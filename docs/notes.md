@@ -1968,7 +1968,7 @@ contrast.
 - **The wait is charged whatever came up.** A crystal that yields nothing on a
   bad roll has still been chipped at — the durability went into the swing, not
   into what came out of it — and a pull that cost nothing when it gave nothing
-  would be a free re-roll.
+  would be a free re-roll. It does not hide the row while it runs; see below.
 - **Regrowth is deliberately not authored here.** `tileId` hands the spent
   placement to machinery that already exists, and there are two answers because
   there are two shapes: a bush becomes `picked-bush`, and the *picked bush*
@@ -1983,34 +1983,72 @@ contrast.
   because one placement offers several recipes; a bush offers one thing, which is
   the bush.
 
-### The cooling set is a per-player channel, and it carries keys rather than clocks
+### A wait greys the row rather than taking it away
 
-The row is *hidden* while a player is waiting, rather than offered and refused,
-which means the client has to know. It is told, on exactly the terms it is told
-its tags: a `Set` of changed actor ids drained out of the session, a whole-state
-message to the one socket it is about (`extractCooling`), and the same list on
-`hello` because a reconnecting player's waits are still running on the body they
-left.
+**A missing row and a waiting row are different facts, and the list has to say
+which.** Every other refusal in `listInteractionOptions` removes the row — an
+emptied chest, a recipe you cannot pay for, a crate out of reach — and that is
+right, because all of those are answers about the *world*: there is nothing here
+worth walking up to. A cooldown is not that. The player did nothing, the bush is
+still full, and a row that vanished under them would read as a bug. So the row
+stays, goes grey, and runs a bar under it.
 
-- **Keys, not deadlines.** A remaining-ms per entry would be a message every tick
-  for the whole of every wait. What the client needs is the boolean, so the
-  message goes out twice per pull — once when a wait starts, once when it ends —
-  and winding is silent in between. `advanceExtractCooldowns` only announces an
-  *expiry*.
-- **The list's identity is the change signal**, so it is cached on the runtime
-  beside the map it is derived from (`ActorRuntime.extractCooling`, written only
-  in `setExtractCooldowns`) rather than built where it is read. It goes out on
-  the snapshot every frame, and the renderer gates its whole interaction list on
-  it — a fresh array per frame would rebuild the list sixty times a second for a
-  set that changes twice a pull. It is the same `carriedLights` bargain.
-- **A membership test, not a `Set`,** is what the rules take (`CoolingResources`),
-  which is what lets each end hold it in the shape it already has: the server's
-  truth is a `Map<key, remainingMs>`, the client's is a `Set` built from the list
-  it was sent, and both answer `has`.
+That is what `canExtractFrom` and `canWorkNow` being two functions is for. The
+first is the board's and the bag's answer — reach, pulls left, room — and is what
+puts the row there. The second adds the wait and is what the session, the server
+and the client's own tap all ask before anything happens.
+
+- **`InteractionOption.cooldown` carries it**, and a row that has one is not
+  actionable: `topInteractionAt` passes over it, so the pointer outlines nothing
+  and a click on the world does nothing; `applyInteraction` refuses it; and the
+  button is `aria-disabled` with the verb suffixed "not ready yet". Four refusals
+  for one press is the spell bar's discipline, and it is why the grey is not a
+  lie.
+- **The field is not extract-shaped.** Nothing else uses it yet, but the next
+  mechanism that makes a player *wait* rather than telling them no should take
+  this rather than inventing a second way to be grey.
+- **The bar is a CSS keyframe with a negative delay** (`fill-wait` in `app.css`),
+  given the whole `durationMs` and started `durationMs - remainingMs` in. That is
+  the whole reason a cooling row costs nothing: the browser runs it on the
+  compositor, React is not re-rendered between the wait starting and ending, and
+  a row rebuilt mid-wait picks the fill up where it already was rather than
+  restarting it. `waitElapsedMs` clamps both ends, because the two numbers arrive
+  separately and nothing forces them into a ratio.
+- **The renderer's option key carries the *presence* of a wait and never the
+  remainder.** A key with the number in it would hand React a new list thirty
+  times a second to redraw a bar CSS is already animating; a key without the flag
+  would never tell it the row had gone grey at all.
+
+### The cooling list is a per-player channel, sent twice a pull
+
+The client is told on exactly the terms it is told its tags: a `Set` of changed
+actor ids drained out of the session, a whole-state message to the one socket it
+is about (`extractCooling`), and the same list on `hello`, because a reconnecting
+player's waits are still running on the body they left.
+
+- **Two messages a pull and none in between.** Both halves of the fraction
+  travel — `remainingMs` and `durationMs`, the pairing `StatusPatch` makes — so
+  the client has everything it needs to draw the bar filling without being told
+  where it is. `advanceExtractCooldowns` announces only a start and an expiry.
+- **The entries are wound in place, and the list holds the map's own objects.**
+  `setExtractCooldowns` rebuilds the array only when the *set* changes, so the
+  array's identity is the change signal the renderer gates its whole interaction
+  list on, and a tick advancing a wait costs no allocation and no rebuild. The
+  same hand-over-by-reference a `walk` or a `strike` already travels on.
+  `RemoteSession.windExtractCooling` does the same against the render clock —
+  which is not a prediction of anything, since only the server's message ever
+  clears an entry; it keeps the *number* true between the two messages.
+- **A lookup, not a `Set`,** is what the rules take (`CoolingResources`), which
+  lets each end hold it in the shape it already has: a `Map<key, ExtractCooling>`
+  on the server's actor, one built from the list on the client.
 - **Not durable.** `hp`'s bargain rather than a tag's: a tag records that
   something *happened* and can never be rebuilt, where a wait records that
   something happened *recently*, and a world unloaded long enough to lose it has
   been unloaded for longer than any wait worth authoring.
+- **It holds the world awake.** The wait is wound by the tick loop and by nothing
+  else, so `isAtRest` returns false while any actor owes one — exactly the clause
+  a cooling stone has, and for its reason: falling asleep on one would leave the
+  row grey and the bar frozen until somebody happened to move.
 - **The key is cell-plus-tile**, `decay`'s `entryKey` and not the stack index,
   for its reason: an index shifts the moment anything is placed under or over it.
   Including the tile id means the wait a player owes a bush does not follow it

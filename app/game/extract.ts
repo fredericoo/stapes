@@ -156,15 +156,21 @@ export function extractFits(
 }
 
 /**
- * Could this actor work this thing right now?
+ * Is there a resource here this actor could work — leaving aside whether they
+ * have waited long enough?
  *
- * Four refusals and none of them distinguished, on `canRewardFrom`'s terms: out
- * of reach, spent, still cooling, or nowhere to put what comes out. Whichever it
- * is there is no row and no outline, so a bush somebody has just stripped reads
- * as a bush rather than as something withholding.
+ * **Three refusals and none of them distinguished**, on `canRewardFrom`'s
+ * terms: out of reach, spent, or nowhere to put what comes out. Whichever it is
+ * there is no row and no outline, so a bush somebody has stripped bare reads as
+ * a bush rather than as something withholding.
  *
- * @param cooling the placements this actor may not work yet, as
- *   {@link extractKey}s. See {@link CoolingResources}.
+ * **The wait is deliberately not one of them**, and that split is the whole
+ * reason this is two functions. A resource you are still waiting on is not
+ * withholding — it is *counting*, and the player is owed the count: an
+ * unexplained missing row reads as a bug where a disabled one with a bar
+ * running under it reads as "not yet". So the row is offered either way and the
+ * wait travels beside it, as {@link extractCooldownAt}. What may not happen is
+ * the *pull*, and that is {@link canWorkNow}'s answer and the server's.
  */
 export function canExtractFrom(
   map: MapFile,
@@ -172,27 +178,86 @@ export function canExtractFrom(
   actor: Actor,
   equipment: Equipment,
   ref: ObjectRef,
-  cooling: CoolingResources,
 ): boolean {
   const extract = reachableExtractAt(map, tilesById, actor, ref);
   if (!extract) return false;
   if (pullsLeftAt(map, tilesById, extract, ref) <= 0) return false;
-  const placed = placementAt(map, ref);
-  if (!placed) return false;
-  if (cooling.has(extractKey(ref, placed.tileId))) return false;
   return extractFits(extract, tilesById, equipment);
 }
 
 /**
- * The placements one actor may not work yet, as something to ask.
+ * What this actor still owes the placement at this slot, or null when they may
+ * work it now.
  *
- * A membership test rather than a `Set`, and that is what lets the two ends
- * hold it in the shapes they already have: the server's truth is a
- * `Map<key, remainingMs>` on the actor, the client's is a `Set` built from the
- * list the server sent, and both answer `has`. Nothing here needs to know how
- * long is left — only whether the wait is over — so nothing here asks.
+ * Read off the tile standing there rather than off the ref alone, because the
+ * key names both — see {@link extractKey}. A cell holding no placement owes
+ * nothing, on the same terms it offers nothing.
  */
-export type CoolingResources = { has(key: string): boolean };
+export function extractCooldownAt(
+  map: MapFile,
+  cooling: CoolingResources,
+  ref: ObjectRef,
+): ExtractCooling | null {
+  const placed = placementAt(map, ref);
+  if (!placed) return null;
+  return cooling.get(extractKey(ref, placed.tileId)) ?? null;
+}
+
+/**
+ * May this actor take a pull right now?
+ *
+ * The two halves read together, which is what the session and the server ask
+ * and what the client asks before it lets a tap through. Everything that
+ * decides it is above; this only joins them, in one place, so no caller can
+ * remember one and forget the other.
+ */
+export function canWorkNow(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  equipment: Equipment,
+  ref: ObjectRef,
+  cooling: CoolingResources,
+): boolean {
+  if (!canExtractFrom(map, tilesById, actor, equipment, ref)) return false;
+  return extractCooldownAt(map, cooling, ref) === null;
+}
+
+/**
+ * One wait, as the player it belongs to sees it.
+ *
+ * **Both halves travel, and the second one is what draws the bar.** The
+ * remainder alone says whether the row can be pressed; the duration beside it
+ * says how far through the wait that is, which is the difference between a
+ * disabled row and one that visibly answers "how long". Exactly the pairing
+ * `StatusPatch` makes, and for exactly its reason: a client that never saw the
+ * wait start cannot work the second number out from the first.
+ *
+ * **Wound in place, never replaced.** One object is the entry in the owner's
+ * map *and* the entry in the list handed out — see
+ * `GameSession.setExtractCooldowns` — so a tick advancing the wait costs no
+ * allocation and leaves the list's identity alone. That identity is the change
+ * signal the renderer gates its whole interaction list on, so a fresh array per
+ * tick would rebuild the list thirty times a second for a set that changes
+ * twice a pull. Same bargain a `walk` or a `strike` is handed over on.
+ */
+export type ExtractCooling = {
+  /** Which placement, as {@link extractKey}. */
+  key: string;
+  /** How much of the wait is left. Wound to zero, never below. */
+  remainingMs: number;
+  /** How long the whole wait was, so a bar knows what it is a fraction of. */
+  durationMs: number;
+};
+
+/**
+ * The waits one actor owes, as something to ask.
+ *
+ * A lookup rather than a `Map`, which is what lets each end hold it in the
+ * shape it already has: the server's truth is a `Map<key, ExtractCooling>` on
+ * the actor, and the client's is one built from the list it was sent.
+ */
+export type CoolingResources = { get(key: string): ExtractCooling | undefined };
 
 /** Did this slot's chance come up? Certain is certain; zero is never. */
 function drawn(slot: ExtractSlot, random: () => number): boolean {

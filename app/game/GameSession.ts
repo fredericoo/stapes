@@ -255,9 +255,9 @@ import {
 } from "./brainRuntime";
 import type { ConsumeSource } from "./itemUse";
 import { canTransmuteFrom, planTransmute, runTransmute } from "./transmute";
-import type { CoolingResources } from "./extract";
+import type { CoolingResources, ExtractCooling } from "./extract";
 import {
-  canExtractFrom,
+  canWorkNow,
   extractKey,
   placementAfterPull,
   rollExtract,
@@ -640,11 +640,16 @@ export type GameSnapshot = {
    * left in a bush is on the board where everybody sees it, and how long *you*
    * must wait before pulling at it again is here.
    *
-   * Replaced wholesale rather than edited, so identity is the change signal —
-   * the same contract the kit and the tags have, and what lets the renderer gate
-   * the interaction list on it without walking the list.
+   * Each entry carries how much of the wait is left *and* how long the whole
+   * wait is, which is what lets a row draw the bar under it rather than merely
+   * go quiet. See `./extract`'s {@link ExtractCooling}.
+   *
+   * Replaced wholesale when the *set* changes and wound in place in between, so
+   * identity is the change signal — the same contract the kit and the tags
+   * have, and what lets the renderer gate the interaction list on it without
+   * walking the list or rebuilding it every tick.
    */
-  extractCooling: readonly string[];
+  extractCooling: readonly ExtractCooling[];
   /**
    * What the viewer has learnt, as raw experience.
    *
@@ -726,17 +731,17 @@ const EMPTY_SOUNDS: readonly Sound[] = [];
 const NO_TAGS: readonly string[] = [];
 
 /** Shared empty answer for the great majority of actors, who owe no waits. */
-const NO_COOLING: CoolingResources = { has: () => false };
+const NO_COOLING: CoolingResources = { get: () => undefined };
 
 /**
  * The same emptiness as a list, for the snapshot.
  *
- * A second constant rather than `[...NO_COOLING]`, because the *identity* is
- * the point: every actor who owes nothing shares this one array, so a snapshot
- * from a quiet frame is the same answer as the one before it and nothing
- * downstream rebuilds.
+ * A second constant rather than one derived from the other, because the
+ * *identity* is the point: every actor who owes nothing shares this one array,
+ * so a snapshot from a quiet frame is the same answer as the one before it and
+ * nothing downstream rebuilds.
  */
-const NO_COOLING_KEYS: readonly string[] = [];
+const NO_COOLING_LIST: readonly ExtractCooling[] = [];
 
 /** Shared empty list for a tile nobody in the world is standing on. */
 const NO_ACTORS: readonly string[] = [];
@@ -1036,22 +1041,22 @@ type ActorRuntime = {
    * what {@link GameSession.extractCoolingOf} reports and a spent entry would be
    * a row hidden for ever.
    */
-  extractCooldowns: Map<string, number> | null;
+  extractCooldowns: Map<string, ExtractCooling> | null;
   /**
-   * The keys of {@link extractCooldowns}, kept in step with it.
+   * The same entries as a list, for the snapshot and the wire.
    *
-   * Derived, and cached here rather than built where it is read, on exactly
-   * {@link carriedLights}' terms: it goes out on the snapshot *every frame*, and
-   * a fresh array each time would be a new identity on every frame — which is
-   * the one thing the snapshot's change signal is. The interaction list is gated
-   * on this identity, so building it lazily would rebuild the list sixty times a
-   * second for a set that changes twice a pull.
+   * **The very same objects**, not copies: winding a wait mutates the entry both
+   * of these hold, so a tick costs no allocation and leaves this array's
+   * identity alone. That identity is what tells the renderer its interaction
+   * rows are stale — a fresh array per tick would rebuild the whole list thirty
+   * times a second for a set that changes twice a pull — and it is the same
+   * hand-over-by-reference a `walk` or a `strike` already travels on.
    *
-   * The one rule, again {@link carriedLights}': it is written only beside
+   * The one rule, {@link carriedLights}': written only beside
    * {@link extractCooldowns}, in {@link GameSession.setExtractCooldowns}, so
    * there is no way to change one without the other following.
    */
-  extractCooling: readonly string[];
+  extractCooling: readonly ExtractCooling[];
   /**
    * The authored body with this actor's earned masteries in it, keyed on the
    * authored block it was built from.
@@ -1846,7 +1851,7 @@ export class GameSession implements PlaySession {
       attackCooldownMs: 0,
       attackRecoveryMs: 0,
       extractCooldowns: null,
-      extractCooling: NO_COOLING_KEYS,
+      extractCooling: NO_COOLING_LIST,
       targetId: null,
       attacking: false,
       input: { directions: [] },
@@ -2137,8 +2142,8 @@ export class GameSession implements PlaySession {
    * as what somebody with nothing cooling may not do, and there is nothing a
    * caller could usefully do with the difference.
    */
-  extractCoolingOf(id: string): readonly string[] {
-    return this.actors.get(id)?.extractCooling ?? NO_COOLING_KEYS;
+  extractCoolingOf(id: string): readonly ExtractCooling[] {
+    return this.actors.get(id)?.extractCooling ?? NO_COOLING_LIST;
   }
 
   /**
@@ -2817,10 +2822,11 @@ export class GameSession implements PlaySession {
    * happen again — and folded into the same pass so a tick walks the actors
    * once.
    *
-   * **Only an expiry is announced.** Winding is silent: what the far end needs
-   * is the set of placements that are cooling, not how much of each wait is
-   * left, so a message goes out when one starts and one when it ends and
-   * nothing in between. See the protocol's `extractCooling`.
+   * **Only the start and the end are announced.** The winding itself is silent,
+   * because the entries are wound *in place* and everybody downstream is
+   * already holding them — see {@link ExtractCooling}. A message goes out when
+   * a wait begins and one when it ends, and nothing in between; the bar drawn
+   * under the row fills on its own from the two numbers it was given.
    *
    * The great majority of actors hold no map at all and pay one null check.
    */
@@ -2828,39 +2834,40 @@ export class GameSession implements PlaySession {
     const cooldowns = actor.extractCooldowns;
     if (!cooldowns) return;
     let expired = false;
-    for (const [key, remainingMs] of cooldowns) {
-      const left = remainingMs - tickMs;
-      if (left > 0) {
-        cooldowns.set(key, left);
-        continue;
-      }
+    for (const [key, entry] of cooldowns) {
+      entry.remainingMs -= tickMs;
+      if (entry.remainingMs > 0) continue;
+      // Floored rather than left negative: whatever draws the wait reads this
+      // as a fraction of the whole, and a frame of an over-full bar between the
+      // last tick and the rebuild below is a frame of nonsense.
+      entry.remainingMs = 0;
       cooldowns.delete(key);
       expired = true;
     }
-    // Only when one actually came ready. Winding is silent — see the doc above
-    // — so the ordinary tick of a cooling bush rewrites nothing and sends
-    // nothing.
     if (expired) this.setExtractCooldowns(actor, cooldowns);
   }
 
   /**
-   * Hold an actor's waits, and keep the list the snapshot carries true.
+   * Hold an actor's waits, and keep the list beside them true.
    *
    * The one place either is written, on the terms {@link setEquipment} is the
-   * one place a kit is: the map is the truth and the array is what everything
-   * outside reads, and a change to one without the other would be a row hidden
-   * for ever or a row offered on a resource that is still cooling.
+   * one place a kit is: the map is what the rules ask and the array is what the
+   * snapshot and the wire carry, and a change to one without the other would be
+   * a row that never comes back or one offered on a resource still counting.
+   *
+   * The array holds **the map's own entries**, so this runs on the two events
+   * that change the *set* and never on the ticks in between.
    *
    * An emptied map is dropped rather than kept, so a player who worked one bush
    * an hour ago is back to costing one null check on every tick.
    */
   private setExtractCooldowns(
     actor: ActorRuntime,
-    cooldowns: Map<string, number>,
+    cooldowns: Map<string, ExtractCooling>,
   ) {
     const empty = cooldowns.size === 0;
     actor.extractCooldowns = empty ? null : cooldowns;
-    actor.extractCooling = empty ? NO_COOLING_KEYS : [...cooldowns.keys()];
+    actor.extractCooling = empty ? NO_COOLING_LIST : [...cooldowns.values()];
     this.extractCoolingChanged.add(actor.id);
   }
 
@@ -5307,7 +5314,7 @@ export class GameSession implements PlaySession {
   canExtract(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
     if (!this.idle(actor)) return false;
-    return canExtractFrom(
+    return canWorkNow(
       this.map,
       this.tilesById,
       this.locate(actor),
@@ -5447,8 +5454,13 @@ export class GameSession implements PlaySession {
     key: string,
     extract: ExtractInteraction,
   ) {
-    const cooldowns = actor.extractCooldowns ?? new Map<string, number>();
-    cooldowns.set(key, extract.cooldownMs);
+    const cooldowns =
+      actor.extractCooldowns ?? new Map<string, ExtractCooling>();
+    cooldowns.set(key, {
+      key,
+      remainingMs: extract.cooldownMs,
+      durationMs: extract.cooldownMs,
+    });
     this.setExtractCooldowns(actor, cooldowns);
   }
 
@@ -6292,6 +6304,12 @@ export class GameSession implements PlaySession {
       // time somebody happened to move — and unlike the lean beside it, this
       // one is holding a *step* the player has already asked for.
       if (actor.attackRecoveryMs > 0) return false;
+      // A resource wait is a clock this loop is the only thing winding, on
+      // exactly a cooling stone's terms: falling asleep on one would leave the
+      // row disabled and the bar under it frozen until somebody happened to
+      // move, which is the same freeze the stone clause exists to prevent.
+      // Bounded by what an author wrote, like every other clock in here.
+      if (actor.extractCooldowns) return false;
       if (actor.input.directions.length > 0) return false;
       // Somebody standing still next to the thing they are fighting is not an
       // idle world: the next swing is on a cooldown that only this loop winds

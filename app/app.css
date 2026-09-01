@@ -68,7 +68,45 @@
   --shadow-hard: 2px 2px 0 0 #1a1a1a;
 }
 
+/**
+ * A wait, filling left to right.
+ *
+ * A keyframe rather than a width the page rewrites each frame, and that is the
+ * whole reason a cooling row costs nothing: the element is given the *whole*
+ * duration and a negative delay equal to however much of it has already gone,
+ * so the browser runs it on the compositor from exactly the right point and
+ * React never hears about it again. Nothing on the wire, no per-frame state,
+ * and no re-render between a wait starting and its ending.
+ */
+@keyframes fill-wait {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
 @layer utilities {
+  /* Anchored left so the fill grows from the leading edge rather than the
+     middle, which is what `scaleX` does by default. Transform rather than
+     width, so the whole thing stays off the layout. */
+  .fill-wait {
+    transform-origin: left;
+    animation-name: fill-wait;
+    animation-timing-function: linear;
+    animation-fill-mode: forwards;
+  }
+
+  /* A wait is information, not decoration — somebody who has asked for less
+     motion still needs to know when the row comes back. So the fill is not
+     removed, only stepped: it jumps rather than slides. */
+  @media (prefers-reduced-motion: reduce) {
+    .fill-wait {
+      animation-timing-function: steps(8, end);
+    }
+  }
+
   .shadow-hard {
     box-shadow: 2px 2px 0 0 var(--color-border);
   }

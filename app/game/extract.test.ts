@@ -11,9 +11,18 @@ import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import type { ObjectRef } from "./affordances";
 import { emptyEquipment, type Equipment } from "./equipment";
-import { canExtractFrom, extractFits, extractKey, rollExtract } from "./extract";
+import {
+  canWorkNow,
+  extractFits,
+  extractKey,
+  rollExtract,
+  type ExtractCooling,
+} from "./extract";
 import { GameSession } from "./GameSession";
-import { listInteractionOptions } from "./interactionOptions";
+import {
+  listInteractionOptions,
+  topInteractionAt,
+} from "./interactionOptions";
 
 /**
  * A resource is the one interaction whose two halves belong to different
@@ -97,7 +106,12 @@ const tilesById = tilesByIdFromList(tiles);
 
 const ME = { x: 0, y: 0, z: 0 };
 const BUSH: ObjectRef = { x: 1, y: 0, z: 0, stackIndex: 1 };
-const NOTHING_COOLING = new Set<string>();
+const NOTHING_COOLING = new Map<string, ExtractCooling>();
+
+/** One wait, as the owner's map holds it. */
+function cooling(key: string, remainingMs = 2_000, durationMs = COOLDOWN_MS) {
+  return new Map([[key, { key, remainingMs, durationMs }]]);
+}
 
 /** Somewhere to stand, with something to work beside it. */
 function board(resource = "bush"): MapFile {
@@ -221,31 +235,24 @@ describe("what is left in a placement", () => {
 describe("whether a pull is on offer", () => {
   it("is yes beside a full resource with room to carry what comes out", () => {
     expect(
-      canExtractFrom(
-        board(),
-        tilesById,
-        ME,
-        bagWith(0),
-        BUSH,
-        NOTHING_COOLING,
-      ),
+      canWorkNow(board(), tilesById, ME, bagWith(0), BUSH, NOTHING_COOLING),
     ).toBe(true);
   });
 
   it("is no once this player is waiting on this very placement", () => {
-    const cooling = new Set([extractKey(BUSH, "bush")]);
+    const waits = cooling(extractKey(BUSH, "bush"));
 
-    expect(
-      canExtractFrom(board(), tilesById, ME, bagWith(0), BUSH, cooling),
-    ).toBe(false);
+    expect(canWorkNow(board(), tilesById, ME, bagWith(0), BUSH, waits)).toBe(
+      false,
+    );
   });
 
   it("is yes while they wait on the same tile in a different cell", () => {
-    const cooling = new Set([extractKey({ x: 5, y: 5, z: 0 }, "bush")]);
+    const waits = cooling(extractKey({ x: 5, y: 5, z: 0 }, "bush"));
 
-    expect(
-      canExtractFrom(board(), tilesById, ME, bagWith(0), BUSH, cooling),
-    ).toBe(true);
+    expect(canWorkNow(board(), tilesById, ME, bagWith(0), BUSH, waits)).toBe(
+      true,
+    );
   });
 
   it("is no on a placement whose pulls are spent", () => {
@@ -256,7 +263,7 @@ describe("whether a pull is on offer", () => {
     ]);
 
     expect(
-      canExtractFrom(map, tilesById, ME, bagWith(0), BUSH, NOTHING_COOLING),
+      canWorkNow(map, tilesById, ME, bagWith(0), BUSH, NOTHING_COOLING),
     ).toBe(false);
   });
 
@@ -285,7 +292,7 @@ describe("whether a pull is on offer", () => {
 
   it("is no with no bag at all", () => {
     expect(
-      canExtractFrom(
+      canWorkNow(
         board(),
         tilesById,
         ME,
@@ -409,24 +416,15 @@ describe("taking a pull", () => {
     session.interact(BUSH);
 
     expect(session.getSnapshot().extractCooling).toEqual([
-      extractKey(BUSH, "bush"),
+      {
+        key: extractKey(BUSH, "bush"),
+        remainingMs: COOLDOWN_MS,
+        durationMs: COOLDOWN_MS,
+      },
     ]);
 
     session.tick(COOLDOWN_MS);
     expect(session.getSnapshot().extractCooling).toEqual([]);
-  });
-
-  it("leaves the identity of the cooling list alone while nothing changes", () => {
-    const session = new GameSession(board(), tiles);
-    session.interact(BUSH);
-
-    const first = session.getSnapshot().extractCooling;
-    session.tick(100);
-
-    // Winding is silent: the renderer gates its whole interaction list on this
-    // identity, and a fresh array per tick would rebuild the list thirty times
-    // a second for a set that has not moved.
-    expect(session.getSnapshot().extractCooling).toBe(first);
   });
 
   it("charges the wait even on a pull that found nothing", () => {
@@ -470,7 +468,7 @@ describe("taking a pull", () => {
 });
 
 describe("the row it offers", () => {
-  function rowsFor(session: GameSession) {
+  function optionsFor(session: GameSession) {
     const snap = session.getSnapshot();
     return listInteractionOptions(
       snap.map,
@@ -482,8 +480,12 @@ describe("the row it offers", () => {
       null,
       snap.tags,
       false,
-      new Set(snap.extractCooling),
-    ).filter((option) => option.action === "extract");
+      new Map(snap.extractCooling.map((entry) => [entry.key, entry])),
+    );
+  }
+
+  function rowsFor(session: GameSession) {
+    return optionsFor(session).filter((option) => option.action === "extract");
   }
 
   it("is named by the author", () => {
@@ -498,14 +500,84 @@ describe("the row it offers", () => {
     expect(rowsFor(session).map((o) => o.label)).toEqual(["Gather"]);
   });
 
-  it("goes away while this player is waiting on it", () => {
+  /**
+   * The row stays and goes grey rather than disappearing, and this is the whole
+   * argument for the `cooldown` field: a player who did nothing and watched a
+   * row vanish has been told nothing, where one looking at a greyed row with a
+   * bar under it has been told to wait.
+   */
+  it("stays while this player is waiting on it, carrying the wait", () => {
     const session = new GameSession(board(), tiles);
     session.interact(BUSH);
 
-    expect(rowsFor(session)).toEqual([]);
+    const [row] = rowsFor(session);
+    expect(row.label).toBe("Pick");
+    expect(row.cooldown).toEqual({
+      key: extractKey(BUSH, "bush"),
+      remainingMs: COOLDOWN_MS,
+      durationMs: COOLDOWN_MS,
+    });
+  });
+
+  it("reports how far through the wait it is, so a bar can be drawn", () => {
+    const session = new GameSession(board(), tiles);
+    session.interact(BUSH);
+    session.tick(COOLDOWN_MS / 2);
+
+    expect(rowsFor(session)[0].cooldown?.remainingMs).toBe(COOLDOWN_MS / 2);
+  });
+
+  it("comes back ready once the wait is up", () => {
+    const session = new GameSession(board(), tiles);
+    session.interact(BUSH);
+    session.tick(COOLDOWN_MS);
+
+    expect(rowsFor(session)[0].cooldown).toBeNull();
+  });
+
+  /**
+   * The pointer and the list are one list, so a row nothing can press must not
+   * be the row a tap on the world runs — otherwise the outline lights up over a
+   * bush and clicking it does nothing.
+   */
+  it("is passed over by the tap, so nothing is outlined while it waits", () => {
+    const session = new GameSession(board(), tiles);
+    expect(topInteractionAt(optionsFor(session), BUSH)?.action).toBe("extract");
+
+    session.interact(BUSH);
+    expect(topInteractionAt(optionsFor(session), BUSH)).toBeNull();
 
     session.tick(COOLDOWN_MS);
-    expect(rowsFor(session)).toHaveLength(1);
+    expect(topInteractionAt(optionsFor(session), BUSH)?.action).toBe("extract");
+  });
+
+  it("keeps the list's identity while a wait merely runs down", () => {
+    const session = new GameSession(board(), tiles);
+    session.interact(BUSH);
+
+    const first = session.getSnapshot().extractCooling;
+    session.tick(100);
+
+    // The renderer gates its whole interaction list on this identity, so a
+    // fresh array per tick would rebuild the list thirty times a second to
+    // redraw a bar CSS is already animating. The entry inside is wound in place.
+    expect(session.getSnapshot().extractCooling).toBe(first);
+    expect(first[0].remainingMs).toBe(COOLDOWN_MS - 100);
+  });
+
+  /**
+   * The wait is wound by the tick loop and by nothing else, so a world that
+   * fell asleep under one would leave the row grey and the bar frozen until
+   * somebody happened to move. Exactly the clause a cooling stone has.
+   */
+  it("holds the world awake until the wait is up", () => {
+    const session = new GameSession(board(), tiles);
+    session.interact(BUSH);
+
+    expect(session.isAtRest()).toBe(false);
+
+    session.tick(COOLDOWN_MS);
+    expect(session.isAtRest()).toBe(true);
   });
 });
 

@@ -32,6 +32,7 @@ import {
   topInteractionAt,
   type InteractionOption,
 } from "../game/interactionOptions";
+import type { ExtractCooling } from "../game/extract";
 import { describedNearby } from "./nearbyDescriptions";
 import { WorldLabelLayer, type WorldLabel } from "./textLabels";
 import { FrameProfiler, type FrameStats } from "./frameProfile";
@@ -394,10 +395,12 @@ export class GameRenderer {
    * identity, nobody has moved, and without this the row would stay hidden until
    * something else happened.
    *
-   * Identity rather than contents, because the session replaces the list
-   * wholesale rather than editing it. See `GameSnapshot.extractCooling`.
+   * Identity rather than contents, because the session replaces the list only
+   * when the *set* changes and winds the entries in place in between — so this
+   * fires when a row starts or stops waiting and never on the ticks that merely
+   * advance one. See `GameSnapshot.extractCooling`.
    */
-  private interactionsCooling: readonly string[] | null = null;
+  private interactionsCooling: readonly ExtractCooling[] | null = null;
   private onOpenedContainer:
     | ((container: OpenedContainer | null) => void)
     | null = null;
@@ -2109,12 +2112,14 @@ export class GameRenderer {
       this.openedRef,
       snap.tags,
       snap.attacking,
-      // Built here rather than carried on the snapshot, because a set is a
+      // Built here rather than carried on the snapshot, because a lookup is a
       // shape only the rules want: the session replaces the *list* wholesale so
       // that its identity can be the change signal, and this is the one place
       // that turns one into the other — on the frames the gate above let
-      // through, which is twice a pull rather than sixty times a second.
-      new Set(snap.extractCooling),
+      // through, which is twice a pull rather than sixty times a second. The
+      // entries are shared rather than copied, so a wait wound in place is
+      // wound here too.
+      new Map(snap.extractCooling.map((entry) => [entry.key, entry])),
     );
     // Held whether or not it is handed on, because the *references* inside it go
     // stale even when the list reads the same: a walking deer keeps its row and
@@ -2127,7 +2132,16 @@ export class GameRenderer {
     // so an id-and-health key would have recomputed the right words and then
     // refused to hand them over.
     const key = options
-      .map((o) => `${o.id}/${o.label}/${o.active}/${o.health?.hp ?? ""}`)
+      .map(
+        (o) =>
+          // The *presence* of a wait and never how much is left, which is the
+          // one thing in a row that moves continuously. Included because a row
+          // going grey is a visible change nothing else in this key would
+          // catch; excluded as a number because the remainder changes every
+          // frame, and a key that carried it would hand React a new list thirty
+          // times a second to redraw a bar that CSS is already animating.
+          `${o.id}/${o.label}/${o.active}/${o.health?.hp ?? ""}/${o.cooldown ? "wait" : ""}`,
+      )
       .join("|");
     if (key === this.interactionsKey) return;
     this.interactionsKey = key;

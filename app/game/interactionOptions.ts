@@ -35,7 +35,12 @@ import {
 import { pileTally } from "../lib/piles";
 import { bodyNameFor } from "./displayName";
 import type { Equipment } from "./equipment";
-import { canExtractFrom, type CoolingResources } from "./extract";
+import {
+  canExtractFrom,
+  extractCooldownAt,
+  type CoolingResources,
+  type ExtractCooling,
+} from "./extract";
 import { offeredTransmutations } from "./transmute";
 import type { ActorSnapshot, PlaySession } from "./GameSession";
 
@@ -138,6 +143,30 @@ export type InteractionOption = {
    * like a shove, are never active: there is no state to be in afterwards.
    */
   active: boolean;
+  /**
+   * How long before this row can be pressed, and how long the wait was — or
+   * null for the rows that can be pressed now, which is nearly all of them.
+   *
+   * **The one thing in the list that says "not yet" rather than "not here".**
+   * Every other refusal takes a row away: a chest you have emptied, a recipe you
+   * have nothing to spend on, a crate out of reach. That is right when the
+   * answer is about the *world*, because a missing row and a thing that is not
+   * worth walking up to are the same fact. It is wrong when the answer is about
+   * a clock, because the player did nothing and the row vanished — so a resource
+   * on a wait keeps its row, greys it, and runs a bar under it. See
+   * `./extract`'s {@link ExtractCooling}.
+   *
+   * **A row carrying one is not actionable**, and that is the whole of what it
+   * means here: {@link topInteractionAt} passes over it, so a tap on the world
+   * finds nothing and the outline stays off; {@link applyInteraction} refuses
+   * it; and whatever draws the list disables the button. The server refuses it
+   * too — this is presentation and never permission.
+   *
+   * Only an extract has one today. Nothing about the field is extract-shaped
+   * though, and the next mechanism that makes a player wait rather than telling
+   * them no should use it rather than inventing a second way to be grey.
+   */
+  cooldown: ExtractCooling | null;
 };
 
 const LABELS: Record<InteractionAction, string> = {
@@ -188,12 +217,12 @@ const CLOSE_LABEL = "Close";
 /**
  * What a caller with no cooling list to offer gets.
  *
- * Everything ready, rather than nothing offered: a list built without the
- * viewer's waits should show the world as it is and let the far end refuse the
- * one tap that is early, which is strictly better than hiding rows nobody has
- * said are hidden.
+ * Everything ready, rather than every resource disabled: a list built without
+ * the viewer's waits should show the world as it is and let the far end refuse
+ * the one tap that is early, which is strictly better than greying out rows
+ * nobody has said are grey.
  */
-const NOTHING_COOLING: CoolingResources = { has: () => false };
+const NOTHING_COOLING: CoolingResources = { get: () => undefined };
 
 /**
  * What a target row says while the sword is out.
@@ -302,6 +331,13 @@ export function topInteractionAt(
   const key = refKey(ref);
   for (const option of options) {
     if (refKey(option.ref) !== key) continue;
+    // A row on a wait is passed over rather than named, and that is what keeps
+    // the pointer and the list telling one story: the list draws the row greyed
+    // with its bar running, and the world under the cursor offers nothing —
+    // which is honest, because a click there would do nothing. Falling through
+    // is deliberate too: a resource that is also shovable is still shovable
+    // while you wait for it. See {@link InteractionOption.cooldown}.
+    if (option.cooldown) continue;
     if (!best || ACTION_ORDER[option.action] < ACTION_ORDER[best.action]) {
       best = option;
     }
@@ -481,6 +517,11 @@ export function applyInteraction(
   option: InteractionOption,
 ) {
   if (!session) return;
+  // Refused here as well as by the session, and by the session as well as by
+  // the server — a spell bar's discipline, for its reason: a greyed row that
+  // quietly sent anyway would be asking for something the far end is going to
+  // throw away, and the grey is a promise that pressing it does nothing.
+  if (option.cooldown) return;
   if (option.action === "target") {
     session.setTarget(option.active ? null : option.actorId);
     return;
@@ -661,7 +702,12 @@ function slotOptions(
         .join(" ");
 
   const out: InteractionOption[] = [];
-  const add = (action: InteractionAction, label: string, active = false) => {
+  const add = (
+    action: InteractionAction,
+    label: string,
+    active = false,
+    cooldown: ExtractCooling | null = null,
+  ) => {
     out.push({
       id: `${action}:${refKey(ref)}`,
       action,
@@ -669,6 +715,7 @@ function slotOptions(
       ref,
       actorId: null,
       recipeIndex: null,
+      cooldown,
       tileId: placed.tileId,
       name,
       // A shove at a creature reports its health for the same reason the fight
@@ -683,17 +730,15 @@ function slotOptions(
   // precedence is read out of the session's own order rather than restated here.
   const equipSlot = equipSlotFrom(map, tilesById, self, ref, equipment);
   const stow = pickUpDestination(map, tilesById, self, ref, equipment) != null;
-  const action = objectAction(
-    map,
-    tilesById,
-    self,
-    ref,
-    equipment,
-    tags,
-    equipSlot,
-    cooling,
-  );
-  if (action) add(action, objectActionLabel(action, tilesById[placed.tileId]));
+  const action = objectAction(map, tilesById, self, ref, equipment, tags, equipSlot);
+  if (action) {
+    // The one row that can arrive already disabled. Read here rather than
+    // inside `objectAction`, because it is not part of deciding *which* verb a
+    // tap names — the verb is still "Pick", it simply cannot be pressed yet.
+    const cooldown =
+      action === "extract" ? extractCooldownAt(map, cooling, ref) : null;
+    add(action, objectActionLabel(action, tilesById[placed.tileId]), false, cooldown);
+  }
 
   // Beside a tap that would arm you, the row that merely puts the thing away:
   // "Wield" and "Pick up" are different things to want. They can never mean the
@@ -739,6 +784,7 @@ function slotOptions(
       ref,
       actorId: null,
       recipeIndex: index,
+      cooldown: null,
       tileId: recipe.fromTileId,
       name: input?.name ?? recipe.fromTileId,
       health: null,
@@ -767,7 +813,6 @@ function objectAction(
   equipment: Equipment,
   tags: readonly string[],
   equipSlot: EquipSlot | null,
-  cooling: CoolingResources,
 ): InteractionAction | null {
   if (canRewardFrom(map, tilesById, self, ref, equipment, tags)) return "reward";
   // Asked against the viewer's *own* body, because whether the far end has room
@@ -779,9 +824,10 @@ function objectAction(
   }
   if (canSwitchFrom(map, tilesById, self, ref)) return "switch";
   if (canAddStatusFrom(map, tilesById, self, ref)) return "addStatus";
-  if (canExtractFrom(map, tilesById, self, equipment, ref, cooling)) {
-    return "extract";
-  }
+  // The wait is deliberately not asked here. A resource somebody is counting
+  // down on is still the row a tap on it names — it simply cannot be pressed
+  // yet, which is {@link InteractionOption.cooldown}'s job to say.
+  if (canExtractFrom(map, tilesById, self, equipment, ref)) return "extract";
   if (equipSlot) return "equip";
   if (canPickUpFrom(map, tilesById, self, ref, equipment)) return "pickUp";
   if (canPushFrom(map, tilesById, self, ref)) return "push";
@@ -870,6 +916,7 @@ function targetOptions(
       ref,
       actorId: actor.id,
       recipeIndex: null,
+      cooldown: null,
       tileId: actor.tileId,
       name: bodyNameFor(
         { actorId: actor.id, tileId: actor.tileId },

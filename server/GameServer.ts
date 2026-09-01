@@ -2022,7 +2022,7 @@ export class GameServer {
       ws.send(
         JSON.stringify({
           type: "extractCooling",
-          keys: [...session.extractCoolingOf(attachment.actorId)],
+          cooling: [...session.extractCoolingOf(attachment.actorId)],
         } satisfies ServerMessage),
       );
     }
