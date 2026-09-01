@@ -5375,7 +5375,7 @@ export class GameSession implements PlaySession {
     // After the board and the kit, never before: the sentence says what the
     // player now has, and this is the last place holding both the thing worked
     // and what came out of it.
-    this.say(actor.id, extractNotice(def, yielded, this.tilesById));
+    this.say(actor.id, extractNotice(extract, def, yielded, this.tilesById));
     return true;
   }
 

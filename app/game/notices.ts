@@ -1,4 +1,5 @@
-import type { PlacedReward } from "../lib/interactions";
+import type { ExtractInteraction, PlacedReward } from "../lib/interactions";
+import { DEFAULT_EXTRACT_VERB } from "../lib/interactions";
 import {
   MASTERIES,
   MAX_MASTERY,
@@ -107,10 +108,27 @@ export function rewardNotice(
  */
 const DEFAULT_REWARD_VERB = "take";
 
+/**
+ * The author's verb, ready to sit mid-sentence.
+ *
+ * **The rule is that the line uses the same word the button did.** A player who
+ * pressed "Mine" and was told they *worked* the crystal has been handed two
+ * names for one act and has to decide whether they are the same thing. Whatever
+ * `objectActionLabel` puts on the row is what belongs here, lowercased because
+ * it arrives capitalised for a button and this is the middle of a sentence.
+ *
+ * Shared rather than written per notice, so a mechanism that grows an authored
+ * verb cannot quietly grow a second opinion about how to say it — which is
+ * exactly what the extract line did before this existed.
+ */
+function sentenceVerb(authored: string | undefined, fallback: string): string {
+  const verb = authored?.trim();
+  if (!verb) return fallback;
+  return verb[0].toLowerCase() + verb.slice(1);
+}
+
 function verbOf(reward: PlacedReward): string {
-  const authored = reward.actionName?.trim();
-  if (!authored) return DEFAULT_REWARD_VERB;
-  return authored[0].toLowerCase() + authored.slice(1);
+  return sentenceVerb(reward.actionName, DEFAULT_REWARD_VERB);
 }
 
 /**
@@ -137,11 +155,12 @@ function countedItems(
 /**
  * What working a resource says to whoever worked it.
  *
- * Named for the tile rather than for the verb the author gave it, unlike a
- * reward's line, because the two sentences answer different questions. A reward
- * is a gesture at a *thing* — "you open Chest" — and a pull is a gesture at a
- * *substance*: what the player wants confirmed is what came out, and the bush is
- * only there to say which bush.
+ * **The author's verb, exactly as the row said it** — "You mine Arcane Crystal
+ * and take 1 Arcane Shard". It used to say "work" whatever the row said, which
+ * was one word too many in a game where the author had already chosen one: a
+ * player who pressed "Mine" and read that they *worked* the crystal has been
+ * given two names for one act. See {@link sentenceVerb}, which both this and a
+ * reward's line go through.
  *
  * **An empty pull gets its own sentence rather than none.** A crystal that
  * yielded nothing is the case this line exists for: silence is indistinguishable
@@ -153,13 +172,24 @@ function countedItems(
  * rendering fault.
  */
 export function extractNotice(
+  extract: ExtractInteraction,
   worked: TileDef,
   tileIds: readonly string[],
   tilesById: Record<string, TileDef>,
 ): string {
-  if (tileIds.length === 0) return `You work ${worked.name} and find nothing`;
-  return `You work ${worked.name} and take ${countedItems([...tileIds], tilesById)}`;
+  const opening = `You ${sentenceVerb(extract.actionName, DEFAULT_EXTRACT_SENTENCE_VERB)} ${worked.name}`;
+  if (tileIds.length === 0) return `${opening} and find nothing`;
+  return `${opening} and take ${countedItems([...tileIds], tilesById)}`;
 }
+
+/**
+ * What an unnamed resource reads as mid-sentence.
+ *
+ * {@link DEFAULT_EXTRACT_VERB} lowercased, and derived rather than typed out so
+ * that renaming the row's fallback cannot leave the sentence saying the other
+ * word — which is the whole failure this function exists to fix, one level up.
+ */
+const DEFAULT_EXTRACT_SENTENCE_VERB = DEFAULT_EXTRACT_VERB.toLowerCase();
 
 /**
  * What somebody else's mastery moving says, to whoever moved it.

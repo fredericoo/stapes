@@ -539,6 +539,69 @@ describe("taking a pull", () => {
   });
 });
 
+describe("what it says afterwards", () => {
+  /**
+   * The line and the button have to agree, and this is what holds them
+   * together: an author writes one verb, and a player who pressed "Mine" being
+   * told they *worked* the crystal has been given two names for one act.
+   */
+  it("uses the author's verb, the same one the row is named for", () => {
+    const session = new GameSession(board(), tiles);
+    session.interact(BUSH);
+
+    // The names are the fixture's ids — see `tile` above, which defaults one.
+    expect(session.drainNotices()).toEqual(["You pick bush and take 1 berry"]);
+  });
+
+  it("falls back to the row's own fallback, lowercased", () => {
+    // The crystal names no verb, so its row reads "Gather" and its line has to
+    // read "gather" rather than some third word.
+    const session = new GameSession(board("crystal"), tiles);
+    session.interact(BUSH);
+
+    expect(session.drainNotices()[0]).toMatch(/^You gather crystal /);
+  });
+
+  it("says so when a pull found nothing, rather than saying nothing", () => {
+    const stingy = tiles.map((t) =>
+      t.id === "crystal"
+        ? tile({
+            id: "crystal",
+            name: "Arcane Crystal",
+            height: 2,
+            interactions: {
+              extract: {
+                actionName: "Mine",
+                durability: 2,
+                tileId: "",
+                cooldownMs: 0,
+                slots: [{ tileId: "shard", chance: 0 }],
+              },
+            },
+          })
+        : t,
+    );
+    const session = new GameSession(board("crystal"), stingy);
+    session.interact(BUSH);
+
+    expect(session.drainNotices()).toEqual([
+      "You mine Arcane Crystal and find nothing",
+    ]);
+  });
+
+  it("counts a pile rather than listing it", () => {
+    const session = new GameSession(board(), tiles);
+    session.interact(BUSH);
+    session.drainNotices();
+    session.tick(COOLDOWN_MS);
+    session.interact(BUSH);
+
+    // The second berry pours into the first, and the line is about what this
+    // pull gave rather than about what the bag now holds.
+    expect(session.drainNotices()).toEqual(["You pick bush and take 1 berry"]);
+  });
+});
+
 describe("the row it offers", () => {
   function optionsFor(session: GameSession) {
     const snap = session.getSnapshot();
