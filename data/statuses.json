@@ -162,5 +162,41 @@
       },
       "taperMs": 2000
     }
+  },
+  {
+    "id": "luminous",
+    "name": "Luminous",
+    "description": "Lit from within, in cold blue.",
+    "tone": "good",
+    "icon": {
+      "tilesetId": "ultima-vi",
+      "rect": {
+        "x": 28,
+        "y": 72,
+        "w": 2,
+        "h": 2
+      },
+      "base": {
+        "x": 1,
+        "y": 1
+      }
+    },
+    "fromMs": 60000,
+    "toMs": 60000,
+    "stacks": false,
+    "maxMs": 300000,
+    "everyMs": 0,
+    "effects": {},
+    "modifiers": {},
+    "vfx": {
+      "tint": null,
+      "particles": null,
+      "light": {
+        "radius": 10,
+        "intensity": 1,
+        "color": "#66aaff"
+      },
+      "taperMs": 5000
+    }
   }
 ]

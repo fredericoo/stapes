@@ -553,6 +553,27 @@ export type PlacedTile = {
    */
   owner?: string;
   /**
+   * Who conjured this, for the handful of placements somebody cast into being.
+   *
+   * **A second field rather than a second meaning for {@link owner}**, and the
+   * distinction is load-bearing: `owner` means "which actor *drives* this
+   * placement" and is what finds a connection's body, so writing a caster into
+   * it would make a conjured flame something the simulation tries to walk
+   * around and a connection tries to look up. One says whose body this is; this
+   * one says whose doing it was.
+   *
+   * What it buys is attribution: a flame reaches its victim through a status,
+   * and the status carries this on so that damage it deals later pays the
+   * arcanist who lit it — see `../game/statuses`'s `StatusInstance.causedBy`.
+   *
+   * A name that no longer belongs to anybody is not an error. The lookup comes
+   * back empty and the burning is attributed to nobody, which is what every
+   * flame in the world did before this existed.
+   *
+   * Authored maps never carry one: nothing an author stamps into a map was cast.
+   */
+  castBy?: string;
+  /**
    * Which particular item this placement is, for the placements that are one.
    *
    * A placement field on exactly the terms {@link channel} and

@@ -22,6 +22,7 @@ import type { MasteryXp } from "../lib/mastery";
 import { weaponDemandFor } from "../lib/weaponDemand";
 import type { Vitals } from "../game/GameSession";
 import { statusReading } from "../game/statuses";
+import { type SpellButton, spellReading } from "../game/casting";
 import type { OpenedContainer, SlotRef } from "../game/itemMoves";
 import { readOpenedContainer } from "../game/openedContainer";
 import {
@@ -352,6 +353,18 @@ export class GameRenderer {
    */
   private vitalsSent: Vitals | null = null;
   private onMasteries: ((masteryXp: MasteryXp) => void) | null = null;
+  private onSpells: ((spells: SpellButton[]) => void) | null = null;
+  /**
+   * What the row of spell buttons last *said*, as a string.
+   *
+   * By reading rather than by identity, unlike the kit above and for the reason
+   * the vitals below are: the answer is recomputed from scratch every frame —
+   * castability depends on where two bodies are standing — so there is no
+   * reference to compare. What a button can actually show is its sprite, whether
+   * it is dimmed, and a countdown to the second, so that is the grain worth
+   * comparing at. @see ../game/casting's `spellReading`
+   */
+  private spellsSent: string | null = null;
   /**
    * Identity of the last block of experience handed on.
    *
@@ -660,6 +673,34 @@ export class GameRenderer {
   }
 
   /**
+   * Which stones can be pressed, whenever that changes.
+   *
+   * Asked of the session rather than read off the snapshot, because it is not a
+   * fact about the board: what a caster can do depends on their kit, their
+   * target and what they have learnt, and only whichever end owns the session
+   * can put those together. @see PlaySession.spells
+   *
+   * Routed through the render loop like the kit and the vitals, for the reason
+   * they are: this loop is already reading a fresh answer every frame and is
+   * the only thing that knows when one arrived.
+   */
+  setOnSpells(cb: ((spells: SpellButton[]) => void) | null) {
+    this.onSpells = cb;
+    // Dropped so the next frame reports to a fresh listener even though nothing
+    // has changed, exactly as the other gates are.
+    this.spellsSent = null;
+  }
+
+  private pushSpells() {
+    if (!this.onSpells) return;
+    const spells = this.session.spells();
+    const reading = spellReading(spells);
+    if (reading === this.spellsSent) return;
+    this.spellsSent = reading;
+    this.onSpells(spells);
+  }
+
+  /**
    * Put up anything the game has to say in words, and age what is already up.
    *
    * **Nothing is worked out here.** Every sentence is composed where the thing
@@ -859,6 +900,7 @@ export class GameRenderer {
     this.world.setProfiler(null);
     this.onClock = null;
     this.onEquipment = null;
+    this.onSpells = null;
     this.onOpenedContainer = null;
     this.onInteractions = null;
     this.stop();
@@ -1952,6 +1994,7 @@ export class GameRenderer {
     this.world.setOverlays(this.overlaysFor(snap));
     this.pushEquipment(snap);
     this.pushMasteries(snap);
+    this.pushSpells();
     this.pushNotices(nowMs);
     this.pushVitals(snap);
     this.pushOpenedContainer(snap);

@@ -909,6 +909,169 @@ sends. They come back at the door they came in by, on full hit points, wearing a
 empty bag, with everything they were carrying lying where they died. The walk
 back is the cost.
 
+## Magic is a stone you carry, and there is nothing else to it
+
+There is no mana, no spell book and no spell slots. What a caster can do is
+decided by which **arcane stones** they are carrying and how recently each was
+used — so the whole of a loadout is two hands and a charm, which is why the
+desktop binding is `1`, `2`, `3` and stops there.
+
+A stone is an arm of the item union beside weapon, armour, shield, consumable,
+container and artifact, and it is a kind of its own for the reason a shield is:
+both hands swing, so anything held that is not meant to be swung has to be
+refusable by the rotation. `weaponSwungBy` refuses everything that is not a
+`WeaponItem`, and that one existing line is the whole of "a stone in a hand
+never swings". One stone and a sword swings the sword every turn; two stones
+falls back to fists, because the rotation already skips a hand with nothing in
+it. Nothing was written for either.
+
+### The effect vocabulary is three things, and closed
+
+**Heal** the caster, **status** on the caster or the target, **conjure** a tile.
+Every one of them is something the simulation could already do to somebody,
+which is why casting added no new physics: "luminous" is an ordinary authored
+status whose visual block carries a `LightDef`, riding the same emitter path a
+carried torch does. Area of effect is deliberately absent — no spell touches
+more than one target or more than one cell.
+
+A hand stone reaches for the target the player already picked for attacking, and
+a **charm reaches nobody but its wearer**. A conjure lands on the target's cell
+or, with nobody targeted, on the cell the caster is facing: the player never
+picks an arbitrary square. Range goes through `canReach`, so a spell out of range
+fails exactly the way a swing does, wall included.
+
+**A conjure lands *under* a body already standing there**, which is the same rule
+`/tile` places underfoot by. What a tile does to a body is read off the stack
+below it, so a flame conjured on top of somebody would be a flame nobody is in —
+and a flame aimed at a target who is standing still would do nothing at all.
+
+### The cooldown is per stone, durable, and locks the square
+
+`ItemInstance.cooldownMs`, so two identical stones in two hands cool
+independently. It rides the kit, which is the one piece of a body's state a world
+already owes continuity for — so it survives a reconnection, an eviction and a
+deploy for free. **This is the opposite of how hit points' fight state is
+treated, and deliberately:** a cooldown rebuilt on load would make reconnecting
+the cheapest spell in the game.
+
+It is the one `ItemInstance` field that does **not** round-trip through a
+`PlacedTile`, and that is a deliberate hole in the correspondence
+`app/lib/itemInstance.ts` exists to protect. A deadline on a placement would land
+in `data/map.json` the moment somebody saved from the editor — the same objection
+`DecayIndex` makes about keeping its clocks off the map. Nothing is lost by it,
+because a cooling stone cannot be put down at all.
+
+**Wound in whole seconds, not per tick.** Winding it means replacing the kit that
+holds it, and the kit's identity is what tells the renderer its panel is stale
+and the server there is an equipment message to send — so a per-tick countdown
+would re-render the page and put a whole inventory on the wire thirty times a
+second, for ever, for a number nothing can show that finely.
+
+**A cooling stone is locked in its square**: it cannot be moved, swapped or put
+down. This is the second cross-cutting square rule after the two-handed weapon,
+and it lives beside it in `app/game/equipment.ts`. Without it a caster carries
+six stones in a bag and rotates through them, and the cooldown decides nothing.
+The lock is on *player-initiated* moves only — a death drops the whole kit
+regardless, and what lands is ready. It is also the only refusal in the item
+model that says anything out loud, because it is the only one where a player can
+plainly see something in a square and plainly cannot empty it.
+
+### Castability is one pure module, and it answers with a reason
+
+`app/game/casting.ts` answers "which stones can be cast right now, and why not"
+for four callers who must never disagree: the phone's buttons and the desktop's
+number keys, the session honouring a cast, and the tests. Same arrangement
+`itemMoves` and `affordances` are under.
+
+It returns a **reason** rather than a boolean because a button has exactly one
+appearance for "you cannot use this" — cooling, out of range, no target and
+mastery-not-met all look identical, which is right — and precisely because the
+picture collapses them, the accessible name must not.
+
+**An unmet requirement refuses the cast outright**, unlike a weapon's, which
+merely makes the swing feeble. A weapon half-understood still swings because
+swinging is a body doing what bodies do; a stone either answers you or it does
+not, and "it fires at a third strength" is a worse thing to learn from than "not
+yet".
+
+### Casting is paid for by what the spell did, over a flat floor
+
+A third earnings function beside the attacker's and the defender's, keyed on an
+amount rather than an attack outcome: damage dealt to somebody who is not the
+caster, and health **actually restored** to the caster — so a heal at full
+health teaches nothing from the heal. Damage to yourself pays nothing, or
+training would be something you do to yourself in a corner.
+
+**And every cast pays a small flat fee on top, whatever it was.** Outcomes alone
+work for a swordsman, because every swing is aimed at somebody, and do not work
+for a caster: a stone of light does nothing measurable to anybody, and a stone
+of flame asks Arcane 10 before it will fire. Paid on outcomes alone the bottom
+rung of the ladder is missing, and the only way onto it is a stone you are not
+yet allowed to use.
+
+So the fee is **flat and unscaled** — not by what the stone asks, not by what
+came of it, not by who you were pointing at. Every scale that applies elsewhere
+is a scale that could take it back to zero, which is the one thing a floor must
+not do. It is paid where the cooldown is spent, for the cast rather than its
+result. At `XP_PER_CAST` it is four presses of a light to the first point of
+Arcane, and it is deliberately half what a *single point of damage* is worth: a
+way into the mastery rather than a way up it.
+
+A flame you conjured pays you when it burns somebody, and that thread is the
+longest in the feature: the placement carries `castBy` — a **new** field, never
+`owner`, which already means "whose body is this" and is what finds a
+connection's actor — the tile puts a status on whoever steps in it, the
+`StatusInstance` carries `causedBy`, and the tick spends that memory. A status
+with no cause behaves exactly as it did before any of this existed, which is the
+property to protect.
+
+### The interface is absent for almost everybody
+
+One button per non-pressed stone, above the direction pad on a phone and in the
+side column on a desktop, in square order, showing the stone's own sprite and a
+bar counting its cooldown down. **The row is absent entirely for a body carrying
+no stones** — not empty, absent — which is the whole reason casting could be
+added to a layout already carrying a mode strip, an interaction list, a chat bar
+and a pad. An automatic charm gets no button, because there is nothing to press.
+
+Casting is server-authoritative with no prediction, exactly as attacking is: the
+client sends "cast the stone in this square" — a square, never an instance id —
+and dims from the kit it is sent back.
+
+### A content save reaches the world it describes
+
+`GameServer.load` reads the tile and status catalogues **once per world** — it
+is guarded on there being no session — so for a long time saving a tile changed
+what the *next* world would be built from and nothing about the one the author
+was standing in. Saving a *map* never had the problem, because it goes through
+`replaceWorld`, which re-reads both catalogues on its way past.
+
+It was invisible until an authored number that a player *watches* changed. An
+arcane stone's cooldown is the first of those: the server went on spending the
+old one while a reloaded browser drew the bar against the new one, so it sat
+pinned at full and read as frozen rather than merely stale.
+
+So `POST /api/tiles` and `POST /api/statuses` now call `reloadContent`, which
+is **an eviction on purpose**: checkpoint, drop the session, load again. That is
+exactly what hibernation already does to this object, and everybody's position,
+kit, tags, experience, statuses and hit points survive a wake because a great
+deal of care was taken to make them — `restoreActors` at the end of `load`
+re-seats every socket that is still open, and nothing here has to know that list
+exists.
+
+It is deliberately **not** `replaceWorld`, which is about a new *board*: that
+one deletes the checkpoint, re-derives the spawn registry and drops every
+pending respawn, none of which a content save has any business doing. And not
+`resetWorld`, which is destructive by design.
+
+Unlike a wake, it **does** send everybody a `hello`. A wake resumes the same
+board against the same catalogue, so a client's copy is still true; here the
+tiles have changed meaning and the new session re-settled the board on its way
+up, so without one every client would go on drawing a world the server had
+moved on from. What a `hello` cannot fix is the client's own catalogue, which
+reaches a browser only at page load — an author still reloads to see new art,
+and no longer reloads to make the world obey them.
+
 ## Balancing happens in the Arena, not in the world
 
 `/arena` is a fight with the world taken out of it: two bodies, a cell apart, on

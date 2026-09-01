@@ -32,7 +32,15 @@ import {
   type ObjectRef,
 } from "../game/affordances";
 import { type Equipment, emptyEquipment } from "../game/equipment";
-import type { MasteryXp } from "../lib/mastery";
+import {
+  castability,
+  castableStones,
+  type CastContext,
+  type CastPoint,
+  type CastSquare,
+  type SpellButton,
+} from "../game/casting";
+import { masteriesFromXp, type MasteryXp } from "../lib/mastery";
 import { canMoveItem, itemInSlot, type SlotRef } from "../game/itemMoves";
 import type { ConsumeSource } from "../game/itemUse";
 import { canTransmuteFrom } from "../game/transmute";
@@ -52,7 +60,13 @@ import type {
 } from "../game/GameSession";
 import { resolveWalkDurationMs, standingAbs } from "../game/movement";
 import { DEFAULT_PLAY_MINUTES, type MinutesOfDay } from "../lib/clock";
-import { chunkifyMap, emptyMap, getStack, setStacks } from "../lib/mapData";
+import {
+  absoluteStandingElevation,
+  chunkifyMap,
+  emptyMap,
+  getStack,
+  setStacks,
+} from "../lib/mapData";
 import type {
   Coord,
   Direction,
@@ -1639,6 +1653,105 @@ export class RemoteSession implements PlaySession {
     if (enabled === this.attacking) return;
     this.attacking = enabled;
     this.send({ type: "attackMode", enabled });
+  }
+
+  /**
+   * Which stones could be cast right now, answered locally.
+   *
+   * The same function the server runs — see `../game/casting` — over the same
+   * board, the same catalogue, the same kit and the same target. That is what
+   * lets a button dim the instant somebody walks out of range instead of a round
+   * trip later, and it is why a client can never offer a cast the server will
+   * refuse beyond the staleness any shared world has.
+   *
+   * Nothing is predicted. The cooldown these read comes off the equipment
+   * message, which the server sends once a second while anything is cooling, so
+   * a countdown here is what the server last said rather than a clock of this
+   * side's own — the same arrangement the attack cooldown is under, and the same
+   * reason there is no `cast` prediction below.
+   */
+  spells(): SpellButton[] {
+    const context = this.castContext();
+    return context ? castableStones(context) : [];
+  }
+
+  /**
+   * Cast the stone in this square, if it is one the server would honour.
+   *
+   * Asked here before it is sent for the reason every other message is: a client
+   * that offers what the far end refuses is a client whose buttons lie. It is
+   * still asked again over there, because this side is holding a board that may
+   * be a round trip old.
+   *
+   * Nothing changes on this side. The kit comes back on the equipment message
+   * with the cooldown on it, which is what dims the button — a predicted
+   * cooldown would have to be un-predicted the moment the server disagreed, and
+   * a button that flickered back to lit is worse than one that dims a round trip
+   * late.
+   */
+  cast(square: CastSquare): boolean {
+    const context = this.castContext();
+    if (!context || !castability(context, square).ok) return false;
+    this.send({ type: "cast", square });
+    return true;
+  }
+
+  /**
+   * What a cast is decided against on this side, or null while this client does
+   * not know where it is standing.
+   *
+   * Built from exactly the four things the server builds it from, and no more:
+   * the board, the kit, what has been learnt, and where the two bodies are. The
+   * one difference is where they come from — patches and an equipment message
+   * rather than a simulation — which is the whole point of the module being pure.
+   */
+  private castContext(): CastContext | null {
+    const motion = this.motions.get(this.selfId);
+    if (!motion) return null;
+    const from = this.locate(this.selfId, motion);
+    if (!from) return null;
+
+    const targetMotion = this.targetId
+      ? this.motions.get(this.targetId)
+      : undefined;
+    const to =
+      this.targetId && targetMotion
+        ? this.locate(this.targetId, targetMotion)
+        : null;
+
+    return {
+      map: this.map,
+      tilesById: this.tilesById,
+      equipment: this.equipment,
+      // Levels out of the experience the server sends, through the one function
+      // that turns one into the other — see `../lib/mastery`. A second reading
+      // here would be a second answer to "what level am I".
+      masteries: masteriesFromXp(this.masteryXp),
+      caster: this.castPoint(from),
+      target: to ? this.castPoint(to) : null,
+    };
+  }
+
+  /**
+   * Where a body is, in the terms reach and line of sight are measured in.
+   *
+   * The same arithmetic `GameSession.reachPointOf` does, and it has to be: the
+   * elevation is the surface the body is *standing on*, so a rat on a crate is
+   * half a level nearer than a rat beside it, and a client measuring from the
+   * floor would dim a button the server would have honoured.
+   */
+  private castPoint(loc: ActorLocation): CastPoint {
+    const stack = getStack(this.map, loc.x, loc.y, loc.z);
+    return {
+      x: loc.x,
+      y: loc.y,
+      z: loc.z,
+      elevAbs: absoluteStandingElevation(
+        loc.z,
+        stack.slice(0, loc.stackIndex),
+        this.tilesById,
+      ),
+    };
   }
 
   /**

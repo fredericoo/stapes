@@ -26,6 +26,27 @@ export type StatusInstance = {
   remainingMs: number;
   /** Towards the next period. See {@link advanceStatuses}. */
   sinceEffectMs: number;
+  /**
+   * Who is answerable for this running, when anybody is.
+   *
+   * **The whole of how a spell that works indirectly gets paid for.** An arcane
+   * stone of flame conjures a tile; the tile burns whoever walks into it; and
+   * without this the burning is something that happened to somebody with nobody
+   * on the other end of it. Carried here rather than on the tile because it is a
+   * fact about *this* application — two flames lit by two casters put the same
+   * status on the same rat, and only the instances can tell them apart.
+   *
+   * An actor id, and read only by whatever pays out experience — see
+   * `../game/experience`'s `casterEarnings`. A cause naming somebody who has
+   * since left the world is not an error: the lookup comes back empty and the
+   * damage is simply attributed to nobody, which is what a status with no cause
+   * has always done.
+   *
+   * Absent for the overwhelming majority: a berry, a venomous bite, a hearth
+   * somebody built a year ago. **A status with no cause behaves exactly as it
+   * did before this field existed**, which is the property to protect here.
+   */
+  causedBy?: string;
 };
 
 /** What a formula needs to know about the body carrying it. */
@@ -170,6 +191,21 @@ export function applyStatus(
    * `maxMs` is a property of the condition, not of the meal.
    */
   range: DurationRange = def,
+  /**
+   * Who is answerable for it, when anybody is.
+   *
+   * **The latest cause wins on a re-application**, stacked or refreshed alike,
+   * and it is worth saying why rather than, say, keeping the first: what the
+   * field is for is paying whoever is *currently* burning somebody, and a rat
+   * that walks out of one caster's flame and into another's is being burned by
+   * the second. Keeping the first would pay a spell that has already expired for
+   * damage it is no longer doing.
+   *
+   * An absent cause on a re-application therefore clears one that was there,
+   * which is the same rule read the other way: a berry eaten while burning ends
+   * with nobody answerable for the burn, because a berry is nobody's doing.
+   */
+  causedBy?: string,
 ): readonly StatusInstance[] {
   const rolled = rollDurationMs(range, rng);
   const existing = current.find((instance) => instance.defId === def.id);
@@ -182,6 +218,10 @@ export function applyStatus(
         durationMs: rolled,
         remainingMs: rolled,
         sinceEffectMs: 0,
+        // Omitted rather than written as `undefined`, because a status list is
+        // serialized — into a checkpoint and across the wire — and an explicit
+        // `undefined` is a key that survives as `null` in some of those.
+        ...(causedBy ? { causedBy } : {}),
       },
     ];
   }
@@ -190,25 +230,52 @@ export function applyStatus(
     ? Math.min(def.maxMs, existing.remainingMs + rolled)
     : Math.max(existing.remainingMs, rolled);
 
-  return current.map((instance) =>
-    instance.defId === def.id
-      ? { ...instance, remainingMs, durationMs: remainingMs }
-      : instance,
-  );
+  return current.map((instance) => {
+    if (instance.defId !== def.id) return instance;
+    // Rebuilt rather than spread over, so an absent cause genuinely removes the
+    // one that was there: spreading would leave the old key untouched.
+    const { causedBy: _wasCausedBy, ...rest } = instance;
+    return {
+      ...rest,
+      remainingMs,
+      durationMs: remainingMs,
+      ...(causedBy ? { causedBy } : {}),
+    };
+  });
 }
+
+/**
+ * One period's worth of health moved, and who is answerable for it.
+ *
+ * A shape rather than a signed number because the number alone could not say who
+ * lit the fire — see {@link StatusTick.hpChanges}.
+ */
+export type StatusHpChange = {
+  /** Signed: positive heals, negative harms. */
+  amount: number;
+  /** The actor whose doing this is, when it is anybody's. */
+  causedBy?: string;
+};
 
 /** What one tick of statuses did, beside how far they advanced. */
 export type StatusTick = {
   statuses: readonly StatusInstance[];
   /**
-   * One signed figure per period that fired, in the order they fired.
+   * One signed figure per period that fired, in the order they fired, with
+   * whoever is answerable for it.
    *
    * A list rather than a sum, because the two directions do not go the same way
    * out: a heal clamps at the maximum and a harm goes through `applyDamage`, so
    * that it shows its number, tells the brains and can kill. Netting them here
    * would be inventing a third path that does neither.
+   *
+   * The cause rides on each figure rather than being looked up afterwards,
+   * because by then there is nothing to look it up on: a body under a burn and a
+   * poison at once pays two different people, and a bare number cannot say
+   * which. Absent on almost every one of them — see
+   * {@link StatusInstance.causedBy}.
    */
-  hpChanges: number[];
+  hpChanges: StatusHpChange[];
   /**
    * Whether the *set* changed — something ran out, or its def has gone.
    *
@@ -249,7 +316,7 @@ export function advanceStatuses(
   }
 
   const next: StatusInstance[] = [];
-  const hpChanges: number[] = [];
+  const hpChanges: StatusHpChange[] = [];
   let expired = false;
 
   for (const instance of statuses) {
@@ -268,9 +335,15 @@ export function advanceStatuses(
     if (everyMs > 0 && def.effects.hp) {
       while (sinceEffectMs + TICK_EPSILON_MS >= everyMs) {
         sinceEffectMs -= everyMs;
-        hpChanges.push(
-          def.effects.hp.evaluate(scopeFor(instance, remainingMs, bearer)),
-        );
+        hpChanges.push({
+          amount: def.effects.hp.evaluate(
+            scopeFor(instance, remainingMs, bearer),
+          ),
+          // Carried from the instance rather than from the def, because who is
+          // answerable is a fact about this application: one status def burns
+          // for whoever lit each fire.
+          ...(instance.causedBy ? { causedBy: instance.causedBy } : {}),
+        });
       }
     }
 

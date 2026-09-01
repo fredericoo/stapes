@@ -1,6 +1,7 @@
 import type { BattlerDef, FightingStats } from "../lib/battler";
 import { bodyDefence, fightingStats, NO_RESISTANCES } from "../lib/battler";
 import type {
+  ArcaneStoneItem,
   ArmorItem,
   ArmorSlot,
   WeaponItem,
@@ -11,11 +12,13 @@ import { mintItemId } from "../lib/itemInstance";
 import {
   ARMOR_SLOTS,
   armorSlotOf,
+  isAutomaticStone,
   isTwoHanded,
   resolveArmor,
   resolveContainer,
   resolveItem,
   resolveShield,
+  resolveStone,
   resolveWeapon,
 } from "../lib/item";
 import { EQUIP_SLOTS, type EquipSlot } from "../lib/kit";
@@ -202,7 +205,7 @@ export function restoredEquipment(
   const weaponDef = saved.weapon ? tilesById[saved.weapon.tileId] : undefined;
   const weapon =
     saved.weapon && weaponDef && handAccepts(weaponDef)
-      ? identified(saved.weapon)
+      ? restoredInstance(saved.weapon, weaponDef)
       : null;
 
   // Absent on a kit saved before this slot existed, which reads as an empty
@@ -211,7 +214,7 @@ export function restoredEquipment(
   const offhandDef = saved.offhand ? tilesById[saved.offhand.tileId] : undefined;
   const offhandHeld =
     saved.offhand && offhandDef && handAccepts(offhandDef)
-      ? identified(saved.offhand)
+      ? restoredInstance(saved.offhand, offhandDef)
       : null;
 
   // **A weapon an author made two-handed while somebody was away.** Both hands
@@ -237,8 +240,15 @@ export function restoredEquipment(
     // world no longer agrees with.
     const instance = saved[slot];
     const def = instance ? tilesById[instance.tileId] : undefined;
+    // Through `wornAccepts` rather than `armorForSlot`, so a stone on somebody's
+    // charm comes back the way a jade amulet does: the charm is the one worn
+    // square that takes two kinds of thing, and reading it two ways here and in
+    // the move rules is how a kit that could be saved and not re-equipped
+    // happens.
     worn[slot] =
-      instance && def && armorForSlot(slot, def) ? identified(instance) : null;
+      instance && def && wornAccepts(slot, def)
+        ? restoredInstance(instance, def)
+        : null;
   }
 
   const bagDef = saved.bag ? tilesById[saved.bag.tileId] : undefined;
@@ -284,6 +294,40 @@ export function restoredEquipment(
  */
 function identified(instance: ItemInstance): ItemInstance {
   return instance.id ? instance : { ...instance, id: mintItemId() };
+}
+
+/**
+ * The same thing, named, and not cooling for longer than its stone now says.
+ *
+ * The one piece of an instance that can be out of date rather than merely
+ * absent. A cooldown is remembered across a disconnection on purpose — see
+ * `../lib/itemInstance`'s {@link ItemInstance.cooldownMs}, and story-wise
+ * because reconnecting must not be the cheapest spell in the game — which means
+ * it survives an author shortening the stone while somebody was away, and a
+ * stone remembering two minutes of a thirty-second cooldown would be cooling for
+ * longer than any press of it could ever cost.
+ *
+ * Clamped rather than cleared, on the terms the rest of this function restores
+ * on: the fact is out of date, not corrupt, and somebody who cast a moment ago
+ * should still be waiting.
+ *
+ * A cooldown left over on something that has stopped being a stone is dropped
+ * outright. It is not a lock on anything — see {@link stoneLocked}, which asks
+ * the same question — and leaving it would be a field nothing ever winds down.
+ */
+function restoredInstance(
+  instance: ItemInstance,
+  def: TileDef,
+): ItemInstance {
+  const named = identified(instance);
+  if (!named.cooldownMs) return named;
+  const stone = resolveStone(def);
+  if (!stone) {
+    const { cooldownMs: _cooling, ...rest } = named;
+    return rest;
+  }
+  const cooldownMs = Math.min(named.cooldownMs, stone.cooldownMs);
+  return cooldownMs === named.cooldownMs ? named : { ...named, cooldownMs };
 }
 
 /**
@@ -858,5 +902,90 @@ export function handHasRoomFor(
 export function handAccepts(def: TileDef): boolean {
   const item = resolveItem(def);
   if (!item) return false;
+  // An arcane stone that fires on its own belongs round your neck and nowhere
+  // else — see `../lib/item`'s {@link ArcaneStoneItem.automatic}. A hand is a
+  // thing you act with, and a hand that acted by itself would be a body casting
+  // spells nobody asked it to. A *pressed* stone is welcome in either fist, on
+  // exactly the terms a shield is: held, and never swung at anybody.
+  if (isAutomaticStone(def)) return false;
   return item.type !== "container" || item.equippable;
+}
+
+/**
+ * Whether this worn square can take this thing.
+ *
+ * **The charm is the one square that takes two kinds**, and this is where that
+ * is written down. Everywhere else a worn square asks {@link armorForSlot} and
+ * nothing else — a helm on a head, boots on feet — but a charm is already the
+ * square for "a thing round your neck that is not a plate", and an arcane stone
+ * on a strap is exactly that. Giving stones a square of their own would have
+ * been an eighth slot that only one profession ever fills.
+ *
+ * Both kinds of stone are welcome here, automatic or pressed: what separates
+ * them is whether they get a button, which is a question about the interface
+ * rather than about the body.
+ *
+ * Here rather than in `./itemMoves` for the reason {@link handAccepts} is: it is
+ * a fact about the squares, and the squares are defined by this module. The move
+ * rules ask it of a drag and `restoredEquipment` asks it of a kit coming back
+ * from storage, and two answers would be a kit that could be saved and not
+ * re-equipped.
+ */
+export function wornAccepts(slot: ArmorSlot, def: TileDef): boolean {
+  if (armorForSlot(slot, def)) return true;
+  return slot === "charm" && resolveStone(def) != null;
+}
+
+/**
+ * The stone in this square, or null when there is not one there.
+ *
+ * A lookup through the tile catalogue rather than a field on the kit, on the
+ * terms every other question about what is held is answered: an instance is an
+ * id and a tile, and what that tile *is* is the catalogue's business. A tile
+ * that has been renamed or turned into a prop while somebody was holding it
+ * reads as an empty square, which is the same answer {@link weaponSwungBy}
+ * gives.
+ */
+export function stoneIn(
+  equipment: Equipment | null,
+  tilesById: Record<string, TileDef>,
+  slot: keyof Equipment,
+): ArcaneStoneItem | null {
+  const held = equipment?.[slot];
+  if (!held) return null;
+  const def = tilesById[held.tileId];
+  return def ? resolveStone(def) : null;
+}
+
+/**
+ * Whether the thing in this square is a stone that is still cooling, and so
+ * cannot be moved out of it.
+ *
+ * **The second cross-cutting square rule in the game**, and it sits beside the
+ * first for that reason: {@link handHasRoomFor} is a square refusing because of
+ * what its neighbour is doing, and this is a square refusing because of what the
+ * thing in it has recently been asked to do. Both are facts about the squares,
+ * both are asked by the move rules and by whatever puts things on the floor, and
+ * both would be wrong in a different way in each caller if they were written
+ * twice.
+ *
+ * What it stops is the whole reason cooldowns are per stone: without it a caster
+ * carries six stones in a bag, presses one, swaps it out and presses the next,
+ * and the cooldown decides nothing at all.
+ *
+ * **Player-initiated moves only.** A death drops the entire kit through
+ * `GameSession.dropKit`, which does not come through here — a cooling stone
+ * clinging to a corpse would be the rule outliving the body it was a rule about.
+ *
+ * Reads the instance rather than the def for the cooldown and the def for
+ * whether it is a stone at all: a leftover cooldown on something that has since
+ * stopped being a stone is stale bookkeeping, not a lock.
+ */
+export function stoneLocked(
+  instance: ItemInstance | null,
+  tilesById: Record<string, TileDef>,
+): boolean {
+  if (!instance?.cooldownMs) return false;
+  const def = tilesById[instance.tileId];
+  return def != null && resolveStone(def) != null;
 }

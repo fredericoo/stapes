@@ -60,6 +60,17 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
         "/tiles",
         async ({ body }) => {
           await store.writeTiles(body.tiles as never);
+          // Written *before* the world is told, on the terms the map save above
+          // is: a catalogue that failed to store must not become the one the
+          // world reloads against, or a reload would pick up the old files and
+          // an author would be told their save worked.
+          //
+          // And the world *is* told, which it used to not be. Reading the
+          // catalogue is guarded on there being no session, so before this an
+          // edit changed what the next world would be built from and nothing
+          // about the one the author was standing in — see
+          // `GameServer.reloadContent`, which is where that argument lives.
+          await world.server.reloadContent();
           return { ok: true as const };
         },
         { body: t.Object({ tiles: t.Array(t.Unknown()) }) },
@@ -76,6 +87,10 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
         "/statuses",
         async ({ body }) => {
           await store.writeStatuses(body.statuses);
+          // Beside the tiles and for the same reason: the running world compiled
+          // its status catalogue at load, so a re-authored burn reached the file
+          // and nobody who was already on fire.
+          await world.server.reloadContent();
           return { ok: true as const };
         },
         { body: t.Object({ statuses: t.Array(t.Unknown()) }) },

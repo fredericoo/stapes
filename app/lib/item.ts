@@ -640,6 +640,181 @@ export type ShieldItem = {
 };
 
 /**
+ * What a stone does when it is pressed, as one of exactly three things.
+ *
+ * **A closed vocabulary, and the closure is the design.** Every arm here is a
+ * thing the simulation could already do to somebody — heal them, put a status
+ * on them, put a tile on the board — so casting adds no new physics at all: a
+ * stone of light is an authored status whose visual block carries a light, and
+ * it rides the same emitter path a carried torch does. What cannot be said with
+ * these three is not a spell this game has; the obvious next one is an area,
+ * and it is deliberately absent because nothing here touches more than one
+ * target or more than one cell.
+ */
+export type StoneEffect =
+  /**
+   * Put health back into whoever cast it, and nobody else.
+   *
+   * Always the caster, never the target, and that is not an omission: a stone
+   * that could heal what you are pointing at would be the first thing in the
+   * game whose usefulness depended on picking an ally, and there are no allies.
+   * What it is worth is what it *restores* rather than what it names — see
+   * `../game/experience`'s `casterEarnings`, where a heal at full health teaches
+   * nothing.
+   */
+  | { kind: "heal"; hp: number }
+  /**
+   * Start an authored status, on the caster or on whatever they are pointing at.
+   *
+   * The duration override means here exactly what it means on a consumable —
+   * see {@link StatusGrant} — and for the same reason: two stones may start one
+   * status and differ only in how long it runs.
+   *
+   * `on` is a fact about the stone rather than about the square it is in. A
+   * charm may only ever reach its holder, so a `target` charm is refused where
+   * the squares are decided rather than here; a hand stone can honestly be
+   * either, and which it is is the whole difference between a ward and a curse.
+   */
+  | {
+      kind: "status";
+      on: StoneSubject;
+      id: string;
+      fromMs?: number;
+      toMs?: number;
+    }
+  /**
+   * Put a tile on the board — at the target's cell, or in front of the caster.
+   *
+   * **The only sense in which a spell touches a cell, and the player never picks
+   * that cell.** A conjure with a target lands on the target; a conjure without
+   * one lands on the cell the caster is facing. There is no tile-targeted
+   * casting, so the two hard questions an arbitrary cell would raise — how a
+   * phone picks one, and what stops somebody dropping fire on the far side of a
+   * wall — never come up.
+   *
+   * What is conjured should **decay**, and that is the author's business rather
+   * than this block's: the decay system already expires placements, so a
+   * conjured flame is an ordinary tile with a lifetime on it. A tile with no
+   * decay authored is a permanent one, which is a battlefield nobody wants and
+   * a mistake the editor can say out loud.
+   */
+  | { kind: "conjure"; tileId: string };
+
+/**
+ * Whose body an effect lands on.
+ *
+ * Two answers rather than a boolean, so an authored block reads as what it is
+ * — `"on": "caster"` says something a `"self": true` does not — and so a third
+ * subject, if the design ever grows one, is a value rather than a second flag
+ * arguing with the first.
+ */
+export type StoneSubject = "caster" | "target";
+
+export const STONE_SUBJECTS: StoneSubject[] = ["caster", "target"];
+
+/** The kinds of thing a stone can be authored to do. @see StoneEffect */
+export const STONE_EFFECT_KINDS = ["heal", "status", "conjure"] as const;
+
+export type StoneEffectKind = (typeof STONE_EFFECT_KINDS)[number];
+
+/**
+ * A thing you carry that casts, and the whole of what magic is in this game.
+ *
+ * **A kind of its own for the reason a shield is one: both hands swing.** A
+ * stone is held and never swung at anybody, so the rotation has to be able to
+ * refuse it — and `../game/equipment`'s `weaponSwungBy` refuses everything that
+ * is not a {@link WeaponItem}, which is the entirety of what stories about
+ * carrying one instead of a sword needed. One stone and a sword is a body that
+ * swings the sword every turn; two stones is a body back on its fists, and
+ * neither of those is a rule anybody had to write.
+ *
+ * **There is no mana and there are no spell slots.** What a caster can do is
+ * decided by which stones they are carrying and how recently each was used —
+ * see {@link cooldownMs}, which is per *instance* rather than per tile, so two
+ * identical stones in two hands cool independently. Two hands and a charm is
+ * three stones, which is the whole of a loadout and the reason the desktop
+ * binding is `1`, `2`, `3` and nothing more.
+ *
+ * Stones are accepted by the two hand squares and by the charm, and refused
+ * everywhere a piece of armour would be — see `../game/equipment`'s
+ * `wornAccepts`. What separates the squares is reach: a hand stone may act on
+ * whatever the caster has targeted, and a charm may only ever act on its holder.
+ */
+export type ArcaneStoneItem = {
+  type: "stone";
+  /** What pressing it does. @see StoneEffect */
+  effect: StoneEffect;
+  /**
+   * How long after a cast before this particular stone may be pressed again, in
+   * milliseconds.
+   *
+   * **Per instance and durable**, which is the opposite of how a fight's hit
+   * points are treated and deliberately so: a cooldown rebuilt on load would
+   * make reconnecting the cheapest spell in the game. It is carried on the
+   * {@link ItemInstance} — see `./itemInstance` — so it rides the kit into
+   * storage and out onto the equipment message with nothing to keep in step.
+   *
+   * Spent whether or not the cast accomplished anything, on the same terms a
+   * swing's cooldown is spent before the dice are rolled: what a cast costs must
+   * not depend on luck.
+   *
+   * A stone that is cooling is **locked in its square** — see
+   * `../game/equipment`'s `stoneLocked`, which is what stops a caster carrying
+   * six stones in a bag and rotating through them.
+   */
+  cooldownMs: number;
+  /**
+   * What this asks of whoever casts it, mastery by mastery.
+   *
+   * The same block a weapon's {@link WeaponItem.requirements} is, read the same
+   * way and by the same code: the worst ratio decides, and a requirement on a
+   * mastery the stone does not train is a real gate rather than a footnote. It
+   * is also what scales what casting *teaches* — see `../game/experience`'s
+   * `casterEarnings` — so a stone you have outgrown keeps paying and keeps
+   * paying less.
+   *
+   * Unlike a weapon, an unmet requirement **refuses the cast outright** rather
+   * than merely making it feeble. A weapon half-understood still swings, badly,
+   * because a swing is a body doing what bodies do; a stone is a thing that
+   * either answers you or does not, and "it fires but does a third of what it
+   * says" is a worse thing to learn from than "not yet".
+   *
+   * Absent means it asks nothing, which is not the same as asking zero of
+   * everything — see `./mastery`'s `masteryRatio`.
+   */
+  requirements?: Masteries;
+  /**
+   * How far it reaches, as a disc on the plan and a height either side of it.
+   *
+   * The same shape and the same machinery a weapon's {@link WeaponItem.reach}
+   * is, checked with `../game/combat`'s `canReach` — so a spell out of range
+   * fails exactly the way a swing does, and a wall stops one as surely as it
+   * stops an arrow.
+   *
+   * Only ever asked of a stone that reaches somebody *else*: a heal, a charm and
+   * a status on the caster are all at arm's length by construction. Absent means
+   * an arm's length, which is the same default a weapon takes.
+   */
+  reach?: Reach;
+  /**
+   * Whether it fires on its own the moment it can, rather than being pressed.
+   *
+   * **Charm only**, and refused in a hand where the squares are decided: a hand
+   * is a thing you act with, and a hand that acted by itself would be a body
+   * casting spells nobody asked it to. What it buys is a passive worth a square
+   * — a trinket that tops you up on its own clock — without inventing a second
+   * kind of item to hold one.
+   *
+   * An automatic stone gets **no button**, on either device, because there is
+   * nothing to press. That is the one thing separating the two kinds of charm,
+   * and it is behaviour rather than position — see `../components/SpellBar`.
+   *
+   * Absent means pressed, which is every stone worth authoring in a hand.
+   */
+  automatic?: boolean;
+};
+
+/**
  * A discriminated union rather than a flat block of optional fields, so a weapon
  * cannot have a size and a container cannot have a mastery. The editor picks the
  * arm and the schema refuses anything else.
@@ -650,7 +825,8 @@ export type ItemDef =
   | ContainerItem
   | ArmorItem
   | ShieldItem
-  | ArtifactItem;
+  | ArtifactItem
+  | ArcaneStoneItem;
 
 export type ItemType = ItemDef["type"];
 
@@ -661,6 +837,7 @@ export const ITEM_TYPES: ItemType[] = [
   "consumable",
   "container",
   "artifact",
+  "stone",
 ];
 
 /**
@@ -892,6 +1069,47 @@ export const DEFAULT_ARTIFACT: ArtifactItem = { type: "artifact" };
  */
 export const DEFAULT_SHIELD: ShieldItem = { type: "shield", def: 2 };
 
+/**
+ * Shortest and longest a stone's cooldown may be authored at.
+ *
+ * The floor is a second, and it is a *design* bound rather than a sanity one:
+ * the whole of what decides a caster's rhythm is how recently each stone was
+ * used, and a stone that were ready again on the next tick would be a spell with
+ * no cost at all. The ceiling is an hour, on the terms
+ * {@link MAX_STATUS_DURATION_MS} is: longer than anything worth authoring, and
+ * near enough that a typo'd extra digit reads as malformed.
+ */
+export const MIN_STONE_COOLDOWN_MS = 1_000;
+export const MAX_STONE_COOLDOWN_MS = 60 * 60 * 1000;
+
+/**
+ * Most health one press of a stone may put back.
+ *
+ * The same bound a consumable's shift is under and the same argument: hit points
+ * have no authored ceiling, so this is wide enough for anything worth writing
+ * and narrow enough that an extra digit reads as a mistake.
+ */
+export const MAX_STONE_HEAL = MAX_CONSUMABLE_HP_SHIFT;
+
+/**
+ * What a tile gets the moment somebody makes it an arcane stone.
+ *
+ * A small heal on a short cooldown, because it is the one effect that needs
+ * nothing else authored to work: a status arm would open on an id naming
+ * nothing and a conjure on a tile that does not exist, and both would make a
+ * fresh stone a thing that silently does nothing the first time it is pressed.
+ * An author who wants fire is one select away.
+ *
+ * Ten seconds rather than the minute the shipped stones carry: a default is a
+ * thing somebody is about to test, and waiting a minute to find out whether it
+ * works is the editor arguing with them.
+ */
+export const DEFAULT_STONE: ArcaneStoneItem = {
+  type: "stone",
+  effect: { kind: "heal", hp: 5 },
+  cooldownMs: 10_000,
+};
+
 /** Both percent stats, on the one scale a fight reads them against. */
 const percent = v.pipe(
   v.number(),
@@ -956,6 +1174,25 @@ const weaponStatusSchema = v.pipe(
 );
 
 /**
+ * A disc on the plan and a height either side of it, bounded.
+ *
+ * Written down once because two kinds of item now reach: a weapon and a stone
+ * ask the same question with the same numbers, and the whole reason a spell's
+ * range works like a bow's is that it *is* a bow's. A second copy here would be
+ * the first place the two could quietly disagree about what sixty-four cells
+ * means.
+ *
+ * Undefaulted, unlike the weapon's use of it: a weapon's reach is a number every
+ * weapon has an opinion about, and a stone's is only ever read for one that
+ * reaches somebody else. {@link reachOf} is where "absent is an arm's length"
+ * is written, and it is the one place either kind is read through.
+ */
+const reachEntries = v.object({
+  cells: v.pipe(v.number(), v.minValue(0), v.maxValue(MAX_REACH_CELLS)),
+  height: v.pipe(v.number(), v.minValue(0), v.maxValue(MAX_REACH_HEIGHT)),
+});
+
+/**
  * Exported because a body's natural weapon is validated by it too.
  *
  * "A bite is a weapon like any other" has to be literally true, including in
@@ -984,13 +1221,7 @@ export const weaponSchema = v.object({
   // moved off the body, which is all of them. A getter for the reason the
   // battler's `sight` default is one: two tiles must never share one mutable
   // block.
-  reach: v.optional(
-    v.object({
-      cells: v.pipe(v.number(), v.minValue(0), v.maxValue(MAX_REACH_CELLS)),
-      height: v.pipe(v.number(), v.minValue(0), v.maxValue(MAX_REACH_HEIGHT)),
-    }),
-    () => ({ ...MELEE_REACH }),
-  ),
+  reach: v.optional(reachEntries, () => ({ ...MELEE_REACH })),
   mastery: v.picklist(WEAPON_MASTERIES),
   // Absent for every melee weapon, which is the overwhelming majority, and
   // present is the entire definition of a ranged one. Whether the tile id names
@@ -1146,6 +1377,72 @@ const shieldSchema = v.object({
   ),
 });
 
+/**
+ * One of the three things a stone can be authored to do.
+ *
+ * A variant rather than a block of optional fields, on exactly the terms
+ * {@link itemSchema} is one: a heal cannot carry a tile id and a conjure cannot
+ * carry an amount of health, so a half-edited draft is a parse failure here
+ * rather than a stone that does two things at once.
+ */
+const stoneEffectSchema = v.variant("kind", [
+  v.object({
+    kind: v.literal("heal"),
+    // Unsigned, unlike a consumable's `hp`: harming yourself is a status, and a
+    // negative here would be a stone that reads as a heal and is a curse.
+    hp: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_STONE_HEAL)),
+  }),
+  v.pipe(
+    v.object({
+      kind: v.literal("status"),
+      on: v.picklist(STONE_SUBJECTS),
+      // Whether an id names anything is the catalogue's question, asked where
+      // the status is granted — this module resolves no statuses, on exactly the
+      // terms a consumable's grants are left alone here.
+      ...statusGrantEntries,
+    }),
+    // The same two rules every other duration override is under, and refused
+    // here for the same reason: half an override would have to be ordered
+    // against a number from somewhere else.
+    v.check((raw) => overrideIsWhole(raw), BOTH_ENDS_MESSAGE),
+    v.check((raw) => overrideIsOrdered(raw), ORDERED_MESSAGE),
+  ),
+  v.object({
+    kind: v.literal("conjure"),
+    // Whether the id names anything is the catalogue's question too, asked where
+    // the placement is made: a stone naming a tile an author has since deleted
+    // is out of date rather than corrupt, and it fails as a cast that places
+    // nothing rather than as a world that will not load.
+    tileId: v.pipe(v.string(), v.trim(), v.minLength(1)),
+  }),
+]);
+
+const stoneSchema = v.object({
+  type: v.literal("stone"),
+  effect: stoneEffectSchema,
+  // Required and floored, unlike almost everything else optional here: a stone
+  // with no cooldown is not a stone somebody forgot to finish, it is a spell
+  // with no cost, and there is no defensible number to guess on an author's
+  // behalf between a second and an hour.
+  cooldownMs: v.pipe(
+    v.number(),
+    v.integer(),
+    v.minValue(MIN_STONE_COOLDOWN_MS),
+    v.maxValue(MAX_STONE_COOLDOWN_MS),
+  ),
+  // Optional, and an empty object allowed through rather than refused — the
+  // same tolerance a weapon's requirements block is under, and for the same
+  // reason: it says what no key says, and refusing it would make a round trip
+  // through the editor a validation error.
+  requirements: v.optional(masteriesSchema),
+  // Optional and *un*defaulted, unlike a weapon's — see {@link reachEntries}.
+  reach: v.optional(reachEntries),
+  // Optional, and absent means pressed, which is every stone worth authoring in
+  // a hand. Whether a hand will actually take an automatic one is a question
+  // about the squares and is asked there.
+  automatic: v.optional(v.boolean()),
+});
+
 const itemSchema = v.variant("type", [
   weaponSchema,
   armorSchema,
@@ -1153,6 +1450,7 @@ const itemSchema = v.variant("type", [
   consumableSchema,
   containerSchema,
   artifactSchema,
+  stoneSchema,
 ]);
 
 const itemCache = new WeakMap<TileDef, ItemDef | null>();
@@ -1212,6 +1510,32 @@ export function isTwoHanded(def: TileDef): boolean {
 export function resolveShield(def: TileDef): ShieldItem | null {
   const item = resolveItem(def);
   return item?.type === "shield" ? item : null;
+}
+
+/**
+ * Parsed stone config for a tile, or null when it is not one.
+ *
+ * The one question the rest of the game asks about being an arcane stone, and
+ * it is a lookup rather than a flag — every square that has to refuse a stone,
+ * every rotation that has to skip one and every button that has to draw one goes
+ * through here, so no caller is tempted to test the discriminator itself and
+ * quietly disagree with the next one.
+ */
+export function resolveStone(def: TileDef): ArcaneStoneItem | null {
+  const item = resolveItem(def);
+  return item?.type === "stone" ? item : null;
+}
+
+/**
+ * Whether this stone fires on its own rather than being pressed.
+ *
+ * False for everything that is not a stone at all, which is what lets the
+ * squares ask it of any tile without narrowing first — the same shape
+ * {@link isTwoHanded} has, and for the same reason: a hand refuses an automatic
+ * stone and has no opinion about a loaf of bread.
+ */
+export function isAutomaticStone(def: TileDef): boolean {
+  return resolveStone(def)?.automatic === true;
 }
 
 /**
@@ -1276,7 +1600,7 @@ export function resolveConsumable(def: TileDef): ConsumableItem | null {
  * Save. A fresh object every call, so no two weapons can end up sharing one
  * mutable block — the same care {@link DEFAULT_WEAPON} takes.
  */
-export function reachOf(weapon: Pick<WeaponItem, "reach">): Reach {
+export function reachOf(weapon: { reach?: Reach }): Reach {
   return { ...MELEE_REACH, ...weapon.reach };
 }
 
@@ -1411,9 +1735,66 @@ export function itemForSave(item: ItemDef | undefined): ItemDef | undefined {
   // half-edited.
   if (item.type === "artifact") return { type: "artifact" };
   if (item.type === "shield") return { type: "shield", def: item.def };
+  if (item.type === "stone") return stoneForSave(item);
   return {
     type: "container",
     size: item.size,
     equippable: item.equippable,
   };
+}
+
+/**
+ * A stone's fields, named, with the zeroes and the falsehoods dropped.
+ *
+ * Rebuilt for the reason every other arm is — a draft carries whatever the last
+ * arm left behind — and its effect rebuilt inside that for one more: the three
+ * effects are a union too, so a stone switched from a conjure to a heal in the
+ * editor is a draft holding both a tile id and an amount of health until this
+ * names the fields.
+ */
+function stoneForSave(stone: ArcaneStoneItem): ArcaneStoneItem {
+  // The same rule a weapon's requirements block is saved under: a requirement of
+  // zero is not a requirement, and a stone carrying `requirements: {}` would read
+  // as "asks something" to anybody skimming the file.
+  const requirements = Object.fromEntries(
+    MASTERIES.filter((mastery) => (stone.requirements?.[mastery] ?? 0) > 0).map(
+      (mastery) => [mastery, stone.requirements?.[mastery]],
+    ),
+  );
+
+  return {
+    type: "stone",
+    effect: stoneEffectForSave(stone.effect),
+    cooldownMs: Math.round(stone.cooldownMs),
+    // Written only when it says something, on the terms a weapon's `twoHanded`
+    // is: an explicit `false` on every stone in the file is a field to skim past
+    // that says exactly what its absence says.
+    ...(stone.automatic ? { automatic: true } : {}),
+    ...(Object.keys(requirements).length > 0 ? { requirements } : {}),
+    // Written whenever it is stated, and absent stays absent — unlike a weapon's,
+    // which is always spelled out. A stone that reaches only its holder has no
+    // opinion about range, and writing an arm's length onto one would read as an
+    // author having decided something they never thought about.
+    ...(stone.reach ? { reach: { ...stone.reach } } : {}),
+  };
+}
+
+/** One effect, field by field, with a blank id or tile dropping the block. */
+function stoneEffectForSave(effect: StoneEffect): StoneEffect {
+  if (effect.kind === "heal") return { kind: "heal", hp: Math.round(effect.hp) };
+  if (effect.kind === "conjure") {
+    return { kind: "conjure", tileId: effect.tileId.trim() };
+  }
+  const id = effect.id.trim();
+  // Both ends or neither — half an override is malformed and the schema refuses
+  // it, which is the same walk `statusGrantsForSave` makes over a list.
+  return effect.fromMs !== undefined && effect.toMs !== undefined
+    ? {
+        kind: "status",
+        on: effect.on,
+        id,
+        fromMs: Math.round(effect.fromMs),
+        toMs: Math.round(effect.toMs),
+      }
+    : { kind: "status", on: effect.on, id };
 }

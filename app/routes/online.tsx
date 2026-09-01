@@ -11,7 +11,7 @@ import { LoadingScreen } from "../components/LoadingScreen";
 import { WorldClock } from "../components/WorldClock";
 import { type Equipment, emptyEquipment } from "../game/equipment";
 import type { MasteryXp } from "../lib/mastery";
-import { bindKeyboard, HeldDirections } from "../game/heldDirections";
+import { bindCastKeys, bindKeyboard, HeldDirections } from "../game/heldDirections";
 import { usePlayModes } from "../components/usePlayModes";
 import {
   applyInteraction,
@@ -22,6 +22,7 @@ import { useGameAssets } from "../lib/gameAssets";
 import { DEFAULT_PLAY_MINUTES, type MinutesOfDay } from "../lib/clock";
 import type { ObjectRef } from "../game/affordances";
 import type { OpenedContainer, SlotRef } from "../game/itemMoves";
+import type { CastSquare, SpellButton } from "../game/casting";
 import type { Direction } from "../lib/types";
 import {
   CLOSE_OUTDATED_CLIENT,
@@ -140,6 +141,15 @@ export default function OnlinePage() {
   const [vitals, setVitals] = useState<Vitals>({ hp: null, maxHp: null, rating: null, statuses: [] });
   const [openedContainer, setOpenedContainer] =
     useState<OpenedContainer | null>(null);
+  /**
+   * The stones this player could press, as the render loop last worked them out.
+   *
+   * Worked out on this side from the same pure rules the server honours a cast
+   * with — see `../game/casting` — so a button dims the instant somebody walks
+   * out of range rather than a round trip later. The cooldowns in it are the
+   * server's figures, not a clock of this side's own.
+   */
+  const [spells, setSpells] = useState<SpellButton[]>([]);
   // Straight at the renderer, like the hover outline: which box is open is a
   // frame's business, and it is the render loop that knows when its contents
   // changed or when the player walked out of reach of it.
@@ -160,6 +170,12 @@ export default function OnlinePage() {
   }, []);
   const consumeItem = useCallback((slot: SlotRef) => {
     sessionRef.current?.consume({ kind: "slot", slot });
+  }, []);
+  // Asked of the session, which asks the same question the server will and then
+  // sends the message. Nothing is predicted: the button dims when the equipment
+  // message comes back with a cooldown on the stone.
+  const cast = useCallback((square: CastSquare) => {
+    sessionRef.current?.cast(square);
   }, []);
   // Straight at the renderer, like the hover outline and for the same reason: a
   // ghost follows the pointer, and a page that re-rendered to move it would be
@@ -196,6 +212,11 @@ export default function OnlinePage() {
   // and it has to come up in whatever mode the player is already in.
   const lookingRef = useRef(looking);
   lookingRef.current = looking;
+  // Mirrored into a ref because the cast keys are bound once, with the socket,
+  // and must read whatever the row is showing *now* rather than the empty list
+  // it was carrying before the first `hello`.
+  const spellsRef = useRef(spells);
+  spellsRef.current = spells;
   // And a fresh *session*, which is where attack mode lives — the server seats a
   // body that is not swinging at anybody, so the stance has to be said again on
   // every connection. See `RemoteSession`'s handling of `hello` for the other
@@ -252,6 +273,13 @@ export default function OnlinePage() {
     const input = new HeldDirections((i) => session?.setInput(i));
     inputRef.current = input;
     const unbindKeyboard = bindKeyboard(input);
+    // Reads the session and the row at call time, not at construction: a
+    // reconnect swaps the session underneath while the same keys are bound, and
+    // the row is whatever the player is carrying at the moment they press.
+    const unbindCast = bindCastKeys((index) => {
+      const spell = spellsRef.current[index];
+      if (spell) sessionRef.current?.cast(spell.square);
+    });
 
     const teardownRenderer = () => {
       rendererRef.current = null;
@@ -267,6 +295,7 @@ export default function OnlinePage() {
       // And a bag from the world that just went away, whose contents the next
       // `hello` is about to replace outright.
       setEquipment(emptyEquipment());
+      setSpells([]);
       setMasteryXp({});
       setVitals({ hp: null, maxHp: null, rating: null, statuses: [] });
       setOpenedContainer(null);
@@ -330,6 +359,7 @@ export default function OnlinePage() {
         renderer.setOnStats(setStats);
         renderer.setOnInteractions(setInteractions);
         renderer.setOnEquipment(setEquipment);
+        renderer.setOnSpells(setSpells);
         renderer.setOnMasteries(setMasteryXp);
         renderer.setOnVitals(setVitals);
         renderer.setOnOpenedContainer(setOpenedContainer);
@@ -384,6 +414,7 @@ export default function OnlinePage() {
     return () => {
       disposed = true;
       if (retryTimer) clearTimeout(retryTimer);
+      unbindCast();
       unbindKeyboard();
       inputRef.current = null;
       teardownRenderer();
@@ -488,6 +519,8 @@ export default function OnlinePage() {
                 onConsumeItem={consumeItem}
                 onDragOverWorld={dragOverWorld}
                 onDropOnWorld={dropOnWorld}
+                spells={spells}
+                onCast={cast}
                 tiles={tiles}
                 tilesets={tilesets}
               />

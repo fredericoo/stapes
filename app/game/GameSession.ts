@@ -12,11 +12,14 @@ import {
   resolveTeleport,
 } from "../lib/interactions";
 import {
+  type ArcaneStoneItem,
   type ConsumableItem,
   isItem,
   isRanged,
   type StatusGrant,
+  type StoneEffect,
   resolveConsumable,
+  resolveStone,
 } from "../lib/item";
 import type {
   Coord,
@@ -140,15 +143,30 @@ import {
   HANDS,
   handToSwing,
   otherHand,
+  stoneIn,
+  stoneLocked,
   weaponInHand,
   wornInstances,
 } from "./equipment";
+import {
+  automaticFires,
+  CAST_SQUARES,
+  castability,
+  castableStones,
+  type CastContext,
+  type CastPoint,
+  type CastSquare,
+  coolingNotice,
+  type SpellButton,
+} from "./casting";
 import { equipmentForBody } from "./battlerKit";
 import {
   attackerEarnings,
+  casterEarnings,
   defenderEarnings,
   defensiveDecay,
   DEFENSIVE_RECOVERY_MS,
+  practiceEarnings,
 } from "./experience";
 import { mintItemIds } from "./itemIds";
 import {
@@ -200,6 +218,7 @@ import {
 } from "./mapMutations";
 import {
   canWalk,
+  destCellAfterStep,
   DIR_DELTA,
   resolveWalkDurationMs,
   standingAbs,
@@ -731,6 +750,36 @@ export interface PlaySession {
   setTarget(actorId: string | null): void;
   /** Swing at the target, or merely keep it. @see GameSnapshot.attacking */
   setAttackMode(enabled: boolean): void;
+  /**
+   * Every arcane stone this body could press, in square order, with why each
+   * can or cannot be cast right now.
+   *
+   * On the interface rather than on the snapshot, and the reason is the same one
+   * that keeps `drainNotices` off it: a snapshot is what the *board* looks like,
+   * and this is a question about a body's kit, its target and the levels it has
+   * earned — three things only whichever end owns the session can put together.
+   * Both ends answer it with the same pure function, so the buttons a browser
+   * draws and the casts a server honours cannot disagree. @see ./casting
+   *
+   * Empty for the overwhelming majority of bodies, which is what makes the row
+   * of buttons absent rather than empty for anybody who has never picked a stone
+   * up.
+   */
+  spells(): SpellButton[];
+  /**
+   * Cast the stone in this square, or refuse.
+   *
+   * **The square, never an id**, on the same grounds every other slot reference
+   * in this game names a square: a client naming an instance would be naming
+   * something the far end has to go looking for. Server-authoritative with no
+   * prediction, exactly as attacking is — a browser says "cast the stone in my
+   * off hand" and is told what came of it by the equipment message that follows.
+   *
+   * False for every refusal and no reason with it, on `moveItem`'s terms: the
+   * client asked {@link spells} before it offered the button, so a cast arriving
+   * that cannot be honoured is a race or a client making things up.
+   */
+  cast(square: CastSquare): boolean;
   canInteract(ref: ObjectRef): boolean;
   interact(ref: ObjectRef): boolean;
   /**
@@ -1070,6 +1119,66 @@ type ActorRuntime = {
 };
 
 /**
+ * How much of a stone's cooldown is wound off at a time, and the slack allowed
+ * when comparing accumulated ticks against it.
+ *
+ * A second, because a second is what a countdown can show — see
+ * {@link GameSession.advanceStoneCooldowns} for why the truth is kept at the
+ * same grain the drawing is. The epsilon is the same accumulated-float slack
+ * `./statuses` absorbs: `TICK_MS` is 1000/30 and is not representable, so thirty
+ * ticks of it come to 1000.0000000000005 and an honest comparison against a
+ * thousand would be a step late about half the time.
+ */
+const COOLDOWN_STEP_MS = 1000;
+const COOLDOWN_EPSILON_MS = 1e-6;
+
+/**
+ * What a spell cast on yourself is worth, before the learning rate.
+ *
+ * Flat, where a blow is scaled by how far above or below you the other body is.
+ * There is no other body: healing yourself is something you do in the middle of
+ * your own fight, and scaling it by whoever you happen to be pointing at would
+ * make bandaging yourself worth more against a troll and nothing at all against
+ * a rat — neither of which is a fact about the bandaging.
+ */
+const SELF_SPELL_MULTIPLIER = 1;
+
+/**
+ * The same kit with every cooling stone `spent` milliseconds nearer ready, or
+ * the very same object when nothing in it was cooling.
+ *
+ * **Identity is the answer**, which is what makes this free for the
+ * overwhelming majority of bodies: nobody is carrying a stone, so the walk finds
+ * nothing, allocates nothing, and the caller does not touch the kit at all. It
+ * is the same contract `withStatusModifiers` keeps for a body under nothing.
+ *
+ * The three squares a stone can be in and no others — see `./casting`'s
+ * {@link CAST_SQUARES}. A cooldown left over on something in a bag is not
+ * counting down, and should not be: a stone in a bag is a stone nobody is
+ * carrying, and the lock is what stops one getting there mid-cooldown in the
+ * first place.
+ */
+function cooledEquipment(equipment: Equipment, spentMs: number): Equipment {
+  let next: Equipment | null = null;
+  for (const square of CAST_SQUARES) {
+    const held = equipment[square];
+    if (!held?.cooldownMs) continue;
+    const remaining = held.cooldownMs - spentMs;
+    next ??= { ...equipment };
+    // Dropped rather than written as zero, so "ready" is the absence of a
+    // cooldown everywhere — the same thing an instance that has never been cast
+    // says, and one fewer state for anything reading this to tell apart.
+    if (remaining > 0) {
+      next[square] = { ...held, cooldownMs: remaining };
+    } else {
+      const { cooldownMs: _spent, ...ready } = held;
+      next[square] = ready;
+    }
+  }
+  return next ?? equipment;
+}
+
+/**
  * A body the world has just taken off the board.
  *
  * More than an id, because by the time anybody asks these questions the runtime
@@ -1219,6 +1328,15 @@ export class GameSession implements PlaySession {
   /** Map identity the last settle pass read. See {@link settleBoardNow}. */
   private settledMap: MapFile | null = null;
   private accumulatorMs = 0;
+  /**
+   * Simulated milliseconds banked towards the next second of stone cooldown.
+   *
+   * On the session rather than per actor because every stone in the world cools
+   * at the same rate: one clock, drained a whole step at a time, keeps every
+   * cooldown in the world in phase and costs one addition per tick.
+   * @see advanceStoneCooldowns
+   */
+  private stoneClockMs = 0;
   /**
    * The world's dice, shared by every brain in it.
    *
@@ -2107,6 +2225,13 @@ export class GameSession implements PlaySession {
     // Beside the cooldowns, because it is the same kind of thing: a countdown
     // somebody spent by swinging, winding back down while they do not.
     this.recoverDefensiveDecay(tickMs);
+    // And beside those, before anything is cast: a stone whose last second runs
+    // out on this tick is ready on this tick, whether the press comes from a
+    // player below or from a charm that fires on its own.
+    this.advanceStoneCooldowns(tickMs);
+    // After they have been wound down, so a charm that came ready this instant
+    // fires this instant rather than a tick late.
+    this.fireAutomaticStones();
 
     // Before the bodies move, so a decision taken now starts its walk on this
     // tick rather than the next.
@@ -2525,6 +2650,84 @@ export class GameSession implements PlaySession {
   }
 
   /**
+   * Wind every stone that is cooling down by whatever whole seconds have passed.
+   *
+   * **In whole seconds rather than per tick**, and that is a decision worth the
+   * paragraph. A cooldown lives on an {@link ItemInstance}, so winding one means
+   * replacing the kit that holds it — and the kit's *identity* is what tells the
+   * renderer its panel is stale and what tells the server there is an equipment
+   * message to send. Wound thirty times a second, a single cooling stone would
+   * re-render the page and put a whole inventory on the wire thirty times a
+   * second, for ever, for a number nothing on screen can show that finely.
+   *
+   * A second is the grain a countdown is drawn at — the same grain a status lane
+   * is compared at, for the same reason — so it is the grain the truth is kept
+   * at too. What it costs is that a cooldown which is not a whole number of
+   * seconds finishes up to a second late; every stone worth authoring is, and
+   * the schema's floor is a second.
+   *
+   * The accumulator is **drained rather than reset**, on the terms a status's
+   * cadence is: `update` runs up to ten ticks in one call, and a stone owes every
+   * second of that catch-up rather than the last one.
+   */
+  private advanceStoneCooldowns(tickMs: number) {
+    this.stoneClockMs += tickMs;
+    if (this.stoneClockMs + COOLDOWN_EPSILON_MS < COOLDOWN_STEP_MS) return;
+
+    // Whole steps only; whatever is left over rides on to the next tick, so the
+    // clock never drifts against the loop.
+    const steps = Math.floor(
+      (this.stoneClockMs + COOLDOWN_EPSILON_MS) / COOLDOWN_STEP_MS,
+    );
+    this.stoneClockMs -= steps * COOLDOWN_STEP_MS;
+    const spent = steps * COOLDOWN_STEP_MS;
+
+    for (const actor of this.actors.values()) {
+      const next = cooledEquipment(actor.equipment, spent);
+      // The same object back whenever nothing was cooling, which is almost every
+      // body almost always: no allocation, no message, no re-render.
+      if (next === actor.equipment) continue;
+      this.setEquipment(actor, next);
+    }
+  }
+
+  /**
+   * Let every charm that fires on its own do so, for whoever is wearing one.
+   *
+   * The charm square alone, because {@link handAccepts} refuses an automatic
+   * stone a hand: a hand is a thing you act with, and one that acted by itself
+   * would be a body casting spells nobody asked it to.
+   *
+   * Everything about *whether* is asked by the same two pure functions a pressed
+   * cast goes through — `castability` for whether it is allowed, `automaticFires`
+   * for whether the moment is right — so a passive and a button are the same act
+   * with a different finger on it. @see ./casting
+   */
+  private fireAutomaticStones() {
+    for (const actor of this.actors.values()) {
+      const held = actor.equipment.charm;
+      if (!held || held.cooldownMs) continue;
+      const def = this.tilesById[held.tileId];
+      const stone = def ? resolveStone(def) : null;
+      if (!stone?.automatic) continue;
+
+      const stats = this.battlerOf(actor);
+      const hp = this.hpOf(actor);
+      if (!stats || hp === null) continue;
+      if (
+        !automaticFires(stone, {
+          hp,
+          maxHp: stats.maxHp,
+          statusIds: actor.statuses.map((instance) => instance.defId),
+        })
+      ) {
+        continue;
+      }
+      this.cast("charm", actor.id);
+    }
+  }
+
+  /**
    * Age every lean, and drop the ones that are home.
    *
    * Beside {@link advanceCooldowns} and before anything swings, which is what
@@ -2845,6 +3048,78 @@ export class GameSession implements PlaySession {
   }
 
   /**
+   * Pay the arcanist whose spell dealt this damage, if a spell dealt it.
+   *
+   * **The whole of how a conjured flame earns its caster experience** — story by
+   * story the longest thread in the feature, and it comes down to this: a stone
+   * conjures a tile, the tile puts a status on whoever walks into it, the status
+   * remembers who is answerable, and this is where that memory is spent.
+   *
+   * Three refusals, and each is a rule rather than a guard:
+   *
+   * - **Nobody is answerable.** Every burn, poison and rot in the world that
+   *   nobody cast behaves exactly as it did before any of this existed.
+   * - **The caster is the victim.** Setting yourself on fire teaches you
+   *   nothing, or training would be a thing you do to yourself in a corner.
+   * - **The caster has left the world.** A name that no longer belongs to
+   *   anybody is out of date rather than corrupt, on the terms every other stale
+   *   id in this game is honoured.
+   *
+   * The stone is not consulted, because there may not be one any more: by the
+   * time a flame burns somebody the caster may have put the stone down, swapped
+   * it, or died holding it. What is being paid for is the damage, so the rate is
+   * the plain one — a caster who has outgrown their own fire is a refinement
+   * with nowhere to read the requirement from.
+   */
+  private awardCausedDamage(
+    victim: ActorRuntime,
+    causedBy: string | undefined,
+    damage: number,
+  ) {
+    if (!causedBy || causedBy === victim.id || damage <= 0) return;
+    const caster = this.actors.get(causedBy);
+    if (!caster || caster.resident) return;
+
+    const casterRating = this.ratingOf(caster);
+    const victimRating = this.ratingOf(victim);
+    if (casterRating === null || victimRating === null) return;
+
+    this.grantArcane(
+      caster,
+      damage,
+      undefined,
+      experienceMultiplier(victimRating, casterRating),
+    );
+
+  }
+
+  /**
+   * Pay a caster for what one spell came to, in the mastery casting trains.
+   *
+   * One door for all three ways a spell can be worth something — damage it dealt
+   * on the spot, health it actually restored, and damage something it conjured
+   * dealt later — so the scale and the learning rate cannot come to differ
+   * between them. @see `./experience`'s `casterEarnings`
+   *
+   * The stone is optional because the indirect case has none to offer; a spell
+   * with no requirement to read teaches at the full rate, which is what
+   * `learningRate` means by a requirement of zero.
+   */
+  private grantArcane(
+    caster: ActorRuntime,
+    amount: number,
+    stone: ArcaneStoneItem | undefined,
+    multiplier: number,
+  ) {
+    const body = this.bodyOf(caster);
+    if (!body) return;
+    this.grantExperience(
+      caster,
+      casterEarnings(amount, stone?.requirements, body.masteries, multiplier),
+    );
+  }
+
+  /**
    * Add experience to a body, and forget whatever was derived from the old
    * figures.
    *
@@ -3156,7 +3431,18 @@ export class GameSession implements PlaySession {
    *
    * The dice are the world's own — see `./statuses`.
    */
-  private grantStatus(actor: ActorRuntime, grant: StatusGrant) {
+  private grantStatus(
+    actor: ActorRuntime,
+    grant: StatusGrant,
+    /**
+     * Who is answerable for it, when anybody is.
+     *
+     * Absent for a berry, a bite and every hearth in the world, which is nearly
+     * every call — see `./statuses`'s {@link StatusInstance.causedBy}, which is
+     * where "no cause behaves exactly as it always did" is written down.
+     */
+    causedBy?: string,
+  ) {
     const def = this.statusDefs[grant.id];
     if (!def) return;
     // The item's range where it states one, and the status's own otherwise —
@@ -3166,7 +3452,13 @@ export class GameSession implements PlaySession {
       grant.fromMs === undefined || grant.toMs === undefined
         ? def
         : { fromMs: grant.fromMs, toMs: grant.toMs };
-    actor.statuses = applyStatus(actor.statuses, def, this.rng, range);
+    actor.statuses = applyStatus(
+      actor.statuses,
+      def,
+      this.rng,
+      range,
+      causedBy,
+    );
     // Noted here as well as on the tick, because eating happens *between* ticks
     // and the world may be asleep when it does — the same reason the kit is
     // flushed wherever it can change rather than only on the loop.
@@ -3216,21 +3508,304 @@ export class GameSession implements PlaySession {
       this.noteStatusReading(actor);
 
       for (const change of hpChanges) {
-        if (change < 0) {
-          this.applyDamage(actor, -change);
+        if (change.amount < 0) {
+          this.applyDamage(actor, -change.amount);
+          // Paid before the death check below, on the same terms a killing blow
+          // pays for itself: the arcanist who lit the fire earns from the last
+          // point of damage it did, and a body that has already left the board
+          // has nobody to pay.
+          this.awardCausedDamage(actor, change.causedBy, -change.amount);
           // A body that has just died is off the board, and everything after
           // this would be arithmetic on a corpse.
           if (actor.hp === 0) break;
           continue;
         }
-        if (change === 0) continue;
+        if (change.amount === 0) continue;
         const stats = this.battlerOf(actor);
         const before = this.hpOf(actor);
         if (stats && before !== null) {
-          actor.hp = Math.min(stats.maxHp, before + change);
+          actor.hp = Math.min(stats.maxHp, before + change.amount);
         }
       }
     }
+  }
+
+  /**
+   * What a cast is decided against, for one body, right now.
+   *
+   * Assembled here because this is the one place that knows where everybody is
+   * standing and what everybody has earned; decided in `./casting`, which knows
+   * none of that and is the same function the browser runs. Null for a body that
+   * is not on the board — a corpse casts nothing.
+   */
+  private castContextFor(actor: ActorRuntime): CastContext | null {
+    const from = this.tryLocate(actor);
+    if (!from) return null;
+
+    // The target is honoured only if it is still somebody: a slot pointing at a
+    // body that has died reads as no target at all, which is the same answer
+    // `runAutoAttacks` gives before it clears the slot.
+    const targetActor = actor.targetId
+      ? this.actors.get(actor.targetId)
+      : undefined;
+    const to = targetActor ? this.tryLocate(targetActor) : null;
+
+    const body = this.bodyOf(actor);
+    return {
+      map: this.map,
+      tilesById: this.tilesById,
+      equipment: actor.equipment,
+      // The *earned* body's masteries, so a level crossed a moment ago is a
+      // level a stone can be cast on — see {@link bodyOf}, which is where
+      // experience becomes levels.
+      masteries: body?.masteries ?? {},
+      caster: this.reachPointOf(from) as CastPoint,
+      target: to ? (this.reachPointOf(to) as CastPoint) : null,
+    };
+  }
+
+  /**
+   * Every stone this body could press, with why each can or cannot be cast.
+   *
+   * @see PlaySession.spells — the interface says why this is not on the
+   * snapshot. Empty for a body that is not on the board, which is the same
+   * answer it gives for a body carrying nothing.
+   */
+  spells(id: string = LOCAL_ACTOR_ID): SpellButton[] {
+    const actor = this.actors.get(id);
+    const context = actor ? this.castContextFor(actor) : null;
+    return context ? castableStones(context) : [];
+  }
+
+  /**
+   * Press the stone in this square.
+   *
+   * **The cooldown is spent before anything is resolved**, on exactly the terms
+   * a swing's is spent before the dice are rolled: a spell that missed, healed
+   * nothing or landed on a cell that would not take it has still been cast, and
+   * a cost that depended on the outcome would make pressing at the wrong moment
+   * free. The only things that cost nothing are the refusals `castability`
+   * names, which are the ones the button was dimmed for.
+   *
+   * Nothing here is predicted by a client. A browser sends "cast the stone in
+   * this square" and finds out what came of it from the equipment message and
+   * the patches that follow, which is the same arrangement attacking is under.
+   */
+  cast(square: CastSquare, id: string = LOCAL_ACTOR_ID): boolean {
+    const actor = this.actors.get(id);
+    if (!actor) return false;
+
+    const context = this.castContextFor(actor);
+    if (!context) return false;
+
+    const stone = stoneIn(actor.equipment, this.tilesById, square);
+    if (!stone) return false;
+    if (!castability(context, square).ok) return false;
+
+    // Before the effect, so nothing below can return early out of paying for it.
+    this.spendCooldown(actor, square, stone);
+    // And beside the cooldown rather than after the effect, on exactly the same
+    // grounds: what casting teaches you for its own sake is owed for the cast,
+    // not for what came of it. A light that lands on nobody is still a spell you
+    // threw. @see `./experience`'s `practiceEarnings`
+    this.grantExperience(actor, practiceEarnings());
+
+    if (stone.effect.kind === "heal") this.castHeal(actor, stone);
+    else if (stone.effect.kind === "status") {
+      this.castStatus(actor, square, stone.effect);
+    } else this.castConjure(actor, square, stone.effect.tileId);
+
+    return true;
+  }
+
+  /**
+   * Put this stone on its cooldown, wherever it is being cast from.
+   *
+   * Through {@link setEquipment} rather than by writing the instance, because a
+   * cooldown is a change to the kit like any other: it has to reach the owner's
+   * screen so the button dims, and it has to be written down so a reconnection
+   * does not clear it.
+   */
+  private spendCooldown(
+    actor: ActorRuntime,
+    square: CastSquare,
+    stone: ArcaneStoneItem,
+  ) {
+    const held = actor.equipment[square];
+    if (!held) return;
+    this.setEquipment(actor, {
+      ...actor.equipment,
+      [square]: { ...held, cooldownMs: stone.cooldownMs },
+    });
+  }
+
+  /**
+   * Put health back into the caster, and pay them for what they actually needed.
+   *
+   * **Paid on the health restored rather than on the amount the stone names**,
+   * which is the whole of "pressing a heal at full health teaches you nothing":
+   * a body two points down gets two points and two points' worth of experience
+   * out of a stone that says ten, and a body at full gets neither.
+   *
+   * The multiplier is flat, unlike a blow's. What `experienceMultiplier` scales
+   * by is how far above or below you the *other body* is, and there is no other
+   * body here — a heal is something you do to yourself in the middle of your own
+   * fight, and scaling it by whoever you happen to be pointing at would make
+   * bandaging yourself worth more against a troll.
+   */
+  private castHeal(actor: ActorRuntime, stone: ArcaneStoneItem) {
+    if (stone.effect.kind !== "heal") return;
+    const stats = this.battlerOf(actor);
+    const before = this.hpOf(actor);
+    if (!stats || before === null) return;
+
+    const restored = Math.min(stone.effect.hp, Math.max(0, stats.maxHp - before));
+    if (restored <= 0) return;
+    actor.hp = before + restored;
+    this.grantArcane(actor, restored, stone, SELF_SPELL_MULTIPLIER);
+  }
+
+  /**
+   * Start an authored status, on the caster or on what they are pointing at.
+   *
+   * A charm ignores the target entirely and a heal-shaped stone never had one —
+   * see `./casting`'s `needsTarget`, which owns that rule and which
+   * {@link castability} has already run. Read here again rather than passed
+   * down, because what a cast does and what a cast is *allowed* to do are two
+   * questions and only one of them belongs in a pure module.
+   *
+   * The caster is recorded as the cause, so damage the status does later pays
+   * them — including on themselves, where the payout is refused further down for
+   * being self-inflicted rather than by never being recorded. One rule, in one
+   * place. @see awardCausedDamage
+   */
+  private castStatus(
+    actor: ActorRuntime,
+    square: CastSquare,
+    effect: Extract<StoneEffect, { kind: "status" }>,
+  ) {
+    const onTarget = square !== "charm" && effect.on === "target";
+    const subject = onTarget
+      ? (actor.targetId ? this.actors.get(actor.targetId) : undefined)
+      : actor;
+    if (!subject) return;
+    // Nothing a status does is visible on something that cannot be hurt, which
+    // is `activateAddStatus`'s own argument and the same one here.
+    if (this.hpOf(subject) === null) return;
+
+    const grant: StatusGrant = {
+      id: effect.id,
+      ...(effect.fromMs !== undefined && effect.toMs !== undefined
+        ? { fromMs: effect.fromMs, toMs: effect.toMs }
+        : {}),
+    };
+    this.grantStatus(subject, grant, actor.id);
+  }
+
+  /**
+   * Put a conjured tile on the board — at the target's cell, or in front of the
+   * caster.
+   *
+   * **The one place a spell touches a cell, and the player never picks it.**
+   * With a target it lands on them, which is what makes a stone of flame a thing
+   * you aim the way you aim a bow; with nobody targeted it lands on the cell the
+   * caster is facing, which is what makes it a thing you can lay down in a
+   * doorway.
+   *
+   * A cell that will not take the tile — a wall, a full stack, the edge of the
+   * world — is a cast that placed nothing, and the cooldown has already been
+   * spent. That is the same bargain a swing that misses is under, and it is why
+   * the placement is checked with `canPlace` rather than forced.
+   *
+   * The placement remembers who cast it, which is the whole reason a flame can
+   * pay the arcanist who lit it. @see `../lib/types`'s `PlacedTile.castBy`
+   */
+  private castConjure(actor: ActorRuntime, square: CastSquare, tileId: string) {
+    const def = this.tilesById[tileId];
+    if (!def) return;
+
+    const where = this.conjureCell(actor, square);
+    if (!where) return;
+    const at = where.at;
+    if (!canPlace(this.map, at.x, at.y, at.z, def, this.tilesById).ok) return;
+
+    const placed: PlacedTile = {
+      tileId: def.id,
+      // The editor's rule for an armed tile, so a conjured lamp faces the way a
+      // stamped one does — the same line `/tile` places under.
+      ...(isDirectional(def) ? { direction: DEFAULT_FACING } : {}),
+      ...(isItem(def) ? { itemId: mintItemId() } : {}),
+      castBy: actor.id,
+    };
+    const stack = getStack(this.map, at.x, at.y, at.z);
+    const next = [...stack];
+    // **Under a body that is already standing there, and on top otherwise.** The
+    // same rule `/tile` places underfoot by, and the reason it matters here is
+    // that a flame is a thing you are *standing in*: what a tile does to a body
+    // is read off the stack below it, so a flame conjured on top of somebody
+    // would be a flame nobody is in. A body who walks in afterwards arrives
+    // above it either way, so both arrivals read the same.
+    next.splice(where.under ?? next.length, 0, placed);
+    this.map = replaceStack(this.map, at.x, at.y, at.z, next);
+    // What arrived may be a plate, may be wired, and is very likely subject to
+    // gravity — the same three indexes a summoned tile rebuilds, and the one
+    // that arms its decay. A conjured tile with no lifetime authored on it is a
+    // permanent one, which is the author's decision and not this function's.
+    this.reindexCells([at]);
+    this.settleBoardNow();
+
+    // **A floor that appears under you is the same event as walking onto one.**
+    // Without this a flame conjured at a target who is standing still does
+    // nothing at all until they happen to move, which would make an aimed spell
+    // useless against exactly the thing it is aimed at. The rule is the tile's
+    // own either way — `statusOnArrival` reads the stack below the body and
+    // honours whatever it finds, caster included.
+    const stood = where.under != null && actor.targetId
+      ? this.actors.get(actor.targetId)
+      : undefined;
+    if (stood) this.statusOnArrival(stood);
+  }
+
+  /**
+   * Where a conjure lands: on the target, or on the cell the caster is facing.
+   *
+   * A charm never reaches for a target — see `./casting`'s `needsTarget` — so a
+   * conjuring charm always lays its tile in front of its wearer, which is the
+   * only reading of "a charm acts on its holder" a tile can have.
+   *
+   * The cell in front is resolved through the same `destCellAfterStep` a walk
+   * uses, so a flame laid at the top of a ramp lands on the ramp rather than
+   * inside the floor beneath it.
+   */
+  private conjureCell(
+    actor: ActorRuntime,
+    square: CastSquare,
+  ): { at: Coord; under?: number } | null {
+    const from = this.tryLocate(actor);
+    if (!from) return null;
+
+    const target =
+      square !== "charm" && actor.targetId
+        ? this.actors.get(actor.targetId)
+        : undefined;
+    const to = target ? this.tryLocate(target) : null;
+    // Beneath the target's own placement, so what lands is a thing they are
+    // standing in rather than a thing balanced on their head.
+    if (to) {
+      return { at: { x: to.x, y: to.y, z: to.z }, under: to.stackIndex };
+    }
+
+    const facing = actorDirection(from);
+    const { dx, dy } = DIR_DELTA[facing];
+    return {
+      at: destCellAfterStep(
+        from.z,
+        from.x + dx,
+        from.y + dy,
+        this.map,
+        this.tilesById,
+      ),
+    };
   }
 
   /** What is running on this actor, for the chrome and for the checkpoint. */
@@ -3892,6 +4467,14 @@ export class GameSession implements PlaySession {
     const loc = this.tryLocate(actor);
     if (!loc) return false;
 
+    // Said out loud before the move is tried, and the *only* refusal in this
+    // module that says anything. Every other one is a drag the interface never
+    // offered — see `./itemMoves`, which returns null without a reason on
+    // exactly those grounds — where this is a square a player can plainly see
+    // something in and plainly cannot empty. Silence there reads as the panel
+    // being broken rather than as a rule.
+    if (this.noteCoolingRefusal(actor, loc, from)) return false;
+
     const moved = applyItemMove(
       this.map,
       this.tilesById,
@@ -3917,6 +4500,41 @@ export class GameSession implements PlaySession {
     id: string = LOCAL_ACTOR_ID,
   ): boolean {
     return this.dropCandidate(from, to, id) != null;
+  }
+
+  /**
+   * Tell this body why the thing in that square will not come out of it, if the
+   * reason is that it is cooling.
+   *
+   * True when it said something, so the caller can stop — which makes the call
+   * site read as "refused, and they have been told". False is the overwhelmingly
+   * common answer and costs one slot read.
+   *
+   * The stone is named rather than the square, because what is refusing is the
+   * thing rather than the place: put it in the other hand and it would refuse
+   * from there too.
+   */
+  private noteCoolingRefusal(
+    actor: ActorRuntime,
+    loc: ActorLocation,
+    from: SlotRef,
+  ): boolean {
+    const instance = itemInSlot(
+      this.map,
+      this.tilesById,
+      loc,
+      actor.equipment,
+      from,
+    );
+    if (!instance || !stoneLocked(instance, this.tilesById)) return false;
+    const def = this.tilesById[instance.tileId];
+    this.say(
+      actor.id,
+      coolingNotice(
+        instance.description?.trim() || def?.name || instance.tileId,
+      ),
+    );
+    return true;
   }
 
   /**
@@ -3951,6 +4569,12 @@ export class GameSession implements PlaySession {
 
     const def = this.tilesById[instance.tileId];
     if (!def) return null;
+    // A stone that is still cooling stays where it is, on the floor's terms as
+    // well as the kit's — see `./equipment`'s `stoneLocked`. The move rules
+    // refuse the same thing for the same reason, and both have to: putting a
+    // cooling stone down and picking it up again would clear the cooldown, which
+    // is the exploit the lock exists for.
+    if (stoneLocked(instance, this.tilesById)) return null;
     const destination = dropDestinationAt(this.map, this.tilesById, loc, to, def);
     if (!destination) return null;
     return { actor, instance, destination };
@@ -3969,6 +4593,12 @@ export class GameSession implements PlaySession {
    * rule a shoved crate follows and needs no special case here.
    */
   drop(from: SlotRef, to: Coord, id: string = LOCAL_ACTOR_ID): boolean {
+    const thrower = this.actors.get(id);
+    const at = thrower ? this.tryLocate(thrower) : null;
+    // Ahead of the candidate, which refuses a cooling stone silently: a throw
+    // that goes nowhere owes the same sentence a drag that goes nowhere does.
+    if (thrower && at && this.noteCoolingRefusal(thrower, at, from)) return false;
+
     const candidate = this.dropCandidate(from, to, id);
     if (!candidate) return false;
     const { actor, instance, destination } = candidate;
@@ -4711,7 +5341,10 @@ export class GameSession implements PlaySession {
       const def = this.tilesById[placed.tileId];
       const addStatus = def ? resolveAddStatus(def) : null;
       if (!addStatus || addStatus.trigger !== "step") continue;
-      this.grantStatus(actor, { id: addStatus.statusId });
+      // Whoever conjured the tile, if anybody did — which is what makes a flame
+      // an arcanist lit pay them when somebody walks into it, and leaves every
+      // hearth in the world attributed to nobody exactly as it was.
+      this.grantStatus(actor, { id: addStatus.statusId }, placed.castBy);
       return;
     }
   }
@@ -5017,6 +5650,13 @@ export class GameSession implements PlaySession {
     // somebody's screen. The cost is bounded by what an author wrote, which is
     // the same bargain decay lifetimes are under.
     if (this.liveProjectiles.length > 0) return false;
+    // A stone counting down is a clock this loop is the only thing winding, on
+    // exactly the terms decay is: falling asleep on one would leave a caster
+    // waiting for a cooldown that only resumes the next time somebody moves,
+    // which is the same bug "reconnecting resets it" was avoided to prevent,
+    // arrived at from the other side. Bounded by what an author wrote, which is
+    // the same bargain a lifetime is under.
+    if (this.anyStoneCooling()) return false;
 
     let observed = false;
     let thinking = false;
@@ -5054,6 +5694,23 @@ export class GameSession implements PlaySession {
     if (observed && thinking) return false;
 
     return this.map === this.settledMap;
+  }
+
+  /**
+   * Is anybody in the world carrying a stone that has not finished cooling?
+   *
+   * Walked rather than counted, because a count would be a second piece of state
+   * that every equip, drop, death and cast had to remember to keep in step — and
+   * because there are three squares per body and the answer is almost always
+   * found on the first one that is empty.
+   */
+  private anyStoneCooling(): boolean {
+    for (const actor of this.actors.values()) {
+      for (const square of CAST_SQUARES) {
+        if (actor.equipment[square]?.cooldownMs) return true;
+      }
+    }
+    return false;
   }
 
   /** Does this actor have a brain that is going to want a turn? */

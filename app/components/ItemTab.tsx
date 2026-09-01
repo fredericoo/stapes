@@ -1,4 +1,5 @@
 import type {
+  ArcaneStoneItem,
   ArmorItem,
   ArmorSlot,
   ConsumableItem,
@@ -17,6 +18,7 @@ import {
   DEFAULT_CONSUMABLE,
   DEFAULT_CONTAINER,
   DEFAULT_SHIELD,
+  DEFAULT_STONE,
   DEFAULT_WEAPON,
   MAX_ARMOR_DEF,
   MAX_CONSUMABLE_HP_SHIFT,
@@ -31,6 +33,7 @@ import type { TileDef } from "../lib/types";
 import { Input, Segmented, Switch } from "../ui";
 import { StatField } from "./StatField";
 import { StatusGrants } from "./StatusGrants";
+import { StoneFields } from "./StoneFields";
 import { MASTERY_LABELS, WeaponFields } from "./WeaponFields";
 
 type Props = {
@@ -67,6 +70,7 @@ const TYPE_OPTIONS: Array<{ value: ItemType; label: string }> = [
   { value: "consumable", label: "Consumable" },
   { value: "container", label: "Container" },
   { value: "artifact", label: "Artifact" },
+  { value: "stone", label: "Arcane stone" },
 ];
 
 /**
@@ -103,7 +107,12 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
     else if (type === "shield") setItem({ ...DEFAULT_SHIELD });
     else if (type === "consumable") setItem({ ...DEFAULT_CONSUMABLE });
     else if (type === "artifact") setItem({ ...DEFAULT_ARTIFACT });
-    else setItem({ ...DEFAULT_CONTAINER });
+    // Deep enough to matter: the default's effect is a shared object, and a
+    // shallow copy would let a stone edited in the tile editor write through it
+    // into every other stone that took the same default.
+    else if (type === "stone") {
+      setItem({ ...DEFAULT_STONE, effect: { ...DEFAULT_STONE.effect } });
+    } else setItem({ ...DEFAULT_CONTAINER });
   };
 
   const patchWeapon = (fields: Partial<WeaponItem>) => {
@@ -128,6 +137,11 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
 
   const patchContainer = (fields: Partial<ContainerItem>) => {
     if (item.type !== "container") return;
+    setItem({ ...item, ...fields });
+  };
+
+  const patchStone = (fields: Partial<ArcaneStoneItem>) => {
+    if (item.type !== "stone") return;
     setItem({ ...item, ...fields });
   };
 
@@ -342,6 +356,13 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
             &mdash; so anything that lights a room, or is merely worth carrying,
             belongs on this type rather than on a weapon nobody wants to swing.
           </p>
+        ) : item.type === "stone" ? (
+          <StoneFields
+            stone={item}
+            onChange={patchStone}
+            tiles={tiles}
+            statusDefs={statusDefs}
+          />
         ) : item.type === "shield" ? (
           <div className="flex flex-col gap-3">
             <p className="max-w-lg text-[11px] leading-snug text-muted">
