@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { defFrom } from "../lib/battler";
-import { DEFAULT_CONTAINER } from "../lib/item";
+import { DEFAULT_ARTIFACT, DEFAULT_CONTAINER } from "../lib/item";
 import { emptyMap, getStack, parseMap, replaceStack, serializeMap } from "../lib/mapData";
 import { parseServerMessage } from "../net/protocol";
 import type { ItemInstance } from "../lib/itemInstance";
@@ -66,6 +66,8 @@ const DUMMY_DEF = defFrom(DUMMY_TOUGHNESS);
 const BARE_DAMAGE = 5;
 /** What the light sword should come to — twice bare hands, as it always was. */
 const SWORD_DAMAGE = 10;
+/** Deliberately not {@link SWORD_DAMAGE}, so a blow says which hand threw it. */
+const OFF_SWORD_DAMAGE = 6;
 
 const tiles: TileDef[] = [
   tile({ id: "grass" }),
@@ -197,10 +199,20 @@ const tiles: TileDef[] = [
     intangible: true,
     light: { radius: 6, intensity: 1, color: "#ffcc88" },
     interactions: {
-      item: { type: "weapon", damage: 1, def: 0, offhand: true, accuracy: 40, variance: 0, spd: 40, mastery: "blunt" },
+      item: { ...DEFAULT_ARTIFACT },
     },
   }),
   // Slow and clumsy in the two ways a weapon can now be told to be.
+  // A second exact weapon, worth a different amount at the same speed: what
+  // makes an alternating pair readable off the damage numbers alone.
+  tile({
+    id: "off-sword",
+    kind: "item",
+    intangible: true,
+    interactions: {
+      item: { type: "weapon", damage: OFF_SWORD_DAMAGE + DUMMY_DEF, def: 0, accuracy: 100, variance: 0, spd: 100, mastery: "blunt" },
+    },
+  }),
   tile({
     id: "heavy-sword",
     kind: "item",
@@ -417,6 +429,128 @@ describe("a weapon reaches the blow", () => {
   it("leaves an empty-handed body fighting with its natural weapon", () => {
     const session = fightingSession();
     expect(damageOver(session, TICK_MS * 3)).toBe(BARE_DAMAGE);
+  });
+
+  /**
+   * Both hands, in a real fight rather than in the arithmetic.
+   *
+   * `../game/equipment`'s unit tests pin what a hand is worth; these pin that
+   * the session actually takes turns — that the rotation advances on a swing,
+   * survives the cooldown being spent, and pays the right mastery.
+   */
+  describe("with a weapon in each hand", () => {
+    /** Straight onto the runtime, on the terms {@link arm} is. */
+    function armBoth(session: GameSession, weapon: string, offhand: string) {
+      const kit = session.equipmentOf(selfId(session))!;
+      kit.weapon = { id: "itm_main", tileId: weapon };
+      kit.offhand = { id: "itm_off", tileId: offhand };
+    }
+
+    /**
+     * What each blow *this body threw* was worth, in the order they landed.
+     *
+     * Filtered to the dummy, because the dummy hits back: an unfiltered read
+     * interleaves both sides' numbers and an alternating pair is exactly the
+     * thing that would look like noise.
+     */
+    function blowsOver(session: GameSession, ms: number): number[] {
+      const dummyId = session
+        .actorSnapshots()
+        .find((a) => a.tileId === "dummy")!.id;
+      const blows: number[] = [];
+      for (let elapsed = 0; elapsed < ms; elapsed += TICK_MS) {
+        session.tick(TICK_MS);
+        // `drainDamage` rather than the snapshot's `damage`, which is what a
+        // viewer should still be able to see rather than what just happened:
+        // its numbers outlive the tick that made them, so reading it back is
+        // not the order the blows were thrown in. This is the drain the server
+        // itself calls right after `tick`.
+        for (const number of session.drainDamage()) {
+          if (number.targetId === dummyId) blows.push(number.amount);
+        }
+      }
+      return blows;
+    }
+
+    /**
+     * **The property the whole design rests on.** Two of the same weapon throws
+     * the same blows as one of them — same worth, same rate. If this ever fails,
+     * dual wielding has become a damage increase by accident, which is exactly
+     * what alternating rather than adding exists to avoid.
+     *
+     * About the blows and nothing else: a second copy of a weapon that guards
+     * still guards, which is `./equipment.test`'s to pin and is not visible from
+     * here. `light-sword` is authored `def: 0`, so this session is measuring
+     * only what it claims to.
+     */
+    it("throws the same blows with two of a weapon as with one", () => {
+      const one = fightingSession();
+      arm(one, "light-sword");
+      const two = fightingSession();
+      armBoth(two, "light-sword", "light-sword");
+
+      expect(blowsOver(two, 2000)).toEqual(blowsOver(one, 2000));
+    });
+
+    /**
+     * Each blow is worth the hand that threw it.
+     *
+     * **The two streams rather than their order.** A body alternating a blade
+     * and a hammer produces blows in two bands — what each weapon is worth in
+     * these hands — and both bands are present. That is the whole claim, and it
+     * is asserted this way on purpose: the order damage *numbers* surface in is
+     * a fact about the viewer's list rather than about the fight, and a test
+     * that pinned it would be pinning the wrong thing. The rotation's own order
+     * is pinned where it lives, against `handToSwing` in `./equipment.test`.
+     *
+     * The bands cannot overlap here: both weapons are certain to hit for exactly
+     * what they are worth, and the two figures are far enough apart that the
+     * mastery each hand earns as the fight runs cannot close the gap.
+     */
+    it("throws blows worth each of its two hands", () => {
+      const session = fightingSession();
+      armBoth(session, "light-sword", "off-sword");
+
+      const blows = blowsOver(session, 2000);
+      expect(blows.length).toBeGreaterThan(3);
+
+      const main = blows.filter((blow) => blow >= SWORD_DAMAGE);
+      const off = blows.filter((blow) => blow < SWORD_DAMAGE);
+      // Both hands landed, and nothing landed worth neither of them.
+      expect(main.length).toBeGreaterThan(0);
+      expect(off.length).toBeGreaterThan(0);
+      expect(main.length + off.length).toBe(blows.length);
+      // The off hand is worth its own weapon and not the main hand's — the
+      // failure this whole change exists to fix, where a second weapon was
+      // inert and every blow came out of one hand.
+      expect(Math.max(...off)).toBeLessThan(Math.min(...main));
+      expect(Math.max(...off)).toBeGreaterThanOrEqual(OFF_SWORD_DAMAGE);
+    });
+
+    /**
+     * A hand holding something it will not swing takes no turn, so the other
+     * hand fights on alone — the case that would otherwise halve your output for
+     * picking up a torch.
+     */
+    it("does not take turns with a hand that cannot swing", () => {
+      const alone = fightingSession();
+      arm(alone, "light-sword");
+      const shielded = fightingSession();
+      armBoth(shielded, "light-sword", "torch");
+
+      expect(blowsOver(shielded, 2000)).toEqual(blowsOver(alone, 2000));
+    });
+
+    /** Each hand teaches its own mastery, because each hand threw its own blow. */
+    it("pays the mastery of the hand that swung", () => {
+      const session = fightingSession();
+      armBoth(session, "light-sword", "off-sword");
+      advance(session, 2000);
+
+      const xp = session.getSnapshot().masteryXp;
+      expect(xp.blade ?? 0).toBeGreaterThan(0);
+      expect(xp.blunt ?? 0).toBeGreaterThan(0);
+    });
   });
 });
 

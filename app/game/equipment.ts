@@ -14,6 +14,7 @@ import {
   resolveArmor,
   resolveContainer,
   resolveItem,
+  resolveShield,
   resolveWeapon,
 } from "../lib/item";
 import { EQUIP_SLOTS, type EquipSlot } from "../lib/kit";
@@ -48,19 +49,18 @@ import type { TileDef } from "../lib/types";
 export type Equipment = {
   weapon: ItemInstance | null;
   /**
-   * The other hand — a torch, a shield, whatever is worth carrying that is not
-   * what you are swinging.
+   * The other hand, and it is the same hand — see {@link HANDS}.
    *
-   * **It exists because the weapon slot was the only hand there was, and a
-   * held weapon replaces your fists rather than adding to them.** So a lantern,
-   * which is authored as a weapon because it had to go somewhere, meant fighting
-   * at a twentieth of your bare hands to see in the dark. That is a real
-   * trade-off to offer a player and a terrible one to impose on them without
-   * saying so, and the honest fix is a second hand rather than a warning label.
+   * **It exists because the weapon slot was the only hand there was**, and a
+   * lantern authored as a weapon meant fighting at a twentieth of your bare
+   * hands to see in the dark. A second square fixed that and left a worse thing
+   * behind: this one did not swing, so a second sword was inert and a shield
+   * dragged into the *other* square silently replaced what you fought with.
    *
-   * It does not swing. What reaches a fight from here is light and defence —
-   * see {@link carriedLightTileIds} and {@link effectiveBattler} — which is
-   * exactly what a torch and a shield are for.
+   * It swings now. A body with a weapon in each hand takes turns between them —
+   * see {@link handToSwing} — so both squares reach a fight the same way, and
+   * light and defence come off either. What separates them is nothing except
+   * which one is up next.
    */
   offhand: ItemInstance | null;
   /**
@@ -113,6 +113,35 @@ export type Equipment = {
   /** An equippable container. Its `contents` is the inventory. */
   bag: ItemInstance | null;
 };
+
+/**
+ * The two squares that hold something, rather than wear it.
+ *
+ * **They are the same square twice, and that is the whole of ambidexterity.**
+ * One of them used to be the hand that fought and the other the hand that did
+ * not: `weaponInHand` read `weapon` and nothing else, so a second sword was a
+ * shield that happened to look like a sword, and a shield dragged into the main
+ * hand silently replaced what you fought with. Neither of those was a rule
+ * anybody wrote down — they fell out of one field being read where two existed.
+ *
+ * The order is the order the turns are taken in when nobody has swung yet. It
+ * is otherwise not a ranking: see {@link handToSwing}.
+ */
+export const HANDS = ["weapon", "offhand"] as const;
+
+/** One of the two hands. */
+export type Hand = (typeof HANDS)[number];
+
+/**
+ * The hand a body takes its turn with after this one.
+ *
+ * A pair, so the rotation is a lookup rather than a conditional at every site
+ * that has to advance it. With more than two hands this would be an index; with
+ * two it is this.
+ */
+export function otherHand(hand: Hand): Hand {
+  return hand === "weapon" ? "offhand" : "weapon";
+}
 
 /**
  * Which slot a thing is worn in.
@@ -358,30 +387,116 @@ export function weaponInHand(
   base: BattlerDef,
   equipment: Equipment | null,
   tilesById: Record<string, TileDef>,
+  hand: Hand | null,
 ): WeaponItem {
-  const held = equipment?.weapon;
+  const held = hand ? equipment?.[hand] : null;
   if (!held) return base.naturalWeapon;
   const def = tilesById[held.tileId];
   return (def ? resolveWeapon(def) : null) ?? base.naturalWeapon;
 }
 
 /**
- * The numbers a body fights with, given what it is wearing.
+ * The weapon this hand would swing, or null for a hand that takes no turn.
+ *
+ * **Null is the interesting answer**, and there are three ways to get it: an
+ * empty hand, a hand holding something that is not a weapon at all — a torch, a
+ * bag, a loaf of bread — and a hand holding a {@link ShieldItem}, which is a
+ * `def` with a handle and was made a kind of its own precisely so that this
+ * function could refuse it. While only one hand fought, a shield could be
+ * authored as a `damage: 0` weapon and the off hand's contents were never
+ * swung anyway; the moment both hands take turns, that arrangement is half your
+ * blows landing for nothing.
+ *
+ * Not given the body, unlike {@link weaponInHand}: what is in a hand is a fact
+ * about the hand, and the natural weapon is what happens when *no* hand has an
+ * answer — which is {@link handToSwing}'s business rather than this one's.
+ */
+export function weaponSwungBy(
+  equipment: Equipment | null,
+  tilesById: Record<string, TileDef>,
+  hand: Hand,
+): WeaponItem | null {
+  const held = equipment?.[hand];
+  if (!held) return null;
+  const def = tilesById[held.tileId];
+  return def ? resolveWeapon(def) : null;
+}
+
+/**
+ * The hand this body's next blow comes from, or null for a body swinging what
+ * it was born with.
+ *
+ * **The rotation skips hands that have nothing to swing**, and that is the rule
+ * that makes one sword no worse than it was. A body alternating between a sword
+ * and an empty fist would land half the blows it used to for holding exactly
+ * what it held before — so an empty hand is not a turn, it is an absence.
+ *
+ * It follows that **two of the same weapon swing exactly as one of them does**:
+ * same damage, same speed, same mastery, whichever hand is up. That is the
+ * property worth checking any change here against, and note what it does *not*
+ * say — a second sword still guards, because {@link heldDefence} counts what is
+ * in both hands and a blade held up is a blade in the way. Two parrying swords
+ * are twice the parry and exactly one sword's worth of swing. Nothing
+ * special-cases this; it falls out of alternating rather than adding, which is
+ * the whole reason the rotation is worth having.
+ *
+ * `preferred` is whose turn it is, and it is honoured only if that hand has
+ * something to swing. A body that drops the sword it was about to use swings the
+ * other one rather than punching, and a body with one weapon swings it every
+ * time whatever the counter says — so nothing has to reset the rotation when
+ * equipment moves, which is the entire reason the state can be a single hand
+ * rather than a history.
+ *
+ * Null when neither hand answers, which is bare hands, two torches, or a body
+ * that never had hands to speak of. The caller reads
+ * {@link BattlerDef.naturalWeapon} through {@link weaponInHand}, which takes
+ * null and means exactly this.
+ */
+export function handToSwing(
+  equipment: Equipment | null,
+  tilesById: Record<string, TileDef>,
+  preferred: Hand,
+): Hand | null {
+  if (weaponSwungBy(equipment, tilesById, preferred)) return preferred;
+  const other = otherHand(preferred);
+  return weaponSwungBy(equipment, tilesById, other) ? other : null;
+}
+
+/** Whether this body has a weapon in each hand, and so a rotation at all. */
+export function fightsWithBothHands(
+  equipment: Equipment | null,
+  tilesById: Record<string, TileDef>,
+): boolean {
+  return HANDS.every((hand) => weaponSwungBy(equipment, tilesById, hand));
+}
+
+/**
+ * The numbers a body fights with, given what it is wearing and which hand is
+ * taking this turn.
  *
  * The one entry point the simulation uses, so there is a single place where
  * "these are the numbers" is answered — see `GameSession.battlerOf`, which
  * funnels the swing, the cooldown and the health bar's maximum through it.
+ *
+ * **The hand changes the blow and never the body.** `maxHp` comes off Toughness
+ * and `flee` off Agility; neither has ever read the weapon, which is why
+ * alternating hands did not need this function split in two. What moves with the
+ * hand is damage, accuracy, speed, mastery, reach, what it throws and what it
+ * inflicts — the swing — and what does not is everything a health bar draws. A
+ * caller with no particular hand in mind passes null and gets the body's own
+ * weapon, which is what an Arena row and a duel preview want.
  */
 export function effectiveBattler(
   base: BattlerDef,
   equipment: Equipment | null,
   tilesById: Record<string, TileDef>,
+  hand: Hand | null,
 ): FightingStats {
-  const stats = fightingStats(base, weaponInHand(base, equipment, tilesById));
+  const stats = fightingStats(base, weaponInHand(base, equipment, tilesById, hand));
   // Assigned rather than added to what `fightingStats` worked out, because
-  // {@link wornDefence} has already counted that: the weapon in hand is one of
-  // its three sources. Adding here is exactly the double count that splitting
-  // defence across two functions used to invite — and did.
+  // {@link wornDefence} has already counted the hands. Adding here is exactly
+  // the double count that splitting defence across two functions used to
+  // invite — and did.
   // Everything worn, plus what the body turns aside on its own — see
   // `../lib/battler`'s {@link bodyDefence}. Toughness's share is the one part of
   // defence `wornDefence` does not count, so it is the one part that has to
@@ -430,33 +545,33 @@ export function armorResistances(
 /**
  * Everything this body has between it and a blow, added up.
  *
- * **Three sources and they sum**: what you are swinging, what you are holding
- * up, and what you have on — the last of which is itself the sum of the four
+ * **Three sources and they sum**: both hands, what this body turns aside with
+ * its own, and what it has on — the last of which is itself the sum of the four
  * worn squares, see {@link armorDefence}. A sword with a `def` is a parrying
- * sword and a shield in your fist is a shield, so the main hand counts on
- * exactly the terms the others do — a body with a shield in each hand is
- * protected twice, and one wearing a helm and mail behind them twice more.
- * There is deliberately no cap and no diminishing return: the numbers an author
- * writes are the numbers, on the terms a weapon's damage is, and a ceiling
- * imposed here would be balance hiding in a helper.
+ * sword and a shield in your fist is a shield, so the two hands count on exactly
+ * the same terms as each other — a body with a shield in each hand is protected
+ * twice, and one wearing a helm and mail behind them twice more. There is
+ * deliberately no cap and no diminishing return: the numbers an author writes
+ * are the numbers, on the terms a weapon's damage is, and a ceiling imposed here
+ * would be balance hiding in a helper.
  *
- * **The main hand replaces rather than adds, and only within its own slot.**
- * What is counted is {@link weaponInHand} — the held weapon, or the body's
- * natural one — so taking up a shield trades your claws' `def` for the shield's,
- * along with trading your bite for whatever the shield swings like. That is the
- * same replacement rule the swing itself is under, and it is what makes a shield
- * in the main hand a decision rather than three free points.
+ * **Arming yourself replaces your claws rather than adding to them**, and it is
+ * the hands *together* that decide it now — see {@link natureDefence}. Taking up
+ * anything you swing trades what your own hands turned aside for what the thing
+ * does; taking up a shield does not, because a shield is not what you are
+ * fighting with. That is the same replacement rule the swing itself is under.
  *
- * **This was already the arithmetic; it was not in one place.** The main hand's
- * `def` reached a fight through `fightingStats`, which resolves the weapon,
- * while the other two were summed here — so "how protected is this body" had two
- * answers and neither function's name admitted it. The comment on
- * `WeaponItem.def` confidently said a main-hand `def` did nothing, which was
- * false the day it was written. It is one function now, and `effectiveBattler`
- * *assigns* what this returns rather than adding to it.
+ * **This was already the arithmetic; it was not in one place, and half of it was
+ * secretly about one hand.** The main hand's `def` reached a fight through
+ * `fightingStats`, which resolves the weapon, while the other hand was summed
+ * here — so "how protected is this body" had two answers, neither function's
+ * name admitted it, and the natural weapon's share appeared or vanished
+ * depending on which fist a sword was in. It is one function now, over squares
+ * that are the same as each other, and `effectiveBattler` *assigns* what this
+ * returns rather than adding to it.
  *
- * Takes the body for the same reason {@link weaponInHand} does: bare hands are a
- * weapon, and what an empty fist turns aside is a fact about whose fist it is.
+ * Takes the body because bare hands are a weapon, and what an empty fist turns
+ * aside is a fact about whose fist it is.
  */
 export function wornDefence(
   base: BattlerDef,
@@ -464,10 +579,43 @@ export function wornDefence(
   tilesById: Record<string, TileDef>,
 ): number {
   return (
-    weaponInHand(base, equipment, tilesById).def +
-    offhandDefence(equipment, tilesById) +
+    heldDefence(equipment, tilesById) +
+    natureDefence(base, equipment, tilesById) +
     armorDefence(equipment, tilesById)
   );
+}
+
+/**
+ * What this body turns aside with its own hands, when its own hands are what it
+ * is fighting with.
+ *
+ * **Once, and only for a body neither of whose hands swings.** Claws that turn a
+ * blow aside are a fact about a body fighting bare; the moment it takes up
+ * anything it swings, it is that thing in the way instead — the same replacement
+ * rule the *swing* is under, and the reason it is a replacement rather than a
+ * bonus is that otherwise arming yourself would be free defence.
+ *
+ * Counting it once rather than per empty hand is what keeps a shield honest: a
+ * body holding only a shield still has its claws, and a body holding a shield
+ * and a sword has the sword instead. Per-hand, the shield-only case would pay
+ * for the empty fist twice.
+ *
+ * This is the one place the old asymmetry actually lived. `weaponInHand` used to
+ * answer the main hand and fall back to the natural weapon, so the natural
+ * `def` appeared exactly when the main hand was empty — which meant a sword in
+ * your off hand and nothing in your right was claws-plus-sword, and the same
+ * sword one square over was sword alone. Nobody wrote that rule; it fell out of
+ * reading one field.
+ */
+function natureDefence(
+  base: BattlerDef,
+  equipment: Equipment | null,
+  tilesById: Record<string, TileDef>,
+): number {
+  const swinging = HANDS.some((hand) =>
+    weaponSwungBy(equipment, tilesById, hand),
+  );
+  return swinging ? 0 : base.naturalWeapon.def;
 }
 
 /**
@@ -565,14 +713,22 @@ export function armorForSlot(slot: ArmorSlot, def: TileDef): ArmorItem | null {
  * Zero for an empty hand, a tile the catalogue has lost, and anything with no
  * opinion about defence.
  */
-export function offhandDefence(
+export function heldDefence(
   equipment: Equipment | null,
   tilesById: Record<string, TileDef>,
 ): number {
-  const held = equipment?.offhand;
-  if (!held) return 0;
-  const def = tilesById[held.tileId];
-  return def ? (resolveWeapon(def)?.def ?? 0) : 0;
+  let total = 0;
+  for (const hand of HANDS) {
+    const held = equipment?.[hand];
+    if (!held) continue;
+    const def = tilesById[held.tileId];
+    if (!def) continue;
+    // A weapon's `def` or a shield's, which are the same field under two names
+    // — a parrying sword and a buckler are both things you put in the way. A
+    // torch has neither and adds nothing, which is what an artifact is.
+    total += resolveWeapon(def)?.def ?? resolveShield(def)?.def ?? 0;
+  }
+  return total;
 }
 
 /**

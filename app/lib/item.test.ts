@@ -5,6 +5,7 @@ import {
   DEFAULT_ARTIFACT,
   DEFAULT_CONSUMABLE,
   DEFAULT_CONTAINER,
+  DEFAULT_SHIELD,
   DEFAULT_WEAPON,
   MAX_ARMOR_DEF,
   MAX_CONSUMABLE_HP_SHIFT,
@@ -342,7 +343,7 @@ describe("itemForSave", () => {
   it("writes an artifact as the bare type, whatever the draft carried", () => {
     // A torch was a weapon until this type existed, so this is the exact draft
     // an author produces by switching the arm on the tile it was authored on.
-    const draft = { ...DEFAULT_ARTIFACT, damage: 1, offhand: true } as never;
+    const draft = { ...DEFAULT_ARTIFACT, damage: 1, def: 3 } as never;
     expect(itemForSave(draft)).toEqual({ type: "artifact" });
     expect(itemForSave(draft)).not.toHaveProperty("damage");
   });
@@ -588,7 +589,7 @@ describe("equipVerb", () => {
     expect(equipVerb(tile("item", { item: { ...DEFAULT_ARMOR } }))).toBe("Wear");
     expect(equipVerb(tile("item", { item: { ...DEFAULT_WEAPON } }))).toBe("Wield");
     expect(
-      equipVerb(tile("item", { item: { ...DEFAULT_WEAPON, offhand: true } })),
+      equipVerb(tile("item", { item: { ...DEFAULT_SHIELD } })),
     ).toBe("Hold");
     expect(equipVerb(tile("item", { item: { ...DEFAULT_CONTAINER } }))).toBe(
       "Put on",

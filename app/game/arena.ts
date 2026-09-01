@@ -6,7 +6,14 @@ import {
 import { EQUIP_SLOTS, type EquipSlot } from "../lib/kit";
 import { type Masteries, MASTERIES } from "../lib/mastery";
 import type { TileDef } from "../lib/types";
-import { effectiveBattler, emptyEquipment, type Equipment } from "./equipment";
+import {
+  effectiveBattler,
+  emptyEquipment,
+  type Equipment,
+  type Hand,
+  HANDS,
+  weaponSwungBy,
+} from "./equipment";
 import { slotTakes } from "./itemMoves";
 
 /**
@@ -146,9 +153,40 @@ export function statsOf(
   fighter: ArenaFighter,
   tilesById: Record<string, TileDef>,
 ): FightingStats | null {
+  return swingsOf(fighter, tilesById)[0] ?? null;
+}
+
+/**
+ * Every blow this fighter throws, in the order its hands take turns.
+ *
+ * **One entry per hand that has something to swing, and never empty** — a body
+ * with nothing in either hand throws one blow with what it was born with. That
+ * is the same shape `GameSession` fights in, arrived at the same way: see
+ * `./equipment`'s {@link handToSwing}.
+ *
+ * A list rather than a single block because a tuner that showed one hand's
+ * numbers for a body holding two weapons would be answering a different
+ * question than the one being asked. This *was* a single block, and passed
+ * `null` for the hand — which does not mean "no hand in particular", it means
+ * bare hands, so the Arena quietly reported every fighter's natural weapon
+ * whatever it was holding.
+ */
+export function swingsOf(
+  fighter: ArenaFighter,
+  tilesById: Record<string, TileDef>,
+): FightingStats[] {
   const body = bodyOf(fighter, tilesById);
-  if (!body) return null;
-  return effectiveBattler(body, equipmentOf(fighter, tilesById), tilesById);
+  if (!body) return [];
+  const equipment = equipmentOf(fighter, tilesById);
+  const hands = HANDS.filter((hand) =>
+    weaponSwungBy(equipment, tilesById, hand),
+  );
+  // Bare hands are a weapon, so a body with nothing to swing still throws one
+  // blow — `effectiveBattler` takes null and means exactly that.
+  const rotation: (Hand | null)[] = hands.length > 0 ? hands : [null];
+  return rotation.map((hand) =>
+    effectiveBattler(body, equipment, tilesById, hand),
+  );
 }
 
 /** Every tile that could stand in the ring, in the order the catalogue holds. */

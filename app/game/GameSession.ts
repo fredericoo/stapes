@@ -132,11 +132,14 @@ import {
   canReach,
   rollAttack,
 } from "./combat";
-import type { Equipment } from "./equipment";
+import type { Equipment, Hand } from "./equipment";
 import {
   carriedLightTileIds,
   effectiveBattler,
   emptyEquipment,
+  HANDS,
+  handToSwing,
+  otherHand,
   weaponInHand,
   wornInstances,
 } from "./equipment";
@@ -915,6 +918,30 @@ type ActorRuntime = {
    */
   earnedBody: { authored: BattlerDef; body: BattlerDef } | null;
   /**
+   * Whose turn it is, when this body has a weapon in each hand.
+   *
+   * **The whole of ambidexterity's state, and it is one word.** A body with two
+   * weapons alternates between them, so something has to remember which one is
+   * next; everything else about the rotation is a pure function of what is being
+   * held — see `./equipment`'s {@link handToSwing}, which honours this only if
+   * that hand still has something to swing.
+   *
+   * That fallback is what keeps this a hand rather than a history. Dropping the
+   * sword you were about to use swings the other one; picking a second one up
+   * joins the rotation wherever it happens to be; a body with one weapon swings
+   * it every turn whatever this says. So nothing that moves an item has to reach
+   * in and correct it, which is the failure mode a counter or an index would
+   * have had — one that could be left pointing at an empty fist.
+   *
+   * **Not durable**, like {@link hp} and {@link brain} rather than like the kit
+   * itself: which fist somebody was about to use is the state of a fight, and a
+   * fight does not survive the world being unloaded. Coming back mid-rotation on
+   * the other hand costs one blow of a weapon you were going to swing anyway.
+   * It never crosses the wire either — the client is *told* its cooldown rather
+   * than working it out, so there is no prediction here to keep in step.
+   */
+  nextHand: Hand;
+  /**
    * How many defensive payouts each attacker has already been worth, and how
    * long since the last one.
    *
@@ -1573,6 +1600,7 @@ export class GameSession implements PlaySession {
       slide: null,
       strike: null,
       memo: null,
+      nextHand: HANDS[0],
     };
     this.actors.set(id, actor);
     this.forgetTileIndex();
@@ -2583,7 +2611,21 @@ export class GameSession implements PlaySession {
 
     // Spent whether or not the blow connects: the swing happened, and a dodge
     // that cost the attacker nothing would let a fast creature flail for free.
+    // The interval is this hand's own — a dagger's turn is a dagger's wait, so a
+    // body alternating a dagger and an axe keeps an uneven rhythm rather than
+    // averaging into one that belongs to neither.
     attacker.attackCooldownMs = swingIntervalMs(attackerStats);
+
+    // Read before the rotation moves and carried down, rather than asked again
+    // where the experience is settled: that would be the *next* hand's weapon
+    // teaching the wielder, and a body alternating a blade and a hammer would
+    // spend the whole fight training the wrong mastery.
+    const swung = this.handOf(attacker);
+    // Advanced on the swing rather than on the blow landing, on exactly the
+    // terms the cooldown above is spent: a hand that has taken its turn has
+    // taken it, and a miss that let you swing the same weapon again would make
+    // the better one of two worth flailing with.
+    attacker.nextHand = swung ? otherHand(swung) : attacker.nextHand;
 
     // And the body is planted for exactly one of its own steps, on the same
     // terms and for the balance the cooldown alone could not buy: see
@@ -2640,7 +2682,7 @@ export class GameSession implements PlaySession {
     this.notePendingHurt(target.id, attacker.id);
     // Before the damage too, so the killing blow pays for itself — a body that
     // has already left the board has no experience to be given.
-    this.awardExperience(attacker, target, outcome);
+    this.awardExperience(attacker, target, outcome, swung);
 
     if (outcome.missed) {
       this.floatSwing(target, "miss", 0);
@@ -2751,6 +2793,14 @@ export class GameSession implements PlaySession {
     attacker: ActorRuntime,
     target: ActorRuntime,
     outcome: AttackOutcome,
+    /**
+     * The hand that actually threw this blow, or null for bare hands.
+     *
+     * Passed in rather than read here, because the rotation has already moved on
+     * by the time this runs — see {@link tryAttack}. What a swing teaches is a
+     * fact about the weapon that swung.
+     */
+    swung: Hand | null,
   ) {
     // A miss pays nobody, so there is nothing to work out. Worth the early
     // return rather than falling through the two arithmetics below to zero:
@@ -2769,7 +2819,7 @@ export class GameSession implements PlaySession {
           attacker,
           attackerEarnings(
             outcome,
-            weaponInHand(body, attacker.equipment, this.tilesById),
+            weaponInHand(body, attacker.equipment, this.tilesById, swung),
             body.masteries,
             experienceMultiplier(targetRating, attackerRating),
           ),
@@ -3076,7 +3126,25 @@ export class GameSession implements PlaySession {
   private baseBattlerOf(actor: ActorRuntime): FightingStats | null {
     const body = this.bodyOf(actor);
     if (!body) return null;
-    return effectiveBattler(body, actor.equipment, this.tilesById);
+    return effectiveBattler(
+      body,
+      actor.equipment,
+      this.tilesById,
+      this.handOf(actor),
+    );
+  }
+
+  /**
+   * Which hand this body is about to swing with, or null for one swinging what
+   * it was born with.
+   *
+   * **A read and never a write**, which is what lets {@link battlerOf} stay
+   * something a health bar can ask sixty times a second: the rotation only
+   * advances where a swing is actually spent, in {@link tryAttack}. A body being
+   * *looked at* is not taking turns.
+   */
+  private handOf(actor: ActorRuntime): Hand | null {
+    return handToSwing(actor.equipment, this.tilesById, actor.nextHand);
   }
 
   /**

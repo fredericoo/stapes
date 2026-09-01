@@ -6,11 +6,31 @@ import type { TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { equipmentForBody, equipmentFromKit } from "./battlerKit";
+import type { Equipment, Hand } from "./equipment";
 import {
   effectiveBattler,
   emptyEquipment,
+  HANDS,
+  handToSwing,
   wornInstances,
 } from "./equipment";
+
+/**
+ * The hand a body starts a fight on, which is what nearly every case here means.
+ *
+ * Both hands swing now, so "the numbers this body fights with" is a question
+ * about a *turn* rather than about a body — see `./equipment`'s
+ * `effectiveBattler`. Almost nothing below is about the rotation, so almost
+ * everything below asks for the first hand that has something to swing and lets
+ * `handToSwing` fall back to bare hands on its own. The cases that *are* about
+ * the rotation name their hand outright.
+ */
+function firstHand(
+  equipment: Equipment | null,
+  tiles: Record<string, TileDef>,
+): Hand | null {
+  return handToSwing(equipment, tiles, HANDS[0]);
+}
 
 /**
  * Rolling an authored kit into a body's equipment.
@@ -320,8 +340,8 @@ describe("a body born in armour", () => {
 
   it("gets the whole of what it is wearing", () => {
     const kit = equipmentForBody("goblin", world, dice([HIT]).random);
-    const bare = effectiveBattler(body, emptyEquipment(), world);
-    const dressed = effectiveBattler(body, kit, world);
+    const bare = effectiveBattler(body, emptyEquipment(), world, firstHand(emptyEquipment(), world));
+    const dressed = effectiveBattler(body, kit, world, firstHand(kit, world));
 
     expect(kit.armor?.tileId).toBe("mail");
     expect(dressed.def).toBe(bare.def + 4);

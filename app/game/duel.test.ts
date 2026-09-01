@@ -87,7 +87,7 @@ function duel(
   rng: Rng,
   maxTicks = MAX_DUEL_TICKS,
 ): DuelResult {
-  return runDuel({ stats: a }, { stats: b }, rng, { maxTicks });
+  return runDuel({ swings: [a] }, { swings: [b] }, rng, { maxTicks });
 }
 
 /** How often the first side wins, over enough fights for the answer to settle. */
@@ -466,8 +466,8 @@ describe("the duel loop", () => {
   it("replays a fight blow for blow on the same seed", () => {
     const a = fists(bodyOf("player"));
     const b = fists(bodyOf("wolf"));
-    const once = runDuel({ stats: a }, { stats: b }, new Rng(7));
-    const twice = runDuel({ stats: a }, { stats: b }, new Rng(7));
+    const once = runDuel({ swings: [a] }, { swings: [b] }, new Rng(7));
+    const twice = runDuel({ swings: [a] }, { swings: [b] }, new Rng(7));
     expect(twice).toEqual(once);
   });
 
@@ -476,7 +476,7 @@ describe("the duel loop", () => {
     const b = fists(bodyOf("wolf"));
     const results = new Set(
       [1, 2, 3, 4, 5, 6, 7, 8].map(
-        (seed) => runDuel({ stats: a }, { stats: b }, new Rng(seed)).ticks,
+        (seed) => runDuel({ swings: [a] }, { swings: [b] }, new Rng(seed)).ticks,
       ),
     );
     expect(results.size).toBeGreaterThan(1);
@@ -489,11 +489,11 @@ describe("the duel loop", () => {
   it("lets the faster body land the opening blow", () => {
     const quick = dummy({ spd: 100, hitChance: 1, damage: 1, variance: 0 });
     const slow = dummy({ spd: 1, hitChance: 1, damage: 1, variance: 0 });
-    const duel = new Duel({ stats: quick }, { stats: slow }, new Rng(1));
+    const duel = new Duel({ swings: [quick] }, { swings: [slow] }, new Rng(1));
     const swings = duel.tick().filter((event) => event.kind === "swing");
     expect(swings.map((event) => event.by)).toEqual(["a", "b"]);
 
-    const second = new Duel({ stats: slow }, { stats: quick }, new Rng(1));
+    const second = new Duel({ swings: [slow] }, { swings: [quick] }, new Rng(1));
     second.tick();
     // A whole cooldown on — `MIN_ATTACK_TICKS`, the floor between two blows —
     // and only the quick one has come round again, wherever it is sitting.
@@ -516,7 +516,7 @@ describe("the duel loop", () => {
     // Enough fights that the defender's one-in-twenty escape cannot carry the
     // assertion — see `MIN_CHANCE`.
     for (let seed = 0; seed < 50; seed++) {
-      const duel = new Duel({ stats: killer }, { stats: victim }, new Rng(seed));
+      const duel = new Duel({ swings: [killer] }, { swings: [victim] }, new Rng(seed));
       const events = duel.tick();
       const answered = events.some(
         (event) => event.kind === "swing" && event.by === "b",
@@ -532,8 +532,8 @@ describe("the duel loop", () => {
     expect(snake.statuses.length).toBeGreaterThan(0);
 
     const duel = new Duel(
-      { stats: snake },
-      { stats: fists(bodyOf("player")) },
+      { swings: [snake] },
+      { swings: [fists(bodyOf("player"))] },
       new Rng(3),
     );
     for (let tick = 0; tick < 200; tick++) duel.tick();
@@ -552,7 +552,7 @@ describe("the duel loop", () => {
     // Long enough for a 10% venom to take at the snake's rate, over enough
     // seeds that the assertion is about the mechanism and not about one roll.
     const poisoned = [0, 1, 2, 3, 4].map((seed) => {
-      const duel = new Duel({ stats: snake }, { stats: victim }, new Rng(seed), {
+      const duel = new Duel({ swings: [snake] }, { swings: [victim] }, new Rng(seed), {
         statusDefs,
       });
       const ailments: number[] = [];
@@ -580,8 +580,8 @@ describe("the duel loop", () => {
       statuses: [{ id: "nonesuch", chance: 100 }],
     });
     const duel = new Duel(
-      { stats: attacker },
-      { stats: dummy({ flee: 0, maxHp: 500, hitChance: 0 }) },
+      { swings: [attacker] },
+      { swings: [dummy({ flee: 0, maxHp: 500, hitChance: 0 })] },
       new Rng(1),
       { statusDefs },
     );
@@ -592,7 +592,7 @@ describe("the duel loop", () => {
   /** A fight nobody can win is called rather than hung. */
   it("calls a draw when neither side can get through", () => {
     const stone = dummy({ damage: 0, def: 99, maxHp: 50 });
-    const result = runDuel({ stats: stone }, { stats: stone }, new Rng(1), {
+    const result = runDuel({ swings: [stone] }, { swings: [stone] }, new Rng(1), {
       maxTicks: 500,
     });
     expect(result.winner).toBeNull();

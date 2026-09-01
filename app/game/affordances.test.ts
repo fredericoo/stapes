@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_CONTAINER, DEFAULT_WEAPON } from "../lib/item";
+import {
+  DEFAULT_CONTAINER,
+  DEFAULT_SHIELD,
+  DEFAULT_WEAPON,
+} from "../lib/item";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
@@ -53,7 +57,7 @@ const tiles = [
   tile({
     id: "shield",
     kind: "item",
-    interactions: { item: { ...DEFAULT_WEAPON, offhand: true } },
+    interactions: { item: { ...DEFAULT_SHIELD } },
   }),
   // And the other way into that hand: no numbers at all, so no flag either.
   tile({

@@ -5,7 +5,12 @@ import { AppShell } from "../components/AppShell";
 import { ArenaFighterPanel } from "../components/ArenaFighterPanel";
 import { ArenaMetrics } from "../components/ArenaMetrics";
 import { type Floater, ArenaStage, type StageSide } from "../components/ArenaStage";
-import { type ArenaFighter, battlerTiles, fighterForTile, statsOf } from "../game/arena";
+import {
+  type ArenaFighter,
+  battlerTiles,
+  fighterForTile,
+  swingsOf,
+} from "../game/arena";
 import { swingOdds } from "../game/combatMetrics";
 import { DAMAGE_NUMBER_LIFETIME_MS, TICK_MS } from "../game/constants";
 import { type DuelEvent, Duel, opponentOf, type Side, SIDES } from "../game/duel";
@@ -143,8 +148,14 @@ export default function ArenaPage() {
   const [playing, setPlaying] = useState(false);
   const [snapshot, setSnapshot] = useState<Snapshot>(emptySnapshot);
 
-  const statsA = useMemo(() => statsOf(a, tilesById), [a, tilesById]);
-  const statsB = useMemo(() => statsOf(b, tilesById), [b, tilesById]);
+  // Every blow each side throws, in the order its hands take turns — one entry
+  // for the overwhelmingly common one-weapon body, two for a body fighting with
+  // both. The duel alternates through them exactly as the world does.
+  const swingsA = useMemo(() => swingsOf(a, tilesById), [a, tilesById]);
+  const swingsB = useMemo(() => swingsOf(b, tilesById), [b, tilesById]);
+  // The opening blow, which is what the odds row and the readouts quote.
+  const statsA = swingsA[0] ?? null;
+  const statsB = swingsB[0] ?? null;
   const names = useMemo(
     () => ({
       a: tilesById[a.tileId]?.name ?? a.tileId,
@@ -171,10 +182,10 @@ export default function ArenaPage() {
     setPlaying(false);
     runtime.current =
       statsA && statsB
-        ? new Runtime(statsA, statsB, seed, statusDefs, names)
+        ? new Runtime(swingsA, swingsB, seed, statusDefs, names)
         : null;
     setSnapshot(runtime.current?.snapshot(statusDefs) ?? emptySnapshot());
-  }, [statsA, statsB, seed, statusDefs, names]);
+  }, [statsA, statsB, swingsA, swingsB, seed, statusDefs, names]);
 
   useEffect(() => {
     if (!playing) return;
@@ -210,7 +221,7 @@ export default function ArenaPage() {
   const restart = () => {
     setPlaying(false);
     if (statsA && statsB) {
-      runtime.current = new Runtime(statsA, statsB, seed, statusDefs, names);
+      runtime.current = new Runtime(swingsA, swingsB, seed, statusDefs, names);
     }
     publish();
   };
@@ -382,8 +393,8 @@ class Runtime {
   private nextId = 0;
 
   constructor(
-    statsA: FightingStats,
-    statsB: FightingStats,
+    swingsA: readonly FightingStats[],
+    swingsB: readonly FightingStats[],
     seed: number,
     statusDefs: Record<string, StatusDef>,
     /**
@@ -396,8 +407,8 @@ class Runtime {
     private readonly names: Record<Side, string>,
   ) {
     this.duel = new Duel(
-      { stats: statsA },
-      { stats: statsB },
+      { swings: swingsA },
+      { swings: swingsB },
       new Rng(seed),
       { statusDefs },
     );

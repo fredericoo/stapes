@@ -3,18 +3,24 @@ import {
   bodyOf,
   equipmentOf,
   fighterForTile,
-  statsOf,
+  swingsOf,
   tilesForSlot,
 } from "../game/arena";
-import { weaponInHand } from "../game/equipment";
+import {
+  type Hand,
+  HANDS,
+  weaponInHand,
+  weaponSwungBy,
+} from "../game/equipment";
 import {
   ACCURACY_AT_MAX_MASTERY,
+  type BattlerDef,
   DAMAGE_AT_MAX_MASTERY,
   type FightingStats,
   weaponReadiness,
 } from "../lib/battler";
 import type { WeaponItem } from "../lib/item";
-import { EQUIP_SLOTS, type EquipSlot } from "../lib/kit";
+import { EQUIP_SLOTS, type EquipSlot, SLOT_LABELS } from "../lib/kit";
 import {
   MASTERIES,
   MAX_MASTERY,
@@ -78,7 +84,10 @@ export function ArenaFighterPanel({
   battlers: TileDef[];
 }) {
   const body = bodyOf(fighter, tilesById);
-  const stats = statsOf(fighter, tilesById);
+  // Every blow, not the first one: a body fighting with two weapons throws two
+  // different blows and a tuner showing one of them is answering half the
+  // question. One entry for everything else, which is nearly everything.
+  const swings = swingsOf(fighter, tilesById);
 
   return (
     <section className="flex min-w-0 flex-col gap-3 border-2 border-border bg-panel p-3">
@@ -121,9 +130,18 @@ export function ArenaFighterPanel({
         tilesets={tilesets}
       />
 
-      <NaturalWeapon fighter={fighter} tilesById={tilesById} />
+      <WeaponsInHand fighter={fighter} tilesById={tilesById} />
 
-      <DerivedStats stats={stats} />
+      {swings.map((stats: FightingStats, index: number) => (
+        <DerivedStats
+          key={index}
+          stats={stats}
+          // Named only when there is more than one, because "Fights with" is
+          // the whole truth for a body with a single weapon and a hand label
+          // beside it would be answering a question nobody asked.
+          hand={swings.length > 1 ? HANDS[index] : null}
+        />
+      ))}
     </section>
   );
 }
@@ -255,7 +273,20 @@ function Equipment({
  */
 const EMPTY_SLOT = "::empty::";
 
-function NaturalWeapon({
+/**
+ * What each hand is called, where a row has to say which one it is talking
+ * about.
+ *
+ * The kit editor's own words — see `../lib/kit`'s {@link SLOT_LABELS} — so the
+ * square a weapon is chosen in and the row reporting what it swings for are
+ * named the same thing.
+ */
+const HAND_LABELS: Record<Hand, string> = {
+  weapon: SLOT_LABELS.weapon,
+  offhand: SLOT_LABELS.offhand,
+};
+
+function WeaponsInHand({
   fighter,
   tilesById,
 }: {
@@ -267,13 +298,55 @@ function NaturalWeapon({
   // What is actually swung, not what the body was born with — a held weapon
   // replaces the natural one, and a readout quoting the wrong one of the two is
   // the single most misleading thing this panel could show.
-  const weapon = weaponInHand(body, equipmentOf(fighter, tilesById), tilesById);
+  //
+  // The hand a body starts on, rather than no hand at all: this row names a
+  // weapon, and "none in particular" would name the claws of a body plainly
+  // holding a sword. A fighter with one in each hand is showing the first of the
+  // two, which the Arena's own equipment rows say outright beside it.
+  const equipment = equipmentOf(fighter, tilesById);
+  const hands = HANDS.filter((hand) =>
+    weaponSwungBy(equipment, tilesById, hand),
+  );
+  // Bare hands are a weapon, so a body swinging nothing still has one row.
+  const rotation: (Hand | null)[] = hands.length > 0 ? hands : [null];
+
+  return (
+    <>
+      {rotation.map((hand) => (
+        <WeaponBlock
+          key={hand ?? "natural"}
+          fighter={fighter}
+          body={body}
+          weapon={weaponInHand(body, equipment, tilesById, hand)}
+          hand={rotation.length > 1 ? hand : null}
+        />
+      ))}
+    </>
+  );
+}
+
+/** One weapon's authored numbers, named by the hand holding it. */
+function WeaponBlock({
+  fighter,
+  body,
+  weapon,
+  hand,
+}: {
+  fighter: ArenaFighter;
+  body: BattlerDef;
+  weapon: WeaponItem;
+  hand: Hand | null;
+}) {
   const natural = weapon === body.naturalWeapon;
 
   return (
     <div className="flex flex-col gap-1 border-2 border-border/40 bg-paper p-2">
       <span className="text-[11px] font-bold uppercase text-muted">
-        {natural ? "Natural weapon" : "Weapon in hand"}
+        {natural
+          ? "Natural weapon"
+          : hand
+            ? `Weapon in hand — ${HAND_LABELS[hand]}`
+            : "Weapon in hand"}
       </span>
       <dl className="grid grid-cols-3 gap-x-2 gap-y-0.5 text-[11px] tabular-nums">
         <Figure label="damage" value={weapon.damage} />
@@ -334,12 +407,19 @@ function MasteryDemand({
   );
 }
 
-function DerivedStats({ stats }: { stats: FightingStats | null }) {
+function DerivedStats({
+  stats,
+  hand = null,
+}: {
+  stats: FightingStats | null;
+  /** Which hand this blow comes from, or null for a body throwing only one. */
+  hand?: Hand | null;
+}) {
   if (!stats) return null;
   return (
     <div className="flex flex-col gap-1 border-2 border-border bg-paper p-2">
       <span className="text-[11px] font-bold uppercase text-muted">
-        Fights with
+        {hand ? `Fights with — ${HAND_LABELS[hand]}` : "Fights with"}
       </span>
       <dl className="grid grid-cols-3 gap-x-2 gap-y-0.5 text-[11px] tabular-nums">
         <Figure label="max hp" value={stats.maxHp} />

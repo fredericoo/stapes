@@ -48,9 +48,9 @@ export type SlotRef =
   /**
    * The other hand — a torch, a shield, anything you carry rather than swing.
    *
-   * A slot of its own rather than a second weapon slot, because what reaches a
-   * fight from here is light and defence and never a blow. See
-   * `./equipment`'s `offhand` for why it exists at all.
+   * A square of its own rather than a second weapon slot, and it is the *same*
+   * square: both hands swing, and a body with a weapon in each takes turns
+   * between them. See `./equipment`'s `HANDS`.
    */
   | { kind: "offhand" }
   /**
