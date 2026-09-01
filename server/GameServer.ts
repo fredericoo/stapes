@@ -1905,6 +1905,7 @@ export class GameServer {
 
     this.flushEquipment();
     this.flushSounds();
+    this.flushBlows();
     this.flushTags();
     this.flushNotices();
     this.flushMasteries();
@@ -1952,6 +1953,35 @@ export class GameServer {
         stackIndex,
       });
     }
+  }
+
+  /**
+   * Send anything a message caused to be *seen*, before the next tick swallows
+   * it.
+   *
+   * The twin of {@link flushSounds}, on the same argument and closing the same
+   * hole one page over: input arrives *between* ticks and
+   * {@link GameSession.tick} empties every page at its top, so a receipt or a
+   * flight recorded by a cast is cleared before the tick's own collection ever
+   * sees it. A swing never had this problem because a swing happens *inside* the
+   * tick; a cast is a message.
+   *
+   * **This is what a bolt fired and nobody saw.** Both pages, and both of them
+   * genuinely reachable from input now: the number floating off whoever the
+   * bolt landed on, and the mote in the air on its way there. A flush that
+   * covered one of the two would be exactly the trap {@link flushSounds} says
+   * it is refusing to lay.
+   *
+   * Onto `events` rather than straight down a socket, because that is where the
+   * tick's own collection puts them and they have to arrive in one order — the
+   * wake below starts the loop that broadcasts them. Draining is idempotent, so
+   * a message that hit nobody costs two empty arrays and sends nothing.
+   */
+  private flushBlows() {
+    const session = this.session;
+    if (!session) return;
+    this.collectDamageEvents(session);
+    this.collectProjectileEvents(session);
   }
 
   /**

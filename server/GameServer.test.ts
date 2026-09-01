@@ -3790,6 +3790,9 @@ describe("casting", () => {
   const STONE_TILE_ID = "test-arcane-stone";
   const STONE_COOLDOWN_MS = 60_000;
 
+  const BOLT_TILE_ID = "test-arcane-bolt";
+  const BOLT_DAMAGE = 30;
+
   /** A charm stone that mends, which is the shipped necklace's shape. */
   function stoneTile(): unknown {
     return {
@@ -3824,6 +3827,52 @@ describe("casting", () => {
     };
   }
 
+  /**
+   * A hand stone that harms whatever it is pointed at, and throws something on
+   * the way.
+   *
+   * Reach far enough that where the two bodies happen to spawn cannot decide
+   * the case: what is being tested is the wire, not the geometry.
+   */
+  function boltTile(): unknown {
+    return {
+      id: BOLT_TILE_ID,
+      name: "Test Bolt",
+      height: 0,
+      type: "simple",
+      kind: "item",
+      attributes: {},
+      lightPassing: true,
+      intangible: true,
+      affectedByGravity: true,
+      interactions: {
+        item: {
+          type: "stone",
+          effect: {
+            kind: "bolt",
+            damage: BOLT_DAMAGE,
+            on: "target",
+            projectile: { tileId: "arrow", cellsPerSecond: 20 },
+          },
+          cooldownMs: STONE_COOLDOWN_MS,
+          reach: { cells: 8, height: 2 },
+        },
+      },
+      sprite: {
+        frames: [
+          {
+            sprite: {
+              tilesetId: "tiny-ranch-tiles",
+              rect: { x: 0, y: 0, w: 1, h: 1 },
+              base: { x: 0, y: 0 },
+            },
+            durationMs: 200,
+          },
+        ],
+      },
+    };
+  }
+
   /** The shipped catalogue, with the player born wearing one. */
   function tilesWithStone(): unknown[] {
     return [
@@ -3841,12 +3890,14 @@ describe("casting", () => {
               kit: [
                 ...((battler.kit as unknown[]) ?? []),
                 { slot: "charm", tileId: STONE_TILE_ID, chance: 100 },
+                { slot: "weapon", tileId: BOLT_TILE_ID, chance: 100 },
               ],
             },
           },
         };
       }),
       stoneTile(),
+      boltTile(),
     ];
   }
 
@@ -3872,6 +3923,36 @@ describe("casting", () => {
     const kit = await equipmentWithin(ws);
     expect(kit).not.toBeNull();
     expect(charmCooldown(kit!)).toBe(STONE_COOLDOWN_MS);
+  });
+
+  /**
+   * **A bolt fired and nobody saw it**, which is what this exists to stop
+   * happening twice.
+   *
+   * A cast is a *message*, and `GameSession.tick` empties every page at its top
+   * — so the flight and the receipt a cast records between two ticks were both
+   * cleared before the tick's own collection ever ran. Everything downstream was
+   * correct and nothing arrived: the damage landed, the cooldown started, the
+   * kit came back, and the mote was never in the air on anybody's screen.
+   *
+   * A swing never had this problem, because a swing happens inside the tick.
+   * That is exactly why no test caught it — the session suite drains straight
+   * after casting, with no tick in between, and sees the flight it just made.
+   * This one goes the whole way to a socket.
+   */
+  it("puts a cast's flight and its receipt on the wire", async () => {
+    const victimId = freshPlayer();
+    const thrower = await connect(freshPlayer());
+    await connect(victimId);
+
+    const shots = eventsWithin(thrower.ws, "projectileFired", 400);
+    const hits = eventsWithin(thrower.ws, "damage", 400);
+
+    send(thrower.ws, { type: "target", actorId: victimId });
+    send(thrower.ws, { type: "cast", square: "weapon" });
+
+    expect((await shots).map((shot) => shot.tileId)).toContain("arrow");
+    expect(await hits).not.toHaveLength(0);
   });
 
   /**
