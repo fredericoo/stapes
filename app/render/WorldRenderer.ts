@@ -379,7 +379,7 @@ function emitterOverridesKey(
  * the bake left out but cannot carve a shadow the bake never knew about.
  * Omitting an occluder would light straight through it. A mobile tile that
  * blocks light therefore stays baked and pays for its movement — see the note in
- * AGENTS.md before changing that.
+ * docs/notes.md before changing that.
  *
  * **It used to say `isMobileTile`, and that let a lit thing vanish.** A lantern
  * is affected by gravity and passes light, so it was omitted from the bake — and

@@ -65,11 +65,11 @@ export function masteryNotice(mastery: Mastery, level: number): string {
  * What a reward that has just been handed over says.
  *
  * **The one notice for a thing that happened rather than a thing that did not.**
- * A reward is invisible by design — see the reward notes in `AGENTS.md`: the
- * board is not touched, the chest stays a chest and stays full, and the only
- * evidence is a line item somewhere in a bag the player may not have open. That
- * is exactly the gap a sentence is for. It is also the one moment that can never
- * come round again, which is why it is worth interrupting for at all.
+ * A reward is invisible by design — see the reward notes in `docs/notes.md`:
+ * the board is not touched, the chest stays a chest and stays full, and the
+ * only evidence is a line item somewhere in a bag the player may not have open.
+ * That is exactly the gap a sentence is for. It is also the one moment that can
+ * never come round again, which is why it is worth interrupting for at all.
  *
  * The verb is the *authored* one — `Open` on a quest chest, and whatever an
  * author writes on the next thing — lowercased into the sentence. Composed here
