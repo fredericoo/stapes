@@ -7,7 +7,11 @@ import {
   IconShoe,
 } from "@tabler/icons-react";
 import { useMemo, type ComponentType } from "react";
-import type { Equipment } from "../game/equipment";
+import {
+  handClaimedByTwoHander,
+  otherHand,
+  type Equipment,
+} from "../game/equipment";
 import type { BodySlotRef } from "../game/itemMoves";
 import type { MasteryXp } from "../lib/mastery";
 import type { TileDef, TilesetDef } from "../lib/types";
@@ -222,6 +226,11 @@ export function EquipmentPanel({
   className?: string;
 }) {
   const tilesById = useMemo(() => tilesByIdFromList(tiles), [tiles]);
+  // Which hand a two-handed weapon has reached into, and the weapon doing it.
+  // Both come off the kit rather than being drawn per square, because it is one
+  // fact about the pair — see `../game/equipment`'s `handClaimedByTwoHander`.
+  const claimed = handClaimedByTwoHander(equipment, tilesById);
+  const spilling = claimed ? equipment[otherHand(claimed)] : null;
 
   return (
     <section
@@ -256,6 +265,7 @@ export function EquipmentPanel({
               emptyHint={square.emptyHint}
               emptyIcon={square.icon}
               open={isOpen(square.slot, { bagOpen, handOpen })}
+              spilledInto={square.slot.kind === claimed ? spilling : null}
               drag={drag}
               inspecting={inspecting}
               masteryXp={masteryXp}

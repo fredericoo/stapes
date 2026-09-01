@@ -5,7 +5,7 @@ import { mintItemId } from "../lib/itemInstance";
 import type { Kit, KitContent } from "../lib/kit";
 import { MAX_KIT_CHANCE } from "../lib/kit";
 import type { TileDef } from "../lib/types";
-import { emptyEquipment, type Equipment } from "./equipment";
+import { emptyEquipment, type Equipment, handHasRoomFor } from "./equipment";
 import { slotAccepts } from "./itemMoves";
 
 /**
@@ -99,6 +99,18 @@ export function equipmentFromKit(
     if (equipment[entry.slot]) continue;
     const instance = instantiate(entry.tileId, tilesById);
     if (!instance || !slotAccepts(entry.slot, instance, tilesById)) continue;
+    // What the *other* hand is doing, which is the one thing a square cannot
+    // answer on its own: a body authored a greatsword and a dagger has to come
+    // out holding one of them. The entry that rolled first wins, on the terms
+    // an already-full square is skipped above.
+    const def = tilesById[entry.tileId];
+    if (
+      def &&
+      (entry.slot === "weapon" || entry.slot === "offhand") &&
+      !handHasRoomFor(equipment, tilesById, entry.slot, def)
+    ) {
+      continue;
+    }
 
     equipment[entry.slot] = fill(instance, contents, tilesById);
   }

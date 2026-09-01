@@ -50,6 +50,11 @@ const tiles = [
     interactions: { item: { type: "armor", def: 4 } },
   }),
   tile({
+    id: "pike",
+    kind: "item",
+    interactions: { item: { ...DEFAULT_WEAPON, twoHanded: true } },
+  }),
+  tile({
     id: "helm",
     kind: "item",
     interactions: { item: { type: "armor", slot: "head", def: 2 } },
@@ -542,6 +547,119 @@ describe("the bag slot", () => {
  * of what this square contributes to a fight, so a sword worn as a shirt would
  * be a number about nothing.
  */
+/**
+ * A weapon that takes both hands.
+ *
+ * **The first rule where one square's answer depends on another**, which is why
+ * it is worth pinning from both ends: a hand whose partner holds a pike is
+ * spoken for, and a pike may not go into a hand whose partner is occupied.
+ */
+describe("a two-handed weapon", () => {
+  function carrying(weapon: string | null, offhand: string | null): Equipment {
+    return {
+      ...emptyEquipment(),
+      weapon: weapon ? { id: `itm_${weapon}`, tileId: weapon } : null,
+      offhand: offhand ? { id: `itm_${offhand}`, tileId: offhand } : null,
+      bag: {
+        id: "itm_bag",
+        tileId: "bag",
+        contents: [
+          { id: "itm_pike", tileId: "pike" },
+          { id: "itm_sword", tileId: "sword" },
+        ],
+      },
+    };
+  }
+  const PIKE = { kind: "contents", index: 0 } as const;
+  const SWORD = { kind: "contents", index: 1 } as const;
+
+  it("takes a free pair of hands, in either square", () => {
+    for (const hand of ["weapon", "offhand"] as const) {
+      const moved = applyItemMove(
+        emptyMap(),
+        tilesById,
+        ME,
+        carrying(null, null),
+        PIKE,
+        { kind: hand },
+      );
+      expect(moved?.equipment[hand]?.tileId).toBe("pike");
+      // Occupies one square and claims the other — the other stays *empty*
+      // rather than holding a copy, because there is one pike.
+      expect(moved?.equipment[hand === "weapon" ? "offhand" : "weapon"]).toBeNull();
+    }
+  });
+
+  it("refuses a hand whose partner is already holding something", () => {
+    for (const [weapon, offhand, into] of [
+      ["sword", null, "offhand"],
+      [null, "sword", "weapon"],
+    ] as const) {
+      expect(
+        canMoveItem(emptyMap(), tilesById, ME, carrying(weapon, offhand), PIKE, {
+          kind: into,
+        }),
+      ).toBe(false);
+    }
+  });
+
+  /** And the same rule from the other end: the claimed hand takes nothing. */
+  it("spoken-fors the other hand against everything", () => {
+    for (const [weapon, offhand, into] of [
+      ["pike", null, "offhand"],
+      [null, "pike", "weapon"],
+    ] as const) {
+      expect(
+        canMoveItem(emptyMap(), tilesById, ME, carrying(weapon, offhand), SWORD, {
+          kind: into,
+        }),
+      ).toBe(false);
+    }
+  });
+
+  /**
+   * **Not a swap.** Arriving with a pike does not put down what you are already
+   * holding, on the terms equipping never displaces anything: a swap is two
+   * deliberate acts.
+   */
+  it("does not empty the other hand to make room for itself", () => {
+    const armed = carrying("sword", null);
+    const moved = applyItemMove(emptyMap(), tilesById, ME, armed, PIKE, {
+      kind: "offhand",
+    });
+    expect(moved).toBeNull();
+    expect(armed.weapon?.tileId).toBe("sword");
+  });
+
+  /** Putting it down frees both hands, because only one ever held it. */
+  it("frees both hands when it leaves", () => {
+    const moved = applyItemMove(
+      emptyMap(),
+      tilesById,
+      ME,
+      carrying("pike", null),
+      { kind: "weapon" },
+      { kind: "contents", index: 0 },
+    );
+    expect(moved?.equipment.weapon).toBeNull();
+    expect(
+      canMoveItem(emptyMap(), tilesById, ME, moved!.equipment, SWORD, {
+        kind: "offhand",
+      }),
+    ).toBe(true);
+  });
+
+  /** A bag is still a bag: nothing about two hands reaches inside one. */
+  it("goes in a bag like anything else", () => {
+    expect(
+      canMoveItem(emptyMap(), tilesById, ME, carrying("pike", null), { kind: "weapon" }, {
+        kind: "contents",
+        index: 0,
+      }),
+    ).toBe(true);
+  });
+});
+
 describe("the armour slot", () => {
   /** Wearing nothing, with a shirt and a sword in the bag to try on. */
   function undressed(): Equipment {

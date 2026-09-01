@@ -33,8 +33,10 @@ import {
   armorResistances,
   fightsWithBothHands,
   HANDS,
+  handClaimedByTwoHander,
   handToSwing,
   heldDefence,
+  twoHandedHand,
   carriedInstances,
   carriedLightTileIds,
   effectiveBattler,
@@ -971,6 +973,103 @@ describe("taking turns between two hands", () => {
           SWORD_DEF,
       );
     }
+  });
+});
+
+/**
+ * A weapon that needs both hands.
+ *
+ * The rotation half of it, which is the half that costs nothing: there is one
+ * weapon, so there is nothing to alternate with, and everything falls out of
+ * `handToSwing` finding one hand and stopping. What has to be pinned is the
+ * arrangement — which hand holds it, which one it claims, and what a kit coming
+ * back from storage does when an author has changed its mind.
+ */
+describe("a weapon that needs both hands", () => {
+  const shipped = tilesByIdFromList(normalizeTiles(tilesJson as unknown[]));
+  const tiles: Record<string, TileDef> = { ...shipped, shield: SHIELD };
+  const base = resolveBattler(shipped["player"]!)!;
+
+  const held = (weapon: string | null, offhand: string | null): Equipment => ({
+    ...emptyEquipment(),
+    weapon: weapon ? { id: `itm_${weapon}`, tileId: weapon } : null,
+    offhand: offhand ? { id: `itm_${offhand}`, tileId: offhand } : null,
+  });
+
+  it("is found in whichever hand is holding it, and claims the other", () => {
+    expect(twoHandedHand(held("greatsword", null), tiles)).toBe("weapon");
+    expect(handClaimedByTwoHander(held("greatsword", null), tiles)).toBe("offhand");
+    // Either hand, because both hands are the same square.
+    expect(twoHandedHand(held(null, "greatsword"), tiles)).toBe("offhand");
+    expect(handClaimedByTwoHander(held(null, "greatsword"), tiles)).toBe("weapon");
+  });
+
+  /** An ordinary empty hand is a free square, not a claimed one. */
+  it("claims nothing when no two-handed weapon is held", () => {
+    for (const kit of [emptyEquipment(), held("rusty-sword", null)]) {
+      expect(twoHandedHand(kit, tiles)).toBeNull();
+      expect(handClaimedByTwoHander(kit, tiles)).toBeNull();
+    }
+  });
+
+  /** One weapon, so one hand answers every turn — no rotation to have. */
+  it("takes every turn itself", () => {
+    const kit = held("greatsword", null);
+    for (const preferred of HANDS) {
+      expect(handToSwing(kit, tiles, preferred)).toBe("weapon");
+    }
+    expect(fightsWithBothHands(kit, tiles)).toBe(false);
+    expect(effectiveBattler(base, kit, tiles, "weapon").mastery).toBe("blade");
+  });
+
+  /** Its guard counts once, because one hand is holding one thing. */
+  it("guards once", () => {
+    const great = resolveWeapon(shipped["greatsword"]!)!;
+    const bare = effectiveBattler(base, emptyEquipment(), tiles, null);
+    const wielding = effectiveBattler(base, held("greatsword", null), tiles, "weapon");
+    // The body's own hide gives way to what it is swinging, on the replacement
+    // rule — so the difference is the greatsword's guard less the claws'.
+    expect(wielding.def - bare.def).toBe(great.def - base.naturalWeapon.def);
+  });
+
+  /**
+   * **A weapon an author made two-handed while somebody was away.** Both hands
+   * were legally full when the kit was saved, so one has to go — and it is the
+   * partner, because the two-hander is the thing still in a square it belongs
+   * in.
+   */
+  it("empties the hand it now claims, on a kit coming back", () => {
+    const restored = restoredEquipment(held("greatsword", "rusty-sword"), tiles);
+    expect(restored.weapon?.tileId).toBe("greatsword");
+    expect(restored.offhand).toBeNull();
+
+    // And read from the other end: the two-hander in the off hand keeps its
+    // square and the main hand is emptied.
+    const other = restoredEquipment(held("rusty-sword", "greatsword"), tiles);
+    expect(other.offhand?.tileId).toBe("greatsword");
+    expect(other.weapon).toBeNull();
+  });
+
+  /** Two of them is the same answer, read in `HANDS` order. */
+  it("keeps one when both hands somehow hold one", () => {
+    const restored = restoredEquipment(held("greatsword", "greatsword"), tiles);
+    expect(restored.weapon?.tileId).toBe("greatsword");
+    expect(restored.offhand).toBeNull();
+  });
+
+  it("leaves an ordinary pair of hands alone", () => {
+    const restored = restoredEquipment(held("rusty-sword", "simple-hammer"), tiles);
+    expect(restored.weapon?.tileId).toBe("rusty-sword");
+    expect(restored.offhand?.tileId).toBe("simple-hammer");
+  });
+
+  /** Content: the world has something that actually needs both hands. */
+  it("is authored on something in the world we ship", () => {
+    const both = Object.values(shipped)
+      .map(resolveWeapon)
+      .filter((weapon): weapon is NonNullable<typeof weapon> => weapon != null)
+      .filter((weapon) => weapon.twoHanded);
+    expect(both.length).toBeGreaterThan(0);
   });
 });
 

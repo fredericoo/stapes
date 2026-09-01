@@ -132,10 +132,25 @@ export function ItemSlot({
   inspecting = false,
   masteryXp = {},
   sizePx = ITEM_SLOT_SIZE_PX,
+  spilledInto = null,
 }: {
   /** Where this square is, in the terms a move is expressed in. */
   slot: SlotRef;
   instance: ItemInstance | null;
+  /**
+   * A thing in the *other* hand that has spoken for this one — a two-handed
+   * weapon, which occupies one square and claims its partner.
+   *
+   * **Drawn rather than held.** The square is genuinely empty in the model, and
+   * has to be: an instance stored in two slots would be two references to a
+   * thing there is one of. What this draws is a picture of where the weapon
+   * goes, faint enough that nobody reads it as a second sword, and the square
+   * stays untappable and undraggable because there is nothing in it to take.
+   *
+   * Null for every square that is not a hand, and for a hand nobody is reaching
+   * into. See `../game/equipment`'s `handClaimedByTwoHander`.
+   */
+  spilledInto?: ItemInstance | null;
   tilesById: Record<string, TileDef>;
   tilesets: TilesetDef[];
   /**
@@ -199,9 +214,16 @@ export function ItemSlot({
   sizePx?: number;
 }) {
   const tile = instance ? (tilesById[instance.tileId] ?? null) : null;
+  const spilledTile =
+    !instance && spilledInto ? (tilesById[spilledInto.tileId] ?? null) : null;
+  // What this square *is*, which for a hand a two-hander has reached into is
+  // "taken by that weapon" rather than "empty" — a screen reader hearing "empty"
+  // over a square nothing may go in would be told the opposite of what is true.
   const name = instance
     ? (instance.description?.trim() || tile?.name || instance.tileId)
-    : "empty";
+    : spilledTile
+      ? `both hands on the ${spilledTile.name}`
+      : "empty";
 
   const key = slotKey(slot);
   const { register, startDrag, tap } = drag;
@@ -431,6 +453,22 @@ export function ItemSlot({
           chrome={false}
           background={null}
         />
+      ) : spilledTile ? (
+        // The other hand's two-hander reaching into this square. Faint, and
+        // above the empty icon in this chain, because a hand that is spoken for
+        // is not a hand you can put anything in — drawing the "nothing here yet"
+        // hint over it would be offering a square that is already taken.
+        <span aria-hidden className="opacity-30">
+          <TilePreview
+            tile={spilledTile}
+            tilesets={tilesets}
+            size={Math.round(sizePx * SPRITE_SHARE)}
+            direction={FRONT}
+            still
+            chrome={false}
+            background={null}
+          />
+        </span>
       ) : EmptyIcon ? (
         // Faint enough to read as a hint rather than as contents: the square is
         // empty, and an icon at full strength would be something in it.
