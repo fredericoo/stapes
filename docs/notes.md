@@ -775,6 +775,46 @@ The formulas live in `app/game/combat.ts`, kept pure so they can be asserted:
   a world is reproducible, and a draw count that varied with accuracy would make
   one creature's stats change what every creature after it rolled.
 
+### Eight rats used to be one rat, eight times
+
+Defence is a flat subtraction and evasion is a contest fought one attacker at a
+time, so a body armoured against a rat's bite was armoured against every rat's
+bite at once. A player could stand in a ring of eight and train Toughness on a
+fight that could not hurt them. `underPressure` in `app/game/combat.ts` is the
+answer: every blow is rolled against a defender holding `guardShare(assailants)`
+of their evasion, their flat defence and their resistances.
+
+- **Hyperbolic, `1 / (1 + 0.35·outnumbering)`.** Two bodies leave you three
+  quarters of your guard, four leave you half, eight leave you under a third. The
+  second attacker is the one that costs; the eighth barely registers on top of
+  the seventh, which is the shape being outnumbered actually has. It never
+  reaches zero, so no crowd makes armour meaningless.
+- **The resistances give way with the flat armour.** What a blow has to get
+  through is `defenceAgainst`, so scaling `def` alone would make being surrounded
+  survivable by wearing the right coat. `def` is rounded on the way out because
+  hit points are whole.
+- **Who counts is who has *swung* at you.** There is nothing else on the board to
+  read: a creature's target lives in its brain's memory as a bound slot, and a
+  body standing next to you minding its own business is not attacking you. So
+  `ActorRuntime.assailants` is written by `tryAttack` and by nothing else, and it
+  is a map of attacker to milliseconds left, wound down by the tick loop exactly
+  as `defensiveDecay` is.
+- **You count until you are overdue.** The window an attacker buys with a blow is
+  its *own* swing interval plus `ASSAILANT_GRACE_MS`, not a flat few seconds — a
+  flat window would let anything slow drop out of the count between its own blows
+  and hand the defender their whole guard back for free. A corpse is dropped from
+  every crowd in `kill` rather than waiting out its grace, so the last blow of a
+  fight you have just won is not still fought outnumbered.
+
+Ranged attackers count on the same terms as anything else, which is a decision
+rather than an oversight: an archer plainly splits your attention, and a rule
+that only counted what was in arm's reach would make a line of bowmen the safest
+thing in the world to walk into.
+
+`duel.ts` and `combatMetrics.ts` are untouched by this. Both are the Arena, and
+the Arena is a duel — one attacker, `guardShare` of exactly one, the same numbers
+they always reported.
+
 ### A blow costs the thrower a step
 
 Swinging is automatic and used to cost the body doing it nothing, so the

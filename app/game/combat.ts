@@ -2,7 +2,13 @@ import {
   clampChance,
   type FightingStats,
 } from "../lib/battler";
-import { MAX_PERCENT_STAT, type Reach, type WeaponStatus } from "../lib/item";
+import {
+  MAX_PERCENT_STAT,
+  type Reach,
+  type WeaponResistances,
+  type WeaponStatus,
+} from "../lib/item";
+import type { WeaponMastery } from "../lib/mastery";
 import type { MapFile, TileDef } from "../lib/types";
 import { TICK_MS } from "./constants";
 import { type ReachPoint, withinReach } from "./distance";
@@ -110,6 +116,105 @@ export const CONTEST_SCALE = 20;
 export function dodgeChance(flee: number, attackerAccuracy: number): number {
   const contest = (flee - attackerAccuracy) / CONTEST_SCALE;
   return clampChance(1 / (1 + Math.exp(-contest)));
+}
+
+/**
+ * How much of its guard a body loses to each attacker past the first.
+ *
+ * **Eight rats used to be exactly as dangerous as one**, which is the thing this
+ * exists to close. Defence is a flat subtraction and evasion is a contest fought
+ * one attacker at a time, so a body armoured against a rat's bite was armoured
+ * against every rat's bite at once — a player could stand in a swarm and watch
+ * their Toughness climb for nothing.
+ *
+ * Hyperbolic rather than a flat share each — `1 / (1 + k·outnumbering)` — so the
+ * second body on you costs the most and the eighth barely registers on top of
+ * the seventh. That is the shape being outnumbered actually has: your back is
+ * already turned, and one more thing behind it is not the same loss again. It
+ * also never reaches zero, so no crowd is ever large enough to make armour mean
+ * nothing.
+ *
+ * A third, which reads as: two bodies leave you three quarters of your guard,
+ * four leave you half, eight leave you under a third.
+ */
+export const GUARD_LOST_PER_ASSAILANT = 0.35;
+
+/**
+ * How long after its last swing a body still counts as one of the ones on you.
+ *
+ * Added to that body's *own* swing interval rather than standing alone, because
+ * "still attacking me" is a different length of time for a rat and for something
+ * that swings once every ten seconds: a flat window would let anything slow drop
+ * out of the count between its own blows and hand the defender their whole guard
+ * back for free. The rule is that you count until you are overdue.
+ *
+ * Two seconds of slack on top — the room a body needs to take a step, be walked
+ * around, or lose its turn to a recovery without flickering out of a crowd it is
+ * plainly still part of.
+ */
+export const ASSAILANT_GRACE_MS = 2_000;
+
+/**
+ * The share of its evasion and its armour a body keeps with this many bodies
+ * swinging at it.
+ *
+ * One for nought or one attacker alike: a fight nobody is ganging up on is the
+ * fight every number in the game was authored against, and the day this returned
+ * anything but one for a duel, every authored creature would need retuning.
+ */
+export function guardShare(assailants: number): number {
+  const outnumbering = Math.max(0, assailants - 1);
+  return 1 / (1 + GUARD_LOST_PER_ASSAILANT * outnumbering);
+}
+
+/**
+ * The defender as this blow finds them, with the crowd already counted.
+ *
+ * **Both halves of defence give way together.** What a blow has to get through
+ * is {@link defenceAgainst} — the flat `def` plus whatever the defender is
+ * wearing that has an opinion about this kind of blow — so scaling only the flat
+ * half would leave a mail shirt turning blades aside as well surrounded as
+ * alone, and being outnumbered would be survivable by wearing the right coat.
+ *
+ * `def` is rounded because hit points are whole. {@link damageAfterDefence}
+ * subtracts this from a whole number, and a defence of 1.16 would leave bodies
+ * standing on fractions of a hit point that no health bar can draw. `flee` is
+ * not rounded and must not be: it is one side of a contest resolved on a curve,
+ * where a fraction is simply a position on it.
+ *
+ * Hands the block straight back when nobody is outnumbering anybody, which is
+ * the overwhelming majority of blows struck — a copy per swing to multiply by
+ * exactly one is an allocation for nothing.
+ */
+export function underPressure(
+  defender: FightingStats,
+  assailants: number,
+): FightingStats {
+  const kept = guardShare(assailants);
+  if (kept >= 1) return defender;
+  return {
+    ...defender,
+    flee: defender.flee * kept,
+    def: Math.round(defender.def * kept),
+    resist: pressuredResistances(defender.resist, kept),
+  };
+}
+
+/**
+ * The same share taken off every resistance this body is wearing.
+ *
+ * Rounded apiece for the reason `def` is, and empty stays empty — which is most
+ * armour and every creature wearing none.
+ */
+function pressuredResistances(
+  resist: WeaponResistances,
+  kept: number,
+): WeaponResistances {
+  const pressured: WeaponResistances = {};
+  for (const [mastery, amount] of Object.entries(resist)) {
+    pressured[mastery as WeaponMastery] = Math.round(amount * kept);
+  }
+  return pressured;
 }
 
 /**
