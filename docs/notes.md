@@ -1914,6 +1914,13 @@ on; both halves want changing together. And **a rolled kit's contents do not
 pour**, for the same reason one rung further back: what a body is born carrying
 is written straight into the bag.
 
+**An extract's yield does pour**, and it is the counter-example that says what
+those two gaps actually cost. It could because it has one destination and no
+landings list, so its check and its run are literally the same call —
+`stowExtracted` (`app/game/extract.ts`) builds the contents a pull would leave
+and hands back null when it will not fit. There is no second arrangement to
+disagree with the first, which is exactly what `landingsFor` would have to become.
+
 ## An extract spends the world, and the wait is yours alone
 
 `interactions.extract` is the third arrangement of "this tile gives you
@@ -1958,13 +1965,18 @@ contrast.
 - **Room is checked against the best possible roll, never the actual one.** The
   roll has not happened when the row is offered and must not — drawing to decide
   whether to draw would make the row flicker while nothing moved, and would spend
-  the world's dice on a question. So `extractFits` asks for a free bag square per
-  authored slot. All-or-nothing on `rewardFits`' terms and for a sharper reason:
-  a pull spends shared durability, so anything that would not fit would have been
-  destroyed on everybody's behalf. Nothing an extract yields is ever dropped on
-  the floor. `MAX_EXTRACT_SLOTS` is four because that is what the largest bag
-  holds; a wider table would be a resource only somebody with an empty pack could
-  work.
+  the world's dice on a question. So room is found for every authored slot.
+  All-or-nothing on `rewardFits`' terms and for a sharper reason: a pull spends
+  shared durability, so anything that would not fit would have been destroyed on
+  everybody's behalf. Nothing an extract yields is ever dropped on the floor.
+- **What comes out pours.** The bush yields berries and berries are what pile, so
+  a check that counted empty squares would refuse to pick one because you were
+  already carrying some. `stowExtracted` is *both* the check and the run — see
+  the counter-example under "Food piles" above — so the arrangement that allowed
+  the row is the arrangement the pull produces, and there is no second one to
+  disagree with it. `MAX_EXTRACT_SLOTS` is four because that is what the largest
+  bag holds with nothing to pour into; a wider table would be a resource only
+  somebody with an empty pack could work.
 - **The wait is charged whatever came up.** A crystal that yields nothing on a
   bad roll has still been chipped at — the durability went into the swing, not
   into what came out of it — and a pull that cost nothing when it gave nothing

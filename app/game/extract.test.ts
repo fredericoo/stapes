@@ -63,7 +63,14 @@ const tiles = [
       },
     },
   }),
-  tile({ id: "berry", kind: "item", interactions: { item: { type: "artifact" } } }),
+  // A consumable rather than an artifact, because only food piles — see
+  // `../lib/item`'s `pileMax` — and a bush yielding berries is exactly the case
+  // pouring exists for.
+  tile({
+    id: "berry",
+    kind: "item",
+    interactions: { item: { type: "consumable", label: "Eat", hp: 0 } },
+  }),
   tile({ id: "shard", kind: "item", interactions: { item: { type: "artifact" } } }),
   tile({
     id: BAG_TILE_ID,
@@ -136,9 +143,11 @@ function bagWith(count: number): Equipment {
     bag: {
       id: "itm_bag",
       tileId: BAG_TILE_ID,
+      // Shards rather than berries: this means "n squares are taken", and a
+      // filler that poured would take one square however many there were.
       contents: Array.from({ length: count }, (_, i) => ({
         id: `itm_filler_${i}`,
-        tileId: "berry",
+        tileId: "shard",
       })),
     },
   };
@@ -267,6 +276,50 @@ describe("whether a pull is on offer", () => {
     ).toBe(false);
   });
 
+  it("pours into a pile already in the bag rather than asking for a square", () => {
+    // Three squares of four are taken, and a pull could yield three berries —
+    // but the fourth square holds berries already, so they all pour into it.
+    const bag: Equipment = {
+      ...emptyEquipment(),
+      bag: {
+        id: "itm_bag",
+        tileId: BAG_TILE_ID,
+        contents: [
+          { id: "itm_a", tileId: "shard" },
+          { id: "itm_b", tileId: "shard" },
+          { id: "itm_c", tileId: "shard" },
+          { id: "itm_d", tileId: "berry" },
+        ],
+      },
+    };
+
+    expect(canWorkNow(board(), tilesById, ME, bag, BUSH, NOTHING_COOLING)).toBe(
+      true,
+    );
+  });
+
+  it("is no when the pile it would pour into is already full", () => {
+    // A berry's default pile is eight, so a full one takes no more — and with
+    // every other square spoken for there is nowhere else for one to go.
+    const bag: Equipment = {
+      ...emptyEquipment(),
+      bag: {
+        id: "itm_bag",
+        tileId: BAG_TILE_ID,
+        contents: [
+          { id: "itm_a", tileId: "shard" },
+          { id: "itm_b", tileId: "shard" },
+          { id: "itm_c", tileId: "shard" },
+          { id: "itm_d", tileId: "berry", count: 8 },
+        ],
+      },
+    };
+
+    expect(canWorkNow(board(), tilesById, ME, bag, BUSH, NOTHING_COOLING)).toBe(
+      false,
+    );
+  });
+
   it("is no with no room for everything the pull could hand back", () => {
     // Four squares, three of them full, and a resource that could yield two.
     const generous = resolveExtract(
@@ -362,6 +415,25 @@ describe("rolling a pull", () => {
 });
 
 describe("taking a pull", () => {
+  /**
+   * The check and the run are the same function, which is what this is really
+   * asserting: a pull that was allowed because it could pour has to actually
+   * pour, or the two halves disagree and the kit ends up somewhere the row never
+   * promised.
+   */
+  it("pours what came up into a pile already there", () => {
+    const session = new GameSession(board(), tiles);
+    session.interact(BUSH);
+    session.tick(COOLDOWN_MS);
+    session.interact(BUSH);
+
+    const contents = session.getSnapshot().equipment.bag?.contents ?? [];
+    expect(contents).toHaveLength(1);
+    expect(contents[0].tileId).toBe("berry");
+    // Two pulls of one certain berry each, in one square rather than two.
+    expect(contents[0].count).toBe(2);
+  });
+
   it("puts what came up in the bag and takes a pull off the board", () => {
     const session = new GameSession(board(), tiles);
 
@@ -387,7 +459,7 @@ describe("taking a pull", () => {
     // The count goes with the tile it was counting: what this is now has a
     // durability of its own or none at all.
     expect(placed.extractsLeft).toBeUndefined();
-    expect(bagTileIds(session)).toEqual(["berry", "berry"]);
+    expect(bagTileIds(session)).toEqual(["berry"]);
   });
 
   it("removes the placement where the author named nothing", () => {

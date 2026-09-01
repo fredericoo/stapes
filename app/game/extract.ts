@@ -5,7 +5,9 @@ import {
   resolveExtract,
 } from "../lib/interactions";
 import { resolveContainer, resolveItem } from "../lib/item";
+import type { ItemInstance } from "../lib/itemInstance";
 import { getStack } from "../lib/mapData";
+import { stow } from "../lib/piles";
 import type { Coord, MapFile, PlacedTile, TileDef } from "../lib/types";
 import {
   coveredBySomething,
@@ -115,6 +117,64 @@ export function pullsLeftAt(
 }
 
 /**
+ * A shared identity for the things a *hypothetical* pull would hand over.
+ *
+ * Asking whether a pull fits must cost no identities — the question is asked per
+ * reachable cell on every pointer move, where the answer is wanted a few times a
+ * minute. Safe because an id is one of the fields two piles may differ in and
+ * still fuse (see `../lib/piles`' `PILE_FIELDS`), so a placeholder changes no
+ * answer this function gives. Nothing minted here ever reaches a kit:
+ * {@link extractFits} throws the whole arrangement away and only reports whether
+ * there was one.
+ */
+const HYPOTHETICAL = () => "itm_hypothetical";
+
+/**
+ * The bag's contents with this yield stowed into them, or null when it will not
+ * fit.
+ *
+ * **The room check and the placement are one question**, which is the shape
+ * `landingsFor` explicitly is not — see the two "deliberate gaps" in
+ * `docs/notes.md`, where a recipe's outputs cannot pour precisely because its
+ * check counts empty squares and its run fills them separately. Extract has one
+ * destination and no landings list, so the two halves can be the same function,
+ * and being the same function is what lets a pull *pour*.
+ *
+ * Pouring matters here more than anywhere: the motivating resource is a bush and
+ * the thing it yields is a berry, which is exactly what piles. Counting squares
+ * would refuse to pick a bush because you were already carrying berries.
+ *
+ * Refuses anything that is not a plain carryable item, on `rewardFits`' terms: a
+ * container's only home is a bare back — nothing nests — and a bush that quietly
+ * took your backpack off is not something an author can see themselves writing.
+ * Refused in *this* function rather than beside it, so the check and the run
+ * cannot disagree about what is carryable.
+ */
+export function stowExtracted(
+  bag: ItemInstance,
+  tileIds: readonly string[],
+  tilesById: Record<string, TileDef>,
+  mintId: () => string,
+): ItemInstance[] | null {
+  const capacity = capacityOf(bag, tilesById);
+  let contents: ItemInstance[] = [...(bag.contents ?? [])];
+
+  for (const tileId of tileIds) {
+    const def = tilesById[tileId];
+    if (!def) return null;
+    if (!resolveItem(def) || resolveContainer(def)) return null;
+    // One at a time and in the authored order, so the arrangement this works
+    // out is the arrangement the run produces: a second berry pouring into the
+    // pile the first one started is a square the third may then use.
+    const next = stow(contents, { id: mintId(), tileId }, capacity, tilesById);
+    if (!next) return null;
+    contents = next;
+  }
+
+  return contents;
+}
+
+/**
  * Is there room in the bag for everything a pull could possibly hand over?
  *
  * **All or nothing, measured against the best roll rather than the actual
@@ -129,13 +189,10 @@ export function pullsLeftAt(
  * Against the *best* roll because the roll has not happened yet and must not:
  * asking "does what I am about to draw fit" would mean drawing to decide whether
  * to draw, and a player with one free square would get a different answer from
- * one frame to the next while nothing moved. Every slot could come up, so every
- * slot needs a square. `MAX_EXTRACT_SLOTS` is what keeps that from being a
- * demand nobody can meet.
- *
- * Containers are refused outright, exactly as a reward's are: nothing nests, so
- * a container's only home is a bare back, and a bush that quietly took your
- * backpack off is not something an author can see themselves writing.
+ * one frame to the next while nothing moved. Every slot could come up, so room
+ * is found for every slot. `MAX_EXTRACT_SLOTS` is what keeps that from being a
+ * demand nobody can meet — and pouring is what keeps it from being one anyway
+ * for the resource this exists for.
  */
 export function extractFits(
   extract: ExtractInteraction,
@@ -144,15 +201,8 @@ export function extractFits(
 ): boolean {
   const bag = equipment.bag;
   if (!bag) return false;
-  const free =
-    capacityOf(bag, tilesById) - (bag.contents?.length ?? 0);
-  if (extract.slots.length > free) return false;
-
-  return extract.slots.every((slot) => {
-    const def = tilesById[slot.tileId];
-    if (!def) return false;
-    return resolveItem(def) != null && resolveContainer(def) == null;
-  });
+  const tileIds = extract.slots.map((slot) => slot.tileId);
+  return stowExtracted(bag, tileIds, tilesById, HYPOTHETICAL) !== null;
 }
 
 /**

@@ -261,6 +261,7 @@ import {
   extractKey,
   placementAfterPull,
   rollExtract,
+  stowExtracted,
 } from "./extract";
 import { hasLineOfSight } from "./sight";
 import { Rng } from "./rng";
@@ -5436,15 +5437,27 @@ export class GameSession implements PlaySession {
    * whichever square is free — and the difference is that a recipe is *paid
    * for* out of a particular slot, so it has somewhere obvious to put the
    * change. A pull comes out of the world and belongs where everything else you
-   * are merely carrying goes. Room was found before the row was offered; see
-   * `./extract`'s `extractFits`.
+   * are merely carrying goes.
+   *
+   * **Through the same function that decided the row could be offered**, which
+   * is what lets a pull pour into a pile rather than demanding an empty square
+   * per berry. A run that worked the arrangement out again could work it out
+   * differently from the check — the trap `landingsFor` is documented as being
+   * in — so there is one answer and both halves ask for it.
+   *
+   * A null here is a race rather than an oversight: the kit moved between the
+   * check and the run. Nothing is minted and nothing is given, and the pull has
+   * already been paid for on the board — which is the safe direction, since the
+   * alternative is inventing somewhere to put things.
    */
   private giveExtracted(actor: ActorRuntime, tileIds: readonly string[]) {
-    const bag = actor.equipment.bag!;
-    const taken = tileIds.map((tileId) => ({ id: mintItemId(), tileId }));
+    const bag = actor.equipment.bag;
+    if (!bag) return;
+    const contents = stowExtracted(bag, tileIds, this.tilesById, mintItemId);
+    if (!contents) return;
     this.setEquipment(actor, {
       ...actor.equipment,
-      bag: { ...bag, contents: [...(bag.contents ?? []), ...taken] },
+      bag: { ...bag, contents },
     });
   }
 
