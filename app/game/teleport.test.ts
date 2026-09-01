@@ -66,6 +66,13 @@ const tiles: TileDef[] = [
     affectedByGravity: true,
     walkable: false,
   }),
+  // A body somebody else can shove, which is what the authored player tile is.
+  directionalTile("shovable", {
+    actor: true,
+    affectedByGravity: true,
+    walkable: false,
+    interactions: { push: { climb: "half", moveOnTileIds: [] } },
+  }),
   // A pad you walk onto. Flat, so it neither buries what is under it nor stops
   // anybody standing on it.
   tile({
@@ -517,6 +524,35 @@ describe("stepping onto a pad", () => {
  * own stack (`isSupported`), and the intangible top counts, so the climber does
  * not drop back the way an empty column would send them.
  */
+describe("being shoved onto a pad", () => {
+  /**
+   * Player at the origin, a shovable body beside them, a pad beyond it. The
+   * shove is the whole of the motion here — nobody walks anywhere.
+   */
+  function shoveWorld(to: { x: number; y: number; z: number }) {
+    let map = replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "player", direction: "e" },
+    ]);
+    map = replaceStack(map, 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "shovable", direction: "e" },
+    ]);
+    map = replaceStack(map, 2, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "pad", teleportTo: to },
+    ]);
+    return replaceStack(map, to.x, to.y, to.z, [{ tileId: "grass" }]);
+  }
+
+  it("sends the body that was pushed onto it", () => {
+    const session = new GameSession(shoveWorld({ x: 5, y: 5, z: 0 }), tiles);
+    expect(session.push({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(true);
+    expect(stackIds(session.getMap(), 2, 0)).toEqual(["grass", "pad"]);
+    expect(whereIs(session.getMap(), "shovable")).toMatchObject({ x: 5, y: 5 });
+  });
+});
+
 describe("climbing onto an intangible ladder top", () => {
   function ladderColumn() {
     let map = replaceStack(emptyMap(), 0, 0, 0, [

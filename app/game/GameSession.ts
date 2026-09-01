@@ -4364,6 +4364,11 @@ export class GameSession implements PlaySession {
     );
 
     const from = { x: ref.x, y: ref.y, z: ref.z };
+    // Who was shoved, if it was a somebody rather than a something. Read before
+    // the write, because afterwards the slot named by `ref` holds whatever the
+    // column left behind.
+    const shovedOwner = getStack(this.map, ref.x, ref.y, ref.z)[ref.stackIndex]
+      ?.owner;
     // Whatever is stacked on the shoved object rides with it, in one write —
     // see `moveColumn`, and `pushDestination` for the room the column needs.
     const count = pushedColumn(this.map, ref).length;
@@ -4380,6 +4385,15 @@ export class GameSession implements PlaySession {
     };
     // The object itself may be a plate, so both ends of the shove are suspect.
     this.reindexCells([from, to]);
+
+    // **A shove is the fourth way a body reaches a new cell**, and the only one
+    // that is somebody else's doing. {@link tickMotion} finds the other three by
+    // comparing the cell either side of a tick, which cannot see this one: the
+    // shove commits to the map the instant it happens, so by the shoved body's
+    // next tick it has always already been where it now is. Without this, a
+    // person pushed into a flame stands in it unburned until they walk.
+    const shoved = shovedOwner ? this.actors.get(shovedOwner) : undefined;
+    if (shoved) this.arriveIn(shoved);
     return true;
   }
 
@@ -5775,6 +5789,21 @@ export class GameSession implements PlaySession {
 
     const to = this.locate(actor);
     if (to.x === from.x && to.y === from.y && to.z === from.z) return;
+    this.arriveIn(actor);
+  }
+
+  /**
+   * Whatever the cell an actor has just reached does to them.
+   *
+   * The two `step` triggers, in the order {@link statusOnArrival} argues for:
+   * the floor burns you and then takes you elsewhere, so a trapdoor of fire is
+   * a tile the traveller was in rather than one they were never on.
+   *
+   * A pair rather than two calls at each site, because "arriving" is one event
+   * with two consequences and a caller that ran half of it would be a cell that
+   * half works — see {@link push}, which is the caller that is not motion.
+   */
+  private arriveIn(actor: ActorRuntime) {
     this.statusOnArrival(actor);
     this.teleportOnArrival(actor);
   }
