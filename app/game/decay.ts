@@ -2,6 +2,7 @@ import type { DecayInteraction } from "../lib/interactions";
 import { resolveDecay } from "../lib/interactions";
 import { isItem, resolveContainer } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
+import { countOf, peelOne, stackWithItem, stow, withCount } from "../lib/piles";
 import type { StackEdit } from "../lib/mapData";
 import { getStack, listCoords, replaceStack, setStacks } from "../lib/mapData";
 import type { Coord, MapFile, PlacedTile, TileDef } from "../lib/types";
@@ -416,10 +417,29 @@ type Turn =
   /** It ceases to exist. */
   | { kind: "gone" }
   /** It is this now. */
-  | { kind: "turned"; tileId: string };
+  | { kind: "turned"; tileId: string }
+  /**
+   * One of a pile turns and the rest of the pile does not.
+   *
+   * **A pile rots a berry at a time, not twelve at once**, which is the reading
+   * that makes a pile worth keeping: a heap you cannot touch for a minute
+   * without losing all of it is a heap nobody would gather. The clock is the
+   * pile's own — one entry, one roll, one berry — and the pile is armed again
+   * the moment its holder is rewritten, so the next one is a fresh lifetime
+   * later rather than on the same tick.
+   *
+   * `tileId` absent means the one simply ceases, which needs nowhere to go and
+   * so is the one peel a square on a body can do. Where it *does* become
+   * something, that something has to land beside the pile — a square in the
+   * container, or a slot in the cell — and the caller is what knows whether
+   * there is one. There is never one on a body: see {@link slotAfter}.
+   */
+  | { kind: "peeled"; tileId?: string };
 
 const STAYS: Turn = { kind: "stays" };
 const GONE: Turn = { kind: "gone" };
+/** One off the pile and nothing left behind — the peel that needs no room. */
+const PEELED_GONE: Turn = { kind: "peeled" };
 
 /**
  * What one thing turns into, given where it is standing.
@@ -434,7 +454,13 @@ const GONE: Turn = { kind: "gone" };
  * turn that could not happen this time.
  */
 function turnOf(
-  thing: { id: string; tileId: string; contents?: ItemInstance[] },
+  thing: {
+    id: string;
+    tileId: string;
+    contents?: ItemInstance[];
+    /** How many of it, for the piles. See `../lib/piles`. */
+    count?: number;
+  },
   site: ItemSite,
   due: ReadonlyMap<string, string>,
   tilesById: Record<string, TileDef>,
@@ -444,6 +470,13 @@ function turnOf(
   if (due.get(thing.id) !== thing.tileId) return STAYS;
   const decay = decayOf(thing.tileId, tilesById);
   if (!decay) return STAYS;
+
+  // A pile is asked the same two questions and answers them one berry at a
+  // time. It is never a container — nothing that piles holds anything, see
+  // `../lib/piles` — so the two guards below about contents cannot apply to one,
+  // which is why this branch comes first and reads so much shorter.
+  const pile = countOf(thing) > 1;
+  if (pile && !decay.tileId) return PEELED_GONE;
 
   // Nothing decays out from under what it is holding. A pack that rotted away
   // would take a sword and three apples with it, silently, and there is no
@@ -462,20 +495,57 @@ function turnOf(
   // into it, because arriving by rot is still arriving. `isItem` on top, which
   // moves never need: a move can only ever carry a thing that was already an
   // item, and a decay is the one way a slot could come to hold scenery.
-  if (site === "floor") return { kind: "turned", tileId: decay.tileId };
-  const next: ItemInstance = { ...thing, tileId: decay.tileId };
+  if (site === "floor") {
+    return pile
+      ? { kind: "peeled", tileId: decay.tileId }
+      : { kind: "turned", tileId: decay.tileId };
+  }
+  // What is asked about is what will actually be *there*: for a pile that is the
+  // single thing that comes off it, which carries none of the pile's count and
+  // none of its contents, and for anything else the thing itself.
+  const next: ItemInstance = pile
+    ? { id: thing.id, tileId: decay.tileId }
+    : { ...thing, tileId: decay.tileId };
   if (!isItem(target) || !slotAccepts(site, next, tilesById)) return STAYS;
-  return { kind: "turned", tileId: decay.tileId };
+  return pile
+    ? { kind: "peeled", tileId: decay.tileId }
+    : { kind: "turned", tileId: decay.tileId };
 }
 
-/** A container's contents after the clock, or null when none of them turned. */
+/** How many things fit in this tile, or none when it holds nothing. */
+function roomIn(tileId: string, tilesById: Record<string, TileDef>): number {
+  const def = tilesById[tileId];
+  return def ? (resolveContainer(def)?.size ?? 0) : 0;
+}
+
+/**
+ * A container's contents after the clock, or null when none of them turned.
+ *
+ * ## Where what comes off a pile goes
+ *
+ * A peel is the one turn that produces a *second* thing, and it has to land in
+ * the same container the pile is in — that is what "one berry in the bag went
+ * off" means. So the peels are collected while the list is being walked and
+ * placed once it is whole, through the same `stow` a player's drag goes through:
+ * poured into a pile of the same rot where one will take it, into a free square
+ * otherwise, and refused when there is neither.
+ *
+ * **A refused peel is put back**, which is why the position is remembered. There
+ * is no half state where a berry has left a pile and become nothing; a bag with
+ * no room simply keeps the pile it had, and the pile is armed again on the way
+ * out — this function reports the container as touched either way, so its holder
+ * is rewritten and the clock starts over rather than stalling forever.
+ */
 function decayedContents(
   contents: readonly ItemInstance[],
   site: ItemSite,
   due: ReadonlyMap<string, string>,
   tilesById: Record<string, TileDef>,
+  capacity: number,
+  mintId: () => string,
 ): ItemInstance[] | null {
   const next: ItemInstance[] = [];
+  const peels: { at: number; shed: ItemInstance }[] = [];
   let touched = false;
   for (const held of contents) {
     const turn = turnOf(held, site, due, tilesById);
@@ -488,8 +558,28 @@ function decayedContents(
     // rotting out of the middle of a bag closes up behind it exactly as one
     // taken out of it does.
     if (turn.kind === "turned") next.push({ ...held, tileId: turn.tileId });
+    if (turn.kind !== "peeled") continue;
+    // Only ever reported for a pile of more than one, so this never comes back
+    // null — the fallback is a guard against a rule changing over there, not a
+    // case that happens.
+    const rest = peelOne(held) ?? held;
+    if (turn.tileId) {
+      peels.push({ at: next.length, shed: { id: mintId(), tileId: turn.tileId } });
+    }
+    next.push(rest);
   }
-  return touched ? next : null;
+  if (!touched) return null;
+
+  let out = next;
+  for (const { at, shed } of peels) {
+    const stowed = stow(out, shed, capacity, tilesById);
+    out =
+      stowed ??
+      out.map((held, i) =>
+        i === at ? withCount(held, countOf(held) + 1) : held,
+      );
+  }
+  return out;
 }
 
 /** A slot after its contents were offered to the clock. */
@@ -515,10 +605,18 @@ function slotAfter(
   site: SlotKind,
   due: ReadonlyMap<string, string>,
   tilesById: Record<string, TileDef>,
+  mintId: () => string,
 ): SlotAfter {
   if (!instance) return UNCHANGED;
   const contents = instance.contents
-    ? decayedContents(instance.contents, "contents", due, tilesById)
+    ? decayedContents(
+        instance.contents,
+        "contents",
+        due,
+        tilesById,
+        roomIn(instance.tileId, tilesById),
+        mintId,
+      )
     : null;
   const held = contents ?? instance.contents;
   const inside = contents ? { ...instance, contents } : instance;
@@ -528,6 +626,18 @@ function slotAfter(
     return { changed: contents != null, instance: inside };
   }
   if (turn.kind === "gone") return { changed: true, instance: null };
+  if (turn.kind === "peeled") {
+    // **A square on a body has no beside.** It holds one thing, so a berry that
+    // came off a pile in your fist would have nowhere at all to be — which is
+    // why a peel that becomes something is refused here and only the peel that
+    // becomes nothing goes through. A pile held in a hand therefore waits until
+    // it is down to its last, and that last one turns in place exactly as a
+    // single berry always did. In a bag — where there *is* a beside — it rots
+    // one at a time like everything else.
+    if (turn.tileId) return { changed: contents != null, instance: inside };
+    const rest = peelOne(inside);
+    return { changed: true, instance: rest };
+  }
   return { changed: true, instance: { ...inside, tileId: turn.tileId } };
 }
 
@@ -543,11 +653,12 @@ function decayedEquipment(
   equipment: Equipment,
   due: ReadonlyMap<string, string>,
   tilesById: Record<string, TileDef>,
+  mintId: () => string,
 ): Equipment | null {
   const next = { ...equipment };
   let changed = false;
   for (const slot of EQUIPMENT_SLOTS) {
-    const after = slotAfter(equipment[slot], slot, due, tilesById);
+    const after = slotAfter(equipment[slot], slot, due, tilesById, mintId);
     if (!after.changed) continue;
     changed = true;
     next[slot] = after.instance;
@@ -578,24 +689,48 @@ function placementAfterTurn(
   return next;
 }
 
-/** One cell's stack after the clock, or null when nothing in it turned. */
+/**
+ * One cell's stack after the clock, or null when nothing in it turned.
+ *
+ * A peel on the floor sheds its thing straight into the cell, through the same
+ * pour every other way an item reaches one goes through — so a berry rotting out
+ * of a pile of twelve joins the rotten berries already lying there rather than
+ * starting a thirteenth placement beside them. A cell has no capacity, so this
+ * is the one place a peel can never be refused for want of room; whether the
+ * *stack* will take the extra height is asked once, over the whole cell, by
+ * {@link decayedBoard}.
+ */
 function decayedItemsInStack(
   stack: readonly PlacedTile[],
   due: ReadonlyMap<string, string>,
   tilesById: Record<string, TileDef>,
+  mintId: () => string,
 ): PlacedTile[] | null {
-  const next: PlacedTile[] = [];
+  let next: PlacedTile[] = [];
+  const shed: PlacedTile[] = [];
   let touched = false;
   for (const placed of stack) {
     const contents = placed.contents
-      ? decayedContents(placed.contents, "ground", due, tilesById)
+      ? decayedContents(
+          placed.contents,
+          "ground",
+          due,
+          tilesById,
+          roomIn(placed.tileId, tilesById),
+          mintId,
+        )
       : null;
     const held = contents ?? placed.contents;
     if (contents) touched = true;
 
     const turn = placed.itemId
       ? turnOf(
-          { id: placed.itemId, tileId: placed.tileId, contents: held },
+          {
+            id: placed.itemId,
+            tileId: placed.tileId,
+            contents: held,
+            count: placed.count,
+          },
           "floor",
           due,
           tilesById,
@@ -610,9 +745,32 @@ function decayedItemsInStack(
       next.push(placementAfterTurn(placed, turn.tileId, held, tilesById));
       continue;
     }
+    if (turn.kind === "peeled") {
+      touched = true;
+      const rest = peelOne(placed) ?? placed;
+      next.push(contents ? { ...rest, contents } : rest);
+      // Anonymous when what it became is not an item, on exactly the terms
+      // {@link placementAfterTurn} drops an id: a berry that rots into a stain
+      // is scenery, and an id on a tile nobody can pick up is a promise the
+      // world cannot keep.
+      if (turn.tileId) shed.push(shedPlacement(turn.tileId, tilesById, mintId));
+      continue;
+    }
     next.push(contents ? { ...placed, contents } : placed);
   }
-  return touched ? next : null;
+  if (!touched) return null;
+  for (const placed of shed) next = stackWithItem(next, placed, tilesById);
+  return next;
+}
+
+/** What comes off a pile on the floor, as a placement. */
+function shedPlacement(
+  tileId: string,
+  tilesById: Record<string, TileDef>,
+  mintId: () => string,
+): PlacedTile {
+  const def = tilesById[tileId];
+  return def && isItem(def) ? { tileId, itemId: mintId() } : { tileId };
 }
 
 /** The board after the clock: loose things, and things inside things. */
@@ -620,12 +778,13 @@ function decayedBoard(
   map: MapFile,
   due: ReadonlyMap<string, string>,
   tilesById: Record<string, TileDef>,
+  mintId: () => string,
 ): DecayResult {
   const edits: StackEdit[] = [];
   const changed: Coord[] = [];
   for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
     for (const { x, y, stack } of listCoords(map, z)) {
-      const next = decayedItemsInStack(stack, due, tilesById);
+      const next = decayedItemsInStack(stack, due, tilesById, mintId);
       if (!next) continue;
       // The same refusal a placement decay makes, for the same reason: whatever
       // a thing rots into has to fit under what has been stacked on it.
@@ -662,20 +821,28 @@ export type ItemDecayResult = DecayResult & {
  * hands over everything ripe at that instant, and the ticks in between pay one
  * comparison. Blood, which is the population that actually runs to hundreds,
  * never reaches here at all: it is anonymous, so it decays by cell.
+ *
+ * @param mintId a fresh identity for what comes off a pile — a peel is the one
+ *   turn that makes a *second* thing, and it needs an id like anything else that
+ *   can be picked up. Taken rather than called for the reason `../game/transmute`
+ *   takes one: this walk runs on both ends of the wire and in tests, and a
+ *   module that reached for `crypto` on its own would be a decay whose outcome
+ *   depended on where it ran.
  */
 export function applyItemDecay(
   map: MapFile,
   kits: Iterable<Kit>,
   entries: Iterable<ItemDecay>,
   tilesById: Record<string, TileDef>,
+  mintId: () => string,
 ): ItemDecayResult {
   const due = new Map<string, string>();
   for (const entry of entries) due.set(entry.itemId, entry.tileId);
 
   const equipment = new Map<string, Equipment>();
   for (const kit of kits) {
-    const next = decayedEquipment(kit.equipment, due, tilesById);
+    const next = decayedEquipment(kit.equipment, due, tilesById, mintId);
     if (next) equipment.set(kit.id, next);
   }
-  return { ...decayedBoard(map, due, tilesById), equipment };
+  return { ...decayedBoard(map, due, tilesById, mintId), equipment };
 }

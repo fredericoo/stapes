@@ -22,6 +22,7 @@ import {
   resolveItem,
 } from "../lib/item";
 import type { EquipSlot } from "../lib/kit";
+import { stowFits } from "../lib/piles";
 import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { physicalHeight } from "../lib/types";
 import { canReplaceStack, fitsTile } from "../lib/validation";
@@ -495,7 +496,14 @@ export function pickUpDestination(
   const def = reachableItemDefAt(map, tilesById, actor, ref);
   if (!def) return null;
 
-  if (!resolveContainer(def) && bagHasRoom(tilesById, equipment)) {
+  // The placement rather than the tile, for the one thing the tile cannot say:
+  // how many of it this is. A pile of three goes in the bag when a pile of two
+  // already in there has room for three, and does not when it has room for one —
+  // a question `bagTakes` cannot be asked without the number.
+  const placed = getStack(map, ref.x, ref.y, ref.z)[ref.stackIndex];
+  if (!placed) return null;
+
+  if (!resolveContainer(def) && bagTakes(tilesById, equipment, placed)) {
     return { kind: "contents" };
   }
 
@@ -528,16 +536,24 @@ export function canPickUpFrom(
   return pickUpDestination(map, tilesById, actor, ref, equipment) != null;
 }
 
-/** Is there a free square inside the bag on this actor's back? */
-function bagHasRoom(
+/**
+ * Is there anywhere inside the bag on this actor's back for this thing?
+ *
+ * A free square, *or* a pile in there that will take all of it — which is the
+ * whole of "piles fuse when you pick one up" as far as the offer is concerned. A
+ * bag with no empty square still takes a berry when it is holding berries, and
+ * the row in the world says so before anybody presses it.
+ */
+function bagTakes(
   tilesById: Record<string, TileDef>,
   equipment: Equipment,
+  incoming: PlacedTile,
 ): boolean {
   const bag = equipment.bag;
   if (!bag) return false;
   const bagDef = tilesById[bag.tileId];
   const size = bagDef ? (resolveContainer(bagDef)?.size ?? 0) : 0;
-  return (bag.contents?.length ?? 0) < size;
+  return stowFits(bag.contents ?? [], incoming, size, tilesById);
 }
 
 /**

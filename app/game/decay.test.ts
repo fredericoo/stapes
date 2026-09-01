@@ -615,6 +615,73 @@ describe("things that decay while somebody is holding them", () => {
     expect(carried(session, who).offhand?.tileId).toBe("rotten-berry");
   });
 
+  it("rots one out of a pile at a time, into a pile beside it", () => {
+    const session = new GameSession(withCompany(emptyMap()), tiles);
+    const who = bearerOf(
+      session,
+      kitWith([{ ...thing("itm_berries", "berry"), count: 3 }]),
+    );
+
+    run(session, BERRY_MS);
+    // Two berries and the one that went off, not three rotten berries: a heap
+    // you cannot leave alone for a minute without losing all of it is a heap
+    // nobody would gather.
+    expect(carried(session, who).bag?.contents).toEqual([
+      { id: "itm_berries", tileId: "berry", count: 2 },
+      { id: expect.any(String), tileId: "rotten-berry" },
+    ]);
+  });
+
+  it("keeps the pile counting down, one lifetime at a time", () => {
+    const session = new GameSession(withCompany(emptyMap()), tiles);
+    const who = bearerOf(
+      session,
+      kitWith([{ ...thing("itm_berries", "berry"), count: 3 }]),
+    );
+
+    run(session, BERRY_MS);
+    run(session, BERRY_MS);
+    const contents = carried(session, who).bag?.contents ?? [];
+    expect(contents[0]).toEqual({ id: "itm_berries", tileId: "berry" });
+    // The two that went off are one pile of rot, poured together on arrival.
+    expect(contents[1]).toEqual({
+      id: expect.any(String),
+      tileId: "rotten-berry",
+      count: 2,
+    });
+  });
+
+  it("waits, in a hand, while there is more than one of it", () => {
+    const session = new GameSession(withCompany(emptyMap()), tiles);
+    const who = bearerOf(session, {
+      ...emptyEquipment(),
+      offhand: { ...thing("itm_berries", "berry"), count: 2 },
+    });
+
+    run(session, BERRY_MS);
+    // A square on a body holds one thing, so there is nowhere for the berry that
+    // came off to be. It stays a pile of two until something moves it.
+    expect(carried(session, who).offhand).toEqual({
+      id: "itm_berries",
+      tileId: "berry",
+      count: 2,
+    });
+  });
+
+  it("rots one out of a pile on the floor, into the pile of rot already there", () => {
+    const session = new GameSession(
+      beside({ tileId: "berry", itemId: "itm_berries", count: 3 }),
+      tiles,
+    );
+
+    run(session, BERRY_MS);
+    expect(asideStack(session)).toEqual([
+      { tileId: "grass" },
+      { tileId: "berry", itemId: "itm_berries", count: 2 },
+      { tileId: "rotten-berry", itemId: expect.any(String) },
+    ]);
+  });
+
   it("rots inside a chest on the floor", () => {
     const session = new GameSession(
       beside({

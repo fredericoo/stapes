@@ -40,6 +40,26 @@ export type ItemInstance = {
   /** Containers only. Flat, and never holds another container. */
   contents?: ItemInstance[];
   /**
+   * How many of it this is, or absent for the one thing it usually is.
+   *
+   * **A number rather than a list, and that is what a pile costs.** Twelve
+   * berries in a bag are one instance with one id and one description, not
+   * twelve of anything — so the twelve are interchangeable by construction and
+   * there is no way to ask which berry you ate. That is the whole trade, and it
+   * is why only food takes it: see `./item`'s {@link pileMax}, which is where
+   * "and nothing else piles" is written down.
+   *
+   * Absent rather than `1`, so every item that has never been in a pile
+   * serializes exactly as it did before piles existed — the same rule every
+   * other optional here follows, and the one that keeps `data/map.json`
+   * diffable.
+   *
+   * Never zero and never above the tile's {@link pileMax}: a pile with nothing
+   * in it is a thing that should have stopped existing, and one over its own
+   * ceiling is a pile that should have been two. `./piles` owns both ends.
+   */
+  count?: number;
+  /**
    * Milliseconds until this stone may be cast again, or absent for one that is
    * ready. See `./item`'s {@link ArcaneStoneItem.cooldownMs}.
    *
@@ -105,6 +125,7 @@ export function instanceFromPlacement(placed: PlacedTile): ItemInstance | null {
     ...(placed.channel ? { channel: placed.channel } : {}),
     ...(placed.description ? { description: placed.description } : {}),
     ...(placed.contents ? { contents: placed.contents } : {}),
+    ...(placed.count ? { count: placed.count } : {}),
   };
 }
 
@@ -126,5 +147,6 @@ export function placementFromInstance(instance: ItemInstance): PlacedTile {
     ...(instance.channel ? { channel: instance.channel } : {}),
     ...(instance.description ? { description: instance.description } : {}),
     ...(instance.contents ? { contents: instance.contents } : {}),
+    ...(instance.count ? { count: instance.count } : {}),
   };
 }

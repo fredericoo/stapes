@@ -1591,6 +1591,57 @@ the interesting part.
   (reach, cover, the def) and this joins it to the kit. Both ends read it: the
   client to offer the row, the server to validate the message.
 
+## Food piles, and nothing else does
+
+A pile is a `count` on an `ItemInstance` or a `PlacedTile` (`app/lib/piles.ts`).
+There is no pile type, no container to open and no second model of a thing: a
+pile of twelve berries is one instance with one id, so every rule already written
+about carrying, dropping, rotting and looting one berry applies to twelve without
+knowing it. Twelve berries on a tile are one placement, not twelve — a stack is
+things standing on each other, and nothing in a pile is standing on anything.
+
+**The cost is that the twelve become interchangeable.** They share one id, one
+description and one clock, and there is no way to ask which one you ate. That is
+the whole reason only food piles: two swords are two swords with two histories,
+and a count would be a lie about them. `pileMax` (`app/lib/item.ts`) is the one
+place that is decided — a sword answers `1`, so a pile is a count everywhere and
+never a special case. The size is authored per tile (`ConsumableItem.pile`,
+twelve berries against three loaves) and defaults through `pileOf` rather than
+through the schema, on the same grounds `reachOf` does: the tile editor works on
+the raw authored block, so a default the schema filled in would be invisible in
+the one place somebody is choosing the number.
+
+**A pile arriving somewhere pours into the first pile of its kind with room for
+all of it, and otherwise takes a square of its own.** It never splits across two
+and never half-lands, because there is no interface for choosing an amount and a
+partial move would be the game deciding a number nobody was offered. Fusing is
+gated on an *allow-list* of fields — `tileId`, `id`/`itemId`, `count` — so a
+field added to either shape later makes two things stop fusing rather than
+quietly throwing one copy of it away. A berry somebody has written on is not one
+of a heap.
+
+Three verbs meet it, and the split between the first two is the interesting one:
+
+- **Moving takes the whole pile** — `clearSlot`, and every drag, drop and pickup
+  through it. This is also the one place in the game a move lands *on* something
+  rather than beside it: a hand holding berries will take more berries, which is
+  not a swap, because nothing comes back out.
+- **Spending takes one** — `peelSlot` (`app/game/itemMoves.ts`), which a meal and
+  a recipe's input go through and which falls through to `clearSlot` for the last
+  of anything. Everything that is not food only ever reaches the fallback.
+- **Landing on a cell pours** — `appendItem` (`app/lib/piles.ts`), which a drop,
+  a body dying and a pile falling down a hole all go through. Those are the only
+  three ways an item reaches a cell, which is what makes "two berries in one
+  tile" a fact about the board rather than about the verb that put them there.
+
+Two deliberate gaps. **A recipe's outputs do not pour** — `landingsFor`
+(`app/game/transmute.ts`) decides where a result goes by counting *empty*
+squares, so pouring in `runTransmute` alone would leave a plan reaching for a
+free hand while the pour it knew nothing about freed the square it had given up
+on; both halves want changing together. And **a rolled kit's contents do not
+pour**, for the same reason one rung further back: what a body is born carrying
+is written straight into the bag.
+
 ## Decay is a switch whose input is time
 
 `DecayInteraction` turns a placement into another tile, or into nothing, once it
@@ -1710,6 +1761,18 @@ next time its holder is touched":
   a promise the world cannot keep, and it would leave the tile counting down
   under a key nothing can reach; dropping it hands the tile back to `armCell` as
   the plain decaying placement it now is.
+
+**A pile rots one out of itself at a time**, not all twelve at once — a heap you
+cannot leave alone for a minute without losing the lot is a heap nobody would
+gather. The clock is the pile's own: one entry, one roll, one berry, and the
+pile is armed again the moment its holder is rewritten, so the next one goes off
+a fresh lifetime later. What comes off has to land *beside* the pile, through the
+same pour a drag goes through — a square in the container, or a slot in the cell
+— which adds a fourth refusal to the three above: **a square on a body has no
+beside.** It holds one thing, so a pile in a hand waits until it is down to its
+last, and that last turns in place exactly as a single berry always did. The peel
+that becomes *nothing* needs no room and happens anywhere. A refused peel is put
+back rather than left half-done.
 
 ## The save is the repair path, so it must not need a working world
 

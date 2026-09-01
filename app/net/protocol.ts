@@ -140,6 +140,16 @@ const itemInstanceSchema = v.object({
    * cooldown down there would be describing a state the rules forbid.
    */
   cooldownMs: v.optional(v.number()),
+  /**
+   * How many of it this is — a pile of berries rather than a berry.
+   *
+   * Named here for the reason {@link cooldownMs} is: a validated object drops
+   * what it does not name, so a count missing from this schema is twelve berries
+   * arriving as one the moment the wire is crossed. On the `contents` shape too,
+   * unlike the cooldown, because a bag full of piles is the ordinary place to
+   * find them. See `../lib/piles`.
+   */
+  count: v.optional(v.number()),
   contents: v.optional(
     v.array(
       v.object({
@@ -148,6 +158,7 @@ const itemInstanceSchema = v.object({
         direction: v.optional(directionSchema),
         channel: v.optional(v.string()),
         description: v.optional(v.string()),
+        count: v.optional(v.number()),
       }),
     ),
   ),

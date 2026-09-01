@@ -9074,7 +9074,8 @@
             "fromMs": 10000,
             "toMs": 30000
           }
-        ]
+        ],
+        "pile": 12
       },
       "decay": {
         "tileId": "stale-berry",
@@ -10231,7 +10232,8 @@
         "type": "consumable",
         "label": "Eat",
         "sound": "gulp",
-        "hp": 25
+        "hp": 25,
+        "pile": 4
       }
     },
     "sprite": {
@@ -10274,7 +10276,8 @@
           {
             "id": "poison"
           }
-        ]
+        ],
+        "pile": 4
       }
     },
     "sprite": {
@@ -10319,7 +10322,8 @@
             "fromMs": 0,
             "toMs": 60000
           }
-        ]
+        ],
+        "pile": 3
       }
     },
     "sprite": {
@@ -10427,7 +10431,8 @@
             "fromMs": 1000,
             "toMs": 60000
           }
-        ]
+        ],
+        "pile": 12
       }
     },
     "sprite": {
@@ -10560,7 +10565,8 @@
             "fromMs": 2000,
             "toMs": 8000
           }
-        ]
+        ],
+        "pile": 3
       }
     },
     "sprite": {
@@ -10605,7 +10611,8 @@
             "fromMs": 0,
             "toMs": 90000
           }
-        ]
+        ],
+        "pile": 3
       }
     },
     "sprite": {
@@ -11268,7 +11275,8 @@
             "fromMs": 0,
             "toMs": 75000
           }
-        ]
+        ],
+        "pile": 4
       },
       "decay": {
         "tileId": "stale-cheese",
@@ -11322,7 +11330,8 @@
             "fromMs": 1000,
             "toMs": 60000
           }
-        ]
+        ],
+        "pile": 4
       }
     },
     "sprite": {
@@ -11367,7 +11376,8 @@
             "fromMs": 0,
             "toMs": 45000
           }
-        ]
+        ],
+        "pile": 8
       }
     },
     "sprite": {
@@ -11411,7 +11421,8 @@
             "fromMs": 5000,
             "toMs": 15000
           }
-        ]
+        ],
+        "pile": 4
       }
     },
     "sprite": {
