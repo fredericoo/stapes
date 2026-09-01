@@ -12,7 +12,7 @@ import {
   IconTarget,
   IconTransform,
 } from "@tabler/icons-react";
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import type { ExtractCooling } from "../game/extract";
 import type {
   InteractionAction,
@@ -355,6 +355,43 @@ function InteractionBox({
 }
 
 /**
+ * The bar that fills as a row's wait runs out.
+ *
+ * White, faint, and driven entirely by CSS — see `fill-wait` in `app.css`. The
+ * element is given the *whole* duration and a negative delay of however much
+ * had already gone when it appeared, so the browser runs it on the compositor
+ * and nothing here has to touch it again.
+ *
+ * **The delay is read once, when the bar appears, and never again.** That is
+ * the whole reason this is a component rather than three lines inline. A row is
+ * re-rendered for all sorts of reasons while a wait runs — anything that
+ * changes the list around it — and `cooldown.remainingMs` is a live number, so
+ * a delay recomputed on every render would re-seek a running animation over and
+ * over and drive the fill far ahead of the wait it is drawing. It was doing
+ * exactly that: an eight-second wait filled its bar in five.
+ *
+ * Reading it once is also *correct* rather than merely stable, because this
+ * mounts exactly when the wait becomes visible to this client — its own start,
+ * or a reconnect in the middle of one — and both are moments when the remainder
+ * is right. The bar is unmounted when the wait ends, so the next one on the
+ * same row starts a fresh instance and a fresh reading.
+ */
+function WaitFill({ cooldown }: { cooldown: ExtractCooling }) {
+  const delayMs = useRef(waitElapsedMs(cooldown)).current;
+
+  return (
+    <span
+      aria-hidden="true"
+      className="fill-wait pointer-events-none absolute inset-0 bg-paper/20"
+      style={{
+        animationDuration: `${cooldown.durationMs}ms`,
+        animationDelay: `-${delayMs}ms`,
+      }}
+    />
+  );
+}
+
+/**
  * One verb, and pressing it is what runs it.
  *
  * Named for a screen reader with the thing it acts on — "Push Crate" and not
@@ -443,24 +480,9 @@ function ActionButton({
       {/* The wait, filling the row from the left as it runs out. Behind the
           verb rather than under it, because what it is counting down to is
           *that verb becoming pressable* — a separate track below would be a
-          second thing to look at for one fact. White, faint, and animated by
-          CSS from the two numbers on the row: see `fill-wait` in `app.css`,
-          which is why a cooling row costs no re-renders and nothing on the
-          wire. Absent entirely when there is nothing to wait for, rather than
-          drawn empty. */}
-      {waiting ? (
-        <span
-          aria-hidden="true"
-          className="fill-wait pointer-events-none absolute inset-0 bg-paper/20"
-          style={{
-            animationDuration: `${waiting.durationMs}ms`,
-            // Negative, which is what starts it part-way through: a row rebuilt
-            // in the middle of a wait picks the animation up where it already
-            // is rather than restarting it.
-            animationDelay: `-${waitElapsedMs(waiting)}ms`,
-          }}
-        />
-      ) : null}
+          second thing to look at for one fact. Absent entirely when there is
+          nothing to wait for, rather than drawn empty. */}
+      {waiting ? <WaitFill cooldown={waiting} /> : null}
       <Icon
         size={14}
         stroke={2}
