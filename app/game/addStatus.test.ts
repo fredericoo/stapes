@@ -80,6 +80,26 @@ const tiles: TileDef[] = [
   tile({ id: "wall", height: 2 }),
   body("player", { affectedByGravity: true }),
   body("deer", { actor: true, affectedByGravity: true }),
+  // A body somebody else can shove, which is what the authored player tile is.
+  body("shovable", {
+    actor: true,
+    affectedByGravity: true,
+    interactions: {
+      battler: {
+        masteries: { toughness: PLAYER_TOUGHNESS },
+        naturalWeapon: {
+          type: "weapon",
+          damage: 5,
+          def: 0,
+          accuracy: 100,
+          variance: 0,
+          spd: 100,
+          mastery: "fist",
+        },
+      },
+      push: { climb: "half", moveOnTileIds: [] },
+    },
+  }),
   // The case the gate exists for: something that walks, with no hit points for a
   // burn to spend. A status on one would be a countdown nobody could see.
   tile({
@@ -323,6 +343,28 @@ describe("stepping into a fire", () => {
     const start = hpOf(play)!;
     run(play, Math.round(1000 / TICK_MS));
     expect(hpOf(play)).toBe(start - perSecond);
+  });
+});
+
+describe("being shoved into a fire", () => {
+  /** Player at the origin, a shovable body beside them, fire beyond it. */
+  function lane(): MapFile {
+    let map = replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "player", direction: "e" },
+    ]);
+    map = replaceStack(map, 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "shovable", direction: "e" },
+    ]);
+    return replaceStack(map, 2, 0, 0, [{ tileId: "grass" }, { tileId: "fire" }]);
+  }
+
+  it("burns the body that was pushed in", () => {
+    const play = session(lane());
+    expect(play.push({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(true);
+    expect(whereIs(play.getMap(), "shovable")).toMatchObject({ x: 2, y: 0 });
+    expect(held(play, "npc:1,0,0,1")).toEqual(["burned"]);
   });
 });
 
