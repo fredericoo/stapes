@@ -66,6 +66,24 @@ const tilesById = tilesByIdFromList([
     interactions: { switch: { targetTileId: "door-open" } },
   }),
   tile({
+    id: "ladder",
+    height: 2,
+    intangible: true,
+    interactions: {
+      teleport: {
+        actionName: "Climb up",
+        trigger: "interactOver",
+        destination: { kind: "relative", delta: { x: 0, y: 0, z: 1 } },
+      },
+    },
+  }),
+  tile({
+    id: "coin",
+    height: 0,
+    kind: "item",
+    interactions: { item: { type: "artifact" } },
+  }),
+  tile({
     id: "cat",
     height: 1,
     kind: "battler",
@@ -140,6 +158,76 @@ describe("pickInteractiveAt", () => {
       { tileId: "grass" },
       { tileId: "crate" },
       { tileId: "slab" },
+    ]);
+    const p = onFoot({ x: 0, y: 0, z: 0 });
+    expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 0)).toBeNull();
+  });
+
+  /**
+   * The gesture you can only make from on top of the thing — a ladder.
+   *
+   * Standing on it puts your body above it in the stack, which is exactly the
+   * arrangement `interactOver` describes, so a pick that stopped at the topmost
+   * placement could never offer the one interaction the tile has.
+   */
+  it("reaches under the body standing on it", () => {
+    const map = replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "ladder" },
+      { tileId: "cat", owner: "player-1" },
+    ]);
+    const p = onFoot({ x: 0, y: 0, z: 0 });
+    expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 0)).toEqual({
+      x: 0,
+      y: 0,
+      z: 0,
+      stackIndex: 1,
+    });
+  });
+
+  /**
+   * Your own body is an interactive tile — the player tile is pushable — so
+   * without the actionable rank it would sit on the rung and hide it.
+   */
+  it("passes over the body when the body has nothing to offer", () => {
+    const map = replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "ladder" },
+      { tileId: "crate", owner: "player-1" },
+    ]);
+    const ladder: ObjectRef = { x: 0, y: 0, z: 0, stackIndex: 1 };
+    const p = onFoot(ladder);
+
+    expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 0, sameRef(ladder))).toEqual(
+      ladder,
+    );
+  });
+
+  /** Flat things are not cover either — the same rule pick-up already takes. */
+  it("reaches under something lying flat on it", () => {
+    const map = replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "door-closed" },
+      { tileId: "coin" },
+    ]);
+    const door: ObjectRef = { x: 0, y: 0, z: 0, stackIndex: 1 };
+    const coin: ObjectRef = { x: 0, y: 0, z: 0, stackIndex: 2 };
+    const p = onFoot(door);
+
+    // Both are pickable, so the one on top answers — until only the door has a
+    // row, and then the coin is no more of an obstacle than the floor is.
+    expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 0)).toEqual(coin);
+    expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 0, sameRef(door))).toEqual(
+      door,
+    );
+  });
+
+  it("still refuses what a body is standing on under a crate", () => {
+    const map = replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "ladder" },
+      { tileId: "slab" },
+      { tileId: "cat", owner: "player-1" },
     ]);
     const p = onFoot({ x: 0, y: 0, z: 0 });
     expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 0)).toBeNull();
@@ -345,6 +433,21 @@ describe("pickTileAt", () => {
     for (let px = start.x; px < start.x + CELL_SIZE * 4; px++) {
       expect(pickTileAt(ctx(map), px, y, 0, 1)).not.toBeNull();
     }
+  });
+
+  it("names the body standing on a thing, not the thing", () => {
+    const map = replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "ladder" },
+      { tileId: "cat", owner: "player-1" },
+    ]);
+    const p = onFoot({ x: 0, y: 0, z: 0 });
+    expect(pickTileAt(ctx(map), p.x, p.y, 0, 1)).toEqual({
+      x: 0,
+      y: 0,
+      z: 0,
+      stackIndex: 2,
+    });
   });
 
   it("takes the frontmost of two tiles whose feet coincide", () => {

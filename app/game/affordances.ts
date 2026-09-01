@@ -301,7 +301,7 @@ function isLid(
  * standing on still does.
  */
 export function coveredBySomething(
-  stack: PlacedTile[],
+  stack: readonly PlacedTile[],
   index: number,
   tilesById: Record<string, TileDef>,
 ): boolean {

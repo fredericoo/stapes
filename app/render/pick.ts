@@ -4,11 +4,12 @@ import {
   drawOrder,
   screenToCoord,
 } from "../lib/geometry";
+import { coveredBySomething } from "../game/affordances";
 import type { ObjectRef } from "../game/GameSession";
 import { isBattler } from "../lib/battler";
 import { isInteractive } from "../lib/interactions";
 import { elevationAt, getStack } from "../lib/mapData";
-import type { MapFile, TileDef } from "../lib/types";
+import type { MapFile, PlacedTile, TileDef } from "../lib/types";
 import { CELL_SIZE, MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 
 /**
@@ -69,6 +70,55 @@ export type PickContext = {
 };
 
 /**
+ * Which slot of one cell's stack this pick means, or null when the cell offers
+ * nothing.
+ *
+ * **Top down rather than the top alone, because you stand on things.** A body is
+ * a placement like any other, so the ladder you are climbing has *you* above it
+ * in its stack — and a pick that read only the topmost slot could never see the
+ * one tile the cell exists for. It showed as a ladder the interaction list
+ * offered "Climb up" on while the world under the cursor stayed dark and
+ * swallowed the click; the same was true of anything you were standing over.
+ *
+ * How far down it reaches is {@link coveredBySomething} and deliberately nothing
+ * new: the affordances already own where a hand can get to, and reusing their
+ * rule is what stops a pick from offering something a tap would refuse. A body
+ * is not a lid there, nor is anything lying flat; a crate is, and what is under
+ * a crate stays unpickable.
+ *
+ * **A slot with something to do outranks one without**, which is the same
+ * lexicographic rule {@link outranks} applies across cells and it is what makes
+ * your own feet get out of the way: the player tile is pushable, so it is an
+ * interactive candidate wherever it stands — but nobody can shove *themselves*,
+ * so it has no row, and the rung underneath does.
+ *
+ * A tile the catalogue does not hold ends the descent rather than being stepped
+ * past: an unknown placement is one nothing can say the volume of, and guessing
+ * it away would reach through it.
+ */
+function candidateIn(
+  stack: readonly PlacedTile[],
+  tilesById: Record<string, TileDef>,
+  accepts: ((def: TileDef) => boolean) | undefined,
+  isActionable: (stackIndex: number) => boolean,
+): { stackIndex: number; actionable: boolean } | null {
+  let topmost = -1;
+
+  for (let i = stack.length - 1; i >= 0; i--) {
+    if (coveredBySomething(stack, i, tilesById)) break;
+    const placed = stack[i];
+    if (!placed) break;
+    const def = tilesById[placed.tileId];
+    if (!def) break;
+    if (accepts && !accepts(def)) continue;
+    if (isActionable(i)) return { stackIndex: i, actionable: true };
+    if (topmost < 0) topmost = i;
+  }
+
+  return topmost < 0 ? null : { stackIndex: topmost, actionable: false };
+}
+
+/**
  * What the pointer is over, from the one cell per level it can possibly be.
  *
  * Ground squares tile the plane and {@link screenToCoord} is their exact
@@ -80,8 +130,10 @@ export type PickContext = {
  * produce 23 candidates, and only ever ran while the cursor was over the canvas,
  * which is how it presented: fps that recovered the moment the mouse left.
  *
- * Only the top of each stack is a candidate. A buried tile is not on screen,
- * and you can neither look at nor click what you cannot see.
+ * Which slot of a stack answers is {@link candidateIn}: the top of it, and then
+ * down past anything that does not bury what is beneath it — your own feet
+ * above all. A tile under a crate is not on screen, and you can neither look at
+ * nor click what you cannot see.
  *
  * Candidates are ranked by `isActionable` first and draw order second. Draw
  * order alone loses the object the player came for whenever something inert
@@ -132,17 +184,16 @@ function pickTopAt(
     );
 
     const stack = getStack(ctx.map, x, y, z);
-    const stackIndex = stack.length - 1;
-    const placed = stack[stackIndex];
-    if (!placed) continue;
-    const def = ctx.tilesById[placed.tileId];
-    if (!def) continue;
-    if (opts.accepts && !opts.accepts(def)) continue;
+    const candidate = candidateIn(stack, ctx.tilesById, opts.accepts, (i) =>
+      opts.isActionable?.({ x, y, z, stackIndex: i }) ?? false,
+    );
+    if (!candidate) continue;
 
+    const { stackIndex, actionable } = candidate;
     const ref: ObjectRef = { x, y, z, stackIndex };
-    const actionable = opts.isActionable?.(ref) ?? false;
-    // Elevation of the *top* tile: everything under it, stacked. Only the sort
-    // key reads it — where the tile is *hit* is the ground, not its own height.
+    // Elevation of the slot that answered: everything under it, stacked. Only
+    // the sort key reads it — where a tile is *hit* is the ground square its
+    // column stands on, not its own height.
     const order = drawOrder(
       x,
       y,
