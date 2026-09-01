@@ -3894,3 +3894,177 @@ describe("casting", () => {
     expect(charmCooldown(hello)).toBeGreaterThan(0);
   });
 });
+
+
+/**
+ * Authored content reaching the world it describes.
+ *
+ * A tile save used to write the catalogue and stop there — the world reads it
+ * once, at load, so an edit changed what the *next* world would be built from
+ * and nothing about the one the author was standing in. It was invisible until
+ * a number a player watches changed: an arcane stone's cooldown is the first,
+ * and the server went on spending the old one while the reloaded browser drew
+ * the bar against the new one.
+ *
+ * What these pin is the pair of claims the fix rests on: an edit takes effect
+ * on the running world, and taking effect costs nobody anything they were
+ * carrying. The second is the one worth guarding — the reload is an eviction,
+ * and an eviction that emptied everybody's pockets would be a far worse bug
+ * than the one being fixed.
+ */
+describe("saving authored content", () => {
+  const STONE_TILE_ID = "reload-test-stone";
+  const LONG_MS = 120_000;
+  const SHORT_MS = 10_000;
+
+  function stoneTile(cooldownMs: number): unknown {
+    return {
+      id: STONE_TILE_ID,
+      name: "Reload Stone",
+      height: 0,
+      type: "simple",
+      kind: "item",
+      attributes: {},
+      lightPassing: true,
+      intangible: true,
+      affectedByGravity: true,
+      interactions: {
+        item: {
+          type: "stone",
+          effect: { kind: "heal", hp: 10 },
+          cooldownMs,
+        },
+      },
+      sprite: {
+        frames: [
+          {
+            sprite: {
+              tilesetId: "tiny-ranch-tiles",
+              rect: { x: 0, y: 0, w: 1, h: 1 },
+              base: { x: 0, y: 0 },
+            },
+            durationMs: 200,
+          },
+        ],
+      },
+    };
+  }
+
+  /** The shipped catalogue, with the player born wearing a stone of this length. */
+  function tilesWithStone(cooldownMs: number): unknown[] {
+    return [
+      ...(tilesJson as unknown[]).map((tile) => {
+        const def = tile as Record<string, unknown>;
+        if (def.id !== PLAYER_TILE_ID) return tile;
+        const interactions = def.interactions as Record<string, unknown>;
+        const battler = interactions.battler as Record<string, unknown>;
+        return {
+          ...def,
+          interactions: {
+            ...interactions,
+            battler: {
+              ...battler,
+              kit: [
+                ...((battler.kit as unknown[]) ?? []),
+                { slot: "charm", tileId: STONE_TILE_ID, chance: 100 },
+              ],
+            },
+          },
+        };
+      }),
+      stoneTile(cooldownMs),
+    ];
+  }
+
+  /** Save a catalogue the way the tile editor does, and let the world hear it. */
+  async function saveTiles(cooldownMs: number) {
+    await harness.blobs.put(
+      "tiles.json",
+      JSON.stringify(tilesWithStone(cooldownMs)),
+      JSON_TYPE,
+    );
+    await stub().reloadContent();
+  }
+
+  function charm(message: Record<string, unknown>) {
+    const equipment = message.equipment as {
+      charm: { tileId: string; cooldownMs?: number } | null;
+    };
+    return equipment.charm;
+  }
+
+  beforeEach(async () => {
+    await harness.blobs.put(
+      "tiles.json",
+      JSON.stringify(tilesWithStone(LONG_MS)),
+      JSON_TYPE,
+    );
+    await harness.blobs.put("map.json", JSON.stringify(authoredMap()), JSON_TYPE);
+  });
+
+  /**
+   * The bug, in one assertion. Before the fix the world went on spending the
+   * two-minute cooldown it loaded with, whatever the file said afterwards.
+   */
+  it("casts on the cooldown the editor last saved", async () => {
+    const { ws } = await connect(freshPlayer());
+    await saveTiles(SHORT_MS);
+    // The reload hands every open socket a fresh `hello`; the cast goes after it.
+    await messageWithin(ws, "hello", 2000);
+
+    send(ws, { type: "cast", square: "charm" });
+    const kit = await equipmentWithin(ws);
+    expect(charm(kit!)?.cooldownMs).toBe(SHORT_MS);
+  });
+
+  /**
+   * And a cooldown already running is clamped rather than left to outlive the
+   * stone it belongs to — the same rule a kit coming back from storage is under,
+   * which is what a reload makes this be.
+   */
+  it("clamps a running cooldown to the shortened stone", async () => {
+    const { ws } = await connect(freshPlayer());
+    send(ws, { type: "cast", square: "charm" });
+    expect(charm((await equipmentWithin(ws))!)?.cooldownMs).toBe(LONG_MS);
+
+    await saveTiles(SHORT_MS);
+    const hello = await messageWithin(ws, "hello", 2000);
+    expect(charm(hello!)?.cooldownMs).toBeLessThanOrEqual(SHORT_MS);
+  });
+
+  /**
+   * The reload is an eviction, so everything an eviction is careful about has to
+   * still hold. A save that emptied a player's pockets — and the editor saves
+   * constantly — would be a far worse bug than the staleness it fixes.
+   */
+  it("leaves everybody carrying what they were carrying", async () => {
+    const { ws, hello } = await connect(freshPlayer());
+    const before = (hello.equipment as { bag: { tileId: string } | null }).bag;
+    expect(before?.tileId).toBe(BAG_TILE_ID);
+
+    await saveTiles(SHORT_MS);
+    const after = await messageWithin(ws, "hello", 2000);
+    const bag = (after!.equipment as { bag: { tileId: string } | null }).bag;
+    expect(bag?.tileId).toBe(BAG_TILE_ID);
+    expect(charm(after!)?.tileId).toBe(STONE_TILE_ID);
+  });
+
+  /** And standing where they stood, on the body they already had. */
+  it("leaves one body per player, where it was", async () => {
+    const who = freshPlayer();
+    const { ws } = await connect(who);
+
+    await saveTiles(SHORT_MS);
+    const after = await messageWithin(ws, "hello", 2000);
+
+    expect(playerOwners(after!.map as FlatMapFile)).toEqual([who]);
+  });
+
+  /**
+   * A world nobody has opened needs no telling: the next load reads the files
+   * that were just written, which is the whole of what a reload does.
+   */
+  it("does nothing at all to a world that is not running", async () => {
+    await expect(stub().reloadContent()).resolves.toBeUndefined();
+  });
+});

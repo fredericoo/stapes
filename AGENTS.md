@@ -1038,6 +1038,40 @@ Casting is server-authoritative with no prediction, exactly as attacking is: the
 client sends "cast the stone in this square" — a square, never an instance id —
 and dims from the kit it is sent back.
 
+### A content save reaches the world it describes
+
+`GameServer.load` reads the tile and status catalogues **once per world** — it
+is guarded on there being no session — so for a long time saving a tile changed
+what the *next* world would be built from and nothing about the one the author
+was standing in. Saving a *map* never had the problem, because it goes through
+`replaceWorld`, which re-reads both catalogues on its way past.
+
+It was invisible until an authored number that a player *watches* changed. An
+arcane stone's cooldown is the first of those: the server went on spending the
+old one while a reloaded browser drew the bar against the new one, so it sat
+pinned at full and read as frozen rather than merely stale.
+
+So `POST /api/tiles` and `POST /api/statuses` now call `reloadContent`, which
+is **an eviction on purpose**: checkpoint, drop the session, load again. That is
+exactly what hibernation already does to this object, and everybody's position,
+kit, tags, experience, statuses and hit points survive a wake because a great
+deal of care was taken to make them — `restoreActors` at the end of `load`
+re-seats every socket that is still open, and nothing here has to know that list
+exists.
+
+It is deliberately **not** `replaceWorld`, which is about a new *board*: that
+one deletes the checkpoint, re-derives the spawn registry and drops every
+pending respawn, none of which a content save has any business doing. And not
+`resetWorld`, which is destructive by design.
+
+Unlike a wake, it **does** send everybody a `hello`. A wake resumes the same
+board against the same catalogue, so a client's copy is still true; here the
+tiles have changed meaning and the new session re-settled the board on its way
+up, so without one every client would go on drawing a world the server had
+moved on from. What a `hello` cannot fix is the client's own catalogue, which
+reaches a browser only at page load — an author still reloads to see new art,
+and no longer reloads to make the world obey them.
+
 ## Balancing happens in the Arena, not in the world
 
 `/arena` is a fight with the world taken out of it: two bodies, a cell apart, on

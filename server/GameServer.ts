@@ -2647,6 +2647,94 @@ export class GameServer {
   }
 
   /**
+   * Pick up authored content that has just been written, without disturbing the
+   * world it describes.
+   *
+   * **A tile save used to reach the store and stop there.** {@link load} reads
+   * the catalogue once per world — it is guarded on there being no session — so
+   * an author who edited a stone's cooldown, a sword's damage or a status's
+   * duration changed what the *next* world would be built from and nothing
+   * about the one they were standing in. The map editor never had this problem
+   * because saving a map goes through {@link replaceWorld}, which re-reads both
+   * catalogues on its way past; the tile editor had no equivalent.
+   *
+   * It was invisible until a number a player *watches* changed. An arcane
+   * stone's cooldown is the first of those: the server went on spending the old
+   * one while the reloaded browser drew the bar against the new one, so it sat
+   * pinned at full and looked frozen rather than merely stale.
+   *
+   * ## It is an eviction, on purpose
+   *
+   * Checkpoint, drop the session, load again. That is precisely what
+   * hibernation already does to this object, which is why it is the shape to
+   * borrow rather than a re-seating written specially: everybody's position,
+   * kit, tags, experience, statuses and hit points survive a wake because a
+   * great deal of care was taken to make them, and {@link restoreActors} at the
+   * end of {@link load} re-seats every socket that is still open. Nothing here
+   * has to know that list exists.
+   *
+   * **Not {@link replaceWorld}**, which is about a new *board*: it deletes the
+   * checkpoint, re-derives the spawn registry and drops every pending respawn,
+   * none of which a content save has any business doing — the board has not
+   * moved, only what the tiles on it mean. And not {@link resetWorld}, which is
+   * destructive by design.
+   *
+   * The forced save is what makes the drop safe, and it is forced for the reason
+   * a death's is: the board and every kit read off it go into one batch, so
+   * there is no moment at which a reload could pick up one without the other.
+   * The tick stops first, before the write, on {@link resetWorld}'s grounds —
+   * a flush landing between the checkpoint and the drop would be writing a world
+   * that is on its way out.
+   *
+   * A world that is not loaded needs nothing: the next {@link load} reads the
+   * files that were just written, which is the whole of what this does.
+   */
+  async reloadContent(): Promise<void> {
+    // A load already in flight is reading the catalogue this save supersedes.
+    // Waited for rather than returned past: the world it brings up is then
+    // reloaded again below, against the files as they are now. Returning
+    // instead would drop the second of two quick saves, and the editor is a
+    // place where two quick saves happen.
+    if (this.loading) await this.ensureLoaded();
+
+    const session = this.session;
+    if (!session) return;
+
+    if (this.timer !== null) {
+      clearInterval(this.timer);
+      this.timer = null;
+    }
+    // Everybody and the board, in one batch, before either can move again.
+    this.saveActors(session.actorIds(), true);
+
+    this.session = null;
+    // A load in flight was reading the catalogue that has just been superseded.
+    // Left in place, `ensureLoaded` below would await it and adopt its result —
+    // the same trap `resetWorld` clears this for.
+    this.loading = null;
+    await this.ensureLoaded();
+
+    // **And everybody is told, which a wake from hibernation deliberately does
+    // not do.** A wake resumes the same board against the same catalogue, so a
+    // client's copy is still true and the patch stream picks up where it left
+    // off. This is the opposite case: the tiles have changed meaning, the new
+    // session re-settled the board on its way up, and `broadcastMap` was reset
+    // to that settled board — so nothing would ever be diffed out, and every
+    // client would go on drawing a world the server has already moved on from.
+    // {@link replaceWorld} sends a `hello` for exactly this reason, and this is
+    // the same reason.
+    //
+    // What it cannot fix is the client's own catalogue, which reaches a browser
+    // only when the page loads. An author still reloads to see their new art;
+    // what they no longer have to do is reload to make the *world* obey them.
+    for (const ws of this.ctx.getWebSockets()) {
+      const attachment = ws.deserializeAttachment() as Attachment | null;
+      if (attachment) this.sendHello(ws, attachment.actorId);
+    }
+    this.wake();
+  }
+
+  /**
    * Throw the world away — the board, the people in it, and every last thing
    * this object remembers about anybody — and start again from the authored
    * files.
