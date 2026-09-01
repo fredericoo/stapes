@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { CAST_SQUARES, type CastSquare } from "../game/casting";
 import type { Equipment } from "../game/equipment";
 import type { SlotRef } from "../game/itemMoves";
 import { SWING_OUTCOMES, type SwingOutcome } from "../game/GameSession";
@@ -125,6 +126,20 @@ const itemInstanceSchema = v.object({
   direction: v.optional(directionSchema),
   channel: v.optional(v.string()),
   description: v.optional(v.string()),
+  /**
+   * How long an arcane stone has left before it can be cast again.
+   *
+   * **The one field a kit carries that is about time**, and it has to be on this
+   * schema rather than left to ride along: a validated object drops what it does
+   * not name, so a cooldown missing here is a button that never dims however
+   * carefully the server counts. Absent for every item in the world that is not
+   * a cooling stone, which is nearly all of them.
+   *
+   * Not on the `contents` shape below, and deliberately: a stone may not be in a
+   * bag while it is cooling — see `../game/equipment`'s `stoneLocked` — so a
+   * cooldown down there would be describing a state the rules forbid.
+   */
+  cooldownMs: v.optional(v.number()),
   contents: v.optional(
     v.array(
       v.object({
@@ -886,6 +901,27 @@ export type ClientMessage =
    */
   | { type: "attackMode"; enabled: boolean }
   /**
+   * "Cast the stone in this square."
+   *
+   * **A square, never an instance id**, on exactly the grounds every
+   * {@link SlotRef} in this protocol names one: an id is a thing the server has
+   * to go looking for, where a square is something it can read straight off a
+   * kit it already holds. There are three of them — both hands and the charm —
+   * and the client cannot name a fourth.
+   *
+   * Server-authoritative with no prediction, exactly as attacking is. The client
+   * asks `../game/casting` the same question before it draws the button lit, so
+   * a cast arriving that cannot be honoured is a race with the board or a client
+   * making things up — and like a refused move it gets no reply, because the
+   * equipment message the server sends whenever a kit changes is the only
+   * confirmation there is anything to say.
+   *
+   * Nothing about the *target* travels either: whom this player is pointing at
+   * is already on the server, put there by {@link ClientMessage} `target`, and a
+   * second copy arriving here would be one more thing to disbelieve.
+   */
+  | { type: "cast"; square: CastSquare }
+  /**
    * "Put me back in."
    *
    * The only thing a dead client may say. Every other message is dropped for
@@ -1034,6 +1070,13 @@ const clientMessageSchema = v.variant("type", [
   v.object({
     type: v.literal("attackMode"),
     enabled: v.boolean(),
+  }),
+  v.object({
+    type: v.literal("cast"),
+    // A picklist off the game's own list, so a square added to a body is a
+    // square this schema already accepts and a client naming a bag is refused
+    // before anything looks a kit up.
+    square: v.picklist(CAST_SQUARES),
   }),
   v.object({
     type: v.literal("rebirth"),
@@ -1297,7 +1340,7 @@ export const GAME_SOCKET_PATH = "/online/ws";
  * This is deliberately not the build id. A client deploy that changes no
  * messages should not disconnect anybody, and most client deploys are that.
  */
-export const PROTOCOL_VERSION = 2;
+export const PROTOCOL_VERSION = 3;
 
 /**
  * How often the world says nothing, to keep a proxy from hanging up.

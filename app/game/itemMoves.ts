@@ -5,11 +5,12 @@ import { EQUIP_SLOTS, type EquipSlot } from "../lib/kit";
 import type { MapFile, PlacedTile, TileDef } from "../lib/types";
 import { reachableItemDefAt, type Actor, type ObjectRef } from "./affordances";
 import {
-  armorForSlot,
   type Equipment,
   type Hand,
   handAccepts,
   handHasRoomFor,
+  stoneLocked,
+  wornAccepts,
 } from "./equipment";
 
 /**
@@ -301,8 +302,10 @@ export function slotTakes(kind: SlotKind, def: TileDef): boolean {
   //
   // Refused for the *wrong* armour too, which is what stops a helmet from being
   // worn as boots. The armour names its own square — see `../lib/item`'s
-  // `ArmorItem.slot` — and this is the one place a drag is held to it.
-  return armorForSlot(kind, def) != null;
+  // `ArmorItem.slot` — and this is the one place a drag is held to it. The charm
+  // is the one of the four that takes a second kind, and `wornAccepts` is where
+  // that is written down rather than here.
+  return wornAccepts(kind, def);
 }
 
 /** Whether this square is one of the two hands. */
@@ -435,6 +438,12 @@ export function applyItemMove(
   // kit — which does not fail here, it fails on the socket, as a message the
   // owner's own client throws away.
   if (!instance.id) return null;
+  // A stone that is still cooling stays where it is. The second cross-cutting
+  // square rule, asked here because this is where every player-initiated move
+  // passes — equipping, unequipping, looting and stashing are one operation
+  // read four ways, so one gate covers all four. See `./equipment`'s
+  // `stoneLocked` for what it is protecting.
+  if (stoneLocked(instance, tilesById)) return null;
   if (!slotAccepts(to.kind, instance, tilesById)) return null;
   if (!slotHasRoom(map, tilesById, actor, equipment, to, instance)) return null;
 

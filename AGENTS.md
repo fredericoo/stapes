@@ -909,6 +909,120 @@ sends. They come back at the door they came in by, on full hit points, wearing a
 empty bag, with everything they were carrying lying where they died. The walk
 back is the cost.
 
+## Magic is a stone you carry, and there is nothing else to it
+
+There is no mana, no spell book and no spell slots. What a caster can do is
+decided by which **arcane stones** they are carrying and how recently each was
+used — so the whole of a loadout is two hands and a charm, which is why the
+desktop binding is `1`, `2`, `3` and stops there.
+
+A stone is an arm of the item union beside weapon, armour, shield, consumable,
+container and artifact, and it is a kind of its own for the reason a shield is:
+both hands swing, so anything held that is not meant to be swung has to be
+refusable by the rotation. `weaponSwungBy` refuses everything that is not a
+`WeaponItem`, and that one existing line is the whole of "a stone in a hand
+never swings". One stone and a sword swings the sword every turn; two stones
+falls back to fists, because the rotation already skips a hand with nothing in
+it. Nothing was written for either.
+
+### The effect vocabulary is three things, and closed
+
+**Heal** the caster, **status** on the caster or the target, **conjure** a tile.
+Every one of them is something the simulation could already do to somebody,
+which is why casting added no new physics: "luminous" is an ordinary authored
+status whose visual block carries a `LightDef`, riding the same emitter path a
+carried torch does. Area of effect is deliberately absent — no spell touches
+more than one target or more than one cell.
+
+A hand stone reaches for the target the player already picked for attacking, and
+a **charm reaches nobody but its wearer**. A conjure lands on the target's cell
+or, with nobody targeted, on the cell the caster is facing: the player never
+picks an arbitrary square. Range goes through `canReach`, so a spell out of range
+fails exactly the way a swing does, wall included.
+
+**A conjure lands *under* a body already standing there**, which is the same rule
+`/tile` places underfoot by. What a tile does to a body is read off the stack
+below it, so a flame conjured on top of somebody would be a flame nobody is in —
+and a flame aimed at a target who is standing still would do nothing at all.
+
+### The cooldown is per stone, durable, and locks the square
+
+`ItemInstance.cooldownMs`, so two identical stones in two hands cool
+independently. It rides the kit, which is the one piece of a body's state a world
+already owes continuity for — so it survives a reconnection, an eviction and a
+deploy for free. **This is the opposite of how hit points' fight state is
+treated, and deliberately:** a cooldown rebuilt on load would make reconnecting
+the cheapest spell in the game.
+
+It is the one `ItemInstance` field that does **not** round-trip through a
+`PlacedTile`, and that is a deliberate hole in the correspondence
+`app/lib/itemInstance.ts` exists to protect. A deadline on a placement would land
+in `data/map.json` the moment somebody saved from the editor — the same objection
+`DecayIndex` makes about keeping its clocks off the map. Nothing is lost by it,
+because a cooling stone cannot be put down at all.
+
+**Wound in whole seconds, not per tick.** Winding it means replacing the kit that
+holds it, and the kit's identity is what tells the renderer its panel is stale
+and the server there is an equipment message to send — so a per-tick countdown
+would re-render the page and put a whole inventory on the wire thirty times a
+second, for ever, for a number nothing can show that finely.
+
+**A cooling stone is locked in its square**: it cannot be moved, swapped or put
+down. This is the second cross-cutting square rule after the two-handed weapon,
+and it lives beside it in `app/game/equipment.ts`. Without it a caster carries
+six stones in a bag and rotates through them, and the cooldown decides nothing.
+The lock is on *player-initiated* moves only — a death drops the whole kit
+regardless, and what lands is ready. It is also the only refusal in the item
+model that says anything out loud, because it is the only one where a player can
+plainly see something in a square and plainly cannot empty it.
+
+### Castability is one pure module, and it answers with a reason
+
+`app/game/casting.ts` answers "which stones can be cast right now, and why not"
+for four callers who must never disagree: the phone's buttons and the desktop's
+number keys, the session honouring a cast, and the tests. Same arrangement
+`itemMoves` and `affordances` are under.
+
+It returns a **reason** rather than a boolean because a button has exactly one
+appearance for "you cannot use this" — cooling, out of range, no target and
+mastery-not-met all look identical, which is right — and precisely because the
+picture collapses them, the accessible name must not.
+
+**An unmet requirement refuses the cast outright**, unlike a weapon's, which
+merely makes the swing feeble. A weapon half-understood still swings because
+swinging is a body doing what bodies do; a stone either answers you or it does
+not, and "it fires at a third strength" is a worse thing to learn from than "not
+yet".
+
+### Casting is paid for by what the spell did
+
+A third earnings function beside the attacker's and the defender's, keyed on an
+amount rather than an attack outcome: damage dealt to somebody who is not the
+caster, and health **actually restored** to the caster — so a heal at full
+health teaches nothing. Damage to yourself pays nothing, or training would be
+something you do to yourself in a corner.
+
+A flame you conjured pays you when it burns somebody, and that thread is the
+longest in the feature: the placement carries `castBy` — a **new** field, never
+`owner`, which already means "whose body is this" and is what finds a
+connection's actor — the tile puts a status on whoever steps in it, the
+`StatusInstance` carries `causedBy`, and the tick spends that memory. A status
+with no cause behaves exactly as it did before any of this existed, which is the
+property to protect.
+
+### The interface is absent for almost everybody
+
+One button per non-pressed stone, above the direction pad on a phone and in the
+side column on a desktop, in square order, showing the stone's own sprite and a
+bar counting its cooldown down. **The row is absent entirely for a body carrying
+no stones** — not empty, absent — which is the whole reason casting could be
+added to a layout already carrying a mode strip, an interaction list, a chat bar
+and a pad. An automatic charm gets no button, because there is nothing to press.
+
+Casting is server-authoritative with no prediction, exactly as attacking is: the
+client sends "cast the stone in this square" — a square, never an instance id —
+and dims from the kit it is sent back.
+
 ## Balancing happens in the Arena, not in the world
 
 `/arena` is a fight with the world taken out of it: two bodies, a cell apart, on

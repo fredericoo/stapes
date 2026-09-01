@@ -3770,3 +3770,127 @@ describe("commands", () => {
     expect(await chatWithin(onlooker.ws, QUIET_MS)).toBeNull();
   });
 });
+
+/**
+ * Casting, on the wire.
+ *
+ * The rules are pinned in `app/game/casting.test.ts` and
+ * `app/game/sessionCasting.test.ts`, on the node pool, where they belong. What
+ * only this pool can answer is the two claims that are about the socket and the
+ * store: that a `cast` frame reaches the session at all and comes back as the
+ * kit it changed, and that the cooldown it started is still running when
+ * somebody reconnects to a world that has been evicted in the meantime.
+ *
+ * That second one is the whole reason cooldowns are durable. A cooldown rebuilt
+ * on load would make reconnecting the cheapest spell in the game, and it is
+ * exactly the kind of thing that is correct in the simulation and lost on the
+ * way to storage.
+ */
+describe("casting", () => {
+  const STONE_TILE_ID = "test-arcane-stone";
+  const STONE_COOLDOWN_MS = 60_000;
+
+  /** A charm stone that heals, which is the shipped necklace's shape. */
+  function stoneTile(): unknown {
+    return {
+      id: STONE_TILE_ID,
+      name: "Test Stone",
+      height: 0,
+      type: "simple",
+      kind: "item",
+      attributes: {},
+      lightPassing: true,
+      intangible: true,
+      affectedByGravity: true,
+      interactions: {
+        item: {
+          type: "stone",
+          effect: { kind: "heal", hp: 10 },
+          cooldownMs: STONE_COOLDOWN_MS,
+        },
+      },
+      sprite: {
+        frames: [
+          {
+            sprite: {
+              tilesetId: "tiny-ranch-tiles",
+              rect: { x: 0, y: 0, w: 1, h: 1 },
+              base: { x: 0, y: 0 },
+            },
+            durationMs: 200,
+          },
+        ],
+      },
+    };
+  }
+
+  /** The shipped catalogue, with the player born wearing one. */
+  function tilesWithStone(): unknown[] {
+    return [
+      ...(tilesJson as unknown[]).map((tile) => {
+        const def = tile as Record<string, unknown>;
+        if (def.id !== PLAYER_TILE_ID) return tile;
+        const interactions = def.interactions as Record<string, unknown>;
+        const battler = interactions.battler as Record<string, unknown>;
+        return {
+          ...def,
+          interactions: {
+            ...interactions,
+            battler: {
+              ...battler,
+              kit: [
+                ...((battler.kit as unknown[]) ?? []),
+                { slot: "charm", tileId: STONE_TILE_ID, chance: 100 },
+              ],
+            },
+          },
+        };
+      }),
+      stoneTile(),
+    ];
+  }
+
+  /** The cooldown on whatever is worn on the charm, as a kit message says. */
+  function charmCooldown(message: Record<string, unknown>): number | undefined {
+    const equipment = message.equipment as {
+      charm: { tileId: string; cooldownMs?: number } | null;
+    };
+    return equipment.charm?.cooldownMs;
+  }
+
+  beforeEach(async () => {
+    await harness.blobs.put("tiles.json", JSON.stringify(tilesWithStone()), JSON_TYPE);
+    await harness.blobs.put("map.json", JSON.stringify(authoredMap()), JSON_TYPE);
+  });
+
+  it("puts the stone on cooldown and says so on the kit message", async () => {
+    const { ws, hello } = await connect(freshPlayer());
+    // Nothing cast yet, so nothing cooling — the state the button draws as lit.
+    expect(charmCooldown(hello)).toBeUndefined();
+
+    send(ws, { type: "cast", square: "charm" });
+    const kit = await equipmentWithin(ws);
+    expect(kit).not.toBeNull();
+    expect(charmCooldown(kit!)).toBe(STONE_COOLDOWN_MS);
+  });
+
+  /**
+   * Story 36. Reconnecting must not be a way to reset a cooldown, which means
+   * the number has to survive both the socket closing and the world itself
+   * ceasing to exist.
+   */
+  it("brings the cooldown back after the world has been evicted", async () => {
+    const who = freshPlayer();
+    const first = await connect(who);
+    send(first.ws, { type: "cast", square: "charm" });
+    await equipmentWithin(first.ws);
+    await leave(first.ws);
+
+    await simulateEviction();
+
+    const { hello } = await connect(who);
+    // Still cooling, and by roughly what was left: a world that rebuilt the kit
+    // from the tile would hand back a stone that had never been cast.
+    expect(charmCooldown(hello)).toBeGreaterThan(0);
+  });
+});

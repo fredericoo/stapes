@@ -7642,6 +7642,137 @@
     }
   },
   {
+    "id": "arcane-necklace-of-life",
+    "name": "Arcane Necklace of Life",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "stone",
+        "effect": {
+          "kind": "heal",
+          "hp": 10
+        },
+        "cooldownMs": 60000
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "equipment",
+            "rect": {
+              "x": 0,
+              "y": 38,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "arcane-stone-of-flame",
+    "name": "Arcane Stone of Flame",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "stone",
+        "effect": {
+          "kind": "conjure",
+          "tileId": "arcane-flame"
+        },
+        "cooldownMs": 120000,
+        "requirements": {
+          "arcane": 10
+        },
+        "reach": {
+          "cells": 3,
+          "height": 1
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "equipment",
+            "rect": {
+              "x": 3,
+              "y": 36,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "arcane-stone-of-light",
+    "name": "Arcane Stone of Light",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "stone",
+        "effect": {
+          "kind": "status",
+          "on": "caster",
+          "id": "luminous"
+        },
+        "cooldownMs": 30000
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "equipment",
+            "rect": {
+              "x": 1,
+              "y": 36,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
     "id": "buckler",
     "name": "Buckler",
     "height": 0,
@@ -10522,6 +10653,73 @@
       "addStatus": {
         "trigger": "step",
         "statusId": "burned"
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 0,
+              "y": 12,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 8,
+            "intensity": 0.85,
+            "color": "#ff8e52"
+          }
+        },
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 0,
+              "y": 14,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 180,
+          "light": {
+            "radius": 7,
+            "intensity": 0.93,
+            "color": "#e18e52"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "arcane-flame",
+    "name": "Arcane Flame",
+    "height": 1,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "interactions": {
+      "addStatus": {
+        "trigger": "step",
+        "statusId": "burned"
+      },
+      "decay": {
+        "tileId": "",
+        "fromMs": 8000,
+        "toMs": 12000
       }
     },
     "sprite": {

@@ -51,7 +51,7 @@ function runSeconds(
   for (let i = 0; i < seconds * (1000 / TICK_MS); i++) {
     const tick = advanceStatuses(current, TICK_MS, BEARER, defs);
     current = tick.statuses;
-    hpChanges.push(...tick.hpChanges);
+    hpChanges.push(...tick.hpChanges.map((change) => change.amount));
   }
   return { statuses: current, hpChanges };
 }

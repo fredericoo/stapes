@@ -191,6 +191,63 @@ export function bindAttackKey(onToggle: () => void): () => void {
   return () => window.removeEventListener("keydown", onKeyDown);
 }
 
+/**
+ * The keys that press a stone, in the order the buttons appear in.
+ *
+ * The digit row rather than letters, because casting is a *list* and a list
+ * wants an index — one, two, three is the one keyboard idiom that says "the
+ * first of these" without anybody having to be told. Three of them and no more,
+ * because three is the whole of a caster's loadout: two hands and a charm. See
+ * `./casting`'s `CAST_SQUARES`.
+ *
+ * `Digit1`–`Digit3` rather than the characters, on the terms the direction keys
+ * are bound by code: a French keyboard types `&` where a British one types `1`,
+ * and what a player is reaching for is the key in that position.
+ */
+const CAST_CODES = ["Digit1", "Digit2", "Digit3"] as const;
+
+/**
+ * Press a number to cast the stone in that position. Returns the unbind.
+ *
+ * **Reports the position, not the square**, and that is what keeps the keyboard
+ * and the buttons the same control: which stones a body has is a question with a
+ * moving answer — a player carrying one stone has one button and one key — and a
+ * key bound to a *square* would leave `2` doing nothing while the only spell in
+ * the game sat under `1`. The caller holds the list, so the two cannot disagree
+ * about what "the second one" is.
+ *
+ * Gated on {@link isTypingTarget} for the reason every other binding here is: a
+ * "1" typed into the chat bar is a digit, not a decision to set somebody on
+ * fire. Repeats are dropped, because a held key is one press — the cooldown is
+ * what decides how often a stone answers, and a keyboard that could ask faster
+ * would be asking for permission it is going to be refused.
+ */
+export function bindCastKeys(onCast: (index: number) => void): () => void {
+  const onKeyDown = (e: KeyboardEvent) => {
+    const index = CAST_CODES.indexOf(e.code as (typeof CAST_CODES)[number]);
+    if (index < 0) return;
+    if (e.repeat) return;
+    if (isTypingTarget(e.target)) return;
+    e.preventDefault();
+    onCast(index);
+  };
+
+  window.addEventListener("keydown", onKeyDown);
+  return () => window.removeEventListener("keydown", onKeyDown);
+}
+
+/**
+ * What a stone's key is called, for a tooltip and for anything read aloud.
+ *
+ * Here rather than in the component, so the label and the binding are one list:
+ * a fourth key added above would be a fourth label without anybody remembering.
+ * Empty past the end, which is a position with no key rather than a bug — a body
+ * cannot carry a fourth stone, and the row would simply not draw one.
+ */
+export function castKeyLabel(index: number): string {
+  return index < CAST_CODES.length ? String(index + 1) : "";
+}
+
 /** Drive `input` from the keyboard. Returns the unbind. */
 export function bindKeyboard(input: HeldDirections): () => void {
   const modifiers = (e: KeyboardEvent) => {

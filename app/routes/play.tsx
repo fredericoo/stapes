@@ -10,7 +10,7 @@ import { WorldClock } from "../components/WorldClock";
 import { GameSession, type Vitals } from "../game/GameSession";
 import { type Equipment, emptyEquipment } from "../game/equipment";
 import type { MasteryXp } from "../lib/mastery";
-import { bindKeyboard, HeldDirections } from "../game/heldDirections";
+import { bindCastKeys, bindKeyboard, HeldDirections } from "../game/heldDirections";
 import { usePlayModes } from "../components/usePlayModes";
 import {
   applyInteraction,
@@ -24,6 +24,7 @@ import {
 } from "../lib/clock";
 import type { ObjectRef } from "../game/affordances";
 import type { OpenedContainer, SlotRef } from "../game/itemMoves";
+import type { CastSquare, SpellButton } from "../game/casting";
 import { useGameAssets } from "../lib/gameAssets";
 import type { Direction } from "../lib/types";
 import { fetchBootstrap, fetchMapText } from "../lib/api";
@@ -101,6 +102,14 @@ export default function PlayPage() {
   const [vitals, setVitals] = useState<Vitals>({ hp: null, maxHp: null, rating: null, statuses: [] });
   const [openedContainer, setOpenedContainer] =
     useState<OpenedContainer | null>(null);
+  /**
+   * The stones this player could press, as the render loop last worked them out.
+   *
+   * Held in state rather than read per frame because it draws a row of React
+   * buttons; the loop pushes only when what the row *says* has changed — see
+   * `../render/GameRenderer`'s `setOnSpells`.
+   */
+  const [spells, setSpells] = useState<SpellButton[]>([]);
   // Straight at the renderer, like the hover outline: which box is open is a
   // frame's business, and it is the render loop that knows when its contents
   // changed or when the player walked out of reach of it.
@@ -122,6 +131,12 @@ export default function PlayPage() {
   }, []);
   const consumeItem = useCallback((slot: SlotRef) => {
     sessionRef.current?.consume({ kind: "slot", slot });
+  }, []);
+  // Straight at the session, like every other thing a player asks the world to
+  // do: whether the stone answers is the simulation's decision, and the button
+  // finds out from the next snapshot rather than from this call.
+  const cast = useCallback((square: CastSquare) => {
+    sessionRef.current?.cast(square);
   }, []);
   // Straight at the renderer, like the hover outline and for the same reason: a
   // ghost follows the pointer, and a page that re-rendered to move it would be
@@ -169,6 +184,11 @@ export default function PlayPage() {
   // their sword out must not have it quietly put away by an editor save.
   const attackingRef = useRef(attacking);
   attackingRef.current = attacking;
+  // Mirrored into a ref because the key binding is set up once, with the session,
+  // and must read whatever the row is showing *now* rather than the empty list
+  // it was carrying when the world was built.
+  const spellsRef = useRef(spells);
+  spellsRef.current = spells;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -202,6 +222,7 @@ export default function PlayPage() {
     renderer.setOnStats(setStats);
     renderer.setOnInteractions(setInteractions);
     renderer.setOnEquipment(setEquipment);
+    renderer.setOnSpells(setSpells);
     renderer.setOnMasteries(setMasteryXp);
     renderer.setOnVitals(setVitals);
     renderer.setOnOpenedContainer(setOpenedContainer);
@@ -212,8 +233,16 @@ export default function PlayPage() {
     const input = new HeldDirections((i) => session.setInput(i));
     inputRef.current = input;
     const unbindKeyboard = bindKeyboard(input);
+    // The key presses the *position*, and the row of buttons holds the list —
+    // so `2` is whatever the second button is showing, whichever square that
+    // turns out to be. See `../game/heldDirections`'s `bindCastKeys`.
+    const unbindCast = bindCastKeys((index) => {
+      const spell = spellsRef.current[index];
+      if (spell) session.cast(spell.square);
+    });
 
     return () => {
+      unbindCast();
       unbindKeyboard();
       inputRef.current = null;
       sessionRef.current = null;
@@ -222,6 +251,7 @@ export default function PlayPage() {
       setStats(null);
       setInteractions([]);
       setEquipment(emptyEquipment());
+      setSpells([]);
       setMasteryXp({});
       setVitals({ hp: null, maxHp: null, rating: null, statuses: [] });
       setOpenedContainer(null);
@@ -337,6 +367,8 @@ export default function PlayPage() {
             onConsumeItem={consumeItem}
             onDragOverWorld={dragOverWorld}
             onDropOnWorld={dropOnWorld}
+            spells={spells}
+            onCast={cast}
             tiles={tiles}
             tilesets={tilesets}
           />

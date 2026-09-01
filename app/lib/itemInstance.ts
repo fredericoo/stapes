@@ -39,6 +39,34 @@ export type ItemInstance = {
   description?: string;
   /** Containers only. Flat, and never holds another container. */
   contents?: ItemInstance[];
+  /**
+   * Milliseconds until this stone may be cast again, or absent for one that is
+   * ready. See `./item`'s {@link ArcaneStoneItem.cooldownMs}.
+   *
+   * **On the instance rather than on the def**, because two identical stones in
+   * two hands cool independently: what is cooling is this stone, not the kind of
+   * stone it is. And on the instance rather than beside the actor's hit points,
+   * because a cooldown must survive a reconnection — the kit is the one piece of
+   * a body's state a world already owes continuity for, so riding in it makes
+   * the cooldown durable and puts it on the equipment message with nothing to
+   * keep in step.
+   *
+   * **The one field that deliberately does not round-trip through a placement**,
+   * which is the correspondence the module note above exists to protect — so it
+   * is worth saying why. A deadline written onto a placement would land in
+   * `data/map.json` the moment somebody saved from the editor, turning a
+   * hand-editable file into one that churns a timestamp per stone lying on a
+   * shelf; it is the same objection `../game/decay` makes about keeping its
+   * clocks off the map. Nothing is lost by it: a cooling stone cannot be put
+   * down at all — see `../game/equipment`'s `stoneLocked` — so the only stone
+   * that ever reaches the floor mid-cooldown is one dropped by a body that has
+   * just died, and it lands ready.
+   *
+   * Counted down by the tick and stored, on exactly the terms a status's
+   * `remainingMs` is: a deadline compared against a wall clock would let a world
+   * nobody is ticking quietly cool.
+   */
+  cooldownMs?: number;
 };
 
 /**
@@ -68,6 +96,8 @@ export function mintItemId(): string {
  */
 export function instanceFromPlacement(placed: PlacedTile): ItemInstance | null {
   if (!placed.itemId) return null;
+  // No cooldown comes back off the board, because none ever went onto it — see
+  // {@link ItemInstance.cooldownMs}. A stone picked up is a stone that is ready.
   return {
     id: placed.itemId,
     tileId: placed.tileId,
@@ -87,6 +117,8 @@ export function instanceFromPlacement(placed: PlacedTile): ItemInstance | null {
  * with an owner would read as somebody's body.
  */
 export function placementFromInstance(instance: ItemInstance): PlacedTile {
+  // {@link ItemInstance.cooldownMs} is not among the fields named below, and
+  // deliberately: a clock the map carried would be a clock the editor saved.
   return {
     tileId: instance.tileId,
     itemId: instance.id,

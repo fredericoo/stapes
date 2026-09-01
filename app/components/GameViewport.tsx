@@ -4,6 +4,7 @@ import type { Equipment } from "../game/equipment";
 import { emptyEquipment } from "../game/equipment";
 import type { InteractionOption } from "../game/interactionOptions";
 import type { OpenedContainer, SlotRef } from "../game/itemMoves";
+import type { CastSquare, SpellButton } from "../game/casting";
 import { itemUseFor } from "../game/itemUse";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { MasteryXp } from "../lib/mastery";
@@ -19,6 +20,7 @@ import { EquipmentPanel } from "./EquipmentPanel";
 import { DragLayer } from "./DragLayer";
 import { InteractionList } from "./InteractionList";
 import { ModeSwitch, type ActionButtonSize } from "./ModeSwitch";
+import { SpellBar } from "./SpellBar";
 import type { PlayMode } from "./usePlayModes";
 import { BagButton, EquipmentToggle, StatsToggle } from "./PanelToggle";
 import { StatsPanel } from "./StatsPanel";
@@ -32,6 +34,12 @@ const NO_VITALS: Vitals = { hp: null, maxHp: null, rating: null, statuses: [] };
 
 /** Nobody is under anything, which is almost everybody almost always. */
 const NO_STATUSES: ActiveStatus[] = [];
+
+/**
+ * Nobody is carrying a stone, which is almost everybody almost always. Shared,
+ * so the default costs no allocation and the row's absence is one comparison.
+ */
+const NO_SPELLS: SpellButton[] = [];
 
 /**
  * The game as a fixed square, letterboxed into whatever space it is given.
@@ -101,6 +109,8 @@ export function GameViewport({
   onConsumeItem,
   onDragOverWorld,
   onDropOnWorld,
+  spells = NO_SPELLS,
+  onCast,
   tiles = [],
   tilesets = [],
 }: {
@@ -211,6 +221,17 @@ export function GameViewport({
   ) => void;
   /** A drag was let go over the world at this point. */
   onDropOnWorld?: (from: SlotRef, point: { x: number; y: number }) => void;
+  /**
+   * The arcane stones this body could press, in square order, with why each can
+   * or cannot be cast right now — see `../game/casting`.
+   *
+   * Empty by default, which draws no row at all rather than an empty one: a
+   * route that has not wired casting up looks exactly like a player who has
+   * never picked a stone up, which is the overwhelming majority of both.
+   */
+  spells?: SpellButton[];
+  /** Cast the stone in this square. Absent on a route with no session to ask. */
+  onCast?: (square: CastSquare) => void;
   /** Catalogue behind the list's sprites. */
   tiles?: TileDef[];
   tilesets?: TilesetDef[];
@@ -237,6 +258,10 @@ export function GameViewport({
   const move = useCallback(
     (from: SlotRef, to: SlotRef) => onMoveItem?.(from, to),
     [onMoveItem],
+  );
+  const cast = useCallback(
+    (square: CastSquare) => onCast?.(square),
+    [onCast],
   );
   const world = useMemo(
     () => ({
@@ -694,7 +719,19 @@ export function GameViewport({
                   of decorations an inch above it is a stray press waiting to
                   happen — see `interactive={false}`, which is the other half of
                   the same worry. */}
-              <div className="mt-auto w-full">
+              <div className="mt-auto flex w-full flex-col gap-2">
+                {/* Directly above the arrows and exactly their width, because
+                    the two are one cluster: the hand steering is on this side of
+                    the screen, and the hand that is free is the one that casts.
+                    Absent entirely for a body carrying no stones, which is what
+                    keeps the pad where a returning player's thumb left it — see
+                    `./SpellBar`, which draws nothing rather than an empty row. */}
+                <SpellBar
+                  spells={spells}
+                  onCast={cast}
+                  tilesById={tilesById}
+                  tilesets={tilesets}
+                />
                 <DirectionPad onPress={press} onRelease={release} />
               </div>
               {/* The far corner, under the arrows, which is the one place on a
@@ -748,6 +785,22 @@ export function GameViewport({
           <div className="flex shrink-0 items-center gap-1 border-b-2 border-paper/20 pb-2">
             {panelButtons("compact")}
           </div>
+          {/* The same row of stones a phone gets, with the same order and the
+              same buttons — a desktop simply also has `1`, `2` and `3` for them.
+              Below the switches rather than above, because those say what a tap
+              *means* and this is a thing you do; and absent for anybody carrying
+              no stones, so a column that has never seen magic is unchanged. */}
+          {spells.length > 0 ? (
+            <div className="flex shrink-0 items-center gap-1 border-b-2 border-paper/20 pb-2">
+              <SpellBar
+                spells={spells}
+                onCast={cast}
+                tilesById={tilesById}
+                tilesets={tilesets}
+                className="max-w-40"
+              />
+            </div>
+          ) : null}
           {/* Under the buttons that open them and above the list, so the column
               reads top to bottom as: what a tap means, what you have, what is
               in reach. `shrink-0` because the list below is the thing that

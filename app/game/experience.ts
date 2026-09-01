@@ -153,3 +153,72 @@ export function defenderEarnings(
 
   return outcome.dodged ? { agility: earned } : { toughness: earned };
 }
+
+/**
+ * What one cast earns the body that made it.
+ *
+ * **Keyed on what the spell did, rather than on an attack outcome**, which is
+ * the whole reason it is a third function beside the two above rather than a
+ * branch inside one of them: a swing has a `missed`, a `dodged` and a
+ * `potentialDamage` to read, and a spell has none of those. What a spell has is
+ * an amount — health it took off somebody, or health it put back — and the two
+ * are paid at the same rate a blow is, so an arcanist and a swordsman advance on
+ * one scale.
+ *
+ * The three rules the caller has to honour before it gets here, because none of
+ * them are visible in one number:
+ *
+ * - **Damage to somebody who is not the caster pays.** That includes damage
+ *   dealt later by something the caster conjured — a flame that burns whoever
+ *   walks into it pays the person who lit it — which is why a status carries the
+ *   actor that caused it. @see `./statuses`'s {@link StatusInstance.causedBy}
+ * - **Damage to the caster pays nothing**, so nobody trains by setting
+ *   themselves on fire. The caller passes zero rather than this checking, on the
+ *   same grounds `attackerEarnings` does not look up who it is paying: this
+ *   module knows arithmetic and not who anybody is.
+ * - **A heal pays for the health actually restored**, never the amount the stone
+ *   names. Pressing a heal at full health restored nothing and teaches nothing,
+ *   which is measured by the caller as the health the caster was missing.
+ *
+ * Scaled by {@link learningRate} exactly as a swing is, off the stone's own
+ * requirement: a stone you have outgrown keeps teaching you and keeps teaching
+ * you less. Nothing goes to Agility, unlike a landed blow — closing on something
+ * and staying on it is footwork, and casting is the one thing in this game you
+ * do standing still.
+ */
+export function casterEarnings(
+  /**
+   * What the spell came to, in hit points — damage dealt to somebody else, or
+   * health actually put back into the caster.
+   *
+   * One figure for both, because they are paid identically and a spell that
+   * both harmed and healed is not a thing the effect vocabulary can say. A
+   * caller with two of these to pay for calls twice.
+   */
+  amount: number,
+  /**
+   * What the stone that did it asks, or nothing when there is no stone left to
+   * ask.
+   *
+   * Undefined is the honest answer for damage dealt by something a caster
+   * conjured: by the time a flame burns somebody the stone may have been put
+   * down, swapped or lost with its owner's corpse, and what is being paid for is
+   * the damage rather than the object. It reads as a requirement of zero, which
+   * `learningRate` already means by "asks nothing" — so the indirect case pays
+   * at the plain rate rather than through a stone somebody had to invent.
+   */
+  requirements: Masteries | undefined,
+  masteries: Masteries,
+  multiplier: number,
+): MasteryXp {
+  if (amount <= 0) return {};
+
+  const earned = XP_PER_DAMAGE * amount * multiplier;
+  if (earned <= 0) return {};
+
+  // On exactly the terms a weapon's is read: what a stone asks of the mastery it
+  // *trains* is what decides how much it still has to teach.
+  const requirement = requirements?.arcane ?? 0;
+  const rate = learningRate(masteryLevel(masteries, "arcane"), requirement);
+  return { arcane: earned * rate };
+}

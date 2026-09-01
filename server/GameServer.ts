@@ -1842,6 +1842,14 @@ export class GameServer {
       // is a battler, or is anywhere near is re-asked on every swing — it has to
       // be, because all three change while both parties walk around.
       session.setTarget(message.actorId, actorId);
+    } else if (message.type === "cast") {
+      // Re-asked in full on this side, on exactly the terms a swing's cooldown
+      // is: the client dimmed the button from these same rules, but it dimmed it
+      // against a kit and a target that may both be a round trip old — and a
+      // client that made the message up gets the same answer. The equipment
+      // message flushed below is the only confirmation there is, which is why
+      // this sits in the chain rather than returning early.
+      session.cast(message.square, actorId);
     } else if (message.type === "attackMode") {
       // The wake below matters more here than for a target: a world at rest
       // stays at rest while somebody merely points at a deer, and turning this
