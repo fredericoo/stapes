@@ -317,6 +317,31 @@ export const DEPTH_OVERHANG_BIAS =
   MAX_ART_OVERHANG_CELLS * CELL_SIZE * DEPTH_PLANE_BIAS;
 
 /**
+ * The least body a box can declare and still count as having one.
+ *
+ * {@link boxSurface} rescues art hanging down-right over the cells in front
+ * only for a box with volume, because a *flat* tile's art past its own foot is
+ * more floor and two coplanar floors are what painter order is for. That test —
+ * `top > foot` — is the only way the four numbers of a {@link DepthBox} can say
+ * "this is an object standing on the floor rather than more of the floor", so
+ * anything that is an object and happens to declare no height has to say it
+ * with a body.
+ *
+ * Half a stack index once ray depth has weighted it, which is what makes it
+ * safe: {@link DEPTH_STACK_BIAS} is the smallest step anything else here moves
+ * in, so a box lifted by this cannot overtake something one stack index above it
+ * — it can only win a tie it was already losing on a technicality. The rescue it
+ * unlocks is worth far more than the lift: {@link DEPTH_OVERHANG_BIAS} is forty
+ * times larger.
+ *
+ * Used by `../render/WorldRenderer` for a pile, whose sprites are spread across
+ * their cell and therefore hang over the cells around it — see
+ * `../render/pileLayout`. Nothing else needs it yet, because nothing else draws
+ * a flat item anywhere but dead centre.
+ */
+export const DEPTH_LEAST_BODY = DEPTH_STACK_BIAS / RAY_DEPTH_ELEV / 2;
+
+/**
  * Per-level stride for {@link depthStackBias}. Must beat any in-level
  * stackIndex, but keep
  * `(levelSpan * stride + maxIndex) * DEPTH_STACK_BIAS < RAY_DEPTH_ELEV`

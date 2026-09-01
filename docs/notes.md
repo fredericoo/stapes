@@ -1668,6 +1668,20 @@ Three things were arrived at by looking at it rather than by reasoning:
   gives out long before that; past six a heap says *how big* rather than how
   many, which is the honest thing for it to say.
 
+**A heap declares a body, however flat the tile it is made of.** Spreading the
+sprites means the southern ones hang over the cell in front, and `boxSurface`
+rescues art that hangs down-right only for a box with volume — a *flat* tile's
+art past its own foot is more floor, and two coplanar floors are what painter
+order is for. That is right about a floor and wrong about a heap of berries,
+which is an object lying on the ground: without it the bottom of every pile is
+drawn under the floor of the cell in front, bitten along the diagonal the plane
+bias runs on. `top > foot` is the only way four numbers can say "object, not
+floor", so a pile says it with `DEPTH_LEAST_BODY` — half a stack index once ray
+depth has weighted it, which is small enough that it can only win a tie and
+never overtake something genuinely above it. The height that decides stacking
+and gravity is untouched; this is a fact about sorting and it lives in the
+renderer.
+
 Two constraints the code has to keep. Offsets are **whole pixels**, because a
 merged static quad at a fractional offset samples off the pixel grid forever —
 a walker gets to be between pixels because it is going somewhere. And a tile

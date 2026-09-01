@@ -4,6 +4,7 @@ import {
   absoluteElevation,
   baseCellWorldOrigin,
   type DepthBox,
+  DEPTH_LEAST_BODY,
   depthBox,
   depthStackBias,
   spriteWorldOrigin,
@@ -1898,7 +1899,6 @@ export class WorldRenderer {
       if (!tileset) return;
 
       const foot = absoluteElevation(z, elev);
-      const box = depthBox(x, y, foot, foot + def.height);
       const baseOrigin = baseCellWorldOrigin(x, y, z, elev);
       const origin = spriteWorldOrigin(baseOrigin, first.sprite.base);
       const { rect } = first.sprite;
@@ -1937,6 +1937,24 @@ export class WorldRenderer {
       // rather than one anybody trips over.
       const offsets = separate ? NO_PILE_OFFSET : pileOffsets(countOf(placed));
       const stackBias = depthStackBias(z, stackIndex);
+      // **A heap declares a body, however flat the tile it is made of.**
+      //
+      // A pile's sprites are spread across their cell, so the southern ones hang
+      // over the cell in front — and `../lib/geometry`'s `boxSurface` rescues
+      // that art only for a box with volume, on the grounds that a *flat* tile's
+      // art past its own foot is more floor and two coplanar floors keep painter
+      // order. That is right about a floor and wrong about a heap of berries,
+      // which is an object lying on the ground: without this the bottom of every
+      // pile is drawn under the floor of the cell in front of it.
+      //
+      // A hair of one, not a real height — see {@link DEPTH_LEAST_BODY}. What
+      // the tile declares still wins where it declares anything, and the height
+      // that decides stacking and gravity is untouched: this is a fact about
+      // sorting, and it lives here rather than on the tile because that is all
+      // it is.
+      const body =
+        offsets.length > 1 ? Math.max(def.height, DEPTH_LEAST_BODY) : def.height;
+      const box = depthBox(x, y, foot, foot + body);
 
       // An indexed loop rather than `forEach`: this runs once per placement on a
       // floor — thousands of them per rebuild — and a callback here is a closure
