@@ -56,8 +56,8 @@ export type FlightPoint = ReachPoint;
  * one lands exactly where the blow did however the clock behaved on the way.
  *
  * Aged in place like every other motion, so the same object across two ticks is
- * the same flight and the wire announces it once. See AGENTS.md, "The wire is
- * patches plus motion events".
+ * the same flight and the wire announces it once. See docs/notes.md, "The wire
+ * is patches plus motion events".
  */
 export type ProjectileFlight = {
   /** Stable for the life of the flight; the renderer's mesh is keyed on it. */

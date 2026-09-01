@@ -48,8 +48,8 @@ export const STRIKE_REACH = MELEE_REACH;
  * `ActorSnapshot`'s `strikeProgress`: motion is announced on the wire by
  * *identity*, so a state rebuilt each tick to carry its own clock would read as
  * a brand new strike thirty times a second. Walking, falling and sliding all
- * learned this the same way — see AGENTS.md, "The wire is patches plus motion
- * events".
+ * learned this the same way — see docs/notes.md, "The wire is patches plus
+ * motion events".
  *
  * The delta rather than the other body's id or cell, because by the time this is
  * drawn there may be nobody there to measure against: a killing blow takes its

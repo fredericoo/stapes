@@ -32,7 +32,7 @@ import type { Coord } from "../lib/types";
  * A refusal travels as a {@link CommandRefusal} rather than as prose, because
  * this module knows the grammar and `./notices` knows how the game talks. The
  * split is what keeps every sentence the player reads in one file — see the
- * notice notes in `AGENTS.md` — while leaving the reasons something failed
+ * notice notes in `docs/notes.md` — while leaving the reasons something failed
  * enumerable, and therefore testable, here.
  *
  * **Every failure has a reason, and the reason is the point.** A command that

@@ -17,9 +17,9 @@ import {
  * ## Typed arrays and a fixed pool
  *
  * Parallel `Float32Array`s rather than an array of objects, on the terms
- * AGENTS.md sets for anything in the frame path: this is walked in full thirty to
- * a hundred and twenty times a second, and an array of objects at this rate is a
- * garbage collector running in the middle of the frame budget.
+ * docs/notes.md sets for anything in the frame path: this is walked in full
+ * thirty to a hundred and twenty times a second, and an array of objects at
+ * this rate is a garbage collector running in the middle of the frame budget.
  *
  * The pool is allocated once at {@link MAX_LIVE_PARTICLES} and never grows.
  * A world that asks for more than that gets fewer particles, not a bigger

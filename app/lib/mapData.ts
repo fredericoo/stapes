@@ -594,7 +594,7 @@ export function listChannels(map: MapFile): string[] {
  * on blur, which fires on every focus-out whether or not a character was typed
  * — so without this, tabbing through the panel minted a map identity, an undo
  * entry and a geometry diff per field touched. A mutation that changes nothing
- * must return the same object; see AGENTS.md.
+ * must return the same object; see docs/notes.md.
  */
 function updatePlacedText(
   map: MapFile,
