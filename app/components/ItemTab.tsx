@@ -27,14 +27,14 @@ import {
 } from "../lib/item";
 import { hasAnyInteraction, type TileInteractions } from "../lib/interactions";
 import { SLOT_LABELS } from "../lib/kit";
-import { WEAPON_MASTERIES } from "../lib/mastery";
+import { MASTERY_LABELS, WEAPON_MASTERIES } from "../lib/mastery";
 import type { StatusDef } from "../lib/status";
 import type { TileDef } from "../lib/types";
 import { Input, Segmented, Switch } from "../ui";
 import { StatField } from "./StatField";
 import { StatusGrants } from "./StatusGrants";
 import { StoneFields } from "./StoneFields";
-import { MASTERY_LABELS, WeaponFields } from "./WeaponFields";
+import { WeaponFields } from "./WeaponFields";
 
 type Props = {
   draft: TileDef;

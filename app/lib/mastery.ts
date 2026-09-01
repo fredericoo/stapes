@@ -58,6 +58,27 @@ export const BODY_MASTERIES: BodyMastery[] = ["toughness", "agility"];
 
 export const MASTERIES: Mastery[] = [...WEAPON_MASTERIES, ...BODY_MASTERIES];
 
+/**
+ * What each mastery is called on screen.
+ *
+ * **Here rather than in a component, because two of them needed it and neither
+ * could have the other's.** The editor's panels and `./weaponDemand`'s inspect
+ * lines carried identical tables of the same words — `app/lib` cannot import
+ * from `app/components`, so the duplication had nowhere else to go — and a
+ * mastery added to the union was two places a rename had to reach. It is the
+ * same argument this module exists for: two modules needing the same words is
+ * what a third module is for, and the words belong beside the list they name.
+ */
+export const MASTERY_LABELS: Record<Mastery, string> = {
+  fist: "Fist",
+  blade: "Blade",
+  blunt: "Blunt",
+  ranged: "Ranged",
+  arcane: "Arcane",
+  toughness: "Toughness",
+  agility: "Agility",
+};
+
 /** Both ends of a mastery, named so the editor and the schema agree. */
 export const MIN_MASTERY = 0;
 export const MAX_MASTERY = 100;

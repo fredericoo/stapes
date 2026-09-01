@@ -22,8 +22,8 @@ import { flightDurationMs } from "../game/projectile";
 import { HEIGHT_PER_LEVEL, type TileDef } from "../lib/types";
 import {
   MASTERIES,
+  MASTERY_LABELS,
   MAX_MASTERY,
-  type Mastery,
   MIN_MASTERY,
   OUTGROWN_FALLOFF,
   WEAPON_MASTERIES,
@@ -42,23 +42,6 @@ import { StatusGrants } from "./StatusGrants";
  * in every sense that matters, down to the schema it is validated by. Two copies
  * of these four fields would be two places to forget a rename.
  */
-
-/**
- * What each mastery is called on screen.
- *
- * Exported because armour is authored against the same list — a resistance names
- * a kind of blow and a kind of blow *is* a weapon mastery — and a second table
- * of the same seven words is a second place a rename has to reach.
- */
-export const MASTERY_LABELS: Record<Mastery, string> = {
-  fist: "Fist",
-  blade: "Blade",
-  blunt: "Blunt",
-  ranged: "Ranged",
-  arcane: "Arcane",
-  toughness: "Toughness",
-  agility: "Agility",
-};
 
 const MASTERY_OPTIONS = WEAPON_MASTERIES.map((value) => ({
   value,

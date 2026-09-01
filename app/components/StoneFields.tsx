@@ -14,16 +14,17 @@ import {
   MIN_STONE_COOLDOWN_MS,
   reachOf,
 } from "../lib/item";
-import { MASTERIES, MAX_MASTERY, MIN_MASTERY } from "../lib/mastery";
+import {
+  MASTERIES,
+  MASTERY_LABELS,
+  MAX_MASTERY,
+  MIN_MASTERY,
+} from "../lib/mastery";
 import type { StatusDef } from "../lib/status";
 import type { TileDef } from "../lib/types";
 import { Segmented, Select, Switch } from "../ui";
 import { StatField } from "./StatField";
-import {
-  describeReachCells,
-  describeReachHeight,
-  MASTERY_LABELS,
-} from "./WeaponFields";
+import { describeReachCells, describeReachHeight } from "./WeaponFields";
 
 /**
  * What an arcane stone is, in the editor.
