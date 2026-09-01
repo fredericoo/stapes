@@ -1,6 +1,7 @@
 import * as v from "valibot";
 import { DEFAULT_BATTLER, type BattlerDef } from "./battler";
 import type { BrainDef } from "./brain";
+import { ELEMENTS } from "./element";
 import type { ItemDef } from "./item";
 import { kitForSave } from "./kit";
 import {
@@ -1579,6 +1580,16 @@ export function interactionsForSave(
         // rebuilds it entry by entry for the reason the block around it is
         // rebuilt — an editor draft carries whatever the last shape left behind.
         ...(savedKit ? { kit: savedKit } : {}),
+        // Omitted when the body is neutral, which is almost every creature —
+        // and ordered off `ELEMENTS` rather than as ticked, so two authors who
+        // chose the same two produce the same file.
+        ...(battler.elements?.length
+          ? {
+              elements: ELEMENTS.filter((element) =>
+                battler.elements?.includes(element),
+              ),
+            }
+          : {}),
       }
     : undefined;
   // Rebuilt field by field too, by the module that owns the union's arms —

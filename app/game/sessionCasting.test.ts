@@ -97,6 +97,13 @@ function body(
   toughness: number,
   extra: Record<string, unknown> = {},
   kit: Array<{ slot: string; tileId: string }> = [],
+  /**
+   * What this body is *made of*, for the cases the wheel is about.
+   *
+   * Authored on the battler, never a mastery: what a body has practised says
+   * what it can cast, and what it is made of says what magic does to it.
+   */
+  elements: string[] = [],
 ) {
   return tile({
     id,
@@ -109,6 +116,7 @@ function body(
     interactions: {
       battler: {
         masteries: { toughness },
+        ...(elements.length ? { elements } : {}),
         naturalWeapon: {
           type: "weapon",
           damage: 1,
@@ -131,6 +139,26 @@ function body(
 const props: TileDef[] = [
   tile({ id: "grass" }),
   body("rat", RAT_TOUGHNESS, { actor: true }),
+  // Three rats that are made of something, so the wheel has somewhere to turn.
+  // Their toughness is the plain rat's, so the only thing that differs between
+  // the burns below is which side of the wheel each one is on.
+  body("nature-rat", RAT_TOUGHNESS, { actor: true }, [], ["nature"]),
+  body("water-rat", RAT_TOUGHNESS, { actor: true }, [], ["water"]),
+  body("even-rat", RAT_TOUGHNESS, { actor: true }, [], [
+    "fire",
+    "water",
+    "nature",
+  ]),
+  // Neutral in itself, and born wearing something that is not — the equipped
+  // half of what a body counts as.
+  body("robed-rat", RAT_TOUGHNESS, { actor: true }, [
+    { slot: "armor", tileId: "tunic-of-brambles" },
+  ]),
+  // The same tunic in the bag rather than on the body, which must count for
+  // nothing: what is in a bag is in a bag.
+  body("packing-rat", RAT_TOUGHNESS, { actor: true }, [
+    { slot: "bag", tileId: "satchel" },
+  ]),
   stoneTile("life-stone", {
     effect: { kind: "heal", hp: HEAL_HP },
     cooldownMs: HEAL_COOLDOWN_MS,
@@ -149,6 +177,58 @@ const props: TileDef[] = [
     effect: { kind: "status", on: "target", id: "burned" },
     cooldownMs: 10_000,
     reach: { cells: 3, height: 1 },
+  }),
+  // The same brand, made of fire. Its Fire requirement is the one point every
+  // body starts with, which is what makes an element reachable at all.
+  stoneTile("ember-stone", {
+    effect: { kind: "status", on: "target", id: "burned" },
+    cooldownMs: 10_000,
+    reach: { cells: 3, height: 1 },
+    requirements: { fire: 1 },
+  }),
+  stoneTile("tide-stone", {
+    effect: { kind: "status", on: "target", id: "burned" },
+    cooldownMs: 10_000,
+    reach: { cells: 3, height: 1 },
+    requirements: { water: 1 },
+  }),
+  // Two elements at once, to check both are trained and both are weighed.
+  stoneTile("storm-stone", {
+    effect: { kind: "status", on: "target", id: "burned" },
+    cooldownMs: 10_000,
+    reach: { cells: 3, height: 1 },
+    requirements: { fire: 1, water: 1 },
+  }),
+  tile({
+    id: "tunic-of-brambles",
+    kind: "item",
+    lightPassing: true,
+    intangible: true,
+    affectedByGravity: true,
+    interactions: { item: { type: "armor", def: 0, elements: ["nature"] } },
+  }),
+  tile({
+    id: "satchel",
+    kind: "item",
+    lightPassing: true,
+    intangible: true,
+    affectedByGravity: true,
+    interactions: {
+      item: { type: "container", size: 2, equippable: true },
+    },
+  }),
+  stoneTile("ember-flame-stone", {
+    effect: { kind: "conjure", tileId: "conjured-flame" },
+    cooldownMs: 10_000,
+    reach: { cells: 3, height: 1 },
+    requirements: { fire: 1 },
+  }),
+  // The scorch stone, made of fire: a burn a caster puts on themselves, which
+  // is the only way to reach a body whose masteries a command can move.
+  stoneTile("ember-self-stone", {
+    effect: { kind: "status", on: "caster", id: "burned" },
+    cooldownMs: 10_000,
+    requirements: { fire: 1 },
   }),
   stoneTile("scorch-stone", {
     effect: { kind: "status", on: "caster", id: "burned" },
@@ -173,8 +253,32 @@ const props: TileDef[] = [
 
 /** The catalogue a body born carrying `kit` is simulated against. */
 function catalogueWith(kit: Array<{ slot: string; tileId: string }>): TileDef[] {
-  return [...props, body("player", PLAYER_TOUGHNESS, {}, kit)];
+  return [...props, playerTile(kit)];
 }
+
+/**
+ * The player, carrying `kit` and made of nothing.
+ *
+ * **No authored `elements`, exactly as the shipped `player` tile has none**: a
+ * player is neutral until they put something on. The element *masteries* below
+ * are a different field answering a different question — they are what lets the
+ * bottom rung of each element be cast at all.
+ */
+function playerTile(kit: Array<{ slot: string; tileId: string }>): TileDef {
+  const tile = body("player", PLAYER_TOUGHNESS, {}, kit);
+  const battler = tile.interactions!.battler as { masteries: object };
+  battler.masteries = { ...battler.masteries, ...STARTING_MASTERIES };
+  return tile;
+}
+
+/**
+ * The element masteries every body starts level with, as the `player` tile does.
+ *
+ * The one point apiece is what makes the bottom rung of each element castable —
+ * a stone asking Fire 1 is where Fire comes from, and a body with none of it
+ * could never have thrown the spell that would have earned it.
+ */
+const STARTING_MASTERIES = { fire: 1, water: 1, nature: 1 };
 
 const catalogue = statusesById([
   {
@@ -263,11 +367,17 @@ function ratAt(play: GameSession, at: Coord): string {
   return placed?.owner ?? "";
 }
 
-function spawnRat(map: MapFile, at: Coord): MapFile {
+function spawnRat(map: MapFile, at: Coord, tileId = "rat"): MapFile {
   return replaceStack(map, at.x, at.y, at.z, [
     { tileId: "grass" },
-    { tileId: "rat", direction: "w", owner: `npc:${at.x},${at.y},${at.z}` },
+    { tileId, direction: "w", owner: `npc:${at.x},${at.y},${at.z}` },
   ]);
+}
+
+/** Whichever body is standing here, by the owner the spawn stamped on it. */
+function bodyAt(play: GameSession, at: Coord, tileId = "rat"): string {
+  const stack = getStack(play.getMap(), at.x, at.y, at.z);
+  return stack.find((p) => p.tileId === tileId)?.owner ?? "";
 }
 
 describe("spending a cooldown", () => {
@@ -559,12 +669,14 @@ describe("what pressing a stone teaches you for its own sake", () => {
 
 describe("casterEarnings", () => {
   it("pays nothing for nothing", () => {
-    expect(casterEarnings(0, undefined, {}, 1)).toEqual({});
-    expect(casterEarnings(-4, undefined, {}, 1)).toEqual({});
+    expect(casterEarnings(0, undefined, [], {}, 1)).toEqual({});
+    expect(casterEarnings(-4, undefined, [], {}, 1)).toEqual({});
   });
 
   it("pays arcane and nothing else", () => {
-    expect(Object.keys(casterEarnings(5, undefined, {}, 1))).toEqual(["arcane"]);
+    expect(Object.keys(casterEarnings(5, undefined, [], {}, 1))).toEqual([
+      "arcane",
+    ]);
   });
 
   /**
@@ -573,14 +685,14 @@ describe("casterEarnings", () => {
    */
   it("scales by the stone's own requirement, exactly as a weapon does", () => {
     const masteries = { arcane: 40 };
-    const earned = casterEarnings(5, { arcane: 10 }, masteries, 1).arcane!;
+    const earned = casterEarnings(5, { arcane: 10 }, [], masteries, 1).arcane!;
     const expected =
       XP_PER_DAMAGE * 5 * learningRate(masteryLevel(masteries, "arcane"), 10);
     expect(earned).toBeCloseTo(expected, 6);
   });
 
   it("pays at full rate for a stone that asks nothing", () => {
-    expect(casterEarnings(5, undefined, { arcane: 40 }, 1).arcane).toBeCloseTo(
+    expect(casterEarnings(5, undefined, [], { arcane: 40 }, 1).arcane).toBeCloseTo(
       XP_PER_DAMAGE * 5,
       6,
     );
@@ -745,5 +857,257 @@ describe("the row the session reports", () => {
       "offhand",
       "charm",
     ]);
+  });
+});
+
+/**
+ * The elemental wheel, from the outside.
+ *
+ * What a player would notice: the same spell thrown at two bodies takes
+ * different amounts off them, the element that did it is the one that gets
+ * better at doing it, and a spell made of nothing behaves exactly as it always
+ * did. Driven through a real cast and a real tick rather than by calling
+ * `effectiveness` — that arithmetic has its own suite in `../lib/element`, and
+ * what these are for is the thread between a stone and a hit point.
+ */
+describe("an elemental spell", () => {
+  const RAT_CELL = { x: 2, y: 0, z: 0 };
+
+  /**
+   * One second of burning, in hit points, for a burn cast from this stone at
+   * whatever is standing at {@link RAT_CELL}.
+   *
+   * The first period only: the burn stacks nothing and rolls a fixed duration,
+   * so a single tick of it is the whole of what the wheel has to say.
+   */
+  function burnPerSecond(stone: string, victim: string): number {
+    const play = session(
+      { weapon: stone },
+      spawnRat(world(), RAT_CELL, victim),
+    );
+    const target = bodyAt(play, RAT_CELL, victim);
+    play.setTarget(target);
+    expect(play.cast("weapon")).toBe(true);
+
+    const before = play.actorSnapshots().find((a) => a.id === target)!.hp!;
+    run(play, TICKS_PER_SECOND);
+    const after = play.actorSnapshots().find((a) => a.id === target)!.hp!;
+    return before - after;
+  }
+
+  it("lands harder on what it has the better of", () => {
+    expect(burnPerSecond("ember-stone", "nature-rat")).toBeGreaterThan(
+      BURN_PER_SECOND,
+    );
+  });
+
+  it("lands softer on what has the better of it", () => {
+    const resisted = burnPerSecond("ember-stone", "water-rat");
+    expect(resisted).toBeLessThan(BURN_PER_SECOND);
+    // Softer, never nothing: a spell that visibly does zero reads as broken.
+    expect(resisted).toBeGreaterThan(0);
+  });
+
+  it("lands plainly on a body attuned to all three at once", () => {
+    expect(burnPerSecond("ember-stone", "even-rat")).toBe(BURN_PER_SECOND);
+  });
+
+  it("lands plainly on a body attuned to nothing", () => {
+    expect(burnPerSecond("ember-stone", "rat")).toBe(BURN_PER_SECOND);
+  });
+
+  /**
+   * The equipped half. A rat that is nothing in itself, wearing a tunic that is
+   * nature, takes fire exactly as a nature body does — which is the whole of
+   * "an element is something you can decide rather than only something you were
+   * born as".
+   */
+  it("reads what the body is wearing as well as what it is", () => {
+    expect(burnPerSecond("ember-stone", "robed-rat")).toBeGreaterThan(
+      BURN_PER_SECOND,
+    );
+  });
+
+  /** And what is in the bag is in the bag. */
+  it("ignores an elemental thing that is only being carried", () => {
+    expect(burnPerSecond("ember-stone", "packing-rat")).toBe(BURN_PER_SECOND);
+  });
+
+  /**
+   * The claim the whole model turns on, made on the one body in this suite whose
+   * masteries can actually be moved: a body that has practised an element is not
+   * made of it. Read the other way round, training the element you are best at
+   * would be what makes you weak to its counter — a progression that punishes
+   * you for progressing.
+   *
+   * Cast at the caster, because that is the only way to put a burn on the body
+   * whose masteries the command can reach. The self-inflicted payout is refused
+   * elsewhere and is not what this is about.
+   */
+  it("never reads a body's own masteries", () => {
+    const plain = selfBurnPerSecond([]);
+    expect(plain).toBe(BURN_PER_SECOND);
+
+    // Nature alone is what fire has the better of. Were the wheel read off the
+    // masteries, this body would take the burn half again as hard.
+    expect(selfBurnPerSecond(NATURE_ADEPT)).toBe(plain);
+    // And Water alone is what has the better of fire, which would soften it.
+    expect(selfBurnPerSecond(WATER_ADEPT)).toBe(plain);
+  });
+
+  /**
+   * A body that has practised one element and let the other two go.
+   *
+   * **All three moved, not one**, and that is what makes the case discriminate:
+   * a player starts level with a point of each, and a body holding all three at
+   * once cancels to neutral on the wheel — so raising Nature alone would pass
+   * whichever model were in force and prove nothing.
+   */
+  const NATURE_ADEPT = [
+    "/mastery fire 0",
+    "/mastery water 0",
+    "/mastery nature 40",
+  ];
+  const WATER_ADEPT = [
+    "/mastery fire 0",
+    "/mastery nature 0",
+    "/mastery water 40",
+  ];
+
+  /**
+   * A fire burn the caster puts on themselves, with the training applied
+   * *after* the cast.
+   *
+   * After, because the stone asks Fire 1 to be pressed at all and these cases
+   * take Fire to nothing — and it costs the claim nothing, since the wheel is
+   * read where the damage lands rather than where the spell was thrown.
+   */
+  function selfBurnPerSecond(commands: string[]): number {
+    const play = session({ charm: "ember-self-stone" });
+    expect(play.cast("charm")).toBe(true);
+    for (const command of commands) play.runCommand(command);
+    play.drainNotices();
+
+    const before = play.actorSnapshots().find((a) => a.id === "local")!.hp!;
+    run(play, TICKS_PER_SECOND);
+    const after = play.actorSnapshots().find((a) => a.id === "local")!.hp!;
+    return before - after;
+  }
+
+  /**
+   * The property every one of these is really protecting: an elementless spell
+   * — a stone of light, a hearth, a venomous bite — behaves exactly as it did
+   * before any of this existed, whoever it lands on.
+   */
+  it("is unchanged when the spell is made of nothing", () => {
+    expect(burnPerSecond("brand-stone", "nature-rat")).toBe(BURN_PER_SECOND);
+    expect(burnPerSecond("brand-stone", "water-rat")).toBe(BURN_PER_SECOND);
+  });
+
+  /** An advantage anywhere: the water half beats nothing, the fire half wins. */
+  it("weighs every element a two-element spell is made of", () => {
+    expect(burnPerSecond("storm-stone", "nature-rat")).toBeGreaterThan(
+      BURN_PER_SECOND,
+    );
+  });
+
+  /**
+   * The longest thread in the feature, now carrying two things: the flame
+   * remembers who lit it *and* what it was lit with, so a conjured fire is as
+   * good against nature as a fire thrown by hand.
+   */
+  it("carries the element onto what it conjures", () => {
+    const lit = session(
+      { weapon: "ember-flame-stone" },
+      spawnRat(world(), RAT_CELL, "nature-rat"),
+    );
+    const target = bodyAt(lit, RAT_CELL, "nature-rat");
+    lit.setTarget(target);
+    expect(lit.cast("weapon")).toBe(true);
+
+    const before = lit.actorSnapshots().find((a) => a.id === target)!.hp!;
+    run(lit, TICKS_PER_SECOND);
+    const after = lit.actorSnapshots().find((a) => a.id === target)!.hp!;
+    expect(before - after).toBeGreaterThan(BURN_PER_SECOND);
+  });
+});
+
+describe("what an elemental cast teaches", () => {
+  const RAT_CELL = { x: 2, y: 0, z: 0 };
+
+  function castAt(stone: string, victim = "rat"): GameSession {
+    const play = session({ weapon: stone }, spawnRat(world(), RAT_CELL, victim));
+    play.setTarget(bodyAt(play, RAT_CELL, victim));
+    expect(play.cast("weapon")).toBe(true);
+    return play;
+  }
+
+  /**
+   * What a mastery has *moved*, not what it stands at.
+   *
+   * The player is seeded with a point of every element, so every total starts at
+   * `xpForLevel(1)` and a test reading the total would be reading the seed. What
+   * these cases are about is what the casting added.
+   */
+  function earned(play: GameSession, mastery: string): number {
+    const total = play.masteryXpOf("local")?.[mastery as "fire"] ?? 0;
+    return total - xpForLevel(STARTING_MASTERIES[mastery as "fire"] ?? 0);
+  }
+
+  /**
+   * Arcane is the global magic level and the elements are what it is pointed
+   * at, so the fee is paid to both rather than split between them: specialising
+   * must not make you slower at magic than pressing a light.
+   */
+  it("pays the flat fee to Arcane and to the element alike", () => {
+    expect(practiceEarnings(["fire"])).toEqual({
+      arcane: XP_PER_CAST,
+      fire: XP_PER_CAST,
+    });
+  });
+
+  it("pays every element a spell is made of", () => {
+    expect(practiceEarnings(["fire", "water"])).toEqual({
+      arcane: XP_PER_CAST,
+      fire: XP_PER_CAST,
+      water: XP_PER_CAST,
+    });
+  });
+
+  it("pays no element at all for a spell made of nothing", () => {
+    expect(practiceEarnings()).toEqual({ arcane: XP_PER_CAST });
+  });
+
+  it("moves the element the stone is made of, and no other", () => {
+    const play = castAt("ember-stone");
+    expect(earned(play, "fire")).toBeGreaterThan(0);
+    expect(earned(play, "water")).toBe(0);
+    expect(earned(play, "nature")).toBe(0);
+  });
+
+  it("moves both elements of a spell made of two", () => {
+    const play = castAt("storm-stone");
+    expect(earned(play, "fire")).toBeGreaterThan(0);
+    expect(earned(play, "water")).toBeGreaterThan(0);
+    expect(earned(play, "nature")).toBe(0);
+  });
+
+  /**
+   * What the burn actually took off, not what the formula said — so a caster who
+   * picked the element the target is weak to is paid for having picked it.
+   */
+  it("pays the element on what the wheel made of the damage", () => {
+    const against = castAt("ember-stone", "nature-rat");
+    const plainly = castAt("ember-stone", "rat");
+    run(against, TICKS_PER_SECOND);
+    run(plainly, TICKS_PER_SECOND);
+    expect(earned(against, "fire")).toBeGreaterThan(earned(plainly, "fire"));
+  });
+
+  it("pays an element nothing for a spell made of nothing", () => {
+    const play = castAt("brand-stone");
+    run(play, TICKS_PER_SECOND * 2);
+    expect(earned(play, "arcane")).toBeGreaterThan(0);
+    expect(earned(play, "fire")).toBe(0);
   });
 });

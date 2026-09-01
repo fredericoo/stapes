@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { type Element, ELEMENTS } from "./element";
 import {
   type Masteries,
   MASTERIES,
@@ -305,6 +306,30 @@ export type WeaponItem = {
    * see {@link StatusGrant}.
    */
   statuses?: WeaponStatus[];
+  /**
+   * What wearing or holding this makes its bearer, for anything elemental thrown
+   * at them.
+   *
+   * **The equipped half of what a body counts as**, unioned with the body's own
+   * — see `./battler`'s `BattlerDef.elements` for the authored half, and
+   * `../game/equipment`'s `bodyElements`, which is the only place the two meet.
+   * A tunic of flames makes its wearer fire for exactly as long as it is on,
+   * which is what makes an element something a player can *decide* rather than
+   * only something they were born as.
+   *
+   * On the four things a body wears or holds and on nothing else: a loaf of
+   * bread in your bag is not what you are made of, and neither is the bag. What
+   * is in a bag is in a bag — the same line `wornInstances` draws.
+   *
+   * **Not to be confused with a stone's {@link ArcaneStoneItem.requirements}.**
+   * Those say what element the spell *is*; this says what carrying the thing
+   * makes *you*. A stone may honestly have both, neither or one — an author who
+   * wants a fire stone that also marks its bearer as fire writes it twice, on
+   * purpose.
+   *
+   * Absent means neutral, which is almost everything ever authored.
+   */
+  elements?: Element[];
 };
 
 /**
@@ -561,6 +586,8 @@ export type ArmorItem = {
    * Agility are what a body *is*, and nothing swings them.
    */
   resist?: WeaponResistances;
+  /** What wearing or holding this makes its bearer. @see WeaponItem.elements */
+  elements?: Element[];
 };
 
 /**
@@ -637,6 +664,8 @@ export type ShieldItem = {
    * a rule.
    */
   def: number;
+  /** What wearing or holding this makes its bearer. @see WeaponItem.elements */
+  elements?: Element[];
 };
 
 /**
@@ -812,6 +841,8 @@ export type ArcaneStoneItem = {
    * Absent means pressed, which is every stone worth authoring in a hand.
    */
   automatic?: boolean;
+  /** What wearing or holding this makes its bearer. @see WeaponItem.elements */
+  elements?: Element[];
 };
 
 /**
@@ -1199,6 +1230,15 @@ const reachEntries = v.object({
  * what it is allowed to say — a second schema for natural weapons would be two
  * definitions of a weapon that could drift.
  */
+/**
+ * The elements a worn or held thing marks its bearer with.
+ *
+ * A plain list off {@link ELEMENTS}, so a name that is not an element refuses
+ * the block rather than arriving as a word nothing on the wheel answers to.
+ * Duplicates are tolerated and meaningless: `bodyElements` unions.
+ */
+const elementsSchema = v.array(v.picklist(ELEMENTS));
+
 export const weaponSchema = v.object({
   type: v.literal("weapon"),
   damage: v.pipe(
@@ -1247,6 +1287,10 @@ export const weaponSchema = v.object({
   // status is granted — see the consumable's list, which this deliberately
   // mirrors down to the shape of one entry.
   statuses: v.optional(v.array(weaponStatusSchema)),
+  // What wearing or holding this makes its bearer, which is a different question
+  // from anything else on the arm — see the field's own note. Optional, and
+  // absent is neutral, which is almost everything ever authored.
+  elements: v.optional(elementsSchema),
 });
 
 const consumableSchema = v.object({
@@ -1351,6 +1395,10 @@ const armorSchema = v.object({
   // key says, and refusing it would make a round trip through the editor a
   // validation error.
   resist: v.optional(weaponResistancesSchema),
+  // What wearing or holding this makes its bearer, which is a different question
+  // from anything else on the arm — see the field's own note. Optional, and
+  // absent is neutral, which is almost everything ever authored.
+  elements: v.optional(elementsSchema),
 });
 
 /**
@@ -1375,6 +1423,10 @@ const shieldSchema = v.object({
     v.minValue(0),
     v.maxValue(MAX_ARMOR_DEF),
   ),
+  // What wearing or holding this makes its bearer, which is a different question
+  // from anything else on the arm — see the field's own note. Optional, and
+  // absent is neutral, which is almost everything ever authored.
+  elements: v.optional(elementsSchema),
 });
 
 /**
@@ -1441,6 +1493,10 @@ const stoneSchema = v.object({
   // a hand. Whether a hand will actually take an automatic one is a question
   // about the squares and is asked there.
   automatic: v.optional(v.boolean()),
+  // What wearing or holding this makes its bearer, which is a different question
+  // from anything else on the arm — see the field's own note. Optional, and
+  // absent is neutral, which is almost everything ever authored.
+  elements: v.optional(elementsSchema),
 });
 
 const itemSchema = v.variant("type", [
@@ -1525,6 +1581,30 @@ export function resolveStone(def: TileDef): ArcaneStoneItem | null {
   const item = resolveItem(def);
   return item?.type === "stone" ? item : null;
 }
+
+/**
+ * What wearing or holding this thing marks its bearer with.
+ *
+ * **`in` rather than a list of arms**, which is what stops this from being a
+ * place anybody has to remember: the four arms that declare the field narrow
+ * automatically, an arm that grows one later is picked up without an edit, and a
+ * loaf of bread cannot accidentally make you fire because its type has nowhere
+ * to say so.
+ *
+ * Shared-empty for everything that says nothing, which is almost every item in
+ * the world — `../game/equipment`'s `bodyElements` walks six squares per body
+ * per elemental tick, and the common answer must not allocate.
+ */
+export function itemElements(def: TileDef): readonly Element[] {
+  const item = resolveItem(def);
+  if (!item || !("elements" in item) || !item.elements?.length) {
+    return NO_ELEMENTS;
+  }
+  return item.elements;
+}
+
+/** Nothing worn or held says anything, which is the overwhelming majority. */
+export const NO_ELEMENTS: readonly Element[] = [];
 
 /**
  * Whether this stone fires on its own rather than being pressed.
@@ -1647,6 +1727,7 @@ export function weaponForSave(weapon: WeaponItem): WeaponItem {
     ...(weapon.twoHanded ? { twoHanded: true } : {}),
     ...(Object.keys(requirements).length > 0 ? { requirements } : {}),
     ...(statuses ? { statuses } : {}),
+    ...elementsForSave(weapon.elements),
   };
 }
 
@@ -1707,6 +1788,7 @@ function armorForSave(armor: ArmorItem): ArmorItem {
     ...(slot === DEFAULT_ARMOR_SLOT ? {} : { slot }),
     def: armor.def,
     ...(Object.keys(resist).length > 0 ? { resist } : {}),
+    ...elementsForSave(armor.elements),
   };
 }
 
@@ -1734,7 +1816,9 @@ export function itemForSave(item: ItemDef | undefined): ItemDef | undefined {
   // carrying a dead weapon's `damage` onto disk would read as a weapon somebody
   // half-edited.
   if (item.type === "artifact") return { type: "artifact" };
-  if (item.type === "shield") return { type: "shield", def: item.def };
+  if (item.type === "shield") {
+    return { type: "shield", def: item.def, ...elementsForSave(item.elements) };
+  }
   if (item.type === "stone") return stoneForSave(item);
   return {
     type: "container",
@@ -1752,6 +1836,21 @@ export function itemForSave(item: ItemDef | undefined): ItemDef | undefined {
  * editor is a draft holding both a tile id and an amount of health until this
  * names the fields.
  */
+/**
+ * The elements block on its way to disk, in the canonical order and deduped.
+ *
+ * Written by the four arms that carry one, and spelled as a spread so that an
+ * item with nothing to say writes no key at all — the rule every optional here
+ * is saved under. Ordered off {@link ELEMENTS} rather than as typed, so two
+ * authors who ticked the same two boxes in different orders produce the same
+ * file and the diff stays about what changed.
+ */
+function elementsForSave(elements: Element[] | undefined) {
+  if (!elements?.length) return {};
+  const kept = ELEMENTS.filter((element) => elements.includes(element));
+  return kept.length > 0 ? { elements: kept } : {};
+}
+
 function stoneForSave(stone: ArcaneStoneItem): ArcaneStoneItem {
   // The same rule a weapon's requirements block is saved under: a requirement of
   // zero is not a requirement, and a stone carrying `requirements: {}` would read
@@ -1776,6 +1875,7 @@ function stoneForSave(stone: ArcaneStoneItem): ArcaneStoneItem {
     // opinion about range, and writing an arm's length onto one would read as an
     // author having decided something they never thought about.
     ...(stone.reach ? { reach: { ...stone.reach } } : {}),
+    ...elementsForSave(stone.elements),
   };
 }
 

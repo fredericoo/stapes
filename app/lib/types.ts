@@ -1,3 +1,4 @@
+import type { Element } from "./element";
 import type { TileInteractions } from "./interactions";
 import type { ItemInstance } from "./itemInstance";
 
@@ -573,6 +574,23 @@ export type PlacedTile = {
    * Authored maps never carry one: nothing an author stamps into a map was cast.
    */
   castBy?: string;
+  /**
+   * What the spell that conjured this was made of, for the placements somebody
+   * cast.
+   *
+   * **The second half of {@link castBy}, and it travels the same road.** That
+   * one buys attribution — a flame pays the arcanist who lit it — and this buys
+   * the wheel: the status the flame puts on whoever steps in it carries these on
+   * as `StatusInstance.elements`, and the damage it does is scaled against
+   * whatever that body is attuned to.
+   *
+   * On the placement rather than on the conjured tile's def, because the element
+   * is a fact about the *spell* and not about fire: the same `arcane-flame` tile
+   * is what an ember stone and a hearth both leave behind, and only one of those
+   * was magic. An authored flame carries none of this and is neutral, which is
+   * exactly what every flame in the world did before this existed.
+   */
+  castElements?: Element[];
   /**
    * Which particular item this placement is, for the placements that are one.
    *

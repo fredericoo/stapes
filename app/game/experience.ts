@@ -1,6 +1,8 @@
+import type { Element } from "../lib/element";
 import type { WeaponItem } from "../lib/item";
 import {
   type Masteries,
+  type Mastery,
   type MasteryXp,
   learningRate,
   masteryLevel,
@@ -193,8 +195,26 @@ export const XP_PER_CAST = 1;
  *
  * @see XP_PER_CAST for the size of it, and why that size.
  */
-export function practiceEarnings(): MasteryXp {
-  return { arcane: XP_PER_CAST };
+export function practiceEarnings(
+  /**
+   * What the spell was made of, so pressing it practises that too.
+   *
+   * **Paid on top of Arcane rather than out of it**, which is the whole of
+   * "Arcane is the global magic level and the elements are what you point it
+   * at": every cast trains Arcane, and a cast that is made of something trains
+   * that as well. Splitting one fee between them would make a fire specialist
+   * slower at magic than somebody pressing a light, which is backwards.
+   *
+   * Flat, and the same figure Arcane gets, on the same grounds every scale is
+   * kept off this: a floor that could be scaled to nothing is not a floor. A
+   * two-element spell pays both in full — it also cost twice as much to be
+   * allowed to hold. @see `../lib/mastery`'s `spellElements`
+   */
+  elements: readonly Element[] = [],
+): MasteryXp {
+  const earnings: MasteryXp = { arcane: XP_PER_CAST };
+  for (const element of elements) earnings[element] = XP_PER_CAST;
+  return earnings;
 }
 
 
@@ -238,6 +258,11 @@ export function casterEarnings(
    * One figure for both, because they are paid identically and a spell that
    * both harmed and healed is not a thing the effect vocabulary can say. A
    * caller with two of these to pay for calls twice.
+   *
+   * **Already scaled by the wheel** where the wheel applies, because this is
+   * paid on what the spell *did*: a fire spell that landed half again as hard on
+   * something made of nature earns half again as much, and it does so without
+   * this function knowing the wheel exists.
    */
   amount: number,
   /**
@@ -252,6 +277,15 @@ export function casterEarnings(
    * at the plain rate rather than through a stone somebody had to invent.
    */
   requirements: Masteries | undefined,
+  /**
+   * What the spell was made of.
+   *
+   * Passed rather than derived from the requirements, because the indirect case
+   * has no requirements to derive it from: by the time a conjured flame burns
+   * somebody the stone may be gone, and what is left is the element the
+   * placement remembered. @see `./statuses`'s {@link StatusInstance.elements}
+   */
+  elements: readonly Element[],
   masteries: Masteries,
   multiplier: number,
 ): MasteryXp {
@@ -261,8 +295,13 @@ export function casterEarnings(
   if (earned <= 0) return {};
 
   // On exactly the terms a weapon's is read: what a stone asks of the mastery it
-  // *trains* is what decides how much it still has to teach.
-  const requirement = requirements?.arcane ?? 0;
-  const rate = learningRate(masteryLevel(masteries, "arcane"), requirement);
-  return { arcane: earned * rate };
+  // *trains* is what decides how much it still has to teach. Each element is
+  // read against its own requirement rather than against Arcane's, so a caster
+  // who has outgrown a stone's Fire keeps learning from its Water.
+  const rateFor = (mastery: Mastery) =>
+    learningRate(masteryLevel(masteries, mastery), requirements?.[mastery] ?? 0);
+
+  const earnings: MasteryXp = { arcane: earned * rateFor("arcane") };
+  for (const element of elements) earnings[element] = earned * rateFor(element);
+  return earnings;
 }

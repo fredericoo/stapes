@@ -16,6 +16,7 @@ import {
   type ConsumableItem,
   isItem,
   isRanged,
+  NO_ELEMENTS,
   type StatusGrant,
   type StoneEffect,
   resolveConsumable,
@@ -126,9 +127,11 @@ import {
   masteriesFromXp,
   type MasteryXp,
   rating,
+  spellElements,
   xpForLevel,
   xpFromMasteries,
 } from "../lib/mastery";
+import { type Element, effectiveness, NEUTRAL } from "../lib/element";
 import {
   type AttackOutcome,
   swingIntervalMs,
@@ -137,6 +140,7 @@ import {
 } from "./combat";
 import type { Equipment, Hand } from "./equipment";
 import {
+  bodyElements,
   carriedLightTileIds,
   effectiveBattler,
   emptyEquipment,
@@ -3075,6 +3079,13 @@ export class GameSession implements PlaySession {
     victim: ActorRuntime,
     causedBy: string | undefined,
     damage: number,
+    /**
+     * What the spell was made of, so the elements it is made of are paid too.
+     *
+     * Off the status rather than off the stone, because there may be no stone
+     * left to ask — @see `./statuses`'s {@link StatusInstance.elements}.
+     */
+    elements: readonly Element[],
   ) {
     if (!causedBy || causedBy === victim.id || damage <= 0) return;
     const caster = this.actors.get(causedBy);
@@ -3084,17 +3095,18 @@ export class GameSession implements PlaySession {
     const victimRating = this.ratingOf(victim);
     if (casterRating === null || victimRating === null) return;
 
-    this.grantArcane(
+    this.grantCasting(
       caster,
       damage,
       undefined,
+      elements,
       experienceMultiplier(victimRating, casterRating),
     );
 
   }
 
   /**
-   * Pay a caster for what one spell came to, in the mastery casting trains.
+   * Pay a caster for what one spell came to, in the masteries casting trains.
    *
    * One door for all three ways a spell can be worth something — damage it dealt
    * on the spot, health it actually restored, and damage something it conjured
@@ -3103,19 +3115,27 @@ export class GameSession implements PlaySession {
    *
    * The stone is optional because the indirect case has none to offer; a spell
    * with no requirement to read teaches at the full rate, which is what
-   * `learningRate` means by a requirement of zero.
+   * `learningRate` means by a requirement of zero. The elements travel
+   * separately for that same reason — they survive the stone.
    */
-  private grantArcane(
+  private grantCasting(
     caster: ActorRuntime,
     amount: number,
     stone: ArcaneStoneItem | undefined,
+    elements: readonly Element[],
     multiplier: number,
   ) {
     const body = this.bodyOf(caster);
     if (!body) return;
     this.grantExperience(
       caster,
-      casterEarnings(amount, stone?.requirements, body.masteries, multiplier),
+      casterEarnings(
+        amount,
+        stone?.requirements,
+        elements,
+        body.masteries,
+        multiplier,
+      ),
     );
   }
 
@@ -3442,6 +3462,14 @@ export class GameSession implements PlaySession {
      * where "no cause behaves exactly as it always did" is written down.
      */
     causedBy?: string,
+    /**
+     * What the spell doing it is made of, when a spell is doing it.
+     *
+     * Absent on every call but the two that come from a cast, which is what
+     * keeps a berry, a bite and a hearth neutral on the wheel — see
+     * `./statuses`'s {@link StatusInstance.elements}.
+     */
+    elements?: readonly Element[],
   ) {
     const def = this.statusDefs[grant.id];
     if (!def) return;
@@ -3458,6 +3486,7 @@ export class GameSession implements PlaySession {
       this.rng,
       range,
       causedBy,
+      elements,
     );
     // Noted here as well as on the tick, because eating happens *between* ticks
     // and the world may be asleep when it does — the same reason the kit is
@@ -3509,12 +3538,24 @@ export class GameSession implements PlaySession {
 
       for (const change of hpChanges) {
         if (change.amount < 0) {
-          this.applyDamage(actor, -change.amount);
+          const damage = this.elementalDamage(
+            actor,
+            -change.amount,
+            change.elements,
+          );
+          this.applyDamage(actor, damage);
           // Paid before the death check below, on the same terms a killing blow
           // pays for itself: the arcanist who lit the fire earns from the last
           // point of damage it did, and a body that has already left the board
-          // has nobody to pay.
-          this.awardCausedDamage(actor, change.causedBy, -change.amount);
+          // has nobody to pay. Paid on what the wheel made of it rather than on
+          // what the formula said, so a caster who picked the right element is
+          // paid for having picked it.
+          this.awardCausedDamage(
+            actor,
+            change.causedBy,
+            damage,
+            change.elements ?? NO_ELEMENTS,
+          );
           // A body that has just died is off the board, and everything after
           // this would be arithmetic on a corpse.
           if (actor.hp === 0) break;
@@ -3528,6 +3569,52 @@ export class GameSession implements PlaySession {
         }
       }
     }
+  }
+
+  /**
+   * What a spell's damage comes to against this particular body.
+   *
+   * **The one place the elemental wheel turns**, and it turns on damage rather
+   * than on anything else a spell can do: a heal has no second body to be good
+   * against, and a status's *duration* is a clock rather than a force. What the
+   * wheel changes is how hard the fire actually bites.
+   *
+   * Both sides come from where they were authored — the spell's elements rode
+   * in on the status, and the body's are what its battler says it is plus
+   * whatever it has on. @see `../lib/element`'s `effectiveness` for the
+   * arithmetic, and `./equipment`'s `bodyElements` for the two halves and why
+   * neither of them is read off a mastery.
+   *
+   * `bodyOf` is asked for the battler, and **only its authored `elements` are
+   * read** — the block it hands back differs from the authored one in its
+   * masteries alone, and masteries have no say here by design. A body that has
+   * spent a year throwing fire is not made of fire.
+   *
+   * **Never less than one point.** A resisted spell should land softly, not
+   * become a spell that visibly does nothing — a floating `0` over a target
+   * reads as a bug, and a burn that takes nothing off would never kill anything
+   * however long it ran.
+   *
+   * Returns the damage untouched for the overwhelming majority: an elementless
+   * status, a body attuned to nothing, or a matchup neither side wins. That path
+   * costs one length check and no lookup, which matters because it is every
+   * poison and every hearth in the world, every tick.
+   */
+  private elementalDamage(
+    victim: ActorRuntime,
+    damage: number,
+    elements: readonly Element[] | undefined,
+  ): number {
+    if (!elements?.length || damage <= 0) return damage;
+    const body = this.bodyOf(victim);
+    if (!body) return damage;
+
+    const multiplier = effectiveness(
+      elements,
+      bodyElements(body, victim.equipment, this.tilesById),
+    );
+    if (multiplier === NEUTRAL) return damage;
+    return Math.max(1, Math.round(damage * multiplier));
   }
 
   /**
@@ -3602,18 +3689,24 @@ export class GameSession implements PlaySession {
     if (!stone) return false;
     if (!castability(context, square).ok) return false;
 
+    // What the spell is made of, read once at the top and handed to whichever
+    // arm runs: the elements decide what the cast trains and what it is worth
+    // against whoever it lands on, and re-deriving them per arm would be three
+    // places for the answer to drift. @see `../lib/mastery`'s `spellElements`
+    const elements = spellElements(stone.requirements);
+
     // Before the effect, so nothing below can return early out of paying for it.
     this.spendCooldown(actor, square, stone);
     // And beside the cooldown rather than after the effect, on exactly the same
     // grounds: what casting teaches you for its own sake is owed for the cast,
     // not for what came of it. A light that lands on nobody is still a spell you
     // threw. @see `./experience`'s `practiceEarnings`
-    this.grantExperience(actor, practiceEarnings());
+    this.grantExperience(actor, practiceEarnings(elements));
 
-    if (stone.effect.kind === "heal") this.castHeal(actor, stone);
+    if (stone.effect.kind === "heal") this.castHeal(actor, stone, elements);
     else if (stone.effect.kind === "status") {
-      this.castStatus(actor, square, stone.effect);
-    } else this.castConjure(actor, square, stone.effect.tileId);
+      this.castStatus(actor, square, stone.effect, elements);
+    } else this.castConjure(actor, square, stone.effect.tileId, elements);
 
     return true;
   }
@@ -3653,7 +3746,11 @@ export class GameSession implements PlaySession {
    * fight, and scaling it by whoever you happen to be pointing at would make
    * bandaging yourself worth more against a troll.
    */
-  private castHeal(actor: ActorRuntime, stone: ArcaneStoneItem) {
+  private castHeal(
+    actor: ActorRuntime,
+    stone: ArcaneStoneItem,
+    elements: readonly Element[],
+  ) {
     if (stone.effect.kind !== "heal") return;
     const stats = this.battlerOf(actor);
     const before = this.hpOf(actor);
@@ -3662,7 +3759,11 @@ export class GameSession implements PlaySession {
     const restored = Math.min(stone.effect.hp, Math.max(0, stats.maxHp - before));
     if (restored <= 0) return;
     actor.hp = before + restored;
-    this.grantArcane(actor, restored, stone, SELF_SPELL_MULTIPLIER);
+    // **The wheel never touches a heal**, and the reason is the same one that
+    // makes the multiplier flat here: there is no second body in this exchange
+    // for an element to be good against. A caster mending themselves is not
+    // fighting anybody.
+    this.grantCasting(actor, restored, stone, elements, SELF_SPELL_MULTIPLIER);
   }
 
   /**
@@ -3683,6 +3784,7 @@ export class GameSession implements PlaySession {
     actor: ActorRuntime,
     square: CastSquare,
     effect: Extract<StoneEffect, { kind: "status" }>,
+    elements: readonly Element[],
   ) {
     const onTarget = square !== "charm" && effect.on === "target";
     const subject = onTarget
@@ -3699,7 +3801,7 @@ export class GameSession implements PlaySession {
         ? { fromMs: effect.fromMs, toMs: effect.toMs }
         : {}),
     };
-    this.grantStatus(subject, grant, actor.id);
+    this.grantStatus(subject, grant, actor.id, elements);
   }
 
   /**
@@ -3720,7 +3822,12 @@ export class GameSession implements PlaySession {
    * The placement remembers who cast it, which is the whole reason a flame can
    * pay the arcanist who lit it. @see `../lib/types`'s `PlacedTile.castBy`
    */
-  private castConjure(actor: ActorRuntime, square: CastSquare, tileId: string) {
+  private castConjure(
+    actor: ActorRuntime,
+    square: CastSquare,
+    tileId: string,
+    elements: readonly Element[],
+  ) {
     const def = this.tilesById[tileId];
     if (!def) return;
 
@@ -3736,6 +3843,11 @@ export class GameSession implements PlaySession {
       ...(isDirectional(def) ? { direction: DEFAULT_FACING } : {}),
       ...(isItem(def) ? { itemId: mintItemId() } : {}),
       castBy: actor.id,
+      // Beside the caster and for the same journey: the status this tile puts
+      // on whoever steps in it carries both on, so the burn knows who owes for
+      // it and which wheel it turns on. Omitted when the spell was made of
+      // nothing, so an elementless conjure leaves an ordinary flame behind.
+      ...(elements.length ? { castElements: [...elements] } : {}),
     };
     const stack = getStack(this.map, at.x, at.y, at.z);
     const next = [...stack];
@@ -5344,7 +5456,12 @@ export class GameSession implements PlaySession {
       // Whoever conjured the tile, if anybody did — which is what makes a flame
       // an arcanist lit pay them when somebody walks into it, and leaves every
       // hearth in the world attributed to nobody exactly as it was.
-      this.grantStatus(actor, { id: addStatus.statusId }, placed.castBy);
+      this.grantStatus(
+        actor,
+        { id: addStatus.statusId },
+        placed.castBy,
+        placed.castElements,
+      );
       return;
     }
   }

@@ -31,6 +31,7 @@ import type { Equipment, Hand } from "./equipment";
 import {
   armorDefence,
   armorResistances,
+  bodyElements,
   fightsWithBothHands,
   HANDS,
   handClaimedByTwoHander,
@@ -1286,5 +1287,130 @@ describe("the armour we ship", () => {
       expect(armor.def + best).toBeGreaterThan(base.def);
     }
     expect(base.resist).toBeUndefined();
+  });
+});
+
+/**
+ * What a body counts as, for anything elemental thrown at it.
+ *
+ * **Two authored sources and nothing derived.** Everything here is really one
+ * claim in four costumes: a body's element is what somebody wrote on it and what
+ * it has on, and never a number it earned. See `../lib/battler`'s
+ * `BattlerDef.elements`.
+ */
+describe("bodyElements", () => {
+  const item = (id: string, block: Record<string, unknown>) =>
+    normalizeTileDef({
+      id,
+      name: id,
+      height: 0,
+      kind: "item",
+      directional: false,
+      attributes: {},
+      variants: { default: [] },
+      intangible: true,
+      interactions: { item: block },
+    });
+
+  const TUNIC = item("tunic", { type: "armor", def: 0, elements: ["fire"] });
+  const AMULET = item("amulet", {
+    type: "armor",
+    slot: "charm",
+    def: 0,
+    elements: ["water"],
+  });
+  const BRAND = item("brand", {
+    ...DEFAULT_WEAPON,
+    elements: ["nature"],
+  });
+  const BREAD = item("bread", { type: "consumable", hp: 1 });
+  const PACK = item("pack", { type: "container", size: 2, equippable: true });
+
+  const tiles = tilesByIdFromList(
+    [TUNIC, AMULET, BRAND, BREAD, PACK].map((def) => ({ ...def })) as never,
+  );
+
+  const wearing = (slots: Partial<Record<string, ItemInstance>>): Equipment =>
+    ({ ...emptyEquipment(), ...slots }) as Equipment;
+
+  const held = (tileId: string): ItemInstance => ({ id: tileId, tileId });
+
+  it("is nothing for a bare body that was authored as nothing", () => {
+    expect(bodyElements(base, null, tiles)).toEqual([]);
+    expect(bodyElements(base, emptyEquipment(), tiles)).toEqual([]);
+  });
+
+  it("is what the battler was authored as", () => {
+    const troll: BattlerDef = { ...base, elements: ["fire"] };
+    expect(bodyElements(troll, emptyEquipment(), tiles)).toEqual(["fire"]);
+  });
+
+  /**
+   * The claim the whole model turns on. A body that has practised an element is
+   * not made of it — read the other way round, training the element you are best
+   * at is what would make you weak to its counter.
+   */
+  it("never reads a mastery, however high", () => {
+    const adept: BattlerDef = {
+      ...base,
+      masteries: { ...base.masteries, fire: MAX_MASTERY, nature: MAX_MASTERY },
+    };
+    expect(bodyElements(adept, emptyEquipment(), tiles)).toEqual([]);
+  });
+
+  it("is what the body is wearing, for a body that is nothing itself", () => {
+    expect(bodyElements(base, wearing({ armor: held("tunic") }), tiles)).toEqual(
+      ["fire"],
+    );
+  });
+
+  it("counts a held thing as well as a worn one", () => {
+    expect(
+      bodyElements(base, wearing({ weapon: held("brand") }), tiles),
+    ).toEqual(["nature"]);
+  });
+
+  it("unions the body's own with everything on it", () => {
+    const troll: BattlerDef = { ...base, elements: ["fire"] };
+    expect(
+      bodyElements(troll, wearing({ charm: held("amulet") }), tiles),
+    ).toEqual(["fire", "water"]);
+  });
+
+  /** An element is a fact, not a quantity: two flaming tunics are not more fire. */
+  it("says an element once however many things carry it", () => {
+    const burning: BattlerDef = { ...base, elements: ["fire"] };
+    expect(
+      bodyElements(burning, wearing({ armor: held("tunic") }), tiles),
+    ).toEqual(["fire"]);
+  });
+
+  /** Stable whatever order the squares came in, so swapping hands changes nothing. */
+  it("answers in the elements' own order", () => {
+    expect(
+      bodyElements(
+        base,
+        wearing({ charm: held("amulet"), armor: held("tunic") }),
+        tiles,
+      ),
+    ).toEqual(["fire", "water"]);
+  });
+
+  /** What is in the bag is in the bag — the line `wornInstances` already draws. */
+  it("ignores what is only being carried", () => {
+    const pack = { ...held("pack"), contents: [held("tunic")] };
+    expect(bodyElements(base, wearing({ bag: pack }), tiles)).toEqual([]);
+  });
+
+  it("ignores a square holding something that has nothing to say", () => {
+    expect(bodyElements(base, wearing({ armor: held("bread") }), tiles)).toEqual(
+      [],
+    );
+  });
+
+  it("is silent about a square whose tile the catalogue has lost", () => {
+    expect(bodyElements(base, wearing({ armor: held("gone") }), tiles)).toEqual(
+      [],
+    );
   });
 });

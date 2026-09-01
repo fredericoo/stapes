@@ -14,6 +14,8 @@ import {
   armorSlotOf,
   isAutomaticStone,
   isTwoHanded,
+  itemElements,
+  NO_ELEMENTS,
   resolveArmor,
   resolveContainer,
   resolveItem,
@@ -21,6 +23,7 @@ import {
   resolveStone,
   resolveWeapon,
 } from "../lib/item";
+import { type Element, ELEMENTS } from "../lib/element";
 import { EQUIP_SLOTS, type EquipSlot } from "../lib/kit";
 import { WEAPON_MASTERIES } from "../lib/mastery";
 import { resolveLight } from "../lib/tileResolve";
@@ -651,6 +654,50 @@ export function armorResistances(
     }
   }
   return summed ?? NO_RESISTANCES;
+}
+
+/**
+ * What this body counts as, for anything elemental thrown at it.
+ *
+ * **Two authored sources and they union: what the body *is*, and what it has
+ * on.** A cave troll is fire because its battler says so; a player is nothing
+ * until they put on a tunic of flames, and is fire for exactly as long as they
+ * wear it. Neither half is derived from anything — see `../lib/battler`'s
+ * {@link BattlerDef.elements} for why a body's masteries deliberately have no
+ * say in this.
+ *
+ * **Worn and held squares only, never the bag.** A tunic of flames in your pack
+ * is a tunic in a pack — the same line {@link wornInstances} already draws for
+ * light and for what a death leaves on the floor, and the reason this walks that
+ * list rather than {@link carriedInstances}.
+ *
+ * Unioned rather than summed, because an element is a fact and not a quantity:
+ * two flaming rings are not more fire than one. Returned in {@link ELEMENTS}'
+ * own order so the answer is stable whatever order the squares came in — a body
+ * that is fire and water must not be a different thing for having swapped hands.
+ *
+ * Shared-empty for the overwhelmingly common neutral body, so the walk that
+ * happens once per elemental tick allocates nothing when the answer is nothing.
+ */
+export function bodyElements(
+  base: BattlerDef,
+  equipment: Equipment | null,
+  tilesById: Record<string, TileDef>,
+): readonly Element[] {
+  const sources: (readonly Element[])[] = [base.elements ?? NO_ELEMENTS];
+  if (equipment) {
+    for (const instance of wornInstances(equipment)) {
+      const def = tilesById[instance.tileId];
+      // Silent about anything the catalogue has lost, on the terms every other
+      // walk over the squares here is.
+      if (def) sources.push(itemElements(def));
+    }
+  }
+
+  if (sources.every((elements) => elements.length === 0)) return NO_ELEMENTS;
+  return ELEMENTS.filter((element) =>
+    sources.some((elements) => elements.includes(element)),
+  );
 }
 
 /**

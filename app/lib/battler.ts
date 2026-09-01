@@ -1,4 +1,5 @@
 import * as v from "valibot";
+import { type Element, ELEMENTS } from "./element";
 import {
   DEFAULT_WEAPON,
   MAX_PERCENT_STAT,
@@ -98,6 +99,26 @@ export type BattlerDef = {
    * sees a list.
    */
   kit?: Kit;
+  /**
+   * What this body is *made of*, for anything elemental thrown at it.
+   *
+   * **Authored, and never derived from the masteries.** What a body has
+   * practised says what it can *cast*; what it is says what magic does to it,
+   * and those are two different facts about one creature. A rat that had somehow
+   * learnt some Fire would otherwise become a fire creature by accident, and a
+   * player would become weak to water by training the element they were best at
+   * — a progression that punishes you for progressing.
+   *
+   * A cave troll is fire because a cave troll is fire. A rat is nothing, which
+   * is the default and the overwhelmingly common answer: absent means neutral,
+   * and a neutral body neither gains nor loses on `../lib/element`'s wheel.
+   *
+   * **This is only half of what a body counts as.** The other half is worn — a
+   * tunic of flames makes its wearer fire for as long as it is on — and the two
+   * are unioned where the question is actually asked, in `../game/equipment`'s
+   * {@link bodyElements}. Nothing reads this field alone.
+   */
+  elements?: Element[];
 };
 
 /**
@@ -688,6 +709,10 @@ const battlerSchema = v.object({
   // predates it — and never rejected once present, since {@link kitSchema}
   // falls back to nothing rather than failing the block around it.
   kit: v.optional(kitSchema, () => []),
+  // Optional on the terms `sight` and `kit` are — every creature in `data/`
+  // predates it — and absent reads as neutral, which is what almost every body
+  // in the world is.
+  elements: v.optional(v.array(v.picklist(ELEMENTS))),
 });
 
 const battlerCache = new WeakMap<TileDef, BattlerDef | null>();
