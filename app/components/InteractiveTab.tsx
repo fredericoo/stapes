@@ -4,6 +4,8 @@ import type {
   ClimbAbility,
   DecayInteraction,
   EmitInteraction,
+  ExtractInteraction,
+  ExtractSlot,
   PlateComparison,
   PressurePlateInteraction,
   PushInteraction,
@@ -22,6 +24,8 @@ import {
   DEFAULT_ADD_STATUS,
   DEFAULT_DECAY,
   DEFAULT_EMIT,
+  DEFAULT_EXTRACT,
+  DEFAULT_EXTRACT_VERB,
   DEFAULT_PRESSURE_PLATE,
   DEFAULT_PUSH,
   DEFAULT_RECEIVE,
@@ -31,9 +35,12 @@ import {
   DEFAULT_TRANSMUTATION,
   DEFAULT_TRANSMUTE,
   DEFAULT_TRANSMUTE_VERB,
+  MAX_EXTRACT_CHANCE,
+  MAX_EXTRACT_SLOTS,
   MAX_REWARD_ITEMS,
   MAX_TRANSMUTATION_OUTPUTS,
   MAX_TRANSMUTATIONS,
+  MIN_EXTRACT_CHANCE,
   hasAnyInteraction,
 } from "../lib/interactions";
 import { DEFAULT_BATTLER } from "../lib/battler";
@@ -115,6 +122,41 @@ function secondsFromInput(raw: string): number {
   return Number.isNaN(parsed) ? 1 : parsed;
 }
 
+/**
+ * Deepest a resource may be authored, in pulls.
+ *
+ * A sanity bound rather than a balance one, on `MAX_DECAY_SECONDS`' terms: wide
+ * enough for anything worth authoring, narrow enough that a typo'd extra digit
+ * reads as malformed rather than as a bush nobody can ever finish.
+ */
+const MAX_DURABILITY = 99;
+
+/**
+ * Longest a resource may make one player wait, in seconds.
+ *
+ * The same number the decay field takes, because it is the same kind of
+ * question and an author should not have to learn two ceilings.
+ */
+const MAX_COOLDOWN_SECONDS = MAX_DECAY_SECONDS;
+
+/** A cleared count field reads as the shallowest legal resource, not as NaN. */
+function durabilityFromInput(raw: string): number {
+  const parsed = Number.parseInt(raw, 10);
+  if (Number.isNaN(parsed)) return 1;
+  return Math.min(MAX_DURABILITY, Math.max(1, parsed));
+}
+
+/**
+ * A cleared chance field reads as never, not as NaN — `KitEditor`'s rule and
+ * for its reason: emptying a box is somebody on their way to typing a smaller
+ * number, and snapping it back to certainty mid-edit would fight them.
+ */
+function chanceFromInput(raw: string): number {
+  const parsed = Number.parseFloat(raw);
+  if (Number.isNaN(parsed)) return MIN_EXTRACT_CHANCE;
+  return Math.min(MAX_EXTRACT_CHANCE, Math.max(MIN_EXTRACT_CHANCE, parsed));
+}
+
 const KIND_OPTIONS: Array<{ value: TileKind; label: string }> = [
   { value: "prop", label: "Prop" },
   { value: "battler", label: "Battler" },
@@ -167,6 +209,7 @@ export function InteractiveTab({
   const sw = draft.interactions?.switch;
   const reward = draft.interactions?.reward;
   const transmute = draft.interactions?.transmute;
+  const extract = draft.interactions?.extract;
   const teleport = draft.interactions?.teleport;
   const addStatus = draft.interactions?.addStatus;
   const decay = draft.interactions?.decay;
@@ -280,6 +323,51 @@ export function InteractiveTab({
     if (!transmute) return;
     const recipes = transmute.recipes.filter((_, i) => i !== index);
     setTransmute(recipes.length > 0 ? { recipes } : undefined);
+  };
+
+  const setExtract = (next: ExtractInteraction | undefined) => {
+    patchKind("extract", next ?? null);
+  };
+
+  const patchExtract = (patch: Partial<ExtractInteraction>) => {
+    if (!extract) return;
+    setExtract({ ...extract, ...patch });
+  };
+
+  /**
+   * Rewrite one yield slot, leaving its siblings alone.
+   *
+   * By position rather than by identity, on `patchRecipe`'s terms: a slot has
+   * none, and two rows offering the same berry are a perfectly ordinary way to
+   * author "one to three of them".
+   */
+  const patchSlot = (index: number, patch: Partial<ExtractSlot>) => {
+    if (!extract) return;
+    patchExtract({
+      slots: extract.slots.map((slot, i) =>
+        i === index ? { ...slot, ...patch } : slot,
+      ),
+    });
+  };
+
+  const addSlot = () => {
+    if (!extract || extract.slots.length >= MAX_EXTRACT_SLOTS) return;
+    patchExtract({
+      slots: [...extract.slots, { tileId: "", chance: MAX_EXTRACT_CHANCE }],
+    });
+  };
+
+  /**
+   * Drop a slot, and the whole block with the last one.
+   *
+   * A resource with nothing to give is not a resource — the resolver reads an
+   * emptied block as "cannot be worked" — so leaving one behind would be an
+   * editor showing a switch that is on and a tile that does nothing.
+   */
+  const removeSlot = (index: number) => {
+    if (!extract) return;
+    const slots = extract.slots.filter((_, i) => i !== index);
+    setExtract(slots.length > 0 ? { ...extract, slots } : undefined);
   };
 
   const setAddStatus = (next: AddStatusInteraction | undefined) => {
@@ -674,6 +762,214 @@ export function InteractiveTab({
                 longer than this has stopped being something you can scan.
               </span>
             )}
+          </div>
+        ) : null}
+      </section>
+
+
+      <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
+        <label className="flex items-center gap-2 text-sm font-bold">
+          <Switch
+            checked={Boolean(extract)}
+            onCheckedChange={(on) =>
+              setExtract(
+                on
+                  ? { ...DEFAULT_EXTRACT, slots: [...DEFAULT_EXTRACT.slots] }
+                  : undefined,
+              )
+            }
+            ariaLabel="Can be worked for resources"
+          />
+          Extract
+        </label>
+        <p className="text-[11px] leading-snug text-muted">
+          Something the player works for what it is made of — a crystal they
+          mine, a bush they pick. Every pull rolls the yields below and hands
+          over whatever came up.
+        </p>
+        <p className="text-[11px] leading-snug text-muted">
+          <strong>It is shared, and it runs out.</strong> Unlike a reward, which
+          is once per player and leaves the chest standing, the pulls come off
+          the placement itself: the crystal is the same crystal for everybody who
+          walks up to it, and two people working one vein race each other. The{" "}
+          <em>wait</em> is the other way round — it is per player and per
+          placement, so a bush somebody has just picked is still full for the
+          person walking up behind them.
+        </p>
+
+        {extract ? (
+          <div className="flex flex-col gap-3 border-t-2 border-border pt-3">
+            <label className="flex flex-col gap-1 text-xs font-bold">
+              Action name
+              <Input
+                value={extract.actionName ?? ""}
+                onChange={(e) => patchExtract({ actionName: e.target.value })}
+                placeholder={DEFAULT_EXTRACT_VERB}
+              />
+              <span className="text-[11px] font-normal leading-snug text-muted">
+                What the player is doing, as they would say it — “Mine” a
+                crystal, “Pick” a bush, “Fell” a tree. Leave it blank and it
+                reads as “{DEFAULT_EXTRACT_VERB}”.
+              </span>
+            </label>
+
+            <label className="flex flex-col gap-1 text-xs font-bold">
+              Pulls
+              <Input
+                type="number"
+                min={1}
+                max={MAX_DURABILITY}
+                step={1}
+                value={extract.durability}
+                onChange={(e) =>
+                  patchExtract({
+                    durability: durabilityFromInput(e.target.value),
+                  })
+                }
+                className="w-20"
+              />
+              <span className="text-[11px] font-normal leading-snug text-muted">
+                How many times a fresh placement can be worked before it turns
+                into whatever you name below. Shared: this is the whole vein, not
+                each player’s share of it. Lowering it later shortens every
+                placement in the world, including ones somebody has already
+                started on.
+              </span>
+            </label>
+
+            <label className="flex flex-col gap-1 text-xs font-bold">
+              Wait
+              <span className="flex items-center gap-2">
+                <Input
+                  type="number"
+                  min={0}
+                  max={MAX_COOLDOWN_SECONDS}
+                  step={1}
+                  value={extract.cooldownMs / MS_PER_SECOND}
+                  onChange={(e) =>
+                    patchExtract({
+                      cooldownMs: Math.round(
+                        Math.min(
+                          MAX_COOLDOWN_SECONDS,
+                          Math.max(0, secondsFromInput(e.target.value)),
+                        ) * MS_PER_SECOND,
+                      ),
+                    })
+                  }
+                  className="w-20"
+                  aria-label="Wait between pulls in seconds"
+                />
+                <span className="text-xs font-normal text-muted">seconds</span>
+              </span>
+              <span className="text-[11px] font-normal leading-snug text-muted">
+                How long <em>this</em> player must wait before working{" "}
+                <em>this</em> placement again. Nobody else sees it, so it paces a
+                person rather than the world, and somebody with two bushes in
+                front of them alternates rather than waits. Zero means as fast as
+                they can press it, until the pulls run out.
+              </span>
+            </label>
+
+            <TileIdMultiSelect
+              tiles={tiles.filter((t) => t.id !== draft.id)}
+              tilesets={tilesets}
+              selectedIds={extract.tileId ? [extract.tileId] : []}
+              onChange={(ids) => patchExtract({ tileId: ids[0] ?? "" })}
+              label="Becomes when spent"
+              emptyHint="Nothing — the placement goes away when the last pull is taken."
+              single
+            />
+            <span className="text-[11px] leading-snug text-muted">
+              <strong>How it comes back is not set here.</strong> Give the tile
+              it becomes a <em>decay</em> pointing back at this one and a picked
+              bush grows out again; leave this blank and give <em>this</em> tile
+              a <em>respawn</em> and a mined-out crystal is regrown at the spot
+              the map authored it. Both already exist, and either is a better
+              answer than a third countdown.
+            </span>
+
+            <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
+              <span className="text-xs font-bold uppercase text-muted">
+                Yield
+              </span>
+              <span className="text-[11px] leading-snug text-muted">
+                Every slot is rolled on its own chance, every pull, whatever the
+                others did — so “one to three berries” is three berry slots at
+                descending chances, and “nothing, or a shard” is one slot on its
+                own. A pull that comes up empty still spends one of the pulls
+                above.
+              </span>
+
+              {extract.slots.map((slot, index) => (
+                <div
+                  // By position, on `KitEditor`'s terms: a slot has no identity
+                  // of its own, and keying on the tile id would make two rows
+                  // offering the same berry collide.
+                  key={index}
+                  className="flex flex-col gap-2 border-2 border-border bg-paper p-2"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-xs font-bold uppercase text-muted">
+                      Slot {index + 1}
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeSlot(index)}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+
+                  <label className="flex flex-col gap-1 text-[11px] font-bold uppercase text-muted">
+                    Chance
+                    <span className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={MIN_EXTRACT_CHANCE}
+                        max={MAX_EXTRACT_CHANCE}
+                        step={1}
+                        value={slot.chance}
+                        onChange={(e) =>
+                          patchSlot(index, {
+                            chance: chanceFromInput(e.target.value),
+                          })
+                        }
+                        className="w-20"
+                      />
+                      <span className="text-xs font-normal normal-case text-muted">
+                        %
+                      </span>
+                    </span>
+                  </label>
+
+                  <TileIdMultiSelect
+                    tiles={tiles.filter(isGiveable)}
+                    tilesets={tilesets}
+                    selectedIds={slot.tileId ? [slot.tileId] : []}
+                    onChange={(ids) =>
+                      patchSlot(index, { tileId: ids[0] ?? "" })
+                    }
+                    label="Gives"
+                    emptyHint="Pick what this slot yields. A slot with nothing chosen is dropped on save."
+                    single
+                  />
+                </div>
+              ))}
+
+              {extract.slots.length < MAX_EXTRACT_SLOTS ? (
+                <Button variant="secondary" size="sm" onClick={addSlot}>
+                  Add slot
+                </Button>
+              ) : (
+                <span className="text-[11px] leading-snug text-muted">
+                  {MAX_EXTRACT_SLOTS} is the most one pull may hand over — the
+                  row is only offered while there is room in the bag for every
+                  slot at once, so a wider table would be a resource nobody can
+                  work.
+                </span>
+              )}
+            </div>
           </div>
         ) : null}
       </section>
