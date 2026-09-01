@@ -95,11 +95,19 @@ const tiles: TileDef[] = [
     reach: NEAR_REACH,
   }),
   stoneTile("ward-stone", {
-    effect: { kind: "status", on: "caster", id: "luminous" },
+    effect: {
+      kind: "bolt",
+      on: "caster",
+      statuses: [{ id: "luminous", chance: 100 }],
+    },
     cooldownMs: 30_000,
   }),
   stoneTile("curse-stone", {
-    effect: { kind: "status", on: "target", id: "burned" },
+    effect: {
+      kind: "bolt",
+      on: "target",
+      statuses: [{ id: "burned", chance: 100 }],
+    },
     cooldownMs: 30_000,
     reach: NEAR_REACH,
   }),
@@ -115,6 +123,17 @@ const tiles: TileDef[] = [
   }),
   stoneTile("quiet-stone", {
     effect: { kind: "bolt", damage: -5, on: "caster" },
+    cooldownMs: 10_000,
+    automatic: true,
+  }),
+  // Both halves at once, which is the combination the merged arm exists for.
+  stoneTile("balm-stone", {
+    effect: {
+      kind: "bolt",
+      damage: -5,
+      on: "caster",
+      statuses: [{ id: "luminous", chance: 100 }],
+    },
     cooldownMs: 10_000,
     automatic: true,
   }),
@@ -527,6 +546,26 @@ describe("a stone that fires on its own", () => {
     expect(automaticFires(curse, { hp: 1, maxHp: 20, statusIds: [] })).toBe(true);
   });
 
+  /**
+   * **Either half is reason enough**, which is what stops combining the two
+   * halves from being worse than authoring either alone. A body at full health
+   * under no ward should still get the ward, and a hurt body already under it
+   * should still get the mend.
+   */
+  it("fires a bolt that both mends and wards when either would land", () => {
+    const both = resolveStone(tilesById["balm-stone"]!)!;
+    // Full health and already glowing: nothing left for it to do.
+    expect(
+      automaticFires(both, { hp: 20, maxHp: 20, statusIds: ["luminous"] }),
+    ).toBe(false);
+    // Full health, no ward — the ward is worth having.
+    expect(automaticFires(both, { hp: 20, maxHp: 20, statusIds: [] })).toBe(true);
+    // Hurt, already glowing — the mend is.
+    expect(
+      automaticFires(both, { hp: 19, maxHp: 20, statusIds: ["luminous"] }),
+    ).toBe(true);
+  });
+
   it("waits until its status is not already running", () => {
     expect(
       automaticFires(ward, { hp: 20, maxHp: 20, statusIds: ["luminous"] }),
@@ -575,9 +614,9 @@ describe("the stones we ship", () => {
    * fixture: the vocabulary is closed, and shipping one of each is what proves
    * all three arms are reachable by an author.
    */
-  it("uses every one of the three effects", () => {
+  it("uses both of the two effects", () => {
     const kinds = SHIPPED.map((id) => resolveStone(shipped[id]!)!.effect.kind);
-    expect([...new Set(kinds)].sort()).toEqual(["bolt", "conjure", "status"]);
+    expect([...new Set(kinds)].sort()).toEqual(["bolt", "conjure"]);
   });
 
   /**
@@ -602,14 +641,42 @@ describe("the stones we ship", () => {
 
   it("names a status and a tile the world actually has", () => {
     const light = resolveStone(shipped["arcane-stone-of-light"]!)!;
-    expect(light.effect.kind).toBe("status");
-    if (light.effect.kind !== "status") return;
-    expect(statusDefs[light.effect.id]).toBeDefined();
+    expect(light.effect.kind).toBe("bolt");
+    if (light.effect.kind !== "bolt") return;
+    for (const status of light.effect.statuses ?? []) {
+      expect(statusDefs[status.id], status.id).toBeDefined();
+    }
 
     const flame = resolveStone(shipped["arcane-stone-of-flame"]!)!;
     expect(flame.effect.kind).toBe("conjure");
     if (flame.effect.kind !== "conjure") return;
     expect(shipped[flame.effect.tileId]).toBeDefined();
+  });
+
+  /**
+   * **A bolt that does both halves at once**, which is the whole of what folding
+   * the status arm into this one was for: before it, a stone that burned
+   * somebody *and* set them alight was not authorable at all.
+   */
+  it("ships a bolt that both harms and leaves something behind", () => {
+    const pyre = resolveStone(shipped["arcane-stone-of-pyre"]!)!;
+    expect(pyre.effect.kind).toBe("bolt");
+    if (pyre.effect.kind !== "bolt") return;
+    expect(pyre.effect.damage).toBeGreaterThan(0);
+    expect(pyre.effect.statuses?.map((status) => status.id)).toEqual(["burned"]);
+  });
+
+  /**
+   * And one that does only the other half. A bolt with no damage moves no health
+   * at all — a stone of light is a spell that puts a glow on you and nothing
+   * else — which is the case the schema's "one of the two" rule exists to let
+   * through.
+   */
+  it("ships a bolt that only leaves something behind", () => {
+    const light = resolveStone(shipped["arcane-stone-of-light"]!)!;
+    if (light.effect.kind !== "bolt") return;
+    expect(light.effect.damage).toBeUndefined();
+    expect(light.effect.statuses).toHaveLength(1);
   });
 
   /**

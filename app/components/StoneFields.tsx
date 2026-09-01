@@ -37,6 +37,7 @@ import {
 import type { StatusDef } from "../lib/status";
 import type { TileDef } from "../lib/types";
 import { Segmented, Select, Switch } from "../ui";
+import { StatusChanceField, StatusGrants } from "./StatusGrants";
 import { StatField } from "./StatField";
 import {
   describeFlight,
@@ -62,7 +63,6 @@ import {
 
 const EFFECT_OPTIONS: Array<{ value: StoneEffectKind; label: string }> = [
   { value: "bolt", label: "Bolt" },
-  { value: "status", label: "Status" },
   { value: "conjure", label: "Conjure" },
 ];
 
@@ -84,7 +84,6 @@ const BLANK_EFFECTS: Record<StoneEffectKind, StoneEffect> = {
   // first press of a stone somebody is still writing should be safe to make
   // standing alone in a room.
   bolt: { kind: "bolt", damage: -10, on: "caster" },
-  status: { kind: "status", on: "caster", id: "" },
   conjure: { kind: "conjure", tileId: "" },
 };
 
@@ -93,6 +92,18 @@ const STARTER_PROJECTILE: ProjectileDef = {
   tileId: "",
   cellsPerSecond: DEFAULT_PROJECTILE_SPEED,
 };
+
+/**
+ * What a status added to a bolt opens at.
+ *
+ * A hundred, unlike a weapon's, and the difference is the cadence. A brand on a
+ * sword is rolled thirty times a fight and wants a percentage; a stone is
+ * pressed once every minute or two, and an author reaching for a status on one
+ * almost always means "and it burns them" rather than "and it sometimes burns
+ * them". They can type a smaller number; opening at one makes the common case
+ * no typing at all.
+ */
+const DEFAULT_STONE_STATUS_CHANCE = 100;
 
 /** A cooldown reads far better in seconds than in five digits of milliseconds. */
 const MS_PER_SECOND = 1000;
@@ -190,15 +201,16 @@ export function StoneFields({
           <div className="flex flex-wrap gap-4">
             <StatField
               label="Damage"
-              hint="Health it moves. Negative mends, positive harms."
-              value={effect.damage}
+              hint="Health it moves. Negative mends, positive harms, zero moves none."
+              value={effect.damage ?? 0}
               min={-MAX_SPELL_DAMAGE}
               max={MAX_SPELL_DAMAGE}
               onChange={(damage) =>
-                // Zero is a bolt the schema refuses, so the field steps over it
-                // rather than letting somebody save a spell that does nothing.
+                // Zero is a real answer and is stored as *absent*: a bolt that
+                // only leaves a status behind moves no health, and a zero
+                // written to disk would claim somebody decided the number.
                 onChange({
-                  effect: { ...effect, damage: damage === 0 ? -1 : damage },
+                  effect: { ...effect, damage: damage || undefined },
                 })
               }
               readout={describeBolt(effect.damage)}
@@ -310,48 +322,39 @@ export function StoneFields({
             by neither and stops at a full health bar, and earns what it{" "}
             <strong>actually restored</strong> rather than what it says.
           </p>
-        </div>
-      ) : effect.kind === "status" ? (
-        <div className="flex flex-col gap-3">
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="font-bold uppercase text-muted">Status</span>
-            {statusOptions.length === 0 ? (
-              <span className="text-[11px] text-muted">
-                Nothing authored yet — statuses live on the Statuses page.
-              </span>
-            ) : (
-              <Select
-                value={effect.id || null}
-                onValueChange={(id) =>
-                  onChange({ effect: { ...effect, id: id ?? "" } })
-                }
-                options={statusOptions}
-                placeholder="Pick a status…"
-                className="w-48"
-                ariaLabel="Status this stone starts"
-              />
-            )}
-          </label>
 
-          <div className="flex flex-col gap-1 text-xs">
-            <span className="font-bold uppercase text-muted">Lands on</span>
-            <div>
-              <Segmented<StoneSubject>
-                value={effect.on}
-                onChange={(on) => onChange({ effect: { ...effect, on } })}
-                options={SUBJECT_OPTIONS}
-                size="sm"
-                ariaLabel="Who the status lands on"
-              />
-            </div>
-            <span className="max-w-lg text-[11px] leading-snug text-muted">
-              A stone that lands on the caster works with nothing targeted and
-              can never misfire at an enemy. One that lands on the target needs
-              somebody targeted and has to be in range. A stone worn on the{" "}
-              <strong>charm</strong> ignores this and always acts on its wearer —
-              a charm reaches nobody but the person carrying it.
-            </span>
-          </div>
+          <StatusGrants
+            statuses={effect.statuses ?? []}
+            statusDefs={statusDefs}
+            onChange={(statuses) =>
+              onChange({
+                effect: {
+                  ...effect,
+                  statuses: statuses.length ? statuses : undefined,
+                },
+              })
+            }
+            blank={(id) => ({ id, chance: DEFAULT_STONE_STATUS_CHANCE })}
+            blurb={
+              <>
+                What the bolt <strong>leaves on whoever it landed on</strong> —
+                a ward on yourself, a burn on what you were pointing at. Rolled
+                once per entry per cast. <strong>Armour eating the damage does
+                not save anybody from the burn</strong>, exactly as it does not
+                for a weapon; only a body that is not there, or one the same
+                cast killed, gets away with nothing. The chance is the{" "}
+                <strong>stone&rsquo;s own</strong> and no mastery moves it:
+                Arcane and the elements have already had their say on how deep
+                the bolt ran.
+                <br />
+                <br />
+                A bolt needs <strong>one of the two halves</strong> — some
+                damage, or something to leave. With neither it is a spell that
+                spends its cooldown to do nothing, and it will not save.
+              </>
+            }
+            extra={StatusChanceField}
+          />
         </div>
       ) : (
         <div className="flex flex-col gap-3">
@@ -465,7 +468,9 @@ export function StoneFields({
         </p>
         <ElementReading
           elements={spellElements(stone.requirements)}
-          harms={stone.effect.kind !== "bolt" || stone.effect.damage > 0}
+          harms={
+            stone.effect.kind !== "bolt" || (stone.effect.damage ?? 0) > 0
+          }
         />
         <div className="flex flex-wrap gap-4">
           {MASTERIES.map((mastery) => (
@@ -496,8 +501,13 @@ export function StoneFields({
  * which is exactly why it is said in a word underneath. An author sweeping a
  * slider from a curse into a blessing should be told they have crossed over,
  * not left to notice a dash.
+ *
+ * Zero is neither, and says so: a bolt that moves no health is a real spell now
+ * that a status can ride one, and the line points at the half that is doing the
+ * work instead.
  */
-function describeBolt(damage: number): string {
+function describeBolt(damage: number | undefined): string {
+  if (!damage) return "Moves no health — only what it leaves.";
   return damage < 0
     ? `Mends ${-damage} health.`
     : `Harms for ${damage}, before armour.`;

@@ -27,6 +27,7 @@ import {
   resolveWeapon,
   weaponForSave,
 } from "./item";
+import type { ItemDef } from "./item";
 import { resolveBattler } from "./battler";
 import type { TileDef, TileKind } from "./types";
 import { normalizeTileDef } from "./types";
@@ -518,10 +519,10 @@ describe("itemForSave", () => {
   });
 
   /**
-   * **A bolt that moves no health is a field somebody has not filled in**, and
-   * the schema says so rather than shipping a stone that spends a cooldown to do
-   * nothing. The sign either side of it is the whole vocabulary, so both are
-   * real and only the middle is refused.
+   * **A bolt of zero is a field somebody typed in and emptied**, which is not
+   * the same as one they left alone: absent damage is a spell that only leaves
+   * a status behind, and that is a real spell. The sign either side of zero is
+   * the whole vocabulary, so both are real and only the middle is refused.
    */
   it("refuses a bolt of zero and takes either sign", () => {
     const bolt = (damage: number) => ({
@@ -532,6 +533,72 @@ describe("itemForSave", () => {
     expect(resolveItem(tile("item", { item: bolt(0) }))).toBeNull();
     expect(resolveItem(tile("item", { item: bolt(5) }))).toEqual(bolt(5));
     expect(resolveItem(tile("item", { item: bolt(-5) }))).toEqual(bolt(-5));
+  });
+
+  /**
+   * **One of the two halves, and a bolt with neither does nothing at all.**
+   * That is the rule that lets the status arm be folded in: a pure ward is a
+   * bolt with a status and no damage, a pure mend is a bolt with damage and no
+   * status, and a stone with neither is a draft somebody opened and left.
+   */
+  it("takes a bolt that only leaves a status, and refuses one that does neither", () => {
+    const ward = {
+      type: "stone" as const,
+      effect: {
+        kind: "bolt" as const,
+        on: "caster" as const,
+        statuses: [{ id: "luminous", chance: 100 }],
+      },
+      cooldownMs: 10_000,
+    };
+    expect(resolveItem(tile("item", { item: ward }))).toEqual(ward);
+
+    const empty = {
+      type: "stone" as const,
+      effect: { kind: "bolt" as const, on: "caster" as const },
+      cooldownMs: 10_000,
+    };
+    expect(resolveItem(tile("item", { item: empty }))).toBeNull();
+    // And an empty *list* says exactly what no key says, so it is refused too.
+    expect(
+      resolveItem(tile("item", { item: { ...empty, effect: { ...empty.effect, statuses: [] } } })),
+    ).toBeNull();
+  });
+
+  /** A brand: it burns, and it sets you alight. */
+  it("round-trips a bolt that does both halves", () => {
+    const draft: ItemDef = {
+      type: "stone",
+      effect: {
+        kind: "bolt",
+        damage: 18,
+        on: "target",
+        statuses: [{ id: "burned", chance: 60, fromMs: 2_000, toMs: 3_000 }],
+      },
+      cooldownMs: 45_000,
+    };
+    const saved = itemForSave(draft);
+    expect(saved).toEqual(draft);
+    expect(resolveItem(tile("item", { item: saved }))).toEqual(draft);
+  });
+
+  /** A row somebody added and never named drops, on a weapon's own terms. */
+  it("drops a bolt's unnamed status rows", () => {
+    const saved = itemForSave({
+      type: "stone",
+      effect: {
+        kind: "bolt",
+        damage: -5,
+        on: "caster",
+        statuses: [{ id: "  ", chance: 100 }],
+      },
+      cooldownMs: 10_000,
+    });
+    expect(saved).toEqual({
+      type: "stone",
+      effect: { kind: "bolt", damage: -5, on: "caster" },
+      cooldownMs: 10_000,
+    });
   });
 });
 

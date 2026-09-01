@@ -204,6 +204,11 @@ const props: TileDef[] = [
   body("mailed-rat", RAT_TOUGHNESS, { actor: true }, [
     { slot: "armor", tileId: "warding-mail" },
   ]),
+  // And one warded deeper than any bolt below is worth, for the case where
+  // nothing gets through at all.
+  body("walled-rat", RAT_TOUGHNESS, { actor: true }, [
+    { slot: "armor", tileId: "walling-mail" },
+  ]),
   nimbleRat(),
   stoneTile("mend-stone", {
     effect: { kind: "bolt", damage: -MEND_HP, on: "caster" },
@@ -222,6 +227,29 @@ const props: TileDef[] = [
       damage: BOLT_DAMAGE,
       on: "target",
       projectile: { tileId: "arcane-mote", cellsPerSecond: 14 },
+    },
+    cooldownMs: 10_000,
+    reach: { cells: 3, height: 1 },
+  }),
+  // Both halves in one cast, which is the combination the merged arm exists for.
+  stoneTile("brand-bolt-stone", {
+    effect: {
+      kind: "bolt",
+      damage: BOLT_DAMAGE,
+      on: "target",
+      statuses: [{ id: "burned", chance: 100 }],
+    },
+    cooldownMs: 10_000,
+    reach: { cells: 3, height: 1 },
+  }),
+  // The same brand with the roll switched off, so "rolled per cast" is a claim
+  // rather than a coincidence.
+  stoneTile("dud-brand-stone", {
+    effect: {
+      kind: "bolt",
+      damage: BOLT_DAMAGE,
+      on: "target",
+      statuses: [{ id: "burned", chance: 0 }],
     },
     cooldownMs: 10_000,
     reach: { cells: 3, height: 1 },
@@ -251,33 +279,59 @@ const props: TileDef[] = [
     lightPassing: true,
     intangible: true,
   }),
+  tile({
+    id: "walling-mail",
+    kind: "item",
+    lightPassing: true,
+    intangible: true,
+    affectedByGravity: true,
+    interactions: {
+      item: { type: "armor", def: 0, resist: { arcane: BOLT_DAMAGE * 2 } },
+    },
+  }),
   stoneTile("adept-stone", {
     effect: { kind: "bolt", damage: -MEND_HP, on: "caster" },
     cooldownMs: 10_000,
     requirements: { arcane: 10 },
   }),
   stoneTile("brand-stone", {
-    effect: { kind: "status", on: "target", id: "burned" },
+    effect: {
+      kind: "bolt",
+      on: "target",
+      statuses: [{ id: "burned", chance: 100 }],
+    },
     cooldownMs: 10_000,
     reach: { cells: 3, height: 1 },
   }),
   // The same brand, made of fire. Its Fire requirement is the one point every
   // body starts with, which is what makes an element reachable at all.
   stoneTile("ember-stone", {
-    effect: { kind: "status", on: "target", id: "burned" },
+    effect: {
+      kind: "bolt",
+      on: "target",
+      statuses: [{ id: "burned", chance: 100 }],
+    },
     cooldownMs: 10_000,
     reach: { cells: 3, height: 1 },
     requirements: { fire: 1 },
   }),
   stoneTile("tide-stone", {
-    effect: { kind: "status", on: "target", id: "burned" },
+    effect: {
+      kind: "bolt",
+      on: "target",
+      statuses: [{ id: "burned", chance: 100 }],
+    },
     cooldownMs: 10_000,
     reach: { cells: 3, height: 1 },
     requirements: { water: 1 },
   }),
   // Two elements at once, to check both are trained and both are weighed.
   stoneTile("storm-stone", {
-    effect: { kind: "status", on: "target", id: "burned" },
+    effect: {
+      kind: "bolt",
+      on: "target",
+      statuses: [{ id: "burned", chance: 100 }],
+    },
     cooldownMs: 10_000,
     reach: { cells: 3, height: 1 },
     requirements: { fire: 1, water: 1 },
@@ -309,18 +363,30 @@ const props: TileDef[] = [
   // The scorch stone, made of fire: a burn a caster puts on themselves, which
   // is the only way to reach a body whose masteries a command can move.
   stoneTile("ember-self-stone", {
-    effect: { kind: "status", on: "caster", id: "burned" },
+    effect: {
+      kind: "bolt",
+      on: "caster",
+      statuses: [{ id: "burned", chance: 100 }],
+    },
     cooldownMs: 10_000,
     requirements: { fire: 1 },
   }),
   stoneTile("scorch-stone", {
-    effect: { kind: "status", on: "caster", id: "burned" },
+    effect: {
+      kind: "bolt",
+      on: "caster",
+      statuses: [{ id: "burned", chance: 100 }],
+    },
     cooldownMs: 10_000,
   }),
   // The shipped Stone of Light's shape: it asks nothing, reaches nobody, and
   // does nothing a number can measure. The case the flat fee exists for.
   stoneTile("ward-stone", {
-    effect: { kind: "status", on: "caster", id: "warded" },
+    effect: {
+      kind: "bolt",
+      on: "caster",
+      statuses: [{ id: "warded", chance: 100 }],
+    },
     cooldownMs: WARD_COOLDOWN_MS,
   }),
   tile({
@@ -1132,6 +1198,10 @@ describe("a bolt thrown at somebody", () => {
   const took = (play: GameSession, target: string, before: number) =>
     before - hpOf(play, target)!;
 
+  /** What is running on a body, by the status each instance came from. */
+  const statusIdsOf = (play: GameSession, id: string) =>
+    (play.statusesOf(id) ?? []).map((status) => status.defId);
+
   /**
    * The whole of the feature in one case: a caster with nothing learnt takes
    * exactly what the author wrote off a body wearing nothing.
@@ -1221,6 +1291,48 @@ describe("a bolt thrown at somebody", () => {
     expect(play.masteryXpOf("local")?.arcane ?? 0).toBeGreaterThan(
       before + XP_PER_CAST,
     );
+  });
+
+  /**
+   * **The whole point of folding the status arm in.** Before it, a stone that
+   * burned somebody *and* set them alight was not authorable at all — the most
+   * obvious fire spell there is. One cast, both halves.
+   */
+  it("takes health and leaves a status in the same cast", () => {
+    const { play, target, before } = boltAt("brand-bolt-stone");
+    expect(play.cast("weapon")).toBe(true);
+
+    expect(took(play, target, before)).toBe(BOLT_THROUGH);
+    expect(statusIdsOf(play, target)).toContain("burned");
+  });
+
+  /**
+   * And the percentage is real. A hundred is a brand that always burns and a
+   * zero is an entry the author has switched off — read against the authored
+   * number directly, never through the band a contest lives in.
+   */
+  it("leaves nothing when the roll says so, and still takes the health", () => {
+    const { play, target, before } = boltAt("dud-brand-stone");
+    expect(play.cast("weapon")).toBe(true);
+
+    expect(took(play, target, before)).toBe(BOLT_THROUGH);
+    expect(statusIdsOf(play, target)).not.toContain("burned");
+  });
+
+  /**
+   * **Armour eating the damage does not save anybody from the burn**, which is a
+   * weapon's rule word for word — see `../lib/item`'s `WeaponItem.statuses`. A
+   * body warded deeper than the bolt is worth takes nothing off its health bar
+   * and is still set alight, because what a ward stops is the blow and not the
+   * rune. Getting this backwards would make the two halves of one cast disagree
+   * about whether it happened.
+   */
+  it("brands a body its damage could not get through", () => {
+    const { play, target, before } = boltAt("brand-bolt-stone", "walled-rat");
+    expect(play.cast("weapon")).toBe(true);
+
+    expect(took(play, target, before)).toBe(0);
+    expect(statusIdsOf(play, target)).toContain("burned");
   });
 
   /**

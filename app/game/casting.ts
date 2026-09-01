@@ -223,12 +223,11 @@ function reachability(
  * a charm has written something the square cannot honour, and honouring it
  * anyway would make a passive trinket the longest-ranged thing in the game.
  *
- * Everything else is what the effect names. A **bolt** and a **status** both say
- * whose body they land on, and the answer is the same question for both: a
- * spell aimed at its own caster wants nobody targeted and no range, whichever
- * direction its arithmetic runs. That symmetry is the whole reason a mend is no
- * longer a case here — it used to be refused a target outright, and now it is
- * simply a bolt that says `caster`.
+ * Everything else is what the effect names. A **bolt** says whose body it lands
+ * on and that is the whole answer, whether what lands is health, a status or
+ * both: a spell aimed at its own caster wants nobody targeted and no range. Two
+ * cases used to live here and neither does now — a mend was refused a target
+ * outright, and a status asked the same question from a second arm.
  */
 function needsTarget(square: CastSquare, stone: ArcaneStoneItem): boolean {
   if (square === "charm") return false;
@@ -296,17 +295,23 @@ export type StoneHolder = {
  * you actually needed it. So the condition is "casting this now would not be
  * wasted", asked per effect:
  *
- * - a **mending bolt** waits until its holder is missing health;
+ * - a **mend** waits until its holder is missing health;
  * - a **status** waits until its holder is not already under it;
  * - a **conjure** has no such thing as being wasted — a flame laid on an empty
  *   floor is still a flame — so it fires as soon as it can. An author who wants
  *   a trail of fire behind them has written exactly that.
  *
- * **Only the mending direction waits.** A charm is worn on a square that reaches
- * nobody but its wearer, so an automatic bolt with a positive damage is a
- * trinket that hurts the person carrying it — which is a thing an author may
- * write and nothing here should second-guess. It has no wasted moment to wait
- * for: every press of it does exactly what it says.
+ * **A bolt now does more than one of those at once, so the answers are OR-ed.**
+ * A stone that mends and wards is worth pressing when either half would land: a
+ * body at full health under no ward should still get the ward. Anything stricter
+ * would make combining the two halves *worse* than authoring either alone,
+ * which is exactly backwards for the change that let them combine.
+ *
+ * **Harming never waits.** A charm reaches nobody but its wearer, so an
+ * automatic bolt with a positive damage is a trinket that hurts the person
+ * carrying it — a thing an author may write and nothing here should
+ * second-guess. It has no wasted moment to wait for: every press does what it
+ * says.
  *
  * Asked *after* {@link castability}, never instead of it: this decides whether
  * the moment is right, and that decides whether it is allowed at all.
@@ -315,13 +320,14 @@ export function automaticFires(
   stone: ArcaneStoneItem,
   holder: StoneHolder,
 ): boolean {
-  if (stone.effect.kind === "bolt") {
-    return stone.effect.damage >= 0 || holder.hp < holder.maxHp;
-  }
-  if (stone.effect.kind === "status") {
-    return !holder.statusIds.includes(stone.effect.id);
-  }
-  return true;
+  if (stone.effect.kind !== "bolt") return true;
+
+  const damage = stone.effect.damage ?? 0;
+  if (damage > 0) return true;
+  if (damage < 0 && holder.hp < holder.maxHp) return true;
+  return (stone.effect.statuses ?? []).some(
+    (status) => !holder.statusIds.includes(status.id),
+  );
 }
 
 /**

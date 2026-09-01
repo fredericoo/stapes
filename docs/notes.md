@@ -965,20 +965,55 @@ never swings". One stone and a sword swings the sword every turn; two stones
 falls back to fists, because the rotation already skips a hand with nothing in
 it. Nothing was written for either.
 
-### The effect vocabulary is three things, and closed
+### The effect vocabulary is two things, and closed
 
-**Bolt** at the caster or the target, **status** on the caster or the target,
-**conjure** a tile. Every one of them is something the simulation could already
-do to somebody, which is why casting added no new physics: "luminous" is an
-ordinary authored status whose visual block carries a `LightDef`, riding the same
-emitter path a carried torch does. Area of effect is deliberately absent — no
-spell touches more than one target or more than one cell.
+**Bolt** at the caster or the target, **conjure** a tile. Both are things the
+simulation could already do, which is why casting added no new physics:
+"luminous" is an ordinary authored status whose visual block carries a
+`LightDef`, riding the same emitter path a carried torch does. Area of effect is
+deliberately absent — no spell touches more than one target or more than one
+cell.
 
 A hand stone reaches for the target the player already picked for attacking, and
 a **charm reaches nobody but its wearer**. A conjure lands on the target's cell
 or, with nobody targeted, on the cell the caster is facing: the player never
 picks an arbitrary square. Range goes through `canReach`, so a spell out of range
 fails exactly the way a swing does, wall included.
+
+#### A status is something a bolt carries, not an arm of its own
+
+It was an arm, and the split was drawn in the wrong place. A bolt and a status
+asked all the same questions — whose body, how far, what element, what a charm
+does with it — and answered them in two sets of code that had to be kept saying
+the same thing. Worse, the two could not be combined: **a stone that burned
+somebody *and* set them alight was not authorable at all**, which is the most
+obvious fire spell there is.
+
+So a bolt carries `statuses`, which is the weapon's own field validated by the
+weapon's own schema and rolled by the same `inflictedBy` — an id and a
+percentage apiece. Both halves are optional and the useful combinations fall out
+rather than being enumerated: a pure ward is a bolt with a status and no damage,
+a pure mend is a bolt with damage and no status, and a brand is both. A bolt with
+*neither* is refused: it is a spell that spends a cooldown to do nothing.
+
+**The chance is the stone's own and no mastery moves it**, on the same argument
+a weapon's is under: Arcane and the elements have already had their say twice —
+on how deep the bolt ran and on what the wheel made of it — and scaling the
+chance as well would pay one skill three times.
+
+**Armour eating the damage does not save anybody from the burn**, which is again
+a weapon's rule word for word: what a ward stops is the blow and not the rune.
+What does stop it is nobody being there, and a body the same cast killed — a
+status is a condition you are *in*, and a corpse is not in one.
+
+`automaticFires` OR-s the two halves, and that matters: a stone that mends and
+wards is worth pressing when *either* would land, or combining them would be
+worse than authoring either alone — exactly backwards for the change that let
+them combine.
+
+**A conjure stays its own arm**, because it is the one effect that does not land
+on a body at all. It touches a cell, the player never picks that cell, and none
+of the questions above have answers for it.
 
 #### A heal is negative damage, and there is no second arm for it
 
@@ -1066,6 +1101,12 @@ is a one-cell prop with a small blue light on it. It is not a `directional8` til
 and does not need to be: a mote has no bearing to point along. The editor's
 picker still offers only 8-way tiles, which is the right default for the thing an
 author is usually reaching for, and the schema does not enforce it.
+
+**Eight cells a second rather than twenty**, which is well under a bow's. A
+bolt's three cells at an arrow's speed is 170ms in the air — half a bow's shot,
+and it reads as a flicker rather than as a thing that travelled. The flight is
+the only part of the animation carrying any information about distance, so it
+has to last long enough to be seen carrying it.
 
 **A conjure lands *under* a body already standing there**, which is the same rule
 `/tile` places underfoot by. What a tile does to a body is read off the stack
@@ -1297,6 +1338,13 @@ the ladder's first *direct* damage, where every stone before them worked by
 leaving something on somebody. The Necklace of Life and Verdance are the mending
 direction of the same arm, unchanged in what they do and re-said in the
 vocabulary that now holds them.
+
+The **greater** three — Pyre, Rime and Bramble — now do both halves, which is
+what makes them greater rather than merely longer: eighteen damage and the
+status, where the lesser stones at the bottom of each element do one or the
+other. Every stone that was a `status` arm is a bolt carrying that status at a
+hundred percent, so nothing about what any of them does changed on the way
+through.
 
 **Bodies.** The snake is nature and the cave troll is fire. Everything else —
 rat, wolf, deer, cat, shopkeeper, and the player — is neutral, which is the

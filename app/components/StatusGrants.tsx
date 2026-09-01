@@ -1,5 +1,9 @@
 import type { ReactNode } from "react";
-import type { StatusGrant } from "../lib/item";
+import {
+  MAX_PERCENT_STAT,
+  MIN_PERCENT_STAT,
+  type StatusGrant,
+} from "../lib/item";
 import type { StatusDef } from "../lib/status";
 import { Button, Input, Select, Switch } from "../ui";
 
@@ -162,5 +166,48 @@ export function StatusGrants<Grant extends StatusGrant>({
         Add status
       </Button>
     </div>
+  );
+}
+
+/**
+ * The percentage column, for a grant list whose entries carry one.
+ *
+ * Here rather than in either caller because both of them want exactly this and
+ * neither can have the other's: a weapon's brand and a stone's are the same
+ * authored field, and two copies of the clamp would be two places for the ends
+ * to drift apart. Passed as {@link Props.extra}, which is what that escape hatch
+ * is for — a consumable's grants have no chance, so this cannot move into the
+ * list itself.
+ *
+ * Shaped like the two duration columns beside it rather than as a `StatField`:
+ * that component carries a sentence under every box, and one field in a row of
+ * plain ones knocks the whole row out of line for a hint the section's own prose
+ * already gives.
+ */
+export function StatusChanceField<Grant extends StatusGrant & { chance: number }>(
+  entry: Grant,
+  patch: (fields: Partial<Grant>) => void,
+) {
+  return (
+    <label className="flex flex-col gap-0.5 text-xs">
+      <span className="font-bold uppercase text-muted">Chance (%)</span>
+      <Input
+        type="number"
+        className="w-20"
+        min={MIN_PERCENT_STAT}
+        max={MAX_PERCENT_STAT}
+        value={entry.chance}
+        onChange={(e) => {
+          const next = Number(e.target.value);
+          if (!Number.isFinite(next)) return;
+          patch({
+            chance: Math.max(
+              MIN_PERCENT_STAT,
+              Math.min(MAX_PERCENT_STAT, Math.round(next)),
+            ),
+          } as Partial<Grant>);
+        }}
+      />
+    </label>
   );
 }

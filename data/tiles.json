@@ -7870,9 +7870,14 @@
       "item": {
         "type": "stone",
         "effect": {
-          "kind": "status",
+          "kind": "bolt",
           "on": "caster",
-          "id": "luminous"
+          "statuses": [
+            {
+              "id": "luminous",
+              "chance": 100
+            }
+          ]
         },
         "cooldownMs": 30000
       }
@@ -7912,11 +7917,16 @@
       "item": {
         "type": "stone",
         "effect": {
-          "kind": "status",
+          "kind": "bolt",
           "on": "target",
-          "id": "burned",
-          "fromMs": 2000,
-          "toMs": 3000
+          "statuses": [
+            {
+              "id": "burned",
+              "chance": 100,
+              "fromMs": 2000,
+              "toMs": 3000
+            }
+          ]
         },
         "cooldownMs": 20000,
         "requirements": {
@@ -7964,11 +7974,16 @@
       "item": {
         "type": "stone",
         "effect": {
-          "kind": "status",
+          "kind": "bolt",
           "on": "target",
-          "id": "chilled",
-          "fromMs": 6000,
-          "toMs": 8000
+          "statuses": [
+            {
+              "id": "chilled",
+              "chance": 100,
+              "fromMs": 6000,
+              "toMs": 8000
+            }
+          ]
         },
         "cooldownMs": 20000,
         "requirements": {
@@ -8016,11 +8031,16 @@
       "item": {
         "type": "stone",
         "effect": {
-          "kind": "status",
+          "kind": "bolt",
           "on": "target",
-          "id": "poison",
-          "fromMs": 8000,
-          "toMs": 12000
+          "statuses": [
+            {
+              "id": "poison",
+              "chance": 100,
+              "fromMs": 8000,
+              "toMs": 12000
+            }
+          ]
         },
         "cooldownMs": 20000,
         "requirements": {
@@ -8068,9 +8088,20 @@
       "item": {
         "type": "stone",
         "effect": {
-          "kind": "status",
+          "kind": "bolt",
           "on": "target",
-          "id": "burned"
+          "damage": 18,
+          "variance": 25,
+          "projectile": {
+            "tileId": "arcane-shard",
+            "cellsPerSecond": 8
+          },
+          "statuses": [
+            {
+              "id": "burned",
+              "chance": 100
+            }
+          ]
         },
         "cooldownMs": 45000,
         "requirements": {
@@ -8118,9 +8149,20 @@
       "item": {
         "type": "stone",
         "effect": {
-          "kind": "status",
+          "kind": "bolt",
           "on": "target",
-          "id": "chilled"
+          "damage": 18,
+          "variance": 25,
+          "projectile": {
+            "tileId": "arcane-shard",
+            "cellsPerSecond": 8
+          },
+          "statuses": [
+            {
+              "id": "chilled",
+              "chance": 100
+            }
+          ]
         },
         "cooldownMs": 45000,
         "requirements": {
@@ -8168,9 +8210,20 @@
       "item": {
         "type": "stone",
         "effect": {
-          "kind": "status",
+          "kind": "bolt",
           "on": "target",
-          "id": "poison"
+          "damage": 18,
+          "variance": 25,
+          "projectile": {
+            "tileId": "arcane-shard",
+            "cellsPerSecond": 8
+          },
+          "statuses": [
+            {
+              "id": "poison",
+              "chance": 100
+            }
+          ]
         },
         "cooldownMs": 45000,
         "requirements": {
@@ -8271,7 +8324,7 @@
           "variance": 25,
           "projectile": {
             "tileId": "arcane-shard",
-            "cellsPerSecond": 14
+            "cellsPerSecond": 8
           }
         },
         "cooldownMs": 25000,
@@ -8326,7 +8379,7 @@
           "variance": 25,
           "projectile": {
             "tileId": "arcane-shard",
-            "cellsPerSecond": 14
+            "cellsPerSecond": 8
           }
         },
         "cooldownMs": 25000,
@@ -8381,7 +8434,7 @@
           "variance": 25,
           "projectile": {
             "tileId": "arcane-shard",
-            "cellsPerSecond": 14
+            "cellsPerSecond": 8
           }
         },
         "cooldownMs": 25000,
