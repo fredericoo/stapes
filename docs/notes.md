@@ -1554,7 +1554,12 @@ the interesting part.
   the input's. The `ref` stays the transmuter, so the outline still goes round
   the fire. It is the only row in `listInteractionOptions` whose subject is not
   its `ref`, and the only one that needs a third part in its id
-  (`transmute:<ref>:<index>`) because one placement offers several.
+  (`transmute:<ref>:<index>`) because one placement offers several. It is also
+  why `groupInteractionOptions` — which gathers the rows about one thing into
+  one box, so a sprite and a name are drawn once however many verbs they carry —
+  groups by the *subject* rather than by the placement: a fire offering to cook
+  meat and to cook fish is two boxes, and one box would have to pick one of the
+  two sprites to lie with.
 - **A recipe is addressed by position**, and `ClientMessage.transmute` carries
   that index. The same argument `SlotRef` makes for indices over instance ids:
   both ends hold the same tile catalogue, so a position is something the server

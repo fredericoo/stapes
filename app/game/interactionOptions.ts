@@ -51,11 +51,12 @@ import type { ActorSnapshot, PlaySession } from "./GameSession";
  * server's validation ask, so the list can never offer something a tap would
  * refuse.
  *
- * **One entry per action, not per thing.** A body you can both shove and fight
- * is two entries with one name between them, which is the shape a player reads:
- * they are looking for the *verb*, and grouping buries it under a heading. It
- * also keeps every entry the same size, which is what lets the list be scanned
- * rather than parsed.
+ * **One entry per action, and the entries about one thing travel together.**
+ * A body you can both shove and fight is two entries, because the verb is what
+ * is being scanned for — but it is one body, and saying its name and drawing
+ * its sprite twice spends two rows of a narrow column on one creature. So the
+ * list is built a verb at a time and read a subject at a time: see
+ * {@link groupInteractionOptions}, which is what the panel draws from.
  */
 
 /**
@@ -341,6 +342,86 @@ export function listInteractionOptions(
       // trade places between frames.
       (a.id < b.id ? -1 : a.id > b.id ? 1 : 0),
   );
+}
+
+/**
+ * One subject and everything you could do to it, which is how the list is read.
+ *
+ * The options are built one verb at a time — that is what a player scans for,
+ * and it is what keeps a row the same size as its neighbours — but a body you
+ * can shove and fight is still one body. Drawn flat, it says "Rat" twice and
+ * draws the same sprite twice, which in a column this narrow is a whole row
+ * spent repeating what the row above it already said. So the verbs stay
+ * separate and the *subject* is said once.
+ *
+ * Grouped by what the entry is **about**, which is its placement and the thing
+ * standing for it rather than the placement alone. Almost everywhere those are
+ * the same question; the exception is the one the transmute row already makes —
+ * a fire offering to cook meat and to cook fish is two entries on one placement
+ * wearing two different sprites and names, and a box that merged them would
+ * have to pick one of the two to lie with.
+ *
+ * Order is the list's own, twice over: groups run in the order their first
+ * entry does and entries keep their order inside one. Nothing is re-sorted
+ * here, so what {@link listInteractionOptions} settled about nearness and about
+ * {@link ACTION_ORDER} survives, and the first entry of the first group is
+ * still the nearest thing you could do.
+ */
+export type InteractionGroup = {
+  /** Identity across frames, on the same terms an option's id is. */
+  key: string;
+  /**
+   * The entries, in list order. Never empty — a group exists because an entry
+   * put it there.
+   */
+  options: InteractionOption[];
+};
+
+export function groupInteractionOptions(
+  options: readonly InteractionOption[],
+): InteractionGroup[] {
+  const groups: InteractionGroup[] = [];
+  const byKey = new Map<string, InteractionGroup>();
+
+  for (const option of options) {
+    const key = subjectKey(option);
+    const existing = byKey.get(key);
+    if (existing) {
+      existing.options.push(option);
+      continue;
+    }
+    const group: InteractionGroup = { key, options: [option] };
+    byKey.set(key, group);
+    groups.push(group);
+  }
+
+  return groups;
+}
+
+/**
+ * What a group is about: the placement, plus the thing being drawn for it.
+ *
+ * The tile and the name are in the key rather than assumed to follow from the
+ * placement, because for a transmute row they do not — see
+ * {@link InteractionGroup}. The name earns its place beside the tile for a
+ * body: two people share one tile and are different subjects, and it is the
+ * handle that says so.
+ */
+function subjectKey(option: InteractionOption): string {
+  return `${refKey(option.ref)}|${option.tileId}|${option.name}`;
+}
+
+/**
+ * The entry a group is drawn from — its sprite, its name, and what is left of
+ * it. The first, which is the list's own answer to "the most interesting thing
+ * about this": see {@link ACTION_ORDER}.
+ *
+ * Written here rather than read off `group.options[0]` at the point of use so
+ * that a group is never indexed into by a caller that would then have to know
+ * it cannot be empty.
+ */
+export function groupSubject(group: InteractionGroup): InteractionOption {
+  return group.options[0];
 }
 
 /**
