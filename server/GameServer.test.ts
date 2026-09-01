@@ -3790,7 +3790,7 @@ describe("casting", () => {
   const STONE_TILE_ID = "test-arcane-stone";
   const STONE_COOLDOWN_MS = 60_000;
 
-  /** A charm stone that heals, which is the shipped necklace's shape. */
+  /** A charm stone that mends, which is the shipped necklace's shape. */
   function stoneTile(): unknown {
     return {
       id: STONE_TILE_ID,
@@ -3805,7 +3805,7 @@ describe("casting", () => {
       interactions: {
         item: {
           type: "stone",
-          effect: { kind: "heal", hp: 10 },
+          effect: { kind: "bolt", damage: -10, on: "caster" },
           cooldownMs: STONE_COOLDOWN_MS,
         },
       },
@@ -3931,7 +3931,7 @@ describe("saving authored content", () => {
       interactions: {
         item: {
           type: "stone",
-          effect: { kind: "heal", hp: 10 },
+          effect: { kind: "bolt", damage: -10, on: "caster" },
           cooldownMs,
         },
       },

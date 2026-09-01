@@ -80,7 +80,20 @@ const tiles: TileDef[] = [
   // Tall and opaque, so a stone thrown through it fails the same way a shot
   // does — the line is what a wall costs.
   tile({ id: "wall", height: 2, lightPassing: false }),
-  stoneTile("heal-stone", { effect: { kind: "heal", hp: 10 }, cooldownMs: 60_000 }),
+  stoneTile("mend-stone", {
+    effect: { kind: "bolt", damage: -10, on: "caster" },
+    cooldownMs: 60_000,
+  }),
+  stoneTile("bolt-stone", {
+    effect: {
+      kind: "bolt",
+      damage: 10,
+      on: "target",
+      projectile: { tileId: "arrow", cellsPerSecond: 14 },
+    },
+    cooldownMs: 20_000,
+    reach: NEAR_REACH,
+  }),
   stoneTile("ward-stone", {
     effect: { kind: "status", on: "caster", id: "luminous" },
     cooldownMs: 30_000,
@@ -96,12 +109,12 @@ const tiles: TileDef[] = [
     reach: NEAR_REACH,
   }),
   stoneTile("adept-stone", {
-    effect: { kind: "heal", hp: 5 },
+    effect: { kind: "bolt", damage: -5, on: "caster" },
     cooldownMs: 10_000,
     requirements: { arcane: 10 },
   }),
   stoneTile("quiet-stone", {
-    effect: { kind: "heal", hp: 5 },
+    effect: { kind: "bolt", damage: -5, on: "caster" },
     cooldownMs: 10_000,
     automatic: true,
   }),
@@ -187,7 +200,7 @@ describe("why a stone cannot be cast", () => {
 
   it("refuses a stone that is still cooling", () => {
     expect(
-      castability(context({ weapon: instance("heal-stone", 4_000) }), "weapon"),
+      castability(context({ weapon: instance("mend-stone", 4_000) }), "weapon"),
     ).toEqual({ ok: false, reason: "cooling" });
   });
 
@@ -274,16 +287,16 @@ describe("why a stone cannot be cast", () => {
 
 describe("a stone that acts on its caster", () => {
   /**
-   * Story 18 and story 20 in one case: a heal works with nothing targeted, and
+   * Story 18 and story 20 in one case: a mend works with nothing targeted, and
    * works the same with something targeted a mile away. A self spell never
    * misfires at an enemy because it never looks at one.
    */
   it("works with no target and ignores one entirely", () => {
-    const alone = context({ weapon: instance("heal-stone") });
+    const alone = context({ weapon: instance("mend-stone") });
     expect(castability(alone, "weapon")).toEqual({ ok: true });
 
     const aiming = context(
-      { weapon: instance("heal-stone") },
+      { weapon: instance("mend-stone") },
       { target: point(6) },
     );
     expect(castability(aiming, "weapon")).toEqual({ ok: true });
@@ -346,7 +359,7 @@ describe("the charm square", () => {
 
 describe("what the squares will take", () => {
   it("lets either hand hold a stone that is pressed", () => {
-    expect(handAccepts(tilesById["heal-stone"]!)).toBe(true);
+    expect(handAccepts(tilesById["mend-stone"]!)).toBe(true);
   });
 
   /**
@@ -360,9 +373,9 @@ describe("what the squares will take", () => {
   });
 
   it("takes a stone on the charm and nowhere else that is worn", () => {
-    expect(wornAccepts("charm", tilesById["heal-stone"]!)).toBe(true);
+    expect(wornAccepts("charm", tilesById["mend-stone"]!)).toBe(true);
     for (const slot of ["head", "armor", "footwear"] as const) {
-      expect(wornAccepts(slot, tilesById["heal-stone"]!)).toBe(false);
+      expect(wornAccepts(slot, tilesById["mend-stone"]!)).toBe(false);
     }
   });
 
@@ -381,7 +394,7 @@ describe("the rotation, unchanged", () => {
   it("takes no turn for a hand holding a stone", () => {
     const kit = {
       ...emptyEquipment(),
-      weapon: instance("heal-stone"),
+      weapon: instance("mend-stone"),
     };
     expect(weaponSwungBy(kit, tilesById, "weapon")).toBeNull();
   });
@@ -390,7 +403,7 @@ describe("the rotation, unchanged", () => {
     const kit = {
       ...emptyEquipment(),
       weapon: instance("sword"),
-      offhand: instance("heal-stone"),
+      offhand: instance("mend-stone"),
     };
     expect(handToSwing(kit, tilesById, "weapon")).toBe("weapon");
     // And again on the turn the off hand would otherwise have taken.
@@ -400,7 +413,7 @@ describe("the rotation, unchanged", () => {
   it("falls back to the natural weapon with two stones", () => {
     const kit = {
       ...emptyEquipment(),
-      weapon: instance("heal-stone"),
+      weapon: instance("mend-stone"),
       offhand: instance("ward-stone"),
     };
     expect(handToSwing(kit, tilesById, "weapon")).toBeNull();
@@ -420,7 +433,7 @@ describe("the row of buttons", () => {
   it("has one button per non-passive stone, in square order", () => {
     const buttons = castableStones(
       context({
-        weapon: instance("heal-stone"),
+        weapon: instance("mend-stone"),
         offhand: instance("sword"),
         charm: instance("ward-stone"),
       }),
@@ -431,7 +444,7 @@ describe("the row of buttons", () => {
   it("leaves out a stone that fires on its own", () => {
     const buttons = castableStones(
       context({
-        weapon: instance("heal-stone"),
+        weapon: instance("mend-stone"),
         charm: instance("quiet-stone"),
       }),
     );
@@ -440,10 +453,10 @@ describe("the row of buttons", () => {
 
   it("carries the stone's own sprite and its cooldown", () => {
     const [button] = castableStones(
-      context({ weapon: instance("heal-stone", 4_000) }),
+      context({ weapon: instance("mend-stone", 4_000) }),
     );
     expect(button).toMatchObject({
-      tileId: "heal-stone",
+      tileId: "mend-stone",
       cooldownMs: 4_000,
       cooldownTotalMs: 60_000,
       castability: { ok: false, reason: "cooling" },
@@ -462,7 +475,7 @@ describe("what a row of buttons says", () => {
    */
   it("reads the same across one second of cooling", () => {
     const at = (cooldownMs: number) =>
-      spellReading(castableStones(context({ weapon: instance("heal-stone", cooldownMs) })));
+      spellReading(castableStones(context({ weapon: instance("mend-stone", cooldownMs) })));
     // Two different instances, so only the *reading* can make these agree.
     expect(at(4_400).replace(/itm_\d+/, "x")).toBe(
       at(4_001).replace(/itm_\d+/, "x"),
@@ -494,13 +507,24 @@ describe("requirements", () => {
 });
 
 describe("a stone that fires on its own", () => {
-  const heal = resolveStone(tilesById["quiet-stone"]!)!;
+  const mend = resolveStone(tilesById["quiet-stone"]!)!;
   const ward = resolveStone(tilesById["ward-stone"]!)!;
   const flame = resolveStone(tilesById["flame-stone"]!)!;
 
-  it("waits until a heal would put something back", () => {
-    expect(automaticFires(heal, { hp: 20, maxHp: 20, statusIds: [] })).toBe(false);
-    expect(automaticFires(heal, { hp: 19, maxHp: 20, statusIds: [] })).toBe(true);
+  it("waits until a mend would put something back", () => {
+    expect(automaticFires(mend, { hp: 20, maxHp: 20, statusIds: [] })).toBe(false);
+    expect(automaticFires(mend, { hp: 19, maxHp: 20, statusIds: [] })).toBe(true);
+  });
+
+  /**
+   * A charm reaches nobody but its wearer, so a bolt that harms is one that
+   * harms them — and there is no moment at which that would be wasted. The
+   * author wrote a cursed trinket and gets one.
+   */
+  it("fires a harming bolt whenever it is ready", () => {
+    const curse = resolveStone(tilesById["bolt-stone"]!)!;
+    expect(automaticFires(curse, { hp: 20, maxHp: 20, statusIds: [] })).toBe(true);
+    expect(automaticFires(curse, { hp: 1, maxHp: 20, statusIds: [] })).toBe(true);
   });
 
   it("waits until its status is not already running", () => {
@@ -535,6 +559,7 @@ describe("the stones we ship", () => {
     "arcane-necklace-of-life",
     "arcane-stone-of-flame",
     "arcane-stone-of-light",
+    "arcane-stone-of-cinder",
   ];
 
   it("parses every one of them as a stone", () => {
@@ -550,9 +575,29 @@ describe("the stones we ship", () => {
    * fixture: the vocabulary is closed, and shipping one of each is what proves
    * all three arms are reachable by an author.
    */
-  it("uses each of the three effects exactly once", () => {
+  it("uses every one of the three effects", () => {
     const kinds = SHIPPED.map((id) => resolveStone(shipped[id]!)!.effect.kind);
-    expect(kinds.sort()).toEqual(["conjure", "heal", "status"]);
+    expect([...new Set(kinds)].sort()).toEqual(["bolt", "conjure", "status"]);
+  });
+
+  /**
+   * **Both directions of the one arm, authored.** A bolt is a signed number and
+   * the sign is the whole of what separates a curse from a blessing, so shipping
+   * only one of them would leave half the vocabulary reachable only in a test.
+   */
+  it("ships a bolt that mends and a bolt that harms", () => {
+    const life = resolveStone(shipped["arcane-necklace-of-life"]!)!;
+    expect(life.effect).toMatchObject({ kind: "bolt", on: "caster" });
+    if (life.effect.kind !== "bolt") return;
+    expect(life.effect.damage).toBeLessThan(0);
+
+    const cinder = resolveStone(shipped["arcane-stone-of-cinder"]!)!;
+    expect(cinder.effect).toMatchObject({ kind: "bolt", on: "target" });
+    if (cinder.effect.kind !== "bolt") return;
+    expect(cinder.effect.damage).toBeGreaterThan(0);
+    // The whole reason a bolt has a projectile block: what it throws has to be a
+    // tile the world actually holds, on the terms a conjure's is checked above.
+    expect(shipped[cinder.effect.projectile!.tileId]).toBeDefined();
   });
 
   it("names a status and a tile the world actually has", () => {

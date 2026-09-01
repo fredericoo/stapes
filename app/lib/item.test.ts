@@ -461,6 +461,78 @@ describe("itemForSave", () => {
       equippable: false,
     });
   });
+
+  /**
+   * A bolt's two optionals say nothing when they are absent, so writing them out
+   * would claim an author decided something they never thought about — the same
+   * rule a zeroed resistance and an armour's default square are under. A
+   * `variance: 0` is a spell somebody decided is reliable; absent is a spell that
+   * simply does what it says.
+   */
+  it("drops a bolt's variance and projectile when they say nothing", () => {
+    const draft = {
+      type: "stone",
+      effect: {
+        kind: "bolt",
+        damage: 12,
+        on: "target",
+        variance: 0,
+        projectile: { tileId: "  ", cellsPerSecond: 20 },
+      },
+      cooldownMs: 10_000,
+    } as const;
+    const saved = itemForSave(draft);
+    expect(saved).toEqual({
+      type: "stone",
+      effect: { kind: "bolt", damage: 12, on: "target" },
+      cooldownMs: 10_000,
+    });
+    expect(resolveItem(tile("item", { item: saved }))).toEqual(saved);
+  });
+
+  it("keeps a bolt's variance and projectile when they say something", () => {
+    const draft = {
+      type: "stone",
+      effect: {
+        kind: "bolt",
+        damage: -12,
+        on: "caster",
+        variance: 25,
+        projectile: { tileId: " mote ", cellsPerSecond: 14 },
+      },
+      cooldownMs: 10_000,
+    } as const;
+    const saved = itemForSave(draft);
+    expect(saved).toEqual({
+      type: "stone",
+      effect: {
+        kind: "bolt",
+        damage: -12,
+        on: "caster",
+        variance: 25,
+        projectile: { tileId: "mote", cellsPerSecond: 14 },
+      },
+      cooldownMs: 10_000,
+    });
+    expect(resolveItem(tile("item", { item: saved }))).toEqual(saved);
+  });
+
+  /**
+   * **A bolt that moves no health is a field somebody has not filled in**, and
+   * the schema says so rather than shipping a stone that spends a cooldown to do
+   * nothing. The sign either side of it is the whole vocabulary, so both are
+   * real and only the middle is refused.
+   */
+  it("refuses a bolt of zero and takes either sign", () => {
+    const bolt = (damage: number) => ({
+      type: "stone" as const,
+      effect: { kind: "bolt" as const, damage, on: "caster" as const },
+      cooldownMs: 10_000,
+    });
+    expect(resolveItem(tile("item", { item: bolt(0) }))).toBeNull();
+    expect(resolveItem(tile("item", { item: bolt(5) }))).toEqual(bolt(5));
+    expect(resolveItem(tile("item", { item: bolt(-5) }))).toEqual(bolt(-5));
+  });
 });
 
 describe("normalizeTileDef and kind", () => {

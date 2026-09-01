@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { maxHpFrom } from "../lib/battler";
+import { defFrom, maxHpFrom } from "../lib/battler";
 import type { ItemInstance } from "../lib/itemInstance";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import {
@@ -70,11 +70,35 @@ const PLAYER_MAX_HP = maxHpFrom(PLAYER_TOUGHNESS);
 const RAT_TOUGHNESS = 40;
 
 /** A minute, which is what the shipped necklace costs and is easy to count in. */
-const HEAL_COOLDOWN_MS = 60_000;
-const HEAL_HP = 10;
+const MEND_COOLDOWN_MS = 60_000;
+const MEND_HP = 10;
 
 /** What the shipped Stone of Light costs, and the clock the floor cases run on. */
 const WARD_COOLDOWN_MS = 30_000;
+
+/**
+ * What a bolt is authored at, and what one body wears against it.
+ *
+ * The resistance is deliberately less than the damage, so a warded body takes a
+ * smaller blow rather than none — the interesting case, since "nothing gets
+ * through" is indistinguishable from a bolt that never fired.
+ */
+const BOLT_DAMAGE = 20;
+const BOLT_RESIST = 5;
+
+/**
+ * What a rat turns aside on its own, which every figure below is measured
+ * through.
+ *
+ * Read out of the same function the fight reads it from rather than written
+ * down, because it is not what these cases are about: what they are about is
+ * that a bolt goes through `damageAfterDefence` at all, and a number typed here
+ * would be a second answer to a question `../lib/battler` already owns.
+ */
+const RAT_DEF = defFrom(RAT_TOUGHNESS);
+
+/** What a bolt of {@link BOLT_DAMAGE} actually takes off a plain rat. */
+const BOLT_THROUGH = BOLT_DAMAGE - RAT_DEF;
 
 /** Fixed ends, so a rolled burn is a constant and the arithmetic below is exact. */
 const BURN_MS = 4_000;
@@ -135,6 +159,21 @@ function body(
   });
 }
 
+/**
+ * A rat that would dodge anything, for the one thing a bolt does not have.
+ *
+ * Agility is what a swing is contested against, and a cast is not aimed — so a
+ * body that escapes every blow in the world still takes a bolt in full. Written
+ * by patching the block rather than by widening {@link body}, because it is the
+ * only case in this file that wants a second mastery.
+ */
+function nimbleRat(): TileDef {
+  const rat = body("nimble-rat", RAT_TOUGHNESS, { actor: true });
+  const battler = rat.interactions!.battler as { masteries: object };
+  battler.masteries = { ...battler.masteries, agility: 100 };
+  return rat;
+}
+
 /** Everything but the player, whose kit differs from case to case. */
 const props: TileDef[] = [
   tile({ id: "grass" }),
@@ -159,17 +198,61 @@ const props: TileDef[] = [
   body("packing-rat", RAT_TOUGHNESS, { actor: true }, [
     { slot: "bag", tileId: "satchel" },
   ]),
-  stoneTile("life-stone", {
-    effect: { kind: "heal", hp: HEAL_HP },
-    cooldownMs: HEAL_COOLDOWN_MS,
+  // A rat in mail warded against magic, and one that is simply hard to hit: the
+  // two halves a bolt treats differently, since a cast is mitigated and never
+  // dodged.
+  body("mailed-rat", RAT_TOUGHNESS, { actor: true }, [
+    { slot: "armor", tileId: "warding-mail" },
+  ]),
+  nimbleRat(),
+  stoneTile("mend-stone", {
+    effect: { kind: "bolt", damage: -MEND_HP, on: "caster" },
+    cooldownMs: MEND_COOLDOWN_MS,
   }),
   stoneTile("flame-stone", {
     effect: { kind: "conjure", tileId: "conjured-flame" },
     cooldownMs: 10_000,
     reach: { cells: 3, height: 1 },
   }),
+  // A bolt that harms, thrown with no variance so every case below is exact,
+  // and with something in the air so the flight has somewhere to be asserted.
+  stoneTile("bolt-stone", {
+    effect: {
+      kind: "bolt",
+      damage: BOLT_DAMAGE,
+      on: "target",
+      projectile: { tileId: "arcane-mote", cellsPerSecond: 14 },
+    },
+    cooldownMs: 10_000,
+    reach: { cells: 3, height: 1 },
+  }),
+  // The same bolt made of fire, for the one thing the wheel turns on.
+  stoneTile("ember-bolt-stone", {
+    effect: { kind: "bolt", damage: BOLT_DAMAGE, on: "target" },
+    cooldownMs: 10_000,
+    reach: { cells: 3, height: 1 },
+    requirements: { fire: 1 },
+  }),
+  // A rat in mail, and mail with an opinion about magic: a bolt answers to
+  // Arcane, so this is what a warded body turns aside.
+  tile({
+    id: "warding-mail",
+    kind: "item",
+    lightPassing: true,
+    intangible: true,
+    affectedByGravity: true,
+    interactions: {
+      item: { type: "armor", def: 0, resist: { arcane: BOLT_RESIST } },
+    },
+  }),
+  tile({
+    id: "arcane-mote",
+    type: "directional8",
+    lightPassing: true,
+    intangible: true,
+  }),
   stoneTile("adept-stone", {
-    effect: { kind: "heal", hp: HEAL_HP },
+    effect: { kind: "bolt", damage: -MEND_HP, on: "caster" },
     cooldownMs: 10_000,
     requirements: { arcane: 10 },
   }),
@@ -382,47 +465,47 @@ function bodyAt(play: GameSession, at: Coord, tileId = "rat"): string {
 
 describe("spending a cooldown", () => {
   it("puts the stone on its full cooldown the moment it is cast", () => {
-    const play = session({ charm: "life-stone" });
+    const play = session({ charm: "mend-stone" });
     play.runCommand("/health 10");
     play.drainNotices();
 
     expect(play.cast("charm")).toBe(true);
-    expect(coolingIn(play, "charm")).toBe(HEAL_COOLDOWN_MS);
+    expect(coolingIn(play, "charm")).toBe(MEND_COOLDOWN_MS);
   });
 
   /**
    * Story 39, and the same bargain a swing is under: the cost of casting must
-   * not depend on luck. Pressing a heal at full health accomplishes nothing and
+   * not depend on luck. Pressing a mend at full health accomplishes nothing and
    * still costs the minute.
    */
   it("spends it even when the spell did nothing at all", () => {
-    const play = session({ charm: "life-stone" });
+    const play = session({ charm: "mend-stone" });
 
     expect(hpOf(play)).toBe(PLAYER_MAX_HP);
     expect(play.cast("charm")).toBe(true);
     expect(hpOf(play)).toBe(PLAYER_MAX_HP);
-    expect(coolingIn(play, "charm")).toBe(HEAL_COOLDOWN_MS);
+    expect(coolingIn(play, "charm")).toBe(MEND_COOLDOWN_MS);
   });
 
   it("refuses a second cast until the stone is ready", () => {
-    const play = session({ charm: "life-stone" });
+    const play = session({ charm: "mend-stone" });
     play.cast("charm");
     expect(play.cast("charm")).toBe(false);
   });
 
   it("counts a full cooldown down second by second", () => {
-    const play = session({ charm: "life-stone" });
+    const play = session({ charm: "mend-stone" });
     play.cast("charm");
-    expect(coolingIn(play, "charm")).toBe(HEAL_COOLDOWN_MS);
+    expect(coolingIn(play, "charm")).toBe(MEND_COOLDOWN_MS);
 
     run(play, TICKS_PER_SECOND);
-    expect(coolingIn(play, "charm")).toBe(HEAL_COOLDOWN_MS - 1_000);
+    expect(coolingIn(play, "charm")).toBe(MEND_COOLDOWN_MS - 1_000);
     run(play, TICKS_PER_SECOND * 3);
-    expect(coolingIn(play, "charm")).toBe(HEAL_COOLDOWN_MS - 4_000);
+    expect(coolingIn(play, "charm")).toBe(MEND_COOLDOWN_MS - 4_000);
   });
 
   it("winds down a second per second and clears when it is ready", () => {
-    const play = session({ charm: "life-stone" });
+    const play = session({ charm: "mend-stone" });
     cool(play, "charm", 2_000);
 
     run(play, TICKS_PER_SECOND);
@@ -439,7 +522,7 @@ describe("spending a cooldown", () => {
    * and an arrow in the air are under.
    */
   it("keeps the world awake while anything is cooling", () => {
-    const play = session({ charm: "life-stone" });
+    const play = session({ charm: "mend-stone" });
     expect(play.isAtRest()).toBe(true);
 
     play.cast("charm");
@@ -451,7 +534,7 @@ describe("a cooling stone is locked in its square", () => {
   const BAG: SlotRef = { kind: "contents", index: 0 };
 
   function armed(): GameSession {
-    const play = session({ charm: "life-stone" });
+    const play = session({ charm: "mend-stone" });
     play.cast("charm");
     play.drainNotices();
     return play;
@@ -460,13 +543,13 @@ describe("a cooling stone is locked in its square", () => {
   it("cannot be moved out of its square", () => {
     const play = armed();
     expect(play.moveItem({ kind: "charm" }, { kind: "weapon" })).toBe(false);
-    expect(play.equipmentOf("local")?.charm?.tileId).toBe("life-stone");
+    expect(play.equipmentOf("local")?.charm?.tileId).toBe("mend-stone");
   });
 
   it("cannot be put down on the floor", () => {
     const play = armed();
     expect(play.drop({ kind: "charm" }, { x: 1, y: 0, z: 0 })).toBe(false);
-    expect(play.equipmentOf("local")?.charm?.tileId).toBe("life-stone");
+    expect(play.equipmentOf("local")?.charm?.tileId).toBe("mend-stone");
   });
 
   it("is refused even before a destination is considered", () => {
@@ -488,11 +571,11 @@ describe("a cooling stone is locked in its square", () => {
   });
 
   it("comes out freely once it is ready", () => {
-    const play = session({ charm: "life-stone" });
+    const play = session({ charm: "mend-stone" });
     cool(play, "charm", 1_000);
     run(play, TICKS_PER_SECOND);
     expect(play.moveItem({ kind: "charm" }, { kind: "weapon" })).toBe(true);
-    expect(play.equipmentOf("local")?.weapon?.tileId).toBe("life-stone");
+    expect(play.equipmentOf("local")?.weapon?.tileId).toBe("mend-stone");
   });
 
   /**
@@ -509,7 +592,7 @@ describe("a cooling stone is locked in its square", () => {
     // Nothing still owed: the whole kit reached the floor.
     expect(deaths[0]!.equipment.charm).toBeNull();
     expect(getStack(play.getMap(), 0, 0, 0).map((p) => p.tileId)).toContain(
-      "life-stone",
+      "mend-stone",
     );
   });
 
@@ -520,7 +603,7 @@ describe("a cooling stone is locked in its square", () => {
     play.drainDeaths();
 
     const placed = getStack(play.getMap(), 0, 0, 0).find(
-      (p) => p.tileId === "life-stone",
+      (p) => p.tileId === "mend-stone",
     );
     expect(placed).toBeDefined();
     expect(placed as Record<string, unknown>).not.toHaveProperty("cooldownMs");
@@ -528,7 +611,7 @@ describe("a cooling stone is locked in its square", () => {
 
   /** The lock is about the stone. Everything else on the body still moves. */
   it("leaves the rest of the kit alone", () => {
-    const play = session({ charm: "life-stone", weapon: "brand-stone" });
+    const play = session({ charm: "mend-stone", weapon: "brand-stone" });
     play.cast("charm");
     play.drainNotices();
     expect(play.moveItem({ kind: "weapon" }, { kind: "offhand" })).toBe(true);
@@ -542,23 +625,23 @@ describe("what casting earns", () => {
   /** And what the cast itself is worth, which every one of them is paid. */
   const arcane = (play: GameSession) => play.masteryXpOf("local")?.arcane ?? 0;
 
-  it("pays for the health a heal actually restored", () => {
-    const play = session({ charm: "life-stone" });
+  it("pays for the health a mend actually restored", () => {
+    const play = session({ charm: "mend-stone" });
     play.runCommand("/health 1");
     play.drainNotices();
 
     const before = arcane(play);
     play.cast("charm");
-    expect(arcane(play) - before).toBeCloseTo(rate(HEAL_HP) + XP_PER_CAST, 6);
+    expect(arcane(play) - before).toBeCloseTo(rate(MEND_HP) + XP_PER_CAST, 6);
   });
 
   /**
-   * Story 25. A heal at full health restores nothing, so what the *heal* is
+   * Story 25. A mend at full health restores nothing, so what the *mend* is
    * worth is nothing — and what is left is the flat fee every cast is paid,
    * which is deliberately not nothing. @see `./experience`'s `practiceEarnings`
    */
-  it("pays for the cast alone when a heal restores nothing", () => {
-    const play = session({ charm: "life-stone" });
+  it("pays for the cast alone when a mend restores nothing", () => {
+    const play = session({ charm: "mend-stone" });
 
     const before = arcane(play);
     play.cast("charm");
@@ -566,7 +649,7 @@ describe("what casting earns", () => {
   });
 
   it("pays only for the health that was missing, never the whole amount", () => {
-    const play = session({ charm: "life-stone" });
+    const play = session({ charm: "mend-stone" });
     play.runCommand(`/health ${PLAYER_MAX_HP - 3}`);
     play.drainNotices();
 
@@ -648,7 +731,7 @@ describe("what pressing a stone teaches you for its own sake", () => {
     cheap.cast("weapon");
     dear.cast("weapon");
 
-    // The dear one heals a body at full health, so its outcome is worth nothing
+    // The dear one mends a body at full health, so its outcome is worth nothing
     // and the whole of what it paid is the fee.
     expect(arcane(cheap) - cheapBefore).toBe(XP_PER_CAST);
     expect(arcane(dear) - dearBefore).toBe(XP_PER_CAST);
@@ -852,7 +935,7 @@ describe("the row the session reports", () => {
   });
 
   it("names every stone that can be pressed, in square order", () => {
-    const play = session({ offhand: "life-stone", charm: "flame-stone" });
+    const play = session({ offhand: "mend-stone", charm: "flame-stone" });
     expect(play.spells().map((spell) => spell.square)).toEqual([
       "offhand",
       "charm",
@@ -1029,6 +1112,175 @@ describe("an elemental spell", () => {
     run(lit, TICKS_PER_SECOND);
     const after = lit.actorSnapshots().find((a) => a.id === target)!.hp!;
     expect(before - after).toBeGreaterThan(BURN_PER_SECOND);
+  });
+});
+
+describe("a bolt thrown at somebody", () => {
+  const RAT_CELL = { x: 2, y: 0, z: 0 };
+
+  function boltAt(stone: string, victim = "rat"): {
+    play: GameSession;
+    target: string;
+    before: number;
+  } {
+    const play = session({ weapon: stone }, spawnRat(world(), RAT_CELL, victim));
+    const target = bodyAt(play, RAT_CELL, victim);
+    play.setTarget(target);
+    return { play, target, before: hpOf(play, target)! };
+  }
+
+  const took = (play: GameSession, target: string, before: number) =>
+    before - hpOf(play, target)!;
+
+  /**
+   * The whole of the feature in one case: a caster with nothing learnt takes
+   * exactly what the author wrote off a body wearing nothing.
+   *
+   * The player has no Arcane and no Fire that this stone asks for, so
+   * `spellPower` hands back the authored figure unchanged — which is what makes
+   * every other case here readable as a delta against it.
+   */
+  it("takes the stone's own damage off the target", () => {
+    const { play, target, before } = boltAt("bolt-stone");
+    expect(play.cast("weapon")).toBe(true);
+    expect(took(play, target, before)).toBe(BOLT_THROUGH);
+  });
+
+  /**
+   * **A cast is not aimed.** Agility is what a swing is contested against and a
+   * bolt goes through none of that machinery, so the nimblest body in the world
+   * takes it in full. This is the case that fails the day somebody routes a
+   * cast through `rollAttack` for consistency.
+   */
+  it("is never dodged, however nimble the target", () => {
+    const { play, target, before } = boltAt("bolt-stone", "nimble-rat");
+    expect(play.cast("weapon")).toBe(true);
+    expect(took(play, target, before)).toBe(BOLT_THROUGH);
+  });
+
+  /**
+   * And armour is the half that *is* consulted. A bolt answers to Arcane — see
+   * `GameSession`'s `ARCANE_BLOW` — so mail authored with an arcane resistance
+   * is a body warded against magic, on exactly the terms a blade resistance is a
+   * body a sword bounces off.
+   */
+  it("has to get through what the target is wearing against magic", () => {
+    const { play, target, before } = boltAt("bolt-stone", "mailed-rat");
+    expect(play.cast("weapon")).toBe(true);
+    expect(took(play, target, before)).toBe(BOLT_THROUGH - BOLT_RESIST);
+  });
+
+  /** And then the wheel, on what got through — the same order a burn is under. */
+  it("is weighed on the wheel against what the target is made of", () => {
+    const strong = boltAt("ember-bolt-stone", "nature-rat");
+    expect(strong.play.cast("weapon")).toBe(true);
+    expect(took(strong.play, strong.target, strong.before)).toBeGreaterThan(
+      BOLT_THROUGH,
+    );
+
+    const weak = boltAt("ember-bolt-stone", "water-rat");
+    expect(weak.play.cast("weapon")).toBe(true);
+    expect(took(weak.play, weak.target, weak.before)).toBeLessThan(BOLT_THROUGH);
+  });
+
+  /**
+   * A receipt in the air, on the terms an arrow is one: loosed when the cast is
+   * made, and purely a picture — the health has already moved.
+   */
+  it("puts its projectile in the air", () => {
+    const { play } = boltAt("bolt-stone");
+    expect(play.cast("weapon")).toBe(true);
+
+    const flights = play.drainProjectiles();
+    expect(flights).toHaveLength(1);
+    expect(flights[0]!.tileId).toBe("arcane-mote");
+    expect(flights[0]!.from.x).toBe(0);
+    expect(flights[0]!.to.x).toBe(RAT_CELL.x);
+  });
+
+  /** And nothing flies at your own body, which has no distance to cross. */
+  it("throws nothing when the bolt lands on its caster", () => {
+    const play = session({ charm: "mend-stone" });
+    play.runCommand("/health 10");
+    play.drainNotices();
+    play.drainProjectiles();
+
+    expect(play.cast("charm")).toBe(true);
+    expect(play.drainProjectiles()).toHaveLength(0);
+  });
+
+  /**
+   * Paid on what the wheel made of the blow, which is the same rule a conjured
+   * flame's burn is paid under — a caster who picked the element the target is
+   * weak to is paid for having picked it.
+   */
+  it("pays the caster for what it actually did", () => {
+    const { play } = boltAt("bolt-stone");
+    const before = play.masteryXpOf("local")?.arcane ?? 0;
+    expect(play.cast("weapon")).toBe(true);
+    expect(play.masteryXpOf("local")?.arcane ?? 0).toBeGreaterThan(
+      before + XP_PER_CAST,
+    );
+  });
+
+  /**
+   * **A mend at a target is authorable now, and it is the one the model no
+   * longer has an opinion about.** The old vocabulary refused it outright on the
+   * grounds that there are no allies; there still are none, so what this case
+   * pins is that the arithmetic runs the same way whoever it lands on.
+   */
+  it("mends whoever it is pointed at, clamped at their full health", () => {
+    const play = session({ charm: "mend-stone" });
+    play.runCommand(`/health ${PLAYER_MAX_HP - 3}`);
+    play.drainNotices();
+
+    expect(play.cast("charm")).toBe(true);
+    expect(hpOf(play)).toBe(PLAYER_MAX_HP);
+  });
+});
+
+describe("what a spell is worth in a trained hand", () => {
+  const RAT_CELL = { x: 2, y: 0, z: 0 };
+
+  /**
+   * Story: a bolt scales the way a weapon does, and it reads two masteries
+   * rather than one.
+   *
+   * Asserted as a comparison rather than against a figure, because the exact
+   * number is `spellPower`'s business and is pinned in `../lib/battler.test.ts`.
+   * What belongs here is that the session actually consults it — the two used to
+   * be a stone that did what it said whoever pressed it.
+   */
+  function tookFrom(
+    masteries: readonly string[],
+    stone = "ember-bolt-stone",
+  ): number {
+    const play = session(
+      { weapon: stone },
+      spawnRat(world(), RAT_CELL, "rat"),
+    );
+    for (const command of masteries) play.runCommand(command);
+    play.drainNotices();
+    const target = bodyAt(play, RAT_CELL, "rat");
+    play.setTarget(target);
+    const before = hpOf(play, target)!;
+    expect(play.cast("weapon")).toBe(true);
+    return before - hpOf(play, target)!;
+  }
+
+  it("hits harder in the hands of a better arcanist", () => {
+    expect(tookFrom(["/mastery arcane 80"])).toBeGreaterThan(BOLT_THROUGH);
+  });
+
+  /**
+   * **And the element counts beside Arcane, not instead of it.** This is the
+   * half a weapon has no equivalent of: a weapon answers to one mastery, and a
+   * spell answers to how good you are at magic *and* to what you point it at.
+   */
+  it("hits harder again for the element the stone is made of", () => {
+    const arcaneOnly = tookFrom(["/mastery arcane 80"]);
+    const both = tookFrom(["/mastery arcane 80", "/mastery fire 80"]);
+    expect(both).toBeGreaterThan(arcaneOnly);
   });
 });
 

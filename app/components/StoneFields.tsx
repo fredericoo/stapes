@@ -1,16 +1,22 @@
 import type {
   ArcaneStoneItem,
+  ProjectileDef,
   Reach,
   StoneEffect,
   StoneEffectKind,
   StoneSubject,
 } from "../lib/item";
 import {
+  DEFAULT_PROJECTILE_SPEED,
+  MAX_PERCENT_STAT,
+  MAX_PROJECTILE_SPEED,
   MAX_REACH_CELLS,
   MAX_REACH_HEIGHT,
+  MAX_SPELL_DAMAGE,
   MAX_STONE_COOLDOWN_MS,
-  MAX_STONE_HEAL,
   MELEE_REACH,
+  MIN_PERCENT_STAT,
+  MIN_PROJECTILE_SPEED,
   MIN_STONE_COOLDOWN_MS,
   reachOf,
 } from "../lib/item";
@@ -32,7 +38,11 @@ import type { StatusDef } from "../lib/status";
 import type { TileDef } from "../lib/types";
 import { Segmented, Select, Switch } from "../ui";
 import { StatField } from "./StatField";
-import { describeReachCells, describeReachHeight } from "./WeaponFields";
+import {
+  describeFlight,
+  describeReachCells,
+  describeReachHeight,
+} from "./WeaponFields";
 
 /**
  * What an arcane stone is, in the editor.
@@ -51,7 +61,7 @@ import { describeReachCells, describeReachHeight } from "./WeaponFields";
  */
 
 const EFFECT_OPTIONS: Array<{ value: StoneEffectKind; label: string }> = [
-  { value: "heal", label: "Heal" },
+  { value: "bolt", label: "Bolt" },
   { value: "status", label: "Status" },
   { value: "conjure", label: "Conjure" },
 ];
@@ -70,9 +80,18 @@ const SUBJECT_OPTIONS: Array<{ value: StoneSubject; label: string }> = [
  * author's mistake wearing somebody else's authoring.
  */
 const BLANK_EFFECTS: Record<StoneEffectKind, StoneEffect> = {
-  heal: { kind: "heal", hp: 10 },
+  // Negative and at the caster, on the terms `DEFAULT_STONE` opens that way: the
+  // first press of a stone somebody is still writing should be safe to make
+  // standing alone in a room.
+  bolt: { kind: "bolt", damage: -10, on: "caster" },
   status: { kind: "status", on: "caster", id: "" },
   conjure: { kind: "conjure", tileId: "" },
+};
+
+/** What a bolt with no projectile authored is offered when it grows one. */
+const STARTER_PROJECTILE: ProjectileDef = {
+  tileId: "",
+  cellsPerSecond: DEFAULT_PROJECTILE_SPEED,
 };
 
 /** A cooldown reads far better in seconds than in five digits of milliseconds. */
@@ -124,6 +143,17 @@ export function StoneFields({
     label: def.name,
   }));
 
+  // Narrowed where the conjure list is not, and the asymmetry is the rule rather
+  // than an inconsistency: anything can be placed on the board, and only an
+  // 8-way tile can point where it is going. The one already picked is kept
+  // whatever it is, so a tile that has since changed type is not silently
+  // dropped out from under an author — the same tolerance `WeaponFields` shows.
+  const boltProjectile =
+    stone.effect.kind === "bolt" ? stone.effect.projectile : undefined;
+  const projectileTiles = tiles.filter(
+    (tile) => tile.type === "directional8" || tile.id === boltProjectile?.tileId,
+  );
+
   return (
     <div className="flex flex-col gap-3">
       <p className="max-w-lg text-[11px] leading-snug text-muted">
@@ -155,23 +185,132 @@ export function StoneFields({
         </div>
       </div>
 
-      {effect.kind === "heal" ? (
-        <>
-          <StatField
-            label="Heal"
-            hint="Health put back into whoever cast it."
-            value={effect.hp}
-            min={1}
-            max={MAX_STONE_HEAL}
-            onChange={(hp) => onChange({ effect: { kind: "heal", hp } })}
-          />
+      {effect.kind === "bolt" ? (
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap gap-4">
+            <StatField
+              label="Damage"
+              hint="Health it moves. Negative mends, positive harms."
+              value={effect.damage}
+              min={-MAX_SPELL_DAMAGE}
+              max={MAX_SPELL_DAMAGE}
+              onChange={(damage) =>
+                // Zero is a bolt the schema refuses, so the field steps over it
+                // rather than letting somebody save a spell that does nothing.
+                onChange({
+                  effect: { ...effect, damage: damage === 0 ? -1 : damage },
+                })
+              }
+              readout={describeBolt(effect.damage)}
+            />
+            <StatField
+              label="Variance"
+              hint="How much one cast varies, as a share of the damage. Zero always does exactly what it says."
+              value={effect.variance ?? 0}
+              min={MIN_PERCENT_STAT}
+              max={MAX_PERCENT_STAT}
+              onChange={(variance) =>
+                onChange({
+                  effect: { ...effect, variance: variance || undefined },
+                })
+              }
+            />
+          </div>
+
+          <div className="flex flex-col gap-1 text-xs">
+            <span className="font-bold uppercase text-muted">Lands on</span>
+            <div>
+              <Segmented<StoneSubject>
+                value={effect.on}
+                onChange={(on) => onChange({ effect: { ...effect, on } })}
+                options={SUBJECT_OPTIONS}
+                size="sm"
+                ariaLabel="Who the bolt lands on"
+              />
+            </div>
+            <span className="max-w-lg text-[11px] leading-snug text-muted">
+              A bolt at the caster works with nothing targeted and can never
+              misfire at an enemy; one at the target needs somebody targeted and
+              has to be in range. A stone worn on the <strong>charm</strong>{" "}
+              ignores this and always acts on its wearer.
+            </span>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <span className="text-xs font-bold uppercase text-muted">
+              Projectile
+            </span>
+            <p className="max-w-lg text-[11px] leading-snug text-muted">
+              What it throws on the way, drawn exactly as a bow&rsquo;s arrow is
+              and just as purely a picture: the health has already moved by the
+              time the first frame appears, so a bolt cannot miss in the air and
+              one that killed still finishes its flight.{" "}
+              <strong>Nothing flies at the caster</strong> &mdash; a bolt at your
+              own body has no distance to cross.
+            </p>
+            <div className="flex flex-wrap items-end gap-4">
+              <label className="flex flex-col gap-1 text-xs">
+                <span className="font-bold uppercase text-muted">Throws</span>
+                <Select
+                  className="w-56"
+                  value={effect.projectile?.tileId ?? ""}
+                  onValueChange={(tileId) =>
+                    onChange({
+                      effect: {
+                        ...effect,
+                        projectile: tileId
+                          ? { ...(effect.projectile ?? STARTER_PROJECTILE), tileId }
+                          : undefined,
+                      },
+                    })
+                  }
+                  options={[
+                    { value: "", label: "Nothing — it simply arrives" },
+                    ...projectileTiles.map((tile) => ({
+                      value: tile.id,
+                      label: tile.name,
+                    })),
+                  ]}
+                />
+                <span className="max-w-64 text-[11px] leading-snug text-muted">
+                  An 8-way tile, so it points where it is going. Author one on
+                  the Tile tab if the list is empty.
+                </span>
+              </label>
+              {effect.projectile ? (
+                <StatField
+                  label="Speed"
+                  hint="Cells per second. A body walks at five, so a bolt wants to be well past that."
+                  value={effect.projectile.cellsPerSecond}
+                  min={MIN_PROJECTILE_SPEED}
+                  max={MAX_PROJECTILE_SPEED}
+                  onChange={(cellsPerSecond) =>
+                    onChange({
+                      effect: {
+                        ...effect,
+                        projectile: { ...effect.projectile!, cellsPerSecond },
+                      },
+                    })
+                  }
+                  readout={describeFlight(reach, effect.projectile)}
+                />
+              ) : null}
+            </div>
+          </div>
+
           <p className="max-w-lg text-[11px] leading-snug text-muted">
-            Always the caster, never the target. What it earns is the health it
-            actually <strong>restored</strong> rather than the number above, so
-            pressing it at full health earns nothing beyond the flat fee every
-            cast is paid.
+            <strong>A cast is not aimed.</strong> There is no accuracy and no
+            dodge here &mdash; you spent the cooldown and the stone answered
+            &mdash; so what is left of the dice is the variance above. What the
+            number above is worth in somebody&rsquo;s hands is scaled by their{" "}
+            <strong>Arcane</strong> and by the <strong>elements</strong> this
+            stone asks for, averaged: the figure is what the stone does for
+            somebody who has learnt nothing. A harm then has to get through the
+            subject&rsquo;s armour and is weighed on the wheel; a mend is stopped
+            by neither and stops at a full health bar, and earns what it{" "}
+            <strong>actually restored</strong> rather than what it says.
           </p>
-        </>
+        </div>
       ) : effect.kind === "status" ? (
         <div className="flex flex-col gap-3">
           <label className="flex flex-col gap-1 text-xs">
@@ -280,7 +419,8 @@ export function StoneFields({
         stone is locked in its square: it cannot be moved, swapped or put down
         until it is ready, so nobody beats the wait by rotating stones out of a
         bag. Reach and height are read only for a stone that acts on somebody
-        else; a heal and a charm are always at arm&rsquo;s length. Default is{" "}
+        else; a spell at its own caster and a charm are always at arm&rsquo;s
+        length. Default is{" "}
         {MELEE_REACH.cells} cells.
       </p>
 
@@ -294,7 +434,8 @@ export function StoneFields({
           <span className="font-bold uppercase text-muted">Automatic</span>
           <span className="max-w-72 text-[11px] leading-snug text-muted">
             On, it fires by itself the moment it is ready and would not be
-            wasted: a heal waits until its wearer is hurt, a status until they
+            wasted: a mending bolt waits until its wearer is hurt, a status
+            until they
             are not already under it. It gets no button, because there is nothing
             to press — and it may only be worn on the <strong>charm</strong>,
             since a hand that acted on its own would be a body casting spells
@@ -324,7 +465,7 @@ export function StoneFields({
         </p>
         <ElementReading
           elements={spellElements(stone.requirements)}
-          harms={stone.effect.kind !== "heal"}
+          harms={stone.effect.kind !== "bolt" || stone.effect.damage > 0}
         />
         <div className="flex flex-wrap gap-4">
           {MASTERIES.map((mastery) => (
@@ -346,6 +487,20 @@ export function StoneFields({
       </div>
     </div>
   );
+}
+
+/**
+ * Which way a bolt runs, in the words the panel would use for it.
+ *
+ * **The sign is the whole of the difference and a minus is one pixel wide**,
+ * which is exactly why it is said in a word underneath. An author sweeping a
+ * slider from a curse into a blessing should be told they have crossed over,
+ * not left to notice a dash.
+ */
+function describeBolt(damage: number): string {
+  return damage < 0
+    ? `Mends ${-damage} health.`
+    : `Harms for ${damage}, before armour.`;
 }
 
 /**
@@ -398,10 +553,10 @@ function ElementReading({
    * Whether this spell can hurt anybody, which is the only thing the wheel
    * touches.
    *
-   * **A heal is elemental and is never weighed**, because there is no second
+   * **A mend is elemental and is never weighed**, because there is no second
    * body in the exchange for an element to be good against — so what its
-   * elements buy is what it trains and nothing else, and saying otherwise here
-   * would be the panel promising something the session does not do.
+   * elements buy is what it trains and how deep it runs, and saying otherwise
+   * here would be the panel promising something the session does not do.
    */
   harms,
 }: {
@@ -426,8 +581,9 @@ function ElementReading({
   if (!harms) {
     return (
       <p className="max-w-lg text-[11px] leading-snug text-muted">
-        A {kind} spell, which here decides only what it trains: a heal has
-        nobody on the other end of it for an element to be good against.
+        A {kind} spell, which here decides only what it trains &mdash; and how
+        deep it runs in your hands. A mend has nobody on the other end of it for
+        an element to be good against.
       </p>
     );
   }

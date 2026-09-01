@@ -687,26 +687,95 @@ export type ShieldItem = {
  * What a stone does when it is pressed, as one of exactly three things.
  *
  * **A closed vocabulary, and the closure is the design.** Every arm here is a
- * thing the simulation could already do to somebody — heal them, put a status
- * on them, put a tile on the board — so casting adds no new physics at all: a
- * stone of light is an authored status whose visual block carries a light, and
- * it rides the same emitter path a carried torch does. What cannot be said with
- * these three is not a spell this game has; the obvious next one is an area,
- * and it is deliberately absent because nothing here touches more than one
+ * thing the simulation could already do to somebody — move their health, put a
+ * status on them, put a tile on the board — so casting adds no new physics at
+ * all: a stone of light is an authored status whose visual block carries a
+ * light, and it rides the same emitter path a carried torch does. What cannot be
+ * said with these three is not a spell this game has; the obvious next one is an
+ * area, and it is deliberately absent because nothing here touches more than one
  * target or more than one cell.
  */
 export type StoneEffect =
   /**
-   * Put health back into whoever cast it, and nobody else.
+   * Move health, on the caster or on whatever they are pointing at.
    *
-   * Always the caster, never the target, and that is not an omission: a stone
-   * that could heal what you are pointing at would be the first thing in the
-   * game whose usefulness depended on picking an ally, and there are no allies.
-   * What it is worth is what it *restores* rather than what it names — see
-   * `../game/experience`'s `casterEarnings`, where a heal at full health teaches
-   * nothing.
+   * **A heal is negative damage and there is no second arm for it**, which is
+   * the whole of why this replaced the `heal` this vocabulary used to open with.
+   * Mending and harming were never two mechanisms — they are one number with a
+   * sign, and writing them as two arms meant two subjects to decide, two
+   * scalings to keep in step and two places to remember the wheel. What a stone
+   * of life and a stone of embers differ in is which way the arithmetic runs.
+   *
+   * The consequences are worth stating, because each of them used to be a rule
+   * somebody wrote and is now a fact about the sign:
+   *
+   * - A **heal at a target** is now authorable, where the old arm refused it on
+   *   the grounds that there are no allies. There still are none, so it is a
+   *   thing an author may write and probably should not; the model no longer has
+   *   an opinion.
+   * - A **harm at the caster** is authorable too, and is the curse that used to
+   *   need a status to express.
+   * - What either is *worth* is what it actually came to, never what it names —
+   *   see `../game/experience`'s `casterEarnings`, where a mend at full health
+   *   teaches nothing.
    */
-  | { kind: "heal"; hp: number }
+  | {
+      kind: "bolt";
+      /**
+       * The most it moves, before the subject's armour, and before mastery has
+       * had its say.
+       *
+       * **Positive harms and negative mends**, and the sign is the only thing
+       * separating the two. A ceiling rather than an average, exactly as a
+       * weapon's {@link WeaponItem.damage} is: {@link variance} decides how much
+       * of it any one cast is worth.
+       *
+       * What is actually dealt is this scaled by how good the caster is at the
+       * spell — see `./battler`'s {@link spellPower}, which is where Arcane and
+       * the elements the stone asks for are read. So the authored number is what
+       * the stone is worth to somebody who has learnt nothing, and every point
+       * of mastery is worth more of it.
+       */
+      damage: number;
+      /**
+       * Whose body it lands on.
+       *
+       * A fact about the stone rather than about the square it is in, on exactly
+       * the terms the status arm's `on` is: a charm may only ever reach its
+       * holder, so a `target` charm is refused where the squares are decided
+       * rather than here.
+       */
+      on: StoneSubject;
+      /**
+       * 0–100. How much one cast varies, as a share of {@link damage}.
+       *
+       * The same dial a weapon's {@link WeaponItem.variance} is, rolled through
+       * the same `../game/combat`'s `damageFraction`, so the band is triangular
+       * here for the same reason it is there: the middle is common and both ends
+       * are rare.
+       *
+       * Absent is a spell that does exactly what it says, which is the honest
+       * default for a thing you may press once every two minutes — a swing you
+       * take thirty times in a fight can afford to be a distribution, and a
+       * single press cannot.
+       */
+      variance?: number;
+      /**
+       * What it puts in the air on its way, or absent for a spell that simply
+       * arrives.
+       *
+       * The same block and the same flight a bow's
+       * {@link WeaponItem.projectile} is, drawn by the same renderer — and just
+       * as purely a picture: the health has already moved by the time the first
+       * frame is drawn. See `../game/projectile` for why the receipt is allowed
+       * to arrive late and can never contradict the truth.
+       *
+       * **Nothing flies when the subject is the caster.** A bolt that mends its
+       * own thrower has no distance to cross, and an arrow from a body to itself
+       * is a frame of art sitting on somebody's head.
+       */
+      projectile?: ProjectileDef;
+    }
   /**
    * Start an authored status, on the caster or on whatever they are pointing at.
    *
@@ -757,7 +826,7 @@ export type StoneSubject = "caster" | "target";
 export const STONE_SUBJECTS: StoneSubject[] = ["caster", "target"];
 
 /** The kinds of thing a stone can be authored to do. @see StoneEffect */
-export const STONE_EFFECT_KINDS = ["heal", "status", "conjure"] as const;
+export const STONE_EFFECT_KINDS = ["bolt", "status", "conjure"] as const;
 
 export type StoneEffectKind = (typeof STONE_EFFECT_KINDS)[number];
 
@@ -1184,22 +1253,31 @@ export const MIN_STONE_COOLDOWN_MS = 1_000;
 export const MAX_STONE_COOLDOWN_MS = 60 * 60 * 1000;
 
 /**
- * Most health one press of a stone may put back.
+ * The furthest one press of a stone may move somebody's health, either way.
+ *
+ * Symmetric because the number it bounds is signed — see {@link StoneEffect}'s
+ * bolt arm, where a mend is a harm with a minus in front of it — so a ceiling
+ * that was not also a floor would let an author write a curse ten times deeper
+ * than any blessing.
  *
  * The same bound a consumable's shift is under and the same argument: hit points
  * have no authored ceiling, so this is wide enough for anything worth writing
  * and narrow enough that an extra digit reads as a mistake.
  */
-export const MAX_STONE_HEAL = MAX_CONSUMABLE_HP_SHIFT;
+export const MAX_SPELL_DAMAGE = MAX_CONSUMABLE_HP_SHIFT;
 
 /**
  * What a tile gets the moment somebody makes it an arcane stone.
  *
- * A small heal on a short cooldown, because it is the one effect that needs
+ * A small mend on a short cooldown, because a bolt is the one effect that needs
  * nothing else authored to work: a status arm would open on an id naming
  * nothing and a conjure on a tile that does not exist, and both would make a
  * fresh stone a thing that silently does nothing the first time it is pressed.
- * An author who wants fire is one select away.
+ * An author who wants fire is one select and a minus sign away.
+ *
+ * Negative and at the caster, so the first press of a brand new stone is
+ * something you can safely do standing alone in a room. The opposite sign would
+ * be a default that hurts whoever is testing it.
  *
  * Ten seconds rather than the minute the shipped stones carry: a default is a
  * thing somebody is about to test, and waiting a minute to find out whether it
@@ -1207,7 +1285,7 @@ export const MAX_STONE_HEAL = MAX_CONSUMABLE_HP_SHIFT;
  */
 export const DEFAULT_STONE: ArcaneStoneItem = {
   type: "stone",
-  effect: { kind: "heal", hp: 5 },
+  effect: { kind: "bolt", damage: -5, on: "caster" },
   cooldownMs: 10_000,
 };
 
@@ -1294,6 +1372,27 @@ const reachEntries = v.object({
 });
 
 /**
+ * What a thing puts in the air, shared by a bow and by a bolt.
+ *
+ * Shared for the reason {@link reachEntries} is: a spell's flight *is* a
+ * weapon's, timed by the same `../game/projectile` and drawn by the same
+ * renderer, so a second copy here would be the first place the two could
+ * disagree about what twenty cells a second means.
+ *
+ * Whether the tile id names anything is the catalogue's question and is asked
+ * where the arrow is drawn — this module resolves no tiles, on exactly the terms
+ * a consumable's status ids are left alone here.
+ */
+const projectileSchema = v.object({
+  tileId: v.pipe(v.string(), v.trim(), v.minLength(1)),
+  cellsPerSecond: v.pipe(
+    v.number(),
+    v.minValue(MIN_PROJECTILE_SPEED),
+    v.maxValue(MAX_PROJECTILE_SPEED),
+  ),
+});
+
+/**
  * Exported because a body's natural weapon is validated by it too.
  *
  * "A bite is a weapon like any other" has to be literally true, including in
@@ -1338,16 +1437,7 @@ export const weaponSchema = v.object({
   // anything is the catalogue's question and is asked where the arrow is drawn —
   // this module resolves no tiles, on exactly the terms a consumable's status
   // ids are left alone here.
-  projectile: v.optional(
-    v.object({
-      tileId: v.pipe(v.string(), v.trim(), v.minLength(1)),
-      cellsPerSecond: v.pipe(
-        v.number(),
-        v.minValue(MIN_PROJECTILE_SPEED),
-        v.maxValue(MAX_PROJECTILE_SPEED),
-      ),
-    }),
-  ),
+  projectile: v.optional(projectileSchema),
   // Optional, and absent is the overwhelmingly common case: most weapons ask
   // nothing. An empty object is allowed through rather than rejected — it says
   // the same thing as no key, and refusing it would make a round trip through
@@ -1509,16 +1599,32 @@ const shieldSchema = v.object({
  * One of the three things a stone can be authored to do.
  *
  * A variant rather than a block of optional fields, on exactly the terms
- * {@link itemSchema} is one: a heal cannot carry a tile id and a conjure cannot
- * carry an amount of health, so a half-edited draft is a parse failure here
+ * {@link itemSchema} is one: a bolt cannot carry a tile id and a conjure cannot
+ * carry an amount of damage, so a half-edited draft is a parse failure here
  * rather than a stone that does two things at once.
  */
 const stoneEffectSchema = v.variant("kind", [
   v.object({
-    kind: v.literal("heal"),
-    // Unsigned, unlike a consumable's `hp`: harming yourself is a status, and a
-    // negative here would be a stone that reads as a heal and is a curse.
-    hp: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_STONE_HEAL)),
+    kind: v.literal("bolt"),
+    // **Signed, and never zero.** The sign is the whole difference between a
+    // curse and a blessing — see {@link StoneEffect} — so both ends are open;
+    // zero is refused because a bolt that moves no health is not a spell an
+    // author meant to write, it is a field they have not filled in yet.
+    damage: v.pipe(
+      v.number(),
+      v.integer(),
+      v.minValue(-MAX_SPELL_DAMAGE),
+      v.maxValue(MAX_SPELL_DAMAGE),
+      v.check((damage) => damage !== 0, "A bolt has to move some health."),
+    ),
+    on: v.picklist(STONE_SUBJECTS),
+    // Optional, and absent is a spell that does exactly what it says — see the
+    // field's own note for why that is the right default for something you press
+    // once a minute rather than thirty times a fight.
+    variance: v.optional(percent),
+    // Absent for a bolt that simply arrives, which is every one cast at its own
+    // thrower and most of the rest.
+    projectile: v.optional(projectileSchema),
   }),
   v.pipe(
     v.object({
@@ -1963,7 +2069,27 @@ function stoneForSave(stone: ArcaneStoneItem): ArcaneStoneItem {
 
 /** One effect, field by field, with a blank id or tile dropping the block. */
 function stoneEffectForSave(effect: StoneEffect): StoneEffect {
-  if (effect.kind === "heal") return { kind: "heal", hp: Math.round(effect.hp) };
+  if (effect.kind === "bolt") {
+    return {
+      kind: "bolt",
+      damage: Math.round(effect.damage),
+      on: effect.on,
+      // Both optionals drop when they say nothing, on the terms every other
+      // absent-means-the-default field here does: a `variance: 0` written to
+      // disk claims an author decided the spell was reliable, where absent says
+      // nobody thought about it and it does what it says. A projectile with no
+      // tile picked is a picker somebody opened and closed again.
+      ...(effect.variance ? { variance: Math.round(effect.variance) } : {}),
+      ...(effect.projectile?.tileId.trim()
+        ? {
+            projectile: {
+              tileId: effect.projectile.tileId.trim(),
+              cellsPerSecond: effect.projectile.cellsPerSecond,
+            },
+          }
+        : {}),
+    };
+  }
   if (effect.kind === "conjure") {
     return { kind: "conjure", tileId: effect.tileId.trim() };
   }

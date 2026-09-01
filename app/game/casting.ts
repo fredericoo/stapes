@@ -223,12 +223,15 @@ function reachability(
  * a charm has written something the square cannot honour, and honouring it
  * anyway would make a passive trinket the longest-ranged thing in the game.
  *
- * A **heal** never reaches either, in any square: it puts health back into
- * whoever cast it, and that is the whole of what it does.
+ * Everything else is what the effect names. A **bolt** and a **status** both say
+ * whose body they land on, and the answer is the same question for both: a
+ * spell aimed at its own caster wants nobody targeted and no range, whichever
+ * direction its arithmetic runs. That symmetry is the whole reason a mend is no
+ * longer a case here — it used to be refused a target outright, and now it is
+ * simply a bolt that says `caster`.
  */
 function needsTarget(square: CastSquare, stone: ArcaneStoneItem): boolean {
   if (square === "charm") return false;
-  if (stone.effect.kind === "heal") return false;
   if (stone.effect.kind === "conjure") return true;
   return stone.effect.on === "target";
 }
@@ -293,11 +296,17 @@ export type StoneHolder = {
  * you actually needed it. So the condition is "casting this now would not be
  * wasted", asked per effect:
  *
- * - a **heal** waits until its holder is missing health;
+ * - a **mending bolt** waits until its holder is missing health;
  * - a **status** waits until its holder is not already under it;
  * - a **conjure** has no such thing as being wasted — a flame laid on an empty
  *   floor is still a flame — so it fires as soon as it can. An author who wants
  *   a trail of fire behind them has written exactly that.
+ *
+ * **Only the mending direction waits.** A charm is worn on a square that reaches
+ * nobody but its wearer, so an automatic bolt with a positive damage is a
+ * trinket that hurts the person carrying it — which is a thing an author may
+ * write and nothing here should second-guess. It has no wasted moment to wait
+ * for: every press of it does exactly what it says.
  *
  * Asked *after* {@link castability}, never instead of it: this decides whether
  * the moment is right, and that decides whether it is allowed at all.
@@ -306,7 +315,9 @@ export function automaticFires(
   stone: ArcaneStoneItem,
   holder: StoneHolder,
 ): boolean {
-  if (stone.effect.kind === "heal") return holder.hp < holder.maxHp;
+  if (stone.effect.kind === "bolt") {
+    return stone.effect.damage >= 0 || holder.hp < holder.maxHp;
+  }
   if (stone.effect.kind === "status") {
     return !holder.statusIds.includes(stone.effect.id);
   }
