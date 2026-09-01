@@ -31,6 +31,7 @@ import {
   canTeleportFrom,
   type ObjectRef,
 } from "../game/affordances";
+import { canExtractFrom } from "../game/extract";
 import { type Equipment, emptyEquipment } from "../game/equipment";
 import {
   castability,
@@ -275,6 +276,25 @@ export class RemoteSession implements PlaySession {
    */
   private tags: readonly string[] = NO_TAGS;
   /**
+   * Which resources this player may not work just yet, as the server last said
+   * — see `../game/extract`'s `extractKey`.
+   *
+   * Never predicted, on the terms the kit and the tags are not: the wait is the
+   * server's clock, and a client guessing when it ran out would offer a row that
+   * is about to be refused. Replaced wholesale, so its identity is what tells
+   * the renderer to rebuild its rows.
+   */
+  private extractCooling: readonly string[] = NO_TAGS;
+  /**
+   * {@link extractCooling} as something the rules can ask, rebuilt beside it.
+   *
+   * Derived and cached rather than built where it is read, on exactly the
+   * grounds the server caches the list beside its map: `canInteract` is asked
+   * per candidate cell on every pointer move, and building a set per call would
+   * be an allocation per cell per frame for a list that changes twice a pull.
+   */
+  private coolingKeys: Set<string> = new Set();
+  /**
    * What this player has learnt, as the server last said.
    *
    * Never predicted, on the same terms the kit and the tags are not: what a
@@ -513,6 +533,10 @@ export class RemoteSession implements PlaySession {
       // still belongs to the same person, and dropping their tags would hand
       // them every reward in the map a second time.
       this.tags = message.tags;
+      // Same rule a third time. The world may have been replaced under them,
+      // but the wait they owe that bush is a fact about the last few seconds and
+      // the server is still counting it.
+      this.setExtractCooling(message.extractCooling);
       // Same rule again: a fresh body in a replaced world is still the same
       // person, and what they have learnt came with them.
       this.masteryXp = message.masteryXp;
@@ -581,6 +605,12 @@ export class RemoteSession implements PlaySession {
     if (message.type === "tags") {
       // Whole state, like the kit beside it.
       this.tags = message.tags;
+      return;
+    }
+
+    if (message.type === "extractCooling") {
+      // Whole state, like everything else addressed to one socket here.
+      this.setExtractCooling(message.keys);
       return;
     }
 
@@ -660,6 +690,19 @@ export class RemoteSession implements PlaySession {
     this.forgetDeparted(leaving);
     this.rebuildPredicted();
   };
+
+  /**
+   * Hold the cooling list and the set built from it, together.
+   *
+   * The one place either is written, on the terms the server's own
+   * `setExtractCooldowns` is: the list is what the snapshot carries and the set
+   * is what the rules ask, and one moving without the other would be a row
+   * offered on a resource the far end knows is still cooling.
+   */
+  private setExtractCooling(keys: readonly string[]) {
+    this.extractCooling = keys;
+    this.coolingKeys = new Set(keys);
+  }
 
   /**
    * What is running on the viewer's own body, as the server last said.
@@ -1614,6 +1657,7 @@ export class RemoteSession implements PlaySession {
       attacking: this.attacking,
       equipment: this.equipment,
       tags: this.tags,
+      extractCooling: this.extractCooling,
       masteryXp: this.masteryXp,
       chats: this.chats,
       noises: this.noises,
@@ -1795,6 +1839,19 @@ export class RemoteSession implements PlaySession {
       // everything this client can drive is a battler, so a row this offers is
       // one the server will honour.
       canAddStatusFrom(this.map, this.tilesById, loc, ref) ||
+      // The same three questions the server asks — how much is left in it,
+      // whether this player is still waiting on it, and whether what comes out
+      // would fit — off the same map, the same cooling list and the same kit.
+      // Being the same function is what stops this offering a pull the far end
+      // would refuse.
+      canExtractFrom(
+        this.map,
+        this.tilesById,
+        loc,
+        this.equipment,
+        ref,
+        this.coolingKeys,
+      ) ||
       canEquipFrom(this.map, this.tilesById, loc, ref, this.equipment) ||
       canPickUpFrom(this.map, this.tilesById, loc, ref, this.equipment) ||
       canPushFrom(this.map, this.tilesById, loc, ref)

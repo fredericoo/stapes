@@ -605,6 +605,28 @@ export type PlacedTile = {
    */
   itemId?: string;
   /**
+   * How many pulls this resource has left in it, for the placements somebody
+   * has already worked.
+   *
+   * **The shared half of an extract, and it lives here for exactly the reason a
+   * container's {@link contents} do**: the checkpoint stores the map and a cell
+   * patch carries the placement, so a number written here is the same number for
+   * every client and survives the world going quiet with no second store to keep
+   * in step. A decay deadline is deliberately *not* kept this way — see
+   * `../game/decay` — and the difference is what it means: a deadline is a clock
+   * nobody authored, where this is a fact about how much of a thing is left.
+   *
+   * Absent on everything nobody has touched, which is every placement in an
+   * authored map: the tile's `ExtractInteraction.durability` is what a fresh one
+   * is worth, and this only appears once somebody has taken from it. Stripped on
+   * the way to `data/map.json` on {@link itemId}'s terms — a half-mined vein is
+   * a state of play, not something anybody typed.
+   *
+   * Read through `../lib/interactions`' `extractsLeft`, which is the one place
+   * that joins it to the def's count and clamps it to one.
+   */
+  extractsLeft?: number;
+  /**
    * What this container is holding, for the placements that hold anything.
    *
    * Here rather than on a session index because a container on the floor *is*

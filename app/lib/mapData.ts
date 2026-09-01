@@ -826,6 +826,11 @@ export function flattenMap(map: MapFile): FlatMapFile {
 /**
  * A placement as it is *authored*, with the runtime's bookkeeping taken off.
  *
+ * `extractsLeft` goes for the same reason one step along: how much of a vein is
+ * left is a state of play, and a map saved after somebody spent an afternoon
+ * mining would otherwise arrive claiming the author meant those bushes to be
+ * half picked.
+ *
  * `itemId` is minted when a world loads and is an identity for a thing while it
  * is being played with — not something anybody typed, and not something worth
  * carrying in a file people read diffs of. Picking a sword up, looting a chest
@@ -836,7 +841,7 @@ export function flattenMap(map: MapFile): FlatMapFile {
  * *in* it, and each of those gets a fresh identity on the next load.
  */
 function authoredPlacement(placed: PlacedTile): PlacedTile {
-  const { itemId: _itemId, contents, ...rest } = placed;
+  const { itemId: _itemId, extractsLeft: _extractsLeft, contents, ...rest } = placed;
   if (!contents) return rest;
   return {
     ...rest,

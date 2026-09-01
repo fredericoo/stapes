@@ -1,7 +1,9 @@
 import { getStack } from "../lib/mapData";
 import type { InteractionKind } from "../lib/interactions";
 import {
+  DEFAULT_EXTRACT_VERB,
   resolveAddStatus,
+  resolveExtract,
   resolveRewardDef,
   resolveSwitch,
   resolveTeleportDef,
@@ -33,6 +35,7 @@ import {
 import { pileTally } from "../lib/piles";
 import { bodyNameFor } from "./displayName";
 import type { Equipment } from "./equipment";
+import { canExtractFrom, type CoolingResources } from "./extract";
 import { offeredTransmutations } from "./transmute";
 import type { ActorSnapshot, PlaySession } from "./GameSession";
 
@@ -161,6 +164,10 @@ const LABELS: Record<InteractionAction, string> = {
   // leaves you burning says whether you reached into it or knelt at it. See
   // `AddStatusInteraction.actionName`.
   addStatus: "Touch",
+  // The fallback only, on a switch's and a reward's terms: nothing derivable
+  // from a tile that hands you a shard says whether you chipped it off or
+  // plucked it. See `ExtractInteraction.actionName`.
+  extract: DEFAULT_EXTRACT_VERB,
   // Never actually read: a transmute row is named by its *recipe* rather than
   // by its tile — see `transmuteVerb` — because one fire may cook and trade.
   // Present because the record is exhaustive, which is what stops an action
@@ -177,6 +184,16 @@ const LABELS: Record<InteractionAction, string> = {
  * an open chest would be offering something already true.
  */
 const CLOSE_LABEL = "Close";
+
+/**
+ * What a caller with no cooling list to offer gets.
+ *
+ * Everything ready, rather than nothing offered: a list built without the
+ * viewer's waits should show the world as it is and let the far end refuse the
+ * one tap that is early, which is strictly better than hiding rows nobody has
+ * said are hidden.
+ */
+const NOTHING_COOLING: CoolingResources = { has: () => false };
 
 /**
  * What a target row says while the sword is out.
@@ -237,25 +254,31 @@ const ACTION_ORDER: Record<InteractionAction, number> = {
   // anyway, since a transmute row is reached by name and a tile that both
   // cooked and swung open would spend its tap on the hinge either way.
   transmute: 5,
+  // Below the transmute and above everything to do with carrying, which is
+  // where the session's own precedence puts it and for the same reason: an
+  // explicit authored act comes before lifting a thing off the floor. It never
+  // actually competes with the four above it — nobody authors a door you can
+  // also mine — and if they did, the hinge is the half the player can see.
+  extract: 6,
   // Above pick-up, and this is the one that decides what a plain tap on a sword
   // does. An empty hand is the strongest thing a player can be saying about what
   // they want done with a weapon on the floor, and stowing it afterwards is one
   // drag; the reverse — fishing a sword back out of a bag you did not mean it to
   // go into — is the annoying direction. It only ever appears when the slot is
   // free, so it cannot take a tap away from anybody who is already armed.
-  equip: 6,
+  equip: 7,
   // Above pick-up, and only ever up against it on a container: a pack you are
   // already wearing the twin of can be taken into a hand now, and a tap that
   // picked it up rather than looking inside would be answering the less
   // interesting of the two questions. Nothing else in the game is both.
-  open: 7,
-  pickUp: 8,
+  open: 8,
+  pickUp: 9,
   // Below pick-up on purpose, and pick-up is what a plain tap on the tile runs:
   // eating destroys the thing where lifting it is reversible, so the row you
   // have to *find* is the destructive one and the gesture you can fire by
   // accident is the safe one.
-  consume: 9,
-  push: 10,
+  consume: 10,
+  push: 11,
 };
 
 /**
@@ -318,6 +341,12 @@ const LEVEL_DISTANCE_WEIGHT = 100;
  *   *called* and nothing else about it. See {@link ATTACK_LABEL}. Defaulted, so
  *   a caller that has no stance to report gets the neutral verb rather than
  *   having to invent an answer.
+ * @param cooling the resources this viewer may not work yet, as
+ *   `./extract`'s `extractKey`s. Their own, exactly as {@link tags} is theirs:
+ *   the bush somebody just picked is still on offer to everybody else.
+ *   Defaulted to nothing cooling, so a caller with no wire to hear it over — the
+ *   local simulation's own snapshot carries one, but a test need not — gets the
+ *   rows rather than having to invent an answer.
  */
 export function listInteractionOptions(
   map: MapFile,
@@ -329,12 +358,22 @@ export function listInteractionOptions(
   openedRef: ObjectRef | null = null,
   tags: readonly string[] = [],
   attacking: boolean = false,
+  cooling: CoolingResources = NOTHING_COOLING,
 ): InteractionOption[] {
   const bodies = bodiesByCell(self, visibleActors);
 
   return [
     ...targetOptions(tilesById, bodies, targetId, attacking),
-    ...objectOptions(map, tilesById, self, bodies, equipment, openedRef, tags),
+    ...objectOptions(
+      map,
+      tilesById,
+      self,
+      bodies,
+      equipment,
+      openedRef,
+      tags,
+      cooling,
+    ),
   ].sort(
     (a, b) =>
       distanceFrom(self, a.ref) - distanceFrom(self, b.ref) ||
@@ -544,6 +583,7 @@ function objectOptions(
   equipment: Equipment,
   openedRef: ObjectRef | null,
   tags: readonly string[],
+  cooling: CoolingResources,
 ): InteractionOption[] {
   const out: InteractionOption[] = [];
   const zMin = Math.max(MIN_LEVEL, self.z - INTERACT_LEVEL_SLACK);
@@ -578,6 +618,7 @@ function objectOptions(
               { x, y, z, stackIndex },
               openedRef,
               tags,
+              cooling,
             ),
           );
         }
@@ -598,6 +639,7 @@ function slotOptions(
   ref: ObjectRef,
   openedRef: ObjectRef | null,
   tags: readonly string[],
+  cooling: CoolingResources,
 ): InteractionOption[] {
   const placed = getStack(map, ref.x, ref.y, ref.z)[ref.stackIndex];
   if (!placed) return [];
@@ -641,7 +683,16 @@ function slotOptions(
   // precedence is read out of the session's own order rather than restated here.
   const equipSlot = equipSlotFrom(map, tilesById, self, ref, equipment);
   const stow = pickUpDestination(map, tilesById, self, ref, equipment) != null;
-  const action = objectAction(map, tilesById, self, ref, equipment, tags, equipSlot);
+  const action = objectAction(
+    map,
+    tilesById,
+    self,
+    ref,
+    equipment,
+    tags,
+    equipSlot,
+    cooling,
+  );
   if (action) add(action, objectActionLabel(action, tilesById[placed.tileId]));
 
   // Beside a tap that would arm you, the row that merely puts the thing away:
@@ -716,6 +767,7 @@ function objectAction(
   equipment: Equipment,
   tags: readonly string[],
   equipSlot: EquipSlot | null,
+  cooling: CoolingResources,
 ): InteractionAction | null {
   if (canRewardFrom(map, tilesById, self, ref, equipment, tags)) return "reward";
   // Asked against the viewer's *own* body, because whether the far end has room
@@ -727,6 +779,9 @@ function objectAction(
   }
   if (canSwitchFrom(map, tilesById, self, ref)) return "switch";
   if (canAddStatusFrom(map, tilesById, self, ref)) return "addStatus";
+  if (canExtractFrom(map, tilesById, self, equipment, ref, cooling)) {
+    return "extract";
+  }
   if (equipSlot) return "equip";
   if (canPickUpFrom(map, tilesById, self, ref, equipment)) return "pickUp";
   if (canPushFrom(map, tilesById, self, ref)) return "push";
@@ -767,6 +822,11 @@ function objectActionLabel(
   // `resolveAddStatus`.
   if (action === "addStatus") {
     return resolveAddStatus(def)?.actionName?.trim() || LABELS.addStatus;
+  }
+  // The whole of it is the def's too — a resource carries no placement half
+  // that could name it differently, only one that says how much is left.
+  if (action === "extract") {
+    return resolveExtract(def)?.actionName?.trim() || LABELS.extract;
   }
   return LABELS[action];
 }

@@ -385,6 +385,19 @@ export class GameRenderer {
    * would go on offering itself until something else happened.
    */
   private interactionsTags: readonly string[] | null = null;
+  /**
+   * Which resources the viewer was waiting on when the list was last built.
+   *
+   * In the gate on exactly the tags' terms, and it is the one signal a resource
+   * row has in either direction: working a bush changes the board, but the
+   * *wait* coming to an end changes nothing anybody can see — the map keeps its
+   * identity, nobody has moved, and without this the row would stay hidden until
+   * something else happened.
+   *
+   * Identity rather than contents, because the session replaces the list
+   * wholesale rather than editing it. See `GameSnapshot.extractCooling`.
+   */
+  private interactionsCooling: readonly string[] | null = null;
   private onOpenedContainer:
     | ((container: OpenedContainer | null) => void)
     | null = null;
@@ -825,6 +838,7 @@ export class GameRenderer {
     this.interactionsKey = "";
     this.interactionsEquipment = null;
     this.interactionsTags = null;
+    this.interactionsCooling = null;
     this.interactionsSent = [];
   }
 
@@ -2073,12 +2087,14 @@ export class GameRenderer {
       at === this.interactionsAt &&
       health === this.interactionsHealth &&
       snap.equipment === this.interactionsEquipment &&
-      snap.tags === this.interactionsTags
+      snap.tags === this.interactionsTags &&
+      snap.extractCooling === this.interactionsCooling
     ) {
       return;
     }
     this.interactionsEquipment = snap.equipment;
     this.interactionsTags = snap.tags;
+    this.interactionsCooling = snap.extractCooling;
     this.interactionsMap = snap.map;
     this.interactionsAt = at;
     this.interactionsHealth = health;
@@ -2093,6 +2109,12 @@ export class GameRenderer {
       this.openedRef,
       snap.tags,
       snap.attacking,
+      // Built here rather than carried on the snapshot, because a set is a
+      // shape only the rules want: the session replaces the *list* wholesale so
+      // that its identity can be the change signal, and this is the one place
+      // that turns one into the other — on the frames the gate above let
+      // through, which is twice a pull rather than sixty times a second.
+      new Set(snap.extractCooling),
     );
     // Held whether or not it is handed on, because the *references* inside it go
     // stale even when the list reads the same: a walking deer keeps its row and

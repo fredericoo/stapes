@@ -6,6 +6,7 @@ import {
   IconGift,
   IconHandGrab,
   IconHandMove,
+  IconPick,
   IconShirt,
   IconSwitch,
   IconTarget,
@@ -97,6 +98,11 @@ const ICONS: Record<InteractionAction, typeof IconTarget> = {
   // it is what says which. Deliberately not a flame — that would name one of
   // them and mislead about the rest.
   transmute: IconTransform,
+  // A pick, because a resource is a thing you *work* and every other shape that
+  // says "you get something" — the gift, the grabbing hand — says it about
+  // being handed one. It names mining and leaves picking a bush to the authored
+  // verb beside it, on exactly the trade the transmute row above makes.
+  extract: IconPick,
 };
 
 const SPRITE_SIZE_PX = 32;

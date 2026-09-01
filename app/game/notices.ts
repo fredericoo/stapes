@@ -135,6 +135,33 @@ function countedItems(
 }
 
 /**
+ * What working a resource says to whoever worked it.
+ *
+ * Named for the tile rather than for the verb the author gave it, unlike a
+ * reward's line, because the two sentences answer different questions. A reward
+ * is a gesture at a *thing* — "you open Chest" — and a pull is a gesture at a
+ * *substance*: what the player wants confirmed is what came out, and the bush is
+ * only there to say which bush.
+ *
+ * **An empty pull gets its own sentence rather than none.** A crystal that
+ * yielded nothing is the case this line exists for: silence is indistinguishable
+ * from the tap having missed, and a player who has just spent one of the vein's
+ * three pulls on nothing very much needs to be told that is what happened.
+ *
+ * Grouped by tile on `rewardNotice`'s argument — three berries out of one bush
+ * are three draws on one slot, and "1 Berry, 1 Berry, 1 Berry" reads as a
+ * rendering fault.
+ */
+export function extractNotice(
+  worked: TileDef,
+  tileIds: readonly string[],
+  tilesById: Record<string, TileDef>,
+): string {
+  if (tileIds.length === 0) return `You work ${worked.name} and find nothing`;
+  return `You work ${worked.name} and take ${countedItems([...tileIds], tilesById)}`;
+}
+
+/**
  * What somebody else's mastery moving says, to whoever moved it.
  *
  * The sibling of {@link masteryNotice} and not a parameter on it, because the

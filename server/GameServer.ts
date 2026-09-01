@@ -1772,6 +1772,11 @@ export class GameServer {
       // a client with no tags offers every reward in the room, so a joiner
       // without this is shown chests it will be refused at.
       tags: [...(session.tagsOf(actorId) ?? [])],
+      // Beside the tags and for the same failure one step along: the body at
+      // the far end is the one this player left, so a wait they started before
+      // the tab closed is still running, and a joiner without this would be
+      // shown resources it is about to be refused at.
+      extractCooling: [...session.extractCoolingOf(actorId)],
       // Theirs alone, beside the kit and the tags, and in full for the same
       // reason all three are: a joiner has nothing to patch against, and the
       // panel showing it is on screen before the first blow.
@@ -1906,6 +1911,7 @@ export class GameServer {
     this.flushEquipment();
     this.flushSounds();
     this.flushTags();
+    this.flushExtractCooling();
     this.flushNotices();
     this.flushMasteries();
     // Eating happens between ticks, and the world may be asleep when it does —
@@ -1994,6 +2000,34 @@ export class GameServer {
    * they change together today, and the two queues are what keeps that a fact
    * about rewards rather than an assumption in the plumbing.
    */
+  /**
+   * Tell whoever's waits changed which resources they may not work yet.
+   *
+   * Beside {@link flushTags} and shaped exactly like it, because it is the same
+   * kind of fact: per player, whole state, and only to the socket it is about.
+   * A separate queue rather than a flag on that one, on the session's own
+   * argument — a wait ends on a tick nothing else happened, and sharing a queue
+   * would put a tag list on the wire every time a bush came ready.
+   */
+  private flushExtractCooling() {
+    const session = this.session;
+    if (!session) return;
+    const changed = session.drainExtractCoolingChanges();
+    if (changed.length === 0) return;
+
+    const wanted = new Set(changed);
+    for (const ws of this.ctx.getWebSockets()) {
+      const attachment = ws.deserializeAttachment() as Attachment | null;
+      if (!attachment || !wanted.has(attachment.actorId)) continue;
+      ws.send(
+        JSON.stringify({
+          type: "extractCooling",
+          keys: [...session.extractCoolingOf(attachment.actorId)],
+        } satisfies ServerMessage),
+      );
+    }
+  }
+
   private flushTags() {
     const session = this.session;
     if (!session) return;
@@ -2959,6 +2993,7 @@ export class GameServer {
     // way of a panel that never updates.
     this.flushEquipment();
     this.flushTags();
+    this.flushExtractCooling();
     // Beside the tag, because it describes the same act — and on the tick as
     // well as on input for the same reason the kit is: nothing guarantees which
     // of the two got there first.

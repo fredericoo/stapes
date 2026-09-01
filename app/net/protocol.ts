@@ -536,6 +536,18 @@ export type ServerMessage =
        */
       tags: string[];
       /**
+       * Which resources this viewer may not work just yet.
+       *
+       * Sent in full on arrival on {@link tags}' terms and for the same
+       * failure: a reconnecting player's waits are still running on the server —
+       * the body at the far end is the one they left — so a client that started
+       * blank would offer rows for bushes it is about to be refused. Sent whole
+       * here rather than left to the first `extractCooling` message, because
+       * that one only fires when something changes and a wait already running
+       * changes nothing.
+       */
+      extractCooling: string[];
+      /**
        * What this viewer has learnt, as raw experience.
        *
        * Theirs alone, beside the kit and sent in full on arrival for the same
@@ -582,6 +594,23 @@ export type ServerMessage =
    * missed, and a dropped tag is a chest that can be opened twice.
    */
   | { type: "tags"; tags: string[] }
+  /**
+   * "Here is every resource you may not work just yet."
+   *
+   * The per-player half of an extract — see `../lib/interactions`'
+   * {@link ExtractInteraction.cooldownMs}. Addressed to one socket on
+   * {@link tags}' terms and whole on them too: the list is what decides which
+   * rows the client offers, and one rebuilt from "this one is cooling now"
+   * events would strand a row hidden for ever the first time a message went
+   * missing.
+   *
+   * **Keys, not deadlines.** A remaining-ms per entry would be a message every
+   * tick for the whole of every cooldown; what the client actually needs is the
+   * boolean, so this is sent twice per pull — once when a placement starts
+   * cooling, once when it stops — and says nothing in between. The keys are
+   * `../game/extract`'s `extractKey`, which both ends mint the same way.
+   */
+  | { type: "extractCooling"; keys: string[] }
   /**
    * "Here is something to tell you."
    *
@@ -1122,6 +1151,10 @@ const serverMessageSchema = v.variant("type", [
     statusIds: v.optional(v.array(statusIdsPatchSchema), () => []),
     equipment: tolerantEquipmentSchema,
     tags: v.array(v.string()),
+    // Optional with an empty default, on `statusIds`' terms: a version skew
+    // should degrade to "every resource looks ready" — one refused tap — rather
+    // than to a handshake that fails to parse.
+    extractCooling: v.optional(v.array(v.string()), () => []),
     masteryXp: tolerantMasteryXpSchema,
     statuses: v.array(statusPatchSchema),
   }),
@@ -1132,6 +1165,10 @@ const serverMessageSchema = v.variant("type", [
   v.object({
     type: v.literal("tags"),
     tags: v.array(v.string()),
+  }),
+  v.object({
+    type: v.literal("extractCooling"),
+    keys: v.array(v.string()),
   }),
   v.object({
     type: v.literal("notice"),
