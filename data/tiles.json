@@ -11620,5 +11620,38 @@
         }
       ]
     }
+  },
+  {
+    "id": "arcane-shard",
+    "name": "Arcane Shard",
+    "height": 0,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 10,
+              "y": 14,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 1,
+            "intensity": 0.3,
+            "color": "#8ad8ff"
+          }
+        }
+      ]
+    }
   }
 ]
