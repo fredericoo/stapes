@@ -155,6 +155,50 @@ export function defenderEarnings(
 }
 
 /**
+ * Experience one cast is worth on its own, before anything it actually did.
+ *
+ * One, which is four casts to the first point of Arcane and sixteen to the
+ * second — see `../lib/mastery`'s `xpForLevel`, whose curve is quadratic. On the
+ * shipped Stone of Light's thirty-second cooldown that is two minutes to the
+ * first level, which is near enough to the casting that caused it to read as
+ * cause and effect.
+ *
+ * **Deliberately small beside {@link XP_PER_DAMAGE}.** A single point of damage
+ * is worth twice a whole cast, so this never competes with what a spell does —
+ * it is a way *in* to the mastery rather than a way up it, and a caster who
+ * wants Arcane 20 gets it by burning things rather than by pressing a light
+ * eight hundred times.
+ */
+export const XP_PER_CAST = 1;
+
+/**
+ * What one cast is worth for having happened at all, whatever it was.
+ *
+ * **A floor under the profession, and flat on purpose.** Everything else in this
+ * module pays for an *outcome* — damage dealt, a blow escaped, health restored —
+ * which works for a swordsman because every swing is aimed at somebody, and does
+ * not work for a caster. A stone of light does nothing measurable to anybody; a
+ * stone of flame asks Arcane 10 before it will fire at all. Paid on outcomes
+ * alone, the bottom rung of the ladder would be missing, and the only way onto
+ * it would be a stone you are not yet allowed to use.
+ *
+ * So pressing a stone teaches you a little, and **the amount does not depend on
+ * the stone**: not on what it asks of you, not on what came of it, and not on
+ * who you happened to be pointing at. Every scale that applies elsewhere is a
+ * scale that could take this back to zero, which is the one thing a floor must
+ * not do.
+ *
+ * Paid on the same terms the cooldown is spent — for the cast, not for its
+ * result — which is what makes a spell that missed still worth having thrown.
+ *
+ * @see XP_PER_CAST for the size of it, and why that size.
+ */
+export function practiceEarnings(): MasteryXp {
+  return { arcane: XP_PER_CAST };
+}
+
+
+/**
  * What one cast earns the body that made it.
  *
  * **Keyed on what the spell did, rather than on an attack outcome**, which is

@@ -166,6 +166,7 @@ import {
   defenderEarnings,
   defensiveDecay,
   DEFENSIVE_RECOVERY_MS,
+  practiceEarnings,
 } from "./experience";
 import { mintItemIds } from "./itemIds";
 import {
@@ -3603,6 +3604,11 @@ export class GameSession implements PlaySession {
 
     // Before the effect, so nothing below can return early out of paying for it.
     this.spendCooldown(actor, square, stone);
+    // And beside the cooldown rather than after the effect, on exactly the same
+    // grounds: what casting teaches you for its own sake is owed for the cast,
+    // not for what came of it. A light that lands on nobody is still a spell you
+    // threw. @see `./experience`'s `practiceEarnings`
+    this.grantExperience(actor, practiceEarnings());
 
     if (stone.effect.kind === "heal") this.castHeal(actor, stone);
     else if (stone.effect.kind === "status") {

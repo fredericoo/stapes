@@ -994,13 +994,28 @@ swinging is a body doing what bodies do; a stone either answers you or it does
 not, and "it fires at a third strength" is a worse thing to learn from than "not
 yet".
 
-### Casting is paid for by what the spell did
+### Casting is paid for by what the spell did, over a flat floor
 
 A third earnings function beside the attacker's and the defender's, keyed on an
 amount rather than an attack outcome: damage dealt to somebody who is not the
 caster, and health **actually restored** to the caster — so a heal at full
-health teaches nothing. Damage to yourself pays nothing, or training would be
-something you do to yourself in a corner.
+health teaches nothing from the heal. Damage to yourself pays nothing, or
+training would be something you do to yourself in a corner.
+
+**And every cast pays a small flat fee on top, whatever it was.** Outcomes alone
+work for a swordsman, because every swing is aimed at somebody, and do not work
+for a caster: a stone of light does nothing measurable to anybody, and a stone
+of flame asks Arcane 10 before it will fire. Paid on outcomes alone the bottom
+rung of the ladder is missing, and the only way onto it is a stone you are not
+yet allowed to use.
+
+So the fee is **flat and unscaled** — not by what the stone asks, not by what
+came of it, not by who you were pointing at. Every scale that applies elsewhere
+is a scale that could take it back to zero, which is the one thing a floor must
+not do. It is paid where the cooldown is spent, for the cast rather than its
+result. At `XP_PER_CAST` it is four presses of a light to the first point of
+Arcane, and it is deliberately half what a *single point of damage* is worth: a
+way into the mastery rather than a way up it.
 
 A flame you conjured pays you when it burns somebody, and that thread is the
 longest in the feature: the placement carries `castBy` — a **new** field, never

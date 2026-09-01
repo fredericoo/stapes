@@ -2,13 +2,23 @@ import { describe, expect, it } from "vitest";
 import { maxHpFrom } from "../lib/battler";
 import type { ItemInstance } from "../lib/itemInstance";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
-import { learningRate, masteryLevel } from "../lib/mastery";
+import {
+  learningRate,
+  masteriesFromXp,
+  masteryLevel,
+  xpForLevel,
+} from "../lib/mastery";
 import { statusesById } from "../lib/status";
 import type { Coord, MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { TICK_MS } from "./constants";
-import { casterEarnings, XP_PER_DAMAGE } from "./experience";
+import {
+  casterEarnings,
+  practiceEarnings,
+  XP_PER_CAST,
+  XP_PER_DAMAGE,
+} from "./experience";
 import { GameSession } from "./GameSession";
 import type { SlotRef } from "./itemMoves";
 
@@ -62,6 +72,9 @@ const RAT_TOUGHNESS = 40;
 /** A minute, which is what the shipped necklace costs and is easy to count in. */
 const HEAL_COOLDOWN_MS = 60_000;
 const HEAL_HP = 10;
+
+/** What the shipped Stone of Light costs, and the clock the floor cases run on. */
+const WARD_COOLDOWN_MS = 30_000;
 
 /** Fixed ends, so a rolled burn is a constant and the arithmetic below is exact. */
 const BURN_MS = 4_000;
@@ -141,6 +154,12 @@ const props: TileDef[] = [
     effect: { kind: "status", on: "caster", id: "burned" },
     cooldownMs: 10_000,
   }),
+  // The shipped Stone of Light's shape: it asks nothing, reaches nobody, and
+  // does nothing a number can measure. The case the flat fee exists for.
+  stoneTile("ward-stone", {
+    effect: { kind: "status", on: "caster", id: "warded" },
+    cooldownMs: WARD_COOLDOWN_MS,
+  }),
   tile({
     id: "conjured-flame",
     intangible: true,
@@ -169,6 +188,19 @@ const catalogue = statusesById([
     maxMs: BURN_MS,
     everyMs: 1_000,
     effects: { hp: `0 - ${BURN_PER_SECOND}` },
+  },
+  {
+    id: "warded",
+    name: "Warded",
+    description: "Lit, and nothing more.",
+    tone: "good",
+    fromMs: 60_000,
+    toMs: 60_000,
+    // Nothing periodic and nothing modified, exactly as the shipped "luminous"
+    // is: what it does is drawn rather than counted, which is what makes a
+    // caster holding one earn nothing for the outcome.
+    everyMs: 0,
+    effects: {},
   },
 ]);
 
@@ -394,31 +426,33 @@ describe("a cooling stone is locked in its square", () => {
 });
 
 describe("what casting earns", () => {
-  /** The plain rate, before any learning falloff. */
+  /** The plain rate for what a spell *did*, before any learning falloff. */
   const rate = (amount: number) => XP_PER_DAMAGE * amount;
+
+  /** And what the cast itself is worth, which every one of them is paid. */
+  const arcane = (play: GameSession) => play.masteryXpOf("local")?.arcane ?? 0;
 
   it("pays for the health a heal actually restored", () => {
     const play = session({ charm: "life-stone" });
     play.runCommand("/health 1");
     play.drainNotices();
 
-    const before = play.masteryXpOf("local")?.arcane ?? 0;
+    const before = arcane(play);
     play.cast("charm");
-    const after = play.masteryXpOf("local")?.arcane ?? 0;
-    expect(after - before).toBeCloseTo(rate(HEAL_HP), 6);
+    expect(arcane(play) - before).toBeCloseTo(rate(HEAL_HP) + XP_PER_CAST, 6);
   });
 
   /**
-   * Story 25. A heal at full health restores nothing, so it teaches nothing —
-   * which is what makes "measured as the health you were missing" a rule rather
-   * than a rounding.
+   * Story 25. A heal at full health restores nothing, so what the *heal* is
+   * worth is nothing — and what is left is the flat fee every cast is paid,
+   * which is deliberately not nothing. @see `./experience`'s `practiceEarnings`
    */
-  it("pays nothing for a heal at full health", () => {
+  it("pays for the cast alone when a heal restores nothing", () => {
     const play = session({ charm: "life-stone" });
 
-    const before = play.masteryXpOf("local")?.arcane ?? 0;
+    const before = arcane(play);
     play.cast("charm");
-    expect(play.masteryXpOf("local")?.arcane ?? 0).toBe(before);
+    expect(arcane(play) - before).toBe(XP_PER_CAST);
   });
 
   it("pays only for the health that was missing, never the whole amount", () => {
@@ -426,27 +460,100 @@ describe("what casting earns", () => {
     play.runCommand(`/health ${PLAYER_MAX_HP - 3}`);
     play.drainNotices();
 
-    const before = play.masteryXpOf("local")?.arcane ?? 0;
+    const before = arcane(play);
     play.cast("charm");
-    expect((play.masteryXpOf("local")?.arcane ?? 0) - before).toBeCloseTo(
-      rate(3),
-      6,
-    );
+    expect(arcane(play) - before).toBeCloseTo(rate(3) + XP_PER_CAST, 6);
   });
 
   /**
    * Story 24. Setting yourself on fire is not training, so the burn a caster put
-   * on their own body pays them nothing at all.
+   * on their own body pays them nothing — measured from *after* the cast, so the
+   * flat fee that cast was owed is not mistaken for the burn paying out.
    */
   it("pays nothing for damage a caster does to themselves", () => {
     const play = session({ charm: "scorch-stone" });
 
     play.cast("charm");
-    const before = play.masteryXpOf("local")?.arcane ?? 0;
+    const before = arcane(play);
     // Long enough for the burn to pay out several times over.
     run(play, TICKS_PER_SECOND * 3);
     expect(hpOf(play)).toBeLessThan(PLAYER_MAX_HP);
-    expect(play.masteryXpOf("local")?.arcane ?? 0).toBe(before);
+    expect(arcane(play)).toBe(before);
+  });
+});
+
+/**
+ * The floor under the profession.
+ *
+ * A stone of light does nothing measurable to anybody and a stone of flame is
+ * gated on Arcane 10, so a caster paid on outcomes alone would have no way onto
+ * the bottom rung of the ladder at all. What these pin is that the way on exists
+ * and that it does not depend on which stone you happen to have found.
+ */
+describe("what pressing a stone teaches you for its own sake", () => {
+  const arcane = (play: GameSession) => play.masteryXpOf("local")?.arcane ?? 0;
+
+  /** Cast, wait out the cooldown, repeat. */
+  function castRepeatedly(play: GameSession, times: number, cooldownMs: number) {
+    for (let i = 0; i < times; i++) {
+      expect(play.cast("weapon")).toBe(true);
+      run(play, TICKS_PER_SECOND * Math.ceil(cooldownMs / 1000));
+    }
+  }
+
+  it("pays a flat amount for a spell that accomplished nothing at all", () => {
+    const play = session({ weapon: "ward-stone" });
+    const before = arcane(play);
+    play.cast("weapon");
+    expect(arcane(play) - before).toBe(XP_PER_CAST);
+  });
+
+  /**
+   * The claim this whole thing exists for: a player who finds nothing but a
+   * light can still get onto the ladder by using it. Four casts, because the
+   * curve makes the first point cost four.
+   */
+  it("earns the first level of Arcane from a light alone", () => {
+    const play = session({ weapon: "ward-stone" });
+    expect(masteryLevel(masteriesFromXp(play.masteryXpOf("local") ?? {}), "arcane")).toBe(0);
+
+    castRepeatedly(play, xpForLevel(1) / XP_PER_CAST, WARD_COOLDOWN_MS);
+
+    expect(masteryLevel(masteriesFromXp(play.masteryXpOf("local") ?? {}), "arcane")).toBe(1);
+  });
+
+  /**
+   * **Flat across stones**, which is the half that makes it a floor. A stone
+   * that asks a mastery of you and one that asks nothing pay the same for being
+   * pressed; everything that scales is scaling what the spell *did*.
+   */
+  it("pays the same whatever stone was pressed", () => {
+    const cheap = session({ weapon: "ward-stone" });
+    const dear = session({ weapon: "adept-stone" });
+    dear.runCommand("/mastery arcane 10");
+    dear.drainNotices();
+
+    const cheapBefore = arcane(cheap);
+    const dearBefore = arcane(dear);
+    cheap.cast("weapon");
+    dear.cast("weapon");
+
+    // The dear one heals a body at full health, so its outcome is worth nothing
+    // and the whole of what it paid is the fee.
+    expect(arcane(cheap) - cheapBefore).toBe(XP_PER_CAST);
+    expect(arcane(dear) - dearBefore).toBe(XP_PER_CAST);
+  });
+
+  /** And a cast that never happened is not a cast. */
+  it("pays nothing for a press the stone refused", () => {
+    const play = session({ charm: "adept-stone" });
+    const before = arcane(play);
+    expect(play.cast("charm")).toBe(false);
+    expect(arcane(play)).toBe(before);
+  });
+
+  it("pays it in the mastery casting trains, and nothing else", () => {
+    expect(practiceEarnings()).toEqual({ arcane: XP_PER_CAST });
   });
 });
 

@@ -4,6 +4,8 @@ import tilesJson from "../../data/tiles.json";
 import { resolveItem, resolveStone } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import { statusesById } from "../lib/status";
+import { xpForLevel } from "../lib/mastery";
+import { XP_PER_CAST } from "./experience";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef, normalizeTiles } from "../lib/types";
 import { emptyMap, replaceStack } from "../lib/mapData";
@@ -514,6 +516,17 @@ describe("a stone that fires on its own", () => {
   });
 });
 
+/**
+ * How many presses of a stone that asks nothing may stand between a player and
+ * their first point of Arcane.
+ *
+ * A handful, because that is the whole promise: somebody who finds a light and
+ * uses it a few times should feel the mastery move. It is a *bound* rather than
+ * the number — the curve and the fee are what decide the number, and this is
+ * what fails if either is retuned into a grind.
+ */
+const MOST_CASTS_TO_THE_FIRST_LEVEL = 6;
+
 describe("the stones we ship", () => {
   const shipped = tilesByIdFromList(normalizeTiles(tilesJson as unknown[]));
   const statusDefs = statusesById(statusesJson as unknown[]);
@@ -578,6 +591,23 @@ describe("the stones we ship", () => {
     expect(conjured.interactions?.decay).toBeDefined();
     expect(conjured.id).not.toBe("flame");
     expect(shipped.flame!.interactions?.decay).toBeUndefined();
+  });
+
+  /**
+   * **The way onto the ladder, checked against the world as authored.** A stone
+   * of flame asks Arcane 10, so the only stones a player with no Arcane at all
+   * can press are the two that ask nothing — and the flat fee every cast pays is
+   * what turns pressing one of those into the first point. If either of those
+   * facts stops being true, an arcanist has no way to begin.
+   */
+  it("leaves a way to the first point of Arcane for somebody with none", () => {
+    const open = SHIPPED.filter(
+      (id) => resolveStone(shipped[id]!)!.requirements === undefined,
+    );
+    expect(open.length).toBeGreaterThan(0);
+
+    const casts = xpForLevel(1) / XP_PER_CAST;
+    expect(casts).toBeLessThanOrEqual(MOST_CASTS_TO_THE_FIRST_LEVEL);
   });
 
   it("gates the strong one on a mastery and leaves the small ones open", () => {

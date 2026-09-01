@@ -159,7 +159,8 @@ export function StoneFields({
           <p className="max-w-lg text-[11px] leading-snug text-muted">
             Always the caster, never the target. What it earns is the health it
             actually <strong>restored</strong> rather than the number above, so
-            pressing it at full health teaches nothing.
+            pressing it at full health earns nothing beyond the flat fee every
+            cast is paid.
           </p>
         </>
       ) : effect.kind === "status" ? (
@@ -300,7 +301,9 @@ export function StoneFields({
           requirements, an unmet one <strong>refuses the cast</strong> rather
           than making it feeble: a stone either answers you or it does not.
           Arcane is also what casting <em>teaches</em>, so what you ask for here
-          is what the stone stops being worth training on.
+          is what the stone stops being worth training on &mdash; though every
+          cast pays a small flat amount whatever the stone is, so a stone that
+          asks nothing is still a way onto the ladder.
         </p>
         <div className="flex flex-wrap gap-4">
           {MASTERIES.map((mastery) => (
