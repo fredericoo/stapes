@@ -54,20 +54,37 @@ export function opponentOf(side: Side): Side {
 /** What a side is, before the fight starts. */
 export type DuelSetup = {
   /**
-   * The numbers this body fights with **before any status has touched them** —
-   * `effectiveBattler`'s output, body and equipment already folded in.
+   * Every blow this body throws, in the order its hands take turns, **before
+   * any status has touched them** — `effectiveBattler`'s output, body and
+   * equipment already folded in.
    *
    * The base rather than the running total, on exactly the terms
    * `GameSession.baseBattlerOf` is split from `battlerOf`: `withStatusModifiers`
    * sums deltas onto a base, and feeding it its own output applies every status
    * twice.
+   *
+   * **A list because a body with a weapon in each hand alternates between
+   * them**, and a preview that averaged the two — or picked one — would be
+   * answering a different fight than the one the world runs. One entry is the
+   * overwhelmingly common case and costs nothing: the rotation of a single
+   * weapon is that weapon, every time. Never empty; bare hands are a weapon.
    */
-  stats: FightingStats;
+  swings: readonly FightingStats[];
 };
 
 /** One side, mid-fight. */
 export type DuelFighter = {
-  readonly base: FightingStats;
+  /**
+   * The rotation, and where in it this body is.
+   *
+   * `nextSwing` advances on every swing thrown rather than on every blow that
+   * lands, which is the same rule the cooldown is spent under and the same one
+   * `GameSession` follows: a hand that has taken its turn has taken it, and a
+   * miss that let you swing the better weapon again would make flailing worth
+   * something.
+   */
+  readonly swings: readonly FightingStats[];
+  nextSwing: number;
   hp: number;
   cooldownMs: number;
   statuses: readonly StatusInstance[];
@@ -168,11 +185,25 @@ export class Duel {
   statsOf(side: Side): FightingStats {
     const fighter = this.fighter(side);
     return withStatusModifiers(
-      fighter.base,
+      this.baseOf(side),
       fighter.statuses,
       this.statusDefs,
       fighter.hp,
     );
+  }
+
+  /**
+   * The blow this side is about to throw, before statuses.
+   *
+   * The hand whose turn it is, which for the overwhelmingly common one-weapon
+   * body is the only entry there is. Everything a health bar reads — `maxHp`,
+   * `flee` — is the same across the rotation, so callers wanting *the body*
+   * rather than *the blow* can take any of them; see `./equipment`'s
+   * `effectiveBattler`.
+   */
+  private baseOf(side: Side): FightingStats {
+    const fighter = this.fighter(side);
+    return fighter.swings[fighter.nextSwing % fighter.swings.length]!;
   }
 
   /**
@@ -211,7 +242,7 @@ export class Duel {
 
     // Read before anything is paid out, so a status that heals a share of the
     // maximum cannot compound against its own payout within one tick.
-    const bearer = { hp: fighter.hp, maxHp: fighter.base.maxHp };
+    const bearer = { hp: fighter.hp, maxHp: this.baseOf(side).maxHp };
     const next: StatusInstance[] = [];
     const changes: { defId: string; hp: number }[] = [];
 
@@ -270,6 +301,9 @@ export class Duel {
 
     const attackerStats = this.statsOf(side);
     const defenderStats = this.statsOf(defenderSide);
+    // Advanced on the swing rather than on the blow landing, and read above
+    // before it moves — see {@link DuelFighter.swings}.
+    attacker.nextSwing += 1;
     // Spent whether or not the blow connects: the swing happened, and a dodge
     // that cost the attacker nothing would let a fast body flail for free.
     attacker.cooldownMs = swingIntervalMs(attackerStats);
@@ -306,9 +340,14 @@ export class Duel {
  * beyond the long-run rate — the faster of the two lands the opening blow.
  */
 function freshFighter(setup: DuelSetup): DuelFighter {
+  // Any entry answers for the body's own numbers: `maxHp` comes off Toughness
+  // and never off the weapon, so a rotation cannot disagree with itself here.
+  const first = setup.swings[0];
+  if (!first) throw new Error("a duel fighter must have something to swing");
   return {
-    base: setup.stats,
-    hp: setup.stats.maxHp,
+    swings: setup.swings,
+    nextSwing: 0,
+    hp: first.maxHp,
     cooldownMs: 0,
     statuses: NO_STATUSES,
   };
