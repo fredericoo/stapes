@@ -34,6 +34,7 @@ import { Input, Segmented, Switch } from "../ui";
 import { StatField } from "./StatField";
 import { StatusGrants } from "./StatusGrants";
 import { StoneFields } from "./StoneFields";
+import { ElementFields } from "./ElementFields";
 import { WeaponFields } from "./WeaponFields";
 
 type Props = {
@@ -144,6 +145,25 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
     if (item.type !== "stone") return;
     setItem({ ...item, ...fields });
   };
+
+  /**
+   * The elements are authored once, below the arm rather than inside four of
+   * them.
+   *
+   * What wearing a thing makes you is the same question whichever kind of thing
+   * it is, so it gets one control in one place — four copies inside the branches
+   * above would be four chances for them to drift apart, and an author would
+   * have to learn that a tunic and a shield ask it differently.
+   *
+   * Offered only for the things a body actually wears or holds. A loaf of bread
+   * has nowhere to put an element and no square to be in, and a control for a
+   * field that could never be read is a promise the simulation does not keep.
+   */
+  const wearable =
+    item.type === "weapon" ||
+    item.type === "armor" ||
+    item.type === "shield" ||
+    item.type === "stone";
 
   return (
     <div className="flex flex-col gap-4">
@@ -419,6 +439,19 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
             </label>
           </div>
         )}
+
+        {wearable ? (
+          <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
+            <span className="text-xs font-bold uppercase text-muted">
+              Made of
+            </span>
+            <ElementFields
+              elements={item.elements}
+              onChange={(elements) => setItem({ ...item, elements })}
+              description="What wearing or holding this makes its bearer, for anything elemental thrown at them — a tunic of flames makes you fire for as long as it is on. Added to whatever the body already is. This is the receiving side of the wheel, and is not the same question as what a stone asks to be cast."
+            />
+          </div>
+        ) : null}
       </section>
     </div>
   );

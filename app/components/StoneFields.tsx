@@ -17,9 +17,17 @@ import {
 import {
   MASTERIES,
   MASTERY_LABELS,
+  type Mastery,
   MAX_MASTERY,
   MIN_MASTERY,
+  spellElements,
 } from "../lib/mastery";
+import {
+  beats,
+  EFFECTIVENESS_EDGE,
+  type Element,
+  ELEMENTS,
+} from "../lib/element";
 import type { StatusDef } from "../lib/status";
 import type { TileDef } from "../lib/types";
 import { Segmented, Select, Switch } from "../ui";
@@ -306,14 +314,24 @@ export function StoneFields({
           cast pays a small flat amount whatever the stone is, so a stone that
           asks nothing is still a way onto the ladder.
         </p>
+        <p className="max-w-lg text-[11px] leading-snug text-muted">
+          The elements do a second job here: whichever you ask for is what this
+          spell <strong>is made of</strong>. Everybody starts with a point of
+          each, so asking for one is what puts the bottom rung of an element
+          within reach. What a spell is made of is not the same question as what
+          a <em>body</em> is made of &mdash; that is authored on the Battle tab
+          and on what the body is wearing.
+        </p>
+        <ElementReading
+          elements={spellElements(stone.requirements)}
+          harms={stone.effect.kind !== "heal"}
+        />
         <div className="flex flex-wrap gap-4">
           {MASTERIES.map((mastery) => (
             <StatField
               key={mastery}
               label={MASTERY_LABELS[mastery]}
-              hint={
-                mastery === "arcane" ? "The mastery casting this trains." : ""
-              }
+              hint={masteryHint(mastery)}
               value={stone.requirements?.[mastery] ?? 0}
               min={MIN_MASTERY}
               max={MAX_MASTERY}
@@ -343,4 +361,86 @@ function describeCooldown(cooldownMs: number): string {
   const minutes = Math.floor(seconds / SECONDS_PER_MINUTE);
   const rest = seconds % SECONDS_PER_MINUTE;
   return `Ready again after ${minutes}m${rest ? ` ${rest}s` : ""}.`;
+}
+
+/**
+ * What a requirement row is *for*, in the two cases where it is not obvious.
+ *
+ * Arcane and the elements are the masteries casting pays into, and a number
+ * typed against one of them is doing two jobs at once — see the prose above the
+ * grid. Everything else here is an ordinary gate and needs no caption.
+ */
+function masteryHint(mastery: Mastery): string {
+  if (mastery === "arcane") return "The mastery casting this trains.";
+  if ((ELEMENTS as Mastery[]).includes(mastery)) {
+    const named = MASTERY_LABELS[mastery].toLowerCase();
+    return `Asks it, trains it, and makes this a ${named} spell.`;
+  }
+  return "";
+}
+
+/**
+ * What the elements typed above come to, in a sentence.
+ *
+ * **The wheel is arithmetic nobody should have to do in their head.** An author
+ * setting Fire on a stone has decided two things at once — what it demands and
+ * what it is good and bad against — and the second of those is invisible in a
+ * grid of numbers. So it is said out loud, in the same voice the rest of this
+ * panel explains itself in.
+ *
+ * Absent entirely for a spell made of nothing, which is most of them: a stone of
+ * light is magic that is not made of anything, and a line saying so would be a
+ * caption on every stone in the world.
+ */
+function ElementReading({
+  elements,
+  /**
+   * Whether this spell can hurt anybody, which is the only thing the wheel
+   * touches.
+   *
+   * **A heal is elemental and is never weighed**, because there is no second
+   * body in the exchange for an element to be good against — so what its
+   * elements buy is what it trains and nothing else, and saying otherwise here
+   * would be the panel promising something the session does not do.
+   */
+  harms,
+}: {
+  elements: Element[];
+  harms: boolean;
+}) {
+  if (elements.length === 0) return null;
+
+  const strong = ELEMENTS.filter((against) =>
+    elements.some((element) => beats(element, against)),
+  );
+  const weak = ELEMENTS.filter(
+    (against) =>
+      !strong.includes(against) &&
+      elements.some((element) => beats(against, element)),
+  );
+  const named = (list: Element[]) =>
+    list.map((element) => MASTERY_LABELS[element]).join(" and ");
+  const edge = Math.round((EFFECTIVENESS_EDGE - 1) * 100);
+  const kind = <strong>{named(elements).toLowerCase()}</strong>;
+
+  if (!harms) {
+    return (
+      <p className="max-w-lg text-[11px] leading-snug text-muted">
+        A {kind} spell, which here decides only what it trains: a heal has
+        nobody on the other end of it for an element to be good against.
+      </p>
+    );
+  }
+
+  return (
+    <p className="max-w-lg text-[11px] leading-snug text-muted">
+      A {kind} spell. Its damage lands {edge}% harder on{" "}
+      {named(strong).toLowerCase()} bodies
+      {weak.length > 0 ? (
+        <> and softer on {named(weak).toLowerCase()} ones</>
+      ) : null}
+      , measured against what the body it hits <em>is</em> and what it has on
+      &mdash; never against what it has practised.
+    </p>
+  );
 }
