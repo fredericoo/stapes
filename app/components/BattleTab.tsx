@@ -1,6 +1,7 @@
 import type { BattlerDef } from "../lib/battler";
 import { DEFAULT_BATTLER, fightingStats } from "../lib/battler";
 import { attackIntervalMs, dodgeChance } from "../game/combat";
+import type { Element } from "../lib/element";
 import { hasAnyInteraction, type TileInteractions } from "../lib/interactions";
 import type { WeaponItem } from "../lib/item";
 import { MAX_PERCENT_STAT } from "../lib/item";
@@ -14,6 +15,7 @@ import {
 import type { Kit } from "../lib/kit";
 import type { StatusDef } from "../lib/status";
 import type { TileDef } from "../lib/types";
+import { ElementFields } from "./ElementFields";
 import { KitEditor } from "./KitEditor";
 import { StatField } from "./StatField";
 import { describeInterval, WeaponFields } from "./WeaponFields";
@@ -50,6 +52,26 @@ const MASTERY_FIELDS: Array<{ mastery: Mastery; label: string; hint: string }> =
   { mastery: "blunt", label: "Blunt", hint: "Clubs, axes, anything heavy." },
   { mastery: "ranged", label: "Ranged", hint: "Bows and thrown things." },
   { mastery: "arcane", label: "Arcane", hint: "Staves, and magic generally." },
+  // The elements, which are what this body can *cast* and emphatically not what
+  // it is made of — see the Made of control below, which is the other question.
+  // Here because the `player` tile's starting point in each of them is what puts
+  // the bottom rung of every element within a new player's reach, and a number
+  // nobody can see is a number nobody can tune.
+  {
+    mastery: "fire",
+    label: "Fire",
+    hint: "Fire spells this body may cast. Not what it is made of.",
+  },
+  {
+    mastery: "water",
+    label: "Water",
+    hint: "Water spells this body may cast. Not what it is made of.",
+  },
+  {
+    mastery: "nature",
+    label: "Nature",
+    hint: "Nature spells this body may cast. Not what it is made of.",
+  },
 ];
 
 /**
@@ -107,6 +129,9 @@ export function BattleTab({ draft, onChange, tiles, statusDefs = {} }: Props) {
 
   const setKit = (kit: Kit) => setBattler({ ...battler, kit });
 
+  const setElements = (elements: Element[]) =>
+    setBattler({ ...battler, elements });
+
   const patchWeapon = (fields: Partial<WeaponItem>) => {
     setBattler({
       ...battler,
@@ -152,6 +177,18 @@ export function BattleTab({ draft, onChange, tiles, statusDefs = {} }: Props) {
             />
           ))}
         </div>
+
+        <div className="flex flex-col gap-1 border-t-2 border-border pt-3">
+          <span className="text-xs font-bold uppercase text-muted">
+            Made of
+          </span>
+        </div>
+
+        <ElementFields
+          elements={battler.elements}
+          onChange={setElements}
+          description="What this body is, for anything elemental thrown at it — a cave troll is fire, a rat is nothing. Authored, never read off the masteries above: what a body has practised is what it can cast, and what it is made of is what magic does to it. Whatever it is wearing is added to this."
+        />
 
         <div className="flex flex-col gap-1 border-t-2 border-border pt-3">
           <span className="text-xs font-bold uppercase text-muted">

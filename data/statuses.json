@@ -164,6 +164,73 @@
     }
   },
   {
+    "id": "chilled",
+    "name": "Chilled",
+    "description": "Numbing. Slower to hurt than fire, and slower to leave.",
+    "tone": "bad",
+    "icon": {
+      "tilesetId": "ultima-vi",
+      "rect": {
+        "x": 28,
+        "y": 72,
+        "w": 2,
+        "h": 2
+      },
+      "base": {
+        "x": 1,
+        "y": 1
+      }
+    },
+    "fromMs": 8000,
+    "toMs": 14000,
+    "stacks": true,
+    "maxMs": 40000,
+    "everyMs": 2000,
+    "effects": {
+      "hp": "0 - max(2, ceil(MAX_HP / 20))"
+    },
+    "vfx": {
+      "tint": {
+        "color": "#4fa4ff",
+        "strength": 0.75,
+        "keepLuma": 0.8
+      },
+      "particles": {
+        "ratePerSecond": 14,
+        "ttlFromMs": 700,
+        "ttlToMs": 1500,
+        "spawnRadiusCells": 0.35,
+        "spawnElevFrom": 0,
+        "spawnElevTo": 2,
+        "riseFrom": -0.5,
+        "riseTo": 0.5,
+        "driftCellsPerSecond": 0.15,
+        "gravity": 0.6,
+        "radiusFromPx": 1,
+        "radiusToPx": 1,
+        "alphaFrom": 0.9,
+        "alphaTo": 0,
+        "ramp": [
+          {
+            "at": 0,
+            "color": "#ffffff"
+          },
+          {
+            "at": 0.5,
+            "color": "#8ecbff"
+          },
+          {
+            "at": 1,
+            "color": "#1d2b53"
+          }
+        ],
+        "lit": true
+      },
+      "light": null,
+      "taperMs": 3000
+    }
+  },
+  {
     "id": "luminous",
     "name": "Luminous",
     "description": "Lit from within, in cold blue.",

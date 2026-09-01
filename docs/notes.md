@@ -1065,6 +1065,154 @@ connection's actor — the tile puts a status on whoever steps in it, the
 with no cause behaves exactly as it did before any of this existed, which is the
 property to protect.
 
+### An element is a mastery, and three of them make a wheel
+
+`fire`, `water` and `nature` are masteries like any other — they sit in
+`MASTERIES`, so every block, schema, editor row and progress bar that walks that
+list picked them up without being asked. **Arcane says how good you are at magic;
+an element says what you point it at.** You get better at fire by throwing fire,
+on the terms you get better at blades by swinging one.
+
+Water douses fire, fire burns nature, nature drinks water. The wheel is three
+because three is the smallest number where every element beats one and loses to
+one, so none is the best and none is the worst.
+
+**They are deliberately not weapon masteries**, and that exclusion is
+load-bearing in exactly one place: `rating` counts a body's *best* weapon
+mastery, so an element in that list would make a fire specialist read as a better
+fighter than the identical caster who spread the same practice over three. Arcane
+already measures how good a body is at magic and is already what every cast
+trains.
+
+#### A spell's elements are its requirements, and nothing else
+
+A stone asking Fire 1 is a fire spell; one asking Water 8 and Nature 8 is both.
+There is no second field naming an element, because what a spell *asks of you*
+and what a spell *is* are genuinely the same fact — nobody throws fire without
+having learnt some. `spellElements` reads it, and reads **every** element the
+block names rather than the strongest, which is the whole of what "a spell can
+have more than one element" means.
+
+**Everybody starts with one point of each**, authored on the `player` tile and
+seeded as experience like every other starting mastery. That is what makes an
+element reachable at all: the requirement is an outright gate, so a body with no
+Fire could never throw the spell that would have earned it. The bottom rung of
+each element asks for exactly the point you begin with.
+
+Those points are masteries and nothing else. They do **not** make a starting
+player fire, water and nature — what a body is *made of* is a different field
+entirely, and the `player` tile authors none of it.
+
+An existing player is *not* reseeded — `hasExperience` gates seeding on the block
+being absent, which is the property that stops a restored empty block wiping
+somebody. So a body that predates this has none of the three and cannot cast the
+bottom rung until `/mastery fire 1` says otherwise.
+
+#### A body's element is authored and worn, never practised
+
+`bodyElements` lives in `app/game/equipment.ts` beside `armorResistances`,
+because it asks the same shape of question: **what a body counts as is what its
+battler says it is, unioned with whatever it has on.** A cave troll is fire
+because a cave troll is fire. A player is nothing until they put on a tunic of
+flames, and is fire for exactly as long as they wear it.
+
+**Masteries have no say in it, and that is the load-bearing part.** They were
+briefly the source — a body counted as whatever element it was most attuned to —
+and that is wrong twice over. It makes training the element you are best at the
+thing that makes you weak to its counter, which is a progression that punishes
+you for progressing; and it turns a rat that has somehow learnt a little Fire
+into a fire creature by accident. What a body has practised says what it can
+*cast*. What it is made of says what magic does to it. Two facts, two fields.
+
+The two sources **union** rather than sum, because an element is a fact and not a
+quantity: two flaming rings are not more fire than one. Only the four things a
+body wears or holds carry one — weapon, armour, shield, stone — and **only the
+squares, never the bag**: a tunic of flames in your pack is a tunic in a pack,
+which is the same line `wornInstances` already draws for light and for what a
+death leaves on the floor. The answer comes back in `ELEMENTS`' own order, so a
+body that is fire and water is not a different thing for having swapped hands.
+
+A stone's `elements` and its `requirements` are deliberately separate fields
+answering separate questions — what carrying it makes *you*, and what the spell
+*is*. An author who wants both writes both, on purpose.
+
+#### The edge is half again, and its reciprocal
+
+`EFFECTIVENESS_EDGE` is 1.5 and the wrong side of the wheel pays `1/1.5` rather
+than a separately chosen figure. That reciprocal is what makes the arithmetic
+cancel *exactly* for a body made of all three — `1.5 × ⅔ × 1` is one, not 0.999
+— so "made of everything is made of nothing" is a property rather than a case
+somebody wrote, and an author who ticks all three boxes gets told so in the
+panel.
+
+Multiplied **per element being defended**, and an advantage anywhere beats a
+disadvantage everywhere: a fire-and-water spell thrown at a nature body takes
+fire's edge rather than paying for nature's edge over its water. Paying both
+would make breadth a liability, and a two-element spell already costs twice as
+much to be allowed to hold.
+
+#### The wheel turns on damage, and rides the thread `castBy` already cut
+
+**Damage is the only thing it touches.** A heal has no second body in the
+exchange for an element to be good against, and a status's *duration* is a clock
+rather than a force — so what the wheel changes is how hard the fire actually
+bites, in `GameSession.elementalDamage`, and nowhere else. Never below one point:
+a resisted spell should land softly, not visibly do nothing.
+
+Getting the element there was the same journey `causedBy` already makes, with a
+second passenger the whole way. A stone's elements are read once at the top of
+`cast`; a status cast at somebody carries them onto the `StatusInstance`; a
+conjure writes them onto the placement beside `castBy` (`PlacedTile.castElements`
+— a placement field for the same reason `castBy` is one: the element is a fact
+about the *spell*, and the same `arcane-flame` tile is what an ember stone and a
+hearth both leave behind); `statusOnArrival` hands them back to the status; and
+the tick spends them.
+
+**An absent element is a neutral one**, which is the property to protect exactly
+as it is for an absent cause: every hearth burn, venomous bite and berry in the
+world behaves precisely as it did before any of this existed, and so does every
+body nobody has given an element to.
+
+#### Casting pays Arcane and the element, never one out of the other
+
+Both the flat per-cast fee and the outcome payout go to Arcane *and* to each
+element the spell is made of, at full rate on both. Splitting one pot between
+them would make a fire specialist slower at magic than somebody pressing a light,
+which is backwards for a global level. Each element is scaled by its own
+requirement through `learningRate`, so a caster who has outgrown a stone's Fire
+keeps learning from its Water.
+
+The outcome payout is measured on what the wheel *made* of the damage rather than
+on what the formula said, so a caster who picked the element the target is weak
+to is paid for having picked it.
+
+#### What is authored, so far
+
+**Stones.** Three lesser ones asking the single point everybody starts with —
+Ember (`burned`), Frost (`chilled`, a new blue status), Thorns (`poison`) — and
+three greater ones at Arcane 12 and their element 10, which are the same three
+spells at full duration and a longer reach. The Stone of Flame now asks Fire 6,
+because it always was one. Verdance is the two-element example: a heal asking
+Water 8 and Nature 8, elemental in what it trains and never weighed, because a
+heal has nobody on the other end of it.
+
+**Bodies.** The snake is nature and the cave troll is fire. Everything else —
+rat, wolf, deer, cat, shopkeeper, and the player — is neutral, which is the
+honest default: a rat is not weak to anything, and nothing here makes it so.
+
+**Things to put on.** Tunic of Flames, Mantle of Brambles and Amulet of Tides:
+one garment per element, so all three arms of the wheel can be stood on by a
+player as well as met in a creature. They are `def 2` chest pieces and a `def 0`
+charm — the def is incidental, and the point of them is that an element becomes
+something you can *decide*. Wearing one is a trade rather than an upgrade: a
+tunic of flames is two points of armour and a standing invitation to anything
+made of water.
+
+Both halves are authored through **one control** — `ElementFields`, on the Battle
+tab for what a body is and under the item type for what wearing it makes you —
+because they are the same decision asked of two objects, and it says out loud
+which way round the wheel runs.
+
 ### The interface is absent for almost everybody
 
 One button per non-pressed stone, above the direction pad on a phone and in the

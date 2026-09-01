@@ -3,8 +3,8 @@ import { resolveWeapon } from "./item";
 import {
   type Masteries,
   MASTERIES,
+  MASTERY_LABELS,
   requirementShare,
-  type Mastery,
   masteriesFromXp,
   masteryLevel,
   type MasteryXp,
@@ -37,16 +37,6 @@ import type { TileDef } from "./types";
  * rather than passed in, on the same grounds `./mastery` gives for experience
  * being what travels: there is one place a level is derived and it is not here.
  */
-
-const MASTERY_LABELS: Record<Mastery, string> = {
-  fist: "Fist",
-  blade: "Blade",
-  blunt: "Blunt",
-  ranged: "Ranged",
-  arcane: "Arcane",
-  toughness: "Toughness",
-  agility: "Agility",
-};
 
 /**
  * The lines a weapon owes whoever is looking at it, or none at all.

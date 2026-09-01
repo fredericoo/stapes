@@ -2046,7 +2046,10 @@
           "ranged": 5,
           "arcane": 5,
           "toughness": 5,
-          "agility": 10
+          "agility": 10,
+          "fire": 1,
+          "water": 1,
+          "nature": 1
         },
         "naturalWeapon": {
           "type": "weapon",
@@ -7282,6 +7285,127 @@
     }
   },
   {
+    "id": "tunic-of-flames",
+    "name": "Tunic of Flames",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "armor",
+        "def": 2,
+        "elements": [
+          "fire"
+        ]
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "equipment",
+            "rect": {
+              "x": 11,
+              "y": 2,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "mantle-of-brambles",
+    "name": "Mantle of Brambles",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "armor",
+        "def": 2,
+        "elements": [
+          "nature"
+        ]
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "equipment",
+            "rect": {
+              "x": 13,
+              "y": 2,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "amulet-of-tides",
+    "name": "Amulet of Tides",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "armor",
+        "slot": "charm",
+        "def": 0,
+        "elements": [
+          "water"
+        ]
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "equipment",
+            "rect": {
+              "x": 11,
+              "y": 39,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
     "id": "leather-cap",
     "name": "Leather Cap",
     "height": 0,
@@ -7701,7 +7825,8 @@
         },
         "cooldownMs": 120000,
         "requirements": {
-          "arcane": 10
+          "arcane": 10,
+          "fire": 6
         },
         "reach": {
           "cells": 3,
@@ -7759,6 +7884,358 @@
             "rect": {
               "x": 1,
               "y": 36,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "arcane-stone-of-ember",
+    "name": "Arcane Stone of Ember",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "stone",
+        "effect": {
+          "kind": "status",
+          "on": "target",
+          "id": "burned",
+          "fromMs": 2000,
+          "toMs": 3000
+        },
+        "cooldownMs": 20000,
+        "requirements": {
+          "arcane": 2,
+          "fire": 1
+        },
+        "reach": {
+          "cells": 3,
+          "height": 1
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "equipment",
+            "rect": {
+              "x": 17,
+              "y": 39,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "arcane-stone-of-frost",
+    "name": "Arcane Stone of Frost",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "stone",
+        "effect": {
+          "kind": "status",
+          "on": "target",
+          "id": "chilled",
+          "fromMs": 6000,
+          "toMs": 8000
+        },
+        "cooldownMs": 20000,
+        "requirements": {
+          "arcane": 2,
+          "water": 1
+        },
+        "reach": {
+          "cells": 3,
+          "height": 1
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "equipment",
+            "rect": {
+              "x": 16,
+              "y": 39,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "arcane-stone-of-thorns",
+    "name": "Arcane Stone of Thorns",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "stone",
+        "effect": {
+          "kind": "status",
+          "on": "target",
+          "id": "poison",
+          "fromMs": 8000,
+          "toMs": 12000
+        },
+        "cooldownMs": 20000,
+        "requirements": {
+          "arcane": 2,
+          "nature": 1
+        },
+        "reach": {
+          "cells": 3,
+          "height": 1
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "equipment",
+            "rect": {
+              "x": 18,
+              "y": 39,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "arcane-stone-of-pyre",
+    "name": "Arcane Stone of Pyre",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "stone",
+        "effect": {
+          "kind": "status",
+          "on": "target",
+          "id": "burned"
+        },
+        "cooldownMs": 45000,
+        "requirements": {
+          "arcane": 12,
+          "fire": 10
+        },
+        "reach": {
+          "cells": 4,
+          "height": 1
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "equipment",
+            "rect": {
+              "x": 19,
+              "y": 38,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "arcane-stone-of-rime",
+    "name": "Arcane Stone of Rime",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "stone",
+        "effect": {
+          "kind": "status",
+          "on": "target",
+          "id": "chilled"
+        },
+        "cooldownMs": 45000,
+        "requirements": {
+          "arcane": 12,
+          "water": 10
+        },
+        "reach": {
+          "cells": 4,
+          "height": 1
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "equipment",
+            "rect": {
+              "x": 20,
+              "y": 38,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "arcane-stone-of-bramble",
+    "name": "Arcane Stone of Bramble",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "stone",
+        "effect": {
+          "kind": "status",
+          "on": "target",
+          "id": "poison"
+        },
+        "cooldownMs": 45000,
+        "requirements": {
+          "arcane": 12,
+          "nature": 10
+        },
+        "reach": {
+          "cells": 4,
+          "height": 1
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "equipment",
+            "rect": {
+              "x": 18,
+              "y": 38,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "arcane-stone-of-verdance",
+    "name": "Arcane Stone of Verdance",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "intangible": true,
+    "affectedByGravity": true,
+    "interactions": {
+      "item": {
+        "type": "stone",
+        "effect": {
+          "kind": "heal",
+          "hp": 20
+        },
+        "cooldownMs": 90000,
+        "requirements": {
+          "arcane": 15,
+          "water": 8,
+          "nature": 8
+        }
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "equipment",
+            "rect": {
+              "x": 16,
+              "y": 38,
               "w": 1,
               "h": 1
             },
@@ -8734,7 +9211,10 @@
         "sight": {
           "up": 0,
           "down": 0
-        }
+        },
+        "elements": [
+          "nature"
+        ]
       },
       "respawn": {
         "fromMs": 30000,
@@ -9978,6 +10458,9 @@
             "tileId": "raw-meat",
             "chance": 75
           }
+        ],
+        "elements": [
+          "fire"
         ]
       },
       "respawn": {

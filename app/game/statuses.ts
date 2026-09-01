@@ -1,4 +1,5 @@
 import type { FightingStats } from "../lib/battler";
+import type { Element } from "../lib/element";
 import type { FormulaScope } from "../lib/formula";
 import { MAX_PERCENT_STAT } from "../lib/item";
 import { MODIFIER_KEYS, type StatusDef } from "../lib/status";
@@ -47,6 +48,28 @@ export type StatusInstance = {
    * did before this field existed**, which is the property to protect here.
    */
   causedBy?: string;
+  /**
+   * What the spell that started this was made of, when a spell started it.
+   *
+   * **Rides beside {@link causedBy} because it answers the other half of the
+   * same question**: that one says who is answerable for this burning, and this
+   * says what kind of magic the burning is. Both are facts about *this
+   * application* rather than about the status def — one flame was lit by a Stone
+   * of Ember and another by a hearth, and only the instances can tell them
+   * apart.
+   *
+   * Read where the damage lands, to scale it on `../lib/element`'s wheel against
+   * whatever the body it lands on is attuned to. Absent for the overwhelming
+   * majority — a hearth, a berry, a venomous bite — and **an absent element is a
+   * neutral one**, so every burn in the world that nobody cast behaves exactly
+   * as it did before this field existed. That is the property to protect here,
+   * and it is the same one `causedBy` protects.
+   *
+   * Elements rather than an element: a stone asking Fire and Water throws both,
+   * and flattening that to one at the moment of casting would lose the thing
+   * multi-element spells are for. @see `../lib/mastery`'s `spellElements`
+   */
+  elements?: readonly Element[];
 };
 
 /** What a formula needs to know about the body carrying it. */
@@ -206,6 +229,15 @@ export function applyStatus(
    * with nobody answerable for the burn, because a berry is nobody's doing.
    */
   causedBy?: string,
+  /**
+   * What the spell that is doing this is made of, when a spell is.
+   *
+   * Travels with the cause and is replaced with it, on the same rule and for the
+   * same reason: a rat that walks out of one caster's fire and into another's
+   * water is being frozen by the second, and keeping the first would scale the
+   * damage on a wheel that is no longer turning.
+   */
+  elements?: readonly Element[],
 ): readonly StatusInstance[] {
   const rolled = rollDurationMs(range, rng);
   const existing = current.find((instance) => instance.defId === def.id);
@@ -222,6 +254,7 @@ export function applyStatus(
         // serialized — into a checkpoint and across the wire — and an explicit
         // `undefined` is a key that survives as `null` in some of those.
         ...(causedBy ? { causedBy } : {}),
+        ...(elements?.length ? { elements } : {}),
       },
     ];
   }
@@ -234,12 +267,13 @@ export function applyStatus(
     if (instance.defId !== def.id) return instance;
     // Rebuilt rather than spread over, so an absent cause genuinely removes the
     // one that was there: spreading would leave the old key untouched.
-    const { causedBy: _wasCausedBy, ...rest } = instance;
+    const { causedBy: _wasCausedBy, elements: _wereElements, ...rest } = instance;
     return {
       ...rest,
       remainingMs,
       durationMs: remainingMs,
       ...(causedBy ? { causedBy } : {}),
+      ...(elements?.length ? { elements } : {}),
     };
   });
 }
@@ -255,6 +289,15 @@ export type StatusHpChange = {
   amount: number;
   /** The actor whose doing this is, when it is anybody's. */
   causedBy?: string;
+  /**
+   * What the spell behind it was made of, when a spell was behind it.
+   *
+   * Carried on the figure for the reason the cause is: a body under a conjured
+   * burn and an ordinary poison at once owes two different sums to two different
+   * wheels, and a bare number cannot say which is which.
+   * @see StatusInstance.elements
+   */
+  elements?: readonly Element[];
 };
 
 /** What one tick of statuses did, beside how far they advanced. */
@@ -341,8 +384,11 @@ export function advanceStatuses(
           ),
           // Carried from the instance rather than from the def, because who is
           // answerable is a fact about this application: one status def burns
-          // for whoever lit each fire.
+          // for whoever lit each fire, and on whichever wheel lit it.
           ...(instance.causedBy ? { causedBy: instance.causedBy } : {}),
+          ...(instance.elements?.length
+            ? { elements: instance.elements }
+            : {}),
         });
       }
     }
