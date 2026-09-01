@@ -141,10 +141,10 @@ function run(session: GameSession, ticks: number) {
  * the commit does not roll straight into a second step — `update` is no help
  * here, it clamps catch-up to ten ticks per call.
  */
-function step(session: GameSession, direction: Direction) {
-  session.setInput({ directions: [direction] });
+function step(session: GameSession, direction: Direction, id?: string) {
+  session.setInput({ directions: [direction] }, id);
   session.tick(TICK_MS);
-  session.setInput({ directions: [] });
+  session.setInput({ directions: [] }, id);
   run(session, TICKS_PER_STEP);
 }
 
@@ -273,6 +273,36 @@ describe("GameSession pressure plates", () => {
     session.tick(TICK_MS);
     expect(stackIds(session.getMap(), 2, 0)).toEqual(["plate"]);
     expect(stackIds(session.getMap(), 3, 0)).toEqual(["grass", "crate"]);
+  });
+
+  /**
+   * People share a cell, so a plate has to survive a crowd standing on it.
+   * Counting two bodies as four units of height would have jammed every plate,
+   * signal and decay in a cell for as long as two people stood in it.
+   */
+  it("presses and releases under two people at once", () => {
+    let map = replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "player", direction: "e" },
+    ]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "plate" }]);
+    map = replaceStack(map, 2, 0, 0, [{ tileId: "grass" }]);
+
+    const session = new GameSession(map, tiles, { actorIds: ["a", "b"] });
+    expect(stackIds(session.getMap(), 1, 0)).toEqual(["plate"]);
+
+    step(session, "e", "a");
+    step(session, "e", "b");
+    expect(stackIds(session.getMap(), 1, 0)).toEqual([
+      "plate-pressed",
+      "player",
+      "player",
+    ]);
+
+    // And it comes back up once both of them are off it.
+    step(session, "e", "a");
+    step(session, "e", "b");
+    expect(stackIds(session.getMap(), 1, 0)).toEqual(["plate"]);
   });
 
   it("presses under the player and stays down when the target is inert", () => {

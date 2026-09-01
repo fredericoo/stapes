@@ -65,6 +65,7 @@ import {
   chunkifyMap,
   emptyMap,
   getStack,
+  isPlayerBody,
   setStacks,
 } from "../lib/mapData";
 import type {
@@ -1253,16 +1254,26 @@ export class RemoteSession implements PlaySession {
    *
    * The same question the simulation asks, answered from the same evidence: a
    * walk is not in the map until it lands, so the only sign of one is the event
-   * that announced it. Asked here so that two players stepping into one cell is
-   * a step this client never draws, rather than one the server takes back.
+   * that announced it. Asked here so that stepping into a cell a creature is
+   * already claiming is a step this client never draws, rather than one the
+   * server takes back.
+   *
+   * Somebody else's body is not such a claim — people share cells, so a person
+   * walking where we are walking is two people arriving, which is allowed. The
+   * simulation reserves on exactly these terms and the two must agree: a client
+   * refusing a step the server would grant is a doorway that stutters for no
+   * reason anybody can see. @see ../game/GameSession's `destinationTaken`
    */
   private destinationTaken(to: Coord): boolean {
     for (const [id, motion] of this.motions) {
       if (id === this.selfId) continue;
       const other = motion.walk?.to;
-      if (other && other.x === to.x && other.y === to.y && other.z === to.z) {
-        return true;
+      if (!other || other.x !== to.x || other.y !== to.y || other.z !== to.z) {
+        continue;
       }
+      const loc = this.locate(id, motion);
+      if (loc && isPlayerBody(loc.placed)) continue;
+      return true;
     }
     return false;
   }

@@ -14,8 +14,13 @@ import {
   resolveClimbFrom,
   resolveWalkable,
 } from "../lib/types";
+import type { FitOpts } from "../lib/validation";
 import { fitsAtElevation, fitsTile } from "../lib/validation";
-import { MAX_CLIMB_HEIGHT, WALK_DURATION_MS } from "./constants";
+import {
+  MAX_CLIMB_HEIGHT,
+  PLAYER_TILE_ID,
+  WALK_DURATION_MS,
+} from "./constants";
 import { normalizeStandingCell } from "./mapMutations";
 
 export const DIR_DELTA: Record<Direction, { dx: number; dy: number }> = {
@@ -226,6 +231,10 @@ export function canWalk(
     tilesById,
   ).sort((a, b) => (opts?.preferDescend ? a.abs - b.abs : b.abs - a.abs));
 
+  // People walk through each other; nothing else walks through anybody. See
+  // `../lib/validation`'s `FitOpts`, which is where that rule is written down.
+  const fit: FitOpts = { throughPlayers: tileDef.id === PLAYER_TILE_ID };
+
   for (const surface of candidates) {
     if (
       !climbUpAllowed(
@@ -240,15 +249,16 @@ export function canWalk(
       continue;
     }
 
-    const fit = fitsAtElevation(
+    const room = fitsAtElevation(
       map,
       destX,
       destY,
       surface.abs,
       tileDef,
       tilesById,
+      fit,
     );
-    if (!fit.ok) continue;
+    if (!room.ok) continue;
 
     // Append onto the stack that forms this surface (surface.z), so feet stay
     // at surface.abs — including on overflowing plaster ladders.
@@ -257,8 +267,8 @@ export function canWalk(
 
   // No surface within climb range — allow stepping onto this level's cell so
   // gravity can pull through a steeper drop (walk-into-hole).
-  const fit = fitsTile(map, destX, destY, from.z, tileDef, tilesById);
-  if (!fit.ok) return fit;
+  const room = fitsTile(map, destX, destY, from.z, tileDef, tilesById, fit);
+  if (!room.ok) return room;
 
   const destScenery = getStack(map, destX, destY, from.z);
   const destAbs = absoluteStandingElevation(from.z, destScenery, tilesById);
@@ -283,8 +293,8 @@ export function canWalk(
 
   const to = destCellAfterStep(from.z, destX, destY, map, tilesById);
   if (to.z !== from.z) {
-    const fitUp = fitsTile(map, to.x, to.y, to.z, tileDef, tilesById);
-    if (!fitUp.ok) return fitUp;
+    const roomUp = fitsTile(map, to.x, to.y, to.z, tileDef, tilesById, fit);
+    if (!roomUp.ok) return roomUp;
   }
 
   return { ok: true, to };

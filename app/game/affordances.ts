@@ -26,6 +26,7 @@ import { stowFits } from "../lib/piles";
 import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { physicalHeight } from "../lib/types";
 import { canReplaceStack, fitsTile } from "../lib/validation";
+import { PLAYER_TILE_ID } from "./constants";
 import { handAccepts, handHasRoomFor, type Equipment } from "./equipment";
 import { pushDestination } from "./push";
 
@@ -860,6 +861,9 @@ export function reachableTeleportAt(
  * {@link fitsTile} is the same predicate the editor places against and the one
  * an entering player is put down by (see `./entry`), which is the point of
  * reusing it: a destination the editor would refuse is one nobody can arrive at.
+ * Somebody already standing at the far end is not such a destination when the
+ * traveller is a person: one player at the top of a ladder must not be a lid on
+ * it. A deer is stopped by them, on the terms everything but a person is.
  * What is *below* the feet is left to gravity, exactly as it is for an arrival —
  * this decides where the traveller lands, not where they end up.
  */
@@ -869,7 +873,9 @@ export function teleportFits(
   travellerDef: TileDef,
   to: Coord,
 ): boolean {
-  return fitsTile(map, to.x, to.y, to.z, travellerDef, tilesById).ok;
+  return fitsTile(map, to.x, to.y, to.z, travellerDef, tilesById, {
+    throughPlayers: travellerDef.id === PLAYER_TILE_ID,
+  }).ok;
 }
 
 /**

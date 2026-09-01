@@ -1,3 +1,4 @@
+import { PLAYER_TILE_ID } from "../game/constants";
 import type { ItemInstance } from "./itemInstance";
 import type {
   ChunkCells,
@@ -175,15 +176,60 @@ export function listChunkKeys(map: MapFile, z: number): string[] {
   return level ? Object.keys(level) : [];
 }
 
+/**
+ * A placement that is somebody's avatar, as opposed to the world they stand in.
+ *
+ * **Terrain sums skip these, everywhere, without asking who wants to know.** A
+ * body is not something anything stands on, sights along or measures its own
+ * feet against, and every sum in this module that treats one as volume produces
+ * a wrong answer the moment two people share a cell: the second is drawn a level
+ * up, gravity thinks the first is holding them, and their next step is planned
+ * from an elevation nobody is at.
+ *
+ * Whether a body may be *entered* is a different question and it is not asked
+ * here — see `../lib/validation`'s `fitsTile`, which is the one place that
+ * decides it, and `docs/notes.md`, "A body is not terrain".
+ *
+ * The owner is half the test because the authored `player` tile is a spawn
+ * marker rather than a person: it wears the same tile id, nobody is driving it,
+ * and an author who put one down in the editor should see it stand up like
+ * anything else. Ownership is minted at runtime as actors join — see
+ * `../game/actors`.
+ */
+export function isPlayerBody(placed: PlacedTile): boolean {
+  return placed.tileId === PLAYER_TILE_ID && placed.owner != null;
+}
+
+/**
+ * How much this placement raises whatever is drawn or stood on above it.
+ *
+ * {@link physicalHeight} asks a *tile* how tall it is; this asks a *placement*
+ * how much of the world it makes, which is the only question any elevation walk
+ * has ever wanted. The two answers differ for exactly one thing — a body, which
+ * is somebody standing in the cell rather than part of it.
+ *
+ * **Every running total over a stack must go through this.** That is the whole
+ * reason it exists as a function over one placement rather than as a `continue`
+ * inside each loop: the sum was written out by hand in five places, four of them
+ * agreed, and the fifth drew the second person in a cell with their feet on the
+ * first one's head. A rule spelled out five times is a rule that is only ever
+ * four-fifths true.
+ */
+export function terrainHeight(
+  placed: PlacedTile,
+  tilesById: Record<string, TileDef>,
+): number {
+  if (isPlayerBody(placed)) return 0;
+  const def = tilesById[placed.tileId];
+  return def ? physicalHeight(def) : 0;
+}
+
 export function stackHeight(
   stack: PlacedTile[],
   tilesById: Record<string, TileDef>,
 ): number {
   let h = 0;
-  for (const p of stack) {
-    const def = tilesById[p.tileId];
-    if (def) h += physicalHeight(def);
-  }
+  for (const p of stack) h += terrainHeight(p, tilesById);
   return h;
 }
 
@@ -194,10 +240,7 @@ export function elevationAt(
   tilesById: Record<string, TileDef>,
 ): number {
   let e = 0;
-  for (let i = 0; i < stackIndex; i++) {
-    const def = tilesById[stack[i]!.tileId];
-    if (def) e += physicalHeight(def);
-  }
+  for (let i = 0; i < stackIndex; i++) e += terrainHeight(stack[i]!, tilesById);
   return e;
 }
 
@@ -211,6 +254,7 @@ export function solidTopOfStack(
 ): PlacedTile | null {
   for (let i = stack.length - 1; i >= 0; i--) {
     const placed = stack[i]!;
+    if (isPlayerBody(placed)) continue;
     const def = tilesById[placed.tileId];
     if (def && resolveIntangible(def)) continue;
     return placed;
@@ -241,9 +285,10 @@ export function walkableElevInStack(
   let elev = 0;
   let best: number | null = null;
   for (const p of stack) {
+    elev += terrainHeight(p, tilesById);
+    if (isPlayerBody(p)) continue;
     const def = tilesById[p.tileId];
     if (!def) continue;
-    elev += physicalHeight(def);
     // Intangible walkable tops don't form a standing plane — pass through.
     if (resolveWalkable(def) && !resolveIntangible(def)) best = elev;
   }
@@ -289,9 +334,10 @@ export function walkableTileAtElev(
 ): PlacedTile | null {
   let elev = 0;
   for (const p of stack) {
+    elev += terrainHeight(p, tilesById);
+    if (isPlayerBody(p)) continue;
     const def = tilesById[p.tileId];
     if (!def) continue;
-    elev += physicalHeight(def);
     if (
       resolveWalkable(def) &&
       !resolveIntangible(def) &&

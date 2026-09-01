@@ -21,6 +21,7 @@ import {
   getStack,
   listCoords,
   stackHeight,
+  terrainHeight,
 } from "../lib/mapData";
 import { countOf } from "../lib/piles";
 import type {
@@ -40,7 +41,6 @@ import {
   frameIndexAtTime,
   levelKey,
   parseCoordKey,
-  physicalHeight,
   resolveActor,
   resolveLightPassing,
   tileCanEmitLight,
@@ -2048,7 +2048,10 @@ export class WorldRenderer {
         });
       }
 
-      elev += physicalHeight(def);
+      // Through `terrainHeight` and never `physicalHeight`: a body adds nothing
+      // to what is drawn above it, and summing two people in a cell puts the
+      // second one's feet on the first one's head.
+      elev += terrainHeight(placed, this.tilesById);
     });
 
     return items;

@@ -44,7 +44,9 @@ const ENTRY_SEARCH_ORDER: readonly Direction[] = ["w", "n", "e", "s"];
  * "Has room" is {@link fitsTile}, the same predicate the editor places against
  * and the same one {@link canWalk} ends up asking: a half-height tile dropped
  * where you were standing leaves you one unit of headroom, which is enough
- * until there is a roof on the level above, and then it is not. Everything
+ * until there is a roof on the level above, and then it is not. Somebody else
+ * standing there is not a reason to look elsewhere — logging in on top of a
+ * friend puts you on top of a friend, and the first of you to walk ends it. Everything
  * *below* the feet is left to gravity, exactly as it is for an actor arriving
  * at the spawn point — this decides where they enter, not where they end up.
  *
@@ -68,7 +70,11 @@ export function findEntryCell(
 
   for (let head = 0; head < queue.length; head++) {
     const cell = queue[head]!;
-    if (fitsTile(map, cell.x, cell.y, cell.z, playerDef, tilesById).ok) {
+    if (
+      fitsTile(map, cell.x, cell.y, cell.z, playerDef, tilesById, {
+        throughPlayers: true,
+      }).ok
+    ) {
       return cell;
     }
 

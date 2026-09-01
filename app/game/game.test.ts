@@ -1,5 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { appendTile, emptyMap, getStack, replaceStack } from "../lib/mapData";
+import {
+  appendTile,
+  elevationAt,
+  emptyMap,
+  getStack,
+  replaceStack,
+  stackHeight,
+  terrainHeight,
+} from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import {
@@ -97,6 +105,16 @@ const tiles: TileDef[] = [
     },
   }),
   tile({ id: "dwarf", height: 1, affectedByGravity: true }),
+  // A body that is not a person. Full height and non-walkable exactly as the
+  // player tile is, so a test that distinguishes the two is distinguishing who
+  // they are rather than what shape they are.
+  tile({
+    id: "deer",
+    height: 2,
+    walkable: false,
+    actor: true,
+    affectedByGravity: true,
+  }),
   tile({ id: "tree", height: 2, walkable: false }),
   tile({
     id: "crate",
@@ -262,6 +280,181 @@ describe("fitsTile", () => {
   });
 });
 
+/**
+ * The rule in one place: a body is terrain to nobody, and a cell it is in is
+ * closed to everything except another person. @see docs/notes.md
+ */
+describe("a body is not terrain", () => {
+  /** The grass strip with `owner`'s body standing on the cell at `x`. */
+  function withBodyAt(x: number, tileId = "player", owner = "a"): MapFile {
+    let map = emptyMap();
+    for (let i = 0; i < 3; i++) {
+      map = replaceStack(map, i, 0, 0, [{ tileId: "grass" }]);
+    }
+    return replaceStack(map, x, 0, 0, [
+      { tileId: "grass" },
+      { tileId, direction: "s", owner },
+    ]);
+  }
+
+  it("weighs nothing in the stack it stands in", () => {
+    const map = withBodyAt(0);
+    expect(stackHeight(getStack(map, 0, 0, 0), tilesById)).toBe(0);
+  });
+
+  it("still weighs its full height as an authored marker", () => {
+    // No owner: the `player` tile in a map an author saved is a spawn marker,
+    // and an editor that let things stack through it would be lying.
+    const map = replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "player", direction: "s" },
+    ]);
+    expect(stackHeight(getStack(map, 0, 0, 0), tilesById)).toBe(2);
+  });
+
+  it("does not lift the body standing beside it", () => {
+    let map = withBodyAt(0);
+    map = appendTile(map, 0, 0, 0, {
+      tileId: "player",
+      direction: "s",
+      owner: "b",
+    });
+    // Both feet on the grass, not one pair on the other's head.
+    expect(standingAbs(map, 0, 0, 0, 1, tilesById)).toBe(0);
+    expect(standingAbs(map, 0, 0, 0, 2, tilesById)).toBe(0);
+  });
+
+  it("does not hold up a body above it in the stack", () => {
+    let map = replaceStack(emptyMap(), 0, 0, 1, [
+      { tileId: "player", direction: "s", owner: "a" },
+    ]);
+    map = appendTile(map, 0, 0, 1, {
+      tileId: "player",
+      direction: "s",
+      owner: "b",
+    });
+    // Nothing under either of them: the second must fall with the first rather
+    // than treating the first as a floor.
+    expect(isSupported(map, 0, 0, 1, 1, tilesById)).toBe(false);
+  });
+
+  it("lets a person walk into the cell it is standing in", () => {
+    const map = withBodyAt(1);
+    const walk = canWalk(
+      map,
+      { x: 0, y: 0, z: 0, stackIndex: 1 },
+      "e",
+      tilesById.player!,
+      tilesById,
+    );
+    expect(walk).toEqual({ ok: true, to: { x: 1, y: 0, z: 0 } });
+  });
+
+  it("stops a creature walking into the cell it is standing in", () => {
+    const map = withBodyAt(1);
+    const walk = canWalk(
+      map,
+      { x: 0, y: 0, z: 0, stackIndex: 1 },
+      "e",
+      tilesById.deer!,
+      tilesById,
+    );
+    expect(walk.ok).toBe(false);
+  });
+
+  it("stops a person walking into the cell a creature is standing in", () => {
+    const map = withBodyAt(1, "deer", "npc:1,0,0,1");
+    const walk = canWalk(
+      map,
+      { x: 0, y: 0, z: 0, stackIndex: 1 },
+      "e",
+      tilesById.player!,
+      tilesById,
+    );
+    expect(walk.ok).toBe(false);
+  });
+
+  it("stops an object being placed in the cell it is standing in", () => {
+    const map = withBodyAt(0);
+    // The editor's brush, a shoved crate and a dropped item all ask this.
+    expect(fitsTile(map, 0, 0, 0, tilesById.crate!, tilesById).ok).toBe(false);
+    expect(fitsTile(map, 0, 0, 0, tilesById.wall!, tilesById).ok).toBe(false);
+  });
+
+  it("lets a flat tile be laid under it", () => {
+    // No volume, nothing to clash with — a rug still goes down under a person.
+    const map = withBodyAt(0);
+    expect(fitsTile(map, 0, 0, 0, tilesById.roof!, tilesById).ok).toBe(true);
+  });
+
+  it("does not occupy the level it overflows into", () => {
+    // A body standing head-and-shoulders into the level above used to read as
+    // "level above is occupied", which refused the person joining them on the
+    // slab below for a reason nothing on screen could explain.
+    let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "slab" }]);
+    map = replaceStack(map, 0, 0, 1, [
+      { tileId: "player", direction: "s", owner: "a" },
+    ]);
+    // slab(1) + player(2) = 3, which needs the level above to be free of
+    // anything an author put there — and a body is not that.
+    expect(
+      fitsTile(map, 0, 0, 0, tilesById.player!, tilesById, {
+        throughPlayers: true,
+      }).ok,
+    ).toBe(true);
+  });
+
+  it("still stops an object being built through its legs", () => {
+    let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "slab" }]);
+    map = replaceStack(map, 0, 0, 1, [
+      { tileId: "player", direction: "s", owner: "a" },
+    ]);
+    // The same overflow, asked by something that is not a person.
+    expect(fitsTile(map, 0, 0, 0, tilesById.wall!, tilesById).ok).toBe(false);
+  });
+
+  it("draws the second body at the first one's feet, not on its head", () => {
+    // The symptom this rule exists to prevent, at the number every renderer
+    // reads: `elevationAt` is what decides where a placement's sprite sits, and
+    // a body that counted would put the second person's feet one whole level up.
+    const stack = [
+      { tileId: "grass" },
+      { tileId: "player", direction: "s" as const, owner: "a" },
+      { tileId: "player", direction: "s" as const, owner: "b" },
+    ];
+    expect(elevationAt(stack, 1, tilesById)).toBe(0);
+    expect(elevationAt(stack, 2, tilesById)).toBe(0);
+  });
+
+  it("does not lift the scenery drawn above it either", () => {
+    // A running total that stopped at a body would raise everything after it.
+    const stack = [
+      { tileId: "slab" },
+      { tileId: "player", direction: "s" as const, owner: "a" },
+      { tileId: "roof" },
+    ];
+    expect(elevationAt(stack, 2, tilesById)).toBe(1);
+  });
+
+  it("weighs nothing as a single placement", () => {
+    // The one definition every elevation walk in the codebase now goes through.
+    const marker = { tileId: "player", direction: "s" as const };
+    const body = { tileId: "player", direction: "s" as const, owner: "a" };
+    expect(terrainHeight(marker, tilesById)).toBe(2);
+    expect(terrainHeight(body, tilesById)).toBe(0);
+  });
+
+  it("is nothing to land on", () => {
+    let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }]);
+    map = replaceStack(map, 0, 0, 1, [
+      { tileId: "player", direction: "s", owner: "a" },
+    ]);
+    // Falling from level 2, the only floor is the grass — not the head of the
+    // person standing a level below it.
+    expect(findLandingAbs(map, 0, 0, 4, tilesById)).toBe(0);
+  });
+});
+
 describe("canReplaceStack", () => {
   it("allows trailing height-0 tiles on a full stack", () => {
     const map = emptyMap();
@@ -289,6 +482,104 @@ describe("canReplaceStack", () => {
         tilesById,
       ).ok,
     ).toBe(false);
+  });
+
+  /**
+   * The one measurement a body is part of: this asks what a tile may *become*
+   * under whoever is standing on it, not what may walk in. @see the doc on
+   * `canReplaceStack` itself.
+   */
+  describe("with bodies in the stack", () => {
+    const body = (owner: string) => ({
+      tileId: "player",
+      direction: "s" as const,
+      owner,
+    });
+
+    it("refuses to close a door through the person standing in it", () => {
+      const map = replaceStack(emptyMap(), 0, 0, 0, [
+        { tileId: "grass" },
+        { tileId: "door-ajar" },
+        body("a"),
+      ]);
+      expect(
+        canReplaceStack(
+          map,
+          0,
+          0,
+          0,
+          [{ tileId: "grass" }, { tileId: "door-tall" }, body("a")],
+          tilesById,
+        ).ok,
+      ).toBe(false);
+    });
+
+    it("refuses it through two of them just as firmly", () => {
+      const map = replaceStack(emptyMap(), 0, 0, 0, [
+        { tileId: "grass" },
+        { tileId: "door-ajar" },
+        body("a"),
+        body("b"),
+      ]);
+      expect(
+        canReplaceStack(
+          map,
+          0,
+          0,
+          0,
+          [
+            { tileId: "grass" },
+            { tileId: "door-tall" },
+            body("a"),
+            body("b"),
+          ],
+          tilesById,
+        ).ok,
+      ).toBe(false);
+    });
+
+    it("lets a flat tile swap under a crowd", () => {
+      // A plate pressing, a signal firing, something decaying: the scenery is
+      // the same height afterwards, and two people standing on it are side by
+      // side rather than one on the other's shoulders. Summing them would put
+      // four units of person in a two-unit level and jam the plate.
+      const map = replaceStack(emptyMap(), 0, 0, 0, [
+        { tileId: "grass" },
+        body("a"),
+        body("b"),
+        body("c"),
+      ]);
+      expect(
+        canReplaceStack(
+          map,
+          0,
+          0,
+          0,
+          [{ tileId: "dirt" }, body("a"), body("b"), body("c")],
+          tilesById,
+        ).ok,
+      ).toBe(true);
+    });
+
+    it("still measures the one body against the scenery under it", () => {
+      // slab(1) + player(2) = 3, which overflows and needs the level above
+      // free — the same answer a lone body has always got here.
+      let map = replaceStack(emptyMap(), 0, 0, 0, [
+        { tileId: "grass" },
+        body("a"),
+      ]);
+      map = replaceStack(map, 0, 0, 1, [{ tileId: "roof" }]);
+      expect(
+        canReplaceStack(
+          map,
+          0,
+          0,
+          0,
+          [{ tileId: "slab" }, body("a")],
+          tilesById,
+        ).ok,
+      ).toBe(false);
+    });
   });
 });
 

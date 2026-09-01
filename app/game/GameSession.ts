@@ -2,6 +2,7 @@ import {
   absoluteStandingElevation,
   appendTile,
   getStack,
+  isPlayerBody,
   isWalkableSurfaceAt,
   removeTileAt,
   replaceStack,
@@ -6044,14 +6045,22 @@ export class GameSession implements PlaySession {
    * Reserving the destination rather than committing the move up front keeps
    * the existing rule that a step is only real once it lands, which the whole
    * of gravity and plate settling is written against.
+   *
+   * **A reservation is exactly as strong as the arrival it stands in for.** Two
+   * people may end a step in one cell, so a person walking there reserves it
+   * against creatures and against nobody else — refusing on their behalf would
+   * put the cell-sharing rule back in force for one step in every two, which
+   * reads as a doorway that intermittently refuses you. Everything else reserves
+   * against everybody. @see ../lib/validation's `FitOpts`
    */
   private destinationTaken(cell: Coord, except: ActorRuntime): boolean {
+    const throughPlayers = this.defFor(except).id === PLAYER_TILE_ID;
     for (const other of this.actors.values()) {
       if (other === except) continue;
       const to = other.walk?.to;
-      if (to && to.x === cell.x && to.y === cell.y && to.z === cell.z) {
-        return true;
-      }
+      if (!to || to.x !== cell.x || to.y !== cell.y || to.z !== cell.z) continue;
+      if (throughPlayers && isPlayerBody(this.locate(other).placed)) continue;
+      return true;
     }
     return false;
   }

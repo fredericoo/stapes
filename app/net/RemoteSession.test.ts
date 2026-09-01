@@ -67,6 +67,18 @@ const tiles: TileDef[] = [
     walkable: false,
     variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
   }),
+  // A body that is not a person, which is the whole of what these fixtures need
+  // from it: people share cells and nothing else does, so a creature has to be
+  // a creature for a blocking test to be testing anything.
+  tile({
+    id: "rat",
+    height: 2,
+    directional: true,
+    affectedByGravity: true,
+    walkable: false,
+    actor: true,
+    variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
+  }),
 ];
 
 const SELF = "me";
@@ -1183,7 +1195,7 @@ describe("RemoteSession teleports", () => {
 describe("RemoteSession bodies taken off the board", () => {
   const RAT = "rat";
   const ratBody: PlacedTile = {
-    tileId: "player",
+    tileId: "rat",
     direction: "w",
     owner: RAT,
   } as PlacedTile;

@@ -329,6 +329,36 @@ describe("reachableTeleportAt", () => {
       canTeleportFrom(map, tilesById, actor, ref, tilesById.player!),
     ).toBe(false);
   });
+
+  /**
+   * The whole reason a person passes through a person: one player at the top of
+   * a ladder must not be a lid on it, and a rung is the one place in the world
+   * where waiting for somebody to move is the only way past.
+   */
+  it("sends a person to a far end somebody is already standing on", () => {
+    let map = replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "player", direction: "e" },
+    ]);
+    map = replaceStack(map, 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "portal", teleportTo: { x: 5, y: 5, z: 0 } },
+    ]);
+    map = replaceStack(map, 5, 5, 0, [
+      { tileId: "grass" },
+      { tileId: "player", direction: "s", owner: "a" },
+    ]);
+    const ref = { x: 1, y: 0, z: 0, stackIndex: 1 };
+    const actor = { x: 0, y: 0, z: 0 };
+    expect(
+      canTeleportFrom(map, tilesById, actor, ref, tilesById.player!),
+    ).toBe(true);
+    // A deer that walks onto the same pad is stopped by them, as it is by
+    // anything else standing in the way.
+    expect(canTeleportFrom(map, tilesById, actor, ref, tilesById.deer!)).toBe(
+      false,
+    );
+  });
 });
 
 describe("GameSession teleport", () => {
@@ -528,5 +558,32 @@ describe("climbing onto an intangible ladder top", () => {
     );
     run(session, 30);
     expect(whereIs(session.getMap(), "player")).toMatchObject({ z: 1 });
+  });
+
+  /**
+   * The case the cell-sharing rule was written for. A ladder has one top, so a
+   * body resting on it used to close the only route between two floors for
+   * however long its owner felt like standing there.
+   */
+  it("climbs past somebody already standing on the top", () => {
+    const session = new GameSession(ladderColumn(), tiles, {
+      actorIds: ["up-there", "climber"],
+    });
+    const rung = { x: 0, y: 0, z: 0, stackIndex: 1 };
+
+    // Both start on the rung — the first thing the rule has to allow.
+    expect(session.activateTeleport(rung, "up-there")).toBe(true);
+    run(session, 30);
+
+    expect(session.canTeleport(rung, "climber")).toBe(true);
+    expect(session.activateTeleport(rung, "climber")).toBe(true);
+    run(session, 30);
+
+    const upstairs = getStack(session.getMap(), 0, 0, 1);
+    expect(upstairs.map((placed) => placed.owner)).toEqual([
+      undefined,
+      "up-there",
+      "climber",
+    ]);
   });
 });
