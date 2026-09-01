@@ -1630,9 +1630,15 @@ Three verbs meet it, and the split between the first two is the interesting one:
   a recipe's input go through and which falls through to `clearSlot` for the last
   of anything. Everything that is not food only ever reaches the fallback.
 - **Landing on a cell pours** — `appendItem` (`app/lib/piles.ts`), which a drop,
-  a body dying and a pile falling down a hole all go through. Those are the only
-  three ways an item reaches a cell, which is what makes "two berries in one
-  tile" a fact about the board rather than about the verb that put them there.
+  a body dying and a pile falling down a hole all go through, and which
+  `runTileCommand` does by hand for the one cell it writes. Those are the only
+  ways an item reaches a cell, which is what makes "two berries in one tile" a
+  fact about the board rather than about the verb that put them there — `/tile
+  berry` onto a berry leaves two berries in that tile, because a command puts a
+  thing in the world and once it is there it should be what the world would have
+  had if somebody had walked over and put it down. Stamping a tile in the
+  *editor* still places rather than pours: that is authoring, and two berries
+  authored side by side stay two placements until something lands on them.
 
 ### A heap is drawn as a heap, laid out like the pips on a die
 
@@ -1681,6 +1687,22 @@ depth has weighted it, which is small enough that it can only win a tie and
 never overtake something genuinely above it. The height that decides stacking
 and gravity is untouched; this is a fact about sorting and it lives in the
 renderer.
+
+**A heap is outlined once per sprite, and the rings know about each other.**
+Outlining only the quad the placement would have drawn on its own put a ring
+around a single berry in the middle of a dozen — often over the gap where no
+berry is, since an even face has nothing in its middle. One ring per sprite says
+the true thing, but naively it says it far too loudly: a ring is drawn where its
+own silhouette *ends*, which around a heap is mostly inside the heap, and a
+dozen of them fill it in solid. So each ring is told where its siblings are and
+treats them as more of itself, which turns a union of outlines into the outline
+of the union. It can be told exactly, and cheaply, because the sprites of a pile
+are the *same* art at different offsets: a sibling's alpha at a point is this
+sprite's own alpha one offset away. No second texture and no render target — one
+extra sample per sibling, on the fragments around the one thing a pointer is
+over. The count is also the one fact about *appearance* in the overlay
+signature, which otherwise holds none, because eating a berry out of a heap
+somebody is pointing at changes how many rings are right.
 
 Two constraints the code has to keep. Offsets are **whole pixels**, because a
 merged static quad at a fractional offset samples off the pixel grid forever —

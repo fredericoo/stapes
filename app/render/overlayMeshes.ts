@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { MAX_PILE_SPRITES } from "./pileLayout";
 import type { SpriteQuad } from "./spriteQuad";
 
 /**
@@ -160,6 +161,34 @@ export function pulseAlphaAt(elapsedMs: number): number {
 type OutlineArt = { texture: THREE.Texture; uvPerPx: THREE.Vector2 };
 
 /**
+ * Where this sprite's siblings are, in world pixels from it, for art drawn more
+ * than once in one place — see `./pileLayout`.
+ *
+ * **The union's outline, not a union of outlines.** A ring is drawn where its
+ * own silhouette ends, and around a heap that is mostly *inside* the heap: with
+ * a dozen berries three pixels apart, every ring lands on a neighbour and the
+ * whole thing fills in solid. So each ring is told where the others are and
+ * treats them as more of itself.
+ *
+ * It can be told so exactly, and that is what makes this cheap: the sprites of a
+ * pile are the *same* art at different offsets, so a sibling's alpha at a point
+ * is this sprite's own alpha one offset away. No second texture, no render
+ * target, one extra sample per peer per outline fragment — and outline fragments
+ * exist only around the one thing a pointer is over.
+ */
+type OutlinePeers = readonly { dx: number; dy: number }[];
+
+/**
+ * Most siblings a ring will be told about.
+ *
+ * The loop that reads them needs a bound a GLSL compiler can see, and this is
+ * it. Sized to the widest heap the layout will draw minus the sprite doing the
+ * asking — see `./pileLayout`'s `MAX_PILE_SPRITES`, which is where the number
+ * actually comes from.
+ */
+const MAX_OUTLINE_PEERS = MAX_PILE_SPRITES - 1;
+
+/**
  * 1px outer silhouette outline via alpha edge detect: four-connected, plus the
  * corner tips four-connected leaves off.
  *
@@ -192,6 +221,7 @@ function outlineMesh(
   geometry: THREE.BufferGeometry,
   art: OutlineArt,
   color: number,
+  peers: OutlinePeers = [],
 ): THREE.Mesh {
   const mat = new THREE.ShaderMaterial({
     uniforms: {
@@ -200,6 +230,17 @@ function outlineMesh(
       uPad: { value: OUTLINE_PAD_PX },
       uColor: { value: new THREE.Color(color) },
       [OUTLINE_ALPHA_UNIFORM]: { value: 1 },
+      // Always the full array, because a uniform's size is fixed at compile
+      // time; `uPeerCount` is what says how much of it means anything. Zero for
+      // every outline in the game that is not around a heap, which is all but
+      // one kind.
+      uPeerCount: { value: Math.min(peers.length, MAX_OUTLINE_PEERS) },
+      uPeer: {
+        value: Array.from(
+          { length: MAX_OUTLINE_PEERS },
+          (_, i) => new THREE.Vector2(peers[i]?.dx ?? 0, peers[i]?.dy ?? 0),
+        ),
+      },
     },
     vertexShader: /* glsl */ `
       uniform vec2 uPx;
@@ -232,6 +273,8 @@ function outlineMesh(
       uniform vec2 uPx;
       uniform vec3 uColor;
       uniform float uAlpha;
+      uniform int uPeerCount;
+      uniform vec2 uPeer[${MAX_OUTLINE_PEERS}];
       varying vec2 vUv;
       varying vec2 vUvMin;
       varying vec2 vUvMax;
@@ -242,6 +285,19 @@ function outlineMesh(
           return 0.0;
         }
         return texture2D(map, uv).a;
+      }
+
+      // A sibling's alpha here, which is this sprite's own alpha one offset
+      // away: the copies of a heap are one piece of art drawn several times.
+      // The uv runs down the atlas while the world runs up the screen, hence
+      // the flipped y — the same flip the vertex shader makes.
+      float peerA(vec2 uv) {
+        for (int i = 0; i < ${MAX_OUTLINE_PEERS}; i++) {
+          if (i >= uPeerCount) break;
+          vec2 step = vec2(uPeer[i].x * uPx.x, -uPeer[i].y * uPx.y);
+          if (sampleA(uv + step) >= 0.5) return 1.0;
+        }
+        return 0.0;
       }
 
       // Is this texel the missing tip of a corner, or the crook of a staircase?
@@ -265,8 +321,11 @@ function outlineMesh(
       }
 
       void main() {
-        // Outer ring only — opaque texels belong to the sprite itself.
+        // Outer ring only — opaque texels belong to the sprite itself, and to
+        // any sibling drawn over this spot: a ring inside a heap is a ring
+        // nobody wants to see.
         if (sampleA(vUv) >= 0.5) discard;
+        if (peerA(vUv) >= 0.5) discard;
 
         // The four sides. Every texel touching the silhouette edge-on is outline,
         // and this alone is the whole outline everywhere except at a corner.
@@ -307,7 +366,11 @@ function outlineMesh(
  * a tile only joins a batch when it can neither animate nor move, so the frame
  * this is cut from is the only frame it will ever have.
  */
-export function makeSpriteOutline(quad: SpriteQuad, color: number): THREE.Mesh {
+export function makeSpriteOutline(
+  quad: SpriteQuad,
+  color: number,
+  peers: OutlinePeers = [],
+): THREE.Mesh {
   const geo = new THREE.PlaneGeometry(quad.w, quad.h);
   const uvs = geo.attributes.uv!;
   uvs.setXY(0, quad.u0, quad.v0);
@@ -326,6 +389,7 @@ export function makeSpriteOutline(quad: SpriteQuad, color: number): THREE.Mesh {
       ),
     },
     color,
+    peers,
   );
   mesh.position.set(quad.x + quad.w / 2, quad.y + quad.h / 2, 0);
   mesh.updateMatrix();

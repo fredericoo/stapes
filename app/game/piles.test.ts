@@ -293,6 +293,51 @@ describe("putting a pile down", () => {
   });
 });
 
+describe("summoning one with /tile", () => {
+  it("pours into a pile already in that cell, like a drop", () => {
+    const session = world(carrying([]), {
+      tileId: "berry",
+      itemId: "itm_b",
+      count: 2,
+    });
+
+    session.runCommand("/tile berry +1", WHO);
+    const stack = asideStack(session);
+    expect(stack).toHaveLength(2);
+    expect(stack[1]).toEqual({
+      tileId: "berry",
+      itemId: "itm_b",
+      count: 3,
+    });
+  });
+
+  it("starts a second placement once that pile is at its ceiling", () => {
+    const session = world(carrying([]), {
+      tileId: "berry",
+      itemId: "itm_b",
+      count: 3,
+    });
+
+    session.runCommand("/tile berry +1", WHO);
+    const stack = asideStack(session);
+    expect(stack).toHaveLength(3);
+    expect(stack[1]?.count).toBe(3);
+    expect(stack[2]?.tileId).toBe("berry");
+    expect(stack[2]?.count).toBeUndefined();
+  });
+
+  it("still places a thing that does not pile beside its own kind", () => {
+    const session = world(carrying([]), { tileId: "sword", itemId: "itm_s" });
+
+    session.runCommand("/tile sword +1", WHO);
+    expect(asideStack(session).map((p) => p.tileId)).toEqual([
+      "grass",
+      "sword",
+      "sword",
+    ]);
+  });
+});
+
 describe("spending one of a pile", () => {
   it("eats one out of a pile in the bag and leaves the rest", () => {
     const session = world(

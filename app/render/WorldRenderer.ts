@@ -775,7 +775,7 @@ export class WorldRenderer {
    * signature gates it — this is called every frame from the play loop.
    */
   setOverlays(specs: OverlaySpec[]) {
-    const sig = specs.map(overlaySpecKey).join("|");
+    const sig = specs.map((spec) => this.overlayKey(spec)).join("|");
     if (sig === this.overlaySig) return;
     this.overlaySig = sig;
 
@@ -819,6 +819,26 @@ export class WorldRenderer {
     }
   }
 
+  /**
+   * {@link overlaySpecKey}, plus the one thing about a tile's *appearance* that
+   * belongs in it.
+   *
+   * That key deliberately holds nothing about how a tile looks, because an
+   * outline follows the mesh it was cut around. A heap breaks the deliberate
+   * part: its outline is one ring per thing in it, so eating a berry out of a
+   * pile somebody is pointing at changes how many rings are correct while every
+   * other word in the key stays the same. Absent for anything that is not a
+   * pile, so no key in the game but a heap's changes by a character.
+   */
+  private overlayKey(spec: OverlaySpec): string {
+    const key = overlaySpecKey(spec);
+    if (spec.kind === "ghost") return key;
+    const map = this.view?.map;
+    const placed = map && getStack(map, spec.x, spec.y, spec.z)[spec.stackIndex];
+    const count = placed ? countOf(placed) : 1;
+    return count > 1 ? `${key}x${count}` : key;
+  }
+
   /** The placed tile an overlay refers to, plus the elevation it is drawn at. */
   private overlaySubject(key: TileInstanceKey) {
     const map = this.view?.map;
@@ -840,12 +860,12 @@ export class WorldRenderer {
       this.addGhost(spec);
       return;
     }
-    const outline = this.outlineFor(spec);
-    if (!outline) return;
-    if (spec.pulse) {
-      this.pulsingOutlines.push(outline.material as THREE.ShaderMaterial);
+    for (const outline of this.outlinesFor(spec)) {
+      if (spec.pulse) {
+        this.pulsingOutlines.push(outline.material as THREE.ShaderMaterial);
+      }
+      this.overlays.add(outline);
     }
-    this.overlays.add(outline);
   }
 
   /**
@@ -857,18 +877,27 @@ export class WorldRenderer {
    * than facts the chrome has to be told about. That is the whole of keeping an
    * outline in step — every other tile is in a merged batch precisely because
    * nothing about it can change, so cutting it a quad of its own is exact too.
+   *
+   * **A list, because a heap is one placement drawn several times.** Outlining
+   * only the quad the placement would have drawn on its own put a ring around a
+   * single berry in the middle of a dozen — which reads as "that one", where
+   * what a press actually takes is all of them. One ring per sprite says the
+   * true thing, and it says it in the same offsets the sprites were drawn at, so
+   * the chrome cannot disagree with the art about where the berries are. See
+   * `./pileLayout`.
    */
-  private outlineFor(spec: ObjectOutlineOverlay): THREE.Mesh | null {
+  private outlinesFor(spec: ObjectOutlineOverlay): THREE.Mesh[] {
     const key = this.tileKey(spec);
     const source = this.movableMeshes.get(key);
     if (source) {
       const outline = makeFollowingSpriteOutline(source, spec.color);
-      if (outline) this.followingOutlines.push({ outline, source });
-      return outline;
+      if (!outline) return [];
+      this.followingOutlines.push({ outline, source });
+      return [outline];
     }
 
     const subject = this.overlaySubject(spec);
-    if (!subject) return null;
+    if (!subject) return [];
     const quad = spriteQuadFor(
       this.quadAssets(),
       subject.map,
@@ -876,7 +905,23 @@ export class WorldRenderer {
       subject.placed,
       subject.def,
     );
-    return quad ? makeSpriteOutline(quad, spec.color) : null;
+    if (!quad) return [];
+    // The borrowed branch above has already taken every tile with a mesh of its
+    // own, which is every tile a pile is not — so the count is read straight
+    // off the placement here, exactly as `cellItems` reads it.
+    const offsets = pileOffsets(countOf(subject.placed));
+    return offsets.map((offset, i) =>
+      makeSpriteOutline(
+        { ...quad, x: quad.x + offset.dx, y: quad.y + offset.dy },
+        spec.color,
+        // Where the others are, from here. Told to each ring so the heap comes
+        // out with one silhouette around the whole of it rather than a dozen
+        // rings crossing through it — see `./overlayMeshes`' `OutlinePeers`.
+        offsets.flatMap((other, j) =>
+          i === j ? [] : [{ dx: offset.dx - other.dx, dy: offset.dy - other.dy }],
+        ),
+      ),
+    );
   }
 
 

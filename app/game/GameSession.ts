@@ -21,7 +21,14 @@ import {
   resolveConsumable,
   resolveStone,
 } from "../lib/item";
-import { appendItem, countOf, peelOne, stow, withCount } from "../lib/piles";
+import {
+  appendItem,
+  countOf,
+  peelOne,
+  pourInto,
+  stow,
+  withCount,
+} from "../lib/piles";
 import type {
   Coord,
   Direction,
@@ -5055,8 +5062,17 @@ export class GameSession implements PlaySession {
         : {}),
     };
 
-    const next = [...stack];
-    next.splice(stackIndex, 0, placed);
+    // Poured into a pile already in that cell where one will take it, exactly as
+    // a drop is: `/tile berry` onto a berry is two berries in that tile, not a
+    // second placement of one. A command puts a thing in the world, and once it
+    // is there it should be the thing the world would have had if somebody had
+    // walked over and put it down. See `../lib/piles`.
+    //
+    // A pour makes no placement, so the room `canPlace` asked for above is more
+    // than it needs, and the slot `stackIndex` names is left alone.
+    const poured = pourInto(stack, placed, this.tilesById);
+    const next = poured ?? [...stack];
+    if (!poured) next.splice(stackIndex, 0, placed);
     this.map = replaceStack(this.map, at.x, at.y, at.z, next);
 
     if (placed.owner) {
