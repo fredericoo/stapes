@@ -1,6 +1,6 @@
 import { CELL_SIZE, HEIGHT_PER_LEVEL, MIN_LEVEL } from "./types";
 
-/** 1 height unit = 4px up-left on screen (full level = 8px = one cell). */
+/** 1 height unit = 2px up-left on screen (full level = 8px = one cell). */
 export const PX_PER_HEIGHT = CELL_SIZE / HEIGHT_PER_LEVEL;
 
 /**
@@ -19,12 +19,12 @@ export function absoluteElevation(z: number, elevation: number): number {
   return z * HEIGHT_PER_LEVEL + elevation;
 }
 
-/** Full level (2 height units) = 8px = one cell. */
+/** Full level ({@link HEIGHT_PER_LEVEL} height units) = 8px = one cell. */
 export function levelScreenOffset(z: number): { x: number; y: number } {
   return { x: -CELL_SIZE * z, y: -CELL_SIZE * z };
 }
 
-/** Elevation within a stack: e height units → 4e px up-left. */
+/** Elevation within a stack: e height units → 2e px up-left. */
 export function elevationScreenOffset(e: number): { x: number; y: number } {
   return { x: -PX_PER_HEIGHT * e, y: -PX_PER_HEIGHT * e };
 }

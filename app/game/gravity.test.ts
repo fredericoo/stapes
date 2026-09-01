@@ -33,11 +33,11 @@ function tile(
 
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
-  tile({ id: "box", height: 1, affectedByGravity: true }),
+  tile({ id: "box", height: 2, affectedByGravity: true }),
   // Same size, no gravity: scenery that hangs where it is put.
-  tile({ id: "rock", height: 1 }),
+  tile({ id: "rock", height: 2 }),
   // A full level: the only thing that counts as a floor underfoot.
-  tile({ id: "pillar", height: 2 }),
+  tile({ id: "pillar", height: 4 }),
   tile({
     id: "plate",
     height: 0,
@@ -56,7 +56,7 @@ const tiles: TileDef[] = [
   }),
   tile({
     id: "door",
-    height: 2,
+    height: 4,
     walkable: false,
     interactions: { receive: { tileId: "door-open", when: "on", mode: "any" } },
   }),
@@ -67,7 +67,7 @@ const tiles: TileDef[] = [
   }),
   tile({
     id: "player",
-    height: 2,
+    height: 4,
     directional: true,
     affectedByGravity: true,
     walkable: false,
@@ -76,7 +76,7 @@ const tiles: TileDef[] = [
   // A full-height crate that can be shoved: the support to pull out.
   tile({
     id: "crate",
-    height: 2,
+    height: 4,
     affectedByGravity: true,
     walkable: false,
     interactions: { push: { climb: "half", moveOnTileIds: [] } },

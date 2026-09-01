@@ -310,7 +310,7 @@ const tiles: TileDef[] = [
   }),
   tile({
     id: "player",
-    height: 2,
+    height: 4,
     directional: true,
     walkable: false,
     variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
@@ -319,7 +319,7 @@ const tiles: TileDef[] = [
   tile({
     id: "deer",
     name: "Deer",
-    height: 1,
+    height: 2,
     actor: true,
     walkable: false,
     interactions: { battler: { masteries: AUTHORED, naturalWeapon: claws } },

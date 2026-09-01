@@ -28,7 +28,7 @@ const tiles: TileDef[] = [
   normalizeTileDef({
     id: "rock",
     name: "Rock",
-    height: 1,
+    height: 2,
     directional: false,
     variants: {
       default: [

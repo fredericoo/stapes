@@ -45,8 +45,8 @@ const BAG_TILE_ID = "basic-bag";
 
 const tiles = [
   tile({ id: "grass" }),
-  tile({ id: "crate", height: 1 }),
-  tile({ id: "player", height: 2, kind: "battler", actor: true }),
+  tile({ id: "crate", height: 2 }),
+  tile({ id: "player", height: 4, kind: "battler", actor: true }),
   tile({ id: "raw-meat", name: "Raw Meat", kind: "item", interactions: { item: EDIBLE } }),
   tile({ id: "cooked-meat", name: "Cooked Meat", kind: "item", interactions: { item: EDIBLE } }),
   tile({ id: "raw-fish", name: "Raw Fish", kind: "item", interactions: { item: EDIBLE } }),

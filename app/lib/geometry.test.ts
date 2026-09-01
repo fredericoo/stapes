@@ -191,10 +191,12 @@ describe("fragDepth", () => {
    * where the tile's outline lives, so losing it is immediately visible.
    */
   describe("art outside the silhouette", () => {
-    // A crate: height 1, so its silhouette is CELL_SIZE + PX_PER_HEIGHT square
-    // and the top row of its outline sits one pixel above that.
-    const crate = depthBox(0, 0, 0, 1);
-    const outline = { sx: -1, sy: -PX_PER_HEIGHT - 1 };
+    // A crate: half a level, so its silhouette is CELL_SIZE + half a level's
+    // worth of pixels square, and the top row of its outline sits one pixel
+    // above that.
+    const CRATE_HEIGHT = HEIGHT_PER_LEVEL / 2;
+    const crate = depthBox(0, 0, 0, CRATE_HEIGHT);
+    const outline = { sx: -1, sy: -CRATE_HEIGHT * PX_PER_HEIGHT - 1 };
 
     it("keeps an outline in front of the tall neighbour on its own diagonal", () => {
       // (x+1, y-1) shares the crate's depth diagonal, and its south face climbs

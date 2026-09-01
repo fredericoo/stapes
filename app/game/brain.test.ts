@@ -71,10 +71,10 @@ function wanderingBrain(): BrainDef {
 
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
-  tile({ id: "wall", height: 2, walkable: false }),
+  tile({ id: "wall", height: 4, walkable: false }),
   tile({
     id: "player",
-    height: 2,
+    height: 4,
     directional: true,
     affectedByGravity: true,
     walkable: false,
@@ -82,7 +82,7 @@ const tiles: TileDef[] = [
   }),
   tile({
     id: "deer",
-    height: 1,
+    height: 2,
     actor: true,
     affectedByGravity: true,
     walkable: false,
@@ -91,7 +91,7 @@ const tiles: TileDef[] = [
   // Same creature, with the priority list the other way round.
   tile({
     id: "deer-holding",
-    height: 1,
+    height: 2,
     actor: true,
     affectedByGravity: true,
     walkable: false,
@@ -158,12 +158,12 @@ function deerCell(session: GameSession): string {
 
 describe("authoring a brain", () => {
   it("takes a machine that holds together", () => {
-    const def = tile({ id: "ok", height: 1, interactions: { brain: wanderingBrain() } });
+    const def = tile({ id: "ok", height: 2, interactions: { brain: wanderingBrain() } });
     expect(resolveBrain(def)?.initial).toBe("idle");
   });
 
   it("is absent on a tile that authored none", () => {
-    expect(resolveBrain(tile({ id: "rock", height: 1 }))).toBeNull();
+    expect(resolveBrain(tile({ id: "rock", height: 2 }))).toBeNull();
   });
 
   /**
@@ -211,7 +211,7 @@ describe("authoring a brain", () => {
   ])("refuses %s", (_label, brain) => {
     const def = tile({
       id: `bad-${_label}`,
-      height: 1,
+      height: 2,
       interactions: { brain } as never,
     });
     expect(resolveBrain(def)).toBeNull();
@@ -445,7 +445,7 @@ const noticing: TileDef[] = [
   ...tiles,
   tile({
     id: "cat",
-    height: 1,
+    height: 2,
     actor: true,
     affectedByGravity: true,
     walkable: false,
@@ -453,7 +453,7 @@ const noticing: TileDef[] = [
   }),
   tile({
     id: "shy",
-    height: 1,
+    height: 2,
     actor: true,
     affectedByGravity: true,
     walkable: false,
@@ -671,7 +671,7 @@ describe("chasing round an obstacle", () => {
     ...tiles,
     tile({
       id: "hunter",
-      height: 1,
+      height: 2,
       actor: true,
       affectedByGravity: true,
       walkable: false,
@@ -770,7 +770,7 @@ describe("picking out a tile to follow", () => {
     // a rat standing closer.
     tile({
       id: "rat",
-      height: 1,
+      height: 2,
       actor: true,
       affectedByGravity: true,
       walkable: false,
@@ -778,7 +778,7 @@ describe("picking out a tile to follow", () => {
     }),
     tile({
       id: "mouse",
-      height: 1,
+      height: 2,
       actor: true,
       affectedByGravity: true,
       walkable: false,
@@ -788,7 +788,7 @@ describe("picking out a tile to follow", () => {
     // same-tile-only rule could not express at all.
     tile({
       id: "ratcatcher",
-      height: 1,
+      height: 2,
       actor: true,
       affectedByGravity: true,
       walkable: false,
@@ -899,7 +899,7 @@ describe("giving up", () => {
     ...tiles,
     tile({
       id: "trapped",
-      height: 1,
+      height: 2,
       actor: true,
       affectedByGravity: true,
       walkable: false,
@@ -1008,7 +1008,7 @@ describe("watching its footing", () => {
     ...tiles,
     tile({
       id: "careful",
-      height: 1,
+      height: 2,
       actor: true,
       affectedByGravity: true,
       walkable: false,
@@ -1022,7 +1022,7 @@ describe("watching its footing", () => {
     }),
     tile({
       id: "reckless",
-      height: 1,
+      height: 2,
       actor: true,
       affectedByGravity: true,
       walkable: false,
@@ -1254,7 +1254,7 @@ describe("actions that take time", () => {
     ...tiles,
     tile({
       id: "grazer",
-      height: 1,
+      height: 2,
       actor: true,
       affectedByGravity: true,
       walkable: false,
@@ -1323,7 +1323,7 @@ describe("walking at its own pace", () => {
     ...tiles,
     tile({
       id: "plodder",
-      height: 1,
+      height: 2,
       actor: true,
       affectedByGravity: true,
       walkable: false,
@@ -1339,7 +1339,7 @@ describe("walking at its own pace", () => {
     }),
     tile({
       id: "sprinter",
-      height: 1,
+      height: 2,
       actor: true,
       affectedByGravity: true,
       walkable: false,
@@ -1430,7 +1430,7 @@ describe("a deer that yelps", () => {
     ...tiles,
     tile({
       id: "yelper",
-      height: 1,
+      height: 2,
       actor: true,
       affectedByGravity: true,
       walkable: false,
@@ -1439,7 +1439,7 @@ describe("a deer that yelps", () => {
     // Startle it and it drives the "gate" channel on.
     tile({
       id: "alarm-deer",
-      height: 1,
+      height: 2,
       actor: true,
       affectedByGravity: true,
       walkable: false,
@@ -1448,7 +1448,7 @@ describe("a deer that yelps", () => {
     // The canonical receiver pair, wired to that channel.
     tile({
       id: "gate",
-      height: 2,
+      height: 4,
       walkable: false,
       interactions: { receive: { tileId: "gate-open", when: "on", mode: "any" } },
     }),
@@ -1779,7 +1779,7 @@ describe("hearing", () => {
     ...tiles,
     tile({
       id: "listener",
-      height: 1,
+      height: 2,
       actor: true,
       affectedByGravity: true,
       walkable: false,
@@ -1787,7 +1787,7 @@ describe("hearing", () => {
     }),
     tile({
       id: "watcher",
-      height: 1,
+      height: 2,
       actor: true,
       affectedByGravity: true,
       walkable: false,
@@ -2068,7 +2068,7 @@ describe("hearing a sound", () => {
     ...tiles,
     tile({
       id: "yapper",
-      height: 1,
+      height: 2,
       actor: true,
       affectedByGravity: true,
       walkable: false,
@@ -2076,7 +2076,7 @@ describe("hearing a sound", () => {
     }),
     tile({
       id: "nosy",
-      height: 1,
+      height: 2,
       actor: true,
       affectedByGravity: true,
       walkable: false,
@@ -2085,7 +2085,7 @@ describe("hearing a sound", () => {
     /** The same yap, with a different word in it. */
     tile({
       id: "meower",
-      height: 1,
+      height: 2,
       actor: true,
       affectedByGravity: true,
       walkable: false,
@@ -2104,7 +2104,7 @@ describe("hearing a sound", () => {
     /** Listening for one word rather than for any sound at all. */
     tile({
       id: "picky",
-      height: 1,
+      height: 2,
       actor: true,
       affectedByGravity: true,
       walkable: false,
@@ -2116,7 +2116,7 @@ describe("hearing a sound", () => {
      */
     tile({
       id: "yapping-nosy",
-      height: 1,
+      height: 2,
       actor: true,
       affectedByGravity: true,
       walkable: false,
@@ -2377,7 +2377,7 @@ describe("composing conditions", () => {
       states: { idle: { do: [] } },
       transitions: [{ from: "idle", if: { combinator: "and", rules: [] }, to: "idle" }],
     };
-    expect(resolveBrain(tile({ id: "empty-group", height: 1, interactions: { brain } as never }))).toBeNull();
+    expect(resolveBrain(tile({ id: "empty-group", height: 2, interactions: { brain } as never }))).toBeNull();
   });
 });
 
@@ -2472,7 +2472,7 @@ describe("holding a conversation", () => {
     ...tiles,
     tile({
       id: "shopkeeper",
-      height: 1,
+      height: 2,
       actor: true,
       affectedByGravity: true,
       walkable: false,
@@ -2645,7 +2645,7 @@ describe("holding a conversation", () => {
       ...tiles,
       tile({
         id: "forgetful",
-        height: 1,
+        height: 2,
         actor: true,
         affectedByGravity: true,
         walkable: false,

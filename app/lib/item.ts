@@ -7,7 +7,7 @@ import {
   WEAPON_MASTERIES,
   type WeaponMastery,
 } from "./mastery";
-import { CELL_SIZE, type TileDef } from "./types";
+import { CELL_SIZE, HEIGHT_PER_LEVEL, type TileDef } from "./types";
 
 /**
  * What it takes to be carried.
@@ -82,7 +82,7 @@ export type Reach = {
    */
   cells: number;
   /**
-   * How far up or down it reaches, in height units — two to a level.
+   * How far up or down it reaches, in height units — four to a level.
    *
    * Height units rather than levels, because the question is answered against an
    * absolute elevation and not against a floor: somebody standing on a crate is
@@ -103,10 +103,11 @@ export type Reach = {
  * what you can touch are one shape, and they were two constants agreeing by
  * luck.
  *
- * One height unit is half a level, which is exactly the step you can climb — so
- * anything you could walk up onto in one move, you can also hit.
+ * Half a level is exactly the step you can climb — so anything you could walk
+ * up onto in one move, you can also hit. Derived rather than written down, so
+ * the two cannot drift apart when a level is subdivided differently.
  */
-export const MELEE_REACH: Reach = { cells: 1.5, height: 1 };
+export const MELEE_REACH: Reach = { cells: 1.5, height: HEIGHT_PER_LEVEL / 2 };
 
 /**
  * The thing a ranged weapon puts in the air.
@@ -1007,11 +1008,11 @@ export const MAX_WEAPON_DAMAGE = 999;
  * Sanity bounds rather than balance ones, like {@link MAX_WEAPON_DAMAGE}: a bow
  * that carries most of a screen is authorable, and a typo'd extra digit reads as
  * malformed rather than as a weapon that hits everything on the floor. The
- * height bound is generous in the same spirit — ten units is five levels, taller
- * than anything the map is authored with.
+ * height bound is generous in the same spirit — twenty units is five levels,
+ * taller than anything the map is authored with.
  */
 export const MAX_REACH_CELLS = 64;
-export const MAX_REACH_HEIGHT = 10;
+export const MAX_REACH_HEIGHT = 20;
 
 /**
  * How fast a projectile may travel, in cells per second.

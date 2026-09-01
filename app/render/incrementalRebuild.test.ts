@@ -70,16 +70,16 @@ const playerFrames = {
  */
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
-  tile({ id: "wall", height: 2, walkable: false }),
+  tile({ id: "wall", height: 4, walkable: false }),
   tile({
     id: "crate",
-    height: 1,
+    height: 2,
     walkable: false,
     interactions: { push: DEFAULT_PUSH },
   }),
   tile({
     id: "player",
-    height: 2,
+    height: 4,
     directional: true,
     affectedByGravity: true,
     walkable: false,
@@ -250,15 +250,15 @@ describe("mobility classification", () => {
    * classification is right.
    */
   it("counts gravity, pushability and bodies, and nothing else", () => {
-    expect(isMobileTile(tile({ id: "boulder", height: 2, affectedByGravity: true }))).toBe(true);
+    expect(isMobileTile(tile({ id: "boulder", height: 4, affectedByGravity: true }))).toBe(true);
     // A body moves under its own steam, and saying so explicitly is what keeps
     // one that ignores gravity out of the static bake — baked into the floor,
     // and smearing across it the moment it walked.
-    expect(isMobileTile(tile({ id: "ghost", height: 1, actor: true }))).toBe(
+    expect(isMobileTile(tile({ id: "ghost", height: 2, actor: true }))).toBe(
       true,
     );
     expect(
-      isMobileTile(tile({ id: "crate", height: 1, interactions: { push: DEFAULT_PUSH } })),
+      isMobileTile(tile({ id: "crate", height: 2, interactions: { push: DEFAULT_PUSH } })),
     ).toBe(true);
     expect(isMobileTile(tile({ id: "grass", height: 0 }))).toBe(false);
     // Interactive, but nothing about it changes cell: it stays in the batch.
@@ -266,7 +266,7 @@ describe("mobility classification", () => {
       isMobileTile(
         tile({
           id: "lever",
-          height: 1,
+          height: 2,
           interactions: { switch: { targetTileId: "lever-on" } },
         }),
       ),

@@ -15,9 +15,10 @@ describe("labelHeadroomPx", () => {
   });
 
   it("lifts a half-height tile clear of the art above its head", () => {
-    // The cat: one height unit, so it is drawn up to a unit taller than it
-    // declares. Four world pixels of that, plus the gap every label keeps.
-    expect(labelHeadroomPx(1)).toBe(1 + PX_PER_HEIGHT);
+    // The cat: half a level, so it is drawn up to half a level taller than it
+    // declares. That many world pixels, plus the gap every label keeps.
+    const half = HEIGHT_PER_LEVEL / 2;
+    expect(labelHeadroomPx(half)).toBe(1 + half * PX_PER_HEIGHT);
   });
 
   it("lifts a flat tile by a whole level's worth", () => {

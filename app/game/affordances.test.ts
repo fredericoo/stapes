@@ -46,10 +46,10 @@ function tile(partial: Record<string, unknown>): TileDef {
 
 const tiles = [
   tile({ id: "grass" }),
-  tile({ id: "rock", height: 1 }),
+  tile({ id: "rock", height: 2 }),
   // Full height and light-blocking, so it stops a line of sight — see `./sight`,
   // where sight is light and you see over anything shorter than a level.
-  tile({ id: "wall", height: 2 }),
+  tile({ id: "wall", height: 4 }),
   tile({ id: "sword", kind: "item", interactions: { item: DEFAULT_WEAPON } }),
   // An off-hand *weapon* — a shield. What a torch used to be authored as, and
   // the reason `WeaponItem.offhand` exists: only the author knows which hand a
@@ -676,7 +676,7 @@ describe("pushableDefAt", () => {
     ...tiles,
     tile({
       id: "crate",
-      height: 1,
+      height: 2,
       affectedByGravity: true,
       interactions: { push: { climb: "half", moveOnTileIds: [] } },
     }),

@@ -91,7 +91,7 @@ const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
   tile({
     id: "player",
-    height: 2,
+    height: 4,
     directional: true,
     walkable: false,
     variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
@@ -101,7 +101,7 @@ const tiles: TileDef[] = [
   }),
   tile({
     id: "sparring-partner",
-    height: 1,
+    height: 2,
     actor: true,
     walkable: false,
     interactions: {
@@ -204,7 +204,7 @@ const BAG_TILE_ID = "basic-bag";
 const rewardTiles: TileDef[] = [
   named("grass", "Grass"),
   named("player", "Player", {
-    height: 2,
+    height: 4,
     kind: "battler",
     actor: true,
     walkable: false,

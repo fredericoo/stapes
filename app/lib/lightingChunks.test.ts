@@ -149,7 +149,7 @@ describe("chunked lighting", () => {
       const def = normalizeTileDef({
         ...base,
         id: "wild",
-        height: 1,
+        height: 2,
         sprite: { frames: [{ sprite, durationMs: 100, light: wildLight }] },
       });
       expect(radiiOf(def)).toEqual([LIGHT_APRON]);
@@ -164,7 +164,7 @@ describe("chunked lighting", () => {
       const def = normalizeTileDef({
         ...base,
         id: "wild-carried",
-        height: 1,
+        height: 2,
         sprite: { frames: [{ sprite, durationMs: 100 }] },
         states: {
           carried: {
@@ -180,7 +180,7 @@ describe("chunked lighting", () => {
       const def = normalizeTileDef({
         id: "wild-legacy",
         name: "Test",
-        height: 1,
+        height: 2,
         kind: "prop",
         variants: { default: [{ sprite, durationMs: 100 }] },
         light: wildLight,
@@ -192,7 +192,7 @@ describe("chunked lighting", () => {
       const def = normalizeTileDef({
         ...base,
         id: "tame",
-        height: 1,
+        height: 2,
         sprite: {
           frames: [
             { sprite, durationMs: 100, light: { ...wildLight, radius: 6 } },
@@ -240,7 +240,7 @@ describe("chunked lighting", () => {
       const lamp: TileDef = normalizeTileDef({
         ...base,
         id: "test-wide-lamp",
-        height: 1,
+        height: 2,
         sprite: { frames: [{ sprite, durationMs: 100, light: wildLight }] },
       });
       const defs: Record<string, TileDef> = {
@@ -495,7 +495,7 @@ describe("chunked lighting", () => {
       const radius = 8;
       const base = {
         name: "Test lamp",
-        height: 1,
+        height: 2,
         type: "simple",
         kind: "prop",
         attributes: {},

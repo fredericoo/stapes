@@ -54,9 +54,9 @@ function mapAt(
 }
 
 const floor = tile({ id: "floor", height: 0 });
-const half = tile({ id: "half", height: 1 });
-const wall = tile({ id: "wall", height: 2 });
-const window = tile({ id: "window", height: 2, lightPassing: true });
+const half = tile({ id: "half", height: 2 });
+const wall = tile({ id: "wall", height: 4 });
+const window = tile({ id: "window", height: 4, lightPassing: true });
 const roof = tile({ id: "roof", height: 0 });
 
 const tilesById: Record<string, TileDef> = {
@@ -93,14 +93,14 @@ describe("viewAnchorFor", () => {
   });
 
   it("uses landing level while falling", () => {
-    // landingAbs 2 → level 1 (HEIGHT_PER_LEVEL = 2)
+    // landingAbs 4 → level 1 (one whole HEIGHT_PER_LEVEL up)
     expect(
       viewAnchorFor({
         x: 3,
         y: 4,
         z: 2,
         walk: null,
-        fall: { landingAbs: 2 },
+        fall: { landingAbs: 4 },
       }),
     ).toEqual({ x: 3, y: 4, z: 1 });
   });

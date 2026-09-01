@@ -38,9 +38,9 @@ function tile(
 const tilesById = Object.fromEntries(
   [
     tile({ id: "grass", height: 0 }),
-    tile({ id: "sign", height: 1, walkable: false }),
-    tile({ id: "crate", height: 1, walkable: false }),
-    tile({ id: "player", height: 2 }),
+    tile({ id: "sign", height: 2, walkable: false }),
+    tile({ id: "crate", height: 2, walkable: false }),
+    tile({ id: "player", height: 4 }),
   ].map((t) => [t.id, t]),
 );
 
@@ -135,7 +135,7 @@ describe("describedNearby", () => {
       {
         ref: { x: 1, y: 0, z: 0, stackIndex: 1 },
         text: "DANGER",
-        height: 1,
+        height: 2,
       },
     ]);
   });

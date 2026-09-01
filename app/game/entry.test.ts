@@ -39,11 +39,11 @@ const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
   // Half a level. On its own it leaves exactly enough headroom for a player;
   // under a roof it does not, which is the case this whole module exists for.
-  tile({ id: "slab", height: 1 }),
-  tile({ id: "wall", height: 2, walkable: false }),
+  tile({ id: "slab", height: 2 }),
+  tile({ id: "wall", height: 4, walkable: false }),
   tile({
     id: "player",
-    height: 2,
+    height: 4,
     directional: true,
     affectedByGravity: true,
     walkable: false,

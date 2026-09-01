@@ -31,7 +31,7 @@ function tile(
   return normalizeTileDef({
     id: props.id,
     name: props.name,
-    height: 1,
+    height: 2,
     type: "simple",
     kind: props.kind ?? "prop",
     sprite: { frames: [frame] },
@@ -81,7 +81,7 @@ describe("the kind filter", () => {
     const broken = normalizeTileDef({
       id: "broken",
       name: "Broken",
-      height: 1,
+      height: 2,
       type: "simple",
       kind: "prop",
       sprite: { frames: [frame] },

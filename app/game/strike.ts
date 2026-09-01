@@ -75,7 +75,7 @@ export type StrikeState = {
    */
   dx: number;
   dy: number;
-  /** The same, in height units — two of them to a level. */
+  /** The same, in height units — four of them to a level. */
   dElev: number;
   elapsedMs: number;
 };

@@ -111,8 +111,8 @@ export type TileSprite = {
   frames: Frame[];
 };
 
-/** 0 = flat, 1 = half level, 2 = full level. */
-export type TileHeight = 0 | 1 | 2;
+/** 0 = flat, 4 = a full level. See {@link HEIGHT_PER_LEVEL}. */
+export type TileHeight = 0 | 1 | 2 | 3 | 4;
 
 /**
  * Which axis a tile's art varies along.
@@ -448,8 +448,24 @@ export function climbFromForSave(
   return any ? out : undefined;
 }
 
-/** Height units per map level (full stack before overflow). */
-export const HEIGHT_PER_LEVEL = 2;
+/**
+ * Height units per map level (full stack before overflow).
+ *
+ * Four rather than two because a level is also a *ceiling*. An interior is
+ * exactly one level tall, so unless a body is shorter than a level nothing
+ * indoors can ever raise it: a person the height of a storey standing on a
+ * stool has their head in the floor above, and `fitsHeightAtElevation` refuses
+ * it. At two units the only height below a full level was one — half a level,
+ * the height of a rat — so "a person is a little shorter than a storey" was not
+ * a thing the world could be told. At four it is: the player is 3, and standing
+ * on a 1-unit stool puts its head exactly at the floor above.
+ *
+ * The cost is paid in pixels. One unit is `PX_PER_HEIGHT` = 2px, so anything a
+ * three-high body stands on *under a roof* has to be a single unit. That is the
+ * whole of the indoor vocabulary for furniture: what you climb onto is 2px
+ * tall, and anything taller is something you walk around instead.
+ */
+export const HEIGHT_PER_LEVEL = 4;
 
 /** Whether light passes through this tile. Default: blocks (false). */
 export function resolveLightPassing(def: TileDef): boolean {

@@ -44,7 +44,7 @@ describe("resolveSwitch", () => {
   it("reads a valid switch block", () => {
     const def = tile({
       id: "door-closed",
-      height: 2,
+      height: 4,
       interactions: { switch: { targetTileId: "door-open" } },
     });
     expect(resolveSwitch(def)).toEqual({ targetTileId: "door-open" });
@@ -55,7 +55,7 @@ describe("resolveSwitch", () => {
   it("treats an empty target as non-switchable", () => {
     const def = tile({
       id: "door-closed",
-      height: 2,
+      height: 4,
       interactions: { switch: { targetTileId: "" } },
     });
     expect(resolveSwitch(def)).toBeNull();
@@ -65,7 +65,7 @@ describe("resolveSwitch", () => {
   it("coexists with push, and is tried first", () => {
     const def = tile({
       id: "lever",
-      height: 1,
+      height: 2,
       interactions: {
         push: { climb: "half", moveOnTileIds: [] },
         switch: { targetTileId: "lever-pulled" },
@@ -179,7 +179,7 @@ describe("resolveReceive", () => {
   it("reads a valid receive block", () => {
     const def = tile({
       id: "door",
-      height: 2,
+      height: 4,
       interactions: {
         receive: { tileId: "door-open", when: "on", mode: "any" },
       },
@@ -194,17 +194,17 @@ describe("resolveReceive", () => {
   it("rejects an empty target, an unknown reading and an unknown mode", () => {
     const noTarget = tile({
       id: "a",
-      height: 2,
+      height: 4,
       interactions: { receive: { tileId: "", when: "on", mode: "any" } },
     });
     const badWhen = tile({
       id: "b",
-      height: 2,
+      height: 4,
       interactions: { receive: { tileId: "x", when: "maybe", mode: "any" } },
     });
     const badMode = tile({
       id: "c",
-      height: 2,
+      height: 4,
       interactions: { receive: { tileId: "x", when: "on", mode: "some" } },
     });
     expect(resolveReceive(noTarget)).toBeNull();
@@ -215,7 +215,7 @@ describe("resolveReceive", () => {
   it("is not something the player can act on", () => {
     const def = tile({
       id: "door",
-      height: 2,
+      height: 4,
       interactions: {
         receive: { tileId: "door-open", when: "on", mode: "any" },
       },

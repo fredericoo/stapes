@@ -42,16 +42,16 @@ function tile(
 
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
-  tile({ id: "wall", height: 2, walkable: false }),
+  tile({ id: "wall", height: 4, walkable: false }),
   // Half a level of solid: something to see over.
-  tile({ id: "crate", height: 1, walkable: false }),
+  tile({ id: "crate", height: 2, walkable: false }),
   // Solid to a body, transparent to light — so, transparent to a look.
-  tile({ id: "window", height: 2, walkable: false, lightPassing: true }),
+  tile({ id: "window", height: 4, walkable: false, lightPassing: true }),
   // Half a level of *floor*: ground you stand on top of, not something in the
   // way. The distinction is the whole of the elevation cases below.
-  tile({ id: "step", height: 1 }),
+  tile({ id: "step", height: 2 }),
   // Light-passing, like every body in the game, so it never walls itself in.
-  tile({ id: "body", height: 1, walkable: false, lightPassing: true }),
+  tile({ id: "body", height: 2, walkable: false, lightPassing: true }),
 ];
 
 const tilesById = Object.fromEntries(tiles.map((t) => [t.id, t]));
@@ -82,8 +82,8 @@ const from = { x: 0, y: 0, z: 0 };
  * own, and the bug this replaced was a threshold that only ever read one of them.
  */
 describe("seeing over things, by how tall you are", () => {
-  const PERSON = 2;
-  const RAT = 1;
+  const PERSON = 4;
+  const RAT = 2;
   const beyond = { x: 5, y: 0, z: 0 };
 
   it("lets a person see over a crate that stops a rat", () => {
@@ -98,8 +98,8 @@ describe("seeing over things, by how tall you are", () => {
    */
   it("blocks a looker exactly as tall as the thing in the way", () => {
     const map = put(field(), 2, 0, "crate");
-    expect(hasLineOfSight(map, tilesById, from, beyond, 1)).toBe(false);
-    expect(hasLineOfSight(map, tilesById, from, beyond, 1.5)).toBe(true);
+    expect(hasLineOfSight(map, tilesById, from, beyond, 2)).toBe(false);
+    expect(hasLineOfSight(map, tilesById, from, beyond, 3)).toBe(true);
   });
 
   it("stops everybody at a full-height wall", () => {
@@ -122,7 +122,7 @@ describe("seeing over things, by how tall you are", () => {
     ]);
     expect(hasLineOfSight(map, tilesById, from, beyond, PERSON)).toBe(false);
     // Taller than the two crates together, and over it.
-    expect(hasLineOfSight(map, tilesById, from, beyond, 3)).toBe(true);
+    expect(hasLineOfSight(map, tilesById, from, beyond, 6)).toBe(true);
   });
 
   /** Height decides nothing about glass: a window is see-through to anybody. */

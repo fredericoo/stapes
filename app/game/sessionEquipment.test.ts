@@ -73,10 +73,10 @@ const tiles: TileDef[] = [
   tile({ id: "grass" }),
   // Something with volume, which is what it takes to bury a thing: a flat tile
   // lying on top of another one hides nothing.
-  tile({ id: "crate", height: 1 }),
+  tile({ id: "crate", height: 2 }),
   tile({
     id: "player",
-    height: 2,
+    height: 4,
     kind: "battler",
     directional: true,
     walkable: false,
@@ -103,7 +103,7 @@ const tiles: TileDef[] = [
   }),
   tile({
     id: "dummy",
-    height: 1,
+    height: 2,
     kind: "battler",
     actor: true,
     walkable: false,
@@ -122,7 +122,7 @@ const tiles: TileDef[] = [
   // so. No brain, so it stands where it is put.
   tile({
     id: "packrat",
-    height: 1,
+    height: 2,
     kind: "battler",
     actor: true,
     walkable: false,
@@ -137,7 +137,7 @@ const tiles: TileDef[] = [
   // A creature with a mind of its own — a resident, and nobody's player.
   tile({
     id: "deer",
-    height: 1,
+    height: 2,
     kind: "battler",
     walkable: false,
     interactions: {

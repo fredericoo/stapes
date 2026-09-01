@@ -247,7 +247,7 @@ const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
   tile({
     id: "player",
-    height: 2,
+    height: 4,
     directional: true,
     walkable: false,
     variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
@@ -259,7 +259,7 @@ const tiles: TileDef[] = [
   // is being measured is what a fight pays, not who decides to have one.
   tile({
     id: "sparring-partner",
-    height: 1,
+    height: 2,
     actor: true,
     walkable: false,
     interactions: {
@@ -270,7 +270,7 @@ const tiles: TileDef[] = [
   // every blow is a miss rather than a dodge.
   tile({
     id: "flailer",
-    height: 1,
+    height: 2,
     actor: true,
     walkable: false,
     interactions: {

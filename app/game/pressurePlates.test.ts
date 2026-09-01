@@ -47,7 +47,7 @@ function directionalTile(id: string, extra: Record<string, unknown> = {}) {
   return normalizeTileDef({
     id,
     name: id,
-    height: 2,
+    height: 4,
     directional: true,
     attributes: {},
     variants: { n: frames, e: frames, s: frames, w: frames },
@@ -58,12 +58,12 @@ function directionalTile(id: string, extra: Record<string, unknown> = {}) {
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
   tile({ id: "rug", height: 0 }),
-  tile({ id: "ghost", height: 2, intangible: true }),
-  tile({ id: "wall", height: 2 }),
+  tile({ id: "ghost", height: 4, intangible: true }),
+  tile({ id: "wall", height: 4 }),
   directionalTile("player", { affectedByGravity: true, walkable: false }),
   tile({
     id: "crate",
-    height: 1,
+    height: 2,
     affectedByGravity: true,
     interactions: { push: { climb: "half", moveOnTileIds: [] } },
   }),
@@ -155,7 +155,7 @@ describe("loadAbove", () => {
       { tileId: "plate" },
       { tileId: "crate" },
     ];
-    expect(loadAbove(stack, 1, tilesById)).toBe(1);
+    expect(loadAbove(stack, 1, tilesById)).toBe(2);
     expect(loadAbove(stack, 2, tilesById)).toBe(0);
   });
 

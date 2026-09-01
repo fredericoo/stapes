@@ -52,22 +52,22 @@ function tile(
 
 const tilesById = tilesByIdFromList([
   tile({ id: "grass", height: 0 }),
-  tile({ id: "slab", height: 1 }),
+  tile({ id: "slab", height: 2 }),
   tile({
     id: "crate",
-    height: 1,
+    height: 2,
     interactions: {
       push: { climb: "half", moveOnTileIds: [] },
     },
   }),
   tile({
     id: "door-closed",
-    height: 1,
+    height: 2,
     interactions: { switch: { targetTileId: "door-open" } },
   }),
   tile({
     id: "cat",
-    height: 1,
+    height: 2,
     kind: "battler",
     interactions: {
       battler: {

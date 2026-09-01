@@ -249,9 +249,9 @@ describe("reachOf", () => {
   });
 
   it("is whatever the author named, when they named one", () => {
-    expect(reachOf({ reach: { cells: 6, height: 2 } })).toEqual({
+    expect(reachOf({ reach: { cells: 6, height: 4 } })).toEqual({
       cells: 6,
-      height: 2,
+      height: 4,
     });
   });
 
@@ -295,8 +295,8 @@ describe("itemForSave", () => {
   });
 
   it("keeps a reach the author did name", () => {
-    const bow = { ...DEFAULT_WEAPON, reach: { cells: 6, height: 2 } };
-    expect(weaponForSave(bow).reach).toEqual({ cells: 6, height: 2 });
+    const bow = { ...DEFAULT_WEAPON, reach: { cells: 6, height: 4 } };
+    expect(weaponForSave(bow).reach).toEqual({ cells: 6, height: 4 });
   });
 
   it("keeps armour's defence, and drops the resistances that say nothing", () => {

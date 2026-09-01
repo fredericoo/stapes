@@ -48,7 +48,7 @@ function directionalTile(id: string, extra: Record<string, unknown> = {}) {
   return normalizeTileDef({
     id,
     name: id,
-    height: 2,
+    height: 4,
     directional: true,
     attributes: {},
     variants: { n: frames, e: frames, s: frames, w: frames },
@@ -58,8 +58,8 @@ function directionalTile(id: string, extra: Record<string, unknown> = {}) {
 
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
-  tile({ id: "wall", height: 2 }),
-  tile({ id: "crate", height: 1, affectedByGravity: true }),
+  tile({ id: "wall", height: 4 }),
+  tile({ id: "crate", height: 2, affectedByGravity: true }),
   directionalTile("player", { affectedByGravity: true, walkable: false }),
   directionalTile("deer", {
     actor: true,
@@ -85,7 +85,7 @@ const tiles: TileDef[] = [
   // The doorway: pressed from the next square over.
   tile({
     id: "portal",
-    height: 2,
+    height: 4,
     interactions: {
       teleport: {
         actionName: "Enter",
@@ -96,7 +96,7 @@ const tiles: TileDef[] = [
   }),
   // Intangible, like the real one: it marks the top of a climb and holds
   // nobody up, which is the whole point of the case below.
-  tile({ id: "ladder-top", height: 1, intangible: true }),
+  tile({ id: "ladder-top", height: 2, intangible: true }),
   // A delta that travels nowhere, which reads as unauthored rather than as a
   // rung that takes a press and does nothing.
   tile({

@@ -46,7 +46,7 @@ const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
   tile({
     id: "player",
-    height: 2,
+    height: 4,
     directional: true,
     affectedByGravity: true,
     walkable: false,
@@ -97,7 +97,7 @@ describe("drawing a fall", () => {
       expect(drop).toBeGreaterThanOrEqual(0);
       expect(drop).toBeLessThanOrEqual(MAX_STEP_PER_FRAME);
     }
-    // And it actually fell the whole way: 8 height units down to the grass.
+    // And it actually fell the whole way: 16 height units down to the grass.
     expect(previous).toBe(0);
   });
 
@@ -107,7 +107,7 @@ describe("drawing a fall", () => {
 
     session.update(FRAME_MS);
 
-    expect(before).toBe(8);
+    expect(before).toBe(16);
     expect(drawnFootAbs(session)).toBeLessThanOrEqual(before);
   });
 });

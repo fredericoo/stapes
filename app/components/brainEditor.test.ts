@@ -23,7 +23,7 @@ const frame = {
 function tile(partial: Record<string, unknown> & { id: string }): TileDef {
   return normalizeTileDef({
     name: partial.id,
-    height: 1,
+    height: 2,
     directional: false,
     variants: { default: [frame] },
     attributes: {},
@@ -33,9 +33,9 @@ function tile(partial: Record<string, unknown> & { id: string }): TileDef {
 
 /** A player, two things that can be bodies, and scenery that cannot. */
 const LIBRARY: TileDef[] = [
-  tile({ id: "stone-wall", height: 2 }),
+  tile({ id: "stone-wall", height: 4 }),
   tile({ id: "rat", actor: true }),
-  tile({ id: "player", height: 2 }),
+  tile({ id: "player", height: 4 }),
   tile({ id: "cat", interactions: { brain: { initial: "i", states: { i: { do: [] } }, transitions: [] } } }),
 ];
 
@@ -167,7 +167,7 @@ describe("offering selectors", () => {
 
   /** A tile's own name, so the picker reads as the world does. */
   it("labels each nearest option with the tile name", () => {
-    const named = [tile({ id: "player", height: 2, name: "Player" })];
+    const named = [tile({ id: "player", height: 4, name: "Player" })];
     expect(selectorOptions({ initial: "i", states: { i: { do: [] } }, transitions: [] }, named)[0])
       .toMatchObject({ key: "nearest:player", label: "nearest Player" });
   });
@@ -185,7 +185,7 @@ describe("offering selectors", () => {
    * authored flag — so the rule that finds the others cannot find it.
    */
   it("keeps the player even though nothing marks it an actor", () => {
-    expect(bodyTileIds([tile({ id: "player", height: 2 })])).toEqual(["player"]);
+    expect(bodyTileIds([tile({ id: "player", height: 4 })])).toEqual(["player"]);
   });
 
   /**

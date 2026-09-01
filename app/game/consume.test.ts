@@ -86,10 +86,10 @@ const tiles: TileDef[] = [
   tile({ id: "grass" }),
   // Something with volume, which is what it takes to bury a thing: a flat tile
   // lying on top of another one hides nothing.
-  tile({ id: "crate", height: 1 }),
+  tile({ id: "crate", height: 2 }),
   tile({
     id: "player",
-    height: 2,
+    height: 4,
     kind: "battler",
     directional: true,
     walkable: false,

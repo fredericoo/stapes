@@ -58,8 +58,8 @@ function mapAt(
 }
 
 const floor = tile({ id: "floor", height: 0 });
-const wall = tile({ id: "wall", height: 2 });
-const half = tile({ id: "half", height: 1 });
+const wall = tile({ id: "wall", height: 4 });
+const half = tile({ id: "half", height: 2 });
 const water = tile({ id: "water", height: 0, lightPassing: true });
 const torch = tile({
   id: "torch",
@@ -102,7 +102,7 @@ describe("stackOcclusion", () => {
   it("still occludes with authored height when intangible", () => {
     const openDoor = tile({
       id: "door-open",
-      height: 2,
+      height: 4,
       intangible: true,
       walkable: false,
     });
@@ -172,7 +172,7 @@ describe("emitterCenter", () => {
   it("raises Z by half the tile height", () => {
     const tall = tile({
       id: "lamp",
-      height: 2,
+      height: 4,
       light: { radius: 4, intensity: 1, color: "#ffffff" },
     });
     const byId = { ...tilesById, lamp: tall };
@@ -186,7 +186,7 @@ describe("emitterCenter", () => {
   it("uses authored height for an intangible emitter", () => {
     const lamp = tile({
       id: "ghost-lamp",
-      height: 2,
+      height: 4,
       intangible: true,
       light: { radius: 4, intensity: 1, color: "#ffffff" },
     });

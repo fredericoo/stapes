@@ -337,8 +337,9 @@ while somebody is away — a wall goes up, a box gets pushed onto their cell, th
 editor replaces the map entirely — so `findEntryCell` bubbles outward from it
 (`ENTRY_SEARCH_RADIUS`, neighbours in WNES order) and falls back to the spawn
 point. The predicate is `fitsTile`, the same volume check the editor places
-against: a half-height tile dropped where you stood leaves just enough headroom
-until there is a roof on the level above, and then it does not. Everything below
+against: a tile dropped where you stood leaves headroom for a body three units
+tall, which is the whole of why a level is four — see *A level is four height
+units, and a body is three*. Everything below
 the feet is left to gravity, exactly as it is for an actor arriving at spawn.
 
 **Every path that seats an actor consults it, and the map still wins.** `spawn`
@@ -511,6 +512,53 @@ belong to the interaction and are the same everywhere, but nothing derivable
 from two tiles pointing at each other says which half opens and which shuts. The
 field is optional and blank is legal — every switch in `data/` predates it — so
 anything offering the action falls back to naming the kind.
+
+## A level is four height units, and a body is three
+
+**A level is a ceiling as well as a floor**, and that is the whole of this. An
+interior is exactly one storey tall, so a body as tall as a storey has its head
+in the floor above the instant anything raises it, and `fitsHeightAtElevation`
+refuses to put it there. That is not a bug in the fit check — it is the honest
+answer to a body with no headroom. Every chair, stool, table and crate inside
+every building in `data/map.json` was unstandable-on for that reason, and a
+wolf could get onto the pub chair that the player could not, because a wolf is
+half a level and the player was a whole one.
+
+**Two units to a level could not say the fix.** The only height below a full
+level was one — half a level, the height of a rat — so "a person is a little
+shorter than a storey" was not a sentence the world had the vocabulary for. At
+four it is: `player` is 3, and standing on a 1-unit stool puts its head exactly
+at the floor above, which `fitsHeightAtElevation` allows because standing on a
+surface is not intersecting it.
+
+**The bill is paid in pixels, and it is the constraint to remember when
+authoring.** `PX_PER_HEIGHT` is `CELL_SIZE / HEIGHT_PER_LEVEL`, so one unit is
+2px. Anything a three-high body stands on *under a roof* has to be a single
+unit — 2px of apparent lift. That is the whole indoor furniture vocabulary:
+`chair` and `stool` are 1, and `table`, `barrel` and the crates stayed at 2
+(half a level) and are deliberately still things you walk around indoors rather
+than onto. Outdoors, with nothing overhead, any height climbs as before.
+
+**Nothing stored had to be migrated.** A map holds tile ids and stack order,
+never elevations — every height in the world is derived from `data/tiles.json`
+at read time — so doubling the authored heights moved the whole board at once
+and a checkpoint written before the change reads correctly after it. Saved
+player positions are `(x, y, z)`, levels rather than units, and were untouched
+for the same reason.
+
+**What derives, and must go on deriving.** `PX_PER_HEIGHT`, `RAY_DEPTH_ELEV`,
+`MAX_CLIMB_HEIGHT` (half a level), `CLIMB_HEIGHT_UNITS`, `FALL_MS_PER_HEIGHT`
+(from `FALL_MS_PER_LEVEL`, so a storey still falls in 400ms) and
+`MELEE_REACH.height` are all written as expressions over `HEIGHT_PER_LEVEL`
+rather than as numbers. They were numbers, and every one of them would have
+silently halved the thing it measures. If you subdivide a level again, the test
+of whether you have finished is that none of these needed touching.
+
+**What does not scale, and must not be scaled.** A pressure plate's `height` is
+a threshold at the boundary between "nothing solid" and "something solid", so
+`gte 1` still reads as "something is standing here" and doubling it would have
+stopped a stool tripping a plate. `BattlerDef.sight.up`/`down` count **floors**,
+not units. Both were left alone on purpose.
 
 ## A chase is a route, and it stops being one
 
@@ -945,8 +993,8 @@ The pair is also what the rest of the game was already doing in private:
 brain's `in_range` measures plan steps plus its sight's up and down. Neither
 could be written against the sphere, so neither was.
 
-Height is in **height units** (two to a level) and absolute, never in floors: a
-body on a crate is half a level above the floor it shares with you, and half a
+Height is in **height units** (four to a level) and absolute, never in floors:
+a body on a crate is half a level above the floor it shares with you, and half a
 level is the only unit an arm's reach can be said in.
 
 **`BattlerDef.range` is gone, not deprecated.** Reach is `WeaponItem.reach`, so a

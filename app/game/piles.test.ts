@@ -55,7 +55,7 @@ const tiles: TileDef[] = [
   tile({ id: "grass" }),
   tile({
     id: "player",
-    height: 2,
+    height: 4,
     kind: "battler",
     directional: true,
     walkable: false,

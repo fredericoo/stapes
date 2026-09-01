@@ -44,14 +44,14 @@ const tiles: TileDef[] = [
   /** A full level of solid nobody walks on: a wall. */
   tile({ id: "wall", height: HEIGHT_PER_LEVEL, walkable: false }),
   /** Half a level, solid: a crate. Feet do not pass it, and nor do they climb it. */
-  tile({ id: "crate", height: 1, walkable: false }),
+  tile({ id: "crate", height: 2, walkable: false }),
   /** Half a level you can stand on — the whole of what "climbable" means here. */
-  tile({ id: "step", height: 1 }),
+  tile({ id: "step", height: 2 }),
   /** A full level you can stand on, so the level above it has a floor. */
   tile({ id: "block", height: HEIGHT_PER_LEVEL }),
   tile({
     id: "rat",
-    height: 1,
+    height: 2,
     actor: true,
     affectedByGravity: true,
     walkable: false,

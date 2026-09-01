@@ -98,7 +98,7 @@ export type StatusParticles = {
   /**
    * Height units above the tile's foot a particle is born between.
    *
-   * `0, 0` is the floor of the tile — where poison bubbles start. `0, 2` is the
+   * `0, 0` is the floor of the tile — where poison bubbles start. `0, 4` is the
    * whole body of a one-level tile, which is where a fire is.
    */
   spawnElevFrom: number;
@@ -298,10 +298,10 @@ export const DEFAULT_PARTICLES: StatusParticles = {
   spawnRadiusCells: 0.4,
   spawnElevFrom: 0,
   spawnElevTo: 0,
-  riseFrom: 1.5,
-  riseTo: 3,
+  riseFrom: 3,
+  riseTo: 6,
   driftCellsPerSecond: 0.25,
-  gravity: -0.8,
+  gravity: -1.6,
   // Lit by default on the *editor's* fresh emitter, unlike the type's own
   // resting state: a new plume is far more often smoke or gas than fire, and an
   // author who wants embers turns it off having seen what the difference is.
@@ -348,10 +348,10 @@ const particlesSchema = v.pipe(
     ttlFromMs: particleTtlMs,
     ttlToMs: particleTtlMs,
     spawnRadiusCells: v.pipe(v.number(), v.minValue(0), v.maxValue(4)),
-    spawnElevFrom: v.pipe(v.number(), v.minValue(0), v.maxValue(16)),
-    spawnElevTo: v.pipe(v.number(), v.minValue(0), v.maxValue(16)),
-    riseFrom: v.pipe(v.number(), v.minValue(-16), v.maxValue(16)),
-    riseTo: v.pipe(v.number(), v.minValue(-16), v.maxValue(16)),
+    spawnElevFrom: v.pipe(v.number(), v.minValue(0), v.maxValue(32)),
+    spawnElevTo: v.pipe(v.number(), v.minValue(0), v.maxValue(32)),
+    riseFrom: v.pipe(v.number(), v.minValue(-32), v.maxValue(32)),
+    riseTo: v.pipe(v.number(), v.minValue(-32), v.maxValue(32)),
     driftCellsPerSecond: v.pipe(v.number(), v.minValue(0), v.maxValue(8)),
     // Defaulted false, so every plume authored before this existed keeps
     // glowing in the dark exactly as it did — a silent change to how a fire

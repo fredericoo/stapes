@@ -31,7 +31,7 @@ function tile(partial: Record<string, unknown>): TileDef {
 
 const tiles = [
   tile({ id: "grass" }),
-  tile({ id: "rock", height: 1 }),
+  tile({ id: "rock", height: 2 }),
   tile({ id: "sword", kind: "item", interactions: { item: DEFAULT_WEAPON } }),
   tile({ id: "bag", kind: "item", interactions: { item: DEFAULT_CONTAINER } }),
   tile({

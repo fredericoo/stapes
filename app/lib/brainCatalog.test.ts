@@ -33,7 +33,7 @@ function tileWithBrain(brain: BrainDef): TileDef {
   return normalizeTileDef({
     id: "creature",
     name: "creature",
-    height: 1,
+    height: 2,
     directional: false,
     variants: { default: [frame] },
     attributes: {},
