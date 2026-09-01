@@ -4,6 +4,7 @@ import {
   absoluteElevation,
   baseCellWorldOrigin,
   type DepthBox,
+  DEPTH_LEAST_BODY,
   depthBox,
   depthStackBias,
   spriteWorldOrigin,
@@ -21,6 +22,7 @@ import {
   listCoords,
   stackHeight,
 } from "../lib/mapData";
+import { countOf } from "../lib/piles";
 import type {
   Frame,
   MapFile,
@@ -74,6 +76,11 @@ import {
   OUTLINE_ALPHA_UNIFORM,
   pulseAlphaAt,
 } from "./overlayMeshes";
+import {
+  NO_PILE_OFFSET,
+  pileDepthNudge,
+  pileOffsets,
+} from "./pileLayout";
 import { animationKey, type SpriteQuadAssets, spriteQuadFor } from "./spriteQuad";
 import { noTintUniforms, tintCacheKey, tintUniforms } from "./spriteTint";
 import type { StatusTint } from "../lib/statusVfx";
@@ -768,7 +775,7 @@ export class WorldRenderer {
    * signature gates it — this is called every frame from the play loop.
    */
   setOverlays(specs: OverlaySpec[]) {
-    const sig = specs.map(overlaySpecKey).join("|");
+    const sig = specs.map((spec) => this.overlayKey(spec)).join("|");
     if (sig === this.overlaySig) return;
     this.overlaySig = sig;
 
@@ -812,6 +819,26 @@ export class WorldRenderer {
     }
   }
 
+  /**
+   * {@link overlaySpecKey}, plus the one thing about a tile's *appearance* that
+   * belongs in it.
+   *
+   * That key deliberately holds nothing about how a tile looks, because an
+   * outline follows the mesh it was cut around. A heap breaks the deliberate
+   * part: its outline is one ring per thing in it, so eating a berry out of a
+   * pile somebody is pointing at changes how many rings are correct while every
+   * other word in the key stays the same. Absent for anything that is not a
+   * pile, so no key in the game but a heap's changes by a character.
+   */
+  private overlayKey(spec: OverlaySpec): string {
+    const key = overlaySpecKey(spec);
+    if (spec.kind === "ghost") return key;
+    const map = this.view?.map;
+    const placed = map && getStack(map, spec.x, spec.y, spec.z)[spec.stackIndex];
+    const count = placed ? countOf(placed) : 1;
+    return count > 1 ? `${key}x${count}` : key;
+  }
+
   /** The placed tile an overlay refers to, plus the elevation it is drawn at. */
   private overlaySubject(key: TileInstanceKey) {
     const map = this.view?.map;
@@ -833,12 +860,12 @@ export class WorldRenderer {
       this.addGhost(spec);
       return;
     }
-    const outline = this.outlineFor(spec);
-    if (!outline) return;
-    if (spec.pulse) {
-      this.pulsingOutlines.push(outline.material as THREE.ShaderMaterial);
+    for (const outline of this.outlinesFor(spec)) {
+      if (spec.pulse) {
+        this.pulsingOutlines.push(outline.material as THREE.ShaderMaterial);
+      }
+      this.overlays.add(outline);
     }
-    this.overlays.add(outline);
   }
 
   /**
@@ -850,18 +877,27 @@ export class WorldRenderer {
    * than facts the chrome has to be told about. That is the whole of keeping an
    * outline in step — every other tile is in a merged batch precisely because
    * nothing about it can change, so cutting it a quad of its own is exact too.
+   *
+   * **A list, because a heap is one placement drawn several times.** Outlining
+   * only the quad the placement would have drawn on its own put a ring around a
+   * single berry in the middle of a dozen — which reads as "that one", where
+   * what a press actually takes is all of them. One ring per sprite says the
+   * true thing, and it says it in the same offsets the sprites were drawn at, so
+   * the chrome cannot disagree with the art about where the berries are. See
+   * `./pileLayout`.
    */
-  private outlineFor(spec: ObjectOutlineOverlay): THREE.Mesh | null {
+  private outlinesFor(spec: ObjectOutlineOverlay): THREE.Mesh[] {
     const key = this.tileKey(spec);
     const source = this.movableMeshes.get(key);
     if (source) {
       const outline = makeFollowingSpriteOutline(source, spec.color);
-      if (outline) this.followingOutlines.push({ outline, source });
-      return outline;
+      if (!outline) return [];
+      this.followingOutlines.push({ outline, source });
+      return [outline];
     }
 
     const subject = this.overlaySubject(spec);
-    if (!subject) return null;
+    if (!subject) return [];
     const quad = spriteQuadFor(
       this.quadAssets(),
       subject.map,
@@ -869,7 +905,23 @@ export class WorldRenderer {
       subject.placed,
       subject.def,
     );
-    return quad ? makeSpriteOutline(quad, spec.color) : null;
+    if (!quad) return [];
+    // The borrowed branch above has already taken every tile with a mesh of its
+    // own, which is every tile a pile is not — so the count is read straight
+    // off the placement here, exactly as `cellItems` reads it.
+    const offsets = pileOffsets(countOf(subject.placed));
+    return offsets.map((offset, i) =>
+      makeSpriteOutline(
+        { ...quad, x: quad.x + offset.dx, y: quad.y + offset.dy },
+        spec.color,
+        // Where the others are, from here. Told to each ring so the heap comes
+        // out with one silhouette around the whole of it rather than a dozen
+        // rings crossing through it — see `./overlayMeshes`' `OutlinePeers`.
+        offsets.flatMap((other, j) =>
+          i === j ? [] : [{ dx: offset.dx - other.dx, dy: offset.dy - other.dy }],
+        ),
+      ),
+    );
   }
 
 
@@ -1892,7 +1944,6 @@ export class WorldRenderer {
       if (!tileset) return;
 
       const foot = absoluteElevation(z, elev);
-      const box = depthBox(x, y, foot, foot + def.height);
       const baseOrigin = baseCellWorldOrigin(x, y, z, elev);
       const origin = spriteWorldOrigin(baseOrigin, first.sprite.base);
       const { rect } = first.sprite;
@@ -1918,42 +1969,84 @@ export class WorldRenderer {
       const separate = isAnimated || isMobileTile(def);
       const animKey = animationKey(def, placed, x, y, z, state);
 
-      items.push({
-        x: origin.x,
-        y: origin.y,
-        w,
-        h,
-        u0,
-        v0,
-        u1,
-        v1,
-        box,
-        stackBias: depthStackBias(z, stackIndex),
-        texture,
-        lightX0: x,
-        lightY0: y,
-        lightX1: x + 1,
-        lightY1: y + 1,
-        unlit: tileCanEmitLight(def),
-        tileKey: separate ? instanceKey : undefined,
-        // Registered when it merely *can* change state, not only when it
-        // animates: a creature standing still on one frame becomes a four-frame
-        // walk cycle the moment it steps, and the registry is what the state
-        // pass reaches it through.
-        anim:
-          (isAnimated || hasSpriteStates(def)) && frames
-            ? {
-                frames,
-                tileset,
-                animKey,
-                def,
-                placed,
-                cell: { x, y, z },
-                state,
-                frameIdx,
-              }
-            : undefined,
-      });
+      // **A pile draws once per thing in it**, laid out like the pips on a die —
+      // see `./pileLayout`. Everything else in the world is a pile of one and
+      // takes the single centred offset, so this loop runs once and moves
+      // nothing for all but a handful of cells.
+      //
+      // A tile with a mesh of its own draws once whatever its count says, and
+      // the reason is `tileKey` and `anim` below: both name *one* mesh, and a
+      // second copy carrying either would collide in `movableMeshes` or leave a
+      // stale entry in the animated list. Nothing that piles is animated or
+      // mobile — only food piles — so this is a rule that keeps the invariant
+      // rather than one anybody trips over.
+      const offsets = separate ? NO_PILE_OFFSET : pileOffsets(countOf(placed));
+      const stackBias = depthStackBias(z, stackIndex);
+      // **A heap declares a body, however flat the tile it is made of.**
+      //
+      // A pile's sprites are spread across their cell, so the southern ones hang
+      // over the cell in front — and `../lib/geometry`'s `boxSurface` rescues
+      // that art only for a box with volume, on the grounds that a *flat* tile's
+      // art past its own foot is more floor and two coplanar floors keep painter
+      // order. That is right about a floor and wrong about a heap of berries,
+      // which is an object lying on the ground: without this the bottom of every
+      // pile is drawn under the floor of the cell in front of it.
+      //
+      // A hair of one, not a real height — see {@link DEPTH_LEAST_BODY}. What
+      // the tile declares still wins where it declares anything, and the height
+      // that decides stacking and gravity is untouched: this is a fact about
+      // sorting, and it lives here rather than on the tile because that is all
+      // it is.
+      const body =
+        offsets.length > 1 ? Math.max(def.height, DEPTH_LEAST_BODY) : def.height;
+      const box = depthBox(x, y, foot, foot + body);
+
+      // An indexed loop rather than `forEach`: this runs once per placement on a
+      // floor — thousands of them per rebuild — and a callback here is a closure
+      // allocated per tile to walk a list that is one long for all but a handful
+      // of them.
+      for (let i = 0; i < offsets.length; i++) {
+        const offset = offsets[i]!;
+        items.push({
+          x: origin.x + offset.dx,
+          y: origin.y + offset.dy,
+          w,
+          h,
+          u0,
+          v0,
+          u1,
+          v1,
+          box,
+          // Inside one stack index, so the sprites of a heap overlap front to
+          // back without the heap moving relative to anything above or below it
+          // in the stack. See `pileDepthNudge`.
+          stackBias: stackBias + pileDepthNudge(i, offsets.length),
+          texture,
+          lightX0: x,
+          lightY0: y,
+          lightX1: x + 1,
+          lightY1: y + 1,
+          unlit: tileCanEmitLight(def),
+          tileKey: separate ? instanceKey : undefined,
+          // Registered when it merely *can* change state, not only when it
+          // animates: a creature standing still on one frame becomes a four-frame
+          // walk cycle the moment it steps, and the registry is what the state
+          // pass reaches it through.
+          anim:
+            (isAnimated || hasSpriteStates(def)) && frames
+              ? {
+                  frames,
+                  tileset,
+                  animKey,
+                  def,
+                  placed,
+                  cell: { x, y, z },
+                  state,
+                  frameIdx,
+                }
+              : undefined,
+        });
+      }
 
       elev += physicalHeight(def);
     });

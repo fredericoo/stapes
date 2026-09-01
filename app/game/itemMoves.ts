@@ -1,6 +1,15 @@
 import { getStack, replaceStack } from "../lib/mapData";
 import { resolveContainer } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
+import {
+  countOf,
+  fuses,
+  peelOne,
+  pourInto,
+  stow,
+  stowFits,
+  withCount,
+} from "../lib/piles";
 import { EQUIP_SLOTS, type EquipSlot } from "../lib/kit";
 import type { MapFile, PlacedTile, TileDef } from "../lib/types";
 import { reachableItemDefAt, type Actor, type ObjectRef } from "./affordances";
@@ -352,7 +361,13 @@ function slotHasRoom(
   instance: ItemInstance,
 ): boolean {
   if (isBodySlot(slot)) {
-    if (equipment[slot.kind] !== null) return false;
+    // A square that is taken is still a destination for exactly one thing: a
+    // pile of the same food with room for all of it. That is the one place in
+    // the game a move lands on something rather than beside it, and it is not a
+    // swap — nothing comes back out, because there is nothing left of what went
+    // in. See `../lib/piles`.
+    const held = equipment[slot.kind];
+    if (held) return fuses(held, instance, tilesById);
     const def = tilesById[instance.tileId];
     return isHand(slot.kind) && def
       ? handHasRoomFor(equipment, tilesById, slot.kind, def)
@@ -361,13 +376,18 @@ function slotHasRoom(
   if (slot.kind === "contents") {
     const holder = equipment[contentsHolder(slot)];
     if (!holder) return false;
-    return (holder.contents?.length ?? 0) < capacityOf(holder, tilesById);
+    return stowFits(
+      holder.contents ?? [],
+      instance,
+      capacityOf(holder, tilesById),
+      tilesById,
+    );
   }
   const placed = groundContainerAt(map, tilesById, actor, slot.ref);
   if (!placed) return false;
   const def = tilesById[placed.tileId];
   const size = def ? (resolveContainer(def)?.size ?? 0) : 0;
-  return (placed.contents?.length ?? 0) < size;
+  return stowFits(placed.contents ?? [], instance, size, tilesById);
 }
 
 /** Rewrite a ground container's contents, leaving the rest of its slot alone. */
@@ -397,12 +417,24 @@ function withGroundContents(
  */
 export function stashInContainer(
   map: MapFile,
+  tilesById: Record<string, TileDef>,
   ref: ObjectRef,
   instance: ItemInstance,
 ): MapFile | null {
   const placed = getStack(map, ref.x, ref.y, ref.z)[ref.stackIndex];
   if (!placed) return null;
-  return withGroundContents(map, ref, [...(placed.contents ?? []), instance]);
+  // Poured into a pile already in there where one will take it, and appended
+  // otherwise — with no capacity check, exactly as before. `dropDestinationAt`
+  // only aims a throw at a box with a free square, which is the *conservative*
+  // half of this: a full box of berries refuses to catch a berry and the throw
+  // lands on the floor instead. Nothing over-promises, and the fix if that ever
+  // grates is one question further up, not a second rule here.
+  const contents = placed.contents ?? [];
+  return withGroundContents(
+    map,
+    ref,
+    pourInto(contents, instance, tilesById) ?? [...contents, instance],
+  );
 }
 
 /** The board and the kit after a move. Whichever half did not change is `===`. */
@@ -513,6 +545,59 @@ export function clearSlot(
 }
 
 /**
+ * Take exactly one thing out of a slot, leaving the rest of the pile behind.
+ *
+ * **The other way something leaves a slot**, and the distinction is the whole of
+ * what a pile means to the rest of the game: a drop moves the pile and a meal
+ * spends one of it. {@link clearSlot} is the first; this is the second, and the
+ * two exist side by side so that neither has to take an amount nobody offered.
+ *
+ * Falls through to {@link clearSlot} for the last one, which is every item in
+ * the game that is not food: peeling one off a pile of one empties the square,
+ * exactly as eating a single berry always did.
+ */
+export function peelSlot(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  equipment: Equipment,
+  slot: SlotRef,
+): ItemMoveResult | null {
+  const instance = itemInSlot(map, tilesById, actor, equipment, slot);
+  if (!instance) return null;
+  const left = peelOne(instance);
+  if (!left) return clearSlot(map, tilesById, actor, equipment, slot);
+
+  if (isBodySlot(slot)) {
+    return { map, equipment: { ...equipment, [slot.kind]: left } };
+  }
+  if (slot.kind === "contents") {
+    const where = contentsHolder(slot);
+    const holder = equipment[where];
+    const contents = holder?.contents;
+    if (!holder || !contents) return null;
+    return {
+      map,
+      equipment: {
+        ...equipment,
+        [where]: { ...holder, contents: replaceAt(contents, slot.index, left) },
+      },
+    };
+  }
+  const placed = groundContainerAt(map, tilesById, actor, slot.ref);
+  const contents = placed?.contents;
+  if (!contents) return null;
+  return {
+    map: withGroundContents(
+      map,
+      slot.ref,
+      replaceAt(contents, slot.index, left),
+    ),
+    equipment,
+  };
+}
+
+/**
  * Put a thing in a slot, appending for a container.
  *
  * Appends rather than writing at an index, which is what keeps `contents` a list
@@ -528,6 +613,14 @@ function fillSlot(
   instance: ItemInstance,
 ): ItemMoveResult | null {
   if (isBodySlot(slot)) {
+    // The occupied case is a pour and nothing else — see {@link slotHasRoom},
+    // which is the only thing that ever lets one through.
+    const held = equipment[slot.kind];
+    if (held) {
+      if (!fuses(held, instance, tilesById)) return null;
+      const fused = withCount(held, countOf(held) + countOf(instance));
+      return { map, equipment: { ...equipment, [slot.kind]: fused } };
+    }
     return { map, equipment: { ...equipment, [slot.kind]: instance } };
   }
 
@@ -535,19 +628,27 @@ function fillSlot(
     const where = contentsHolder(slot);
     const holder = equipment[where];
     if (!holder) return null;
+    const contents = stow(
+      holder.contents ?? [],
+      instance,
+      capacityOf(holder, tilesById),
+      tilesById,
+    );
+    if (!contents) return null;
     return {
       map,
-      equipment: {
-        ...equipment,
-        [where]: { ...holder, contents: [...(holder.contents ?? []), instance] },
-      },
+      equipment: { ...equipment, [where]: { ...holder, contents } },
     };
   }
 
   const placed = groundContainerAt(map, tilesById, actor, slot.ref);
   if (!placed) return null;
+  const def = tilesById[placed.tileId];
+  const size = def ? (resolveContainer(def)?.size ?? 0) : 0;
+  const contents = stow(placed.contents ?? [], instance, size, tilesById);
+  if (!contents) return null;
   return {
-    map: withGroundContents(map, slot.ref, [...(placed.contents ?? []), instance]),
+    map: withGroundContents(map, slot.ref, contents),
     equipment,
   };
 }
@@ -555,4 +656,18 @@ function fillSlot(
 /** A copy with one entry gone, so the list stays holeless. */
 function removeAt(contents: ItemInstance[], index: number): ItemInstance[] {
   return contents.filter((_, i) => i !== index);
+}
+
+/**
+ * A copy with one entry rewritten, which is a pile that is smaller than it was.
+ *
+ * The only edit in this module that leaves a list the same length: everything
+ * else here adds or removes a thing, and a pile losing one of itself is neither.
+ */
+function replaceAt(
+  contents: readonly ItemInstance[],
+  index: number,
+  instance: ItemInstance,
+): ItemInstance[] {
+  return contents.map((held, i) => (i === index ? instance : held));
 }

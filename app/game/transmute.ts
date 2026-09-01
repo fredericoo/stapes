@@ -10,7 +10,7 @@ import {
 import type { Equipment, EquipSlot } from "./equipment";
 import {
   capacityOf,
-  clearSlot,
+  peelSlot,
   slotTakes,
   type SlotKind,
   type SlotRef,
@@ -139,11 +139,14 @@ export function planTransmute(
   const from = carriedSlotOf(equipment, recipe.fromTileId);
   if (!from) return null;
 
-  // Through the same emptier a move and a drop use, so there is one answer to
-  // "what does taking a thing out of a slot leave behind". Only kit slots are
-  // ever searched, so the map it hands back is the one it was given — this is
-  // asserted by the shape rather than by a check: nothing here reads it.
-  const spent = clearSlot(map, tilesById, actor, equipment, from);
+  // Through the same peeler a meal uses, so there is one answer to "what does
+  // spending *one* of a thing leave behind" — and a pile of three berries pays
+  // for one berry pie rather than being thrown whole onto the fire. It falls
+  // through to the emptier a move and a drop use for the last of anything, which
+  // is every non-food input there is. Only kit slots are ever searched, so the
+  // map it hands back is the one it was given — asserted by the shape rather
+  // than by a check: nothing here reads it.
+  const spent = peelSlot(map, tilesById, actor, equipment, from);
   if (!spent) return null;
 
   // All or nothing, and asked *after* the input has gone. Finding somewhere for
@@ -243,8 +246,12 @@ function returnSlots(
   const paidFromHand = from.kind === "weapon" || from.kind === "offhand";
   const paidFromHolder = paidFromHand ? null : (from.of ?? "bag");
 
-  if (paidFromHand) out.push(handSlot(from.kind as "weapon" | "offhand"));
-  else if (paidFromHolder) {
+  // Free only if paying actually emptied it: a hand that paid one berry out of
+  // three is a hand still holding two, and offering it would put the pie
+  // somewhere there is no room for one.
+  if (paidFromHand && !spent[from.kind as "weapon" | "offhand"]) {
+    out.push(handSlot(from.kind as "weapon" | "offhand"));
+  } else if (paidFromHolder) {
     out.push(...containerSlot(tilesById, spent, paidFromHolder));
   }
 
@@ -343,6 +350,15 @@ export function offeredTransmutations(
  * Takes the minting function rather than calling `mintItemId` itself so that
  * asking whether a recipe *could* run costs no identities — see
  * {@link canTransmuteFrom}, which stops at the plan.
+ *
+ * **What comes back does not pour into a pile.** Every output takes a square of
+ * its own, however much food of the same kind is already in there — cook twice
+ * and there are two steaks in two squares until something moves one of them.
+ * That is a deliberate gap: where a result goes is decided by
+ * {@link landingsFor}, which counts *empty* squares and hands the overflow to a
+ * free hand, so pouring here alone would leave a plan reaching for a hand while
+ * the pour it knew nothing about freed the square it had given up on. The two
+ * halves want changing together.
  */
 export function runTransmute(
   plan: TransmutePlan,

@@ -383,6 +383,21 @@ export type ConsumableItem = {
    * effect that did not happen, not as a world that will not start.
    */
   statuses?: StatusGrant[];
+  /**
+   * Most of these that fit in one pile, before a second pile has to start.
+   *
+   * **The one field that says a thing piles at all**, and it is on this arm
+   * rather than on every item because food is the only thing anybody wants a
+   * heap of: three loaves are three loaves, where two swords are two swords with
+   * two descriptions and two histories. A count is only honest about things that
+   * are interchangeable, and this is the arm where that is true.
+   *
+   * Authored per tile, because how much of a thing is a handful is a fact about
+   * the thing: a dozen berries fit in a fist that holds three loaves. Absent
+   * means {@link DEFAULT_PILE} — see {@link pileOf} for why that default is
+   * applied there rather than by the schema.
+   */
+  pile?: number;
 };
 
 /**
@@ -988,9 +1003,59 @@ export const CONSUME_FALLBACK_VERB = "Use";
  */
 export const MAX_CONSUMABLE_SOUND_LENGTH = 32;
 
+/**
+ * Both ends of an authored pile, in things.
+ *
+ * One is a real value rather than a floor nobody would write: a tile authored at
+ * one is a consumable that takes a square per copy, which is what every
+ * consumable in the game did before piles existed. The ceiling is a sanity bound
+ * on the terms {@link MAX_CONSUMABLE_HP_SHIFT} is — two digits is more berries
+ * than anybody is carrying, and a typo'd third reads as malformed rather than as
+ * a bag with no bottom.
+ */
+export const MIN_PILE = 1;
+export const MAX_PILE = 99;
+
+/**
+ * How much of a thing is a handful, when nobody has said.
+ *
+ * Applied by {@link pileOf} rather than by the schema, on exactly the terms a
+ * weapon's {@link reachOf} default is: the tile editor works on the *raw*
+ * authored block, so a default the schema filled in would be invisible in the
+ * one place somebody is deciding the number.
+ *
+ * Bigger than one, which is the whole reason it exists — "all food piles" has to
+ * be true of the food already in `data/tiles.json`, none of which carries this
+ * key. Small enough that a pile is still a thing you run out of: what a pile
+ * buys is fewer squares, not a bag that never empties.
+ */
+export const DEFAULT_PILE = 8;
+
 /** The authored verb, or the fallback where there is none to read. */
 export function consumeVerb(consumable: ConsumableItem): string {
   return consumable.label?.trim() || CONSUME_FALLBACK_VERB;
+}
+
+/** The authored pile size, or the handful every consumable gets for nothing. */
+export function pileOf(consumable: { pile?: number }): number {
+  return consumable.pile ?? DEFAULT_PILE;
+}
+
+/**
+ * Most of this tile that may share one pile — one for everything that does not.
+ *
+ * **The single place "only food piles" is written down.** Everything that moves
+ * a pile, fuses two or refuses a third asks this rather than asking what kind of
+ * item it is holding, so letting something else pile later is this function and
+ * nothing else.
+ *
+ * One rather than zero for a sword, so a pile is a count and never a special
+ * case: a pile of one is what every item in the game already was, and the
+ * arithmetic downstream never has to ask whether it is looking at one.
+ */
+export function pileMax(def: TileDef): number {
+  const consumable = resolveConsumable(def);
+  return consumable ? pileOf(consumable) : 1;
 }
 
 /**
@@ -1058,6 +1123,11 @@ export const DEFAULT_CONSUMABLE: ConsumableItem = {
   // Something rather than nothing, so a fresh consumable shows what the field
   // is for the moment it is used. It goes with the "Eat" above.
   sound: "crunch",
+  // Written out where every other default here is a value: the field is new and
+  // a blank number box beside "Pile" would read as "this does not pile", which
+  // is the one thing it does not mean. The number is the default it would take
+  // anyway.
+  pile: DEFAULT_PILE,
 };
 
 /**
@@ -1320,6 +1390,12 @@ const consumableSchema = v.object({
   // expected entries and silently reported every status as unknown. A tolerance
   // that only half the readers apply is worse than eight extra characters.
   statuses: v.optional(v.array(statusGrantSchema)),
+  // Optional, and absent is nearly every consumable in the file: the default
+  // lives in `pileOf` rather than here so the editor sees the same blank an
+  // author left. See {@link DEFAULT_PILE}.
+  pile: v.optional(
+    v.pipe(v.number(), v.integer(), v.minValue(MIN_PILE), v.maxValue(MAX_PILE)),
+  ),
 });
 
 const containerSchema = v.object({
@@ -1809,6 +1885,12 @@ export function itemForSave(item: ItemDef | undefined): ItemDef | undefined {
       ...(sound ? { sound } : {}),
       hp: item.hp,
       ...(statuses ? { statuses } : {}),
+      // Written whatever it says, on the terms a weapon's reach is: how much of
+      // a thing is a handful is something every consumable now has an opinion
+      // about, and omitting the default would make "a handful" and "nobody has
+      // said" the same line in the file — fine until somebody changes what a
+      // handful is.
+      pile: pileOf(item),
     };
   }
   // Nothing to name, and it is still rebuilt rather than passed through: the

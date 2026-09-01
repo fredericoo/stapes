@@ -24,6 +24,9 @@ import {
   MAX_CONSUMABLE_HP_SHIFT,
   MAX_CONSUMABLE_SOUND_LENGTH,
   MAX_CONTAINER_SIZE,
+  MAX_PILE,
+  MIN_PILE,
+  pileOf,
 } from "../lib/item";
 import { hasAnyInteraction, type TileInteractions } from "../lib/interactions";
 import { SLOT_LABELS } from "../lib/kit";
@@ -347,6 +350,20 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
               max={MAX_CONSUMABLE_HP_SHIFT}
               onChange={(hp) => patchConsumable({ hp })}
               readout={describeShift(item.hp, "Heals", "Harms")}
+            />
+
+            <StatField
+              label="Pile"
+              hint="How many of these share one square, in a bag or on a tile. One more starts a second pile. Food is the only thing that piles."
+              value={pileOf(item)}
+              min={MIN_PILE}
+              max={MAX_PILE}
+              onChange={(pile) => patchConsumable({ pile })}
+              readout={
+                pileOf(item) > MIN_PILE
+                  ? `Up to ${pileOf(item)} in a square`
+                  : "One per square"
+              }
             />
 
             <StatusGrants

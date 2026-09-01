@@ -22,6 +22,14 @@ import {
   resolveConsumable,
   resolveStone,
 } from "../lib/item";
+import {
+  appendItem,
+  countOf,
+  peelOne,
+  pourInto,
+  stow,
+  withCount,
+} from "../lib/piles";
 import type {
   Coord,
   Direction,
@@ -195,8 +203,10 @@ import {
 import {
   applyItemMove,
   canMoveItem,
+  capacityOf,
   clearSlot,
   itemInSlot,
+  peelSlot,
   stashInContainer,
   type SlotRef,
 } from "./itemMoves";
@@ -2327,6 +2337,7 @@ export class GameSession implements PlaySession {
         this.actors.values(),
         items,
         this.tilesById,
+        mintItemId,
       );
       this.map = rotted.map;
       changed.push(...rotted.changed);
@@ -3428,7 +3439,11 @@ export class GameSession implements PlaySession {
     if (!room.ok) return equipment;
 
     for (const placed of placements) {
-      this.map = appendTile(this.map, at.x, at.y, at.z, placed);
+      // Pouring, like every other way an item reaches a cell: a body that dies
+      // holding food where food is already lying leaves one pile behind. The
+      // room check above is unaffected — a pour adds no placement at all, so it
+      // asks for strictly more room than what actually happens needs.
+      this.map = appendItem(this.map, at.x, at.y, at.z, placed, this.tilesById);
     }
     return emptyEquipment();
   }
@@ -4402,21 +4417,37 @@ export class GameSession implements PlaySession {
     );
     if (!destination) return false;
 
+    if (destination.kind === "slot") {
+      const instance = this.takeFromBoard(ref);
+      if (!instance) return false;
+      this.setEquipment(actor, {
+        ...actor.equipment,
+        [destination.slot]: instance,
+      });
+      return true;
+    }
+
     const bag = actor.equipment.bag;
-    if (destination.kind === "contents" && !bag) return false;
+    if (!bag) return false;
 
-    const instance = this.takeFromBoard(ref);
-    if (!instance) return false;
-
-    this.setEquipment(
-      actor,
-      destination.kind === "contents"
-        ? {
-            ...actor.equipment,
-            bag: { ...bag!, contents: [...(bag!.contents ?? []), instance] },
-          }
-        : { ...actor.equipment, [destination.slot]: instance },
+    // Where it lands is worked out **while the thing is still on the board**, so
+    // a pour that turns out not to fit leaves the pile where it is. Taking the
+    // placement off first and then discovering there is nowhere to put it would
+    // be a pickup that deletes what it picked up, and the one thing standing
+    // between those two orderings is this read.
+    const placed = getStack(this.map, ref.x, ref.y, ref.z)[ref.stackIndex];
+    const taking = placed && instanceFromPlacement(placed);
+    if (!taking) return false;
+    const contents = stow(
+      bag.contents ?? [],
+      taking,
+      capacityOf(bag, this.tilesById),
+      this.tilesById,
     );
+    if (!contents) return false;
+
+    if (!this.takeFromBoard(ref)) return false;
+    this.setEquipment(actor, { ...actor.equipment, bag: { ...bag, contents } });
     return true;
   }
 
@@ -4578,14 +4609,31 @@ export class GameSession implements PlaySession {
     if (!loc) return null;
     if (!canConsumeFrom(this.map, this.tilesById, loc, ref)) return null;
 
-    const placed = getStack(this.map, ref.x, ref.y, ref.z)[ref.stackIndex];
+    const stack = getStack(this.map, ref.x, ref.y, ref.z);
+    const placed = stack[ref.stackIndex];
     const def = placed && this.tilesById[placed.tileId];
     const consumable = def ? resolveConsumable(def) : null;
-    if (!consumable) return null;
+    if (!consumable || !placed) return null;
 
-    this.map = removeTileAt(this.map, ref.x, ref.y, ref.z, ref.stackIndex);
-    // The cell has one fewer thing in it — the same reindex a pickup owes, for
-    // the same plates and the same unsupported crates.
+    // One berry out of the pile, not the pile. Eating is the one act that takes
+    // an *amount* rather than a thing — see `../lib/piles`'s `peelOne` — and a
+    // meal that swallowed a heap of twelve would be the game deciding a number
+    // nobody was offered.
+    const left = peelOne(placed);
+    this.map = left
+      ? replaceStack(
+          this.map,
+          ref.x,
+          ref.y,
+          ref.z,
+          stack.map((held, i) => (i === ref.stackIndex ? left : held)),
+        )
+      : removeTileAt(this.map, ref.x, ref.y, ref.z, ref.stackIndex);
+    // The same reindex a pickup owes, for the same plates and the same
+    // unsupported crates. Owed even for a pile that merely got smaller: a pile
+    // adds no height, so nothing about the cell can have changed — but the
+    // reindex is a stack read, and a cheap one is worth more than a rule about
+    // when it may be skipped.
     this.reindexCells([{ x: ref.x, y: ref.y, z: ref.z }]);
     return consumable;
   }
@@ -4609,7 +4657,10 @@ export class GameSession implements PlaySession {
     const consumable = def ? resolveConsumable(def) : null;
     if (!consumable) return null;
 
-    const emptied = clearSlot(this.map, this.tilesById, loc, actor.equipment, slot);
+    // One off the pile, where `drop` takes the whole of it: the two verbs are
+    // the two ways something leaves a slot, and `peelSlot` falls through to
+    // `clearSlot` for the last one anyway.
+    const emptied = peelSlot(this.map, this.tilesById, loc, actor.equipment, slot);
     if (!emptied) return null;
 
     this.map = emptied.map;
@@ -4815,13 +4866,22 @@ export class GameSession implements PlaySession {
     // thing can leave a slot without arriving somewhere.
     const landed =
       destination.kind === "contents"
-        ? stashInContainer(emptied.map, destination.ref, instance)
-        : appendTile(
+        ? stashInContainer(
+            emptied.map,
+            this.tilesById,
+            destination.ref,
+            instance,
+          )
+        : // Through the pouring append, so a pile of berries thrown at a cell
+          // that already has berries in it lands as more of that pile rather
+          // than beside it. See `../lib/piles`'s `appendItem`.
+          appendItem(
             emptied.map,
             to.x,
             to.y,
             to.z,
             placementFromInstance(instance),
+            this.tilesById,
           );
     if (!landed) return false;
 
@@ -5201,8 +5261,17 @@ export class GameSession implements PlaySession {
         : {}),
     };
 
-    const next = [...stack];
-    next.splice(stackIndex, 0, placed);
+    // Poured into a pile already in that cell where one will take it, exactly as
+    // a drop is: `/tile berry` onto a berry is two berries in that tile, not a
+    // second placement of one. A command puts a thing in the world, and once it
+    // is there it should be the thing the world would have had if somebody had
+    // walked over and put it down. See `../lib/piles`.
+    //
+    // A pour makes no placement, so the room `canPlace` asked for above is more
+    // than it needs, and the slot `stackIndex` names is left alone.
+    const poured = pourInto(stack, placed, this.tilesById);
+    const next = poured ?? [...stack];
+    if (!poured) next.splice(stackIndex, 0, placed);
     this.map = replaceStack(this.map, at.x, at.y, at.z, next);
 
     if (placed.owner) {

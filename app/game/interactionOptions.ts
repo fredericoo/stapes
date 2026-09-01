@@ -30,6 +30,7 @@ import {
   type EquipSlot,
   type ObjectRef,
 } from "./affordances";
+import { pileTally } from "../lib/piles";
 import { bodyNameFor } from "./displayName";
 import type { Equipment } from "./equipment";
 import { offeredTransmutations } from "./transmute";
@@ -606,9 +607,16 @@ function slotOptions(
   if (placed.owner === self.id) return [];
 
   const body = bodies.get(refKey(ref));
+  // "Pick up Berry ×3", so the row says what taking it would actually get you —
+  // the same phrasing the look label and the bag square use. A body never
+  // carries a count, which is why the tally is only on this arm. See
+  // `../lib/piles`' `pileTally`.
+  const tally = pileTally(placed);
   const name = body
     ? bodyNameFor({ actorId: body.id, tileId: body.tileId }, tilesById)
-    : (tilesById[placed.tileId]?.name ?? placed.tileId);
+    : [tilesById[placed.tileId]?.name ?? placed.tileId, tally]
+        .filter(Boolean)
+        .join(" ");
 
   const out: InteractionOption[] = [];
   const add = (action: InteractionAction, label: string, active = false) => {

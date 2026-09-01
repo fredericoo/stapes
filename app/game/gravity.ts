@@ -4,9 +4,11 @@ import {
   appendTile,
   getStack,
   listCoords,
+  replaceStack,
   stackHeight,
   walkableFloorAbove,
 } from "../lib/mapData";
+import { pourInto } from "../lib/piles";
 import type { Coord, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL, MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 import { placeEntityOnSurface, removeEntity } from "./mapMutations";
@@ -218,9 +220,15 @@ export function settleGravity(
     next = removeEntity(next, cell.x, cell.y, cell.z, 0);
 
     const destStack = getStack(next, cell.x, cell.y, destZ);
+    // A pile falling onto a pile of the same thing joins it, before either
+    // arrangement below gets a say: where in the stack it would have gone is a
+    // question about a placement, and a pour makes no placement. See
+    // `../lib/piles` — this is the third and last way an item reaches a cell.
+    const poured = pourInto(destStack, body, tilesById);
     const destTop = absoluteStandingElevation(destZ, destStack, tilesById);
-    next =
-      destStack.length > 0 && destTop === landing
+    next = poured
+      ? replaceStack(next, cell.x, cell.y, destZ, poured)
+      : destStack.length > 0 && destTop === landing
         ? placeEntityOnSurface(next, cell.x, cell.y, destZ, body, tilesById)
         : appendTile(next, cell.x, cell.y, destZ, body);
 

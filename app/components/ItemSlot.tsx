@@ -10,6 +10,7 @@ import { slotKey, type SlotRef } from "../game/itemMoves";
 import { itemUseFor } from "../game/itemUse";
 import { consumeVerb, equipVerb, resolveConsumable } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
+import { pileTally } from "../lib/piles";
 import type { MasteryXp } from "../lib/mastery";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { useCoarsePointer } from "../lib/useMediaQuery";
@@ -219,8 +220,12 @@ export function ItemSlot({
   // What this square *is*, which for a hand a two-hander has reached into is
   // "taken by that weapon" rather than "empty" — a screen reader hearing "empty"
   // over a square nothing may go in would be told the opposite of what is true.
+  /** "×3" over a pile of three, or nothing at all over one of anything. */
+  const tally = instance ? pileTally(instance) : null;
   const name = instance
-    ? (instance.description?.trim() || tile?.name || instance.tileId)
+    ? [instance.description?.trim() || tile?.name || instance.tileId, tally]
+        .filter(Boolean)
+        .join(" ")
     : spilledTile
       ? `both hands on the ${spilledTile.name}`
       : "empty";
@@ -327,7 +332,10 @@ export function ItemSlot({
   const inspectLines = !asking
     ? []
     : [
-        tile?.name ?? instance?.tileId ?? "",
+        // The count rides on the name rather than taking a line of its own: it
+        // is part of what the thing *is*, and the lines under a name are for
+        // what it says and what it asks of you.
+        [tile?.name ?? instance?.tileId ?? "", tally].filter(Boolean).join(" "),
         instance?.description?.trim() ?? "",
         ...(tile ? weaponDemandFor(tile, masteryXp) : []),
       ].filter((line): line is string => Boolean(line));
@@ -477,6 +485,19 @@ export function ItemSlot({
           stroke={EMPTY_ICON_STROKE}
           className="text-paper/25"
         />
+      ) : null}
+      {tally ? (
+        // Announced through the square's own label instead — it is part of the
+        // name up there, and a badge with its own text would read the count
+        // twice. Bottom right, over the corner of the sprite, which is where a
+        // count has been drawn on a stack of things since inventories had
+        // squares at all.
+        <span
+          aria-hidden
+          className="pointer-events-none absolute right-0 bottom-0 px-0.5 text-[10px] leading-none font-bold text-paper [text-shadow:1px_1px_0_var(--color-ink),-1px_1px_0_var(--color-ink),1px_-1px_0_var(--color-ink),-1px_-1px_0_var(--color-ink)]"
+        >
+          {tally}
+        </span>
       ) : null}
       {showTooltip ? <SlotTooltip lines={inspectLines} /> : null}
     </button>

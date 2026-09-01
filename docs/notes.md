@@ -1784,6 +1784,136 @@ the interesting part.
   (reach, cover, the def) and this joins it to the kit. Both ends read it: the
   client to offer the row, the server to validate the message.
 
+## Food piles, and nothing else does
+
+A pile is a `count` on an `ItemInstance` or a `PlacedTile` (`app/lib/piles.ts`).
+There is no pile type, no container to open and no second model of a thing: a
+pile of twelve berries is one instance with one id, so every rule already written
+about carrying, dropping, rotting and looting one berry applies to twelve without
+knowing it. Twelve berries on a tile are one placement, not twelve — a stack is
+things standing on each other, and nothing in a pile is standing on anything.
+
+**The cost is that the twelve become interchangeable.** They share one id, one
+description and one clock, and there is no way to ask which one you ate. That is
+the whole reason only food piles: two swords are two swords with two histories,
+and a count would be a lie about them. `pileMax` (`app/lib/item.ts`) is the one
+place that is decided — a sword answers `1`, so a pile is a count everywhere and
+never a special case. The size is authored per tile (`ConsumableItem.pile`,
+twelve berries against three loaves) and defaults through `pileOf` rather than
+through the schema, on the same grounds `reachOf` does: the tile editor works on
+the raw authored block, so a default the schema filled in would be invisible in
+the one place somebody is choosing the number.
+
+**A pile arriving somewhere pours into the first pile of its kind with room for
+all of it, and otherwise takes a square of its own.** It never splits across two
+and never half-lands, because there is no interface for choosing an amount and a
+partial move would be the game deciding a number nobody was offered. Fusing is
+gated on an *allow-list* of fields — `tileId`, `id`/`itemId`, `count` — so a
+field added to either shape later makes two things stop fusing rather than
+quietly throwing one copy of it away. A berry somebody has written on is not one
+of a heap.
+
+Three verbs meet it, and the split between the first two is the interesting one:
+
+- **Moving takes the whole pile** — `clearSlot`, and every drag, drop and pickup
+  through it. This is also the one place in the game a move lands *on* something
+  rather than beside it: a hand holding berries will take more berries, which is
+  not a swap, because nothing comes back out.
+- **Spending takes one** — `peelSlot` (`app/game/itemMoves.ts`), which a meal and
+  a recipe's input go through and which falls through to `clearSlot` for the last
+  of anything. Everything that is not food only ever reaches the fallback.
+- **Landing on a cell pours** — `appendItem` (`app/lib/piles.ts`), which a drop,
+  a body dying and a pile falling down a hole all go through, and which
+  `runTileCommand` does by hand for the one cell it writes. Those are the only
+  ways an item reaches a cell, which is what makes "two berries in one tile" a
+  fact about the board rather than about the verb that put them there — `/tile
+  berry` onto a berry leaves two berries in that tile, because a command puts a
+  thing in the world and once it is there it should be what the world would have
+  had if somebody had walked over and put it down. Stamping a tile in the
+  *editor* still places rather than pours: that is authoring, and two berries
+  authored side by side stay two placements until something lands on them.
+
+### A heap is drawn as a heap, laid out like the pips on a die
+
+`app/render/pileLayout.ts` decides where each sprite of a pile sits inside the
+cell they share, and `cellItems` — the single place a placement becomes geometry
+— emits one quad per thing rather than one per placement. Three berries look
+like three berries; the `×3` beside the name is what carries the number once the
+picture stops being countable.
+
+**Nothing about it is random**, despite it looking like jitter. A heap that
+re-scattered on every rebuild would shimmer whenever anything else in its cell
+changed, and two clients would draw the same pile differently — the map is the
+only state and it carries a count, not a seed.
+
+**Two arrangements, and there have to be two.** Up to six it is the die face,
+from a table, because a die's faces are not a fill order and cannot be
+generated: the centre pip is present at one, gone at two, back at three, gone at
+four, back at five and gone at six. Past six there is no face left to copy, so
+it becomes the whole-pixel positions inside a small disc, chosen centre-first by
+farthest-point — four lines, never picks a pixel twice, and takes any number.
+
+Three things were arrived at by looking at it rather than by reasoning:
+
+- **The pips sit three pixels out, not two.** A tile's sprite is as wide as its
+  cell, so pips four apart overlap by half their own width and a four and a five
+  come out as the same blob. A face reads only when the pips are small against
+  the gaps.
+- **The disc's radius grows with the count and stops at four.** It has to grow —
+  the offsets are whole pixels, so a fixed disc holds a fixed number of them —
+  and it has to stop, or a full pile reads as berries scattered over the three
+  tiles around it rather than a heap on one.
+- **Twelve sprites at most**, which is the widest authored pile. Counting by eye
+  gives out long before that; past six a heap says *how big* rather than how
+  many, which is the honest thing for it to say.
+
+**A heap declares a body, however flat the tile it is made of.** Spreading the
+sprites means the southern ones hang over the cell in front, and `boxSurface`
+rescues art that hangs down-right only for a box with volume — a *flat* tile's
+art past its own foot is more floor, and two coplanar floors are what painter
+order is for. That is right about a floor and wrong about a heap of berries,
+which is an object lying on the ground: without it the bottom of every pile is
+drawn under the floor of the cell in front, bitten along the diagonal the plane
+bias runs on. `top > foot` is the only way four numbers can say "object, not
+floor", so a pile says it with `DEPTH_LEAST_BODY` — half a stack index once ray
+depth has weighted it, which is small enough that it can only win a tie and
+never overtake something genuinely above it. The height that decides stacking
+and gravity is untouched; this is a fact about sorting and it lives in the
+renderer.
+
+**A heap is outlined once per sprite, and the rings know about each other.**
+Outlining only the quad the placement would have drawn on its own put a ring
+around a single berry in the middle of a dozen — often over the gap where no
+berry is, since an even face has nothing in its middle. One ring per sprite says
+the true thing, but naively it says it far too loudly: a ring is drawn where its
+own silhouette *ends*, which around a heap is mostly inside the heap, and a
+dozen of them fill it in solid. So each ring is told where its siblings are and
+treats them as more of itself, which turns a union of outlines into the outline
+of the union. It can be told exactly, and cheaply, because the sprites of a pile
+are the *same* art at different offsets: a sibling's alpha at a point is this
+sprite's own alpha one offset away. No second texture and no render target — one
+extra sample per sibling, on the fragments around the one thing a pointer is
+over. The count is also the one fact about *appearance* in the overlay
+signature, which otherwise holds none, because eating a berry out of a heap
+somebody is pointing at changes how many rings are right.
+
+Two constraints the code has to keep. Offsets are **whole pixels**, because a
+merged static quad at a fractional offset samples off the pixel grid forever —
+a walker gets to be between pixels because it is going somewhere. And a tile
+with a **mesh of its own draws once** whatever its count says: `tileKey` and
+`anim` each name one mesh, so a second copy carrying either would collide in
+`movableMeshes` or strand an entry in the animated list. Nothing that piles is
+animated or mobile, so that is an invariant kept rather than a limit anybody
+meets.
+
+Two deliberate gaps. **A recipe's outputs do not pour** — `landingsFor`
+(`app/game/transmute.ts`) decides where a result goes by counting *empty*
+squares, so pouring in `runTransmute` alone would leave a plan reaching for a
+free hand while the pour it knew nothing about freed the square it had given up
+on; both halves want changing together. And **a rolled kit's contents do not
+pour**, for the same reason one rung further back: what a body is born carrying
+is written straight into the bag.
+
 ## Decay is a switch whose input is time
 
 `DecayInteraction` turns a placement into another tile, or into nothing, once it
@@ -1903,6 +2033,18 @@ next time its holder is touched":
   a promise the world cannot keep, and it would leave the tile counting down
   under a key nothing can reach; dropping it hands the tile back to `armCell` as
   the plain decaying placement it now is.
+
+**A pile rots one out of itself at a time**, not all twelve at once — a heap you
+cannot leave alone for a minute without losing the lot is a heap nobody would
+gather. The clock is the pile's own: one entry, one roll, one berry, and the
+pile is armed again the moment its holder is rewritten, so the next one goes off
+a fresh lifetime later. What comes off has to land *beside* the pile, through the
+same pour a drag goes through — a square in the container, or a slot in the cell
+— which adds a fourth refusal to the three above: **a square on a body has no
+beside.** It holds one thing, so a pile in a hand waits until it is down to its
+last, and that last turns in place exactly as a single berry always did. The peel
+that becomes *nothing* needs no room and happens anywhere. A refused peel is put
+back rather than left half-done.
 
 ## The save is the repair path, so it must not need a working world
 

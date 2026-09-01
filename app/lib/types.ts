@@ -616,6 +616,24 @@ export type PlacedTile = {
    * and not a tree. See `./item`.
    */
   contents?: ItemInstance[];
+  /**
+   * How many things this placement is, for the placements that are a pile.
+   *
+   * One placement rather than one per thing, which is the whole of "two berries
+   * on a tile are two berries in the same tile": a stack is a list of things
+   * standing on each other and a pile is not that — nothing is standing on
+   * anything, and drawing twelve berry sprites in one cell would say the wrong
+   * thing about the cell as well as costing twelve quads.
+   *
+   * The mirror of {@link ItemInstance.count}, and it has to be: a pile picked up
+   * and put down again is the same pile, and a field on one side and not the
+   * other is a count that silently becomes one the first time somebody moves it.
+   *
+   * Absent on everything that is not a pile, which is almost every placement in
+   * a map. See `./piles` for the arithmetic and `./item`'s {@link pileMax} for
+   * what may carry it at all.
+   */
+  count?: number;
 };
 
 /**

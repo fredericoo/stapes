@@ -51,6 +51,7 @@ import {
 } from "../lib/clock";
 import { emitterCenter } from "../lib/lighting";
 import { elevationAt, getStack, stackHeight } from "../lib/mapData";
+import { pileTally } from "../lib/piles";
 import {
   levelsAboveShouldHide,
   viewAnchorFor,
@@ -1639,7 +1640,13 @@ export class GameRenderer {
     const target = this.lookTarget(snap);
     if (!target) return null;
     const { ref, placed, def } = target;
-    const lines = [{ id: "name", text: def.name }];
+    // The count on the name line, exactly where a bag square puts it — a pile of
+    // berries on the floor and the same pile in your hand are one thing being
+    // asked one question. See `../lib/piles`' `pileTally`.
+    const tally = pileTally(placed);
+    const lines = [
+      { id: "name", text: tally ? `${def.name} ${tally}` : def.name },
+    ];
     if (placed.description) {
       lines.push({ id: "description", text: placed.description });
     }

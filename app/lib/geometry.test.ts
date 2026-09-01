@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   absoluteElevation,
   boxSurface,
+  DEPTH_LEAST_BODY,
   boxSurfaceElevation,
   depthBox,
   depthStackBias,
@@ -307,6 +308,75 @@ describe("fragDepth", () => {
       it("leaves the floor two cells in front in front of the tail", () => {
         const beyond = depthBox(tailCell.x, tailCell.y + 1, 0, 0);
         expect(pixelsWhereRatWins(beyond)).toBe(0);
+      });
+
+      /**
+       * A heap of berries is the one flat thing that hangs over the cell in
+       * front, because its sprites are spread across their own cell rather than
+       * drawn dead centre — see `../render/pileLayout`. It is an object lying on
+       * the ground and not more ground, so it says so with
+       * {@link DEPTH_LEAST_BODY}, and these are the two halves of that being
+       * safe: it wins the tie it should, and it moves nothing it should not.
+       */
+      describe("a heap, which is flat art that is not floor", () => {
+        const heap = depthBox(0, 0, 0, DEPTH_LEAST_BODY);
+
+        function pixelsWhereHeapWins(neighbour: ReturnType<typeof depthBox>) {
+          return tailPixels().filter(
+            ({ sx, sy }) =>
+              fragDepth(heap, sx, sy, depthStackBias(0, 1)) <
+              fragDepth(neighbour, sx, sy, depthStackBias(0, 0)),
+          ).length;
+        }
+
+        it("keeps its southern sprites in front of the floor in front", () => {
+          const floor = depthBox(tailCell.x, tailCell.y, 0, 0);
+          expect(pixelsWhereHeapWins(floor)).toBe(CELL_SIZE * CELL_SIZE);
+        });
+
+        it("is still hidden by anything standing in that cell", () => {
+          const grass = depthBox(tailCell.x, tailCell.y, 0, 1);
+          const wall = depthBox(tailCell.x, tailCell.y, 0, HEIGHT_PER_LEVEL);
+          expect(pixelsWhereHeapWins(grass)).toBe(0);
+          expect(pixelsWhereHeapWins(wall)).toBe(0);
+        });
+
+        it("is still behind the floor two cells in front", () => {
+          const beyond = depthBox(tailCell.x, tailCell.y + 1, 0, 0);
+          expect(pixelsWhereHeapWins(beyond)).toBe(0);
+        });
+
+        /**
+         * The box crosses to the GPU as a `Float32Array`, and the predicate on
+         * the far side is `top > foot`. A body too small to survive that
+         * rounding at the elevations a map actually reaches would be a fix that
+         * worked in this file and nowhere else.
+         */
+        it("survives the crossing to a float32 attribute", () => {
+          for (const foot of [0, 16, -16, 48, -48]) {
+            expect(Math.fround(foot + DEPTH_LEAST_BODY)).toBeGreaterThan(
+              Math.fround(foot),
+            );
+          }
+        });
+
+        /**
+         * The whole reason the body is a hair rather than a height. A lift that
+         * reached one stack index would put a heap over the blood splashed on
+         * top of it, which is a thing the stack already has an answer for.
+         */
+        it("does not climb over what is stacked above it in its own cell", () => {
+          const decal = depthBox(0, 0, 0, 0);
+          const p = footPixel(0, 0);
+          for (let i = 0; i < CELL_SIZE * CELL_SIZE; i++) {
+            const sx = p.sx + (i % CELL_SIZE);
+            const sy = p.sy + Math.floor(i / CELL_SIZE);
+            expectInFront(
+              fragDepth(decal, sx, sy, depthStackBias(0, 2)),
+              fragDepth(heap, sx, sy, depthStackBias(0, 1)),
+            );
+          }
+        });
       });
 
       it("rescues a body's near side there, but not a flat sprite's", () => {

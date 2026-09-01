@@ -5,6 +5,7 @@ import {
   DEFAULT_ARTIFACT,
   DEFAULT_CONSUMABLE,
   DEFAULT_CONTAINER,
+  DEFAULT_PILE,
   DEFAULT_SHIELD,
   DEFAULT_WEAPON,
   MAX_ARMOR_DEF,
@@ -362,21 +363,29 @@ describe("itemForSave", () => {
       type: "consumable",
       label: "Drink",
       hp: -2,
+      pile: DEFAULT_PILE,
     });
     // A blank verb is an absent key, not an empty string in the file.
     expect(itemForSave({ type: "consumable", label: "  ", hp: 2 })).toEqual({
       type: "consumable",
       hp: 2,
+      pile: DEFAULT_PILE,
     });
   });
 
   it("keeps a consumable's noise and drops a blank one", () => {
     expect(
       itemForSave({ type: "consumable", label: "Drink", sound: "glug", hp: 1 }),
-    ).toEqual({ type: "consumable", label: "Drink", sound: "glug", hp: 1 });
+    ).toEqual({
+      type: "consumable",
+      label: "Drink",
+      sound: "glug",
+      hp: 1,
+      pile: DEFAULT_PILE,
+    });
     expect(
       itemForSave({ type: "consumable", sound: "   ", hp: 1 }),
-    ).toEqual({ type: "consumable", hp: 1 });
+    ).toEqual({ type: "consumable", hp: 1, pile: DEFAULT_PILE });
   });
 
   it("keeps a consumable's statuses and drops an empty list", () => {
@@ -386,7 +395,11 @@ describe("itemForSave", () => {
       hp: 0,
       statuses: [{ id: "fed" }],
     };
-    expect(itemForSave(withStatus)).toEqual(withStatus);
+    expect(itemForSave(withStatus)).toEqual({
+      ...withStatus,
+      // Written whatever it says, like a weapon's reach — see `pileOf`.
+      pile: DEFAULT_PILE,
+    });
     expect(
       itemForSave({
         type: "consumable",
@@ -397,13 +410,14 @@ describe("itemForSave", () => {
       type: "consumable",
       hp: 0,
       statuses: [{ id: "fed", fromMs: 60_000, toMs: 120_000 }],
+      pile: DEFAULT_PILE,
     });
     expect(
       itemForSave({ type: "consumable", hp: 0, statuses: [] }),
-    ).toEqual({ type: "consumable", hp: 0 });
+    ).toEqual({ type: "consumable", hp: 0, pile: DEFAULT_PILE });
     expect(
       itemForSave({ type: "consumable", hp: 0, statuses: [{ id: "  " }] }),
-    ).toEqual({ type: "consumable", hp: 0 });
+    ).toEqual({ type: "consumable", hp: 0, pile: DEFAULT_PILE });
   });
 
   it("keeps a weapon's statuses and drops an empty list", () => {
