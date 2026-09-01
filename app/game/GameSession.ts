@@ -18,8 +18,10 @@ import {
   isItem,
   isRanged,
   NO_ELEMENTS,
+  type ProjectileDef,
   type StatusGrant,
   type StoneEffect,
+  type WeaponStatus,
   resolveConsumable,
   resolveStone,
 } from "../lib/item";
@@ -126,6 +128,7 @@ import {
   DEFAULT_BATTLER,
   resolveBattler,
   type FightingStats,
+  spellPower,
 } from "../lib/battler";
 import {
   experienceMultiplier,
@@ -133,6 +136,7 @@ import {
   levelForXp,
   MASTERIES,
   type Mastery,
+  type Masteries,
   masteriesFromXp,
   type MasteryXp,
   rating,
@@ -146,6 +150,9 @@ import {
   type AttackOutcome,
   swingIntervalMs,
   canReach,
+  damageAfterDefence,
+  damageFraction,
+  inflictedBy,
   rollAttack,
   underPressure,
 } from "./combat";
@@ -1173,15 +1180,47 @@ const COOLDOWN_STEP_MS = 1000;
 const COOLDOWN_EPSILON_MS = 1e-6;
 
 /**
- * What a spell cast on yourself is worth, before the learning rate.
+ * What a mend is worth, before the learning rate.
  *
  * Flat, where a blow is scaled by how far above or below you the other body is.
- * There is no other body: healing yourself is something you do in the middle of
- * your own fight, and scaling it by whoever you happen to be pointing at would
- * make bandaging yourself worth more against a troll and nothing at all against
- * a rat — neither of which is a fact about the bandaging.
+ * Mending is not an exchange with anybody: scaling it by whoever you happen to
+ * be pointing at would make bandaging yourself worth more against a troll and
+ * nothing at all against a rat, and neither of those is a fact about the
+ * bandaging.
+ *
+ * **Paid at this rate whoever the mend landed on**, now that a bolt can be
+ * pointed at somebody else. A caster who has mended a troll has mended
+ * somebody rather than beaten them, so there is still no second body in the
+ * exchange for a Rating to weigh — which is the same argument, one step wider
+ * than it used to have to be.
  */
 const SELF_SPELL_MULTIPLIER = 1;
+
+/**
+ * What kind of blow a bolt counts as, for the armour it has to get through.
+ *
+ * **Arcane, because that is the mastery a stone answers to** — see
+ * `../lib/mastery`, where the rename collapsed "the mastery a staff swings by"
+ * and "how good you are at magic" into one number precisely so that this
+ * question would have one answer. A breastplate authored with an arcane
+ * resistance is warded against magic, and this is what makes it so.
+ *
+ * The elements deliberately do *not* appear here. What an element is worth
+ * against a body is the wheel's question and is asked one step later, on the
+ * damage that got through — see {@link elementalDamage}. Keying resistance off
+ * them as well would let one piece of armour answer the same blow twice.
+ *
+ * Shaped as the sliver of a `FightingStats` that `damageAfterDefence` actually
+ * reads, and frozen at module scope, so a cast allocates nothing to say the one
+ * thing that is true of every cast in the world.
+ */
+const ARCANE_BLOW: Pick<FightingStats, "mastery"> = { mastery: "arcane" };
+
+/**
+ * What a bolt with no statuses authored leaves behind, shared on the terms
+ * `NO_ELEMENTS` is: one frozen empty list rather than one per cast.
+ */
+const NOTHING_INFLICTED: readonly WeaponStatus[] = [];
 
 /**
  * The same kit with every cooling stone `spent` milliseconds nearer ready, or
@@ -2908,7 +2947,7 @@ export class GameSession implements PlaySession {
     // shot that misses is a shot somebody saw taken; an arrow that only appeared
     // on the blows that landed would be a fight where half the traffic came from
     // nowhere.
-    this.fireProjectile(attackerStats, fromPoint, toPoint);
+    this.fireProjectile(attackerStats.projectile, fromPoint, toPoint);
 
     // Turning into the blow, so a creature that fights while cornered is facing
     // what it is fighting. Free when it already is — `setEntityDirection` guards
@@ -2966,12 +3005,19 @@ export class GameSession implements PlaySession {
   }
 
   /**
-   * Put this weapon's projectile in the air, if it has one.
+   * Put a projectile in the air, if there is one to put there.
    *
-   * Silently nothing for a melee weapon, which is the overwhelming majority and
-   * is not a special case anybody had to write: `projectile` is absent, so there
-   * is nothing to loose. That is the same shape the lean above has in reverse,
-   * and between them every weapon says exactly one thing about itself.
+   * Silently nothing for a melee weapon and for a bolt that simply arrives,
+   * which between them are the overwhelming majority and are not a special case
+   * anybody had to write: `projectile` is absent, so there is nothing to loose.
+   * That is the same shape the lean above has in reverse, and between them every
+   * weapon says exactly one thing about itself.
+   *
+   * **The block is passed in rather than read off a `FightingStats`**, which is
+   * what lets a spell use this at all: a bolt has a projectile and no fighting
+   * stats to hang it on — it is not swung, and resolving one for a caster would
+   * be inventing a weapon nobody is holding. What is in the air owes nothing to
+   * what threw it, which was already this module's own note.
    *
    * The flight is queued twice for the reason a damage number is — see
    * {@link pendingDamage} and {@link liveDamage}. One list is "what happened in
@@ -2979,11 +3025,10 @@ export class GameSession implements PlaySession {
    * should still be able to see", which outlives it by the length of the flight.
    */
   private fireProjectile(
-    attacker: FightingStats,
+    projectile: ProjectileDef | null | undefined,
     from: ReachPoint,
     to: ReachPoint,
   ) {
-    const projectile = attacker.projectile;
     if (!projectile) return;
 
     const flight: ProjectileFlight = {
@@ -3678,15 +3723,17 @@ export class GameSession implements PlaySession {
    * What a spell's damage comes to against this particular body.
    *
    * **The one place the elemental wheel turns**, and it turns on damage rather
-   * than on anything else a spell can do: a heal has no second body to be good
+   * than on anything else a spell can do: a mend has no second body to be good
    * against, and a status's *duration* is a clock rather than a force. What the
    * wheel changes is how hard the fire actually bites.
    *
-   * Both sides come from where they were authored — the spell's elements rode
-   * in on the status, and the body's are what its battler says it is plus
-   * whatever it has on. @see `../lib/element`'s `effectiveness` for the
-   * arithmetic, and `./equipment`'s `bodyElements` for the two halves and why
-   * neither of them is read off a mastery.
+   * Both sides come from where they were authored — the spell's elements were
+   * read off its requirements, whether they arrived here on a status, on a
+   * conjured placement or straight off the bolt that was just thrown, and the
+   * body's are what its battler says it is plus whatever it has on.
+   * @see `../lib/element`'s `effectiveness` for the arithmetic, and
+   * `./equipment`'s `bodyElements` for the two halves and why neither of them is
+   * read off a mastery.
    *
    * `bodyOf` is asked for the battler, and **only its authored `elements` are
    * read** — the block it hands back differs from the authored one in its
@@ -3806,9 +3853,8 @@ export class GameSession implements PlaySession {
     // threw. @see `./experience`'s `practiceEarnings`
     this.grantExperience(actor, practiceEarnings(elements));
 
-    if (stone.effect.kind === "heal") this.castHeal(actor, stone, elements);
-    else if (stone.effect.kind === "status") {
-      this.castStatus(actor, square, stone.effect, elements);
+    if (stone.effect.kind === "bolt") {
+      this.castBolt(actor, square, stone, stone.effect, elements);
     } else this.castConjure(actor, square, stone.effect.tileId, elements);
 
     return true;
@@ -3836,76 +3882,246 @@ export class GameSession implements PlaySession {
   }
 
   /**
-   * Put health back into the caster, and pay them for what they actually needed.
+   * Land a bolt: move health, leave what it leaves, on the caster or on whatever
+   * they are pointing at.
    *
-   * **Paid on the health restored rather than on the amount the stone names**,
-   * which is the whole of "pressing a heal at full health teaches you nothing":
-   * a body two points down gets two points and two points' worth of experience
-   * out of a stone that says ten, and a body at full gets neither.
+   * **One arm for every spell that touches a body**, which is the whole of what
+   * folding the old `status` arm into this one bought — see `../lib/item`'s
+   * {@link StoneEffect}. Two halves, both optional, and a stone that does both
+   * is a brand: it burns, and it sets you alight.
    *
-   * The multiplier is flat, unlike a blow's. What `experienceMultiplier` scales
-   * by is how far above or below you the *other body* is, and there is no other
-   * body here — a heal is something you do to yourself in the middle of your own
-   * fight, and scaling it by whoever you happen to be pointing at would make
-   * bandaging yourself worth more against a troll.
+   * **Harming and mending are one number with a sign.** What differs between the
+   * two directions is not the arithmetic but who has a say in it, and the split
+   * is exactly three things: armour, the elemental wheel, and the ceiling. A
+   * blow has to get through what the subject is wearing and is weighed on the
+   * wheel; a mend is stopped by neither, and stops at a full health bar instead.
+   * Nobody has ever worn armour against being healed.
+   *
+   * **No accuracy and no dodge, unlike a swing.** A cast is not aimed — you
+   * spent the cooldown and the stone answered — so the two failures a swing can
+   * have are absent here by design, and what is left of the dice is the variance
+   * band. That makes a bolt the reliable half of an arcanist's damage and a
+   * swing the frequent half, which is the trade the profession is built on: one
+   * press every two minutes cannot also be a coin toss.
+   *
+   * The order is the order it happens in, and each step is somebody's say:
+   * mastery, then the dice, then the subject's armour, then the wheel, then
+   * whatever the bolt leaves behind.
    */
-  private castHeal(
-    actor: ActorRuntime,
-    stone: ArcaneStoneItem,
-    elements: readonly Element[],
-  ) {
-    if (stone.effect.kind !== "heal") return;
-    const stats = this.battlerOf(actor);
-    const before = this.hpOf(actor);
-    if (!stats || before === null) return;
-
-    const restored = Math.min(stone.effect.hp, Math.max(0, stats.maxHp - before));
-    if (restored <= 0) return;
-    actor.hp = before + restored;
-    // **The wheel never touches a heal**, and the reason is the same one that
-    // makes the multiplier flat here: there is no second body in this exchange
-    // for an element to be good against. A caster mending themselves is not
-    // fighting anybody.
-    this.grantCasting(actor, restored, stone, elements, SELF_SPELL_MULTIPLIER);
-  }
-
-  /**
-   * Start an authored status, on the caster or on what they are pointing at.
-   *
-   * A charm ignores the target entirely and a heal-shaped stone never had one —
-   * see `./casting`'s `needsTarget`, which owns that rule and which
-   * {@link castability} has already run. Read here again rather than passed
-   * down, because what a cast does and what a cast is *allowed* to do are two
-   * questions and only one of them belongs in a pure module.
-   *
-   * The caster is recorded as the cause, so damage the status does later pays
-   * them — including on themselves, where the payout is refused further down for
-   * being self-inflicted rather than by never being recorded. One rule, in one
-   * place. @see awardCausedDamage
-   */
-  private castStatus(
+  private castBolt(
     actor: ActorRuntime,
     square: CastSquare,
-    effect: Extract<StoneEffect, { kind: "status" }>,
+    stone: ArcaneStoneItem,
+    effect: Extract<StoneEffect, { kind: "bolt" }>,
     elements: readonly Element[],
   ) {
+    // Read here rather than passed down, because what a cast *does* and what a
+    // cast is allowed to do are two questions, and `./casting`'s `needsTarget`
+    // owns only the second. A charm reaches nobody but its wearer whatever the
+    // effect says.
     const onTarget = square !== "charm" && effect.on === "target";
     const subject = onTarget
       ? (actor.targetId ? this.actors.get(actor.targetId) : undefined)
       : actor;
     if (!subject) return;
-    // Nothing a status does is visible on something that cannot be hurt, which
-    // is `activateAddStatus`'s own argument and the same one here.
-    if (this.hpOf(subject) === null) return;
 
-    const grant: StatusGrant = {
-      id: effect.id,
-      ...(effect.fromMs !== undefined && effect.toMs !== undefined
-        ? { fromMs: effect.fromMs, toMs: effect.toMs }
-        : {}),
-    };
-    this.grantStatus(subject, grant, actor.id, elements);
+    // Asked once and read three times below — whether anything flies, and
+    // whether the blow pays. A stone pointed at somebody who turns out to be
+    // yourself is a spell cast on yourself, whatever the effect said.
+    const atSomebodyElse = subject !== actor;
+
+    const stats = this.battlerOf(subject);
+    const before = this.hpOf(subject);
+    // Nothing a bolt does is visible on something that cannot be hurt, which is
+    // `activateAddStatus`'s own argument and was the old status arm's too.
+    if (!stats || before === null) return;
+
+    const body = this.bodyOf(actor);
+    if (!body) return;
+
+    // Loosed before anything lands, on the terms an arrow is: a shot somebody
+    // saw taken, whatever came of it. Never at yourself — a flight from a body
+    // to itself is a frame of art sitting on somebody's head.
+    if (atSomebodyElse) this.fireBolt(effect.projectile, actor, subject);
+
+    this.moveHealth(actor, subject, stone, effect, elements, {
+      atSomebodyElse,
+      stats,
+      before,
+      masteries: body.masteries,
+    });
+
+    // **After the health and only onto a body still standing**, which is the
+    // rule a weapon's statuses are already under: a status is a condition you
+    // are *in*, and a corpse is not in one. The caster is recorded as the cause,
+    // so damage the status does later pays them — including on themselves, where
+    // the payout is refused for being self-inflicted rather than by never being
+    // recorded. @see awardCausedDamage
+    if ((this.hpOf(subject) ?? 0) <= 0) return;
+    for (const grant of this.boltInflicts(effect.statuses)) {
+      this.grantStatus(subject, grant, actor.id, elements);
+    }
   }
+
+  /**
+   * The half of a bolt that moves a health bar, or nothing for one that does
+   * not.
+   *
+   * Split out of {@link castBolt} because it is the half with two directions and
+   * four steps in it, and leaving it inline put the status grant below three
+   * branches deep — where the one thing that has to be obvious is that a status
+   * lands whichever way the health went, and whether it went at all.
+   *
+   * Silent for a bolt with no damage authored, which is every pure ward and
+   * every pure curse. It still draws no dice: a spell that moves no health has
+   * no band to roll inside, and drawing one would make the world's dice depend
+   * on how a stone happened to be written.
+   */
+  private moveHealth(
+    actor: ActorRuntime,
+    subject: ActorRuntime,
+    stone: ArcaneStoneItem,
+    effect: Extract<StoneEffect, { kind: "bolt" }>,
+    elements: readonly Element[],
+    context: {
+      atSomebodyElse: boolean;
+      stats: FightingStats;
+      before: number;
+      masteries: Masteries;
+    },
+  ) {
+    if (!effect.damage) return;
+
+    // What the stone is worth in *these* hands, off Arcane and off the elements
+    // the stone asks for. @see `../lib/battler`'s {@link spellPower}
+    const power = spellPower(effect.damage, stone.requirements, context.masteries);
+    // The one thing left of a swing's dice. Drawn whichever way the bolt runs and
+    // before either branch, so the world's dice advance by exactly as much for a
+    // mend as for a harm — the same property `rollAttack` protects by taking all
+    // its draws up front.
+    const roll: [number, number] = [this.rng.next(), this.rng.next()];
+    const rolled = Math.round(
+      power * damageFraction(effect.variance ?? 0, roll),
+    );
+
+    if (rolled > 0) {
+      // Armour first and the wheel second, which is the order a conjured flame's
+      // burn already goes through: what the fire is worth against this body is
+      // decided after what got through the mail. Read as an arcane blow, because
+      // that is what it is — a stone answers to Arcane, so a breastplate warded
+      // against magic turns one aside. @see `./combat`'s `defenceAgainst`
+      const through = damageAfterDefence(rolled, context.stats, ARCANE_BLOW);
+      const dealt = this.elementalDamage(subject, through, elements);
+      if (dealt <= 0) return;
+      this.applyDamage(subject, dealt);
+      // Damage to yourself pays nothing, which is the rule `awardCausedDamage`
+      // states and the reason training is not something you do in a corner. Paid
+      // on what the wheel made of the blow rather than on what the formula said,
+      // so picking the right element is worth picking.
+      if (context.atSomebodyElse) {
+        this.awardCastDamage(actor, subject, stone, dealt, elements);
+      }
+      return;
+    }
+
+    // **Clamped at a full health bar, and paid for what was actually restored.**
+    // That is the whole of "pressing a mend at full health teaches you nothing":
+    // a body two points down gets two points and two points' worth of experience
+    // out of a stone that says ten.
+    const restored = Math.min(
+      -rolled,
+      Math.max(0, context.stats.maxHp - context.before),
+    );
+    if (restored <= 0) return;
+    subject.hp = context.before + restored;
+    // **The wheel never touches a mend**, and the multiplier is flat for the
+    // same reason: what `experienceMultiplier` weighs is how far above or below
+    // you the other body is, and mending is not an exchange with anybody. A
+    // caster who has mended a troll has mended somebody, not beaten them.
+    this.grantCasting(actor, restored, stone, elements, SELF_SPELL_MULTIPLIER);
+  }
+
+  /**
+   * Which of a bolt's statuses took, drawn once apiece.
+   *
+   * Through `./combat`'s {@link inflictedBy}, which is the same question a
+   * weapon's list is put through and answers it the same way: against the
+   * authored percentage directly, never through the band a contest lives in. An
+   * author who writes 100 means a brand that always burns.
+   *
+   * The draws are taken here rather than up in {@link castBolt} because they are
+   * only ever read here — unlike a swing, where they are taken before the miss
+   * is decided so that the world's dice advance by the same amount whatever
+   * happened. A cast cannot miss, so there is no early return to protect.
+   */
+  private boltInflicts(
+    statuses: readonly WeaponStatus[] | undefined,
+  ): readonly StatusGrant[] {
+    if (!statuses?.length) return NOTHING_INFLICTED;
+    return inflictedBy(
+      statuses,
+      statuses.map(() => this.rng.next()),
+    );
+  }
+
+  /**
+   * Pay an arcanist for damage one of their own casts just did.
+   *
+   * The direct twin of {@link awardCausedDamage}, which pays for damage done
+   * *later* by something they conjured, and it differs in exactly one thing: the
+   * stone is still in their hand, so the learning rate has a requirement to read
+   * and a caster who has outgrown their stone is paid less for it. Nobody can
+   * say that about a flame burning somebody two minutes after it was lit.
+   *
+   * Silent for a creature, which is where every payout in this game stops: only
+   * a player has experience to be given.
+   */
+  private awardCastDamage(
+    caster: ActorRuntime,
+    victim: ActorRuntime,
+    stone: ArcaneStoneItem,
+    damage: number,
+    elements: readonly Element[],
+  ) {
+    if (caster.resident) return;
+    const casterRating = this.ratingOf(caster);
+    const victimRating = this.ratingOf(victim);
+    if (casterRating === null || victimRating === null) return;
+
+    this.grantCasting(
+      caster,
+      damage,
+      stone,
+      elements,
+      experienceMultiplier(victimRating, casterRating),
+    );
+  }
+
+  /**
+   * Put a bolt's projectile in the air between two bodies, if it has one.
+   *
+   * The one thing a spell's flight has to work out that a bow's does not: where
+   * the two ends *are*. A swing already holds both points, having measured the
+   * reach between them a moment earlier; a cast has two actors and has to locate
+   * them. A body that cannot be located throws nothing, which is the honest
+   * answer — a flight has to start and end somewhere.
+   */
+  private fireBolt(
+    projectile: ProjectileDef | undefined,
+    from: ActorRuntime,
+    to: ActorRuntime,
+  ) {
+    if (!projectile) return;
+    const start = this.tryLocate(from);
+    const end = this.tryLocate(to);
+    if (!start || !end) return;
+    this.fireProjectile(
+      projectile,
+      this.reachPointOf(start),
+      this.reachPointOf(end),
+    );
+  }
+
 
   /**
    * Put a conjured tile on the board — at the target's cell, or in front of the

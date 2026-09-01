@@ -444,7 +444,12 @@ export function defenceAgainst(
 }
 
 /**
- * Which of a weapon's statuses took, given a draw apiece.
+ * Which of a list of statuses took, given a draw apiece.
+ *
+ * A weapon's list and a bolt's, which is why it is exported: they are the same
+ * authored shape asking the same question, and a second copy of this would be
+ * the first place a brand and a branding stone could come to disagree about what
+ * a hundred means.
  *
  * **Read against the authored percentage directly, and not through
  * `clampChance`.** That band exists to keep a *contest* in doubt at both ends —
@@ -453,7 +458,7 @@ export function defenceAgainst(
  * ninety-five percent of the time would be a number that quietly means something
  * else.
  */
-function inflictedBy(
+export function inflictedBy(
   statuses: readonly WeaponStatus[],
   rolls: readonly number[],
 ): readonly WeaponStatus[] {

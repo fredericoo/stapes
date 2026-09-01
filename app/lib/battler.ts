@@ -18,6 +18,7 @@ import {
   masteryLevel,
   MAX_MASTERY,
   requirementShare,
+  spellElements,
   type WeaponMastery,
 } from "./mastery";
 import type { TileDef } from "./types";
@@ -684,6 +685,86 @@ const NO_WEAPON_STATUSES: readonly WeaponStatus[] = [];
  * empty block rather than one per body per frame.
  */
 export const NO_RESISTANCES: WeaponResistances = {};
+
+/**
+ * How good this body is at the spell it is holding, as a fraction of 1.
+ *
+ * **The caster's answer to `fightingStats`' `skill`, and it reads more than one
+ * mastery because a spell is more than one thing.** A weapon answers to exactly
+ * one mastery, so how good you are with it is one number divided by the top of
+ * the scale. A spell answers to two facts that the codebase already keeps
+ * apart — see `./element`: **Arcane says how good you are at magic at all, and
+ * an element says what you point it at** — so reading only the first would make
+ * a Fire 1 arcanist throw the same fire as a Fire 100 one, and reading only the
+ * second would make somebody who has never cast anything a specialist.
+ *
+ * So it is the **mean of Arcane and each element the spell is made of**, and the
+ * mean rather than a sum for two reasons. It keeps the answer on the 0–1 scale
+ * {@link MASTERY_DAMAGE_BONUS} and {@link DAMAGE_AT_MAX_MASTERY} are written
+ * against, so a spell is worth to a master exactly what a weapon is. And it
+ * makes a two-element spell *harder* rather than merely more expensive: a stone
+ * asking Fire and Water is thrown at the average of three numbers, so somebody
+ * who has trained only one half of it gets a third of the spell however good
+ * their Arcane is.
+ *
+ * **Which elements a spell is made of is read off its requirements**, which is
+ * the only place a spell's element is ever written down — see `./mastery`'s
+ * {@link spellElements}. An elementless spell is Arcane alone, which is the
+ * right answer for a stone of light: magic that is not made of anything is
+ * thrown as well as you throw magic.
+ *
+ * **Requirements are not consulted as a ratio here, unlike a weapon's**, and the
+ * absence is deliberate rather than an oversight. `weaponReadiness` exists
+ * because a weapon you have not earned still swings; a stone you have not earned
+ * does not fire at all — `../game/casting`'s `meetsRequirements` refuses it — so
+ * at every call site this has, the share is one by construction. Writing the
+ * term anyway would be a factor that can never be anything but one, sitting in
+ * the formula inviting somebody to believe it does something.
+ */
+export function castingSkill(
+  masteries: Masteries,
+  requirements: Masteries | undefined,
+): number {
+  const elements = spellElements(requirements);
+  let total = masteryLevel(masteries, "arcane");
+  for (const element of elements) total += masteryLevel(masteries, element);
+  return total / ((1 + elements.length) * MAX_MASTERY);
+}
+
+/**
+ * What one press of this stone is worth in the caster's hands, before the
+ * variance roll and before whoever it lands on has had a say.
+ *
+ * **The same two terms a weapon's damage gets, against the same two constants**,
+ * which is the whole of "a spell scales like a weapon": a share of the stone's
+ * own worth, so a better stone rewards mastery more in absolute terms and the
+ * tiers stay ordered; and a flat amount, so mastery is worth training even with
+ * something small in your hand. What differs is only *which* masteries are read,
+ * and that is {@link castingSkill}'s business.
+ *
+ * **Worked in magnitude and given its sign back**, because a mend is a harm with
+ * a minus in front of it — see `./item`'s {@link StoneEffect} — and the flat
+ * term has to make a mend *deeper* rather than shallower. Signing it any later
+ * would make mastery quietly cancel out a stone of life.
+ *
+ * Unrounded, so the variance roll happens on the real figure and the rounding
+ * happens once at the end — the same order `../game/combat`'s
+ * {@link potentialDamageFrom} puts a swing through, and for the same reason: a
+ * blow is a whole number of hit points and rounding twice is a blow nobody can
+ * work out.
+ */
+export function spellPower(
+  damage: number,
+  requirements: Masteries | undefined,
+  masteries: Masteries,
+): number {
+  if (damage === 0) return 0;
+  const skill = castingSkill(masteries, requirements);
+  const magnitude =
+    Math.abs(damage) * (1 + skill * MASTERY_DAMAGE_BONUS) +
+    skill * DAMAGE_AT_MAX_MASTERY;
+  return damage < 0 ? -magnitude : magnitude;
+}
 
 /** Floors of perception, up or down. Whole floors — half a look is not a thing. */
 const levelSlack = v.pipe(v.number(), v.integer(), v.minValue(0));

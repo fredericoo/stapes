@@ -30,9 +30,9 @@ import {
   type WeaponMastery,
 } from "../lib/mastery";
 import type { StatusDef } from "../lib/status";
-import { Input, Segmented, Select } from "../ui";
+import { Segmented, Select } from "../ui";
 import { StatField } from "./StatField";
-import { StatusGrants } from "./StatusGrants";
+import { StatusChanceField, StatusGrants } from "./StatusGrants";
 
 /**
  * How a weapon fights, authored once and edited in two places.
@@ -340,32 +340,7 @@ export function WeaponFields({
             is the weapon&rsquo;s own and no mastery moves it.
           </>
         }
-        extra={(entry, patch) => (
-          // Shaped like the two duration columns beside it rather than as a
-          // `StatField`: that component carries a sentence under every box, and
-          // one field in a row of plain ones knocks the whole row out of line
-          // for a hint the section's own prose already gives.
-          <label className="flex flex-col gap-0.5 text-xs">
-            <span className="font-bold uppercase text-muted">Chance (%)</span>
-            <Input
-              type="number"
-              className="w-20"
-              min={MIN_PERCENT_STAT}
-              max={MAX_PERCENT_STAT}
-              value={entry.chance}
-              onChange={(e) => {
-                const next = Number(e.target.value);
-                if (!Number.isFinite(next)) return;
-                patch({
-                  chance: Math.max(
-                    MIN_PERCENT_STAT,
-                    Math.min(MAX_PERCENT_STAT, Math.round(next)),
-                  ),
-                });
-              }}
-            />
-          </label>
-        )}
+        extra={StatusChanceField}
       />
 
       <div className="flex flex-col gap-1 border-t-2 border-border pt-3">

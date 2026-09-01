@@ -684,47 +684,142 @@ export type ShieldItem = {
 };
 
 /**
- * What a stone does when it is pressed, as one of exactly three things.
+ * What a stone does when it is pressed, as one of exactly two things.
  *
- * **A closed vocabulary, and the closure is the design.** Every arm here is a
- * thing the simulation could already do to somebody — heal them, put a status
- * on them, put a tile on the board — so casting adds no new physics at all: a
+ * **A closed vocabulary, and the closure is the design.** Both arms are things
+ * the simulation could already do, so casting adds no new physics at all: a
  * stone of light is an authored status whose visual block carries a light, and
  * it rides the same emitter path a carried torch does. What cannot be said with
- * these three is not a spell this game has; the obvious next one is an area,
- * and it is deliberately absent because nothing here touches more than one
- * target or more than one cell.
+ * these two is not a spell this game has; the obvious next one is an area, and
+ * it is deliberately absent because nothing here touches more than one target or
+ * more than one cell.
+ *
+ * ## Why a status is not an arm of its own
+ *
+ * It was, and the split was drawn in the wrong place. A bolt and a status arm
+ * asked all the same questions — whose body, how far, what element, what a charm
+ * does with it — and answered them in two sets of code that had to be kept
+ * saying the same thing. Worse, the two could not be combined: a stone that
+ * burned somebody *and* set them alight was not authorable at all, which is the
+ * most obvious fire spell there is.
+ *
+ * So a status is something a bolt **carries**, on exactly the terms a weapon
+ * carries one — an id and a percentage, rolled per cast. That leaves both halves
+ * optional and the useful combinations fall out rather than being enumerated: a
+ * pure ward is a bolt with a status and no damage, a pure mend is a bolt with
+ * damage and no status, and a brand is both.
+ *
+ * A **conjure** stays its own arm, because it is the one effect that does not
+ * land on a body at all. It touches a cell, the player never picks that cell,
+ * and none of the questions above have answers for it.
  */
 export type StoneEffect =
   /**
-   * Put health back into whoever cast it, and nobody else.
+   * Move health, on the caster or on whatever they are pointing at.
    *
-   * Always the caster, never the target, and that is not an omission: a stone
-   * that could heal what you are pointing at would be the first thing in the
-   * game whose usefulness depended on picking an ally, and there are no allies.
-   * What it is worth is what it *restores* rather than what it names — see
-   * `../game/experience`'s `casterEarnings`, where a heal at full health teaches
-   * nothing.
-   */
-  | { kind: "heal"; hp: number }
-  /**
-   * Start an authored status, on the caster or on whatever they are pointing at.
+   * **A heal is negative damage and there is no second arm for it**, which is
+   * the whole of why this replaced the `heal` this vocabulary used to open with.
+   * Mending and harming were never two mechanisms — they are one number with a
+   * sign, and writing them as two arms meant two subjects to decide, two
+   * scalings to keep in step and two places to remember the wheel. What a stone
+   * of life and a stone of embers differ in is which way the arithmetic runs.
    *
-   * The duration override means here exactly what it means on a consumable —
-   * see {@link StatusGrant} — and for the same reason: two stones may start one
-   * status and differ only in how long it runs.
+   * The consequences are worth stating, because each of them used to be a rule
+   * somebody wrote and is now a fact about the sign:
    *
-   * `on` is a fact about the stone rather than about the square it is in. A
-   * charm may only ever reach its holder, so a `target` charm is refused where
-   * the squares are decided rather than here; a hand stone can honestly be
-   * either, and which it is is the whole difference between a ward and a curse.
+   * - A **heal at a target** is now authorable, where the old arm refused it on
+   *   the grounds that there are no allies. There still are none, so it is a
+   *   thing an author may write and probably should not; the model no longer has
+   *   an opinion.
+   * - A **harm at the caster** is authorable too, and is the curse that used to
+   *   need a status to express.
+   * - What either is *worth* is what it actually came to, never what it names —
+   *   see `../game/experience`'s `casterEarnings`, where a mend at full health
+   *   teaches nothing.
    */
   | {
-      kind: "status";
+      kind: "bolt";
+      /**
+       * The most it moves, before the subject's armour, and before mastery has
+       * had its say.
+       *
+       * **Positive harms and negative mends**, and the sign is the only thing
+       * separating the two. A ceiling rather than an average, exactly as a
+       * weapon's {@link WeaponItem.damage} is: {@link variance} decides how much
+       * of it any one cast is worth.
+       *
+       * What is actually dealt is this scaled by how good the caster is at the
+       * spell — see `./battler`'s {@link spellPower}, which is where Arcane and
+       * the elements the stone asks for are read. So the authored number is what
+       * the stone is worth to somebody who has learnt nothing, and every point
+       * of mastery is worth more of it.
+       */
+      damage?: number;
+      /**
+       * Whose body it lands on, health and statuses alike.
+       *
+       * A fact about the stone rather than about the square it is in: a charm
+       * may only ever reach its holder, so a `target` charm is refused where the
+       * squares are decided rather than here.
+       */
       on: StoneSubject;
-      id: string;
-      fromMs?: number;
-      toMs?: number;
+      /**
+       * 0–100. How much one cast varies, as a share of {@link damage}.
+       *
+       * The same dial a weapon's {@link WeaponItem.variance} is, rolled through
+       * the same `../game/combat`'s `damageFraction`, so the band is triangular
+       * here for the same reason it is there: the middle is common and both ends
+       * are rare.
+       *
+       * Absent is a spell that does exactly what it says, which is the honest
+       * default for a thing you may press once every two minutes — a swing you
+       * take thirty times in a fight can afford to be a distribution, and a
+       * single press cannot.
+       */
+      variance?: number;
+      /**
+       * What it puts in the air on its way, or absent for a spell that simply
+       * arrives.
+       *
+       * The same block and the same flight a bow's
+       * {@link WeaponItem.projectile} is, drawn by the same renderer — and just
+       * as purely a picture: the health has already moved by the time the first
+       * frame is drawn. See `../game/projectile` for why the receipt is allowed
+       * to arrive late and can never contradict the truth.
+       *
+       * **Nothing flies when the subject is the caster.** A bolt that mends its
+       * own thrower has no distance to cross, and an arrow from a body to itself
+       * is a frame of art sitting on somebody's head.
+       */
+      projectile?: ProjectileDef;
+      /**
+       * What it may leave on whoever it landed on, each with its own chance.
+       *
+       * **The same block a weapon's {@link WeaponItem.statuses} is**, rolled the
+       * same way by the same `../game/combat`'s `inflictedBy`, and every word of
+       * that field's note applies here. Above all this one: the chance is a fact
+       * about the *stone* and never about the caster. Arcane and the elements
+       * have already had their say twice over — on how deep the bolt ran and on
+       * what the wheel made of it — and scaling the chance as well would pay one
+       * skill three times, and would make a brand in a novice's hand a *less
+       * branding* brand, which is not a thing a rune does.
+       *
+       * Rolled on every cast, and landing on any body still standing when the
+       * health has moved. **Armour eating the damage does not save anybody from
+       * the burn** — a weapon's rule word for word, because what a ward stops is
+       * the blow and not the rune. What does stop it is nobody being there, and
+       * a body the same cast killed: a status is a condition you are *in*, and a
+       * corpse is not in one.
+       *
+       * The duration override means here what it means on a consumable — see
+       * {@link StatusGrant} — and is how two stones start one status and differ
+       * only in how long it runs.
+       *
+       * Absent is a bolt that only moves health. A bolt with **neither** this
+       * nor {@link damage} is refused by the schema: it is a spell that spends a
+       * cooldown to do nothing, which is a field somebody has not filled in.
+       */
+      statuses?: WeaponStatus[];
     }
   /**
    * Put a tile on the board — at the target's cell, or in front of the caster.
@@ -757,7 +852,7 @@ export type StoneSubject = "caster" | "target";
 export const STONE_SUBJECTS: StoneSubject[] = ["caster", "target"];
 
 /** The kinds of thing a stone can be authored to do. @see StoneEffect */
-export const STONE_EFFECT_KINDS = ["heal", "status", "conjure"] as const;
+export const STONE_EFFECT_KINDS = ["bolt", "conjure"] as const;
 
 export type StoneEffectKind = (typeof STONE_EFFECT_KINDS)[number];
 
@@ -1184,22 +1279,31 @@ export const MIN_STONE_COOLDOWN_MS = 1_000;
 export const MAX_STONE_COOLDOWN_MS = 60 * 60 * 1000;
 
 /**
- * Most health one press of a stone may put back.
+ * The furthest one press of a stone may move somebody's health, either way.
+ *
+ * Symmetric because the number it bounds is signed — see {@link StoneEffect}'s
+ * bolt arm, where a mend is a harm with a minus in front of it — so a ceiling
+ * that was not also a floor would let an author write a curse ten times deeper
+ * than any blessing.
  *
  * The same bound a consumable's shift is under and the same argument: hit points
  * have no authored ceiling, so this is wide enough for anything worth writing
  * and narrow enough that an extra digit reads as a mistake.
  */
-export const MAX_STONE_HEAL = MAX_CONSUMABLE_HP_SHIFT;
+export const MAX_SPELL_DAMAGE = MAX_CONSUMABLE_HP_SHIFT;
 
 /**
  * What a tile gets the moment somebody makes it an arcane stone.
  *
- * A small heal on a short cooldown, because it is the one effect that needs
+ * A small mend on a short cooldown, because a bolt is the one effect that needs
  * nothing else authored to work: a status arm would open on an id naming
  * nothing and a conjure on a tile that does not exist, and both would make a
  * fresh stone a thing that silently does nothing the first time it is pressed.
- * An author who wants fire is one select away.
+ * An author who wants fire is one select and a minus sign away.
+ *
+ * Negative and at the caster, so the first press of a brand new stone is
+ * something you can safely do standing alone in a room. The opposite sign would
+ * be a default that hurts whoever is testing it.
  *
  * Ten seconds rather than the minute the shipped stones carry: a default is a
  * thing somebody is about to test, and waiting a minute to find out whether it
@@ -1207,7 +1311,7 @@ export const MAX_STONE_HEAL = MAX_CONSUMABLE_HP_SHIFT;
  */
 export const DEFAULT_STONE: ArcaneStoneItem = {
   type: "stone",
-  effect: { kind: "heal", hp: 5 },
+  effect: { kind: "bolt", damage: -5, on: "caster" },
   cooldownMs: 10_000,
 };
 
@@ -1294,6 +1398,27 @@ const reachEntries = v.object({
 });
 
 /**
+ * What a thing puts in the air, shared by a bow and by a bolt.
+ *
+ * Shared for the reason {@link reachEntries} is: a spell's flight *is* a
+ * weapon's, timed by the same `../game/projectile` and drawn by the same
+ * renderer, so a second copy here would be the first place the two could
+ * disagree about what twenty cells a second means.
+ *
+ * Whether the tile id names anything is the catalogue's question and is asked
+ * where the arrow is drawn — this module resolves no tiles, on exactly the terms
+ * a consumable's status ids are left alone here.
+ */
+const projectileSchema = v.object({
+  tileId: v.pipe(v.string(), v.trim(), v.minLength(1)),
+  cellsPerSecond: v.pipe(
+    v.number(),
+    v.minValue(MIN_PROJECTILE_SPEED),
+    v.maxValue(MAX_PROJECTILE_SPEED),
+  ),
+});
+
+/**
  * Exported because a body's natural weapon is validated by it too.
  *
  * "A bite is a weapon like any other" has to be literally true, including in
@@ -1338,16 +1463,7 @@ export const weaponSchema = v.object({
   // anything is the catalogue's question and is asked where the arrow is drawn —
   // this module resolves no tiles, on exactly the terms a consumable's status
   // ids are left alone here.
-  projectile: v.optional(
-    v.object({
-      tileId: v.pipe(v.string(), v.trim(), v.minLength(1)),
-      cellsPerSecond: v.pipe(
-        v.number(),
-        v.minValue(MIN_PROJECTILE_SPEED),
-        v.maxValue(MAX_PROJECTILE_SPEED),
-      ),
-    }),
-  ),
+  projectile: v.optional(projectileSchema),
   // Optional, and absent is the overwhelmingly common case: most weapons ask
   // nothing. An empty object is allowed through rather than rejected — it says
   // the same thing as no key, and refusing it would make a round trip through
@@ -1506,34 +1622,60 @@ const shieldSchema = v.object({
 });
 
 /**
- * One of the three things a stone can be authored to do.
+ * A bolt that neither moves health nor leaves anything behind.
+ *
+ * Refused rather than tolerated, and the message says which half is missing
+ * because either one alone is a whole spell — see {@link StoneEffect}. What it
+ * catches is a draft somebody opened and did not finish, which would otherwise
+ * ship as a stone that spends its cooldown to do nothing at all.
+ */
+const EMPTY_BOLT_MESSAGE = "A bolt has to move health or leave a status behind.";
+
+/**
+ * One of the two things a stone can be authored to do.
  *
  * A variant rather than a block of optional fields, on exactly the terms
- * {@link itemSchema} is one: a heal cannot carry a tile id and a conjure cannot
- * carry an amount of health, so a half-edited draft is a parse failure here
+ * {@link itemSchema} is one: a bolt cannot carry a tile id and a conjure cannot
+ * carry an amount of damage, so a half-edited draft is a parse failure here
  * rather than a stone that does two things at once.
  */
 const stoneEffectSchema = v.variant("kind", [
-  v.object({
-    kind: v.literal("heal"),
-    // Unsigned, unlike a consumable's `hp`: harming yourself is a status, and a
-    // negative here would be a stone that reads as a heal and is a curse.
-    hp: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_STONE_HEAL)),
-  }),
   v.pipe(
     v.object({
-      kind: v.literal("status"),
+      kind: v.literal("bolt"),
+      // **Signed, optional, and never zero when it is there.** The sign is the
+      // whole difference between a curse and a blessing — see
+      // {@link StoneEffect} — so both ends are open. Absent is a bolt that moves
+      // no health, which is a real spell now that a status can ride one; zero is
+      // still refused, because it is a field somebody typed in and emptied
+      // rather than one they left alone.
+      damage: v.optional(
+        v.pipe(
+          v.number(),
+          v.integer(),
+          v.minValue(-MAX_SPELL_DAMAGE),
+          v.maxValue(MAX_SPELL_DAMAGE),
+          v.check((damage) => damage !== 0, "A bolt of zero moves no health."),
+        ),
+      ),
       on: v.picklist(STONE_SUBJECTS),
-      // Whether an id names anything is the catalogue's question, asked where
-      // the status is granted — this module resolves no statuses, on exactly the
-      // terms a consumable's grants are left alone here.
-      ...statusGrantEntries,
+      // Optional, and absent is a spell that does exactly what it says — see the
+      // field's own note for why that is the right default for something you
+      // press once a minute rather than thirty times a fight.
+      variance: v.optional(percent),
+      // Absent for a bolt that simply arrives, which is every one cast at its
+      // own thrower and most of the rest.
+      projectile: v.optional(projectileSchema),
+      // The weapon's own list, validated by the weapon's own schema: an id and a
+      // percentage, with the duration override every other grant carries. What
+      // the ids name is the catalogue's question and is asked where the status
+      // is granted.
+      statuses: v.optional(v.array(weaponStatusSchema)),
     }),
-    // The same two rules every other duration override is under, and refused
-    // here for the same reason: half an override would have to be ordered
-    // against a number from somewhere else.
-    v.check((raw) => overrideIsWhole(raw), BOTH_ENDS_MESSAGE),
-    v.check((raw) => overrideIsOrdered(raw), ORDERED_MESSAGE),
+    v.check(
+      (raw) => raw.damage !== undefined || (raw.statuses?.length ?? 0) > 0,
+      EMPTY_BOLT_MESSAGE,
+    ),
   ),
   v.object({
     kind: v.literal("conjure"),
@@ -1963,20 +2105,31 @@ function stoneForSave(stone: ArcaneStoneItem): ArcaneStoneItem {
 
 /** One effect, field by field, with a blank id or tile dropping the block. */
 function stoneEffectForSave(effect: StoneEffect): StoneEffect {
-  if (effect.kind === "heal") return { kind: "heal", hp: Math.round(effect.hp) };
   if (effect.kind === "conjure") {
     return { kind: "conjure", tileId: effect.tileId.trim() };
   }
-  const id = effect.id.trim();
-  // Both ends or neither — half an override is malformed and the schema refuses
-  // it, which is the same walk `statusGrantsForSave` makes over a list.
-  return effect.fromMs !== undefined && effect.toMs !== undefined
-    ? {
-        kind: "status",
-        on: effect.on,
-        id,
-        fromMs: Math.round(effect.fromMs),
-        toMs: Math.round(effect.toMs),
-      }
-    : { kind: "status", on: effect.on, id };
+  // Through the same walk a weapon's list goes through, so a blank row somebody
+  // added and never named drops here rather than failing the schema.
+  const statuses = statusGrantsForSave(effect.statuses);
+  return {
+    kind: "bolt",
+    on: effect.on,
+    // Every optional drops when it says nothing, on the terms every other
+    // absent-means-the-default field here does: a `variance: 0` written to disk
+    // claims an author decided the spell was reliable, where absent says nobody
+    // thought about it and it does what it says. A projectile with no tile
+    // picked is a picker somebody opened and closed again, and a damage of zero
+    // is a number somebody emptied.
+    ...(effect.damage ? { damage: Math.round(effect.damage) } : {}),
+    ...(effect.variance ? { variance: Math.round(effect.variance) } : {}),
+    ...(effect.projectile?.tileId.trim()
+      ? {
+          projectile: {
+            tileId: effect.projectile.tileId.trim(),
+            cellsPerSecond: effect.projectile.cellsPerSecond,
+          },
+        }
+      : {}),
+    ...(statuses ? { statuses } : {}),
+  };
 }

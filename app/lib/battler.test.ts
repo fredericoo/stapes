@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   ACCURACY_AT_MAX_MASTERY,
+  castingSkill,
   DAMAGE_AT_MAX_MASTERY,
   DEFAULT_BATTLER,
   fightingStats,
@@ -12,6 +13,7 @@ import {
   MASTERY_ACCURACY_BONUS,
   MASTERY_DAMAGE_BONUS,
   REQUIREMENT_FALLOFF,
+  spellPower,
 } from "./battler";
 import { MELEE_REACH, type WeaponItem } from "./item";
 
@@ -321,5 +323,77 @@ describe("what a weapon is worth in the hand", () => {
     const readiness = (45 / 55) ** REQUIREMENT_FALLOFF;
     expect(stats.spd).toBe(Math.round(100 * readiness));
     expect(stats.hitChance).toBeLessThan(MAX_CHANCE);
+  });
+});
+
+/**
+ * What a stone is worth in somebody's hands.
+ *
+ * The caster's half of the same question the suite above asks about a weapon,
+ * and the cases are chosen for what makes it a *different* question: two
+ * masteries rather than one, a sign that can go either way, and a requirement
+ * block that is read for what the spell is made of rather than for whether it
+ * may be cast at all.
+ */
+describe("what a spell is worth in the hand", () => {
+  /** A spell made of nothing is thrown as well as you throw magic. */
+  it("reads Arcane alone for a spell with no element", () => {
+    expect(castingSkill({ arcane: 40 }, undefined)).toBeCloseTo(0.4, 6);
+    expect(castingSkill({ arcane: 40 }, { toughness: 10 })).toBeCloseTo(0.4, 6);
+  });
+
+  /**
+   * **Both halves, averaged, and neither can stand in for the other.** A great
+   * arcanist who has never thrown fire throws mediocre fire, and somebody with
+   * nothing but Fire has nothing to point it with.
+   */
+  it("averages Arcane with the elements the stone asks for", () => {
+    expect(castingSkill({ arcane: 100, fire: 0 }, { fire: 1 })).toBeCloseTo(0.5, 6);
+    expect(castingSkill({ arcane: 0, fire: 100 }, { fire: 1 })).toBeCloseTo(0.5, 6);
+    expect(castingSkill({ arcane: 60, fire: 40 }, { fire: 1 })).toBeCloseTo(0.5, 6);
+  });
+
+  /**
+   * A two-element spell is thrown at the average of three numbers, which is what
+   * makes breadth genuinely harder rather than merely more expensive: training
+   * one half of it buys you a third of the spell.
+   */
+  it("counts every element a two-element stone names", () => {
+    expect(
+      castingSkill({ arcane: 90, water: 90, nature: 0 }, { water: 8, nature: 8 }),
+    ).toBeCloseTo(0.6, 6);
+  });
+
+  /**
+   * The same two terms a weapon gets, against the same two constants — which is
+   * the whole of "a spell scales like a weapon".
+   */
+  it("pays a share of the stone and a flat amount, exactly as a weapon does", () => {
+    expect(spellPower(20, { fire: 1 }, { arcane: 100, fire: 100 })).toBeCloseTo(
+      20 * (1 + MASTERY_DAMAGE_BONUS) + DAMAGE_AT_MAX_MASTERY,
+      6,
+    );
+  });
+
+  /** Somebody who has learnt nothing gets exactly what the author wrote. */
+  it("is the authored number for a body with nothing trained", () => {
+    expect(spellPower(20, { fire: 1 }, {})).toBe(20);
+    expect(spellPower(-20, { fire: 1 }, {})).toBe(-20);
+  });
+
+  /**
+   * **The sign survives and the magnitude grows.** A mend is a harm with a minus
+   * in front of it, so mastery has to make it *deeper* — a flat term added
+   * without regard to the sign would have a master's stone of life mending less
+   * than a novice's, and eventually mending nothing at all.
+   */
+  it("makes a mend deeper rather than shallower", () => {
+    const novice = spellPower(-20, undefined, {});
+    const master = spellPower(-20, undefined, { arcane: 100 });
+    expect(master).toBeLessThan(novice);
+    expect(master).toBeCloseTo(
+      -(20 * (1 + MASTERY_DAMAGE_BONUS) + DAMAGE_AT_MAX_MASTERY),
+      6,
+    );
   });
 });

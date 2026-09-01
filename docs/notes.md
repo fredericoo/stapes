@@ -1038,20 +1038,148 @@ never swings". One stone and a sword swings the sword every turn; two stones
 falls back to fists, because the rotation already skips a hand with nothing in
 it. Nothing was written for either.
 
-### The effect vocabulary is three things, and closed
+### The effect vocabulary is two things, and closed
 
-**Heal** the caster, **status** on the caster or the target, **conjure** a tile.
-Every one of them is something the simulation could already do to somebody,
-which is why casting added no new physics: "luminous" is an ordinary authored
-status whose visual block carries a `LightDef`, riding the same emitter path a
-carried torch does. Area of effect is deliberately absent — no spell touches
-more than one target or more than one cell.
+**Bolt** at the caster or the target, **conjure** a tile. Both are things the
+simulation could already do, which is why casting added no new physics:
+"luminous" is an ordinary authored status whose visual block carries a
+`LightDef`, riding the same emitter path a carried torch does. Area of effect is
+deliberately absent — no spell touches more than one target or more than one
+cell.
 
 A hand stone reaches for the target the player already picked for attacking, and
 a **charm reaches nobody but its wearer**. A conjure lands on the target's cell
 or, with nobody targeted, on the cell the caster is facing: the player never
 picks an arbitrary square. Range goes through `canReach`, so a spell out of range
 fails exactly the way a swing does, wall included.
+
+#### A status is something a bolt carries, not an arm of its own
+
+It was an arm, and the split was drawn in the wrong place. A bolt and a status
+asked all the same questions — whose body, how far, what element, what a charm
+does with it — and answered them in two sets of code that had to be kept saying
+the same thing. Worse, the two could not be combined: **a stone that burned
+somebody *and* set them alight was not authorable at all**, which is the most
+obvious fire spell there is.
+
+So a bolt carries `statuses`, which is the weapon's own field validated by the
+weapon's own schema and rolled by the same `inflictedBy` — an id and a
+percentage apiece. Both halves are optional and the useful combinations fall out
+rather than being enumerated: a pure ward is a bolt with a status and no damage,
+a pure mend is a bolt with damage and no status, and a brand is both. A bolt with
+*neither* is refused: it is a spell that spends a cooldown to do nothing.
+
+**The chance is the stone's own and no mastery moves it**, on the same argument
+a weapon's is under: Arcane and the elements have already had their say twice —
+on how deep the bolt ran and on what the wheel made of it — and scaling the
+chance as well would pay one skill three times.
+
+**Armour eating the damage does not save anybody from the burn**, which is again
+a weapon's rule word for word: what a ward stops is the blow and not the rune.
+What does stop it is nobody being there, and a body the same cast killed — a
+status is a condition you are *in*, and a corpse is not in one.
+
+`automaticFires` OR-s the two halves, and that matters: a stone that mends and
+wards is worth pressing when *either* would land, or combining them would be
+worse than authoring either alone — exactly backwards for the change that let
+them combine.
+
+**A conjure stays its own arm**, because it is the one effect that does not land
+on a body at all. It touches a cell, the player never picks that cell, and none
+of the questions above have answers for it.
+
+#### A heal is negative damage, and there is no second arm for it
+
+The vocabulary used to open with a `heal` that put health into its caster and
+nobody else. It is one `bolt` now, carrying a **signed** `damage`: positive
+harms, negative mends, and `on` says whose body it lands on exactly as a status's
+does. Mending and harming were never two mechanisms — they are one number with a
+sign, and writing them as two arms meant two subjects to decide, two scalings to
+keep in step and two places to remember the wheel.
+
+What differs between the two directions is not the arithmetic but who has a say
+in it, and it comes to exactly three things. A harm has to get through what the
+subject is wearing and is then weighed on the wheel; a mend is stopped by
+neither and stops at a full health bar instead. Nobody has ever worn armour
+against being healed.
+
+Two things that used to be rules somebody wrote are now facts about the sign. A
+**mend at a target** is authorable, where the old arm refused it on the grounds
+that there are no allies — there still are none, so it is a thing an author may
+write and probably should not, and the model no longer has an opinion. A **harm
+at the caster** is the curse that used to need a status to express.
+
+#### A bolt is mitigated and never dodged
+
+**No accuracy and no dodge.** A cast is not aimed: you spent the cooldown and the
+stone answered. What is left of a swing's dice is the variance band, rolled
+through the same `damageFraction` a weapon's is, and absent variance is a spell
+that does exactly what it says — the honest default for a thing you press once
+every two minutes, where a swing you take thirty times a fight can afford to be a
+distribution.
+
+That is the trade the profession is built on: a bolt is the reliable half of an
+arcanist's damage and a swing is the frequent half. One press every two minutes
+cannot also be a coin toss.
+
+What it *does* go through is `damageAfterDefence`, as an **arcane** blow — the
+mastery a stone answers to, which is the whole reason the `magic`/`arcane` rename
+collapsed two names into one. A breastplate authored with an arcane resistance
+turns one aside. The elements deliberately do not appear there: what an element
+is worth against a body is the wheel's question, asked one step later on the
+damage that got through, and keying resistance off them as well would let one
+piece of armour answer the same blow twice.
+
+#### A bolt scales like a weapon, off two masteries rather than one
+
+`spellPower` is the caster's `fightingStats`, and it is deliberately the same two
+terms against the same two constants — a share of the stone's own worth, so a
+better stone rewards mastery more in absolute terms, and a flat amount, so
+mastery is worth training with something small in your hand. The authored number
+is what the stone does for somebody who has learnt nothing.
+
+What differs is *which* masteries are read, and that is the one place a spell is
+not a weapon. A weapon answers to exactly one mastery; a spell answers to two
+facts this codebase already keeps apart — **Arcane says how good you are at magic
+at all, and an element says what you point it at**. So `castingSkill` is the
+**mean of Arcane and each element the stone asks for**. The mean rather than a
+sum keeps the answer on the 0–1 scale the two constants are written against, and
+it makes a two-element spell genuinely *harder* rather than merely more
+expensive: a stone asking Fire and Water is thrown at the average of three
+numbers, so training one half of it buys you a third of the spell.
+
+**Requirements are not read as a ratio here, unlike a weapon's**, and the absence
+is the design rather than an oversight. `weaponReadiness` exists because a weapon
+you have not earned still swings; a stone you have not earned does not fire at
+all, so the share is one at every call site this has. Writing the term anyway
+would be a factor that can never be anything but one, sitting in the formula
+inviting somebody to believe it does something.
+
+#### What a bolt throws is the same flight a bow's is
+
+`ProjectileDef` moved out of the weapon schema into a shared `projectileSchema`,
+because a spell's flight *is* a weapon's — same `flightDurationMs`, same
+renderer, same promise that the picture is allowed to lag the truth and can never
+contradict it. `fireProjectile` now takes the block rather than a `FightingStats`,
+which is what lets a cast use it at all: a bolt has a projectile and no fighting
+stats to hang it on, and resolving some for a caster would be inventing a weapon
+nobody is holding.
+
+**Nothing flies when the subject is the caster.** A bolt at your own body has no
+distance to cross, and an arrow from a body to itself is a frame of art sitting
+on somebody's head.
+
+The shipped bolts throw `arcane-shard` — the mote already in the catalogue, which
+is a one-cell prop with a small blue light on it. It is not a `directional8` tile
+and does not need to be: a mote has no bearing to point along. The editor's
+picker still offers only 8-way tiles, which is the right default for the thing an
+author is usually reaching for, and the schema does not enforce it.
+
+**Eight cells a second rather than twenty**, which is well under a bow's. A
+bolt's three cells at an arrow's speed is 170ms in the air — half a bow's shot,
+and it reads as a flicker rather than as a thing that travelled. The flight is
+the only part of the animation carrying any information about distance, so it
+has to last long enough to be seen carrying it.
 
 **A conjure lands *under* a body already standing there**, which is the same rule
 `/tile` places underfoot by. What a tile does to a body is read off the stack
@@ -1111,9 +1239,9 @@ yet".
 
 A third earnings function beside the attacker's and the defender's, keyed on an
 amount rather than an attack outcome: damage dealt to somebody who is not the
-caster, and health **actually restored** to the caster — so a heal at full
-health teaches nothing from the heal. Damage to yourself pays nothing, or
-training would be something you do to yourself in a corner.
+caster, and health **actually restored** — so a mend at full health teaches
+nothing from the mend. Damage to yourself pays nothing, or training would be
+something you do to yourself in a corner.
 
 **And every cast pays a small flat fee on top, whatever it was.** Outcomes alone
 work for a swordsman, because every swing is aimed at somebody, and do not work
@@ -1226,11 +1354,17 @@ much to be allowed to hold.
 
 #### The wheel turns on damage, and rides the thread `castBy` already cut
 
-**Damage is the only thing it touches.** A heal has no second body in the
+**Damage is the only thing it touches.** A mend has no second body in the
 exchange for an element to be good against, and a status's *duration* is a clock
 rather than a force — so what the wheel changes is how hard the fire actually
 bites, in `GameSession.elementalDamage`, and nowhere else. Never below one point:
 a resisted spell should land softly, not visibly do nothing.
+
+A bolt thrown by hand reaches it by the shortest road there is — its elements are
+read at the top of `cast` and handed straight to `elementalDamage`, after the
+subject's armour has had the blow. Every other route to the same function is the
+long way round the same corner: a status carries them, a conjured placement
+carries them, and the tick spends them.
 
 Getting the element there was the same journey `causedBy` already makes, with a
 second passenger the whole way. A stone's elements are read once at the top of
@@ -1265,9 +1399,25 @@ to is paid for having picked it.
 Ember (`burned`), Frost (`chilled`, a new blue status), Thorns (`poison`) — and
 three greater ones at Arcane 12 and their element 10, which are the same three
 spells at full duration and a longer reach. The Stone of Flame now asks Fire 6,
-because it always was one. Verdance is the two-element example: a heal asking
+because it always was one. Verdance is the two-element example: a mend asking
 Water 8 and Nature 8, elemental in what it trains and never weighed, because a
-heal has nobody on the other end of it.
+mend has nobody on the other end of it.
+
+**Bolts.** Cinder, Sleet and Barbs, one per element, at the same bottom rung the
+lesser status stones sit on — Arcane 2 and the single point of their element. All
+three are the same spell in three colours: twelve damage at a quarter variance
+over three cells, twenty-five seconds apart, throwing an `arcane-shard`. They are
+the ladder's first *direct* damage, where every stone before them worked by
+leaving something on somebody. The Necklace of Life and Verdance are the mending
+direction of the same arm, unchanged in what they do and re-said in the
+vocabulary that now holds them.
+
+The **greater** three — Pyre, Rime and Bramble — now do both halves, which is
+what makes them greater rather than merely longer: eighteen damage and the
+status, where the lesser stones at the bottom of each element do one or the
+other. Every stone that was a `status` arm is a bolt carrying that status at a
+hundred percent, so nothing about what any of them does changed on the way
+through.
 
 **Bodies.** The snake is nature and the cave troll is fire. Everything else —
 rat, wolf, deer, cat, shopkeeper, and the player — is neutral, which is the
