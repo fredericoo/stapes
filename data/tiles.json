@@ -10913,13 +10913,13 @@
             "sprite": {
               "tilesetId": "tiny-ranch-tiles",
               "rect": {
-                "x": 4,
-                "y": 8,
-                "w": 1,
+                "x": 6,
+                "y": 14,
+                "w": 2,
                 "h": 2
               },
               "base": {
-                "x": 0,
+                "x": 1,
                 "y": 1
               }
             },
@@ -11271,30 +11271,92 @@
     "id": "chair",
     "name": "Chair",
     "height": 1,
-    "type": "simple",
+    "type": "directional",
     "kind": "prop",
     "attributes": {},
     "lightPassing": true,
     "walkable": false,
-    "sprite": {
-      "frames": [
-        {
-          "sprite": {
-            "tilesetId": "tiny-ranch-tiles",
-            "rect": {
-              "x": 4,
-              "y": 16,
-              "w": 2,
-              "h": 2
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "tiny-ranch-tiles",
+              "rect": {
+                "x": 12,
+                "y": 16,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
             },
-            "base": {
-              "x": 1,
-              "y": 1
-            }
-          },
-          "durationMs": 200
-        }
-      ]
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "tiny-ranch-tiles",
+              "rect": {
+                "x": 10,
+                "y": 16,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "tiny-ranch-tiles",
+              "rect": {
+                "x": 8,
+                "y": 16,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "tiny-ranch-tiles",
+              "rect": {
+                "x": 4,
+                "y": 16,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
     }
   },
   {
