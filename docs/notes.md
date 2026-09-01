@@ -1914,6 +1914,123 @@ on; both halves want changing together. And **a rolled kit's contents do not
 pour**, for the same reason one rung further back: what a body is born carrying
 is written straight into the bag.
 
+## An extract spends the world, and the wait is yours alone
+
+`interactions.extract` is the third arrangement of "this tile gives you
+something", and it is the one a *resource* wants: a crystal you mine, a bush you
+pick. Read it against the two beside it, because the whole design is the
+contrast.
+
+|            | who it is spent by      | what runs out              | what stops you |
+| ---------- | ----------------------- | -------------------------- | -------------- |
+| reward     | one player, once        | nothing on the board       | a tag on you   |
+| transmute  | anybody, repeatedly     | nothing on the board       | your bag       |
+| extract    | everybody, together     | the placement's durability | a wait of yours |
+
+- **Two clocks, pointing opposite ways.** Durability is the world's: it lives on
+  the placement (`PlacedTile.extractsLeft`), anybody's pull spends it, and two
+  people working one vein race each other. The cooldown is one player's *and*
+  per placement: it lives on their `ActorRuntime` and nothing on the board
+  carries it, so a bush somebody has just stripped is still full for the person
+  walking up behind them. Getting either half wrong collapses it into a reward
+  (all per player) or into a switch (all shared).
+- **Durability is on the placement, and a decay deadline deliberately is not.**
+  The rule is not "runtime state stays off the map" — it is *who has to agree
+  about it*. Everybody has to see the same vein, so it rides the cell patch and
+  the checkpoint for free, exactly as a chest's `contents` do. A decay deadline
+  is nobody's business but the session's, which is why that one is held beside
+  the map. `authoredPlacement` strips `extractsLeft` on the way to
+  `data/map.json` on `itemId`'s terms: a half-mined vein is a state of play, not
+  something anybody typed.
+- **A fresh placement carries no number at all.** `extractsLeft(placed, extract)`
+  falls back to the def's `durability`, so a map full of untouched bushes costs
+  the file and the wire nothing, and the field only appears once somebody has
+  taken from one. It is clamped to the def as well, so lowering `durability` in
+  `tiles.json` shortens every vein in the world including the ones already
+  started — the def is the authority on what a thing is worth.
+- **The yield is a drop table, on a kit's terms.** Up to `MAX_EXTRACT_SLOTS`
+  slots of `{tileId, chance}`, each drawn for independently, on the same percent
+  scale and with the same fixed-draw-count discipline `KitEntry` argues for.
+  "One to three berries" is three berry slots at descending chances; "nothing, or
+  a shard" is one slot. Every slot is drawn for every time whatever has already
+  come up, because a skipped draw would make one player's luck change what the
+  next creature in the world rolled.
+- **Room is checked against the best possible roll, never the actual one.** The
+  roll has not happened when the row is offered and must not — drawing to decide
+  whether to draw would make the row flicker while nothing moved, and would spend
+  the world's dice on a question. So `extractFits` asks for a free bag square per
+  authored slot. All-or-nothing on `rewardFits`' terms and for a sharper reason:
+  a pull spends shared durability, so anything that would not fit would have been
+  destroyed on everybody's behalf. Nothing an extract yields is ever dropped on
+  the floor. `MAX_EXTRACT_SLOTS` is four because that is what the largest bag
+  holds; a wider table would be a resource only somebody with an empty pack could
+  work.
+- **The wait is charged whatever came up.** A crystal that yields nothing on a
+  bad roll has still been chipped at — the durability went into the swing, not
+  into what came out of it — and a pull that cost nothing when it gave nothing
+  would be a free re-roll.
+- **Regrowth is deliberately not authored here.** `tileId` hands the spent
+  placement to machinery that already exists, and there are two answers because
+  there are two shapes: a bush becomes `picked-bush`, and the *picked bush*
+  decays back into a bush; a crystal names nothing, so the placement is removed
+  and its own `respawn` spawn point notices the empty cell. A third countdown in
+  this block would be competing with two that work. It also means a resource that
+  names neither is a one-shot, which is a perfectly good thing to author.
+- **No new inbound message.** A resource is reached by a plain tap, so
+  `GameSession.interact` routes it — below every authored swap, above everything
+  to do with carrying — and there is no `PlaySession.extract` that could disagree
+  with that precedence about what a tap does. A transmuter needs its own verb
+  because one placement offers several recipes; a bush offers one thing, which is
+  the bush.
+
+### The cooling set is a per-player channel, and it carries keys rather than clocks
+
+The row is *hidden* while a player is waiting, rather than offered and refused,
+which means the client has to know. It is told, on exactly the terms it is told
+its tags: a `Set` of changed actor ids drained out of the session, a whole-state
+message to the one socket it is about (`extractCooling`), and the same list on
+`hello` because a reconnecting player's waits are still running on the body they
+left.
+
+- **Keys, not deadlines.** A remaining-ms per entry would be a message every tick
+  for the whole of every wait. What the client needs is the boolean, so the
+  message goes out twice per pull — once when a wait starts, once when it ends —
+  and winding is silent in between. `advanceExtractCooldowns` only announces an
+  *expiry*.
+- **The list's identity is the change signal**, so it is cached on the runtime
+  beside the map it is derived from (`ActorRuntime.extractCooling`, written only
+  in `setExtractCooldowns`) rather than built where it is read. It goes out on
+  the snapshot every frame, and the renderer gates its whole interaction list on
+  it — a fresh array per frame would rebuild the list sixty times a second for a
+  set that changes twice a pull. It is the same `carriedLights` bargain.
+- **A membership test, not a `Set`,** is what the rules take (`CoolingResources`),
+  which is what lets each end hold it in the shape it already has: the server's
+  truth is a `Map<key, remainingMs>`, the client's is a `Set` built from the list
+  it was sent, and both answer `has`.
+- **Not durable.** `hp`'s bargain rather than a tag's: a tag records that
+  something *happened* and can never be rebuilt, where a wait records that
+  something happened *recently*, and a world unloaded long enough to lose it has
+  been unloaded for longer than any wait worth authoring.
+- **The key is cell-plus-tile**, `decay`'s `entryKey` and not the stack index,
+  for its reason: an index shifts the moment anything is placed under or over it.
+  Including the tile id means the wait a player owes a bush does not follow it
+  into the picked bush it becomes — which is right, since there is nothing left
+  to pull until it has grown back anyway.
+
+### Adding a respawn to a tile does not reach a world already running
+
+Worth knowing before authoring a resource that regrows by removal. The spawn
+registry is derived from the map **once**, at first load, and thereafter read
+back from storage; `reloadContent` — the path a tile or status save takes —
+explicitly does not re-derive it, because a content save changes what the tiles
+mean and not where anything is. Only `replaceWorld` (a map save, `POST /api/map`)
+and `resetWorld` rebuild it.
+
+So seeding a tile that has newly gained a `respawn` leaves every placement of it
+already on the board with no spawn point: mine it and it is gone for good. The
+fix is a map save or a reset, and it is the same "the world prefers its own
+checkpoint" caveat `CLAUDE.md` states, one step sharper.
+
 ## Decay is a switch whose input is time
 
 `DecayInteraction` turns a placement into another tile, or into nothing, once it
