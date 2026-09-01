@@ -39012,7 +39012,8 @@
           "tileId": "wooden-floor"
         },
         {
-          "tileId": "chair"
+          "tileId": "chair",
+          "direction": "n"
         }
       ],
       "-1,-27": [
@@ -40499,10 +40500,6 @@
       "0,42": [
         {
           "tileId": "grass-2"
-        },
-        {
-          "tileId": "snake",
-          "direction": "s"
         }
       ],
       "0,43": [
@@ -41513,6 +41510,10 @@
       "1,43": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "snake",
+          "direction": "s"
         }
       ],
       "1,44": [
@@ -125092,6 +125093,9 @@
         },
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "arcane-crystal-1"
         }
       ],
       "-15,54": [
@@ -127374,6 +127378,9 @@
       "-10,40": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "barrel"
         }
       ],
       "-10,43": [
@@ -127824,6 +127831,9 @@
       "-9,41": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "quest-crate"
         }
       ],
       "-9,43": [
@@ -128278,6 +128288,9 @@
         },
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "arcane-crystal-1"
         }
       ],
       "-8,46": [
@@ -128687,6 +128700,14 @@
       "-7,40": [
         {
           "tileId": "dirt"
+        }
+      ],
+      "-7,41": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "barrel"
         }
       ],
       "-7,43": [
@@ -129118,6 +129139,14 @@
       "-6,40": [
         {
           "tileId": "dirt"
+        }
+      ],
+      "-6,41": [
+        {
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "barrel"
         }
       ],
       "-6,43": [
@@ -129673,6 +129702,9 @@
         },
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "arcane-crystal-1"
         }
       ],
       "-5,57": [
@@ -133439,6 +133471,9 @@
         },
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "arcane-crystal-1"
         }
       ],
       "3,41": [
@@ -135938,10 +135973,6 @@
         },
         {
           "tileId": "dirt"
-        },
-        {
-          "tileId": "torch",
-          "direction": "s"
         }
       ],
       "8,42": [
@@ -137941,10 +137972,13 @@
       ],
       "12,40": [
         {
-          "tileId": "half-stone"
+          "tileId": "grass-2"
         },
         {
-          "tileId": "half-stone"
+          "tileId": "dirt"
+        },
+        {
+          "tileId": "arcane-crystal-1"
         }
       ],
       "12,41": [

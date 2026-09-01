@@ -11585,5 +11585,40 @@
         }
       ]
     }
+  },
+  {
+    "id": "arcane-crystal-1",
+    "name": "Arcane Crystal",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "lightPassing": true,
+    "walkable": false,
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 14,
+              "y": 16,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 3,
+            "intensity": 1,
+            "color": "#43d1f4"
+          }
+        }
+      ]
+    }
   }
 ]
