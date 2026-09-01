@@ -1,7 +1,10 @@
 ---
-description: Run renderer perf budgets before shipping editor/renderer changes
-globs: app/editor/**/*.{ts,tsx}
-alwaysApply: false
+name: renderer-perf
+description: >
+  Runs editor/renderer performance budgets before shipping Three.js editor,
+  map mesh, lighting bake, or draw-call changes. Use when changing files under
+  app/editor/ or app/lib/lighting*, working on renderFrame, mesh building,
+  lighting bake, overlay, or when shipping editor renderer work.
 ---
 
 # Renderer performance gates
