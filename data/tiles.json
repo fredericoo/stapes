@@ -11077,6 +11077,65 @@
           "durationMs": 200
         }
       ]
+    },
+    "interactions": {
+      "extract": {
+        "actionName": "Pick",
+        "durability": 3,
+        "tileId": "picked-bush",
+        "cooldownMs": 5000,
+        "slots": [
+          {
+            "tileId": "berry",
+            "chance": 100
+          },
+          {
+            "tileId": "berry",
+            "chance": 55
+          },
+          {
+            "tileId": "berry",
+            "chance": 25
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "picked-bush",
+    "name": "Bush",
+    "height": 1,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "lightPassing": true,
+    "walkable": false,
+    "interactions": {
+      "decay": {
+        "tileId": "bush",
+        "fromMs": 45000,
+        "toMs": 90000
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 2,
+              "y": 10,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ]
     }
   },
   {
@@ -12333,6 +12392,24 @@
           }
         }
       ]
+    },
+    "interactions": {
+      "extract": {
+        "actionName": "Mine",
+        "durability": 2,
+        "tileId": "",
+        "cooldownMs": 8000,
+        "slots": [
+          {
+            "tileId": "arcane-shard",
+            "chance": 40
+          }
+        ]
+      },
+      "respawn": {
+        "fromMs": 120000,
+        "toMs": 300000
+      }
     }
   },
   {
@@ -12340,7 +12417,7 @@
     "name": "Arcane Shard",
     "height": 0,
     "type": "simple",
-    "kind": "prop",
+    "kind": "item",
     "attributes": {},
     "sprite": {
       "frames": [
@@ -12366,6 +12443,12 @@
           }
         }
       ]
+    },
+    "lightPassing": true,
+    "interactions": {
+      "item": {
+        "type": "artifact"
+      }
     }
   },
   {
@@ -12401,6 +12484,24 @@
           }
         }
       ]
+    },
+    "interactions": {
+      "extract": {
+        "actionName": "Mine",
+        "durability": 3,
+        "tileId": "",
+        "cooldownMs": 8000,
+        "slots": [
+          {
+            "tileId": "arcane-shard",
+            "chance": 70
+          }
+        ]
+      },
+      "respawn": {
+        "fromMs": 120000,
+        "toMs": 300000
+      }
     }
   },
   {
@@ -12436,6 +12537,28 @@
           }
         }
       ]
+    },
+    "interactions": {
+      "extract": {
+        "actionName": "Mine",
+        "durability": 4,
+        "tileId": "",
+        "cooldownMs": 8000,
+        "slots": [
+          {
+            "tileId": "arcane-shard",
+            "chance": 100
+          },
+          {
+            "tileId": "arcane-shard",
+            "chance": 35
+          }
+        ]
+      },
+      "respawn": {
+        "fromMs": 120000,
+        "toMs": 300000
+      }
     }
   }
 ]

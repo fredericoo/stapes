@@ -6,12 +6,14 @@ import {
   IconGift,
   IconHandGrab,
   IconHandMove,
+  IconPick,
   IconShirt,
   IconSwitch,
   IconTarget,
   IconTransform,
 } from "@tabler/icons-react";
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
+import type { ExtractCooling } from "../game/extract";
 import type {
   InteractionAction,
   InteractionGroup,
@@ -97,6 +99,11 @@ const ICONS: Record<InteractionAction, typeof IconTarget> = {
   // it is what says which. Deliberately not a flame — that would name one of
   // them and mislead about the rest.
   transmute: IconTransform,
+  // A pick, because a resource is a thing you *work* and every other shape that
+  // says "you get something" — the gift, the grabbing hand — says it about
+  // being handed one. It names mining and leaves picking a bush to the authored
+  // verb beside it, on exactly the trade the transmute row above makes.
+  extract: IconPick,
 };
 
 const SPRITE_SIZE_PX = 32;
@@ -238,11 +245,41 @@ function boxClass(
  * says which of the verbs in it is the offer.
  */
 function actionClass(option: InteractionOption, attacking: boolean): string {
+  // Ahead of every other case, because it is the one that says the verb cannot
+  // be run at all — a "Pick" that is also a reward is still a "Pick" you have
+  // to wait for. Dashed and faint on exactly the terms a cooling spell is, and
+  // for the same reason: the state has to survive being looked at on a bright
+  // phone outdoors. No hover, because there is nothing to hover towards.
+  if (option.cooldown) {
+    return "border-dashed border-paper/25 text-paper/40";
+  }
   if (option.active) return litClass(option, attacking);
   if (option.action === "reward") {
     return "border-reward/60 text-reward hover:border-reward hover:bg-reward/10";
   }
   return "border-paper/30 text-paper hover:border-paper hover:bg-paper/10";
+}
+
+/**
+ * How much of a wait has already gone, in milliseconds.
+ *
+ * **The one number the bar is drawn from**, and it is a negative
+ * `animation-delay` rather than a width: the fill is a keyframe over the whole
+ * duration, so starting it this far in is what makes a row rebuilt mid-wait
+ * pick the animation up where it already was instead of restarting it. See
+ * `fill-wait` in `app.css`.
+ *
+ * Clamped at both ends rather than trusted, on `statusFraction`'s terms: the
+ * remainder and the duration are two numbers off the wire that nothing forces
+ * into a ratio, and either a positive delay or one past the duration would draw
+ * a bar that is not in the button.
+ *
+ * Exported for the test rather than for a second caller — the arithmetic is
+ * assertable and the rendering is not.
+ */
+export function waitElapsedMs(cooldown: ExtractCooling): number {
+  const elapsed = cooldown.durationMs - cooldown.remainingMs;
+  return Math.max(0, Math.min(cooldown.durationMs, elapsed));
 }
 
 /**
@@ -318,6 +355,43 @@ function InteractionBox({
 }
 
 /**
+ * The bar that fills as a row's wait runs out.
+ *
+ * White, faint, and driven entirely by CSS — see `fill-wait` in `app.css`. The
+ * element is given the *whole* duration and a negative delay of however much
+ * had already gone when it appeared, so the browser runs it on the compositor
+ * and nothing here has to touch it again.
+ *
+ * **The delay is read once, when the bar appears, and never again.** That is
+ * the whole reason this is a component rather than three lines inline. A row is
+ * re-rendered for all sorts of reasons while a wait runs — anything that
+ * changes the list around it — and `cooldown.remainingMs` is a live number, so
+ * a delay recomputed on every render would re-seek a running animation over and
+ * over and drive the fill far ahead of the wait it is drawing. It was doing
+ * exactly that: an eight-second wait filled its bar in five.
+ *
+ * Reading it once is also *correct* rather than merely stable, because this
+ * mounts exactly when the wait becomes visible to this client — its own start,
+ * or a reconnect in the middle of one — and both are moments when the remainder
+ * is right. The bar is unmounted when the wait ends, so the next one on the
+ * same row starts a fresh instance and a fresh reading.
+ */
+function WaitFill({ cooldown }: { cooldown: ExtractCooling }) {
+  const delayMs = useRef(waitElapsedMs(cooldown)).current;
+
+  return (
+    <span
+      aria-hidden="true"
+      className="fill-wait pointer-events-none absolute inset-0 bg-paper/20"
+      style={{
+        animationDuration: `${cooldown.durationMs}ms`,
+        animationDelay: `-${delayMs}ms`,
+      }}
+    />
+  );
+}
+
+/**
  * One verb, and pressing it is what runs it.
  *
  * Named for a screen reader with the thing it acts on — "Push Crate" and not
@@ -348,10 +422,17 @@ function ActionButton({
   onHover?: (optionId: string | null) => void;
 }) {
   const Icon = ICONS[option.action];
+  const waiting = option.cooldown;
   // Pointer-driven rather than click-driven: a button has to answer a thumb
   // that is already holding the d-pad, and a click never arrives while it is.
   // See `./useTap`.
-  const tap = useTap(() => onAct(option));
+  //
+  // Refused here as well as in `applyInteraction`, in the session and on the
+  // server — a spell button's discipline: a row that is visibly greyed must not
+  // quietly send anyway, or the grey is a lie about what pressing it does.
+  const tap = useTap(() => {
+    if (!waiting) onAct(option);
+  });
 
   return (
     <button
@@ -361,7 +442,20 @@ function ActionButton({
       onMouseLeave={() => onHover?.(subjectId)}
       onFocus={() => onHover?.(option.id)}
       onBlur={() => onHover?.(null)}
-      aria-label={interactionText(option)}
+      // What it is, then why it cannot be used — the order a spell button says
+      // it in, and for its reason: the verb is what identifies the row and the
+      // rest is its state. Spelled out rather than left to the grey, which a
+      // screen reader cannot see and a bar cannot say.
+      aria-label={
+        waiting
+          ? `${interactionText(option)}, not ready yet`
+          : interactionText(option)
+      }
+      // Not `disabled` and not out of the tab order, exactly as a cooling spell
+      // is not: a row somebody is waiting on is the row they most want to read,
+      // and one that vanished from the keyboard's reach whenever it went grey
+      // would be unreachable at precisely the moment it is interesting.
+      aria-disabled={waiting ? true : undefined}
       // Pointing at somebody and having a box open are states you are in, and
       // both buttons toggle out of them; a push happens and is over, and a
       // button that claimed otherwise would be announced as stuck on.
@@ -375,19 +469,34 @@ function ActionButton({
         // than it needs to be where there is a cursor: the phone shows this
         // same list, and a verb that used to be a whole row with a sprite in it
         // must not become a line of text you have to aim at.
-        "flex w-full min-h-6 items-center gap-1 border px-1 py-0.5 text-left pointer-coarse:min-h-9",
+        // `relative` so the wait can be drawn behind the verb rather than
+        // beside it; `overflow-hidden` so the fill is clipped by the border
+        // rather than by the box two levels up.
+        "relative overflow-hidden flex w-full min-h-6 items-center gap-1 border px-1 py-0.5 text-left pointer-coarse:min-h-9",
         "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
         actionClass(option, attacking),
       ].join(" ")}
     >
-      <Icon size={14} stroke={2} aria-hidden="true" className="shrink-0" />
+      {/* The wait, filling the row from the left as it runs out. Behind the
+          verb rather than under it, because what it is counting down to is
+          *that verb becoming pressable* — a separate track below would be a
+          second thing to look at for one fact. Absent entirely when there is
+          nothing to wait for, rather than drawn empty. */}
+      {waiting ? <WaitFill cooldown={waiting} /> : null}
+      <Icon
+        size={14}
+        stroke={2}
+        aria-hidden="true"
+        // Above the fill, which is absolutely positioned across the whole row.
+        className="relative shrink-0"
+      />
       {/* The type is on the span and not on the button, because `button { font:
           inherit }` in `app.css` is unlayered and beats a utility class: a size
           set on the button itself is silently the page's. Set small and tight,
           and in sentence case — the verbs are authored ("Climb", "Warm your
           hands"), a column this narrow truncates a long one, and capitals cost
           width to shout a heading the box above no longer needs shouted. */}
-      <span className="truncate text-[11px] leading-snug font-medium tracking-tight">
+      <span className="relative truncate text-[11px] leading-snug font-medium tracking-tight">
         {option.label}
       </span>
     </button>

@@ -553,6 +553,127 @@ export const MAX_TRANSMUTATIONS = 8;
  */
 export const MAX_REWARD_ITEMS = MAX_CONTAINER_SIZE;
 
+/**
+ * One thing this resource might yield, and how likely it is to.
+ *
+ * Deliberately the same shape and the same percent scale a `KitEntry` is drawn
+ * on — see `./kit`, whose module note argues the whole of it — because it is the
+ * same question asked of a different subject: a rat's kit is what killing it is
+ * worth, and this is what working a bush is worth. An author who has written one
+ * has written the other.
+ *
+ * **Every slot is drawn for, every time, independently.** There is no "pick
+ * one": four slots at 50% is a handful of berries on a good pull and nothing at
+ * all on a bad one, which is what makes a range authorable without a range
+ * field. "One to three berries" is three berry slots at descending chances;
+ * "nothing, or a shard" is one slot at whatever the shard is worth.
+ */
+export type ExtractSlot = {
+  tileId: string;
+  /** Percent. Floats allowed, on {@link KitEntry}'s argument for them. */
+  chance: number;
+};
+
+/** Percent, both ends included. Nothing is ever more certain than certain. */
+export const MIN_EXTRACT_CHANCE = 0;
+export const MAX_EXTRACT_CHANCE = 100;
+
+/**
+ * Most things one resource may be authored to yield.
+ *
+ * Four, and the number is doing two jobs. It bounds what a single pull can put
+ * in a bag, which is what lets {@link extractFits} ask for room up front rather
+ * than discovering halfway through that there is none. And it bounds what an
+ * author can express: a table with twenty rows in it is a loot table, and a
+ * bush is not a boss.
+ */
+export const MAX_EXTRACT_SLOTS = 4;
+
+/**
+ * Work this thing for what it is made of — mine a crystal, pick a bush.
+ *
+ * **The one authored interaction that is shared and spends the world.** A reward
+ * is once per *player* and leaves the chest standing; a transmute is as often as
+ * you can pay for it and leaves the fire burning. This is the other arrangement,
+ * and it is the one a resource wants: the crystal is the same crystal for
+ * everybody who walks up to it, and what everybody takes out of it comes out of
+ * one shared {@link durability}. Two people mining one vein race each other.
+ *
+ * That makes it the only interaction with **two clocks pointing opposite ways**,
+ * and the pair is what the whole design rests on:
+ *
+ * - {@link durability} is the world's, spent by anybody, held on the placement
+ *   ({@link PlacedTile.extractsLeft}) so every client and the checkpoint see the
+ *   same number.
+ * - {@link cooldownMs} is one player's, spent only by them, held on their actor
+ *   and never on the board — so a bush somebody has just picked is still full
+ *   for the person walking up behind them.
+ *
+ * **Nothing here says how the resource comes back**, and that is deliberate:
+ * {@link tileId} hands the placement to machinery that already exists. A bush
+ * that becomes a picked bush comes back because *the picked bush* decays into a
+ * bush ({@link DecayInteraction}); a crystal that becomes nothing comes back
+ * because the crystal's own spawn point notices the empty cell
+ * ({@link RespawnInteraction}). Authoring regrowth here would be a third
+ * countdown competing with two that already work.
+ */
+export type ExtractInteraction = {
+  /**
+   * What working it is called — "Mine" a crystal, "Pick" a bush, "Fell" a tree.
+   *
+   * Authored for the reason every other verb in this file is: nothing derivable
+   * from a tile that hands you a shard says whether you chipped it off or
+   * plucked it. Optional, and blank reads as "Gather".
+   */
+  actionName?: string;
+  /**
+   * How many pulls this placement has in it before it turns into
+   * {@link tileId}.
+   *
+   * The def's number is what a *fresh* placement starts with; what is left of
+   * any particular one is on the placement. So an author says "a vein is worth
+   * three swings" once, and every vein in the world is worth three.
+   *
+   * At least one. A resource with no pulls in it is a resource that turns the
+   * first time anybody touches it, which is authorable — `durability: 1` — and
+   * meaning it takes zero is not.
+   */
+  durability: number;
+  /**
+   * What this becomes once the last pull is taken. **Blank removes the
+   * placement**, on exactly {@link DecayInteraction.tileId}'s terms and for the
+   * same reason: there is no `air` tile to name, and a mined-out crystal is
+   * simply not there any more.
+   *
+   * A blank target is therefore meaningful rather than malformed here too, so
+   * {@link durability} is what says whether a tile can be worked at all.
+   */
+  tileId: string;
+  /**
+   * How long this player must wait before working **this placement** again, in
+   * wall-clock milliseconds.
+   *
+   * Per player *and* per placement, which is the only pairing that makes a
+   * shared resource pace right. One clock per player would stop somebody picking
+   * berries because they had just mined a crystal on the other side of the map;
+   * one clock per placement would be the world's rather than theirs, and the
+   * second person to walk up to a bush would be told to wait for the first.
+   *
+   * Zero is legal and means what it says: pull it as fast as you can press,
+   * until the durability runs out.
+   */
+  cooldownMs: number;
+  /**
+   * What a pull might yield, in the order it is rolled. At most
+   * {@link MAX_EXTRACT_SLOTS}. See {@link ExtractSlot}.
+   *
+   * A block with none of them is not a resource — there is nothing to take out
+   * of it — so unlike a reward's empty block, an empty list here reads as
+   * unauthored and the resolver refuses it.
+   */
+  slots: ExtractSlot[];
+};
+
 /** Ways a placed object can behave in play. Grows over time. */
 export type TileInteractions = {
   /**
@@ -589,6 +710,7 @@ export type TileInteractions = {
   switch?: SwitchInteraction;
   reward?: RewardInteraction;
   transmute?: TransmuteInteraction;
+  extract?: ExtractInteraction;
   teleport?: TeleportInteraction;
   addStatus?: AddStatusInteraction;
   decay?: DecayInteraction;
@@ -620,6 +742,31 @@ export const DEFAULT_TRANSMUTATION: Transmutation = {
 
 export const DEFAULT_TRANSMUTE: TransmuteInteraction = {
   recipes: [{ ...DEFAULT_TRANSMUTATION }],
+};
+
+/**
+ * Long enough that a resource is something you work rather than something you
+ * hold a button on, short enough that clearing one is not a chore. It is per
+ * placement, so a player with two bushes in front of them alternates rather
+ * than waits.
+ */
+const DEFAULT_EXTRACT_COOLDOWN_MS = 3_000;
+
+/**
+ * A bush, which is the shape this was authored for: three pulls, a handful of
+ * something each time, and a short wait between them.
+ *
+ * The yield is left blank on purpose, exactly as a status grant's id is: only
+ * the author knows what this thing is made of, and a resolver that refused an
+ * empty list is what makes switching the block on leave them the one row they
+ * came to fill in.
+ */
+export const DEFAULT_EXTRACT: ExtractInteraction = {
+  actionName: "",
+  durability: 3,
+  tileId: "",
+  cooldownMs: DEFAULT_EXTRACT_COOLDOWN_MS,
+  slots: [{ tileId: "", chance: MAX_EXTRACT_CHANCE }],
 };
 
 /**
@@ -898,6 +1045,102 @@ export function resolveTransmute(def: TileDef): TransmuteInteraction | null {
     parsed?.success && parsed.output.recipes.length > 0 ? parsed.output : null;
   transmuteCache.set(def, transmute);
   return transmute;
+}
+
+/**
+ * One yield slot, as it is allowed to arrive from a hand-edited file.
+ *
+ * A slot naming nothing is dropped rather than taking the block down with it,
+ * on exactly the terms a malformed recipe is: a bush that yields two things and
+ * has a typo in the second should still yield the first.
+ */
+const extractSlotSchema = v.object({
+  tileId: v.pipe(v.string(), v.trim(), v.minLength(1)),
+  chance: v.pipe(
+    v.number(),
+    v.finite(),
+    v.minValue(MIN_EXTRACT_CHANCE),
+    v.maxValue(MAX_EXTRACT_CHANCE),
+  ),
+});
+
+const extractSchema = v.object({
+  actionName: v.optional(v.string()),
+  // The real gate, on `decaySchema`'s terms: a blank target is how a resource
+  // says it vanishes when it is spent, so the count is what says whether this
+  // can be worked at all. Zero pulls is a tile that turns before anybody
+  // touches it, which nobody means.
+  durability: v.pipe(v.number(), v.integer(), v.minValue(1)),
+  // Permissive where every other target is `minLength(1)`, because blank is
+  // this block's "remove me" — a mined-out crystal is simply not there.
+  tileId: v.string(),
+  // Zero is legal and means "as fast as you can press it".
+  cooldownMs: v.pipe(v.number(), v.integer(), v.minValue(0)),
+  slots: v.pipe(
+    v.array(v.fallback(v.nullable(extractSlotSchema), null)),
+    v.transform((slots) =>
+      slots
+        .filter((slot): slot is ExtractSlot => slot != null)
+        .slice(0, MAX_EXTRACT_SLOTS),
+    ),
+  ),
+});
+
+const extractCache = new WeakMap<TileDef, ExtractInteraction | null>();
+
+/**
+ * Parsed extract config per tile def. Same trust model as {@link resolvePush}:
+ * malformed → cannot be worked.
+ *
+ * One refusal of its own, and it is `resolveTransmute`'s: a block whose slots
+ * all turned out to be malformed yields nothing, so it is not a resource. A
+ * tile that offered a verb and handed back nothing would be a row that takes a
+ * press and shrugs, and it would spend the world's durability doing it.
+ */
+export function resolveExtract(def: TileDef): ExtractInteraction | null {
+  const cached = extractCache.get(def);
+  if (cached !== undefined) return cached;
+
+  const raw = def.interactions?.extract;
+  const parsed = raw == null ? null : v.safeParse(extractSchema, raw);
+  const extract =
+    parsed?.success && parsed.output.slots.length > 0 ? parsed.output : null;
+  extractCache.set(def, extract);
+  return extract;
+}
+
+/**
+ * What an unnamed resource reads as.
+ *
+ * A real word rather than the mechanism's own, unlike {@link
+ * DEFAULT_TRANSMUTE_VERB} and on the same grounds "Take" and "Enter" are real
+ * words: "Extract" is what the code calls it, and a player reading a row over a
+ * bush should see something a person would say.
+ */
+export const DEFAULT_EXTRACT_VERB = "Gather";
+
+/**
+ * How many pulls this particular placement has left.
+ *
+ * The placement's own count where it has one, the def's where it does not — and
+ * *not having one is the ordinary case*: a fresh placement carries no number at
+ * all, so a map full of untouched bushes costs the file nothing and the wire
+ * nothing. See {@link PlacedTile.extractsLeft}.
+ *
+ * Clamped to the authored durability, because the def is the authority on how
+ * much a thing is worth: lowering `durability` in `tiles.json` should shorten
+ * every vein in the world, including the ones somebody has already started on,
+ * rather than leaving a handful of placements richer than any new one.
+ */
+export function extractsLeft(
+  placed: PlacedTile,
+  extract: ExtractInteraction,
+): number {
+  const left = placed.extractsLeft;
+  if (typeof left !== "number" || !Number.isFinite(left)) {
+    return extract.durability;
+  }
+  return Math.max(0, Math.min(extract.durability, Math.floor(left)));
 }
 
 /**
@@ -1257,6 +1500,7 @@ export type InteractionKind =
   | "switch"
   | "addStatus"
   | "transmute"
+  | "extract"
   | "pickUp"
   | "push";
 
@@ -1281,6 +1525,12 @@ export function interactionKinds(def: TileDef): InteractionKind[] {
   // half at all. Whether the player has anything to spend is a question about
   // *them*, which is the affordances', not this one's.
   if (resolveTransmute(def)) kinds.push("transmute");
+  // The def's half and the whole of it, on a transmuter's terms — there is no
+  // placement half that could make a resource *not* one. Whether this
+  // particular bush has anything left in it, and whether this particular player
+  // has waited long enough, are questions about a placement and about a person;
+  // see `../game/extract`.
+  if (resolveExtract(def)) kinds.push("extract");
   if (resolveItem(def)) kinds.push("pickUp");
   if (resolvePush(def)) kinds.push("push");
   return kinds;
@@ -1390,6 +1640,7 @@ export function hasAnyInteraction(
       interactions?.switch ||
       interactions?.reward ||
       interactions?.transmute ||
+      interactions?.extract ||
       interactions?.teleport ||
       interactions?.addStatus ||
       interactions?.decay ||
@@ -1463,6 +1714,30 @@ export function interactionsForSave(
   });
   const savedTransmute =
     savedRecipes.length > 0 ? { recipes: savedRecipes } : undefined;
+  // Rebuilt slot by slot and the blank ones dropped on the way out, exactly as
+  // a recipe's rows are: a slot somebody added and never filled in is one the
+  // resolver would refuse anyway, and writing it to `data/tiles.json` would
+  // leave the file claiming a yield the game does not have. A block left with
+  // nothing to give is not a resource, so it goes — which is what makes the
+  // slots the gate here rather than the target, since a blank target is how a
+  // resource says it vanishes when it is spent.
+  const extract = interactions?.extract;
+  const savedSlots = (extract?.slots ?? []).flatMap((slot) => {
+    const tileId = slot.tileId.trim();
+    if (!tileId) return [];
+    return [{ tileId, chance: slot.chance }];
+  });
+  const extractActionName = extract?.actionName?.trim();
+  const savedExtract =
+    extract && savedSlots.length > 0
+      ? {
+          ...(extractActionName ? { actionName: extractActionName } : {}),
+          durability: Math.max(1, Math.round(extract.durability)),
+          tileId: extract.tileId.trim(),
+          cooldownMs: Math.max(0, Math.round(extract.cooldownMs)),
+          slots: savedSlots.slice(0, MAX_EXTRACT_SLOTS),
+        }
+      : undefined;
   const teleport = interactions?.teleport;
   const teleportActionName = teleport?.actionName?.trim();
   const savedTeleport = teleport
@@ -1604,6 +1879,7 @@ export function interactionsForSave(
     !savedSwitch &&
     !savedReward &&
     !savedTransmute &&
+    !savedExtract &&
     !savedTeleport &&
     !savedAddStatus &&
     !savedDecay &&
@@ -1622,6 +1898,7 @@ export function interactionsForSave(
     ...(savedSwitch ? { switch: savedSwitch } : {}),
     ...(savedReward ? { reward: savedReward } : {}),
     ...(savedTransmute ? { transmute: savedTransmute } : {}),
+    ...(savedExtract ? { extract: savedExtract } : {}),
     ...(savedTeleport ? { teleport: savedTeleport } : {}),
     ...(savedAddStatus ? { addStatus: savedAddStatus } : {}),
     ...(savedDecay ? { decay: savedDecay } : {}),

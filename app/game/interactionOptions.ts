@@ -1,7 +1,9 @@
 import { getStack } from "../lib/mapData";
 import type { InteractionKind } from "../lib/interactions";
 import {
+  DEFAULT_EXTRACT_VERB,
   resolveAddStatus,
+  resolveExtract,
   resolveRewardDef,
   resolveSwitch,
   resolveTeleportDef,
@@ -33,6 +35,12 @@ import {
 import { pileTally } from "../lib/piles";
 import { bodyNameFor } from "./displayName";
 import type { Equipment } from "./equipment";
+import {
+  canExtractFrom,
+  extractCooldownAt,
+  type CoolingResources,
+  type ExtractCooling,
+} from "./extract";
 import { offeredTransmutations } from "./transmute";
 import type { ActorSnapshot, PlaySession } from "./GameSession";
 
@@ -135,6 +143,30 @@ export type InteractionOption = {
    * like a shove, are never active: there is no state to be in afterwards.
    */
   active: boolean;
+  /**
+   * How long before this row can be pressed, and how long the wait was — or
+   * null for the rows that can be pressed now, which is nearly all of them.
+   *
+   * **The one thing in the list that says "not yet" rather than "not here".**
+   * Every other refusal takes a row away: a chest you have emptied, a recipe you
+   * have nothing to spend on, a crate out of reach. That is right when the
+   * answer is about the *world*, because a missing row and a thing that is not
+   * worth walking up to are the same fact. It is wrong when the answer is about
+   * a clock, because the player did nothing and the row vanished — so a resource
+   * on a wait keeps its row, greys it, and runs a bar under it. See
+   * `./extract`'s {@link ExtractCooling}.
+   *
+   * **A row carrying one is not actionable**, and that is the whole of what it
+   * means here: {@link topInteractionAt} passes over it, so a tap on the world
+   * finds nothing and the outline stays off; {@link applyInteraction} refuses
+   * it; and whatever draws the list disables the button. The server refuses it
+   * too — this is presentation and never permission.
+   *
+   * Only an extract has one today. Nothing about the field is extract-shaped
+   * though, and the next mechanism that makes a player wait rather than telling
+   * them no should use it rather than inventing a second way to be grey.
+   */
+  cooldown: ExtractCooling | null;
 };
 
 const LABELS: Record<InteractionAction, string> = {
@@ -161,6 +193,10 @@ const LABELS: Record<InteractionAction, string> = {
   // leaves you burning says whether you reached into it or knelt at it. See
   // `AddStatusInteraction.actionName`.
   addStatus: "Touch",
+  // The fallback only, on a switch's and a reward's terms: nothing derivable
+  // from a tile that hands you a shard says whether you chipped it off or
+  // plucked it. See `ExtractInteraction.actionName`.
+  extract: DEFAULT_EXTRACT_VERB,
   // Never actually read: a transmute row is named by its *recipe* rather than
   // by its tile — see `transmuteVerb` — because one fire may cook and trade.
   // Present because the record is exhaustive, which is what stops an action
@@ -177,6 +213,16 @@ const LABELS: Record<InteractionAction, string> = {
  * an open chest would be offering something already true.
  */
 const CLOSE_LABEL = "Close";
+
+/**
+ * What a caller with no cooling list to offer gets.
+ *
+ * Everything ready, rather than every resource disabled: a list built without
+ * the viewer's waits should show the world as it is and let the far end refuse
+ * the one tap that is early, which is strictly better than greying out rows
+ * nobody has said are grey.
+ */
+const NOTHING_COOLING: CoolingResources = { get: () => undefined };
 
 /**
  * What a target row says while the sword is out.
@@ -237,25 +283,31 @@ const ACTION_ORDER: Record<InteractionAction, number> = {
   // anyway, since a transmute row is reached by name and a tile that both
   // cooked and swung open would spend its tap on the hinge either way.
   transmute: 5,
+  // Below the transmute and above everything to do with carrying, which is
+  // where the session's own precedence puts it and for the same reason: an
+  // explicit authored act comes before lifting a thing off the floor. It never
+  // actually competes with the four above it — nobody authors a door you can
+  // also mine — and if they did, the hinge is the half the player can see.
+  extract: 6,
   // Above pick-up, and this is the one that decides what a plain tap on a sword
   // does. An empty hand is the strongest thing a player can be saying about what
   // they want done with a weapon on the floor, and stowing it afterwards is one
   // drag; the reverse — fishing a sword back out of a bag you did not mean it to
   // go into — is the annoying direction. It only ever appears when the slot is
   // free, so it cannot take a tap away from anybody who is already armed.
-  equip: 6,
+  equip: 7,
   // Above pick-up, and only ever up against it on a container: a pack you are
   // already wearing the twin of can be taken into a hand now, and a tap that
   // picked it up rather than looking inside would be answering the less
   // interesting of the two questions. Nothing else in the game is both.
-  open: 7,
-  pickUp: 8,
+  open: 8,
+  pickUp: 9,
   // Below pick-up on purpose, and pick-up is what a plain tap on the tile runs:
   // eating destroys the thing where lifting it is reversible, so the row you
   // have to *find* is the destructive one and the gesture you can fire by
   // accident is the safe one.
-  consume: 9,
-  push: 10,
+  consume: 10,
+  push: 11,
 };
 
 /**
@@ -279,6 +331,13 @@ export function topInteractionAt(
   const key = refKey(ref);
   for (const option of options) {
     if (refKey(option.ref) !== key) continue;
+    // A row on a wait is passed over rather than named, and that is what keeps
+    // the pointer and the list telling one story: the list draws the row greyed
+    // with its bar running, and the world under the cursor offers nothing —
+    // which is honest, because a click there would do nothing. Falling through
+    // is deliberate too: a resource that is also shovable is still shovable
+    // while you wait for it. See {@link InteractionOption.cooldown}.
+    if (option.cooldown) continue;
     if (!best || ACTION_ORDER[option.action] < ACTION_ORDER[best.action]) {
       best = option;
     }
@@ -318,6 +377,12 @@ const LEVEL_DISTANCE_WEIGHT = 100;
  *   *called* and nothing else about it. See {@link ATTACK_LABEL}. Defaulted, so
  *   a caller that has no stance to report gets the neutral verb rather than
  *   having to invent an answer.
+ * @param cooling the resources this viewer may not work yet, as
+ *   `./extract`'s `extractKey`s. Their own, exactly as {@link tags} is theirs:
+ *   the bush somebody just picked is still on offer to everybody else.
+ *   Defaulted to nothing cooling, so a caller with no wire to hear it over — the
+ *   local simulation's own snapshot carries one, but a test need not — gets the
+ *   rows rather than having to invent an answer.
  */
 export function listInteractionOptions(
   map: MapFile,
@@ -329,12 +394,22 @@ export function listInteractionOptions(
   openedRef: ObjectRef | null = null,
   tags: readonly string[] = [],
   attacking: boolean = false,
+  cooling: CoolingResources = NOTHING_COOLING,
 ): InteractionOption[] {
   const bodies = bodiesByCell(self, visibleActors);
 
   return [
     ...targetOptions(tilesById, bodies, targetId, attacking),
-    ...objectOptions(map, tilesById, self, bodies, equipment, openedRef, tags),
+    ...objectOptions(
+      map,
+      tilesById,
+      self,
+      bodies,
+      equipment,
+      openedRef,
+      tags,
+      cooling,
+    ),
   ].sort(
     (a, b) =>
       distanceFrom(self, a.ref) - distanceFrom(self, b.ref) ||
@@ -442,6 +517,11 @@ export function applyInteraction(
   option: InteractionOption,
 ) {
   if (!session) return;
+  // Refused here as well as by the session, and by the session as well as by
+  // the server — a spell bar's discipline, for its reason: a greyed row that
+  // quietly sent anyway would be asking for something the far end is going to
+  // throw away, and the grey is a promise that pressing it does nothing.
+  if (option.cooldown) return;
   if (option.action === "target") {
     session.setTarget(option.active ? null : option.actorId);
     return;
@@ -544,6 +624,7 @@ function objectOptions(
   equipment: Equipment,
   openedRef: ObjectRef | null,
   tags: readonly string[],
+  cooling: CoolingResources,
 ): InteractionOption[] {
   const out: InteractionOption[] = [];
   const zMin = Math.max(MIN_LEVEL, self.z - INTERACT_LEVEL_SLACK);
@@ -578,6 +659,7 @@ function objectOptions(
               { x, y, z, stackIndex },
               openedRef,
               tags,
+              cooling,
             ),
           );
         }
@@ -598,6 +680,7 @@ function slotOptions(
   ref: ObjectRef,
   openedRef: ObjectRef | null,
   tags: readonly string[],
+  cooling: CoolingResources,
 ): InteractionOption[] {
   const placed = getStack(map, ref.x, ref.y, ref.z)[ref.stackIndex];
   if (!placed) return [];
@@ -619,7 +702,12 @@ function slotOptions(
         .join(" ");
 
   const out: InteractionOption[] = [];
-  const add = (action: InteractionAction, label: string, active = false) => {
+  const add = (
+    action: InteractionAction,
+    label: string,
+    active = false,
+    cooldown: ExtractCooling | null = null,
+  ) => {
     out.push({
       id: `${action}:${refKey(ref)}`,
       action,
@@ -627,6 +715,7 @@ function slotOptions(
       ref,
       actorId: null,
       recipeIndex: null,
+      cooldown,
       tileId: placed.tileId,
       name,
       // A shove at a creature reports its health for the same reason the fight
@@ -642,7 +731,14 @@ function slotOptions(
   const equipSlot = equipSlotFrom(map, tilesById, self, ref, equipment);
   const stow = pickUpDestination(map, tilesById, self, ref, equipment) != null;
   const action = objectAction(map, tilesById, self, ref, equipment, tags, equipSlot);
-  if (action) add(action, objectActionLabel(action, tilesById[placed.tileId]));
+  if (action) {
+    // The one row that can arrive already disabled. Read here rather than
+    // inside `objectAction`, because it is not part of deciding *which* verb a
+    // tap names — the verb is still "Pick", it simply cannot be pressed yet.
+    const cooldown =
+      action === "extract" ? extractCooldownAt(map, cooling, ref) : null;
+    add(action, objectActionLabel(action, tilesById[placed.tileId]), false, cooldown);
+  }
 
   // Beside a tap that would arm you, the row that merely puts the thing away:
   // "Wield" and "Pick up" are different things to want. They can never mean the
@@ -688,6 +784,7 @@ function slotOptions(
       ref,
       actorId: null,
       recipeIndex: index,
+      cooldown: null,
       tileId: recipe.fromTileId,
       name: input?.name ?? recipe.fromTileId,
       health: null,
@@ -727,6 +824,10 @@ function objectAction(
   }
   if (canSwitchFrom(map, tilesById, self, ref)) return "switch";
   if (canAddStatusFrom(map, tilesById, self, ref)) return "addStatus";
+  // The wait is deliberately not asked here. A resource somebody is counting
+  // down on is still the row a tap on it names — it simply cannot be pressed
+  // yet, which is {@link InteractionOption.cooldown}'s job to say.
+  if (canExtractFrom(map, tilesById, self, equipment, ref)) return "extract";
   if (equipSlot) return "equip";
   if (canPickUpFrom(map, tilesById, self, ref, equipment)) return "pickUp";
   if (canPushFrom(map, tilesById, self, ref)) return "push";
@@ -767,6 +868,11 @@ function objectActionLabel(
   // `resolveAddStatus`.
   if (action === "addStatus") {
     return resolveAddStatus(def)?.actionName?.trim() || LABELS.addStatus;
+  }
+  // The whole of it is the def's too — a resource carries no placement half
+  // that could name it differently, only one that says how much is left.
+  if (action === "extract") {
+    return resolveExtract(def)?.actionName?.trim() || LABELS.extract;
   }
   return LABELS[action];
 }
@@ -810,6 +916,7 @@ function targetOptions(
       ref,
       actorId: actor.id,
       recipeIndex: null,
+      cooldown: null,
       tileId: actor.tileId,
       name: bodyNameFor(
         { actorId: actor.id, tileId: actor.tileId },

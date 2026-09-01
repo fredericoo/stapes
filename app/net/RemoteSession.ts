@@ -31,6 +31,7 @@ import {
   canTeleportFrom,
   type ObjectRef,
 } from "../game/affordances";
+import { canWorkNow, type ExtractCooling } from "../game/extract";
 import { type Equipment, emptyEquipment } from "../game/equipment";
 import {
   castability,
@@ -276,6 +277,28 @@ export class RemoteSession implements PlaySession {
    */
   private tags: readonly string[] = NO_TAGS;
   /**
+   * Which resources this player may not work just yet, as the server last said
+   * — see `../game/extract`'s `extractKey`.
+   *
+   * Never predicted, on the terms the kit and the tags are not: the wait is the
+   * server's clock, and a client guessing when it ran out would offer a row that
+   * is about to be refused. Replaced wholesale, so its identity is what tells
+   * the renderer to rebuild its rows.
+   */
+  private extractCooling: readonly ExtractCooling[] = NO_COOLING;
+  /**
+   * {@link extractCooling} as something the rules can ask, rebuilt beside it.
+   *
+   * Derived and cached rather than built where it is read, on exactly the
+   * grounds the server caches the list beside its map: `canInteract` is asked
+   * per candidate cell on every pointer move, and building a map per call would
+   * be an allocation per cell per frame for a list that changes twice a pull.
+   *
+   * Holds **the same entries** the list does, so {@link update} winding one
+   * advances both.
+   */
+  private coolingByKey = new Map<string, ExtractCooling>();
+  /**
    * What this player has learnt, as the server last said.
    *
    * Never predicted, on the same terms the kit and the tags are not: what a
@@ -514,6 +537,10 @@ export class RemoteSession implements PlaySession {
       // still belongs to the same person, and dropping their tags would hand
       // them every reward in the map a second time.
       this.tags = message.tags;
+      // Same rule a third time. The world may have been replaced under them,
+      // but the wait they owe that bush is a fact about the last few seconds and
+      // the server is still counting it.
+      this.setExtractCooling(message.extractCooling);
       // Same rule again: a fresh body in a replaced world is still the same
       // person, and what they have learnt came with them.
       this.masteryXp = message.masteryXp;
@@ -582,6 +609,12 @@ export class RemoteSession implements PlaySession {
     if (message.type === "tags") {
       // Whole state, like the kit beside it.
       this.tags = message.tags;
+      return;
+    }
+
+    if (message.type === "extractCooling") {
+      // Whole state, like everything else addressed to one socket here.
+      this.setExtractCooling(message.cooling);
       return;
     }
 
@@ -661,6 +694,25 @@ export class RemoteSession implements PlaySession {
     this.forgetDeparted(leaving);
     this.rebuildPredicted();
   };
+
+  /**
+   * Hold the cooling list and the set built from it, together.
+   *
+   * The one place either is written, on the terms the server's own
+   * `setExtractCooldowns` is: the list is what the snapshot carries and the set
+   * is what the rules ask, and one moving without the other would be a row
+   * offered on a resource the far end knows is still cooling.
+   */
+  private setExtractCooling(cooling: readonly ExtractCooling[]) {
+    // Copied entry by entry rather than adopted, because {@link update} winds
+    // these in place: the parsed message is this client's to spend, and holding
+    // the validator's own objects would be mutating something nothing else
+    // expects to move.
+    this.extractCooling = cooling.map((entry) => ({ ...entry }));
+    this.coolingByKey = new Map(
+      this.extractCooling.map((entry) => [entry.key, entry]),
+    );
+  }
 
   /**
    * What is running on the viewer's own body, as the server last said.
@@ -1030,12 +1082,38 @@ export class RemoteSession implements PlaySession {
     if (this.attackRecoveryMs > 0) {
       this.attackRecoveryMs = Math.max(0, this.attackRecoveryMs - dtMs);
     }
+    this.windExtractCooling(dtMs);
     this.agePendingSteps(dtMs);
     this.advancePrediction();
     this.expireChats(dtMs);
     this.expireNoises(dtMs);
     this.expireDamage(dtMs);
     this.expireProjectiles(dtMs);
+  }
+
+  /**
+   * Wind the resource waits down against the render clock.
+   *
+   * **Local, and not a prediction of anything.** The server is still the only
+   * thing that decides when a wait is over — its "it is over" message is what
+   * clears the entry, and nothing here ever removes one. What this keeps true is
+   * the *number*, which the bar under a greyed row is a fraction of: the wire
+   * carries a wait twice, at its start and at its end, so between those two the
+   * client is the only thing that knows any time has passed.
+   *
+   * Floored rather than allowed negative, and the entry is kept at zero: a bar
+   * that has run out reads as "any moment now", which is exactly true — the
+   * message clearing it is at most a tick away.
+   *
+   * Wound in place, so the list handed to the snapshot keeps its identity and
+   * the interaction rows are not rebuilt thirty times a second. The same
+   * hand-over the motions above travel on.
+   */
+  private windExtractCooling(dtMs: number) {
+    for (const entry of this.extractCooling) {
+      if (entry.remainingMs <= 0) continue;
+      entry.remainingMs = Math.max(0, entry.remainingMs - dtMs);
+    }
   }
 
   /**
@@ -1625,6 +1703,7 @@ export class RemoteSession implements PlaySession {
       attacking: this.attacking,
       equipment: this.equipment,
       tags: this.tags,
+      extractCooling: this.extractCooling,
       masteryXp: this.masteryXp,
       chats: this.chats,
       noises: this.noises,
@@ -1806,6 +1885,19 @@ export class RemoteSession implements PlaySession {
       // everything this client can drive is a battler, so a row this offers is
       // one the server will honour.
       canAddStatusFrom(this.map, this.tilesById, loc, ref) ||
+      // The same three questions the server asks — how much is left in it,
+      // whether this player is still waiting on it, and whether what comes out
+      // would fit — off the same map, the same cooling list and the same kit.
+      // Being the same function is what stops this offering a pull the far end
+      // would refuse.
+      canWorkNow(
+        this.map,
+        this.tilesById,
+        loc,
+        this.equipment,
+        ref,
+        this.coolingByKey,
+      ) ||
       canEquipFrom(this.map, this.tilesById, loc, ref, this.equipment) ||
       canPickUpFrom(this.map, this.tilesById, loc, ref, this.equipment) ||
       canPushFrom(this.map, this.tilesById, loc, ref)
@@ -2091,6 +2183,9 @@ const NO_CARRIED_LIGHTS: string[] = [];
  * tags arrive whole and replace the array rather than being appended to.
  */
 const NO_TAGS: readonly string[] = [];
+
+/** The same emptiness for the waits, and shared for the same reason. */
+const NO_COOLING: readonly ExtractCooling[] = [];
 
 /** Shared empty list, since no remote body ever carries statuses. */
 const NO_STATUSES: readonly StatusInstance[] = [];

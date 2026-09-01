@@ -6,6 +6,7 @@ import { SWING_OUTCOMES, type SwingOutcome } from "../game/GameSession";
 import { STRIKE_KINDS, type StrikeKind } from "../game/strike";
 import type { ConsumeSource } from "../game/itemUse";
 import { masteryXpBlockSchema, type MasteryXp } from "../lib/mastery";
+import type { ExtractCooling } from "../game/extract";
 import type { PlacedTile } from "../lib/types";
 import { MAX_CHAT_RAW_LENGTH } from "./chat";
 import { MAX_COMMAND_LENGTH } from "../game/commands";
@@ -99,6 +100,21 @@ const hpPatchSchema = v.object({
  */
 const statusPatchSchema = v.object({
   defId: v.string(),
+  remainingMs: v.number(),
+  durationMs: v.number(),
+});
+
+/**
+ * One resource this viewer is waiting on, and how far through the wait they
+ * are.
+ *
+ * The shape `../game/extract` already holds it in — see `ExtractCooling`, whose
+ * note argues why both numbers travel. Validated rather than trusted like
+ * everything else here, and the remainder is not clamped against the duration:
+ * a client that draws a bar reads them as a fraction and clamps it there.
+ */
+const extractCoolingSchema = v.object({
+  key: v.string(),
   remainingMs: v.number(),
   durationMs: v.number(),
 });
@@ -536,6 +552,18 @@ export type ServerMessage =
        */
       tags: string[];
       /**
+       * Which resources this viewer may not work just yet.
+       *
+       * Sent in full on arrival on {@link tags}' terms and for the same
+       * failure: a reconnecting player's waits are still running on the server —
+       * the body at the far end is the one they left — so a client that started
+       * blank would offer rows for bushes it is about to be refused. Sent whole
+       * here rather than left to the first `extractCooling` message, because
+       * that one only fires when something changes and a wait already running
+       * changes nothing.
+       */
+      extractCooling: ExtractCooling[];
+      /**
        * What this viewer has learnt, as raw experience.
        *
        * Theirs alone, beside the kit and sent in full on arrival for the same
@@ -582,6 +610,24 @@ export type ServerMessage =
    * missed, and a dropped tag is a chest that can be opened twice.
    */
   | { type: "tags"; tags: string[] }
+  /**
+   * "Here is every resource you may not work just yet."
+   *
+   * The per-player half of an extract — see `../lib/interactions`'
+   * {@link ExtractInteraction.cooldownMs}. Addressed to one socket on
+   * {@link tags}' terms and whole on them too: the list is what decides which
+   * rows the client offers, and one rebuilt from "this one is cooling now"
+   * events would strand a row hidden for ever the first time a message went
+   * missing.
+   *
+   * **Two messages a pull, and none in between.** One when a placement starts
+   * cooling and one when it stops; nothing is sent while a wait merely runs
+   * down. That is what the `durationMs` beside the remainder buys — the client
+   * has both halves of the fraction from the first message, so it can draw the
+   * bar filling on its own rather than being told where it is thirty times a
+   * second. Exactly the trade {@link StatusPatch} makes.
+   */
+  | { type: "extractCooling"; cooling: ExtractCooling[] }
   /**
    * "Here is something to tell you."
    *
@@ -1122,6 +1168,10 @@ const serverMessageSchema = v.variant("type", [
     statusIds: v.optional(v.array(statusIdsPatchSchema), () => []),
     equipment: tolerantEquipmentSchema,
     tags: v.array(v.string()),
+    // Optional with an empty default, on `statusIds`' terms: a version skew
+    // should degrade to "every resource looks ready" — one refused tap — rather
+    // than to a handshake that fails to parse.
+    extractCooling: v.optional(v.array(extractCoolingSchema), () => []),
     masteryXp: tolerantMasteryXpSchema,
     statuses: v.array(statusPatchSchema),
   }),
@@ -1132,6 +1182,10 @@ const serverMessageSchema = v.variant("type", [
   v.object({
     type: v.literal("tags"),
     tags: v.array(v.string()),
+  }),
+  v.object({
+    type: v.literal("extractCooling"),
+    cooling: v.array(extractCoolingSchema),
   }),
   v.object({
     type: v.literal("notice"),
