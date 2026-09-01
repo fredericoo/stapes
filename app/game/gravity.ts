@@ -3,6 +3,7 @@ import {
   absoluteWalkableElevation,
   appendTile,
   getStack,
+  isPlayerBody,
   listCoords,
   stackHeight,
   walkableFloorAbove,
@@ -25,7 +26,13 @@ export function isSupported(
   stackIndex: number,
   tilesById: Record<string, TileDef>,
 ): boolean {
-  if (stackIndex > 0) return true;
+  // Anything below in the stack holds this up, except a person: two players in
+  // one cell stand on the same floor rather than on each other, so a body under
+  // your feet is not a reason to stop falling. @see ../lib/mapData isPlayerBody
+  const stack = getStack(map, x, y, z);
+  for (let i = 0; i < stackIndex; i++) {
+    if (!isPlayerBody(stack[i]!)) return true;
+  }
 
   if (z > MIN_LEVEL) {
     const below = getStack(map, x, y, z - 1);
@@ -57,7 +64,7 @@ export function findLandingAbs(
       stack = sceneryStack(map, x, y, z, exclude.stackIndex);
     }
 
-    if (stack.length > 0) {
+    if (stack.some((placed) => !isPlayerBody(placed))) {
       const top = absoluteStandingElevation(z, stack, tilesById);
       if (top < feetAbs) {
         best = best == null ? top : Math.max(best, top);

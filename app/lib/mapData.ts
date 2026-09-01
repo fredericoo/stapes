@@ -1,3 +1,4 @@
+import { PLAYER_TILE_ID } from "../game/constants";
 import type { ItemInstance } from "./itemInstance";
 import type {
   ChunkCells,
@@ -175,12 +176,37 @@ export function listChunkKeys(map: MapFile, z: number): string[] {
   return level ? Object.keys(level) : [];
 }
 
+/**
+ * A placement that is somebody's avatar, as opposed to the world they stand in.
+ *
+ * **Terrain sums skip these, everywhere, without asking who wants to know.** A
+ * body is not something anything stands on, sights along or measures its own
+ * feet against, and every sum in this module that treats one as volume produces
+ * a wrong answer the moment two people share a cell: the second is drawn a level
+ * up, gravity thinks the first is holding them, and their next step is planned
+ * from an elevation nobody is at.
+ *
+ * Whether a body may be *entered* is a different question and it is not asked
+ * here — see `../lib/validation`'s `fitsTile`, which is the one place that
+ * decides it, and `docs/notes.md`, "A body is not terrain".
+ *
+ * The owner is half the test because the authored `player` tile is a spawn
+ * marker rather than a person: it wears the same tile id, nobody is driving it,
+ * and an author who put one down in the editor should see it stand up like
+ * anything else. Ownership is minted at runtime as actors join — see
+ * `../game/actors`.
+ */
+export function isPlayerBody(placed: PlacedTile): boolean {
+  return placed.tileId === PLAYER_TILE_ID && placed.owner != null;
+}
+
 export function stackHeight(
   stack: PlacedTile[],
   tilesById: Record<string, TileDef>,
 ): number {
   let h = 0;
   for (const p of stack) {
+    if (isPlayerBody(p)) continue;
     const def = tilesById[p.tileId];
     if (def) h += physicalHeight(def);
   }
@@ -195,7 +221,9 @@ export function elevationAt(
 ): number {
   let e = 0;
   for (let i = 0; i < stackIndex; i++) {
-    const def = tilesById[stack[i]!.tileId];
+    const placed = stack[i]!;
+    if (isPlayerBody(placed)) continue;
+    const def = tilesById[placed.tileId];
     if (def) e += physicalHeight(def);
   }
   return e;
@@ -211,6 +239,7 @@ export function solidTopOfStack(
 ): PlacedTile | null {
   for (let i = stack.length - 1; i >= 0; i--) {
     const placed = stack[i]!;
+    if (isPlayerBody(placed)) continue;
     const def = tilesById[placed.tileId];
     if (def && resolveIntangible(def)) continue;
     return placed;
@@ -241,6 +270,7 @@ export function walkableElevInStack(
   let elev = 0;
   let best: number | null = null;
   for (const p of stack) {
+    if (isPlayerBody(p)) continue;
     const def = tilesById[p.tileId];
     if (!def) continue;
     elev += physicalHeight(def);
@@ -289,6 +319,7 @@ export function walkableTileAtElev(
 ): PlacedTile | null {
   let elev = 0;
   for (const p of stack) {
+    if (isPlayerBody(p)) continue;
     const def = tilesById[p.tileId];
     if (!def) continue;
     elev += physicalHeight(def);

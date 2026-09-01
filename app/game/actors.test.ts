@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
-import type { MapFile, TileDef } from "../lib/types";
+import type { Direction, MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
-import { WALK_DURATION_MS } from "./constants";
+import { tilesByIdFromList } from "../lib/validation";
+import { TICK_MS, WALK_DURATION_MS } from "./constants";
 import { GameSession, LOCAL_ACTOR_ID } from "./GameSession";
+import { standingAbs } from "./movement";
 import { findPlayers } from "./player";
 
 function tile(
@@ -80,9 +82,19 @@ function strip(width: number): MapFile {
  */
 const ONE_WALK_MS = WALK_DURATION_MS + 80;
 
+const tilesById = tilesByIdFromList(tiles);
+
 /** Run whole ticks worth of `ms`, as the render loop would. */
 function advance(session: GameSession, ms: number) {
   session.update(ms);
+}
+
+/** Walk exactly one cell, releasing input so the commit does not chain. */
+function step(session: GameSession, direction: Direction, id: string) {
+  session.setInput({ directions: [direction] }, id);
+  session.update(TICK_MS);
+  session.setInput({ directions: [] }, id);
+  advance(session, ONE_WALK_MS);
 }
 
 function idsAt(session: GameSession, x: number, y: number, z = 0): string[] {
@@ -228,36 +240,72 @@ describe("two actors on one board", () => {
     expect(snap.self.id).toBe("a");
   });
 
-  it("resolves a contested cell by actor order, not by both entering it", () => {
-    // Both stand on x=0 and both press east; only one may occupy x=1, since
-    // the player tile is not walkable.
+  it("lets both into a contested cell, on the same tick", () => {
+    // Both stand on x=0 and both press east. Neither reserves the cell against
+    // the other, so the tick that ends is the tick they both arrive.
     const session = new GameSession(strip(3), tiles, { actorIds: ["a", "b"] });
     session.setInput({ directions: ["e"] }, "a");
     session.setInput({ directions: ["e"] }, "b");
     advance(session, ONE_WALK_MS);
 
-    const a = session.getSnapshot("a").self;
-    const b = session.getSnapshot("b").self;
-    expect(a.x).toBe(1);
-    expect(b.x).toBe(0);
-    expect(idsAt(session, 1, 0)).toEqual(["grass", "player"]);
+    expect(session.getSnapshot("a").self.x).toBe(1);
+    expect(session.getSnapshot("b").self.x).toBe(1);
+    expect(idsAt(session, 1, 0)).toEqual(["grass", "player", "player"]);
   });
 
-  it("blocks a walk into the cell another actor is standing in", () => {
+  it("walks into the cell another actor is standing in", () => {
     const session = new GameSession(strip(3), tiles, { actorIds: [] });
     session.spawn("a");
-    // Put `b` directly east of the spawn cell.
-    session.setInput({ directions: ["e"] }, "a");
-    advance(session, ONE_WALK_MS);
+    // Put `a` directly east of the spawn cell, then `b` on the spawn cell.
+    step(session, "e", "a");
     session.spawn("b");
     expect(session.getSnapshot("a").self.x).toBe(1);
     expect(session.getSnapshot("b").self.x).toBe(0);
 
-    // `b` walks east into `a`, and gets nowhere.
-    session.setInput({ directions: ["e"] }, "b");
-    advance(session, ONE_WALK_MS * 2);
+    step(session, "e", "b");
 
-    expect(session.getSnapshot("b").self.x).toBe(0);
+    expect(session.getSnapshot("b").self.x).toBe(1);
+    expect(ownersAt(session, 1, 0)).toEqual([undefined, "a", "b"]);
+  });
+
+  it("stands both bodies on the floor rather than one on the other", () => {
+    const session = new GameSession(strip(3), tiles, { actorIds: ["a", "b"] });
+    session.setInput({ directions: ["e"] }, "a");
+    session.setInput({ directions: ["e"] }, "b");
+    advance(session, ONE_WALK_MS);
+
+    // Same cell, same level, and neither has been lifted a level by the other's
+    // volume — the second body would otherwise read the first's head as ground.
+    const a = session.getSnapshot("a").self;
+    const b = session.getSnapshot("b").self;
+    expect(a.z).toBe(0);
+    expect(b.z).toBe(0);
+    expect(
+      standingAbs(session.getMap(), 1, 0, 0, a.stackIndex, tilesById),
+    ).toBe(0);
+    expect(
+      standingAbs(session.getMap(), 1, 0, 0, b.stackIndex, tilesById),
+    ).toBe(0);
+  });
+
+  it("puts a joining actor down on top of one already standing there", () => {
+    const session = new GameSession(strip(3), tiles, { actorIds: [] });
+    session.spawn("a");
+    session.spawn("b");
+
+    // Both at the spawn cell, rather than `b` bubbling out to a free neighbour.
+    expect(session.getSnapshot("b").self).toMatchObject({ x: 0, y: 0 });
+    expect(ownersAt(session, 0, 0)).toEqual([undefined, "a", "b"]);
+  });
+
+  it("leaves nothing behind when the first of two walks away", () => {
+    const session = new GameSession(strip(3), tiles, { actorIds: [] });
+    session.spawn("a");
+    session.spawn("b");
+    step(session, "e", "a");
+
+    expect(ownersAt(session, 0, 0)).toEqual([undefined, "b"]);
+    expect(ownersAt(session, 1, 0)).toEqual([undefined, "a"]);
   });
 });
 

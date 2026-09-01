@@ -207,12 +207,15 @@ names it (`LOCAL_ACTOR_ID`); the game server will spawn one per connection.
 - **Actors tick in insertion order, and the order is load-bearing.** Two actors
   contending for a cell resolve by it, so a stable order is what makes a tick
   reproducible instead of dependent on whose message arrived first.
-- **A walk reserves its destination.** A step only commits to the map when it
-  lands, so for its whole duration the destination still reads as empty to
-  everyone else — two actors pressing the same direction on the same tick both
-  passed `canWalk` and both arrived, inside one another. `destinationTaken`
-  closes that. The map cannot answer the question, because the answer is not in
-  the map yet.
+- **A walk reserves its destination, as strongly as its arrival would.** A step
+  only commits to the map when it lands, so for its whole duration the
+  destination still reads as empty to everyone else — two actors pressing the
+  same direction on the same tick both passed `canWalk` and both arrived, inside
+  one another. `destinationTaken` closes that. The map cannot answer the
+  question, because the answer is not in the map yet. Since people may share a
+  cell, a person reserves it against creatures and against nobody else: a
+  reservation stronger than the arrival it stands in for would put cell-sharing
+  back in force for one step in every two. See "A body is not terrain".
 
 - **Spawning is idempotent against the map, not just the actor table.** A world
   resumed from a checkpoint already holds everyone's tile, so `spawn` re-seats
@@ -224,6 +227,48 @@ names it (`LOCAL_ACTOR_ID`); the game server will spawn one per connection.
   Starting a session *consumes* the authored `player` marker — adopted or
   removed — so there is no tile left to read it from. `getSpawnPoint` exists so
   it can be carried alongside, and the server checkpoints the two together.
+
+## A body is not terrain
+
+Blocking used to be an accident rather than a rule. Actors are placements in the
+stack, `player` is exactly `HEIGHT_PER_LEVEL` tall, and every sum in `mapData`
+added it up with the walls — so a person standing still was a wall, and the only
+thing that had ever said so was arithmetic. One player at the top of a ladder was
+a lid on it, and logging in on top of a friend bounced you to the next cell.
+
+The rule now has two halves and they are in two places:
+
+- **A body has no volume, and that is unconditional.** `isPlayerBody` — the
+  `player` tile *with an owner*, so an author's spawn marker still stands up in
+  the editor — is skipped by `stackHeight`, `elevationAt`, `walkableElevInStack`,
+  `walkableTileAtElev` and `solidTopOfStack`. Nothing stands on a person, nothing
+  measures its feet against one, nothing lands on one. This is the half that had
+  to be unconditional: a second body in a cell whose volume still counted would
+  be drawn a level up, would think the first was holding it, and would plan its
+  next step from an elevation nobody is at. Patching the two places the ask
+  started from — a login and a portal — would have left all three of those.
+- **Who may enter is asked once, in `validation`.** `FitOpts.throughPlayers`
+  turns the body check in `fitsTile` and `fitsHeightAtElevation` off, and exactly
+  three callers pass it: `canWalk` when the walker is the `player` tile,
+  `findEntryCell`, and `teleportFits` when the traveller is. So a person walks
+  through a person; a creature, a shoved crate, a thrown item and the editor's
+  brush are stopped by a body exactly as they always were.
+
+**Creatures stay opaque, both ways, and that is a decision.** A wolf you can walk
+through is not a threat and a corridor nobody can hold is not a corridor — body-
+blocking is a tactic worth keeping, and this is the rule Tibia arrived at too.
+It is why the flag is a fact about the *pair* rather than a property of the tile:
+"can be walked through" is not true of a body, only of a body *by a person*.
+
+**What pays for the crowd is `guardShare`, not the floor plan.** Standing in one
+cell used to be impossible, so nothing had to price it; now eight people can
+share a doorway. They are already paid for — see "Eight rats used to be one rat,
+eight times" — because being outnumbered scales a defender's guard down whether
+the crowd is beside you or on top of you.
+
+**Two bodies in one cell draw one over the other**, in stack order, with no
+offset. That is what Tibia does and it reads correctly: the pile is legible as a
+pile, and separating them would put a body somewhere it is not.
 
 ## Where a player comes back in
 

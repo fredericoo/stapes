@@ -7,11 +7,91 @@ import {
   levelKey,
   physicalHeight,
 } from "./types";
-import { getStack, stackHeight } from "./mapData";
+import { elevationAt, getStack, isPlayerBody, stackHeight } from "./mapData";
 
 export type PlaceResult =
   | { ok: true }
   | { ok: false; reason: string };
+
+/**
+ * Whether the thing being fitted may share a cell with somebody standing in it.
+ *
+ * The whole of "players walk through each other", and it is a flag here rather
+ * than a property of the tile because it is a fact about the *pair*: one player
+ * passes through another, and nothing else passes through anybody. A wolf you
+ * could walk into is not a threat and a corridor nobody can hold is not a
+ * corridor, so a creature is stopped by a body exactly as it always was — and so
+ * is a shoved crate, a thrown item and an editor's brush.
+ *
+ * Off by default, which is the conservative half: a caller that has not thought
+ * about it gets the rule the whole world had before this existed. The three that
+ * pass it are the three ways a person arrives somewhere — a step
+ * (`../game/movement`'s `canWalk`), a login (`../game/entry`) and a portal
+ * (`../game/affordances`'s `teleportFits`).
+ *
+ * @see ../lib/mapData's `isPlayerBody`, which decides what counts as a body.
+ */
+export type FitOpts = {
+  throughPlayers?: boolean;
+};
+
+/**
+ * Is somebody standing in the volume `feetAbs`…`headAbs` of this stack?
+ *
+ * Asked of a stack rather than of a column so both callers can fold it into a
+ * loop they were already running. A body's own feet come from
+ * {@link elevationAt}, which skips other bodies — so two people sharing a cell
+ * report the same volume rather than one of them reporting the other's head as
+ * its floor.
+ */
+function playerBodyInVolume(
+  stack: PlacedTile[],
+  z: number,
+  feetAbs: number,
+  headAbs: number,
+  tilesById: Record<string, TileDef>,
+): boolean {
+  for (let i = 0; i < stack.length; i++) {
+    const placed = stack[i]!;
+    if (!isPlayerBody(placed)) continue;
+    const def = tilesById[placed.tileId];
+    if (!def) continue;
+    const lo = z * HEIGHT_PER_LEVEL + elevationAt(stack, i, tilesById);
+    const hi = lo + physicalHeight(def);
+    if (lo < headAbs && hi > feetAbs) return true;
+  }
+  return false;
+}
+
+/**
+ * How far either side of a level a body standing on another level can reach.
+ *
+ * One, and it is arithmetic rather than a guess: a body is at most
+ * `HEIGHT_PER_LEVEL` tall and its feet are always inside the level it is stored
+ * on, so it can overflow into the level above and no further. Scanning the
+ * whole column instead would be a seventeen-level sweep on the busiest call in
+ * the game — see docs/notes.md, "Never sweep the map to answer a local
+ * question".
+ */
+const BODY_REACH_LEVELS = 1;
+
+/** {@link playerBodyInVolume} over the levels a body could reach into `z`. */
+function playerBodyNearLevel(
+  map: MapFile,
+  x: number,
+  y: number,
+  z: number,
+  feetAbs: number,
+  headAbs: number,
+  tilesById: Record<string, TileDef>,
+): boolean {
+  for (let zAt = z - BODY_REACH_LEVELS; zAt <= z + BODY_REACH_LEVELS; zAt++) {
+    if (zAt < MIN_LEVEL || zAt > MAX_LEVEL) continue;
+    const stack = getStack(map, x, y, zAt);
+    if (playerBodyInVolume(stack, zAt, feetAbs, headAbs, tilesById)) return true;
+  }
+  return false;
+}
 
 /**
  * Can `tileDef` sit on top of the stack at (x,y,z)?
@@ -34,6 +114,7 @@ export function fitsTile(
   z: number,
   tileDef: TileDef,
   tilesById: Record<string, TileDef>,
+  opts?: FitOpts,
 ): PlaceResult {
   if (z < MIN_LEVEL || z > MAX_LEVEL) {
     return { ok: false, reason: "Level out of range" };
@@ -60,6 +141,21 @@ export function fitsTile(
     return { ok: true };
   }
 
+  if (
+    !opts?.throughPlayers &&
+    playerBodyNearLevel(
+      map,
+      x,
+      y,
+      z,
+      z * HEIGHT_PER_LEVEL + e,
+      z * HEIGHT_PER_LEVEL + total,
+      tilesById,
+    )
+  ) {
+    return { ok: false, reason: "Somebody is standing there" };
+  }
+
   if (e >= HEIGHT_PER_LEVEL) {
     return {
       ok: false,
@@ -75,8 +171,7 @@ export function fitsTile(
     if (z >= MAX_LEVEL) {
       return { ok: false, reason: "Cannot overflow past the top level" };
     }
-    const above = getStack(map, x, y, z + 1);
-    if (above.length > 0) {
+    if (levelHoldsScenery(map, x, y, z + 1)) {
       return {
         ok: false,
         reason: "Cannot overflow: level above is occupied",
@@ -89,6 +184,24 @@ export function fitsTile(
     ok: false,
     reason: `Stack would exceed ${HEIGHT_PER_LEVEL * 2} height units`,
   };
+}
+
+/**
+ * Is there anything at all on this level of the column that is not a body?
+ *
+ * The occupancy test overflow asks, and it is emptiness rather than height
+ * because an intangible tile is still something the author put there. Bodies are
+ * the exception on the terms every other sum here excludes them: somebody
+ * standing on the floor above is not a reason a tall thing cannot be built
+ * underneath them.
+ */
+function levelHoldsScenery(
+  map: MapFile,
+  x: number,
+  y: number,
+  z: number,
+): boolean {
+  return getStack(map, x, y, z).some((placed) => !isPlayerBody(placed));
 }
 
 /** Can we append `tileDef` onto the existing stack at (x,y,z)? */
@@ -117,6 +230,7 @@ export function fitsAtElevation(
   feetAbs: number,
   tileDef: TileDef,
   tilesById: Record<string, TileDef>,
+  opts?: FitOpts,
 ): PlaceResult {
   return fitsHeightAtElevation(
     map,
@@ -125,6 +239,7 @@ export function fitsAtElevation(
     feetAbs,
     physicalHeight(tileDef),
     tilesById,
+    opts,
   );
 }
 
@@ -144,6 +259,7 @@ export function fitsHeightAtElevation(
   feetAbs: number,
   height: number,
   tilesById: Record<string, TileDef>,
+  opts?: FitOpts,
 ): PlaceResult {
   const headAbs = feetAbs + height;
   const maxAbs = (MAX_LEVEL + 1) * HEIGHT_PER_LEVEL + HEIGHT_PER_LEVEL;
@@ -154,6 +270,19 @@ export function fitsHeightAtElevation(
   for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
     const stack = getStack(map, x, y, z);
     if (stack.length === 0) continue;
+
+    if (
+      !opts?.throughPlayers &&
+      playerBodyInVolume(stack, z, feetAbs, headAbs, tilesById)
+    ) {
+      return { ok: false, reason: "Somebody is standing there" };
+    }
+
+    // Nothing but bodies here, and a body is not a floor — see `isPlayerBody`.
+    // Falling through to the h === 0 branch would read the empty sum they leave
+    // behind as a floor plate and seal a level nobody built anything on.
+    if (!stack.some((placed) => !isPlayerBody(placed))) continue;
+
     const h = stackHeight(stack, tilesById);
     const volLo = z * HEIGHT_PER_LEVEL;
     const volHi = volLo + h;
