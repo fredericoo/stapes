@@ -2,7 +2,13 @@
  * Fixed Stapes Aseprite palette (opaque entries only) + OKLab matching.
  */
 
-/** Opaque entries from stapes.pal (first two non-opaque dropouts removed). */
+/**
+ * Opaque entries from stapes.pal (first two non-opaque dropouts removed),
+ * followed by four blues added since. Append only — never reorder or remove:
+ * the quantiser picks whichever entry is nearest, so a new colour only ever
+ * claims pixels that were already landing on its neighbours, whereas moving
+ * one changes what index 0 is, and the status preview's backdrop reads it.
+ */
 export const STAPES_PALETTE: readonly string[] = [
   "#2e222f",
   "#313638",
@@ -33,6 +39,10 @@ export const STAPES_PALETTE: readonly string[] = [
   "#a884f3",
   "#c7dcd0",
   "#ffffff",
+  "#affcdb",
+  "#53d5cf",
+  "#225ac0",
+  "#362281",
 ];
 
 export const PALETTE_SIZE = STAPES_PALETTE.length;

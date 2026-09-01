@@ -1,7 +1,7 @@
 /**
  * Fullscreen palette quantisation pass (editor + play).
  * Nearest OKLab match — no dither. Exact art colours snap; everything else
- * lands on the closest of the 29 opaque stapes.pal entries.
+ * lands on the closest of the entries in STAPES_PALETTE.
  */
 import * as THREE from "three";
 import {

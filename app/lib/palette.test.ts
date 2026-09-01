@@ -14,7 +14,7 @@ const lab = paletteOklab(STAPES_PALETTE);
 const rgb = paletteRgb01(STAPES_PALETTE);
 
 describe("OKLab round-trip", () => {
-  it("survives round-trip for all 29 palette entries", () => {
+  it("survives round-trip for every palette entry", () => {
     for (const hex of STAPES_PALETTE) {
       const [r, g, b] = hexToRgb01(hex);
       const [L, a, bb] = srgbToOklab(r, g, b);
