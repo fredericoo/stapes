@@ -106,10 +106,11 @@ export function SpellBar({
       // are the same stone by construction.
       role="list"
       aria-label="Spells"
-      // Centred rather than packed to the left, because the row shares a column
-      // with the direction pad and is read as sitting *on* it: one stone left
-      // hugging the pad's western edge looks like a control that has come loose.
-      className={["flex w-full items-stretch justify-center gap-1", className]
+      // How the row sits in its column is the caller's, because the two places it
+      // appears want different answers: above the pad it is centred on the thing
+      // it belongs to, and in a desktop column it lines up with the buttons
+      // above it. See the two call sites in `./GameViewport`.
+      className={["flex w-full items-stretch gap-1", className]
         .filter(Boolean)
         .join(" ")}
     >

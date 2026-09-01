@@ -731,6 +731,10 @@ export function GameViewport({
                   onCast={cast}
                   tilesById={tilesById}
                   tilesets={tilesets}
+                  // Centred on the pad below it, because the two are one
+                  // cluster: a single stone hugging the pad's western edge
+                  // reads as a control that has come loose from it.
+                  className="justify-center"
                 />
                 <DirectionPad onPress={press} onRelease={release} />
               </div>
