@@ -372,8 +372,9 @@ export function resolveActor(def: TileDef): boolean {
 
 /**
  * Height that counts for stacking, collision, and standing elevation.
- * Intangible tiles read as 0 so others can pass through; lighting and
- * sprite depth still use authored {@link TileDef.height}.
+ * Intangible tiles read as 0 so others can pass through; lighting and sprite
+ * depth still use authored {@link TileDef.height} — see
+ * `../render/depthClump` for how depth sorts what an intangible tile holds.
  */
 export function physicalHeight(def: TileDef): number {
   return resolveIntangible(def) ? 0 : def.height;

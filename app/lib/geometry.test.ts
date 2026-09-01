@@ -22,6 +22,48 @@ function footPixel(cellX: number, cellY: number) {
   return { sx: cellX * CELL_SIZE, sy: cellY * CELL_SIZE };
 }
 
+/**
+ * The bug `../render/depthClump` exists for, in the two numbers that caused it.
+ *
+ * Anything standing in an open door shares its cell — the door is intangible,
+ * so it takes up no elevation — and the door is a full level tall. At a pixel
+ * in the band above the co-tenant's own height the door has a real surface and
+ * the co-tenant has only art hanging outside its box, so the door was drawn
+ * across the face of whoever stood in it and the top of any barrel left in it.
+ * Merging the two into one extent is what leaves stack order to settle it.
+ */
+describe("something standing in a doorway", () => {
+  const DOORWAY = { x: 0, y: 0 };
+  const door = depthBox(DOORWAY.x, DOORWAY.y, 0, HEIGHT_PER_LEVEL);
+  // A pixel in the band the door alone reaches: above a three-high co-tenant,
+  // below the door's top.
+  const HEAD_ELEV = HEIGHT_PER_LEVEL - 0.5;
+  const head = {
+    sx: DOORWAY.x * CELL_SIZE - HEAD_ELEV * PX_PER_HEIGHT,
+    sy: DOORWAY.y * CELL_SIZE - HEAD_ELEV * PX_PER_HEIGHT,
+  };
+  // Whatever it is was appended onto the stack the door is already in, so it
+  // outranks the door on any tie.
+  const doorBias = depthStackBias(0, 0);
+  const bodyBias = depthStackBias(0, 1);
+
+  it("loses its top to the door when each is boxed by its own volume", () => {
+    const cutToVolume = depthBox(DOORWAY.x, DOORWAY.y, 0, HEIGHT_PER_LEVEL - 1);
+    expectInFront(
+      fragDepth(door, head.sx, head.sy, doorBias),
+      fragDepth(cutToVolume, head.sx, head.sy, bodyBias),
+    );
+  });
+
+  it("keeps it once the two share the clump's extent", () => {
+    const clumped = depthBox(DOORWAY.x, DOORWAY.y, 0, HEIGHT_PER_LEVEL);
+    expectInFront(
+      fragDepth(clumped, head.sx, head.sy, bodyBias),
+      fragDepth(door, head.sx, head.sy, doorBias),
+    );
+  });
+});
+
 describe("absoluteElevation", () => {
   it("combines level floor with in-stack elevation", () => {
     expect(absoluteElevation(0, 0)).toBe(0);

@@ -554,6 +554,29 @@ rather than as numbers. They were numbers, and every one of them would have
 silently halved the thing it measures. If you subdivide a level again, the test
 of whether you have finished is that none of these needed touching.
 
+**Things sharing one space sort by stack order, not by geometry**
+(`../app/render/depthClump`). This is the one thing that broke on the way here,
+and the fix is worth understanding because the rule is more general than the
+bug. An intangible tile with height takes up no *elevation*, so whatever is
+stacked on it stands **inside** it rather than on it — a person in an open
+doorway, a barrel shoved into one. Two things in the same place cannot be sorted
+by geometry, because geometry says they are in the same place: at any pixel in
+the band the door alone reaches, the door has a real surface and its co-tenant
+has only art hanging outside its own box, which `../lib/geometry`'s `boxSurface`
+can rescue with a *tie-break* at best. A tie-break loses outright to a real
+surface, so the door was drawn across the face of whoever stood in it, and
+across the top of a barrel left in it.
+
+`clumpExtents` merges an overlapping run into one extent, so every member sorts
+at the same depth and `depthStackBias` — stack order — settles which is in
+front. That is the only honest answer available. **Only what actually
+overlaps**: a body standing *on* a crate rests on it rather than in it, so the
+two stay separate and sort by height exactly as before.
+
+It surfaced when the player went from a full level to three, but it was never
+about the player. A shoved crate in a doorway had it too, and no rule about how
+tall a *body* is drawn would ever have reached that.
+
 **What does not scale, and must not be scaled.** A pressure plate's `height` is
 a threshold at the boundary between "nothing solid" and "something solid", so
 `gte 1` still reads as "something is standing here" and doubling it would have
