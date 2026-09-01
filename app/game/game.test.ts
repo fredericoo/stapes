@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   appendTile,
+  elevationAt,
   emptyMap,
   getStack,
   replaceStack,
   stackHeight,
+  terrainHeight,
 } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
@@ -409,6 +411,37 @@ describe("a body is not terrain", () => {
     ]);
     // The same overflow, asked by something that is not a person.
     expect(fitsTile(map, 0, 0, 0, tilesById.wall!, tilesById).ok).toBe(false);
+  });
+
+  it("draws the second body at the first one's feet, not on its head", () => {
+    // The symptom this rule exists to prevent, at the number every renderer
+    // reads: `elevationAt` is what decides where a placement's sprite sits, and
+    // a body that counted would put the second person's feet one whole level up.
+    const stack = [
+      { tileId: "grass" },
+      { tileId: "player", direction: "s" as const, owner: "a" },
+      { tileId: "player", direction: "s" as const, owner: "b" },
+    ];
+    expect(elevationAt(stack, 1, tilesById)).toBe(0);
+    expect(elevationAt(stack, 2, tilesById)).toBe(0);
+  });
+
+  it("does not lift the scenery drawn above it either", () => {
+    // A running total that stopped at a body would raise everything after it.
+    const stack = [
+      { tileId: "slab" },
+      { tileId: "player", direction: "s" as const, owner: "a" },
+      { tileId: "roof" },
+    ];
+    expect(elevationAt(stack, 2, tilesById)).toBe(1);
+  });
+
+  it("weighs nothing as a single placement", () => {
+    // The one definition every elevation walk in the codebase now goes through.
+    const marker = { tileId: "player", direction: "s" as const };
+    const body = { tileId: "player", direction: "s" as const, owner: "a" };
+    expect(terrainHeight(marker, tilesById)).toBe(2);
+    expect(terrainHeight(body, tilesById)).toBe(0);
   });
 
   it("is nothing to land on", () => {

@@ -19,7 +19,12 @@ import {
   type LightGrid,
 } from "../lib/lighting";
 import { sampleIllumination } from "../lib/clock";
-import { getStack, listCoords, stackHeight } from "../lib/mapData";
+import {
+  getStack,
+  listCoords,
+  stackHeight,
+  terrainHeight,
+} from "../lib/mapData";
 import type {
   Frame,
   MapFile,
@@ -34,7 +39,6 @@ import {
   frameIndexAtTime,
   isDirectional,
   levelKey,
-  physicalHeight,
   tileCanEmitLight,
 } from "../lib/types";
 import { getFrames, tileLightSignature } from "../lib/tileResolve";
@@ -909,7 +913,7 @@ export class EditorRenderer {
           addSpriteOutline(quad, 0xffcc00);
         }
 
-        elev += physicalHeight(def);
+        elev += terrainHeight(placed, s.tilesById);
       });
     }
 
@@ -975,7 +979,7 @@ export class EditorRenderer {
             ),
           });
         }
-        elev += physicalHeight(def);
+        elev += terrainHeight(placed, s.tilesById);
       });
     }
 
@@ -1272,7 +1276,7 @@ export class EditorRenderer {
               : undefined,
         });
 
-        elev += physicalHeight(def);
+        elev += terrainHeight(placed, this.tilesById);
       });
     }
 

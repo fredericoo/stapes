@@ -200,16 +200,36 @@ export function isPlayerBody(placed: PlacedTile): boolean {
   return placed.tileId === PLAYER_TILE_ID && placed.owner != null;
 }
 
+/**
+ * How much this placement raises whatever is drawn or stood on above it.
+ *
+ * {@link physicalHeight} asks a *tile* how tall it is; this asks a *placement*
+ * how much of the world it makes, which is the only question any elevation walk
+ * has ever wanted. The two answers differ for exactly one thing — a body, which
+ * is somebody standing in the cell rather than part of it.
+ *
+ * **Every running total over a stack must go through this.** That is the whole
+ * reason it exists as a function over one placement rather than as a `continue`
+ * inside each loop: the sum was written out by hand in five places, four of them
+ * agreed, and the fifth drew the second person in a cell with their feet on the
+ * first one's head. A rule spelled out five times is a rule that is only ever
+ * four-fifths true.
+ */
+export function terrainHeight(
+  placed: PlacedTile,
+  tilesById: Record<string, TileDef>,
+): number {
+  if (isPlayerBody(placed)) return 0;
+  const def = tilesById[placed.tileId];
+  return def ? physicalHeight(def) : 0;
+}
+
 export function stackHeight(
   stack: PlacedTile[],
   tilesById: Record<string, TileDef>,
 ): number {
   let h = 0;
-  for (const p of stack) {
-    if (isPlayerBody(p)) continue;
-    const def = tilesById[p.tileId];
-    if (def) h += physicalHeight(def);
-  }
+  for (const p of stack) h += terrainHeight(p, tilesById);
   return h;
 }
 
@@ -220,12 +240,7 @@ export function elevationAt(
   tilesById: Record<string, TileDef>,
 ): number {
   let e = 0;
-  for (let i = 0; i < stackIndex; i++) {
-    const placed = stack[i]!;
-    if (isPlayerBody(placed)) continue;
-    const def = tilesById[placed.tileId];
-    if (def) e += physicalHeight(def);
-  }
+  for (let i = 0; i < stackIndex; i++) e += terrainHeight(stack[i]!, tilesById);
   return e;
 }
 
@@ -270,10 +285,10 @@ export function walkableElevInStack(
   let elev = 0;
   let best: number | null = null;
   for (const p of stack) {
+    elev += terrainHeight(p, tilesById);
     if (isPlayerBody(p)) continue;
     const def = tilesById[p.tileId];
     if (!def) continue;
-    elev += physicalHeight(def);
     // Intangible walkable tops don't form a standing plane — pass through.
     if (resolveWalkable(def) && !resolveIntangible(def)) best = elev;
   }
@@ -319,10 +334,10 @@ export function walkableTileAtElev(
 ): PlacedTile | null {
   let elev = 0;
   for (const p of stack) {
+    elev += terrainHeight(p, tilesById);
     if (isPlayerBody(p)) continue;
     const def = tilesById[p.tileId];
     if (!def) continue;
-    elev += physicalHeight(def);
     if (
       resolveWalkable(def) &&
       !resolveIntangible(def) &&

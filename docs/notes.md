@@ -285,6 +285,19 @@ the crowd is beside you or on top of you.
 offset. That is what Tibia does and it reads correctly: the pile is legible as a
 pile, and separating them would put a body somewhere it is not.
 
+**Every elevation walk goes through `terrainHeight`, and that is not tidiness.**
+"Sum the physical heights up a stack" was written out by hand in five places —
+`stackHeight`, `elevationAt`, `walkableElevInStack`, `walkableTileAtElev`, and
+`WorldRenderer.cellItems`. The first four were taught to skip a body and the
+fifth was not, so the simulation had two people standing on one floor while the
+renderer drew the second one's feet on the first one's head. Nothing caught it:
+every test asserted against the four that agreed. `terrainHeight` is one
+placement's contribution and it is the only definition; the loops are sums of it.
+A rule spelled out five times is a rule that is only ever four-fifths true.
+`EditorRenderer` has three more of those loops and they go through it too — the
+editor reads `map.json` and never sees an owned body, so it is consistency
+rather than a fix, which is the point.
+
 ## Where a player comes back in
 
 The checkpoint keeps everyone who is *connected*, because their tiles are in the
