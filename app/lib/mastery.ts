@@ -1,5 +1,7 @@
 import * as v from "valibot";
 
+import { type Element, ELEMENTS } from "./element";
+
 /**
  * What a body is good at.
  *
@@ -44,7 +46,36 @@ export type WeaponMastery = "fist" | "blade" | "blunt" | "ranged" | "arcane";
  */
 export type BodyMastery = "toughness" | "agility";
 
-export type Mastery = WeaponMastery | BodyMastery;
+/**
+ * An element is a mastery, and that is the whole of how elements got here.
+ *
+ * **Arcane says how good you are at magic; an element says what you point it
+ * at.** You get better at fire by throwing fire, on exactly the terms you get
+ * better at blades by swinging one — so the three are numbers on a body like
+ * any other, and every block, schema, bar and editor row that walks
+ * {@link MASTERIES} picked them up without being asked.
+ *
+ * **These say what a body can *cast*, and never what it *is*.** What magic does
+ * to you when it lands is a different fact, authored on the battler and on what
+ * you are wearing — see `./battler`'s `BattlerDef.elements` and
+ * `../game/equipment`'s `bodyElements`. Reading it off the masteries instead
+ * would make training the element you are best at the thing that makes you weak
+ * to its counter, which is a progression that punishes you for progressing; and
+ * it would turn a rat that had somehow learnt a little Fire into a fire
+ * creature by accident.
+ *
+ * They are **not** weapon masteries, and the exclusion is load-bearing in one
+ * place: {@link rating} counts a body's *best* weapon mastery, so an element in
+ * that list would let a caster's ⭐ be their Fire and make a fire specialist
+ * read as a better fighter than the identical caster who spread the same
+ * practice over three. What Rating measures is Arcane, which is already there
+ * and is already the thing every cast trains.
+ *
+ * @see `./element` for the wheel they sit on.
+ */
+export type ElementMastery = Element;
+
+export type Mastery = WeaponMastery | BodyMastery | ElementMastery;
 
 export const WEAPON_MASTERIES: WeaponMastery[] = [
   "fist",
@@ -56,7 +87,11 @@ export const WEAPON_MASTERIES: WeaponMastery[] = [
 
 export const BODY_MASTERIES: BodyMastery[] = ["toughness", "agility"];
 
-export const MASTERIES: Mastery[] = [...WEAPON_MASTERIES, ...BODY_MASTERIES];
+export const MASTERIES: Mastery[] = [
+  ...WEAPON_MASTERIES,
+  ...BODY_MASTERIES,
+  ...ELEMENTS,
+];
 
 /**
  * What each mastery is called on screen.
@@ -77,6 +112,9 @@ export const MASTERY_LABELS: Record<Mastery, string> = {
   arcane: "Arcane",
   toughness: "Toughness",
   agility: "Agility",
+  fire: "Fire",
+  water: "Water",
+  nature: "Nature",
 };
 
 /** Both ends of a mastery, named so the editor and the schema agree. */
@@ -96,6 +134,33 @@ export type Masteries = Partial<Record<Mastery, number>>;
 /** One mastery's level, with an unwritten one reading as the bottom of the scale. */
 export function masteryLevel(masteries: Masteries, mastery: Mastery): number {
   return masteries[mastery] ?? MIN_MASTERY;
+}
+
+/**
+ * Which elements a spell is made of.
+ *
+ * **Read off the requirements, and that is the only place a spell's element is
+ * written down.** A stone asking Fire 1 is a fire spell; one asking Fire 8 and
+ * Water 8 is both. There is no second field naming an element, because a second
+ * field is a second thing to keep in step — and because what a spell asks of
+ * you and what a spell *is* are genuinely the same fact: nobody throws fire
+ * without having learnt some.
+ *
+ * Every element the block names, never the strongest, which is the whole of
+ * what "a spell can have more than one element" means — see `./element`'s
+ * {@link effectiveness}, which looks at all of them.
+ *
+ * **This is the casting side only.** What a body counts as when a spell lands
+ * on it is authored rather than practised, and is asked elsewhere entirely —
+ * see `../game/equipment`'s `bodyElements`.
+ *
+ * Empty for a stone with no elemental requirement at all, which is an
+ * elementless spell: a stone of light is magic that is not made of anything,
+ * and it neither gains nor loses on the wheel.
+ */
+export function spellElements(requirements: Masteries | undefined): Element[] {
+  if (!requirements) return [];
+  return ELEMENTS.filter((element) => (requirements[element] ?? 0) > 0);
 }
 
 /**
@@ -331,9 +396,14 @@ export function xpFromMasteries(masteries: Masteries): MasteryXp {
 /**
  * What each of the fighting three is worth to a body's Rating.
  *
- * **The fighting three only, and the weights sum to one.** Summing to one is
- * what puts R on the mastery scale rather than on a second scale nobody has
- * learnt: a body with 40 in everything rates 40, so `Rat (⭐7)` says the rat's
+ * **The fighting three only, and the weights sum to one.** The elements are
+ * deliberately not among them — see {@link ElementMastery}, where the reason
+ * is written down: Arcane already measures how good a body is at magic, and an
+ * element in the best-weapon term would make specialising in one look like
+ * being better at fighting than spreading the same practice over three.
+ *
+ * Summing to one is what puts R on the mastery scale rather than on a second
+ * scale nobody has learnt: a body with 40 in everything rates 40, so `Rat (⭐7)` says the rat's
  * masteries come out around seven and needs no further explanation.
  *
  * Breadth is deliberately free. Only the *best* weapon mastery counts, so

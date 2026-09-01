@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   BENEATH_YOU_EXPONENT,
+  spellElements,
   experienceMultiplier,
   learningRate,
   MAX_MASTERY,
@@ -322,5 +323,32 @@ describe("progressToNextLevel", () => {
    */
   it("is nothing at the top of the scale, however much is banked", () => {
     expect(progressToNextLevel(xpForLevel(MAX_MASTERY) * 10)).toBe(0);
+  });
+});
+
+/**
+ * Which elements a spell is made of.
+ *
+ * The casting side, and the only side masteries have an opinion about: what a
+ * body counts as when a spell lands on it is authored rather than practised —
+ * see `../game/equipment`'s `bodyElements`, which is tested beside the squares
+ * it walks.
+ */
+describe("spellElements", () => {
+  it("is empty for a spell that asks for no element", () => {
+    expect(spellElements(undefined)).toEqual([]);
+    expect(spellElements({ arcane: 10 })).toEqual([]);
+  });
+
+  it("names every element the requirements name, however small", () => {
+    expect(spellElements({ arcane: 2, fire: 1 })).toEqual(["fire"]);
+    expect(spellElements({ arcane: 15, water: 8, nature: 8 })).toEqual([
+      "water",
+      "nature",
+    ]);
+  });
+
+  it("ignores an element written as nothing, exactly as every requirement does", () => {
+    expect(spellElements({ fire: 0, water: 3 })).toEqual(["water"]);
   });
 });
