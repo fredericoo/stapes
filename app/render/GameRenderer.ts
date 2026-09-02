@@ -1746,7 +1746,7 @@ export class GameRenderer {
       if (!this.isVisibleBody(snap, actor, camera, hideLevelsAbove)) continue;
 
       const visual = this.actorVisualWorld(snap.map, actor);
-      const height = this.movingTileHeight(snap.map, actor, actor.stackIndex);
+      const height = this.bodyOwnHeight(snap.map, actor, actor.stackIndex);
       const head = elevationScreenOffset(height);
       const name = bodyNameFor(
         { actorId: actor.id, tileId: actor.tileId },
@@ -2248,7 +2248,7 @@ export class GameRenderer {
       hit.stackIndex,
     );
     const head = elevationScreenOffset(
-      this.movingTileHeight(map, hit, hit.stackIndex),
+      this.bodyOwnHeight(map, hit, hit.stackIndex),
     );
     const at = { x: ground.x + head.x, y: ground.y + head.y };
     this.damageAnchors.set(hit.id, at);
@@ -2629,7 +2629,7 @@ export class GameRenderer {
           x: from.x + (to.x - from.x) * t,
           y: from.y + (to.y - from.y) * t,
           foot,
-          top: foot + this.movingTileHeight(map, from, stackIndex),
+          top: foot + this.clumpHeight(map, from, stackIndex),
           // Feet share a plane with both floors it passes over; outrank the
           // top tile of whichever stack it is standing on.
           stackBias: Math.max(
@@ -2656,7 +2656,7 @@ export class GameRenderer {
           x: actor.x,
           y: actor.y,
           foot,
-          top: foot + this.movingTileHeight(map, actor, actor.stackIndex),
+          top: foot + this.clumpHeight(map, actor, actor.stackIndex),
           stackBias: depthStackBias(actor.z, actor.stackIndex),
         },
       };
@@ -2678,7 +2678,7 @@ export class GameRenderer {
           x: actor.x,
           y: actor.y,
           foot,
-          top: foot + this.movingTileHeight(map, actor, actor.stackIndex),
+          top: foot + this.clumpHeight(map, actor, actor.stackIndex),
           stackBias: depthStackBias(actor.z, actor.stackIndex),
         },
       };
@@ -2702,7 +2702,7 @@ export class GameRenderer {
   }
 
   /** Height of the tile at a stack slot — the mover is not always the player. */
-  private movingTileHeight(
+  private clumpHeight(
     map: MapFile,
     cell: { x: number; y: number; z: number },
     stackIndex: number,
@@ -2711,6 +2711,24 @@ export class GameRenderer {
     if (!stack[stackIndex]) return 0;
     const extent = clumpExtentAt(stack, stackIndex, this.tilesById);
     return extent.top - extent.foot;
+  }
+
+  /**
+   * How tall the body itself is — never its clump.
+   *
+   * What hangs over a head belongs to the head, and a clump is a fact about
+   * *sorting* and nothing else. Reading the clump here put a person's health bar
+   * up at the top of the open door they were standing in, which is a bar that
+   * has stopped reporting on the person.
+   */
+  private bodyOwnHeight(
+    map: MapFile,
+    cell: { x: number; y: number; z: number },
+    stackIndex: number,
+  ): number {
+    const placed = getStack(map, cell.x, cell.y, cell.z)[stackIndex];
+    if (!placed) return 0;
+    return this.tilesById[placed.tileId]?.height ?? 0;
   }
 
   /** Absolute foot elevation of a tile standing at a stack slot. */

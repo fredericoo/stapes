@@ -591,6 +591,13 @@ It surfaced when the player went from a full level to three, but it was never
 about the player. A shoved crate in a doorway had it too, and no rule about how
 tall a *body* is drawn would ever have reached that.
 
+**A clump sorts, and sorts only.** Anything hanging over a head — a name, a
+health bar, a damage number — anchors to the body's *own* height and never to
+the clump's, or a person standing in a doorway wears the door's health bar.
+`GameRenderer` keeps the two apart as `clumpHeight` and `bodyOwnHeight`; they
+were one function once, and the bar drifted two pixels up-left every time
+somebody stood in a door.
+
 **What does not scale, and must not be scaled.** A pressure plate's `height` is
 a threshold at the boundary between "nothing solid" and "something solid", so
 `gte 1` still reads as "something is standing here" and doubling it would have
