@@ -368,6 +368,20 @@ swords in one cell are therefore two things you can pick up, and the list offers
 both; before this only the top of a stack was reachable, and the lower sword
 could not be got at at all.
 
+**The pointer pick takes the same rule, and did not used to** (`render/pick.ts`,
+`candidateIn`). It read the top of each stack and nothing else, so anything you
+were standing on was unclickable: a body is a placement like any other, and on a
+ladder the topmost slot in that cell is *you*. `interactOver` teleports were the
+worst of it — climbing is the one gesture you can only make from on top of the
+thing — and they showed as a "Climb up" row the interaction list offered while
+the same tile in the world stayed dark and swallowed the tap. The pick now walks
+down from the top and stops where `coveredBySomething` says a lid begins, so what
+the cursor can reach and what a hand can reach are one rule with one
+implementation. Within a stack an *actionable* slot outranks an inert one, which
+is what actually gets your feet out of the way: the player tile carries a `push`
+block, so it is an interactive candidate wherever it stands — but nobody can
+shove themselves, so it has no row, and the rung underneath does.
+
 **A shove is the one action that reaches under a lid**, because nothing is left
 behind: `pushedColumn` is the object plus everything stacked on it, the group
 travels as one rigid volume (`fitsHeightAtElevation`, `moveColumn`), and the
