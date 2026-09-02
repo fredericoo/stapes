@@ -24,7 +24,8 @@ a world in the way.
   needed: a fresh one seeds itself on boot
 - `bun run typecheck` — route typegen, then all three tsconfigs
 - `bun run lint` — oxlint. `bun run lint:fix` applies what it can fix on its own
-- `bun run format` — oxfmt, in place. `bun run format:check` is what CI runs
+- `bun run format` — oxfmt, in place. `bun run format:check` is what CI and the
+  pre-commit hook run
 - `bun run test:unit` — `app/` logic, in vitest
 - `bun run test:server` — the world, on Bun, against a real database file
 - `bun run test:perf` — renderer budgets, in Playwright
@@ -116,7 +117,17 @@ strictness settings are the same in all three, so a module shared between
 
 `bun run lint` (oxlint) and `bun run format` (oxfmt), both pinned to an exact
 version: a formatter that moves under you mid-branch turns one review into two.
-CI runs `lint` and `format:check` beside the typecheck.
+CI runs `lint` and `format:check` beside the typecheck, and so does a
+`pre-commit` hook — `bun install` puts it in place, because lefthook installs
+its own hooks on postinstall.
+
+**The hook checks the whole tree, not the staged files.** Together they take
+about half a second, so there is nothing to buy by narrowing them, and a
+staged-files check answers the wrong question: what matters at a commit is
+whether the tree it leaves behind is clean, and a file made unformatted by a
+rebase or by an editor writing on save is not staged by anybody. Neither job
+writes — a failure names the command that fixes it. `LEFTHOOK=0 git commit`
+skips both for one commit.
 
 **`.oxlintrc.json` is worth reading before adding to it.** It denies
 `correctness`, `suspicious` and `perf`, and the rules it turns off each carry

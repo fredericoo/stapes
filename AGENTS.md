@@ -27,6 +27,9 @@ an oblique cabinet projection with Three.js.
 - **`.oxlintrc.json`** — the lint rules, and a written reason beside every rule
   that is off. Several of them are rules whose *fix* is wrong here; read the
   reason before turning one back on or silencing a new one.
+- **`lefthook.yml`** — the pre-commit hook: oxlint and oxfmt over the whole
+  tree. It is why a commit that leaves the tree unformatted does not happen;
+  `LEFTHOOK=0 git commit` is the way past it when you mean to.
 - **`.agents/skills/`** — skills that load on demand (renderer performance,
   React Router).
 - **`.claude/skills/pull-request-standards/`** — how to write a PR description here.

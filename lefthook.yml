@@ -1,0 +1,34 @@
+# Git hooks, via lefthook. `bun install` puts them in place — lefthook's own
+# postinstall runs `lefthook install` — so there is nothing to remember. If the
+# hooks ever go missing, `bunx lefthook install` puts them back.
+#
+# `LEFTHOOK=0 git commit` skips them for one commit, which is the escape hatch
+# for a work-in-progress commit on a branch nobody has pulled.
+
+pre-commit:
+  parallel: true
+
+  # **The whole tree, not `{staged_files}`.** Both of these read every file in
+  # about half a second together, so there is nothing to buy by narrowing them —
+  # and a staged-files check answers the wrong question. What matters at a commit
+  # is whether the tree that commit leaves behind is clean, and a file made
+  # unformatted by a rebase, a merge, or an editor writing on save is not staged
+  # by anybody.
+  jobs:
+    - name: lint
+      run: bun run lint
+      fail_text: |
+        oxlint found something. `bun run lint:fix` takes the fixable ones;
+        the rest want reading, and `.oxlintrc.json` says which rules are off
+        here and why before you reach for a disable comment.
+
+    - name: format
+      run: bun run format:check
+      fail_text: "Unformatted files — run `bun run format`."
+
+# Not on a merge or a rebase. Both replay commits that were already checked when
+# they were made, and a rebase would run this once per commit; a conflict
+# resolution is also the one moment when being stopped is least useful.
+skip:
+  - merge
+  - rebase
