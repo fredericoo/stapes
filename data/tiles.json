@@ -3050,11 +3050,17 @@
         "opening": "Hello, {partner}. Potions, or a recipe, or bottles you're done with — what'll it be?",
         "options": [
           {
-            "label": "Buy a Luminous Potion",
-            "say": "Drink it and you glow for an hour. Fourteen shards. Deal?",
+            "label": "Buy Luminous Potions",
+            "say": "Drink one and you glow for an hour. Fourteen shards apiece.",
             "then": [
               {
-                "label": "Deal",
+                "label": "I'll take some",
+                "amount": {
+                  "min": 1,
+                  "max": 4,
+                  "prompt": "How many? Fourteen shards each.",
+                  "confirm": "Buy"
+                },
                 "do": [
                   {
                     "effect": "trade",
@@ -3072,8 +3078,8 @@
                     ]
                   }
                 ],
-                "say": "Drink it somewhere dark, {partner}.",
-                "else": "That's not fourteen shards, {partner}. Or you've nowhere to put it."
+                "say": "Drink them somewhere dark, {partner}.",
+                "else": "That's not enough shards for that many, {partner}. Or you've nowhere to put them."
               },
               {
                 "label": "Not today",
@@ -3085,7 +3091,9 @@
             "label": "Sell empty bottles",
             "amount": {
               "min": 1,
-              "max": 12
+              "max": 12,
+              "prompt": "How many bottles? Two shards each.",
+              "confirm": "Sell"
             },
             "do": [
               {
