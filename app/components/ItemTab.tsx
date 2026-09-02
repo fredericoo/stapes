@@ -34,7 +34,7 @@ import { SLOT_LABELS } from "../lib/kit";
 import { MASTERY_LABELS, WEAPON_MASTERIES } from "../lib/mastery";
 import type { StatusDef } from "../lib/status";
 import type { TileDef } from "../lib/types";
-import { Input, Segmented, Switch } from "../ui";
+import { Input, Segmented, Select, Switch } from "../ui";
 import { StatField } from "./StatField";
 import { StatusGrants } from "./StatusGrants";
 import { StoneFields } from "./StoneFields";
@@ -144,6 +144,12 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
     if (item.type !== "artifact") return;
     setItem({ ...item, ...fields });
   };
+
+  // Anything carriable but this tile itself: a potion that left a full potion
+  // behind would be a bottle that never empties.
+  const residueTiles = tiles.filter(
+    (tile) => tile.kind === "item" && tile.id !== draft.id,
+  );
 
   const patchContainer = (fields: Partial<ContainerItem>) => {
     if (item.type !== "container") return;
@@ -388,6 +394,30 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
                 </>
               }
             />
+
+            <label className="flex flex-col gap-1 text-xs">
+              <span className="font-bold uppercase text-muted">Leaves</span>
+              <Select
+                className="w-56"
+                ariaLabel="Leaves"
+                value={item.leaves ?? ""}
+                onValueChange={(leaves) =>
+                  patchConsumable({ leaves: leaves || undefined })
+                }
+                options={[
+                  { value: "", label: "Nothing" },
+                  ...residueTiles.map((tile) => ({
+                    value: tile.id,
+                    label: tile.name,
+                  })),
+                ]}
+              />
+              <span className="max-w-64 text-[11px] leading-snug text-muted">
+                What is left once it is used &mdash; an empty bottle. It lands
+                where the drink was, then in the bag, then in a free hand, and
+                a body with nowhere to put it cannot drink.
+              </span>
+            </label>
           </div>
         ) : item.type === "artifact" ? (
           <div className="flex flex-col gap-3">

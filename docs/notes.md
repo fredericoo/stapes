@@ -2255,6 +2255,39 @@ landings list, so its check and its run are literally the same call —
 and hands back null when it will not fit. There is no second arrangement to
 disagree with the first, which is exactly what `landingsFor` would have to become.
 
+### A drink leaves its bottle, and the bottle has to fit
+
+`ConsumableItem.leaves` names the tile left behind when a consumable is used —
+an `empty-bottle` for a potion. A potion is two things and drinking spends one
+of them; for as long as nobody wanted the glass back, letting it vanish with
+the draught was fine. A merchant who buys bottles is exactly somebody who does.
+
+- **A tile id, not a flag**, because what is left is content like anything
+  else: it needs a sprite, a name and a pile of its own, and a second tile is
+  the only thing that has those. An id the catalogue no longer holds reads as
+  leaving nothing, on the terms a status nobody authored does.
+- **Nothing ever reaches the floor from a kit.** `app/game/residue.ts` tries
+  the place the drink was — that bag, that chest, that hand — then the worn
+  bag, then the off hand, then the weapon hand; `placeInSlot` (`itemMoves`)
+  asks each on exactly the terms a drag would. It is asked with the drink
+  already gone, so the square the last potion vacated is the one its bottle
+  lands in and a bottle pouring onto bottles needs no square at all. A hand
+  still holding the rest of a pile refuses and the search moves on.
+- **A drink drunk where it lay leaves the bottle where it lay**, through
+  `stackWithItem` so a second bottle joins the first, gated by
+  `canReplaceStack` like a body dying holding things. A floor meal never
+  entered the bag and neither does its glass.
+- **Nowhere to put it is a refusal with a sentence.** Every other consume
+  refusal is a row that was never offered; this one is a fact about the kit
+  the row cannot see — the potion is right there — so silence would read as a
+  broken potion. `noRoomToLeaveNotice` names the tile, and the potion stays
+  exactly where it was: the residue is placed before anything is written.
+- **The client is not told in advance.** `RemoteSession.consume` mirrors the
+  server's gates for the floor and slot arms and knows nothing about residue,
+  so the row is offered and the server refuses with the notice. A pre-check
+  would put the residue search on every frame that lists the options, for a
+  refusal that is rare and already explained.
+
 ## An extract spends the world, and the wait is yours alone
 
 `interactions.extract` is the third arrangement of "this tile gives you

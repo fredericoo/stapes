@@ -400,6 +400,25 @@ export type ConsumableItem = {
    * applied there rather than by the schema.
    */
   pile?: number;
+  /**
+   * The tile left in the drinker's hands once this is gone — an empty bottle.
+   *
+   * A potion is two things and consuming it spends only one of them. Without
+   * this the glass vanished with the draught, which was fine for as long as
+   * nobody wanted the glass back; a merchant who buys bottles is exactly
+   * somebody who does. It is a tile id rather than a flag because what is left
+   * is authored content like anything else, and a second tile is the only way
+   * for it to have a sprite, a name and a pile of its own.
+   *
+   * **It has to fit, or the drink is refused.** What is left lands where the
+   * potion was, then in the worn bag, then in a free hand — the same order a
+   * recipe's result takes, and on the same rule: nothing ever reaches the
+   * floor. A body with nowhere to put the bottle cannot drink, and is told so.
+   * See `../game/residue`.
+   *
+   * Absent means nothing is left, which is every consumable there was.
+   */
+  leaves?: string;
 };
 
 /**
@@ -1530,6 +1549,11 @@ const consumableSchema = v.object({
   pile: v.optional(
     v.pipe(v.number(), v.integer(), v.minValue(MIN_PILE), v.maxValue(MAX_PILE)),
   ),
+  // Whether the id names a tile is the catalogue's question, asked where the
+  // residue is placed — on the terms `statuses` above leaves its ids alone. A
+  // blank is refused rather than read as "nothing", so the editor's "Nothing"
+  // is an absent key and never an empty string.
+  leaves: v.optional(v.pipe(v.string(), v.trim(), v.minLength(1))),
 });
 
 const containerSchema = v.object({
@@ -2046,12 +2070,14 @@ export function itemForSave(item: ItemDef | undefined): ItemDef | undefined {
     const label = item.label?.trim();
     const sound = item.sound?.trim();
     const statuses = statusGrantsForSave(item.statuses);
+    const leaves = item.leaves?.trim();
     return {
       type: "consumable",
       ...(label ? { label } : {}),
       ...(sound ? { sound } : {}),
       hp: item.hp,
       ...(statuses ? { statuses } : {}),
+      ...(leaves ? { leaves } : {}),
       // Written whatever it says, on the terms a weapon's reach is: how much of
       // a thing is a handful is something every consumable now has an opinion
       // about, and omitting the default would make "a handful" and "nobody has

@@ -32,6 +32,7 @@ import {
   countOf,
   peelOne,
   pourInto,
+  stackWithItem,
   stow,
   withCount,
 } from "../lib/piles";
@@ -94,11 +95,13 @@ import {
   masteryNotice,
   otherMasteryNotice,
   healthNotice,
+  noRoomToLeaveNotice,
   rewardNotice,
   statusesClearedNotice,
   statusGrantedNotice,
   tileNotice,
 } from "./notices";
+import { leaveResidue } from "./residue";
 import {
   HEALTH_COMMAND,
   MASTERY_COMMAND,
@@ -219,6 +222,7 @@ import {
   itemInSlot,
   peelSlot,
   stashInContainer,
+  type ItemMoveResult,
   type SlotRef,
 } from "./itemMoves";
 import type { ItemInstance } from "../lib/itemInstance";
@@ -5029,15 +5033,12 @@ export class GameSession implements PlaySession {
     // meal that swallowed a heap of twelve would be the game deciding a number
     // nobody was offered.
     const left = peelOne(placed);
-    this.map = left
-      ? replaceStack(
-          this.map,
-          ref.x,
-          ref.y,
-          ref.z,
-          stack.map((held, i) => (i === ref.stackIndex ? left : held)),
-        )
-      : removeTileAt(this.map, ref.x, ref.y, ref.z, ref.stackIndex);
+    const spent = left
+      ? stack.map((held, i) => (i === ref.stackIndex ? left : held))
+      : stack.filter((_, i) => i !== ref.stackIndex);
+    const next = this.cellAfterLeaving(actor, ref, spent, consumable);
+    if (!next) return null;
+    this.map = replaceStack(this.map, ref.x, ref.y, ref.z, next);
     // The same reindex a pickup owes, for the same plates and the same
     // unsupported crates. Owed even for a pile that merely got smaller: a pile
     // adds no height, so nothing about the cell can have changed — but the
@@ -5045,6 +5046,77 @@ export class GameSession implements PlaySession {
     // when it may be skipped.
     this.reindexCells([{ x: ref.x, y: ref.y, z: ref.z }]);
     return consumable;
+  }
+
+  /**
+   * A cell's stack with what a floor drink leaves behind on it, or null when
+   * the cell cannot hold it.
+   *
+   * On the floor rather than in the drinker's kit, because that is where the
+   * potion was: a bottle drunk where it lies is left where it lay, exactly as a
+   * meal eaten off the floor never enters the bag. Poured, like every other way
+   * an item reaches a cell, so a second bottle joins the first. The room check
+   * is `canReplaceStack`'s, the same one a body dying holding things asks, and
+   * a refusal is said out loud on {@link leaveBehind}'s terms.
+   */
+  private cellAfterLeaving(
+    actor: ActorRuntime,
+    ref: ObjectRef,
+    spent: PlacedTile[],
+    consumable: ConsumableItem,
+  ): PlacedTile[] | null {
+    const residue = this.residueOf(consumable);
+    if (!residue) return spent;
+    const next = stackWithItem(spent, placementFromInstance(residue), this.tilesById);
+    const room = canReplaceStack(this.map, ref.x, ref.y, ref.z, next, this.tilesById);
+    if (room.ok) return next;
+    this.say(actor.id, noRoomToLeaveNotice(this.tilesById[residue.tileId]!.name));
+    return null;
+  }
+
+  /**
+   * The board and kit with what a slot drink leaves behind somewhere on the
+   * body, or null — said out loud — when there is nowhere.
+   *
+   * Asked with the drink already gone, which is what makes the ordinary case
+   * free: the square the last potion vacated is the square its bottle lands in.
+   * See `./residue` for the order the places are tried in.
+   */
+  private leaveBehind(
+    actor: ActorRuntime,
+    loc: ActorLocation,
+    emptied: ItemMoveResult,
+    from: SlotRef,
+    consumable: ConsumableItem,
+  ): ItemMoveResult | null {
+    const residue = this.residueOf(consumable);
+    if (!residue) return emptied;
+    const landed = leaveResidue(
+      emptied.map,
+      this.tilesById,
+      loc,
+      emptied.equipment,
+      from,
+      residue,
+    );
+    if (landed) return landed;
+    this.say(actor.id, noRoomToLeaveNotice(this.tilesById[residue.tileId]!.name));
+    return null;
+  }
+
+  /**
+   * What this consumable leaves behind, minted, or null for one that leaves
+   * nothing.
+   *
+   * A tile the catalogue no longer holds reads as leaving nothing, on the terms
+   * a status nobody authored does: renamed content is an effect that did not
+   * happen, not a drink that cannot be drunk. Minted before it is known to fit,
+   * because an id is random and one that lands nowhere costs nothing.
+   */
+  private residueOf(consumable: ConsumableItem): ItemInstance | null {
+    const tileId = consumable.leaves;
+    if (!tileId || !this.tilesById[tileId]) return null;
+    return { id: mintItemId(), tileId };
   }
 
   /** Take a consumable out of a slot and destroy it. Null when refused. */
@@ -5071,12 +5143,16 @@ export class GameSession implements PlaySession {
     // `clearSlot` for the last one anyway.
     const emptied = peelSlot(this.map, this.tilesById, loc, actor.equipment, slot);
     if (!emptied) return null;
+    // Before anything is written, so a drink with nowhere to leave its bottle
+    // leaves the potion exactly where it was.
+    const landed = this.leaveBehind(actor, loc, emptied, slot, consumable);
+    if (!landed) return null;
 
-    this.map = emptied.map;
+    this.map = landed.map;
     // Only when it actually changed, exactly as a move does: eating out of a
     // chest is the chest's placement changing and nobody's kit.
-    if (emptied.equipment !== actor.equipment) {
-      this.setEquipment(actor, emptied.equipment);
+    if (landed.equipment !== actor.equipment) {
+      this.setEquipment(actor, landed.equipment);
     }
     return consumable;
   }

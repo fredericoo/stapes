@@ -120,6 +120,31 @@ const tiles: TileDef[] = [
   // The same status, authored to last far longer — a loaf against a berry.
   granter("bread", [{ id: "fed", fromMs: 60_000, toMs: 60_000 }]),
   ...normalizeTiles(tilesJson as unknown[]).filter((t) => t.id === "green-potion"),
+  // A drink that leaves its glass behind, and the glass. The potion piles to
+  // four so a hand can hold the rest of one; the bottle piles so two of them
+  // are one square.
+  tile({
+    id: "potion",
+    kind: "item",
+    intangible: true,
+    interactions: {
+      item: { type: "consumable", label: "Drink", hp: 0, pile: 4, leaves: "bottle" },
+    },
+  }),
+  tile({
+    id: "bottle",
+    kind: "item",
+    intangible: true,
+    interactions: { item: { type: "artifact", pile: 12 } },
+  }),
+  tile({
+    id: "lost-potion",
+    kind: "item",
+    intangible: true,
+    interactions: {
+      item: { type: "consumable", label: "Drink", hp: 0, leaves: "no-such-tile" },
+    },
+  }),
   tile({
     id: "sword",
     kind: "item",
@@ -727,5 +752,165 @@ describe("drinking the green potion, as authored", () => {
     expect(hpOf(session)).toBe(PLAYER_MAX_HP);
     session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
     expect(hpOf(session)).toBe(PLAYER_MAX_HP);
+  });
+});
+
+/**
+ * A drink that leaves its bottle behind.
+ *
+ * The rule under test is `ConsumableItem.leaves` end to end: the glass lands
+ * where the potion was, pours onto a bottle already there, and a body with
+ * nowhere to put it cannot drink at all — and is told so. `./residue.test`
+ * pins the order of places against a kit built by hand; this is the session
+ * doing it.
+ */
+describe("a drink that leaves its bottle", () => {
+  const BAG_SLOT = { kind: "contents", index: 0 } as const;
+
+  function bagOf(session: GameSession) {
+    return session.getSnapshot().equipment.bag?.contents?.map((i) =>
+      i.count ? `${i.tileId}x${i.count}` : i.tileId,
+    );
+  }
+
+  /** The bag filled with swords, so nothing else fits in it. */
+  function fillBag(session: GameSession) {
+    for (const [x, y] of [[-1, 0], [-1, 1], [0, -1], [-1, -1]] as const) {
+      session.pickUp(refAt(session, x, y));
+    }
+  }
+
+  /** Swords on four cells within reach, and a potion on a fifth. */
+  function armoury(): GameSession {
+    let map = field();
+    for (const [x, y] of [[-1, 0], [-1, 1], [0, -1], [-1, -1]] as const) {
+      map = replaceStack(map, x, y, 0, [{ tileId: "grass" }, { tileId: "sword" }]);
+    }
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "potion" }]);
+    return new GameSession(map, tiles);
+  }
+
+  it("leaves the bottle on the floor when drunk where it lay", () => {
+    const session = withItem(1, 0, "potion");
+    expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(true);
+    expect(tilesAt(session, 1, 0)).toEqual(["grass", "bottle"]);
+    // Never in the bag: a floor drink never entered it, and neither does its glass.
+    expect(bagOf(session)).toEqual([]);
+  });
+
+  it("pours a second bottle onto the first on the floor", () => {
+    const map = replaceStack(field(), 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "bottle" },
+      { tileId: "potion", count: 2 },
+    ]);
+    const session = new GameSession(map, tiles);
+    session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
+    expect(getStack(session.getMap(), 1, 0, 0)).toMatchObject([
+      { tileId: "grass" },
+      { tileId: "bottle", count: 2 },
+      { tileId: "potion" },
+    ]);
+  });
+
+  it("leaves the bottle in the bag the potion was drunk out of", () => {
+    const session = withItem(1, 0, "potion");
+    session.pickUp(refAt(session, 1, 0));
+    session.drainEquipmentChanges();
+
+    expect(session.consume({ kind: "slot", slot: BAG_SLOT })).toBe(true);
+    expect(bagOf(session)).toEqual(["bottle"]);
+    expect(session.drainEquipmentChanges()).toEqual([session.getSnapshot().self.id]);
+  });
+
+  it("pours onto the bottles already in the bag", () => {
+    const map = replaceStack(field(), 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "potion", count: 3 },
+    ]);
+    const session = new GameSession(map, tiles);
+    session.pickUp(refAt(session, 1, 0));
+    session.consume({ kind: "slot", slot: BAG_SLOT });
+    session.consume({ kind: "slot", slot: BAG_SLOT });
+    expect(bagOf(session)).toEqual(["potion", "bottlex2"]);
+  });
+
+  it("leaves the bottle in the hand that held the potion", () => {
+    const session = armoury();
+    fillBag(session);
+    // A full bag sends the pickup to a hand — the off hand first.
+    session.pickUp(refAt(session, 1, 0));
+    expect(session.getSnapshot().equipment.offhand?.tileId).toBe("potion");
+
+    expect(session.consume({ kind: "slot", slot: { kind: "offhand" } })).toBe(true);
+    expect(session.getSnapshot().equipment.offhand?.tileId).toBe("bottle");
+  });
+
+  it("leaves the bottle in a chest the potion was drunk out of", () => {
+    const map = replaceStack(field(), 1, 0, 0, [
+      { tileId: "grass" },
+      {
+        tileId: "chest",
+        itemId: "itm_chest",
+        contents: [{ id: "itm_potion", tileId: "potion" }],
+      },
+    ]);
+    const session = new GameSession(map, tiles);
+    const chest = refAt(session, 1, 0);
+    expect(
+      session.consume({ kind: "slot", slot: { kind: "ground", ref: chest, index: 0 } }),
+    ).toBe(true);
+    expect(getStack(session.getMap(), 1, 0, 0)[1]!.contents?.map((i) => i.tileId)).toEqual([
+      "bottle",
+    ]);
+  });
+
+  it("refuses the drink, says so, and leaves the potion where it was", () => {
+    // Two potions in one hand, a cherry in the other and four swords in the
+    // bag: the drink spends one potion, the hand still holds the other, and
+    // there is genuinely nowhere for the bottle. A sword would not do for the
+    // second hand — a pickup refuses a thing that has a slot of its own.
+    let map = field();
+    for (const [x, y] of [[-1, 0], [-1, 1], [0, -1], [-1, -1]] as const) {
+      map = replaceStack(map, x, y, 0, [{ tileId: "grass" }, { tileId: "sword" }]);
+    }
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "potion", count: 2 }]);
+    map = replaceStack(map, 1, 1, 0, [{ tileId: "grass" }, { tileId: "cherry" }]);
+    const session = new GameSession(map, tiles);
+    fillBag(session);
+    session.pickUp(refAt(session, 1, 0));
+    session.pickUp(refAt(session, 1, 1));
+    expect(session.getSnapshot().equipment.offhand).toMatchObject({ tileId: "potion", count: 2 });
+    expect(session.getSnapshot().equipment.weapon?.tileId).toBe("cherry");
+    session.drainEquipmentChanges();
+
+    expect(session.consume({ kind: "slot", slot: { kind: "offhand" } })).toBe(false);
+    expect(session.getSnapshot().equipment.offhand).toMatchObject({ tileId: "potion", count: 2 });
+    expect(session.drainEquipmentChanges()).toEqual([]);
+    expect(session.drainNotices()).toEqual(["There is nowhere to put bottle"]);
+  });
+
+  it("refuses a floor drink whose bottle the cell cannot hold", () => {
+    // A potion balanced on a full-height crate: the stack is at the ceiling,
+    // and one more placement on it is what `canReplaceStack` refuses.
+    const map = replaceStack(field(), 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "crate" },
+      { tileId: "crate" },
+      { tileId: "crate" },
+      { tileId: "potion" },
+    ]);
+    const session = new GameSession(map, tiles);
+    const before = tilesAt(session, 1, 0);
+    expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(false);
+    expect(tilesAt(session, 1, 0)).toEqual(before);
+    expect(session.drainNotices()).toEqual(["There is nowhere to put bottle"]);
+  });
+
+  it("leaves nothing for a residue the catalogue no longer holds", () => {
+    const session = withItem(1, 0, "lost-potion");
+    expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(true);
+    expect(tilesAt(session, 1, 0)).toEqual(["grass"]);
+    expect(session.drainNotices()).toEqual([]);
   });
 });
