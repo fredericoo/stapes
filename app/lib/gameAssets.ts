@@ -76,20 +76,24 @@ const ASSET_TIMEOUT_MS = 10_000;
  * `../components/LoadingScreen`.
  */
 export function useGameAssets(tilesets: TilesetDef[]): boolean {
-  const [ready, setReady] = useState(false);
+  // *Which* catalogue was loaded, rather than a bare flag, so readiness is
+  // derived from it in one comparison. A flag needs clearing when the tilesets
+  // change, which is a second render nobody asked for — and until that render
+  // ran, the flag said the new catalogue was ready when what had loaded was the
+  // old one.
+  const [loaded, setLoaded] = useState<TilesetDef[] | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    setReady(false);
     void loadGameAssets(tilesets).then(() => {
-      if (!cancelled) setReady(true);
+      if (!cancelled) setLoaded(tilesets);
     });
     return () => {
       cancelled = true;
     };
   }, [tilesets]);
 
-  return ready;
+  return loaded === tilesets;
 }
 
 /**

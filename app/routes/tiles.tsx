@@ -276,6 +276,12 @@ export default function TilesPage() {
       </div>
 
       <TileEditorDialog
+        // One mount per edit, rather than an effect resetting seven pieces of
+        // state when `open` goes true. Both ways of closing clear `editing` and
+        // `isNew`, so the key always passes through "closed" and every open is a
+        // fresh mount — which is what makes each field's initial value the
+        // initial value again, including for the same tile opened twice.
+        key={dialogOpen ? (isNew ? "new" : (editing?.id ?? "")) : "closed"}
         open={dialogOpen}
         onOpenChange={(o) => {
           if (!o) {

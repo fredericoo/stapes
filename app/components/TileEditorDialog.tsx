@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { WALK_DURATION_MS } from "../game/constants";
 import type {
   AutotileSlice,
@@ -386,18 +386,6 @@ export function TileEditorDialog({
   const [state, setState] = useState<SpriteState>("idle");
   const [frameIndex, setFrameIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const next = withLightingDefaults(tile ?? blankTile(tilesets));
-    setDraft(next);
-    setTab(TAB_TILE);
-    setDir("n");
-    setSlice(0);
-    setState("idle");
-    setFrameIndex(0);
-    setError(null);
-  }, [open, tile, tilesets]);
 
   const sprite = currentSprite(draft, state, dir, slice);
   const frames = sprite?.frames ?? [];

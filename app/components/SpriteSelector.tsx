@@ -15,7 +15,16 @@ type Props = {
  */
 export function SpriteSelector({ tileset, value, onChange, zoom = 4 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [img, setImg] = useState<HTMLImageElement | null>(null);
+  // The sheet is held with the tileset it belongs to, so which one is on screen
+  // is a comparison rather than a second piece of state to clear. Clearing it
+  // meant a render where the old sheet was still being drawn under the new
+  // tileset's grid, and a sheet that arrived after the author had moved on
+  // replaced the one they were looking at.
+  const [loaded, setLoaded] = useState<{
+    tileset: TilesetDef;
+    image: HTMLImageElement;
+  } | null>(null);
+  const img = loaded?.tileset === tileset ? loaded.image : null;
   const dragRef = useRef<{
     startX: number;
     startY: number;
@@ -24,13 +33,16 @@ export function SpriteSelector({ tileset, value, onChange, zoom = 4 }: Props) {
   const [hover, setHover] = useState<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
-    if (!tileset) {
-      setImg(null);
-      return;
-    }
+    if (!tileset) return;
+    let cancelled = false;
     const image = new Image();
     image.src = tilesetUrl(tileset.file);
-    image.onload = () => setImg(image);
+    image.onload = () => {
+      if (!cancelled) setLoaded({ tileset, image });
+    };
+    return () => {
+      cancelled = true;
+    };
   }, [tileset]);
 
   const draw = useCallback(() => {

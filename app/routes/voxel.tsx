@@ -141,8 +141,12 @@ function loadStoredProject(): VoxelProject | null {
 }
 
 export default function VoxelPage() {
-  const [project, setProject] = useState<VoxelProject>(defaultProject);
-  const [hydrated, setHydrated] = useState(false);
+  // Read once, as the initial value. There is no server render (`ssr: false`),
+  // so `localStorage` is there on the first one — reading it in an effect drew
+  // the default project for a frame and then replaced it.
+  const [project, setProject] = useState<VoxelProject>(
+    () => loadStoredProject() ?? defaultProject(),
+  );
   const [frameIdx, setFrameIdx] = useState(0);
   const [sliceZ, setSliceZ] = useState(0);
   const [selectedColor, setSelectedColor] = useState(1);
@@ -158,18 +162,11 @@ export default function VoxelPage() {
   );
 
   useEffect(() => {
-    const stored = loadStoredProject();
-    if (stored) setProject(stored);
-    setHydrated(true);
-  }, []);
-
-  useEffect(() => {
-    if (!hydrated) return;
     const timer = setTimeout(() => {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(project));
     }, AUTOSAVE_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [project, hydrated]);
+  }, [project]);
 
   const dims = voxelDims(project.size);
   // `voxelProjectSchema` holds `frames` at one or more, so a clamped index
@@ -389,6 +386,10 @@ export default function VoxelPage() {
       </div>
 
       <ExportDialog
+        // One mount per opening, rather than an effect pushing the name back
+        // into the field: the fields are a fresh answer to "what shall this be
+        // called" every time the dialog is opened.
+        key={exportOpen ? "open" : "closed"}
         open={exportOpen}
         onOpenChange={setExportOpen}
         project={project}
@@ -772,10 +773,6 @@ function ExportDialog({
   const [createTile, setCreateTile] = useState(true);
   const [tileHeight, setTileHeight] = useState("4");
   const submittedRef = useRef(false);
-
-  useEffect(() => {
-    if (open) setName(project.name);
-  }, [open, project.name]);
 
   useEffect(() => {
     if (!submittedRef.current || fetcher.state !== "idle" || !fetcher.data) {

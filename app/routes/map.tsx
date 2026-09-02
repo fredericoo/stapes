@@ -81,16 +81,25 @@ export default function MapPage() {
   const canUndo = useEditorStore((s) => s.past.length > 0);
   const canRedo = useEditorStore((s) => s.future.length > 0);
 
-  const [levelDraft, setLevelDraft] = useState(String(currentLevel));
+  /**
+   * What has been typed into the level box, and the level it was typed against.
+   *
+   * Held that way so the box is derived rather than pushed: typing stands only
+   * while the level it was typed over is still the current one, so the arrows,
+   * the `[` and `]` keys and a level set from anywhere else all put their number
+   * in the box without anything having to notice they did.
+   */
+  const [typedLevel, setTypedLevel] = useState<{
+    text: string;
+    over: number;
+  } | null>(null);
+  const levelDraft =
+    typedLevel?.over === currentLevel ? typedLevel.text : String(currentLevel);
   const handledSaveData = useRef<unknown>(null);
 
   useLayoutEffect(() => {
     useEditorStore.getState().hydrate(data.map, data.tiles);
   }, [data.map, data.tiles]);
-
-  useEffect(() => {
-    setLevelDraft(String(currentLevel));
-  }, [currentLevel]);
 
   useEffect(() => {
     if (!lastToast) return;
@@ -188,7 +197,9 @@ export default function MapPage() {
               aria-label="Level"
               className="w-14 bg-paper text-ink shadow-none"
               value={levelDraft}
-              onChange={(e) => setLevelDraft(e.target.value)}
+              onChange={(e) =>
+                setTypedLevel({ text: e.target.value, over: currentLevel })
+              }
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   const n = Number(levelDraft);
