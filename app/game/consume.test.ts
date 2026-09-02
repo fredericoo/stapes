@@ -119,7 +119,9 @@ const tiles: TileDef[] = [
   granter("mystery-fruit", [{ id: "no-such-status" }]),
   // The same status, authored to last far longer — a loaf against a berry.
   granter("bread", [{ id: "fed", fromMs: 60_000, toMs: 60_000 }]),
-  ...normalizeTiles(tilesJson as unknown[]).filter((t) => t.id === "green-potion"),
+  ...normalizeTiles(tilesJson as unknown[]).filter((t) =>
+    ["green-potion", "luminous-potion", "empty-bottle"].includes(t.id),
+  ),
   // A drink that leaves its glass behind, and the glass. The potion piles to
   // four so a hand can hold the rest of one; the bottle piles so two of them
   // are one square.
@@ -912,5 +914,38 @@ describe("a drink that leaves its bottle", () => {
     expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(true);
     expect(tilesAt(session, 1, 0)).toEqual(["grass"]);
     expect(session.drainNotices()).toEqual([]);
+  });
+});
+
+describe("drinking the luminous potion, as authored", () => {
+  const catalogue = statusesById(statusesJson);
+  const HOUR_MS = 60 * 60 * 1000;
+
+  function potionWorld(): GameSession {
+    const map = replaceStack(field(), 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "luminous-potion" },
+    ]);
+    return new GameSession(map, tiles, { statuses: catalogue });
+  }
+
+  it("glows for a real hour, and leaves the bottle where it stood", () => {
+    const session = potionWorld();
+    expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(true);
+    expect(tilesAt(session, 1, 0)).toEqual(["grass", "empty-bottle"]);
+    const held = session.statusesOf("local");
+    expect(held?.map((s) => s.defId)).toEqual(["luminous"]);
+    // The item's own duration over the status's minute: the whole point of
+    // buying one. An hour is the most a status may run, so this is the cap.
+    expect(held![0]!.remainingMs).toBe(HOUR_MS);
+  });
+
+  it("puts the bottle in the bag when drunk out of it", () => {
+    const session = potionWorld();
+    session.pickUp(refAt(session, 1, 0));
+    expect(session.consume({ kind: "slot", slot: { kind: "contents", index: 0 } })).toBe(true);
+    expect(session.getSnapshot().equipment.bag?.contents?.map((i) => i.tileId)).toEqual([
+      "empty-bottle",
+    ]);
   });
 });

@@ -11005,6 +11005,87 @@
     }
   },
   {
+    "id": "luminous-potion",
+    "name": "Luminous Potion",
+    "height": 2,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "interactions": {
+      "item": {
+        "type": "consumable",
+        "label": "Drink",
+        "sound": "gulp",
+        "hp": 0,
+        "statuses": [
+          {
+            "id": "luminous",
+            "fromMs": 3600000,
+            "toMs": 3600000
+          }
+        ],
+        "pile": 4,
+        "leaves": "empty-bottle"
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 18,
+              "y": 11,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "empty-bottle",
+    "name": "Empty Bottle",
+    "height": 2,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "lightPassing": true,
+    "interactions": {
+      "item": {
+        "type": "artifact",
+        "pile": 12
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 18,
+              "y": 10,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
     "id": "bread",
     "name": "Bread",
     "height": 0,
@@ -12446,7 +12527,8 @@
     "lightPassing": true,
     "interactions": {
       "item": {
-        "type": "artifact"
+        "type": "artifact",
+        "pile": 99
       }
     }
   },
