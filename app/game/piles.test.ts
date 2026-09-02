@@ -174,10 +174,10 @@ const ASIDE = { ...BESIDE, stackIndex: 1 };
 
 describe("picking a pile up", () => {
   it("joins a pile already in the bag rather than taking a second square", () => {
-    const session = world(
-      carrying([{ id: "itm_a", tileId: "berry" }]),
-      { tileId: "berry", itemId: "itm_b" },
-    );
+    const session = world(carrying([{ id: "itm_a", tileId: "berry" }]), {
+      tileId: "berry",
+      itemId: "itm_b",
+    });
 
     expect(session.pickUp(ASIDE, WHO)).toBe(true);
     expect(bag(session)).toEqual([{ id: "itm_a", tileId: "berry", count: 2 }]);
@@ -345,9 +345,7 @@ describe("spending one of a pile", () => {
     );
 
     expect(session.consume({ kind: "slot", slot: BAG_SLOT }, WHO)).toBe(true);
-    expect(bag(session)).toEqual([
-      { id: "itm_a", tileId: "berry", count: 2 },
-    ]);
+    expect(bag(session)).toEqual([{ id: "itm_a", tileId: "berry", count: 2 }]);
   });
 
   it("empties the square on the last of it", () => {

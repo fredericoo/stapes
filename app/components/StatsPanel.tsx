@@ -94,7 +94,11 @@ export function StatsPanel({
                 <span className="capitalize text-paper/80">{mastery}</span>
                 <span className="ml-auto tabular-nums text-paper">{level}</span>
               </span>
-              <MasteryProgress mastery={mastery} level={level} progress={progress} />
+              <MasteryProgress
+                mastery={mastery}
+                level={level}
+                progress={progress}
+              />
             </li>
           ))}
         </ul>
@@ -190,7 +194,10 @@ function EffectRow({
         {/* Not live text, on exactly the terms `MasteryProgress` is: a reading
             that changed as text would have a screen reader narrate every second
             of an hour. The row's own label carries it instead. */}
-        <span aria-hidden="true" className="ml-auto shrink-0 tabular-nums text-paper/70">
+        <span
+          aria-hidden="true"
+          className="ml-auto shrink-0 tabular-nums text-paper/70"
+        >
           {seconds}s
         </span>
       </li>
@@ -209,7 +216,9 @@ function EffectRow({
 function Health({ vitals }: { vitals: Vitals }) {
   const { hp, maxHp } = vitals;
   if (hp === null || maxHp === null) {
-    return <p className="px-1 text-xs text-paper/50">No hit points to speak of.</p>;
+    return (
+      <p className="px-1 text-xs text-paper/50">No hit points to speak of.</p>
+    );
   }
 
   const fraction = healthFraction(hp, maxHp);

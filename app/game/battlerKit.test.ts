@@ -92,7 +92,9 @@ function dice(rolls: number[]): { random: () => number; drawn: () => number } {
   return {
     random: () => {
       if (index >= rolls.length) {
-        throw new Error(`drew ${index + 1} times, only ${rolls.length} written`);
+        throw new Error(
+          `drew ${index + 1} times, only ${rolls.length} written`,
+        );
       }
       return rolls[index++]!;
     },
@@ -131,7 +133,9 @@ describe("rolling a kit", () => {
     expect(equipmentFromKit(kit, tiles, dice([0.004]).random).weapon).not.toBe(
       null,
     );
-    expect(equipmentFromKit(kit, tiles, dice([0.006]).random).weapon).toBeNull();
+    expect(
+      equipmentFromKit(kit, tiles, dice([0.006]).random).weapon,
+    ).toBeNull();
   });
 
   /**
@@ -176,7 +180,11 @@ describe("rolling a kit", () => {
 
     const out = equipmentFromKit(kit, tiles, dice([HIT, HIT, HIT, HIT]).random);
 
-    const ids = [out.weapon!.id, out.bag!.id, ...out.bag!.contents!.map((i) => i.id)];
+    const ids = [
+      out.weapon!.id,
+      out.bag!.id,
+      ...out.bag!.contents!.map((i) => i.id),
+    ];
     expect(new Set(ids).size).toBe(ids.length);
     expect(ids.every((id) => id.startsWith("itm_"))).toBe(true);
   });
@@ -252,7 +260,9 @@ describe("what a slot will take from a kit", () => {
       { slot: "bag", tileId: "chest", chance: 100 },
     ];
 
-    expect(equipmentFromKit(kit, tiles, dice([HIT, HIT]).random).bag).toBeNull();
+    expect(
+      equipmentFromKit(kit, tiles, dice([HIT, HIT]).random).bag,
+    ).toBeNull();
   });
 
   it("lets a hand hold anything you could carry, a pack included", () => {
@@ -270,9 +280,7 @@ describe("what a slot will take from a kit", () => {
   it("refuses a hand the one container nobody may carry", () => {
     const kit: Kit = [{ slot: "weapon", tileId: "chest", chance: 100 }];
 
-    expect(
-      equipmentFromKit(kit, tiles, dice([HIT]).random).weapon,
-    ).toBeNull();
+    expect(equipmentFromKit(kit, tiles, dice([HIT]).random).weapon).toBeNull();
   });
 
   it("refuses a slot to a tile that is not an item at all", () => {
@@ -340,7 +348,12 @@ describe("a body born in armour", () => {
 
   it("gets the whole of what it is wearing", () => {
     const kit = equipmentForBody("goblin", world, dice([HIT]).random);
-    const bare = effectiveBattler(body, emptyEquipment(), world, firstHand(emptyEquipment(), world));
+    const bare = effectiveBattler(
+      body,
+      emptyEquipment(),
+      world,
+      firstHand(emptyEquipment(), world),
+    );
     const dressed = effectiveBattler(body, kit, world, firstHand(kit, world));
 
     expect(kit.armor?.tileId).toBe("mail");

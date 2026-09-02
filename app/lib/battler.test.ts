@@ -237,8 +237,9 @@ describe("what a weapon is worth in the hand", () => {
       expect(shield.damage).toBe(0);
     }
     // And a weapon that does *any* damage is still paid the bonus in full.
-    expect(fightingStats(body({ blunt: 100 }), weapon({ damage: 1 })).damage)
-      .toBeGreaterThan(1);
+    expect(
+      fightingStats(body({ blunt: 100 }), weapon({ damage: 1 })).damage,
+    ).toBeGreaterThan(1);
   });
 
   /** Speed is Agility's to give, and mastery of the weapon may not pay it twice. */
@@ -348,9 +349,18 @@ describe("what a spell is worth in the hand", () => {
    * nothing but Fire has nothing to point it with.
    */
   it("averages Arcane with the elements the stone asks for", () => {
-    expect(castingSkill({ arcane: 100, fire: 0 }, { fire: 1 })).toBeCloseTo(0.5, 6);
-    expect(castingSkill({ arcane: 0, fire: 100 }, { fire: 1 })).toBeCloseTo(0.5, 6);
-    expect(castingSkill({ arcane: 60, fire: 40 }, { fire: 1 })).toBeCloseTo(0.5, 6);
+    expect(castingSkill({ arcane: 100, fire: 0 }, { fire: 1 })).toBeCloseTo(
+      0.5,
+      6,
+    );
+    expect(castingSkill({ arcane: 0, fire: 100 }, { fire: 1 })).toBeCloseTo(
+      0.5,
+      6,
+    );
+    expect(castingSkill({ arcane: 60, fire: 40 }, { fire: 1 })).toBeCloseTo(
+      0.5,
+      6,
+    );
   });
 
   /**
@@ -360,7 +370,10 @@ describe("what a spell is worth in the hand", () => {
    */
   it("counts every element a two-element stone names", () => {
     expect(
-      castingSkill({ arcane: 90, water: 90, nature: 0 }, { water: 8, nature: 8 }),
+      castingSkill(
+        { arcane: 90, water: 90, nature: 0 },
+        { water: 8, nature: 8 },
+      ),
     ).toBeCloseTo(0.6, 6);
   });
 

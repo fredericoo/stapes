@@ -1,0 +1,27 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+
+  // Matches what the code was already hand-written to: double quotes,
+  // semicolons, two spaces, and lines that stop at column 80, which is where
+  // the prose in `docs/notes.md` stops too.
+  "printWidth": 80,
+
+  "ignorePatterns": [
+    // Authored content, not source. `serializeMap` round-trips these
+    // byte-for-byte so that saving an unmodified map leaves `git status`
+    // clean; reformatting them here makes the editor's next Save a whole-file
+    // diff.
+    "data/**",
+
+    // The prose is hand-wrapped and uses `*emphasis*` throughout; oxfmt
+    // rewrites that to `_emphasis_`, which is 373 lines of churn in
+    // `docs/notes.md` alone and settles a question nobody asked.
+    "**/*.md",
+
+    // `app/app.css` lays the text-shadow rings out as a grid — one line per row
+    // of offsets, blank lines between rows — and that layout is the only thing
+    // saying which offsets belong together. oxfmt flattens it to one shadow per
+    // line and the shape is gone.
+    "**/*.css"
+  ]
+}

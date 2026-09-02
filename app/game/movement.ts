@@ -7,7 +7,13 @@ import {
   surfaceTileAt,
   walkableFloorAbove,
 } from "../lib/mapData";
-import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
+import type {
+  Coord,
+  Direction,
+  MapFile,
+  PlacedTile,
+  TileDef,
+} from "../lib/types";
 import {
   MAX_LEVEL,
   MIN_LEVEL,
@@ -170,9 +176,7 @@ export function destCellAfterStep(
   return { x: destX, y: destY, z };
 }
 
-export type WalkCheck =
-  | { ok: true; to: Coord }
-  | { ok: false; reason: string };
+export type WalkCheck = { ok: true; to: Coord } | { ok: false; reason: string };
 
 export type CanWalkOpts = {
   /** Prefer lowest surface in the climb band (Option / Alt). */
@@ -237,14 +241,7 @@ export function canWalk(
 
   for (const surface of candidates) {
     if (
-      !climbUpAllowed(
-        map,
-        from,
-        fromAbs,
-        surface.abs,
-        direction,
-        tilesById,
-      )
+      !climbUpAllowed(map, from, fromAbs, surface.abs, direction, tilesById)
     ) {
       continue;
     }
@@ -274,7 +271,10 @@ export function canWalk(
   const destAbs = absoluteStandingElevation(from.z, destScenery, tilesById);
   const climb = destAbs - fromAbs;
   if (climb > MAX_CLIMB_HEIGHT) {
-    return { ok: false, reason: `Climb ${climb} exceeds max ${MAX_CLIMB_HEIGHT}` };
+    return {
+      ok: false,
+      reason: `Climb ${climb} exceeds max ${MAX_CLIMB_HEIGHT}`,
+    };
   }
 
   // Reject standing on a non-walkable solid top (including a full-height tree

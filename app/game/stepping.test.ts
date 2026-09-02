@@ -85,7 +85,9 @@ describe("chooseStep", () => {
   const player = tilesById.player!;
 
   it("asks for nothing when nothing is held", () => {
-    expect(chooseStep(map, AT, { directions: [] }, player, tilesById)).toBeNull();
+    expect(
+      chooseStep(map, AT, { directions: [] }, player, tilesById),
+    ).toBeNull();
   });
 
   it("takes the direction pressed last", () => {
@@ -112,7 +114,13 @@ describe("chooseStep", () => {
   });
 
   it("faces a wall it cannot walk into", () => {
-    const choice = chooseStep(map, AT, { directions: ["e"] }, player, tilesById);
+    const choice = chooseStep(
+      map,
+      AT,
+      { directions: ["e"] },
+      player,
+      tilesById,
+    );
     expect(choice?.facing).toBe("e");
     expect(choice?.step).toBeNull();
   });
@@ -159,12 +167,15 @@ function sessionOnStrip(): GameSession {
     version: 1,
     levels: { "0": strip() },
   } as unknown as FlatMapFile);
-  return new GameSession(map, tiles, { actorIds: ["a"], spawnAt: {
-    x: 0,
-    y: 0,
-    z: 0,
-    stackIndex: 1,
-  } });
+  return new GameSession(map, tiles, {
+    actorIds: ["a"],
+    spawnAt: {
+      x: 0,
+      y: 0,
+      z: 0,
+      stackIndex: 1,
+    },
+  });
 }
 
 describe("GameSession.requestStep", () => {
@@ -230,12 +241,15 @@ describe("GameSession.requestStep", () => {
       version: 1,
       levels: { "0": { "0,0": [grass], "1,0": [grass] }, "1": {} },
     } as unknown as FlatMapFile);
-    const session = new GameSession(map, tiles, { actorIds: ["a"], spawnAt: {
-      x: 0,
-      y: 0,
-      z: 1,
-      stackIndex: 0,
-    } });
+    const session = new GameSession(map, tiles, {
+      actorIds: ["a"],
+      spawnAt: {
+        x: 0,
+        y: 0,
+        z: 1,
+        stackIndex: 0,
+      },
+    });
     session.tick(TICK_MS);
 
     expect(session.requestStep("a", "e")).toBe("refused");

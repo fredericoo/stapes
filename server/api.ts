@@ -106,7 +106,9 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
           const map = parseMap(body.map);
           await store.writeMap(map);
           await world.server.replaceWorld(
-            JSON.parse(body.map) as Parameters<typeof world.server.replaceWorld>[0],
+            JSON.parse(body.map) as Parameters<
+              typeof world.server.replaceWorld
+            >[0],
           );
           return { ok: true as const };
         },
@@ -153,7 +155,11 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
           await world.server.resetWorld();
           return { ok: true as const };
         },
-        { detail: { summary: "Destroy every position, kit, reward and mastery" } },
+        {
+          detail: {
+            summary: "Destroy every position, kit, reward and mastery",
+          },
+        },
       )
       /**
        * Overwrite the authored content with this image's `data/` and restart
@@ -171,7 +177,9 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
           await world.reseed();
           return { ok: true as const };
         },
-        { detail: { summary: "Replace the authored content with the image's" } },
+        {
+          detail: { summary: "Replace the authored content with the image's" },
+        },
       )
       /**
        * Take a built client from continuous integration.
@@ -181,25 +189,24 @@ export function createApi(world: World, bundle: ClientBundle, config: Config) {
        * either stores the whole thing or throws, and the build does not become
        * the live page until it is activated separately.
        */
-      .post(
-        "/backup",
-        async ({ headers, status }) => {
-          if (!(await authorized(headers.authorization, config))) {
-            return status(404, "Not found");
-          }
-          // Taken from inside this process because nothing outside it can open
-          // the database — see `World.snapshot`.
-          const path = await world.snapshot(config.BACKUP_DIR);
-          return { ok: true as const, path };
-        },
-      )
+      .post("/backup", async ({ headers, status }) => {
+        if (!(await authorized(headers.authorization, config))) {
+          return status(404, "Not found");
+        }
+        // Taken from inside this process because nothing outside it can open
+        // the database — see `World.snapshot`.
+        const path = await world.snapshot(config.BACKUP_DIR);
+        return { ok: true as const, path };
+      })
       .post(
         "/client/upload",
         async ({ headers, body, status }) => {
           if (!(await authorized(headers.authorization, config))) {
             return status(404, "Not found");
           }
-          const archive = new Uint8Array(await (body.archive as File).arrayBuffer());
+          const archive = new Uint8Array(
+            await (body.archive as File).arrayBuffer(),
+          );
           const files = untar(archive);
           if (files.size === 0) return status(400, "Empty archive");
           await bundle.store(body.buildId, files);
@@ -247,7 +254,10 @@ async function authorized(
 
   const encoder = new TextEncoder();
   const [a, b] = await Promise.all([
-    crypto.subtle.digest("SHA-256", encoder.encode(header.slice("Bearer ".length))),
+    crypto.subtle.digest(
+      "SHA-256",
+      encoder.encode(header.slice("Bearer ".length)),
+    ),
     crypto.subtle.digest("SHA-256", encoder.encode(expected)),
   ]);
   const left = new Uint8Array(a);

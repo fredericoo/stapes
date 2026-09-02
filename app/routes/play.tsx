@@ -10,7 +10,11 @@ import { GameSession, type Vitals } from "../game/GameSession";
 import { type Equipment, emptyEquipment } from "../game/equipment";
 import type { Conversation, TalkAction } from "../game/dialogRuntime";
 import type { MasteryXp } from "../lib/mastery";
-import { bindCastKeys, bindKeyboard, HeldDirections } from "../game/heldDirections";
+import {
+  bindCastKeys,
+  bindKeyboard,
+  HeldDirections,
+} from "../game/heldDirections";
 import { usePlayModes } from "../components/usePlayModes";
 import {
   applyInteraction,
@@ -45,7 +49,8 @@ export async function clientLoader() {
 }
 
 export default function PlayPage() {
-  const { map, tiles, tilesets, statuses } = useLoaderData<typeof clientLoader>();
+  const { map, tiles, tilesets, statuses } =
+    useLoaderData<typeof clientLoader>();
   // Resolved once per load rather than per render: `statusesById` compiles every
   // formula in the catalogue, which is exactly the work that must not happen on
   // a frame. @see ../lib/status
@@ -88,9 +93,8 @@ export default function PlayPage() {
     (optionId: string | null) => rendererRef.current?.setListHover(optionId),
     [],
   );
-  const [minutesOfDay, setMinutesOfDay] = useState<MinutesOfDay>(
-    DEFAULT_PLAY_MINUTES,
-  );
+  const [minutesOfDay, setMinutesOfDay] =
+    useState<MinutesOfDay>(DEFAULT_PLAY_MINUTES);
   const [clockPaused, setClockPaused] = useState(false);
   // Held outside the renderer and the session because the buttons have to show
   // it: a key and a button are two ways into one mode, and only one of them is
@@ -104,7 +108,12 @@ export default function PlayPage() {
   /** What this player has learnt — theirs alone, beside the kit. */
   const [masteryXp, setMasteryXp] = useState<MasteryXp>({});
   /** What this player's body can take, and its ⭐. */
-  const [vitals, setVitals] = useState<Vitals>({ hp: null, maxHp: null, rating: null, statuses: [] });
+  const [vitals, setVitals] = useState<Vitals>({
+    hp: null,
+    maxHp: null,
+    rating: null,
+    statuses: [],
+  });
   const [openedContainer, setOpenedContainer] =
     useState<OpenedContainer | null>(null);
   /**

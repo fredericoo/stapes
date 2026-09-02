@@ -68,7 +68,8 @@ function sameContainerAs(from: SlotRef): SlotRef {
   if (from.kind === "contents") {
     return { kind: "contents", index: 0, ...(from.of ? { of: from.of } : {}) };
   }
-  if (from.kind === "ground") return { kind: "ground", ref: from.ref, index: 0 };
+  if (from.kind === "ground")
+    return { kind: "ground", ref: from.ref, index: 0 };
   return { kind: from.kind };
 }
 

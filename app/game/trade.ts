@@ -195,7 +195,10 @@ function holdIn(
   const held = equipment[hand];
   if (held) {
     if (!fuses(held, unit, tilesById)) return null;
-    return { ...equipment, [hand]: withCount(held, countOf(held) + countOf(unit)) };
+    return {
+      ...equipment,
+      [hand]: withCount(held, countOf(held) + countOf(unit)),
+    };
   }
   if (!handAccepts(def)) return null;
   if (!handHasRoomFor(equipment, tilesById, hand, def)) return null;
@@ -221,7 +224,10 @@ function put(
   return { ...equipment, [place.holder]: { ...holder, contents: next } };
 }
 
-function isContainer(tilesById: Record<string, TileDef>, tileId: string): boolean {
+function isContainer(
+  tilesById: Record<string, TileDef>,
+  tileId: string,
+): boolean {
   const def = tilesById[tileId];
   return def != null && resolveContainer(def) != null;
 }

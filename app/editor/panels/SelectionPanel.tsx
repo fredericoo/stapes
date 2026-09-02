@@ -58,5 +58,7 @@ export function SelectionPanel() {
 /** Tab labels render outside the panel, so the coordinate subscribes here. */
 export function SelectionTabLabel() {
   const selected = useEditorStore((s) => s.selected);
-  return <>{selected ? `Selected ${selected.x},${selected.y}` : "No selection"}</>;
+  return (
+    <>{selected ? `Selected ${selected.x},${selected.y}` : "No selection"}</>
+  );
 }

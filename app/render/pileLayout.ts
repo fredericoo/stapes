@@ -257,7 +257,10 @@ export function pileOffsets(count: number): readonly PileOffset[] {
 
   const face = DIE_FACES[drawn - 1];
   const offsets = face
-    ? face.map(([dx, dy]) => ({ dx: dx * DIE_RADIUS_PX, dy: dy * DIE_RADIUS_PX }))
+    ? face.map(([dx, dy]) => ({
+        dx: dx * DIE_RADIUS_PX,
+        dy: dy * DIE_RADIUS_PX,
+      }))
     : spreadInDisc(discOffsets(discRadiusPx(drawn)), drawn);
 
   const ordered: readonly PileOffset[] = inDrawOrder(offsets);

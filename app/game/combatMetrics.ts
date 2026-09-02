@@ -285,8 +285,7 @@ export function swingOdds(
     damagePerSecond,
     mitigation:
       meanPotential > 0 ? 1 - meanConnectingDamage / meanPotential : 0,
-    swingsToKill:
-      meanSwingDamage > 0 ? defender.maxHp / meanSwingDamage : null,
+    swingsToKill: meanSwingDamage > 0 ? defender.maxHp / meanSwingDamage : null,
     secondsToKill:
       damagePerSecond > 0 ? defender.maxHp / damagePerSecond : null,
     // Per *swing* rather than per connecting blow, because that is the rate an

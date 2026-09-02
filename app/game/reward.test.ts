@@ -206,8 +206,9 @@ describe("a reward tile def", () => {
   });
 
   it("keeps the verb, trimmed", () => {
-    expect(interactionsForSave({ reward: { actionName: " Receive " } })?.reward)
-      .toEqual({ actionName: "Receive" });
+    expect(
+      interactionsForSave({ reward: { actionName: " Receive " } })?.reward,
+    ).toEqual({ actionName: "Receive" });
   });
 });
 
@@ -269,9 +270,7 @@ describe("taking a reward", () => {
     const session = new GameSession(board(), tiles);
     session.interact(CHEST);
 
-    const ids = session
-      .getSnapshot()
-      .equipment.bag!.contents!.map((i) => i.id);
+    const ids = session.getSnapshot().equipment.bag!.contents!.map((i) => i.id);
     expect(new Set(ids).size).toBe(ids.length);
     expect(ids.every((id) => id.startsWith("itm_"))).toBe(true);
   });
@@ -298,7 +297,10 @@ describe("taking a reward", () => {
     const session = new GameSession(board(), tiles);
     // Somebody else, stood diagonally off the chest, with three of four slots
     // already spoken for against a reward of two.
-    session.spawn("crowded", { at: { x: 0, y: 1, z: 0 }, carrying: bagWith(3) });
+    session.spawn("crowded", {
+      at: { x: 0, y: 1, z: 0 },
+      carrying: bagWith(3),
+    });
 
     expect(session.canTakeReward(CHEST, "crowded")).toBe(false);
     expect(session.interact(CHEST, "crowded")).toBe(false);
@@ -316,7 +318,11 @@ describe("taking a reward", () => {
 
   it("is not owed to somebody who arrives already carrying the tag", () => {
     const session = new GameSession(board(), tiles);
-    session.spawn("returning", { at: { x: 0, y: 1, z: 0 }, carrying: bagWith(0), tagged: [REWARD_TAG] });
+    session.spawn("returning", {
+      at: { x: 0, y: 1, z: 0 },
+      carrying: bagWith(0),
+      tagged: [REWARD_TAG],
+    });
 
     expect(session.canTakeReward(CHEST, "returning")).toBe(false);
   });
@@ -353,9 +359,9 @@ describe("a reward the actor cannot reach", () => {
     const map = board();
     const far = { x: 3, y: 3, z: 0 };
 
-    expect(
-      canRewardFrom(map, tilesById, far, CHEST, bagWith(0), []),
-    ).toBe(false);
+    expect(canRewardFrom(map, tilesById, far, CHEST, bagWith(0), [])).toBe(
+      false,
+    );
   });
 
   it("is offered diagonally, unlike a shove", () => {

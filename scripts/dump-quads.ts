@@ -26,12 +26,16 @@ import type {
 } from "../app/lib/types";
 import { CELL_SIZE, physicalHeight } from "../app/lib/types";
 
-const [x0, x1, y0, y1, zMin, zMax] = process.argv.slice(2, 8).map(Number) as number[];
+const [x0, x1, y0, y1, zMin, zMax] = process.argv
+  .slice(2, 8)
+  .map(Number) as number[];
 const extraArg = process.argv[8];
 
 let map: MapFile = parseMap(readFileSync("data/map.json", "utf8"));
 const tiles = JSON.parse(readFileSync("data/tiles.json", "utf8")) as TileDef[];
-const tilesets = JSON.parse(readFileSync("data/tilesets.json", "utf8")) as TilesetDef[];
+const tilesets = JSON.parse(
+  readFileSync("data/tilesets.json", "utf8"),
+) as TilesetDef[];
 const tilesById: Record<string, TileDef> = Object.fromEntries(
   tiles.map((t) => [t.id, t]),
 );
@@ -74,7 +78,13 @@ for (let z = zMin!; z <= zMax!; z++) {
       getStack(map, x, y, z).forEach((placed, stackIndex) => {
         const def = tilesById[placed.tileId];
         if (!def) return;
-        const frame = getFrames(def, { direction: placed.direction, map, x, y, z })?.[0];
+        const frame = getFrames(def, {
+          direction: placed.direction,
+          map,
+          x,
+          y,
+          z,
+        })?.[0];
         const tileset = frame && tilesetById.get(frame.sprite.tilesetId);
         if (!frame || !tileset) return;
 

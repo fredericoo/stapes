@@ -108,7 +108,9 @@ export class DataStore {
     await this.blobs.put(MAP_KEY, serializeMap(map), JSON_TYPE);
   }
 
-  async readTilesetPng(fileName: string): Promise<Uint8Array<ArrayBuffer> | null> {
+  async readTilesetPng(
+    fileName: string,
+  ): Promise<Uint8Array<ArrayBuffer> | null> {
     if (!SAFE_TILESET_NAME.test(fileName)) return null;
     return this.blobs.getBytes(TILESET_PREFIX + fileName);
   }

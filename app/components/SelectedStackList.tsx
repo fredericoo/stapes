@@ -104,7 +104,10 @@ function isGiveable(def: TileDef): boolean {
 }
 
 /** Display is top-first; store reorder uses bottom-first stack indices. */
-function displayIndexToStackIndex(displayIndex: number, length: number): number {
+function displayIndexToStackIndex(
+  displayIndex: number,
+  length: number,
+): number {
   return length - 1 - displayIndex;
 }
 

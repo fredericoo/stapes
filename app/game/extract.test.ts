@@ -19,10 +19,7 @@ import {
   type ExtractCooling,
 } from "./extract";
 import { GameSession } from "./GameSession";
-import {
-  listInteractionOptions,
-  topInteractionAt,
-} from "./interactionOptions";
+import { listInteractionOptions, topInteractionAt } from "./interactionOptions";
 
 /**
  * A resource is the one interaction whose two halves belong to different
@@ -71,7 +68,11 @@ const tiles = [
     kind: "item",
     interactions: { item: { type: "consumable", label: "Eat", hp: 0 } },
   }),
-  tile({ id: "shard", kind: "item", interactions: { item: { type: "artifact" } } }),
+  tile({
+    id: "shard",
+    kind: "item",
+    interactions: { item: { type: "artifact" } },
+  }),
   tile({
     id: BAG_TILE_ID,
     kind: "item",

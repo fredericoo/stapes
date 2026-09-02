@@ -36,7 +36,12 @@ const LIBRARY: TileDef[] = [
   tile({ id: "stone-wall", height: 4 }),
   tile({ id: "rat", actor: true }),
   tile({ id: "player", height: 4 }),
-  tile({ id: "cat", interactions: { brain: { initial: "i", states: { i: { do: [] } }, transitions: [] } } }),
+  tile({
+    id: "cat",
+    interactions: {
+      brain: { initial: "i", states: { i: { do: [] } }, transitions: [] },
+    },
+  }),
 ];
 
 /**
@@ -168,8 +173,12 @@ describe("offering selectors", () => {
   /** A tile's own name, so the picker reads as the world does. */
   it("labels each nearest option with the tile name", () => {
     const named = [tile({ id: "player", height: 4, name: "Player" })];
-    expect(selectorOptions({ initial: "i", states: { i: { do: [] } }, transitions: [] }, named)[0])
-      .toMatchObject({ key: "nearest:player", label: "nearest Player" });
+    expect(
+      selectorOptions(
+        { initial: "i", states: { i: { do: [] } }, transitions: [] },
+        named,
+      )[0],
+    ).toMatchObject({ key: "nearest:player", label: "nearest Player" });
   });
 
   /**
@@ -185,7 +194,9 @@ describe("offering selectors", () => {
    * authored flag — so the rule that finds the others cannot find it.
    */
   it("keeps the player even though nothing marks it an actor", () => {
-    expect(bodyTileIds([tile({ id: "player", height: 4 })])).toEqual(["player"]);
+    expect(bodyTileIds([tile({ id: "player", height: 4 })])).toEqual([
+      "player",
+    ]);
   });
 
   /**
@@ -227,7 +238,9 @@ describe("editing a parameter", () => {
   )!;
 
   it("writes a value somebody typed", () => {
-    expect(paramPatch({ cond: "heard_noise", cells: 20 }, NOISE_TEXT, "howl")).toEqual({
+    expect(
+      paramPatch({ cond: "heard_noise", cells: 20 }, NOISE_TEXT, "howl"),
+    ).toEqual({
       cond: "heard_noise",
       cells: 20,
       text: "howl",
@@ -251,9 +264,13 @@ describe("editing a parameter", () => {
    * broken, which is the honest outcome: there is no "any word" to fall back to.
    */
   it("leaves a required text where it is, empty and all", () => {
-    const required = CONDITIONS.heard.params.find((spec) => spec.key === "text")!;
+    const required = CONDITIONS.heard.params.find(
+      (spec) => spec.key === "text",
+    )!;
 
-    expect(paramPatch({ cond: "heard", text: "ps", cells: 5 }, required, "")).toEqual({
+    expect(
+      paramPatch({ cond: "heard", text: "ps", cells: 5 }, required, ""),
+    ).toEqual({
       cond: "heard",
       text: "",
       cells: 5,
@@ -264,7 +281,11 @@ describe("editing a parameter", () => {
     const los = CONDITIONS.heard.params.find((spec) => spec.key === "los")!;
 
     expect(
-      paramPatch({ cond: "heard", text: "ps", cells: 5, los: true }, los, false),
+      paramPatch(
+        { cond: "heard", text: "ps", cells: 5, los: true },
+        los,
+        false,
+      ),
     ).toEqual({ cond: "heard", text: "ps", cells: 5 });
   });
 });

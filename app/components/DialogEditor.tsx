@@ -17,7 +17,11 @@ import {
   type DialogTrade,
   type TradeSide,
 } from "../lib/dialog";
-import { DIALOG_COMMAND_KINDS, DIALOG_COMMANDS, type CatalogDefaults } from "../lib/dialogCatalog";
+import {
+  DIALOG_COMMAND_KINDS,
+  DIALOG_COMMANDS,
+  type CatalogDefaults,
+} from "../lib/dialogCatalog";
 import { resolveContainer, resolveItem } from "../lib/item";
 import type { StatusDef } from "../lib/status";
 import type { TileDef, TilesetDef } from "../lib/types";
@@ -92,7 +96,11 @@ export function updateCommandAt(
   const index = path[path.length - 1]!;
   const list = listAt(dialog, listPath);
   if (!list?.[index]) return dialog;
-  return withListAt(dialog, listPath, list.map((c, i) => (i === index ? change(c) : c)));
+  return withListAt(
+    dialog,
+    listPath,
+    list.map((c, i) => (i === index ? change(c) : c)),
+  );
 }
 
 /** The dialog with `command` put in the list at `listPath`, at `index`. */
@@ -105,16 +113,27 @@ export function insertCommandAt(
   const list = listAt(dialog, listPath);
   if (!list) return dialog;
   const at = Math.max(0, Math.min(list.length, index));
-  return withListAt(dialog, listPath, [...list.slice(0, at), command, ...list.slice(at)]);
+  return withListAt(dialog, listPath, [
+    ...list.slice(0, at),
+    command,
+    ...list.slice(at),
+  ]);
 }
 
 /** The dialog without the command at `path`, blocks and all. */
-export function removeCommandAt(dialog: DialogDef, path: CommandPath): DialogDef {
+export function removeCommandAt(
+  dialog: DialogDef,
+  path: CommandPath,
+): DialogDef {
   const listPath = path.slice(0, -1);
   const index = path[path.length - 1]!;
   const list = listAt(dialog, listPath);
   if (!list?.[index]) return dialog;
-  return withListAt(dialog, listPath, list.filter((_, i) => i !== index));
+  return withListAt(
+    dialog,
+    listPath,
+    list.filter((_, i) => i !== index),
+  );
 }
 
 /**
@@ -134,7 +153,12 @@ export function moveCommand(
   const moving = commandAt(dialog, from);
   if (!moving || startsWith(toList, from)) return dialog;
   const without = removeCommandAt(dialog, from);
-  return insertCommandAt(without, adjustedForRemoval(toList, from), index, moving);
+  return insertCommandAt(
+    without,
+    adjustedForRemoval(toList, from),
+    index,
+    moving,
+  );
 }
 
 /**
@@ -143,12 +167,16 @@ export function moveCommand(
  * Only a destination inside the removed command's own list and after it
  * moves, and it moves by one: everything else was untouched by the removal.
  */
-function adjustedForRemoval(listPath: CommandPath, removed: CommandPath): number[] {
+function adjustedForRemoval(
+  listPath: CommandPath,
+  removed: CommandPath,
+): number[] {
   const holder = removed.slice(0, -1);
   const removedIndex = removed[removed.length - 1]!;
   const out = [...listPath];
   const inSameList = holder.length < out.length && startsWith(out, holder);
-  if (inSameList && out[holder.length]! > removedIndex) out[holder.length]! -= 1;
+  if (inSameList && out[holder.length]! > removedIndex)
+    out[holder.length]! -= 1;
   return out;
 }
 
@@ -157,23 +185,38 @@ type EditorContext = {
   itemOptions: Array<{ value: string; label: string }>;
   statusOptions: Array<{ value: string; label: string }>;
   defaults: CatalogDefaults;
-  update: (path: CommandPath, change: (command: DialogCommand) => DialogCommand) => void;
+  update: (
+    path: CommandPath,
+    change: (command: DialogCommand) => DialogCommand,
+  ) => void;
   remove: (path: CommandPath) => void;
   append: (listPath: CommandPath, kind: DialogCommandKind) => void;
 };
 
-export function DialogEditor({ dialog, tiles, tilesets, statusDefs, onChange }: Props) {
+export function DialogEditor({
+  dialog,
+  tiles,
+  tilesets,
+  statusDefs,
+  onChange,
+}: Props) {
   const tilesById = useMemo(() => tilesByIdFromList(tiles), [tiles]);
   const itemOptions = useMemo(
     () =>
       tiles
-        .filter((tile) => resolveItem(tile) != null && resolveContainer(tile) == null)
+        .filter(
+          (tile) => resolveItem(tile) != null && resolveContainer(tile) == null,
+        )
         .map((tile) => ({ value: tile.id, label: tile.name }))
         .sort((a, b) => a.label.localeCompare(b.label)),
     [tiles],
   );
   const statusOptions = useMemo(
-    () => Object.values(statusDefs).map((def) => ({ value: def.id, label: def.name })),
+    () =>
+      Object.values(statusDefs).map((def) => ({
+        value: def.id,
+        label: def.name,
+      })),
     [statusDefs],
   );
 
@@ -181,25 +224,38 @@ export function DialogEditor({ dialog, tiles, tilesets, statusDefs, onChange }: 
     return (
       <div className="flex flex-col gap-2">
         <p className="text-[11px] leading-snug text-muted">
-          This body has nothing to say. A dialog gives it a <strong>Talk</strong> row and a
-          panel, and makes the tile an actor.
+          This body has nothing to say. A dialog gives it a{" "}
+          <strong>Talk</strong> row and a panel, and makes the tile an actor.
         </p>
-        <Button onClick={() => onChange({ ...DEFAULT_DIALOG })}>Add dialog</Button>
+        <Button onClick={() => onChange({ ...DEFAULT_DIALOG })}>
+          Add dialog
+        </Button>
       </div>
     );
   }
 
-  const issues = validateDialog(dialog, { tilesById, statusIds: new Set(Object.keys(statusDefs)) });
+  const issues = validateDialog(dialog, {
+    tilesById,
+    statusIds: new Set(Object.keys(statusDefs)),
+  });
   const ctx: EditorContext = {
     dialog,
     itemOptions,
     statusOptions,
-    defaults: { tileId: itemOptions[0]?.value ?? "", statusId: statusOptions[0]?.value ?? "" },
+    defaults: {
+      tileId: itemOptions[0]?.value ?? "",
+      statusId: statusOptions[0]?.value ?? "",
+    },
     update: (path, change) => onChange(updateCommandAt(dialog, path, change)),
     remove: (path) => onChange(removeCommandAt(dialog, path)),
     append: (listPath, kind) =>
       onChange(
-        insertCommandAt(dialog, listPath, Number.MAX_SAFE_INTEGER, DIALOG_COMMANDS[kind].make(ctx.defaults)),
+        insertCommandAt(
+          dialog,
+          listPath,
+          Number.MAX_SAFE_INTEGER,
+          DIALOG_COMMANDS[kind].make(ctx.defaults),
+        ),
       ),
   };
 
@@ -208,7 +264,11 @@ export function DialogEditor({ dialog, tiles, tilesets, statusDefs, onChange }: 
       <div className="flex min-w-0 flex-col gap-3">
         <div className="flex items-center justify-between gap-2">
           <h3 className="text-xs font-bold uppercase text-muted">Script</h3>
-          <Button size="sm" variant="danger" onClick={() => onChange(undefined)}>
+          <Button
+            size="sm"
+            variant="danger"
+            onClick={() => onChange(undefined)}
+          >
             Remove dialog
           </Button>
         </div>
@@ -252,7 +312,10 @@ function dropped(dialog: DialogDef, event: DragEndEvent): DialogDef {
   if (event.canceled) return dialog;
   const { source, target } = event.operation;
   if (!isSortable(source)) return dialog;
-  const from = [...parsePathId(String(source.initialGroup ?? ROOT_ID)), source.initialIndex];
+  const from = [
+    ...parsePathId(String(source.initialGroup ?? ROOT_ID)),
+    source.initialIndex,
+  ];
 
   const targetId = target && !isSortable(target) ? String(target.id) : null;
   if (targetId?.startsWith(INTO_PREFIX)) {
@@ -261,7 +324,10 @@ function dropped(dialog: DialogDef, event: DragEndEvent): DialogDef {
   }
 
   const toList = parsePathId(String(source.group ?? ROOT_ID));
-  if (pathId(toList) === pathId(from.slice(0, -1)) && source.index === source.initialIndex) {
+  if (
+    pathId(toList) === pathId(from.slice(0, -1)) &&
+    source.index === source.initialIndex
+  ) {
     return dialog;
   }
   return moveCommand(dialog, from, toList, source.index);
@@ -297,8 +363,16 @@ function CommandList({
  * this is what an empty list has to offer, and what "put it last" means for a
  * full one.
  */
-function ListEnd({ listPath, ctx }: { listPath: CommandPath; ctx: EditorContext }) {
-  const { ref, isDropTarget } = useDroppable({ id: `${INTO_PREFIX}${pathId(listPath)}` });
+function ListEnd({
+  listPath,
+  ctx,
+}: {
+  listPath: CommandPath;
+  ctx: EditorContext;
+}) {
+  const { ref, isDropTarget } = useDroppable({
+    id: `${INTO_PREFIX}${pathId(listPath)}`,
+  });
   const [kind, setKind] = useState<DialogCommandKind>("say");
   return (
     <div
@@ -311,7 +385,10 @@ function ListEnd({ listPath, ctx }: { listPath: CommandPath; ctx: EditorContext 
       <Select
         value={kind}
         onValueChange={(v) => v && setKind(v as DialogCommandKind)}
-        options={DIALOG_COMMAND_KINDS.map((k) => ({ value: k, label: DIALOG_COMMANDS[k].label }))}
+        options={DIALOG_COMMAND_KINDS.map((k) => ({
+          value: k,
+          label: DIALOG_COMMANDS[k].label,
+        }))}
         className="min-w-[8rem]"
         ariaLabel="Command to add"
       />
@@ -323,7 +400,9 @@ function ListEnd({ listPath, ctx }: { listPath: CommandPath; ctx: EditorContext 
       >
         + add
       </Button>
-      <span className="text-[11px] leading-snug text-muted">{DIALOG_COMMANDS[kind].hint}</span>
+      <span className="text-[11px] leading-snug text-muted">
+        {DIALOG_COMMANDS[kind].hint}
+      </span>
     </div>
   );
 }
@@ -354,7 +433,10 @@ function CommandRow({
       ].join(" ")}
     >
       <div className="flex items-center gap-1">
-        <DragHandle handleRef={handleRef} label={`Move ${DIALOG_COMMANDS[command.kind].label}`} />
+        <DragHandle
+          handleRef={handleRef}
+          label={`Move ${DIALOG_COMMANDS[command.kind].label}`}
+        />
         <span className="border border-border bg-paper px-1 font-mono text-[11px] uppercase">
           {DIALOG_COMMANDS[command.kind].label}
         </span>
@@ -406,7 +488,8 @@ function CommandFields({
       />
     );
   }
-  if (command.kind === "goto") return <GotoField command={command} ctx={ctx} onChange={onChange} />;
+  if (command.kind === "goto")
+    return <GotoField command={command} ctx={ctx} onChange={onChange} />;
   if (command.kind === "tag") {
     return (
       <Input
@@ -448,7 +531,9 @@ function GotoField({
   onChange: (next: DialogCommand) => void;
 }) {
   const anchors = anchorNames(ctx.dialog);
-  const options = anchors.includes(command.name) ? anchors : [command.name, ...anchors];
+  const options = anchors.includes(command.name)
+    ? anchors
+    : [command.name, ...anchors];
   return (
     <Select
       value={command.name}
@@ -473,10 +558,19 @@ function CommandBlocks({
   onChange: (next: DialogCommand) => void;
 }) {
   if (command.kind === "choices") {
-    return <ChoicesBlocks path={path} command={command} ctx={ctx} onChange={onChange} />;
+    return (
+      <ChoicesBlocks
+        path={path}
+        command={command}
+        ctx={ctx}
+        onChange={onChange}
+      />
+    );
   }
   if (command.kind === "request_trade") {
-    return <TradeBlocks path={path} trade={command} ctx={ctx} onChange={onChange} />;
+    return (
+      <TradeBlocks path={path} trade={command} ctx={ctx} onChange={onChange} />
+    );
   }
   return null;
 }
@@ -492,17 +586,27 @@ function ChoicesBlocks({
   ctx: EditorContext;
   onChange: (next: DialogCommand) => void;
 }) {
-  const setOptions = (options: DialogChoice[]) => onChange({ ...command, options });
+  const setOptions = (options: DialogChoice[]) =>
+    onChange({ ...command, options });
   return (
     <div className="flex flex-col gap-2 pl-6">
       {command.options.map((option, i) => (
-        <div key={i} className="flex flex-col gap-1 border-l-2 border-border/40 pl-2">
+        <div
+          key={i}
+          className="flex flex-col gap-1 border-l-2 border-border/40 pl-2"
+        >
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-bold uppercase text-muted">Button</span>
+            <span className="text-[10px] font-bold uppercase text-muted">
+              Button
+            </span>
             <Input
               value={option.label}
               onChange={(e) =>
-                setOptions(command.options.map((o, j) => (j === i ? { ...o, label: e.target.value } : o)))
+                setOptions(
+                  command.options.map((o, j) =>
+                    j === i ? { ...o, label: e.target.value } : o,
+                  ),
+                )
               }
               className="w-40 font-bold"
               aria-label="Button label"
@@ -510,20 +614,28 @@ function ChoicesBlocks({
             <Button
               size="sm"
               variant="danger"
-              onClick={() => setOptions(command.options.filter((_, j) => j !== i))}
+              onClick={() =>
+                setOptions(command.options.filter((_, j) => j !== i))
+              }
               aria-label={`Remove button "${option.label}"`}
             >
               ✕
             </Button>
           </div>
-          <CommandList listPath={[...path, i]} commands={option.then} ctx={ctx} />
+          <CommandList
+            listPath={[...path, i]}
+            commands={option.then}
+            ctx={ctx}
+          />
         </div>
       ))}
       <Button
         size="sm"
         variant="secondary"
         className="self-start whitespace-nowrap"
-        onClick={() => setOptions([...command.options, { label: "New button", then: [] }])}
+        onClick={() =>
+          setOptions([...command.options, { label: "New button", then: [] }])
+        }
       >
         + button
       </Button>
@@ -542,19 +654,50 @@ function TradeBlocks({
   ctx: EditorContext;
   onChange: (next: DialogCommand) => void;
 }) {
-  const number = (key: "min" | "max" | "default") => (e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = Math.max(1, Math.min(MAX_DIALOG_AMOUNT, Number(e.target.value) || 1));
-    onChange({ ...trade, [key]: value });
-  };
+  const number =
+    (key: "min" | "max" | "default") =>
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const value = Math.max(
+        1,
+        Math.min(MAX_DIALOG_AMOUNT, Number(e.target.value) || 1),
+      );
+      onChange({ ...trade, [key]: value });
+    };
   return (
     <div className="flex flex-col gap-2 pl-6">
-      <TradeSides label="Takes" sides={trade.take} ctx={ctx} onChange={(take) => onChange({ ...trade, take })} />
-      <TradeSides label="Gives" sides={trade.give} ctx={ctx} onChange={(give) => onChange({ ...trade, give })} />
+      <TradeSides
+        label="Takes"
+        sides={trade.take}
+        ctx={ctx}
+        onChange={(take) => onChange({ ...trade, take })}
+      />
+      <TradeSides
+        label="Gives"
+        sides={trade.give}
+        ctx={ctx}
+        onChange={(give) => onChange({ ...trade, give })}
+      />
       <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase text-muted">
         <span>how many: from</span>
-        <Input type="number" min={1} max={MAX_DIALOG_AMOUNT} value={trade.min} onChange={number("min")} className="w-16" aria-label="Least" />
+        <Input
+          type="number"
+          min={1}
+          max={MAX_DIALOG_AMOUNT}
+          value={trade.min}
+          onChange={number("min")}
+          className="w-16"
+          aria-label="Least"
+        />
         <span>to</span>
-        <Input type="number" min={1} max={MAX_DIALOG_AMOUNT} value={trade.max} onChange={number("max")} className="w-16" aria-label="Most" />
+        <Input
+          type="number"
+          min={1}
+          max={MAX_DIALOG_AMOUNT}
+          value={trade.max}
+          onChange={number("max")}
+          className="w-16"
+          aria-label="Most"
+        />
         <span>starting at</span>
         <Input
           type="number"
@@ -567,12 +710,24 @@ function TradeBlocks({
         />
       </div>
       <div className="flex flex-col gap-1 border-l-2 border-border/40 pl-2">
-        <span className="text-[10px] font-bold uppercase text-muted">When traded</span>
-        <CommandList listPath={[...path, 0]} commands={trade.traded} ctx={ctx} />
+        <span className="text-[10px] font-bold uppercase text-muted">
+          When traded
+        </span>
+        <CommandList
+          listPath={[...path, 0]}
+          commands={trade.traded}
+          ctx={ctx}
+        />
       </div>
       <div className="flex flex-col gap-1 border-l-2 border-border/40 pl-2">
-        <span className="text-[10px] font-bold uppercase text-muted">When cancelled</span>
-        <CommandList listPath={[...path, 1]} commands={trade.cancel} ctx={ctx} />
+        <span className="text-[10px] font-bold uppercase text-muted">
+          When cancelled
+        </span>
+        <CommandList
+          listPath={[...path, 1]}
+          commands={trade.cancel}
+          ctx={ctx}
+        />
       </div>
     </div>
   );
@@ -591,7 +746,9 @@ function TradeSides({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <span className="w-10 text-[10px] font-bold uppercase text-muted">{label}</span>
+      <span className="w-10 text-[10px] font-bold uppercase text-muted">
+        {label}
+      </span>
       {sides.map((side, i) => (
         <span key={i} className="flex items-center gap-1">
           <Input
@@ -600,14 +757,23 @@ function TradeSides({
             max={MAX_DIALOG_AMOUNT}
             value={side.count}
             onChange={(e) =>
-              onChange(sides.map((s, j) => (j === i ? { ...s, count: Math.max(1, Number(e.target.value) || 1) } : s)))
+              onChange(
+                sides.map((s, j) =>
+                  j === i
+                    ? { ...s, count: Math.max(1, Number(e.target.value) || 1) }
+                    : s,
+                ),
+              )
             }
             className="w-16"
             aria-label="Count"
           />
           <Select
             value={side.tileId || null}
-            onValueChange={(v) => v && onChange(sides.map((s, j) => (j === i ? { ...s, tileId: v } : s)))}
+            onValueChange={(v) =>
+              v &&
+              onChange(sides.map((s, j) => (j === i ? { ...s, tileId: v } : s)))
+            }
             options={ctx.itemOptions}
             placeholder="Tile…"
             className="min-w-[9rem]"
@@ -626,7 +792,9 @@ function TradeSides({
       <Button
         size="sm"
         variant="secondary"
-        onClick={() => onChange([...sides, { tileId: ctx.defaults.tileId, count: 1 }])}
+        onClick={() =>
+          onChange([...sides, { tileId: ctx.defaults.tileId, count: 1 }])
+        }
       >
         +
       </Button>

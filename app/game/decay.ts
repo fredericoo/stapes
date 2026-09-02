@@ -8,11 +8,7 @@ import { getStack, listCoords, replaceStack, setStacks } from "../lib/mapData";
 import type { Coord, MapFile, PlacedTile, TileDef } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 import { canReplaceStack } from "../lib/validation";
-import {
-  carriedInstances,
-  EQUIPMENT_SLOTS,
-  type Equipment,
-} from "./equipment";
+import { carriedInstances, EQUIPMENT_SLOTS, type Equipment } from "./equipment";
 import { type SlotKind, slotAccepts } from "./itemMoves";
 import { cellKey } from "./pressurePlates";
 import type { Rng } from "./rng";
@@ -564,7 +560,10 @@ function decayedContents(
     // case that happens.
     const rest = peelOne(held) ?? held;
     if (turn.tileId) {
-      peels.push({ at: next.length, shed: { id: mintId(), tileId: turn.tileId } });
+      peels.push({
+        at: next.length,
+        shed: { id: mintId(), tileId: turn.tileId },
+      });
     }
     next.push(rest);
   }

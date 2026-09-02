@@ -105,8 +105,16 @@ describe("boxSurfaceElevation", () => {
     // Each height unit shifts a face PX_PER_HEIGHT px up-left, so pixels
     // sampled up-left along the face read progressively higher. Staying north
     // keeps the south face from being the nearer one.
-    expect(boxSurfaceElevation(column, 40 - PX_PER_HEIGHT, 40 - 2 * PX_PER_HEIGHT)).toBe(1);
-    expect(boxSurfaceElevation(column, 40 - 2 * PX_PER_HEIGHT, 40 - 3 * PX_PER_HEIGHT)).toBe(2);
+    expect(
+      boxSurfaceElevation(column, 40 - PX_PER_HEIGHT, 40 - 2 * PX_PER_HEIGHT),
+    ).toBe(1);
+    expect(
+      boxSurfaceElevation(
+        column,
+        40 - 2 * PX_PER_HEIGHT,
+        40 - 3 * PX_PER_HEIGHT,
+      ),
+    ).toBe(2);
   });
 
   it("caps at the top face over the footprint", () => {
@@ -114,7 +122,11 @@ describe("boxSurfaceElevation", () => {
     const { sx, sy } = footPixel(4, 4);
     // Up-left by the top face's own shift: still over the box, reading its top.
     expect(
-      boxSurfaceElevation(column, sx + 4 - 3 * PX_PER_HEIGHT, sy + 4 - 3 * PX_PER_HEIGHT),
+      boxSurfaceElevation(
+        column,
+        sx + 4 - 3 * PX_PER_HEIGHT,
+        sy + 4 - 3 * PX_PER_HEIGHT,
+      ),
     ).toBe(3);
   });
 
@@ -132,7 +144,9 @@ describe("boxSurfaceElevation", () => {
     // silhouette. Pinning it to the top face is what let a neighbour whose real
     // surface reaches slightly higher there eat the outline.
     const topFace = { sx: sx - 2 * PX_PER_HEIGHT, sy: sy - 2 * PX_PER_HEIGHT };
-    expect(boxSurfaceElevation(box, topFace.sx + 1, topFace.sy - 1)).toBeGreaterThan(2);
+    expect(
+      boxSurfaceElevation(box, topFace.sx + 1, topFace.sy - 1),
+    ).toBeGreaterThan(2);
   });
 
   it("stays continuous across the edge of the silhouette", () => {
@@ -208,23 +222,12 @@ describe("fragDepth", () => {
     const northTall = depthBox(5, 10, 0, HEIGHT_PER_LEVEL);
     const sx = 5 * CELL_SIZE + 4;
     const sy = 10 * CELL_SIZE + 4;
-    expectInFront(
-      fragDepth(southFlat, sx, sy),
-      fragDepth(northTall, sx, sy),
-    );
+    expectInFront(fragDepth(southFlat, sx, sy), fragDepth(northTall, sx, sy));
 
     // Real elevation still dominates: lift the northern tile a whole level and
     // it beats the overhang and the bias together.
-    const northRaised = depthBox(
-      5,
-      10,
-      HEIGHT_PER_LEVEL,
-      HEIGHT_PER_LEVEL * 2,
-    );
-    expectInFront(
-      fragDepth(northRaised, sx, sy),
-      fragDepth(southFlat, sx, sy),
-    );
+    const northRaised = depthBox(5, 10, HEIGHT_PER_LEVEL, HEIGHT_PER_LEVEL * 2);
+    expectInFront(fragDepth(northRaised, sx, sy), fragDepth(southFlat, sx, sy));
   });
 
   /**
@@ -430,7 +433,9 @@ describe("fragDepth", () => {
         const underFoot = { sx: 6, sy: CELL_SIZE + 2 };
         const body = depthBox(0, 0, 0, 1);
         const decal = depthBox(0, 0, 0, 0);
-        expect(boxSurface(body, underFoot.sx, underFoot.sy).overhang).toBe(true);
+        expect(boxSurface(body, underFoot.sx, underFoot.sy).overhang).toBe(
+          true,
+        );
         expect(boxSurface(decal, underFoot.sx, underFoot.sy).overhang).toBe(
           false,
         );
@@ -458,8 +463,18 @@ describe("fragDepth", () => {
 
   it("lets an upper-level height-0 tile beat a full lower stack top", () => {
     // Exactly-full level -1 top and level-0 grass share abs elev 0.
-    const lowerTop = depthBox(2, 1, absoluteElevation(-1, 1), absoluteElevation(-1, 2));
-    const grass = depthBox(2, 1, absoluteElevation(0, 0), absoluteElevation(0, 0));
+    const lowerTop = depthBox(
+      2,
+      1,
+      absoluteElevation(-1, 1),
+      absoluteElevation(-1, 2),
+    );
+    const grass = depthBox(
+      2,
+      1,
+      absoluteElevation(0, 0),
+      absoluteElevation(0, 0),
+    );
     const p = footPixel(2, 1);
     expectInFront(
       fragDepth(grass, p.sx + 4, p.sy + 4, depthStackBias(0, 0)),
@@ -468,7 +483,12 @@ describe("fragDepth", () => {
   });
 
   it("stays inside the normalised depth range for extreme placements", () => {
-    const far = depthBox(200, 200, absoluteElevation(8, 4), absoluteElevation(8, 6));
+    const far = depthBox(
+      200,
+      200,
+      absoluteElevation(8, 4),
+      absoluteElevation(8, 6),
+    );
     const d = fragDepth(far, 200 * CELL_SIZE, 200 * CELL_SIZE, 16);
     expect(d).toBeGreaterThan(0);
     expect(d).toBeLessThan(1);

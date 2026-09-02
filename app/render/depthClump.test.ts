@@ -9,7 +9,11 @@ import {
 } from "./depthClump";
 
 function tile(partial: Record<string, unknown>): TileDef {
-  return normalizeTileDef({ name: String(partial.id), attributes: {}, ...partial });
+  return normalizeTileDef({
+    name: String(partial.id),
+    attributes: {},
+    ...partial,
+  });
 }
 
 const tilesById = tilesByIdFromList([
@@ -68,7 +72,10 @@ describe("clumpExtents", () => {
     );
     const half = HEIGHT_PER_LEVEL / 2;
     expect(extents[1]).toEqual({ foot: 0, top: half });
-    expect(extents[2]).toEqual({ foot: half, top: half + HEIGHT_PER_LEVEL - 1 });
+    expect(extents[2]).toEqual({
+      foot: half,
+      top: half + HEIGHT_PER_LEVEL - 1,
+    });
   });
 
   it("does not merge a tile resting on a solid one of the same height", () => {
@@ -93,7 +100,11 @@ describe("clumpExtents", () => {
 
 describe("clumpExtentAt", () => {
   it("answers for one slot the same as the whole stack does", () => {
-    const stack = [{ tileId: "floor" }, { tileId: "door-open" }, body("player")];
+    const stack = [
+      { tileId: "floor" },
+      { tileId: "door-open" },
+      body("player"),
+    ];
     expect(clumpExtentAt(stack, 2, tilesById)).toEqual(
       clumpExtents(stack, tilesById)[2],
     );
@@ -118,7 +129,9 @@ describe("clumpExtentOnArrival", () => {
   });
 
   it("stands on its own where there is nothing to join", () => {
-    expect(clumpExtentOnArrival([{ tileId: "floor" }], player, tilesById)).toEqual({
+    expect(
+      clumpExtentOnArrival([{ tileId: "floor" }], player, tilesById),
+    ).toEqual({
       foot: 0,
       top: HEIGHT_PER_LEVEL - 1,
     });
@@ -181,7 +194,10 @@ describe("steppingClumpHeight", () => {
   it("lets go of a clump halfway out of it, not on arrival", () => {
     const leaving = (progress: number) =>
       steppingClumpHeight(
-        { stack: [...doorway, { tileId: "player", owner: "a" }], stackIndex: 2 },
+        {
+          stack: [...doorway, { tileId: "player", owner: "a" }],
+          stackIndex: 2,
+        },
         { stack: [{ tileId: "floor" }], arriving: tilesById["player"]! },
         progress,
         tilesById,

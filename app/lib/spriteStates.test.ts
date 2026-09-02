@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { availableStates, hasSpriteStates } from "./interactions";
-import { getFrames, resolveTileSprite, tileLightSignature } from "./tileResolve";
+import {
+  getFrames,
+  resolveTileSprite,
+  tileLightSignature,
+} from "./tileResolve";
 import {
   allTileSprites,
   maxLightRadius,
@@ -76,9 +80,9 @@ describe("hasSpriteStates", () => {
   });
 
   it("is true once a state is authored", () => {
-    expect(hasSpriteStates(deer({ moving: { sprites: { n: spriteAt(9) } } }))).toBe(
-      true,
-    );
+    expect(
+      hasSpriteStates(deer({ moving: { sprites: { n: spriteAt(9) } } })),
+    ).toBe(true);
   });
 });
 
@@ -141,12 +145,14 @@ describe("resolveTileSprite with a state", () => {
       states: { moving: { slices: { 5: spriteAt(7) } } },
     };
     expect(
-      getFrames(water, { state: "moving", autotileSlice: 5 })?.[0]?.sprite.rect.x,
+      getFrames(water, { state: "moving", autotileSlice: 5 })?.[0]?.sprite.rect
+        .x,
     ).toBe(7);
     // Slice 0 is unauthored on the state, so it falls back to idle's slice 0
     // rather than to the state's slice 5.
     expect(
-      getFrames(water, { state: "moving", autotileSlice: 0 })?.[0]?.sprite.rect.x,
+      getFrames(water, { state: "moving", autotileSlice: 0 })?.[0]?.sprite.rect
+        .x,
     ).toBe(0);
   });
 });

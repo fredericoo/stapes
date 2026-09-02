@@ -542,7 +542,9 @@ export function applyInteraction(
   // own thumb-friendly terms. Everything said after is the panel's, through
   // the same verb.
   if (option.action === "talk") {
-    session.talk(option.active ? { kind: "close" } : { kind: "open", ref: option.ref });
+    session.talk(
+      option.active ? { kind: "close" } : { kind: "open", ref: option.ref },
+    );
     return;
   }
   // Named rather than left to `interact`'s precedence. The row says "Pick up",
@@ -749,14 +751,27 @@ function slotOptions(
   // precedence is read out of the session's own order rather than restated here.
   const equipSlot = equipSlotFrom(map, tilesById, self, ref, equipment);
   const stow = pickUpDestination(map, tilesById, self, ref, equipment) != null;
-  const action = objectAction(map, tilesById, self, ref, equipment, tags, equipSlot);
+  const action = objectAction(
+    map,
+    tilesById,
+    self,
+    ref,
+    equipment,
+    tags,
+    equipSlot,
+  );
   if (action) {
     // The one row that can arrive already disabled. Read here rather than
     // inside `objectAction`, because it is not part of deciding *which* verb a
     // tap names — the verb is still "Pick", it simply cannot be pressed yet.
     const cooldown =
       action === "extract" ? extractCooldownAt(map, cooling, ref) : null;
-    add(action, objectActionLabel(action, tilesById[placed.tileId]), false, cooldown);
+    add(
+      action,
+      objectActionLabel(action, tilesById[placed.tileId]),
+      false,
+      cooldown,
+    );
   }
 
   // Beside a tap that would arm you, the row that merely puts the thing away:
@@ -833,7 +848,8 @@ function objectAction(
   tags: readonly string[],
   equipSlot: EquipSlot | null,
 ): InteractionAction | null {
-  if (canRewardFrom(map, tilesById, self, ref, equipment, tags)) return "reward";
+  if (canRewardFrom(map, tilesById, self, ref, equipment, tags))
+    return "reward";
   // Asked against the viewer's *own* body, because whether the far end has room
   // is a question about who is making the trip — see `teleportFits`. The list
   // is built for one viewer, so the one body it could ever mean is theirs.
@@ -914,7 +930,12 @@ function talkOptions(
 ): InteractionOption[] {
   const out: InteractionOption[] = [];
   for (const actor of bodies.values()) {
-    const ref: ObjectRef = { x: actor.x, y: actor.y, z: actor.z, stackIndex: actor.stackIndex };
+    const ref: ObjectRef = {
+      x: actor.x,
+      y: actor.y,
+      z: actor.z,
+      stackIndex: actor.stackIndex,
+    };
     if (!canTalkFrom(map, tilesById, self, ref)) continue;
     out.push({
       id: `talk:${actor.id}`,
@@ -974,10 +995,7 @@ function targetOptions(
       recipeIndex: null,
       cooldown: null,
       tileId: actor.tileId,
-      name: bodyNameFor(
-        { actorId: actor.id, tileId: actor.tileId },
-        tilesById,
-      ),
+      name: bodyNameFor({ actorId: actor.id, tileId: actor.tileId }, tilesById),
       health: healthOf(actor),
       active: actor.id === targetId,
     });

@@ -11,7 +11,12 @@
 import { describe, expect, it } from "vitest";
 import type { SlideSnapshot } from "../game/GameSession";
 import { emptyMap, replaceStack } from "../lib/mapData";
-import { HEIGHT_PER_LEVEL, normalizeTileDef, type MapFile, type TileDef } from "../lib/types";
+import {
+  HEIGHT_PER_LEVEL,
+  normalizeTileDef,
+  type MapFile,
+  type TileDef,
+} from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { slideTileMotions } from "./slideMotion";
 

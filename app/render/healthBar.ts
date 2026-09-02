@@ -136,12 +136,13 @@ export function healthBarFillHeightBricks(trackBricks: number): number {
  * fade would land on a handful of indistinguishable colours anyway — and because
  * a player reads "it went red" far faster than they read a hue.
  */
-export const HEALTH_BAR_STOPS: ReadonlyArray<{ upTo: number; color: string }> = [
-  { upTo: 0.15, color: "#6b0f1a" },
-  { upTo: 0.35, color: "#d12d2d" },
-  { upTo: 0.65, color: "#e0b020" },
-  { upTo: 1, color: "#3fbf50" },
-];
+export const HEALTH_BAR_STOPS: ReadonlyArray<{ upTo: number; color: string }> =
+  [
+    { upTo: 0.15, color: "#6b0f1a" },
+    { upTo: 0.35, color: "#d12d2d" },
+    { upTo: 0.65, color: "#e0b020" },
+    { upTo: 1, color: "#3fbf50" },
+  ];
 
 /** How full a bar is, as a fraction of 1, safe against a zero maximum. */
 export function healthFraction(hp: number, maxHp: number): number {

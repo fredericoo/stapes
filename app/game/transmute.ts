@@ -285,7 +285,8 @@ function containerSlot(
 ): ReturnSlot[] {
   const instance = spent[holder];
   if (!instance) return [];
-  const free = capacityOf(instance, tilesById) - (instance.contents?.length ?? 0);
+  const free =
+    capacityOf(instance, tilesById) - (instance.contents?.length ?? 0);
   if (free <= 0) return [];
   return [
     {
@@ -416,10 +417,7 @@ export function runTransmute(
  * act from offering what you carry, and a recipe that quietly emptied one would
  * be reaching somewhere the player did not point.
  */
-function carriedSlotOf(
-  equipment: Equipment,
-  tileId: string,
-): PaidFrom | null {
+function carriedSlotOf(equipment: Equipment, tileId: string): PaidFrom | null {
   if (equipment.weapon?.tileId === tileId) return { kind: "weapon" };
   if (equipment.offhand?.tileId === tileId) return { kind: "offhand" };
 

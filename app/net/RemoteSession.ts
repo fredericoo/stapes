@@ -7,10 +7,7 @@ import {
   STRIKE_DURATION_MS,
   WALK_DURATION_MS,
 } from "../game/constants";
-import {
-  UNKNOWN_REMAINING_MS,
-  type StatusInstance,
-} from "../game/statuses";
+import { UNKNOWN_REMAINING_MS, type StatusInstance } from "../game/statuses";
 import type { ProjectileFlight } from "../game/projectile";
 import type { StrikeState } from "../game/strike";
 import {
@@ -79,11 +76,7 @@ import type {
   TileDef,
 } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
-import {
-  CHAT_LIFETIME_MS,
-  MAX_CHAT_LENGTH,
-  MAX_CHATS_PER_CELL,
-} from "./chat";
+import { CHAT_LIFETIME_MS, MAX_CHAT_LENGTH, MAX_CHATS_PER_CELL } from "./chat";
 import { MAX_COMMAND_LENGTH, isCommand } from "../game/commands";
 import {
   parseServerMessage,
@@ -840,7 +833,8 @@ export class RemoteSession implements PlaySession {
       for (const placed of getStack(this.serverMap, cell.x, cell.y, cell.z)) {
         // Our own body is never judged by its absence; see
         // {@link forgetDeparted}.
-        if (placed.owner && placed.owner !== this.selfId) left.add(placed.owner);
+        if (placed.owner && placed.owner !== this.selfId)
+          left.add(placed.owner);
       }
     }
     if (left.size === 0) return NO_OWNERS;
@@ -1243,7 +1237,13 @@ export class RemoteSession implements PlaySession {
 
     const carryMs = walk.elapsedMs - walk.durationMs;
 
-    this.map = moveEntity(this.map, at, step.to, step.direction, this.tilesById);
+    this.map = moveEntity(
+      this.map,
+      at,
+      step.to,
+      step.direction,
+      this.tilesById,
+    );
     step.landed = true;
     motion.walk = null;
     // moveEntity appends, so the actor is the top of the destination stack.
@@ -1441,7 +1441,8 @@ export class RemoteSession implements PlaySession {
   private dropConfirmedSteps(at: Coord) {
     while (this.pending.length > 0) {
       const step = this.pending[0]!;
-      if (step.to.x !== at.x || step.to.y !== at.y || step.to.z !== at.z) return;
+      if (step.to.x !== at.x || step.to.y !== at.y || step.to.z !== at.z)
+        return;
       this.pending.shift();
       // The server got there before the lerp did, which only happens on a link
       // fast enough for the round trip to beat the walk. Drop the animation
@@ -1557,7 +1558,10 @@ export class RemoteSession implements PlaySession {
     // Sorted here rather than on the server, so a command is never a bubble the
     // world has to take back. @see ../game/commands
     if (isCommand(trimmed)) {
-      this.send({ type: "command", text: trimmed.slice(0, MAX_COMMAND_LENGTH) });
+      this.send({
+        type: "command",
+        text: trimmed.slice(0, MAX_COMMAND_LENGTH),
+      });
       return;
     }
     this.send({ type: "say", text: trimmed.slice(0, MAX_CHAT_LENGTH) });
@@ -1632,7 +1636,10 @@ export class RemoteSession implements PlaySession {
     if (footAbs <= fall.landingAbs) motion.fall = null;
   }
 
-  private actorSnapshot(id: string, motion: RemoteMotion): ActorSnapshot | null {
+  private actorSnapshot(
+    id: string,
+    motion: RemoteMotion,
+  ): ActorSnapshot | null {
     const loc = this.locate(id, motion);
     if (!loc) return null;
 
@@ -2012,7 +2019,8 @@ export class RemoteSession implements PlaySession {
       // step the server has yet to confirm would put reach in doubt.
       if (motion.walk || motion.fall || motion.slide) return false;
       if (this.pending.length > 0) return false;
-      if (!canConsumeFrom(this.map, this.tilesById, loc, from.ref)) return false;
+      if (!canConsumeFrom(this.map, this.tilesById, loc, from.ref))
+        return false;
     } else {
       const instance = itemInSlot(
         this.map,
@@ -2102,14 +2110,7 @@ export class RemoteSession implements PlaySession {
     const motion = this.motions.get(this.selfId);
     const loc = motion && this.locate(this.selfId, motion);
     if (!loc) return false;
-    return canMoveItem(
-      this.map,
-      this.tilesById,
-      loc,
-      this.equipment,
-      from,
-      to,
-    );
+    return canMoveItem(this.map, this.tilesById, loc, this.equipment, from, to);
   }
 
   /**

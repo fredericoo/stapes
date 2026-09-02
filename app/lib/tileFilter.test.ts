@@ -25,9 +25,12 @@ const wanderBrain: BrainDef = {
   transitions: [],
 };
 
-function tile(
-  props: { id: string; name: string; kind?: TileKind; brain?: BrainDef },
-): TileDef {
+function tile(props: {
+  id: string;
+  name: string;
+  kind?: TileKind;
+  brain?: BrainDef;
+}): TileDef {
   return normalizeTileDef({
     id: props.id,
     name: props.name,

@@ -42,7 +42,11 @@ type Props = {
   className?: string;
 };
 
-type Pretend = { equipment: Equipment; tags: Set<string>; statuses: Set<string> };
+type Pretend = {
+  equipment: Equipment;
+  tags: Set<string>;
+  statuses: Set<string>;
+};
 
 /** The roomiest bag a world has to wear, or null for a world with none. */
 function biggestBag(tiles: TileDef[]): TileDef | null {
@@ -50,7 +54,8 @@ function biggestBag(tiles: TileDef[]): TileDef | null {
   for (const tile of tiles) {
     const container = resolveContainer(tile);
     if (!container?.equippable) continue;
-    if (!best || container.size > (resolveContainer(best)?.size ?? 0)) best = tile;
+    if (!best || container.size > (resolveContainer(best)?.size ?? 0))
+      best = tile;
   }
   return best;
 }
@@ -67,7 +72,11 @@ function pretendPartner(
   return {
     name: () => PRETEND_NAME,
     attempt: (effects) => {
-      const next = { equipment: pretend.equipment, tags: new Set(pretend.tags), statuses: new Set(pretend.statuses) };
+      const next = {
+        equipment: pretend.equipment,
+        tags: new Set(pretend.tags),
+        statuses: new Set(pretend.statuses),
+      };
       for (const effect of effects) {
         if (!applyEffect(next, effect, tilesById, statusDefs)) return false;
       }
@@ -94,19 +103,34 @@ function applyEffect(
     else partner.statuses.delete(effect.statusId);
     return true;
   }
-  const next = planTrade(tilesById, partner.equipment, effect.take, effect.give, mint);
+  const next = planTrade(
+    tilesById,
+    partner.equipment,
+    effect.take,
+    effect.give,
+    mint,
+  );
   if (!next) return false;
   partner.equipment = next;
   return true;
 }
 
-export function DialogTryOut({ dialog, tiles, tilesets, statusDefs, className = "" }: Props) {
+export function DialogTryOut({
+  dialog,
+  tiles,
+  tilesets,
+  statusDefs,
+  className = "",
+}: Props) {
   const tilesById = useMemo(() => tilesByIdFromList(tiles), [tiles]);
   const bag = useMemo(() => biggestBag(tiles), [tiles]);
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [pretend, setPretend] = useState<Pretend>(() => ({
     equipment: bag
-      ? { ...emptyEquipment(), bag: { id: "pretend_bag", tileId: bag.id, contents: [] } }
+      ? {
+          ...emptyEquipment(),
+          bag: { id: "pretend_bag", tileId: bag.id, contents: [] },
+        }
       : emptyEquipment(),
     tags: new Set(),
     statuses: new Set(),
@@ -114,14 +138,17 @@ export function DialogTryOut({ dialog, tiles, tilesets, statusDefs, className = 
   const [adding, setAdding] = useState<string | null>(null);
 
   const itemOptions = tiles
-    .filter((tile) => resolveItem(tile) != null && resolveContainer(tile) == null)
+    .filter(
+      (tile) => resolveItem(tile) != null && resolveContainer(tile) == null,
+    )
     .map((tile) => ({ value: tile.id, label: tile.name }))
     .sort((a, b) => a.label.localeCompare(b.label));
   const npc = { id: "pretend", tileId: "pretend" };
   const view = pretendPartner(pretend, tilesById, statusDefs, setPretend);
 
   const talk = (action: TalkAction) => {
-    if (action.kind === "open") return setConversation(openConversation(dialog, npc, view));
+    if (action.kind === "open")
+      return setConversation(openConversation(dialog, npc, view));
     if (action.kind === "close") return setConversation(null);
     if (!conversation) return;
     const next =
@@ -135,7 +162,13 @@ export function DialogTryOut({ dialog, tiles, tilesets, statusDefs, className = 
 
   /** Put one more of a thing in the pretend bag, on the trade's landing rule. */
   const addOne = (tileId: string) => {
-    const next = planTrade(tilesById, pretend.equipment, [], [{ tileId, count: 1 }], mint);
+    const next = planTrade(
+      tilesById,
+      pretend.equipment,
+      [],
+      [{ tileId, count: 1 }],
+      mint,
+    );
     if (next) setPretend({ ...pretend, equipment: next });
   };
   const contents: ItemInstance[] = pretend.equipment.bag?.contents ?? [];
@@ -146,12 +179,17 @@ export function DialogTryOut({ dialog, tiles, tilesets, statusDefs, className = 
 
       <div className="flex flex-col gap-1 border-2 border-border p-1.5 text-xs">
         <span className="text-[10px] font-bold uppercase text-muted">
-          Pretend bag{bag ? ` — ${bag.name}, ${contents.length}/${resolveContainer(bag)?.size ?? 0}` : " — no wearable bag in the catalogue"}
+          Pretend bag
+          {bag
+            ? ` — ${bag.name}, ${contents.length}/${resolveContainer(bag)?.size ?? 0}`
+            : " — no wearable bag in the catalogue"}
         </span>
         {contents.map((instance) => (
           <div key={instance.id} className="flex items-center gap-2">
             <span className="w-10 tabular-nums">×{instance.count ?? 1}</span>
-            <span className="truncate">{tilesById[instance.tileId]?.name ?? instance.tileId}</span>
+            <span className="truncate">
+              {tilesById[instance.tileId]?.name ?? instance.tileId}
+            </span>
           </div>
         ))}
         <div className="flex items-center gap-2">
@@ -163,7 +201,12 @@ export function DialogTryOut({ dialog, tiles, tilesets, statusDefs, className = 
             className="min-w-[9rem]"
             ariaLabel="Thing to add to the pretend bag"
           />
-          <Button size="sm" variant="secondary" disabled={!adding} onClick={() => adding && addOne(adding)}>
+          <Button
+            size="sm"
+            variant="secondary"
+            disabled={!adding}
+            onClick={() => adding && addOne(adding)}
+          >
             +1
           </Button>
           <Button
@@ -172,7 +215,13 @@ export function DialogTryOut({ dialog, tiles, tilesets, statusDefs, className = 
             onClick={() =>
               setPretend({
                 ...pretend,
-                equipment: { ...pretend.equipment, bag: pretend.equipment.bag && { ...pretend.equipment.bag, contents: [] } },
+                equipment: {
+                  ...pretend.equipment,
+                  bag: pretend.equipment.bag && {
+                    ...pretend.equipment.bag,
+                    contents: [],
+                  },
+                },
               })
             }
           >
@@ -186,7 +235,12 @@ export function DialogTryOut({ dialog, tiles, tilesets, statusDefs, className = 
             onChange={(e) =>
               setPretend({
                 ...pretend,
-                tags: new Set(e.target.value.split(",").map((t) => t.trim()).filter(Boolean)),
+                tags: new Set(
+                  e.target.value
+                    .split(",")
+                    .map((t) => t.trim())
+                    .filter(Boolean),
+                ),
               })
             }
             className="w-40"
@@ -203,7 +257,12 @@ export function DialogTryOut({ dialog, tiles, tilesets, statusDefs, className = 
                 size="sm"
                 variant="secondary"
                 active={pretend.statuses.has(def.id)}
-                onClick={() => setPretend({ ...pretend, statuses: toggled(pretend.statuses, def.id) })}
+                onClick={() =>
+                  setPretend({
+                    ...pretend,
+                    statuses: toggled(pretend.statuses, def.id),
+                  })
+                }
               >
                 {def.name}
               </Button>
@@ -227,7 +286,9 @@ export function DialogTryOut({ dialog, tiles, tilesets, statusDefs, className = 
         ) : (
           <button
             type="button"
-            onClick={() => talk({ kind: "open", ref: { x: 0, y: 0, z: 0, stackIndex: 0 } })}
+            onClick={() =>
+              talk({ kind: "open", ref: { x: 0, y: 0, z: 0, stackIndex: 0 } })
+            }
             className="flex min-h-9 items-center justify-center border border-paper/30 px-2 text-[11px] font-medium text-paper hover:border-paper hover:bg-paper/10"
           >
             Talk

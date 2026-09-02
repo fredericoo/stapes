@@ -206,8 +206,7 @@ export function removeAt<Leaf extends object>(
   if (index === undefined) return null;
   if (!isConditionGroup(root) || root.rules[index] === undefined) return root;
 
-  const pruned =
-    rest.length === 0 ? null : removeAt(root.rules[index], rest);
+  const pruned = rest.length === 0 ? null : removeAt(root.rules[index], rest);
   const rules =
     pruned === null
       ? root.rules.filter((_rule, at) => at !== index)

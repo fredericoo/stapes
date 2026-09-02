@@ -44,7 +44,9 @@ describe("who is close enough to lean at", () => {
    * standing on the crate beside you is inside it, and gets a lean.
    */
   it("takes the body half a level up, in the same cell or the next one", () => {
-    expect(swingToward(at(0, 0), at(0, 0, HALF_LEVEL), MELEE)?.dElev).toBe(HALF_LEVEL);
+    expect(swingToward(at(0, 0), at(0, 0, HALF_LEVEL), MELEE)?.dElev).toBe(
+      HALF_LEVEL,
+    );
     expect(swingToward(at(0, 0), at(1, 0, HALF_LEVEL), MELEE)).not.toBeNull();
   });
 

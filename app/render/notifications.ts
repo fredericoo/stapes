@@ -104,7 +104,11 @@ export class NoticeQueue {
       return;
     }
 
-    this.notices.push({ id: `notice-${this.nextId++}`, text, shownAtMs: nowMs });
+    this.notices.push({
+      id: `notice-${this.nextId++}`,
+      text,
+      shownAtMs: nowMs,
+    });
     if (this.notices.length > MAX_NOTICES) {
       this.notices.splice(0, this.notices.length - MAX_NOTICES);
     }

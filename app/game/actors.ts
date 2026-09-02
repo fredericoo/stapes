@@ -1,5 +1,17 @@
-import { appendTile, getStack, listCoords, removeTileAt, replaceStack } from "../lib/mapData";
-import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
+import {
+  appendTile,
+  getStack,
+  listCoords,
+  removeTileAt,
+  replaceStack,
+} from "../lib/mapData";
+import type {
+  Coord,
+  Direction,
+  MapFile,
+  PlacedTile,
+  TileDef,
+} from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL, resolveActor } from "../lib/types";
 import { PLAYER_TILE_ID } from "./constants";
 import { requireSinglePlayer } from "./player";

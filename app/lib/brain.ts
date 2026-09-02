@@ -639,7 +639,10 @@ const actionSchema = v.variant("action", [
 ]);
 
 const effectSchema = v.variant("effect", [
-  v.object({ effect: v.literal("say"), text: v.pipe(v.string(), v.minLength(1)) }),
+  v.object({
+    effect: v.literal("say"),
+    text: v.pipe(v.string(), v.minLength(1)),
+  }),
   v.object({
     effect: v.literal("noise"),
     text: v.pipe(v.string(), v.minLength(1)),
@@ -665,7 +668,9 @@ const brainSchema = v.object({
     v.object({
       from: stateName,
       if: ifSchema,
-      bind: v.optional(v.record(v.pipe(v.string(), v.minLength(1)), selectorSchema)),
+      bind: v.optional(
+        v.record(v.pipe(v.string(), v.minLength(1)), selectorSchema),
+      ),
       to: stateName,
     }),
   ),
@@ -714,7 +719,10 @@ export function validateBrain(brain: BrainDef): BrainIssue[] {
   // A state actually called "any" would be unreachable as a transition source,
   // since the wildcard shadows it — better refused than quietly never matched.
   if (Object.hasOwn(brain.states, ANY_STATE)) {
-    issues.push({ severity: "error", message: `A state cannot be named "${ANY_STATE}".` });
+    issues.push({
+      severity: "error",
+      message: `A state cannot be named "${ANY_STATE}".`,
+    });
   }
   if (names.length === 0) {
     issues.push({ severity: "error", message: "Add at least one state." });
@@ -744,7 +752,10 @@ export function validateBrain(brain: BrainDef): BrainIssue[] {
   });
 
   for (const name of unreachableStates(brain)) {
-    issues.push({ severity: "warn", message: `State "${name}" cannot be reached.` });
+    issues.push({
+      severity: "warn",
+      message: `State "${name}" cannot be reached.`,
+    });
   }
 
   return issues;
@@ -764,7 +775,7 @@ function unreachableStates(brain: BrainDef): string[] {
   if (!brain.initial || !Object.hasOwn(brain.states, brain.initial)) return [];
 
   const reached = new Set<string>([brain.initial]);
-  for (let grew = true; grew; ) {
+  for (let grew = true; grew;) {
     grew = false;
     for (const t of brain.transitions) {
       if (!Object.hasOwn(brain.states, t.to) || reached.has(t.to)) continue;

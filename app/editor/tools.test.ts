@@ -4,7 +4,11 @@ import type { MapFile } from "../lib/types";
 import { floodCoords } from "./tools";
 
 function mapWith(
-  cells: Array<{ x: number; y: number; tiles: Array<{ tileId: string; direction?: "n" | "e" | "s" | "w" }> }>,
+  cells: Array<{
+    x: number;
+    y: number;
+    tiles: Array<{ tileId: string; direction?: "n" | "e" | "s" | "w" }>;
+  }>,
 ): MapFile {
   let map: MapFile = { version: 1, levels: {} };
   for (const c of cells) {

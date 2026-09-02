@@ -19,7 +19,12 @@ const landing = (atMs: number, x: number, y: number) => ({ atMs, x, y });
 describe("continuesDoubleTap", () => {
   it("catches a second tap in the same place, straight away", () => {
     expect(
-      continuesDoubleTap(AT, landing(AT.atMs + 50, AT.x, AT.y), WITHIN_MS, SLOP_PX),
+      continuesDoubleTap(
+        AT,
+        landing(AT.atMs + 50, AT.x, AT.y),
+        WITHIN_MS,
+        SLOP_PX,
+      ),
     ).toBe(true);
   });
 
@@ -58,7 +63,12 @@ describe("continuesDoubleTap", () => {
 
   it("lets the very first touch of all through", () => {
     expect(
-      continuesDoubleTap(null, landing(AT.atMs, AT.x, AT.y), WITHIN_MS, SLOP_PX),
+      continuesDoubleTap(
+        null,
+        landing(AT.atMs, AT.x, AT.y),
+        WITHIN_MS,
+        SLOP_PX,
+      ),
     ).toBe(false);
   });
 });

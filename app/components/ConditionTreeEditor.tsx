@@ -50,7 +50,15 @@ export function ConditionTreeEditor<Leaf extends object>({
   onChange: (next: ConditionNode<Leaf>) => void;
 }) {
   if (isConditionGroup(root)) {
-    return <GroupBox root={root} path={[]} node={root} leaf={leaf} onChange={onChange} />;
+    return (
+      <GroupBox
+        root={root}
+        path={[]}
+        node={root}
+        leaf={leaf}
+        onChange={onChange}
+      />
+    );
   }
 
   return (
@@ -58,7 +66,9 @@ export function ConditionTreeEditor<Leaf extends object>({
       {leaf.render(root, (next) => onChange(next))}
       <AddButtons
         onAddCondition={() => onChange(group("and", [root, leaf.fresh()]))}
-        onAddGroup={() => onChange(group("and", [root, group("and", [leaf.fresh()])]))}
+        onAddGroup={() =>
+          onChange(group("and", [root, group("and", [leaf.fresh()])]))
+        }
       />
     </div>
   );
@@ -85,7 +95,8 @@ function GroupBox<Leaf extends object>({
   leaf: LeafEditor<Leaf>;
   onChange: (next: ConditionNode<Leaf>) => void;
 }) {
-  const set = (next: ConditionGroup<Leaf>) => onChange(replaceAt(root, path, next));
+  const set = (next: ConditionGroup<Leaf>) =>
+    onChange(replaceAt(root, path, next));
 
   // A tree of one leaf has nothing to delete down to: a condition with no
   // question has nothing to answer, so the button is simply not offered rather
@@ -121,10 +132,17 @@ function GroupBox<Leaf extends object>({
         </label>
         <AddButtons
           onAddCondition={() => onChange(appendTo(root, path, leaf.fresh()))}
-          onAddGroup={() => onChange(appendTo(root, path, group("and", [leaf.fresh()])))}
+          onAddGroup={() =>
+            onChange(appendTo(root, path, group("and", [leaf.fresh()])))
+          }
         />
         {path.length > 0 ? (
-          <Button size="sm" variant="danger" onClick={() => prune(path)} aria-label="Remove group">
+          <Button
+            size="sm"
+            variant="danger"
+            onClick={() => prune(path)}
+            aria-label="Remove group"
+          >
             ✕
           </Button>
         ) : null}
@@ -134,11 +152,24 @@ function GroupBox<Leaf extends object>({
         return (
           <div key={i} className="flex flex-wrap items-center gap-2 pl-3">
             {isConditionGroup(rule) ? (
-              <GroupBox root={root} path={at} node={rule} leaf={leaf} onChange={onChange} />
+              <GroupBox
+                root={root}
+                path={at}
+                node={rule}
+                leaf={leaf}
+                onChange={onChange}
+              />
             ) : (
               <>
-                {leaf.render(rule, (next) => onChange(replaceAt(root, at, next)))}
-                <Button size="sm" variant="danger" onClick={() => prune(at)} aria-label="Remove condition">
+                {leaf.render(rule, (next) =>
+                  onChange(replaceAt(root, at, next)),
+                )}
+                <Button
+                  size="sm"
+                  variant="danger"
+                  onClick={() => prune(at)}
+                  aria-label="Remove condition"
+                >
                   ✕
                 </Button>
               </>

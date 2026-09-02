@@ -100,7 +100,10 @@ export class WorkerChunkBaker implements ChunkBaker {
     }
     const chunks = new Map<string, BakedChunk>();
     for (const [key, wire] of message.chunks) {
-      chunks.set(key, { planes: new Map(wire.planes), animated: wire.animated });
+      chunks.set(key, {
+        planes: new Map(wire.planes),
+        animated: wire.animated,
+      });
     }
     entry.resolve(chunks);
   }

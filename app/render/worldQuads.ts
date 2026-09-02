@@ -69,10 +69,9 @@ function glsl(n: number): string {
  * `aLightUv` across it. Constant per quad, so the shader can re-evaluate the
  * light coordinate at any point on the quad from any other.
  */
-function lightCellsPerPixel(q: Pick<
-  Quad,
-  "w" | "h" | "lightX0" | "lightY0" | "lightX1" | "lightY1"
->): [number, number] {
+function lightCellsPerPixel(
+  q: Pick<Quad, "w" | "h" | "lightX0" | "lightY0" | "lightX1" | "lightY1">,
+): [number, number] {
   return [
     q.w === 0 ? 0 : (q.lightX1 - q.lightX0) / q.w,
     q.h === 0 ? 0 : (q.lightY1 - q.lightY0) / q.h,
@@ -111,7 +110,9 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
   const stacks = new Float32Array(n * VERTS_PER_QUAD);
   const lightScales = new Float32Array(n * VERTS_PER_QUAD * 2);
   const indices =
-    n * VERTS_PER_QUAD > 65535 ? new Uint32Array(n * 6) : new Uint16Array(n * 6);
+    n * VERTS_PER_QUAD > 65535
+      ? new Uint32Array(n * 6)
+      : new Uint16Array(n * 6);
 
   for (let i = 0; i < n; i++) {
     const q = quads[i]!;
@@ -187,10 +188,7 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
   geo.setAttribute("aUnlit", new THREE.BufferAttribute(unlit, 1));
   geo.setAttribute("aBox", new THREE.BufferAttribute(boxes, BOX_COMPONENTS));
   geo.setAttribute("aStack", new THREE.BufferAttribute(stacks, 1));
-  geo.setAttribute(
-    "aLightScale",
-    new THREE.BufferAttribute(lightScales, 2),
-  );
+  geo.setAttribute("aLightScale", new THREE.BufferAttribute(lightScales, 2));
   geo.setIndex(new THREE.BufferAttribute(indices, 1));
   return geo;
 }
@@ -207,24 +205,54 @@ export function buildSingleQuadGeometry(
   const hh = q.h / 2;
   const geo = new THREE.BufferGeometry();
   const positions = new Float32Array([
-    -hw, hh, 0,
-    hw, hh, 0,
-    -hw, -hh, 0,
-    hw, -hh, 0,
+    -hw,
+    hh,
+    0,
+    hw,
+    hh,
+    0,
+    -hw,
+    -hh,
+    0,
+    hw,
+    -hh,
+    0,
   ]);
-  const uvs = new Float32Array([q.u0, q.v0, q.u1, q.v0, q.u0, q.v1, q.u1, q.v1]);
+  const uvs = new Float32Array([
+    q.u0,
+    q.v0,
+    q.u1,
+    q.v0,
+    q.u0,
+    q.v1,
+    q.u1,
+    q.v1,
+  ]);
   const lightUvs = new Float32Array([
-    q.lightX0, q.lightY1,
-    q.lightX1, q.lightY1,
-    q.lightX0, q.lightY0,
-    q.lightX1, q.lightY0,
+    q.lightX0,
+    q.lightY1,
+    q.lightX1,
+    q.lightY1,
+    q.lightX0,
+    q.lightY0,
+    q.lightX1,
+    q.lightY0,
   ]);
   const unlit = new Float32Array(VERTS_PER_QUAD).fill(q.unlit ? 1 : 0);
   const boxes = new Float32Array(VERTS_PER_QUAD * BOX_COMPONENTS);
   const stacks = new Float32Array(VERTS_PER_QUAD);
   writeQuadBox(boxes, stacks, 0, q.box, q.stackBias);
   const [lsx, lsy] = lightCellsPerPixel(q);
-  const lightScales = new Float32Array([lsx, lsy, lsx, lsy, lsx, lsy, lsx, lsy]);
+  const lightScales = new Float32Array([
+    lsx,
+    lsy,
+    lsx,
+    lsy,
+    lsx,
+    lsy,
+    lsx,
+    lsy,
+  ]);
 
   geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
   geo.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
@@ -232,10 +260,7 @@ export function buildSingleQuadGeometry(
   geo.setAttribute("aUnlit", new THREE.BufferAttribute(unlit, 1));
   geo.setAttribute("aBox", new THREE.BufferAttribute(boxes, BOX_COMPONENTS));
   geo.setAttribute("aStack", new THREE.BufferAttribute(stacks, 1));
-  geo.setAttribute(
-    "aLightScale",
-    new THREE.BufferAttribute(lightScales, 2),
-  );
+  geo.setAttribute("aLightScale", new THREE.BufferAttribute(lightScales, 2));
   geo.setIndex(
     new THREE.BufferAttribute(new Uint16Array([0, 2, 1, 2, 3, 1]), 1),
   );

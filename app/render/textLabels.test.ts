@@ -50,9 +50,10 @@ describe("label placement", () => {
           Number.isInteger(at.left),
           `left for ${worldX} @ ${cssScale}`,
         ).toBe(true);
-        expect(Number.isInteger(at.top), `top for ${worldX} @ ${cssScale}`).toBe(
-          true,
-        );
+        expect(
+          Number.isInteger(at.top),
+          `top for ${worldX} @ ${cssScale}`,
+        ).toBe(true);
       }
     }
   });
@@ -89,10 +90,7 @@ describe("stacking order", () => {
   /** Speech and looks say nothing about depth, and are drawn over names anyway. */
   it("leaves a label with no order on top", () => {
     expect(
-      stackingOrder([
-        { id: "speech" },
-        { id: "name", order: 10 },
-      ]),
+      stackingOrder([{ id: "speech" }, { id: "name", order: 10 }]),
     ).toEqual(["name", "speech"]);
   });
 
@@ -199,8 +197,9 @@ describe("naming a speaker", () => {
   });
 
   it("calls a creature what its tile is called", () => {
-    expect(bodyNameFor({ actorId: "npc:1,2,0,1", tileId: "deer" }, tilesById))
-      .toBe("Deer");
+    expect(
+      bodyNameFor({ actorId: "npc:1,2,0,1", tileId: "deer" }, tilesById),
+    ).toBe("Deer");
   });
 
   /**

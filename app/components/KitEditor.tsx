@@ -167,7 +167,10 @@ export function KitEditor({
                   slot. Anything past the {size} this holds is dropped.
                 </p>
                 {contents.map((content, contentIndex) => (
-                  <div key={contentIndex} className="flex flex-wrap items-end gap-2">
+                  <div
+                    key={contentIndex}
+                    className="flex flex-wrap items-end gap-2"
+                  >
                     <Select
                       value={content.tileId || null}
                       onValueChange={(tileId) =>
@@ -223,7 +226,8 @@ export function KitEditor({
                       })
                     }
                   >
-                    Add to {tiles.find((t) => t.id === entry.tileId)?.name ?? "it"}
+                    Add to{" "}
+                    {tiles.find((t) => t.id === entry.tileId)?.name ?? "it"}
                   </Button>
                 </div>
               </div>

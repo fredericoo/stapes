@@ -87,7 +87,9 @@ function swapPlateAt(
   if (!plate || !tilesById[plate.tileId]) return null;
   if (!plateTriggers(plate, loadAbove(stack, i, tilesById))) return null;
 
-  const next = stack.map((p, j) => (j === i ? { ...p, tileId: plate.tileId } : p));
+  const next = stack.map((p, j) =>
+    j === i ? { ...p, tileId: plate.tileId } : p,
+  );
   return canReplaceStack(map, cell.x, cell.y, cell.z, next, tilesById).ok
     ? next
     : null;

@@ -4,12 +4,7 @@ import type { ObjectRef } from "../game/GameSession";
 import type { MapFile, TileDef } from "../lib/types";
 import { CELL_SIZE, normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
-import {
-  footRect,
-  pickBattlerAt,
-  pickInteractiveAt,
-  pickTileAt,
-} from "./pick";
+import { footRect, pickBattlerAt, pickInteractiveAt, pickTileAt } from "./pick";
 
 /**
  * Picking is by the tile's foot, not by its art.
@@ -122,7 +117,10 @@ describe("pickInteractiveAt", () => {
       { tileId: "grass" },
       { tileId: "crate" },
     ]);
-    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "crate" }]);
+    map = replaceStack(map, 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "crate" },
+    ]);
     return map;
   }
 
@@ -198,9 +196,9 @@ describe("pickInteractiveAt", () => {
     const ladder: ObjectRef = { x: 0, y: 0, z: 0, stackIndex: 1 };
     const p = onFoot(ladder);
 
-    expect(pickInteractiveAt(ctx(map), p.x, p.y, 0, 0, sameRef(ladder))).toEqual(
-      ladder,
-    );
+    expect(
+      pickInteractiveAt(ctx(map), p.x, p.y, 0, 0, sameRef(ladder)),
+    ).toEqual(ladder);
   });
 
   /** Flat things are not cover either — the same rule pick-up already takes. */
@@ -425,7 +423,10 @@ describe("pickTileAt", () => {
   it("leaves no dead pixels between neighbouring cells", () => {
     let map = emptyMap();
     for (let x = 0; x < 4; x++) {
-      map = replaceStack(map, x, 0, 0, [{ tileId: "slab" }, { tileId: "crate" }]);
+      map = replaceStack(map, x, 0, 0, [
+        { tileId: "slab" },
+        { tileId: "crate" },
+      ]);
     }
     const start = footRect(0, 0, 0);
     const y = start.y + CELL_SIZE / 2;

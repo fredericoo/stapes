@@ -81,12 +81,25 @@ describe("what a landed blow teaches the swinger", () => {
    */
   it("pays agility a small share on top, rather than out of the same pot", () => {
     const earned = attackerEarnings(landed, sword, { blade: 5 }, 1);
-    expect(earned.agility).toBeCloseTo(earned.blade! * AGILITY_SHARE_OF_OFFENCE, 10);
+    expect(earned.agility).toBeCloseTo(
+      earned.blade! * AGILITY_SHARE_OF_OFFENCE,
+      10,
+    );
   });
 
   it("scales with the damage actually dealt", () => {
-    const small = attackerEarnings({ ...landed, damage: 1 }, sword, { blade: 5 }, 1);
-    const large = attackerEarnings({ ...landed, damage: 9 }, sword, { blade: 5 }, 1);
+    const small = attackerEarnings(
+      { ...landed, damage: 1 },
+      sword,
+      { blade: 5 },
+      1,
+    );
+    const large = attackerEarnings(
+      { ...landed, damage: 9 },
+      sword,
+      { blade: 5 },
+      1,
+    );
     expect(large.blade).toBeCloseTo(small.blade! * 9, 10);
   });
 
@@ -155,7 +168,11 @@ describe("what a blow teaches the body it was aimed at", () => {
    * dodge it is the only measure there is of what was escaped.
    */
   it("counts what the blow could have been rather than what got through", () => {
-    const absorbed: AttackOutcome = { ...landed, damage: 1, potentialDamage: 10 };
+    const absorbed: AttackOutcome = {
+      ...landed,
+      damage: 1,
+      potentialDamage: 10,
+    };
     expect(defenderEarnings(absorbed, 1, 1)).toEqual({
       toughness: absorbed.potentialDamage * XP_PER_DAMAGE,
     });
@@ -199,7 +216,9 @@ const frame = {
 function tile(
   partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
 ): TileDef {
-  const interactions = partial.interactions as { battler?: unknown } | undefined;
+  const interactions = partial.interactions as
+    | { battler?: unknown }
+    | undefined;
   return normalizeTileDef({
     name: partial.id,
     directional: false,
@@ -308,7 +327,10 @@ function advance(session: GameSession, ms: number) {
 
 /** The player, and something standing next to them, already fighting. */
 function sparring(opponent = "sparring-partner", seed = 1) {
-  const session = new GameSession(withBody(field(), 1, opponent), tiles, { actorIds: ["me"], seed: seed });
+  const session = new GameSession(withBody(field(), 1, opponent), tiles, {
+    actorIds: ["me"],
+    seed: seed,
+  });
   const foe = session.actorIds().find((id) => id !== "me")!;
   session.setTarget(foe, "me");
   session.setAttackMode(true, "me");
@@ -348,8 +370,11 @@ describe("a player earns from the fights they have", () => {
     session.ratingIn("me");
 
     for (const mastery of MASTERIES) {
-      const authored = (EVENLY_MATCHED as Partial<Record<Mastery, number>>)[mastery] ?? 0;
-      expect(levelForXp(learnt(session.masteryXpOf("me"), mastery))).toBe(authored);
+      const authored =
+        (EVENLY_MATCHED as Partial<Record<Mastery, number>>)[mastery] ?? 0;
+      expect(levelForXp(learnt(session.masteryXpOf("me"), mastery))).toBe(
+        authored,
+      );
     }
   });
 
@@ -372,7 +397,9 @@ describe("a player earns from the fights they have", () => {
 
     advance(session, 4000);
     const after = session.masteryXpOf("me")!;
-    expect(learnt(after, "toughness")).toBeGreaterThan(learnt(before, "toughness"));
+    expect(learnt(after, "toughness")).toBeGreaterThan(
+      learnt(before, "toughness"),
+    );
     // Toughness is what being hit teaches, and it is the only thing it teaches:
     // a body that earned Fist for standing there would be paid for the fight it
     // did not have.

@@ -37,19 +37,38 @@ function tile(partial: Record<string, unknown>): TileDef {
   });
 }
 
-const shard = tile({ id: "shard", interactions: { item: { type: "artifact", pile: 99 } } });
-const bottle = tile({ id: "bottle", interactions: { item: { type: "artifact", pile: 12 } } });
+const shard = tile({
+  id: "shard",
+  interactions: { item: { type: "artifact", pile: 99 } },
+});
+const bottle = tile({
+  id: "bottle",
+  interactions: { item: { type: "artifact", pile: 12 } },
+});
 const potion = tile({
   id: "potion",
-  interactions: { item: { type: "consumable", label: "Drink", hp: 0, pile: 4 } },
+  interactions: {
+    item: { type: "consumable", label: "Drink", hp: 0, pile: 4 },
+  },
 });
 const sword = tile({
   id: "sword",
   interactions: {
-    item: { type: "weapon", damage: 1, def: 0, accuracy: 100, variance: 0, spd: 50, mastery: "blade" },
+    item: {
+      type: "weapon",
+      damage: 1,
+      def: 0,
+      accuracy: 100,
+      variance: 0,
+      spd: 50,
+      mastery: "blade",
+    },
   },
 });
-const bag = tile({ id: "bag", interactions: { item: { ...DEFAULT_CONTAINER, size: 2 } } });
+const bag = tile({
+  id: "bag",
+  interactions: { item: { ...DEFAULT_CONTAINER, size: 2 } },
+});
 
 const tilesById: Record<string, TileDef> = Object.fromEntries(
   [shard, bottle, potion, sword, bag].map((def) => [def.id, def]),
@@ -59,15 +78,25 @@ let minted = 0;
 const mint = () => `itm_${++minted}`;
 
 function pile(tileId: string, count?: number): ItemInstance {
-  return count && count > 1 ? { id: mint(), tileId, count } : { id: mint(), tileId };
+  return count && count > 1
+    ? { id: mint(), tileId, count }
+    : { id: mint(), tileId };
 }
 
-function wearing(contents: ItemInstance[], rest: Partial<Equipment> = {}): Equipment {
-  return { ...emptyEquipment(), bag: { id: "itm_bag", tileId: "bag", contents }, ...rest };
+function wearing(
+  contents: ItemInstance[],
+  rest: Partial<Equipment> = {},
+): Equipment {
+  return {
+    ...emptyEquipment(),
+    bag: { id: "itm_bag", tileId: "bag", contents },
+    ...rest,
+  };
 }
 
 function tally(kit: Equipment) {
-  const name = (i: ItemInstance | null) => (i ? (i.count ? `${i.tileId}x${i.count}` : i.tileId) : null);
+  const name = (i: ItemInstance | null) =>
+    i ? (i.count ? `${i.tileId}x${i.count}` : i.tileId) : null;
   return {
     weapon: name(kit.weapon),
     offhand: name(kit.offhand),
@@ -93,16 +122,32 @@ describe("counting what is carried", () => {
 
 describe("paying", () => {
   it("takes from one pile, leaving the rest", () => {
-    const kit = planTrade(tilesById, wearing([pile("shard", 20)]), [{ tileId: "shard", count: 14 }], [], mint);
+    const kit = planTrade(
+      tilesById,
+      wearing([pile("shard", 20)]),
+      [{ tileId: "shard", count: 14 }],
+      [],
+      mint,
+    );
     expect(tally(kit!).bag).toEqual(["shardx6"]);
   });
 
   it("peels across several piles, hands first, and empties what it drains", () => {
     const kit = wearing([pile("shard", 5), pile("sword")], {
       weapon: pile("shard", 3),
-      offhand: { id: mint(), tileId: "bag", contents: [pile("shard", 6), pile("bottle")] },
+      offhand: {
+        id: mint(),
+        tileId: "bag",
+        contents: [pile("shard", 6), pile("bottle")],
+      },
     });
-    const paid = planTrade(tilesById, kit, [{ tileId: "shard", count: 12 }], [], mint)!;
+    const paid = planTrade(
+      tilesById,
+      kit,
+      [{ tileId: "shard", count: 12 }],
+      [],
+      mint,
+    )!;
     expect(tally(paid)).toMatchObject({
       weapon: null,
       bag: ["sword"],
@@ -112,19 +157,31 @@ describe("paying", () => {
 
   it("refuses when short, and the kit is untouched", () => {
     const kit = wearing([pile("shard", 13)]);
-    expect(planTrade(tilesById, kit, [{ tileId: "shard", count: 14 }], [], mint)).toBeNull();
+    expect(
+      planTrade(tilesById, kit, [{ tileId: "shard", count: 14 }], [], mint),
+    ).toBeNull();
   });
 
   it("refuses to take a container, however many are carried", () => {
-    const kit = wearing([], { offhand: { id: mint(), tileId: "bag", contents: [] } });
-    expect(planTrade(tilesById, kit, [{ tileId: "bag", count: 1 }], [], mint)).toBeNull();
+    const kit = wearing([], {
+      offhand: { id: mint(), tileId: "bag", contents: [] },
+    });
+    expect(
+      planTrade(tilesById, kit, [{ tileId: "bag", count: 1 }], [], mint),
+    ).toBeNull();
   });
 });
 
 describe("being paid", () => {
   it("pours onto a pile already carried, needing no square", () => {
     const kit = wearing([pile("shard", 5), pile("sword")]);
-    const paid = planTrade(tilesById, kit, [], [{ tileId: "shard", count: 2 }], mint)!;
+    const paid = planTrade(
+      tilesById,
+      kit,
+      [],
+      [{ tileId: "shard", count: 2 }],
+      mint,
+    )!;
     expect(tally(paid).bag).toEqual(["shardx7", "sword"]);
   });
 
@@ -144,12 +201,24 @@ describe("being paid", () => {
     const kit = wearing([pile("sword"), pile("sword")], {
       weapon: { id: mint(), tileId: "bag", contents: [pile("sword")] },
     });
-    const paid = planTrade(tilesById, kit, [], [{ tileId: "bottle", count: 3 }], mint)!;
+    const paid = planTrade(
+      tilesById,
+      kit,
+      [],
+      [{ tileId: "bottle", count: 3 }],
+      mint,
+    )!;
     expect(tally(paid)).toMatchObject({
       weaponBag: ["sword", "bottlex3"],
       offhand: null,
     });
-    const more = planTrade(tilesById, paid, [], [{ tileId: "bottle", count: 12 }], mint)!;
+    const more = planTrade(
+      tilesById,
+      paid,
+      [],
+      [{ tileId: "bottle", count: 12 }],
+      mint,
+    )!;
     expect(tally(more)).toMatchObject({
       weaponBag: ["sword", "bottlex12"],
       offhand: "bottlex3",
@@ -161,21 +230,45 @@ describe("being paid", () => {
       weapon: pile("sword"),
       offhand: pile("sword"),
     });
-    expect(planTrade(tilesById, kit, [], [{ tileId: "bottle", count: 1 }], mint)).toBeNull();
-    expect(hasRoomFor(tilesById, kit, { tileId: "bottle", count: 1 }, mint)).toBe(false);
+    expect(
+      planTrade(tilesById, kit, [], [{ tileId: "bottle", count: 1 }], mint),
+    ).toBeNull();
+    expect(
+      hasRoomFor(tilesById, kit, { tileId: "bottle", count: 1 }, mint),
+    ).toBe(false);
   });
 
   it("never gives a container", () => {
-    expect(planTrade(tilesById, wearing([]), [], [{ tileId: "bag", count: 1 }], mint)).toBeNull();
+    expect(
+      planTrade(
+        tilesById,
+        wearing([]),
+        [],
+        [{ tileId: "bag", count: 1 }],
+        mint,
+      ),
+    ).toBeNull();
   });
 
   it("refuses a tile the catalogue does not hold", () => {
-    expect(planTrade(tilesById, wearing([]), [], [{ tileId: "nothing", count: 1 }], mint)).toBeNull();
+    expect(
+      planTrade(
+        tilesById,
+        wearing([]),
+        [],
+        [{ tileId: "nothing", count: 1 }],
+        mint,
+      ),
+    ).toBeNull();
   });
 
   it("answers room for a whole count, not one", () => {
     const kit = wearing([pile("sword")]);
-    expect(hasRoomFor(tilesById, kit, { tileId: "potion", count: 4 }, mint)).toBe(true);
-    expect(hasRoomFor(tilesById, kit, { tileId: "sword", count: 4 }, mint)).toBe(false);
+    expect(
+      hasRoomFor(tilesById, kit, { tileId: "potion", count: 4 }, mint),
+    ).toBe(true);
+    expect(
+      hasRoomFor(tilesById, kit, { tileId: "sword", count: 4 }, mint),
+    ).toBe(false);
   });
 });

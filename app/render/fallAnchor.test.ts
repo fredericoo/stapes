@@ -36,10 +36,46 @@ function tile(partial: Record<string, unknown>): TileDef {
 }
 
 const directionalFrames = {
-  n: [{ sprite: { tilesetId: "basic", rect: { x: 0, y: 0, w: 1, h: 1 }, base: { x: 0, y: 0 } }, durationMs: 200 }],
-  e: [{ sprite: { tilesetId: "basic", rect: { x: 0, y: 0, w: 1, h: 1 }, base: { x: 0, y: 0 } }, durationMs: 200 }],
-  s: [{ sprite: { tilesetId: "basic", rect: { x: 0, y: 0, w: 1, h: 1 }, base: { x: 0, y: 0 } }, durationMs: 200 }],
-  w: [{ sprite: { tilesetId: "basic", rect: { x: 0, y: 0, w: 1, h: 1 }, base: { x: 0, y: 0 } }, durationMs: 200 }],
+  n: [
+    {
+      sprite: {
+        tilesetId: "basic",
+        rect: { x: 0, y: 0, w: 1, h: 1 },
+        base: { x: 0, y: 0 },
+      },
+      durationMs: 200,
+    },
+  ],
+  e: [
+    {
+      sprite: {
+        tilesetId: "basic",
+        rect: { x: 0, y: 0, w: 1, h: 1 },
+        base: { x: 0, y: 0 },
+      },
+      durationMs: 200,
+    },
+  ],
+  s: [
+    {
+      sprite: {
+        tilesetId: "basic",
+        rect: { x: 0, y: 0, w: 1, h: 1 },
+        base: { x: 0, y: 0 },
+      },
+      durationMs: 200,
+    },
+  ],
+  w: [
+    {
+      sprite: {
+        tilesetId: "basic",
+        rect: { x: 0, y: 0, w: 1, h: 1 },
+        base: { x: 0, y: 0 },
+      },
+      durationMs: 200,
+    },
+  ],
 };
 
 const tiles: TileDef[] = [
@@ -65,7 +101,12 @@ function droppingSession(): GameSession {
 /** Where the sprite is drawn, in absolute height units. */
 function drawnFootAbs(session: GameSession): number {
   const snap = session.getSnapshot();
-  const anchor = standingFootAbs(snap.map, tilesById, snap.self, snap.self.stackIndex);
+  const anchor = standingFootAbs(
+    snap.map,
+    tilesById,
+    snap.self,
+    snap.self.stackIndex,
+  );
   return anchor - fallDropPx(snap.map, tilesById, snap.self) / PX_PER_HEIGHT;
 }
 

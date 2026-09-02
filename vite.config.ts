@@ -17,7 +17,8 @@ import { defineConfig } from "vite";
  * through Elysia to match production exactly, is custom code in the hot path of
  * the daily loop to fix something nothing can observe.
  */
-const SERVER_ORIGIN = process.env.STAPES_SERVER_ORIGIN ?? "http://localhost:3000";
+const SERVER_ORIGIN =
+  process.env.STAPES_SERVER_ORIGIN ?? "http://localhost:3000";
 
 /**
  * The directory `node_modules` is actually in, walking up from here.

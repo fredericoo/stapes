@@ -199,7 +199,10 @@ export type RenderedSprite = {
 };
 
 /** Sprite cell size for a model: projection needs vx+vz−1 × vy+vz−1 px. */
-export function spriteCells(size: VoxelSize): { cellsW: number; cellsH: number } {
+export function spriteCells(size: VoxelSize): {
+  cellsW: number;
+  cellsH: number;
+} {
   const { vx, vy, vz } = voxelDims(size);
   return {
     cellsW: Math.ceil((vx + vz - 1) / CELL_SIZE),
@@ -396,8 +399,7 @@ export const voxelProjectSchema = v.pipe(
     "frame voxel data does not match model size",
   ),
   v.check(
-    (p) =>
-      p.frames.every((f) => f.voxels.every((i) => i < p.palette.length)),
+    (p) => p.frames.every((f) => f.voxels.every((i) => i < p.palette.length)),
     "voxel references a palette index that does not exist",
   ),
 );
@@ -501,7 +503,11 @@ function blit(
 export function sheetSprites(
   project: VoxelProject,
   tilesetId: string,
-): { type: "simple" | "directional"; sprite?: TileSprite; sprites?: Partial<Record<Direction, TileSprite>> } {
+): {
+  type: "simple" | "directional";
+  sprite?: TileSprite;
+  sprites?: Partial<Record<Direction, TileSprite>>;
+} {
   const layout = sheetLayout(project);
   const rows = layout.rows;
   const toSprite = (rowIdx: number): TileSprite => ({

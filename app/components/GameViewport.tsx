@@ -269,14 +269,14 @@ export function GameViewport({
     (from: SlotRef, to: SlotRef) => onMoveItem?.(from, to),
     [onMoveItem],
   );
-  const cast = useCallback(
-    (square: CastSquare) => onCast?.(square),
-    [onCast],
-  );
+  const cast = useCallback((square: CastSquare) => onCast?.(square), [onCast]);
   const world = useMemo(
     () => ({
       over: (
-        over: { held: { instance: ItemInstance; from: SlotRef }; point: { x: number; y: number } } | null,
+        over: {
+          held: { instance: ItemInstance; from: SlotRef };
+          point: { x: number; y: number };
+        } | null,
       ) =>
         onDragOverWorld?.(
           over
@@ -329,9 +329,7 @@ export function GameViewport({
   const showBag = bagOpen ?? !coarse;
   const showStats = statsOpen;
   /** The pack in that hand, or null once it is no longer a pack in that hand. */
-  const heldContainer = openHand
-    ? (equipment[openHand] ?? null)
-    : null;
+  const heldContainer = openHand ? (equipment[openHand] ?? null) : null;
 
   /**
    * On a phone the two panels want the same space, so opening one closes the
@@ -679,7 +677,10 @@ export function GameViewport({
             {/* Ruled off from the switch beside it, because they are a
                 different kind of button: the switch changes what a tap on the
                 world means, and these only open something. */}
-            <span className="h-8 w-px shrink-0 bg-paper/20" aria-hidden="true" />
+            <span
+              className="h-8 w-px shrink-0 bg-paper/20"
+              aria-hidden="true"
+            />
             {panelButtons("touch")}
           </div>
         ) : onSay ? (
@@ -790,11 +791,7 @@ export function GameViewport({
               that was already that. The lane takes what is left after the
               reading, so a clock of fixed width never squeezes it to nothing. */}
           <div className="flex shrink-0 items-center gap-2 border-b-2 border-paper/20 pb-2">
-            <StatusStrip
-              statuses={statuses}
-              interactive
-              tilesets={tilesets}
-            />
+            <StatusStrip statuses={statuses} interactive tilesets={tilesets} />
             {readouts ? (
               <div className="flex shrink-0 items-center gap-2">{readouts}</div>
             ) : null}

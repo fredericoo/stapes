@@ -52,7 +52,12 @@ function food(id: string, pile?: number): TileDef {
     kind: "item",
     intangible: true,
     interactions: {
-      item: { type: "consumable", label: "Eat", hp: 1, ...(pile ? { pile } : {}) },
+      item: {
+        type: "consumable",
+        label: "Eat",
+        hp: 1,
+        ...(pile ? { pile } : {}),
+      },
     },
   });
 }
@@ -133,18 +138,28 @@ describe("what piles", () => {
 describe("a counted artifact, in the arithmetic", () => {
   it("fuses like food does", () => {
     expect(
-      fuses({ tileId: "shard", count: 14 }, { tileId: "shard", count: 2 }, tilesById),
+      fuses(
+        { tileId: "shard", count: 14 },
+        { tileId: "shard", count: 2 },
+        tilesById,
+      ),
     ).toBe(true);
   });
 
   it("stops at its own ceiling", () => {
     expect(
-      fuses({ tileId: "shard", count: 98 }, { tileId: "shard", count: 2 }, tilesById),
+      fuses(
+        { tileId: "shard", count: 98 },
+        { tileId: "shard", count: 2 },
+        tilesById,
+      ),
     ).toBe(false);
   });
 
   it("never fuses an uncounted one", () => {
-    expect(fuses({ tileId: "torch" }, { tileId: "torch" }, tilesById)).toBe(false);
+    expect(fuses({ tileId: "torch" }, { tileId: "torch" }, tilesById)).toBe(
+      false,
+    );
   });
 });
 
@@ -181,16 +196,24 @@ describe("fusing", () => {
     // Ten and three is thirteen, and a berry pile stops at twelve. Two would
     // fit; the rule is that a move lands whole or is refused.
     expect(
-      fuses({ tileId: "berry", count: 10 }, { tileId: "berry", count: 3 }, tilesById),
+      fuses(
+        { tileId: "berry", count: 10 },
+        { tileId: "berry", count: 3 },
+        tilesById,
+      ),
     ).toBe(false);
   });
 
   it("refuses two different things, however alike they look", () => {
-    expect(fuses({ tileId: "berry" }, { tileId: "bread" }, tilesById)).toBe(false);
+    expect(fuses({ tileId: "berry" }, { tileId: "bread" }, tilesById)).toBe(
+      false,
+    );
   });
 
   it("refuses anything that does not pile", () => {
-    expect(fuses({ tileId: "sword" }, { tileId: "sword" }, tilesById)).toBe(false);
+    expect(fuses({ tileId: "sword" }, { tileId: "sword" }, tilesById)).toBe(
+      false,
+    );
   });
 
   it("refuses a thing somebody has written on, either side", () => {
@@ -235,17 +258,16 @@ describe("fusing", () => {
   });
 
   it("is nothing when no pile will have it", () => {
-    expect(pourInto([{ tileId: "bread" }], { tileId: "berry" }, tilesById)).toBeNull();
+    expect(
+      pourInto([{ tileId: "bread" }], { tileId: "berry" }, tilesById),
+    ).toBeNull();
     expect(pourInto([], { tileId: "berry" }, tilesById)).toBeNull();
   });
 });
 
 describe("stowing into a container", () => {
   it("pours before it takes a square, so a full bag still takes a berry", () => {
-    const full = [
-      { tileId: "berry", count: 2 },
-      { tileId: "bread" },
-    ];
+    const full = [{ tileId: "berry", count: 2 }, { tileId: "bread" }];
     expect(stowFits(full, { tileId: "berry" }, 2, tilesById)).toBe(true);
     expect(stow(full, { tileId: "berry" }, 2, tilesById)).toEqual([
       { tileId: "berry", count: 3 },
@@ -254,10 +276,9 @@ describe("stowing into a container", () => {
   });
 
   it("takes a square when nothing will pour", () => {
-    expect(stow([{ tileId: "bread" }], { tileId: "berry" }, 2, tilesById)).toEqual([
-      { tileId: "bread" },
-      { tileId: "berry" },
-    ]);
+    expect(
+      stow([{ tileId: "bread" }], { tileId: "berry" }, 2, tilesById),
+    ).toEqual([{ tileId: "bread" }, { tileId: "berry" }]);
   });
 
   it("refuses when there is neither a pour nor a square", () => {
@@ -270,7 +291,9 @@ describe("stowing into a container", () => {
     // Room in the pile for one and a pile of three arriving: no square left, and
     // the pour is all-or-nothing, so the bag is closed to it.
     const full = [{ tileId: "berry", count: 11 }, { tileId: "bread" }];
-    expect(stowFits(full, { tileId: "berry", count: 3 }, 2, tilesById)).toBe(false);
+    expect(stowFits(full, { tileId: "berry", count: 3 }, 2, tilesById)).toBe(
+      false,
+    );
   });
 });
 

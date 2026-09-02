@@ -3,7 +3,11 @@ import { useLoaderData } from "react-router";
 import { AppShell } from "../components/AppShell";
 import { ArenaFighterPanel } from "../components/ArenaFighterPanel";
 import { ArenaMetrics } from "../components/ArenaMetrics";
-import { type Floater, ArenaStage, type StageSide } from "../components/ArenaStage";
+import {
+  type Floater,
+  ArenaStage,
+  type StageSide,
+} from "../components/ArenaStage";
 import {
   type ArenaFighter,
   battlerTiles,
@@ -12,7 +16,13 @@ import {
 } from "../game/arena";
 import { swingOdds } from "../game/combatMetrics";
 import { DAMAGE_NUMBER_LIFETIME_MS, TICK_MS } from "../game/constants";
-import { type DuelEvent, Duel, opponentOf, type Side, SIDES } from "../game/duel";
+import {
+  type DuelEvent,
+  Duel,
+  opponentOf,
+  type Side,
+  SIDES,
+} from "../game/duel";
 import { Rng } from "../game/rng";
 import { fetchBootstrap } from "../lib/api";
 import type { FightingStats } from "../lib/battler";
@@ -238,7 +248,11 @@ export default function ArenaPage() {
           >
             {playing ? "Pause" : "Play"}
           </Button>
-          <Button size="sm" onClick={step} disabled={!ready || snapshot.finished}>
+          <Button
+            size="sm"
+            onClick={step}
+            disabled={!ready || snapshot.finished}
+          >
             Step
           </Button>
           <Button size="sm" onClick={restart} disabled={!ready}>
@@ -249,7 +263,10 @@ export default function ArenaPage() {
             onChange={setSpeed}
             ariaLabel="Playback speed"
             size="sm"
-            options={SPEEDS.map((rate) => ({ value: rate as number, label: `${rate}×` }))}
+            options={SPEEDS.map((rate) => ({
+              value: rate as number,
+              label: `${rate}×`,
+            }))}
           />
           <label className="ml-auto flex items-center gap-2 text-xs">
             <span className="font-bold uppercase text-muted">Seed</span>
@@ -466,7 +483,10 @@ class Runtime {
       // No number floats. The hop is the whole account of a dodge — a word
       // beside it would be the same event told twice.
       this.lean[at] = { atMs: this.duel.elapsedMs, kind: "dodge" };
-      this.note(`${arrow} dodged (worth ${event.outcome.potentialDamage})`, "miss");
+      this.note(
+        `${arrow} dodged (worth ${event.outcome.potentialDamage})`,
+        "miss",
+      );
       return;
     }
 
@@ -474,7 +494,10 @@ class Runtime {
     this.float(at, damage === 0 ? "miss" : "damage", String(damage));
     const absorbed =
       damage === 0 ? ` (armour ate ${event.outcome.potentialDamage})` : "";
-    this.note(`${arrow} −${damage}${absorbed} → ${event.hpLeft} hp`, damage === 0 ? "miss" : "damage");
+    this.note(
+      `${arrow} −${damage}${absorbed} → ${event.hpLeft} hp`,
+      damage === 0 ? "miss" : "damage",
+    );
 
     for (const grant of event.outcome.inflicted) {
       this.note(`${arrow} inflicted ${grant.id}`, "ailment");
@@ -530,7 +553,9 @@ class Runtime {
       maxHp[side] = this.duel.statsOf(side).maxHp;
       ailments[side] = this.duel
         .fighter(side)
-        .statuses.map((status) => statusDefs[status.defId]?.name ?? status.defId);
+        .statuses.map(
+          (status) => statusDefs[status.defId]?.name ?? status.defId,
+        );
     }
 
     return {

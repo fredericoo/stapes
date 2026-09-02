@@ -32,7 +32,10 @@ function lightUniforms(): LevelLightUniforms {
 
 function layer() {
   // Dice pinned at the middle of every range, so a spawn is deterministic.
-  return new ParticleLayer(() => lightUniforms(), () => 0.5);
+  return new ParticleLayer(
+    () => lightUniforms(),
+    () => 0.5,
+  );
 }
 
 function emitter(
@@ -162,7 +165,8 @@ describe("where a particle lands", () => {
     const localElev = 1;
     const z = 2;
     const absolute = z * HEIGHT_PER_LEVEL + localElev;
-    const viaProjection = cell * CELL_SIZE - CELL_SIZE * z - PX_PER_HEIGHT * localElev;
+    const viaProjection =
+      cell * CELL_SIZE - CELL_SIZE * z - PX_PER_HEIGHT * localElev;
     expect(particleWorldPx(cell, absolute)).toBeCloseTo(viaProjection);
   });
 });

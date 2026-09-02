@@ -9,7 +9,13 @@ import {
 } from "../game/dialogRuntime";
 import type { Equipment } from "../game/equipment";
 import { carriedCount, planTrade } from "../game/trade";
-import { clampAmount, resolveDialog, type DialogDef, type DialogTrade, type TradeSide } from "../lib/dialog";
+import {
+  clampAmount,
+  resolveDialog,
+  type DialogDef,
+  type DialogTrade,
+  type TradeSide,
+} from "../lib/dialog";
 import { mintItemId } from "../lib/itemInstance";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
@@ -45,7 +51,8 @@ const ITEM_SPRITE_SIZE_PX = 18;
 const ROW_CLASS =
   "flex min-h-6 w-full items-center gap-1 border px-1 py-0.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent pointer-coarse:min-h-9";
 const OPTION_CLASS = `${ROW_CLASS} border-paper/30 text-paper hover:border-paper hover:bg-paper/10 aria-disabled:border-dashed aria-disabled:border-paper/25 aria-disabled:text-paper/40 aria-disabled:hover:bg-transparent`;
-const LABEL_CLASS = "truncate text-[11px] leading-snug font-medium tracking-tight";
+const LABEL_CLASS =
+  "truncate text-[11px] leading-snug font-medium tracking-tight";
 
 type Props = {
   conversation: Conversation;
@@ -114,7 +121,9 @@ export function ConversationPanel({
             background={null}
           />
         ) : null}
-        <h2 className="text-[11px] font-bold uppercase tracking-wide text-paper/50">{title}</h2>
+        <h2 className="text-[11px] font-bold uppercase tracking-wide text-paper/50">
+          {title}
+        </h2>
         <button
           type="button"
           onClick={() => onTalk({ kind: "close" })}
@@ -147,7 +156,10 @@ export function ConversationPanel({
         {waiting?.kind === "choices" ? (
           <div className="flex flex-col gap-1" key={conversation.pc.join(".")}>
             {waiting.options.map((option, index) => (
-              <PanelButton key={index} onPress={() => onTalk({ kind: "choose", index })}>
+              <PanelButton
+                key={index}
+                onPress={() => onTalk({ kind: "choose", index })}
+              >
                 <span className={LABEL_CLASS}>{option.label}</span>
               </PanelButton>
             ))}
@@ -194,13 +206,19 @@ function TranscriptLine({
   }
   if (entry.who === "you") {
     return (
-      <li data-line={index} className="self-end text-right text-[11px] leading-snug text-paper/60">
+      <li
+        data-line={index}
+        className="self-end text-right text-[11px] leading-snug text-paper/60"
+      >
         <span className="sr-only">You: </span>› {entry.text}
       </li>
     );
   }
   return (
-    <li data-line={index} className="text-[11px] italic leading-snug text-paper/50">
+    <li
+      data-line={index}
+      className="text-[11px] italic leading-snug text-paper/50"
+    >
       {entry.text}
     </li>
   );
@@ -244,9 +262,13 @@ function TradeOffer({
 }) {
   const [amount, setAmount] = useState(clampAmount(trade, undefined));
   const scaled = scaledTrade(trade, amount);
-  const short = scaled.effect === "trade"
-    ? scaled.take.filter((side) => carriedCount(tilesById, equipment, side.tileId) < side.count)
-    : [];
+  const short =
+    scaled.effect === "trade"
+      ? scaled.take.filter(
+          (side) =>
+            carriedCount(tilesById, equipment, side.tileId) < side.count,
+        )
+      : [];
   const plan =
     scaled.effect === "trade" && short.length === 0
       ? planTrade(tilesById, equipment, scaled.take, scaled.give, mintItemId)
@@ -262,13 +284,29 @@ function TradeOffer({
     <div className="flex flex-col gap-1 border border-paper/25 p-1">
       {scaled.effect === "trade" ? (
         <>
-          <TradeSideRow label="You give" sides={scaled.take} tilesById={tilesById} tilesets={tilesets} />
-          <TradeSideRow label="You get" sides={scaled.give} tilesById={tilesById} tilesets={tilesets} />
+          <TradeSideRow
+            label="You give"
+            sides={scaled.take}
+            tilesById={tilesById}
+            tilesets={tilesets}
+          />
+          <TradeSideRow
+            label="You get"
+            sides={scaled.give}
+            tilesById={tilesById}
+            tilesets={tilesets}
+          />
         </>
       ) : null}
       {trade.max > trade.min ? (
         <div className="flex items-stretch gap-1">
-          <button type="button" {...less} aria-label="Fewer" aria-disabled={amount <= trade.min} className={stepClass}>
+          <button
+            type="button"
+            {...less}
+            aria-label="Fewer"
+            aria-disabled={amount <= trade.min}
+            className={stepClass}
+          >
             <IconMinus size={STEP_ICON_SIZE_PX} stroke={3} aria-hidden="true" />
           </button>
           <output
@@ -277,7 +315,13 @@ function TradeOffer({
           >
             ×{amount}
           </output>
-          <button type="button" {...more} aria-label="More" aria-disabled={amount >= trade.max} className={stepClass}>
+          <button
+            type="button"
+            {...more}
+            aria-label="More"
+            aria-disabled={amount >= trade.max}
+            className={stepClass}
+          >
             <IconPlus size={STEP_ICON_SIZE_PX} stroke={3} aria-hidden="true" />
           </button>
         </div>
@@ -289,7 +333,9 @@ function TradeOffer({
         </p>
       ))}
       {short.length === 0 && !possible ? (
-        <p className="text-[11px] leading-snug text-paper/60">There is nowhere on you to put what you would get.</p>
+        <p className="text-[11px] leading-snug text-paper/60">
+          There is nowhere on you to put what you would get.
+        </p>
       ) : null}
       <div className="flex gap-1">
         <PanelButton
@@ -299,7 +345,10 @@ function TradeOffer({
         >
           <span className={LABEL_CLASS}>Trade</span>
         </PanelButton>
-        <PanelButton className={`${OPTION_CLASS} flex-1`} onPress={() => onTalk({ kind: "cancel" })}>
+        <PanelButton
+          className={`${OPTION_CLASS} flex-1`}
+          onPress={() => onTalk({ kind: "cancel" })}
+        >
           <span className={LABEL_CLASS}>Cancel</span>
         </PanelButton>
       </div>
@@ -320,14 +369,28 @@ function TradeSideRow({
 }) {
   return (
     <div className="flex flex-wrap items-center gap-1 text-[11px] text-paper">
-      <span className="w-14 shrink-0 text-[10px] uppercase text-paper/50">{label}</span>
-      {sides.length === 0 ? <span className="text-paper/50">nothing</span> : null}
+      <span className="w-14 shrink-0 text-[10px] uppercase text-paper/50">
+        {label}
+      </span>
+      {sides.length === 0 ? (
+        <span className="text-paper/50">nothing</span>
+      ) : null}
       {sides.map((side) => {
         const def = tilesById[side.tileId];
         return (
-          <span key={side.tileId} className="flex items-center gap-1 border border-paper/20 px-1">
+          <span
+            key={side.tileId}
+            className="flex items-center gap-1 border border-paper/20 px-1"
+          >
             {def ? (
-              <TilePreview tile={def} tilesets={tilesets} size={ITEM_SPRITE_SIZE_PX} still chrome={false} background={null} />
+              <TilePreview
+                tile={def}
+                tilesets={tilesets}
+                size={ITEM_SPRITE_SIZE_PX}
+                still
+                chrome={false}
+                background={null}
+              />
             ) : null}
             <span className="tabular-nums">×{side.count}</span>
             <span className="truncate">{def?.name ?? side.tileId}</span>
@@ -351,7 +414,12 @@ function PanelButton({
 }) {
   const press = useTap(onPress);
   return (
-    <button type="button" {...press} aria-disabled={disabled} className={className}>
+    <button
+      type="button"
+      {...press}
+      aria-disabled={disabled}
+      className={className}
+    >
       {children}
     </button>
   );

@@ -344,7 +344,11 @@ const radiusPx = v.pipe(
 
 const particlesSchema = v.pipe(
   v.object({
-    ratePerSecond: v.pipe(v.number(), v.minValue(0), v.maxValue(MAX_PARTICLE_RATE)),
+    ratePerSecond: v.pipe(
+      v.number(),
+      v.minValue(0),
+      v.maxValue(MAX_PARTICLE_RATE),
+    ),
     ttlFromMs: particleTtlMs,
     ttlToMs: particleTtlMs,
     spawnRadiusCells: v.pipe(v.number(), v.minValue(0), v.maxValue(4)),
@@ -372,12 +376,18 @@ const particlesSchema = v.pipe(
   // does — and for the same reason: the editor keeps both pairs ordered, so
   // nothing authored through it can land here, and anything that does was
   // written by hand and is a mistake rather than a shorthand.
-  v.check((raw) => raw.ttlToMs >= raw.ttlFromMs, "particle ttl range is inverted"),
+  v.check(
+    (raw) => raw.ttlToMs >= raw.ttlFromMs,
+    "particle ttl range is inverted",
+  ),
   v.check(
     (raw) => raw.spawnElevTo >= raw.spawnElevFrom,
     "particle spawn elevation range is inverted",
   ),
-  v.check((raw) => raw.riseTo >= raw.riseFrom, "particle rise range is inverted"),
+  v.check(
+    (raw) => raw.riseTo >= raw.riseFrom,
+    "particle rise range is inverted",
+  ),
 );
 
 /**
@@ -533,10 +543,7 @@ export function taperAt(remainingMs: number, taperMs: number): number {
 }
 
 /** A tint worn as hard as the taper says it still is. */
-export function taperedTint(
-  tint: StatusTint,
-  taper: number,
-): StatusTint {
+export function taperedTint(tint: StatusTint, taper: number): StatusTint {
   if (taper >= 1) return tint;
   return { ...tint, strength: tint.strength * taper };
 }

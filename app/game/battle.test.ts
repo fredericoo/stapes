@@ -7,7 +7,11 @@ import { conditionLeaves } from "../lib/conditions";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import { statusesById } from "../lib/status";
 import type { MapFile, TileDef } from "../lib/types";
-import { HEIGHT_PER_LEVEL, normalizeTileDef, normalizeTiles } from "../lib/types";
+import {
+  HEIGHT_PER_LEVEL,
+  normalizeTileDef,
+  normalizeTiles,
+} from "../lib/types";
 import {
   ASSAILANT_GRACE_MS,
   attackIntervalMs,
@@ -172,7 +176,10 @@ const tiles: TileDef[] = [
     actor: true,
     walkable: false,
     interactions: {
-      battler: { masteries: { toughness: DUMMY_TOUGHNESS }, naturalWeapon: claws({}) },
+      battler: {
+        masteries: { toughness: DUMMY_TOUGHNESS },
+        naturalWeapon: claws({}),
+      },
     },
   }),
   // Armoured past anything the player can do to it.
@@ -185,7 +192,10 @@ const tiles: TileDef[] = [
       // Defence is the weapon's here: nothing is worn, and what a held thing
       // turns aside is its own `def`. Armour is the other source — see
       // `./equipment`'s `wornDefence`.
-      battler: { masteries: { toughness: 2 }, naturalWeapon: claws({ def: 99 }) },
+      battler: {
+        masteries: { toughness: 2 },
+        naturalWeapon: claws({ def: 99 }),
+      },
     },
   }),
   tile({
@@ -218,7 +228,9 @@ const tiles: TileDef[] = [
           // armour swallowed would assert the plumbing by accident.
           damage: feltBy(PLAYER_TOUGHNESS),
           ...CERTAIN,
-          statuses: [{ id: "venom", chance: 100, fromMs: 30_000, toMs: 60_000 }],
+          statuses: [
+            { id: "venom", chance: 100, fromMs: 30_000, toMs: 60_000 },
+          ],
         }),
       },
       brain: brawlerBrain,
@@ -341,7 +353,10 @@ function fight(session: GameSession, actorId: string | null) {
 
 describe("hit points", () => {
   it("start full, and only exist on a body that has stats", () => {
-    const session = new GameSession(withBody(withBody(field(), 1, 0, "dummy"), 2, 0, "statue"), tiles);
+    const session = new GameSession(
+      withBody(withBody(field(), 1, 0, "dummy"), 2, 0, "statue"),
+      tiles,
+    );
 
     expect(self(session).hp).toBe(PLAYER_MAX_HP);
     expect(self(session).maxHp).toBe(PLAYER_MAX_HP);
@@ -439,7 +454,10 @@ describe("swinging at a target", () => {
           })
         : t,
     );
-    const session = new GameSession(withBody(field(), 1, 0, "dummy"), slowPlayer);
+    const session = new GameSession(
+      withBody(field(), 1, 0, "dummy"),
+      slowPlayer,
+    );
     fight(session, bodyOf(session, "dummy")!.id);
 
     const interval = attackIntervalMs(0);
@@ -842,7 +860,10 @@ describe("shooting at somebody", () => {
    * anything melee can touch, and the blow lands anyway.
    */
   it("lands a blow far past arm's reach", () => {
-    const session = new GameSession(withBody(field(6), 4, 0, "dummy"), archerTiles);
+    const session = new GameSession(
+      withBody(field(6), 4, 0, "dummy"),
+      archerTiles,
+    );
     fight(session, bodyOf(session, "dummy")!.id);
 
     advance(session, 1000);
@@ -856,7 +877,10 @@ describe("shooting at somebody", () => {
    * gate written on distance alone would lean here. What decides is the weapon.
    */
   it("never leans, even at point-blank range", () => {
-    const session = new GameSession(withBody(field(), 1, 0, "dummy"), archerTiles);
+    const session = new GameSession(
+      withBody(field(), 1, 0, "dummy"),
+      archerTiles,
+    );
     fight(session, bodyOf(session, "dummy")!.id);
 
     advance(session, 1000);
@@ -867,7 +891,10 @@ describe("shooting at somebody", () => {
 
   /** What a shot puts in the air, aimed from where the shooter is to where they are. */
   it("puts an arrow in the air, from the bow to the target", () => {
-    const session = new GameSession(withBody(field(6), 4, 0, "dummy"), archerTiles);
+    const session = new GameSession(
+      withBody(field(6), 4, 0, "dummy"),
+      archerTiles,
+    );
     fight(session, bodyOf(session, "dummy")!.id);
 
     advanceUntil(session, () => arrows(session).length > 0);
@@ -885,7 +912,10 @@ describe("shooting at somebody", () => {
    * why that is the only arrangement two clients can agree about.
    */
   it("takes the hit points before the arrow arrives", () => {
-    const session = new GameSession(withBody(field(6), 4, 0, "dummy"), archerTiles);
+    const session = new GameSession(
+      withBody(field(6), 4, 0, "dummy"),
+      archerTiles,
+    );
     fight(session, bodyOf(session, "dummy")!.id);
 
     advanceUntil(session, () => arrows(session).length > 0);
@@ -923,7 +953,10 @@ describe("shooting at somebody", () => {
    */
   it("cannot shoot past the height its reach allows", () => {
     let map = field(6);
-    map = replaceStack(map, 1, 0, 2, [{ tileId: "grass" }, { tileId: "dummy" }]);
+    map = replaceStack(map, 1, 0, 2, [
+      { tileId: "grass" },
+      { tileId: "dummy" },
+    ]);
     const session = new GameSession(map, archerTiles);
     fight(session, bodyOf(session, "dummy")!.id);
 
@@ -1058,7 +1091,8 @@ describe("venom", () => {
     advance(session, ENOUGH_SWINGS_MS);
 
     expect(bodyOf(session, "dummy")!.hp!).toBeLessThan(DUMMY_MAX_HP);
-    expect(statusesOn(session, "dummy")).toEqual([]);  });
+    expect(statusesOn(session, "dummy")).toEqual([]);
+  });
 });
 
 /**

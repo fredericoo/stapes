@@ -275,10 +275,14 @@ function slide(
 
   for (let step = 0; step <= taken.length; step++) {
     if (!fitsVertically(top, height, view)) return null;
-    const hit = taken.find((rect) => overlaps({ ...wanted, top, bottom: top + height }, rect));
+    const hit = taken.find((rect) =>
+      overlaps({ ...wanted, top, bottom: top + height }, rect),
+    );
     if (!hit) return top;
     top =
-      direction < 0 ? hit.top - LABEL_GAP_PX - height : hit.bottom + LABEL_GAP_PX;
+      direction < 0
+        ? hit.top - LABEL_GAP_PX - height
+        : hit.bottom + LABEL_GAP_PX;
   }
 
   return null;
@@ -289,7 +293,9 @@ function fitsVertically(
   height: number,
   view: { width: number; height: number },
 ): boolean {
-  return top >= VIEW_PADDING_PX && top + height <= view.height - VIEW_PADDING_PX;
+  return (
+    top >= VIEW_PADDING_PX && top + height <= view.height - VIEW_PADDING_PX
+  );
 }
 
 /** Touching edges are not an overlap; the gap above is what keeps them apart. */

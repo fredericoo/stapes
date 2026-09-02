@@ -2,7 +2,12 @@ import type { ActorSnapshot } from "../game/GameSession";
 import { sceneryStack } from "../game/movement";
 import { PX_PER_HEIGHT } from "../lib/geometry";
 import { stackHeight } from "../lib/mapData";
-import { HEIGHT_PER_LEVEL, type Coord, type MapFile, type TileDef } from "../lib/types";
+import {
+  HEIGHT_PER_LEVEL,
+  type Coord,
+  type MapFile,
+  type TileDef,
+} from "../lib/types";
 
 /**
  * Absolute elevation of the surface a placed tile is standing on.

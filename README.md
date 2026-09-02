@@ -116,7 +116,7 @@ strictness settings are the same in all three, so a module shared between
 
 `bun run lint` (oxlint) and `bun run format` (oxfmt), both pinned to an exact
 version: a formatter that moves under you mid-branch turns one review into two.
-CI runs both beside the typecheck.
+CI runs `lint` and `format:check` beside the typecheck.
 
 **`.oxlintrc.json` is worth reading before adding to it.** It denies
 `correctness`, `suspicious` and `perf`, and the rules it turns off each carry
@@ -132,9 +132,12 @@ handful of effects that set or derive state, and the editor's unlabelled
 controls. They are warnings so the count stays visible rather than being
 denied and then ignored.
 
-`.oxfmtrc.json` ignores `data/`: `serializeMap` round-trips those files
-byte-for-byte, so reformatting them would make the editor's next Save a
-whole-file diff.
+**oxfmt only formats TypeScript here.** `.oxfmtrc.json` ignores three things,
+each for its own reason: `data/`, because `serializeMap` round-trips those files
+byte-for-byte and reformatting them would make the editor's next Save a
+whole-file diff; Markdown, because the prose is hand-wrapped and oxfmt rewrites
+`*emphasis*` to `_emphasis_`; and `app/app.css`, whose text-shadow rings are
+laid out as a grid of offsets that the formatter flattens into a list.
 
 ## Third-party assets
 

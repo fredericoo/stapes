@@ -576,7 +576,8 @@ export class WorldLabelLayer {
       // the number the layout pass needs is the box the browser actually made:
       // bricks, borders and the rounding of a fractional em all included. It is
       // read here with the rest so it costs no extra layout flush.
-      barWidth: element.querySelector<HTMLElement>(`.${BAR_CLASS}`)?.offsetWidth,
+      barWidth: element.querySelector<HTMLElement>(`.${BAR_CLASS}`)
+        ?.offsetWidth,
     };
     entry.size = size;
     return size;

@@ -84,7 +84,11 @@ describe("the order", () => {
    * `+N`, the thing that gets dropped must not be the poison.
    */
   it("puts a harmful status ahead of a longer benign one", () => {
-    const poison = status({ defId: "poisoned", tone: "bad", remainingMs: 1_000 });
+    const poison = status({
+      defId: "poisoned",
+      tone: "bad",
+      remainingMs: 1_000,
+    });
     const fed = status({ defId: "fed", tone: "good", remainingMs: 999_000 });
     expect([fed, poison].sort(compareStatuses).map((s) => s.defId)).toEqual([
       "poisoned",
@@ -104,21 +108,25 @@ describe("the order", () => {
 
 describe("how full the bar is", () => {
   it("reads against the status's full duration", () => {
-    expect(statusFraction(status({ remainingMs: 15_000, fullDurationMs: 30_000 })))
-      .toBeCloseTo(0.5);
+    expect(
+      statusFraction(status({ remainingMs: 15_000, fullDurationMs: 30_000 })),
+    ).toBeCloseTo(0.5);
   });
 
   /** A short roll starts short, which is the reading the reference is chosen for. */
   it("starts a badly rolled status below full", () => {
-    expect(statusFraction(status({ remainingMs: 10_000, fullDurationMs: 30_000 })))
-      .toBeCloseTo(1 / 3);
+    expect(
+      statusFraction(status({ remainingMs: 10_000, fullDurationMs: 30_000 })),
+    ).toBeCloseTo(1 / 3);
   });
 
   it("never runs past either end", () => {
-    expect(statusFraction(status({ remainingMs: 99_000, fullDurationMs: 30_000 })))
-      .toBe(1);
-    expect(statusFraction(status({ remainingMs: -5, fullDurationMs: 30_000 })))
-      .toBe(0);
+    expect(
+      statusFraction(status({ remainingMs: 99_000, fullDurationMs: 30_000 })),
+    ).toBe(1);
+    expect(
+      statusFraction(status({ remainingMs: -5, fullDurationMs: 30_000 })),
+    ).toBe(0);
   });
 
   /**

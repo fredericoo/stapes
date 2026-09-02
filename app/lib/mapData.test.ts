@@ -41,7 +41,8 @@ describe("mapData copy-on-write", () => {
     // survive, and the whole reason levels are chunked.
     const elsewhere = coords.find((c) => chunkKeyFor(c.x, c.y) !== chk)!;
     expect(elsewhere).toBeTruthy();
-    const otherChunkBefore = levelBefore[chunkKeyFor(elsewhere.x, elsewhere.y)]!;
+    const otherChunkBefore =
+      levelBefore[chunkKeyFor(elsewhere.x, elsewhere.y)]!;
 
     const nextStack: PlacedTile[] = [{ tileId: "grass" }];
     const next = replaceStack(fixtureMap, target.x, target.y, z, nextStack);
@@ -228,10 +229,7 @@ describe("intangible physical height", () => {
 
   it("ignores intangible volume in stackHeight", () => {
     expect(
-      stackHeight(
-        [{ tileId: "grass" }, { tileId: "door-open" }],
-        tilesById,
-      ),
+      stackHeight([{ tileId: "grass" }, { tileId: "door-open" }], tilesById),
     ).toBe(0);
     expect(
       stackHeight([{ tileId: "wall" }, { tileId: "torch" }], tilesById),
@@ -246,26 +244,20 @@ describe("intangible physical height", () => {
       ),
     ).toEqual({ tileId: "grass" });
 
-    const map = replaceStack(
-      { version: 1, levels: {} },
-      0,
-      0,
-      0,
-      [{ tileId: "grass" }, { tileId: "door-open" }],
-    );
+    const map = replaceStack({ version: 1, levels: {} }, 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "door-open" },
+    ]);
     expect(surfaceTileAt(map, 0, 0, 0, tilesById)).toEqual({
       tileId: "grass",
     });
   });
 
   it("lets a full-height body stand through an intangible door", () => {
-    const map = replaceStack(
-      { version: 1, levels: {} },
-      1,
-      0,
-      0,
-      [{ tileId: "grass" }, { tileId: "door-open" }],
-    );
+    const map = replaceStack({ version: 1, levels: {} }, 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "door-open" },
+    ]);
     const player = tile({ id: "player", height: 4 });
     expect(fitsAtElevation(map, 1, 0, 0, player, tilesById).ok).toBe(true);
     // Same cell with a solid wall still blocks.
@@ -277,16 +269,12 @@ describe("intangible physical height", () => {
   });
 
   it("places an intangible full-height tile like a height-0 plate", () => {
-    const map = replaceStack(
-      { version: 1, levels: {} },
-      0,
-      0,
-      0,
-      [{ tileId: "wall" }],
+    const map = replaceStack({ version: 1, levels: {} }, 0, 0, 0, [
+      { tileId: "wall" },
+    ]);
+    expect(fitsTile(map, 0, 0, 0, tilesById["door-open"]!, tilesById).ok).toBe(
+      true,
     );
-    expect(
-      fitsTile(map, 0, 0, 0, tilesById["door-open"]!, tilesById).ok,
-    ).toBe(true);
   });
 });
 

@@ -116,8 +116,7 @@ describe("the fill", () => {
  * `VIEW_PX` world pixels however big the pane is, so one cell of `CELL_SIZE`
  * gets that share of it.
  */
-const cellPxForPane = (paneCssPx: number) =>
-  CELL_SIZE * (paneCssPx / VIEW_PX);
+const cellPxForPane = (paneCssPx: number) => CELL_SIZE * (paneCssPx / VIEW_PX);
 
 /** `--world-label-brick` at the size the world draws its type. @see app/app.css */
 const BRICK_PX = 2;
@@ -156,9 +155,9 @@ describe("fitting a track to a cell", () => {
   });
 
   it("grows with the window rather than staying put", () => {
-    expect(
-      healthBarTrackBricks(cellPxForPane(1200), BRICK_PX),
-    ).toBeGreaterThan(healthBarTrackBricks(cellPxForPane(600), BRICK_PX));
+    expect(healthBarTrackBricks(cellPxForPane(1200), BRICK_PX)).toBeGreaterThan(
+      healthBarTrackBricks(cellPxForPane(600), BRICK_PX),
+    );
   });
 
   /**
@@ -185,9 +184,9 @@ describe("the fill in a track that is not the default length", () => {
    * a nominal 24 the bar over a head no longer has.
    */
   it("keeps the last hit point and never rounds a scratch back to full", () => {
-    expect(healthBarFillBricks(healthFraction(1, 500), SHORT_TRACK_BRICKS)).toBe(
-      1,
-    );
+    expect(
+      healthBarFillBricks(healthFraction(1, 500), SHORT_TRACK_BRICKS),
+    ).toBe(1);
     expect(
       healthBarFillBricks(healthFraction(499, 500), SHORT_TRACK_BRICKS),
     ).toBeLessThan(SHORT_TRACK_BRICKS);

@@ -87,7 +87,6 @@ const DENSE_MIN_SLOT_PX = 40;
  */
 const MAX_SLOT_SIZE_PX = 72;
 
-
 /**
  * What a square is captioned with — the thing's *kind*, not what is written on
  * it.
@@ -134,9 +133,7 @@ export function containerSlotGrid(availablePx: number): {
     availablePx >=
     DENSE_COLUMNS * DENSE_MIN_SLOT_PX + (DENSE_COLUMNS - 1) * SLOT_GAP_PX;
   const columns = dense ? DENSE_COLUMNS : SPARSE_COLUMNS;
-  const fit = Math.floor(
-    (availablePx - (columns - 1) * SLOT_GAP_PX) / columns,
-  );
+  const fit = Math.floor((availablePx - (columns - 1) * SLOT_GAP_PX) / columns);
   // Floored at the dense minimum as well as capped: a panel measured at zero —
   // the first render, before the observer has said anything — must not draw a
   // row of nothing.

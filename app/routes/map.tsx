@@ -19,11 +19,7 @@ import type { Route } from "./+types/map";
 import { AppShell } from "../components/AppShell";
 import { LightingToggle } from "../components/LightingToggle";
 import { MapPanels } from "../editor/panels/MapPanels";
-import {
-  useEditorStore,
-  ZOOM_LEVELS,
-  snapZoom,
-} from "../editor/store";
+import { useEditorStore, ZOOM_LEVELS, snapZoom } from "../editor/store";
 import { formatClock, MINUTES_PER_DAY } from "../lib/clock";
 import type { MapFile } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL, clampLevel } from "../lib/types";

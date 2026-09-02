@@ -4,7 +4,12 @@ import type { Route } from "./+types/statuses";
 import { AppShell } from "../components/AppShell";
 import { StatusEditorDialog } from "../components/StatusEditorDialog";
 import { SpritePreview } from "../components/TilePreview";
-import { fetchStatuses, fetchTiles, fetchTilesets, saveStatuses } from "../lib/api";
+import {
+  fetchStatuses,
+  fetchTiles,
+  fetchTilesets,
+  saveStatuses,
+} from "../lib/api";
 import { TITLE_SPRITE_SIZE_PX } from "../components/ContainerPanel";
 import {
   completeSprite,
@@ -94,7 +99,9 @@ export default function StatusesPage() {
     <AppShell>
       <div className="flex flex-col gap-3 p-3">
         <div className="flex items-center gap-2">
-          <h1 className="text-sm font-bold uppercase tracking-wide">Statuses</h1>
+          <h1 className="text-sm font-bold uppercase tracking-wide">
+            Statuses
+          </h1>
           <Button
             className="ml-auto"
             onClick={() => setEditing({ ...DEFAULT_STATUS_SOURCE })}
@@ -141,7 +148,10 @@ export default function StatusesPage() {
                       malformed
                     </span>
                   )}
-                  <Button className="ml-auto" onClick={() => setEditing(status)}>
+                  <Button
+                    className="ml-auto"
+                    onClick={() => setEditing(status)}
+                  >
                     Edit
                   </Button>
                   <Button onClick={() => remove(status.id)}>Delete</Button>

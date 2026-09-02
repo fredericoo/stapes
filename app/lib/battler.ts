@@ -555,7 +555,11 @@ export function hitChanceFrom(accuracy: number): number {
  */
 export const DEFAULT_BATTLER: BattlerDef = {
   masteries: { fist: 8, toughness: 8, agility: 8 },
-  naturalWeapon: { ...DEFAULT_WEAPON, mastery: "fist", reach: { ...MELEE_REACH } },
+  naturalWeapon: {
+    ...DEFAULT_WEAPON,
+    mastery: "fist",
+    reach: { ...MELEE_REACH },
+  },
   sight: { up: 0, down: 0 },
   // Nothing, because what a body carries is the one part of it an author has to
   // decide: a default sword would arm every creature anybody ticks the Battler

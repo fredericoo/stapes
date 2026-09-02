@@ -50,7 +50,8 @@ describe("containerSlotGrid", () => {
       const used = columns * slotPx + (columns - 1) * 4;
       // Below a single row of squares at their floor there is nothing left to
       // give, and they stop shrinking rather than becoming unhittable.
-      if (width >= 2 * ITEM_SLOT_SIZE_PX + 4) expect(used).toBeLessThanOrEqual(width);
+      if (width >= 2 * ITEM_SLOT_SIZE_PX + 4)
+        expect(used).toBeLessThanOrEqual(width);
     }
   });
 
@@ -66,7 +67,8 @@ describe("containerSlotGrid", () => {
   });
 
   it("draws a usable square before anything has measured", () => {
-    expect(containerSlotGrid(0).slotPx).toBeGreaterThanOrEqual(DENSE_MIN_SLOT_PX);
+    expect(containerSlotGrid(0).slotPx).toBeGreaterThanOrEqual(
+      DENSE_MIN_SLOT_PX,
+    );
   });
 });
-

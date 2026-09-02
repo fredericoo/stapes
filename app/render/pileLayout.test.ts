@@ -69,8 +69,12 @@ describe("the die faces", () => {
 
   it("holds every face the same distance apart, so a face reads as a face", () => {
     const reach = (n: number) =>
-      Math.max(...pileOffsets(n).map((o) => Math.max(Math.abs(o.dx), Math.abs(o.dy))));
-    expect([2, 3, 4, 5, 6].map(reach)).toEqual([2, 3, 4, 5, 6].map(() => reach(2)));
+      Math.max(
+        ...pileOffsets(n).map((o) => Math.max(Math.abs(o.dx), Math.abs(o.dy))),
+      );
+    expect([2, 3, 4, 5, 6].map(reach)).toEqual(
+      [2, 3, 4, 5, 6].map(() => reach(2)),
+    );
   });
 });
 
@@ -83,7 +87,9 @@ describe("past six, where there is no face to copy", () => {
 
   it("spreads wider than a die face, because there is more to fit", () => {
     const reach = (n: number) =>
-      Math.max(...pileOffsets(n).map((o) => Math.max(Math.abs(o.dx), Math.abs(o.dy))));
+      Math.max(
+        ...pileOffsets(n).map((o) => Math.max(Math.abs(o.dx), Math.abs(o.dy))),
+      );
     expect(reach(12)).toBeGreaterThan(reach(6));
   });
 });

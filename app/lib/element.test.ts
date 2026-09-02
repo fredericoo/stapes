@@ -51,9 +51,18 @@ describe("effectiveness", () => {
   });
 
   it("pays an edge for the right side of the wheel", () => {
-    expect(effectiveness(["water"], ["fire"])).toBeCloseTo(EFFECTIVENESS_EDGE, 6);
-    expect(effectiveness(["fire"], ["nature"])).toBeCloseTo(EFFECTIVENESS_EDGE, 6);
-    expect(effectiveness(["nature"], ["water"])).toBeCloseTo(EFFECTIVENESS_EDGE, 6);
+    expect(effectiveness(["water"], ["fire"])).toBeCloseTo(
+      EFFECTIVENESS_EDGE,
+      6,
+    );
+    expect(effectiveness(["fire"], ["nature"])).toBeCloseTo(
+      EFFECTIVENESS_EDGE,
+      6,
+    );
+    expect(effectiveness(["nature"], ["water"])).toBeCloseTo(
+      EFFECTIVENESS_EDGE,
+      6,
+    );
   });
 
   it("charges its exact reciprocal for the wrong side", () => {
@@ -75,7 +84,10 @@ describe("effectiveness", () => {
 
   it("multiplies per element being defended", () => {
     // Fire beats the nature half and loses to the water half, so the two cancel.
-    expect(effectiveness(["fire"], ["nature", "water"])).toBeCloseTo(NEUTRAL, 6);
+    expect(effectiveness(["fire"], ["nature", "water"])).toBeCloseTo(
+      NEUTRAL,
+      6,
+    );
     // Nothing on the wheel answers either half, so neither moves.
     expect(effectiveness(["fire"], ["fire", "fire"])).toBe(NEUTRAL);
   });

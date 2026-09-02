@@ -212,9 +212,9 @@ describe("why a stone cannot be cast", () => {
    * there is no stone there.
    */
   it("refuses a square holding something that is not a stone", () => {
-    expect(castability(context({ weapon: instance("sword") }), "weapon")).toEqual(
-      { ok: false, reason: "empty" },
-    );
+    expect(
+      castability(context({ weapon: instance("sword") }), "weapon"),
+    ).toEqual({ ok: false, reason: "empty" });
   });
 
   it("refuses a stone that is still cooling", () => {
@@ -242,7 +242,10 @@ describe("why a stone cannot be cast", () => {
   it("refuses a stone whose mastery has not been earned", () => {
     expect(
       castability(
-        context({ weapon: instance("adept-stone") }, { masteries: { arcane: 9 } }),
+        context(
+          { weapon: instance("adept-stone") },
+          { masteries: { arcane: 9 } },
+        ),
         "weapon",
       ),
     ).toEqual({ ok: false, reason: "mastery" });
@@ -494,7 +497,9 @@ describe("what a row of buttons says", () => {
    */
   it("reads the same across one second of cooling", () => {
     const at = (cooldownMs: number) =>
-      spellReading(castableStones(context({ weapon: instance("mend-stone", cooldownMs) })));
+      spellReading(
+        castableStones(context({ weapon: instance("mend-stone", cooldownMs) })),
+      );
     // Two different instances, so only the *reading* can make these agree.
     expect(at(4_400).replace(/itm_\d+/, "x")).toBe(
       at(4_001).replace(/itm_\d+/, "x"),
@@ -531,8 +536,12 @@ describe("a stone that fires on its own", () => {
   const flame = resolveStone(tilesById["flame-stone"]!)!;
 
   it("waits until a mend would put something back", () => {
-    expect(automaticFires(mend, { hp: 20, maxHp: 20, statusIds: [] })).toBe(false);
-    expect(automaticFires(mend, { hp: 19, maxHp: 20, statusIds: [] })).toBe(true);
+    expect(automaticFires(mend, { hp: 20, maxHp: 20, statusIds: [] })).toBe(
+      false,
+    );
+    expect(automaticFires(mend, { hp: 19, maxHp: 20, statusIds: [] })).toBe(
+      true,
+    );
   });
 
   /**
@@ -542,8 +551,12 @@ describe("a stone that fires on its own", () => {
    */
   it("fires a harming bolt whenever it is ready", () => {
     const curse = resolveStone(tilesById["bolt-stone"]!)!;
-    expect(automaticFires(curse, { hp: 20, maxHp: 20, statusIds: [] })).toBe(true);
-    expect(automaticFires(curse, { hp: 1, maxHp: 20, statusIds: [] })).toBe(true);
+    expect(automaticFires(curse, { hp: 20, maxHp: 20, statusIds: [] })).toBe(
+      true,
+    );
+    expect(automaticFires(curse, { hp: 1, maxHp: 20, statusIds: [] })).toBe(
+      true,
+    );
   });
 
   /**
@@ -559,7 +572,9 @@ describe("a stone that fires on its own", () => {
       automaticFires(both, { hp: 20, maxHp: 20, statusIds: ["luminous"] }),
     ).toBe(false);
     // Full health, no ward — the ward is worth having.
-    expect(automaticFires(both, { hp: 20, maxHp: 20, statusIds: [] })).toBe(true);
+    expect(automaticFires(both, { hp: 20, maxHp: 20, statusIds: [] })).toBe(
+      true,
+    );
     // Hurt, already glowing — the mend is.
     expect(
       automaticFires(both, { hp: 19, maxHp: 20, statusIds: ["luminous"] }),
@@ -570,12 +585,16 @@ describe("a stone that fires on its own", () => {
     expect(
       automaticFires(ward, { hp: 20, maxHp: 20, statusIds: ["luminous"] }),
     ).toBe(false);
-    expect(automaticFires(ward, { hp: 20, maxHp: 20, statusIds: [] })).toBe(true);
+    expect(automaticFires(ward, { hp: 20, maxHp: 20, statusIds: [] })).toBe(
+      true,
+    );
   });
 
   /** A flame laid on an empty floor is still a flame; there is nothing to waste. */
   it("fires a conjure the moment it can", () => {
-    expect(automaticFires(flame, { hp: 20, maxHp: 20, statusIds: [] })).toBe(true);
+    expect(automaticFires(flame, { hp: 20, maxHp: 20, statusIds: [] })).toBe(
+      true,
+    );
   });
 });
 
@@ -663,7 +682,9 @@ describe("the stones we ship", () => {
     expect(pyre.effect.kind).toBe("bolt");
     if (pyre.effect.kind !== "bolt") return;
     expect(pyre.effect.damage).toBeGreaterThan(0);
-    expect(pyre.effect.statuses?.map((status) => status.id)).toEqual(["burned"]);
+    expect(pyre.effect.statuses?.map((status) => status.id)).toEqual([
+      "burned",
+    ]);
   });
 
   /**

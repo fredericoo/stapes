@@ -53,7 +53,10 @@ function authoredMap(): FlatMapFile {
   for (let x = 0; x < AUTHORED_CELLS; x++) {
     levels["0"]![`${x},0`] = [{ tileId: "grass" }];
   }
-  levels["0"]!["0,0"] = [{ tileId: "grass" }, { tileId: "player", direction: "s" }];
+  levels["0"]!["0,0"] = [
+    { tileId: "grass" },
+    { tileId: "player", direction: "s" },
+  ];
   return { version: 1, levels } as FlatMapFile;
 }
 
@@ -136,13 +139,18 @@ function stub(): Harness["server"] {
  */
 async function runInDurableObject<T>(
   server: Harness["server"],
-  fn: (instance: Harness["server"], state: { storage: WorldStore }) => T | Promise<T>,
+  fn: (
+    instance: Harness["server"],
+    state: { storage: WorldStore },
+  ) => T | Promise<T>,
 ): Promise<T> {
   return await fn(server, { storage: harness.store });
 }
 
 /** `runDurableObjectAlarm`. The alarm is an ordinary method now. */
-async function runDurableObjectAlarm(server: Harness["server"]): Promise<boolean> {
+async function runDurableObjectAlarm(
+  server: Harness["server"],
+): Promise<boolean> {
   await server.alarm();
   return true;
 }
@@ -200,10 +208,7 @@ function nextMessageOfType(
 ): Promise<Record<string, unknown>> {
   return new Promise((resolve, reject) => {
     const onMessage = (event: { data: string }) => {
-      const message = JSON.parse(event.data) as Record<
-        string,
-        unknown
-      >;
+      const message = JSON.parse(event.data) as Record<string, unknown>;
       if (message.type !== type) return;
       clearTimeout(timer);
       ws.removeEventListener("message", onMessage);
@@ -469,9 +474,9 @@ describe("time of day", () => {
     const serverNow = minutesOfDayAt(Date.now());
     for (const hello of [alice.hello, bob.hello]) {
       expect(typeof hello.minutesOfDay).toBe("number");
-      expect(minutesApart(hello.minutesOfDay as number, serverNow)).toBeLessThan(
-        CLOCK_TOLERANCE_MINUTES,
-      );
+      expect(
+        minutesApart(hello.minutesOfDay as number, serverNow),
+      ).toBeLessThan(CLOCK_TOLERANCE_MINUTES);
     }
   });
 
@@ -566,7 +571,10 @@ function tilesWithDeer() {
 /** The authored strip, with a deer standing on it away from spawn. */
 function mapWithDeer(): FlatMapFile {
   const map = authoredMap();
-  map.levels["0"]![`${DEER_CELL},0`] = [{ tileId: "grass" }, { tileId: "deer" }];
+  map.levels["0"]![`${DEER_CELL},0`] = [
+    { tileId: "grass" },
+    { tileId: "deer" },
+  ];
   return map;
 }
 
@@ -585,8 +593,16 @@ function deerCells(map: FlatMapFile): number[] {
 
 describe("residents", () => {
   beforeEach(async () => {
-    await harness.blobs.put("tiles.json", JSON.stringify(tilesWithDeer()), JSON_TYPE);
-    await harness.blobs.put("map.json", JSON.stringify(mapWithDeer()), JSON_TYPE);
+    await harness.blobs.put(
+      "tiles.json",
+      JSON.stringify(tilesWithDeer()),
+      JSON_TYPE,
+    );
+    await harness.blobs.put(
+      "map.json",
+      JSON.stringify(mapWithDeer()),
+      JSON_TYPE,
+    );
   });
 
   it("is in the world a joiner is handed, driving itself", async () => {
@@ -799,7 +815,10 @@ describe("replacing the world", () => {
     const alice = await connect("alice");
     const bagId = kitOf(alice.hello).bag.id;
 
-    send(alice.ws, { type: "pickUp", ref: { x: 1, y: 0, z: 0, stackIndex: 1 } });
+    send(alice.ws, {
+      type: "pickUp",
+      ref: { x: 1, y: 0, z: 0, stackIndex: 1 },
+    });
     const armed = (await equipmentWithin(alice.ws))!;
     expect(contentsOf(armed).map((i) => i.tileId)).toEqual(["rusty-sword"]);
 
@@ -853,7 +872,10 @@ describe("replacing the world", () => {
     await harness.blobs.put("map.json", JSON.stringify(withSword), JSON_TYPE);
 
     const alice = await connect("alice");
-    send(alice.ws, { type: "pickUp", ref: { x: 1, y: 0, z: 0, stackIndex: 1 } });
+    send(alice.ws, {
+      type: "pickUp",
+      ref: { x: 1, y: 0, z: 0, stackIndex: 1 },
+    });
     await equipmentWithin(alice.ws);
 
     // By kind, for the reason above: the pickup's patch is in flight.
@@ -875,7 +897,10 @@ describe("replacing the world", () => {
 
     const alice = await connect("alice");
     const bagId = kitOf(alice.hello).bag.id;
-    send(alice.ws, { type: "pickUp", ref: { x: 1, y: 0, z: 0, stackIndex: 1 } });
+    send(alice.ws, {
+      type: "pickUp",
+      ref: { x: 1, y: 0, z: 0, stackIndex: 1 },
+    });
     await equipmentWithin(alice.ws);
 
     // The save brings a catalogue in which the sword is scenery. A kit this
@@ -987,8 +1012,14 @@ function checkpointOnTwoLevels(): {
     ground[`${x},0`] = [{ tileId: "grass" }];
     upstairs[`${x},0`] = [{ tileId: "grass" }];
   }
-  ground["0,0"] = [{ tileId: "grass" }, { tileId: "player", direction: "s", owner: "alice" }];
-  upstairs["2,0"] = [{ tileId: "grass" }, { tileId: "player", direction: "s", owner: "bob" }];
+  ground["0,0"] = [
+    { tileId: "grass" },
+    { tileId: "player", direction: "s", owner: "alice" },
+  ];
+  upstairs["2,0"] = [
+    { tileId: "grass" },
+    { tileId: "player", direction: "s", owner: "bob" },
+  ];
   return {
     map: { version: 1, levels: { "0": ground, "1": upstairs } } as FlatMapFile,
     spawn: { x: 0, y: 0, z: 0, stackIndex: 0 },
@@ -1291,7 +1322,9 @@ function equipmentWithin(ws: TestSocket) {
 }
 
 /** What is in the bag of whichever message carries a kit. */
-function contentsOf(message: Record<string, unknown>): Array<{ tileId: string }> {
+function contentsOf(
+  message: Record<string, unknown>,
+): Array<{ tileId: string }> {
   const equipment = message.equipment as {
     bag: { contents?: Array<{ tileId: string }> } | null;
   };
@@ -1299,7 +1332,9 @@ function contentsOf(message: Record<string, unknown>): Array<{ tileId: string }>
 }
 
 function step(ws: TestSocket, seq: number, direction: string) {
-  ws.send(JSON.stringify({ type: "step", seq, direction, preferDescend: false }));
+  ws.send(
+    JSON.stringify({ type: "step", seq, direction, preferDescend: false }),
+  );
 }
 
 /** Wait for a noise, which carries no speaker. @see ServerMessage `noise` */
@@ -1420,7 +1455,9 @@ describe("stepping", () => {
     let facing: string | undefined;
     await runInDurableObject(stub(), (instance: GameServer) => {
       const internals = instance as unknown as {
-        session: { actorSnapshots(): { id: string; direction: string }[] } | null;
+        session: {
+          actorSnapshots(): { id: string; direction: string }[];
+        } | null;
       };
       facing = internals.session
         ?.actorSnapshots()
@@ -1559,7 +1596,9 @@ async function savedEquipment(
 ): Promise<Record<string, unknown> | undefined> {
   let found: Record<string, unknown> | undefined;
   await runInDurableObject(stub(), async (_instance, state) => {
-    found = await state.storage.get<Record<string, unknown>>(`equip:${actorId}`);
+    found = await state.storage.get<Record<string, unknown>>(
+      `equip:${actorId}`,
+    );
   });
   return found;
 }
@@ -1607,7 +1646,8 @@ const FAR_SPAWN = 5;
 
 function stripSpawningAtTheFarEnd(): FlatMapFile {
   const levels: Record<string, Record<string, unknown[]>> = { "0": {} };
-  for (let x = 0; x <= FAR_SPAWN; x++) levels["0"]![`${x},0`] = [{ tileId: "grass" }];
+  for (let x = 0; x <= FAR_SPAWN; x++)
+    levels["0"]![`${x},0`] = [{ tileId: "grass" }];
   levels["0"]![`${FAR_SPAWN},0`] = [
     { tileId: "grass" },
     { tileId: "player", direction: "s" },
@@ -1714,12 +1754,25 @@ describe("player permanence", () => {
     // Backfilled directly: reaching the cap over the wire means a thousand
     // connections, and the prune is what is under test rather than the saving.
     await runInDurableObject(stub(), async (_instance, state) => {
-      for (let i = 0; i < MAX_REMEMBERED_ACTORS + overflow; i += BACKFILL_BATCH) {
+      for (
+        let i = 0;
+        i < MAX_REMEMBERED_ACTORS + overflow;
+        i += BACKFILL_BATCH
+      ) {
         const batch: Record<string, unknown> = {};
-        const end = Math.min(i + BACKFILL_BATCH, MAX_REMEMBERED_ACTORS + overflow);
+        const end = Math.min(
+          i + BACKFILL_BATCH,
+          MAX_REMEMBERED_ACTORS + overflow,
+        );
         for (let n = i; n < end; n++) {
           // savedAt ascending with n, so the lowest-numbered are the oldest.
-          batch[`pos:backfill-${n}`] = { x: 0, y: 0, z: 0, direction: "s", savedAt: n };
+          batch[`pos:backfill-${n}`] = {
+            x: 0,
+            y: 0,
+            z: 0,
+            direction: "s",
+            savedAt: n,
+          };
         }
         await state.storage.put(batch);
       }
@@ -1733,7 +1786,9 @@ describe("player permanence", () => {
     const kept = await keptAfterJoin("pos:", joined);
     expect(kept).toHaveLength(MAX_REMEMBERED_ACTORS);
     expect(kept).not.toContain("pos:backfill-0");
-    expect(kept).toContain(`pos:backfill-${MAX_REMEMBERED_ACTORS + overflow - 1}`);
+    expect(kept).toContain(
+      `pos:backfill-${MAX_REMEMBERED_ACTORS + overflow - 1}`,
+    );
   });
 
   /**
@@ -1798,13 +1853,19 @@ describe("player permanence", () => {
   it("drops the least recently saved kits once the store is full", async () => {
     const overflow = 5;
     await runInDurableObject(stub(), async (_instance, state) => {
-      for (let i = 0; i < MAX_REMEMBERED_ACTORS + overflow; i += BACKFILL_BATCH) {
+      for (
+        let i = 0;
+        i < MAX_REMEMBERED_ACTORS + overflow;
+        i += BACKFILL_BATCH
+      ) {
         const batch: Record<string, unknown> = {};
-        const end = Math.min(i + BACKFILL_BATCH, MAX_REMEMBERED_ACTORS + overflow);
+        const end = Math.min(
+          i + BACKFILL_BATCH,
+          MAX_REMEMBERED_ACTORS + overflow,
+        );
         for (let n = i; n < end; n++) {
           batch[`equip:backfill-${n}`] = {
-            equipment: { weapon: null, offhand: null,
-  bag: null },
+            equipment: { weapon: null, offhand: null, bag: null },
             savedAt: n,
           };
         }
@@ -1819,7 +1880,9 @@ describe("player permanence", () => {
     const kept = await keptAfterJoin("equip:", joined);
     expect(kept).toHaveLength(MAX_REMEMBERED_ACTORS);
     expect(kept).not.toContain("equip:backfill-0");
-    expect(kept).toContain(`equip:backfill-${MAX_REMEMBERED_ACTORS + overflow - 1}`);
+    expect(kept).toContain(
+      `equip:backfill-${MAX_REMEMBERED_ACTORS + overflow - 1}`,
+    );
   });
 
   /**
@@ -1876,9 +1939,16 @@ describe("player permanence", () => {
   it("drops the least recently saved tags once the store is full", async () => {
     const overflow = 5;
     await runInDurableObject(stub(), async (_instance, state) => {
-      for (let i = 0; i < MAX_REMEMBERED_ACTORS + overflow; i += BACKFILL_BATCH) {
+      for (
+        let i = 0;
+        i < MAX_REMEMBERED_ACTORS + overflow;
+        i += BACKFILL_BATCH
+      ) {
         const batch: Record<string, unknown> = {};
-        const end = Math.min(i + BACKFILL_BATCH, MAX_REMEMBERED_ACTORS + overflow);
+        const end = Math.min(
+          i + BACKFILL_BATCH,
+          MAX_REMEMBERED_ACTORS + overflow,
+        );
         for (let n = i; n < end; n++) {
           batch[`tags:backfill-${n}`] = { tags: ["seen"], savedAt: n };
         }
@@ -1893,7 +1963,9 @@ describe("player permanence", () => {
     const kept = await keptAfterJoin("tags:", joined);
     expect(kept).toHaveLength(MAX_REMEMBERED_ACTORS);
     expect(kept).not.toContain("tags:backfill-0");
-    expect(kept).toContain(`tags:backfill-${MAX_REMEMBERED_ACTORS + overflow - 1}`);
+    expect(kept).toContain(
+      `tags:backfill-${MAX_REMEMBERED_ACTORS + overflow - 1}`,
+    );
   });
 
   /**
@@ -1963,9 +2035,16 @@ describe("player permanence", () => {
   it("drops the least recently saved masteries once the store is full", async () => {
     const overflow = 5;
     await runInDurableObject(stub(), async (_instance, state) => {
-      for (let i = 0; i < MAX_REMEMBERED_ACTORS + overflow; i += BACKFILL_BATCH) {
+      for (
+        let i = 0;
+        i < MAX_REMEMBERED_ACTORS + overflow;
+        i += BACKFILL_BATCH
+      ) {
         const batch: Record<string, unknown> = {};
-        const end = Math.min(i + BACKFILL_BATCH, MAX_REMEMBERED_ACTORS + overflow);
+        const end = Math.min(
+          i + BACKFILL_BATCH,
+          MAX_REMEMBERED_ACTORS + overflow,
+        );
         for (let n = i; n < end; n++) {
           batch[`mast:backfill-${n}`] = { masteries: { fist: n }, savedAt: n };
         }
@@ -1980,7 +2059,9 @@ describe("player permanence", () => {
     const kept = await keptAfterJoin("mast:", joined);
     expect(kept).toHaveLength(MAX_REMEMBERED_ACTORS);
     expect(kept).not.toContain("mast:backfill-0");
-    expect(kept).toContain(`mast:backfill-${MAX_REMEMBERED_ACTORS + overflow - 1}`);
+    expect(kept).toContain(
+      `mast:backfill-${MAX_REMEMBERED_ACTORS + overflow - 1}`,
+    );
   });
 
   /**
@@ -2177,7 +2258,11 @@ describe("pushing", () => {
     const { ws } = await connect(freshPlayer());
 
     // Listening before the tap, so nothing the first tick sends is missed.
-    const slides = eventsWithin(ws, "slideStarted", PUSH_STEP_MS + QUIET_MS * 2);
+    const slides = eventsWithin(
+      ws,
+      "slideStarted",
+      PUSH_STEP_MS + QUIET_MS * 2,
+    );
     ws.send(
       JSON.stringify({
         type: "interact",
@@ -2307,19 +2392,27 @@ describe("consuming", () => {
   async function liveTilesAt(x: number, y: number, z: number) {
     let found: string[] = [];
     await runInDurableObject(stub(), (instance: GameServer) => {
-      const session = (instance as unknown as { session: { getMap(): MapFile } })
-        .session;
+      const session = (
+        instance as unknown as { session: { getMap(): MapFile } }
+      ).session;
       found = getStack(session.getMap(), x, y, z).map((p) => p.tileId);
     });
     return found;
   }
 
   it("takes the berry off the board", async () => {
-    await harness.blobs.put("map.json", JSON.stringify(mapWithBerry()), JSON_TYPE);
+    await harness.blobs.put(
+      "map.json",
+      JSON.stringify(mapWithBerry()),
+      JSON_TYPE,
+    );
     const alice = await connect("alice");
     expect(await liveTilesAt(1, 0, 0)).toEqual(["grass", BERRY]);
 
-    send(alice.ws, { type: "consume", from: { kind: "floor", ref: BERRY_REF } });
+    send(alice.ws, {
+      type: "consume",
+      from: { kind: "floor", ref: BERRY_REF },
+    });
     await noiseWithin(alice.ws, 1000);
 
     expect(await liveTilesAt(1, 0, 0)).toEqual(["grass"]);
@@ -2331,10 +2424,17 @@ describe("consuming", () => {
    * this waits for a sound that never comes.
    */
   it("makes the noise it makes, to the floor it was eaten on", async () => {
-    await harness.blobs.put("map.json", JSON.stringify(mapWithBerry()), JSON_TYPE);
+    await harness.blobs.put(
+      "map.json",
+      JSON.stringify(mapWithBerry()),
+      JSON_TYPE,
+    );
     const alice = await connect("alice");
 
-    send(alice.ws, { type: "consume", from: { kind: "floor", ref: BERRY_REF } });
+    send(alice.ws, {
+      type: "consume",
+      from: { kind: "floor", ref: BERRY_REF },
+    });
 
     expect(await noiseWithin(alice.ws, 1000)).toMatchObject({
       type: "noise",
@@ -2349,10 +2449,17 @@ describe("consuming", () => {
    * puts a name in front of it.
    */
   it("never sends it as chat, which would name a speaker", async () => {
-    await harness.blobs.put("map.json", JSON.stringify(mapWithBerry()), JSON_TYPE);
+    await harness.blobs.put(
+      "map.json",
+      JSON.stringify(mapWithBerry()),
+      JSON_TYPE,
+    );
     const alice = await connect("alice");
 
-    send(alice.ws, { type: "consume", from: { kind: "floor", ref: BERRY_REF } });
+    send(alice.ws, {
+      type: "consume",
+      from: { kind: "floor", ref: BERRY_REF },
+    });
 
     const noise = await noiseWithin(alice.ws, 1000);
     expect(noise).not.toBeNull();
@@ -2423,7 +2530,11 @@ describe("respawn", () => {
       JSON.stringify([...tilesJson, gnomeTile()]),
       JSON_TYPE,
     );
-    await harness.blobs.put("map.json", JSON.stringify(mapWithGnome()), JSON_TYPE);
+    await harness.blobs.put(
+      "map.json",
+      JSON.stringify(mapWithGnome()),
+      JSON_TYPE,
+    );
   });
 
   it("derives and stores the spawn points when a fresh world loads", async () => {
@@ -2522,7 +2633,11 @@ describe("respawn", () => {
           interactions: {
             item: { type: "consumable", label: "Eat", hp: 0 },
             respawn: { fromMs: RESPAWN_WINDOW_MS, toMs: RESPAWN_WINDOW_MS },
-            decay: { tileId: "test-stale-berry", fromMs: DECAY_MS, toMs: DECAY_MS },
+            decay: {
+              tileId: "test-stale-berry",
+              fromMs: DECAY_MS,
+              toMs: DECAY_MS,
+            },
           },
         },
         {
@@ -2576,7 +2691,11 @@ describe("respawn", () => {
         JSON.stringify([...tilesJson, gnomeTile(), ...berryTiles()]),
         JSON_TYPE,
       );
-      await harness.blobs.put("map.json", JSON.stringify(mapWithBerry()), JSON_TYPE);
+      await harness.blobs.put(
+        "map.json",
+        JSON.stringify(mapWithBerry()),
+        JSON_TYPE,
+      );
     });
 
     it("does not grow a second one while the first is merely going off", async () => {
@@ -2876,7 +2995,11 @@ describe("what a flush writes", () => {
       JSON.stringify([...tilesJson, gnomeTile()]),
       JSON_TYPE,
     );
-    await harness.blobs.put("map.json", JSON.stringify(mapWithGnome()), JSON_TYPE);
+    await harness.blobs.put(
+      "map.json",
+      JSON.stringify(mapWithGnome()),
+      JSON_TYPE,
+    );
   });
 
   /**
@@ -3069,7 +3192,9 @@ describe("what a flush writes", () => {
 
     // The starting bag, written by the settle above: what the drop has to undo.
     const before = await savedEquipment(who);
-    expect((before?.equipment as { bag: unknown } | undefined)?.bag).not.toBeNull();
+    expect(
+      (before?.equipment as { bag: unknown } | undefined)?.bag,
+    ).not.toBeNull();
 
     // Their own cell, which is always in range and always has room for one more.
     send(ws, {
@@ -3304,9 +3429,9 @@ describe("dying and coming back", () => {
       position: await state.storage.get<Record<string, unknown>>(
         `pos:${actorId}`,
       ),
-      equipment: await state.storage.get<{ equipment: Record<string, unknown> }>(
-        `equip:${actorId}`,
-      ),
+      equipment: await state.storage.get<{
+        equipment: Record<string, unknown>;
+      }>(`equip:${actorId}`),
     }));
   }
 
@@ -3613,7 +3738,9 @@ describe("statuses across a disconnection", () => {
   async function storedStatuses(
     actorId: string,
   ): Promise<{ defId: string; remainingMs: number }[] | undefined> {
-    let found: { statuses: { defId: string; remainingMs: number }[] } | undefined;
+    let found:
+      | { statuses: { defId: string; remainingMs: number }[] }
+      | undefined;
     await runInDurableObject(stub(), async (_instance, state) => {
       found = await state.storage.get(`status:${actorId}`);
     });
@@ -3637,7 +3764,11 @@ describe("statuses across a disconnection", () => {
   }
 
   it("writes down what is running as the world settles", async () => {
-    await harness.blobs.put("map.json", JSON.stringify(mapWithBerry()), JSON_TYPE);
+    await harness.blobs.put(
+      "map.json",
+      JSON.stringify(mapWithBerry()),
+      JSON_TYPE,
+    );
     const who = freshPlayer();
     const { ws } = await connect(who);
 
@@ -3662,11 +3793,18 @@ describe("statuses across a disconnection", () => {
    * about.
    */
   it("comes back exactly where it left off", async () => {
-    await harness.blobs.put("map.json", JSON.stringify(mapWithBerry()), JSON_TYPE);
+    await harness.blobs.put(
+      "map.json",
+      JSON.stringify(mapWithBerry()),
+      JSON_TYPE,
+    );
     const who = freshPlayer();
     const first = await connect(who);
 
-    send(first.ws, { type: "consume", from: { kind: "floor", ref: BERRY_REF } });
+    send(first.ws, {
+      type: "consume",
+      from: { kind: "floor", ref: BERRY_REF },
+    });
     await noiseWithin(first.ws, 1000);
     await leave(first.ws);
 
@@ -3693,7 +3831,11 @@ describe("statuses across a disconnection", () => {
    * visitor for the fact that nothing has happened to them.
    */
   it("writes no health down for a body that is not hurt", async () => {
-    await harness.blobs.put("map.json", JSON.stringify(mapWithBerry()), JSON_TYPE);
+    await harness.blobs.put(
+      "map.json",
+      JSON.stringify(mapWithBerry()),
+      JSON_TYPE,
+    );
     const who = freshPlayer();
     const { ws } = await connect(who);
 
@@ -3905,8 +4047,16 @@ describe("casting", () => {
   }
 
   beforeEach(async () => {
-    await harness.blobs.put("tiles.json", JSON.stringify(tilesWithStone()), JSON_TYPE);
-    await harness.blobs.put("map.json", JSON.stringify(authoredMap()), JSON_TYPE);
+    await harness.blobs.put(
+      "tiles.json",
+      JSON.stringify(tilesWithStone()),
+      JSON_TYPE,
+    );
+    await harness.blobs.put(
+      "map.json",
+      JSON.stringify(authoredMap()),
+      JSON_TYPE,
+    );
   });
 
   it("puts the stone on cooldown and says so on the kit message", async () => {
@@ -3970,7 +4120,6 @@ describe("casting", () => {
     expect(charmCooldown(hello)).toBeGreaterThan(0);
   });
 });
-
 
 /**
  * Authored content reaching the world it describes.
@@ -4075,7 +4224,11 @@ describe("saving authored content", () => {
       JSON.stringify(tilesWithStone(LONG_MS)),
       JSON_TYPE,
     );
-    await harness.blobs.put("map.json", JSON.stringify(authoredMap()), JSON_TYPE);
+    await harness.blobs.put(
+      "map.json",
+      JSON.stringify(authoredMap()),
+      JSON_TYPE,
+    );
   });
 
   /**

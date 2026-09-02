@@ -47,11 +47,36 @@ const tiles = [
   tile({ id: "grass" }),
   tile({ id: "crate", height: 2 }),
   tile({ id: "player", height: 4, kind: "battler", actor: true }),
-  tile({ id: "raw-meat", name: "Raw Meat", kind: "item", interactions: { item: EDIBLE } }),
-  tile({ id: "cooked-meat", name: "Cooked Meat", kind: "item", interactions: { item: EDIBLE } }),
-  tile({ id: "raw-fish", name: "Raw Fish", kind: "item", interactions: { item: EDIBLE } }),
-  tile({ id: "cooked-fish", name: "Cooked Fish", kind: "item", interactions: { item: EDIBLE } }),
-  tile({ id: "coal", name: "Coal", kind: "item", interactions: { item: DEFAULT_WEAPON } }),
+  tile({
+    id: "raw-meat",
+    name: "Raw Meat",
+    kind: "item",
+    interactions: { item: EDIBLE },
+  }),
+  tile({
+    id: "cooked-meat",
+    name: "Cooked Meat",
+    kind: "item",
+    interactions: { item: EDIBLE },
+  }),
+  tile({
+    id: "raw-fish",
+    name: "Raw Fish",
+    kind: "item",
+    interactions: { item: EDIBLE },
+  }),
+  tile({
+    id: "cooked-fish",
+    name: "Cooked Fish",
+    kind: "item",
+    interactions: { item: EDIBLE },
+  }),
+  tile({
+    id: "coal",
+    name: "Coal",
+    kind: "item",
+    interactions: { item: DEFAULT_WEAPON },
+  }),
   tile({
     id: BAG_TILE_ID,
     name: "Bag",
@@ -170,7 +195,11 @@ describe("resolving a transmuter", () => {
       interactions: {
         transmute: {
           recipes: [
-            { verb: "Cook", fromTileId: "raw-meat", toTileIds: ["cooked-meat"] },
+            {
+              verb: "Cook",
+              fromTileId: "raw-meat",
+              toTileIds: ["cooked-meat"],
+            },
             { verb: "Cook", fromTileId: "", toTileIds: ["cooked-fish"] },
             { verb: "Cook", fromTileId: "raw-fish", toTileIds: [] },
           ],
@@ -203,8 +232,9 @@ describe("resolving a transmuter", () => {
     expect(transmuteVerb({ fromTileId: "a", toTileIds: ["b"] })).toBe(
       "Transmute",
     );
-    expect(transmuteVerb({ verb: " Cook ", fromTileId: "a", toTileIds: ["b"] }))
-      .toBe("Cook");
+    expect(
+      transmuteVerb({ verb: " Cook ", fromTileId: "a", toTileIds: ["b"] }),
+    ).toBe("Cook");
   });
 });
 
@@ -214,7 +244,11 @@ describe("saving a transmuter", () => {
       interactionsForSave({
         transmute: {
           recipes: [
-            { verb: " Cook ", fromTileId: "raw-meat", toTileIds: ["cooked-meat"] },
+            {
+              verb: " Cook ",
+              fromTileId: "raw-meat",
+              toTileIds: ["cooked-meat"],
+            },
             { verb: "  ", fromTileId: "raw-fish", toTileIds: ["cooked-fish"] },
           ],
         },
@@ -243,9 +277,9 @@ describe("saving a transmuter", () => {
 
 describe("whether a recipe is on offer", () => {
   it("is not, to somebody carrying nothing to spend", () => {
-    expect(
-      canTransmuteFrom(board(), tilesById, ME, carrying(), FLAME, 0),
-    ).toBe(false);
+    expect(canTransmuteFrom(board(), tilesById, ME, carrying(), FLAME, 0)).toBe(
+      false,
+    );
   });
 
   it("is, to somebody with the input in their bag", () => {
@@ -345,9 +379,9 @@ describe("whether a recipe is on offer", () => {
   it("counts the square the input frees, so the last steak still cooks", () => {
     const brimming = carrying("raw-meat", "coal", "coal", "coal");
 
-    expect(
-      canTransmuteFrom(board(), tilesById, ME, brimming, FLAME, 0),
-    ).toBe(true);
+    expect(canTransmuteFrom(board(), tilesById, ME, brimming, FLAME, 0)).toBe(
+      true,
+    );
   });
 
   it("refuses to spend a pack, whatever the recipe says", () => {
@@ -393,7 +427,10 @@ describe("running a recipe", () => {
 
   it("leaves no tag, so it can be run again and again", () => {
     const session = new GameSession(board(), tiles);
-    session.spawn("cook", { at: BESIDE, carrying: carrying("raw-meat", "raw-meat") });
+    session.spawn("cook", {
+      at: BESIDE,
+      carrying: carrying("raw-meat", "raw-meat"),
+    });
 
     expect(session.transmute(FLAME, 0, "cook")).toBe(true);
     expect(session.transmute(FLAME, 0, "cook")).toBe(true);

@@ -267,7 +267,11 @@ export function applyStatus(
     if (instance.defId !== def.id) return instance;
     // Rebuilt rather than spread over, so an absent cause genuinely removes the
     // one that was there: spreading would leave the old key untouched.
-    const { causedBy: _wasCausedBy, elements: _wereElements, ...rest } = instance;
+    const {
+      causedBy: _wasCausedBy,
+      elements: _wereElements,
+      ...rest
+    } = instance;
     return {
       ...rest,
       remainingMs,
@@ -386,9 +390,7 @@ export function advanceStatuses(
           // answerable is a fact about this application: one status def burns
           // for whoever lit each fire, and on whichever wheel lit it.
           ...(instance.causedBy ? { causedBy: instance.causedBy } : {}),
-          ...(instance.elements?.length
-            ? { elements: instance.elements }
-            : {}),
+          ...(instance.elements?.length ? { elements: instance.elements } : {}),
         });
       }
     }

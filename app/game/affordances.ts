@@ -24,7 +24,13 @@ import {
 } from "../lib/item";
 import type { EquipSlot } from "../lib/kit";
 import { stowFits } from "../lib/piles";
-import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
+import type {
+  Coord,
+  Direction,
+  MapFile,
+  PlacedTile,
+  TileDef,
+} from "../lib/types";
 import { physicalHeight } from "../lib/types";
 import { canReplaceStack, fitsTile } from "../lib/validation";
 import { PLAYER_TILE_ID } from "./constants";
@@ -308,7 +314,9 @@ export function canTalkFrom(
   const placed = getStack(map, ref.x, ref.y, ref.z)[ref.stackIndex];
   const def = placed && tilesById[placed.tileId];
   if (!def || !resolveDialog(def)) return false;
-  const rise = standingElevationUnder(map, tilesById, ref) - standingElevationUnder(map, tilesById, self);
+  const rise =
+    standingElevationUnder(map, tilesById, ref) -
+    standingElevationUnder(map, tilesById, self);
   if (Math.abs(rise) > TALK_HEIGHT_SLACK) return false;
   return hasLineOfSight(map, tilesById, self, ref);
 }
@@ -325,7 +333,11 @@ function standingElevationUnder(
   at: ObjectRef,
 ): number {
   const stack = getStack(map, at.x, at.y, at.z);
-  return absoluteStandingElevation(at.z, stack.slice(0, at.stackIndex), tilesById);
+  return absoluteStandingElevation(
+    at.z,
+    stack.slice(0, at.stackIndex),
+    tilesById,
+  );
 }
 
 /**
@@ -909,8 +921,7 @@ export function reachableTeleportAt(
     return pushDirectionFrom(actor, ref) ? teleport : null;
   }
   if (teleport.trigger === "interactOver") {
-    const over =
-      actor.x === ref.x && actor.y === ref.y && actor.z === ref.z;
+    const over = actor.x === ref.x && actor.y === ref.y && actor.z === ref.z;
     return over ? teleport : null;
   }
   return null;

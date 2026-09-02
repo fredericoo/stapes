@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  normalizeTileDef,
-  tileCanEmitLight,
-  type TileDef,
-} from "./types";
+import { normalizeTileDef, tileCanEmitLight, type TileDef } from "./types";
 import { getFrames, resolveLight, resolveTileSprite } from "./tileResolve";
 
 describe("normalizeTileDef", () => {

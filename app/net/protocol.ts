@@ -836,7 +836,10 @@ export type ClientMessage =
     }
   /** Turning on the spot: shift-facing, or pressing into a wall. */
   | { type: "face"; direction: "n" | "e" | "s" | "w" }
-  | { type: "interact"; ref: { x: number; y: number; z: number; stackIndex: number } }
+  | {
+      type: "interact";
+      ref: { x: number; y: number; z: number; stackIndex: number };
+    }
   /**
    * "I am taking that."
    *
@@ -850,7 +853,10 @@ export type ClientMessage =
    * decide whether to offer the row at all, which is what stops it offering one
    * the server will not honour, but it is not trusted with the answer.
    */
-  | { type: "pickUp"; ref: { x: number; y: number; z: number; stackIndex: number } }
+  | {
+      type: "pickUp";
+      ref: { x: number; y: number; z: number; stackIndex: number };
+    }
   /**
    * "I am putting that on."
    *
@@ -864,7 +870,10 @@ export type ClientMessage =
    * something the server already knows, and one more field to disbelieve. Which
    * slot must be *free* is a fact about the kit, which is the server's.
    */
-  | { type: "equip"; ref: { x: number; y: number; z: number; stackIndex: number } }
+  | {
+      type: "equip";
+      ref: { x: number; y: number; z: number; stackIndex: number };
+    }
   /**
    * "Put that there."
    *
@@ -1232,7 +1241,10 @@ const serverMessageSchema = v.variant("type", [
         tileId: v.string(),
         pc: v.array(v.pipe(v.number(), v.integer(), v.minValue(0))),
         transcript: v.array(
-          v.object({ who: v.picklist(["npc", "you", "note"]), text: v.string() }),
+          v.object({
+            who: v.picklist(["npc", "you", "note"]),
+            text: v.string(),
+          }),
         ),
       }),
     ),

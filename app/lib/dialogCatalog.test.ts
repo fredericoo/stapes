@@ -36,7 +36,14 @@ const defaults = { tileId: "shard", statusId: "luminous" };
 describe("the dialog catalog", () => {
   it("names every command the interpreter runs, once", () => {
     expect([...DIALOG_COMMAND_KINDS].sort()).toEqual([
-      "add_status", "anchor", "choices", "goto", "remove_status", "request_trade", "say", "tag",
+      "add_status",
+      "anchor",
+      "choices",
+      "goto",
+      "remove_status",
+      "request_trade",
+      "say",
+      "tag",
     ]);
   });
 

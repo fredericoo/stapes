@@ -15,7 +15,11 @@ import { findLooseGravityCells, settleGravity } from "./gravity";
  */
 
 const frame = {
-  sprite: { tilesetId: "basic", rect: { x: 0, y: 0, w: 1, h: 1 }, base: { x: 0, y: 0 } },
+  sprite: {
+    tilesetId: "basic",
+    rect: { x: 0, y: 0, w: 1, h: 1 },
+    base: { x: 0, y: 0 },
+  },
   durationMs: 200,
 };
 
@@ -92,7 +96,11 @@ describe("settling loose gravity", () => {
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }]);
     map = replaceStack(map, 0, 0, 1, [{ tileId: "box" }]);
 
-    const { map: next } = settleGravity(map, findLooseGravityCells(map, byId), byId);
+    const { map: next } = settleGravity(
+      map,
+      findLooseGravityCells(map, byId),
+      byId,
+    );
 
     expect(getStack(next, 0, 0, 1)).toHaveLength(0);
     expect(ids(getStack(next, 0, 0, 0))).toEqual(["grass", "box"]);
@@ -102,7 +110,11 @@ describe("settling loose gravity", () => {
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "pillar" }]);
     map = replaceStack(map, 0, 0, 1, [{ tileId: "box" }]);
 
-    const { changed } = settleGravity(map, findLooseGravityCells(map, byId), byId);
+    const { changed } = settleGravity(
+      map,
+      findLooseGravityCells(map, byId),
+      byId,
+    );
 
     expect(changed).toEqual([]);
   });
@@ -127,7 +139,11 @@ describe("settling loose gravity", () => {
   it("leaves a body over the void where it is — nothing to land on", () => {
     const map = replaceStack(emptyMap(), 0, 0, 1, [{ tileId: "box" }]);
 
-    const { changed } = settleGravity(map, findLooseGravityCells(map, byId), byId);
+    const { changed } = settleGravity(
+      map,
+      findLooseGravityCells(map, byId),
+      byId,
+    );
 
     expect(changed).toEqual([]);
     expect(ids(getStack(map, 0, 0, 1))).toEqual(["box"]);
@@ -144,7 +160,10 @@ describe("a crate in a running world", () => {
 
     // The constructor settles the board once, so an authored-floating crate is
     // already on the ground before anyone sees it — no first-frame hang.
-    const session = new GameSession(map, tiles, { actorIds: [], spawnAt: spawn });
+    const session = new GameSession(map, tiles, {
+      actorIds: [],
+      spawnAt: spawn,
+    });
 
     expect(ids(getStack(session.getMap(), 0, 0, 0))).toEqual(["grass", "box"]);
   });
@@ -161,7 +180,10 @@ describe("a crate in a running world", () => {
     // The crate, hanging one level above the plate.
     map = replaceStack(map, 1, 0, 1, [{ tileId: "box" }]);
 
-    const session = new GameSession(map, tiles, { actorIds: [], spawnAt: spawn });
+    const session = new GameSession(map, tiles, {
+      actorIds: [],
+      spawnAt: spawn,
+    });
     const at = (c: Coord) => ids(getStack(session.getMap(), c.x, c.y, c.z));
 
     expect(at({ x: 1, y: 0, z: 0 })).toEqual(["plate-down", "box"]);
@@ -183,7 +205,10 @@ describe("a crate in a running world", () => {
       { tileId: "player", direction: "e" },
     ]);
     // A full-height crate holds a box up one level.
-    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "crate" }]);
+    map = replaceStack(map, 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "crate" },
+    ]);
     map = replaceStack(map, 1, 0, 1, [{ tileId: "box" }]);
 
     const session = new GameSession(map, tiles);
@@ -200,7 +225,10 @@ describe("a crate in a running world", () => {
   it("stays put once landed, rather than re-dropping every tick", () => {
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }]);
     map = replaceStack(map, 0, 0, 1, [{ tileId: "box" }]);
-    const session = new GameSession(map, tiles, { actorIds: [], spawnAt: spawn });
+    const session = new GameSession(map, tiles, {
+      actorIds: [],
+      spawnAt: spawn,
+    });
 
     for (let i = 0; i < 10; i++) session.tick(TICK_MS);
 

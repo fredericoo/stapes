@@ -41,7 +41,10 @@ import { Rng } from "./rng";
  * body becomes numbers reaches these tests instead of being papered over by a
  * fixture that still holds the old shape.
  */
-const BARE_HANDED = fightingStats(DEFAULT_BATTLER, DEFAULT_BATTLER.naturalWeapon);
+const BARE_HANDED = fightingStats(
+  DEFAULT_BATTLER,
+  DEFAULT_BATTLER.naturalWeapon,
+);
 
 function battler(overrides: Partial<FightingStats> = {}): FightingStats {
   return { ...BARE_HANDED, ...overrides };
@@ -85,7 +88,11 @@ describe("attack speed", () => {
 
 describe("the damage band", () => {
   it("is a single point when nothing varies", () => {
-    for (const roll of [[0, 0], [0.5, 0.5], [1, 1]] as const) {
+    for (const roll of [
+      [0, 0],
+      [0.5, 0.5],
+      [1, 1],
+    ] as const) {
       expect(damageFraction(0, [...roll])).toBe(1);
     }
   });
@@ -263,8 +270,16 @@ describe("being outnumbered", () => {
     let aloneDrew = 0;
     let crowdDrew = 0;
     for (let seed = 0; seed < 50; seed++) {
-      aloneDrew += rollAttack(attacker, underPressure(defender, 1), new Rng(seed)).damage;
-      crowdDrew += rollAttack(attacker, underPressure(defender, 8), new Rng(seed)).damage;
+      aloneDrew += rollAttack(
+        attacker,
+        underPressure(defender, 1),
+        new Rng(seed),
+      ).damage;
+      crowdDrew += rollAttack(
+        attacker,
+        underPressure(defender, 8),
+        new Rng(seed),
+      ).damage;
     }
 
     expect(aloneDrew).toBe(0);
@@ -404,7 +419,12 @@ describe("resisting a kind of blow", () => {
 
   /** A resistance deeper than the blow is worth is a blow worth nothing. */
   it("never heals, however much of it there is", () => {
-    const attacker = battler({ damage: 5, accuracy: 100, hitChance: 1, mastery: "arcane" });
+    const attacker = battler({
+      damage: 5,
+      accuracy: 100,
+      hitChance: 1,
+      mastery: "arcane",
+    });
     const warded = battler({ def: 0, resist: { arcane: 100 }, flee: 0 });
     for (let seed = 0; seed < 50; seed++) {
       expect(rollAttack(attacker, warded, new Rng(seed)).damage).toBe(0);
@@ -447,7 +467,9 @@ describe("statuses a weapon inflicts", () => {
     const attacker = battler(connects);
     const defender = battler({ flee: 0 });
     for (let seed = 0; seed < 20; seed++) {
-      expect(rollAttack(attacker, defender, new Rng(seed)).inflicted).toEqual([]);
+      expect(rollAttack(attacker, defender, new Rng(seed)).inflicted).toEqual(
+        [],
+      );
     }
   });
 
@@ -501,7 +523,11 @@ describe("statuses a weapon inflicts", () => {
     });
     for (let seed = 0; seed < 20; seed++) {
       const missed = rollAttack(missing, battler({ flee: 0 }), new Rng(seed));
-      const dodged = rollAttack(dodgeable, battler({ flee: 100 }), new Rng(seed));
+      const dodged = rollAttack(
+        dodgeable,
+        battler({ flee: 100 }),
+        new Rng(seed),
+      );
       if (missed.missed) expect(missed.inflicted).toEqual([]);
       expect(dodged.dodged).toBe(true);
       expect(dodged.inflicted).toEqual([]);
@@ -513,7 +539,10 @@ describe("statuses a weapon inflicts", () => {
    * Counted over blows that landed, since a miss was never eligible.
    */
   it("fires about as often as it says", () => {
-    const attacker = battler({ ...connects, statuses: [{ id: "poison", chance: 10 }] });
+    const attacker = battler({
+      ...connects,
+      statuses: [{ id: "poison", chance: 10 }],
+    });
     const defender = battler({ flee: 0 });
     let landed = 0;
     let poisoned = 0;
@@ -539,10 +568,22 @@ describe("statuses a weapon inflicts", () => {
     const after = reference.save();
 
     for (const [attacker, defender] of [
-      [battler({ hitChance: 0, statuses: [certain, never] }), battler({ flee: 0 })],
-      [battler({ ...connects, statuses: [certain, never] }), battler({ flee: 100 })],
-      [battler({ ...connects, statuses: [certain, never] }), battler({ flee: 0 })],
-      [battler({ ...connects, statuses: [never, never] }), battler({ flee: 0 })],
+      [
+        battler({ hitChance: 0, statuses: [certain, never] }),
+        battler({ flee: 0 }),
+      ],
+      [
+        battler({ ...connects, statuses: [certain, never] }),
+        battler({ flee: 100 }),
+      ],
+      [
+        battler({ ...connects, statuses: [certain, never] }),
+        battler({ flee: 0 }),
+      ],
+      [
+        battler({ ...connects, statuses: [never, never] }),
+        battler({ flee: 0 }),
+      ],
     ] as const) {
       const rng = new Rng(7);
       rollAttack(attacker, defender, rng);
@@ -627,7 +668,12 @@ describe("missing, as distinct from being dodged", () => {
    * more than escaping a scratch.
    */
   it("carries what the blow would have been worth through a dodge", () => {
-    const attacker = battler({ hitChance: 1, damage: 6, variance: 0, accuracy: 0 });
+    const attacker = battler({
+      hitChance: 1,
+      damage: 6,
+      variance: 0,
+      accuracy: 0,
+    });
     const defender = battler({ flee: 1000 });
 
     const outcome = rollAttack(attacker, defender, new Rng(3));
@@ -707,7 +753,9 @@ describe("reach", () => {
     // on the plan it is, and even directly overhead.
     expect(inAttackRange(here, at(0, 0, HEIGHT_PER_LEVEL), bow)).toBe(true);
     expect(inAttackRange(here, at(5, 0, HEIGHT_PER_LEVEL), bow)).toBe(true);
-    expect(inAttackRange(here, at(0, 0, 2 * HEIGHT_PER_LEVEL), bow)).toBe(false);
+    expect(inAttackRange(here, at(0, 0, 2 * HEIGHT_PER_LEVEL), bow)).toBe(
+      false,
+    );
   });
 
   /** A weapon that can only reach its own floor, which the pair can now say. */

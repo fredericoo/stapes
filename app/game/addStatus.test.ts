@@ -122,15 +122,24 @@ const tiles: TileDef[] = [
     id: "brazier",
     height: 2,
     interactions: {
-      addStatus: { actionName: "Touch", trigger: "interact", statusId: "burned" },
+      addStatus: {
+        actionName: "Touch",
+        trigger: "interact",
+        statusId: "burned",
+      },
     },
   }),
   tile({
     id: "coals",
-    interactions: { addStatus: { trigger: "interactOver", statusId: "burned" } },
+    interactions: {
+      addStatus: { trigger: "interactOver", statusId: "burned" },
+    },
   }),
   // Switched on and never filled in, which reads as unauthored.
-  tile({ id: "unlit", interactions: { addStatus: { trigger: "step", statusId: "" } } }),
+  tile({
+    id: "unlit",
+    interactions: { addStatus: { trigger: "step", statusId: "" } },
+  }),
   // A condition nobody authored: one effect that does not happen.
   tile({
     id: "ghost-fire",
@@ -206,7 +215,10 @@ function world(beside: string, tileId = "player"): MapFile {
   return replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: beside }]);
 }
 
-function session(map: MapFile, opts: Record<string, unknown> = {}): GameSession {
+function session(
+  map: MapFile,
+  opts: Record<string, unknown> = {},
+): GameSession {
   return new GameSession(map, tiles, { statuses: catalogue, ...opts });
 }
 
@@ -357,7 +369,10 @@ describe("being shoved into a fire", () => {
       { tileId: "grass" },
       { tileId: "shovable", direction: "e" },
     ]);
-    return replaceStack(map, 2, 0, 0, [{ tileId: "grass" }, { tileId: "fire" }]);
+    return replaceStack(map, 2, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "fire" },
+    ]);
   }
 
   it("burns the body that was pushed in", () => {

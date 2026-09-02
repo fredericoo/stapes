@@ -113,7 +113,10 @@ describe("itemUseFor", () => {
    * look into would be a worse place to keep things than the floor.
    */
   it("opens a pack held in either hand", () => {
-    for (const slot of [{ kind: "weapon" } as const, { kind: "offhand" } as const]) {
+    for (const slot of [
+      { kind: "weapon" } as const,
+      { kind: "offhand" } as const,
+    ]) {
       expect(itemUseFor(instance("bag"), slot, tilesById)).toEqual({
         type: "open",
       });
@@ -174,7 +177,9 @@ describe("a tap on a light", () => {
   const sword = { id: "itm_sword", tileId: "rusty-sword" };
 
   it("sends a lantern to the off hand rather than the weapon hand", () => {
-    expect(itemUseFor(lantern, { kind: "contents", index: 0 }, shipped)).toEqual({
+    expect(
+      itemUseFor(lantern, { kind: "contents", index: 0 }, shipped),
+    ).toEqual({
       type: "move",
       to: { kind: "offhand" },
     });

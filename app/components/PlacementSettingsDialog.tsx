@@ -204,7 +204,9 @@ export function PlacementSettingsDialog({
               tiles={giveable}
               tilesets={tilesets}
               selectedIds={rewardTileIds}
-              onChange={(ids) => setRewardTileIds(ids.slice(0, MAX_REWARD_ITEMS))}
+              onChange={(ids) =>
+                setRewardTileIds(ids.slice(0, MAX_REWARD_ITEMS))
+              }
               label="Items given"
               emptyHint="Pick what this one hands over. A tag with nothing to give is not offered at all."
             />

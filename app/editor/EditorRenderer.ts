@@ -500,7 +500,10 @@ export class EditorRenderer {
     return u;
   }
 
-  private materialFor(texture: THREE.Texture, z: number): THREE.MeshBasicMaterial {
+  private materialFor(
+    texture: THREE.Texture,
+    z: number,
+  ): THREE.MeshBasicMaterial {
     const key = this.materialKey(texture, z);
     let mat = this.materials.get(key);
     if (!mat) {
@@ -642,9 +645,7 @@ export class EditorRenderer {
       this.rebuildKey = key;
       // Full rebuild when tilesById count changed (defs loaded/replaced) or forced.
       const tilesChanged =
-        forceRebuild ||
-        !prevKey ||
-        prevKey.split("|")[1] !== key.split("|")[1];
+        forceRebuild || !prevKey || prevKey.split("|")[1] !== key.split("|")[1];
       if (tilesChanged || this.prevMap === null) {
         this.rebuildAll();
       } else {
@@ -687,7 +688,8 @@ export class EditorRenderer {
       const sig = tileLightSignature(t);
       if (sig) {
         let h = 0;
-        for (let i = 0; i < sig.length; i++) h = (h * 31 + sig.charCodeAt(i)) | 0;
+        for (let i = 0; i < sig.length; i++)
+          h = (h * 31 + sig.charCodeAt(i)) | 0;
         lightDefsSig = (lightDefsSig * 31 + h) | 0;
       }
       if (t.lightPassing) lightDefsSig = (lightDefsSig * 17 + 3) | 0;
@@ -748,10 +750,7 @@ export class EditorRenderer {
       );
     }
     const geo = new THREE.BufferGeometry();
-    geo.setAttribute(
-      "position",
-      new THREE.Float32BufferAttribute(points, 3),
-    );
+    geo.setAttribute("position", new THREE.Float32BufferAttribute(points, 3));
     const mat = new THREE.LineBasicMaterial({
       color: 0x000000,
       transparent: true,
@@ -840,7 +839,14 @@ export class EditorRenderer {
       color: number,
       heavy = false,
     ) => {
-      for (const line of makeRectOutline(originX, originY, w, h, color, heavy)) {
+      for (const line of makeRectOutline(
+        originX,
+        originY,
+        w,
+        h,
+        color,
+        heavy,
+      )) {
         this.overlays.add(line);
       }
     };
@@ -862,10 +868,9 @@ export class EditorRenderer {
     } else if (s.armedTileId) {
       const def = s.tilesById[s.armedTileId];
       if (def) {
-        brush =
-          isDirectional(def)
-            ? [{ tileId: def.id, direction: "s" }]
-            : [{ tileId: def.id }];
+        brush = isDirectional(def)
+          ? [{ tileId: def.id, direction: "s" }]
+          : [{ tileId: def.id }];
       }
     }
 
@@ -882,7 +887,14 @@ export class EditorRenderer {
 
       if (brush.length === 0) {
         const origin = baseCellWorldOrigin(x, y, z, 0);
-        addRectOutline(origin.x, origin.y, CELL_SIZE, CELL_SIZE, 0xffcc00, true);
+        addRectOutline(
+          origin.x,
+          origin.y,
+          CELL_SIZE,
+          CELL_SIZE,
+          0xffcc00,
+          true,
+        );
       }
 
       let elev = 0;
@@ -944,7 +956,14 @@ export class EditorRenderer {
         if (!def) continue;
         if (!canPlace(s.map, c.x, c.y, z, def, s.tilesById).ok) {
           const origin = baseCellWorldOrigin(c.x, c.y, z, 0);
-          addRectOutline(origin.x, origin.y, CELL_SIZE, CELL_SIZE, 0xff4d4d, true);
+          addRectOutline(
+            origin.x,
+            origin.y,
+            CELL_SIZE,
+            CELL_SIZE,
+            0xff4d4d,
+            true,
+          );
           continue;
         }
         const elev = stackHeight(getStack(s.map, c.x, c.y, z), s.tilesById);
@@ -968,7 +987,14 @@ export class EditorRenderer {
 
       if (!canReplaceStack(s.map, c.x, c.y, z, brush, s.tilesById).ok) {
         const origin = baseCellWorldOrigin(c.x, c.y, z, 0);
-        addRectOutline(origin.x, origin.y, CELL_SIZE, CELL_SIZE, 0xff4d4d, true);
+        addRectOutline(
+          origin.x,
+          origin.y,
+          CELL_SIZE,
+          CELL_SIZE,
+          0xff4d4d,
+          true,
+        );
         continue;
       }
 
@@ -1488,9 +1514,7 @@ export class EditorRenderer {
    * preview with lighting off, where the hour has stopped meaning anything and
    * a midnight sky behind fully lit tiles is just confusing.
    */
-  private backgroundFor(
-    s: ReturnType<typeof useEditorStore.getState>,
-  ): number {
+  private backgroundFor(s: ReturnType<typeof useEditorStore.getState>): number {
     if (!s.previewMode || !s.lighting.enabled) return BACKGROUND_COLOR;
     return sampleIllumination(s.lighting.minutesOfDay).background;
   }
@@ -1554,8 +1578,7 @@ export class EditorRenderer {
       for (const g of solid) g.visible = false;
     }
 
-    const ghostImage =
-      ghosts.length > 0 ? this.renderGhostImage(ghosts) : null;
+    const ghostImage = ghosts.length > 0 ? this.renderGhostImage(ghosts) : null;
     this.world.visible = false;
 
     // Quantise before the ghosts and the chrome: outlines keep their exact
@@ -1780,12 +1803,7 @@ export class EditorRenderer {
         useEditorStore.setState({ lastToast: "No tile armed" });
         return;
       }
-      const target = getStack(
-        store.map,
-        coord.x,
-        coord.y,
-        store.currentLevel,
-      );
+      const target = getStack(store.map, coord.x, coord.y, store.currentLevel);
       if (target.length === 0) return;
       if (store.selected) {
         const source = getStack(

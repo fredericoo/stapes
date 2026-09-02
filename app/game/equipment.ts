@@ -214,7 +214,9 @@ export function restoredEquipment(
   // Absent on a kit saved before this slot existed, which reads as an empty
   // hand — the same answer the rest of this function gives to anything the world
   // no longer agrees with.
-  const offhandDef = saved.offhand ? tilesById[saved.offhand.tileId] : undefined;
+  const offhandDef = saved.offhand
+    ? tilesById[saved.offhand.tileId]
+    : undefined;
   const offhandHeld =
     saved.offhand && offhandDef && handAccepts(offhandDef)
       ? restoredInstance(saved.offhand, offhandDef)
@@ -318,10 +320,7 @@ function identified(instance: ItemInstance): ItemInstance {
  * outright. It is not a lock on anything — see {@link stoneLocked}, which asks
  * the same question — and leaving it would be a field nothing ever winds down.
  */
-function restoredInstance(
-  instance: ItemInstance,
-  def: TileDef,
-): ItemInstance {
+function restoredInstance(instance: ItemInstance, def: TileDef): ItemInstance {
   const named = identified(instance);
   if (!named.cooldownMs) return named;
   const stone = resolveStone(def);
@@ -351,8 +350,10 @@ export const EQUIPMENT_SLOTS: readonly (keyof Equipment)[] = EQUIP_SLOTS;
  * that a type error rather than a bug found a fortnight later: the record is
  * satisfiable by `{}` only while there is no such slot.
  */
-const _everySlotIsListed: Record<Exclude<keyof Equipment, EquipSlot>, never> =
-  {};
+const _everySlotIsListed: Record<
+  Exclude<keyof Equipment, EquipSlot>,
+  never
+> = {};
 
 /** Everything worn or carried, slots and their contents alike, in a flat list. */
 export function carriedInstances(equipment: Equipment): ItemInstance[] {
@@ -606,7 +607,10 @@ export function effectiveBattler(
   tilesById: Record<string, TileDef>,
   hand: Hand | null,
 ): FightingStats {
-  const stats = fightingStats(base, weaponInHand(base, equipment, tilesById, hand));
+  const stats = fightingStats(
+    base,
+    weaponInHand(base, equipment, tilesById, hand),
+  );
   // Assigned rather than added to what `fightingStats` worked out, because
   // {@link wornDefence} has already counted the hands. Adding here is exactly
   // the double count that splitting defence across two functions used to

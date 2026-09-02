@@ -179,7 +179,10 @@ export type BrainContext = {
    * list reads: a direction to take, `"arrived"` for a creature already there,
    * and null for somewhere there is no way to. @see ./pathfinding
    */
-  routeTo(at: Coord, allowDrops: boolean | undefined): Direction | "arrived" | null;
+  routeTo(
+    at: Coord,
+    allowDrops: boolean | undefined,
+  ): Direction | "arrived" | null;
   /**
    * Say something over this creature's head.
    *
@@ -450,7 +453,9 @@ function inSight(
   cells: number,
   ctx: BrainContext,
 ): at is Coord {
-  return at !== null && within(ctx.self, at, cells, ctx.sight) && ctx.canSee(at);
+  return (
+    at !== null && within(ctx.self, at, cells, ctx.sight) && ctx.canSee(at)
+  );
 }
 
 /**
@@ -473,7 +478,8 @@ function heardFrom(
   const wanted = condition.text.toLowerCase();
   for (const utterance of ctx.heard()) {
     if (!utterance.text.toLowerCase().includes(wanted)) continue;
-    if (!voiceCounts(condition.from, utterance.speakerId, memory, ctx)) continue;
+    if (!voiceCounts(condition.from, utterance.speakerId, memory, ctx))
+      continue;
     const at = ctx.positionOf(utterance.speakerId);
     if (at === null) continue;
     if (!within(ctx.self, at, condition.cells, ctx.sight)) continue;

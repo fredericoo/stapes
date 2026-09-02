@@ -63,9 +63,13 @@ test.describe("editor renderer perf", () => {
     await page.waitForFunction(() => window.__editorPerf != null, null, {
       timeout: BOOT_TIMEOUT_MS,
     });
-    await page.waitForFunction(() => window.__editorPerf?.ready() === true, null, {
-      timeout: READY_TIMEOUT_MS,
-    });
+    await page.waitForFunction(
+      () => window.__editorPerf?.ready() === true,
+      null,
+      {
+        timeout: READY_TIMEOUT_MS,
+      },
+    );
 
     expect(pageErrors, `page errors: ${pageErrors.join("\n")}`).toEqual([]);
 

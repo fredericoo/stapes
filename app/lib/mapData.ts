@@ -726,17 +726,16 @@ export function updatePlacedReward(
   const nextTag = live ? trimmedTag : undefined;
   const nextIds = live ? kept : undefined;
 
-  if (
-    placed.rewardTag === nextTag &&
-    sameIds(placed.rewardTileIds, nextIds)
-  ) {
+  if (placed.rewardTag === nextTag && sameIds(placed.rewardTileIds, nextIds)) {
     return map;
   }
 
   const stack = current.map((p, i) => {
     if (i !== stackIndex) return { ...p };
     const { rewardTag: _tag, rewardTileIds: _ids, ...rest } = p;
-    return live ? { ...rest, rewardTag: nextTag, rewardTileIds: nextIds } : rest;
+    return live
+      ? { ...rest, rewardTag: nextTag, rewardTileIds: nextIds }
+      : rest;
   });
   return setStack(map, x, y, z, stack);
 }
@@ -887,7 +886,12 @@ export function flattenMap(map: MapFile): FlatMapFile {
  * *in* it, and each of those gets a fresh identity on the next load.
  */
 function authoredPlacement(placed: PlacedTile): PlacedTile {
-  const { itemId: _itemId, extractsLeft: _extractsLeft, contents, ...rest } = placed;
+  const {
+    itemId: _itemId,
+    extractsLeft: _extractsLeft,
+    contents,
+    ...rest
+  } = placed;
   if (!contents) return rest;
   return {
     ...rest,

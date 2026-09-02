@@ -101,7 +101,10 @@ export function ArenaMetrics({
       </thead>
       <tbody>
         {ROWS.map((row) => (
-          <tr key={row.label} className="border-b border-border/30 last:border-b-0">
+          <tr
+            key={row.label}
+            className="border-b border-border/30 last:border-b-0"
+          >
             <th
               scope="row"
               className={`px-2 py-1 text-left font-normal ${row.emphasis ? "font-bold" : ""}`}

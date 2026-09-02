@@ -35,7 +35,13 @@ export const DIALOG_COMMANDS: Record<DialogCommandKind, CatalogEntry> = {
   choices: {
     label: "choices",
     hint: "Buttons for the player, each leading to its own commands. Waits for a press.",
-    make: () => ({ kind: "choices", options: [{ label: "Yes", then: [] }, { label: "No", then: [] }] }),
+    make: () => ({
+      kind: "choices",
+      options: [
+        { label: "Yes", then: [] },
+        { label: "No", then: [] },
+      ],
+    }),
   },
   request_trade: {
     label: "request trade",
@@ -77,4 +83,6 @@ export const DIALOG_COMMANDS: Record<DialogCommandKind, CatalogEntry> = {
   },
 };
 
-export const DIALOG_COMMAND_KINDS = Object.keys(DIALOG_COMMANDS) as DialogCommandKind[];
+export const DIALOG_COMMAND_KINDS = Object.keys(
+  DIALOG_COMMANDS,
+) as DialogCommandKind[];

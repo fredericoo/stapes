@@ -253,7 +253,7 @@ class Frontier {
 
   push(node: Node) {
     this.heap.push(node);
-    for (let i = this.heap.length - 1; i > 0; ) {
+    for (let i = this.heap.length - 1; i > 0;) {
       const parent = (i - 1) >> 1;
       if (!this.before(this.heap[i]!, this.heap[parent]!)) break;
       [this.heap[i], this.heap[parent]] = [this.heap[parent]!, this.heap[i]!];
@@ -269,13 +269,15 @@ class Frontier {
     if (this.heap.length === 0) return top;
 
     this.heap[0] = last;
-    for (let i = 0; ; ) {
+    for (let i = 0; ;) {
       const left = i * 2 + 1;
       const right = left + 1;
       let best = i;
       const heap = this.heap;
-      if (left < heap.length && this.before(heap[left]!, heap[best]!)) best = left;
-      if (right < heap.length && this.before(heap[right]!, heap[best]!)) best = right;
+      if (left < heap.length && this.before(heap[left]!, heap[best]!))
+        best = left;
+      if (right < heap.length && this.before(heap[right]!, heap[best]!))
+        best = right;
       if (best === i) break;
       [this.heap[i], this.heap[best]] = [this.heap[best]!, this.heap[i]!];
       i = best;

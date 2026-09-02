@@ -11,10 +11,7 @@
 import { describe, expect, it } from "vitest";
 import { GameSession } from "../game/GameSession";
 import { TICK_MS, WALK_DURATION_MS } from "../game/constants";
-import {
-  emptyMap,
-  replaceStack,
-} from "../lib/mapData";
+import { emptyMap, replaceStack } from "../lib/mapData";
 import type { MapFile, PlacedTile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
 import { spriteStatesFor } from "./spriteState";
@@ -100,7 +97,9 @@ describe("spriteStatesFor", () => {
     // A ledge with nothing under it: the player is dropped a level above the
     // grass and gravity takes it from there.
     let map = floor();
-    map = replaceStack(map, 0, 0, 1, [{ tileId: "player", direction: "e" } as PlacedTile]);
+    map = replaceStack(map, 0, 0, 1, [
+      { tileId: "player", direction: "e" } as PlacedTile,
+    ]);
     map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" } as PlacedTile]);
     const session = new GameSession(map, tiles);
 

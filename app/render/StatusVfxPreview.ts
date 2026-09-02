@@ -454,7 +454,9 @@ export class StatusVfxPreview {
     const frame = this.frames[idx];
     if (!frame || !this.tileset) return;
     const { rect } = frame.sprite;
-    const attr = this.subject.geometry.getAttribute("uv") as THREE.BufferAttribute;
+    const attr = this.subject.geometry.getAttribute(
+      "uv",
+    ) as THREE.BufferAttribute;
     const uv = attr.array as Float32Array;
     const u0 = (rect.x * CELL_SIZE) / this.tileset.width;
     const u1 = ((rect.x + rect.w) * CELL_SIZE) / this.tileset.width;

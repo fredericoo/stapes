@@ -103,7 +103,8 @@ function pressHintFor(
   if (!instance) return null;
   const use = itemUseFor(instance, slot, tilesById);
   if (!use) return null;
-  if (use.type === "open") return open ? "Press to close it." : "Press to open it.";
+  if (use.type === "open")
+    return open ? "Press to close it." : "Press to open it.";
   if (use.type === "consume") {
     // The author's verb, in the middle of a sentence: "Eat" reads back as
     // "Press to eat it", so the hint and the row in the world use one word.
@@ -173,7 +174,11 @@ export function ItemSlot({
    * A component rather than a name, so nothing here has to hold a table of
    * icons: the panel that knows what its slots are is the panel that names them.
    */
-  emptyIcon?: ComponentType<{ size?: number; stroke?: number; className?: string }>;
+  emptyIcon?: ComponentType<{
+    size?: number;
+    stroke?: number;
+    className?: string;
+  }>;
   /**
    * This thing is currently open, and the panel showing its insides is on
    * screen.

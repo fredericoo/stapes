@@ -11,7 +11,11 @@ import { WorldClock } from "../components/WorldClock";
 import { type Equipment, emptyEquipment } from "../game/equipment";
 import type { Conversation, TalkAction } from "../game/dialogRuntime";
 import type { MasteryXp } from "../lib/mastery";
-import { bindCastKeys, bindKeyboard, HeldDirections } from "../game/heldDirections";
+import {
+  bindCastKeys,
+  bindKeyboard,
+  HeldDirections,
+} from "../game/heldDirections";
 import { usePlayModes } from "../components/usePlayModes";
 import {
   applyInteraction,
@@ -64,7 +68,12 @@ const RESTART_RECONNECT_JITTER_MS = 750;
 /** Guards the reload-on-stale-client path against looping. */
 const RELOADED_FOR_VERSION = "stapes:reloaded-for-version";
 
-type Status = "connecting" | "live" | "reconnecting" | "restarting" | "outdated";
+type Status =
+  | "connecting"
+  | "live"
+  | "reconnecting"
+  | "restarting"
+  | "outdated";
 
 export default function OnlinePage() {
   const { tiles, tilesets, statuses, socketPath } =
@@ -129,9 +138,8 @@ export default function OnlinePage() {
   const rebirth = useCallback(() => sessionRef.current?.rebirth(), []);
   // Placeholder until `hello` says what time it is out there. Nobody scrubs it:
   // the hour belongs to the world, not to whoever is looking at it.
-  const [minutesOfDay, setMinutesOfDay] = useState<MinutesOfDay>(
-    DEFAULT_PLAY_MINUTES,
-  );
+  const [minutesOfDay, setMinutesOfDay] =
+    useState<MinutesOfDay>(DEFAULT_PLAY_MINUTES);
   const [stats, setStats] = useState<FrameStats | null>(null);
   // Null while there is no connection to have heard it from, which is not the
   // same as an empty world — an unknown headcount reads as a dash rather than
@@ -143,7 +151,12 @@ export default function OnlinePage() {
   /** What this player has learnt — theirs alone, beside the kit. */
   const [masteryXp, setMasteryXp] = useState<MasteryXp>({});
   /** What this player's body can take, and its ⭐. */
-  const [vitals, setVitals] = useState<Vitals>({ hp: null, maxHp: null, rating: null, statuses: [] });
+  const [vitals, setVitals] = useState<Vitals>({
+    hp: null,
+    maxHp: null,
+    rating: null,
+    statuses: [],
+  });
   const [openedContainer, setOpenedContainer] =
     useState<OpenedContainer | null>(null);
   /**

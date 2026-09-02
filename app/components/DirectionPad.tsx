@@ -164,7 +164,11 @@ export function DirectionPad({
   /** Which way the knob is being pushed, or nothing while it rests. */
   const steered = ARROWS.find((arrow) => arrow.direction === active) ?? null;
 
-  const steerToPoint = (element: HTMLElement, clientX: number, clientY: number) => {
+  const steerToPoint = (
+    element: HTMLElement,
+    clientX: number,
+    clientY: number,
+  ) => {
     const rect = element.getBoundingClientRect();
     steerTo(
       directionAt(

@@ -32,7 +32,10 @@ export const TILE_FILTER_KINDS: { value: TileFilterKind; label: string }[] = [
  * either, and a catalogue that listed it as an NPC would be describing a
  * creature that stands still.
  */
-export function matchesTileFilter(def: TileDef, filter: TileFilterKind): boolean {
+export function matchesTileFilter(
+  def: TileDef,
+  filter: TileFilterKind,
+): boolean {
   if (filter === "all") return true;
   if (filter === "npc") return resolveBrain(def) !== null;
   return def.kind === filter;

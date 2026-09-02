@@ -31,7 +31,15 @@ import {
   type VoxelProject,
   type VoxelSize,
 } from "../lib/voxel";
-import { Button, Dialog, Input, Segmented, Select, Switch, useToast } from "../ui";
+import {
+  Button,
+  Dialog,
+  Input,
+  Segmented,
+  Select,
+  Switch,
+  useToast,
+} from "../ui";
 
 const STORAGE_KEY = "stapes-voxel-project";
 const AUTOSAVE_DELAY_MS = 400;
@@ -51,7 +59,8 @@ const DEFAULT_PALETTE = [
 export async function clientAction({ request }: Route.ClientActionArgs) {
   const form = await request.formData();
   const intent = String(form.get("intent") ?? "");
-  if (intent !== "export-tileset") return { ok: false, error: "Unknown intent" };
+  if (intent !== "export-tileset")
+    return { ok: false, error: "Unknown intent" };
 
   const name = String(form.get("name") ?? "").trim();
   const file = form.get("file");
@@ -68,7 +77,10 @@ export async function clientAction({ request }: Route.ClientActionArgs) {
 
   const id = slugify(name);
   const fileName = `${id}.png`;
-  await uploadTileset(new File([bytes], fileName, { type: "image/png" }), fileName);
+  await uploadTileset(
+    new File([bytes], fileName, { type: "image/png" }),
+    fileName,
+  );
   const tilesets = await fetchTilesets();
   const def: TilesetDef = {
     id,
@@ -186,9 +198,7 @@ export default function VoxelPage() {
       size: next,
       frames: p.frames.map((f) => ({
         ...f,
-        voxels: Array.from(
-          resizeGrid(Uint8Array.from(f.voxels), p.size, next),
-        ),
+        voxels: Array.from(resizeGrid(Uint8Array.from(f.voxels), p.size, next)),
       })),
     }));
     setSliceZ((z) => Math.min(z, voxelDims(next).vz - 1));
@@ -256,7 +266,11 @@ export default function VoxelPage() {
           <Button size="sm" variant="ghost-inverse" onClick={downloadSheetPng}>
             Download PNG
           </Button>
-          <Button size="sm" variant="primary" onClick={() => setExportOpen(true)}>
+          <Button
+            size="sm"
+            variant="primary"
+            onClick={() => setExportOpen(true)}
+          >
             Export tileset
           </Button>
         </>
@@ -264,7 +278,11 @@ export default function VoxelPage() {
     >
       <div className="grid h-full min-h-0 grid-cols-[240px_1fr_280px]">
         <aside className="flex min-h-0 flex-col gap-4 overflow-auto border-r-2 border-border bg-panel p-3">
-          <ProjectControls project={project} onChange={setProject} onResize={changeSize} />
+          <ProjectControls
+            project={project}
+            onChange={setProject}
+            onResize={changeSize}
+          />
           <PalettePanel
             palette={project.palette}
             selected={selectedColor}
@@ -310,12 +328,18 @@ export default function VoxelPage() {
               if (idx > 0) setSelectedColor(idx);
             }}
           />
-          <HeightSlider dims={dims} sliceZ={clampedSliceZ} onChange={setSliceZ} />
+          <HeightSlider
+            dims={dims}
+            sliceZ={clampedSliceZ}
+            onChange={setSliceZ}
+          />
         </main>
 
         <aside className="flex min-h-0 flex-col gap-3 overflow-auto border-l-2 border-border bg-panel p-3">
           <div className="flex flex-col gap-2">
-            <span className="text-xs font-bold uppercase text-muted">Preview</span>
+            <span className="text-xs font-bold uppercase text-muted">
+              Preview
+            </span>
             <label className="flex items-center justify-between gap-2 text-xs">
               Face shading
               <Switch
@@ -556,10 +580,7 @@ function FramesPanel({
   const addFrame = (voxels: number[]) => {
     onChange((p) => ({
       ...p,
-      frames: [
-        ...p.frames,
-        { voxels, durationMs: frame.durationMs },
-      ],
+      frames: [...p.frames, { voxels, durationMs: frame.durationMs }],
     }));
     onSelect(project.frames.length);
   };
@@ -717,7 +738,10 @@ function triggerDownload(blob: Blob, fileName: string) {
 
 const TILE_HEIGHT_OPTIONS: { value: string; label: string }[] = [
   { value: "0", label: "0 — flat" },
-  { value: "1", label: "1 — a seat, the tallest thing you can stand on indoors" },
+  {
+    value: "1",
+    label: "1 — a seat, the tallest thing you can stand on indoors",
+  },
   { value: "2", label: "2 — half level" },
   { value: "3", label: "3 — a body, as tall as the player" },
   { value: "4", label: "4 — full level" },
@@ -770,7 +794,10 @@ function ExportDialog({
     fd.set("name", name);
     fd.set("file", new File([blob], `${tilesetId}.png`, { type: "image/png" }));
     if (createTile) {
-      fd.set("tile", JSON.stringify(buildTileDef(project, tilesetId, tileHeight)));
+      fd.set(
+        "tile",
+        JSON.stringify(buildTileDef(project, tilesetId, tileHeight)),
+      );
     }
     submittedRef.current = true;
     fetcher.submit(fd, { method: "post", encType: "multipart/form-data" });
@@ -830,7 +857,8 @@ function ExportDialog({
         <p className="text-muted">
           Writes <code>{slugify(name) || "…"}.png</code> to the tilesets folder
           ({project.directional ? "4 direction rows" : "1 row"} ×{" "}
-          {project.frames.length} frame{project.frames.length === 1 ? "" : "s"}).
+          {project.frames.length} frame{project.frames.length === 1 ? "" : "s"}
+          ).
         </p>
       </div>
     </Dialog>

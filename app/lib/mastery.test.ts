@@ -75,7 +75,10 @@ describe("requirementShare", () => {
    */
   it("never lets a surplus in one mastery cover a shortfall in another", () => {
     expect(
-      requirementShare({ blunt: 100, toughness: 0 }, { blunt: 35, toughness: 20 }),
+      requirementShare(
+        { blunt: 100, toughness: 0 },
+        { blunt: 35, toughness: 20 },
+      ),
     ).toBeCloseTo(35 / 55, 10);
   });
 
@@ -90,8 +93,12 @@ describe("requirementShare", () => {
    * against the requirement.
    */
   it("stops at fully met however far past it the wielder is", () => {
-    expect(requirementShare({ blunt: 100 }, { blunt: 1 })).toBe(REQUIREMENTS_MET);
-    expect(requirementShare({ blunt: 100 }, { blunt: 35 })).toBe(REQUIREMENTS_MET);
+    expect(requirementShare({ blunt: 100 }, { blunt: 1 })).toBe(
+      REQUIREMENTS_MET,
+    );
+    expect(requirementShare({ blunt: 100 }, { blunt: 35 })).toBe(
+      REQUIREMENTS_MET,
+    );
   });
 
   it("never goes below zero", () => {
@@ -196,9 +203,15 @@ describe("rating", () => {
   /** The weights sum to one, which is what puts ⭐ on the mastery scale. */
   it("rates a body that is 40 at everything at 40", () => {
     const even = Object.fromEntries(
-      ["fist", "blade", "blunt", "ranged", "arcane", "toughness", "agility"].map(
-        (mastery) => [mastery, 40],
-      ),
+      [
+        "fist",
+        "blade",
+        "blunt",
+        "ranged",
+        "arcane",
+        "toughness",
+        "agility",
+      ].map((mastery) => [mastery, 40]),
     );
     expect(rating(even)).toBe(40);
   });
@@ -214,7 +227,9 @@ describe("rating", () => {
   });
 
   it("takes whichever weapon mastery is highest", () => {
-    expect(rating({ blade: 10, blunt: 40 })).toBe(rating({ blade: 40, blunt: 10 }));
+    expect(rating({ blade: 10, blunt: 40 })).toBe(
+      rating({ blade: 40, blunt: 10 }),
+    );
   });
 
   /** Rating is a divisor, so nothing that fights is allowed to rate nothing. */

@@ -29,8 +29,13 @@ const tiles = [
 ];
 const tilesById = tilesByIdFromList(tiles);
 
-function mapWith(stacks: Array<{ x: number; y: number; stack: PlacedTile[] }>): MapFile {
-  return setStacks({ version: 1, levels: {} }, stacks.map((s) => ({ ...s, z: 0 })));
+function mapWith(
+  stacks: Array<{ x: number; y: number; stack: PlacedTile[] }>,
+): MapFile {
+  return setStacks(
+    { version: 1, levels: {} },
+    stacks.map((s) => ({ ...s, z: 0 })),
+  );
 }
 
 describe("mintItemIds", () => {
@@ -69,9 +74,7 @@ describe("mintItemIds", () => {
   });
 
   it("is idempotent — a second pass changes nothing at all", () => {
-    const map = mapWith([
-      { x: 0, y: 0, stack: [{ tileId: "basic-bag" }] },
-    ]);
+    const map = mapWith([{ x: 0, y: 0, stack: [{ tileId: "basic-bag" }] }]);
     const once = mintItemIds(map, tilesById);
     const twice = mintItemIds(once, tilesById);
     // Same object, not merely equal: a pass with nothing to do must not copy
@@ -103,7 +106,12 @@ describe("mintItemIds", () => {
       {
         x: 0,
         y: 0,
-        stack: [{ tileId: "basic-bag", contents: [{ tileId: "rusty-sword" }] as never }],
+        stack: [
+          {
+            tileId: "basic-bag",
+            contents: [{ tileId: "rusty-sword" }] as never,
+          },
+        ],
       },
     ]);
     const placed = getStack(mintItemIds(map, tilesById), 0, 0, 0)[0]!;
@@ -115,7 +123,12 @@ describe("mintItemIds", () => {
       {
         x: 0,
         y: 0,
-        stack: [{ tileId: "basic-bag", contents: [{ tileId: "rusty-sword" }] as never }],
+        stack: [
+          {
+            tileId: "basic-bag",
+            contents: [{ tileId: "rusty-sword" }] as never,
+          },
+        ],
       },
     ]);
     const placed = getStack(mintItemIds(map, tilesById), 0, 0, 0)[0]!;

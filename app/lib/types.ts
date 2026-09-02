@@ -23,15 +23,7 @@ export const DIRECTIONS: Direction[] = ["n", "e", "s", "w"];
  * north is going *somewhere between* north and north-east, and a four-way sprite
  * would draw it pointing at neither. See `./item`'s `ProjectileDef`.
  */
-export type Octant =
-  | "n"
-  | "ne"
-  | "e"
-  | "se"
-  | "s"
-  | "sw"
-  | "w"
-  | "nw";
+export type Octant = "n" | "ne" | "e" | "se" | "s" | "sw" | "w" | "nw";
 
 /**
  * Every bearing, in clockwise screen order starting at north.
@@ -40,16 +32,7 @@ export type Octant =
  * angle indexes this, so a list in some other order would rotate every arrow in
  * the game by however far it was shuffled.
  */
-export const OCTANTS: Octant[] = [
-  "n",
-  "ne",
-  "e",
-  "se",
-  "s",
-  "sw",
-  "w",
-  "nw",
-];
+export const OCTANTS: Octant[] = ["n", "ne", "e", "se", "s", "sw", "w", "nw"];
 
 /**
  * The cardinal an eighth is nearest to, for a tile that only authored four.
@@ -799,7 +782,10 @@ function framesWithLight(frames: Frame[], light?: LightDef): Frame[] {
   return frames.map((f) => (f.light ? f : { ...f, light }));
 }
 
-function framesToSprite(frames: Frame[] | undefined, light?: LightDef): TileSprite {
+function framesToSprite(
+  frames: Frame[] | undefined,
+  light?: LightDef,
+): TileSprite {
   return { frames: framesWithLight(frames ?? [], light) };
 }
 
@@ -825,7 +811,11 @@ function readKind(raw: Record<string, unknown>): TileKind {
 
 export function normalizeTileDef(raw: unknown): TileDef {
   const t = raw as Record<string, unknown>;
-  if (t && typeof t.type === "string" && TILE_TYPES.includes(t.type as TileType)) {
+  if (
+    t &&
+    typeof t.type === "string" &&
+    TILE_TYPES.includes(t.type as TileType)
+  ) {
     const def = raw as TileDef;
     return clampTileLight({
       ...def,
@@ -1085,7 +1075,10 @@ export function maxLightRadius(tile: TileDef): number {
   return max;
 }
 
-export function frameAtTime(frames: Frame[], timeMs: number): Frame | undefined {
+export function frameAtTime(
+  frames: Frame[],
+  timeMs: number,
+): Frame | undefined {
   if (frames.length === 0) return undefined;
   if (frames.length === 1) return frames[0];
   const total = frames.reduce((sum, f) => sum + Math.max(1, f.durationMs), 0);

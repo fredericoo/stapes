@@ -1524,7 +1524,9 @@ const consumableSchema = v.object({
   label: v.optional(v.string()),
   // Bounded where the verb is not: a verb is a word by construction, and this
   // is free text that ends up drawn over somebody's head.
-  sound: v.optional(v.pipe(v.string(), v.maxLength(MAX_CONSUMABLE_SOUND_LENGTH))),
+  sound: v.optional(
+    v.pipe(v.string(), v.maxLength(MAX_CONSUMABLE_SOUND_LENGTH)),
+  ),
   // Signed, unlike a battler's own numbers: harming is authored with the same
   // field healing is.
   hp: v.pipe(
@@ -1678,7 +1680,8 @@ const shieldSchema = v.object({
  * catches is a draft somebody opened and did not finish, which would otherwise
  * ship as a stone that spends its cooldown to do nothing at all.
  */
-const EMPTY_BOLT_MESSAGE = "A bolt has to move health or leave a status behind.";
+const EMPTY_BOLT_MESSAGE =
+  "A bolt has to move health or leave a status behind.";
 
 /**
  * One of the two things a stone can be authored to do.
@@ -1957,9 +1960,9 @@ export function weaponForSave(weapon: WeaponItem): WeaponItem {
   // carrying `requirements: {}` would read as "asks something" to anybody
   // skimming the file.
   const requirements = Object.fromEntries(
-    MASTERIES.filter((mastery) => (weapon.requirements?.[mastery] ?? 0) > 0).map(
-      (mastery) => [mastery, weapon.requirements?.[mastery]],
-    ),
+    MASTERIES.filter(
+      (mastery) => (weapon.requirements?.[mastery] ?? 0) > 0,
+    ).map((mastery) => [mastery, weapon.requirements?.[mastery]]),
   );
 
   const statuses = statusGrantsForSave(weapon.statuses);
@@ -2019,7 +2022,12 @@ function statusGrantsForSave<Grant extends StatusGrant>(
     const toMs = entry.toMs;
     // Both or neither — half an override is malformed and the schema refuses it.
     if (fromMs !== undefined && toMs !== undefined) {
-      saved.push({ ...entry, id, fromMs: Math.round(fromMs), toMs: Math.round(toMs) });
+      saved.push({
+        ...entry,
+        id,
+        fromMs: Math.round(fromMs),
+        toMs: Math.round(toMs),
+      });
     } else {
       // Spread minus the two ends, so a draft that carried half an override
       // does not smuggle it onto disk under a key the schema would refuse.
@@ -2042,9 +2050,9 @@ function statusGrantsForSave<Grant extends StatusGrant>(
  */
 function armorForSave(armor: ArmorItem): ArmorItem {
   const resist = Object.fromEntries(
-    WEAPON_MASTERIES.filter((mastery) => (armor.resist?.[mastery] ?? 0) > 0).map(
-      (mastery) => [mastery, armor.resist?.[mastery]],
-    ),
+    WEAPON_MASTERIES.filter(
+      (mastery) => (armor.resist?.[mastery] ?? 0) > 0,
+    ).map((mastery) => [mastery, armor.resist?.[mastery]]),
   );
   const slot = armorSlotOf(armor);
   return {

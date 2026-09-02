@@ -67,7 +67,10 @@ export type Formula = {
 /** An expression that has not been rounded yet. */
 type Node = (scope: FormulaScope) => number;
 
-const FUNCTIONS: Record<string, { arity: number; apply: (args: number[]) => number }> = {
+const FUNCTIONS: Record<
+  string,
+  { arity: number; apply: (args: number[]) => number }
+> = {
   ceil: { arity: 1, apply: ([v]) => Math.ceil(v!) },
   floor: { arity: 1, apply: ([v]) => Math.floor(v!) },
   round: { arity: 1, apply: ([v]) => Math.round(v!) },
@@ -156,7 +159,10 @@ function tokenise(source: string): Token[] | null {
  */
 class ParseError extends Error {}
 
-const BINARY: Record<string, { precedence: number; apply: (a: number, b: number) => number }> = {
+const BINARY: Record<
+  string,
+  { precedence: number; apply: (a: number, b: number) => number }
+> = {
   "+": { precedence: 1, apply: (a, b) => a + b },
   "-": { precedence: 1, apply: (a, b) => a - b },
   "*": { precedence: 2, apply: (a, b) => a * b },

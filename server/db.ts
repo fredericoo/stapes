@@ -120,9 +120,7 @@ async function migrate(db: Database): Promise<void> {
   const versions = await db.prepare(
     "SELECT MAX(version) AS version FROM schema_version",
   );
-  const row = (await versions.get()) as
-    | { version: number | null }
-    | undefined;
+  const row = (await versions.get()) as { version: number | null } | undefined;
   const applied = row?.version ?? 0;
 
   for (let index = applied; index < MIGRATIONS.length; index++) {

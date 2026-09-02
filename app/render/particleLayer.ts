@@ -105,7 +105,7 @@ export function createCircleAtlas(): THREE.DataTexture {
         // is not a circle, it is a block. This gives a plus at 1 and a proper
         // rounded blob from 2 up — the shapes a pixel artist would draw.
         const inside = dx * dx + dy * dy <= r * r;
-        const o = ((py * ATLAS_W) + cellX + px) * 4;
+        const o = (py * ATLAS_W + cellX + px) * 4;
         data[o] = 255;
         data[o + 1] = 255;
         data[o + 2] = 255;
@@ -158,10 +158,7 @@ export function circleSlice(radius: number): {
  * level at all to be placed — which is exactly right for something that can rise
  * out of the storey it started in.
  */
-export function particleWorldPx(
-  cell: number,
-  elevAbs: number,
-): number {
+export function particleWorldPx(cell: number, elevAbs: number): number {
   return cell * CELL_SIZE - PX_PER_HEIGHT * elevAbs;
 }
 
@@ -480,7 +477,10 @@ export class ParticleLayer {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.BufferAttribute(this.positions, 3));
     geo.setAttribute("uv", new THREE.BufferAttribute(this.uvs, 2));
-    geo.setAttribute("aBox", new THREE.BufferAttribute(this.boxes, BOX_COMPONENTS));
+    geo.setAttribute(
+      "aBox",
+      new THREE.BufferAttribute(this.boxes, BOX_COMPONENTS),
+    );
     geo.setAttribute("aStack", new THREE.BufferAttribute(this.stacks, 1));
     geo.setAttribute(
       "aParticleColor",

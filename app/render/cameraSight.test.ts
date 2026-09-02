@@ -76,9 +76,9 @@ const origin = { x: 0, y: 0, z: 0 };
 
 describe("camera sight", () => {
   it("sees a body under open sky", () => {
-    expect(isHiddenFromCamera(field(), tilesById, origin, origin.z, undefined)).toBe(
-      false,
-    );
+    expect(
+      isHiddenFromCamera(field(), tilesById, origin, origin.z, undefined),
+    ).toBe(false);
   });
 
   /**
@@ -89,7 +89,9 @@ describe("camera sight", () => {
     const map = put(field(-1), 1, 1, 0, "floor");
     const inCave = { x: 0, y: 0, z: -1 };
 
-    expect(isHiddenFromCamera(map, tilesById, inCave, inCave.z, undefined)).toBe(true);
+    expect(
+      isHiddenFromCamera(map, tilesById, inCave, inCave.z, undefined),
+    ).toBe(true);
   });
 
   /**
@@ -106,12 +108,14 @@ describe("camera sight", () => {
       }
     }
 
-    expect(isHiddenFromCamera(map, tilesById, { x: 0, y: 0, z: -1 }, -1, undefined))
-      .toBe(true);
+    expect(
+      isHiddenFromCamera(map, tilesById, { x: 0, y: 0, z: -1 }, -1, undefined),
+    ).toBe(true);
     // And the one cell that *is* under the hole is seen, which is what makes
     // the assertion above about the ray rather than about the roof.
-    expect(isHiddenFromCamera(map, tilesById, { x: 1, y: 1, z: -1 }, -1, undefined))
-      .toBe(false);
+    expect(
+      isHiddenFromCamera(map, tilesById, { x: 1, y: 1, z: -1 }, -1, undefined),
+    ).toBe(false);
   });
 
   it("is not fooled by a ceiling one cell off the ray", () => {
@@ -122,14 +126,18 @@ describe("camera sight", () => {
       [-1, -1],
     ] as const) {
       const map = put(field(), dx, dy, 1, "wall");
-      expect(isHiddenFromCamera(map, tilesById, origin, origin.z, undefined)).toBe(false);
+      expect(
+        isHiddenFromCamera(map, tilesById, origin, origin.z, undefined),
+      ).toBe(false);
     }
   });
 
   it("follows the diagonal up through every level", () => {
     for (const k of [1, 2, 3]) {
       const map = put(field(), k, k, k, "wall");
-      expect(isHiddenFromCamera(map, tilesById, origin, origin.z, undefined)).toBe(true);
+      expect(
+        isHiddenFromCamera(map, tilesById, origin, origin.z, undefined),
+      ).toBe(true);
     }
   });
 
@@ -137,7 +145,9 @@ describe("camera sight", () => {
   it("reads a body through something light passes", () => {
     const map = put(field(), 1, 1, 1, "glass");
 
-    expect(isHiddenFromCamera(map, tilesById, origin, origin.z, undefined)).toBe(false);
+    expect(
+      isHiddenFromCamera(map, tilesById, origin, origin.z, undefined),
+    ).toBe(false);
   });
 
   /**
@@ -156,7 +166,9 @@ describe("camera sight", () => {
   it("is never hidden by its own cell", () => {
     const map = put(field(), 0, 0, 0, "wall");
 
-    expect(isHiddenFromCamera(map, tilesById, origin, origin.z, undefined)).toBe(false);
+    expect(
+      isHiddenFromCamera(map, tilesById, origin, origin.z, undefined),
+    ).toBe(false);
   });
 
   /**
@@ -171,7 +183,9 @@ describe("camera sight", () => {
 
     expect(isHiddenFromCamera(map, tilesById, below, 0, undefined)).toBe(true);
     // Same board, viewer down there with it: no floor in between any more.
-    expect(isHiddenFromCamera(map, tilesById, below, -1, undefined)).toBe(false);
+    expect(isHiddenFromCamera(map, tilesById, below, -1, undefined)).toBe(
+      false,
+    );
   });
 
   it("counts every floor up to the viewer, not just the first", () => {

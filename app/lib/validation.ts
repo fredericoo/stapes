@@ -9,9 +9,7 @@ import {
 } from "./types";
 import { elevationAt, getStack, isPlayerBody, stackHeight } from "./mapData";
 
-export type PlaceResult =
-  | { ok: true }
-  | { ok: false; reason: string };
+export type PlaceResult = { ok: true } | { ok: false; reason: string };
 
 /**
  * Whether the thing being fitted may share a cell with somebody standing in it.
@@ -88,7 +86,8 @@ function playerBodyNearLevel(
   for (let zAt = z - BODY_REACH_LEVELS; zAt <= z + BODY_REACH_LEVELS; zAt++) {
     if (zAt < MIN_LEVEL || zAt > MAX_LEVEL) continue;
     const stack = getStack(map, x, y, zAt);
-    if (playerBodyInVolume(stack, zAt, feetAbs, headAbs, tilesById)) return true;
+    if (playerBodyInVolume(stack, zAt, feetAbs, headAbs, tilesById))
+      return true;
   }
   return false;
 }

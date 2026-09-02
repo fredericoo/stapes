@@ -48,7 +48,14 @@ const shop: DialogDef = {
           ],
         },
         { label: "How", then: [say("Crystals."), say("Light."), back] },
-        { label: "Bless me", then: [{ kind: "add_status", statusId: "luminous" }, { kind: "tag", tag: "blessed" }, say("Shine.")] },
+        {
+          label: "Bless me",
+          then: [
+            { kind: "add_status", statusId: "luminous" },
+            { kind: "tag", tag: "blessed" },
+            say("Shine."),
+          ],
+        },
         { label: "Bye", then: [say("Mind the dark.")] },
       ],
     },
@@ -57,7 +64,9 @@ const shop: DialogDef = {
 
 const npc = { id: "npc:1", tileId: "seller" };
 
-function partner(attempt: (effects: readonly DialogEffectDef[]) => boolean = () => true) {
+function partner(
+  attempt: (effects: readonly DialogEffectDef[]) => boolean = () => true,
+) {
   const attempts: DialogEffectDef[][] = [];
   const view: PartnerView & { attempts: DialogEffectDef[][] } = {
     name: () => "ann",
@@ -67,7 +76,8 @@ function partner(attempt: (effects: readonly DialogEffectDef[]) => boolean = () 
   return view;
 }
 
-const lines = (c: Conversation) => c.transcript.map((e) => `${e.who}: ${e.text}`);
+const lines = (c: Conversation) =>
+  c.transcript.map((e) => `${e.who}: ${e.text}`);
 
 describe("opening", () => {
   it("runs to the first choice, saying everything before it", () => {
@@ -81,12 +91,18 @@ describe("opening", () => {
   it("names a partner who has gone as someone", () => {
     const view = partner();
     view.name = () => null;
-    expect(lines(openConversation(shop, npc, view))).toEqual(["npc: Hello, someone!"]);
+    expect(lines(openConversation(shop, npc, view))).toEqual([
+      "npc: Hello, someone!",
+    ]);
   });
 
   it("ends at once for a script with nothing to wait on", () => {
     const view = partner();
-    const opened = openConversation({ script: [say("Hi."), say("Bye.")] }, npc, view);
+    const opened = openConversation(
+      { script: [say("Hi."), say("Bye.")] },
+      npc,
+      view,
+    );
     expect(lines(opened)).toEqual(["npc: Hi.", "npc: Bye."]);
     expect(waitingOn({ script: [say("Hi."), say("Bye.")] }, opened)).toBeNull();
   });
@@ -96,15 +112,28 @@ describe("choosing", () => {
   it("records the press, runs the branch, and comes back to the menu by goto", () => {
     const view = partner();
     const how = chooseOption(shop, openConversation(shop, npc, view), 1, view)!;
-    expect(lines(how)).toEqual(["npc: Hello, ann!", "you: How", "npc: Crystals.", "npc: Light."]);
+    expect(lines(how)).toEqual([
+      "npc: Hello, ann!",
+      "you: How",
+      "npc: Crystals.",
+      "npc: Light.",
+    ]);
     expect(how.pc).toEqual([2]);
     expect(waitingOn(shop, how)?.kind).toBe("choices");
   });
 
   it("runs effects on the way, skipping ones that cannot be, and ends when a branch runs out", () => {
     const view = partner((effects) => effects[0]?.effect !== "add_status");
-    const blessed = chooseOption(shop, openConversation(shop, npc, view), 2, view)!;
-    expect(view.attempts).toEqual([[{ effect: "add_status", statusId: "luminous" }], [{ effect: "tag", tag: "blessed" }]]);
+    const blessed = chooseOption(
+      shop,
+      openConversation(shop, npc, view),
+      2,
+      view,
+    )!;
+    expect(view.attempts).toEqual([
+      [{ effect: "add_status", statusId: "luminous" }],
+      [{ effect: "tag", tag: "blessed" }],
+    ]);
     expect(lines(blessed).at(-1)).toBe("npc: Shine.");
     expect(waitingOn(shop, blessed)).toBeNull();
   });
@@ -137,15 +166,25 @@ describe("trading", () => {
     const offer = atCounter(view);
     expect(lines(offer).at(-1)).toBe("npc: Fourteen shards each.");
     expect(offer.pc).toEqual([2, 0, 1]);
-    expect(acceptTrade(shop, openConversation(shop, npc, view), 1, view)).toBeNull();
-    expect(cancelTrade(shop, openConversation(shop, npc, view), view)).toBeNull();
+    expect(
+      acceptTrade(shop, openConversation(shop, npc, view), 1, view),
+    ).toBeNull();
+    expect(
+      cancelTrade(shop, openConversation(shop, npc, view), view),
+    ).toBeNull();
   });
 
   it("runs the trade for so many units, notes it, and continues the traded branch", () => {
     const view = partner();
     const done = acceptTrade(shop, atCounter(view), 3, view)!;
     expect(view.attempts).toEqual([
-      [{ effect: "trade", take: [{ tileId: "shard", count: 42 }], give: [{ tileId: "potion", count: 3 }] }],
+      [
+        {
+          effect: "trade",
+          take: [{ tileId: "shard", count: 42 }],
+          give: [{ tileId: "potion", count: 3 }],
+        },
+      ],
     ]);
     expect(lines(done).slice(-2)).toEqual(["note: Traded ×3.", "npc: Thanks."]);
     expect(waitingOn(shop, done)?.kind).toBe("choices");
@@ -154,7 +193,9 @@ describe("trading", () => {
   it("clamps the amount to the trade's range", () => {
     const view = partner();
     acceptTrade(shop, atCounter(view), 40, view);
-    expect(view.attempts[0]![0]).toMatchObject({ take: [{ tileId: "shard", count: 56 }] });
+    expect(view.attempts[0]![0]).toMatchObject({
+      take: [{ tileId: "shard", count: 56 }],
+    });
   });
 
   it("notes a refusal and keeps waiting, nothing run", () => {
@@ -167,7 +208,10 @@ describe("trading", () => {
   it("runs the cancel branch on cancel", () => {
     const view = partner();
     const cancelled = cancelTrade(shop, atCounter(view), view)!;
-    expect(lines(cancelled).slice(-2)).toEqual(["you: Cancel", "npc: Stop wasting my time."]);
+    expect(lines(cancelled).slice(-2)).toEqual([
+      "you: Cancel",
+      "npc: Stop wasting my time.",
+    ]);
     expect(view.attempts).toEqual([]);
     expect(waitingOn(shop, cancelled)?.kind).toBe("choices");
   });
@@ -177,20 +221,42 @@ describe("goto", () => {
   it("lands after the anchor, wherever it is, and stops a loop that never waits", () => {
     const nested: DialogDef = {
       script: [
-        { kind: "choices", options: [{ label: "In", then: [{ kind: "anchor", name: "deep" }, say("Deep.")] }] },
+        {
+          kind: "choices",
+          options: [
+            {
+              label: "In",
+              then: [{ kind: "anchor", name: "deep" }, say("Deep.")],
+            },
+          ],
+        },
         say("Top."),
         { kind: "goto", name: "deep" },
       ],
     };
     const view = partner();
-    const gone = chooseOption(nested, openConversation(nested, npc, view), 0, view)!;
-    expect(lines(gone).slice(0, 4)).toEqual(["you: In", "npc: Deep.", "npc: Top.", "npc: Deep."]);
+    const gone = chooseOption(
+      nested,
+      openConversation(nested, npc, view),
+      0,
+      view,
+    )!;
+    expect(lines(gone).slice(0, 4)).toEqual([
+      "you: In",
+      "npc: Deep.",
+      "npc: Top.",
+      "npc: Deep.",
+    ]);
     expect(gone.transcript.length).toBeLessThanOrEqual(MAX_STEPS_PER_PRESS);
     expect(waitingOn(nested, gone)).toBeNull();
   });
 
   it("carries on past a goto naming no anchor", () => {
-    const lost: DialogDef = { script: [{ kind: "goto", name: "nowhere" }, say("Still here.")] };
-    expect(lines(openConversation(lost, npc, partner()))).toEqual(["npc: Still here."]);
+    const lost: DialogDef = {
+      script: [{ kind: "goto", name: "nowhere" }, say("Still here.")],
+    };
+    expect(lines(openConversation(lost, npc, partner()))).toEqual([
+      "npc: Still here.",
+    ]);
   });
 });

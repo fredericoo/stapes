@@ -13,12 +13,7 @@ type Props = {
 /**
  * Drag-select a rectangular cell area on a tileset; click inside selection to set base.
  */
-export function SpriteSelector({
-  tileset,
-  value,
-  onChange,
-  zoom = 4,
-}: Props) {
+export function SpriteSelector({ tileset, value, onChange, zoom = 4 }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [img, setImg] = useState<HTMLImageElement | null>(null);
   const dragRef = useRef<{
@@ -128,12 +123,7 @@ export function SpriteSelector({
     const rect = canvas.getBoundingClientRect();
     const x = Math.floor((clientX - rect.left) / (8 * zoom));
     const y = Math.floor((clientY - rect.top) / (8 * zoom));
-    if (
-      x < 0 ||
-      y < 0 ||
-      x >= tileset.width / 8 ||
-      y >= tileset.height / 8
-    ) {
+    if (x < 0 || y < 0 || x >= tileset.width / 8 || y >= tileset.height / 8) {
       return null;
     }
     return { x, y };

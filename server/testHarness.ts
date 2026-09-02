@@ -43,7 +43,10 @@ export interface TestSocket {
     listener: (event: { data: string }) => void,
     options?: { once?: boolean },
   ): void;
-  removeEventListener(type: "message", listener: (event: { data: string }) => void): void;
+  removeEventListener(
+    type: "message",
+    listener: (event: { data: string }) => void,
+  ): void;
   readonly closeCode: number | null;
   readonly closeReason: string | null;
   close(): void;

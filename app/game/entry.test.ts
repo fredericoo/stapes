@@ -120,25 +120,31 @@ describe("findEntryCell", () => {
       "0,0": [grass, wall],
       "-1,0": [grass, wall],
     };
-    expect(findEntryCell(floorWith(blocked), tilesById, WAS_AT, SPAWN)).toEqual({
-      x: 0,
-      y: -1,
-      z: 0,
-    });
+    expect(findEntryCell(floorWith(blocked), tilesById, WAS_AT, SPAWN)).toEqual(
+      {
+        x: 0,
+        y: -1,
+        z: 0,
+      },
+    );
 
     blocked["0,-1"] = [grass, wall];
-    expect(findEntryCell(floorWith(blocked), tilesById, WAS_AT, SPAWN)).toEqual({
-      x: 1,
-      y: 0,
-      z: 0,
-    });
+    expect(findEntryCell(floorWith(blocked), tilesById, WAS_AT, SPAWN)).toEqual(
+      {
+        x: 1,
+        y: 0,
+        z: 0,
+      },
+    );
 
     blocked["1,0"] = [grass, wall];
-    expect(findEntryCell(floorWith(blocked), tilesById, WAS_AT, SPAWN)).toEqual({
-      x: 0,
-      y: 1,
-      z: 0,
-    });
+    expect(findEntryCell(floorWith(blocked), tilesById, WAS_AT, SPAWN)).toEqual(
+      {
+        x: 0,
+        y: 1,
+        z: 0,
+      },
+    );
   });
 
   /** Ring by ring: everything one step away is tried before anything two. */
@@ -166,7 +172,8 @@ describe("findEntryCell", () => {
     const blocked: Record<string, PlacedTile[]> = {};
     const reach = ENTRY_SEARCH_RADIUS;
     for (let y = -reach; y <= reach; y++) {
-      for (let x = -reach; x <= reach; x++) blocked[`${x},${y}`] = [grass, wall];
+      for (let x = -reach; x <= reach; x++)
+        blocked[`${x},${y}`] = [grass, wall];
     }
     expect(findEntryCell(floorWith(blocked), tilesById, WAS_AT, SPAWN)).toEqual(
       SPAWN,

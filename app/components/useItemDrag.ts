@@ -199,7 +199,12 @@ export function useItemDrag({
       for (const [key, { el }] of slots.current) {
         if (!accepting.has(key)) continue;
         const box = el.getBoundingClientRect();
-        if (x >= box.left && x <= box.right && y >= box.top && y <= box.bottom) {
+        if (
+          x >= box.left &&
+          x <= box.right &&
+          y >= box.top &&
+          y <= box.bottom
+        ) {
           return key;
         }
       }

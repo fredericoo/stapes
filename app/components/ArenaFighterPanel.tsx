@@ -107,7 +107,10 @@ export function ArenaFighterPanel({
             const fresh = fighterForTile(tileId, tilesById);
             onChange({ ...fresh, equipment: fighter.equipment });
           }}
-          options={battlers.map((tile) => ({ value: tile.id, label: tile.name }))}
+          options={battlers.map((tile) => ({
+            value: tile.id,
+            label: tile.name,
+          }))}
           className="ml-auto"
           ariaLabel={`${title} battler`}
         />
@@ -218,7 +221,9 @@ function Equipment({
 }) {
   return (
     <fieldset className="flex flex-col gap-2">
-      <legend className="text-[11px] font-bold uppercase text-muted">Equipment</legend>
+      <legend className="text-[11px] font-bold uppercase text-muted">
+        Equipment
+      </legend>
       {EQUIP_SLOTS.map((slot) => {
         const held = fighter.equipment[slot];
         return (
@@ -241,7 +246,8 @@ function Equipment({
                   ...fighter,
                   equipment: {
                     ...fighter.equipment,
-                    [slot]: tileId === EMPTY_SLOT || tileId === null ? null : tileId,
+                    [slot]:
+                      tileId === EMPTY_SLOT || tileId === null ? null : tileId,
                   },
                 })
               }

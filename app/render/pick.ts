@@ -184,8 +184,11 @@ function pickTopAt(
     );
 
     const stack = getStack(ctx.map, x, y, z);
-    const candidate = candidateIn(stack, ctx.tilesById, opts.accepts, (i) =>
-      opts.isActionable?.({ x, y, z, stackIndex: i }) ?? false,
+    const candidate = candidateIn(
+      stack,
+      ctx.tilesById,
+      opts.accepts,
+      (i) => opts.isActionable?.({ x, y, z, stackIndex: i }) ?? false,
     );
     if (!candidate) continue;
 

@@ -187,7 +187,10 @@ describe("actor lifecycle", () => {
     const spawn = first.getSpawnPoint();
     expect(first.getSnapshot("a").self.x).toBe(1);
 
-    const resumed = new GameSession(ranMap, tiles, { actorIds: ["a"], spawnAt: spawn });
+    const resumed = new GameSession(ranMap, tiles, {
+      actorIds: ["a"],
+      spawnAt: spawn,
+    });
 
     expect(findPlayers(resumed.getMap())).toHaveLength(1);
     // And re-seated where they were, not sent back to spawn.
@@ -195,7 +198,9 @@ describe("actor lifecycle", () => {
   });
 
   it("reaps actors whose connections are gone", () => {
-    const session = new GameSession(strip(3), tiles, { actorIds: ["a", "b", "c"] });
+    const session = new GameSession(strip(3), tiles, {
+      actorIds: ["a", "b", "c"],
+    });
     expect(findPlayers(session.getMap())).toHaveLength(3);
 
     session.reapAbsentActors(["b"]);
@@ -210,9 +215,14 @@ describe("actor lifecycle", () => {
     const spawn = first.getSpawnPoint();
     expect(findPlayers(ranMap)).toHaveLength(0);
 
-    expect(() => new GameSession(ranMap, tiles, { actorIds: [] })).toThrow(/No tile/);
+    expect(() => new GameSession(ranMap, tiles, { actorIds: [] })).toThrow(
+      /No tile/,
+    );
 
-    const resumed = new GameSession(ranMap, tiles, { actorIds: [], spawnAt: spawn });
+    const resumed = new GameSession(ranMap, tiles, {
+      actorIds: [],
+      spawnAt: spawn,
+    });
     resumed.spawn("a");
     expect(ownersAt(resumed, spawn.x, spawn.y, spawn.z)).toEqual([
       undefined,
@@ -321,7 +331,9 @@ describe("actors and shared objects", () => {
   }
 
   it("lets one actor push a crate the other can then see moved", () => {
-    const session = new GameSession(withCrate(1), tiles, { actorIds: ["a", "b"] });
+    const session = new GameSession(withCrate(1), tiles, {
+      actorIds: ["a", "b"],
+    });
     expect(session.push({ x: 1, y: 0, z: 0, stackIndex: 1 }, "a")).toBe(true);
 
     expect(idsAt(session, 1, 0)).toEqual(["grass"]);
@@ -331,7 +343,9 @@ describe("actors and shared objects", () => {
   });
 
   it("charges the slide to the pusher alone", () => {
-    const session = new GameSession(withCrate(1), tiles, { actorIds: ["a", "b"] });
+    const session = new GameSession(withCrate(1), tiles, {
+      actorIds: ["a", "b"],
+    });
     session.push({ x: 1, y: 0, z: 0, stackIndex: 1 }, "a");
 
     expect(session.getSnapshot("a").self.slide).not.toBeNull();
@@ -340,7 +354,9 @@ describe("actors and shared objects", () => {
   });
 
   it("refuses a push from an actor who is not adjacent", () => {
-    const session = new GameSession(withCrate(3), tiles, { actorIds: ["a", "b"] });
+    const session = new GameSession(withCrate(3), tiles, {
+      actorIds: ["a", "b"],
+    });
     // Both are at x=0; the crate is three cells away.
     expect(session.canPush({ x: 3, y: 0, z: 0, stackIndex: 1 }, "b")).toBe(
       false,

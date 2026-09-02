@@ -152,6 +152,10 @@ export function steppingClumpHeight(
   const extent =
     progress < STEP_CLUMP_AT
       ? clumpExtentAt(origin.stack, origin.stackIndex, tilesById)
-      : clumpExtentOnArrival(destination.stack, destination.arriving, tilesById);
+      : clumpExtentOnArrival(
+          destination.stack,
+          destination.arriving,
+          tilesById,
+        );
   return extent.top - extent.foot;
 }

@@ -53,7 +53,12 @@
 
 import { stackBlockHeight, stackOcclusion } from "../lib/lighting";
 import { getStack } from "../lib/mapData";
-import { HEIGHT_PER_LEVEL, type Coord, type MapFile, type TileDef } from "../lib/types";
+import {
+  HEIGHT_PER_LEVEL,
+  type Coord,
+  type MapFile,
+  type TileDef,
+} from "../lib/types";
 
 /**
  * How high the solid part of a cell stands, measured from the bottom of the
@@ -77,8 +82,7 @@ function solidTopAbs(
   z: number,
 ): number {
   return (
-    z * HEIGHT_PER_LEVEL +
-    stackBlockHeight(getStack(map, x, y, z), tilesById)
+    z * HEIGHT_PER_LEVEL + stackBlockHeight(getStack(map, x, y, z), tilesById)
   );
 }
 
