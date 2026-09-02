@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { HEIGHT_PER_LEVEL, normalizeTileDef, type TileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
-import { clumpExtentAt, clumpExtents } from "./depthClump";
+import {
+  clumpExtentAt,
+  clumpExtentOnArrival,
+  clumpExtents,
+  steppingClumpHeight,
+} from "./depthClump";
 
 function tile(partial: Record<string, unknown>): TileDef {
   return normalizeTileDef({ name: String(partial.id), attributes: {}, ...partial });
@@ -96,5 +101,92 @@ describe("clumpExtentAt", () => {
 
   it("answers for a slot that is not there", () => {
     expect(clumpExtentAt([], 0, tilesById)).toEqual({ foot: 0, top: 0 });
+  });
+});
+
+describe("clumpExtentOnArrival", () => {
+  const doorway = [{ tileId: "floor" }, { tileId: "door-open" }];
+  const player = tilesById["player"]!;
+
+  it("joins the clump the step is arriving into, before the step lands", () => {
+    // The board still has the walker in the cell it left, so the stack it is
+    // walking into does not contain it yet.
+    expect(clumpExtentOnArrival(doorway, player, tilesById)).toEqual({
+      foot: 0,
+      top: HEIGHT_PER_LEVEL,
+    });
+  });
+
+  it("stands on its own where there is nothing to join", () => {
+    expect(clumpExtentOnArrival([{ tileId: "floor" }], player, tilesById)).toEqual({
+      foot: 0,
+      top: HEIGHT_PER_LEVEL - 1,
+    });
+  });
+
+  it("rests on a crate rather than joining it", () => {
+    const half = HEIGHT_PER_LEVEL / 2;
+    expect(
+      clumpExtentOnArrival(
+        [{ tileId: "floor" }, { tileId: "crate" }],
+        player,
+        tilesById,
+      ),
+    ).toEqual({ foot: half, top: half + HEIGHT_PER_LEVEL - 1 });
+  });
+
+  it("agrees with the stack the step will actually make", () => {
+    // The whole point of computing it early: the same answer the board gives
+    // once the placement moves.
+    const arrived = [...doorway, { tileId: "player", owner: "a" }];
+    expect(clumpExtentOnArrival(doorway, player, tilesById)).toEqual(
+      clumpExtentAt(arrived, arrived.length - 1, tilesById),
+    );
+  });
+
+  it("reads a tile the catalogue does not have as taking up nothing", () => {
+    expect(clumpExtentOnArrival(doorway, undefined, tilesById)).toEqual({
+      foot: 0,
+      top: HEIGHT_PER_LEVEL,
+    });
+  });
+});
+
+/**
+ * Walking north into a doorway. The door only got out of the way when the
+ * simulation committed the step, which is long after the sprite is drawn over
+ * the doorway — so it clipped the walker's head for most of the step.
+ */
+describe("steppingClumpHeight", () => {
+  const outside = [{ tileId: "floor" }, { tileId: "player", owner: "a" }];
+  const doorway = [{ tileId: "floor" }, { tileId: "door-open" }];
+  const step = (progress: number) =>
+    steppingClumpHeight(
+      { stack: outside, stackIndex: 1 },
+      { stack: doorway, arriving: tilesById["player"]! },
+      progress,
+      tilesById,
+    );
+
+  it("is the walker's own height for the first half of the step", () => {
+    expect(step(0)).toBe(HEIGHT_PER_LEVEL - 1);
+    expect(step(0.49)).toBe(HEIGHT_PER_LEVEL - 1);
+  });
+
+  it("joins the doorway's clump from the midpoint on", () => {
+    expect(step(0.5)).toBe(HEIGHT_PER_LEVEL);
+    expect(step(1)).toBe(HEIGHT_PER_LEVEL);
+  });
+
+  it("lets go of a clump halfway out of it, not on arrival", () => {
+    const leaving = (progress: number) =>
+      steppingClumpHeight(
+        { stack: [...doorway, { tileId: "player", owner: "a" }], stackIndex: 2 },
+        { stack: [{ tileId: "floor" }], arriving: tilesById["player"]! },
+        progress,
+        tilesById,
+      );
+    expect(leaving(0.49)).toBe(HEIGHT_PER_LEVEL);
+    expect(leaving(0.5)).toBe(HEIGHT_PER_LEVEL - 1);
   });
 });

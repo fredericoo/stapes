@@ -66,7 +66,7 @@ import type {
   TilesetDef,
 } from "../lib/types";
 import { HEIGHT_PER_LEVEL, tileCanEmitLight } from "../lib/types";
-import { clumpExtentAt } from "./depthClump";
+import { clumpExtentAt, steppingClumpHeight } from "./depthClump";
 import { resolveLight } from "../lib/tileResolve";
 import { tilesByIdFromList } from "../lib/validation";
 import {
@@ -2611,7 +2611,9 @@ export class GameRenderer {
       );
       const originFoot = this.standingFootAbs(map, from, stackIndex);
       const destFoot = this.surfaceFootAbs(map, to.x, to.y, to.z);
-      const destStackLen = getStack(map, to.x, to.y, to.z).length;
+      const destStack = getStack(map, to.x, to.y, to.z);
+      const destStackLen = destStack.length;
+      const def = this.tilesById[actor.tileId];
       const t = actor.walkProgress;
       const foot = originFoot + (destFoot - originFoot) * t;
 
@@ -2629,7 +2631,16 @@ export class GameRenderer {
           x: from.x + (to.x - from.x) * t,
           y: from.y + (to.y - from.y) * t,
           foot,
-          top: foot + this.clumpHeight(map, from, stackIndex),
+          // Halfway, not on commit — see `./depthClump`. The sprite is
+          // over the destination long before the step lands there.
+          top:
+            foot +
+            steppingClumpHeight(
+              { stack: getStack(map, from.x, from.y, from.z), stackIndex },
+              { stack: destStack, arriving: def },
+              t,
+              this.tilesById,
+            ),
           // Feet share a plane with both floors it passes over; outrank the
           // top tile of whichever stack it is standing on.
           stackBias: Math.max(
