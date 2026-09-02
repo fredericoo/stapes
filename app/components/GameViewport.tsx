@@ -448,8 +448,6 @@ export function GameViewport({
       showStats ||
       heldContainer != null ||
       openedContainer != null);
-  const press = useCallback(onDirectionPress, [onDirectionPress]);
-  const release = useCallback(onDirectionRelease, [onDirectionRelease]);
   const noteTyping = useCallback(
     (typing: boolean) => onTypingChange?.(typing),
     [onTypingChange],
@@ -768,7 +766,10 @@ export function GameViewport({
                   // reads as a control that has come loose from it.
                   className="justify-center"
                 />
-                <DirectionPad onPress={press} onRelease={release} />
+                <DirectionPad
+                  onPress={onDirectionPress}
+                  onRelease={onDirectionRelease}
+                />
               </div>
               {/* The far corner, under the arrows, which is the one place on a
                   phone that is never on the way to anything: the thumb steering

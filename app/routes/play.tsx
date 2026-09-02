@@ -278,6 +278,11 @@ export default function PlayPage() {
     // `assetsReady` is in here for the canvas rather than for itself: the
     // element only exists once it is true, so without it this effect would have
     // run once against nothing and never again.
+    //
+    // `statusDefs` is deliberately out: this effect tears the world down and
+    // builds a new one, and an editor save must not do that just to recolour a
+    // plume. It reaches the running renderer through the effect below and
+    // through `statusDefsRef` for a session that outlives this render.
   }, [map, tiles, tilesets, assetsReady]);
 
   useEffect(() => {

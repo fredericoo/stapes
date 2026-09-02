@@ -446,6 +446,7 @@ export default function OnlinePage() {
     // element only exists once it is true. It also holds the socket back until
     // then, which is right: a world being simulated for somebody who cannot see
     // it yet is a walk they never asked for.
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies
   }, [tiles, tilesets, socketPath, assetsReady]);
 
   // Held in a variable because it rides in one of two slots. A world that is

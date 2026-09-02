@@ -245,11 +245,13 @@ export function ItemSlot({
   // Keyed on the string rather than the slot object, which is rebuilt every
   // render: a ref callback whose identity changed each time would be torn down
   // and re-attached on every frame the panel drew.
+  // oxlint-disable-next-line react/memo-dependencies
   const attach = useCallback(
     (el: HTMLElement | null) => register(key, slot, el),
     // `slot` is deliberately absent: the key is derived from it, so two slot
     // objects with one key are the same slot and rebinding for the new object
     // would be work with no answer attached to it.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
     [key, register],
   );
 
@@ -562,6 +564,9 @@ function SlotTooltip({ lines }: { lines: string[] }) {
     // the beginning of a name is the half worth keeping.
     if (offLeft > 0) setShiftPx(offLeft);
     else if (offRight > 0) setShiftPx(-offRight);
+    // `lines` is a signal rather than a value: the body measures the DOM, and
+    // the words changing is what makes the old measurement wrong.
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies
   }, [lines]);
 
   return (

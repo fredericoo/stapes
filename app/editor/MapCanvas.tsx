@@ -38,6 +38,9 @@ export function MapCanvas({
     // Wait a tick so hydrate (useLayoutEffect in the page) has populated the store.
     const tilesById = useEditorStore.getState().tilesById;
     rendererRef.current?.setAssets(tilesets, tilesById);
+    // `tiles` is a signal rather than a value: the body reads the store, and
+    // the catalogue changing is the thing that has to push assets again.
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies
   }, [tilesets, tiles]);
 
   return (

@@ -43,6 +43,12 @@
     "perf": "error"
   },
 
+  // **A `// oxlint-disable-next-line` inside a component silences that
+  // component's other react-plugin findings too** (oxlint 1.81) — adding one to
+  // `PlayPage` in `app/routes/play.tsx` hid six `react/refs` warnings elsewhere
+  // in the same component. Prefer turning a rule off here, with the reason, over
+  // suppressing it beside the line; where a directive is used, check the counts
+  // before and after.
   "rules": {
     // ---------------------------------------------------------------------
     // Off, and why. Each of these was read at every site it fires on before
@@ -148,10 +154,15 @@
     "react/use-memo": "warn",
     "react/memo-dependencies": "warn",
 
-    // Keys and default props: both change what React reuses between renders,
-    // which is a behaviour change in a list you can drag things around in.
-    "react/no-array-index-key": "warn",
-    "react/no-object-type-as-default-prop": "warn",
+    // Every hit is a list whose row *is* its position: the kit rows whose order
+    // is the priority, the container slots ("keying by instance id would be
+    // keying the container on its contents, and an empty slot has no id to key
+    // by at all"), the palette entries whose index is the value stored in the
+    // voxels, the brain's verbs and transitions, which pass that index as their
+    // drag id. Several of them say so in a comment already. Keying those by
+    // content is what would be wrong — two rows offering the same sword would
+    // collide.
+    "react/no-array-index-key": "off",
 
     // Every hit is a widget that deliberately does not use the native element,
     // because the native one cannot be styled or does not exist: a `<div
