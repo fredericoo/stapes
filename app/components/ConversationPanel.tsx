@@ -82,13 +82,20 @@ export function ConversationPanel({
   const title = heading ?? def?.name ?? conversation.tileId;
   const waiting = dialog ? waitingOn(dialog, conversation) : null;
 
-  // Scrolled to the newest line whenever one lands, so the controls under it
-  // are on screen without a thumb having to chase them.
+  // Scrolled only on the player's own press, and to *that* line — the choice
+  // or the trade — at the top, so the reply reads down from it. Anything the
+  // NPC adds on its own, and anything that arrives while the player is
+  // reading back, leaves the scroll where the thumb put it.
   const bodyRef = useRef<HTMLDivElement>(null);
+  const lastPressRef = useRef(-1);
+  const lastPress = lastPlayerEntry(conversation.transcript);
   useEffect(() => {
     const body = bodyRef.current;
-    if (body) body.scrollTop = body.scrollHeight;
-  }, [conversation]);
+    if (!body || lastPress <= lastPressRef.current) return;
+    lastPressRef.current = lastPress;
+    const line = body.querySelector<HTMLElement>(`[data-line="${lastPress}"]`);
+    if (line) body.scrollTop = line.offsetTop;
+  }, [conversation, lastPress]);
 
   return (
     <section
@@ -134,7 +141,7 @@ export function ConversationPanel({
       >
         <ol role="log" aria-live="polite" className="flex flex-col gap-1">
           {conversation.transcript.map((entry, i) => (
-            <TranscriptLine key={i} entry={entry} speaker={title} />
+            <TranscriptLine key={i} index={i} entry={entry} speaker={title} />
           ))}
         </ol>
         {waiting?.kind === "choices" ? (
@@ -168,10 +175,18 @@ export function ConversationPanel({
  * right and dimmed, the way a chat draws your own side; a note is neither,
  * so it is italic and quieter still.
  */
-function TranscriptLine({ entry, speaker }: { entry: TranscriptEntry; speaker: string }) {
+function TranscriptLine({
+  index,
+  entry,
+  speaker,
+}: {
+  index: number;
+  entry: TranscriptEntry;
+  speaker: string;
+}) {
   if (entry.who === "npc") {
     return (
-      <li className="text-[12px] leading-snug text-paper">
+      <li data-line={index} className="text-[12px] leading-snug text-paper">
         <span className="sr-only">{speaker}: </span>
         {entry.text}
       </li>
@@ -179,12 +194,29 @@ function TranscriptLine({ entry, speaker }: { entry: TranscriptEntry; speaker: s
   }
   if (entry.who === "you") {
     return (
-      <li className="self-end text-right text-[11px] leading-snug text-paper/60">
+      <li data-line={index} className="self-end text-right text-[11px] leading-snug text-paper/60">
         <span className="sr-only">You: </span>› {entry.text}
       </li>
     );
   }
-  return <li className="text-[11px] italic leading-snug text-paper/50">{entry.text}</li>;
+  return (
+    <li data-line={index} className="text-[11px] italic leading-snug text-paper/50">
+      {entry.text}
+    </li>
+  );
+}
+
+/**
+ * Where the player last did something in the transcript, or -1.
+ *
+ * A choice is a `you` line; a trade going through is a `note`. Either is the
+ * line the reply follows, and the one worth bringing to the top.
+ */
+function lastPlayerEntry(transcript: readonly TranscriptEntry[]): number {
+  for (let i = transcript.length - 1; i >= 0; i--) {
+    if (transcript[i]!.who !== "npc") return i;
+  }
+  return -1;
 }
 
 /**
