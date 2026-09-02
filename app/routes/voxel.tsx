@@ -161,7 +161,8 @@ export default function VoxelPage() {
   }, [project, hydrated]);
 
   const dims = voxelDims(project.size);
-  const frame = project.frames[Math.min(frameIdx, project.frames.length - 1)];
+  const clampedFrameIdx = Math.min(frameIdx, project.frames.length - 1);
+  const frame = project.frames[clampedFrameIdx];
   const clampedSliceZ = Math.min(sliceZ, dims.vz - 1);
 
   const paintWrites = (writes: { x: number; y: number; value: number }[]) => {
@@ -169,11 +170,11 @@ export default function VoxelPage() {
     setProject((p) => {
       const d = voxelDims(p.size);
       const frames = p.frames.slice();
-      const voxels = frames[frameIdx].voxels.slice();
+      const voxels = frames[clampedFrameIdx].voxels.slice();
       for (const w of writes) {
         voxels[voxelIndex(d, w.x, w.y, clampedSliceZ)] = w.value;
       }
-      frames[frameIdx] = { ...frames[frameIdx], voxels };
+      frames[clampedFrameIdx] = { ...frames[clampedFrameIdx], voxels };
       return { ...p, frames };
     });
   };
@@ -548,7 +549,8 @@ function FramesPanel({
   onSelect: (idx: number) => void;
   onChange: React.Dispatch<React.SetStateAction<VoxelProject>>;
 }) {
-  const frame = project.frames[frameIdx];
+  const clampedFrameIdx = Math.min(frameIdx, project.frames.length - 1);
+  const frame = project.frames[clampedFrameIdx];
 
   const addFrame = (voxels: number[]) => {
     onChange((p) => ({
@@ -564,9 +566,9 @@ function FramesPanel({
   const deleteFrame = () => {
     onChange((p) => ({
       ...p,
-      frames: p.frames.filter((_, i) => i !== frameIdx),
+      frames: p.frames.filter((_, i) => i !== clampedFrameIdx),
     }));
-    onSelect(Math.max(0, frameIdx - 1));
+    onSelect(Math.max(0, clampedFrameIdx - 1));
   };
 
   return (
@@ -615,7 +617,10 @@ function FramesPanel({
             const durationMs = Math.max(1, Number(e.target.value) || 1);
             onChange((p) => {
               const frames = p.frames.slice();
-              frames[frameIdx] = { ...frames[frameIdx], durationMs };
+              frames[clampedFrameIdx] = {
+                ...frames[clampedFrameIdx],
+                durationMs,
+              };
               return { ...p, frames };
             });
           }}
