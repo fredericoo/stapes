@@ -3047,23 +3047,27 @@
         "kit": []
       },
       "dialog": {
-        "opening": "Hello, {partner}. Potions, or a recipe, or bottles you're done with — what'll it be?",
-        "options": [
+        "script": [
           {
-            "label": "Buy Luminous Potions",
-            "say": "Drink one and you glow for an hour. Fourteen shards apiece.",
-            "then": [
+            "kind": "say",
+            "text": "Hello, {partner}! Potions, or a recipe, or bottles you're done with?"
+          },
+          {
+            "kind": "anchor",
+            "name": "main"
+          },
+          {
+            "kind": "choices",
+            "options": [
               {
-                "label": "I'll take some",
-                "amount": {
-                  "min": 1,
-                  "max": 4,
-                  "prompt": "How many? Fourteen shards each.",
-                  "confirm": "Buy"
-                },
-                "do": [
+                "label": "Buy",
+                "then": [
                   {
-                    "effect": "trade",
+                    "kind": "say",
+                    "text": "Drink one and you glow for an hour. Fourteen shards apiece — how many?"
+                  },
+                  {
+                    "kind": "request_trade",
                     "take": [
                       {
                         "tileId": "arcane-shard",
@@ -3075,49 +3079,107 @@
                         "tileId": "luminous-potion",
                         "count": 1
                       }
+                    ],
+                    "min": 1,
+                    "max": 4,
+                    "default": 1,
+                    "traded": [
+                      {
+                        "kind": "say",
+                        "text": "Drink them somewhere dark. Anything else?"
+                      },
+                      {
+                        "kind": "goto",
+                        "name": "main"
+                      }
+                    ],
+                    "cancel": [
+                      {
+                        "kind": "say",
+                        "text": "Suit yourself. Anything else?"
+                      },
+                      {
+                        "kind": "goto",
+                        "name": "main"
+                      }
                     ]
                   }
-                ],
-                "say": "Drink them somewhere dark, {partner}.",
-                "else": "That's not enough shards for that many, {partner}. Or you've nowhere to put them."
+                ]
               },
               {
-                "label": "Not today",
-                "say": "Suit yourself."
-              }
-            ]
-          },
-          {
-            "label": "Sell empty bottles",
-            "amount": {
-              "min": 1,
-              "max": 12,
-              "prompt": "How many bottles? Two shards each.",
-              "confirm": "Sell"
-            },
-            "do": [
-              {
-                "effect": "trade",
-                "take": [
+                "label": "Sell bottles",
+                "then": [
                   {
-                    "tileId": "empty-bottle",
-                    "count": 1
+                    "kind": "say",
+                    "text": "Two shards for every empty bottle. How many have you got?"
+                  },
+                  {
+                    "kind": "request_trade",
+                    "take": [
+                      {
+                        "tileId": "empty-bottle",
+                        "count": 1
+                      }
+                    ],
+                    "give": [
+                      {
+                        "tileId": "arcane-shard",
+                        "count": 2
+                      }
+                    ],
+                    "min": 1,
+                    "max": 12,
+                    "default": 1,
+                    "traded": [
+                      {
+                        "kind": "say",
+                        "text": "Ta. Anything else?"
+                      },
+                      {
+                        "kind": "goto",
+                        "name": "main"
+                      }
+                    ],
+                    "cancel": [
+                      {
+                        "kind": "say",
+                        "text": "Keep them, then. Anything else?"
+                      },
+                      {
+                        "kind": "goto",
+                        "name": "main"
+                      }
+                    ]
                   }
-                ],
-                "give": [
+                ]
+              },
+              {
+                "label": "How do you make it?",
+                "then": [
                   {
-                    "tileId": "arcane-shard",
-                    "count": 2
+                    "kind": "say",
+                    "text": "Ten arcane crystals, crushed fine, stirred into a solution I won't name."
+                  },
+                  {
+                    "kind": "say",
+                    "text": "The glow is the crystals remembering the light."
+                  },
+                  {
+                    "kind": "goto",
+                    "name": "main"
+                  }
+                ]
+              },
+              {
+                "label": "Nothing",
+                "then": [
+                  {
+                    "kind": "say",
+                    "text": "Mind the dark, {partner}."
                   }
                 ]
               }
-            ],
-            "say": "Ta, {partner}. Bring the rest when you've drunk them.",
-            "else": "You've not got that many empty bottles on you, {partner}. Or nowhere to put the shards."
-          },
-          {
-            "label": "How do you make it?",
-            "say": "Ten arcane crystals, crushed fine, stirred into a solution I won't name. The glow is the crystals remembering the light."
+            ]
           }
         ]
       },
