@@ -8662,13 +8662,12 @@
   {
     "id": "rat",
     "name": "Rat",
-    "height": 2,
+    "height": 1,
     "type": "directional",
     "kind": "battler",
     "attributes": {},
     "lightPassing": true,
     "affectedByGravity": true,
-    "walkable": false,
     "walkDurationMs": 150,
     "interactions": {
       "brain": {
@@ -8969,9 +8968,12 @@
           "accuracy": 78,
           "variance": 100,
           "spd": 68,
+          "reach": {
+            "cells": 1.5,
+            "height": 2
+          },
           "mastery": "fist"
         },
-        "range": 1.87,
         "sight": {
           "up": 0,
           "down": 0
@@ -9230,13 +9232,12 @@
   {
     "id": "snake",
     "name": "Snake",
-    "height": 2,
+    "height": 1,
     "type": "directional",
     "kind": "battler",
     "attributes": {},
     "lightPassing": true,
     "affectedByGravity": true,
-    "walkable": false,
     "walkDurationMs": 320,
     "interactions": {
       "brain": {
@@ -9417,6 +9418,10 @@
           "accuracy": 88,
           "variance": 55,
           "spd": 50,
+          "reach": {
+            "cells": 1.5,
+            "height": 2
+          },
           "mastery": "fist",
           "statuses": [
             {
@@ -9427,7 +9432,6 @@
             }
           ]
         },
-        "range": 1.87,
         "sight": {
           "up": 0,
           "down": 0
@@ -12367,31 +12371,6 @@
     "attributes": {},
     "lightPassing": true,
     "walkable": false,
-    "sprite": {
-      "frames": [
-        {
-          "sprite": {
-            "tilesetId": "tiny-ranch-tiles",
-            "rect": {
-              "x": 14,
-              "y": 16,
-              "w": 2,
-              "h": 2
-            },
-            "base": {
-              "x": 1,
-              "y": 1
-            }
-          },
-          "durationMs": 200,
-          "light": {
-            "radius": 3,
-            "intensity": 1,
-            "color": "#43d1f4"
-          }
-        }
-      ]
-    },
     "interactions": {
       "extract": {
         "actionName": "Mine",
@@ -12409,6 +12388,31 @@
         "fromMs": 120000,
         "toMs": 300000
       }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 18,
+              "y": 16,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 3,
+            "intensity": 1,
+            "color": "#43d1f4"
+          }
+        }
+      ]
     }
   },
   {
@@ -12459,6 +12463,81 @@
     "attributes": {},
     "lightPassing": true,
     "walkable": false,
+    "interactions": {
+      "extract": {
+        "actionName": "Mine",
+        "durability": 3,
+        "tileId": "",
+        "cooldownMs": 8000,
+        "slots": [
+          {
+            "tileId": "arcane-shard",
+            "chance": 70
+          }
+        ]
+      },
+      "respawn": {
+        "fromMs": 120000,
+        "toMs": 300000
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 14,
+              "y": 16,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200,
+          "light": {
+            "radius": 3,
+            "intensity": 1,
+            "color": "#43d1f4"
+          }
+        }
+      ]
+    }
+  },
+  {
+    "id": "arcane-crystal-3",
+    "name": "Arcane Crystal",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "lightPassing": true,
+    "walkable": false,
+    "interactions": {
+      "extract": {
+        "actionName": "Mine",
+        "durability": 4,
+        "tileId": "",
+        "cooldownMs": 8000,
+        "slots": [
+          {
+            "tileId": "arcane-shard",
+            "chance": 100
+          },
+          {
+            "tileId": "arcane-shard",
+            "chance": 35
+          }
+        ]
+      },
+      "respawn": {
+        "fromMs": 120000,
+        "toMs": 300000
+      }
+    },
     "sprite": {
       "frames": [
         {
@@ -12483,29 +12562,11 @@
           }
         }
       ]
-    },
-    "interactions": {
-      "extract": {
-        "actionName": "Mine",
-        "durability": 3,
-        "tileId": "",
-        "cooldownMs": 8000,
-        "slots": [
-          {
-            "tileId": "arcane-shard",
-            "chance": 70
-          }
-        ]
-      },
-      "respawn": {
-        "fromMs": 120000,
-        "toMs": 300000
-      }
     }
   },
   {
-    "id": "arcane-crystal-3",
-    "name": "Arcane Crystal",
+    "id": "lamppost",
+    "name": "Lamppost",
     "height": 4,
     "type": "simple",
     "kind": "prop",
@@ -12518,8 +12579,8 @@
           "sprite": {
             "tilesetId": "tiny-ranch-tiles",
             "rect": {
-              "x": 18,
-              "y": 16,
+              "x": 12,
+              "y": 4,
               "w": 2,
               "h": 2
             },
@@ -12530,34 +12591,12 @@
           },
           "durationMs": 200,
           "light": {
-            "radius": 3,
-            "intensity": 1,
-            "color": "#43d1f4"
+            "radius": 8,
+            "intensity": 0.99,
+            "color": "#ffcc88"
           }
         }
       ]
-    },
-    "interactions": {
-      "extract": {
-        "actionName": "Mine",
-        "durability": 4,
-        "tileId": "",
-        "cooldownMs": 8000,
-        "slots": [
-          {
-            "tileId": "arcane-shard",
-            "chance": 100
-          },
-          {
-            "tileId": "arcane-shard",
-            "chance": 35
-          }
-        ]
-      },
-      "respawn": {
-        "fromMs": 120000,
-        "toMs": 300000
-      }
     }
   }
 ]
