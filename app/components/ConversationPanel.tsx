@@ -120,10 +120,17 @@ export function ConversationPanel({
 
       {/* One scrolling body for the words and the controls, so a long line is
           read to its end before the choice under it, and the choice is never
-          off the bottom of a box that stopped scrolling at the words. */}
+          off the bottom of a box that stopped scrolling at the words.
+
+          `relative` is load-bearing: the transcript's screen-reader prefixes
+          are `sr-only`, which positions them absolutely, and an absolutely
+          positioned box belongs to the nearest positioned ancestor. Without
+          one here they anchored to the page, and every line scrolled out of
+          this box stayed as an invisible pixel below the viewport — a
+          conversation long enough grew the whole page into black. */}
       <div
         ref={bodyRef}
-        className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain"
+        className="relative flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain"
       >
         <ol role="log" aria-live="polite" className="flex flex-col gap-1">
           {conversation.transcript.map((entry, i) => (
