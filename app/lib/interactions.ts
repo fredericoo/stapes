@@ -150,6 +150,134 @@ export type RespawnInteraction = {
   toMs: number;
 };
 
+/**
+ * One status this tile can be worn down by, and what is left when it has been.
+ *
+ * The pair is the whole of it: naming a status here is what makes a tile
+ * vulnerable to that status *and* what says how it ends. A tile is flammable
+ * because it lists `burned`, not because anything flags it as flammable — see
+ * {@link EndureInteraction} for why that is one fact rather than two.
+ */
+export type Affliction = {
+  /**
+   * The status that spends {@link EndureInteraction.durability}, by id.
+   *
+   * An id the catalogue does not hold is an affliction that never happens, on
+   * exactly {@link AddStatusInteraction.statusId}'s terms: the catalogue is the
+   * session's and this is the tile's, loaded from different files by different
+   * owners, and renamed content should cost one effect rather than stop the
+   * world starting. A **blank** one is unauthored and refuses the whole block.
+   */
+  statusId: string;
+  /**
+   * What the placement becomes once this has spent the last of it. **Blank
+   * removes the placement**, on exactly {@link DecayInteraction.tileId}'s terms
+   * and for the same reason: there is no `air` tile to name, and a tree that has
+   * burned down is simply not there any more.
+   *
+   * A blank target is therefore meaningful rather than malformed here too, which
+   * is why {@link EndureInteraction.durability} is what says whether a tile can
+   * be worn down at all.
+   */
+  tileId: string;
+};
+
+/**
+ * This tile can be worn down by statuses, and turns into another when it has
+ * been — grass that burns to dirt, a tree that burns to nothing.
+ *
+ * **Hit points without a fight.** The pool is spent only by statuses running on
+ * the placement; nothing can swing at it, and {@link TileDef.kind} stays `prop`
+ * rather than becoming `battler`. That is the distinction worth keeping: a
+ * battler is a body, with a brain's worth of machinery behind it, and a burning
+ * bush is scenery on a clock. An axe spending the same pool later is a change to
+ * what *reaches* this, not to the shape of it.
+ *
+ * **Flammability is not a flag.** A tile burns because {@link suffers} names
+ * `burned` and stone does not because it does not, which is why
+ * {@link TileDef.attributes} is still empty: a second source of truth about what
+ * catches fire is exactly the trap that field was reserved to avoid.
+ *
+ * **Spread is not authored either**, and that is the design rather than an
+ * omission. When a placement is consumed, whatever is left of the status that
+ * consumed it is divided equally among the neighbours that suffer the same one —
+ * see `../game/endure`'s `spreadShares`. Fuel is therefore conserved and never
+ * created: eight seconds of burning split four ways is four two-second burns,
+ * so a fire crosses a forest and dies out on its own rather than growing. A
+ * `spreads` flag would be a fact about fire written down on grass.
+ *
+ * Nothing here says how the tile comes back, on exactly
+ * {@link ExtractInteraction}'s terms: a burnt tree's cell is empty, and an empty
+ * cell is what a {@link RespawnInteraction} already refills.
+ */
+export type EndureInteraction = {
+  /**
+   * What a fresh placement can take before it turns, in hit points.
+   *
+   * The def's number is what every placement of it starts with. Unlike
+   * {@link ExtractInteraction.durability} nothing is written back onto the
+   * placement: what is left of a particular one lives beside the map in
+   * `../game/endure`'s `EndureIndex`, so a half-burnt tree costs the map format
+   * nothing, the wire nothing and the checkpoint nothing — and comes back whole
+   * if the world is evicted mid-fire, which is the same bargain decay deadlines,
+   * hit points and brain memory already take.
+   *
+   * At least one, on `extract`'s grounds: a tile with no points in it is one
+   * that turns on the first tick of the first status, which is authorable as
+   * `durability: 1`, and meaning it takes zero is not.
+   */
+  durability: number;
+  /**
+   * The statuses that spend it, and what each leaves behind.
+   *
+   * A block with none of them is not vulnerable to anything — there is nothing
+   * that could spend the pool — so an empty list reads as unauthored and the
+   * resolver refuses it, exactly as an extract with no slots is refused.
+   *
+   * Several are legal and are read in order: the first affliction running on the
+   * placement when the pool empties is the one that decides what it becomes, so
+   * a tile authored to burn to dirt and freeze to ice does whichever finished
+   * it.
+   */
+  suffers: Affliction[];
+};
+
+/**
+ * A placement of this tile puts a status on everything sharing its cell that
+ * {@link EndureInteraction} says can suffer one — a flame that burns the grass
+ * it is standing in.
+ *
+ * **The counterpart to {@link EndureInteraction}, and a separate block from
+ * {@link AddStatusInteraction} rather than a widening of it.** That one's
+ * {@link ActivationTrigger} is entirely about a body arriving or reaching, and a
+ * tile does neither; adding a trigger for the stack would make every consumer of
+ * that union handle a case that means nothing to it. `emit`/`receive` are
+ * already a source-and-sink pair in this file, and this is the second.
+ *
+ * **Opting in is the point.** A flame carries both blocks and does two different
+ * things with them: `addStatus` burns whoever steps into it, and this burns the
+ * ground it is standing on. Folding the second into the first would have set
+ * every hearth in the world eating its own floor on the day it shipped.
+ *
+ * **Its own cell only.** A conjured flame is spliced into the same stack as the
+ * tile beneath it (see `GameSession.castConjure`), so a source and its fuel
+ * already share a cell, and reaching further is what the spread is for.
+ *
+ * Re-applied whenever the source is still there and the target is no longer
+ * under the status, which is what makes a permanent flame burn continuously —
+ * one roll per burn, not one per tick. See `GameSession.tickAfflictions`.
+ */
+export type AfflictInteraction = {
+  /**
+   * The status handed to the stack, by id — see `./status`.
+   *
+   * The same trust model {@link AddStatusInteraction.statusId} is under: an id
+   * the catalogue has not got is an affliction that does not happen, and a blank
+   * one reads as unauthored and refuses the block.
+   */
+  statusId: string;
+};
+
 /** How a plate's authored {@link PressurePlateInteraction.height} reads its load. */
 export type PlateComparison = "eq" | "neq" | "gt" | "gte" | "lt" | "lte";
 
@@ -721,6 +849,8 @@ export type TileInteractions = {
   extract?: ExtractInteraction;
   teleport?: TeleportInteraction;
   addStatus?: AddStatusInteraction;
+  afflict?: AfflictInteraction;
+  endure?: EndureInteraction;
   decay?: DecayInteraction;
   respawn?: RespawnInteraction;
   pressurePlate?: PressurePlateInteraction;
@@ -802,6 +932,37 @@ export const DEFAULT_ADD_STATUS: AddStatusInteraction = {
   trigger: "step",
   statusId: "",
 };
+
+export const DEFAULT_AFFLICT: AfflictInteraction = {
+  statusId: "",
+};
+
+/**
+ * Enough that a tile does not vanish the instant anything touches it, and low
+ * enough that `burned`'s authored four-a-second gets through in a few seconds.
+ * A number rather than a share of anything: there is no maximum for a tile to
+ * take a fraction of, and every author tuning this wants seconds.
+ */
+const DEFAULT_DURABILITY = 20;
+
+export const DEFAULT_AFFLICTION: Affliction = {
+  statusId: "",
+  tileId: "",
+};
+
+export const DEFAULT_ENDURE: EndureInteraction = {
+  durability: DEFAULT_DURABILITY,
+  suffers: [],
+};
+
+/**
+ * How many statuses one tile may be authored to suffer.
+ *
+ * A bound rather than a judgement, on {@link MAX_TRANSMUTATIONS}' terms: the
+ * list is walked per tick per afflicted placement, and a file that can ask for
+ * a thousand is a file that can make the tick cost whatever it likes.
+ */
+export const MAX_AFFLICTIONS = 4;
 
 /**
  * Long enough to read as an aftermath rather than a glitch, short enough that a
@@ -1327,6 +1488,90 @@ export function resolveAddStatus(def: TileDef): AddStatusInteraction | null {
   return addStatus;
 }
 
+const afflictSchema = v.object({
+  // The real gate, and the only one: a block somebody switched on and never
+  // filled in inflicts nothing rather than inflicting a status called "".
+  statusId: v.pipe(v.string(), v.minLength(1)),
+});
+
+const afflictCache = new WeakMap<TileDef, AfflictInteraction | null>();
+
+/**
+ * Parsed afflict config per tile def. Same trust model as {@link resolvePush}:
+ * malformed, or with no status to hand over, → inflicts nothing.
+ *
+ * Whether the named status *exists* is deliberately not asked, on exactly
+ * {@link resolveAddStatus}'s terms — the catalogue is the session's and this is
+ * the tile's.
+ */
+export function resolveAfflict(def: TileDef): AfflictInteraction | null {
+  const cached = afflictCache.get(def);
+  if (cached !== undefined) return cached;
+
+  const raw = def.interactions?.afflict;
+  const parsed = raw == null ? null : v.safeParse(afflictSchema, raw);
+  const afflict = parsed?.success ? parsed.output : null;
+  afflictCache.set(def, afflict);
+  return afflict;
+}
+
+const afflictionSchema = v.object({
+  statusId: v.pipe(v.string(), v.minLength(1)),
+  // Permissive where the status id is not, and for `decay.tileId`'s reason:
+  // blank is how an affliction says the placement simply goes, and refusing it
+  // would make a tree that burns down unauthorable.
+  tileId: v.string(),
+});
+
+const endureSchema = v.object({
+  // The real gate. A tile with no points in it is one that turns on the first
+  // tick of the first status it meets, so a half-authored block is inert rather
+  // than scenery that deletes itself.
+  durability: v.pipe(v.number(), v.integer(), v.minValue(1)),
+  // Refused when empty, unlike a reward's list and exactly like an extract's:
+  // there is nothing that could spend the pool, so the block is not a
+  // vulnerability at all. Capped for the reason {@link MAX_AFFLICTIONS} exists.
+  suffers: v.pipe(
+    v.array(afflictionSchema),
+    v.minLength(1),
+    v.maxLength(MAX_AFFLICTIONS),
+  ),
+});
+
+const endureCache = new WeakMap<TileDef, EndureInteraction | null>();
+
+/**
+ * Parsed endure config per tile def. Same trust model as {@link resolvePush}:
+ * malformed, or with nothing to spend and nothing to spend it, → cannot be worn
+ * down.
+ */
+export function resolveEndure(def: TileDef): EndureInteraction | null {
+  const cached = endureCache.get(def);
+  if (cached !== undefined) return cached;
+
+  const raw = def.interactions?.endure;
+  const parsed = raw == null ? null : v.safeParse(endureSchema, raw);
+  const endure = parsed?.success ? parsed.output : null;
+  endureCache.set(def, endure);
+  return endure;
+}
+
+/**
+ * What this tile turns into under `statusId`, or null when that status does
+ * nothing to it.
+ *
+ * The one place "does this tile suffer this?" is answered, so the spread and the
+ * affliction cannot come to disagree about what is flammable. A blank
+ * {@link Affliction.tileId} is a real answer — the placement goes — which is why
+ * this hands back the affliction rather than the target.
+ */
+export function afflictionFor(
+  endure: EndureInteraction,
+  statusId: string,
+): Affliction | null {
+  return endure.suffers.find((one) => one.statusId === statusId) ?? null;
+}
+
 const decaySchema = v.pipe(
   v.object({
     // Permissive where every other target is `minLength(1)`, because blank is
@@ -1652,6 +1897,8 @@ export function hasAnyInteraction(
       interactions?.extract ||
       interactions?.teleport ||
       interactions?.addStatus ||
+      interactions?.afflict ||
+      interactions?.endure ||
       interactions?.decay ||
       interactions?.respawn ||
       interactions?.pressurePlate ||
@@ -1779,6 +2026,24 @@ export function interactionsForSave(
         statusId: addStatus.statusId.trim(),
       }
     : undefined;
+  const afflict = interactions?.afflict;
+  const afflictStatusId = afflict?.statusId.trim();
+  const savedAfflict = afflictStatusId ? { statusId: afflictStatusId } : undefined;
+  // Gated on the durability *and* on there being something that spends it, which
+  // is what the resolver asks: a pool nothing can spend is not a vulnerability.
+  // Blank targets survive the trim for `decay.tileId`'s reason — vanishing is
+  // authored that way — but a blank status id is a row nobody filled in and is
+  // dropped, so a block left with only those saves as nothing at all.
+  const endure = interactions?.endure;
+  const endureDurability = endure ? Math.round(endure.durability) : 0;
+  const savedSuffers = (endure?.suffers ?? [])
+    .filter((one) => one.statusId.trim())
+    .slice(0, MAX_AFFLICTIONS)
+    .map((one) => ({ statusId: one.statusId.trim(), tileId: one.tileId.trim() }));
+  const savedEndure =
+    endureDurability > 0 && savedSuffers.length > 0
+      ? { durability: endureDurability, suffers: savedSuffers }
+      : undefined;
   // Gated on the lifetime rather than on the target, unlike every other block
   // here: a blank target is how a tile says it vanishes, and dropping the block
   // for it would silently un-author exactly the case blood is.
@@ -1896,6 +2161,8 @@ export function interactionsForSave(
     !savedExtract &&
     !savedTeleport &&
     !savedAddStatus &&
+    !savedAfflict &&
+    !savedEndure &&
     !savedDecay &&
     !savedRespawn &&
     !savedPlate &&
@@ -1916,6 +2183,8 @@ export function interactionsForSave(
     ...(savedExtract ? { extract: savedExtract } : {}),
     ...(savedTeleport ? { teleport: savedTeleport } : {}),
     ...(savedAddStatus ? { addStatus: savedAddStatus } : {}),
+    ...(savedAfflict ? { afflict: savedAfflict } : {}),
+    ...(savedEndure ? { endure: savedEndure } : {}),
     ...(savedDecay ? { decay: savedDecay } : {}),
     ...(savedRespawn ? { respawn: savedRespawn } : {}),
     ...(savedPlate ? { pressurePlate: savedPlate } : {}),
