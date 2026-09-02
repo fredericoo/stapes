@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
+import tilesJson from "../../data/tiles.json";
 import type { BrainDef } from "../lib/brain";
 import { DEFAULT_DIALOG, type DialogDef } from "../lib/dialog";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
-import { normalizeTileDef } from "../lib/types";
+import { normalizeTileDef, normalizeTiles } from "../lib/types";
 import { BRAIN_TICK_MS, TICK_MS } from "./constants";
 import { GameSession } from "./GameSession";
 
@@ -71,6 +72,7 @@ const tiles: TileDef[] = [
   }),
   tile({ id: "seller", height: 4, walkable: false, interactions: { dialog } }),
   tile({ id: "server", height: 4, walkable: false, interactions: { dialog, brain: standsToServe } }),
+  ...normalizeTiles(tilesJson as unknown[]).filter((t) => t.id === "potion-salesman"),
 ];
 
 /** Open grass, the player at the origin and one body two cells east. */
@@ -161,5 +163,19 @@ describe("talking to a body through the session", () => {
   it("is a body at all: a tile with only a dialog is adopted", () => {
     const session = new GameSession(fieldWith("seller"), tiles);
     expect(session.actorSnapshots().map((a) => a.tileId).sort()).toEqual(["player", "seller"]);
+  });
+});
+
+describe("the potion salesman, as authored", () => {
+  it("greets, explains the recipe, and says goodbye", () => {
+    const session = new GameSession(fieldWith("potion-salesman"), tiles);
+    session.hear("local", "hello");
+    expect(brainTick(session)[0]).toMatch(/^potion-salesman: Hello, .+ Ask me about the potion/);
+    session.hear("local", "how do you make it?");
+    expect(brainTick(session)).toEqual([
+      expect.stringContaining("Ten arcane crystals"),
+    ]);
+    session.hear("local", "bye");
+    expect(brainTick(session)).toEqual([expect.stringContaining("Mind the dark")]);
   });
 });

@@ -202,6 +202,7 @@ describe("offering selectors", () => {
       "cat",
       "cave-troll",
       "deer",
+      "potion-salesman",
       "rat",
       "shopkeeper",
       "snake",
