@@ -127,10 +127,21 @@ loop where `toSorted` would allocate, and spreading a map edit is what keeps the
 previous value valid for React and for undo. A rule that is right about even one
 site belongs back on with a fix beside it.
 
-Rules set to `warn` are real and not yet done: writing refs during render, a
-handful of effects that set or derive state, and the editor's unlabelled
-controls. They are warnings so the count stays visible rather than being
-denied and then ignored.
+**A clean run is zero, not "zero errors".** Nothing is warned — a rule is either
+denied, or off here with the reason, or suppressed at the spot with the reason
+beside it. So a warning appearing is news.
+
+**Suppress with the block form.** A `// oxlint-disable-next-line` inside a
+component silences that component's other react-plugin findings as well: one in
+`PlayPage` hid six `react/refs` warnings elsewhere in it. Use the paired
+`/* oxlint-disable <rule> */` … `/* oxlint-enable <rule> */`, and check it by
+stripping every directive from the file and comparing the counts.
+
+`settings.jsx-a11y.components` maps `Input`, `Textarea` and `Switch` to what
+they put in the DOM. Anything added there wants checking in a browser first, not
+reasoning about: `Switch` is on the list because clicking a caption in a
+wrapping `<label>` really does toggle it, and `Select` is off it because the
+same click does nothing.
 
 **oxfmt only formats TypeScript here.** `.oxfmtrc.json` ignores three things,
 each for its own reason: `data/`, because `serializeMap` round-trips those files

@@ -425,10 +425,21 @@ export function GameViewport({
    * The same rule the bag panel follows by asking `equipment.bag` before it
    * draws — written as an effect here because the *reference* has to go too, or
    * the next thing put in that hand would open by itself.
+   *
+   * **The one place in this file where the reset cannot simply be derived.**
+   * `heldContainer` above already draws nothing once the hand is empty, so the
+   * panel closes without this; what this clears is the *reference*, and the only
+   * derived form of that is to remember which item was open rather than which
+   * hand. That gets the different-item case right and the same-item case wrong:
+   * put the pack down and pick that same pack up, and the panel would come back
+   * on its own. A hand you have emptied is not a panel you opened, whichever
+   * item lands in it next.
    */
+  /* oxlint-disable react/set-state-in-effect */
   useEffect(() => {
     if (openHand && !equipment[openHand]) setOpenHand(null);
   }, [openHand, equipment]);
+  /* oxlint-enable react/set-state-in-effect */
 
   /**
    * A panel is standing in for the list of what is in reach. Only on a phone.

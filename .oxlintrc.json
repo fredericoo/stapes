@@ -37,6 +37,10 @@
   // find bugs rather than argue about taste. `style` and `pedantic` stay off:
   // shape is oxfmt's job, and the house style is written down in `AGENTS.md`
   // rather than enforced by a linter.
+  //
+  // **Nothing here is `warn`.** A rule is denied, or off below with the reason,
+  // or disabled at the spot with the reason beside it — so a warning appearing
+  // in a run is news rather than part of the furniture.
   "categories": {
     "correctness": "error",
     "suspicious": "error",
@@ -134,26 +138,8 @@
     "vitest/require-mock-type-parameters": "off",
 
     // ---------------------------------------------------------------------
-    // Warned rather than denied: real, worth doing, and each a change to what
-    // the app does rather than a lint fix. Warned so the count is visible and
-    // cannot grow quietly, instead of denied and then blanket-ignored.
+    // Off for the whole codebase, rather than at a handful of spots.
     // ---------------------------------------------------------------------
-
-    // Writing `ref.current = latest` during render is how the React half hands
-    // live props to a renderer and a session built once that outlive them —
-    // see the comments around `statusDefsRef` in `app/routes/play.tsx`.
-    "react/refs": "warn",
-
-    // Effects that set state, derive state, or over-declare their
-    // dependencies. Each needs the surrounding component understood before it
-    // is touched; several are load-then-publish patterns that want a different
-    // shape rather than a different dependency list.
-    "react/set-state-in-effect": "warn",
-    "react/no-deriving-state-in-effects": "warn",
-    "react/exhaustive-effect-dependencies": "warn",
-    "react-hooks/exhaustive-deps": "warn",
-    "react/use-memo": "warn",
-    "react/memo-dependencies": "warn",
 
     // Every hit is a list whose row *is* its position: the kit rows whose order
     // is the priority, the container slots ("keying by instance id would be
@@ -182,14 +168,10 @@
     // reading.
     "jsx-a11y/no-autofocus": "off",
 
-    // Accessibility on the editor's chrome — 60-odd unlabelled controls across
-    // the dialogs and tool palettes. Worth doing, and its own change.
+    // Denied like the rest of `correctness`; the option is the whole change.
     // `depth: 3` because a caption is often `<span><span>Two handed</span>…`,
-    // where the second span carries the explanation under the heading. The
+    // where the second span carries the explanation under the heading, and the
     // default of 2 stops one level short of the text.
-    "jsx-a11y/label-has-associated-control": ["warn", { "depth": 3 }],
-    "jsx-a11y/control-has-associated-label": "warn",
-    "jsx-a11y/no-interactive-element-to-noninteractive-role": "warn",
-    "jsx-a11y/role-supports-aria-props": "warn"
+    "jsx-a11y/label-has-associated-control": ["error", { "depth": 3 }]
   }
 }
