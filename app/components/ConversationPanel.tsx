@@ -102,7 +102,7 @@ export function ConversationPanel({
     lastPressRef.current = lastPress;
     const line = body.querySelector<HTMLElement>(`[data-line="${lastPress}"]`);
     if (line) body.scrollTop = line.offsetTop;
-  }, [conversation, lastPress]);
+  }, [lastPress]);
 
   return (
     <section

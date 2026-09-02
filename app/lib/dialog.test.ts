@@ -109,7 +109,7 @@ describe("walking the script", () => {
     expect(listAt(shop, [])).toBe(shop.script);
     expect(listAt(shop, [2, 0])).toBe(
       shop.script[2]!.kind === "choices"
-        ? shop.script[2].options[0]!.then
+        ? shop.script[2]!.options[0]!.then
         : null,
     );
     expect(listAt(shop, [2, 0, 1, 1])).toEqual([say("Fine.")]);

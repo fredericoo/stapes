@@ -407,7 +407,7 @@ export function ItemTab({
               }
             />
 
-            <label className="flex flex-col gap-1 text-xs">
+            <div className="flex flex-col gap-1 text-xs">
               <span className="font-bold uppercase text-muted">Leaves</span>
               <Select
                 className="w-56"
@@ -429,7 +429,7 @@ export function ItemTab({
                 where the drink was, then in the bag, then in a free hand, and a
                 body with nowhere to put it cannot drink.
               </span>
-            </label>
+            </div>
           </div>
         ) : item.type === "artifact" ? (
           <div className="flex flex-col gap-3">

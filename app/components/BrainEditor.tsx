@@ -20,16 +20,6 @@ import {
   type SpeakerFilter,
 } from "../lib/brain";
 import {
-  appendTo,
-  group,
-  isConditionGroup,
-  removeAt,
-  replaceAt,
-  type Combinator,
-  type ConditionGroup,
-  type ConditionPath,
-} from "../lib/conditions";
-import {
   ACTIONS,
   ACTION_NAMES,
   CONDITIONS,

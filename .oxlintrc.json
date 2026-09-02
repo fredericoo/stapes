@@ -114,6 +114,19 @@
     // each one worse.
     "no-shadow": "off",
 
+    // `then` is the authored name for a dialog branch — it is in the schema in
+    // `app/lib/dialog.ts`, in `data/tiles.json`, and in the editor that writes
+    // them — so this is a content format rather than a variable anybody chose
+    // here, and renaming it is a migration.
+    //
+    // The hazard the rule is about is real and worth knowing: a plain object
+    // carrying a `then` is a thenable, so `await`ing a `DialogChoice`, or
+    // returning one from an `async` function, would have the runtime call that
+    // array as a callback. Nothing does today — the script is parsed once and
+    // walked synchronously — and anything that starts to should rename the
+    // field rather than silence this again.
+    "unicorn/no-thenable": "off",
+
     // `__editorPerf` is the name the renderer publishes its counters under for
     // the Playwright budgets to read; the dangle marks it as a test seam.
     "no-underscore-dangle": "off",
