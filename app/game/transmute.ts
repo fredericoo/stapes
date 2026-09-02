@@ -367,10 +367,16 @@ export function runTransmute(
   // Nothing is decided here — {@link landingsFor} already found somewhere for
   // every one of these, and it did so against this same kit. All that is left
   // is to give each of them an identity and put it there.
-  return plan.landings.reduce<Equipment>((kit, landing) => {
+  //
+  // One copy of the kit up front, then filled in place. `plan.spent` is the
+  // plan's, and a caller may still be holding the plan — `canTransmuteFrom`
+  // stops at one — so it is never the object written to.
+  const kit: Equipment = { ...plan.spent };
+  for (const landing of plan.landings) {
     const instance: ItemInstance = { id: mintId(), tileId: landing.tileId };
     if (landing.kind === "hand") {
-      return { ...kit, [landing.hand]: instance };
+      kit[landing.hand] = instance;
+      continue;
     }
     // Appending, exactly as `itemMoves`' `fillSlot` does for a container
     // destination — slots fill in order, so a thing arriving goes on the end.
@@ -378,14 +384,12 @@ export function runTransmute(
     // location to reach a chest on the floor, and this module never holds
     // either: a recipe only ever fills the body.
     const holder = kit[landing.holder]!;
-    return {
-      ...kit,
-      [landing.holder]: {
-        ...holder,
-        contents: [...(holder.contents ?? []), instance],
-      },
+    kit[landing.holder] = {
+      ...holder,
+      contents: [...(holder.contents ?? []), instance],
     };
-  }, plan.spent);
+  }
+  return kit;
 }
 
 /**

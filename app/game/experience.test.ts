@@ -416,7 +416,7 @@ describe("what a fight is worth is paced", () => {
    * than the first, or standing still is a strategy.
    */
   it("pays less for each further blow from the same attacker", () => {
-    const { session, foe } = beingHit();
+    const { session } = beingHit();
 
     advance(session, 3000);
     const early = learnt(session.masteryXpOf("me"), "toughness");

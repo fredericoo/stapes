@@ -11,7 +11,6 @@ import {
   MIN_LEVEL,
   coordKey,
   levelKey,
-  parseCoordKey,
   resolveLightPassing,
 } from "./types";
 import { elevationAt, getStack } from "./mapData";

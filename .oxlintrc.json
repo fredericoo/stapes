@@ -1,0 +1,145 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+
+  "plugins": [
+    "typescript",
+    "unicorn",
+    "oxc",
+    "react",
+    "import",
+    "promise",
+    "vitest",
+    "jsx-a11y"
+  ],
+
+  // `correctness` is code that is outright wrong, `suspicious` code that almost
+  // certainly is, and `perf` code with a cheaper equivalent — the three that
+  // find bugs rather than argue about taste. `style` and `pedantic` stay off:
+  // shape is oxfmt's job, and the house style is written down in `AGENTS.md`
+  // rather than enforced by a linter.
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "error"
+  },
+
+  "rules": {
+    // ---------------------------------------------------------------------
+    // Off, and why. Each of these was read at every site it fires on before
+    // being turned off — the list is short on purpose, and a rule that is
+    // right about even one site here belongs back on with a fix beside it.
+    // ---------------------------------------------------------------------
+
+    // The automatic JSX runtime (`"jsx": "react-jsx"`) means nothing imports
+    // React to write JSX, and nothing here does.
+    "react/react-in-jsx-scope": "off",
+
+    // `toSorted` / `toReversed` allocate. Every hit is a frame-loop sort of a
+    // scratch array the caller already owns (`textLabels`, `pileLayout`,
+    // `depthClump`, `pathfinding`), and `e2e/renderer-perf.spec.ts` holds those
+    // paths to an allocation budget. Same argument for `new Array(n)`, which
+    // `depthClump` fills by index immediately after.
+    "unicorn/no-array-sort": "off",
+    "unicorn/no-array-reverse": "off",
+    "unicorn/no-new-array": "off",
+
+    // **Its fix introduces bugs here.** Every hit is
+    // `for (const x of [...collection])` where the body removes from that
+    // collection — `disposeMotionGhost` deletes the key it was handed,
+    // `world.children` loses the child, a listener unsubscribes. The spread is
+    // the snapshot that makes the loop safe. It also reads
+    // `[...float32Array.slice(0, 4)]` as redundant when it is the conversion
+    // to a plain array that `toEqual([0, 0, 0, 0])` compares against.
+    "unicorn/no-useless-spread": "off",
+
+    // Its advice is "mutate in place instead". Map edits here are persistent —
+    // `setStacks`, `mapMutations` and the editor store all rebuild by spreading
+    // so the previous value stays valid for React and for undo. Mutating would
+    // be the bug the immutability exists to prevent.
+    "oxc/no-map-spread": "off",
+
+    // Six sites, all a handler assigned once to an object the line above
+    // created: a fresh `Image`, a fresh `Worker`, the worker's own global.
+    // Nothing registers a second handler, so `addEventListener` buys nothing.
+    "unicorn/prefer-add-event-listener": "off",
+
+    // Fires on `worker.postMessage(...)`, which takes a transfer list rather
+    // than a target origin — the rule is about `window.postMessage`.
+    "unicorn/require-post-message-target-origin": "off",
+
+    // Every hit is a `void promise.then(...)` whose chain ends there. The
+    // `void` says the result is not going anywhere; returning one would be a
+    // value nobody reads.
+    "promise/always-return": "off",
+
+    // A `describe` holds its fixtures and the helpers that read them. Hoisting
+    // those to module scope to save an allocation per test separates them from
+    // the data they are about.
+    "unicorn/consistent-function-scoping": "off",
+
+    // Thirty-odd hits, every one a short-lived callback local with the same
+    // natural name as something in an enclosing scope — `i` in a `map`, `rect`
+    // in a loop, `event` in a handler. Renaming them to satisfy the rule makes
+    // each one worse.
+    "no-shadow": "off",
+
+    // `__editorPerf` is the name the renderer publishes its counters under for
+    // the Playwright budgets to read; the dangle marks it as a test seam.
+    "no-underscore-dangle": "off",
+
+    // Sequencing is usually the reason a loop awaits — the deploy script and
+    // the server's drain both need one request finished before the next
+    // starts, and `Promise.all` would be the bug.
+    "no-await-in-loop": "off",
+
+    // `app/root.tsx` imports the Tailwind entry point for its side effect,
+    // which is the only way a stylesheet gets into the bundle.
+    "import/no-unassigned-import": "off",
+
+    // These are Jest's rules, and Vitest is not Jest: `expect(actual, message)`
+    // takes the second argument, `it(name)` takes a name bound from a table of
+    // cases, and an assertion may sit behind the precondition it only holds
+    // under or inside a helper (`expectInFront`) that makes it.
+    "vitest/valid-expect": "off",
+    "vitest/valid-title": "off",
+    "vitest/expect-expect": "off",
+    "vitest/no-conditional-expect": "off",
+    "vitest/require-mock-type-parameters": "off",
+
+    // ---------------------------------------------------------------------
+    // Warned rather than denied: real, worth doing, and each a change to what
+    // the app does rather than a lint fix. Warned so the count is visible and
+    // cannot grow quietly, instead of denied and then blanket-ignored.
+    // ---------------------------------------------------------------------
+
+    // Writing `ref.current = latest` during render is how the React half hands
+    // live props to a renderer and a session built once that outlive them —
+    // see the comments around `statusDefsRef` in `app/routes/play.tsx`.
+    "react/refs": "warn",
+
+    // Effects that set state, derive state, or over-declare their
+    // dependencies. Each needs the surrounding component understood before it
+    // is touched; several are load-then-publish patterns that want a different
+    // shape rather than a different dependency list.
+    "react/set-state-in-effect": "warn",
+    "react/no-deriving-state-in-effects": "warn",
+    "react/exhaustive-effect-dependencies": "warn",
+    "react-hooks/exhaustive-deps": "warn",
+    "react/use-memo": "warn",
+    "react/memo-dependencies": "warn",
+
+    // Keys and default props: both change what React reuses between renders,
+    // which is a behaviour change in a list you can drag things around in.
+    "react/no-array-index-key": "warn",
+    "react/no-object-type-as-default-prop": "warn",
+
+    // Accessibility on the editor's chrome — 60-odd unlabelled controls across
+    // the dialogs and tool palettes. Worth doing, and its own change.
+    "jsx-a11y/label-has-associated-control": "warn",
+    "jsx-a11y/control-has-associated-label": "warn",
+    "jsx-a11y/prefer-tag-over-role": "warn",
+    "jsx-a11y/no-autofocus": "warn",
+    "jsx-a11y/no-interactive-element-to-noninteractive-role": "warn",
+    "jsx-a11y/role-supports-aria-props": "warn"
+  }
+}

@@ -73,6 +73,7 @@ class Pair {
   constructor() {
     // `pair` rather than `this`: the transport is an object literal, and a
     // getter written inside one is about the literal.
+    // oxlint-disable-next-line typescript/no-this-alias
     const pair = this;
     this.server = new GameSocket({
       send(data: string) {
@@ -144,6 +145,9 @@ class Pair {
 
   /** The browser-shaped half the suite listens on. */
   client(): TestSocket {
+    // As in the constructor: the returned socket is an object literal, so its
+    // methods' `this` is the literal rather than the harness.
+    // oxlint-disable-next-line typescript/no-this-alias
     const pair = this;
     return {
       addEventListener(_type, listener, options) {

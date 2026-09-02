@@ -149,11 +149,6 @@ export function StoneFields({
     label: tile.name,
   }));
 
-  const statusOptions = Object.values(statusDefs).map((def) => ({
-    value: def.id,
-    label: def.name,
-  }));
-
   // Narrowed where the conjure list is not, and the asymmetry is the rule rather
   // than an inconsistency: anything can be placed on the board, and only an
   // 8-way tile can point where it is going. The one already picked is kept

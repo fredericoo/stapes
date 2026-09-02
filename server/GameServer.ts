@@ -6,7 +6,7 @@ import {
   type ActorSnapshot,
   type Death,
 } from "../app/game/GameSession";
-import { TICK_MS, WALK_DURATION_MS } from "../app/game/constants";
+import { TICK_MS } from "../app/game/constants";
 import { cellKey } from "../app/game/pressurePlates";
 import {
   findSpawnPoints,
@@ -1780,7 +1780,7 @@ export class GameServer {
       // Theirs alone, beside the kit and the tags, and in full for the same
       // reason all three are: a joiner has nothing to patch against, and the
       // panel showing it is on screen before the first blow.
-      masteryXp: { ...(session.masteryXpOf(actorId) ?? {}) },
+      masteryXp: { ...session.masteryXpOf(actorId) },
       // Theirs alone again, and in full on arrival for the reason all of these
       // are: there is nothing to patch against, and the lane that draws them is
       // on screen before the first berry.

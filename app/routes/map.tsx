@@ -24,7 +24,6 @@ import {
   ZOOM_LEVELS,
   snapZoom,
 } from "../editor/store";
-import { flattenMap } from "../lib/mapData";
 import { formatClock, MINUTES_PER_DAY } from "../lib/clock";
 import type { MapFile } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL, clampLevel } from "../lib/types";

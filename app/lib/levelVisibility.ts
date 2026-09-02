@@ -11,7 +11,6 @@ import {
   MIN_LEVEL,
   coordKey,
   levelKey,
-  parseCoordKey,
 } from "./types";
 
 /** Euclidean cell radius around the view anchor for roof-hide checks. */

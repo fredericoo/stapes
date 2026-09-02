@@ -20,7 +20,7 @@ import {
   weaponReadiness,
 } from "../lib/battler";
 import type { WeaponItem } from "../lib/item";
-import { EQUIP_SLOTS, type EquipSlot, SLOT_LABELS } from "../lib/kit";
+import { EQUIP_SLOTS, SLOT_LABELS } from "../lib/kit";
 import {
   MASTERIES,
   MAX_MASTERY,

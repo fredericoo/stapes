@@ -29,12 +29,10 @@ import {
 } from "../lib/item";
 import {
   appendItem,
-  countOf,
   peelOne,
   pourInto,
   stackWithItem,
   stow,
-  withCount,
 } from "../lib/piles";
 import type {
   Coord,
@@ -128,7 +126,6 @@ import {
   PUSH_STEP_MS,
   STRIKE_DURATION_MS,
   TICK_MS,
-  WALK_DURATION_MS,
 } from "./constants";
 import {
   type BattlerDef,

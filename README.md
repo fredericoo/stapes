@@ -23,6 +23,8 @@ a world in the way.
 - `bun run seed` — load `data/` into a database that already has content. Rarely
   needed: a fresh one seeds itself on boot
 - `bun run typecheck` — route typegen, then all three tsconfigs
+- `bun run lint` — oxlint. `bun run lint:fix` applies what it can fix on its own
+- `bun run format` — oxfmt, in place. `bun run format:check` is what CI runs
 - `bun run test:unit` — `app/` logic, in vitest
 - `bun run test:server` — the world, on Bun, against a real database file
 - `bun run test:perf` — renderer budgets, in Playwright
@@ -109,6 +111,30 @@ strictness settings are the same in all three, so a module shared between
 - **`isolatedModules`, `verbatimModuleSyntax`, `moduleDetection: "force"`** —
   everything the bundler and Bun already assume: one file at a time, imports
   left exactly as typed, and no file quietly being a script.
+
+## Lint and format
+
+`bun run lint` (oxlint) and `bun run format` (oxfmt), both pinned to an exact
+version: a formatter that moves under you mid-branch turns one review into two.
+CI runs both beside the typecheck.
+
+**`.oxlintrc.json` is worth reading before adding to it.** It denies
+`correctness`, `suspicious` and `perf`, and the rules it turns off each carry
+the reason — several of them are rules whose *fix* is wrong here. The
+`for (const x of [...collection])` in the renderer is a snapshot taken because
+the loop body deletes from that collection, `Array#sort` is used in the frame
+loop where `toSorted` would allocate, and spreading a map edit is what keeps the
+previous value valid for React and for undo. A rule that is right about even one
+site belongs back on with a fix beside it.
+
+Rules set to `warn` are real and not yet done: writing refs during render, a
+handful of effects that set or derive state, and the editor's unlabelled
+controls. They are warnings so the count stays visible rather than being
+denied and then ignored.
+
+`.oxfmtrc.json` ignores `data/`: `serializeMap` round-trips those files
+byte-for-byte, so reformatting them would make the editor's next Save a
+whole-file diff.
 
 ## Third-party assets
 

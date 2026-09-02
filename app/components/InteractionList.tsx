@@ -67,7 +67,7 @@ import { useTap } from "./useTap";
  */
 
 /** Which sprite stands for a tile in a list — the one facing the reader. */
-const FRONT: "s" = "s";
+const FRONT = "s" as const;
 
 const ICONS: Record<InteractionAction, typeof IconTarget> = {
   target: IconTarget,

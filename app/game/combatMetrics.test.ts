@@ -21,9 +21,6 @@ import { Rng } from "./rng";
 
 const SAMPLES = 200_000;
 
-/** Enough draws that a share settles to about three decimal places. */
-const SHARE_TOLERANCE = 0.005;
-
 function statsOf(over: Partial<FightingStats>): FightingStats {
   return {
     maxHp: 20,

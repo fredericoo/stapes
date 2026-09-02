@@ -1962,7 +1962,6 @@ export class WorldRenderer {
       const tileset = this.tilesetById.get(first.sprite.tilesetId);
       if (!tileset) return;
 
-      const foot = absoluteElevation(z, elev);
       const baseOrigin = baseCellWorldOrigin(x, y, z, elev);
       const origin = spriteWorldOrigin(baseOrigin, first.sprite.base);
       const { rect } = first.sprite;

@@ -30,6 +30,11 @@ jobs:
       - name: Typecheck
         run: bun run typecheck
 
+      # Seconds, and the kind of thing nobody wants to read a review comment
+      # about.
+      - name: Lint
+        run: bun run lint
+
       - name: App tests
         run: bun run test:unit
 

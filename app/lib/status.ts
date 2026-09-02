@@ -1,7 +1,6 @@
 import * as v from "valibot";
 import { type Formula, parseFormula } from "./formula";
 import {
-  NO_VFX,
   resolveStatusVfx,
   type StatusVfx,
   statusVfxSchema,

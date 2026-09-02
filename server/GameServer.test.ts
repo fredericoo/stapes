@@ -243,12 +243,6 @@ async function connect(actorId: string) {
   return { ws, hello, pair };
 }
 
-/** Close a connection the way a browser going away does. */
-async function disconnect(pair: Pair) {
-  harness.hub.drop(pair.server);
-  await stub().webSocketClose(pair.server);
-}
-
 /**
  * Drop the object's in-memory world without touching its storage or sockets,
  * which is what eviction does. White-box on purpose: this *is* the path under
@@ -1790,7 +1784,8 @@ describe("player permanence", () => {
     await new Promise((resolve) => setTimeout(resolve, QUIET_MS));
 
     const saved = await savedEquipment(who);
-    expect((saved?.equipment as { bag: { id: string } }).bag.id).toBe(
+    expect(saved).toBeDefined();
+    expect((saved!.equipment as { bag: { id: string } }).bag.id).toBe(
       kitOf(hello).bag.id,
     );
   });

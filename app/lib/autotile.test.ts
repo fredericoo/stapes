@@ -15,11 +15,6 @@ import {
   N,
   NE,
   E,
-  SE,
-  S,
-  SW,
-  W,
-  NW,
 } from "./autotile";
 import type { MapFile, TileDef } from "./types";
 import { coordKey, levelKey } from "./types";

@@ -6,7 +6,6 @@ import { hasAnyInteraction, type TileInteractions } from "../lib/interactions";
 import type { WeaponItem } from "../lib/item";
 import { MAX_PERCENT_STAT } from "../lib/item";
 import {
-  MASTERIES,
   MAX_MASTERY,
   type Mastery,
   masteryLevel,

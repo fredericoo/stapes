@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { useLoaderData } from "react-router";
-import type { Route } from "./+types/play";
 import { AppShell } from "../components/AppShell";
 import { GameViewport } from "../components/GameViewport";
 import { InkDocument } from "../components/InkDocument";

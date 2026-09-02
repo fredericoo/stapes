@@ -1,8 +1,6 @@
 import { getStack } from "./mapData";
 import {
   AUTOTILE_SLICE_COUNT,
-  coordKey,
-  levelKey,
   type AutotileSlice,
   type MapFile,
   type StateSprites,

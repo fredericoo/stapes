@@ -29,6 +29,9 @@ export type IlluminationKeyframe = {
  */
 export const ILLUMINATION_KEYFRAMES: readonly IlluminationKeyframe[] = [
   // Night plateau (held through midnight via matching 19:00 / 04:00 keys)
+  // `0 * 60` is midnight written as the hour it is, so the column below reads
+  // as one table.
+  // oxlint-disable-next-line oxc/erasing-op
   { at: 0 * 60, ambient: [0.04, 0.05, 0.1], background: 0x0a0d1a },
   { at: 4 * 60, ambient: [0.04, 0.05, 0.1], background: 0x0a0d1a },
   { at: 6 * 60, ambient: [0.35, 0.32, 0.4], background: 0x3a3850 },

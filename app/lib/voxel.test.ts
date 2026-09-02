@@ -272,13 +272,17 @@ describe("sheet export", () => {
 describe("parseVoxelProject", () => {
   it("rejects frames that do not match the model size", () => {
     const bad = { ...testProject(), frames: [{ voxels: [0], durationMs: 100 }] };
-    expect(() => parseVoxelProject(bad)).toThrow();
+    expect(() => parseVoxelProject(bad)).toThrow(
+      "frame voxel data does not match model size",
+    );
   });
 
   it("rejects out-of-palette voxel indices", () => {
     const project = testProject();
     project.frames[0]!.voxels[0] = 99;
-    expect(() => parseVoxelProject(project)).toThrow();
+    expect(() => parseVoxelProject(project)).toThrow(
+      "voxel references a palette index that does not exist",
+    );
   });
 
   it("accepts a valid round-tripped project", () => {

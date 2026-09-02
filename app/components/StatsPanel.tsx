@@ -9,7 +9,7 @@ import {
   rating,
 } from "../lib/mastery";
 import type { Vitals } from "../game/GameSession";
-import type { TileDef, TilesetDef } from "../lib/types";
+import type { TilesetDef } from "../lib/types";
 import { healthBarColor, healthFraction } from "../render/healthBar";
 import { secondsLeft } from "../game/statuses";
 import { Tooltip } from "../ui";

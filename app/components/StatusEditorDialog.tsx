@@ -369,7 +369,7 @@ export function StatusEditorDialog({
               label={key}
               value={status.modifiers?.[key] ?? ""}
               onChange={(source) => {
-                const modifiers = { ...(status.modifiers ?? {}) };
+                const modifiers = { ...status.modifiers };
                 if (source) modifiers[key] = source;
                 else delete modifiers[key];
                 patch({ modifiers });

@@ -47,7 +47,7 @@ import { TilePreview } from "./TilePreview";
  */
 
 /** Which sprite stands for a tile in a slot — the one facing the reader. */
-const FRONT: "s" = "s";
+const FRONT = "s" as const;
 
 /**
  * How long a finger has to rest on a square before it is asking about it.

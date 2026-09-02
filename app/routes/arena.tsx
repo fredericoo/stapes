@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLoaderData } from "react-router";
-import type { Route } from "./+types/arena";
 import { AppShell } from "../components/AppShell";
 import { ArenaFighterPanel } from "../components/ArenaFighterPanel";
 import { ArenaMetrics } from "../components/ArenaMetrics";

@@ -18,7 +18,7 @@ import {
 } from "./mapData";
 import mapJson from "../../data/map.json";
 import type { FlatMapFile, MapFile, PlacedTile, TileDef } from "./types";
-import { coordKey, levelKey, normalizeTileDef, physicalHeight } from "./types";
+import { levelKey, normalizeTileDef, physicalHeight } from "./types";
 import { fitsAtElevation, fitsTile, tilesByIdFromList } from "./validation";
 
 // The file on disk is flat; the runtime shape is chunked.

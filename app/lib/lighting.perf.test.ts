@@ -10,7 +10,7 @@ import {
   overlayEmitterOverrides,
   staticLightingMapKey,
 } from "./lighting";
-import type { MapFile, TileDef } from "./types";
+import type { TileDef } from "./types";
 import { PLAYER_TILE_ID } from "../game/constants";
 import { requireSinglePlayer } from "../game/player";
 

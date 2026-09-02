@@ -627,7 +627,7 @@ describe("running out of hit points", () => {
 
     advance(session, LONG_ENOUGH_TO_KILL_MS);
 
-    expect(() => session.requestStep(dummyId, "n")).toThrow();
+    expect(() => session.requestStep(dummyId, "n")).toThrow("No actor");
   });
 });
 

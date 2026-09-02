@@ -7,12 +7,12 @@ import type { MasteryXp } from "../lib/mastery";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { useCoarsePointer } from "../lib/useMediaQuery";
 import { tilesByIdFromList } from "../lib/validation";
-import { ItemSlot, ITEM_SLOT_SIZE_PX } from "./ItemSlot";
+import { ItemSlot } from "./ItemSlot";
 import { TilePreview } from "./TilePreview";
 import type { ItemDrag } from "./useItemDrag";
 
 /** Which sprite stands for the container in its own heading. */
-const FRONT: "s" = "s";
+const FRONT = "s" as const;
 
 /**
  * How big the ✕ is drawn, inside a 20px button.

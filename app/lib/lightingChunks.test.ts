@@ -26,7 +26,6 @@ import {
   coordKey,
   levelKey,
   normalizeTileDef,
-  parseCoordKey,
 } from "./types";
 
 const tilesById = Object.fromEntries(

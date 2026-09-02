@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { useLoaderData } from "react-router";
-import type { Route } from "./+types/online";
 import { AppShell } from "../components/AppShell";
 import { DeathScreen } from "../components/DeathScreen";
 import { FrameStatsReadout } from "../components/FrameStatsReadout";

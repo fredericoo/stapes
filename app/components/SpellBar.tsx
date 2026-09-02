@@ -50,7 +50,7 @@ const SPRITE_SHARE = 0.6;
 const BAR_SHARE = 0.12;
 
 /** Which sprite stands for a stone in a button — the one facing the reader. */
-const FRONT: "s" = "s";
+const FRONT = "s" as const;
 
 /**
  * The size the sprite is drawn against, in pixels.

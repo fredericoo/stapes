@@ -5,11 +5,9 @@ import {
   depthStackBias,
   drawOrder,
   elevationScreenOffset,
-  PX_PER_HEIGHT,
 } from "../lib/geometry";
 import type {
   ActorSnapshot,
-  ChatBubble,
   DamageNumber,
   GameSnapshot,
   ObjectRef,
@@ -1642,9 +1640,7 @@ export class GameRenderer {
    * behind. Accepted for now — see plans/looking-and-signs.md.
    */
   private pushPointerLabel(snap: GameSnapshot, into: WorldLabel[]) {
-    const said = this.lookMode
-      ? this.lookLines(snap)
-      : this.pointerLines(snap);
+    const said = this.lookMode ? this.lookLines(snap) : this.pointerLines();
     if (!said) return;
 
     const { ref, height, lines, color } = said;
@@ -1710,7 +1706,7 @@ export class GameRenderer {
    * Read off the same option the outline is drawn from and the click will run,
    * so the words cannot describe an action other than the one that happens.
    */
-  private pointerLines(snap: GameSnapshot): PointerLabel | null {
+  private pointerLines(): PointerLabel | null {
     const option = this.pointerOption();
     if (!option) return null;
     const def = this.tilesById[option.tileId];

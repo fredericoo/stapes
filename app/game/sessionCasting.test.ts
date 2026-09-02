@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { defFrom, maxHpFrom } from "../lib/battler";
-import type { ItemInstance } from "../lib/itemInstance";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import {
   learningRate,
@@ -11,7 +10,6 @@ import {
 import { statusesById } from "../lib/status";
 import type { Coord, MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
-import { tilesByIdFromList } from "../lib/validation";
 import { TICK_MS } from "./constants";
 import {
   casterEarnings,

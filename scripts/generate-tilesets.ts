@@ -8,7 +8,6 @@ import { PNG } from "pngjs";
 import type {
   FlatMapFile,
   PlacedTile,
-  TileDef,
   TilesetDef,
 } from "../app/lib/types";
 import { normalizeTiles } from "../app/lib/types";

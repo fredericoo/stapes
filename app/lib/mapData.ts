@@ -480,9 +480,9 @@ export function setStacks(map: MapFile, edits: readonly StackEdit[]): MapFile {
     let chunk = copied.get(path);
     if (!chunk) {
       const level = levels[zk];
-      chunk = { ...(level?.[chk] ?? {}) };
+      chunk = { ...level?.[chk] };
       copied.set(path, chunk);
-      levels[zk] = { ...(level ?? {}), [chk]: chunk };
+      levels[zk] = { ...level, [chk]: chunk };
     }
 
     const ck = coordKey(edit.x, edit.y);
