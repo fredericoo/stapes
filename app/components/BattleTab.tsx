@@ -82,7 +82,7 @@ const MASTERY_FIELDS: Array<{ mastery: Mastery; label: string; hint: string }> =
 function describeDodge(flee: number): string {
   const typical = Math.round(dodgeChance(flee, 85) * 100);
   const best = Math.round(dodgeChance(flee, MAX_PERCENT_STAT) * 100);
-  return `Dodges % against 85 accuracy, % against 100.`;
+  return `Dodges ${typical}% against 85 accuracy, ${best}% against 100.`;
 }
 
 /**
