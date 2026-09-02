@@ -387,7 +387,9 @@ describe("trading through the panel", () => {
     expect(session.getSnapshot().equipment.offhand?.tileId).toBe("bag");
     talkTo(session, "seller");
     press(session, 1);
-    expect(lastLine(session)).toBeUndefined;
+    // Pressing a choice that opens a number prompt adds no reply, so the last
+    // line is still the player's own press.
+    expect(lastLine(session)).toBe("Buy");
     trade(session, 2);
     expect(session.getSnapshot().equipment.offhand?.contents).toEqual([
       { id: "itm_shards", tileId: "shard", count: 2 },
