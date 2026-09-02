@@ -29,6 +29,17 @@
           "durationMs": 200
         }
       ]
+    },
+    "interactions": {
+      "endure": {
+        "durability": 12,
+        "suffers": [
+          {
+            "statusId": "burned",
+            "tileId": "dirt"
+          }
+        ]
+      }
     }
   },
   {
@@ -11301,6 +11312,21 @@
           "durationMs": 200
         }
       ]
+    },
+    "interactions": {
+      "endure": {
+        "durability": 28,
+        "suffers": [
+          {
+            "statusId": "burned",
+            "tileId": ""
+          }
+        ]
+      },
+      "respawn": {
+        "fromMs": 300000,
+        "toMs": 600000
+      }
     }
   },
   {
@@ -11526,6 +11552,17 @@
           "durationMs": 200
         }
       ]
+    },
+    "interactions": {
+      "endure": {
+        "durability": 12,
+        "suffers": [
+          {
+            "statusId": "burned",
+            "tileId": "dirt"
+          }
+        ]
+      }
     }
   },
   {
@@ -29247,6 +29284,15 @@
             "chance": 25
           }
         ]
+      },
+      "endure": {
+        "durability": 16,
+        "suffers": [
+          {
+            "statusId": "burned",
+            "tileId": ""
+          }
+        ]
       }
     },
     "sprite": {
@@ -29288,6 +29334,15 @@
         "tileId": "bush",
         "fromMs": 45000,
         "toMs": 90000
+      },
+      "endure": {
+        "durability": 16,
+        "suffers": [
+          {
+            "statusId": "burned",
+            "tileId": ""
+          }
+        ]
       }
     },
     "sprite": {
@@ -29342,6 +29397,21 @@
           "durationMs": 200
         }
       ]
+    },
+    "interactions": {
+      "endure": {
+        "durability": 16,
+        "suffers": [
+          {
+            "statusId": "burned",
+            "tileId": ""
+          }
+        ]
+      },
+      "respawn": {
+        "fromMs": 120000,
+        "toMs": 240000
+      }
     }
   },
   {
@@ -29663,6 +29733,9 @@
       "addStatus": {
         "trigger": "step",
         "statusId": "burned"
+      },
+      "afflict": {
+        "statusId": "burned"
       }
     },
     "sprite": {
@@ -29781,6 +29854,9 @@
         "tileId": "",
         "fromMs": 30000,
         "toMs": 60000
+      },
+      "afflict": {
+        "statusId": "burned"
       }
     },
     "sprite": {
