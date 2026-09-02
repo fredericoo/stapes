@@ -342,7 +342,18 @@ export type BrainConditionDef =
    * definition, so it swallows the condition. A state meant to give up needs to
    * end in the action that can fail.
    */
-  | { cond: "stuck" };
+  | { cond: "stuck" }
+  /**
+   * This body is mid-conversation — its `dialog` block has a partner.
+   *
+   * The one place the brain and the dialog meet, and deliberately the only one:
+   * the dialog decides who is being talked to and what is said, and the brain
+   * decides what the legs do about it. A shopkeeper that wanders when idle and
+   * stands still for a sale is `from: any, if: talking, to: serving` and the
+   * `not` of it back, and nothing else has to know a conversation exists.
+   * A body with no dialog block is never talking.
+   */
+  | { cond: "talking" };
 
 /**
  * What a transition fires on: one question, or several joined together.
@@ -572,6 +583,7 @@ const leafSchema = v.variant("cond", [
   }),
   v.object({ cond: v.literal("stuck") }),
   v.object({ cond: v.literal("attacked") }),
+  v.object({ cond: v.literal("talking") }),
 ]);
 
 const ifSchema = conditionSchema<BrainConditionDef>(leafSchema);

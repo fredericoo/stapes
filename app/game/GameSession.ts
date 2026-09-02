@@ -32,6 +32,7 @@ import {
   countOf,
   peelOne,
   pourInto,
+  stackWithItem,
   stow,
   withCount,
 } from "../lib/piles";
@@ -69,6 +70,7 @@ import {
   canAddStatusFrom,
   canConsumeFrom,
   canEquipFrom,
+  canTalkFrom,
   dropDestinationAt,
   canPickUpFrom,
   pickUpDestination,
@@ -94,11 +96,13 @@ import {
   masteryNotice,
   otherMasteryNotice,
   healthNotice,
+  noRoomToLeaveNotice,
   rewardNotice,
   statusesClearedNotice,
   statusGrantedNotice,
   tileNotice,
 } from "./notices";
+import { leaveResidue } from "./residue";
 import {
   HEALTH_COMMAND,
   MASTERY_COMMAND,
@@ -219,6 +223,7 @@ import {
   itemInSlot,
   peelSlot,
   stashInContainer,
+  type ItemMoveResult,
   type SlotRef,
 } from "./itemMoves";
 import type { ItemInstance } from "../lib/itemInstance";
@@ -253,6 +258,18 @@ import {
 } from "./movement";
 import { findPath } from "./pathfinding";
 import { resolveBrain } from "../lib/brain";
+import { resolveDialog } from "../lib/dialog";
+import {
+  acceptTrade,
+  cancelTrade,
+  chooseOption,
+  openConversation,
+  type Conversation,
+  type DialogEffectDef,
+  type PartnerView,
+  type TalkAction,
+} from "./dialogRuntime";
+import { planTrade } from "./trade";
 import { bodyNameFor } from "./displayName";
 import {
   initialMemory,
@@ -641,6 +658,13 @@ export type GameSnapshot = {
    */
   tags: readonly string[];
   /**
+   * Where the viewer is in a conversation, or null when no panel is open.
+   *
+   * Theirs alone, on exactly the terms {@link tags} is, and replaced wholesale
+   * so identity is the change signal. @see ./dialogRuntime
+   */
+  conversation: Conversation | null;
+  /**
    * Which resources the viewer may not work just yet — see `./extract`'s
    * `extractKey`, which is how each one is named.
    *
@@ -884,6 +908,15 @@ export interface PlaySession {
    * the tile's authored list — see `./transmute`.
    */
   transmute(ref: ObjectRef, recipe: number): boolean;
+  /**
+   * Talk to a body, press one of its buttons, go back, or close the panel.
+   *
+   * On the interface because a conversation is a per-viewer fact the panel
+   * drives, and the two implementations differ only in where the buttons are
+   * answered: the local session decides, the remote one asks and is told by
+   * the `conversation` message that follows. @see ./dialogRuntime
+   */
+  talk(action: TalkAction): boolean;
   /**
    * Take one pull out of a resource — mine a crystal, pick a bush.
    *
@@ -1147,6 +1180,17 @@ type ActorRuntime = {
    * state resets on load" free: a fresh runtime has no memory to restore.
    */
   brain: BrainMemory | null;
+  /**
+   * Who this body is talking to and where in their dialog it is, or null.
+   *
+   * The *player's* state, not the NPC's — see `./dialogRuntime`'s
+   * `Conversation` — which is what lets any number of people talk to one
+   * salesman at once. Never checkpointed, on the brain memory's terms: a
+   * conversation is a state of play, and a world coming back from a save
+   * starts every one afresh. Ended by the session the tick its partner is out
+   * of talking reach.
+   */
+  conversation: Conversation | null;
   /**
    * The cell this body was authored on, or null for one nobody authored.
    *
@@ -1429,6 +1473,7 @@ export class GameSession implements PlaySession {
    * it and the flush that sends it.
    */
   private readonly equipmentChanged = new Set<string>();
+  private readonly conversationChanged = new Set<string>();
   /** Actors whose tags have changed and whose owner has not been told yet. */
   private readonly tagsChanged = new Set<string>();
   /**
@@ -1875,6 +1920,7 @@ export class GameSession implements PlaySession {
       defensiveDecay: null,
       assailants: null,
       brain: null,
+      conversation: null,
       home: residentHome(id),
       // Restored where a returning player had any, and null otherwise — null
       // still means "ask the tile", which is what a fresh body and every
@@ -2439,6 +2485,9 @@ export class GameSession implements PlaySession {
 
     // Before the bodies move, so a decision taken now starts its walk on this
     // tick rather than the next.
+    // Before the brains, so a partner who walked off this tick is gone by the
+    // time a `talking` condition asks.
+    this.tickConversations();
     this.tickBrains(tickMs);
 
     // After the brains, so a creature that decided to close the distance this
@@ -2592,6 +2641,236 @@ export class GameSession implements PlaySession {
     this.pendingHeard.push({ speakerId, text });
   }
 
+  /**
+   * Talk to a body, press a choice, take or refuse a trade, or close the
+   * panel — the player's side of a conversation.
+   *
+   * Every verb re-asks what the client already checked, on the terms every
+   * other message is: reach for an `open`, and for a press that there is a
+   * conversation and a button at that position. A press on a stale panel —
+   * the def reloaded, the button gone — is refused rather than guessed at,
+   * and the client learns what is there from the next `conversation`.
+   *
+   * True when the conversation changed, which is what the wire sends on.
+   */
+  talk(action: TalkAction, id: string = LOCAL_ACTOR_ID): boolean {
+    const actor = this.actors.get(id);
+    if (!actor) return false;
+    if (action.kind === "open") return this.openTalk(actor, action.ref);
+    if (action.kind === "close") return this.setConversation(actor, null);
+
+    const current = actor.conversation;
+    if (!current) return false;
+    const dialog = this.dialogOf(current.npcId);
+    // The NPC is gone or has stopped being one that talks: the panel closes
+    // rather than answering out of a def that no longer exists.
+    if (!dialog) return this.setConversation(actor, null);
+
+    const view = this.partnerViewFor(actor);
+    const next =
+      action.kind === "cancel"
+        ? cancelTrade(dialog, current, view)
+        : action.kind === "trade"
+          ? acceptTrade(dialog, current, action.amount, view)
+          : chooseOption(dialog, current, action.index, view);
+    if (!next) return false;
+    return this.setConversation(actor, next);
+  }
+
+  /** Could this actor open a conversation with the body at this slot? */
+  canTalk(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
+    const actor = this.actors.get(id);
+    const loc = actor && this.tryLocate(actor);
+    if (!loc) return false;
+    return canTalkFrom(this.map, this.tilesById, loc, ref) && this.npcAt(ref) != null;
+  }
+
+  private openTalk(actor: ActorRuntime, ref: ObjectRef): boolean {
+    const loc = this.tryLocate(actor);
+    if (!loc || !canTalkFrom(this.map, this.tilesById, loc, ref)) return false;
+    const npc = this.npcAt(ref);
+    const dialog = npc && resolveDialog(this.defFor(npc));
+    if (!npc || !dialog) return false;
+    const view = this.partnerViewFor(actor);
+    const body = { id: npc.id, tileId: this.defFor(npc).id };
+    return this.setConversation(actor, openConversation(dialog, body, view));
+  }
+
+  /**
+   * The body standing at this slot, if it is one the runtime drives.
+   *
+   * Read off the placement's owner rather than searched for, because a
+   * placement's owner *is* the actor's id — see `adoptResidents`.
+   */
+  private npcAt(ref: ObjectRef): ActorRuntime | null {
+    const placed = getStack(this.map, ref.x, ref.y, ref.z)[ref.stackIndex];
+    if (!placed?.owner) return null;
+    return this.actors.get(placed.owner) ?? null;
+  }
+
+  private dialogOf(npcId: string) {
+    const npc = this.actors.get(npcId);
+    return npc ? resolveDialog(this.defFor(npc)) : null;
+  }
+
+  /**
+   * Replace an actor's conversation and note the change for the wire.
+   *
+   * Replaced wholesale rather than mutated, on the kit's terms: the object
+   * goes out on a snapshot and identity is what tells whoever is drawing it
+   * that something moved. Closing an already closed one is not a change.
+   */
+  private setConversation(actor: ActorRuntime, next: Conversation | null): boolean {
+    if (actor.conversation === next) return false;
+    actor.conversation = next;
+    this.conversationChanged.add(actor.id);
+    return true;
+  }
+
+  /**
+   * End every conversation whose partner has walked out of talking reach, or
+   * whose NPC has gone.
+   *
+   * Every tick rather than on the brain's cadence, so a panel closes the
+   * moment the player has left rather than a few steps later — and silently,
+   * because walking away is its own goodbye.
+   */
+  private tickConversations() {
+    for (const actor of this.actors.values()) {
+      const current = actor.conversation;
+      if (!current) continue;
+      if (this.withinTalkReach(actor, current.npcId)) continue;
+      this.setConversation(actor, null);
+    }
+  }
+
+  private withinTalkReach(actor: ActorRuntime, npcId: string): boolean {
+    const npc = this.actors.get(npcId);
+    if (!npc) return false;
+    const mine = this.tryLocate(actor);
+    const theirs = this.tryLocate(npc);
+    if (!mine || !theirs) return false;
+    return canTalkFrom(this.map, this.tilesById, mine, theirs);
+  }
+
+  /** Is anybody talking to this body? What the brain's `talking` reads. */
+  private anyoneTalkingTo(npcId: string): boolean {
+    for (const actor of this.actors.values()) {
+      if (actor.conversation?.npcId === npcId) return true;
+    }
+    return false;
+  }
+
+  /** One actor's conversation, for the socket that is theirs. */
+  conversationOf(id: string): Conversation | null {
+    return this.actors.get(id)?.conversation ?? null;
+  }
+
+  /**
+   * Whose conversation has changed since last asked, and forget.
+   *
+   * Its own queue beside the kit's and the tags', on the same argument: the
+   * server sends each of these to one socket, and a conversation that
+   * changed is one whose owner needs the whole of it again.
+   */
+  drainConversationChanges(): string[] {
+    if (this.conversationChanged.size === 0) return [];
+    const changed = [...this.conversationChanged];
+    this.conversationChanged.clear();
+    return changed;
+  }
+
+  /**
+   * What a press may ask of this partner. Every answer is a rule that lives
+   * elsewhere — `./trade`, the tag list, the status list — asked here so the
+   * dialog step never holds a kit.
+   */
+  private partnerViewFor(partner: ActorRuntime): PartnerView {
+    return {
+      name: () => this.bodyName(partner.id),
+      attempt: (effects) => this.attemptDialogEffects(partner.id, effects),
+    };
+  }
+
+  /**
+   * Run an option's effects on the partner, all or none.
+   *
+   * Planned in full before anything is written: every trade is worked out
+   * against the kit the one before it leaves, and a status has to be one the
+   * catalogue holds. Only then does the kit change, once, and the statuses and
+   * tags land beside it — so an option that both takes payment and grants a
+   * status cannot take the payment and fail the status.
+   *
+   * A status nobody authored refuses here where a potion's grant is skipped
+   * silently, because a drink still did something — it was spent — and an
+   * option whose whole point was the status did nothing at all. Saying `else`
+   * is the honest reading.
+   */
+  private attemptDialogEffects(
+    actorId: string,
+    effects: readonly DialogEffectDef[],
+  ): boolean {
+    const partner = this.actors.get(actorId);
+    if (!partner) return false;
+
+    let kit = partner.equipment;
+    for (const effect of effects) {
+      if (effect.effect === "add_status" && !this.statusDefs[effect.statusId]) {
+        return false;
+      }
+      if (effect.effect !== "trade") continue;
+      const next = planTrade(this.tilesById, kit, effect.take, effect.give, mintItemId);
+      if (!next) return false;
+      kit = next;
+    }
+
+    if (kit !== partner.equipment) this.setEquipment(partner, kit);
+    for (const effect of effects) this.applyDialogEffect(partner, effect);
+    return true;
+  }
+
+  /** The non-kit half of an effect, once the whole list is known to run. */
+  private applyDialogEffect(partner: ActorRuntime, effect: DialogEffectDef) {
+    if (effect.effect === "add_status") {
+      this.grantStatus(partner, { id: effect.statusId });
+      return;
+    }
+    if (effect.effect === "remove_status") {
+      this.clearStatus(partner, effect.statusId);
+      return;
+    }
+    if (effect.effect === "tag" && !partner.tags.includes(effect.tag)) {
+      this.setTags(partner, [...partner.tags, effect.tag]);
+    }
+  }
+
+  /**
+   * Take one status off a body, if it is under it.
+   *
+   * Replaced wholesale on the terms `applyStatus` replaces, so the list going
+   * out on a snapshot changes identity; noted for the same reason a grant is.
+   */
+  private clearStatus(actor: ActorRuntime, statusId: string) {
+    if (!actor.statuses.some((s) => s.defId === statusId)) return;
+    actor.statuses = actor.statuses.filter((s) => s.defId !== statusId);
+    this.noteStatusReading(actor);
+  }
+
+  /**
+   * Can this body see that cell? Its own height decides what it sees over, so
+   * a person clears the crates a rat has to walk around. Shared by the brain
+   * and the dialog, so the two never disagree about a wall.
+   */
+  private canSeeFrom(actor: ActorRuntime, loc: ActorLocation, at: Coord): boolean {
+    return hasLineOfSight(
+      this.map,
+      this.tilesById,
+      { x: loc.x, y: loc.y, z: loc.z },
+      at,
+      this.defFor(actor).height,
+    );
+  }
+
   private tickOneBrain(actor: ActorRuntime, sounds: readonly Sound[]) {
     // A body with no brain, or one whose authored brain did not hold together,
     // simply stands there. Resolving is memoised on def identity, so asking
@@ -2614,16 +2893,8 @@ export class GameSession implements PlaySession {
       routeTo: (at, allowDrops) => this.routeStep(actor, loc, at, allowDrops),
       say: (text) => this.recordSpeech(actor, loc, text),
       noise: (text) => this.recordNoise(actor.id, loc, text),
-      canSee: (at) =>
-        hasLineOfSight(
-          this.map,
-          this.tilesById,
-          { x: loc.x, y: loc.y, z: loc.z },
-          at,
-          // Its own body's height, so what it can see over falls out of how tall
-          // it is drawn: a person clears the crates a rat has to walk around.
-          this.defFor(actor).height,
-        ),
+      canSee: (at) => this.canSeeFrom(actor, loc, at),
+      talking: () => this.anyoneTalkingTo(actor.id),
       // A creature with no stat block minds its own floor, which is what every
       // creature did before this was authorable.
       sight: this.battlerOf(actor)?.sight ?? DEFAULT_BATTLER.sight,
@@ -5029,15 +5300,12 @@ export class GameSession implements PlaySession {
     // meal that swallowed a heap of twelve would be the game deciding a number
     // nobody was offered.
     const left = peelOne(placed);
-    this.map = left
-      ? replaceStack(
-          this.map,
-          ref.x,
-          ref.y,
-          ref.z,
-          stack.map((held, i) => (i === ref.stackIndex ? left : held)),
-        )
-      : removeTileAt(this.map, ref.x, ref.y, ref.z, ref.stackIndex);
+    const spent = left
+      ? stack.map((held, i) => (i === ref.stackIndex ? left : held))
+      : stack.filter((_, i) => i !== ref.stackIndex);
+    const next = this.cellAfterLeaving(actor, ref, spent, consumable);
+    if (!next) return null;
+    this.map = replaceStack(this.map, ref.x, ref.y, ref.z, next);
     // The same reindex a pickup owes, for the same plates and the same
     // unsupported crates. Owed even for a pile that merely got smaller: a pile
     // adds no height, so nothing about the cell can have changed — but the
@@ -5045,6 +5313,77 @@ export class GameSession implements PlaySession {
     // when it may be skipped.
     this.reindexCells([{ x: ref.x, y: ref.y, z: ref.z }]);
     return consumable;
+  }
+
+  /**
+   * A cell's stack with what a floor drink leaves behind on it, or null when
+   * the cell cannot hold it.
+   *
+   * On the floor rather than in the drinker's kit, because that is where the
+   * potion was: a bottle drunk where it lies is left where it lay, exactly as a
+   * meal eaten off the floor never enters the bag. Poured, like every other way
+   * an item reaches a cell, so a second bottle joins the first. The room check
+   * is `canReplaceStack`'s, the same one a body dying holding things asks, and
+   * a refusal is said out loud on {@link leaveBehind}'s terms.
+   */
+  private cellAfterLeaving(
+    actor: ActorRuntime,
+    ref: ObjectRef,
+    spent: PlacedTile[],
+    consumable: ConsumableItem,
+  ): PlacedTile[] | null {
+    const residue = this.residueOf(consumable);
+    if (!residue) return spent;
+    const next = stackWithItem(spent, placementFromInstance(residue), this.tilesById);
+    const room = canReplaceStack(this.map, ref.x, ref.y, ref.z, next, this.tilesById);
+    if (room.ok) return next;
+    this.say(actor.id, noRoomToLeaveNotice(this.tilesById[residue.tileId]!.name));
+    return null;
+  }
+
+  /**
+   * The board and kit with what a slot drink leaves behind somewhere on the
+   * body, or null — said out loud — when there is nowhere.
+   *
+   * Asked with the drink already gone, which is what makes the ordinary case
+   * free: the square the last potion vacated is the square its bottle lands in.
+   * See `./residue` for the order the places are tried in.
+   */
+  private leaveBehind(
+    actor: ActorRuntime,
+    loc: ActorLocation,
+    emptied: ItemMoveResult,
+    from: SlotRef,
+    consumable: ConsumableItem,
+  ): ItemMoveResult | null {
+    const residue = this.residueOf(consumable);
+    if (!residue) return emptied;
+    const landed = leaveResidue(
+      emptied.map,
+      this.tilesById,
+      loc,
+      emptied.equipment,
+      from,
+      residue,
+    );
+    if (landed) return landed;
+    this.say(actor.id, noRoomToLeaveNotice(this.tilesById[residue.tileId]!.name));
+    return null;
+  }
+
+  /**
+   * What this consumable leaves behind, minted, or null for one that leaves
+   * nothing.
+   *
+   * A tile the catalogue no longer holds reads as leaving nothing, on the terms
+   * a status nobody authored does: renamed content is an effect that did not
+   * happen, not a drink that cannot be drunk. Minted before it is known to fit,
+   * because an id is random and one that lands nowhere costs nothing.
+   */
+  private residueOf(consumable: ConsumableItem): ItemInstance | null {
+    const tileId = consumable.leaves;
+    if (!tileId || !this.tilesById[tileId]) return null;
+    return { id: mintItemId(), tileId };
   }
 
   /** Take a consumable out of a slot and destroy it. Null when refused. */
@@ -5071,12 +5410,16 @@ export class GameSession implements PlaySession {
     // `clearSlot` for the last one anyway.
     const emptied = peelSlot(this.map, this.tilesById, loc, actor.equipment, slot);
     if (!emptied) return null;
+    // Before anything is written, so a drink with nowhere to leave its bottle
+    // leaves the potion exactly where it was.
+    const landed = this.leaveBehind(actor, loc, emptied, slot, consumable);
+    if (!landed) return null;
 
-    this.map = emptied.map;
+    this.map = landed.map;
     // Only when it actually changed, exactly as a move does: eating out of a
     // chest is the chest's placement changing and nobody's kit.
-    if (emptied.equipment !== actor.equipment) {
-      this.setEquipment(actor, emptied.equipment);
+    if (landed.equipment !== actor.equipment) {
+      this.setEquipment(actor, landed.equipment);
     }
     return consumable;
   }
@@ -6490,6 +6833,7 @@ export class GameSession implements PlaySession {
       attacking: self.attacking,
       equipment: self.equipment,
       tags: self.tags,
+      conversation: self.conversation,
       extractCooling: this.extractCoolingOf(self.id),
       // Seeded by the line above rather than here: `actorSnapshots` asks every
       // body for its stats, which is what fills a fresh player's experience in

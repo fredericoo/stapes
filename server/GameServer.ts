@@ -1882,6 +1882,12 @@ export class GameServer {
       // a move: the client offered "Eat" from these rules, on a board a round
       // trip old, and is not trusted with the answer.
       session.consume(message.from, actorId);
+    } else if (message.type === "talk") {
+      // Reach for an open, and that there is a button at that position for a
+      // press — re-asked in the session on the terms a transmute's recipe
+      // index is. Whatever it comes to, the `conversation` flush below tells
+      // this socket the whole of where it now stands.
+      session.talk(message.action, actorId);
     } else if (message.type === "transmute") {
       // Reach, the recipe existing, having the input, and having room for what
       // comes back — all re-asked in the session, on the same terms a reward
@@ -1912,6 +1918,7 @@ export class GameServer {
     this.flushSounds();
     this.flushBlows();
     this.flushTags();
+    this.flushConversations();
     this.flushExtractCooling();
     this.flushNotices();
     this.flushMasteries();
@@ -2075,6 +2082,32 @@ export class GameServer {
         JSON.stringify({
           type: "tags",
           tags: [...tags],
+        } satisfies ServerMessage),
+      );
+    }
+  }
+
+  /**
+   * Tell each player whose conversation changed where they now stand in it.
+   *
+   * Shaped exactly like {@link flushTags}, because it is the same kind of
+   * thing: per-player state, sent whole to the one socket it is about. Null is
+   * sent too — it is how the panel learns to close.
+   */
+  private flushConversations() {
+    const session = this.session;
+    if (!session) return;
+    const changed = session.drainConversationChanges();
+    if (changed.length === 0) return;
+
+    const wanted = new Set(changed);
+    for (const ws of this.ctx.getWebSockets()) {
+      const attachment = ws.deserializeAttachment() as Attachment | null;
+      if (!attachment || !wanted.has(attachment.actorId)) continue;
+      ws.send(
+        JSON.stringify({
+          type: "conversation",
+          conversation: session.conversationOf(attachment.actorId),
         } satisfies ServerMessage),
       );
     }
@@ -3023,6 +3056,9 @@ export class GameServer {
     // way of a panel that never updates.
     this.flushEquipment();
     this.flushTags();
+    // On the tick as well as on input: a conversation ends when its partner
+    // walks out of reach, which is a thing the world notices, not a message.
+    this.flushConversations();
     this.flushExtractCooling();
     // Beside the tag, because it describes the same act — and on the tick as
     // well as on input for the same reason the kit is: nothing guarantees which

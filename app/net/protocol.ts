@@ -5,6 +5,7 @@ import type { SlotRef } from "../game/itemMoves";
 import { SWING_OUTCOMES, type SwingOutcome } from "../game/GameSession";
 import { STRIKE_KINDS, type StrikeKind } from "../game/strike";
 import type { ConsumeSource } from "../game/itemUse";
+import type { Conversation, TalkAction } from "../game/dialogRuntime";
 import { masteryXpBlockSchema, type MasteryXp } from "../lib/mastery";
 import type { ExtractCooling } from "../game/extract";
 import type { PlacedTile } from "../lib/types";
@@ -611,6 +612,17 @@ export type ServerMessage =
    */
   | { type: "tags"; tags: string[] }
   /**
+   * "Here is where you are in a conversation, and everything said so far."
+   *
+   * Addressed to one socket for the reason `tags` is: it differs per player,
+   * and it is the player's state rather than the NPC's — see
+   * `../game/dialogRuntime`'s `Conversation`. Whole state every time, and null
+   * when the panel should close, whether the player pressed Close or walked
+   * out of reach. The buttons are not on it: the client holds the tile
+   * catalogue and draws them from the path.
+   */
+  | { type: "conversation"; conversation: Conversation | null }
+  /**
    * "Here is every resource you may not work just yet."
    *
    * The per-player half of an extract — see `../lib/interactions`'
@@ -899,6 +911,19 @@ export type ClientMessage =
    */
   | { type: "consume"; from: ConsumeSource }
   /**
+   * Talk to a body, press a choice, take or refuse a trade, or close the
+   * panel.
+   *
+   * One message with a verb inside rather than four, because the four are one
+   * thing — where the player is in a conversation — and a conversation is the
+   * one piece of per-player state whose whole shape the server answers with
+   * (`conversation` below). `index` is a position among the buttons on offer,
+   * on `transmute`'s argument for a recipe index: both ends hold the tile
+   * catalogue, so a position is something the server can check against a list
+   * it already has. `amount` is the stepper, clamped server-side.
+   */
+  | { type: "talk"; action: TalkAction }
+  /**
    * "I am spending that at this."
    *
    * The fourth message that changes what exists: one carried thing stops being
@@ -1095,6 +1120,22 @@ const clientMessageSchema = v.variant("type", [
     ]),
   }),
   v.object({
+    type: v.literal("talk"),
+    action: v.variant("kind", [
+      v.object({ kind: v.literal("open"), ref: inboundRefSchema }),
+      v.object({
+        kind: v.literal("choose"),
+        index: v.pipe(v.number(), v.integer(), v.minValue(0)),
+      }),
+      v.object({
+        kind: v.literal("trade"),
+        amount: v.pipe(v.number(), v.integer(), v.minValue(1)),
+      }),
+      v.object({ kind: v.literal("cancel") }),
+      v.object({ kind: v.literal("close") }),
+    ]),
+  }),
+  v.object({
     type: v.literal("transmute"),
     ref: inboundRefSchema,
     // Bounded below and left unbounded above, exactly as a slot index is: how
@@ -1182,6 +1223,19 @@ const serverMessageSchema = v.variant("type", [
   v.object({
     type: v.literal("tags"),
     tags: v.array(v.string()),
+  }),
+  v.object({
+    type: v.literal("conversation"),
+    conversation: v.nullable(
+      v.object({
+        npcId: v.string(),
+        tileId: v.string(),
+        pc: v.array(v.pipe(v.number(), v.integer(), v.minValue(0))),
+        transcript: v.array(
+          v.object({ who: v.picklist(["npc", "you", "note"]), text: v.string() }),
+        ),
+      }),
+    ),
   }),
   v.object({
     type: v.literal("extractCooling"),
@@ -1405,7 +1459,7 @@ export const GAME_SOCKET_PATH = "/online/ws";
  * This is deliberately not the build id. A client deploy that changes no
  * messages should not disconnect anybody, and most client deploys are that.
  */
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 
 /**
  * How often the world says nothing, to keep a proxy from hanging up.

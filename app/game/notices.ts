@@ -307,6 +307,21 @@ export function tileNotice(name: string, at: Coord): string {
   return `${name} appears at ${cellName(at)}`;
 }
 
+/**
+ * Why a drink did not happen: what it would have left behind has nowhere to go.
+ *
+ * The one consume refusal that earns a sentence. Every other reason a consume
+ * is refused is a reason the row was never offered — out of reach, not a
+ * consumable, an empty slot — where this one is a fact about the kit that the
+ * row cannot see: the potion is right there and drinkable, and what stops it is
+ * the bottle. A refusal that showed as nothing occurring would be a potion that
+ * looks broken. The name is the tile's own, so what the catalogue calls the
+ * thing and what the game calls it are one string.
+ */
+export function noRoomToLeaveNotice(name: string): string {
+  return `There is nowhere to put ${name}`;
+}
+
 /** What a body is told when a status is put on it by hand. */
 export function statusGrantedNotice(name: string): string {
   return `${name}.`;

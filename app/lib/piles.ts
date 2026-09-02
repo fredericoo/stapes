@@ -17,7 +17,8 @@ import type { MapFile, PlacedTile, TileDef } from "./types";
  *
  * The cost of counting rather than listing is that the twelve are
  * interchangeable and cannot be told apart afterwards. That is the reason only
- * food piles — see `./item`'s `pileMax`, which is the one place that is decided.
+ * food and a counted artifact pile — see `./item`'s `pileMax`, which is the
+ * one place that is decided.
  *
  * ## One rule, in one direction
  *

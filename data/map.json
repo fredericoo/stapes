@@ -127906,6 +127906,10 @@
       "-9,55": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "potion-salesman",
+          "direction": "n"
         }
       ],
       "-9,56": [

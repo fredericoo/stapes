@@ -298,6 +298,134 @@ A rule spelled out five times is a rule that is only ever four-fifths true.
 editor reads `map.json` and never sees an owned body, so it is consistency
 rather than a fix, which is the point.
 
+## A dialog is a script, and the brain only asks whether anybody is talking
+
+`interactions.dialog` (`app/lib/dialog.ts`, run by `app/game/dialogRuntime.ts`)
+is how an NPC holds a conversation: an ordered list of commands, the way an
+RPG Maker event is — `say` a line, `anchor` a label, `goto` one, offer
+`choices`, `request_trade`, `add_status`, `remove_status`, `tag`. A choice
+holds the commands each button leads to; a trade holds what happens when it
+goes through and when it is cancelled. The interpreter runs one list at a
+time from a counter, descends into a branch on the player's press, continues
+after the block when the branch runs out, and stops when the root does.
+
+**Why a script, and not a tree of buttons.** The first cut was a tree —
+every button with its own condition, reply and effects — and it could say
+one thing per press and nothing between presses. A script says as much as it
+likes, in any order, and a new kind of command is one more arm rather than a
+new field on every option. `if` is the arm coming next; the interpreter
+already treats every nested list the same, so it will be a block like
+`choices` is. And before the tree there were typed keywords, which did not
+survive a phone: what an NPC can be asked is what is on the buttons, and chat
+is for people.
+
+**What the player sees is a transcript.** Every `say`, every button pressed
+(in the button's own words) and every trade that happened stays on the
+panel, and the only controls are the ones the command the script is waiting
+on needs. Running off the end, or a branch with no `goto` back, leaves the
+transcript up and the close button as the only thing left — the script
+stopped, and the panel says so by offering nothing.
+
+**A conversation is the player's, not the NPC's.** `ActorRuntime.conversation`
+— `{ npcId, tileId, pc, transcript }` — lives on whoever pressed Talk, so any
+number of people can be running one salesman's script and none sees the
+others' panels. The NPC knows only whether anybody is (`anyoneTalkingTo`),
+which is the brain condition `talking`. Not checkpointed, on brain memory's
+terms: a conversation is a state of play.
+
+- **`pc` is a `CommandPath`**: indices alternating a command's position with
+  which branch to descend, `[2, 0, 1]` being the second command inside the
+  first branch of the third. One shape for the interpreter's counter, the
+  editor's cursor and a drag's destination, so none can disagree about what a
+  position means. A list running out pops to the command that held it and
+  continues after it.
+- **`goto` lands anywhere.** The anchor is found across the whole script and
+  the counter jumps to just past it, unwinding out of any branch — which is
+  how a branch comes back to its menu. A `goto` naming no anchor is carried
+  past, and the lint names it. A loop with no wait between its anchor and its
+  `goto` would run forever; `MAX_STEPS_PER_PRESS` stops it, which reads as
+  the script ending, and the author finds out the moment they try it.
+- **The script is never on the wire.** The server sends the whole
+  `Conversation` to the one socket it is about (`flushConversations`, shaped
+  like `flushTags`) and null to close; the client reads the waiting command
+  off the counter against the tile catalogue it already holds. `talk` is one
+  message with a verb inside — open, choose, trade, cancel, close — because
+  the five are one thing.
+- **A trade is previewed where the kit is.** `request_trade` waits with a
+  preview: sprite and count per side per unit, a quantity between `min` and
+  `max`, and warnings from the client's own `carriedCount` and `planTrade`
+  against the viewer's real kit — the same calls the server makes, so a
+  greyed Trade button here is a refusal there, a round trip early. The server
+  re-runs the plan on Trade and, in the race where it refuses, notes it in
+  the transcript and keeps waiting.
+- **Effects that cannot be are skipped, not fatal.** A status nobody
+  authored is a command that did nothing; the line the author wrote after it
+  is still worth saying.
+- **Talk has its own reach.** `canTalkFrom`: line of sight, always; 3.5 cells
+  of plan distance, wider than an arm because a counter between you is the
+  ordinary case; and elevation within 3 height units — three quarters of a
+  level, measured in elevation rather than levels because a stall on a step
+  is the case and a balcony is not. Re-asked by `tickConversations` every
+  simulation tick, so walking off closes the panel silently the tick you
+  have left.
+- **The panel takes the reach list's place**, on desktop and on a phone
+  alike: a conversation is what is in reach, said longer. It gets the
+  identity-gated push the kit gets (`pushConversation`), so `/play` and
+  `/online` both have it.
+- **Passed through the tile save untouched**, like the brain and for the same
+  reason: the script is `./dialog`'s to know.
+
+### A trade is `app/game/trade.ts`, and it is deliberately not a transmute
+
+Several things on each side, counted, because a price is a number and a
+number is what a pile already is: fourteen shards may be one pile or three
+and `takeUnits` peels across them. Every square a body has — hands, the worn
+bag, *and bags held in a hand*, which `carriedSlotOf` deliberately skips for
+a recipe: offering what you carry is a different act from asking to be paid.
+Gives land worn-bag → hand-held bags → off hand → weapon hand, pouring onto
+piles first. **The plan is the kit**: there is no separate run, because
+finding room for every last thing is the check and having found it there is
+nothing left to decide. All or nothing, and nothing ever reaches the floor. A
+container is never on either side: the schema refuses it with a catalogue in
+hand, and the runtime refuses it without one.
+
+### Authoring a dialog is a list of commands, with the real panel beside it
+
+The Dialog tab (`app/components/DialogEditor.tsx`) is one row per command in
+the order the interpreter runs them, a choice's buttons and a trade's two
+outcomes indented under the command that holds them. A row is dragged by its
+grip to reorder among its neighbours or into any other list on the page —
+one `DragDropProvider` over the whole script, each list a dnd-kit sortable
+*group* named by its path, and a droppable under every list for "at the end
+of this". The one move refused is into a list the row itself holds. Any kind
+of command can be added at the end of any list, which is what makes the
+thing composable.
+
+- **Every edit is a rewrite by path.** `updateCommandAt`, `insertCommandAt`,
+  `removeCommandAt`, `moveCommand` are exported and tested
+  (`dialogEditor.test.ts`), on the terms `../lib/conditions` edits an `if`: a
+  row is a copy React already rendered, and naming the position is the only
+  way a nested one can say which node it means. `moveCommand` removes first
+  and re-reads the destination after — an index named against the old script
+  lands one off.
+- **`ConditionTreeEditor`, `EditorIssues` and `DragHandle` came out of the
+  brain editor** so a second authored block could share them rather than grow
+  its own; the tree editor waits for the dialog's `if`.
+- **The catalog is the picker.** `app/lib/dialogCatalog.ts` mirrors the brain
+  catalog — one entry per command kind, with `make` — so the editor cannot
+  offer a verb the interpreter lacks. `make` takes what a fresh entry has to
+  point at, because unlike "the nearest player" there is no tile every world
+  has; the editor hands over the first item and the first status it knows.
+- **Try it is the game's panel.** `DialogTryOut` renders `ConversationPanel`
+  with the draft passed in over the catalogue's copy, driven by the same
+  interpreter the server runs, against a pretend kit the author fills in — a
+  real `Equipment` wearing the roomiest bag the catalogue has, so the trade
+  preview's warnings are the trade module's own and a full bag is full for
+  the same reason it would be online.
+- **Save refuses what would load mute.** `validateDialog` with the catalogues
+  in hand, on the brain's terms, so a button naming a tile nobody authored is
+  caught where it is actionable.
+
 ## Where a player comes back in
 
 The checkpoint keeps everyone who is *connected*, because their tiles are in the
@@ -2108,7 +2236,7 @@ the interesting part.
   (reach, cover, the def) and this joins it to the kit. Both ends read it: the
   client to offer the row, the server to validate the message.
 
-## Food piles, and nothing else does
+## Food piles, and so does an artifact that is only ever counted
 
 A pile is a `count` on an `ItemInstance` or a `PlacedTile` (`app/lib/piles.ts`).
 There is no pile type, no container to open and no second model of a thing: a
@@ -2119,7 +2247,7 @@ things standing on each other, and nothing in a pile is standing on anything.
 
 **The cost is that the twelve become interchangeable.** They share one id, one
 description and one clock, and there is no way to ask which one you ate. That is
-the whole reason only food piles: two swords are two swords with two histories,
+the whole reason so little piles: two swords are two swords with two histories,
 and a count would be a lie about them. `pileMax` (`app/lib/item.ts`) is the one
 place that is decided — a sword answers `1`, so a pile is a count everywhere and
 never a special case. The size is authored per tile (`ConsumableItem.pile`,
@@ -2127,6 +2255,16 @@ twelve berries against three loaves) and defaults through `pileOf` rather than
 through the schema, on the same grounds `reachOf` does: the tile editor works on
 the raw authored block, so a default the schema filled in would be invisible in
 the one place somebody is choosing the number.
+
+**An artifact piles too, but only when its author writes the number.**
+`ArtifactItem.pile` exists for a currency — fourteen shards in fourteen squares
+is a bag nobody can trade out of — and it defaults the *other* way from food's:
+absent is one. Every artifact in the file predates the field, and a torch, a
+key or a signpost that quietly started heaping would be the default deciding
+something about content nobody had reread. So food gets a handful for nothing
+and an artifact gets nothing until asked; `pileMax` is where both sentences are
+written, and `itemForSave` drops an artifact's pile of one so the file has one
+spelling of the default.
 
 **A pile arriving somewhere pours into the first pile of its kind with room for
 all of it, and otherwise takes a square of its own.** It never splits across two
@@ -2244,6 +2382,39 @@ landings list, so its check and its run are literally the same call —
 `stowExtracted` (`app/game/extract.ts`) builds the contents a pull would leave
 and hands back null when it will not fit. There is no second arrangement to
 disagree with the first, which is exactly what `landingsFor` would have to become.
+
+### A drink leaves its bottle, and the bottle has to fit
+
+`ConsumableItem.leaves` names the tile left behind when a consumable is used —
+an `empty-bottle` for a potion. A potion is two things and drinking spends one
+of them; for as long as nobody wanted the glass back, letting it vanish with
+the draught was fine. A merchant who buys bottles is exactly somebody who does.
+
+- **A tile id, not a flag**, because what is left is content like anything
+  else: it needs a sprite, a name and a pile of its own, and a second tile is
+  the only thing that has those. An id the catalogue no longer holds reads as
+  leaving nothing, on the terms a status nobody authored does.
+- **Nothing ever reaches the floor from a kit.** `app/game/residue.ts` tries
+  the place the drink was — that bag, that chest, that hand — then the worn
+  bag, then the off hand, then the weapon hand; `placeInSlot` (`itemMoves`)
+  asks each on exactly the terms a drag would. It is asked with the drink
+  already gone, so the square the last potion vacated is the one its bottle
+  lands in and a bottle pouring onto bottles needs no square at all. A hand
+  still holding the rest of a pile refuses and the search moves on.
+- **A drink drunk where it lay leaves the bottle where it lay**, through
+  `stackWithItem` so a second bottle joins the first, gated by
+  `canReplaceStack` like a body dying holding things. A floor meal never
+  entered the bag and neither does its glass.
+- **Nowhere to put it is a refusal with a sentence.** Every other consume
+  refusal is a row that was never offered; this one is a fact about the kit
+  the row cannot see — the potion is right there — so silence would read as a
+  broken potion. `noRoomToLeaveNotice` names the tile, and the potion stays
+  exactly where it was: the residue is placed before anything is written.
+- **The client is not told in advance.** `RemoteSession.consume` mirrors the
+  server's gates for the floor and slot arms and knows nothing about residue,
+  so the row is offered and the server refuses with the notice. A pre-check
+  would put the residue search on every frame that lists the options, for a
+  refusal that is rare and already explained.
 
 ## An extract spends the world, and the wait is yours alone
 

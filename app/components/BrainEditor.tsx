@@ -42,6 +42,9 @@ import {
 import { PLAYER_TILE_ID } from "../game/constants";
 import { resolveActor, type TileDef } from "../lib/types";
 import { DragDropProvider } from "@dnd-kit/react";
+import { ConditionTreeEditor } from "./ConditionTreeEditor";
+import { DragHandle } from "./DragHandle";
+import { EditorIssues } from "./EditorIssues";
 import { isSortable, useSortable } from "@dnd-kit/react/sortable";
 import { Button, Input, Segmented, Select, Switch } from "../ui";
 
@@ -251,7 +254,7 @@ export function BrainEditor({ brain, tiles, onChange }: Props) {
 
   return (
     <div className="flex flex-col gap-3 border-t-2 border-border pt-3">
-      <BrainIssues issues={issues} />
+      <EditorIssues issues={issues} />
 
       <label className="flex items-center gap-2 text-xs">
         <span className="font-bold uppercase text-muted">Initial state</span>
@@ -300,28 +303,6 @@ export function BrainEditor({ brain, tiles, onChange }: Props) {
         Remove brain
       </Button>
     </div>
-  );
-}
-
-function BrainIssues({ issues }: { issues: ReturnType<typeof validateBrain> }) {
-  if (issues.length === 0) return null;
-  return (
-    <ul className="flex flex-col gap-1">
-      {issues.map((issue, i) => (
-        <li
-          key={i}
-          className={[
-            "border-2 px-2 py-1 text-xs",
-            issue.severity === "error"
-              ? "border-danger bg-danger/10 text-danger"
-              : "border-accent bg-accent/10 text-ink",
-          ].join(" ")}
-        >
-          {issue.severity === "error" ? "✕ " : "! "}
-          {issue.message}
-        </li>
-      ))}
-    </ul>
   );
 }
 
@@ -675,19 +656,8 @@ function TransitionRow({
 }
 
 /**
- * A transition's `if`, however deep it goes.
- *
- * Two shapes, and which one is on screen is the authored shape rather than a
- * normalisation: a bare condition draws as one row with nothing around it, and
- * only somebody reaching for "and" turns it into a box. That matters more here
- * than the code it costs — nearly every transition ever written asks one
- * question, and wrapping all of them in a group with a combinator nobody chose
- * would put a decision on screen that the author never made.
- *
- * The tree is edited by *path* rather than by handing each row a callback that
- * closes over its own copy. A row is a copy React already rendered; what has to
- * change is the tree it came from, and naming the position is the only way a
- * nested row can say which node it means. @see ../lib/conditions
+ * A transition's `if`, however deep it goes — the shared tree editor, with the
+ * brain's own condition picker as its leaf. @see ./ConditionTreeEditor
  */
 function ConditionTree({
   root,
@@ -698,141 +668,15 @@ function ConditionTree({
   selectors: SelectorOption[];
   onChange: (next: BrainCondition) => void;
 }) {
-  if (isConditionGroup(root)) {
-    return (
-      <ConditionGroupBox
-        root={root}
-        path={[]}
-        node={root}
-        selectors={selectors}
-        onChange={onChange}
-      />
-    );
-  }
-
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <LeafFields
-        leaf={root}
-        selectors={selectors}
-        onChange={(next) => onChange(next)}
-      />
-      <AddButtons
-        onAddCondition={() => onChange(group("and", [root, freshLeaf()]))}
-        onAddGroup={() =>
-          onChange(group("and", [root, group("and", [freshLeaf()])]))
-        }
-      />
-    </div>
-  );
-}
-
-/**
- * One group and everything under it.
- *
- * Carries the whole tree plus its own path rather than just its own subtree,
- * because every edit it makes is a rewrite of the root: there is no way to hand
- * a nested group a setter for itself without threading one through every level
- * above it, and the path already says everything such a setter would know.
- */
-function ConditionGroupBox({
-  root,
-  path,
-  node,
-  selectors,
-  onChange,
-}: {
-  root: BrainCondition;
-  path: ConditionPath;
-  node: ConditionGroup<BrainConditionDef>;
-  selectors: SelectorOption[];
-  onChange: (next: BrainCondition) => void;
-}) {
-  const set = (next: ConditionGroup<BrainConditionDef>) =>
-    onChange(replaceAt(root, path, next));
-
-  // A tree of one leaf has nothing to delete down to: a transition with no `if`
-  // has nothing to fire on, so the button is simply not offered rather than
-  // offered and refused.
-  const prune = (at: ConditionPath) => {
-    const next = removeAt(root, at);
-    if (next !== null) onChange(next);
-  };
-
-  return (
-    <div className="flex flex-col gap-1 border-2 border-border p-1.5">
-      <div className="flex flex-wrap items-center gap-2">
-        <Segmented
-          value={node.combinator}
-          onChange={(combinator: Combinator) => set({ ...node, combinator })}
-          options={[
-            { value: "and" as Combinator, label: "All" },
-            { value: "or" as Combinator, label: "Any" },
-          ]}
-          size="sm"
-          ariaLabel="Combinator"
-        />
-        <label className="flex items-center gap-1 text-[10px] uppercase text-muted">
-          <Switch
-            checked={Boolean(node.not)}
-            onCheckedChange={(not) => {
-              const { not: _drop, ...rest } = node;
-              set(not ? { ...rest, not } : rest);
-            }}
-            ariaLabel="Invert group"
-          />
-          not
-        </label>
-        <AddButtons
-          onAddCondition={() => onChange(appendTo(root, path, freshLeaf()))}
-          onAddGroup={() =>
-            onChange(appendTo(root, path, group("and", [freshLeaf()])))
-          }
-        />
-        {path.length > 0 ? (
-          <Button
-            size="sm"
-            variant="danger"
-            onClick={() => prune(path)}
-            aria-label="Remove group"
-          >
-            ✕
-          </Button>
-        ) : null}
-      </div>
-      {node.rules.map((rule, i) => {
-        const at = [...path, i];
-        return (
-          <div key={i} className="flex flex-wrap items-center gap-2 pl-3">
-            {isConditionGroup(rule) ? (
-              <ConditionGroupBox
-                root={root}
-                path={at}
-                node={rule}
-                selectors={selectors}
-                onChange={onChange}
-              />
-            ) : (
-              <>
-                <LeafFields
-                  leaf={rule}
-                  selectors={selectors}
-                  onChange={(next) => onChange(replaceAt(root, at, next))}
-                />
-                <Button
-                  size="sm"
-                  variant="danger"
-                  onClick={() => prune(at)}
-                  aria-label="Remove condition"
-                >
-                  ✕
-                </Button>
-              </>
-            )}
-          </div>
-        );
-      })}
-    </div>
+    <ConditionTreeEditor<BrainConditionDef>
+      root={root}
+      onChange={onChange}
+      leaf={{
+        render: (leaf, set) => <LeafFields leaf={leaf} selectors={selectors} onChange={set} />,
+        fresh: () => CONDITIONS.after.make(),
+      }}
+    />
   );
 }
 
@@ -867,30 +711,6 @@ function LeafFields({
       />
     </>
   );
-}
-
-function AddButtons({
-  onAddCondition,
-  onAddGroup,
-}: {
-  onAddCondition: () => void;
-  onAddGroup: () => void;
-}) {
-  return (
-    <>
-      <Button size="sm" variant="secondary" onClick={onAddCondition}>
-        + condition
-      </Button>
-      <Button size="sm" variant="secondary" onClick={onAddGroup}>
-        + group
-      </Button>
-    </>
-  );
-}
-
-/** What a newly added row asks until the author says otherwise. */
-function freshLeaf(): BrainConditionDef {
-  return CONDITIONS.after.make();
 }
 
 /**
@@ -1169,26 +989,3 @@ function SpeakerFilterField({
   );
 }
 
-/**
- * The grip that drags a row. A dedicated handle rather than the whole row, so a
- * click on a dropdown or a number field stays a click — the same choice the
- * tile-stack list makes.
- */
-function DragHandle({
-  handleRef,
-  label,
-}: {
-  handleRef: ReturnType<typeof useSortable>["handleRef"];
-  label: string;
-}) {
-  return (
-    <button
-      type="button"
-      ref={handleRef}
-      aria-label={label}
-      className="cursor-grab px-1 text-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent active:cursor-grabbing"
-    >
-      <span aria-hidden="true">⋮⋮</span>
-    </button>
-  );
-}

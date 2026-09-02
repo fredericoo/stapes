@@ -1,4 +1,5 @@
-import { getStack } from "../lib/mapData";
+import { resolveDialog } from "../lib/dialog";
+import { absoluteStandingElevation, getStack } from "../lib/mapData";
 import { hasLineOfSight } from "./sight";
 import type {
   AddStatusInteraction,
@@ -260,6 +261,71 @@ export function withinReach(
   const dy = ref.y - actor.y;
   if (dx * dx + dy * dy > REACH_CELLS_SQUARED) return false;
   return reachesAcrossFloors(map, tilesById, actor, ref);
+}
+
+/**
+ * How far a conversation carries: three and a half cells of plan distance.
+ *
+ * Wider than an arm's {@link REACH_CELLS}, because talking is not touching —
+ * a counter between you and the salesman is the ordinary case — and narrower
+ * than a shout, so that a panel does not stay open across a room. Squared to
+ * `12.25`: three cells straight on, or two and a diagonal.
+ */
+export const TALK_REACH_CELLS = 3.5;
+
+const TALK_REACH_CELLS_SQUARED = TALK_REACH_CELLS * TALK_REACH_CELLS;
+
+/**
+ * How far apart two bodies may stand in height and still talk, in the units a
+ * tile's `height` is in: three quarters of a level.
+ *
+ * Elevation rather than level, unlike every other gesture's
+ * {@link INTERACT_LEVEL_SLACK}: a stall on a half-height step is the case
+ * this exists for, and a whole level up is somebody on a balcony.
+ */
+export const TALK_HEIGHT_SLACK = 3;
+
+/**
+ * Could this actor talk to the body at this slot?
+ *
+ * Its own rule rather than {@link withinReach}, on the three counts above:
+ * further, measured in elevation, and always through a clear line of sight
+ * because a conversation through a wall is a conversation with a wall. Asked
+ * of a body, so the slot is a body's and the def has to hold a dialog —
+ * `resolveDialog` is memoised, so the list may ask this of every body in view
+ * on every frame. Re-asked by the session every tick a conversation is open,
+ * which is what closes the panel when somebody walks off.
+ */
+export function canTalkFrom(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  self: ObjectRef,
+  ref: ObjectRef,
+): boolean {
+  const dx = ref.x - self.x;
+  const dy = ref.y - self.y;
+  if (dx * dx + dy * dy > TALK_REACH_CELLS_SQUARED) return false;
+  const placed = getStack(map, ref.x, ref.y, ref.z)[ref.stackIndex];
+  const def = placed && tilesById[placed.tileId];
+  if (!def || !resolveDialog(def)) return false;
+  const rise = standingElevationUnder(map, tilesById, ref) - standingElevationUnder(map, tilesById, self);
+  if (Math.abs(rise) > TALK_HEIGHT_SLACK) return false;
+  return hasLineOfSight(map, tilesById, self, ref);
+}
+
+/**
+ * The absolute elevation of what a body at this slot is standing on.
+ *
+ * The stack *below* the slot, so a body's own height is not in its own
+ * footing — the same reading `sight.ts` takes of a looker's eyes.
+ */
+function standingElevationUnder(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  at: ObjectRef,
+): number {
+  const stack = getStack(map, at.x, at.y, at.z);
+  return absoluteStandingElevation(at.z, stack.slice(0, at.stackIndex), tilesById);
 }
 
 /**

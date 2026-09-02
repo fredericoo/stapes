@@ -350,6 +350,18 @@ describe("itemForSave", () => {
     expect(itemForSave(draft)).not.toHaveProperty("damage");
   });
 
+  it("keeps an artifact's pile, and drops a pile of one", () => {
+    expect(itemForSave({ type: "artifact", pile: 99 })).toEqual({
+      type: "artifact",
+      pile: 99,
+    });
+    // One is what an absent pile already means of an artifact, so writing it
+    // would be a second spelling of the default in the file.
+    expect(itemForSave({ type: "artifact", pile: 1 })).toEqual({
+      type: "artifact",
+    });
+  });
+
   it("keeps a container's own fields", () => {
     const container = { type: "container", size: 2, equippable: false } as const;
     expect(itemForSave(container)).toEqual(container);

@@ -598,6 +598,32 @@ export function peelSlot(
 }
 
 /**
+ * Put a thing that exists nowhere yet into a slot, or refuse.
+ *
+ * The second half of {@link applyItemMove} on its own — may it go there, is
+ * there room, put it there — for the callers that have a thing to place and no
+ * slot it came out of: what a drink leaves behind, minted the moment it is
+ * drunk. Asked against whatever kit the caller hands over, so a caller placing
+ * something into the square a meal just vacated passes the kit with the meal
+ * already gone.
+ *
+ * Null for every refusal, on {@link applyItemMove}'s terms: the caller's next
+ * move is to try somewhere else, and there is nothing to say about why here.
+ */
+export function placeInSlot(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  equipment: Equipment,
+  slot: SlotRef,
+  instance: ItemInstance,
+): ItemMoveResult | null {
+  if (!slotAccepts(slot.kind, instance, tilesById)) return null;
+  if (!slotHasRoom(map, tilesById, actor, equipment, slot, instance)) return null;
+  return fillSlot(map, tilesById, actor, equipment, slot, instance);
+}
+
+/**
  * Put a thing in a slot, appending for a container.
  *
  * Appends rather than writing at an index, which is what keeps `contents` a list

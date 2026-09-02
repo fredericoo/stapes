@@ -150,6 +150,15 @@ export type BrainContext = {
   /** Where an actor is, or null once they are off the board. */
   positionOf(actorId: string): Coord | null;
   /**
+   * Is this body mid-conversation? What the `talking` condition reads.
+   *
+   * A question rather than a field, because the answer is the dialog's and the
+   * dialog is stepped on the same tick, just ahead of the brain: a greeting
+   * heard this pass is a conversation the brain can already act on.
+   * @see ./dialogRuntime
+   */
+  talking(): boolean;
+  /**
    * Would stepping this way leave nothing underfoot? The board allows it — that
    * is how walking into a hole works — so refusing is a creature's own caution.
    */
@@ -317,7 +326,7 @@ const SLOT_PLACEHOLDER = /\{([A-Za-z0-9_]+)\}/g;
  * unbound slot, and at the moment the words are spoken there is nothing to tell
  * them apart.
  */
-const NOBODY = "someone";
+export const NOBODY = "someone";
 
 /**
  * An authored line with its slots filled in.
@@ -424,7 +433,7 @@ function stepsApart(a: Coord, b: Coord): number {
  * crow flies — a creature that thinks in cells it could walk is a creature whose
  * behaviour matches the board, and every authored `cells` already means that.
  */
-function within(
+export function within(
   self: Coord,
   other: Coord,
   cells: number,
@@ -600,6 +609,8 @@ function leafHolds(
       return heardNoiseFrom(condition, memory, ctx);
     case "attacked":
       return struckBy(memory, ctx);
+    case "talking":
+      return ctx.talking();
   }
 }
 

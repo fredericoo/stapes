@@ -19,8 +19,10 @@ import {
   locateActor,
   type ActorLocation,
 } from "../game/actors";
+import type { Conversation, TalkAction } from "../game/dialogRuntime";
 import {
   canConsumeFrom,
+  canTalkFrom,
   canDropAt,
   canEquipFrom,
   canPickUpFrom,
@@ -276,6 +278,11 @@ export class RemoteSession implements PlaySession {
    * its identity is what tells the renderer to rebuild its rows.
    */
   private tags: readonly string[] = NO_TAGS;
+  /**
+   * Where the viewer is in a conversation, as the server last said. Whole
+   * state like the kit and the tags beside it; null is the panel closed.
+   */
+  private conversation: Conversation | null = null;
   /**
    * Which resources this player may not work just yet, as the server last said
    * — see `../game/extract`'s `extractKey`.
@@ -609,6 +616,13 @@ export class RemoteSession implements PlaySession {
     if (message.type === "tags") {
       // Whole state, like the kit beside it.
       this.tags = message.tags;
+      return;
+    }
+
+    if (message.type === "conversation") {
+      // Whole state, like the kit and the tags: null closes the panel, whether
+      // the viewer pressed Close or walked out of reach.
+      this.conversation = message.conversation;
       return;
     }
 
@@ -1703,6 +1717,7 @@ export class RemoteSession implements PlaySession {
       attacking: this.attacking,
       equipment: this.equipment,
       tags: this.tags,
+      conversation: this.conversation,
       extractCooling: this.extractCooling,
       masteryXp: this.masteryXp,
       chats: this.chats,
@@ -2027,6 +2042,25 @@ export class RemoteSession implements PlaySession {
    * you reach out and do this to something in the world, and an actor whose
    * last step the server has yet to confirm is not standing beside it yet.
    */
+  /**
+   * Open, press, go back, or close — sent, and answered by the `conversation`
+   * message that follows. Only the open is checked here, on the terms a
+   * transmute is: reach is a thing the client can see, and a press on a
+   * button the server no longer offers is a race it will simply not answer.
+   */
+  talk(action: TalkAction): boolean {
+    if (action.kind === "open") {
+      const motion = this.motions.get(this.selfId);
+      const loc = motion && this.locate(this.selfId, motion);
+      if (!loc) return false;
+      if (!canTalkFrom(this.map, this.tilesById, loc, action.ref)) return false;
+    } else if (!this.conversation) {
+      return false;
+    }
+    this.send({ type: "talk", action });
+    return true;
+  }
+
   transmute(ref: ObjectRef, recipe: number): boolean {
     const motion = this.motions.get(this.selfId);
     if (!motion) return false;

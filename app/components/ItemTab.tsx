@@ -2,6 +2,7 @@ import type {
   ArcaneStoneItem,
   ArmorItem,
   ArmorSlot,
+  ArtifactItem,
   ConsumableItem,
   ContainerItem,
   ItemDef,
@@ -33,7 +34,7 @@ import { SLOT_LABELS } from "../lib/kit";
 import { MASTERY_LABELS, WEAPON_MASTERIES } from "../lib/mastery";
 import type { StatusDef } from "../lib/status";
 import type { TileDef } from "../lib/types";
-import { Input, Segmented, Switch } from "../ui";
+import { Input, Segmented, Select, Switch } from "../ui";
 import { StatField } from "./StatField";
 import { StatusGrants } from "./StatusGrants";
 import { StoneFields } from "./StoneFields";
@@ -138,6 +139,17 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
     if (item.type !== "shield") return;
     setItem({ ...item, ...fields });
   };
+
+  const patchArtifact = (fields: Partial<ArtifactItem>) => {
+    if (item.type !== "artifact") return;
+    setItem({ ...item, ...fields });
+  };
+
+  // Anything carriable but this tile itself: a potion that left a full potion
+  // behind would be a bottle that never empties.
+  const residueTiles = tiles.filter(
+    (tile) => tile.kind === "item" && tile.id !== draft.id,
+  );
 
   const patchContainer = (fields: Partial<ContainerItem>) => {
     if (item.type !== "container") return;
@@ -354,7 +366,7 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
 
             <StatField
               label="Pile"
-              hint="How many of these share one square, in a bag or on a tile. One more starts a second pile. Food is the only thing that piles."
+              hint="How many of these share one square, in a bag or on a tile. One more starts a second pile. Food and counted artifacts pile; nothing else does."
               value={pileOf(item)}
               min={MIN_PILE}
               max={MAX_PILE}
@@ -382,17 +394,58 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
                 </>
               }
             />
+
+            <label className="flex flex-col gap-1 text-xs">
+              <span className="font-bold uppercase text-muted">Leaves</span>
+              <Select
+                className="w-56"
+                ariaLabel="Leaves"
+                value={item.leaves ?? ""}
+                onValueChange={(leaves) =>
+                  patchConsumable({ leaves: leaves || undefined })
+                }
+                options={[
+                  { value: "", label: "Nothing" },
+                  ...residueTiles.map((tile) => ({
+                    value: tile.id,
+                    label: tile.name,
+                  })),
+                ]}
+              />
+              <span className="max-w-64 text-[11px] leading-snug text-muted">
+                What is left once it is used &mdash; an empty bottle. It lands
+                where the drink was, then in the bag, then in a free hand, and
+                a body with nowhere to put it cannot drink.
+              </span>
+            </label>
           </div>
         ) : item.type === "artifact" ? (
-          <p className="max-w-lg text-[11px] leading-snug text-muted">
-            <strong>Nothing to configure, and that is what it is for.</strong> It
-            can be picked up, carried and held in the off hand, and it does
-            nothing else: it never replaces what its holder fights with, adds no
-            defence, and cannot be used. A torch is the case this exists for
-            &mdash; its light is authored on the sprite&rsquo;s frames, not here
-            &mdash; so anything that lights a room, or is merely worth carrying,
-            belongs on this type rather than on a weapon nobody wants to swing.
-          </p>
+          <div className="flex flex-col gap-3">
+            <p className="max-w-lg text-[11px] leading-snug text-muted">
+              <strong>Almost nothing to configure, and that is what it is for.</strong>{" "}
+              It can be picked up, carried and held in the off hand, and it does
+              nothing else: it never replaces what its holder fights with, adds
+              no defence, and cannot be used. A torch is the case this exists
+              for &mdash; its light is authored on the sprite&rsquo;s frames,
+              not here &mdash; so anything that lights a room, or is merely
+              worth carrying, belongs on this type rather than on a weapon
+              nobody wants to swing.
+            </p>
+
+            <StatField
+              label="Pile"
+              hint="How many of these share one square. One, the default, means each takes a square of its own — a torch, a key. Set it for a thing that is only ever counted, like a shard."
+              value={item.pile ?? MIN_PILE}
+              min={MIN_PILE}
+              max={MAX_PILE}
+              onChange={(pile) => patchArtifact({ pile })}
+              readout={
+                (item.pile ?? MIN_PILE) > MIN_PILE
+                  ? `Up to ${item.pile} in a square`
+                  : "One per square"
+              }
+            />
+          </div>
         ) : item.type === "stone" ? (
           <StoneFields
             stone={item}

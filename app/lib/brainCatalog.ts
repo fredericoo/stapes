@@ -142,6 +142,12 @@ export const CONDITIONS: Record<
     params: [],
     make: () => ({ cond: "stuck" }),
   },
+  talking: {
+    label: "talking",
+    hint: "This body's dialog has a partner. Use it to stand still for a conversation, and its not to wander off after.",
+    params: [],
+    make: () => ({ cond: "talking" }),
+  },
 };
 
 export const ACTIONS: Record<

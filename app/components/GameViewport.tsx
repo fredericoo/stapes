@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ObjectRef } from "../game/affordances";
 import type { Equipment } from "../game/equipment";
+import type { Conversation, TalkAction } from "../game/dialogRuntime";
 import { emptyEquipment } from "../game/equipment";
 import type { InteractionOption } from "../game/interactionOptions";
 import type { OpenedContainer, SlotRef } from "../game/itemMoves";
@@ -18,6 +19,7 @@ import { ContainerPanel } from "./ContainerPanel";
 import { DirectionPad, MAX_PAD_SIZE_PX } from "./DirectionPad";
 import { EquipmentPanel } from "./EquipmentPanel";
 import { DragLayer } from "./DragLayer";
+import { ConversationPanel } from "./ConversationPanel";
 import { InteractionList } from "./InteractionList";
 import { ModeSwitch, type ActionButtonSize } from "./ModeSwitch";
 import { SpellBar } from "./SpellBar";
@@ -97,6 +99,8 @@ export function GameViewport({
   readouts,
   interactions = [],
   onInteract,
+  conversation = null,
+  onTalk,
   onHoverInteraction,
   equipment = emptyEquipment(),
   masteryXp = {},
@@ -154,6 +158,12 @@ export function GameViewport({
    */
   interactions?: InteractionOption[];
   onInteract?: (option: InteractionOption) => void;
+  /**
+   * Where the viewer is in a conversation, or null. When set, the panel takes
+   * the list's place: a conversation *is* what is in reach, said longer.
+   */
+  conversation?: Conversation | null;
+  onTalk?: (action: TalkAction) => void;
   /**
    * The row being pointed at, so the world can outline its subject. Wired only
    * where there is a pointer that hovers — see the call site.
@@ -438,6 +448,17 @@ export function GameViewport({
     [onTypingChange],
   );
 
+  const talkPanel = conversation ? (
+    <ConversationPanel
+      conversation={conversation}
+      tiles={tiles}
+      tilesets={tilesets}
+      equipment={equipment}
+      onTalk={(action) => onTalk?.(action)}
+      className="min-h-0 w-full flex-1"
+    />
+  ) : null;
+
   const list = (
     <InteractionList
       options={interactions}
@@ -675,17 +696,18 @@ export function GameViewport({
               className="flex min-h-0 flex-1 flex-col items-start gap-2"
               style={{ minWidth: INTERACTION_LIST_MIN_WIDTH_PX }}
             >
-              {panelCoversList ? (
-                // Scrolls on its own rather than growing the row: a bag with
-                // thirty things in it must not be able to push the arrows off
-                // the bottom of the screen, which is the whole reason they are
-                // still here.
-                <div className="flex w-full min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain">
-                  {panels}
-                </div>
-              ) : (
-                list
-              )}
+              {talkPanel ??
+                (panelCoversList ? (
+                  // Scrolls on its own rather than growing the row: a bag with
+                  // thirty things in it must not be able to push the arrows off
+                  // the bottom of the screen, which is the whole reason they are
+                  // still here.
+                  <div className="flex w-full min-h-0 flex-1 flex-col gap-3 overflow-y-auto overscroll-contain">
+                    {panels}
+                  </div>
+                ) : (
+                  list
+                ))}
             </div>
             {/* The lane sits *above* the pad rather than beside it, and that is
                 what buys the pad its size back: a column on the screen edge cost
@@ -815,7 +837,10 @@ export function GameViewport({
               {panels}
             </div>
           ) : null}
-          {list}
+          {/* The panel takes the list's place rather than a place of its own: a
+              conversation is what is in reach, said longer, and the aside is
+              already the column for that. */}
+          {talkPanel ?? list}
         </aside>
       )}
     </div>

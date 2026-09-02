@@ -9,6 +9,7 @@ import { LoadingScreen } from "../components/LoadingScreen";
 import { WorldClock } from "../components/WorldClock";
 import { GameSession, type Vitals } from "../game/GameSession";
 import { type Equipment, emptyEquipment } from "../game/equipment";
+import type { Conversation, TalkAction } from "../game/dialogRuntime";
 import type { MasteryXp } from "../lib/mastery";
 import { bindCastKeys, bindKeyboard, HeldDirections } from "../game/heldDirections";
 import { usePlayModes } from "../components/usePlayModes";
@@ -77,6 +78,10 @@ export default function PlayPage() {
     (option: InteractionOption) => applyInteraction(sessionRef.current, option),
     [],
   );
+  const talk = useCallback(
+    (action: TalkAction) => sessionRef.current?.talk(action),
+    [],
+  );
   // Straight at the renderer rather than through state: an outline is a frame's
   // business, and routing it through React would re-render the page on every
   // row the cursor crosses.
@@ -96,6 +101,7 @@ export default function PlayPage() {
   const [stats, setStats] = useState<FrameStats | null>(null);
   const [interactions, setInteractions] = useState<InteractionOption[]>([]);
   const [equipment, setEquipment] = useState<Equipment>(emptyEquipment);
+  const [conversation, setConversation] = useState<Conversation | null>(null);
   /** What this player has learnt — theirs alone, beside the kit. */
   const [masteryXp, setMasteryXp] = useState<MasteryXp>({});
   /** What this player's body can take, and its ⭐. */
@@ -222,6 +228,7 @@ export default function PlayPage() {
     renderer.setOnStats(setStats);
     renderer.setOnInteractions(setInteractions);
     renderer.setOnEquipment(setEquipment);
+    renderer.setOnConversation(setConversation);
     renderer.setOnSpells(setSpells);
     renderer.setOnMasteries(setMasteryXp);
     renderer.setOnVitals(setVitals);
@@ -251,6 +258,7 @@ export default function PlayPage() {
       setStats(null);
       setInteractions([]);
       setEquipment(emptyEquipment());
+      setConversation(null);
       setSpells([]);
       setMasteryXp({});
       setVitals({ hp: null, maxHp: null, rating: null, statuses: [] });
@@ -356,6 +364,8 @@ export default function PlayPage() {
             interactions={interactions}
             onInteract={act}
             onHoverInteraction={hoverInteraction}
+            conversation={conversation}
+            onTalk={talk}
             equipment={equipment}
             masteryXp={masteryXp}
             vitals={vitals}
