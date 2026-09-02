@@ -41,6 +41,11 @@ import { StoneFields } from "./StoneFields";
 import { ElementFields } from "./ElementFields";
 import { WeaponFields } from "./WeaponFields";
 
+// Hoisted so the default is one value rather than a new one per render. An
+// inline `{}` or `[]` in a destructuring default is a fresh identity every
+// time, which is a changed prop to everything memoised below it.
+const NO_STATUS_DEFS: Record<string, StatusDef> = {};
+
 type Props = {
   draft: TileDef;
   onChange: (next: TileDef) => void;
@@ -86,7 +91,12 @@ const TYPE_OPTIONS: Array<{ value: ItemType; label: string }> = [
  * rather than deciding it. Like that tab it has no on/off switch — it is only
  * ever shown for a tile whose kind is already `item`.
  */
-export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
+export function ItemTab({
+  draft,
+  onChange,
+  statusDefs = NO_STATUS_DEFS,
+  tiles,
+}: Props) {
   const item = draft.interactions?.item ?? DEFAULT_WEAPON;
 
   const setItem = (next: ItemDef) => {

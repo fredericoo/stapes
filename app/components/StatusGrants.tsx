@@ -73,16 +73,17 @@ export function StatusGrants<Grant extends StatusGrant>({
             key={`${entry.id}-${index}`}
             className="flex flex-wrap items-end gap-2 border-2 border-border p-2"
           >
-            <label className="flex flex-col gap-0.5 text-xs">
+            <div className="flex flex-col gap-0.5 text-xs">
               <span className="font-bold uppercase text-muted">Status</span>
               <Select
+                ariaLabel="Status"
                 value={entry.id || null}
                 onValueChange={(id) =>
                   id && patchAt(index, { id } as Partial<Grant>)
                 }
                 options={options}
               />
-            </label>
+            </div>
 
             {extra?.(entry, (fields) => patchAt(index, fields))}
 

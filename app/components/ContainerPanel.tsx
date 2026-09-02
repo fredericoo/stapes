@@ -11,6 +11,11 @@ import { ItemSlot } from "./ItemSlot";
 import { TilePreview } from "./TilePreview";
 import type { ItemDrag } from "./useItemDrag";
 
+// Hoisted so the default is one value rather than a new one per render. An
+// inline `{}` or `[]` in a destructuring default is a fresh identity every
+// time, which is a changed prop to everything memoised below it.
+const NO_MASTERY_XP: MasteryXp = {};
+
 /** Which sprite stands for the container in its own heading. */
 const FRONT = "s" as const;
 
@@ -165,7 +170,7 @@ export function ContainerPanel({
   onClose,
   drag,
   inspecting = false,
-  masteryXp = {},
+  masteryXp = NO_MASTERY_XP,
   className = "",
 }: {
   /**

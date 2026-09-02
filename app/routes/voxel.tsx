@@ -348,7 +348,7 @@ export default function VoxelPage() {
                 ariaLabel="Toggle face shading"
               />
             </label>
-            <label className="flex flex-col gap-1 text-xs">
+            <div className="flex flex-col gap-1 text-xs">
               <span className="font-bold uppercase text-muted">Outline</span>
               <Segmented
                 size="sm"
@@ -361,7 +361,7 @@ export default function VoxelPage() {
                   { value: "full", label: "Edge+depth" },
                 ]}
               />
-            </label>
+            </div>
           </div>
           <div className="grid grid-cols-2 place-items-center gap-3">
             {(project.directional ? DIRECTIONS : (["s"] as const)).map((d) => (
@@ -604,6 +604,7 @@ function FramesPanel({
             key={`frame-${idx}-${project.frames.length}`}
             project={project}
             voxels={f.voxels}
+            index={idx}
             render={render}
             active={idx === frameIdx}
             onClick={() => onSelect(idx)}
@@ -657,12 +658,15 @@ function FramesPanel({
 function FrameThumb({
   project,
   voxels,
+  index,
   render,
   active,
   onClick,
 }: {
   project: VoxelProject;
   voxels: number[];
+  /** Zero-based, and named one-based in the label the way the tabs are. */
+  index: number;
   render: RenderOptions;
   active: boolean;
   onClick: () => void;
@@ -693,6 +697,10 @@ function FrameThumb({
     <button
       type="button"
       onClick={onClick}
+      // The button holds a canvas and nothing else, so without this it is
+      // announced as an unnamed button.
+      aria-label={`Frame ${index + 1}`}
+      aria-pressed={active}
       className={[
         "border-2 p-0.5",
         active ? "border-accent" : "border-border hover:border-muted",
@@ -843,16 +851,17 @@ function ExportDialog({
           Also create/update tile <code>{slugify(name) || "…"}</code>
         </label>
         {createTile ? (
-          <label className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1">
             <span className="font-bold uppercase text-muted">Tile height</span>
             <Select
+              ariaLabel="Tile height"
               value={tileHeight}
               onValueChange={(v) => {
                 if (v) setTileHeight(v);
               }}
               options={TILE_HEIGHT_OPTIONS}
             />
-          </label>
+          </div>
         ) : null}
         <p className="text-muted">
           Writes <code>{slugify(name) || "…"}.png</code> to the tilesets folder

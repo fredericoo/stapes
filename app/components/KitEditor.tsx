@@ -110,9 +110,10 @@ export function KitEditor({
             className="flex flex-col gap-2 border-2 border-border bg-panel p-2"
           >
             <div className="flex flex-wrap items-end gap-2">
-              <label className="flex flex-col gap-1 text-[11px] font-bold uppercase text-muted">
+              <div className="flex flex-col gap-1 text-[11px] font-bold uppercase text-muted">
                 Slot
                 <Select
+                  ariaLabel="Slot"
                   value={entry.slot}
                   onValueChange={(slot) =>
                     patchEntry(index, { slot: (slot as EquipSlot) ?? "weapon" })
@@ -120,10 +121,11 @@ export function KitEditor({
                   options={SLOT_OPTIONS}
                   className="min-w-[8rem]"
                 />
-              </label>
-              <label className="flex flex-col gap-1 text-[11px] font-bold uppercase text-muted">
+              </div>
+              <div className="flex flex-col gap-1 text-[11px] font-bold uppercase text-muted">
                 Item
                 <Select
+                  ariaLabel="Item"
                   value={entry.tileId || null}
                   onValueChange={(tileId) =>
                     patchEntry(index, { tileId: tileId ?? "" })
@@ -131,7 +133,7 @@ export function KitEditor({
                   options={itemOptions}
                   placeholder="Pick an item…"
                 />
-              </label>
+              </div>
               <label className="flex flex-col gap-1 text-[11px] font-bold uppercase text-muted">
                 Chance %
                 <Input

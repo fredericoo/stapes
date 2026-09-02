@@ -17,6 +17,12 @@ import type { ActiveStatus } from "../lib/status";
 import { compareStatuses, STATUS_ICON_SIZE_PX } from "./StatusStrip";
 import { SpritePreview } from "./TilePreview";
 
+// Hoisted so the default is one value rather than a new one per render. An
+// inline `{}` or `[]` in a destructuring default is a fresh identity every
+// time, which is a changed prop to everything memoised below it.
+const NO_STATUSES: ActiveStatus[] = [];
+const NO_TILESETS: TilesetDef[] = [];
+
 /**
  * What you are, in numbers: what you can take, and what you are good at.
  *
@@ -34,8 +40,8 @@ import { SpritePreview } from "./TilePreview";
 export function StatsPanel({
   vitals,
   masteryXp,
-  statuses = [],
-  tilesets = [],
+  statuses = NO_STATUSES,
+  tilesets = NO_TILESETS,
   className = "",
 }: {
   vitals: Vitals;

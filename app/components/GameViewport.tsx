@@ -31,6 +31,15 @@ import { StatusStrip } from "./StatusStrip";
 import { useItemDrag } from "./useItemDrag";
 import { useNoZoom } from "./useNoZoom";
 
+// Hoisted so the default is one value rather than a new one per render. An
+// inline `{}` or `[]` in a destructuring default is a fresh identity every
+// time, which is a changed prop to everything memoised below it.
+const NO_INTERACTIONS: InteractionOption[] = [];
+const NO_MASTERY_XP: MasteryXp = {};
+const NO_TILES: TileDef[] = [];
+const NO_TILESETS: TilesetDef[] = [];
+const NEVER_MOVES = () => false;
+
 /** A body nothing has reported on yet. Shared, so a default costs no allocation. */
 const NO_VITALS: Vitals = { hp: null, maxHp: null, rating: null, statuses: [] };
 
@@ -97,26 +106,26 @@ export function GameViewport({
   mode = "interact",
   onModeChange,
   readouts,
-  interactions = [],
+  interactions = NO_INTERACTIONS,
   onInteract,
   conversation = null,
   onTalk,
   onHoverInteraction,
   equipment = emptyEquipment(),
-  masteryXp = {},
+  masteryXp = NO_MASTERY_XP,
   vitals = NO_VITALS,
   statuses = NO_STATUSES,
   openedContainer = null,
   onOpenContainer,
-  canMoveItem = () => false,
+  canMoveItem = NEVER_MOVES,
   onMoveItem,
   onConsumeItem,
   onDragOverWorld,
   onDropOnWorld,
   spells = NO_SPELLS,
   onCast,
-  tiles = [],
-  tilesets = [],
+  tiles = NO_TILES,
+  tilesets = NO_TILESETS,
 }: {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   /**

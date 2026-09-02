@@ -18,6 +18,11 @@ import { weaponDemandFor } from "../lib/weaponDemand";
 import type { ItemDrag } from "./useItemDrag";
 import { TilePreview } from "./TilePreview";
 
+// Hoisted so the default is one value rather than a new one per render. An
+// inline `{}` or `[]` in a destructuring default is a fresh identity every
+// time, which is a changed prop to everything memoised below it.
+const NO_MASTERY_XP: MasteryXp = {};
+
 /**
  * One square that either holds a thing or does not.
  *
@@ -132,7 +137,7 @@ export function ItemSlot({
   open,
   drag,
   inspecting = false,
-  masteryXp = {},
+  masteryXp = NO_MASTERY_XP,
   sizePx = ITEM_SLOT_SIZE_PX,
   spilledInto = null,
 }: {

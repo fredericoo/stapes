@@ -34,6 +34,11 @@ import { Segmented, Select } from "../ui";
 import { StatField } from "./StatField";
 import { StatusChanceField, StatusGrants } from "./StatusGrants";
 
+// Hoisted so the default is one value rather than a new one per render. An
+// inline `{}` or `[]` in a destructuring default is a fresh identity every
+// time, which is a changed prop to everything memoised below it.
+const NO_STATUS_DEFS: Record<string, StatusDef> = {};
+
 /**
  * How a weapon fights, authored once and edited in two places.
  *
@@ -152,7 +157,7 @@ export function WeaponFields({
   onChange,
   masteryHint,
   tiles,
-  statusDefs = {},
+  statusDefs = NO_STATUS_DEFS,
 }: {
   weapon: WeaponItem;
   onChange: (fields: Partial<WeaponItem>) => void;
@@ -296,9 +301,10 @@ export function WeaponFields({
           flight.
         </p>
         <div className="flex flex-wrap items-end gap-4">
-          <label className="flex flex-col gap-1 text-xs">
+          <div className="flex flex-col gap-1 text-xs">
             <span className="font-bold uppercase text-muted">Fires</span>
             <Select
+              ariaLabel="Fires"
               className="w-56"
               value={projectile?.tileId ?? ""}
               onValueChange={(tileId) =>
@@ -318,7 +324,7 @@ export function WeaponFields({
               An 8-way tile, so the arrow points where it is going. Author one
               on the Tile tab if the list is empty.
             </span>
-          </label>
+          </div>
           {projectile ? (
             <StatField
               label="Speed"

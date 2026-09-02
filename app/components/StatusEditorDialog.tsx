@@ -219,18 +219,19 @@ export function StatusEditorDialog({
               onChange={(e) => patch({ name: e.target.value })}
             />
           </label>
-          <label className="flex flex-col gap-0.5">
+          <div className="flex flex-col gap-0.5">
             <span className="text-[11px] font-bold uppercase text-muted">
               Tone
             </span>
             <Select
+              ariaLabel="Tone"
               value={status.tone}
               onValueChange={(v) =>
                 patch({ tone: (v as StatusSource["tone"]) ?? "good" })
               }
               options={STATUS_TONES.map((t) => ({ value: t, label: t }))}
             />
-          </label>
+          </div>
         </div>
 
         <label className="flex flex-col gap-0.5">
@@ -260,11 +261,12 @@ export function StatusEditorDialog({
         </div>
         <div className="flex flex-wrap items-start gap-3">
           <div className="flex flex-col gap-2">
-            <label className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
               <span className="text-[11px] font-bold uppercase text-muted">
                 Tileset
               </span>
               <Select
+                ariaLabel="Tileset"
                 value={icon?.tilesetId || null}
                 onValueChange={(id) => {
                   if (!id) return;
@@ -276,7 +278,7 @@ export function StatusEditorDialog({
                 }}
                 options={tilesets.map((t) => ({ value: t.id, label: t.name }))}
               />
-            </label>
+            </div>
             <SpriteSelector
               tileset={iconTileset}
               value={icon}

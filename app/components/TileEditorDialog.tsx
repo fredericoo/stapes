@@ -65,6 +65,11 @@ import {
   Tabs,
 } from "../ui";
 
+// Hoisted so the default is one value rather than a new one per render. An
+// inline `{}` or `[]` in a destructuring default is a fresh identity every
+// time, which is a changed prop to everything memoised below it.
+const NO_STATUS_DEFS: Record<string, StatusDef> = {};
+
 function emptyFrame(tilesetId: string): Frame {
   const rect = { x: 0, y: 0, w: 1, h: 1 };
   return {
@@ -367,7 +372,7 @@ export function TileEditorDialog({
   tile,
   tiles,
   tilesets,
-  statusDefs = {},
+  statusDefs = NO_STATUS_DEFS,
   isNew,
   onSave,
   onDelete,

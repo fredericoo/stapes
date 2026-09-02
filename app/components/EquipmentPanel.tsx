@@ -19,6 +19,11 @@ import { tilesByIdFromList } from "../lib/validation";
 import { ItemSlot, ITEM_SLOT_SIZE_PX } from "./ItemSlot";
 import type { ItemDrag } from "./useItemDrag";
 
+// Hoisted so the default is one value rather than a new one per render. An
+// inline `{}` or `[]` in a destructuring default is a fresh identity every
+// time, which is a changed prop to everything memoised below it.
+const NO_MASTERY_XP: MasteryXp = {};
+
 /**
  * What you are wearing, drawn as a body rather than as a row.
  *
@@ -179,7 +184,7 @@ const ROW_COUNT =
 
 export function EquipmentPanel({
   equipment,
-  masteryXp = {},
+  masteryXp = NO_MASTERY_XP,
   bagOpen,
   handOpen = null,
   tiles,

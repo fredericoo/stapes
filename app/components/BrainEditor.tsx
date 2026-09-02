@@ -267,15 +267,16 @@ export function BrainEditor({ brain, tiles, onChange }: Props) {
     <div className="flex flex-col gap-3 border-t-2 border-border pt-3">
       <EditorIssues issues={issues} />
 
-      <label className="flex items-center gap-2 text-xs">
+      <div className="flex items-center gap-2 text-xs">
         <span className="font-bold uppercase text-muted">Initial state</span>
         <Select
+          ariaLabel="Initial state"
           value={brain.initial || null}
           onValueChange={(v) => v && onChange({ ...brain, initial: v })}
           options={stateNames.map((n) => ({ value: n, label: n }))}
           placeholder="Pick one…"
         />
-      </label>
+      </div>
 
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">

@@ -121,16 +121,17 @@ export function StatusVfxPreview({
         aria-label={`Preview of the effect on ${subject?.name ?? "bare ground"}`}
         role="img"
       />
-      <label className="flex flex-col gap-0.5">
+      <div className="flex flex-col gap-0.5">
         <span className="text-[11px] font-bold uppercase text-muted">
           Drawn on
         </span>
         <Select
+          ariaLabel="Drawn on"
           value={subjectId}
           onValueChange={(id) => setSubjectId(id ?? PLAYER_TILE_ID)}
           options={options}
         />
-      </label>
+      </div>
       <label className="flex flex-col gap-0.5">
         <span className="text-[11px] font-bold uppercase text-muted">
           {vfx.taperMs > 0

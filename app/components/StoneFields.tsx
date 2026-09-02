@@ -45,6 +45,11 @@ import {
   describeReachHeight,
 } from "./WeaponFields";
 
+// Hoisted so the default is one value rather than a new one per render. An
+// inline `{}` or `[]` in a destructuring default is a fresh identity every
+// time, which is a changed prop to everything memoised below it.
+const NO_STATUS_DEFS: Record<string, StatusDef> = {};
+
 /**
  * What an arcane stone is, in the editor.
  *
@@ -115,7 +120,7 @@ export function StoneFields({
   stone,
   onChange,
   tiles,
-  statusDefs = {},
+  statusDefs = NO_STATUS_DEFS,
 }: {
   stone: ArcaneStoneItem;
   onChange: (fields: Partial<ArcaneStoneItem>) => void;
@@ -257,9 +262,10 @@ export function StoneFields({
               your own body has no distance to cross.
             </p>
             <div className="flex flex-wrap items-end gap-4">
-              <label className="flex flex-col gap-1 text-xs">
+              <div className="flex flex-col gap-1 text-xs">
                 <span className="font-bold uppercase text-muted">Throws</span>
                 <Select
+                  ariaLabel="Throws"
                   className="w-56"
                   value={effect.projectile?.tileId ?? ""}
                   onValueChange={(tileId) =>
@@ -287,7 +293,7 @@ export function StoneFields({
                   An 8-way tile, so it points where it is going. Author one on
                   the Tile tab if the list is empty.
                 </span>
-              </label>
+              </div>
               {effect.projectile ? (
                 <StatField
                   label="Speed"

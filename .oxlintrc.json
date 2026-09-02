@@ -12,6 +12,26 @@
     "jsx-a11y"
   ],
 
+  // What these three actually put in the DOM, so
+  // `label-has-associated-control` stops being wrong about forty-six labels
+  // that do associate. `Input` and `Textarea` are thin wrappers around a real
+  // `<input>` and `<textarea>`; `@base-ui`'s `Switch.Root` renders a
+  // `<span role="switch">` beside a visually hidden `<input type="checkbox">`,
+  // and clicking the caption in a wrapping `<label>` does toggle it.
+  //
+  // `Select` and `Segmented` are deliberately **not** here. Both render a
+  // button, a label around a button labels nothing, and every hit on those was
+  // real — see `app/ui/Select.tsx`, which says so and takes an `ariaLabel`.
+  "settings": {
+    "jsx-a11y": {
+      "components": {
+        "Input": "input",
+        "Textarea": "textarea",
+        "Switch": "input"
+      }
+    }
+  },
+
   // `correctness` is code that is outright wrong, `suspicious` code that almost
   // certainly is, and `perf` code with a cheaper equivalent — the three that
   // find bugs rather than argue about taste. `style` and `pedantic` stay off:
@@ -133,11 +153,23 @@
     "react/no-array-index-key": "warn",
     "react/no-object-type-as-default-prop": "warn",
 
+    // Every hit is a widget that deliberately does not use the native element,
+    // because the native one cannot be styled or does not exist: a `<div
+    // role="img">` holding a tile sprite or a "+3" badge, a
+    // `role="progressbar"` with its own `aria-value*` (a `<progress>` cannot be
+    // drawn like the rest of this UI), `role="listbox"`/`role="option"` in a
+    // combobox that exists because `<select>` does not do this, and
+    // `role="status"` live regions that are not form output. Each of those is
+    // the ARIA authoring pattern rather than a shortcut around one.
+    "jsx-a11y/prefer-tag-over-role": "off",
+
     // Accessibility on the editor's chrome — 60-odd unlabelled controls across
     // the dialogs and tool palettes. Worth doing, and its own change.
-    "jsx-a11y/label-has-associated-control": "warn",
+    // `depth: 3` because a caption is often `<span><span>Two handed</span>…`,
+    // where the second span carries the explanation under the heading. The
+    // default of 2 stops one level short of the text.
+    "jsx-a11y/label-has-associated-control": ["warn", { "depth": 3 }],
     "jsx-a11y/control-has-associated-label": "warn",
-    "jsx-a11y/prefer-tag-over-role": "warn",
     "jsx-a11y/no-autofocus": "warn",
     "jsx-a11y/no-interactive-element-to-noninteractive-role": "warn",
     "jsx-a11y/role-supports-aria-props": "warn"

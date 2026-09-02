@@ -19,6 +19,11 @@ import { KitEditor } from "./KitEditor";
 import { StatField } from "./StatField";
 import { describeInterval, WeaponFields } from "./WeaponFields";
 
+// Hoisted so the default is one value rather than a new one per render. An
+// inline `{}` or `[]` in a destructuring default is a fresh identity every
+// time, which is a changed prop to everything memoised below it.
+const NO_STATUS_DEFS: Record<string, StatusDef> = {};
+
 type Props = {
   draft: TileDef;
   onChange: (next: TileDef) => void;
@@ -114,7 +119,12 @@ function describeDodge(flee: number): string {
  * honest way to show numbers nobody types — a readout that could disagree with
  * the formula would be worse than none.
  */
-export function BattleTab({ draft, onChange, tiles, statusDefs = {} }: Props) {
+export function BattleTab({
+  draft,
+  onChange,
+  tiles,
+  statusDefs = NO_STATUS_DEFS,
+}: Props) {
   const battler = draft.interactions?.battler ?? DEFAULT_BATTLER;
 
   const setBattler = (next: BattlerDef) => {
