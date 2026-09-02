@@ -1063,9 +1063,9 @@ export function TileEditorDialog({
 
           <TabPanel value={TAB_DIALOG} className="flex flex-col gap-3">
             <p className="text-[11px] leading-snug text-muted">
-              What this body says when somebody presses <strong>Talk</strong> — a
-              tree of buttons, each with what it says back, what it asks of the
-              player first, and what it does. Authoring one makes the tile an{" "}
+              What this body does when somebody presses <strong>Talk</strong> — a
+              script of commands run in order: say a line, offer choices, ask for
+              a trade, jump back to a label. Authoring one makes the tile an{" "}
               <strong>Actor</strong>; a malformed dialog leaves it mute.
             </p>
             <DialogEditor
