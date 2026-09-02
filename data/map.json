@@ -7173,8 +7173,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "torch",
-          "direction": "s"
+          "tileId": "lamppost"
         }
       ],
       "-33,3": [
@@ -11736,8 +11735,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "torch",
-          "direction": "s"
+          "tileId": "lamppost"
         }
       ],
       "-28,3": [
@@ -13544,8 +13542,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "torch",
-          "direction": "s"
+          "tileId": "lamppost"
         }
       ],
       "-26,-20": [
@@ -18825,8 +18822,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "torch",
-          "direction": "s"
+          "tileId": "lamppost"
         }
       ],
       "-21,-7": [
@@ -21811,8 +21807,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "torch",
-          "direction": "s"
+          "tileId": "lamppost"
         }
       ],
       "-18,-13": [
@@ -21880,8 +21875,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "torch",
-          "direction": "s"
+          "tileId": "lamppost"
         }
       ],
       "-18,0": [
@@ -23680,8 +23674,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "torch",
-          "direction": "s"
+          "tileId": "lamppost"
         }
       ],
       "-16,-17": [
@@ -31808,8 +31801,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "torch",
-          "direction": "s"
+          "tileId": "lamppost"
         }
       ],
       "-8,-20": [
@@ -31972,8 +31964,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "torch",
-          "direction": "s"
+          "tileId": "lamppost"
         }
       ],
       "-8,0": [
@@ -36164,6 +36155,9 @@
       "-4,-1": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "lamppost"
         }
       ],
       "-4,0": [
@@ -36185,6 +36179,9 @@
       "-4,2": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "lamppost"
         }
       ],
       "-4,3": [
@@ -37137,10 +37134,6 @@
         },
         {
           "tileId": "cobblestone"
-        },
-        {
-          "tileId": "torch",
-          "direction": "s"
         }
       ],
       "-3,-1": [
@@ -37202,8 +37195,7 @@
           "tileId": "cobblestone"
         },
         {
-          "tileId": "torch",
-          "direction": "s"
+          "tileId": "lamppost"
         }
       ],
       "-3,6": [
@@ -40109,8 +40101,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "torch",
-          "direction": "s"
+          "tileId": "lamppost"
         }
       ],
       "0,-17": [
@@ -41093,8 +41084,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "torch",
-          "direction": "s"
+          "tileId": "lamppost"
         }
       ],
       "1,-21": [
@@ -41143,8 +41133,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "torch",
-          "direction": "s"
+          "tileId": "lamppost"
         }
       ],
       "1,-13": [
@@ -41185,10 +41174,6 @@
       "1,-6": [
         {
           "tileId": "grass-2"
-        },
-        {
-          "tileId": "torch",
-          "direction": "s"
         }
       ],
       "1,-5": [
@@ -41204,6 +41189,9 @@
       "1,-3": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "lamppost"
         }
       ],
       "1,-2": [
@@ -44238,8 +44226,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "torch",
-          "direction": "s"
+          "tileId": "lamppost"
         }
       ],
       "4,-17": [
@@ -44282,8 +44269,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "torch",
-          "direction": "s"
+          "tileId": "lamppost"
         }
       ],
       "4,-9": [
@@ -44319,6 +44305,9 @@
       "4,-3": [
         {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "lamppost"
         }
       ],
       "4,-2": [
@@ -47581,8 +47570,7 @@
           "tileId": "cobblestone"
         },
         {
-          "tileId": "torch",
-          "direction": "s"
+          "tileId": "lamppost"
         }
       ],
       "7,6": [
@@ -48417,8 +48405,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "torch",
-          "direction": "s"
+          "tileId": "lamppost"
         }
       ],
       "8,-20": [
@@ -58048,8 +58035,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "torch",
-          "direction": "s"
+          "tileId": "lamppost"
         }
       ],
       "17,0": [
@@ -129704,7 +129690,7 @@
           "tileId": "dirt"
         },
         {
-          "tileId": "arcane-crystal-1"
+          "tileId": "arcane-crystal-2"
         }
       ],
       "-5,57": [
@@ -133473,7 +133459,7 @@
           "tileId": "dirt"
         },
         {
-          "tileId": "arcane-crystal-1"
+          "tileId": "arcane-crystal-3"
         }
       ],
       "3,41": [
