@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import statusesJson from "../../data/statuses.json";
+import tilesJson from "../../data/tiles.json";
 import type { BrainDef } from "../lib/brain";
 import type { DialogDef } from "../lib/dialog";
 import { DEFAULT_CONTAINER } from "../lib/item";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import { statusesById } from "../lib/status";
 import type { MapFile, PlacedTile, TileDef } from "../lib/types";
-import { normalizeTileDef } from "../lib/types";
+import { normalizeTileDef, normalizeTiles } from "../lib/types";
 import type { ObjectRef } from "./affordances";
 import { BRAIN_TICK_MS, TICK_MS } from "./constants";
 import { GameSession } from "./GameSession";
@@ -112,6 +113,9 @@ const tiles: TileDef[] = [
   tile({ id: "potion", kind: "item", intangible: true, interactions: { item: { type: "consumable", label: "Drink", hp: 0, pile: 4 } } }),
   tile({ id: "seller", height: 4, walkable: false, interactions: { dialog } }),
   tile({ id: "server", height: 4, walkable: false, interactions: { dialog, brain: standsToServe } }),
+  ...normalizeTiles(tilesJson as unknown[]).filter((t) =>
+    ["potion-salesman", "arcane-shard", "luminous-potion", "empty-bottle"].includes(t.id),
+  ),
 ];
 
 const catalogue = statusesById(statusesJson);
@@ -308,5 +312,29 @@ describe("trading through the panel", () => {
     talkTo(session, "seller");
     expect(press(session, 3)?.line).toBe("I've lost the words.");
     expect(session.statusesOf("local")).toEqual([]);
+  });
+});
+
+describe("the potion salesman, as authored", () => {
+  it("sells a potion, buys three bottles in one press, and refuses when short", () => {
+    let map = fieldWith("potion-salesman");
+    map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "arcane-shard", count: 14 }]);
+    map = replaceStack(map, 1, 1, 0, [{ tileId: "grass" }, { tileId: "empty-bottle", count: 3 }]);
+    const session = new GameSession(map, tiles, { statuses: catalogue });
+    session.pickUp({ x: 0, y: 1, z: 0, stackIndex: 1 });
+    session.pickUp({ x: 1, y: 1, z: 0, stackIndex: 1 });
+
+    talkTo(session, "potion-salesman");
+    expect(session.getSnapshot().conversation?.line).toContain("what'll it be");
+    expect(press(session, 0)?.line).toContain("Fourteen shards. Deal?");
+    expect(press(session, 0)?.line).toContain("Drink it somewhere dark");
+    expect(bagOf(session)).toEqual(["empty-bottlex3", "luminous-potion"]);
+
+    expect(press(session, 1, 3)?.line).toContain("Ta,");
+    expect(bagOf(session)).toEqual(["luminous-potion", "arcane-shardx6"]);
+
+    expect(press(session, 1, 1)?.line).toContain("not got that many");
+    press(session, 0);
+    expect(press(session, 0)?.line).toContain("That's not fourteen shards");
   });
 });
