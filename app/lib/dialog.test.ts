@@ -77,7 +77,7 @@ describe("resolving a dialog", () => {
         options: [
           {
             label: "Sell bottles",
-            amount: { min: 1, max: 12 },
+            amount: { min: 1, max: 12, prompt: "How many?", confirm: "Sell" },
             if: { combinator: "and", rules: [{ cond: "carries", tileId: "bottle", count: 1 }, { cond: "room_for", tileId: "shard", count: 2 }] },
             do: [
               { effect: "trade", take: [{ tileId: "bottle", count: 1 }], give: [{ tileId: "shard", count: 2 }] },
@@ -91,7 +91,7 @@ describe("resolving a dialog", () => {
       }),
     );
     expect(dialog?.options[0]?.do).toHaveLength(3);
-    expect(dialog?.options[0]?.amount).toEqual({ min: 1, max: 12 });
+    expect(dialog?.options[0]?.amount).toEqual({ min: 1, max: 12, prompt: "How many?", confirm: "Sell" });
   });
 
   it("refuses a trade of nothing for nothing, a count of nothing, and an inverted amount", () => {
@@ -99,7 +99,8 @@ describe("resolving a dialog", () => {
       resolveDialog(tileWith({ ...shop, options: [{ label: "x", say: "x", ...option }] }));
     expect(bad({ do: [{ effect: "trade", take: [], give: [] }] })).toBeNull();
     expect(bad({ if: { cond: "carries", tileId: "shard", count: 0 } })).toBeNull();
-    expect(bad({ amount: { min: 3, max: 2 } })).toBeNull();
+    expect(bad({ amount: { min: 3, max: 2, prompt: "How many?" } })).toBeNull();
+    expect(bad({ amount: { min: 1, max: 2, prompt: "" } })).toBeNull();
   });
 
   it("is memoised on the def", () => {
@@ -120,13 +121,14 @@ describe("walking the tree", () => {
     expect(optionsAt(shop, [1]).map((o) => o.label)).toEqual(["Yes", "No"]);
   });
 
-  it("offers the root again under a reply with no follow-ups", () => {
-    expect(optionsAt(shop, [0])).toBe(shop.options);
-    expect(optionsAt(shop, [1, 0])).toBe(shop.options);
+  it("offers nothing under a reply with no follow-ups: a leaf", () => {
+    expect(optionsAt(shop, [0])).toEqual([]);
+    expect(optionsAt(shop, [1, 0])).toEqual([]);
+    expect(optionsAt(shop, [9])).toEqual([]);
   });
 
   it("clamps an amount to the author's range, and reads one where there is none", () => {
-    const counted: DialogOption = { label: "x", say: "x", amount: { min: 2, max: 5 } };
+    const counted: DialogOption = { label: "x", say: "x", amount: { min: 2, max: 5, prompt: "?" } };
     expect(clampAmount(counted, undefined)).toBe(2);
     expect(clampAmount(counted, 9)).toBe(5);
     expect(clampAmount(counted, 3.4)).toBe(3);
@@ -173,7 +175,7 @@ describe("validating a dialog", () => {
   it("warns about a stepper with nothing to multiply", () => {
     const issues = validateDialog({
       ...shop,
-      options: [{ label: "x", say: "x", amount: { min: 1, max: 3 } }],
+      options: [{ label: "x", say: "x", amount: { min: 1, max: 3, prompt: "?" } }],
     });
     expect(issues.map((i) => i.message)).toEqual([expect.stringContaining("nothing counted")]);
   });

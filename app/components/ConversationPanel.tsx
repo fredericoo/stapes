@@ -1,7 +1,14 @@
 import { IconArrowBackUp, IconMinus, IconPlus, IconX } from "@tabler/icons-react";
 import { useMemo, useState } from "react";
 import type { Conversation, TalkAction } from "../game/dialogRuntime";
-import { optionsAt, resolveDialog, type DialogOption } from "../lib/dialog";
+import {
+  DEFAULT_CONFIRM_LABEL,
+  optionAt,
+  optionsAt,
+  resolveDialog,
+  type DialogAmount,
+  type DialogDef,
+} from "../lib/dialog";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { TITLE_SPRITE_SIZE_PX } from "./ContainerPanel";
@@ -13,10 +20,16 @@ import { useTap } from "./useTap";
  * for everything you can say back.
  *
  * Drawn from the tile catalogue and the conversation's path — the server
- * sends where you are and the last line, never the buttons, because both ends
- * hold the same dialog and a list on the wire would be a second copy of one.
- * The line is the only thing here that changes without the player having
- * touched anything, so it is the live region.
+ * sends where you are, the last line and the stage, never the buttons,
+ * because both ends hold the same dialog and a list on the wire would be a
+ * second copy of one. The line is the only thing here that changes without
+ * the player having touched anything, so it is the live region.
+ *
+ * A tree, read as one: under a reply are its own follow-ups and nothing
+ * else, under a leaf or a refusal only *Back*, and an option that wants an
+ * amount asks for it before it does anything. The whole body scrolls, line
+ * and buttons together, so a long piece of lore with a choice at the end is
+ * read the way it was written.
  *
  * Takes the interaction list's place rather than a place of its own, on
  * desktop and on a phone alike: a conversation is what is in reach, said
@@ -26,6 +39,12 @@ import { useTap } from "./useTap";
 
 const CLOSE_ICON_SIZE_PX = 12;
 const STEP_ICON_SIZE_PX = 12;
+
+const ROW_CLASS =
+  "flex min-h-6 w-full items-center gap-1 border px-1 py-0.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent pointer-coarse:min-h-9";
+const OPTION_CLASS = `${ROW_CLASS} border-paper/30 text-paper hover:border-paper hover:bg-paper/10`;
+const BACK_CLASS = `${ROW_CLASS} border-dashed border-paper/30 text-paper/80 hover:border-paper hover:bg-paper/10`;
+const LABEL_CLASS = "truncate text-[11px] leading-snug font-medium tracking-tight";
 
 type Props = {
   conversation: Conversation;
@@ -45,10 +64,6 @@ export function ConversationPanel({
   const tilesById = useMemo(() => tilesByIdFromList(tiles), [tiles]);
   const def = tilesById[conversation.tileId];
   const dialog = def ? resolveDialog(def) : null;
-  // A def the catalogue no longer holds, or one whose dialog stopped parsing
-  // under an open panel: the line still reads, and Close is the only button.
-  const options = dialog ? optionsAt(dialog, conversation.path) : [];
-  const atRoot = conversation.path.length === 0;
   const title = def?.name ?? conversation.tileId;
 
   return (
@@ -56,7 +71,7 @@ export function ConversationPanel({
       aria-label={`Talking to ${title}`}
       className={`flex flex-col gap-1 border-2 border-paper/25 bg-paper/5 p-1.5 ${className}`}
     >
-      <div className="flex items-center gap-1.5">
+      <div className="flex shrink-0 items-center gap-1.5">
         {def ? (
           <TilePreview
             tile={def}
@@ -81,121 +96,128 @@ export function ConversationPanel({
         </button>
       </div>
 
-      <p
-        role="log"
-        aria-live="polite"
-        className="text-[12px] leading-snug text-paper"
-      >
-        {conversation.line}
-      </p>
-
-      <div className="flex min-h-0 flex-col gap-1 overflow-y-auto overscroll-contain">
-        {options.map((option, index) => (
-          <OptionButton
-            // The path is in the key so a stepper's count does not survive a
-            // press that led somewhere else with a button of the same label.
-            key={`${conversation.path.join(".")}:${index}`}
-            option={option}
-            onPress={(amount) => onTalk({ kind: "choose", index, amount })}
-          />
-        ))}
-        {atRoot ? null : (
-          <PanelButton onPress={() => onTalk({ kind: "back" })}>
-            <IconArrowBackUp size={STEP_ICON_SIZE_PX} stroke={2.5} aria-hidden="true" />
-            <span className="truncate text-[11px] leading-snug font-medium tracking-tight">
-              Back
-            </span>
-          </PanelButton>
-        )}
+      {/* One scrolling body for the words and the buttons, so a long line is
+          read to its end before the choice under it, and the choice is never
+          off the bottom of a box that stopped scrolling at the words. */}
+      <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain">
+        <p role="log" aria-live="polite" className="text-[12px] leading-snug text-paper">
+          {conversation.line}
+        </p>
+        {/* A def the catalogue no longer holds, or one whose dialog stopped
+            parsing under an open panel: the line still reads, and Close is
+            the only button. */}
+        {dialog ? <Choices dialog={dialog} conversation={conversation} onTalk={onTalk} /> : null}
       </div>
     </section>
   );
 }
 
-/**
- * One thing you can say, with a stepper beside it when the author gave it an
- * amount. The count is the button's own state: it means nothing until the
- * press that carries it.
- */
-function OptionButton({
-  option,
-  onPress,
+/** What is under the line, by stage. @see ConversationStage */
+function Choices({
+  dialog,
+  conversation,
+  onTalk,
 }: {
-  option: DialogOption;
-  onPress: (amount: number | undefined) => void;
+  dialog: DialogDef;
+  conversation: Conversation;
+  onTalk: (action: TalkAction) => void;
 }) {
-  const [amount, setAmount] = useState(option.amount?.min ?? 1);
-  const range = option.amount;
-  const press = useTap(() => onPress(range ? amount : undefined));
+  const atRoot = conversation.path.length === 0;
+  const back = atRoot ? null : (
+    <PanelButton className={BACK_CLASS} onPress={() => onTalk({ kind: "back" })}>
+      <IconArrowBackUp size={STEP_ICON_SIZE_PX} stroke={2.5} aria-hidden="true" />
+      <span className={LABEL_CLASS}>Back</span>
+    </PanelButton>
+  );
+
+  if (conversation.stage === "answered") return back;
+
+  if (conversation.stage === "counting") {
+    const amount = optionAt(dialog, conversation.path)?.amount;
+    return (
+      <>
+        {amount ? (
+          <AmountEntry
+            // Keyed on the path so a count never survives into another question.
+            key={conversation.path.join(".")}
+            amount={amount}
+            onConfirm={(count) => onTalk({ kind: "confirm", amount: count })}
+          />
+        ) : null}
+        {back}
+      </>
+    );
+  }
 
   return (
-    <div className="flex items-stretch gap-1">
-      <button
-        type="button"
-        {...press}
-        className="relative flex min-h-6 min-w-0 flex-1 items-center gap-1 border border-paper/30 px-1 py-0.5 text-left text-paper hover:border-paper hover:bg-paper/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent pointer-coarse:min-h-9"
-      >
-        <span className="truncate text-[11px] leading-snug font-medium tracking-tight">
-          {option.label}
-        </span>
-        {range ? (
-          <span className="ml-auto tabular-nums text-[11px] text-paper/70">×{amount}</span>
-        ) : null}
-      </button>
-      {range ? (
-        <Stepper
-          amount={amount}
-          min={range.min}
-          max={range.max}
-          onChange={setAmount}
-        />
-      ) : null}
-    </div>
+    <>
+      {optionsAt(dialog, conversation.path).map((option, index) => (
+        <PanelButton
+          key={`${conversation.path.join(".")}:${index}`}
+          className={OPTION_CLASS}
+          onPress={() => onTalk({ kind: "choose", index })}
+        >
+          <span className={LABEL_CLASS}>{option.label}</span>
+        </PanelButton>
+      ))}
+      {back}
+    </>
   );
 }
 
-/** Minus and plus, held to the author's range. */
-function Stepper({
+/**
+ * How many, and a button to say so.
+ *
+ * The count is the entry's own state: it means nothing until the confirm
+ * that carries it, and the server clamps it to the author's range again on
+ * the way in.
+ */
+function AmountEntry({
   amount,
-  min,
-  max,
-  onChange,
+  onConfirm,
 }: {
-  amount: number;
-  min: number;
-  max: number;
-  onChange: (next: number) => void;
+  amount: DialogAmount;
+  onConfirm: (count: number) => void;
 }) {
-  const less = useTap(() => onChange(Math.max(min, amount - 1)));
-  const more = useTap(() => onChange(Math.min(max, amount + 1)));
+  const [count, setCount] = useState(amount.min);
+  const less = useTap(() => setCount((c) => Math.max(amount.min, c - 1)));
+  const more = useTap(() => setCount((c) => Math.min(amount.max, c + 1)));
   const stepClass =
-    "grid w-6 shrink-0 place-items-center border border-paper/30 text-paper hover:border-paper hover:bg-paper/10 aria-disabled:text-paper/30 aria-disabled:hover:border-paper/30 aria-disabled:hover:bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent pointer-coarse:w-9";
+    "grid w-8 shrink-0 place-items-center border border-paper/30 text-paper hover:border-paper hover:bg-paper/10 aria-disabled:text-paper/30 aria-disabled:hover:border-paper/30 aria-disabled:hover:bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent pointer-coarse:w-9";
+
   return (
-    <>
-      <button type="button" {...less} aria-label="Fewer" aria-disabled={amount <= min} className={stepClass}>
+    <div className="flex items-stretch gap-1">
+      <button type="button" {...less} aria-label="Fewer" aria-disabled={count <= amount.min} className={stepClass}>
         <IconMinus size={STEP_ICON_SIZE_PX} stroke={3} aria-hidden="true" />
       </button>
-      <button type="button" {...more} aria-label="More" aria-disabled={amount >= max} className={stepClass}>
+      <output
+        aria-live="polite"
+        className="grid min-w-8 flex-none place-items-center border border-paper/30 px-1 tabular-nums text-[12px] text-paper"
+      >
+        {count}
+      </output>
+      <button type="button" {...more} aria-label="More" aria-disabled={count >= amount.max} className={stepClass}>
         <IconPlus size={STEP_ICON_SIZE_PX} stroke={3} aria-hidden="true" />
       </button>
-    </>
+      <PanelButton className={`${OPTION_CLASS} flex-1`} onPress={() => onConfirm(count)}>
+        <span className={LABEL_CLASS}>{amount.confirm ?? DEFAULT_CONFIRM_LABEL}</span>
+      </PanelButton>
+    </div>
   );
 }
 
 function PanelButton({
   onPress,
+  className,
   children,
 }: {
   onPress: () => void;
+  className: string;
   children: React.ReactNode;
 }) {
   const press = useTap(onPress);
   return (
-    <button
-      type="button"
-      {...press}
-      className="flex min-h-6 w-full items-center gap-1 border border-dashed border-paper/30 px-1 py-0.5 text-left text-paper/80 hover:border-paper hover:bg-paper/10 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent pointer-coarse:min-h-9"
-    >
+    <button type="button" {...press} className={className}>
       {children}
     </button>
   );

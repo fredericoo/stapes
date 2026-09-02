@@ -260,8 +260,9 @@ import { findPath } from "./pathfinding";
 import { resolveBrain } from "../lib/brain";
 import { resolveDialog, type DialogEffectDef } from "../lib/dialog";
 import {
-  backToRoot,
   chooseOption,
+  confirmAmount,
+  goBack,
   openConversation,
   type Conversation,
   type PartnerView,
@@ -2667,8 +2668,10 @@ export class GameSession implements PlaySession {
     const view = this.partnerViewFor(actor);
     const next =
       action.kind === "back"
-        ? backToRoot(dialog, current, view)
-        : chooseOption(dialog, current, action.index, action.amount, view);
+        ? goBack(dialog, current, view)
+        : action.kind === "confirm"
+          ? confirmAmount(dialog, current, action.amount, view)
+          : chooseOption(dialog, current, action.index, view);
     if (!next) return false;
     return this.setConversation(actor, next);
   }

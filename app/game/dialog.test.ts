@@ -141,8 +141,13 @@ function talkTo(session: GameSession, tileId: string): boolean {
   return session.talk({ kind: "open", ref: bodyRef(session, tileId) });
 }
 
-function press(session: GameSession, index: number, amount?: number) {
-  session.talk({ kind: "choose", index, amount });
+function press(session: GameSession, index: number) {
+  session.talk({ kind: "choose", index });
+  return session.getSnapshot().conversation;
+}
+
+function confirm(session: GameSession, amount: number) {
+  session.talk({ kind: "confirm", amount });
   return session.getSnapshot().conversation;
 }
 
@@ -224,13 +229,14 @@ describe("opening a conversation", () => {
 });
 
 describe("pressing buttons", () => {
-  it("answers, descends, and comes back", () => {
+  it("answers, descends, and comes back up", () => {
     const session = new GameSession(fieldWith("seller"), tiles);
     talkTo(session, "seller");
-    expect(press(session, 0)).toMatchObject({ path: [], line: "Fourteen shards." });
-    expect(press(session, 1)).toMatchObject({ path: [1], line: "Deal?" });
+    expect(press(session, 0)).toMatchObject({ path: [0], line: "Fourteen shards.", stage: "answered" });
     session.talk({ kind: "back" });
-    expect(session.getSnapshot().conversation).toMatchObject({ path: [] });
+    expect(press(session, 1)).toMatchObject({ path: [1], line: "Deal?", stage: "asking" });
+    session.talk({ kind: "back" });
+    expect(session.getSnapshot().conversation).toMatchObject({ path: [], stage: "asking" });
   });
 
   it("ignores a press with no panel open, and one at nothing", () => {
@@ -276,7 +282,7 @@ describe("trading through the panel", () => {
     session.drainEquipmentChanges();
     talkTo(session, "seller");
     press(session, 1);
-    expect(press(session, 0)).toMatchObject({ path: [1], line: "That's not fourteen shards." });
+    expect(press(session, 0)).toMatchObject({ path: [1, 0], line: "That's not fourteen shards.", stage: "answered" });
     expect(bagOf(session)).toEqual(["shardx13"]);
     expect(session.drainEquipmentChanges()).toEqual([]);
   });
@@ -304,6 +310,8 @@ describe("trading through the panel", () => {
     expect(press(session, 2)?.line).toBe("Shine.");
     expect(session.statusesOf("local")?.map((s) => s.defId)).toEqual(["luminous"]);
     expect(session.getSnapshot().tags).toEqual(["blessed"]);
+    // A leaf: the same button is a Back away, and asks again.
+    session.talk({ kind: "back" });
     expect(press(session, 2)?.line).toBe("Once is enough.");
   });
 
@@ -316,9 +324,9 @@ describe("trading through the panel", () => {
 });
 
 describe("the potion salesman, as authored", () => {
-  it("sells a potion, buys three bottles in one press, and refuses when short", () => {
+  it("sells two potions, buys three bottles in one confirm, and refuses when short", () => {
     let map = fieldWith("potion-salesman");
-    map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "arcane-shard", count: 14 }]);
+    map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "arcane-shard", count: 28 }]);
     map = replaceStack(map, 1, 1, 0, [{ tileId: "grass" }, { tileId: "empty-bottle", count: 3 }]);
     const session = new GameSession(map, tiles, { statuses: catalogue });
     session.pickUp({ x: 0, y: 1, z: 0, stackIndex: 1 });
@@ -326,15 +334,19 @@ describe("the potion salesman, as authored", () => {
 
     talkTo(session, "potion-salesman");
     expect(session.getSnapshot().conversation?.line).toContain("what'll it be");
-    expect(press(session, 0)?.line).toContain("Fourteen shards. Deal?");
-    expect(press(session, 0)?.line).toContain("Drink it somewhere dark");
-    expect(bagOf(session)).toEqual(["empty-bottlex3", "luminous-potion"]);
+    expect(press(session, 0)?.line).toContain("Fourteen shards apiece");
+    expect(press(session, 0)).toMatchObject({ stage: "counting", line: "How many? Fourteen shards each." });
+    expect(confirm(session, 2)?.line).toContain("Drink them somewhere dark");
+    expect(bagOf(session)).toEqual(["empty-bottlex3", "luminous-potionx2"]);
 
-    expect(press(session, 1, 3)?.line).toContain("Ta,");
-    expect(bagOf(session)).toEqual(["luminous-potion", "arcane-shardx6"]);
+    session.talk({ kind: "back" });
+    session.talk({ kind: "back" });
+    expect(press(session, 1)).toMatchObject({ stage: "counting" });
+    expect(confirm(session, 3)?.line).toContain("Ta,");
+    expect(bagOf(session)).toEqual(["luminous-potionx2", "arcane-shardx6"]);
 
-    expect(press(session, 1, 1)?.line).toContain("not got that many");
-    press(session, 0);
-    expect(press(session, 0)?.line).toContain("That's not fourteen shards");
+    session.talk({ kind: "back" });
+    press(session, 1);
+    expect(confirm(session, 1)).toMatchObject({ stage: "answered", line: expect.stringContaining("not got that many") });
   });
 });

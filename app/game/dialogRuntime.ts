@@ -1,6 +1,7 @@
 import { evaluateCondition } from "../lib/conditions";
 import {
   clampAmount,
+  optionAt,
   optionsAt,
   type DialogCondition,
   type DialogConditionDef,
@@ -32,9 +33,24 @@ import { NOBODY } from "./brainRuntime";
  */
 export type TalkAction =
   | { kind: "open"; ref: { x: number; y: number; z: number; stackIndex: number } }
-  | { kind: "choose"; index: number; amount?: number }
+  | { kind: "choose"; index: number }
+  /** The stepper's number, once the NPC has asked for one. */
+  | { kind: "confirm"; amount: number }
   | { kind: "back" }
   | { kind: "close" };
+
+/**
+ * What the panel shows under the line.
+ *
+ * - `asking`: the buttons under the path — the root's, or a reply's `then`.
+ * - `counting`: the option at the path wants an amount; a stepper and its
+ *   confirm button.
+ * - `answered`: a leaf reply, or a refusal; only *Back*.
+ *
+ * Decided where the press was answered, so the panel never has to work out
+ * from a path whether a reply succeeded.
+ */
+export type ConversationStage = "asking" | "counting" | "answered";
 
 /**
  * Where one player is in one NPC's dialog.
@@ -54,6 +70,7 @@ export type Conversation = {
   tileId: string;
   path: number[];
   line: string;
+  stage: ConversationStage;
 };
 
 /**
@@ -88,66 +105,97 @@ export function openConversation(
     tileId: npc.tileId,
     path: [],
     line: fillPartner(dialog.opening, view),
+    stage: "asking",
   };
 }
 
-/** Back pressed: the opening line again, and the root buttons. */
-export function backToRoot(
+/**
+ * Back pressed: one level up, with that reply's line said again and its
+ * buttons on offer — or the opening line and the root's from the top.
+ *
+ * Up one rather than to the root, because this is a tree and a player three
+ * presses deep who wants a different answer to the last question should not
+ * have to find the question again. Saying the parent's line again is a
+ * repeat of words, never of deeds: nothing is asked or run on the way back.
+ */
+export function goBack(
   dialog: DialogDef,
   conversation: Conversation,
   view: PartnerView,
 ): Conversation {
-  return { ...conversation, path: [], line: fillPartner(dialog.opening, view) };
+  const path = conversation.path.slice(0, -1);
+  const parent = path.length === 0 ? null : optionAt(dialog, path);
+  const line = fillPartner(parent ? parent.say : dialog.opening, view);
+  return { ...conversation, path, line, stage: "asking" };
 }
 
 /**
  * A button pressed, by its position among the buttons on offer.
  *
  * Null for a position nothing is at — a stale panel, or a client making it up
- * — and the caller leaves the conversation as it was. Otherwise the option's
- * `if` is asked, its `do` is run, and the reply is its `say`; a refusal of
- * either leaves the path where it was with the `else` line, because "yes"
- * again once the shards are in hand is the same question, not a new one.
+ * — or for a press while the NPC is waiting on an amount; the caller leaves
+ * the conversation as it was. An option with an amount is a question first:
+ * the NPC asks, and nothing is run until {@link confirmAmount}. Anything else
+ * is answered on the spot.
  */
 export function chooseOption(
   dialog: DialogDef,
   conversation: Conversation,
   index: number,
-  requestedAmount: number | undefined,
   view: PartnerView,
 ): Conversation | null {
+  if (conversation.stage !== "asking") return null;
   const option = optionsAt(dialog, conversation.path)[index];
   if (!option) return null;
 
-  const amount = clampAmount(option, requestedAmount);
-  const scaled = scaledBy(option, amount);
-  if (!answers(scaled, view)) {
-    const line = option.else ? fillPartner(option.else, view) : conversation.line;
-    return { ...conversation, line };
+  const path = [...conversation.path, index];
+  if (option.amount) {
+    return { ...conversation, path, line: fillPartner(option.amount.prompt, view), stage: "counting" };
   }
-
-  // The path descends only where there is somewhere to descend to. A reply
-  // with no follow-ups lands back at the root, buttons and all, so the panel
-  // never shows a reply with nothing under it.
-  const pressed = pathTo(dialog, conversation.path, index);
-  const path = option.then?.length ? pressed : [];
-  return { ...conversation, path, line: fillPartner(option.say, view) };
+  return answer(option, { ...conversation, path }, 1, view);
 }
 
 /**
- * Where a press at `index` among the buttons at `path` leads.
+ * The stepper's number handed over, for the option the NPC is waiting on.
  *
- * The buttons at a path are either that reply's `then` or the root's, and the
- * two lead to different places: a root button pressed while a reply is on
- * screen starts over from the root.
+ * Null unless the NPC is actually waiting on one — a confirm sent against
+ * a panel that has moved on is a race, not an answer.
  */
-function pathTo(
+export function confirmAmount(
   dialog: DialogDef,
-  path: readonly number[],
-  index: number,
-): number[] {
-  const shownFromRoot = optionsAt(dialog, path) === dialog.options;
-  return shownFromRoot ? [index] : [...path, index];
+  conversation: Conversation,
+  requestedAmount: number,
+  view: PartnerView,
+): Conversation | null {
+  if (conversation.stage !== "counting") return null;
+  const option = optionAt(dialog, conversation.path);
+  if (!option?.amount) return null;
+  return answer(option, conversation, clampAmount(option, requestedAmount), view);
+}
+
+/**
+ * The option's `if` asked and its `do` run, and the reply that comes of it.
+ *
+ * A refusal says `else` — or leaves the last line, for an option with none —
+ * and is a leaf: only *Back* is on offer, because the question was answered,
+ * even if the answer was no. A success says `say` and offers the reply's
+ * follow-ups, or only *Back* when it has none.
+ */
+function answer(
+  option: DialogOption,
+  at: Conversation,
+  amount: number,
+  view: PartnerView,
+): Conversation {
+  if (!answers(scaledBy(option, amount), view)) {
+    const line = option.else ? fillPartner(option.else, view) : at.line;
+    return { ...at, line, stage: "answered" };
+  }
+  return {
+    ...at,
+    line: fillPartner(option.say, view),
+    stage: option.then?.length ? "asking" : "answered",
+  };
 }
 
 /**

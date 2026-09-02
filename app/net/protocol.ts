@@ -1126,7 +1126,10 @@ const clientMessageSchema = v.variant("type", [
       v.object({
         kind: v.literal("choose"),
         index: v.pipe(v.number(), v.integer(), v.minValue(0)),
-        amount: v.optional(v.pipe(v.number(), v.integer(), v.minValue(1))),
+      }),
+      v.object({
+        kind: v.literal("confirm"),
+        amount: v.pipe(v.number(), v.integer(), v.minValue(1)),
       }),
       v.object({ kind: v.literal("back") }),
       v.object({ kind: v.literal("close") }),
@@ -1229,6 +1232,7 @@ const serverMessageSchema = v.variant("type", [
         tileId: v.string(),
         path: v.array(v.pipe(v.number(), v.integer(), v.minValue(0))),
         line: v.string(),
+        stage: v.picklist(["asking", "counting", "answered"]),
       }),
     ),
   }),

@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { DialogDef, DialogEffectDef } from "../lib/dialog";
 import {
-  backToRoot,
   chooseOption,
+  confirmAmount,
+  goBack,
   openConversation,
   type Conversation,
   type PartnerView,
@@ -13,7 +14,7 @@ import {
  *
  * The functions are pure steps over (def, where you are, what was pressed);
  * these pin what a press does — where it leads, what is said, what is asked
- * of the partner — against a partner built by hand.
+ * of the partner, and what is left to press — against a partner built by hand.
  */
 
 const price: DialogEffectDef = {
@@ -48,7 +49,7 @@ const shop: DialogDef = {
     },
     {
       label: "Sell bottles",
-      amount: { min: 1, max: 12 },
+      amount: { min: 1, max: 12, prompt: "How many, {partner}?", confirm: "Sell" },
       if: { cond: "carries", tileId: "bottle", count: 1 },
       do: [bottlePrice],
       say: "Ta.",
@@ -88,80 +89,95 @@ function open(view: PartnerView = partner()): Conversation {
   return openConversation(shop, npc, view);
 }
 
+function choose(at: Conversation, index: number, view: PartnerView) {
+  return chooseOption(shop, at, index, view)!;
+}
+
 describe("opening and going back", () => {
-  it("opens at the root with the opening line, named", () => {
-    expect(open()).toEqual({ npcId: "npc:1", tileId: "seller", path: [], line: "Hello, ann." });
+  it("opens at the root with the opening line, named, asking", () => {
+    expect(open()).toEqual({
+      npcId: "npc:1",
+      tileId: "seller",
+      path: [],
+      line: "Hello, ann.",
+      stage: "asking",
+    });
   });
 
   it("names a partner who has gone as someone", () => {
     expect(open(partner({ name: () => null })).line).toBe("Hello, someone.");
   });
 
-  it("goes back to the root with the opening line", () => {
+  it("goes back one level, saying that reply again, and to the top from one deep", () => {
     const view = partner();
-    const asked = chooseOption(shop, open(view), 1, undefined, view)!;
-    expect(asked.path).toEqual([1]);
-    expect(backToRoot(shop, asked, view)).toEqual({ ...asked, path: [], line: "Hello, ann." });
+    const asked = choose(open(view), 1, view);
+    const refused = choose(asked, 0, view);
+    expect(refused).toMatchObject({ path: [1, 0], stage: "answered" });
+    expect(goBack(shop, refused, view)).toEqual({ ...asked, path: [1], line: "Fourteen shards. Deal?", stage: "asking" });
+    expect(goBack(shop, asked, view)).toEqual({ ...asked, path: [], line: "Hello, ann.", stage: "asking" });
+  });
+
+  it("goes back without asking or running anything", () => {
+    const view = partner({ carries: () => true });
+    const asked = choose(open(view), 1, view);
+    const bought = choose(asked, 0, view);
+    expect(view.attempts).toHaveLength(1);
+    goBack(shop, bought, view);
+    expect(view.attempts).toHaveLength(1);
   });
 });
 
 describe("pressing a button", () => {
-  it("answers with the option's line, and stays at the root when it has no follow-ups", () => {
+  it("answers a leaf with its line, and leaves only Back", () => {
     const view = partner();
-    expect(chooseOption(shop, open(view), 0, undefined, view)).toEqual({
+    expect(choose(open(view), 0, view)).toEqual({
       ...open(view),
+      path: [0],
       line: "Ten crystals, one solution.",
+      stage: "answered",
     });
   });
 
   it("descends into a reply's follow-ups", () => {
     const view = partner();
-    const asked = chooseOption(shop, open(view), 1, undefined, view)!;
-    expect(asked.path).toEqual([1]);
-    expect(asked.line).toBe("Fourteen shards. Deal?");
+    const asked = choose(open(view), 1, view);
+    expect(asked).toMatchObject({ path: [1], line: "Fourteen shards. Deal?", stage: "asking" });
     // The buttons on offer are now the follow-ups: index 1 is "No".
-    expect(chooseOption(shop, asked, 1, undefined, view)).toEqual({
-      ...asked,
-      path: [],
-      line: "Suit yourself.",
-    });
+    expect(choose(asked, 1, view)).toMatchObject({ path: [1, 1], line: "Suit yourself.", stage: "answered" });
   });
 
-  it("refuses a position nothing is at", () => {
+  it("refuses a position nothing is at, and a press while not asking", () => {
     const view = partner();
-    expect(chooseOption(shop, open(view), 9, undefined, view)).toBeNull();
+    expect(chooseOption(shop, open(view), 9, view)).toBeNull();
+    const leaf = choose(open(view), 0, view);
+    expect(chooseOption(shop, leaf, 0, view)).toBeNull();
   });
 
-  it("says the else line when the condition fails, and runs nothing", () => {
+  it("says the else line when the condition fails, runs nothing, and is a leaf", () => {
     const view = partner();
-    const asked = chooseOption(shop, open(view), 1, undefined, view)!;
-    const refused = chooseOption(shop, asked, 0, undefined, view)!;
-    expect(refused.line).toBe("That's not fourteen shards.");
+    const asked = choose(open(view), 1, view);
+    const refused = choose(asked, 0, view);
+    expect(refused).toMatchObject({ path: [1, 0], line: "That's not fourteen shards.", stage: "answered" });
     expect(view.attempts).toEqual([]);
-    // The question stays open: the follow-ups are still the buttons on offer.
-    expect(refused.path).toEqual([1]);
   });
 
   it("runs the effects on the partner when the condition holds", () => {
     const view = partner({ carries: (tileId, count) => tileId === "shard" && count === 14 });
-    const asked = chooseOption(shop, open(view), 1, undefined, view)!;
-    const bought = chooseOption(shop, asked, 0, undefined, view)!;
-    expect(bought).toEqual({ ...asked, path: [], line: "Here you go, ann." });
+    const asked = choose(open(view), 1, view);
+    expect(choose(asked, 0, view)).toMatchObject({ path: [1, 0], line: "Here you go, ann.", stage: "answered" });
     expect(view.attempts).toEqual([[price]]);
   });
 
   it("says the else line when the effects are refused", () => {
     const view = partner({ carries: () => true, attempt: () => false });
-    const asked = chooseOption(shop, open(view), 1, undefined, view)!;
-    expect(chooseOption(shop, asked, 0, undefined, view)!.line).toBe(
-      "That's not fourteen shards.",
-    );
+    const asked = choose(open(view), 1, view);
+    expect(choose(asked, 0, view).line).toBe("That's not fourteen shards.");
   });
 
   it("keeps the last line when a refusal has nothing to say", () => {
     const view = partner();
     const opened = open(view);
-    expect(chooseOption(shop, opened, 4, undefined, view)).toEqual(opened);
+    expect(choose(opened, 4, view)).toEqual({ ...opened, path: [4], stage: "answered" });
   });
 
   it("composes conditions, and reads a tag its own effect wrote", () => {
@@ -173,45 +189,52 @@ describe("pressing a button", () => {
         return true;
       },
     });
-    expect(chooseOption(shop, open(view), 3, undefined, view)!.line).toBe("Just this once.");
-    expect(chooseOption(shop, open(view), 3, undefined, view)!.line).toBe("I told you already.");
+    expect(choose(open(view), 3, view).line).toBe("Just this once.");
+    expect(choose(open(view), 3, view).line).toBe("I told you already.");
   });
 
   it("asks about a status", () => {
     const view = partner({ hasStatus: (id) => id === "luminous" });
-    expect(chooseOption(shop, open(view), 4, undefined, view)!.line).toBe("You're glowing.");
+    expect(choose(open(view), 4, view).line).toBe("You're glowing.");
   });
 });
 
 describe("an amount", () => {
-  it("multiplies every count in the condition and the trade", () => {
-    const asked: Array<[string, number]> = [];
-    const view = partner({
-      carries: (tileId, count) => (asked.push([tileId, count]), true),
-    });
-    chooseOption(shop, open(view), 2, 5, view);
-    expect(asked).toEqual([["bottle", 5]]);
+  it("asks first, running nothing, and counts", () => {
+    const view = partner();
+    const asked = choose(open(view), 2, view);
+    expect(asked).toMatchObject({ path: [2], line: "How many, ann?", stage: "counting" });
+    expect(view.attempts).toEqual([]);
+  });
+
+  it("multiplies every count in the condition and the trade on confirm", () => {
+    const counted: Array<[string, number]> = [];
+    const view = partner({ carries: (tileId, count) => (counted.push([tileId, count]), true) });
+    const asked = choose(open(view), 2, view);
+    const sold = confirmAmount(shop, asked, 5, view)!;
+    expect(sold).toMatchObject({ path: [2], line: "Ta.", stage: "answered" });
+    expect(counted).toEqual([["bottle", 5]]);
     expect(view.attempts).toEqual([
-      [
-        {
-          effect: "trade",
-          take: [{ tileId: "bottle", count: 5 }],
-          give: [{ tileId: "shard", count: 10 }],
-        },
-      ],
+      [{ effect: "trade", take: [{ tileId: "bottle", count: 5 }], give: [{ tileId: "shard", count: 10 }] }],
     ]);
   });
 
   it("is clamped to the author's range", () => {
     const view = partner({ carries: () => true });
-    chooseOption(shop, open(view), 2, 40, view);
+    confirmAmount(shop, choose(open(view), 2, view), 40, view);
     expect(view.attempts[0]![0]).toMatchObject({ take: [{ tileId: "bottle", count: 12 }] });
   });
 
-  it("means one for a button with no stepper, whatever was sent", () => {
-    const view = partner({ carries: () => true });
-    const asked = chooseOption(shop, open(view), 1, undefined, view)!;
-    chooseOption(shop, asked, 0, 3, view);
-    expect(view.attempts).toEqual([[price]]);
+  it("refuses a confirm when nothing was asked, and a press while counting", () => {
+    const view = partner();
+    expect(confirmAmount(shop, open(view), 3, view)).toBeNull();
+    const asked = choose(open(view), 2, view);
+    expect(chooseOption(shop, asked, 0, view)).toBeNull();
+  });
+
+  it("says the else line and is a leaf when short", () => {
+    const view = partner();
+    const asked = choose(open(view), 2, view);
+    expect(confirmAmount(shop, asked, 3, view)).toMatchObject({ line: "You've no bottles.", stage: "answered" });
   });
 });

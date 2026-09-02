@@ -346,11 +346,19 @@ brain memory's terms: a conversation is a state of play.
   is the case and a balcony is not. Re-asked by `tickConversations` every
   simulation tick, so walking off closes the panel silently the tick you
   have left. The Talk row is offered only where pressing it would open one.
-- **A reply with no follow-ups lands back at the root**, buttons and all, so
-  the panel never shows a line with nothing under it. A root button pressed
-  while a reply is on screen starts over from the root — the root's buttons
-  and a reply's follow-ups lead to different places, and `pathTo` keeps them
-  apart.
+- **It is a tree, and it reads as one.** Under a reply are that reply's
+  `then` buttons and nothing else; under a leaf — a reply with no follow-ups,
+  or any refusal — only *Back*. `Conversation.stage` says which, decided
+  where the press was answered (`asking`, `counting`, `answered`) so the
+  panel never works out from a path whether a reply succeeded. *Back* goes
+  up one level and says the parent's line again — a repeat of words, never
+  of deeds — so somebody three presses deep who wants a different answer to
+  the last question does not have to find the question again.
+- **An amount is a question first.** Pressing an option with an `amount`
+  runs nothing: the NPC says the amount's `prompt`, the panel shows a
+  stepper and the `confirm` button, and only a `confirm` message runs the
+  option with every count multiplied. "How many" is a question the NPC asks,
+  and a tree of questions is what this is.
 - **The panel takes the reach list's place**, on desktop and on a phone
   alike: a conversation is what is in reach, said longer. Same walls, same
   rows, same close button as a container panel, so nothing about it has to be
@@ -373,11 +381,11 @@ button that does nothing when pressed reads as broken.
   answers. That keeps the step pure, keeps the editor's future try-it honest
   (it hands over a pretend kit), and keeps every rule about a body's squares
   in the modules that own them.
-- **An amount multiplies every count.** `amount: { min, max }` puts a stepper
-  beside the button, and the chosen number scales the trade sides and the
-  counted conditions alike, so "sell 5 bottles" is one press and one authored
-  price. Clamped server-side rather than refused: the stepper and the check
-  are two readings of one range, and a press one over the edge is a race.
+- **An amount multiplies every count.** The number confirmed scales the trade
+  sides and the counted conditions alike, so "sell 5 bottles" is one
+  authored price. Clamped server-side rather than refused: the stepper and
+  the check are two readings of one range, and a press one over the edge is
+  a race.
 - **A `do` list is a transaction.** `attemptDialogEffects` plans every trade
   against the kit the one before it leaves and checks every status against the
   catalogue *before* anything is written; then the kit changes once and the
@@ -395,9 +403,9 @@ button that does nothing when pressed reads as broken.
   nothing left to decide. All or nothing, and nothing ever reaches the floor.
 - **A container is never on either side.** The schema refuses it with a
   catalogue in hand, and the runtime refuses it without one.
-- **A refused follow-up stays on screen.** "Deal" again once the shards are
-  in hand is the same question, not a new one, so the path is left alone on a
-  refusal and only the line changes.
+- **A refusal is a leaf.** The question was answered, even if the answer was
+  no, so only *Back* is on offer — and Back lands on the question, so "Deal"
+  again once the shards are in hand is one press away.
 - **Passed through the tile save untouched**, like the brain and for the same
   reason: the tree is `./dialog`'s to know, and until the editor has a tab for
   it the only way one survives the tile dialog is unread.

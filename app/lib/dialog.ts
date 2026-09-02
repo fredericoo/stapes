@@ -10,10 +10,12 @@ import type { TileDef } from "./types";
  *
  * A player presses *Talk* on a body, a panel opens with the NPC's `opening`
  * line and a button per root option, and every press answers with that
- * option's `say` and — when it has `then` — a new set of buttons. *Back*
- * returns to the root; *Close* ends it. Nothing is typed: what an NPC can be
- * asked is what is on the buttons, which is the whole of its discoverability
- * and the whole of why it works on a phone.
+ * option's `say` and its own `then` buttons — or, for a reply with none, only
+ * *Back*. *Back* goes up one level; *Close* ends it. It is read as a tree:
+ * under a reply are that reply's follow-ups and nothing else, so a branch is
+ * as deep as the author made it. Nothing is typed: what an NPC can be asked
+ * is what is on the buttons, which is the whole of its discoverability and
+ * the whole of why it works on a phone.
  *
  * This replaced typed keywords. The brain already hears (`heard`) and talks
  * (`say`) and the `shopkeeper` holds a hi/bye conversation on nothing else,
@@ -33,9 +35,10 @@ import type { TileDef } from "./types";
  *
  * An option may carry an `if` (asked of the partner: what they carry, whether
  * there is room, a tag, a status), a `do` (a trade, a status, a tag — all or
- * none), and an `else` said instead when either refuses. An `amount` puts a
- * stepper beside the button and multiplies every count in the option's trade
- * and conditions, which is how "sell 5 bottles" is one press.
+ * none), and an `else` said instead when either refuses. A refusal is a leaf
+ * like any other answer: only *Back*. An `amount` makes the option a question
+ * first — the NPC asks how many, a stepper answers — and multiplies every
+ * count in the option's trade and conditions by the number confirmed.
  *
  * Parsed with valibot and memoised on def identity, on the same trust model
  * as every other interaction block: a malformed dialog is a body with no Talk
@@ -88,14 +91,26 @@ export type DialogEffectDef =
   | { effect: "tag"; tag: string };
 
 /**
- * A stepper beside the button, and what it multiplies.
+ * A quantity asked for before the option does anything.
  *
- * Every `count` in the option's trade and in its `carries` / `room_for`
- * conditions is multiplied by the chosen amount, so one authored price covers
- * "one bottle" and "all nine". The bounds are the author's: a shop that buys
- * at most a dozen at a time says so here.
+ * Pressing an option with an amount does not run it: the NPC asks `prompt`,
+ * the panel shows a stepper and a `confirm` button, and only the confirm runs
+ * the option's `if` and `do` with every `count` in them multiplied by the
+ * chosen number — so one authored price covers "one bottle" and "all nine".
+ * Two steps rather than a stepper beside the button, because "how many" is a
+ * question the NPC asks, and a tree of questions is what this is.
  */
-export type DialogAmount = { min: number; max: number };
+export type DialogAmount = {
+  min: number;
+  max: number;
+  /** What the NPC says while asking. `{partner}` is filled. */
+  prompt: string;
+  /** The confirm button. Absent reads "Confirm". */
+  confirm?: string;
+};
+
+/** What an amount's confirm button says when the author left it blank. */
+export const DEFAULT_CONFIRM_LABEL = "Confirm";
 
 export type DialogOption = {
   /** The button. Short — it is a button. */
@@ -108,7 +123,7 @@ export type DialogOption = {
   say: string;
   /** Said instead of `say` when `if` failed or `do` was refused. */
   else?: string;
-  /** A quantity to choose before pressing. @see DialogAmount */
+  /** A quantity the NPC asks for before this runs. @see DialogAmount */
   amount?: DialogAmount;
   /** The buttons shown after this reply, instead of the root's. */
   then?: DialogOption[];
@@ -181,6 +196,8 @@ const amountSchema = v.pipe(
   v.object({
     min: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_DIALOG_AMOUNT)),
     max: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_DIALOG_AMOUNT)),
+    prompt: line,
+    confirm: v.optional(v.pipe(v.string(), v.trim(), v.minLength(1))),
   }),
   v.check((raw) => raw.max >= raw.min, "an amount's ceiling is at least its floor"),
 );
@@ -243,19 +260,19 @@ export function optionAt(
 }
 
 /**
- * The buttons on offer at a path: the reply's own `then`, or the root's when
- * there is none.
+ * The buttons under a path: the root's at the root, and otherwise that
+ * reply's own `then` — which is nothing for a reply with no follow-ups.
  *
- * The root rather than nothing, so an option with no follow-ups lands the
- * player back at the top with the reply still on screen — the ordinary shape
- * of "ask about the recipe, then ask about something else".
+ * Nothing rather than the root, because this is a tree: a reply with nothing
+ * under it is a leaf, and the way out of a leaf is *Back*. Offering the root
+ * again under every reply would make every branch one press deep.
  */
 export function optionsAt(
   dialog: DialogDef,
   path: readonly number[],
 ): readonly DialogOption[] {
-  const current = path.length === 0 ? null : optionAt(dialog, path);
-  return current?.then?.length ? current.then : dialog.options;
+  if (path.length === 0) return dialog.options;
+  return optionAt(dialog, path)?.then ?? [];
 }
 
 /**
@@ -364,6 +381,9 @@ function checkOptionRules(
   }
   if (option.amount && option.amount.max < option.amount.min) {
     error(`${name} has an amount whose ceiling is below its floor`);
+  }
+  if (option.amount && option.amount.prompt.trim() === "") {
+    error(`${name} asks for an amount without saying so`);
   }
   if (option.amount && countedIn(option) === 0) {
     warn(`${name} has an amount stepper but nothing counted for it to multiply`);
