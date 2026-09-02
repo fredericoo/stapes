@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import statusesJson from "../../data/statuses.json";
+import tilesJson from "../../data/tiles.json";
 import { resolveAfflict, resolveEndure } from "../lib/interactions";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import { statusesById } from "../lib/status";
@@ -505,6 +507,79 @@ describe("a flame in a world", () => {
   it("rests again once the fire has nothing left to take", () => {
     const play = session(world([{ at: ORIGIN, stack: ["stone", "flame"] }]));
     run(play, Math.ceil(BURN_MS / TICK_MS) + 2);
+    expect(play.isAtRest()).toBe(true);
+  });
+});
+
+/**
+ * The authored numbers, against the authored statuses.
+ *
+ * Everything above runs on a catalogue this file wrote, which is what makes the
+ * arithmetic assertable — and is exactly why it cannot catch the failure that
+ * actually matters here: `burned` deals `max(4, ceil(MAX_HP / 10))`, so a
+ * durability raised past what one burn can spend leaves a tile that catches
+ * fire, smoulders and never goes. That is a drift between two files neither of
+ * which is wrong on its own, and this is the only test in a position to see it.
+ */
+describe("the content in data/", () => {
+  const authoredTiles = (tilesJson as unknown[]).map((raw) =>
+    normalizeTileDef(raw as Record<string, unknown>),
+  );
+  const authoredStatuses = statusesById(statusesJson as never);
+
+  function board(cells: { at: Coord; stack: string[] }[]): MapFile {
+    let map = emptyMap();
+    for (const { at, stack } of cells) {
+      map = replaceStack(
+        map,
+        at.x,
+        at.y,
+        at.z,
+        stack.map((tileId) => ({ tileId })),
+      );
+    }
+    return replaceStack(map, 9, 9, 0, [
+      { tileId: "grass" },
+      { tileId: "player", direction: "s" },
+    ]);
+  }
+
+  function burn(cells: { at: Coord; stack: string[] }[], ms: number) {
+    const play = new GameSession(board(cells), authoredTiles, {
+      statuses: authoredStatuses,
+    });
+    run(play, Math.ceil(ms / TICK_MS));
+    return play;
+  }
+
+  it("burns grass down to dirt under a flame", () => {
+    const play = burn([{ at: ORIGIN, stack: ["grass", "flame"] }], 30_000);
+    expect(stackIds(play.getMap(), 0, 0)).toEqual(["dirt", "flame"]);
+  });
+
+  it("carries into the grass beside it", () => {
+    const play = burn(
+      [
+        { at: ORIGIN, stack: ["grass", "flame"] },
+        { at: { x: 1, y: 0, z: 0 }, stack: ["grass"] },
+      ],
+      30_000,
+    );
+    expect(stackIds(play.getMap(), 1, 0)).toEqual(["dirt"]);
+  });
+
+  it("takes a tree down, given a flame that does not go out", () => {
+    const play = burn(
+      [{ at: ORIGIN, stack: ["dirt", "tree", "flame"] }],
+      60_000,
+    );
+    expect(stackIds(play.getMap(), 0, 0)).toEqual(["dirt", "flame"]);
+  });
+
+  it("leaves cobblestone alone, because nothing in it burns", () => {
+    const play = burn([{ at: ORIGIN, stack: ["cobblestone", "flame"] }], 30_000);
+    expect(stackIds(play.getMap(), 0, 0)).toEqual(["cobblestone", "flame"]);
+    // And the world settles again rather than smouldering forever.
     expect(play.isAtRest()).toBe(true);
   });
 });
