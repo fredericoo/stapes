@@ -13,7 +13,7 @@ import {
   IconTarget,
   IconTransform,
 } from "@tabler/icons-react";
-import { useMemo, useRef } from "react";
+import { useMemo, useState } from "react";
 import type { ExtractCooling } from "../game/extract";
 import type {
   InteractionAction,
@@ -381,7 +381,10 @@ function InteractionBox({
  * same row starts a fresh instance and a fresh reading.
  */
 function WaitFill({ cooldown }: { cooldown: ExtractCooling }) {
-  const delayMs = useRef(waitElapsedMs(cooldown)).current;
+  // A lazy initial state rather than a ref read during render: same "once, at
+  // mount" reading, and it is the one of the two React will keep giving the
+  // same answer for under a concurrent re-render.
+  const [delayMs] = useState(() => waitElapsedMs(cooldown));
 
   return (
     <span
