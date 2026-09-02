@@ -43,12 +43,13 @@
     "perf": "error"
   },
 
-  // **A `// oxlint-disable-next-line` inside a component silences that
-  // component's other react-plugin findings too** (oxlint 1.81) — adding one to
-  // `PlayPage` in `app/routes/play.tsx` hid six `react/refs` warnings elsewhere
-  // in the same component. Prefer turning a rule off here, with the reason, over
-  // suppressing it beside the line; where a directive is used, check the counts
-  // before and after.
+  // **Suppress with the block form, not with `oxlint-disable-next-line`.** A
+  // `// oxlint-disable-next-line` inside a component silences that component's
+  // other react-plugin findings too (oxlint 1.81): one in `PlayPage` hid six
+  // `react/refs` warnings elsewhere in the same component. The paired
+  // `/* oxlint-disable <rule> */` … `/* oxlint-enable <rule> */` is scoped to
+  // what is between them — checked by stripping the directives and comparing
+  // the counts, which is worth doing whenever one is added.
   "rules": {
     // ---------------------------------------------------------------------
     // Off, and why. Each of these was read at every site it fires on before

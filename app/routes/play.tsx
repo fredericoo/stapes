@@ -181,6 +181,13 @@ export default function PlayPage() {
     [],
   );
 
+  // The block below mirrors live props into refs during render, and is disabled
+  // for `react/refs` as one block rather than line by line. The renderer and the
+  // session are built once by the effect underneath and outlive every render
+  // after it; each of them reads these at a moment of its own choosing — a frame,
+  // a keypress — so a value that only landed in an effect would be one render
+  // stale exactly when something between the two asked for it.
+  /* oxlint-disable react/refs */
   const minutesRef = useRef(minutesOfDay);
   minutesRef.current = minutesOfDay;
   const pausedRef = useRef(clockPaused);
@@ -203,6 +210,7 @@ export default function PlayPage() {
   // it was carrying when the world was built.
   const spellsRef = useRef(spells);
   spellsRef.current = spells;
+  /* oxlint-enable react/refs */
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -210,6 +218,9 @@ export default function PlayPage() {
 
     let session: GameSession;
     try {
+      // `statusDefs` is deliberately not a dependency of this effect; the note
+      // on the dependency list below says why.
+      /* oxlint-disable-next-line react/exhaustive-effect-dependencies */
       session = new GameSession(map, tiles, { statuses: statusDefs });
     } catch (err) {
       console.error(err);
@@ -283,7 +294,9 @@ export default function PlayPage() {
     // builds a new one, and an editor save must not do that just to recolour a
     // plume. It reaches the running renderer through the effect below and
     // through `statusDefsRef` for a session that outlives this render.
+    /* oxlint-disable react-hooks/exhaustive-deps */
   }, [map, tiles, tilesets, assetsReady]);
+  /* oxlint-enable react-hooks/exhaustive-deps */
 
   useEffect(() => {
     rendererRef.current?.setClockPaused(clockPaused);

@@ -226,6 +226,13 @@ export default function OnlinePage() {
 
   const [lightingEnabled, setLightingEnabled] = useState(true);
   const { mode, looking, attacking, setMode } = usePlayModes();
+  // The block below mirrors live props into refs during render, and is disabled
+  // for `react/refs` as one block rather than line by line. The renderer, the
+  // session and the key bindings are all built on `hello` and outlive every
+  // render after it; each reads these at a moment of its own choosing, so a
+  // value that only landed in an effect would be one render stale exactly when
+  // something between the two asked for it.
+  /* oxlint-disable react/refs */
   // Same reason as the lighting ref below: a reconnect builds a fresh renderer,
   // and it has to come up in whatever mode the player is already in.
   const lookingRef = useRef(looking);
@@ -250,6 +257,7 @@ export default function OnlinePage() {
   statusDefsRef.current = statusDefs;
   const lightingRef = useRef(lightingEnabled);
   lightingRef.current = lightingEnabled;
+  /* oxlint-enable react/refs */
 
   useEffect(() => {
     rendererRef.current?.setLightingEnabled(lightingEnabled);

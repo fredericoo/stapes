@@ -33,12 +33,12 @@ export function DragLayer({
   tilesById: Record<string, TileDef>;
   tilesets: TilesetDef[];
 }) {
-  const held = drag.held;
+  const { held, layerRef } = drag;
   const tile = held ? (tilesById[held.instance.tileId] ?? null) : null;
 
   return (
     <div
-      ref={drag.layerRef}
+      ref={layerRef}
       className="pointer-events-none fixed left-0 top-0 z-50"
       // Hidden rather than unmounted, so the node the hook writes its transform
       // to exists before the first pointer move: mounting it on drag start would

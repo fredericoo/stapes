@@ -122,6 +122,10 @@ export function useTap(onTap: () => void): TapProps {
    * `useCallback` to avoid it.
    */
   const run = useRef(onTap);
+  // Mirrored during render on purpose: the handlers below are bound once and
+  // must run whatever the caller passed for *this* render, and an effect would
+  // leave them a render behind.
+  /* oxlint-disable-next-line react/refs */
   run.current = onTap;
 
   const onPointerDown = useCallback((event: React.PointerEvent) => {

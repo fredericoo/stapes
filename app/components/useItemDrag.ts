@@ -139,6 +139,7 @@ export function useItemDrag({
   const pointRef = useRef<{ x: number; y: number } | null>(null);
   /** Read by the window listeners, which are bound once. */
   const worldRef = useRef(world);
+  /* oxlint-disable-next-line react/refs -- mirrored during render; see above */
   worldRef.current = world;
   /**
    * A drag ended on this element, so the click it is about to fire is the tail
@@ -148,9 +149,14 @@ export function useItemDrag({
    */
   const swallowClick = useRef(false);
 
+  // Mirrored during render rather than from an effect, on the same grounds the
+  // listeners are bound once: a pointer that crosses a slot between this render
+  // and an effect would be answered with the previous drag's state.
+  /* oxlint-disable react/refs */
   heldRef.current = held;
   overRef.current = over;
   acceptingRef.current = targets;
+  /* oxlint-enable react/refs */
 
   const register = useCallback(
     (key: string, slot: SlotRef, el: HTMLElement | null) => {
