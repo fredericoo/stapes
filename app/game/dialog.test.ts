@@ -115,7 +115,9 @@ const tiles: TileDef[] = [
   tile({ id: "shop", height: 4, walkable: false, interactions: { dialog: shopDialog } }),
   tile({ id: "seller", height: 4, walkable: false, interactions: { dialog } }),
   tile({ id: "server", height: 4, walkable: false, interactions: { dialog, brain: standsToServe } }),
-  ...normalizeTiles(tilesJson as unknown[]).filter((t) => t.id === "potion-salesman"),
+  ...normalizeTiles(tilesJson as unknown[]).filter((t) =>
+    ["potion-salesman", "arcane-shard", "luminous-potion", "empty-bottle"].includes(t.id),
+  ),
 ];
 
 /** Open grass, the player at the origin and one body two cells east. */
@@ -220,6 +222,36 @@ describe("the potion salesman, as authored", () => {
     ]);
     session.hear("local", "bye");
     expect(brainTick(session)).toEqual([expect.stringContaining("Mind the dark")]);
+  });
+
+  it("sells a potion for fourteen shards, and buys a bottle for two", () => {
+    let map = fieldWith("potion-salesman");
+    map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "arcane-shard", count: 14 }]);
+    map = replaceStack(map, 1, 1, 0, [{ tileId: "grass" }, { tileId: "empty-bottle" }]);
+    const session = new GameSession(map, tiles);
+    session.pickUp({ x: 0, y: 1, z: 0, stackIndex: 1 });
+    session.pickUp({ x: 1, y: 1, z: 0, stackIndex: 1 });
+    const say = (line: string) => {
+      session.hear("local", line);
+      return brainTick(session);
+    };
+    const bag = () =>
+      session.getSnapshot().equipment.bag?.contents?.map((i) =>
+        i.count ? `${i.tileId}x${i.count}` : i.tileId,
+      );
+
+    say("hi");
+    expect(say("potion")).toEqual([expect.stringContaining("Fourteen shards. Deal?")]);
+    expect(say("yes")).toEqual([expect.stringContaining("Drink it somewhere dark")]);
+    expect(bag()).toEqual(["empty-bottle", "luminous-potion"]);
+
+    expect(say("bottle")).toEqual([expect.stringContaining("Sell one?")]);
+    expect(say("yes")).toEqual(["potion-salesman: Ta. Any more?"]);
+    expect(bag()).toEqual(["luminous-potion", "arcane-shardx2"]);
+    expect(say("yes")).toEqual(["potion-salesman: That's the last of them."]);
+
+    say("potion");
+    expect(say("yes")).toEqual([expect.stringContaining("That's not fourteen shards")]);
   });
 });
 

@@ -3075,7 +3075,41 @@
               "glow",
               "buy"
             ],
-            "say": "A Luminous Potion: drink it and you glow for an hour. Fourteen shards, once my scales arrive."
+            "say": "A Luminous Potion: drink it and you glow for an hour. Fourteen shards. Deal?",
+            "then": [
+              {
+                "hear": [
+                  "yes",
+                  "deal",
+                  "ok"
+                ],
+                "do": [
+                  {
+                    "effect": "trade",
+                    "take": [
+                      {
+                        "tileId": "arcane-shard",
+                        "count": 14
+                      }
+                    ],
+                    "give": [
+                      {
+                        "tileId": "luminous-potion",
+                        "count": 1
+                      }
+                    ]
+                  }
+                ],
+                "say": "Drink it somewhere dark, {partner}.",
+                "else": "That's not fourteen shards, {partner}. Or you've nowhere to put it."
+              },
+              {
+                "hear": [
+                  "no"
+                ],
+                "say": "Suit yourself."
+              }
+            ]
           },
           {
             "hear": [
@@ -3091,7 +3125,75 @@
               "bottles",
               "sell"
             ],
-            "say": "I buy empty bottles, two shards each. Bring them once my scales arrive."
+            "say": "I buy empty bottles, two shards each. Sell one?",
+            "then": [
+              {
+                "hear": [
+                  "yes",
+                  "deal",
+                  "ok"
+                ],
+                "do": [
+                  {
+                    "effect": "trade",
+                    "take": [
+                      {
+                        "tileId": "empty-bottle",
+                        "count": 1
+                      }
+                    ],
+                    "give": [
+                      {
+                        "tileId": "arcane-shard",
+                        "count": 2
+                      }
+                    ]
+                  }
+                ],
+                "say": "Ta. Any more?",
+                "else": "You've no empty bottles on you, {partner}. Or nowhere to put the shards.",
+                "then": [
+                  {
+                    "hear": [
+                      "yes",
+                      "another",
+                      "more"
+                    ],
+                    "do": [
+                      {
+                        "effect": "trade",
+                        "take": [
+                          {
+                            "tileId": "empty-bottle",
+                            "count": 1
+                          }
+                        ],
+                        "give": [
+                          {
+                            "tileId": "arcane-shard",
+                            "count": 2
+                          }
+                        ]
+                      }
+                    ],
+                    "say": "Ta. Any more?",
+                    "else": "That's the last of them."
+                  },
+                  {
+                    "hear": [
+                      "no"
+                    ],
+                    "say": "Suit yourself."
+                  }
+                ]
+              },
+              {
+                "hear": [
+                  "no"
+                ],
+                "say": "Suit yourself."
+              }
+            ]
           }
         ]
       },
