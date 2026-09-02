@@ -72,7 +72,7 @@ function directionalTile(id: string, extra: Record<string, unknown> = {}) {
   return normalizeTileDef({
     id,
     name: id,
-    height: 2,
+    height: 4,
     directional: true,
     attributes: {},
     variants: { n: frames, e: frames, s: frames, w: frames },
@@ -100,7 +100,7 @@ function itemTile(
 
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
-  tile({ id: "wall", height: 2 }),
+  tile({ id: "wall", height: 4 }),
   // A battler with a kit, because that is now the only way anybody gets a bag
   // — and half this file is about a berry ripening inside one. See
   // `app/lib/kit.ts`.
@@ -227,7 +227,7 @@ const tiles: TileDef[] = [
   // and cannot die at all, which is what a statue is.
   tile({
     id: "scarecrow",
-    height: 1,
+    height: 2,
     actor: true,
     walkable: false,
     kind: "battler",

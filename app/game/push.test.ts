@@ -33,12 +33,12 @@ function tile(
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
   tile({ id: "sand", height: 0 }),
-  tile({ id: "slab", height: 1 }),
-  tile({ id: "wall", height: 2 }),
-  tile({ id: "tree", height: 2, walkable: false }),
-  tile({ id: "crate", height: 1, affectedByGravity: true }),
-  tile({ id: "boulder", height: 2, affectedByGravity: true }),
-  tile({ id: "statue", height: 1 }),
+  tile({ id: "slab", height: 2 }),
+  tile({ id: "wall", height: 4 }),
+  tile({ id: "tree", height: 4, walkable: false }),
+  tile({ id: "crate", height: 2, affectedByGravity: true }),
+  tile({ id: "boulder", height: 4, affectedByGravity: true }),
+  tile({ id: "statue", height: 2 }),
 ];
 
 const tilesById = tilesByIdFromList(tiles);

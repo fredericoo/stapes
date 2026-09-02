@@ -216,13 +216,13 @@ function tile(
 describe("intangible physical height", () => {
   const tilesById = tilesByIdFromList([
     tile({ id: "grass", height: 0 }),
-    tile({ id: "wall", height: 2 }),
-    tile({ id: "door-open", height: 2, intangible: true, walkable: false }),
-    tile({ id: "torch", height: 1, intangible: true }),
+    tile({ id: "wall", height: 4 }),
+    tile({ id: "door-open", height: 4, intangible: true, walkable: false }),
+    tile({ id: "torch", height: 2, intangible: true }),
   ]);
 
   it("reads authored height as zero when intangible", () => {
-    expect(physicalHeight(tilesById["wall"]!)).toBe(2);
+    expect(physicalHeight(tilesById["wall"]!)).toBe(4);
     expect(physicalHeight(tilesById["door-open"]!)).toBe(0);
   });
 
@@ -235,7 +235,7 @@ describe("intangible physical height", () => {
     ).toBe(0);
     expect(
       stackHeight([{ tileId: "wall" }, { tileId: "torch" }], tilesById),
-    ).toBe(2);
+    ).toBe(4);
   });
 
   it("looks through intangible tops for the solid surface", () => {
@@ -266,7 +266,7 @@ describe("intangible physical height", () => {
       0,
       [{ tileId: "grass" }, { tileId: "door-open" }],
     );
-    const player = tile({ id: "player", height: 2 });
+    const player = tile({ id: "player", height: 4 });
     expect(fitsAtElevation(map, 1, 0, 0, player, tilesById).ok).toBe(true);
     // Same cell with a solid wall still blocks.
     const blocked = replaceStack(map, 1, 0, 0, [

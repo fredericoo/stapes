@@ -33,7 +33,7 @@ function tile(partial: Record<string, unknown>): TileDef {
 const tiles = [
   tile({ id: "grass" }),
   // Something with volume, which is what it takes to bury a thing.
-  tile({ id: "crate", height: 1 }),
+  tile({ id: "crate", height: 2 }),
   tile({ id: "sword", kind: "item", interactions: { item: DEFAULT_WEAPON } }),
   tile({ id: "sign" }),
   tile({ id: "bag", kind: "item", interactions: { item: DEFAULT_CONTAINER } }),

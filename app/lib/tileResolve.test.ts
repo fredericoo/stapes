@@ -50,7 +50,7 @@ describe("normalizeTileDef", () => {
     const def = normalizeTileDef({
       id: "ramp",
       name: "Ramp",
-      height: 1,
+      height: 2,
       directional: true,
       variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
       attributes: {},

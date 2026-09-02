@@ -9,7 +9,7 @@ import {
   terrainHeight,
 } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
-import { normalizeTileDef } from "../lib/types";
+import { HEIGHT_PER_LEVEL, normalizeTileDef } from "../lib/types";
 import {
   canReplaceStack,
   fitsTile,
@@ -51,13 +51,13 @@ function tile(
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
   tile({ id: "dirt", height: 0 }),
-  tile({ id: "slab", height: 1 }),
-  tile({ id: "plaster", height: 1 }),
-  tile({ id: "wall", height: 2 }),
+  tile({ id: "slab", height: 2 }),
+  tile({ id: "plaster", height: 2 }),
+  tile({ id: "wall", height: 4 }),
   tile({ id: "roof", height: 0 }),
   tile({
     id: "player",
-    height: 2,
+    height: 4,
     directional: true,
     affectedByGravity: true,
     walkable: false,
@@ -104,56 +104,56 @@ const tiles: TileDef[] = [
       ],
     },
   }),
-  tile({ id: "dwarf", height: 1, affectedByGravity: true }),
+  tile({ id: "dwarf", height: 2, affectedByGravity: true }),
   // A body that is not a person. Full height and non-walkable exactly as the
   // player tile is, so a test that distinguishes the two is distinguishing who
   // they are rather than what shape they are.
   tile({
     id: "deer",
-    height: 2,
+    height: 4,
     walkable: false,
     actor: true,
     affectedByGravity: true,
   }),
-  tile({ id: "tree", height: 2, walkable: false }),
+  tile({ id: "tree", height: 4, walkable: false }),
   tile({
     id: "crate",
-    height: 1,
+    height: 2,
     affectedByGravity: true,
     interactions: { push: { climb: "half", moveOnTileIds: [] } },
   }),
   tile({
     id: "door-closed",
-    height: 1,
+    height: 2,
     walkable: false,
     interactions: { switch: { targetTileId: "door-open" } },
   }),
   tile({
     id: "door-open",
-    height: 1,
+    height: 2,
     walkable: false,
     interactions: { switch: { targetTileId: "door-closed" } },
   }),
   tile({
     id: "door-tall",
-    height: 2,
+    height: 4,
     walkable: false,
   }),
   tile({
     id: "switch-to-tall",
-    height: 1,
+    height: 2,
     walkable: false,
     interactions: { switch: { targetTileId: "door-tall" } },
   }),
   tile({
     id: "door-ajar",
-    height: 2,
+    height: 4,
     intangible: true,
     walkable: false,
   }),
   tile({
     id: "ramp",
-    height: 1,
+    height: 2,
     directional: true,
     // Tall end is opposite facing (south-facing → climb north).
     climbFrom: {
@@ -309,7 +309,7 @@ describe("a body is not terrain", () => {
       { tileId: "grass" },
       { tileId: "player", direction: "s" },
     ]);
-    expect(stackHeight(getStack(map, 0, 0, 0), tilesById)).toBe(2);
+    expect(stackHeight(getStack(map, 0, 0, 0), tilesById)).toBe(4);
   });
 
   it("does not lift the body standing beside it", () => {
@@ -433,14 +433,14 @@ describe("a body is not terrain", () => {
       { tileId: "player", direction: "s" as const, owner: "a" },
       { tileId: "roof" },
     ];
-    expect(elevationAt(stack, 2, tilesById)).toBe(1);
+    expect(elevationAt(stack, 2, tilesById)).toBe(2);
   });
 
   it("weighs nothing as a single placement", () => {
     // The one definition every elevation walk in the codebase now goes through.
     const marker = { tileId: "player", direction: "s" as const };
     const body = { tileId: "player", direction: "s" as const, owner: "a" };
-    expect(terrainHeight(marker, tilesById)).toBe(2);
+    expect(terrainHeight(marker, tilesById)).toBe(4);
     expect(terrainHeight(body, tilesById)).toBe(0);
   });
 
@@ -645,8 +645,62 @@ describe("canWalk climb", () => {
     expect(check.ok).toBe(false);
   });
 
+  /**
+   * Why a level is four units rather than two.
+   *
+   * An interior is exactly one storey tall, so a body as tall as a storey has
+   * its head in the floor above the moment anything raises it — which is what
+   * made every chair and stool in every building unclimbable. A person shorter
+   * than the storey has room for one unit under their feet, and exactly one:
+   * the seat is the whole indoor vocabulary, and a half-level crate is still
+   * something you walk around.
+   */
+  it("stands on a seat under a roof, but not on a half-level crate", () => {
+    // The numbers are the point, so they are written out: a storey is four, a
+    // body is one short of it, and a seat is what fits in the difference.
+    expect(HEIGHT_PER_LEVEL).toBe(4);
+    const person = tile({ id: "person", height: 3 });
+    const seat = tile({ id: "seat", height: 1 });
+    const crate = tile({ id: "crate", height: 2 });
+    const indoors = tilesByIdFromList([...tiles, person, seat, crate]);
+
+    const room = (furniture: string): MapFile => {
+      let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }]);
+      map = appendTile(map, 0, 0, 0, { tileId: "person" });
+      map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: furniture }]);
+      // The floor of the storey above — the ceiling of this one.
+      map = replaceStack(map, 0, 0, 1, [{ tileId: "roof" }]);
+      return replaceStack(map, 1, 0, 1, [{ tileId: "roof" }]);
+    };
+
+    const stepEast = (map: MapFile) =>
+      canWalk(
+        map,
+        { x: 0, y: 0, z: 0, stackIndex: getStack(map, 0, 0, 0).length - 1 },
+        "e",
+        person,
+        indoors,
+      );
+
+    expect(stepEast(room("seat")).ok).toBe(true);
+    expect(stepEast(room("crate"))).toMatchObject({ ok: false });
+
+    // And the mechanism, rather than the outcome: a body as tall as the storey
+    // cannot stand on the seat either. That was every body in the game.
+    const giant = tile({ id: "giant", height: HEIGHT_PER_LEVEL });
+    expect(
+      canWalk(
+        room("seat"),
+        { x: 0, y: 0, z: 0, stackIndex: 1 },
+        "e",
+        giant,
+        tilesByIdFromList([...tiles, giant, seat]),
+      ),
+    ).toMatchObject({ ok: false });
+  });
+
   it("steps down a level within climb height without targeting void", () => {
-    // Player on z=1 floor (abs 2); dest column has slab top at abs 1 on z=0.
+    // Player on z=1 floor (abs 4); dest column has slab top at abs 2 on z=0.
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "wall" }]);
     map = replaceStack(map, 0, 0, 1, [{ tileId: "player", direction: "s" }]);
     map = replaceStack(map, 1, 0, 0, [{ tileId: "slab" }]);
@@ -719,7 +773,7 @@ describe("canWalk climb", () => {
     if (!ontoRamp.ok) return;
     expect(ontoRamp.to).toEqual({ x: 0, y: 0, z: 0 });
 
-    // On the first ramp, climb onto half + ramp (abs 1 → 2).
+    // On the first ramp, climb onto half + ramp (abs 2 → 4).
     map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }]);
     map = replaceStack(map, 0, 0, 0, [
       { tileId: "ramp", direction: "s" },
@@ -728,7 +782,7 @@ describe("canWalk climb", () => {
     const onRamp = requireSinglePlayer(map);
     expect(
       standingAbs(map, onRamp.x, onRamp.y, onRamp.z, onRamp.stackIndex, tilesById),
-    ).toBe(1);
+    ).toBe(2);
 
     const ontoHalfRamp = canWalk(
       map,
@@ -743,8 +797,8 @@ describe("canWalk climb", () => {
     expect(ontoHalfRamp.to).toEqual({ x: 0, y: -1, z: 1 });
   });
 
-  it("climbs a plaster ladder onto overflowing stacks (height 2 → 3)", () => {
-    // Tops at abs 1, 2, 3 with half-height plaster.
+  it("climbs a plaster ladder onto overflowing stacks (height 4 → 6)", () => {
+    // Tops at abs 2, 4, 6 with half-height plaster.
     let map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "grass" },
       { tileId: "plaster" },
@@ -759,7 +813,7 @@ describe("canWalk climb", () => {
     ]);
     const loc = requireSinglePlayer(map);
     expect(standingAbs(map, loc.x, loc.y, loc.z, loc.stackIndex, tilesById)).toBe(
-      2,
+      4,
     );
 
     const check = canWalk(
@@ -792,7 +846,7 @@ describe("canWalk climb", () => {
         snap.self.stackIndex,
         tilesById,
       ),
-    ).toBe(3);
+    ).toBe(6);
   });
 });
 

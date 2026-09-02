@@ -46,24 +46,24 @@ function tile(
 
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
-  tile({ id: "rock", height: 1 }),
+  tile({ id: "rock", height: 2 }),
   tile({
     id: "crate",
     name: "Crate",
-    height: 1,
+    height: 2,
     affectedByGravity: true,
     interactions: { push: DEFAULT_PUSH },
   }),
   tile({
     id: "door_shut",
     name: "Shut door",
-    height: 2,
+    height: 4,
     walkable: false,
     interactions: {
       switch: { targetTileId: "door_open", actionName: "Open" },
     },
   }),
-  tile({ id: "door_open", name: "Open door", height: 2 }),
+  tile({ id: "door_open", name: "Open door", height: 4 }),
   tile({
     id: "sword",
     name: "Sword",
@@ -130,7 +130,7 @@ const tiles: TileDef[] = [
   tile({
     id: "lever",
     name: "Lever",
-    height: 1,
+    height: 2,
     interactions: { switch: { targetTileId: "door_open" } },
   }),
   // Both authored on one tile, which is what the single interact button
@@ -138,14 +138,14 @@ const tiles: TileDef[] = [
   tile({
     id: "lever_crate",
     name: "Lever crate",
-    height: 1,
+    height: 2,
     affectedByGravity: true,
     interactions: { push: DEFAULT_PUSH, switch: { targetTileId: "door_open" } },
   }),
   tile({
     id: "deer",
     name: "Deer",
-    height: 2,
+    height: 4,
     actor: true,
     interactions: {
       battler: { maxHp: 10, atk: 2, def: 0, acc: 50, flee: 0, spd: 50 },
@@ -156,7 +156,7 @@ const tiles: TileDef[] = [
   tile({
     id: "player",
     name: "Player",
-    height: 2,
+    height: 4,
     actor: true,
     interactions: {
       push: DEFAULT_PUSH,

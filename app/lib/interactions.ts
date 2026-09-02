@@ -189,9 +189,10 @@ export type PressurePlateInteraction = {
   /** How {@link height} is compared against the load resting on the plate. */
   type: PlateComparison;
   /**
-   * Load to compare against, in height units — a half-height crate is 1 and a
-   * full level is {@link HEIGHT_PER_LEVEL}. Flat and intangible tiles weigh
-   * nothing, so `gte 1` reads as "something solid is standing here".
+   * Load to compare against, in height units — a stool is 1, a half-height
+   * crate is 2 and a full level is {@link HEIGHT_PER_LEVEL}. Flat and
+   * intangible tiles weigh nothing, so `gte 1` reads as "something solid is
+   * standing here".
    */
   height: number;
 };

@@ -73,13 +73,13 @@ function stoneTile(id: string, item: Record<string, unknown>): TileDef {
   });
 }
 
-const NEAR_REACH = { cells: 3, height: 1 };
+const NEAR_REACH = { cells: 3, height: 2 };
 
 const tiles: TileDef[] = [
   tile({ id: "grass" }),
   // Tall and opaque, so a stone thrown through it fails the same way a shot
   // does — the line is what a wall costs.
-  tile({ id: "wall", height: 2, lightPassing: false }),
+  tile({ id: "wall", height: 4, lightPassing: false }),
   stoneTile("mend-stone", {
     effect: { kind: "bolt", damage: -10, on: "caster" },
     cooldownMs: 60_000,

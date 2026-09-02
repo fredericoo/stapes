@@ -52,7 +52,7 @@ const tiles = [
   tile({ id: "grass" }),
   tile({
     id: "player",
-    height: 2,
+    height: 4,
     kind: "battler",
     actor: true,
     interactions: {
@@ -82,7 +82,7 @@ const tiles = [
   // it back, which is the picked bush's own business.
   tile({
     id: "bush",
-    height: 1,
+    height: 2,
     interactions: {
       extract: {
         actionName: "Pick",
@@ -93,12 +93,12 @@ const tiles = [
       },
     },
   }),
-  tile({ id: "picked-bush", height: 1 }),
+  tile({ id: "picked-bush", height: 2 }),
   // The other arrangement: one pull, sometimes nothing, and gone when it is
   // spent. No target at all, which is how a tile says it vanishes.
   tile({
     id: "crystal",
-    height: 2,
+    height: 4,
     interactions: {
       extract: {
         durability: 1,
@@ -504,7 +504,7 @@ describe("taking a pull", () => {
       t.id === "crystal"
         ? tile({
             id: "crystal",
-            height: 2,
+            height: 4,
             interactions: {
               extract: {
                 durability: 2,
@@ -568,7 +568,7 @@ describe("what it says afterwards", () => {
         ? tile({
             id: "crystal",
             name: "Arcane Crystal",
-            height: 2,
+            height: 4,
             interactions: {
               extract: {
                 actionName: "Mine",

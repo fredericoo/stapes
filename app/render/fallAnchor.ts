@@ -24,9 +24,8 @@ export function standingFootAbs(
  * How far below its map anchor a falling sprite is drawn, in world pixels.
  *
  * A fall runs in absolute height units, but the map can only stand a tile on a
- * surface — and with two height units to a level, feet at an odd height have no
- * surface to be placed on, so the simulation puts the tile on the level below,
- * a whole unit low. Anchoring the sprite on that cell and adding only the
+ * surface — and feet part-way up a level have no surface to be placed on, so
+ * the simulation puts the tile on the level below, a whole unit low. Anchoring the sprite on that cell and adding only the
  * progress through the current unit therefore drew every other unit of the drop
  * a unit too low: down a unit at one boundary, back up at the next. That is the
  * twitch.

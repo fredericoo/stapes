@@ -66,6 +66,7 @@ import type {
   TilesetDef,
 } from "../lib/types";
 import { HEIGHT_PER_LEVEL, tileCanEmitLight } from "../lib/types";
+import { clumpExtentAt } from "./depthClump";
 import { resolveLight } from "../lib/tileResolve";
 import { tilesByIdFromList } from "../lib/validation";
 import {
@@ -2706,9 +2707,10 @@ export class GameRenderer {
     cell: { x: number; y: number; z: number },
     stackIndex: number,
   ): number {
-    const placed = getStack(map, cell.x, cell.y, cell.z)[stackIndex];
-    if (!placed) return 0;
-    return this.tilesById[placed.tileId]?.height ?? 0;
+    const stack = getStack(map, cell.x, cell.y, cell.z);
+    if (!stack[stackIndex]) return 0;
+    const extent = clumpExtentAt(stack, stackIndex, this.tilesById);
+    return extent.top - extent.foot;
   }
 
   /** Absolute foot elevation of a tile standing at a stack slot. */

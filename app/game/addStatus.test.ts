@@ -52,7 +52,7 @@ const PLAYER_MAX_HP = maxHpFrom(PLAYER_TOUGHNESS);
 function body(id: string, extra: Record<string, unknown> = {}): TileDef {
   return tile({
     id,
-    height: 2,
+    height: 4,
     kind: "battler",
     directional: true,
     walkable: false,
@@ -77,7 +77,7 @@ function body(id: string, extra: Record<string, unknown> = {}): TileDef {
 
 const tiles: TileDef[] = [
   tile({ id: "grass" }),
-  tile({ id: "wall", height: 2 }),
+  tile({ id: "wall", height: 4 }),
   body("player", { affectedByGravity: true }),
   body("deer", { actor: true, affectedByGravity: true }),
   // A body somebody else can shove, which is what the authored player tile is.
@@ -104,7 +104,7 @@ const tiles: TileDef[] = [
   // burn to spend. A status on one would be a countdown nobody could see.
   tile({
     id: "wisp",
-    height: 2,
+    height: 4,
     actor: true,
     directional: true,
     walkable: false,
@@ -120,7 +120,7 @@ const tiles: TileDef[] = [
   // The pressed halves, one per gesture.
   tile({
     id: "brazier",
-    height: 1,
+    height: 2,
     interactions: {
       addStatus: { actionName: "Touch", trigger: "interact", statusId: "burned" },
     },
@@ -382,7 +382,7 @@ describe("the flame, as authored", () => {
       normalizeTileDef({
         id: "flame",
         name: "Flame",
-        height: 1,
+        height: 2,
         directional: false,
         variants: { default: [frame] },
         attributes: {},

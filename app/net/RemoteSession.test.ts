@@ -45,7 +45,7 @@ function tile(
 
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
-  tile({ id: "wall", height: 2 }),
+  tile({ id: "wall", height: 4 }),
   // A rung: pressed from the cell you are standing in, and carrying its climb
   // on the tile rather than on the placement.
   tile({
@@ -61,7 +61,7 @@ const tiles: TileDef[] = [
   }),
   tile({
     id: "player",
-    height: 2,
+    height: 4,
     directional: true,
     affectedByGravity: true,
     walkable: false,
@@ -72,7 +72,7 @@ const tiles: TileDef[] = [
   // a creature for a blocking test to be testing anything.
   tile({
     id: "rat",
-    height: 2,
+    height: 4,
     directional: true,
     affectedByGravity: true,
     walkable: false,

@@ -41,17 +41,17 @@ const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
   tile({
     id: "player",
-    height: 2,
+    height: 4,
     directional: true,
     affectedByGravity: true,
     walkable: false,
     variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
   }),
   // A deer falls, like the player does.
-  tile({ id: "deer", height: 1, actor: true, affectedByGravity: true, walkable: false }),
+  tile({ id: "deer", height: 2, actor: true, affectedByGravity: true, walkable: false }),
   // A ghost is a body that gravity has no opinion about, which is the case the
   // player tile would never have exercised.
-  tile({ id: "ghost", height: 1, actor: true, walkable: false }),
+  tile({ id: "ghost", height: 2, actor: true, walkable: false }),
   tile({
     id: "plate",
     height: 0,

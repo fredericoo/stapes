@@ -560,7 +560,7 @@ function tilesWithDeer() {
       id: "deer",
       name: "Deer",
       type: "simple",
-      height: 1,
+      height: 2,
       attributes: {},
       actor: true,
       affectedByGravity: true,
@@ -2389,7 +2389,7 @@ describe("respawn", () => {
     return {
       id: "gnome",
       name: "Gnome",
-      height: 1,
+      height: 2,
       type: "simple",
       kind: "prop",
       attributes: {},
@@ -2828,7 +2828,7 @@ describe("what a flush writes", () => {
     return {
       id: "gnome",
       name: "Gnome",
-      height: 1,
+      height: 2,
       type: "simple",
       kind: "battler",
       attributes: {},
@@ -3855,7 +3855,7 @@ describe("casting", () => {
             projectile: { tileId: "arrow", cellsPerSecond: 20 },
           },
           cooldownMs: STONE_COOLDOWN_MS,
-          reach: { cells: 8, height: 2 },
+          reach: { cells: 8, height: 4 },
         },
       },
       sprite: {

@@ -150,7 +150,7 @@ const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
   tile({
     id: "player",
-    height: 2,
+    height: 4,
     directional: true,
     walkable: false,
     // Like every authored body: a thing that blocks light would shadow itself,
@@ -168,7 +168,7 @@ const tiles: TileDef[] = [
   // Hit points, no mind. What a target that cannot fight back looks like.
   tile({
     id: "dummy",
-    height: 1,
+    height: 2,
     actor: true,
     walkable: false,
     interactions: {
@@ -178,7 +178,7 @@ const tiles: TileDef[] = [
   // Armoured past anything the player can do to it.
   tile({
     id: "anvil",
-    height: 1,
+    height: 2,
     actor: true,
     walkable: false,
     interactions: {
@@ -190,7 +190,7 @@ const tiles: TileDef[] = [
   }),
   tile({
     id: "brawler",
-    height: 1,
+    height: 2,
     actor: true,
     walkable: false,
     interactions: {
@@ -202,12 +202,12 @@ const tiles: TileDef[] = [
     },
   }),
   // A body with no battler block at all: swinging at it must fail, not throw.
-  tile({ id: "statue", height: 1, actor: true, walkable: false }),
+  tile({ id: "statue", height: 2, actor: true, walkable: false }),
   // A bite that certainly poisons, so what is asserted below is the plumbing
   // rather than the odds — `./combat.test` owns the percentage itself.
   tile({
     id: "viper",
-    height: 1,
+    height: 2,
     actor: true,
     walkable: false,
     interactions: {

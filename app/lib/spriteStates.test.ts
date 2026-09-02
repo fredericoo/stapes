@@ -29,7 +29,7 @@ function deer(states?: TileDef["states"]): TileDef {
   return {
     id: "deer",
     name: "Deer",
-    height: 2,
+    height: 4,
     type: "directional",
     kind: "battler",
     attributes: {},
@@ -49,7 +49,7 @@ describe("availableStates", () => {
     const wall: TileDef = {
       id: "wall",
       name: "Wall",
-      height: 2,
+      height: 4,
       type: "simple",
       kind: "prop",
       attributes: {},
@@ -117,7 +117,7 @@ describe("resolveTileSprite with a state", () => {
     const boulder: TileDef = {
       id: "boulder",
       name: "Boulder",
-      height: 1,
+      height: 2,
       type: "simple",
       kind: "prop",
       attributes: {},

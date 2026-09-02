@@ -404,7 +404,7 @@ export function StoneFields({
         />
         <StatField
           label="Height"
-          hint="How far up or down it carries, in height units — two to a level."
+          hint="How far up or down it carries, in height units — four to a level."
           value={reach.height}
           min={0}
           max={MAX_REACH_HEIGHT}

@@ -41,6 +41,7 @@ import {
   levelKey,
   tileCanEmitLight,
 } from "../lib/types";
+import { clumpExtents } from "../render/depthClump";
 import { getFrames, tileLightSignature } from "../lib/tileResolve";
 import { canPlace, canReplaceStack } from "../lib/validation";
 import { useEditorStore, type ToolId } from "./store";
@@ -1181,6 +1182,9 @@ export class EditorRenderer {
 
     for (const cell of coords) {
       let elev = 0;
+      // The editor draws the same stacks the world does, so it sorts them the
+      // same way — see `../render/depthClump`.
+      const extents = clumpExtents(cell.stack, this.tilesById);
       cell.stack.forEach((placed, stackIndex) => {
         const def = this.tilesById[placed.tileId];
         const foot = absoluteElevation(z, elev);
@@ -1255,7 +1259,12 @@ export class EditorRenderer {
           v0,
           u1,
           v1,
-          box: depthBox(cell.x, cell.y, foot, foot + def.height),
+          box: depthBox(
+            cell.x,
+            cell.y,
+            absoluteElevation(z, extents[stackIndex]?.foot ?? elev),
+            absoluteElevation(z, extents[stackIndex]?.top ?? elev),
+          ),
           stackBias: depthStackBias(z, stackIndex),
           texture,
           lightX0,

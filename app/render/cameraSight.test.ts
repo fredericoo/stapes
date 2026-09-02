@@ -45,8 +45,8 @@ const tiles: TileDef[] = [
   // Height zero and utterly solid to a look from above: the cave ceiling, and
   // the one tile that separates `sealsLevel` from `opacity`.
   tile({ id: "floor", height: 0, walkable: true }),
-  tile({ id: "wall", height: 2, walkable: false }),
-  tile({ id: "glass", height: 2, walkable: false, lightPassing: true }),
+  tile({ id: "wall", height: 4, walkable: false }),
+  tile({ id: "glass", height: 4, walkable: false, lightPassing: true }),
 ];
 
 const tilesById = Object.fromEntries(tiles.map((t) => [t.id, t]));

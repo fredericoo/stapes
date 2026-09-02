@@ -42,10 +42,10 @@ const directionalFrames = () => {
 
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
-  tile({ id: "wall", height: 2, walkable: false }),
+  tile({ id: "wall", height: 4, walkable: false }),
   tile({
     id: "player",
-    height: 2,
+    height: 4,
     directional: true,
     affectedByGravity: true,
     walkable: false,
@@ -53,7 +53,7 @@ const tiles: TileDef[] = [
   }),
   tile({
     id: "crate",
-    height: 1,
+    height: 2,
     affectedByGravity: true,
     interactions: { push: { climb: "half", moveOnTileIds: [] } },
   }),

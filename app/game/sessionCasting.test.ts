@@ -131,7 +131,7 @@ function body(
 ) {
   return tile({
     id,
-    height: 2,
+    height: 4,
     kind: "battler",
     directional: true,
     walkable: false,
@@ -217,7 +217,7 @@ const props: TileDef[] = [
   stoneTile("flame-stone", {
     effect: { kind: "conjure", tileId: "conjured-flame" },
     cooldownMs: 10_000,
-    reach: { cells: 3, height: 1 },
+    reach: { cells: 3, height: 2 },
   }),
   // A bolt that harms, thrown with no variance so every case below is exact,
   // and with something in the air so the flight has somewhere to be asserted.
@@ -229,7 +229,7 @@ const props: TileDef[] = [
       projectile: { tileId: "arcane-mote", cellsPerSecond: 14 },
     },
     cooldownMs: 10_000,
-    reach: { cells: 3, height: 1 },
+    reach: { cells: 3, height: 2 },
   }),
   // Both halves in one cast, which is the combination the merged arm exists for.
   stoneTile("brand-bolt-stone", {
@@ -240,7 +240,7 @@ const props: TileDef[] = [
       statuses: [{ id: "burned", chance: 100 }],
     },
     cooldownMs: 10_000,
-    reach: { cells: 3, height: 1 },
+    reach: { cells: 3, height: 2 },
   }),
   // The same brand with the roll switched off, so "rolled per cast" is a claim
   // rather than a coincidence.
@@ -252,13 +252,13 @@ const props: TileDef[] = [
       statuses: [{ id: "burned", chance: 0 }],
     },
     cooldownMs: 10_000,
-    reach: { cells: 3, height: 1 },
+    reach: { cells: 3, height: 2 },
   }),
   // The same bolt made of fire, for the one thing the wheel turns on.
   stoneTile("ember-bolt-stone", {
     effect: { kind: "bolt", damage: BOLT_DAMAGE, on: "target" },
     cooldownMs: 10_000,
-    reach: { cells: 3, height: 1 },
+    reach: { cells: 3, height: 2 },
     requirements: { fire: 1 },
   }),
   // A rat in mail, and mail with an opinion about magic: a bolt answers to
@@ -301,7 +301,7 @@ const props: TileDef[] = [
       statuses: [{ id: "burned", chance: 100 }],
     },
     cooldownMs: 10_000,
-    reach: { cells: 3, height: 1 },
+    reach: { cells: 3, height: 4 },
   }),
   // The same brand, made of fire. Its Fire requirement is the one point every
   // body starts with, which is what makes an element reachable at all.
@@ -312,7 +312,7 @@ const props: TileDef[] = [
       statuses: [{ id: "burned", chance: 100 }],
     },
     cooldownMs: 10_000,
-    reach: { cells: 3, height: 1 },
+    reach: { cells: 3, height: 2 },
     requirements: { fire: 1 },
   }),
   stoneTile("tide-stone", {
@@ -322,7 +322,7 @@ const props: TileDef[] = [
       statuses: [{ id: "burned", chance: 100 }],
     },
     cooldownMs: 10_000,
-    reach: { cells: 3, height: 1 },
+    reach: { cells: 3, height: 2 },
     requirements: { water: 1 },
   }),
   // Two elements at once, to check both are trained and both are weighed.
@@ -333,7 +333,7 @@ const props: TileDef[] = [
       statuses: [{ id: "burned", chance: 100 }],
     },
     cooldownMs: 10_000,
-    reach: { cells: 3, height: 1 },
+    reach: { cells: 3, height: 2 },
     requirements: { fire: 1, water: 1 },
   }),
   tile({
@@ -357,7 +357,7 @@ const props: TileDef[] = [
   stoneTile("ember-flame-stone", {
     effect: { kind: "conjure", tileId: "conjured-flame" },
     cooldownMs: 10_000,
-    reach: { cells: 3, height: 1 },
+    reach: { cells: 3, height: 2 },
     requirements: { fire: 1 },
   }),
   // The scorch stone, made of fire: a burn a caster puts on themselves, which

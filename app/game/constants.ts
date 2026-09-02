@@ -1,3 +1,5 @@
+import { HEIGHT_PER_LEVEL } from "../lib/types";
+
 /** Fixed simulation tick rate. */
 export const TICK_HZ = 30;
 
@@ -7,14 +9,23 @@ export const TICK_MS = 1000 / TICK_HZ;
 export const WALK_DURATION_MS = 200;
 
 /**
- * Time to fall one height unit (4px, with HEIGHT_PER_LEVEL=2).
+ * Time to fall one level.
  *
- * Twice the old pace. A fall at 400ms/unit floated — a drop off a two-level
- * ledge took most of a second, long enough to read as a descent rather than as
- * gravity. Nothing else is keyed to it: every consumer divides by it, so the
- * sim's step-down cadence and the client's interpolation move together.
+ * A fall at twice this floated — a drop off a two-level ledge took most of a
+ * second, long enough to read as a descent rather than as gravity.
  */
-export const FALL_MS_PER_HEIGHT = 200;
+export const FALL_MS_PER_LEVEL = 400;
+
+/**
+ * Time to fall one height unit (2px, a quarter of a level).
+ *
+ * Derived from the level rather than authored, because the pace that has to
+ * stay put is the one you can see: a storey takes {@link FALL_MS_PER_LEVEL}
+ * whatever a level is subdivided into. Nothing else is keyed to it — every
+ * consumer divides by it, so the sim's step-down cadence and the client's
+ * interpolation move together.
+ */
+export const FALL_MS_PER_HEIGHT = FALL_MS_PER_LEVEL / HEIGHT_PER_LEVEL;
 
 /** Time a pushed object takes to travel one tile — same pace as a walk. */
 export const PUSH_STEP_MS = WALK_DURATION_MS;
@@ -44,8 +55,13 @@ export const PLAYER_TILE_ID = "player";
  */
 export const BRAIN_TICK_MS = WALK_DURATION_MS;
 
-/** Max climb up in absolute height units when walking into a cell (half a level). */
-export const MAX_CLIMB_HEIGHT = 1;
+/**
+ * Max climb up in absolute height units when walking into a cell.
+ *
+ * Half a level, derived rather than written down, so subdividing a level never
+ * silently shortens everybody's legs.
+ */
+export const MAX_CLIMB_HEIGHT = HEIGHT_PER_LEVEL / 2;
 
 /**
  * How long a damage number stays on screen.

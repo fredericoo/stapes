@@ -1,7 +1,13 @@
 import type { SlideSnapshot } from "../game/GameSession";
 import { baseCellWorldOrigin, depthStackBias } from "../lib/geometry";
 import { elevationAt, getStack, stackHeight } from "../lib/mapData";
-import { HEIGHT_PER_LEVEL, type MapFile, type TileDef } from "../lib/types";
+import {
+  HEIGHT_PER_LEVEL,
+  type MapFile,
+  type PlacedTile,
+  type TileDef,
+} from "../lib/types";
+import { clumpExtentAt } from "./depthClump";
 import type { TileMotion } from "./WorldRenderer";
 
 /**
@@ -18,6 +24,22 @@ import type { TileMotion } from "./WorldRenderer";
  * height delta serve the whole group: the only thing that differs between them
  * is the slot each is anchored at.
  */
+
+
+/**
+ * How tall the slot's clump stands. A shoved column's members rest on each
+ * other rather than in each other, so this is each tile's own height — until
+ * one is shoved into something intangible, which is the case it exists for.
+ */
+function clumpHeight(
+  stack: PlacedTile[],
+  stackIndex: number,
+  tilesById: Record<string, TileDef>,
+): number {
+  const extent = clumpExtentAt(stack, stackIndex, tilesById);
+  return extent.top - extent.foot;
+}
+
 export function slideTileMotions(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -65,7 +87,7 @@ export function slideTileMotions(
         x: boxX,
         y: boxY,
         foot,
-        top: foot + (tilesById[placed.tileId]?.height ?? 0),
+        top: foot + clumpHeight(stack, stackIndex, tilesById),
         stackBias: Math.max(
           depthStackBias(from.z, originStackLen),
           depthStackBias(object.z, stackIndex),

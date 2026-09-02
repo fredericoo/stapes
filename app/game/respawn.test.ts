@@ -52,10 +52,10 @@ function tile(
 
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
-  tile({ id: "wall", height: 2 }),
+  tile({ id: "wall", height: 4 }),
   tile({
     id: "player",
-    height: 2,
+    height: 4,
     directional: true,
     affectedByGravity: true,
     walkable: false,
@@ -64,7 +64,7 @@ const tiles: TileDef[] = [
   // The motivating creature: a body that comes back.
   tile({
     id: "gnome",
-    height: 1,
+    height: 2,
     actor: true,
     walkable: false,
     interactions: { respawn: RESPAWN },
@@ -73,7 +73,7 @@ const tiles: TileDef[] = [
   // at the moment it grows, which is what makes a drop a thing you go and get.
   tile({
     id: "packrat",
-    height: 1,
+    height: 2,
     actor: true,
     walkable: false,
     kind: "battler",
@@ -87,7 +87,7 @@ const tiles: TileDef[] = [
     },
   }),
   // A body that does not — its death is permanent.
-  tile({ id: "deer", height: 1, actor: true, walkable: false }),
+  tile({ id: "deer", height: 2, actor: true, walkable: false }),
   // An object that grows back where it was authored.
   tile({
     id: "coin",

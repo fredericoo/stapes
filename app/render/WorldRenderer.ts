@@ -48,6 +48,7 @@ import {
   tileLightVaries,
 } from "../lib/types";
 import { hasSpriteStates, isMobileTile } from "../lib/interactions";
+import { clumpExtents } from "./depthClump";
 import { getFrames } from "../lib/tileResolve";
 import { ChunkedLighting, type WorldRect } from "../lib/lightingChunks";
 import {
@@ -1912,6 +1913,10 @@ export class WorldRenderer {
     stack: PlacedTile[],
   ): BuildItem[] {
     const items: BuildItem[] = [];
+    // What sorts a slot is its *clump*, not its own volume — see `./depthClump`.
+    // Computed once for the stack rather than per placement, because this runs
+    // over every cell of a floor.
+    const extents = clumpExtents(stack, this.tilesById);
     let elev = 0;
 
     stack.forEach((placed, stackIndex) => {
@@ -1997,9 +2002,17 @@ export class WorldRenderer {
       // that decides stacking and gravity is untouched: this is a fact about
       // sorting, and it lives here rather than on the tile because that is all
       // it is.
-      const body =
-        offsets.length > 1 ? Math.max(def.height, DEPTH_LEAST_BODY) : def.height;
-      const box = depthBox(x, y, foot, foot + body);
+      const extent = extents[stackIndex] ?? { foot: elev, top: elev };
+      const boxFoot = absoluteElevation(z, extent.foot);
+      const boxTop = absoluteElevation(z, extent.top);
+      const box = depthBox(
+        x,
+        y,
+        boxFoot,
+        offsets.length > 1
+          ? Math.max(boxTop, boxFoot + DEPTH_LEAST_BODY)
+          : boxTop,
+      );
 
       // An indexed loop rather than `forEach`: this runs once per placement on a
       // floor — thousands of them per rebuild — and a callback here is a closure

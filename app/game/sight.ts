@@ -216,10 +216,14 @@ function sealsAgainstVertical(
  * so. It is measured from that body's own feet; where those feet are is this
  * function's to work out, from the ground under `from`.
  *
- * It defaults to a full level, which is what every caller whose subject is the
- * player — reaching, shooting, pointing at a thing — should pass, since that is
- * how tall the player is. What passes something else is a brain, out of the body
- * it drives. @see ../lib/lighting's `stackBlockHeight`
+ * It defaults to a full level — the tallest a body can be, and so the most
+ * generous eye — which is what the callers that do not have a body to hand pass
+ * by omission: reaching, shooting, pointing at a thing. That is a shade taller
+ * than the player, who is {@link HEIGHT_PER_LEVEL} less one so that a roof
+ * leaves room to stand on a stool, and nothing is authored between the two, so
+ * the generosity has nothing to see over that a person could not. What passes a
+ * real height is a brain, out of the body it drives.
+ * @see ../lib/lighting's `stackBlockHeight`
  */
 export function hasLineOfSight(
   map: MapFile,

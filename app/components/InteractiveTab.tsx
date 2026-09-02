@@ -1295,8 +1295,8 @@ export function InteractiveTab({
             </div>
 
             <span className="text-[11px] leading-snug text-muted">
-              Load is measured in height units: a half-height crate is 1, the
-              player and a full level are {HEIGHT_PER_LEVEL}. Flat and
+              Load is measured in height units: a stool is 1, a half-height
+              crate is 2 and a full level is {HEIGHT_PER_LEVEL}. Flat and
               intangible tiles weigh nothing, so <strong>≥ 1</strong> reads as
               “something solid is standing here”. Only this cell’s own stack
               counts.

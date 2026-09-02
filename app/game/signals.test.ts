@@ -52,7 +52,7 @@ function directionalTile(id: string, extra: Record<string, unknown> = {}) {
   return normalizeTileDef({
     id,
     name: id,
-    height: 2,
+    height: 4,
     directional: true,
     attributes: {},
     variants: { n: frames, e: frames, s: frames, w: frames },
@@ -62,11 +62,11 @@ function directionalTile(id: string, extra: Record<string, unknown> = {}) {
 
 const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
-  tile({ id: "wall", height: 2 }),
+  tile({ id: "wall", height: 4 }),
   directionalTile("player", { affectedByGravity: true, walkable: false }),
   tile({
     id: "crate",
-    height: 1,
+    height: 2,
     affectedByGravity: true,
     interactions: { push: { climb: "half", moveOnTileIds: [] } },
   }),
@@ -111,7 +111,7 @@ const tiles: TileDef[] = [
   // The canonical receiver pair: each half follows the channel back.
   tile({
     id: "door",
-    height: 2,
+    height: 4,
     interactions: {
       receive: { tileId: "door-open", when: "on", mode: "any" },
     },
@@ -127,7 +127,7 @@ const tiles: TileDef[] = [
   // Same, but only when every emitter on the channel agrees.
   tile({
     id: "gate",
-    height: 2,
+    height: 4,
     interactions: {
       receive: { tileId: "gate-open", when: "on", mode: "all" },
     },
@@ -143,7 +143,7 @@ const tiles: TileDef[] = [
   // Opens once and never closes — no receive on the open half.
   tile({
     id: "latch",
-    height: 2,
+    height: 4,
     interactions: {
       receive: { tileId: "latch-open", when: "on", mode: "any" },
     },
@@ -156,7 +156,7 @@ const tiles: TileDef[] = [
   // that closes on someone mid-step put them on top of itself.
   tile({
     id: "door-closed",
-    height: 2,
+    height: 4,
     walkable: false,
     interactions: {
       switch: { targetTileId: "door-swing" },
@@ -165,7 +165,7 @@ const tiles: TileDef[] = [
   }),
   tile({
     id: "door-swing",
-    height: 2,
+    height: 4,
     walkable: false,
     intangible: true,
     interactions: {

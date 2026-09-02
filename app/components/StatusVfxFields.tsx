@@ -304,7 +304,7 @@ function ParticleFields({
           hint="0 is the floor of the tile."
           value={particles.spawnElevFrom}
           min={0}
-          max={16}
+          max={32}
           step={0.5}
           onChange={(spawnElevFrom) =>
             patch({
@@ -315,10 +315,10 @@ function ParticleFields({
         />
         <NumberField
           label="Up to (height)"
-          hint="2 is one whole level."
+          hint="4 is one whole level."
           value={particles.spawnElevTo}
           min={0}
-          max={16}
+          max={32}
           step={0.5}
           onChange={(spawnElevTo) =>
             patch({
@@ -334,8 +334,8 @@ function ParticleFields({
           label="Rises from"
           hint="Height units a second. Up is up-left on screen."
           value={particles.riseFrom}
-          min={-16}
-          max={16}
+          min={-32}
+          max={32}
           step={0.25}
           onChange={(riseFrom) =>
             patch({ riseFrom, riseTo: Math.max(riseFrom, particles.riseTo) })
@@ -344,8 +344,8 @@ function ParticleFields({
         <NumberField
           label="To"
           value={particles.riseTo}
-          min={-16}
-          max={16}
+          min={-32}
+          max={32}
           step={0.25}
           onChange={(riseTo) =>
             patch({ riseTo, riseFrom: Math.min(riseTo, particles.riseFrom) })
@@ -364,8 +364,8 @@ function ParticleFields({
           label="Gravity"
           hint="Negative pulls back down — the fallout."
           value={particles.gravity}
-          min={-32}
-          max={32}
+          min={-64}
+          max={64}
           step={0.25}
           onChange={(gravity) => patch({ gravity })}
         />

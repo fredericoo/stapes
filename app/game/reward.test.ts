@@ -57,7 +57,7 @@ const tiles = [
   // half the file rather than decoration.
   tile({
     id: "player",
-    height: 2,
+    height: 4,
     kind: "battler",
     actor: true,
     interactions: {

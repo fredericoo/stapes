@@ -56,7 +56,7 @@ const tiles: TileDef[] = [
   /** A full level of solid. Stops a look sideways. */
   tile({ id: "wall", height: HEIGHT_PER_LEVEL, walkable: false }),
   /** Half a level. Stands in the way of feet and not of eyes. */
-  tile({ id: "box", height: 1, walkable: false }),
+  tile({ id: "box", height: 2, walkable: false }),
   tile({ id: "door", height: HEIGHT_PER_LEVEL, walkable: false }),
 ];
 

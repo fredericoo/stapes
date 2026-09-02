@@ -44,10 +44,10 @@ const tiles: TileDef[] = [
   tile({ id: "grass", height: 0 }),
   // Tall and not walkable: the one thing on this board that genuinely stops a
   // step, as opposed to an empty cell, which is a step into a hole.
-  tile({ id: "wall", height: 2, walkable: false }),
+  tile({ id: "wall", height: 4, walkable: false }),
   tile({
     id: "player",
-    height: 2,
+    height: 4,
     directional: true,
     affectedByGravity: true,
     walkable: false,

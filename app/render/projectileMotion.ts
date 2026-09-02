@@ -62,7 +62,7 @@ export type ProjectileView = {
   /** Fractional cell on the plan — an arrow is between cells almost always. */
   x: number;
   y: number;
-  /** Absolute height in height units, two to a level. */
+  /** Absolute height in height units, four to a level. */
   elevAbs: number;
   /**
    * The level whose light it takes and whose roof-cut hides it.

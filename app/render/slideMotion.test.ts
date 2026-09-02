@@ -39,8 +39,8 @@ function tile(partial: Record<string, unknown>): TileDef {
 
 const tilesById = tilesByIdFromList([
   tile({ id: "grass" }),
-  tile({ id: "slab", height: 1 }),
-  tile({ id: "crate", height: 1 }),
+  tile({ id: "slab", height: 2 }),
+  tile({ id: "crate", height: 2 }),
 ]);
 
 /** Two crates shoved from (0,0) and now sitting on the stack at (1,0). */
@@ -90,7 +90,7 @@ describe("slideTileMotions", () => {
     const { map, slide } = shoved();
     for (const t of [0, 0.25, 0.5, 1]) {
       const [base, rider] = slideTileMotions(map, tilesById, slide, t);
-      expect(rider!.box.foot - base!.box.foot).toBe(1);
+      expect(rider!.box.foot - base!.box.foot).toBe(2);
       expect(rider!.ox).toBe(base!.ox);
       expect(rider!.oy).toBe(base!.oy);
     }
@@ -112,10 +112,10 @@ describe("slideTileMotions", () => {
     const { map, slide } = shoved(["grass", "slab"]);
 
     const atStart = slideTileMotions(map, tilesById, slide, 0);
-    expect(atStart.map((m) => m.box.foot)).toEqual([0, 1]);
+    expect(atStart.map((m) => m.box.foot)).toEqual([0, 2]);
 
     const atEnd = slideTileMotions(map, tilesById, slide, 1);
-    expect(atEnd.map((m) => m.box.foot)).toEqual([1, 2]);
+    expect(atEnd.map((m) => m.box.foot)).toEqual([2, 4]);
   });
 
   /** The offset decays to nothing, so the last frame is the committed one. */
@@ -150,7 +150,7 @@ describe("slideTileMotions", () => {
 
     expect(motions).toHaveLength(1);
     expect(motions[0]!.box.foot).toBe(0);
-    expect(motions[0]!.box.top).toBe(1);
+    expect(motions[0]!.box.top).toBe(2);
   });
 
   /**

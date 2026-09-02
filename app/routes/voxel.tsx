@@ -711,8 +711,10 @@ function triggerDownload(blob: Blob, fileName: string) {
 
 const TILE_HEIGHT_OPTIONS: { value: string; label: string }[] = [
   { value: "0", label: "0 — flat" },
-  { value: "1", label: "1 — half level" },
-  { value: "2", label: "2 — full level" },
+  { value: "1", label: "1 — a seat, the tallest thing you can stand on indoors" },
+  { value: "2", label: "2 — half level" },
+  { value: "3", label: "3 — a body, as tall as the player" },
+  { value: "4", label: "4 — full level" },
 ];
 
 function ExportDialog({
@@ -730,7 +732,7 @@ function ExportDialog({
   const toast = useToast();
   const [name, setName] = useState(project.name);
   const [createTile, setCreateTile] = useState(true);
-  const [tileHeight, setTileHeight] = useState("2");
+  const [tileHeight, setTileHeight] = useState("4");
   const submittedRef = useRef(false);
 
   useEffect(() => {
