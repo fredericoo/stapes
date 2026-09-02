@@ -4,6 +4,7 @@ import {
   NO_PILE_OFFSET,
   pileDepthNudge,
   pileOffsets,
+  pileRings,
 } from "./pileLayout";
 
 /**
@@ -166,5 +167,67 @@ describe("depth inside a heap", () => {
         expect(nudge).toBeLessThan(1);
       }
     }
+  });
+});
+
+/**
+ * What the outline layer draws around a heap.
+ *
+ * Two separate claims, and the bug each one pins is a different picture. **One
+ * ring per sprite, at the offsets the sprites were drawn at** — a single ring
+ * round the middle berry of a dozen reads as "that one", where a press takes
+ * all of them, and a ring anywhere but where its sprite is puts the chrome and
+ * the art in disagreement about where the berries are. **Each ring told where
+ * the others are** — without that, every ring lands on a neighbour and a heap
+ * three pixels apart fills in solid instead of coming out with one silhouette
+ * around the whole of it.
+ */
+describe("the rings around a heap", () => {
+  it("draws one per sprite, wherever that sprite was drawn", () => {
+    for (const count of EVERY_COUNT) {
+      const rings = pileRings(count);
+      expect(rings.map((ring) => ring.at)).toEqual([...pileOffsets(count)]);
+    }
+  });
+
+  /** Every other sprite of the heap, and never itself. */
+  it("tells each ring about the others and not about itself", () => {
+    for (const count of EVERY_COUNT) {
+      for (const ring of pileRings(count)) {
+        expect(ring.peers).toHaveLength(count - 1);
+        expect(ring.peers.some((p) => p.dx === 0 && p.dy === 0)).toBe(false);
+      }
+    }
+  });
+
+  /**
+   * The shader adds a peer to its own uv to stand in for a sibling, so the
+   * vector has to run *from* this sprite *to* that one. A sign error here is
+   * the kind that looks almost right: the silhouette closes up on one side of
+   * the heap and opens on the other.
+   */
+  it("gives the vector from this sprite to each of the others", () => {
+    const offsets = pileOffsets(5);
+    pileRings(5).forEach((ring, i) => {
+      const others = offsets.filter((_, j) => j !== i);
+      expect(ring.peers).toEqual(
+        others.map((other) => ({
+          dx: offsets[i]!.dx - other.dx,
+          dy: offsets[i]!.dy - other.dy,
+        })),
+      );
+    });
+  });
+
+  /** Every tile in the world that is not a heap, paying for none of this. */
+  it("gives a lone sprite one ring and no peers at all", () => {
+    expect(pileRings(1)).toEqual([{ at: NO_PILE_OFFSET[0], peers: [] }]);
+  });
+
+  /** On {@link pileOffsets}' terms: past the cap the picture stops growing. */
+  it("stops at the widest heap it draws", () => {
+    const capped = pileRings(MAX_PILE_SPRITES + 40);
+    expect(capped).toHaveLength(MAX_PILE_SPRITES);
+    expect(capped).toBe(pileRings(MAX_PILE_SPRITES));
   });
 });

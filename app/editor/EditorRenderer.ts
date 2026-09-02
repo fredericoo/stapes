@@ -68,6 +68,7 @@ import {
   makeRectOutline,
   makeSpriteMesh,
   makeSpriteOutline,
+  OutlineMaterials,
 } from "../render/overlayMeshes";
 import {
   type SpriteQuad,
@@ -161,6 +162,13 @@ export class EditorRenderer {
   private camera: THREE.OrthographicCamera;
   private grid: THREE.Group;
   private overlays: THREE.Group;
+  /**
+   * The outline materials, kept across rebuilds — see
+   * {@link OutlineMaterials}.
+   * The editor is the harder case of the two: the hover cell is in the overlay
+   * signature, so the chrome is rebuilt on every mouse move across the grid.
+   */
+  private outlineMaterials = new OutlineMaterials();
   private world: THREE.Group;
   private textures = new Map<string, THREE.Texture>();
   /** Shared cutout materials keyed by `${texture.uuid}:${z}`. */
@@ -395,6 +403,8 @@ export class EditorRenderer {
     window.removeEventListener("keydown", this.onKeyDown);
     window.removeEventListener("keyup", this.onKeyUp);
     this.levelTarget?.dispose();
+    disposeGroupChildren(this.overlays, this.outlineMaterials);
+    this.outlineMaterials.dispose();
     this.palettePass.dispose();
     this.compositeMaterial.dispose();
     this.renderer.dispose();
@@ -820,7 +830,7 @@ export class EditorRenderer {
     if (sig === this.overlaySig) return;
     this.overlaySig = sig;
 
-    disposeGroupChildren(this.overlays);
+    disposeGroupChildren(this.overlays, this.outlineMaterials);
 
     const addRectOutline = (
       originX: number,
@@ -840,7 +850,7 @@ export class EditorRenderer {
     };
 
     const addSpriteOutline = (q: SpriteQuad, color: number) => {
-      this.overlays.add(makeSpriteOutline(q, color));
+      this.overlays.add(makeSpriteOutline(q, color, this.outlineMaterials));
     };
 
     const z = s.currentLevel;

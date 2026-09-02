@@ -74,6 +74,7 @@ import {
   makeFollowingSpriteOutline,
   makeSpriteGhost,
   makeSpriteOutline,
+  OutlineMaterials,
   OUTLINE_ALPHA_UNIFORM,
   pulseAlphaAt,
 } from "./overlayMeshes";
@@ -81,6 +82,7 @@ import {
   NO_PILE_OFFSET,
   pileDepthNudge,
   pileOffsets,
+  pileRings,
 } from "./pileLayout";
 import { animationKey, type SpriteQuadAssets, spriteQuadFor } from "./spriteQuad";
 import { noTintUniforms, tintCacheKey, tintUniforms } from "./spriteTint";
@@ -479,6 +481,13 @@ export class WorldRenderer {
    * a full stop.
    */
   private pulsingOutlines: THREE.ShaderMaterial[] = [];
+  /**
+   * The outline materials, kept across rebuilds so the shader is compiled once
+   * for the life of the page rather than once per rebuild — see
+   * {@link OutlineMaterials}. Rebuilds are frequent: every step a target takes
+   * and every row the pointer crosses is one.
+   */
+  private outlineMaterials = new OutlineMaterials();
   /** Outlines borrowing a world mesh, and the mesh each one is around. */
   private followingOutlines: { outline: THREE.Mesh; source: THREE.Mesh }[] = [];
   private pulseElapsedMs = 0;
@@ -780,7 +789,7 @@ export class WorldRenderer {
     if (sig === this.overlaySig) return;
     this.overlaySig = sig;
 
-    disposeGroupChildren(this.overlays);
+    disposeGroupChildren(this.overlays, this.outlineMaterials);
     this.pulsingOutlines = [];
     this.followingOutlines = [];
     for (const spec of specs) this.addOverlay(spec);
@@ -891,7 +900,11 @@ export class WorldRenderer {
     const key = this.tileKey(spec);
     const source = this.movableMeshes.get(key);
     if (source) {
-      const outline = makeFollowingSpriteOutline(source, spec.color);
+      const outline = makeFollowingSpriteOutline(
+        source,
+        spec.color,
+        this.outlineMaterials,
+      );
       if (!outline) return [];
       this.followingOutlines.push({ outline, source });
       return [outline];
@@ -910,17 +923,17 @@ export class WorldRenderer {
     // The borrowed branch above has already taken every tile with a mesh of its
     // own, which is every tile a pile is not — so the count is read straight
     // off the placement here, exactly as `cellItems` reads it.
-    const offsets = pileOffsets(countOf(subject.placed));
-    return offsets.map((offset, i) =>
+    //
+    // One ring per sprite, at the offset that sprite was drawn at, each told
+    // where the others are so the heap comes out with one silhouette around the
+    // whole of it rather than a dozen rings crossing through it. See
+    // `./pileLayout`'s `pileRings` and `./overlayMeshes`' `OutlinePeers`.
+    return pileRings(countOf(subject.placed)).map(({ at, peers }) =>
       makeSpriteOutline(
-        { ...quad, x: quad.x + offset.dx, y: quad.y + offset.dy },
+        { ...quad, x: quad.x + at.dx, y: quad.y + at.dy },
         spec.color,
-        // Where the others are, from here. Told to each ring so the heap comes
-        // out with one silhouette around the whole of it rather than a dozen
-        // rings crossing through it — see `./overlayMeshes`' `OutlinePeers`.
-        offsets.flatMap((other, j) =>
-          i === j ? [] : [{ dx: offset.dx - other.dx, dy: offset.dy - other.dy }],
-        ),
+        this.outlineMaterials,
+        peers,
       ),
     );
   }
@@ -1084,7 +1097,8 @@ export class WorldRenderer {
     this.palettePass.dispose();
     this.particles.dispose();
     this.tintedMeshes.clear();
-    disposeGroupChildren(this.overlays);
+    disposeGroupChildren(this.overlays, this.outlineMaterials);
+    this.outlineMaterials.dispose();
     disposeGroupChildren(this.projectileGroup);
     this.projectileMeshes.clear();
     // Dropped with the meshes they belong to: a disposed material written to on
