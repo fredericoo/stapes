@@ -217,28 +217,23 @@ const MAX_OUTLINE_PEERS = MAX_PILE_SPRITES - 1;
  * rather than a mesh rebuilt per frame — see {@link OUTLINE_ALPHA_UNIFORM} and
  * `WorldRenderer.tick`. A steady outline simply never has it written again.
  */
-function outlineMesh(
-  geometry: THREE.BufferGeometry,
-  art: OutlineArt,
-  color: number,
-  peers: OutlinePeers = [],
-): THREE.Mesh {
-  const mat = new THREE.ShaderMaterial({
+function makeOutlineMaterial(): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
     uniforms: {
-      map: { value: art.texture },
-      uPx: { value: art.uvPerPx },
+      map: { value: null },
+      uPx: { value: new THREE.Vector2() },
       uPad: { value: OUTLINE_PAD_PX },
-      uColor: { value: new THREE.Color(color) },
+      uColor: { value: new THREE.Color() },
       [OUTLINE_ALPHA_UNIFORM]: { value: 1 },
       // Always the full array, because a uniform's size is fixed at compile
       // time; `uPeerCount` is what says how much of it means anything. Zero for
       // every outline in the game that is not around a heap, which is all but
       // one kind.
-      uPeerCount: { value: Math.min(peers.length, MAX_OUTLINE_PEERS) },
+      uPeerCount: { value: 0 },
       uPeer: {
         value: Array.from(
           { length: MAX_OUTLINE_PEERS },
-          (_, i) => new THREE.Vector2(peers[i]?.dx ?? 0, peers[i]?.dy ?? 0),
+          () => new THREE.Vector2(),
         ),
       },
     },
@@ -352,8 +347,115 @@ function outlineMesh(
     side: THREE.DoubleSide,
     toneMapped: false,
   });
+}
 
-  const mesh = new THREE.Mesh(geometry, mat);
+/**
+ * Point a material at one silhouette: which art, what colour, and where its
+ * siblings are.
+ *
+ * Every difference between two outlines is a uniform, which is what makes them
+ * interchangeable — see {@link OutlineMaterials}. Written into the objects
+ * the uniforms already hold rather than replacing them, so a rewrite
+ * allocates nothing.
+ *
+ * **The alpha is written every time, and it has to be.** It is the one uniform
+ * something else keeps changing: a pulsing outline has its dimmed down sixty
+ * times a second, and a material coming back from that would start a steady
+ * outline part-lit if this did not put it back.
+ */
+function dressOutline(
+  material: THREE.ShaderMaterial,
+  art: OutlineArt,
+  color: number,
+  peers: OutlinePeers,
+) {
+  const u = material.uniforms;
+  u.map!.value = art.texture;
+  (u.uPx!.value as THREE.Vector2).copy(art.uvPerPx);
+  (u.uColor!.value as THREE.Color).set(color);
+  u[OUTLINE_ALPHA_UNIFORM]!.value = 1;
+  u.uPeerCount!.value = Math.min(peers.length, MAX_OUTLINE_PEERS);
+  const slots = u.uPeer!.value as THREE.Vector2[];
+  for (let i = 0; i < MAX_OUTLINE_PEERS; i++) {
+    slots[i]!.set(peers[i]?.dx ?? 0, peers[i]?.dy ?? 0);
+  }
+}
+
+/**
+ * The outline materials, lent out and taken back rather than made and thrown
+ * away.
+ *
+ * **Because a disposed material takes its compiled program with it.** Three
+ * refcounts programs by the materials using them, and the outline shader is the
+ * one program in the game whose only users are in the chrome layer —
+ * everything else up there is a `MeshBasicMaterial` or a `LineBasicMaterial`
+ * the world is already drawing with. So emptying that layer dropped its count
+ * to zero, and the driver freed the program; the next outline compiled and
+ * linked the whole thing again, inside `render`, on the frame it was wanted.
+ *
+ * That is once per rebuild, and a rebuild is a pointer moving from one thing to
+ * the next: sliding down the interaction list or across the editor's grid
+ * relinks a shader per mouse move, which is milliseconds each and lands in the
+ * `draw` phase where it reads as the renderer having got slower. Nothing about
+ * it is visible until you look at what the chrome layer costs when it is
+ * *changing* rather than when it is up.
+ *
+ * Keeping the materials is the whole fix — the program's count never reaches
+ * zero, so it is compiled once for the life of the page. The pool is bounded by
+ * the most outlines ever on screen at once, which is one ring per thing in the
+ * widest heap (see `./pileLayout`'s `MAX_PILE_SPRITES`) plus a handful.
+ *
+ * Deliberately per-renderer rather than a module-level singleton: this owns GPU
+ * resources, and everything else here that does is freed by the renderer that
+ * made it.
+ */
+export class OutlineMaterials {
+  private free: THREE.ShaderMaterial[] = [];
+  private lent = new Set<THREE.ShaderMaterial>();
+
+  /** A material dressed for this outline, reused if one is going spare. */
+  take(
+    art: OutlineArt,
+    color: number,
+    peers: OutlinePeers,
+  ): THREE.ShaderMaterial {
+    const material = this.free.pop() ?? makeOutlineMaterial();
+    dressOutline(material, art, color, peers);
+    this.lent.add(material);
+    return material;
+  }
+
+  /**
+   * Take a material back if it is one of ours, and say whether it was.
+   *
+   * Asked per material by {@link disposeGroupChildren} rather than in a sweep
+   * of its own, so there is no order to get wrong: a material is returned by
+   * the same pass that drops the mesh holding it, and can never be handed out
+   * again while something is still drawing with it.
+   */
+  reclaim(material: THREE.Material): boolean {
+    if (!(material instanceof THREE.ShaderMaterial)) return false;
+    if (!this.lent.delete(material)) return false;
+    this.free.push(material);
+    return true;
+  }
+
+  dispose() {
+    for (const material of this.free) material.dispose();
+    for (const material of this.lent) material.dispose();
+    this.free = [];
+    this.lent.clear();
+  }
+}
+
+function outlineMesh(
+  geometry: THREE.BufferGeometry,
+  art: OutlineArt,
+  color: number,
+  materials: OutlineMaterials,
+  peers: OutlinePeers = [],
+): THREE.Mesh {
+  const mesh = new THREE.Mesh(geometry, materials.take(art, color, peers));
   mesh.renderOrder = OVERLAY_RENDER_ORDER.spriteOutline;
   mesh.matrixAutoUpdate = false;
   return mesh;
@@ -369,6 +471,7 @@ function outlineMesh(
 export function makeSpriteOutline(
   quad: SpriteQuad,
   color: number,
+  materials: OutlineMaterials,
   peers: OutlinePeers = [],
 ): THREE.Mesh {
   const geo = new THREE.PlaneGeometry(quad.w, quad.h);
@@ -389,6 +492,7 @@ export function makeSpriteOutline(
       ),
     },
     color,
+    materials,
     peers,
   );
   mesh.position.set(quad.x + quad.w / 2, quad.y + quad.h / 2, 0);
@@ -415,12 +519,18 @@ export function makeSpriteOutline(
 export function makeFollowingSpriteOutline(
   source: THREE.Mesh,
   color: number,
+  materials: OutlineMaterials,
 ): THREE.Mesh | null {
   const texture = (source.material as THREE.MeshBasicMaterial).map;
   const uvPerPx = uvPerWorldPx(source.geometry);
   if (!texture || !uvPerPx) return null;
 
-  const mesh = outlineMesh(source.geometry, { texture, uvPerPx }, color);
+  const mesh = outlineMesh(
+    source.geometry,
+    { texture, uvPerPx },
+    color,
+    materials,
+  );
   mesh.userData[BORROWED_GEOMETRY] = true;
   mesh.matrix.copy(source.matrixWorld);
   mesh.matrixWorld.copy(source.matrixWorld);
@@ -451,8 +561,24 @@ function uvPerWorldPx(geo: THREE.BufferGeometry): THREE.Vector2 | null {
   );
 }
 
-/** Empty an overlay group, freeing the throwaway geometry and materials. */
-export function disposeGroupChildren(group: THREE.Group) {
+/**
+ * Empty an overlay group, freeing the throwaway geometry and materials.
+ *
+ * Given the pool, an outline's material goes back into it instead of being
+ * freed — which is the difference between the shader being compiled once and
+ * being compiled again every time the chrome changes. See
+ * {@link OutlineMaterials}. Without one, every material here is thrown away,
+ * which is what emptying a group for good means.
+ */
+export function disposeGroupChildren(
+  group: THREE.Group,
+  outlines?: OutlineMaterials,
+) {
+  const release = (material: THREE.Material) => {
+    if (outlines?.reclaim(material)) return;
+    material.dispose();
+  };
+
   while (group.children.length) {
     const child = group.children.pop()!;
     const mesh = child as THREE.Mesh;
@@ -460,8 +586,8 @@ export function disposeGroupChildren(group: THREE.Group) {
     // tile that is still on screen — see {@link BORROWED_GEOMETRY}.
     if (!mesh.userData[BORROWED_GEOMETRY]) mesh.geometry?.dispose();
     const mat = mesh.material as THREE.Material | THREE.Material[] | undefined;
-    if (Array.isArray(mat)) mat.forEach((m) => m.dispose());
-    else mat?.dispose?.();
+    if (Array.isArray(mat)) mat.forEach(release);
+    else if (mat) release(mat);
   }
 }
 

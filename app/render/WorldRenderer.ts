@@ -73,6 +73,7 @@ import {
   makeFollowingSpriteOutline,
   makeSpriteGhost,
   makeSpriteOutline,
+  OutlineMaterials,
   OUTLINE_ALPHA_UNIFORM,
   pulseAlphaAt,
 } from "./overlayMeshes";
@@ -478,6 +479,13 @@ export class WorldRenderer {
    * a full stop.
    */
   private pulsingOutlines: THREE.ShaderMaterial[] = [];
+  /**
+   * The outline materials, kept across rebuilds so the shader is compiled once
+   * for the life of the page rather than once per rebuild — see
+   * {@link OutlineMaterials}. Rebuilds are frequent: every step a target takes
+   * and every row the pointer crosses is one.
+   */
+  private outlineMaterials = new OutlineMaterials();
   /** Outlines borrowing a world mesh, and the mesh each one is around. */
   private followingOutlines: { outline: THREE.Mesh; source: THREE.Mesh }[] = [];
   private pulseElapsedMs = 0;
@@ -779,7 +787,7 @@ export class WorldRenderer {
     if (sig === this.overlaySig) return;
     this.overlaySig = sig;
 
-    disposeGroupChildren(this.overlays);
+    disposeGroupChildren(this.overlays, this.outlineMaterials);
     this.pulsingOutlines = [];
     this.followingOutlines = [];
     for (const spec of specs) this.addOverlay(spec);
@@ -890,7 +898,11 @@ export class WorldRenderer {
     const key = this.tileKey(spec);
     const source = this.movableMeshes.get(key);
     if (source) {
-      const outline = makeFollowingSpriteOutline(source, spec.color);
+      const outline = makeFollowingSpriteOutline(
+        source,
+        spec.color,
+        this.outlineMaterials,
+      );
       if (!outline) return [];
       this.followingOutlines.push({ outline, source });
       return [outline];
@@ -914,6 +926,7 @@ export class WorldRenderer {
       makeSpriteOutline(
         { ...quad, x: quad.x + offset.dx, y: quad.y + offset.dy },
         spec.color,
+        this.outlineMaterials,
         // Where the others are, from here. Told to each ring so the heap comes
         // out with one silhouette around the whole of it rather than a dozen
         // rings crossing through it — see `./overlayMeshes`' `OutlinePeers`.
@@ -1083,7 +1096,8 @@ export class WorldRenderer {
     this.palettePass.dispose();
     this.particles.dispose();
     this.tintedMeshes.clear();
-    disposeGroupChildren(this.overlays);
+    disposeGroupChildren(this.overlays, this.outlineMaterials);
+    this.outlineMaterials.dispose();
     disposeGroupChildren(this.projectileGroup);
     this.projectileMeshes.clear();
     // Dropped with the meshes they belong to: a disposed material written to on

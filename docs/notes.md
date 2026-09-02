@@ -2782,6 +2782,51 @@ write. Doing that tint on the CPU meant recomposing and re-uploading 17 textures
 per frame; in the shader it is free. Before adding a CPU pass over pixel data,
 check whether the GPU can do it while sampling.
 
+### A disposed material takes its compiled shader with it
+
+Three refcounts a compiled GL program by the materials using it
+(`releaseProgram` in `three.module.js`): dispose the last material holding one
+and the program is destroyed, and the next material with the same source
+compiles and links it again — inside `render`, on the frame it was wanted.
+That lands in the **`draw`** phase, which reads as the renderer having got
+slower and has nothing to do with drawing.
+
+Almost nothing here can hit that, because almost every material in the world is
+a `MeshBasicMaterial` or a `LineBasicMaterial` whose program the world is
+already drawing with. The exception is the **outline shader**
+(`app/render/overlayMeshes.ts`): it is the one program whose only users are in
+the chrome layer, and the chrome layer is emptied and rebuilt whenever the
+overlay signature changes — which is a pointer crossing from one interaction
+row to the next, a target taking a step, or the mouse moving one cell in the
+editor.
+Every one of those was a full relink.
+
+`OutlineMaterials` is the fix and the whole of it: the materials are lent out
+and taken back rather than made and thrown away, so the count never reaches zero
+and the shader is compiled once for the life of the page. `disposeGroupChildren`
+takes the pool as an argument and asks it per material, so there is no ordering
+to get wrong.
+
+Two things to keep in mind before adding a second shader up there:
+
+- **A pooled material must be re-dressed on every loan.** Everything that
+  differs between two outlines is a uniform, and `uAlpha` in particular is
+  written sixty times a second by the pulse — a material coming back from a
+  pulsing outline starts the next steady one part-lit unless `dressOutline`
+  puts it back. There is a test for exactly this.
+- **The geometry is still thrown away per rebuild**, deliberately. A
+  `PlaneGeometry` is a buffer, not a compile, and it costs microseconds against
+  the milliseconds a relink costs. Pool it only with a measurement in hand.
+
+Measured on `/play`, one outline going off and back on, `setOverlays` +
+`renderOnce`: **0.50ms p50 pooled against 2.50ms relinked** (worst 1.3ms against
+4.3ms). Two milliseconds is a quarter of the 8.3ms budget, spent on every hover
+change. The number is from a warm Chrome shader cache and is the *floor* — a
+cold cache is what makes this visible enough to report as a bug, and is why it
+can look like it went away after a browser restart. To reproduce without editing
+anything, call `world.outlineMaterials.dispose()` between rebuilds: that is
+precisely what the old code did.
+
 ### Mobility is a property of the tile, not of the frame
 
 `isMobileTile` (in `app/lib/interactions.ts`) answers "can this ever change
