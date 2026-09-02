@@ -591,6 +591,22 @@ It surfaced when the player went from a full level to three, but it was never
 about the player. A shoved crate in a doorway had it too, and no rule about how
 tall a *body* is drawn would ever have reached that.
 
+**A clump sorts, and sorts only.** Anything hanging over a head — a name, a
+health bar, a damage number — anchors to the body's *own* height and never to
+the clump's, or a person standing in a doorway wears the door's health bar.
+`GameRenderer` keeps the two apart as `clumpHeight` and `bodyOwnHeight`; they
+were one function once, and the bar drifted two pixels up-left every time
+somebody stood in a door.
+
+**A walker joins the clump it is arriving into halfway through the step**
+(`steppingClumpHeight`), not when the simulation commits one. Committing is the
+honest instant for the board and the wrong one for the picture: a body walking
+north into a doorway is drawn over that doorway long before it arrives there, so
+a door that only gets out of the way at the end clips the head for most of the
+step. The destination's clump does not exist on the board yet, which is what
+`clumpExtentOnArrival` is for — the extent the step *will* make, computed
+without building the stack it will make.
+
 **What does not scale, and must not be scaled.** A pressure plate's `height` is
 a threshold at the boundary between "nothing solid" and "something solid", so
 `gte 1` still reads as "something is standing here" and doubling it would have
