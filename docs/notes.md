@@ -298,6 +298,62 @@ A rule spelled out five times is a rule that is only ever four-fifths true.
 editor reads `map.json` and never sees an owned body, so it is consistency
 rather than a fix, which is the point.
 
+## A dialog is a tree of topics, and the brain only asks whether it is talking
+
+`interactions.dialog` (`app/lib/dialog.ts`, run by `app/game/dialogRuntime.ts`)
+is how an NPC holds a conversation: the words it greets on, the words it says
+goodbye on, and between them an ordered list of topics, each with the words it
+answers to, the line it says, and optionally the topics that are live *right
+after* that reply. `{partner}` in any line is whoever it is talking to.
+
+**Why it is not more brain.** The brain already hears, remembers who spoke and
+talks, and the `shopkeeper` holds a whole hi → bye conversation on nothing
+else. What it cannot do is scale: every reply is a state, every state needs an
+`after` back, and every `heard` needs `from: is partner` copied onto it. Ten
+topics is thirty rows in a first-match-wins table that also drives the legs.
+So the brain stays the body's mind and the dialog is its mouth, and they meet
+at exactly one point — the brain condition `talking`, true while the dialog
+has a partner. A shopkeeper that wanders when idle and stands for a sale is
+`idle → serving if talking` and the `not` of it back; nothing else in the brain
+knows a conversation exists.
+
+- **Same ear, same mouth.** The dialog reads the same `pendingHeard` page the
+  brain does, on the same brain tick, and speaks through `recordSpeech` — so a
+  line it says is a bubble on a brain's terms, and, like a brain's, is never
+  heard by another body. It is stepped *before* the brain in `tickBrains`, so
+  a greeting heard this pass is a conversation `talking` already sees.
+- **Whole words, in order, first match wins.** `hearsWord` matches a keyword
+  as a whole word, case-insensitively, by scanning rather than by regex so a
+  keyword is never a pattern. The brain's `heard` is a substring on purpose —
+  a cat answering "ps" inside "psps" — and a shop answering "potion" inside
+  "emotion" is a shop that mishears. Topics are tried in authored order, the
+  live reply's `then` ahead of the root, so "yes" answers the question just
+  asked before it answers anything else.
+- **One partner, and a busy line for everybody else.** Whoever greets first is
+  answered until they say bye, fall silent for `idleMs`, or leave earshot
+  (`cells`, and `los` if asked — measured on the brain's `within`, sight
+  levels included). Only `bye` says anything; the other two endings are
+  silent, checked before the tick's words are read, so a partner who walked
+  off and shouted is a stranger by the time the word arrives. A stranger's
+  greeting gets `busy` once per pass, not once per word.
+- **A path, not a topic.** `DialogMemory.path` is the indices from the root to
+  the live reply, so a def reloaded under a running memory resolves to *a*
+  topic or to nothing rather than to a stale object. Not checkpointed, on the
+  brain's terms: a conversation is a state of play, and a reload ends every
+  one.
+- **A talking tile is an actor.** `resolveActor` reads `dialog` beside `brain`,
+  so a body with only a dialog is adopted and ticked; `tickOneDialog` is mute
+  for a tile whose block did not parse, exactly as a brain that did not parse
+  stands still.
+- **Passed through the save untouched**, like the brain and for the same
+  reason: the tree is `./dialog`'s to know, and until the editor has a tab for
+  it the only way one survives the tile dialog is unread.
+
+Conditions on the partner's kit and effects that move things (`trade`,
+`add_status`, `tag`) are the next step and are deliberately not here yet: the
+shape has `if`/`do`/`else` room on every topic, and the runtime is a pure step
+the editor will be able to run against a typed line.
+
 ## Where a player comes back in
 
 The checkpoint keeps everyone who is *connected*, because their tiles are in the

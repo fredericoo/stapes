@@ -257,6 +257,13 @@ import {
 } from "./movement";
 import { findPath } from "./pathfinding";
 import { resolveBrain } from "../lib/brain";
+import { resolveDialog } from "../lib/dialog";
+import {
+  converse,
+  initialDialogMemory,
+  isTalking,
+  type DialogMemory,
+} from "./dialogRuntime";
 import { bodyNameFor } from "./displayName";
 import {
   initialMemory,
@@ -1152,6 +1159,13 @@ type ActorRuntime = {
    */
   brain: BrainMemory | null;
   /**
+   * Who this body is talking to and where in its dialog it is, or null for a
+   * body with no dialog block. Built on first use and never checkpointed, on
+   * the brain's terms and for the brain's reason: a conversation is a state of
+   * play, and a world coming back from a save starts every one afresh.
+   */
+  dialog: DialogMemory | null;
+  /**
    * The cell this body was authored on, or null for one nobody authored.
    *
    * What the brain's `home` selector reads, and the only piece of a creature's
@@ -1879,6 +1893,7 @@ export class GameSession implements PlaySession {
       defensiveDecay: null,
       assailants: null,
       brain: null,
+      dialog: null,
       home: residentHome(id),
       // Restored where a returning player had any, and null otherwise — null
       // still means "ask the tile", which is what a fresh body and every
@@ -2564,6 +2579,9 @@ export class GameSession implements PlaySession {
 
     for (const actor of this.actors.values()) {
       if (!actor.resident) continue;
+      // The mouth before the mind, so a greeting heard this pass is a
+      // conversation the brain's `talking` condition can already see.
+      this.tickOneDialog(actor);
       this.tickOneBrain(actor, sounds);
     }
 
@@ -2596,6 +2614,46 @@ export class GameSession implements PlaySession {
     this.pendingHeard.push({ speakerId, text });
   }
 
+  /**
+   * Let a body answer what it heard, at the brain's cadence.
+   *
+   * Reads the same `pendingHeard` page the brain does and speaks through the
+   * same `recordSpeech`, so a line a dialog says is a bubble on exactly the
+   * terms a brain's `say` is — and, like a brain's, is never heard by another
+   * body. A tile with no dialog, or one whose dialog did not parse, is mute.
+   */
+  private tickOneDialog(actor: ActorRuntime) {
+    const dialog = resolveDialog(this.defFor(actor));
+    if (!dialog) return;
+
+    const loc = this.locate(actor);
+    actor.dialog ??= initialDialogMemory();
+    const lines = converse(dialog, actor.dialog, BRAIN_TICK_MS, {
+      self: { x: loc.x, y: loc.y, z: loc.z },
+      sight: this.battlerOf(actor)?.sight ?? DEFAULT_BATTLER.sight,
+      positionOf: (id) => this.actorCell(id),
+      canSee: (at) => this.canSeeFrom(actor, loc, at),
+      nameOf: (id) => this.bodyName(id),
+      heard: () => this.pendingHeard,
+    });
+    for (const line of lines) this.recordSpeech(actor, loc, line);
+  }
+
+  /**
+   * Can this body see that cell? Its own height decides what it sees over, so
+   * a person clears the crates a rat has to walk around. Shared by the brain
+   * and the dialog, so the two never disagree about a wall.
+   */
+  private canSeeFrom(actor: ActorRuntime, loc: ActorLocation, at: Coord): boolean {
+    return hasLineOfSight(
+      this.map,
+      this.tilesById,
+      { x: loc.x, y: loc.y, z: loc.z },
+      at,
+      this.defFor(actor).height,
+    );
+  }
+
   private tickOneBrain(actor: ActorRuntime, sounds: readonly Sound[]) {
     // A body with no brain, or one whose authored brain did not hold together,
     // simply stands there. Resolving is memoised on def identity, so asking
@@ -2618,16 +2676,8 @@ export class GameSession implements PlaySession {
       routeTo: (at, allowDrops) => this.routeStep(actor, loc, at, allowDrops),
       say: (text) => this.recordSpeech(actor, loc, text),
       noise: (text) => this.recordNoise(actor.id, loc, text),
-      canSee: (at) =>
-        hasLineOfSight(
-          this.map,
-          this.tilesById,
-          { x: loc.x, y: loc.y, z: loc.z },
-          at,
-          // Its own body's height, so what it can see over falls out of how tall
-          // it is drawn: a person clears the crates a rat has to walk around.
-          this.defFor(actor).height,
-        ),
+      canSee: (at) => this.canSeeFrom(actor, loc, at),
+      talking: () => isTalking(actor.dialog),
       // A creature with no stat block minds its own floor, which is what every
       // creature did before this was authorable.
       sight: this.battlerOf(actor)?.sight ?? DEFAULT_BATTLER.sight,

@@ -367,7 +367,13 @@ export function resolveIntangible(def: TileDef): boolean {
  * no flag — which is why the authored `player` tile carries none.
  */
 export function resolveActor(def: TileDef): boolean {
-  return def.actor === true || def.interactions?.brain != null;
+  return (
+    def.actor === true ||
+    def.interactions?.brain != null ||
+    // A body that talks is driven — by whoever walks up to it — on the terms
+    // a body that thinks is, and needs its runtime for the same reason.
+    def.interactions?.dialog != null
+  );
 }
 
 /**

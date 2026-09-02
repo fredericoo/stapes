@@ -1,6 +1,7 @@
 import * as v from "valibot";
 import { DEFAULT_BATTLER, type BattlerDef } from "./battler";
 import type { BrainDef } from "./brain";
+import type { DialogDef } from "./dialog";
 import { ELEMENTS } from "./element";
 import type { ItemDef } from "./item";
 import { kitForSave } from "./kit";
@@ -684,6 +685,12 @@ export type TileInteractions = {
    * block in here.
    */
   brain?: BrainDef;
+  /**
+   * A conversation this body can hold — what it answers to, and with what.
+   * Makes the tile an actor exactly as a brain does. See `./dialog`, which owns
+   * the shape and the parsing on the brain's terms.
+   */
+  dialog?: DialogDef;
   /**
    * Hit points and the numbers that spend them. See `./battler`, which owns the
    * shape and the parsing.
@@ -1635,6 +1642,7 @@ export function hasAnyInteraction(
 ): boolean {
   return Boolean(
     interactions?.brain ||
+      interactions?.dialog ||
       interactions?.battler ||
       interactions?.item ||
       interactions?.push ||
@@ -1809,6 +1817,10 @@ export function interactionsForSave(
   // through the tile dialog is untouched. Rebuilding it would also mean this
   // function knowing the whole state-machine shape, which is `./brain`'s job.
   const savedBrain = interactions?.brain;
+  // Passed through on the brain's terms and for the same reason: the tree is
+  // `./dialog`'s to know, and until the editor has a tab for it the only way
+  // one survives the tile dialog is untouched.
+  const savedDialog = interactions?.dialog;
   // Rebuilt field by field, unlike the brain: the shape is a short list of
   // stats and naming them here is what keeps a stray key an editor draft
   // carried in from ever reaching the file.
@@ -1874,6 +1886,7 @@ export function interactionsForSave(
   const savedItem = itemForSave(interactions?.item);
   if (
     !savedBrain &&
+    !savedDialog &&
     !savedBattler &&
     !savedItem &&
     !savedPush &&
@@ -1893,6 +1906,7 @@ export function interactionsForSave(
   }
   return {
     ...(savedBrain ? { brain: savedBrain } : {}),
+    ...(savedDialog ? { dialog: savedDialog } : {}),
     ...(savedBattler ? { battler: savedBattler } : {}),
     ...(savedItem ? { item: savedItem } : {}),
     ...(savedPush ? { push: savedPush } : {}),
