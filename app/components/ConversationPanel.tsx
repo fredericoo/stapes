@@ -52,6 +52,15 @@ type Props = {
   tilesets: TilesetDef[];
   onTalk: (action: TalkAction) => void;
   className?: string;
+  /**
+   * The dialog to draw, instead of the one on the conversation's tile.
+   *
+   * For the editor, which is drawing a draft the catalogue does not hold yet.
+   * The game never passes this: what a body says is what its tile says.
+   */
+  dialog?: DialogDef;
+  /** The heading, instead of the tile's name — for the same caller. */
+  title?: string;
 };
 
 export function ConversationPanel({
@@ -60,11 +69,13 @@ export function ConversationPanel({
   tilesets,
   onTalk,
   className = "",
+  dialog: draft,
+  title: heading,
 }: Props) {
   const tilesById = useMemo(() => tilesByIdFromList(tiles), [tiles]);
   const def = tilesById[conversation.tileId];
-  const dialog = def ? resolveDialog(def) : null;
-  const title = def?.name ?? conversation.tileId;
+  const dialog = draft ?? (def ? resolveDialog(def) : null);
+  const title = heading ?? def?.name ?? conversation.tileId;
 
   return (
     <section

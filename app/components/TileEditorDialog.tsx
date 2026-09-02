@@ -46,12 +46,15 @@ import { ItemTab } from "./ItemTab";
 import type { StatusDef } from "../lib/status";
 import { RespawnTab } from "./RespawnTab";
 import { BrainEditor } from "./BrainEditor";
+import { DialogEditor } from "./DialogEditor";
 import {
   availableStates,
   hasAnyInteraction,
   interactionsForSave,
 } from "../lib/interactions";
 import { validateBrain, type BrainDef } from "../lib/brain";
+import { validateDialog, type DialogDef } from "../lib/dialog";
+import { tilesByIdFromList } from "../lib/validation";
 import { Button, Dialog, Input, Segmented, Select, TabPanel, Tabs } from "../ui";
 
 function emptyFrame(tilesetId: string): Frame {
@@ -337,6 +340,7 @@ const STATE_HINTS: Record<SpriteState, string> = {
 const TAB_TILE = "tile";
 const TAB_INTERACTIVE = "interactive";
 const TAB_BRAIN = "brain";
+const TAB_DIALOG = "dialog";
 const TAB_BATTLE = "battle";
 const TAB_ITEM = "item";
 const TAB_RESPAWN = "respawn";
@@ -516,6 +520,16 @@ export function TileEditorDialog({
     });
   };
 
+  const setDialog = (next: DialogDef | undefined) => {
+    const merged = { ...draft.interactions };
+    if (next == null) delete merged.dialog;
+    else merged.dialog = next;
+    setDraft({
+      ...draft,
+      interactions: hasAnyInteraction(merged) ? merged : undefined,
+    });
+  };
+
   // Whether the Interactive tab has anything, brain aside — its own tab now.
   const i = draft.interactions;
   const hasNonBrainInteraction = Boolean(
@@ -562,6 +576,21 @@ export function TileEditorDialog({
       const fatal = validateBrain(brain).find((i) => i.severity === "error");
       if (fatal) {
         setError(`Brain: ${fatal.message}`);
+        return;
+      }
+    }
+
+    // On the brain's terms, and with the catalogues in hand: a dialog naming a
+    // tile or a status nobody authored is a button that does nothing online.
+    const dialog = draft.interactions?.dialog;
+    if (dialog) {
+      const catalogue = {
+        tilesById: tilesByIdFromList(tiles),
+        statusIds: new Set(Object.keys(statusDefs)),
+      };
+      const fatal = validateDialog(dialog, catalogue).find((i) => i.severity === "error");
+      if (fatal) {
+        setError(`Dialog: ${fatal.message}`);
         return;
       }
     }
@@ -987,6 +1016,10 @@ export function TileEditorDialog({
               value: TAB_BRAIN,
               label: impliedByBrain ? "Brain •" : "Brain",
             },
+            {
+              value: TAB_DIALOG,
+              label: draft.interactions?.dialog ? "Dialog •" : "Dialog",
+            },
             // Battle and Item are shown by the kind rather than by their block,
             // so neither carries the "•" the others use to say it is configured:
             // the tab being there at all is already that statement. Only the
@@ -1025,6 +1058,22 @@ export function TileEditorDialog({
               brain={draft.interactions?.brain}
               tiles={tiles}
               onChange={setBrain}
+            />
+          </TabPanel>
+
+          <TabPanel value={TAB_DIALOG} className="flex flex-col gap-3">
+            <p className="text-[11px] leading-snug text-muted">
+              What this body says when somebody presses <strong>Talk</strong> — a
+              tree of buttons, each with what it says back, what it asks of the
+              player first, and what it does. Authoring one makes the tile an{" "}
+              <strong>Actor</strong>; a malformed dialog leaves it mute.
+            </p>
+            <DialogEditor
+              dialog={draft.interactions?.dialog}
+              tiles={tiles}
+              tilesets={tilesets}
+              statusDefs={statusDefs}
+              onChange={setDialog}
             />
           </TabPanel>
 

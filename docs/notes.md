@@ -410,6 +410,44 @@ button that does nothing when pressed reads as broken.
   reason: the tree is `./dialog`'s to know, and until the editor has a tab for
   it the only way one survives the tile dialog is unread.
 
+### Authoring a dialog is an outline, with the real panel beside it
+
+The Dialog tab (`app/components/DialogEditor.tsx`) is one card per option,
+its follow-ups indented under it, on the same page the player will read it
+from: the panel shows a reply's follow-ups and nothing else, so the outline
+shows the same nesting. A card is dragged by its grip to reorder among its
+siblings or into another option's follow-ups — one `DragDropProvider` over
+the whole tree, each list a dnd-kit sortable *group* named by its path, and a
+droppable under every list for "into this, last". The one move refused is
+into its own descendants.
+
+- **Every edit is a rewrite by path.** `updateAt`, `insertAt`, `removeAt`,
+  `moveOption` are exported and tested (`dialogEditor.test.ts`), on the terms
+  `../lib/conditions` edits an `if`: a card is a copy React already rendered,
+  and naming the position is the only way a nested one can say which node it
+  means. `moveOption` removes first and re-reads the destination after — an
+  index named against the old tree lands one off.
+- **The condition tree is the brain's, lifted.** `ConditionTreeEditor` owns
+  add, nest, invert and remove for any leaf vocabulary; the caller brings the
+  one row that knows what a leaf is. The brain editor hands over its picker,
+  the dialog editor its own, and neither can grow a different idea of "and".
+  `EditorIssues` and `DragHandle` came out of the brain editor for the same
+  reason.
+- **The catalog is the picker.** `app/lib/dialogCatalog.ts` mirrors the brain
+  catalog — one entry per condition and effect, with `make` — so the editor
+  cannot offer a verb the runtime lacks. `make` takes what a fresh entry has to
+  point at, because unlike "the nearest player" there is no tile every world
+  has; the editor hands over the first item and the first status it knows.
+- **Try it is the game's panel.** `DialogTryOut` renders `ConversationPanel`
+  with the draft passed in over the catalogue's copy, driven by the same
+  runtime functions the server runs, against a pretend bag the author fills
+  in: things and counts, tags, statuses, and room for anything given. What a
+  press does on this page is what it will do online; whether fourteen shards
+  fit in a real bag is the trade module's question, tested there.
+- **Save refuses what would load mute.** `validateDialog` with the catalogues
+  in hand, on the brain's terms, so a button naming a tile nobody authored is
+  caught where it is actionable.
+
 ## Where a player comes back in
 
 The checkpoint keeps everyone who is *connected*, because their tiles are in the
