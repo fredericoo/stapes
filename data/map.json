@@ -9240,7 +9240,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "bush"
+          "tileId": "picked-bush"
         }
       ],
       "-31,44": [
@@ -18153,7 +18153,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "bush"
+          "tileId": "picked-bush"
         }
       ],
       "-22,37": [
@@ -29942,7 +29942,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "bush"
+          "tileId": "picked-bush"
         }
       ],
       "-10,7": [
@@ -37327,7 +37327,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "bush"
+          "tileId": "picked-bush"
         }
       ],
       "-3,27": [
@@ -37398,7 +37398,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "bush"
+          "tileId": "picked-bush"
         }
       ],
       "-3,37": [
@@ -43485,7 +43485,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "bush"
+          "tileId": "picked-bush"
         }
       ],
       "3,25": [
@@ -48804,9 +48804,6 @@
         },
         {
           "tileId": "small-bush"
-        },
-        {
-          "tileId": "berry"
         }
       ],
       "8,36": [
@@ -51628,7 +51625,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "bush"
+          "tileId": "picked-bush"
         }
       ],
       "11,-9": [
@@ -52642,7 +52639,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "bush"
+          "tileId": "picked-bush"
         }
       ],
       "12,-13": [
@@ -53915,7 +53912,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "bush"
+          "tileId": "picked-bush"
         }
       ],
       "13,14": [
@@ -55025,7 +55022,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "bush"
+          "tileId": "picked-bush"
         }
       ],
       "14,19": [
@@ -55079,7 +55076,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "bush"
+          "tileId": "picked-bush"
         }
       ],
       "14,29": [
@@ -57927,7 +57924,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "bush"
+          "tileId": "picked-bush"
         }
       ],
       "17,-15": [
@@ -60003,7 +60000,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "bush"
+          "tileId": "picked-bush"
         }
       ],
       "19,-12": [
@@ -61033,7 +61030,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "bush"
+          "tileId": "picked-bush"
         }
       ],
       "20,-4": [
@@ -61090,7 +61087,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "bush"
+          "tileId": "picked-bush"
         }
       ],
       "20,5": [
@@ -62087,10 +62084,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "bush"
-        },
-        {
-          "tileId": "berry"
+          "tileId": "picked-bush"
         }
       ],
       "21,18": [
@@ -65465,10 +65459,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "bush"
-        },
-        {
-          "tileId": "berry"
+          "tileId": "picked-bush"
         }
       ],
       "24,40": [
@@ -67227,7 +67218,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "bush"
+          "tileId": "picked-bush"
         }
       ],
       "26,14": [
@@ -70100,7 +70091,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "bush"
+          "tileId": "picked-bush"
         }
       ],
       "29,6": [
@@ -73952,10 +73943,7 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "bush"
-        },
-        {
-          "tileId": "berry"
+          "tileId": "picked-bush"
         }
       ],
       "33,0": [
@@ -104061,31 +104049,31 @@
       ],
       "-28,-7": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "e"
         }
       ],
       "-28,-6": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "e"
         }
       ],
       "-28,-5": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "e"
         }
       ],
       "-28,-4": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "e"
         }
       ],
       "-28,-3": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "e"
         }
       ],
@@ -104146,7 +104134,7 @@
       ],
       "-27,3": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
@@ -104184,7 +104172,7 @@
       ],
       "-27,8": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
@@ -104243,7 +104231,7 @@
       ],
       "-26,3": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
@@ -104281,7 +104269,7 @@
       ],
       "-26,8": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
@@ -104340,7 +104328,7 @@
       ],
       "-25,3": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
@@ -104378,7 +104366,7 @@
       ],
       "-25,8": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
@@ -104488,7 +104476,7 @@
       ],
       "-24,3": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
@@ -104526,7 +104514,7 @@
       ],
       "-24,8": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
@@ -104621,7 +104609,7 @@
       ],
       "-23,3": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
@@ -104659,7 +104647,7 @@
       ],
       "-23,8": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
@@ -104717,37 +104705,37 @@
       ],
       "-22,-7": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "w"
         }
       ],
       "-22,-6": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "w"
         }
       ],
       "-22,-5": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "w"
         }
       ],
       "-22,-4": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "w"
         }
       ],
       "-22,-3": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "w"
         }
       ],
       "-22,3": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
@@ -104785,7 +104773,7 @@
       ],
       "-22,8": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
@@ -104837,7 +104825,7 @@
       ],
       "-21,3": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
@@ -104875,7 +104863,7 @@
       ],
       "-21,8": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
@@ -104930,7 +104918,7 @@
       ],
       "-20,3": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
@@ -104968,7 +104956,7 @@
       ],
       "-20,8": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
@@ -105153,31 +105141,31 @@
       ],
       "-15,3": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "e"
         }
       ],
       "-15,4": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "e"
         }
       ],
       "-15,5": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "e"
         }
       ],
       "-15,6": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "e"
         }
       ],
       "-15,7": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "e"
         }
       ],
@@ -105843,31 +105831,31 @@
       ],
       "-11,3": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "w"
         }
       ],
       "-11,4": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "w"
         }
       ],
       "-11,5": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "w"
         }
       ],
       "-11,6": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "w"
         }
       ],
       "-11,7": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "w"
         }
       ],
@@ -107781,31 +107769,31 @@
       ],
       "10,-26": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "e"
         }
       ],
       "10,-25": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "e"
         }
       ],
       "10,-24": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "e"
         }
       ],
       "10,-23": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "e"
         }
       ],
       "10,-22": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "e"
         }
       ],
@@ -108034,31 +108022,31 @@
       ],
       "12,3": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "e"
         }
       ],
       "12,4": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "e"
         }
       ],
       "12,5": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "e"
         }
       ],
       "12,6": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "e"
         }
       ],
       "12,7": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "e"
         }
       ],
@@ -108209,31 +108197,31 @@
       ],
       "14,-26": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "w"
         }
       ],
       "14,-25": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "w"
         }
       ],
       "14,-24": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "w"
         }
       ],
       "14,-23": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "w"
         }
       ],
       "14,-22": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "w"
         }
       ],
@@ -108426,31 +108414,31 @@
       ],
       "16,-26": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "e"
         }
       ],
       "16,-25": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "e"
         }
       ],
       "16,-24": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "e"
         }
       ],
       "16,-23": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "e"
         }
       ],
       "16,-22": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "e"
         }
       ],
@@ -108504,31 +108492,31 @@
       ],
       "16,3": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "w"
         }
       ],
       "16,4": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "w"
         }
       ],
       "16,5": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "w"
         }
       ],
       "16,6": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "w"
         }
       ],
       "16,7": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "w"
         }
       ],
@@ -108708,31 +108696,31 @@
       ],
       "20,-26": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "w"
         }
       ],
       "20,-25": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "w"
         }
       ],
       "20,-24": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "w"
         }
       ],
       "20,-23": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "w"
         }
       ],
       "20,-22": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "w"
         }
       ],
@@ -109149,37 +109137,37 @@
     "2": {
       "-27,-7": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "e"
         }
       ],
       "-27,-6": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "e"
         }
       ],
       "-27,-5": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "e"
         }
       ],
       "-27,-4": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "e"
         }
       ],
       "-27,-3": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "e"
         }
       ],
       "-27,4": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
@@ -109201,7 +109189,7 @@
       ],
       "-27,7": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
@@ -109247,7 +109235,7 @@
       ],
       "-26,4": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
@@ -109269,7 +109257,7 @@
       ],
       "-26,7": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
@@ -109315,7 +109303,7 @@
       ],
       "-25,4": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
@@ -109337,13 +109325,13 @@
       ],
       "-25,7": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
       "-24,-28": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
@@ -109381,7 +109369,7 @@
       ],
       "-24,-23": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
@@ -109427,7 +109415,7 @@
       ],
       "-24,4": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
@@ -109449,13 +109437,13 @@
       ],
       "-24,7": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
       "-23,-28": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
@@ -109493,43 +109481,43 @@
       ],
       "-23,-23": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
       "-23,-7": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "w"
         }
       ],
       "-23,-6": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "w"
         }
       ],
       "-23,-5": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "w"
         }
       ],
       "-23,-4": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "w"
         }
       ],
       "-23,-3": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "w"
         }
       ],
       "-23,4": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
@@ -109551,13 +109539,13 @@
       ],
       "-23,7": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
       "-22,-28": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
@@ -109595,13 +109583,13 @@
       ],
       "-22,-23": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
       "-22,4": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
@@ -109623,13 +109611,13 @@
       ],
       "-22,7": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
       "-21,-28": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
@@ -109667,13 +109655,13 @@
       ],
       "-21,-23": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
       "-21,4": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
@@ -109695,13 +109683,13 @@
       ],
       "-21,7": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
       "-20,-28": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
@@ -109739,13 +109727,13 @@
       ],
       "-20,-23": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
       "-20,4": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
@@ -109767,13 +109755,13 @@
       ],
       "-20,7": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
       "-19,-28": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
@@ -109811,13 +109799,13 @@
       ],
       "-19,-23": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
       "-18,-28": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
@@ -109855,13 +109843,13 @@
       ],
       "-18,-23": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
       "-17,-28": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
@@ -109899,7 +109887,7 @@
       ],
       "-17,-23": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
@@ -109977,31 +109965,31 @@
       ],
       "-14,3": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "e"
         }
       ],
       "-14,4": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "e"
         }
       ],
       "-14,5": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "e"
         }
       ],
       "-14,6": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "e"
         }
       ],
       "-14,7": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "e"
         }
       ],
@@ -110261,31 +110249,31 @@
       ],
       "-12,3": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "w"
         }
       ],
       "-12,4": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "w"
         }
       ],
       "-12,5": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "w"
         }
       ],
       "-12,6": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "w"
         }
       ],
       "-12,7": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "w"
         }
       ],
@@ -111739,7 +111727,7 @@
       ],
       "7,-8": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "s"
         }
       ],
@@ -111777,7 +111765,7 @@
       ],
       "7,-3": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "n"
         }
       ],
@@ -111823,7 +111811,7 @@
       ],
       "8,-8": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "s"
         }
       ],
@@ -111861,7 +111849,7 @@
       ],
       "8,-3": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "n"
         }
       ],
@@ -111897,7 +111885,7 @@
       ],
       "9,-8": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "s"
         }
       ],
@@ -111935,13 +111923,13 @@
       ],
       "9,-3": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "n"
         }
       ],
       "10,-8": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "s"
         }
       ],
@@ -111979,43 +111967,43 @@
       ],
       "10,-3": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "n"
         }
       ],
       "11,-26": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "e"
         }
       ],
       "11,-25": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "e"
         }
       ],
       "11,-24": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "e"
         }
       ],
       "11,-23": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "e"
         }
       ],
       "11,-22": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "e"
         }
       ],
       "11,-8": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "s"
         }
       ],
@@ -112053,7 +112041,7 @@
       ],
       "11,-3": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "n"
         }
       ],
@@ -112099,7 +112087,7 @@
       ],
       "12,-8": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "s"
         }
       ],
@@ -112137,43 +112125,43 @@
       ],
       "12,-3": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "n"
         }
       ],
       "13,-26": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "w"
         }
       ],
       "13,-25": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "w"
         }
       ],
       "13,-24": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "w"
         }
       ],
       "13,-23": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "w"
         }
       ],
       "13,-22": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "w"
         }
       ],
       "13,-8": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "s"
         }
       ],
@@ -112211,43 +112199,43 @@
       ],
       "13,-3": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "n"
         }
       ],
       "13,3": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "e"
         }
       ],
       "13,4": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "e"
         }
       ],
       "13,5": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "e"
         }
       ],
       "13,6": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "e"
         }
       ],
       "13,7": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "e"
         }
       ],
       "14,-8": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "s"
         }
       ],
@@ -112285,7 +112273,7 @@
       ],
       "14,-3": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "n"
         }
       ],
@@ -112331,7 +112319,7 @@
       ],
       "15,-8": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "s"
         }
       ],
@@ -112369,43 +112357,43 @@
       ],
       "15,-3": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "n"
         }
       ],
       "15,3": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "w"
         }
       ],
       "15,4": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "w"
         }
       ],
       "15,5": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "w"
         }
       ],
       "15,6": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "w"
         }
       ],
       "15,7": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "w"
         }
       ],
       "16,-8": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "s"
         }
       ],
@@ -112443,37 +112431,37 @@
       ],
       "16,-3": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "n"
         }
       ],
       "17,-26": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "e"
         }
       ],
       "17,-25": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "e"
         }
       ],
       "17,-24": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "e"
         }
       ],
       "17,-23": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "e"
         }
       ],
       "17,-22": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "e"
         }
       ],
@@ -112519,31 +112507,31 @@
       ],
       "19,-26": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "w"
         }
       ],
       "19,-25": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "w"
         }
       ],
       "19,-24": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "w"
         }
       ],
       "19,-23": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "w"
         }
       ],
       "19,-22": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "w"
         }
       ],
@@ -112561,55 +112549,55 @@
     "3": {
       "-27,5": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
       "-27,6": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
       "-26,-7": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "e"
         }
       ],
       "-26,-6": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "e"
         }
       ],
       "-26,-5": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "e"
         }
       ],
       "-26,-4": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "e"
         }
       ],
       "-26,-3": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "e"
         }
       ],
       "-26,5": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
       "-26,6": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
@@ -112655,19 +112643,19 @@
       ],
       "-25,5": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
       "-25,6": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
       "-24,-27": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
@@ -112689,55 +112677,55 @@
       ],
       "-24,-24": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
       "-24,-7": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "w"
         }
       ],
       "-24,-6": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "w"
         }
       ],
       "-24,-5": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "w"
         }
       ],
       "-24,-4": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "w"
         }
       ],
       "-24,-3": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "w"
         }
       ],
       "-24,5": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
       "-24,6": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
       "-23,-27": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
@@ -112759,25 +112747,25 @@
       ],
       "-23,-24": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
       "-23,5": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
       "-23,6": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
       "-22,-27": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
@@ -112799,25 +112787,25 @@
       ],
       "-22,-24": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
       "-22,5": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
       "-22,6": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
       "-21,-27": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
@@ -112839,25 +112827,25 @@
       ],
       "-21,-24": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
       "-21,5": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
       "-21,6": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
       "-20,-27": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
@@ -112879,25 +112867,25 @@
       ],
       "-20,-24": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
       "-20,5": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
       "-20,6": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
       "-19,-27": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
@@ -112919,13 +112907,13 @@
       ],
       "-19,-24": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
       "-18,-27": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
@@ -112947,13 +112935,13 @@
       ],
       "-18,-24": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
       "-17,-27": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
@@ -112975,7 +112963,7 @@
       ],
       "-17,-24": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
@@ -113061,31 +113049,31 @@
       ],
       "-13,3": [
         {
-          "tileId": "roof-3",
+          "tileId": "roof-5",
           "direction": "s"
         }
       ],
       "-13,4": [
         {
-          "tileId": "roof-3",
+          "tileId": "roof-5",
           "direction": "s"
         }
       ],
       "-13,5": [
         {
-          "tileId": "roof-3",
+          "tileId": "roof-5",
           "direction": "s"
         }
       ],
       "-13,6": [
         {
-          "tileId": "roof-3",
+          "tileId": "roof-5",
           "direction": "s"
         }
       ],
       "-13,7": [
         {
-          "tileId": "roof-3",
+          "tileId": "roof-5",
           "direction": "s"
         }
       ],
@@ -114063,7 +114051,7 @@
       ],
       "7,-7": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "s"
         }
       ],
@@ -114085,7 +114073,7 @@
       ],
       "7,-4": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "n"
         }
       ],
@@ -114121,7 +114109,7 @@
       ],
       "8,-7": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "s"
         }
       ],
@@ -114143,13 +114131,13 @@
       ],
       "8,-4": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "n"
         }
       ],
       "9,-7": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "s"
         }
       ],
@@ -114171,13 +114159,13 @@
       ],
       "9,-4": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "n"
         }
       ],
       "10,-7": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "s"
         }
       ],
@@ -114199,13 +114187,13 @@
       ],
       "10,-4": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "n"
         }
       ],
       "11,-7": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "s"
         }
       ],
@@ -114227,43 +114215,43 @@
       ],
       "11,-4": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "n"
         }
       ],
       "12,-26": [
         {
-          "tileId": "roof-3",
+          "tileId": "roof-5",
           "direction": "s"
         }
       ],
       "12,-25": [
         {
-          "tileId": "roof-3",
+          "tileId": "roof-5",
           "direction": "s"
         }
       ],
       "12,-24": [
         {
-          "tileId": "roof-3",
+          "tileId": "roof-5",
           "direction": "s"
         }
       ],
       "12,-23": [
         {
-          "tileId": "roof-3",
+          "tileId": "roof-5",
           "direction": "s"
         }
       ],
       "12,-22": [
         {
-          "tileId": "roof-3",
+          "tileId": "roof-5",
           "direction": "s"
         }
       ],
       "12,-7": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "s"
         }
       ],
@@ -114285,13 +114273,13 @@
       ],
       "12,-4": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "n"
         }
       ],
       "13,-7": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "s"
         }
       ],
@@ -114313,13 +114301,13 @@
       ],
       "13,-4": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "n"
         }
       ],
       "14,-7": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "s"
         }
       ],
@@ -114341,43 +114329,43 @@
       ],
       "14,-4": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "n"
         }
       ],
       "14,3": [
         {
-          "tileId": "roof-3",
+          "tileId": "roof-6",
           "direction": "s"
         }
       ],
       "14,4": [
         {
-          "tileId": "roof-3",
+          "tileId": "roof-6",
           "direction": "s"
         }
       ],
       "14,5": [
         {
-          "tileId": "roof-3",
+          "tileId": "roof-6",
           "direction": "s"
         }
       ],
       "14,6": [
         {
-          "tileId": "roof-3",
+          "tileId": "roof-6",
           "direction": "s"
         }
       ],
       "14,7": [
         {
-          "tileId": "roof-3",
+          "tileId": "roof-6",
           "direction": "s"
         }
       ],
       "15,-7": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "s"
         }
       ],
@@ -114399,13 +114387,13 @@
       ],
       "15,-4": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "n"
         }
       ],
       "16,-7": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "s"
         }
       ],
@@ -114427,37 +114415,37 @@
       ],
       "16,-4": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "n"
         }
       ],
       "18,-26": [
         {
-          "tileId": "roof-3",
+          "tileId": "roof-6",
           "direction": "s"
         }
       ],
       "18,-25": [
         {
-          "tileId": "roof-3",
+          "tileId": "roof-6",
           "direction": "s"
         }
       ],
       "18,-24": [
         {
-          "tileId": "roof-3",
+          "tileId": "roof-6",
           "direction": "s"
         }
       ],
       "18,-23": [
         {
-          "tileId": "roof-3",
+          "tileId": "roof-6",
           "direction": "s"
         }
       ],
       "18,-22": [
         {
-          "tileId": "roof-3",
+          "tileId": "roof-6",
           "direction": "s"
         }
       ]
@@ -114465,127 +114453,127 @@
     "4": {
       "-25,-7": [
         {
-          "tileId": "roof-3",
+          "tileId": "roof-5",
           "direction": "s"
         }
       ],
       "-25,-6": [
         {
-          "tileId": "roof-3",
+          "tileId": "roof-5",
           "direction": "s"
         }
       ],
       "-25,-5": [
         {
-          "tileId": "roof-3",
+          "tileId": "roof-5",
           "direction": "s"
         }
       ],
       "-25,-4": [
         {
-          "tileId": "roof-3",
+          "tileId": "roof-5",
           "direction": "s"
         }
       ],
       "-25,-3": [
         {
-          "tileId": "roof-3",
+          "tileId": "roof-5",
           "direction": "s"
         }
       ],
       "-24,-26": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
       "-24,-25": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
       "-23,-26": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
       "-23,-25": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
       "-22,-26": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
       "-22,-25": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
       "-21,-26": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
       "-21,-25": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
       "-20,-26": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
       "-20,-25": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
       "-19,-26": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
       "-19,-25": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
       "-18,-26": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
       "-18,-25": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
       "-17,-26": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "s"
         }
       ],
       "-17,-25": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-4",
           "direction": "n"
         }
       ],
@@ -115103,121 +115091,121 @@
       ],
       "7,-6": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "s"
         }
       ],
       "7,-5": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "n"
         }
       ],
       "8,-6": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "s"
         }
       ],
       "8,-5": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "n"
         }
       ],
       "9,-6": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "s"
         }
       ],
       "9,-5": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "n"
         }
       ],
       "10,-6": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "s"
         }
       ],
       "10,-5": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "n"
         }
       ],
       "11,-6": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "s"
         }
       ],
       "11,-5": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "n"
         }
       ],
       "12,-6": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "s"
         }
       ],
       "12,-5": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "n"
         }
       ],
       "13,-6": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "s"
         }
       ],
       "13,-5": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "n"
         }
       ],
       "14,-6": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "s"
         }
       ],
       "14,-5": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "n"
         }
       ],
       "15,-6": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "s"
         }
       ],
       "15,-5": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "n"
         }
       ],
       "16,-6": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "s"
         }
       ],
       "16,-5": [
         {
-          "tileId": "roof-1",
+          "tileId": "roof-2",
           "direction": "n"
         }
       ]

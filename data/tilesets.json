@@ -75,5 +75,12 @@
     "file": "projectiles.png",
     "width": 64,
     "height": 8
+  },
+  {
+    "id": "roofs",
+    "name": "Roofs",
+    "file": "roofs.png",
+    "width": 160,
+    "height": 64
   }
 ]

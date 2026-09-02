@@ -1353,14 +1353,106 @@
     "type": "directional",
     "kind": "prop",
     "attributes": {},
+    "intangible": true,
     "sprites": {
       "n": {
         "frames": [
           {
             "sprite": {
-              "tilesetId": "tiny-ranch-tiles",
+              "tilesetId": "roofs",
               "rect": {
-                "x": 14,
+                "x": 0,
+                "y": 2,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "roofs",
+              "rect": {
+                "x": 0,
+                "y": 0,
+                "w": 1,
+                "h": 2
+              },
+              "base": {
+                "x": 0,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "roofs",
+              "rect": {
+                "x": 2,
+                "y": 2,
+                "w": 2,
+                "h": 1
+              },
+              "base": {
+                "x": 1,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "roofs",
+              "rect": {
+                "x": 1,
+                "y": 0,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "roof-2",
+    "name": "Roof",
+    "height": 4,
+    "type": "directional",
+    "kind": "prop",
+    "attributes": {},
+    "intangible": true,
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "roofs",
+              "rect": {
+                "x": 0,
                 "y": 6,
                 "w": 2,
                 "h": 2
@@ -1378,9 +1470,9 @@
         "frames": [
           {
             "sprite": {
-              "tilesetId": "tiny-ranch-tiles",
+              "tilesetId": "roofs",
               "rect": {
-                "x": 19,
+                "x": 0,
                 "y": 4,
                 "w": 1,
                 "h": 2
@@ -1398,10 +1490,10 @@
         "frames": [
           {
             "sprite": {
-              "tilesetId": "tiny-ranch-tiles",
+              "tilesetId": "roofs",
               "rect": {
-                "x": 14,
-                "y": 5,
+                "x": 2,
+                "y": 6,
                 "w": 2,
                 "h": 1
               },
@@ -1418,10 +1510,101 @@
         "frames": [
           {
             "sprite": {
-              "tilesetId": "tiny-ranch-tiles",
+              "tilesetId": "roofs",
               "rect": {
-                "x": 18,
-                "y": 2,
+                "x": 1,
+                "y": 4,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "roof-4",
+    "name": "Roof",
+    "height": 4,
+    "type": "directional",
+    "kind": "prop",
+    "attributes": {},
+    "intangible": true,
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "roofs",
+              "rect": {
+                "x": 4,
+                "y": 6,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "roofs",
+              "rect": {
+                "x": 4,
+                "y": 4,
+                "w": 1,
+                "h": 2
+              },
+              "base": {
+                "x": 0,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "roofs",
+              "rect": {
+                "x": 6,
+                "y": 6,
+                "w": 2,
+                "h": 1
+              },
+              "base": {
+                "x": 1,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "roofs",
+              "rect": {
+                "x": 5,
+                "y": 4,
                 "w": 2,
                 "h": 2
               },
@@ -1448,9 +1631,99 @@
         "frames": [
           {
             "sprite": {
-              "tilesetId": "tiny-ranch-tiles",
+              "tilesetId": "roofs",
               "rect": {
-                "x": 17,
+                "x": 3,
+                "y": 0,
+                "w": 1,
+                "h": 2
+              },
+              "base": {
+                "x": 0,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "roofs",
+              "rect": {
+                "x": 2,
+                "y": 3,
+                "w": 2,
+                "h": 1
+              },
+              "base": {
+                "x": 1,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "roofs",
+              "rect": {
+                "x": 3,
+                "y": 0,
+                "w": 1,
+                "h": 2
+              },
+              "base": {
+                "x": 0,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "roofs",
+              "rect": {
+                "x": 2,
+                "y": 3,
+                "w": 2,
+                "h": 1
+              },
+              "base": {
+                "x": 1,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "roof-5",
+    "name": "Roof",
+    "height": 2,
+    "type": "directional",
+    "kind": "prop",
+    "attributes": {},
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "roofs",
+              "rect": {
+                "x": 3,
                 "y": 4,
                 "w": 1,
                 "h": 2
@@ -1468,9 +1741,9 @@
         "frames": [
           {
             "sprite": {
-              "tilesetId": "tiny-ranch-tiles",
+              "tilesetId": "roofs",
               "rect": {
-                "x": 16,
+                "x": 2,
                 "y": 7,
                 "w": 2,
                 "h": 1
@@ -1488,15 +1761,15 @@
         "frames": [
           {
             "sprite": {
-              "tilesetId": "tiny-ranch-tiles",
+              "tilesetId": "roofs",
               "rect": {
-                "x": 16,
+                "x": 3,
                 "y": 4,
-                "w": 2,
+                "w": 1,
                 "h": 2
               },
               "base": {
-                "x": 1,
+                "x": 0,
                 "y": 1
               }
             },
@@ -1508,9 +1781,99 @@
         "frames": [
           {
             "sprite": {
-              "tilesetId": "tiny-ranch-tiles",
+              "tilesetId": "roofs",
               "rect": {
-                "x": 16,
+                "x": 2,
+                "y": 7,
+                "w": 2,
+                "h": 1
+              },
+              "base": {
+                "x": 1,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "roof-6",
+    "name": "Roof",
+    "height": 2,
+    "type": "directional",
+    "kind": "prop",
+    "attributes": {},
+    "sprites": {
+      "n": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "roofs",
+              "rect": {
+                "x": 7,
+                "y": 4,
+                "w": 1,
+                "h": 2
+              },
+              "base": {
+                "x": 0,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "e": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "roofs",
+              "rect": {
+                "x": 6,
+                "y": 7,
+                "w": 2,
+                "h": 1
+              },
+              "base": {
+                "x": 1,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "s": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "roofs",
+              "rect": {
+                "x": 7,
+                "y": 4,
+                "w": 1,
+                "h": 2
+              },
+              "base": {
+                "x": 0,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "w": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "roofs",
+              "rect": {
+                "x": 6,
                 "y": 7,
                 "w": 2,
                 "h": 1
@@ -1528,7 +1891,7 @@
   },
   {
     "id": "plaster",
-    "name": "Plaster",
+    "name": "Roof",
     "height": 2,
     "type": "simple",
     "kind": "prop",
@@ -1537,10 +1900,10 @@
       "frames": [
         {
           "sprite": {
-            "tilesetId": "tiny-ranch-tiles",
+            "tilesetId": "roofs",
             "rect": {
-              "x": 12,
-              "y": 6,
+              "x": 4,
+              "y": 0,
               "w": 2,
               "h": 2
             },
@@ -11720,26 +12083,6 @@
     "kind": "prop",
     "attributes": {},
     "walkable": false,
-    "sprite": {
-      "frames": [
-        {
-          "sprite": {
-            "tilesetId": "tiny-ranch-tiles",
-            "rect": {
-              "x": 2,
-              "y": 8,
-              "w": 2,
-              "h": 2
-            },
-            "base": {
-              "x": 1,
-              "y": 1
-            }
-          },
-          "durationMs": 200
-        }
-      ]
-    },
     "interactions": {
       "extract": {
         "actionName": "Pick",
@@ -11761,6 +12104,26 @@
           }
         ]
       }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 14,
+              "y": 6,
+              "w": 2,
+              "h": 2
+            },
+            "base": {
+              "x": 1,
+              "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ]
     }
   },
   {
@@ -11786,7 +12149,7 @@
             "tilesetId": "tiny-ranch-tiles",
             "rect": {
               "x": 2,
-              "y": 10,
+              "y": 8,
               "w": 2,
               "h": 2
             },
