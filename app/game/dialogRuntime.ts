@@ -1,4 +1,12 @@
-import { hearsAny, type DialogDef, type DialogTopic } from "../lib/dialog";
+import { evaluateCondition } from "../lib/conditions";
+import {
+  hearsAny,
+  type DialogCondition,
+  type DialogConditionDef,
+  type DialogDef,
+  type DialogEffectDef,
+  type DialogTopic,
+} from "../lib/dialog";
 import type { BattlerDef } from "../lib/battler";
 import type { Coord } from "../lib/types";
 import { NOBODY, within, type Utterance } from "./brainRuntime";
@@ -53,6 +61,18 @@ export type DialogView = {
   canSee(at: Coord): boolean;
   nameOf(actorId: string): string | null;
   heard(): readonly Utterance[];
+  /** Does this body carry at least so many of a tile? @see ./trade */
+  carries(actorId: string, tileId: string, count: number): boolean;
+  /** Is there room on this body for so many of a tile? @see ./trade */
+  roomFor(actorId: string, tileId: string, count: number): boolean;
+  hasTag(actorId: string, tag: string): boolean;
+  hasStatus(actorId: string, statusId: string): boolean;
+  /**
+   * Run these effects on this body, all or none. False when any of them
+   * cannot be — and then nothing has changed, which is what lets a topic's
+   * `else` be said honestly.
+   */
+  attempt(actorId: string, effects: readonly DialogEffectDef[]): boolean;
 };
 
 export function initialDialogMemory(): DialogMemory {
@@ -119,11 +139,61 @@ export function converse(
       hearsAny(utterance.text, topic.hear),
     );
     if (!found) continue;
+    if (!answers(found.topic, memory.partnerId, view)) {
+      // Refused, and the follow-ups stay live: "yes" again once the shards are
+      // in hand is the same question, not a new one.
+      if (found.topic.else) say(found.topic.else);
+      continue;
+    }
     memory.path = found.topic.then?.length ? found.path : [];
     say(found.topic.say);
   }
 
   return says;
+}
+
+/**
+ * May this topic answer — does its `if` hold, and did its `do` run?
+ *
+ * The condition is asked first and the effects only then, so a topic that
+ * asks `carries` and then trades never runs a trade it already knows is short.
+ * Both refusals read the same to the caller because they are the same to the
+ * partner: nothing happened, and the `else` line says why.
+ */
+function answers(
+  topic: DialogTopic,
+  partnerId: string,
+  view: DialogView,
+): boolean {
+  if (topic.if && !holds(topic.if, partnerId, view)) return false;
+  if (topic.do?.length && !view.attempt(partnerId, topic.do)) return false;
+  return true;
+}
+
+function holds(
+  condition: DialogCondition,
+  partnerId: string,
+  view: DialogView,
+): boolean {
+  return evaluateCondition(condition, (leaf) => leafHolds(leaf, partnerId, view));
+}
+
+/** Every leaf is a question about the partner and nothing else. */
+function leafHolds(
+  leaf: DialogConditionDef,
+  partnerId: string,
+  view: DialogView,
+): boolean {
+  switch (leaf.cond) {
+    case "carries":
+      return view.carries(partnerId, leaf.tileId, leaf.count);
+    case "room_for":
+      return view.roomFor(partnerId, leaf.tileId, leaf.count);
+    case "has_tag":
+      return view.hasTag(partnerId, leaf.tag);
+    case "has_status":
+      return view.hasStatus(partnerId, leaf.statusId);
+  }
 }
 
 /**

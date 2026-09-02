@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 import tilesJson from "../../data/tiles.json";
 import type { BrainDef } from "../lib/brain";
+import statusesJson from "../../data/statuses.json";
 import { DEFAULT_DIALOG, type DialogDef } from "../lib/dialog";
+import { DEFAULT_CONTAINER } from "../lib/item";
+import { statusesById } from "../lib/status";
 import { emptyMap, replaceStack } from "../lib/mapData";
-import type { MapFile, TileDef } from "../lib/types";
+import type { MapFile, PlacedTile, TileDef } from "../lib/types";
 import { normalizeTileDef, normalizeTiles } from "../lib/types";
 import { BRAIN_TICK_MS, TICK_MS } from "./constants";
 import { GameSession } from "./GameSession";
@@ -45,6 +48,35 @@ const dialog: DialogDef = {
   topics: [{ hear: ["potion"], say: "Fourteen shards." }],
 };
 
+/** Sells a potion for fourteen shards, and blesses a customer once. */
+const shopDialog: DialogDef = {
+  ...DEFAULT_DIALOG,
+  greet: { hear: ["hi"], say: "Hello." },
+  bye: { hear: ["bye"], say: "Bye." },
+  topics: [
+    {
+      hear: ["potion"],
+      say: "Fourteen shards. Deal?",
+      then: [
+        {
+          hear: ["yes"],
+          do: [{ effect: "trade", take: [{ tileId: "shard", count: 14 }], give: [{ tileId: "potion", count: 1 }] }],
+          say: "Here you go.",
+          else: "That's not fourteen shards.",
+        },
+      ],
+    },
+    {
+      hear: ["bless"],
+      if: { combinator: "and", not: true, rules: [{ cond: "has_tag", tag: "blessed" }] },
+      do: [{ effect: "add_status", statusId: "luminous" }, { effect: "tag", tag: "blessed" }],
+      say: "Shine.",
+      else: "Once is enough.",
+    },
+    { hear: ["curse"], do: [{ effect: "add_status", statusId: "no-such-status" }], say: "Wither.", else: "I've lost the words." },
+  ],
+};
+
 /** Stands still, and says so the moment a conversation starts. */
 const standsToServe: BrainDef = {
   initial: "idle",
@@ -69,7 +101,18 @@ const tiles: TileDef[] = [
     directional: true,
     walkable: false,
     variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
+    interactions: {
+      battler: {
+        masteries: { toughness: 10 },
+        naturalWeapon: { type: "weapon", damage: 5, def: 0, accuracy: 100, variance: 0, spd: 100, mastery: "fist" },
+        kit: [{ slot: "bag", tileId: "bag", chance: 100 }],
+      },
+    },
   }),
+  tile({ id: "bag", kind: "item", intangible: true, interactions: { item: { ...DEFAULT_CONTAINER } } }),
+  tile({ id: "shard", kind: "item", intangible: true, interactions: { item: { type: "artifact", pile: 99 } } }),
+  tile({ id: "potion", kind: "item", intangible: true, interactions: { item: { type: "consumable", label: "Drink", hp: 0, pile: 4 } } }),
+  tile({ id: "shop", height: 4, walkable: false, interactions: { dialog: shopDialog } }),
   tile({ id: "seller", height: 4, walkable: false, interactions: { dialog } }),
   tile({ id: "server", height: 4, walkable: false, interactions: { dialog, brain: standsToServe } }),
   ...normalizeTiles(tilesJson as unknown[]).filter((t) => t.id === "potion-salesman"),
@@ -177,5 +220,79 @@ describe("the potion salesman, as authored", () => {
     ]);
     session.hear("local", "bye");
     expect(brainTick(session)).toEqual([expect.stringContaining("Mind the dark")]);
+  });
+});
+
+describe("trading through the session", () => {
+  const catalogue = statusesById(statusesJson);
+
+  /** The shop two cells east, and whatever else on the cell south. */
+  function shopWith(south: PlacedTile | null): GameSession {
+    let map = fieldWith("shop");
+    if (south) map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, south]);
+    return new GameSession(map, tiles, { statuses: catalogue });
+  }
+
+  function bagOf(session: GameSession) {
+    return session.getSnapshot().equipment.bag?.contents?.map((i) =>
+      i.count ? `${i.tileId}x${i.count}` : i.tileId,
+    );
+  }
+
+  function talk(session: GameSession, ...lines: string[]): string[] {
+    let said: string[] = [];
+    for (const line of lines) {
+      session.hear("local", line);
+      said = brainTick(session);
+    }
+    return said;
+  }
+
+  it("takes the shards and hands over the potion, announcing the kit once", () => {
+    const session = shopWith({ tileId: "shard", count: 14 });
+    session.pickUp({ x: 0, y: 1, z: 0, stackIndex: 1 });
+    session.drainEquipmentChanges();
+    expect(talk(session, "hi", "potion", "yes")).toEqual(["shop: Here you go."]);
+    expect(bagOf(session)).toEqual(["potion"]);
+    expect(session.drainEquipmentChanges()).toEqual([session.getSnapshot().self.id]);
+  });
+
+  it("refuses when short, says so, and leaves the kit alone", () => {
+    const session = shopWith({ tileId: "shard", count: 13 });
+    session.pickUp({ x: 0, y: 1, z: 0, stackIndex: 1 });
+    session.drainEquipmentChanges();
+    expect(talk(session, "hi", "potion", "yes")).toEqual(["shop: That's not fourteen shards."]);
+    expect(bagOf(session)).toEqual(["shardx13"]);
+    expect(session.drainEquipmentChanges()).toEqual([]);
+  });
+
+  it("pays out of a bag held in a hand", () => {
+    const session = shopWith({
+      tileId: "bag",
+      itemId: "itm_purse",
+      contents: [{ id: "itm_shards", tileId: "shard", count: 20 }],
+    });
+    // A second bag never goes in the bag; it goes to a hand, shards and all.
+    session.pickUp({ x: 0, y: 1, z: 0, stackIndex: 1 });
+    expect(session.getSnapshot().equipment.offhand?.tileId).toBe("bag");
+    expect(talk(session, "hi", "potion", "yes")).toEqual(["shop: Here you go."]);
+    expect(session.getSnapshot().equipment.offhand?.contents).toEqual([
+      { id: "itm_shards", tileId: "shard", count: 6 },
+    ]);
+    expect(bagOf(session)).toEqual(["potion"]);
+  });
+
+  it("grants a status and a tag together, and reads the tag back", () => {
+    const session = shopWith(null);
+    expect(talk(session, "hi", "bless")).toEqual(["shop: Shine."]);
+    expect(session.statusesOf("local")?.map((s) => s.defId)).toEqual(["luminous"]);
+    expect(session.getSnapshot().tags).toEqual(["blessed"]);
+    expect(talk(session, "bless")).toEqual(["shop: Once is enough."]);
+  });
+
+  it("refuses a status nobody authored, rather than doing half", () => {
+    const session = shopWith(null);
+    expect(talk(session, "hi", "curse")).toEqual(["shop: I've lost the words."]);
+    expect(session.statusesOf("local")).toEqual([]);
   });
 });

@@ -257,13 +257,14 @@ import {
 } from "./movement";
 import { findPath } from "./pathfinding";
 import { resolveBrain } from "../lib/brain";
-import { resolveDialog } from "../lib/dialog";
+import { resolveDialog, type DialogEffectDef } from "../lib/dialog";
 import {
   converse,
   initialDialogMemory,
   isTalking,
   type DialogMemory,
 } from "./dialogRuntime";
+import { carriedCount, hasRoomFor, planTrade } from "./trade";
 import { bodyNameFor } from "./displayName";
 import {
   initialMemory,
@@ -2635,8 +2636,74 @@ export class GameSession implements PlaySession {
       canSee: (at) => this.canSeeFrom(actor, loc, at),
       nameOf: (id) => this.bodyName(id),
       heard: () => this.pendingHeard,
+      carries: (id, tileId, count) => {
+        const partner = this.actors.get(id);
+        return (
+          partner != null &&
+          carriedCount(this.tilesById, partner.equipment, tileId) >= count
+        );
+      },
+      roomFor: (id, tileId, count) => {
+        const partner = this.actors.get(id);
+        return (
+          partner != null &&
+          hasRoomFor(this.tilesById, partner.equipment, { tileId, count }, mintItemId)
+        );
+      },
+      hasTag: (id, tag) => this.actors.get(id)?.tags.includes(tag) ?? false,
+      hasStatus: (id, statusId) =>
+        this.actors.get(id)?.statuses.some((s) => s.defId === statusId) ?? false,
+      attempt: (id, effects) => this.attemptDialogEffects(id, effects),
     });
     for (const line of lines) this.recordSpeech(actor, loc, line);
+  }
+
+  /**
+   * Run a topic's effects on the partner, all or none.
+   *
+   * Planned in full before anything is written: every trade is worked out
+   * against the kit the one before it leaves, and a status has to be one the
+   * catalogue holds. Only then does the kit change, once, and the statuses and
+   * tags land beside it — so a topic that both takes payment and grants a
+   * status cannot take the payment and fail the status.
+   *
+   * A status nobody authored refuses here where a potion's grant is skipped
+   * silently, because a drink still did something — it was spent — and a topic
+   * whose whole point was the status did nothing at all. Saying `else` is the
+   * honest reading.
+   */
+  private attemptDialogEffects(
+    actorId: string,
+    effects: readonly DialogEffectDef[],
+  ): boolean {
+    const partner = this.actors.get(actorId);
+    if (!partner) return false;
+
+    let kit = partner.equipment;
+    for (const effect of effects) {
+      if (effect.effect === "add_status" && !this.statusDefs[effect.statusId]) {
+        return false;
+      }
+      if (effect.effect !== "trade") continue;
+      const next = planTrade(this.tilesById, kit, effect.take, effect.give, mintItemId);
+      if (!next) return false;
+      kit = next;
+    }
+
+    if (kit !== partner.equipment) this.setEquipment(partner, kit);
+    for (const effect of effects) this.applyDialogEffect(partner, effect);
+    return true;
+  }
+
+  /** The non-kit half of an effect, once the whole list is known to run. */
+  private applyDialogEffect(partner: ActorRuntime, effect: DialogEffectDef) {
+    if (effect.effect === "add_status") {
+      this.grantStatus(partner, { id: effect.statusId });
+      return;
+    }
+    if (effect.effect === "tag" && !partner.tags.includes(effect.tag)) {
+      this.setTags(partner, [...partner.tags, effect.tag]);
+    }
   }
 
   /**

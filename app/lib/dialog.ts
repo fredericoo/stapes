@@ -1,4 +1,6 @@
 import * as v from "valibot";
+import { conditionSchema, conditionLeaves, type ConditionNode } from "./conditions";
+import { resolveContainer } from "./item";
 import type { TileDef } from "./types";
 
 /**
@@ -51,7 +53,59 @@ export type DialogLine = {
   say: string;
 };
 
+/**
+ * A question about the partner, asked before a topic answers.
+ *
+ * All about the partner's kit and record, and nothing about time or distance:
+ * those are the brain's, and ending a conversation on distance is the block's
+ * own `cells`. Composed with `and`/`or`/`not` by `./conditions`, which was
+ * written expecting a second vocabulary — this is it.
+ */
+export type DialogConditionDef =
+  /** At least `count` of a tile across everything carried, piles summed. */
+  | { cond: "carries"; tileId: string; count: number }
+  /** Somewhere on the body for `count` of a tile, on a trade's landing rule. */
+  | { cond: "room_for"; tileId: string; count: number }
+  /** The partner holds a tag — a reward's, or one a `tag` effect wrote. */
+  | { cond: "has_tag"; tag: string }
+  /** The partner is under a status right now. */
+  | { cond: "has_status"; statusId: string };
+
+export type DialogCondition = ConditionNode<DialogConditionDef>;
+
+/** So many of one tile, as one side of a trade. */
+export type TradeSide = { tileId: string; count: number };
+
+/**
+ * Something a topic does when it answers.
+ *
+ * Every one of these can be refused — a trade short on either side, a status
+ * nobody authored — and a refusal reads exactly as the topic's `if` failing:
+ * the `else` line is said and nothing changes. A list is a transaction: all of
+ * it runs or none of it does.
+ */
+export type DialogEffectDef =
+  /**
+   * Take these from the partner and give them those, or neither.
+   *
+   * Either side may be empty — a gift, or a fee — but not both. Never a
+   * container on either side: a pack is not a thing you spend, and a trade that
+   * handed one over would be a second inventory arriving somewhere nothing
+   * nests. See `../game/trade`.
+   */
+  | { effect: "trade"; take: TradeSide[]; give: TradeSide[] }
+  /** Put a status on the partner, for the status's own duration. */
+  | { effect: "add_status"; statusId: string }
+  /** Mark the partner, on a reward tag's terms, so `has_tag` can ask later. */
+  | { effect: "tag"; tag: string };
+
 export type DialogTopic = DialogLine & {
+  /** Asked of the partner first. Failing it says `else` instead. */
+  if?: DialogCondition;
+  /** Run when `if` holds, all or nothing. Refused says `else` instead. */
+  do?: DialogEffectDef[];
+  /** Said instead of `say` when `if` failed or `do` was refused. */
+  else?: string;
   /** Topics live only right after this reply. Absent or empty means none. */
   then?: DialogTopic[];
 };
@@ -143,11 +197,45 @@ const lineSchema = v.pipe(v.string(), v.minLength(1));
 
 const dialogLineSchema = v.object({ hear: hearSchema, say: lineSchema });
 
+const tileId = v.pipe(v.string(), v.trim(), v.minLength(1));
+
+// At least one: a condition about zero of something is always true and never
+// what anybody typed.
+const count = v.pipe(v.number(), v.integer(), v.minValue(1));
+
+const conditionLeafSchema = v.variant("cond", [
+  v.object({ cond: v.literal("carries"), tileId, count }),
+  v.object({ cond: v.literal("room_for"), tileId, count }),
+  v.object({ cond: v.literal("has_tag"), tag: v.pipe(v.string(), v.trim(), v.minLength(1)) }),
+  v.object({ cond: v.literal("has_status"), statusId: tileId }),
+]);
+
+const ifSchema = conditionSchema<DialogConditionDef>(conditionLeafSchema);
+
+const tradeSideSchema = v.object({ tileId, count });
+
+const effectSchema = v.variant("effect", [
+  v.pipe(
+    v.object({
+      effect: v.literal("trade"),
+      take: v.array(tradeSideSchema),
+      give: v.array(tradeSideSchema),
+    }),
+    // A trade of nothing for nothing is a topic that should not have a trade.
+    v.check((raw) => raw.take.length + raw.give.length > 0, "a trade moves something"),
+  ),
+  v.object({ effect: v.literal("add_status"), statusId: tileId }),
+  v.object({ effect: v.literal("tag"), tag: v.pipe(v.string(), v.trim(), v.minLength(1)) }),
+]);
+
 // Recursive through `then`, the way `./conditions` is through `rules`: a topic
 // holds topics, and valibot needs to be told the type it will arrive at.
 const topicSchema: v.GenericSchema<unknown, DialogTopic> = v.object({
   hear: hearSchema,
   say: lineSchema,
+  if: v.optional(ifSchema),
+  do: v.optional(v.array(effectSchema)),
+  else: v.optional(lineSchema),
   then: v.optional(v.array(v.lazy(() => topicSchema))),
 });
 
@@ -184,6 +272,18 @@ export function resolveDialog(def: TileDef): DialogDef | null {
 export type DialogIssue = { severity: "error" | "warn"; message: string };
 
 /**
+ * What a dialog's ids may point at, when the caller has the catalogues.
+ *
+ * Optional, because the shape can be checked without them and the editor may
+ * not have both to hand; given, an id nothing answers to is an error rather
+ * than a silent no-op at play time.
+ */
+export type DialogCatalogue = {
+  tilesById: Record<string, TileDef>;
+  statusIds: ReadonlySet<string>;
+};
+
+/**
  * Everything true of a dialog that its shape alone cannot say, as a list.
  *
  * The same contract `validateBrain` keeps: errors are what would make the block
@@ -191,7 +291,10 @@ export type DialogIssue = { severity: "error" | "warn"; message: string };
  * schema failure names a path rather than a problem — and warnings are things
  * that parse and are almost certainly not what the author meant.
  */
-export function validateDialog(dialog: DialogDef): DialogIssue[] {
+export function validateDialog(
+  dialog: DialogDef,
+  catalogue?: DialogCatalogue,
+): DialogIssue[] {
   const issues: DialogIssue[] = [];
   const error = (message: string) => issues.push({ severity: "error", message });
   const warn = (message: string) => issues.push({ severity: "warn", message });
@@ -209,8 +312,72 @@ export function validateDialog(dialog: DialogDef): DialogIssue[] {
     warn(`"${word}" both greets and says goodbye, so saying it starts and ends the conversation`);
   }
 
-  checkTopics(dialog.topics, "topic", 1, error, warn);
+  checkTopics(dialog.topics, "topic", 1, error, warn, catalogue);
   return issues;
+}
+
+/**
+ * What a topic's condition and effects point at, and whether they can.
+ *
+ * A topic that asks a question and has no `else` is the one warning here worth
+ * explaining: a failed `if` then says nothing, and nothing is indistinguishable
+ * from the word not having been heard.
+ */
+function checkTopicRules(
+  topic: DialogTopic,
+  name: string,
+  error: (message: string) => void,
+  warn: (message: string) => void,
+  catalogue?: DialogCatalogue,
+) {
+  if ((topic.if || topic.do?.length) && !topic.else) {
+    warn(`${name} can refuse but has no else line, so a refusal says nothing`);
+  }
+  if (topic.else !== undefined && topic.else.trim() === "") {
+    error(`${name} has a blank else line; leave it out to say nothing`);
+  }
+  for (const effect of topic.do ?? []) {
+    if (effect.effect !== "trade") continue;
+    if (effect.take.length + effect.give.length === 0) {
+      error(`${name} trades nothing for nothing`);
+    }
+    for (const side of [...effect.take, ...effect.give]) {
+      const def = catalogue?.tilesById[side.tileId];
+      if (def && resolveContainer(def)) {
+        error(`${name} trades ${def.name}, and a container is not a thing a trade may move`);
+      }
+    }
+  }
+  if (!catalogue) return;
+  for (const id of tileIdsOf(topic)) {
+    if (!catalogue.tilesById[id]) error(`${name} names a tile "${id}" the catalogue does not hold`);
+  }
+  for (const id of statusIdsOf(topic)) {
+    if (!catalogue.statusIds.has(id)) error(`${name} names a status "${id}" nobody authored`);
+  }
+}
+
+function tileIdsOf(topic: DialogTopic): string[] {
+  const ids: string[] = [];
+  for (const leaf of topic.if ? conditionLeaves(topic.if) : []) {
+    if (leaf.cond === "carries" || leaf.cond === "room_for") ids.push(leaf.tileId);
+  }
+  for (const effect of topic.do ?? []) {
+    if (effect.effect !== "trade") continue;
+    for (const side of [...effect.take, ...effect.give]) ids.push(side.tileId);
+  }
+  return ids;
+}
+
+function statusIdsOf(topic: DialogTopic): string[] {
+  const ids: string[] = [];
+  for (const leaf of topic.if ? conditionLeaves(topic.if) : []) {
+    if (leaf.cond === "has_status") ids.push(leaf.statusId);
+  }
+  for (const effect of topic.do ?? []) {
+    if (effect.effect === "add_status") ids.push(effect.statusId);
+  }
+  return ids;
 }
 
 function checkLine(
@@ -237,11 +404,13 @@ function checkTopics(
   depth: number,
   error: (message: string) => void,
   warn: (message: string) => void,
+  catalogue?: DialogCatalogue,
 ) {
   const seen = new Set<string>();
   topics.forEach((topic, index) => {
     const name = `${where} ${index + 1}`;
     checkLine(topic, name, error);
+    checkTopicRules(topic, name, error, warn, catalogue);
     for (const word of topic.hear) {
       if (seen.has(word)) {
         warn(`"${word}" is answered by an earlier ${where}, so ${name} never hears it`);
@@ -252,6 +421,6 @@ function checkTopics(
     if (depth >= MAX_DIALOG_DEPTH) {
       warn(`${name} nests replies ${depth + 1} deep; ${MAX_DIALOG_DEPTH} is as far as a conversation can follow`);
     }
-    checkTopics(topic.then, `${name} reply`, depth + 1, error, warn);
+    checkTopics(topic.then, `${name} reply`, depth + 1, error, warn, catalogue);
   });
 }

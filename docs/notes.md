@@ -349,10 +349,41 @@ knows a conversation exists.
   reason: the tree is `./dialog`'s to know, and until the editor has a tab for
   it the only way one survives the tile dialog is unread.
 
-Conditions on the partner's kit and effects that move things (`trade`,
-`add_status`, `tag`) are the next step and are deliberately not here yet: the
-shape has `if`/`do`/`else` room on every topic, and the runtime is a pure step
-the editor will be able to run against a typed line.
+### A topic may ask before it answers, and do something as it does
+
+Every topic takes an `if`, a `do` and an `else`. The condition vocabulary is
+four questions about the partner and nothing else — `carries`, `room_for`,
+`has_tag`, `has_status` — composed by `conditions.ts`, the second vocabulary
+that module was written for. The effects are three: `trade`, `add_status`,
+`tag`. A failed `if` and a refused `do` read the same to the partner, because
+they are the same to them: nothing happened, and `else` says why. A topic that
+can refuse and has no `else` is a lint warning, since a silent refusal is
+indistinguishable from the word not having been heard.
+
+- **`converse` never touches a kit.** It asks the `DialogView` — `carries`,
+  `roomFor`, `hasTag`, `hasStatus`, `attempt` — and the session answers. That
+  keeps the step pure, keeps the editor's future "try it" console honest (it
+  hands over a pretend kit), and keeps every rule about a body's squares in
+  the modules that own them.
+- **A `do` list is a transaction.** `attemptDialogEffects` plans every trade
+  against the kit the one before it leaves and checks every status against the
+  catalogue *before* anything is written; then the kit changes once and the
+  statuses and tags land beside it. A topic that takes payment and grants a
+  status cannot take the payment and fail the status.
+- **A trade is `app/game/trade.ts`, and it is deliberately not a transmute.**
+  Several things on each side, counted, because a price is a number and a
+  number is what a pile already is: fourteen shards may be one pile or three
+  and `takeUnits` peels across them. Every square a body has — hands, the worn
+  bag, *and bags held in a hand*, which `carriedSlotOf` deliberately skips for
+  a recipe: offering what you carry is a different act from asking to be paid.
+  Gives land worn-bag → hand-held bags → off hand → weapon hand, pouring onto
+  piles first. **The plan is the kit**: there is no separate run, because
+  finding room for every last thing is the check and having found it there is
+  nothing left to decide. All or nothing, and nothing ever reaches the floor.
+- **A container is never on either side.** The schema refuses it with a
+  catalogue in hand, and the runtime refuses it without one.
+- **A refused follow-up stays live.** "yes" again once the shards are in hand
+  is the same question, not a new one, so `path` is left alone on a refusal.
 
 ## Where a player comes back in
 

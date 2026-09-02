@@ -184,3 +184,118 @@ describe("validating a dialog", () => {
     ]);
   });
 });
+
+describe("a topic that asks and does, as authored", () => {
+  const potion = normalizeTileDef({
+    id: "potion",
+    name: "Potion",
+    height: 0,
+    directional: false,
+    variants: { default: [frame] },
+    attributes: {},
+    kind: "item",
+    interactions: { item: { type: "consumable", hp: 0 } },
+  });
+  const bag = normalizeTileDef({
+    id: "bag",
+    name: "Bag",
+    height: 0,
+    directional: false,
+    variants: { default: [frame] },
+    attributes: {},
+    kind: "item",
+    interactions: { item: { type: "container", size: 4, equippable: true } },
+  });
+  const catalogue = {
+    tilesById: { potion, bag },
+    statusIds: new Set(["luminous"]),
+  };
+
+  it("parses a condition tree and an effect list", () => {
+    const dialog = resolveDialog(
+      tileWith({
+        ...DEFAULT_DIALOG,
+        topics: [
+          {
+            hear: ["yes"],
+            if: { combinator: "and", rules: [{ cond: "carries", tileId: "shard", count: 14 }, { cond: "room_for", tileId: "potion", count: 1 }] },
+            do: [
+              { effect: "trade", take: [{ tileId: "shard", count: 14 }], give: [{ tileId: "potion", count: 1 }] },
+              { effect: "add_status", statusId: "luminous" },
+              { effect: "tag", tag: "customer" },
+            ],
+            say: "Here.",
+            else: "No.",
+          },
+        ],
+      }),
+    );
+    expect(dialog?.topics[0]?.do).toHaveLength(3);
+    expect(dialog?.topics[0]?.else).toBe("No.");
+  });
+
+  it("refuses a trade of nothing for nothing", () => {
+    expect(
+      resolveDialog(
+        tileWith({
+          ...DEFAULT_DIALOG,
+          topics: [{ hear: ["x"], say: "x", do: [{ effect: "trade", take: [], give: [] }] }],
+        }),
+      ),
+    ).toBeNull();
+  });
+
+  it("refuses a count of nothing", () => {
+    expect(
+      resolveDialog(
+        tileWith({
+          ...DEFAULT_DIALOG,
+          topics: [{ hear: ["x"], say: "x", if: { cond: "carries", tileId: "shard", count: 0 } }],
+        }),
+      ),
+    ).toBeNull();
+  });
+
+  it("warns about a topic that can refuse and has nothing to say about it", () => {
+    const issues = validateDialog({
+      ...DEFAULT_DIALOG,
+      topics: [{ hear: ["x"], say: "x", if: { cond: "has_tag", tag: "t" } }],
+    });
+    expect(issues.map((i) => i.message)).toEqual([
+      expect.stringContaining("no else line"),
+    ]);
+  });
+
+  it("names ids the catalogue does not hold, when it has one", () => {
+    const dialog: DialogDef = {
+      ...DEFAULT_DIALOG,
+      topics: [
+        {
+          hear: ["x"],
+          say: "x",
+          else: "no",
+          if: { cond: "carries", tileId: "shard", count: 1 },
+          do: [{ effect: "add_status", statusId: "glowing" }],
+        },
+      ],
+    };
+    expect(validateDialog(dialog)).toEqual([]);
+    expect(validateDialog(dialog, catalogue).map((i) => i.message)).toEqual([
+      expect.stringContaining('tile "shard"'),
+      expect.stringContaining('status "glowing"'),
+    ]);
+  });
+
+  it("refuses a container on either side of a trade", () => {
+    const issues = validateDialog(
+      {
+        ...DEFAULT_DIALOG,
+        topics: [{ hear: ["x"], say: "x", else: "no", do: [{ effect: "trade", take: [], give: [{ tileId: "bag", count: 1 }] }] }],
+      },
+      catalogue,
+    );
+    expect(issues).toEqual([
+      { severity: "error", message: expect.stringContaining("Bag, and a container") },
+    ]);
+  });
+});

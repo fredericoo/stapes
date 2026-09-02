@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { DialogDef } from "../lib/dialog";
+import type { DialogDef, DialogEffectDef } from "../lib/dialog";
 import type { Coord } from "../lib/types";
 import type { Utterance } from "./brainRuntime";
 import {
@@ -52,6 +52,13 @@ function room(
     canSee: () => true,
     nameOf: (id) => id,
     heard: () => heardLines,
+    // A partner with nothing on them and nowhere to put anything, unless a
+    // test says otherwise; effects run and succeed until one says they refuse.
+    carries: () => false,
+    roomFor: () => false,
+    hasTag: () => false,
+    hasStatus: () => false,
+    attempt: () => true,
     heardLines,
     ...overrides,
   };
@@ -250,5 +257,105 @@ describe("ending a conversation", () => {
     tick(view, memory, ["ann", "bye"]);
     tick(view, memory, ["ann", "hi"]);
     expect(tick(view, memory, ["ann", "yes"])).toEqual([]);
+  });
+});
+
+describe("a topic that asks and does", () => {
+  const price: DialogEffectDef = {
+    effect: "trade",
+    take: [{ tileId: "shard", count: 14 }],
+    give: [{ tileId: "potion", count: 1 }],
+  };
+  const shop: DialogDef = {
+    ...seller,
+    topics: [
+      {
+        hear: ["potion"],
+        say: "Fourteen shards. Deal?",
+        then: [
+          {
+            hear: ["yes"],
+            if: { cond: "carries", tileId: "shard", count: 14 },
+            do: [price],
+            say: "Here you go.",
+            else: "That's not fourteen shards.",
+          },
+        ],
+      },
+      {
+        hear: ["secret"],
+        if: { combinator: "and", not: true, rules: [{ cond: "has_tag", tag: "told" }] },
+        do: [{ effect: "tag", tag: "told" }],
+        say: "Just this once: the crystals remember the light.",
+        else: "I told you already.",
+      },
+      { hear: ["quiet"], if: { cond: "has_status", statusId: "luminous" } , say: "You're glowing." },
+    ],
+  };
+
+  function engagedIn(overrides: Partial<DialogView> = {}) {
+    const view = room({ ann: near }, overrides);
+    const memory = initialDialogMemory();
+    view.heardLines.push({ speakerId: "ann", text: "hi" });
+    converse(shop, memory, TICK_MS, view);
+    return { view, memory };
+  }
+
+  function said(view: ReturnType<typeof room>, memory: ReturnType<typeof initialDialogMemory>, text: string) {
+    view.heardLines.splice(0, view.heardLines.length, { speakerId: "ann", text });
+    return converse(shop, memory, TICK_MS, view);
+  }
+
+  it("says the else line when the condition fails, and runs nothing", () => {
+    const attempts: unknown[] = [];
+    const { view, memory } = engagedIn({ attempt: (_id, effects) => (attempts.push(effects), true) });
+    said(view, memory, "potion");
+    expect(said(view, memory, "yes")).toEqual(["That's not fourteen shards."]);
+    expect(attempts).toEqual([]);
+    // The question is still open: the follow-ups stay live for another try.
+    expect(memory.path).toEqual([0]);
+  });
+
+  it("runs the effects on the partner when the condition holds", () => {
+    const attempts: Array<[string, readonly DialogEffectDef[]]> = [];
+    const { view, memory } = engagedIn({
+      carries: (id, tileId, count) => id === "ann" && tileId === "shard" && count === 14,
+      attempt: (id, effects) => (attempts.push([id, effects]), true),
+    });
+    said(view, memory, "potion");
+    expect(said(view, memory, "yes")).toEqual(["Here you go."]);
+    expect(attempts).toEqual([["ann", [price]]]);
+    expect(memory.path).toEqual([]);
+  });
+
+  it("says the else line when the effects are refused", () => {
+    const { view, memory } = engagedIn({ carries: () => true, attempt: () => false });
+    said(view, memory, "potion");
+    expect(said(view, memory, "yes")).toEqual(["That's not fourteen shards."]);
+  });
+
+  it("composes conditions, and reads a tag its own effect wrote", () => {
+    const tags = new Set<string>();
+    const { view, memory } = engagedIn({
+      hasTag: (_id, tag) => tags.has(tag),
+      attempt: (_id, effects) => {
+        for (const effect of effects) if (effect.effect === "tag") tags.add(effect.tag);
+        return true;
+      },
+    });
+    expect(said(view, memory, "secret")).toEqual(["Just this once: the crystals remember the light."]);
+    expect(said(view, memory, "secret")).toEqual(["I told you already."]);
+  });
+
+  it("asks about a status", () => {
+    const { view, memory } = engagedIn({ hasStatus: (_id, statusId) => statusId === "luminous" });
+    expect(said(view, memory, "quiet")).toEqual(["You're glowing."]);
+  });
+
+  it("says nothing for a refusal with no else line", () => {
+    const { view, memory } = engagedIn();
+    const quietShop = { ...shop, topics: [{ hear: ["quiet"], if: { cond: "has_status" as const, statusId: "luminous" }, say: "You're glowing." }] };
+    view.heardLines.splice(0, 1, { speakerId: "ann", text: "quiet" });
+    expect(converse(quietShop, memory, TICK_MS, view)).toEqual([]);
   });
 });
