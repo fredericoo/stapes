@@ -464,7 +464,7 @@ export function inflictedBy(
 ): readonly WeaponStatus[] {
   if (statuses.length === 0) return NOTHING_INFLICTED;
   const took = statuses.filter(
-    (status, index) => rolls[index] * MAX_PERCENT_STAT < status.chance,
+    (status, index) => rolls[index]! * MAX_PERCENT_STAT < status.chance,
   );
   return took.length === 0 ? NOTHING_INFLICTED : took;
 }

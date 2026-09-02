@@ -272,7 +272,7 @@ describe("what a reward says", () => {
     expect(
       rewardNotice(
         reward("Open", ["hand-lantern", "rusty-sword"]),
-        rewardTilesById["quest-chest"],
+        rewardTilesById["quest-chest"]!,
         rewardTilesById,
       ),
     ).toBe("You open Quest Chest and receive 1 Hand Lantern, 1 Rusty Sword");
@@ -282,7 +282,7 @@ describe("what a reward says", () => {
     expect(
       rewardNotice(
         reward("Open", ["bread", "bread", "rusty-sword", "bread"]),
-        rewardTilesById["quest-chest"],
+        rewardTilesById["quest-chest"]!,
         rewardTilesById,
       ),
     ).toBe("You open Quest Chest and receive 3 Bread, 1 Rusty Sword");
@@ -290,13 +290,13 @@ describe("what a reward says", () => {
 
   it("falls back to taking when the author named no gesture", () => {
     expect(
-      rewardNotice(reward(undefined, ["bread"]), rewardTilesById["old-man"], rewardTilesById),
+      rewardNotice(reward(undefined, ["bread"]), rewardTilesById["old-man"]!, rewardTilesById),
     ).toBe("You take Old Man and receive 1 Bread");
   });
 
   it("drops the second clause for a reward that hands over nothing", () => {
     expect(
-      rewardNotice(reward("Speak to", []), rewardTilesById["old-man"], rewardTilesById),
+      rewardNotice(reward("Speak to", []), rewardTilesById["old-man"]!, rewardTilesById),
     ).toBe("You speak to Old Man");
   });
 
@@ -304,7 +304,7 @@ describe("what a reward says", () => {
     expect(
       rewardNotice(
         reward("Open", ["ghost-item"]),
-        rewardTilesById["quest-chest"],
+        rewardTilesById["quest-chest"]!,
         rewardTilesById,
       ),
     ).toBe("You open Quest Chest and receive 1 ghost-item");

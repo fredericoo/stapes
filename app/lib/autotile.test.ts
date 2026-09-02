@@ -154,11 +154,11 @@ describe("pickAutotileSprite", () => {
   };
 
   it("returns the exact slice when present", () => {
-    expect(pickAutotileSprite(tile, 5)?.frames[0].light?.color).toBe("#050505");
+    expect(pickAutotileSprite(tile, 5)?.frames[0]!.light?.color).toBe("#050505");
   });
 
   it("falls back to slice 0 when missing", () => {
-    expect(pickAutotileSprite(tile, 12)?.frames[0].light?.color).toBe("#000000");
+    expect(pickAutotileSprite(tile, 12)?.frames[0]!.light?.color).toBe("#000000");
   });
 });
 

@@ -583,16 +583,16 @@ describe("picking things up", () => {
       "grass",
     ]);
     expect(bagOf(session).contents).toHaveLength(1);
-    expect(bagOf(session).contents![0].tileId).toBe(SWORD);
+    expect(bagOf(session).contents![0]!.tileId).toBe(SWORD);
   });
 
   it("keeps the identity the world gave it", () => {
     const session = withItem(1, 0, SWORD);
-    const onFloor = getStack(session.getMap(), 1, 0, 0)[1].itemId;
+    const onFloor = getStack(session.getMap(), 1, 0, 0)[1]!.itemId;
     session.pickUp(refAt(session, 1, 0));
 
     expect(onFloor).toMatch(/^itm_/);
-    expect(bagOf(session).contents![0].id).toBe(onFloor);
+    expect(bagOf(session).contents![0]!.id).toBe(onFloor);
   });
 
   it("reaches a diagonal, where a push would not", () => {
@@ -987,7 +987,7 @@ index: 0,
     ).toBe(true);
 
     expect(kitOf(session).bag?.contents).toHaveLength(2);
-    expect(getStack(session.getMap(), 1, 0, 0)[1].contents).toEqual([]);
+    expect(getStack(session.getMap(), 1, 0, 0)[1]!.contents).toEqual([]);
   });
 
   /**
@@ -1020,7 +1020,7 @@ index: 0,
     ).toBe(true);
 
     const equipment = kitOf(session);
-    expect(equipment.bag?.contents?.[0].id).toMatch(/^itm_/);
+    expect(equipment.bag?.contents?.[0]!.id).toMatch(/^itm_/);
     expect(
       parseServerMessage(JSON.stringify({ type: "equipment", equipment })),
     ).not.toBeNull();
@@ -1053,8 +1053,8 @@ index: 0,
     ).toBe(true);
 
     const equipment = kitOf(saved);
-    expect(equipment.bag?.contents?.[0].tileId).toBe("lantern");
-    expect(equipment.bag?.contents?.[0].id).toMatch(/^itm_/);
+    expect(equipment.bag?.contents?.[0]!.tileId).toBe("lantern");
+    expect(equipment.bag?.contents?.[0]!.id).toMatch(/^itm_/);
     expect(
       parseServerMessage(JSON.stringify({ type: "equipment", equipment })),
     ).not.toBeNull();
@@ -1076,7 +1076,7 @@ index: 0,
     expect(session.pickUp(refAt(session, 1, 0))).toBe(true);
 
     const equipment = kitOf(session);
-    expect(equipment.bag?.contents?.[0].id).toMatch(/^itm_/);
+    expect(equipment.bag?.contents?.[0]!.id).toMatch(/^itm_/);
     expect(
       parseServerMessage(JSON.stringify({ type: "equipment", equipment })),
     ).not.toBeNull();
@@ -1095,7 +1095,7 @@ index: 0 }, {
     ).toBe(true);
 
     expect(kitOf(session).bag?.contents).toEqual([]);
-    expect(getStack(session.getMap(), 1, 0, 0)[1].contents).toHaveLength(2);
+    expect(getStack(session.getMap(), 1, 0, 0)[1]!.contents).toHaveLength(2);
   });
 
   it("refuses a chest the player has walked away from", () => {

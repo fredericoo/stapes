@@ -166,7 +166,7 @@ export function replaceAt<Leaf extends object>(
   if (!isConditionGroup(root) || root.rules[index] === undefined) return root;
 
   const rules = [...root.rules];
-  rules[index] = replaceAt(rules[index], rest, next);
+  rules[index] = replaceAt(rules[index]!, rest, next);
   return { ...root, rules };
 }
 

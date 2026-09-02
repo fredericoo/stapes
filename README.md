@@ -94,6 +94,22 @@ Three configs, because the code spans three places:
 - `tsconfig.server.json` — `server/`, plus the modules it shares with `app/`
 - `tsconfig.node.json` — `scripts/`, `e2e/` and the `*.config.ts` files
 
+They differ only in what they include and which globals they admit; the
+strictness settings are the same in all three, so a module shared between
+`app/` and `server/` cannot be stricter in one than in the other. Beyond
+`strict`, the ones worth knowing about:
+
+- **`noUncheckedIndexedAccess`** — `array[i]` is `T | undefined`. Most of the
+  hits are provably in-range reads of a typed array inside a bounds-checked
+  loop, and those are written `grid[i]!`; the point is that the ones that are
+  *not* provable now have to say so.
+- **`module: "preserve"`** — nothing here is compiled by `tsc`. Vite compiles
+  the app and Bun runs the server as written, `.ts` extensions and all, and
+  `preserve` is the setting that describes that instead of pretending to emit.
+- **`isolatedModules`, `verbatimModuleSyntax`, `moduleDetection: "force"`** —
+  everything the bundler and Bun already assume: one file at a time, imports
+  left exactly as typed, and no file quietly being a script.
+
 ## Third-party assets
 
 - **NF Pixels** by Steve Gigou, in `public/fonts/` under the SIL Open Font

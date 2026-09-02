@@ -124,7 +124,7 @@ const DEFAULT_REWARD_VERB = "take";
 function sentenceVerb(authored: string | undefined, fallback: string): string {
   const verb = authored?.trim();
   if (!verb) return fallback;
-  return verb[0].toLowerCase() + verb.slice(1);
+  return verb[0]!.toLowerCase() + verb.slice(1);
 }
 
 function verbOf(reward: PlacedReward): string {

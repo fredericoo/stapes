@@ -26,7 +26,7 @@ function pixel(
   y: number,
 ): [number, number, number, number] {
   const p = (y * widthPx + x) * 4;
-  return [rgba[p], rgba[p + 1], rgba[p + 2], rgba[p + 3]];
+  return [rgba[p]!, rgba[p + 1]!, rgba[p + 2]!, rgba[p + 3]!];
 }
 
 describe("rotateGridCW", () => {
@@ -140,7 +140,7 @@ describe("outline pass", () => {
       [-1, 0],
       [0, 1],
       [0, -1],
-    ]) {
+    ] as const) {
       expect(pixel(sprite.rgba, sprite.widthPx, sx + dx, sy + dy)).toEqual(
         BLACK,
       );
@@ -243,15 +243,15 @@ describe("sheet export", () => {
     const project = testProject();
     const variants = sheetVariants(project, "my-sheet");
     expect(Object.keys(variants)).toEqual(["n", "e", "s", "w"]);
-    expect(variants.e?.[0].sprite.rect).toEqual({ x: 0, y: 2, w: 2, h: 2 });
-    expect(variants.e?.[0].sprite.base).toEqual({ x: 1, y: 1 });
+    expect(variants.e?.[0]!.sprite.rect).toEqual({ x: 0, y: 2, w: 2, h: 2 });
+    expect(variants.e?.[0]!.sprite.base).toEqual({ x: 1, y: 1 });
   });
 
   it("emits typed sprites for TileDef export", () => {
     const project = testProject();
     const sheet = sheetSprites(project, "my-sheet");
     expect(sheet.type).toBe("directional");
-    expect(sheet.sprites?.e?.frames[0].sprite.rect).toEqual({
+    expect(sheet.sprites?.e?.frames[0]!.sprite.rect).toEqual({
       x: 0,
       y: 2,
       w: 2,
@@ -277,7 +277,7 @@ describe("parseVoxelProject", () => {
 
   it("rejects out-of-palette voxel indices", () => {
     const project = testProject();
-    project.frames[0].voxels[0] = 99;
+    project.frames[0]!.voxels[0] = 99;
     expect(() => parseVoxelProject(project)).toThrow();
   });
 

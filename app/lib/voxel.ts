@@ -79,12 +79,13 @@ export function resizeGrid(
   const shiftX = b.vx - a.vx;
   const shiftY = b.vy - a.vy;
   for (let i = 0; i < grid.length; i++) {
-    if (grid[i] === EMPTY_VOXEL) continue;
+    const val = grid[i]!;
+    if (val === EMPTY_VOXEL) continue;
     const { x, y, z } = voxelCoords(a, i);
     const tx = x + shiftX;
     const ty = y + shiftY;
     if (tx < 0 || ty < 0 || tx >= b.vx || ty >= b.vy || z >= b.vz) continue;
-    out[voxelIndex(b, tx, ty, z)] = grid[i];
+    out[voxelIndex(b, tx, ty, z)] = val;
   }
   return out;
 }
@@ -103,9 +104,10 @@ export function rotateGridCW(grid: VoxelGrid, size: VoxelSize): VoxelGrid {
   const rDims = voxelDims(rotated);
   const out = new Uint8Array(rDims.vx * rDims.vy * rDims.vz);
   for (let i = 0; i < grid.length; i++) {
-    if (grid[i] === EMPTY_VOXEL) continue;
+    const val = grid[i]!;
+    if (val === EMPTY_VOXEL) continue;
     const { x, y, z } = voxelCoords(dims, i);
-    out[voxelIndex(rDims, dims.vy - 1 - y, x, z)] = grid[i];
+    out[voxelIndex(rDims, dims.vy - 1 - y, x, z)] = val;
   }
   return out;
 }
@@ -172,7 +174,7 @@ const MISSING_COLOR: Rgb = [255, 0, 255];
 export function parseHexColor(hex: string): Rgb {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
   if (!m) return MISSING_COLOR;
-  const n = Number.parseInt(m[1], 16);
+  const n = Number.parseInt(m[1]!, 16);
   return [(n >> 16) & 0xff, (n >> 8) & 0xff, n & 0xff];
 }
 
@@ -235,7 +237,7 @@ export function renderGrid(
   // Flat-index order is z, then y, then x ascending — exactly painter order,
   // since along a view ray only higher-z voxels overdraw (see voxel.test.ts).
   for (let i = 0; i < grid.length; i++) {
-    const val = grid[i];
+    const val = grid[i]!;
     if (val === EMPTY_VOXEL) continue;
     const { x, y, z } = voxelCoords(dims, i);
     const sx = x - z + offsetX;
@@ -286,12 +288,12 @@ function applyOutline(
 
   for (let sy = 0; sy < heightPx; sy++) {
     for (let sx = 0; sx < widthPx; sx++) {
-      const here = depth[sy * widthPx + sx];
+      const here = depth[sy * widthPx + sx]!;
       for (const [dx, dy] of NEIGHBOURS) {
         const nx = sx + dx;
         const ny = sy + dy;
         if (nx < 0 || ny < 0 || nx >= widthPx || ny >= heightPx) continue;
-        const there = depth[ny * widthPx + nx];
+        const there = depth[ny * widthPx + nx]!;
         // Empty pixel touching the model: ring the silhouette.
         if (here === NO_DEPTH && there !== NO_DEPTH) {
           targets.push(sy * widthPx + sx);
@@ -487,10 +489,10 @@ function blit(
       const s = (y * sprite.widthPx + x) * 4;
       if (sprite.rgba[s + 3] === 0) continue;
       const d = ((dy + y) * destWidthPx + dx + x) * 4;
-      dest[d] = sprite.rgba[s];
-      dest[d + 1] = sprite.rgba[s + 1];
-      dest[d + 2] = sprite.rgba[s + 2];
-      dest[d + 3] = sprite.rgba[s + 3];
+      dest[d] = sprite.rgba[s]!;
+      dest[d + 1] = sprite.rgba[s + 1]!;
+      dest[d + 2] = sprite.rgba[s + 2]!;
+      dest[d + 3] = sprite.rgba[s + 3]!;
     }
   }
 }

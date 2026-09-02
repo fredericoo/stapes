@@ -165,7 +165,7 @@ function bagTileIds(session: GameSession): string[] {
 
 describe("resolving an extract", () => {
   it("is nothing on a tile with no block at all", () => {
-    expect(resolveExtract(tilesById.grass)).toBeNull();
+    expect(resolveExtract(tilesById.grass!)).toBeNull();
   });
 
   it("is nothing with no yield, because there would be nothing to take", () => {
@@ -196,7 +196,7 @@ describe("resolving an extract", () => {
   });
 
   it("keeps a blank target, which is how a resource says it vanishes", () => {
-    expect(resolveExtract(tilesById.crystal)?.tileId).toBe("");
+    expect(resolveExtract(tilesById.crystal!)?.tileId).toBe("");
   });
 
   it("drops one malformed slot rather than the whole block", () => {
@@ -223,19 +223,19 @@ describe("resolving an extract", () => {
 
 describe("what is left in a placement", () => {
   it("is the def's count on one nobody has touched", () => {
-    const extract = resolveExtract(tilesById.bush)!;
+    const extract = resolveExtract(tilesById.bush!)!;
 
     expect(extractsLeft({ tileId: "bush" }, extract)).toBe(2);
   });
 
   it("is the placement's count once somebody has", () => {
-    const extract = resolveExtract(tilesById.bush)!;
+    const extract = resolveExtract(tilesById.bush!)!;
 
     expect(extractsLeft({ tileId: "bush", extractsLeft: 1 }, extract)).toBe(1);
   });
 
   it("is clamped to the def, so lowering it shortens veins already started", () => {
-    const extract = resolveExtract(tilesById.bush)!;
+    const extract = resolveExtract(tilesById.bush!)!;
 
     expect(extractsLeft({ tileId: "bush", extractsLeft: 9 }, extract)).toBe(2);
   });
@@ -408,7 +408,7 @@ describe("rolling a pull", () => {
   });
 
   it("can come up empty, which is a pull that found nothing", () => {
-    const extract = resolveExtract(tilesById.crystal)!;
+    const extract = resolveExtract(tilesById.crystal!)!;
 
     expect(rollExtract(extract, () => 0.99)).toEqual([]);
   });
@@ -429,9 +429,9 @@ describe("taking a pull", () => {
 
     const contents = session.getSnapshot().equipment.bag?.contents ?? [];
     expect(contents).toHaveLength(1);
-    expect(contents[0].tileId).toBe("berry");
+    expect(contents[0]!.tileId).toBe("berry");
     // Two pulls of one certain berry each, in one square rather than two.
-    expect(contents[0].count).toBe(2);
+    expect(contents[0]!.count).toBe(2);
   });
 
   it("puts what came up in the bag and takes a pull off the board", () => {
@@ -645,7 +645,7 @@ describe("the row it offers", () => {
     const session = new GameSession(board(), tiles);
     session.interact(BUSH);
 
-    const [row] = rowsFor(session);
+    const row = rowsFor(session)[0]!;
     expect(row.label).toBe("Pick");
     expect(row.cooldown).toEqual({
       key: extractKey(BUSH, "bush"),
@@ -659,7 +659,7 @@ describe("the row it offers", () => {
     session.interact(BUSH);
     session.tick(COOLDOWN_MS / 2);
 
-    expect(rowsFor(session)[0].cooldown?.remainingMs).toBe(COOLDOWN_MS / 2);
+    expect(rowsFor(session)[0]!.cooldown?.remainingMs).toBe(COOLDOWN_MS / 2);
   });
 
   it("comes back ready once the wait is up", () => {
@@ -667,7 +667,7 @@ describe("the row it offers", () => {
     session.interact(BUSH);
     session.tick(COOLDOWN_MS);
 
-    expect(rowsFor(session)[0].cooldown).toBeNull();
+    expect(rowsFor(session)[0]!.cooldown).toBeNull();
   });
 
   /**
@@ -697,7 +697,7 @@ describe("the row it offers", () => {
     // fresh array per tick would rebuild the list thirty times a second to
     // redraw a bar CSS is already animating. The entry inside is wound in place.
     expect(session.getSnapshot().extractCooling).toBe(first);
-    expect(first[0].remainingMs).toBe(COOLDOWN_MS - 100);
+    expect(first[0]!.remainingMs).toBe(COOLDOWN_MS - 100);
   });
 
   /**

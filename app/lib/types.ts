@@ -1104,7 +1104,7 @@ export function frameIndexAtTime(frames: Frame[], timeMs: number): number {
   const total = frames.reduce((sum, f) => sum + Math.max(1, f.durationMs), 0);
   let t = ((timeMs % total) + total) % total;
   for (let i = 0; i < frames.length; i++) {
-    const d = Math.max(1, frames[i].durationMs);
+    const d = Math.max(1, frames[i]!.durationMs);
     if (t < d) return i;
     t -= d;
   }

@@ -460,9 +460,9 @@ export type InteractionGroup = {
   key: string;
   /**
    * The entries, in list order. Never empty — a group exists because an entry
-   * put it there.
+   * put it there, which is what the tuple head says.
    */
-  options: InteractionOption[];
+  options: [InteractionOption, ...InteractionOption[]];
 };
 
 export function groupInteractionOptions(

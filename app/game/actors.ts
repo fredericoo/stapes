@@ -45,7 +45,7 @@ export function actorStillAt(
   at: Coord & { stackIndex: number },
 ): ActorLocation | null {
   const placed = getStack(map, at.x, at.y, at.z)[at.stackIndex];
-  if (!isActor(placed, ownerId)) return null;
+  if (!placed || !isActor(placed, ownerId)) return null;
   return { x: at.x, y: at.y, z: at.z, stackIndex: at.stackIndex, placed };
 }
 

@@ -527,8 +527,8 @@ describe("restoredEquipment", () => {
       },
       tiles,
     );
-    expect(restored.bag?.contents?.[0].id).toMatch(/^itm_/);
-    expect(restored.bag?.contents?.[0].tileId).toBe("sword");
+    expect(restored.bag?.contents?.[0]!.id).toMatch(/^itm_/);
+    expect(restored.bag?.contents?.[0]!.tileId).toBe("sword");
   });
 
   it("gives an anonymous weapon and an anonymous bag one too", () => {

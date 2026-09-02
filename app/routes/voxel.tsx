@@ -161,8 +161,10 @@ export default function VoxelPage() {
   }, [project, hydrated]);
 
   const dims = voxelDims(project.size);
+  // `voxelProjectSchema` holds `frames` at one or more, so a clamped index
+  // always lands on a frame.
   const clampedFrameIdx = Math.min(frameIdx, project.frames.length - 1);
-  const frame = project.frames[clampedFrameIdx];
+  const frame = project.frames[clampedFrameIdx]!;
   const clampedSliceZ = Math.min(sliceZ, dims.vz - 1);
 
   const paintWrites = (writes: { x: number; y: number; value: number }[]) => {
@@ -170,11 +172,11 @@ export default function VoxelPage() {
     setProject((p) => {
       const d = voxelDims(p.size);
       const frames = p.frames.slice();
-      const voxels = frames[clampedFrameIdx].voxels.slice();
+      const voxels = frames[clampedFrameIdx]!.voxels.slice();
       for (const w of writes) {
         voxels[voxelIndex(d, w.x, w.y, clampedSliceZ)] = w.value;
       }
-      frames[clampedFrameIdx] = { ...frames[clampedFrameIdx], voxels };
+      frames[clampedFrameIdx] = { ...frames[clampedFrameIdx]!, voxels };
       return { ...p, frames };
     });
   };
@@ -550,14 +552,14 @@ function FramesPanel({
   onChange: React.Dispatch<React.SetStateAction<VoxelProject>>;
 }) {
   const clampedFrameIdx = Math.min(frameIdx, project.frames.length - 1);
-  const frame = project.frames[clampedFrameIdx];
+  const frame = project.frames[clampedFrameIdx]!;
 
   const addFrame = (voxels: number[]) => {
     onChange((p) => ({
       ...p,
       frames: [
         ...p.frames,
-        { voxels, durationMs: frame?.durationMs ?? DEFAULT_FRAME_DURATION_MS },
+        { voxels, durationMs: frame.durationMs },
       ],
     }));
     onSelect(project.frames.length);
@@ -612,13 +614,13 @@ function FramesPanel({
         <Input
           type="number"
           min={1}
-          value={frame?.durationMs ?? DEFAULT_FRAME_DURATION_MS}
+          value={frame.durationMs}
           onChange={(e) => {
             const durationMs = Math.max(1, Number(e.target.value) || 1);
             onChange((p) => {
               const frames = p.frames.slice();
               frames[clampedFrameIdx] = {
-                ...frames[clampedFrameIdx],
+                ...frames[clampedFrameIdx]!,
                 durationMs,
               };
               return { ...p, frames };

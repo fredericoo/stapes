@@ -124,7 +124,7 @@ export function tileLightSignature(tile: TileDef): string {
   const pushSprite = (key: string, sprite: TileSprite | undefined) => {
     if (!sprite) return;
     for (let i = 0; i < sprite.frames.length; i++) {
-      const L = sprite.frames[i].light;
+      const L = sprite.frames[i]!.light;
       if (!L) continue;
       parts.push(`${key}@${i}:${L.radius},${L.intensity},${L.color}`);
     }

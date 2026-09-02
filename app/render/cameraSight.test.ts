@@ -120,7 +120,7 @@ describe("camera sight", () => {
       [1, 0],
       [2, 2],
       [-1, -1],
-    ]) {
+    ] as const) {
       const map = put(field(), dx, dy, 1, "wall");
       expect(isHiddenFromCamera(map, tilesById, origin, origin.z, undefined)).toBe(false);
     }

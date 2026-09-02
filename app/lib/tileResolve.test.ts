@@ -29,7 +29,7 @@ describe("normalizeTileDef", () => {
       light: { radius: 5, intensity: 1, color: "#ffcc88" },
     });
     expect(def.type).toBe("simple");
-    expect(def.sprite?.frames[0].light?.radius).toBe(5);
+    expect(def.sprite?.frames[0]!.light?.radius).toBe(5);
     expect(tileCanEmitLight(def)).toBe(true);
     expect(resolveLight(def)).toEqual({
       radius: 5,

@@ -60,7 +60,7 @@ export function SliceEditor({
 
   const applyAt = (pos: { x: number; y: number }, erase: boolean) => {
     if (tool === "pick") {
-      onPick(voxels[voxelIndex(dims, pos.x, pos.y, sliceZ)]);
+      onPick(voxels[voxelIndex(dims, pos.x, pos.y, sliceZ)]!);
       return;
     }
     if (tool === "fill") {
@@ -136,8 +136,8 @@ function paintVoxel(
   sliceZ: number,
 ) {
   const below =
-    sliceZ > 0 ? voxels[voxelIndex(dims, x, y, sliceZ - 1)] : EMPTY_VOXEL;
-  const current = voxels[voxelIndex(dims, x, y, sliceZ)];
+    sliceZ > 0 ? voxels[voxelIndex(dims, x, y, sliceZ - 1)]! : EMPTY_VOXEL;
+  const current = voxels[voxelIndex(dims, x, y, sliceZ)]!;
 
   if (below !== EMPTY_VOXEL && current === EMPTY_VOXEL) {
     const [r, g, b] = parseHexColor(palette[below] ?? "#ff00ff");

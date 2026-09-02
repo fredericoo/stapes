@@ -4,13 +4,18 @@
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "types": ["bun"],
     "target": "ESNext",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
+    // Bun runs these files as they are written, so `preserve` describes what
+    // actually happens — including the `.ts` extensions on relative imports.
+    "module": "preserve",
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
     "noEmit": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
-    "strict": true
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true
   }
 }

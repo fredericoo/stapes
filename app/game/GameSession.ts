@@ -5797,7 +5797,9 @@ export class GameSession implements PlaySession {
     // Read before anything is written, because the notice names the giver and
     // `reachableRewardAt` has already proved the slot holds one.
     const giverDef =
-      this.tilesById[getStack(this.map, ref.x, ref.y, ref.z)[ref.stackIndex].tileId];
+      this.tilesById[
+        getStack(this.map, ref.x, ref.y, ref.z)[ref.stackIndex]!.tileId
+      ];
     if (!giverDef) return false;
 
     const bag = actor.equipment.bag!;
@@ -6410,8 +6412,9 @@ export class GameSession implements PlaySession {
     if (this.pendingNotices.length === 0) return [];
     const mine: string[] = [];
     for (let i = this.pendingNotices.length - 1; i >= 0; i--) {
-      if (this.pendingNotices[i].actorId !== id) continue;
-      mine.unshift(this.pendingNotices[i].text);
+      const notice = this.pendingNotices[i]!;
+      if (notice.actorId !== id) continue;
+      mine.unshift(notice.text);
       this.pendingNotices.splice(i, 1);
     }
     return mine;

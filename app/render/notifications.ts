@@ -127,7 +127,7 @@ export class NoticeQueue {
     let expired = 0;
     while (
       expired < this.notices.length &&
-      nowMs - this.notices[expired].shownAtMs >= NOTICE_LIFETIME_MS
+      nowMs - this.notices[expired]!.shownAtMs >= NOTICE_LIFETIME_MS
     ) {
       expired++;
     }
