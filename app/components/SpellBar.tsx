@@ -175,72 +175,84 @@ function SpellSquare({
     : CAST_REFUSAL_NOTES[verdict.reason];
 
   return (
-    <Tooltip content={`${spell.name}${key ? ` (${key})` : ""} — ${state}`}>
-      <button
-        type="button"
-        role="listitem"
-        aria-label={`${spell.name}: ${state}`}
-        // Not removed from the tab order and not `disabled`: a stone that cannot
-        // be cast is still a thing a player wants to read, and a button that
-        // vanished from the keyboard's reach whenever it was cooling would be
-        // unreachable exactly when somebody wants to know how long is left.
-        // Pressing it does nothing, which is what the dimming promises.
-        aria-disabled={!ready}
-        {...tap}
-        className={[
-          "relative flex aspect-square min-w-0 flex-1 flex-col items-center justify-center border-2 shadow-hard",
-          "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
-          ready
-            ? "border-paper/60 bg-paper/10 text-paper hover:border-paper"
-            : // One appearance for every reason it cannot be used — see the
-              // module note. Dashed as well as faint, so the state survives being
-              // looked at on a bright phone outdoors.
-              "border-dashed border-paper/25 bg-transparent text-paper/40 opacity-50",
-        ].join(" ")}
-        style={{ maxWidth: `calc(100% / ${BUTTONS_PER_ROW})` }}
-      >
-        {tile ? (
-          // The stone's own sprite, so what is in your hand and what is on the
-          // button are recognisably one thing. A tile the catalogue has lost
-          // draws nothing, on the terms every other id in a kit is honoured.
-          <TilePreview
-            tile={tile}
-            tilesets={tilesets}
-            size={Math.round(SPRITE_SIZE_PX * SPRITE_SHARE)}
-            direction={FRONT}
-            still
-            chrome={false}
-            background={null}
-          />
-        ) : null}
+    // The `listitem` is the wrapper rather than the button, because a role on
+    // the button would replace `button` and the square would be read out as an
+    // item in a list — with the `aria-disabled` below meaning nothing, since a
+    // list item cannot be disabled. The wrapper carries the flex sizing so the
+    // squares are laid out exactly as they were when the button carried it.
+    <div
+      role="listitem"
+      className="flex min-w-0 flex-1"
+      style={{ maxWidth: `calc(100% / ${BUTTONS_PER_ROW})` }}
+    >
+      <Tooltip content={`${spell.name}${key ? ` (${key})` : ""} — ${state}`}>
+        <button
+          type="button"
+          aria-label={`${spell.name}: ${state}`}
+          // Not removed from the tab order and not `disabled`: a stone that
+          // cannot be cast is still a thing a player wants to read, and a button
+          // that vanished from the keyboard's reach whenever it was cooling
+          // would be unreachable exactly when somebody wants to know how long is
+          // left. Pressing it does nothing, which is what the dimming promises.
+          aria-disabled={!ready}
+          {...tap}
+          className={[
+            "relative flex aspect-square w-full flex-col items-center justify-center border-2 shadow-hard",
+            "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
+            ready
+              ? "border-paper/60 bg-paper/10 text-paper hover:border-paper"
+              : // One appearance for every reason it cannot be used — see the
+                // module note. Dashed as well as faint, so the state survives
+                // being looked at on a bright phone outdoors.
+                "border-dashed border-paper/25 bg-transparent text-paper/40 opacity-50",
+          ].join(" ")}
+        >
+          {tile ? (
+            // The stone's own sprite, so what is in your hand and what is on the
+            // button are recognisably one thing. A tile the catalogue has lost
+            // draws nothing, on the terms every other id in a kit is honoured.
+            <TilePreview
+              tile={tile}
+              tilesets={tilesets}
+              size={Math.round(SPRITE_SIZE_PX * SPRITE_SHARE)}
+              direction={FRONT}
+              still
+              chrome={false}
+              background={null}
+            />
+          ) : null}
 
-        {/* The number that presses it, in the corner where a shortcut goes.
+          {/* The number that presses it, in the corner where a shortcut goes.
             Drawn on both devices rather than hidden behind a media query: a
             phone with a keyboard attached is a real thing, and the glyph costs
             one corner of a button nobody is reading closely. Announced by the
             label above instead of here, so it is not read out twice. */}
-        {key ? (
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute top-0.5 left-1 text-[10px] leading-none text-paper/50"
-          >
-            {key}
-          </span>
-        ) : null}
+          {key ? (
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute top-0.5 left-1 text-[10px] leading-none text-paper/50"
+            >
+              {key}
+            </span>
+          ) : null}
 
-        {/* The cooldown, along the bottom edge. It empties from the right as the
+          {/* The cooldown, along the bottom edge. It empties from the right as the
             stone comes ready, so a full bar is a spell just cast and no bar at
             all is one waiting to be. Absent entirely when there is nothing to
             count down, rather than drawn empty: a permanent hairline under every
             ready spell would read as part of the button. */}
-        {remaining > 0 ? (
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute bottom-0 left-0 bg-accent"
-            style={{ width: `${share * 100}%`, height: `${BAR_SHARE * 100}%` }}
-          />
-        ) : null}
-      </button>
-    </Tooltip>
+          {remaining > 0 ? (
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute bottom-0 left-0 bg-accent"
+              style={{
+                width: `${share * 100}%`,
+                height: `${BAR_SHARE * 100}%`,
+              }}
+            />
+          ) : null}
+        </button>
+      </Tooltip>
+    </div>
   );
 }
