@@ -1,23 +1,26 @@
-import { evaluateCondition } from "../lib/conditions";
 import {
+  anchorPath,
   clampAmount,
-  optionAt,
-  optionsAt,
-  type DialogCondition,
-  type DialogConditionDef,
+  commandAt,
+  listAt,
+  type CommandPath,
+  type DialogCommand,
   type DialogDef,
-  type DialogEffectDef,
-  type DialogOption,
+  type DialogTrade,
+  type TradeSide,
 } from "../lib/dialog";
 import { NOBODY } from "./brainRuntime";
 
 /**
- * One player talking to one NPC, a press at a time.
+ * One player running one NPC's script, a press at a time.
  *
- * Pure functions over (def, where the conversation is, what was pressed), so a
- * test can drive a whole talk without a session and the editor can run the
- * same functions against a pretend kit. Nothing here knows how a press reached
- * the server or how a line reaches a panel.
+ * An interpreter over `DialogDef.script`: it runs commands from the counter
+ * until one that has to wait for the player — `choices`, `request_trade` —
+ * or the end, and a press resumes it. Pure functions over (script, where the
+ * conversation is, what was pressed), so a test can drive a whole talk
+ * without a session and the editor can run the same functions against a
+ * pretend kit. Nothing here knows how a press reached the server or how a
+ * line reaches a panel.
  *
  * The state is the *player's* — see `Conversation` — which is what lets any
  * number of people talk to one salesman at once. Whether they are still near
@@ -26,117 +29,109 @@ import { NOBODY } from "./brainRuntime";
  */
 
 /**
- * What a player may do to a conversation: open one, press a button, go back
- * to the first buttons, or close the panel. The `talk` message's payload — see
+ * What a player may do to a conversation: open one, press a choice, take or
+ * refuse a trade, or close the panel. The `talk` message's payload — see
  * `../net/protocol` — and `GameSession.talk`'s argument, so the wire and the
  * local session take the same verb.
  */
 export type TalkAction =
   | { kind: "open"; ref: { x: number; y: number; z: number; stackIndex: number } }
   | { kind: "choose"; index: number }
-  /** The stepper's number, once the NPC has asked for one. */
-  | { kind: "confirm"; amount: number }
-  | { kind: "back" }
+  | { kind: "trade"; amount: number }
+  | { kind: "cancel" }
   | { kind: "close" };
 
 /**
- * What the panel shows under the line.
+ * One line of the transcript: who, and what.
  *
- * - `asking`: the buttons under the path — the root's, or a reply's `then`.
- * - `counting`: the option at the path wants an amount; a stepper and its
- *   confirm button.
- * - `answered`: a leaf reply, or a refusal; only *Back*.
- *
- * Decided where the press was answered, so the panel never has to work out
- * from a path whether a reply succeeded.
+ * `npc` is a `say`; `you` is a choice pressed, in the button's own words;
+ * `note` is something that happened rather than something said — a trade
+ * going through, or refused.
  */
-export type ConversationStage = "asking" | "counting" | "answered";
+export type TranscriptEntry = { who: "npc" | "you" | "note"; text: string };
 
 /**
- * Where one player is in one NPC's dialog.
+ * Where one player is in one NPC's script, and everything said so far.
  *
- * `path` is indices from the root, one per `then` descended, so a def reloaded
- * under a running conversation resolves to *an* option or to nothing rather
- * than to a stale object. `line` is what the NPC last said, `{partner}` filled,
- * because whether it was the `say` or the `else` is decided where the kit is,
- * and the panel must not have to guess.
+ * `pc` is a `CommandPath` to the command the script is waiting on — or, once
+ * the script has run out, a path nothing is at. The panel draws the
+ * transcript in full and the controls the waiting command needs; there is no
+ * "current line", because every line stays.
  */
 export type Conversation = {
   npcId: string;
   /**
-   * The NPC's tile, so the panel can draw the body and read its dialog off the
-   * catalogue it already holds — the buttons are never on the wire.
+   * The NPC's tile, so the panel can draw the body and read its script off
+   * the catalogue it already holds — the script is never on the wire.
    */
   tileId: string;
-  path: number[];
-  line: string;
-  stage: ConversationStage;
+  pc: number[];
+  transcript: TranscriptEntry[];
 };
 
+/** What a command asks a partner to do, once every number in it is known. */
+export type DialogEffectDef =
+  | { effect: "trade"; take: TradeSide[]; give: TradeSide[] }
+  | { effect: "add_status"; statusId: string }
+  | { effect: "remove_status"; statusId: string }
+  | { effect: "tag"; tag: string };
+
 /**
- * What a press may ask of the partner — `BrainContext` with the legs cut off,
- * and the partner already chosen. The session builds one per conversation.
+ * What the script may ask of the partner — `BrainContext` with the legs cut
+ * off, and the partner already chosen. The session builds one per
+ * conversation.
  */
 export type PartnerView = {
   /** The partner's name, or null once they are gone. */
   name(): string | null;
-  /** Does the partner carry at least so many of a tile? @see ./trade */
-  carries(tileId: string, count: number): boolean;
-  /** Is there room on the partner for so many of a tile? @see ./trade */
-  roomFor(tileId: string, count: number): boolean;
-  hasTag(tag: string): boolean;
-  hasStatus(statusId: string): boolean;
   /**
    * Run these effects on the partner, all or none. False when any of them
-   * cannot be — and then nothing has changed, which is what lets an option's
-   * `else` be said honestly.
+   * cannot be — and then nothing has changed.
    */
   attempt(effects: readonly DialogEffectDef[]): boolean;
 };
 
-/** Talk pressed: the opening line, and the root buttons. */
+/**
+ * The most commands run between two presses.
+ *
+ * A `goto` to an anchor above it with no wait between is a script that never
+ * comes back to the player. The lint cannot see every such loop, so the
+ * interpreter stops, which reads as the script ending — and an author who
+ * wrote one finds out the moment they try it.
+ */
+export const MAX_STEPS_PER_PRESS = 200;
+
+/** What the transcript says when a trade the panel offered did not go through. */
+export const TRADE_REFUSED = "That trade did not go through.";
+
+/** What the transcript says for the player when they refuse a trade. */
+export const CANCEL_LABEL = "Cancel";
+
+/** Talk pressed: run from the top until something waits. */
 export function openConversation(
   dialog: DialogDef,
   npc: { id: string; tileId: string },
   view: PartnerView,
 ): Conversation {
-  return {
-    npcId: npc.id,
-    tileId: npc.tileId,
-    path: [],
-    line: fillPartner(dialog.opening, view),
-    stage: "asking",
-  };
+  return run(dialog, { npcId: npc.id, tileId: npc.tileId, pc: [0], transcript: [] }, view);
 }
 
-/**
- * Back pressed: one level up, with that reply's line said again and its
- * buttons on offer — or the opening line and the root's from the top.
- *
- * Up one rather than to the root, because this is a tree and a player three
- * presses deep who wants a different answer to the last question should not
- * have to find the question again. Saying the parent's line again is a
- * repeat of words, never of deeds: nothing is asked or run on the way back.
- */
-export function goBack(
+/** The command the conversation is waiting on, or null once it has ended. */
+export function waitingOn(
   dialog: DialogDef,
   conversation: Conversation,
-  view: PartnerView,
-): Conversation {
-  const path = conversation.path.slice(0, -1);
-  const parent = path.length === 0 ? null : optionAt(dialog, path);
-  const line = fillPartner(parent ? parent.say : dialog.opening, view);
-  return { ...conversation, path, line, stage: "asking" };
+): Extract<DialogCommand, { kind: "choices" }> | DialogTrade | null {
+  const command = commandAt(dialog, conversation.pc);
+  if (command?.kind === "choices" || command?.kind === "request_trade") return command;
+  return null;
 }
 
 /**
- * A button pressed, by its position among the buttons on offer.
+ * A choice pressed, by its position among the buttons on offer.
  *
- * Null for a position nothing is at — a stale panel, or a client making it up
- * — or for a press while the NPC is waiting on an amount; the caller leaves
- * the conversation as it was. An option with an amount is a question first:
- * the NPC asks, and nothing is run until {@link confirmAmount}. Anything else
- * is answered on the spot.
+ * Null when the script is not waiting on choices, or for a position nothing
+ * is at — a stale panel, or a client making it up — and the caller leaves the
+ * conversation as it was.
  */
 export function chooseOption(
   dialog: DialogDef,
@@ -144,124 +139,114 @@ export function chooseOption(
   index: number,
   view: PartnerView,
 ): Conversation | null {
-  if (conversation.stage !== "asking") return null;
-  const option = optionsAt(dialog, conversation.path)[index];
+  const waiting = waitingOn(dialog, conversation);
+  if (waiting?.kind !== "choices") return null;
+  const option = waiting.options[index];
   if (!option) return null;
-
-  const path = [...conversation.path, index];
-  if (option.amount) {
-    return { ...conversation, path, line: fillPartner(option.amount.prompt, view), stage: "counting" };
-  }
-  return answer(option, { ...conversation, path }, 1, view);
+  const said = [...conversation.transcript, { who: "you" as const, text: option.label }];
+  return run(dialog, { ...conversation, pc: [...conversation.pc, index, 0], transcript: said }, view);
 }
 
 /**
- * The stepper's number handed over, for the option the NPC is waiting on.
+ * Trade pressed, for so many units.
  *
- * Null unless the NPC is actually waiting on one — a confirm sent against
- * a panel that has moved on is a race, not an answer.
+ * The plan is run against the partner in full; a refusal — the client's
+ * preview was a round trip old, or a client making it up — leaves the script
+ * waiting where it was with a note in the transcript, and nothing changed.
  */
-export function confirmAmount(
+export function acceptTrade(
   dialog: DialogDef,
   conversation: Conversation,
   requestedAmount: number,
   view: PartnerView,
 ): Conversation | null {
-  if (conversation.stage !== "counting") return null;
-  const option = optionAt(dialog, conversation.path);
-  if (!option?.amount) return null;
-  return answer(option, conversation, clampAmount(option, requestedAmount), view);
+  const waiting = waitingOn(dialog, conversation);
+  if (waiting?.kind !== "request_trade") return null;
+  const amount = clampAmount(waiting, requestedAmount);
+  const done = view.attempt([scaledTrade(waiting, amount)]);
+  if (!done) {
+    const note = { who: "note" as const, text: TRADE_REFUSED };
+    return { ...conversation, transcript: [...conversation.transcript, note] };
+  }
+  const note = { who: "note" as const, text: `Traded ×${amount}.` };
+  const at = { ...conversation, pc: [...conversation.pc, 0, 0], transcript: [...conversation.transcript, note] };
+  return run(dialog, at, view);
 }
 
-/**
- * The option's `if` asked and its `do` run, and the reply that comes of it.
- *
- * A refusal says `else` — or leaves the last line, for an option with none —
- * and is a leaf: only *Back* is on offer, because the question was answered,
- * even if the answer was no. A success says `say` and offers the reply's
- * follow-ups, or only *Back* when it has none.
- */
-function answer(
-  option: DialogOption,
-  at: Conversation,
-  amount: number,
+/** A trade's sides for so many units, as the one effect it comes to. */
+export function scaledTrade(trade: DialogTrade, amount: number): DialogEffectDef {
+  const times = (side: TradeSide) => ({ tileId: side.tileId, count: side.count * amount });
+  return { effect: "trade", take: trade.take.map(times), give: trade.give.map(times) };
+}
+
+/** Cancel pressed on a trade: its cancel branch runs. */
+export function cancelTrade(
+  dialog: DialogDef,
+  conversation: Conversation,
   view: PartnerView,
-): Conversation {
-  if (!answers(scaledBy(option, amount), view)) {
-    const line = option.else ? fillPartner(option.else, view) : at.line;
-    return { ...at, line, stage: "answered" };
-  }
-  return {
-    ...at,
-    line: fillPartner(option.say, view),
-    stage: option.then?.length ? "asking" : "answered",
-  };
+): Conversation | null {
+  const waiting = waitingOn(dialog, conversation);
+  if (waiting?.kind !== "request_trade") return null;
+  const said = [...conversation.transcript, { who: "you" as const, text: CANCEL_LABEL }];
+  return run(dialog, { ...conversation, pc: [...conversation.pc, 1, 0], transcript: said }, view);
 }
 
 /**
- * The option with every count multiplied by the chosen amount.
+ * Run from the counter until a command waits or the script ends.
  *
- * Trade sides and the counted conditions alike, so "sell 5" asks for five
- * bottles, takes five, and gives five times the price. Uncounted parts — a
- * tag, a status — are what they are however many.
+ * A list that runs out pops back to the command that held it and continues
+ * after that command; the root running out is the end. Effects that cannot
+ * be — a status nobody authored — are skipped rather than stopping the
+ * script, because a line the author wrote after them is still worth saying.
  */
-function scaledBy(option: DialogOption, amount: number): DialogOption {
-  if (amount === 1) return option;
-  const times = (side: { tileId: string; count: number }) => ({
-    tileId: side.tileId,
-    count: side.count * amount,
-  });
-  return {
-    ...option,
-    if: option.if ? scaleCondition(option.if, amount) : undefined,
-    do: option.do?.map((effect) =>
-      effect.effect === "trade"
-        ? { ...effect, take: effect.take.map(times), give: effect.give.map(times) }
-        : effect,
-    ),
-  };
-}
-
-function scaleCondition(condition: DialogCondition, amount: number): DialogCondition {
-  if ("rules" in condition) {
-    return { ...condition, rules: condition.rules.map((rule) => scaleCondition(rule, amount)) };
+function run(dialog: DialogDef, at: Conversation, view: PartnerView): Conversation {
+  let pc = at.pc;
+  const transcript = [...at.transcript];
+  for (let steps = 0; steps < MAX_STEPS_PER_PRESS; steps++) {
+    const command = commandAt(dialog, pc);
+    if (!command) {
+      const parent = afterBlock(dialog, pc);
+      if (!parent) return { ...at, pc, transcript };
+      pc = parent;
+      continue;
+    }
+    if (command.kind === "choices" || command.kind === "request_trade") {
+      return { ...at, pc, transcript };
+    }
+    if (command.kind === "goto") {
+      const target = anchorPath(dialog, command.name);
+      pc = advance(target ?? pc);
+      continue;
+    }
+    if (command.kind === "say") {
+      transcript.push({ who: "npc", text: fillPartner(command.text, view) });
+    } else if (command.kind !== "anchor") {
+      view.attempt([effectOf(command)]);
+    }
+    pc = advance(pc);
   }
-  if (condition.cond === "carries" || condition.cond === "room_for") {
-    return { ...condition, count: condition.count * amount };
-  }
-  return condition;
+  return { ...at, pc, transcript };
 }
 
-/**
- * May this option answer — does its `if` hold, and did its `do` run?
- *
- * The condition is asked first and the effects only then, so an option that
- * asks `carries` and then trades never runs a trade it already knows is short.
- * Both refusals read the same to the caller because they are the same to the
- * partner: nothing happened, and the `else` line says why.
- */
-function answers(option: DialogOption, view: PartnerView): boolean {
-  if (option.if && !holds(option.if, view)) return false;
-  if (option.do?.length && !view.attempt(option.do)) return false;
-  return true;
+/** The counter one past the command that held the list `pc` ran out of. */
+function afterBlock(dialog: DialogDef, pc: CommandPath): number[] | null {
+  if (pc.length < 3) return null;
+  const holder = pc.slice(0, -2);
+  return listAt(dialog, holder.slice(0, -1)) ? advance(holder) : null;
 }
 
-function holds(condition: DialogCondition, view: PartnerView): boolean {
-  return evaluateCondition(condition, (leaf) => leafHolds(leaf, view));
+function advance(pc: CommandPath): number[] {
+  const next = [...pc];
+  next[next.length - 1]! += 1;
+  return next;
 }
 
-/** Every leaf is a question about the partner and nothing else. */
-function leafHolds(leaf: DialogConditionDef, view: PartnerView): boolean {
-  switch (leaf.cond) {
-    case "carries":
-      return view.carries(leaf.tileId, leaf.count);
-    case "room_for":
-      return view.roomFor(leaf.tileId, leaf.count);
-    case "has_tag":
-      return view.hasTag(leaf.tag);
-    case "has_status":
-      return view.hasStatus(leaf.statusId);
-  }
+function effectOf(
+  command: Extract<DialogCommand, { kind: "add_status" | "remove_status" | "tag" }>,
+): DialogEffectDef {
+  if (command.kind === "tag") return { effect: "tag", tag: command.tag };
+  if (command.kind === "add_status") return { effect: "add_status", statusId: command.statusId };
+  return { effect: "remove_status", statusId: command.statusId };
 }
 
 const PARTNER_PLACEHOLDER = /\{partner\}/g;

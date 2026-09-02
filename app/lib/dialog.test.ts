@@ -1,14 +1,20 @@
 import { describe, expect, it } from "vitest";
 import {
+  anchorNames,
+  anchorPath,
+  branchesOf,
   clampAmount,
+  commandAt,
   DEFAULT_DIALOG,
+  listAt,
   MAX_DIALOG_DEPTH,
-  optionAt,
-  optionsAt,
   resolveDialog,
   validateDialog,
+  walkCommands,
+  withListAt,
+  type DialogCommand,
   type DialogDef,
-  type DialogOption,
+  type DialogTrade,
 } from "./dialog";
 import { normalizeTileDef } from "./types";
 
@@ -21,7 +27,7 @@ const frame = {
   durationMs: 200,
 };
 
-function tileWith(dialog: unknown, id = "seller") {
+function tileWith(dialog: unknown, id = "seller", item?: unknown) {
   return normalizeTileDef({
     id,
     name: id,
@@ -29,78 +35,58 @@ function tileWith(dialog: unknown, id = "seller") {
     directional: false,
     variants: { default: [frame] },
     attributes: {},
-    kind: "prop",
-    interactions: dialog === undefined ? {} : { dialog },
+    kind: item ? "item" : "prop",
+    interactions: { ...(dialog === undefined ? {} : { dialog }), ...(item ? { item } : {}) },
   });
 }
 
+const say = (text: string): DialogCommand => ({ kind: "say", text });
+
+const trade: DialogTrade = {
+  kind: "request_trade",
+  take: [{ tileId: "shard", count: 14 }],
+  give: [{ tileId: "potion", count: 1 }],
+  min: 1,
+  max: 4,
+  traded: [say("Thanks.")],
+  cancel: [say("Fine.")],
+};
+
 const shop: DialogDef = {
-  opening: "Hello, {partner}.",
-  options: [
-    { label: "Recipe", say: "Ten crystals, one solution." },
+  script: [
+    say("Hello."),
+    { kind: "anchor", name: "main" },
     {
-      label: "Buy a potion",
-      say: "Fourteen shards. Deal?",
-      then: [
-        { label: "Yes", say: "Here.", else: "No." },
-        { label: "No", say: "Suit yourself." },
+      kind: "choices",
+      options: [
+        { label: "Buy", then: [say("Fourteen."), trade] },
+        { label: "How", then: [say("Crystals."), { kind: "goto", name: "main" }] },
       ],
     },
   ],
 };
 
 describe("resolving a dialog", () => {
-  it("parses a block and trims its labels", () => {
-    const dialog = resolveDialog(
-      tileWith({ ...shop, options: [{ label: "  Recipe ", say: "x" }] }),
-    );
-    expect(dialog?.options[0]?.label).toBe("Recipe");
+  it("parses a script and trims its names", () => {
+    const dialog = resolveDialog(tileWith({ script: [{ kind: "anchor", name: " main " }] }));
+    expect(dialog?.script[0]).toEqual({ kind: "anchor", name: "main" });
   });
 
   it("is null for a tile with no dialog", () => {
     expect(resolveDialog(tileWith(undefined))).toBeNull();
   });
 
-  it("is null for a blank opening line", () => {
-    expect(resolveDialog(tileWith({ ...shop, opening: "" }))).toBeNull();
+  it("refuses a blank line, choices with no buttons, a trade of nothing, and an inverted range", () => {
+    const bad = (command: Record<string, unknown>) => resolveDialog(tileWith({ script: [command] }));
+    expect(bad({ kind: "say", text: "" })).toBeNull();
+    expect(bad({ kind: "choices", options: [] })).toBeNull();
+    expect(bad({ ...trade, take: [], give: [] })).toBeNull();
+    expect(bad({ ...trade, min: 3, max: 2 })).toBeNull();
+    expect(bad({ kind: "unknown" })).toBeNull();
   });
 
-  it("is null for an option with no label or no line", () => {
-    expect(resolveDialog(tileWith({ ...shop, options: [{ label: " ", say: "x" }] }))).toBeNull();
-    expect(resolveDialog(tileWith({ ...shop, options: [{ label: "x", say: "" }] }))).toBeNull();
-  });
-
-  it("parses a condition tree, an effect list, and an amount", () => {
-    const dialog = resolveDialog(
-      tileWith({
-        ...shop,
-        options: [
-          {
-            label: "Sell bottles",
-            amount: { min: 1, max: 12, prompt: "How many?", confirm: "Sell" },
-            if: { combinator: "and", rules: [{ cond: "carries", tileId: "bottle", count: 1 }, { cond: "room_for", tileId: "shard", count: 2 }] },
-            do: [
-              { effect: "trade", take: [{ tileId: "bottle", count: 1 }], give: [{ tileId: "shard", count: 2 }] },
-              { effect: "add_status", statusId: "luminous" },
-              { effect: "tag", tag: "customer" },
-            ],
-            say: "Ta.",
-            else: "No.",
-          },
-        ],
-      }),
-    );
-    expect(dialog?.options[0]?.do).toHaveLength(3);
-    expect(dialog?.options[0]?.amount).toEqual({ min: 1, max: 12, prompt: "How many?", confirm: "Sell" });
-  });
-
-  it("refuses a trade of nothing for nothing, a count of nothing, and an inverted amount", () => {
-    const bad = (option: Record<string, unknown>) =>
-      resolveDialog(tileWith({ ...shop, options: [{ label: "x", say: "x", ...option }] }));
-    expect(bad({ do: [{ effect: "trade", take: [], give: [] }] })).toBeNull();
-    expect(bad({ if: { cond: "carries", tileId: "shard", count: 0 } })).toBeNull();
-    expect(bad({ amount: { min: 3, max: 2, prompt: "How many?" } })).toBeNull();
-    expect(bad({ amount: { min: 1, max: 2, prompt: "" } })).toBeNull();
+  it("parses nested blocks all the way down", () => {
+    expect(resolveDialog(tileWith(shop))).toEqual(shop);
   });
 
   it("is memoised on the def", () => {
@@ -109,30 +95,51 @@ describe("resolving a dialog", () => {
   });
 });
 
-describe("walking the tree", () => {
-  it("finds an option by path, and nothing off the end", () => {
-    expect(optionAt(shop, [1, 0])?.label).toBe("Yes");
-    expect(optionAt(shop, [1, 5])).toBeNull();
-    expect(optionAt(shop, [0, 0])).toBeNull();
+describe("walking the script", () => {
+  it("finds lists and commands by path, and nothing off the end", () => {
+    expect(listAt(shop, [])).toBe(shop.script);
+    expect(listAt(shop, [2, 0])).toBe(shop.script[2]!.kind === "choices" ? shop.script[2].options[0]!.then : null);
+    expect(listAt(shop, [2, 0, 1, 1])).toEqual([say("Fine.")]);
+    expect(listAt(shop, [2, 9])).toBeNull();
+    expect(commandAt(shop, [2, 0, 1])).toBe(trade);
+    expect(commandAt(shop, [2])).toBe(shop.script[2]);
+    expect(commandAt(shop, [2, 0])).toBeNull();
+    expect(commandAt(shop, [7])).toBeNull();
   });
 
-  it("offers the root at the root, and a reply's follow-ups under it", () => {
-    expect(optionsAt(shop, []).map((o) => o.label)).toEqual(["Recipe", "Buy a potion"]);
-    expect(optionsAt(shop, [1]).map((o) => o.label)).toEqual(["Yes", "No"]);
+  it("knows which commands hold blocks, and how many", () => {
+    expect(branchesOf(say("x"))).toEqual([]);
+    expect(branchesOf(trade)).toHaveLength(2);
+    expect(branchesOf(shop.script[2]!)).toHaveLength(2);
   });
 
-  it("offers nothing under a reply with no follow-ups: a leaf", () => {
-    expect(optionsAt(shop, [0])).toEqual([]);
-    expect(optionsAt(shop, [1, 0])).toEqual([]);
-    expect(optionsAt(shop, [9])).toEqual([]);
+  it("replaces a nested list and leaves the rest as it was", () => {
+    const next = withListAt(shop, [2, 0, 1, 0], [say("Cheers.")]);
+    expect(listAt(next, [2, 0, 1, 0])).toEqual([say("Cheers.")]);
+    expect(listAt(next, [2, 0, 1, 1])).toEqual([say("Fine.")]);
+    expect(next.script[0]).toBe(shop.script[0]);
+    expect(withListAt(shop, [9, 0], [])).toBe(shop);
   });
 
-  it("clamps an amount to the author's range, and reads one where there is none", () => {
-    const counted: DialogOption = { label: "x", say: "x", amount: { min: 2, max: 5, prompt: "?" } };
-    expect(clampAmount(counted, undefined)).toBe(2);
-    expect(clampAmount(counted, 9)).toBe(5);
-    expect(clampAmount(counted, 3.4)).toBe(3);
-    expect(clampAmount({ label: "x", say: "x" }, 7)).toBe(1);
+  it("visits every command root first", () => {
+    expect(walkCommands(shop).map((w) => w.path.join("."))).toEqual([
+      "0", "1", "2", "2.0.0", "2.0.1", "2.0.1.0.0", "2.0.1.1.0", "2.1.0", "2.1.1",
+    ]);
+  });
+
+  it("finds an anchor anywhere, first one winning", () => {
+    expect(anchorPath(shop, "main")).toEqual([1]);
+    expect(anchorPath(shop, "nowhere")).toBeNull();
+    const twice: DialogDef = { script: [{ kind: "anchor", name: "a" }, { kind: "anchor", name: "a" }] };
+    expect(anchorPath(twice, "a")).toEqual([0]);
+    expect(anchorNames(twice)).toEqual(["a"]);
+  });
+
+  it("clamps a quantity to the trade's range, opening at its default", () => {
+    expect(clampAmount(trade, undefined)).toBe(1);
+    expect(clampAmount({ ...trade, default: 3 }, undefined)).toBe(3);
+    expect(clampAmount(trade, 9)).toBe(4);
+    expect(clampAmount(trade, 2.4)).toBe(2);
   });
 });
 
@@ -141,82 +148,55 @@ describe("validating a dialog", () => {
     expect(validateDialog(shop)).toEqual([]);
   });
 
-  it("warns about a dialog with no options", () => {
-    expect(validateDialog(DEFAULT_DIALOG).map((i) => i.severity)).toEqual(["warn"]);
+  it("warns about an empty script", () => {
+    expect(validateDialog({ script: [] }).map((i) => i.severity)).toEqual(["warn"]);
+    expect(validateDialog(DEFAULT_DIALOG)).toEqual([]);
   });
 
-  it("warns when two buttons at one level read the same", () => {
+  it("errors on a goto with no anchor, and warns about a doubled anchor", () => {
     const issues = validateDialog({
-      ...shop,
-      options: [{ label: "Yes", say: "a" }, { label: "yes", say: "b" }],
+      script: [{ kind: "anchor", name: "a" }, { kind: "anchor", name: "a" }, { kind: "goto", name: "b" }],
     });
     expect(issues).toEqual([
-      { severity: "warn", message: expect.stringContaining('"yes" appears twice') },
+      { severity: "warn", message: expect.stringContaining('"a" appears 2 times') },
+      { severity: "error", message: expect.stringContaining('jumps to "b"') },
     ]);
   });
 
-  it("does not mind the same button under two different replies", () => {
-    expect(validateDialog(shop)).toEqual([]);
-  });
-
-  it("errors on a blank line, which the schema would refuse", () => {
-    const issues = validateDialog({ ...shop, options: [{ label: "x", say: "  " }] });
-    expect(issues).toEqual([{ severity: "error", message: "option 1 says nothing" }]);
-  });
-
-  it("warns about an option that can refuse and has nothing to say about it", () => {
+  it("errors on two buttons reading the same, and a blank one", () => {
     const issues = validateDialog({
-      ...shop,
-      options: [{ label: "x", say: "x", if: { cond: "has_tag", tag: "t" } }],
+      script: [{ kind: "choices", options: [{ label: "Yes", then: [] }, { label: "yes", then: [] }, { label: " ", then: [] }] }],
     });
-    expect(issues.map((i) => i.message)).toEqual([expect.stringContaining("no else line")]);
-  });
-
-  it("warns about a stepper with nothing to multiply", () => {
-    const issues = validateDialog({
-      ...shop,
-      options: [{ label: "x", say: "x", amount: { min: 1, max: 3, prompt: "?" } }],
-    });
-    expect(issues.map((i) => i.message)).toEqual([expect.stringContaining("nothing counted")]);
-  });
-
-  it("warns past the depth a conversation can follow", () => {
-    let option: DialogOption = { label: "deep", say: "Deepest." };
-    for (let depth = 0; depth < MAX_DIALOG_DEPTH; depth++) {
-      option = { label: "deep", say: "Deeper.", then: [option] };
-    }
-    const issues = validateDialog({ ...shop, options: [option] });
     expect(issues.map((i) => i.message)).toEqual([
-      expect.stringContaining(`${MAX_DIALOG_DEPTH + 1} deep`),
+      expect.stringContaining('two buttons reading "yes"'),
+      expect.stringContaining("no label"),
+    ]);
+  });
+
+  it("errors on a trade opening outside its own range", () => {
+    const issues = validateDialog({ script: [{ ...trade, default: 9 }] });
+    expect(issues.map((i) => i.message)).toEqual([expect.stringContaining("outside its own range")]);
+  });
+
+  it("warns past the depth an outline can follow", () => {
+    let command: DialogCommand = say("Deepest.");
+    for (let depth = 0; depth <= MAX_DIALOG_DEPTH; depth++) {
+      command = { kind: "choices", options: [{ label: "In", then: [command] }] };
+    }
+    const issues = validateDialog({ script: [command] });
+    expect(issues.map((i) => i.message)).toEqual([
+      expect.stringContaining(`${MAX_DIALOG_DEPTH + 1} blocks deep`),
     ]);
   });
 
   describe("with a catalogue in hand", () => {
-    const potion = tileWith(undefined, "potion");
-    const bag = normalizeTileDef({
-      id: "bag",
-      name: "Bag",
-      height: 0,
-      directional: false,
-      variants: { default: [frame] },
-      attributes: {},
-      kind: "item",
-      interactions: { item: { type: "container", size: 4, equippable: true } },
-    });
+    const potion = tileWith(undefined, "potion", { type: "consumable", hp: 0 });
+    const bag = tileWith(undefined, "bag", { type: "container", size: 4, equippable: true });
     const catalogue = { tilesById: { potion, bag }, statusIds: new Set(["luminous"]) };
 
     it("names ids nothing answers to", () => {
       const dialog: DialogDef = {
-        ...shop,
-        options: [
-          {
-            label: "x",
-            say: "x",
-            else: "no",
-            if: { cond: "carries", tileId: "shard", count: 1 },
-            do: [{ effect: "add_status", statusId: "glowing" }],
-          },
-        ],
+        script: [{ ...trade, take: [{ tileId: "shard", count: 1 }] }, { kind: "add_status", statusId: "glowing" }],
       };
       expect(validateDialog(dialog)).toEqual([]);
       expect(validateDialog(dialog, catalogue).map((i) => i.message)).toEqual([
@@ -226,16 +206,8 @@ describe("validating a dialog", () => {
     });
 
     it("refuses a container on either side of a trade", () => {
-      const issues = validateDialog(
-        {
-          ...shop,
-          options: [{ label: "x", say: "x", else: "no", do: [{ effect: "trade", take: [], give: [{ tileId: "bag", count: 1 }] }] }],
-        },
-        catalogue,
-      );
-      expect(issues).toEqual([
-        { severity: "error", message: expect.stringContaining("Bag, and a container") },
-      ]);
+      const issues = validateDialog({ script: [{ ...trade, take: [], give: [{ tileId: "bag", count: 1 }] }] }, catalogue);
+      expect(issues).toEqual([{ severity: "error", message: expect.stringContaining("bag, and a container") }]);
     });
   });
 });

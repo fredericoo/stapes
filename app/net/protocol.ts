@@ -612,7 +612,7 @@ export type ServerMessage =
    */
   | { type: "tags"; tags: string[] }
   /**
-   * "Here is where you are in a conversation, and what was just said to you."
+   * "Here is where you are in a conversation, and everything said so far."
    *
    * Addressed to one socket for the reason `tags` is: it differs per player,
    * and it is the player's state rather than the NPC's — see
@@ -911,8 +911,8 @@ export type ClientMessage =
    */
   | { type: "consume"; from: ConsumeSource }
   /**
-   * Talk to a body, press one of its buttons, go back to its first ones, or
-   * close the panel.
+   * Talk to a body, press a choice, take or refuse a trade, or close the
+   * panel.
    *
    * One message with a verb inside rather than four, because the four are one
    * thing — where the player is in a conversation — and a conversation is the
@@ -1128,10 +1128,10 @@ const clientMessageSchema = v.variant("type", [
         index: v.pipe(v.number(), v.integer(), v.minValue(0)),
       }),
       v.object({
-        kind: v.literal("confirm"),
+        kind: v.literal("trade"),
         amount: v.pipe(v.number(), v.integer(), v.minValue(1)),
       }),
-      v.object({ kind: v.literal("back") }),
+      v.object({ kind: v.literal("cancel") }),
       v.object({ kind: v.literal("close") }),
     ]),
   }),
@@ -1230,9 +1230,10 @@ const serverMessageSchema = v.variant("type", [
       v.object({
         npcId: v.string(),
         tileId: v.string(),
-        path: v.array(v.pipe(v.number(), v.integer(), v.minValue(0))),
-        line: v.string(),
-        stage: v.picklist(["asking", "counting", "answered"]),
+        pc: v.array(v.pipe(v.number(), v.integer(), v.minValue(0))),
+        transcript: v.array(
+          v.object({ who: v.picklist(["npc", "you", "note"]), text: v.string() }),
+        ),
       }),
     ),
   }),

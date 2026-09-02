@@ -1,223 +1,158 @@
 import * as v from "valibot";
-import { conditionSchema, conditionLeaves, type ConditionNode } from "./conditions";
 import { resolveContainer } from "./item";
 import type { TileDef } from "./types";
 
 /**
- * A conversation an NPC can hold, authored as a tree of options.
+ * A conversation an NPC can hold, authored as a script of commands.
  *
- * ## The shape of a talk
+ * ## An event, not a menu
  *
- * A player presses *Talk* on a body, a panel opens with the NPC's `opening`
- * line and a button per root option, and every press answers with that
- * option's `say` and its own `then` buttons — or, for a reply with none, only
- * *Back*. *Back* goes up one level; *Close* ends it. It is read as a tree:
- * under a reply are that reply's follow-ups and nothing else, so a branch is
- * as deep as the author made it. Nothing is typed: what an NPC can be asked
- * is what is on the buttons, which is the whole of its discoverability and
- * the whole of why it works on a phone.
+ * A dialog is an ordered list of commands, the way an RPG Maker event is: say
+ * a line, offer choices, ask for a trade, mark the player, jump to a label.
+ * Some commands hold nested lists — each choice has the commands it leads to,
+ * a trade has what happens when it goes through and when it is cancelled —
+ * and the interpreter (`../game/dialogRuntime`) runs one list at a time,
+ * descending into a branch on the player's press and continuing after the
+ * block when the branch runs out. `anchor` and `goto` are how a script comes
+ * back to its menu; running off the end is how it stops.
  *
- * This replaced typed keywords. The brain already hears (`heard`) and talks
- * (`say`) and the `shopkeeper` holds a hi/bye conversation on nothing else,
- * but a keyword an NPC answers to is a keyword a player has to guess, and a
- * chat bar is the worst control a thumb has. The tree, the conditions and the
- * effects are exactly what they were; only the way a branch is chosen moved
- * from the ear to the finger.
+ * This replaced a tree of buttons, where every button carried its own
+ * condition, reply and effects. That shape could say one thing per press and
+ * nothing between presses; a script says as much as it likes, in any order,
+ * and a new kind of command is one more arm rather than a new field on every
+ * option. `if` is the arm coming next, and the interpreter already treats
+ * every nested list the same, so it will be a block like any other.
  *
- * ## Many at once
+ * ## What the player sees
  *
- * A conversation is the *player's* state, not the NPC's, so any number of
- * people can be talking to one salesman and none of them sees the others'
- * panels. What the NPC knows is only whether anybody is — the brain condition
- * `talking` — so it can stand still for a sale.
- *
- * ## Options that ask and do
- *
- * An option may carry an `if` (asked of the partner: what they carry, whether
- * there is room, a tag, a status), a `do` (a trade, a status, a tag — all or
- * none), and an `else` said instead when either refuses. A refusal is a leaf
- * like any other answer: only *Back*. An `amount` makes the option a question
- * first — the NPC asks how many, a stepper answers — and multiplies every
- * count in the option's trade and conditions by the number confirmed.
+ * A transcript. Every line said and every choice made stays on the panel,
+ * and the only controls are the ones the command the script is waiting on
+ * needs: buttons for `choices`, a preview with a quantity and Trade / Cancel
+ * for `request_trade`. When the script ends, the transcript stays and the
+ * close button is all that is left.
  *
  * Parsed with valibot and memoised on def identity, on the same trust model
  * as every other interaction block: a malformed dialog is a body with no Talk
  * row, never a crashed world.
  */
 
-/**
- * A question about the partner, asked before an option answers.
- *
- * All about the partner's kit and record, and nothing about time or distance:
- * reach is the Talk row's own rule. Composed with `and`/`or`/`not` by
- * `./conditions`, which was written expecting a second vocabulary — this is it.
- */
-export type DialogConditionDef =
-  /** At least `count` of a tile across everything carried, piles summed. */
-  | { cond: "carries"; tileId: string; count: number }
-  /** Somewhere on the body for `count` of a tile, on a trade's landing rule. */
-  | { cond: "room_for"; tileId: string; count: number }
-  /** The partner holds a tag — a reward's, or one a `tag` effect wrote. */
-  | { cond: "has_tag"; tag: string }
-  /** The partner is under a status right now. */
-  | { cond: "has_status"; statusId: string };
-
-export type DialogCondition = ConditionNode<DialogConditionDef>;
-
 /** So many of one tile, as one side of a trade. */
 export type TradeSide = { tileId: string; count: number };
 
-/**
- * Something an option does when it answers.
- *
- * Every one of these can be refused — a trade short on either side, a status
- * nobody authored — and a refusal reads exactly as the option's `if` failing:
- * the `else` line is said and nothing changes. A list is a transaction: all of
- * it runs or none of it does.
- */
-export type DialogEffectDef =
-  /**
-   * Take these from the partner and give them those, or neither.
-   *
-   * Either side may be empty — a gift, or a fee — but not both. Never a
-   * container on either side: a pack is not a thing you spend, and a trade that
-   * handed one over would be a second inventory arriving somewhere nothing
-   * nests. See `../game/trade`.
-   */
-  | { effect: "trade"; take: TradeSide[]; give: TradeSide[] }
-  /** Put a status on the partner, for the status's own duration. */
-  | { effect: "add_status"; statusId: string }
-  /** Mark the partner, on a reward tag's terms, so `has_tag` can ask later. */
-  | { effect: "tag"; tag: string };
-
-/**
- * A quantity asked for before the option does anything.
- *
- * Pressing an option with an amount does not run it: the NPC asks `prompt`,
- * the panel shows a stepper and a `confirm` button, and only the confirm runs
- * the option's `if` and `do` with every `count` in them multiplied by the
- * chosen number — so one authored price covers "one bottle" and "all nine".
- * Two steps rather than a stepper beside the button, because "how many" is a
- * question the NPC asks, and a tree of questions is what this is.
- */
-export type DialogAmount = {
+export type DialogTrade = {
+  kind: "request_trade";
+  take: TradeSide[];
+  give: TradeSide[];
   min: number;
   max: number;
-  /** What the NPC says while asking. `{partner}` is filled. */
-  prompt: string;
-  /** The confirm button. Absent reads "Confirm". */
-  confirm?: string;
+  default?: number;
+  traded: DialogCommand[];
+  cancel: DialogCommand[];
 };
 
-/** What an amount's confirm button says when the author left it blank. */
-export const DEFAULT_CONFIRM_LABEL = "Confirm";
+export type DialogChoice = { label: string; then: DialogCommand[] };
 
-export type DialogOption = {
-  /** The button. Short — it is a button. */
-  label: string;
-  /** Asked of the partner first. Failing it says `else` instead. */
-  if?: DialogCondition;
-  /** Run when `if` holds, all or nothing. Refused says `else` instead. */
-  do?: DialogEffectDef[];
-  /** What the NPC says when this is pressed and allowed. `{partner}` is filled. */
-  say: string;
-  /** Said instead of `say` when `if` failed or `do` was refused. */
-  else?: string;
-  /** A quantity the NPC asks for before this runs. @see DialogAmount */
-  amount?: DialogAmount;
-  /** The buttons shown after this reply, instead of the root's. */
-  then?: DialogOption[];
-};
+export type DialogCommand =
+  /** A line from the NPC. `{partner}` is the player's name. */
+  | { kind: "say"; text: string }
+  /** A place a `goto` can land. Names are unique across the whole script. */
+  | { kind: "anchor"; name: string }
+  /**
+   * Continue from just after the anchor of that name, wherever it is — a
+   * branch jumping to its menu unwinds out of the branch to do so.
+   */
+  | { kind: "goto"; name: string }
+  /** Buttons, and the commands each leads to. Waits for a press. */
+  | { kind: "choices"; options: DialogChoice[] }
+  /**
+   * Offer a trade and wait for Trade or Cancel.
+   *
+   * `take` and `give` are per unit; the player picks how many units between
+   * `min` and `max`, starting at `default`. On Trade the whole plan is run at
+   * once — all or nothing, nothing on the floor — and `traded` continues;
+   * on Cancel, `cancel` does. See `../game/trade`.
+   */
+  | DialogTrade
+  /** Put a status on the player, for the status's own duration. */
+  | { kind: "add_status"; statusId: string }
+  /** Take a status off the player, if they are under it. */
+  | { kind: "remove_status"; statusId: string }
+  /** Mark the player, on a reward tag's terms. */
+  | { kind: "tag"; tag: string };
 
-export type DialogDef = {
-  /** What the NPC says when the panel opens. `{partner}` is filled. */
-  opening: string;
-  options: DialogOption[];
-};
+export type DialogCommandKind = DialogCommand["kind"];
+
+export type DialogDef = { script: DialogCommand[] };
 
 /**
- * How deep `then` may nest before the editor says something.
+ * The most of anything one trade may move, and the widest a quantity may be.
  *
- * A warning rather than a refusal: nothing breaks at four, but a conversation
- * four presses deep before *Back* is one a player cannot hold in their head,
- * and the outline that authored it will not fit on a screen either.
- */
-export const MAX_DIALOG_DEPTH = 3;
-
-/**
- * The most of anything one press may move.
- *
- * A sanity bound on the amount stepper's ceiling, on the terms `MAX_PILE` is:
- * two digits is more bottles than anybody is carrying, and a typo'd third
- * reads as malformed rather than as a shop that buys a thousand.
+ * A sanity bound on the terms `MAX_PILE` is: two digits is more bottles than
+ * anybody is carrying, and a typo'd third reads as malformed rather than as a
+ * shop that buys a thousand.
  */
 export const MAX_DIALOG_AMOUNT = 99;
 
-/** What a fresh dialog block says, so the editor has something to show. */
+/**
+ * How deep blocks may nest before the editor says something.
+ *
+ * A warning rather than a refusal: nothing breaks at four, but a choice four
+ * blocks deep is one the outline will not fit on a screen.
+ */
+export const MAX_DIALOG_DEPTH = 3;
+
+/** What a fresh dialog says, so the editor has something to show. */
 export const DEFAULT_DIALOG: DialogDef = {
-  opening: "Hello, {partner}.",
-  options: [],
+  script: [{ kind: "say", text: "Hello, {partner}." }],
 };
 
 const tileId = v.pipe(v.string(), v.trim(), v.minLength(1));
-
-// At least one: a condition about zero of something is always true and never
-// what anybody typed.
-const count = v.pipe(v.number(), v.integer(), v.minValue(1));
-
+const name = v.pipe(v.string(), v.trim(), v.minLength(1));
 const line = v.pipe(v.string(), v.minLength(1));
-
-const conditionLeafSchema = v.variant("cond", [
-  v.object({ cond: v.literal("carries"), tileId, count }),
-  v.object({ cond: v.literal("room_for"), tileId, count }),
-  v.object({ cond: v.literal("has_tag"), tag: v.pipe(v.string(), v.trim(), v.minLength(1)) }),
-  v.object({ cond: v.literal("has_status"), statusId: tileId }),
-]);
-
-const ifSchema = conditionSchema<DialogConditionDef>(conditionLeafSchema);
+const count = v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_DIALOG_AMOUNT));
 
 const tradeSideSchema = v.object({ tileId, count });
 
-const effectSchema = v.variant("effect", [
+// Recursive through every block, the way `./conditions` is through `rules`:
+// a command holds commands, and valibot needs to be told the type it will
+// arrive at.
+const commandSchema: v.GenericSchema<unknown, DialogCommand> = v.variant("kind", [
+  v.object({ kind: v.literal("say"), text: line }),
+  v.object({ kind: v.literal("anchor"), name }),
+  v.object({ kind: v.literal("goto"), name }),
+  v.object({
+    kind: v.literal("choices"),
+    options: v.pipe(
+      v.array(
+        v.object({
+          label: v.pipe(v.string(), v.trim(), v.minLength(1)),
+          then: v.array(v.lazy(() => commandSchema)),
+        }),
+      ),
+      v.minLength(1),
+    ),
+  }),
   v.pipe(
     v.object({
-      effect: v.literal("trade"),
+      kind: v.literal("request_trade"),
       take: v.array(tradeSideSchema),
       give: v.array(tradeSideSchema),
+      min: count,
+      max: count,
+      default: v.optional(count),
+      traded: v.array(v.lazy(() => commandSchema)),
+      cancel: v.array(v.lazy(() => commandSchema)),
     }),
-    // A trade of nothing for nothing is an option that should not have a trade.
+    // A trade of nothing for nothing is a command that should not be one.
     v.check((raw) => raw.take.length + raw.give.length > 0, "a trade moves something"),
+    v.check((raw) => raw.max >= raw.min, "a quantity's ceiling is at least its floor"),
   ),
-  v.object({ effect: v.literal("add_status"), statusId: tileId }),
-  v.object({ effect: v.literal("tag"), tag: v.pipe(v.string(), v.trim(), v.minLength(1)) }),
+  v.object({ kind: v.literal("add_status"), statusId: tileId }),
+  v.object({ kind: v.literal("remove_status"), statusId: tileId }),
+  v.object({ kind: v.literal("tag"), tag: name }),
 ]);
 
-const amountSchema = v.pipe(
-  v.object({
-    min: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_DIALOG_AMOUNT)),
-    max: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_DIALOG_AMOUNT)),
-    prompt: line,
-    confirm: v.optional(v.pipe(v.string(), v.trim(), v.minLength(1))),
-  }),
-  v.check((raw) => raw.max >= raw.min, "an amount's ceiling is at least its floor"),
-);
-
-// Recursive through `then`, the way `./conditions` is through `rules`: an
-// option holds options, and valibot needs to be told the type it will arrive at.
-const optionSchema: v.GenericSchema<unknown, DialogOption> = v.object({
-  label: v.pipe(v.string(), v.trim(), v.minLength(1)),
-  if: v.optional(ifSchema),
-  do: v.optional(v.array(effectSchema)),
-  say: line,
-  else: v.optional(line),
-  amount: v.optional(amountSchema),
-  then: v.optional(v.array(v.lazy(() => optionSchema))),
-});
-
-const dialogSchema = v.object({
-  opening: line,
-  options: v.array(optionSchema),
-});
+const dialogSchema = v.object({ script: v.array(commandSchema) });
 
 const dialogCache = new WeakMap<TileDef, DialogDef | null>();
 
@@ -239,53 +174,114 @@ export function resolveDialog(def: TileDef): DialogDef | null {
 }
 
 /**
- * The option a path names, or null when the def has none there.
+ * Where a command sits: indices into nested lists, alternating a command's
+ * position in its list with which of its branches to descend — `[2, 0, 1]` is
+ * the second command inside the first branch of the third command. `[]` is
+ * the root list itself; a path of odd length names a command, of even length
+ * a list.
  *
- * A path is indices from the root, one per `then` descended — see
- * `../game/dialogRuntime`'s `Conversation`. Shared by the runtime, which
- * follows it, and the panel, which draws the buttons at its end.
+ * One shape for the interpreter's counter, the editor's cursor and a drag's
+ * destination, so none of them can disagree about what a position means.
  */
-export function optionAt(
-  dialog: DialogDef,
-  path: readonly number[],
-): DialogOption | null {
-  let options: readonly DialogOption[] = dialog.options;
-  let found: DialogOption | null = null;
-  for (const index of path) {
-    found = options[index] ?? null;
-    if (!found) return null;
-    options = found.then ?? [];
+export type CommandPath = readonly number[];
+
+/** The nested lists a command holds, in branch order. */
+export function branchesOf(command: DialogCommand): readonly DialogCommand[][] {
+  if (command.kind === "choices") return command.options.map((option) => option.then);
+  if (command.kind === "request_trade") return [command.traded, command.cancel];
+  return [];
+}
+
+/** The command with branch `index` replaced. */
+export function withBranch(
+  command: DialogCommand,
+  index: number,
+  list: DialogCommand[],
+): DialogCommand {
+  if (command.kind === "choices") {
+    return {
+      ...command,
+      options: command.options.map((option, i) => (i === index ? { ...option, then: list } : option)),
+    };
   }
-  return found;
+  if (command.kind === "request_trade") {
+    return index === 0 ? { ...command, traded: list } : { ...command, cancel: list };
+  }
+  return command;
 }
 
-/**
- * The buttons under a path: the root's at the root, and otherwise that
- * reply's own `then` — which is nothing for a reply with no follow-ups.
- *
- * Nothing rather than the root, because this is a tree: a reply with nothing
- * under it is a leaf, and the way out of a leaf is *Back*. Offering the root
- * again under every reply would make every branch one press deep.
- */
-export function optionsAt(
+/** The list at an even-length path, or null when the path names nothing. */
+export function listAt(dialog: DialogDef, path: CommandPath): DialogCommand[] | null {
+  let list: DialogCommand[] | null = dialog.script;
+  for (let i = 0; i + 1 < path.length; i += 2) {
+    const command: DialogCommand | undefined = list?.[path[i]!];
+    const branch: DialogCommand[] | undefined = command && branchesOf(command)[path[i + 1]!];
+    if (!branch) return null;
+    list = branch;
+  }
+  return list;
+}
+
+/** The command at an odd-length path, or null when the path names nothing. */
+export function commandAt(dialog: DialogDef, path: CommandPath): DialogCommand | null {
+  if (path.length % 2 === 0) return null;
+  return listAt(dialog, path.slice(0, -1))?.[path[path.length - 1]!] ?? null;
+}
+
+/** The dialog with the list at an even-length path replaced. */
+export function withListAt(
   dialog: DialogDef,
-  path: readonly number[],
-): readonly DialogOption[] {
-  if (path.length === 0) return dialog.options;
-  return optionAt(dialog, path)?.then ?? [];
+  path: CommandPath,
+  list: DialogCommand[],
+): DialogDef {
+  if (path.length === 0) return { script: list };
+  const parentPath = path.slice(0, -2);
+  const parent = listAt(dialog, parentPath);
+  const index = path[path.length - 2]!;
+  const branch = path[path.length - 1]!;
+  const command = parent?.[index];
+  if (!parent || !command) return dialog;
+  const next = parent.map((c, i) => (i === index ? withBranch(command, branch, list) : c));
+  return withListAt(dialog, parentPath, next);
 }
 
-/**
- * The amount an option may be pressed with, or one where it has no stepper.
- *
- * Clamped rather than refused, because the client's stepper and the server's
- * check are two readings of one authored range and a press one over the edge
- * is a race, not an attack.
- */
-export function clampAmount(option: DialogOption, requested: number | undefined): number {
-  if (!option.amount) return 1;
-  const wanted = Math.round(requested ?? option.amount.min);
-  return Math.min(option.amount.max, Math.max(option.amount.min, wanted));
+/** Every command in the script, root first, each with its path. */
+export function walkCommands(
+  dialog: DialogDef,
+): Array<{ path: number[]; command: DialogCommand }> {
+  const out: Array<{ path: number[]; command: DialogCommand }> = [];
+  const visit = (list: readonly DialogCommand[], at: number[]) => {
+    list.forEach((command, index) => {
+      const path = [...at, index];
+      out.push({ path, command });
+      branchesOf(command).forEach((branch, b) => visit(branch, [...path, b]));
+    });
+  };
+  visit(dialog.script, []);
+  return out;
+}
+
+/** Where the anchor of this name is, or null. The first one wins. */
+export function anchorPath(dialog: DialogDef, anchor: string): number[] | null {
+  for (const { path, command } of walkCommands(dialog)) {
+    if (command.kind === "anchor" && command.name === anchor) return path;
+  }
+  return null;
+}
+
+/** Every anchor name in the script, in order of appearance, once each. */
+export function anchorNames(dialog: DialogDef): string[] {
+  const names: string[] = [];
+  for (const { command } of walkCommands(dialog)) {
+    if (command.kind === "anchor" && !names.includes(command.name)) names.push(command.name);
+  }
+  return names;
+}
+
+/** The quantity a trade opens at, or one requested, held to its range. */
+export function clampAmount(trade: DialogTrade, requested: number | undefined): number {
+  const wanted = Math.round(requested ?? trade.default ?? trade.min);
+  return Math.min(trade.max, Math.max(trade.min, wanted));
 }
 
 /** One thing wrong with a dialog, at the level the editor should say it. */
@@ -306,10 +302,11 @@ export type DialogCatalogue = {
 /**
  * Everything true of a dialog that its shape alone cannot say, as a list.
  *
- * The same contract `validateBrain` keeps: errors are what would make the block
- * fail to parse — said here in words, because the editor holds a draft and a
- * schema failure names a path rather than a problem — and warnings are things
- * that parse and are almost certainly not what the author meant.
+ * The same contract `validateBrain` keeps: errors are what would make the
+ * block fail to parse or a jump land nowhere — said here in words, because
+ * the editor holds a draft and a schema failure names a path rather than a
+ * problem — and warnings are things that parse and are almost certainly not
+ * what the author meant.
  */
 export function validateDialog(
   dialog: DialogDef,
@@ -319,127 +316,83 @@ export function validateDialog(
   const error = (message: string) => issues.push({ severity: "error", message });
   const warn = (message: string) => issues.push({ severity: "warn", message });
 
-  if (dialog.opening.trim() === "") error("The opening line is blank");
-  if (dialog.options.length === 0) warn("No options: this body opens its mouth and offers nothing to press");
+  if (dialog.script.length === 0) warn("The script is empty: Talk opens a panel with nothing in it");
 
-  checkOptions(dialog.options, "option", 1, error, warn, catalogue);
+  const anchors = new Map<string, number>();
+  const all = walkCommands(dialog);
+  for (const { command } of all) {
+    if (command.kind === "anchor") anchors.set(command.name, (anchors.get(command.name) ?? 0) + 1);
+  }
+  for (const [anchor, times] of anchors) {
+    if (times > 1) warn(`Anchor "${anchor}" appears ${times} times; a goto lands on the first`);
+  }
+
+  for (const { path, command } of all) {
+    const where = `${command.kind} at ${path.join(".")}`;
+    const depth = Math.floor(path.length / 2);
+    if (depth > MAX_DIALOG_DEPTH && path[path.length - 1] === 0) {
+      warn(`${where} is ${depth} blocks deep; ${MAX_DIALOG_DEPTH} is as far as an outline can follow`);
+    }
+    checkCommand(command, where, anchors, error, catalogue);
+  }
   return issues;
 }
 
-/**
- * Walk a level of options, then each one's `then`.
- *
- * A duplicate label is reported at the level it is on: two "Yes" buttons under
- * one reply are two buttons nobody can tell apart, where "Yes" under two
- * different replies is two perfectly good answers to two different questions.
- */
-function checkOptions(
-  options: readonly DialogOption[],
+function checkCommand(
+  command: DialogCommand,
   where: string,
-  depth: number,
+  anchors: ReadonlyMap<string, number>,
   error: (message: string) => void,
-  warn: (message: string) => void,
   catalogue?: DialogCatalogue,
 ) {
-  const seen = new Set<string>();
-  options.forEach((option, index) => {
-    const name = `${where} ${index + 1}`;
-    if (option.label.trim() === "") error(`${name} has no label`);
-    if (option.say.trim() === "") error(`${name} says nothing`);
-    const label = option.label.trim().toLowerCase();
-    if (seen.has(label)) warn(`"${option.label}" appears twice among the same buttons`);
-    seen.add(label);
-    checkOptionRules(option, name, error, warn, catalogue);
-    if (!option.then?.length) return;
-    if (depth >= MAX_DIALOG_DEPTH) {
-      warn(`${name} nests replies ${depth + 1} deep; ${MAX_DIALOG_DEPTH} is as far as a conversation can follow`);
+  if (command.kind === "say" && command.text.trim() === "") error(`${where} says nothing`);
+  if (command.kind === "anchor" && command.name.trim() === "") error(`${where} has no name`);
+  if (command.kind === "goto" && !anchors.has(command.name)) {
+    error(`${where} jumps to "${command.name}", and no anchor has that name`);
+  }
+  if (command.kind === "tag" && command.tag.trim() === "") error(`${where} has no tag`);
+  if (command.kind === "choices") checkChoices(command.options, where, error);
+  if (command.kind === "request_trade") checkTrade(command, where, error, catalogue);
+  if (!catalogue) return;
+  if (command.kind === "add_status" || command.kind === "remove_status") {
+    if (!catalogue.statusIds.has(command.statusId)) {
+      error(`${where} names a status "${command.statusId}" nobody authored`);
     }
-    checkOptions(option.then, `${name} reply`, depth + 1, error, warn, catalogue);
-  });
+  }
 }
 
-/**
- * What an option's condition, effects and amount point at, and whether they
- * can.
- *
- * An option that asks a question and has no `else` is the one warning here
- * worth explaining: a failed `if` then says nothing, and a button that does
- * nothing when pressed reads as broken.
- */
-function checkOptionRules(
-  option: DialogOption,
-  name: string,
+function checkChoices(
+  options: readonly DialogChoice[],
+  where: string,
   error: (message: string) => void,
-  warn: (message: string) => void,
+) {
+  if (options.length === 0) error(`${where} offers nothing to press`);
+  const seen = new Set<string>();
+  for (const option of options) {
+    const label = option.label.trim().toLowerCase();
+    if (label === "") error(`${where} has a button with no label`);
+    if (seen.has(label)) error(`${where} has two buttons reading "${option.label}"`);
+    seen.add(label);
+  }
+}
+
+function checkTrade(
+  trade: DialogTrade,
+  where: string,
+  error: (message: string) => void,
   catalogue?: DialogCatalogue,
 ) {
-  if ((option.if || option.do?.length) && !option.else) {
-    warn(`${name} can refuse but has no else line, so a refusal says nothing`);
-  }
-  if (option.else !== undefined && option.else.trim() === "") {
-    error(`${name} has a blank else line; leave it out to say nothing`);
-  }
-  if (option.amount && option.amount.max < option.amount.min) {
-    error(`${name} has an amount whose ceiling is below its floor`);
-  }
-  if (option.amount && option.amount.prompt.trim() === "") {
-    error(`${name} asks for an amount without saying so`);
-  }
-  if (option.amount && countedIn(option) === 0) {
-    warn(`${name} has an amount stepper but nothing counted for it to multiply`);
-  }
-  for (const effect of option.do ?? []) {
-    if (effect.effect !== "trade") continue;
-    if (effect.take.length + effect.give.length === 0) {
-      error(`${name} trades nothing for nothing`);
-    }
-    for (const side of [...effect.take, ...effect.give]) {
-      const def = catalogue?.tilesById[side.tileId];
-      if (def && resolveContainer(def)) {
-        error(`${name} trades ${def.name}, and a container is not a thing a trade may move`);
-      }
-    }
+  if (trade.take.length + trade.give.length === 0) error(`${where} trades nothing for nothing`);
+  if (trade.max < trade.min) error(`${where} has a quantity whose ceiling is below its floor`);
+  if (trade.default !== undefined && (trade.default < trade.min || trade.default > trade.max)) {
+    error(`${where} opens at a quantity outside its own range`);
   }
   if (!catalogue) return;
-  for (const id of tileIdsOf(option)) {
-    if (!catalogue.tilesById[id]) error(`${name} names a tile "${id}" the catalogue does not hold`);
+  for (const side of [...trade.take, ...trade.give]) {
+    const def = catalogue.tilesById[side.tileId];
+    if (!def) error(`${where} names a tile "${side.tileId}" the catalogue does not hold`);
+    else if (resolveContainer(def)) {
+      error(`${where} trades ${def.name}, and a container is not a thing a trade may move`);
+    }
   }
-  for (const id of statusIdsOf(option)) {
-    if (!catalogue.statusIds.has(id)) error(`${name} names a status "${id}" nobody authored`);
-  }
-}
-
-/** How many counted things — trade sides and counted conditions — an option has. */
-function countedIn(option: DialogOption): number {
-  let counted = 0;
-  for (const leaf of option.if ? conditionLeaves(option.if) : []) {
-    if (leaf.cond === "carries" || leaf.cond === "room_for") counted++;
-  }
-  for (const effect of option.do ?? []) {
-    if (effect.effect === "trade") counted += effect.take.length + effect.give.length;
-  }
-  return counted;
-}
-
-function tileIdsOf(option: DialogOption): string[] {
-  const ids: string[] = [];
-  for (const leaf of option.if ? conditionLeaves(option.if) : []) {
-    if (leaf.cond === "carries" || leaf.cond === "room_for") ids.push(leaf.tileId);
-  }
-  for (const effect of option.do ?? []) {
-    if (effect.effect !== "trade") continue;
-    for (const side of [...effect.take, ...effect.give]) ids.push(side.tileId);
-  }
-  return ids;
-}
-
-function statusIdsOf(option: DialogOption): string[] {
-  const ids: string[] = [];
-  for (const leaf of option.if ? conditionLeaves(option.if) : []) {
-    if (leaf.cond === "has_status") ids.push(leaf.statusId);
-  }
-  for (const effect of option.do ?? []) {
-    if (effect.effect === "add_status") ids.push(effect.statusId);
-  }
-  return ids;
 }

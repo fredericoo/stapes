@@ -10,15 +10,17 @@ import type { MapFile, PlacedTile, TileDef } from "../lib/types";
 import { normalizeTileDef, normalizeTiles } from "../lib/types";
 import type { ObjectRef } from "./affordances";
 import { BRAIN_TICK_MS, TICK_MS } from "./constants";
+import { TRADE_REFUSED } from "./dialogRuntime";
 import { GameSession } from "./GameSession";
 
 /**
- * A conversation through the session: Talk pressed on a body, buttons pressed
- * on the panel, and the world deciding what each press comes to.
+ * A conversation through the session: Talk pressed on a body, choices and
+ * trades pressed on the panel, and the world deciding what each press comes
+ * to.
  *
- * `./dialogRuntime.test` pins what a press does to a conversation; this is
- * about the plumbing either side of it — reach, who may talk at once, the
- * brain seeing it, and a trade actually moving things.
+ * `./dialogRuntime.test` pins what the interpreter does; this is about the
+ * plumbing either side of it — reach, who may talk at once, the brain seeing
+ * it, and a trade actually moving things.
  */
 
 const frame = {
@@ -42,34 +44,34 @@ function tile(partial: Record<string, unknown>): TileDef {
   });
 }
 
+const say = (text: string) => ({ kind: "say" as const, text });
+const back = { kind: "goto" as const, name: "main" };
+
 const dialog: DialogDef = {
-  opening: "Hello, {partner}.",
-  options: [
-    { label: "Recipe", say: "Fourteen shards." },
+  script: [
+    say("Hello, {partner}."),
+    { kind: "anchor", name: "main" },
     {
-      label: "Buy",
-      say: "Deal?",
-      then: [
+      kind: "choices",
+      options: [
+        { label: "Recipe", then: [say("Fourteen shards."), back] },
         {
-          label: "Yes",
-          do: [{ effect: "trade", take: [{ tileId: "shard", count: 14 }], give: [{ tileId: "potion", count: 1 }] }],
-          say: "Here you go.",
-          else: "That's not fourteen shards.",
+          label: "Buy",
+          then: [
+            {
+              kind: "request_trade",
+              take: [{ tileId: "shard", count: 14 }],
+              give: [{ tileId: "potion", count: 1 }],
+              min: 1,
+              max: 3,
+              traded: [say("Here you go."), back],
+              cancel: [say("Fine."), back],
+            },
+          ],
         },
+        { label: "Bless me", then: [{ kind: "add_status", statusId: "luminous" }, { kind: "tag", tag: "blessed" }, say("Shine."), back] },
+        { label: "Cure me", then: [{ kind: "remove_status", statusId: "luminous" }, say("Dim."), back] },
       ],
-    },
-    {
-      label: "Bless me",
-      if: { combinator: "and", not: true, rules: [{ cond: "has_tag", tag: "blessed" }] },
-      do: [{ effect: "add_status", statusId: "luminous" }, { effect: "tag", tag: "blessed" }],
-      say: "Shine.",
-      else: "Once is enough.",
-    },
-    {
-      label: "Curse me",
-      do: [{ effect: "add_status", statusId: "no-such-status" }],
-      say: "Wither.",
-      else: "I've lost the words.",
     },
   ],
 };
@@ -146,10 +148,12 @@ function press(session: GameSession, index: number) {
   return session.getSnapshot().conversation;
 }
 
-function confirm(session: GameSession, amount: number) {
-  session.talk({ kind: "confirm", amount });
+function trade(session: GameSession, amount: number) {
+  session.talk({ kind: "trade", amount });
   return session.getSnapshot().conversation;
 }
+
+const lastLine = (session: GameSession) => session.getSnapshot().conversation?.transcript.at(-1)?.text;
 
 /** Run one brain tick's worth of simulation, collecting what was said. */
 function brainTick(session: GameSession): string[] {
@@ -168,13 +172,13 @@ function bagOf(session: GameSession) {
 }
 
 describe("opening a conversation", () => {
-  it("opens on the seller with the opening line, and reports it once", () => {
+  it("opens on the seller at its first choice, and reports it once", () => {
     const session = new GameSession(fieldWith("seller"), tiles);
     expect(talkTo(session, "seller")).toBe(true);
     const conversation = session.getSnapshot().conversation;
-    expect(conversation).toMatchObject({ tileId: "seller", path: [] });
-    expect(conversation?.line).toMatch(/^Hello, .+\.$/);
-    expect(conversation?.line).not.toContain("local");
+    expect(conversation).toMatchObject({ tileId: "seller", pc: [2] });
+    expect(conversation?.transcript[0]?.text).toMatch(/^Hello, .+\.$/);
+    expect(conversation?.transcript[0]?.text).not.toContain("local");
     expect(session.drainConversationChanges()).toEqual(["local"]);
     expect(session.drainConversationChanges()).toEqual([]);
   });
@@ -190,8 +194,7 @@ describe("opening a conversation", () => {
   it("refuses through a wall", () => {
     let map = fieldWith("seller");
     map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "wall" }]);
-    const session = new GameSession(map, tiles);
-    expect(talkTo(session, "seller")).toBe(false);
+    expect(talkTo(new GameSession(map, tiles), "seller")).toBe(false);
   });
 
   it("talks across a step, and not up a whole level", () => {
@@ -206,7 +209,6 @@ describe("opening a conversation", () => {
     const session = new GameSession(fieldWith("seller"), tiles);
     talkTo(session, "seller");
     session.drainConversationChanges();
-    // Four cells west: three steps' worth of walking, well past 3.5.
     session.setInput({ directions: ["w"] });
     for (let elapsed = 0; elapsed < 4 * 400; elapsed += TICK_MS) session.tick(TICK_MS);
     session.setInput({ directions: [] });
@@ -228,15 +230,13 @@ describe("opening a conversation", () => {
   });
 });
 
-describe("pressing buttons", () => {
-  it("answers, descends, and comes back up", () => {
+describe("pressing", () => {
+  it("records the choice, answers, and comes back to the menu", () => {
     const session = new GameSession(fieldWith("seller"), tiles);
     talkTo(session, "seller");
-    expect(press(session, 0)).toMatchObject({ path: [0], line: "Fourteen shards.", stage: "answered" });
-    session.talk({ kind: "back" });
-    expect(press(session, 1)).toMatchObject({ path: [1], line: "Deal?", stage: "asking" });
-    session.talk({ kind: "back" });
-    expect(session.getSnapshot().conversation).toMatchObject({ path: [], stage: "asking" });
+    const after = press(session, 0);
+    expect(after?.transcript.slice(1).map((e) => e.text)).toEqual(["Recipe", "Fourteen shards."]);
+    expect(after?.pc).toEqual([2]);
   });
 
   it("ignores a press with no panel open, and one at nothing", () => {
@@ -271,18 +271,18 @@ describe("trading through the panel", () => {
     session.drainEquipmentChanges();
     talkTo(session, "seller");
     press(session, 1);
-    expect(press(session, 0)?.line).toBe("Here you go.");
+    expect(trade(session, 1)?.transcript.slice(-2).map((e) => e.text)).toEqual(["Traded ×1.", "Here you go."]);
     expect(bagOf(session)).toEqual(["potion"]);
     expect(session.drainEquipmentChanges()).toEqual([session.getSnapshot().self.id]);
   });
 
-  it("refuses when short, says so, and leaves the kit alone", () => {
+  it("refuses when short, notes it, and leaves the kit alone", () => {
     const session = shopWith({ tileId: "shard", count: 13 });
     session.pickUp({ x: 0, y: 1, z: 0, stackIndex: 1 });
     session.drainEquipmentChanges();
     talkTo(session, "seller");
     press(session, 1);
-    expect(press(session, 0)).toMatchObject({ path: [1, 0], line: "That's not fourteen shards.", stage: "answered" });
+    expect(trade(session, 1)?.transcript.at(-1)?.text).toBe(TRADE_REFUSED);
     expect(bagOf(session)).toEqual(["shardx13"]);
     expect(session.drainEquipmentChanges()).toEqual([]);
   });
@@ -291,40 +291,41 @@ describe("trading through the panel", () => {
     const session = shopWith({
       tileId: "bag",
       itemId: "itm_purse",
-      contents: [{ id: "itm_shards", tileId: "shard", count: 20 }],
+      contents: [{ id: "itm_shards", tileId: "shard", count: 30 }],
     });
     session.pickUp({ x: 0, y: 1, z: 0, stackIndex: 1 });
     expect(session.getSnapshot().equipment.offhand?.tileId).toBe("bag");
     talkTo(session, "seller");
     press(session, 1);
-    expect(press(session, 0)?.line).toBe("Here you go.");
+    expect(lastLine(session)).toBeUndefined;
+    trade(session, 2);
     expect(session.getSnapshot().equipment.offhand?.contents).toEqual([
-      { id: "itm_shards", tileId: "shard", count: 6 },
+      { id: "itm_shards", tileId: "shard", count: 2 },
     ]);
-    expect(bagOf(session)).toEqual(["potion"]);
+    expect(bagOf(session)).toEqual(["potionx2"]);
   });
 
-  it("grants a status and a tag together, and reads the tag back", () => {
+  it("runs the cancel branch on Cancel", () => {
     const session = shopWith(null);
     talkTo(session, "seller");
-    expect(press(session, 2)?.line).toBe("Shine.");
+    press(session, 1);
+    session.talk({ kind: "cancel" });
+    expect(lastLine(session)).toBe("Fine.");
+  });
+
+  it("grants and removes a status, and writes a tag", () => {
+    const session = shopWith(null);
+    talkTo(session, "seller");
+    expect(press(session, 2)?.transcript.at(-1)?.text).toBe("Shine.");
     expect(session.statusesOf("local")?.map((s) => s.defId)).toEqual(["luminous"]);
     expect(session.getSnapshot().tags).toEqual(["blessed"]);
-    // A leaf: the same button is a Back away, and asks again.
-    session.talk({ kind: "back" });
-    expect(press(session, 2)?.line).toBe("Once is enough.");
-  });
-
-  it("refuses a status nobody authored, rather than doing half", () => {
-    const session = shopWith(null);
-    talkTo(session, "seller");
-    expect(press(session, 3)?.line).toBe("I've lost the words.");
+    expect(press(session, 3)?.transcript.at(-1)?.text).toBe("Dim.");
     expect(session.statusesOf("local")).toEqual([]);
   });
 });
 
 describe("the potion salesman, as authored", () => {
-  it("sells two potions, buys three bottles in one confirm, and refuses when short", () => {
+  it("sells two potions, buys three bottles, and refuses when short", () => {
     let map = fieldWith("potion-salesman");
     map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "arcane-shard", count: 28 }]);
     map = replaceStack(map, 1, 1, 0, [{ tileId: "grass" }, { tileId: "empty-bottle", count: 3 }]);
@@ -333,20 +334,24 @@ describe("the potion salesman, as authored", () => {
     session.pickUp({ x: 1, y: 1, z: 0, stackIndex: 1 });
 
     talkTo(session, "potion-salesman");
-    expect(session.getSnapshot().conversation?.line).toContain("what'll it be");
-    expect(press(session, 0)?.line).toContain("Fourteen shards apiece");
-    expect(press(session, 0)).toMatchObject({ stage: "counting", line: "How many? Fourteen shards each." });
-    expect(confirm(session, 2)?.line).toContain("Drink them somewhere dark");
+    expect(lastLine(session)).toContain("Potions, or a recipe");
+    press(session, 0);
+    expect(lastLine(session)).toContain("how many");
+    trade(session, 2);
+    expect(lastLine(session)).toContain("Drink them somewhere dark");
     expect(bagOf(session)).toEqual(["empty-bottlex3", "luminous-potionx2"]);
 
-    session.talk({ kind: "back" });
-    session.talk({ kind: "back" });
-    expect(press(session, 1)).toMatchObject({ stage: "counting" });
-    expect(confirm(session, 3)?.line).toContain("Ta,");
+    press(session, 1);
+    trade(session, 3);
+    expect(lastLine(session)).toContain("Ta.");
     expect(bagOf(session)).toEqual(["luminous-potionx2", "arcane-shardx6"]);
 
-    session.talk({ kind: "back" });
-    press(session, 1);
-    expect(confirm(session, 1)).toMatchObject({ stage: "answered", line: expect.stringContaining("not got that many") });
+    press(session, 0);
+    trade(session, 1);
+    expect(lastLine(session)).toBe(TRADE_REFUSED);
+    session.talk({ kind: "cancel" });
+    press(session, 3);
+    expect(lastLine(session)).toContain("Mind the dark");
+    expect(session.talk({ kind: "choose", index: 0 })).toBe(false);
   });
 });

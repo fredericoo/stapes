@@ -1,14 +1,16 @@
-import { IconArrowBackUp, IconMinus, IconPlus, IconX } from "@tabler/icons-react";
-import { useMemo, useState } from "react";
-import type { Conversation, TalkAction } from "../game/dialogRuntime";
+import { IconMinus, IconPlus, IconX } from "@tabler/icons-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  DEFAULT_CONFIRM_LABEL,
-  optionAt,
-  optionsAt,
-  resolveDialog,
-  type DialogAmount,
-  type DialogDef,
-} from "../lib/dialog";
+  scaledTrade,
+  waitingOn,
+  type Conversation,
+  type TalkAction,
+  type TranscriptEntry,
+} from "../game/dialogRuntime";
+import type { Equipment } from "../game/equipment";
+import { carriedCount, planTrade } from "../game/trade";
+import { clampAmount, resolveDialog, type DialogDef, type DialogTrade, type TradeSide } from "../lib/dialog";
+import { mintItemId } from "../lib/itemInstance";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { TITLE_SPRITE_SIZE_PX } from "./ContainerPanel";
@@ -16,20 +18,19 @@ import { TilePreview } from "./TilePreview";
 import { useTap } from "./useTap";
 
 /**
- * A conversation with a body, as a panel: what they just said, and a button
- * for everything you can say back.
+ * A conversation with a body, as a panel: everything said so far, and the
+ * controls the script is waiting on.
  *
- * Drawn from the tile catalogue and the conversation's path — the server
- * sends where you are, the last line and the stage, never the buttons,
- * because both ends hold the same dialog and a list on the wire would be a
- * second copy of one. The line is the only thing here that changes without
- * the player having touched anything, so it is the live region.
+ * Drawn from the tile catalogue and the conversation's counter — the server
+ * sends the transcript and where the script stands, never the script itself,
+ * because both ends hold the same one and a copy on the wire would be a
+ * second source of it. The transcript is the live region: it is the one thing
+ * that changes without the player having touched anything.
  *
- * A tree, read as one: under a reply are its own follow-ups and nothing
- * else, under a leaf or a refusal only *Back*, and an option that wants an
- * amount asks for it before it does anything. The whole body scrolls, line
- * and buttons together, so a long piece of lore with a choice at the end is
- * read the way it was written.
+ * A trade is previewed against the viewer's own kit with the same module the
+ * server will run — `carriedCount`, `planTrade` — so the warnings are the
+ * refusals the server would give, a round trip early, and the Trade button is
+ * greyed rather than pressed and refused.
  *
  * Takes the interaction list's place rather than a place of its own, on
  * desktop and on a phone alike: a conversation is what is in reach, said
@@ -39,21 +40,23 @@ import { useTap } from "./useTap";
 
 const CLOSE_ICON_SIZE_PX = 12;
 const STEP_ICON_SIZE_PX = 12;
+const ITEM_SPRITE_SIZE_PX = 18;
 
 const ROW_CLASS =
   "flex min-h-6 w-full items-center gap-1 border px-1 py-0.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent pointer-coarse:min-h-9";
-const OPTION_CLASS = `${ROW_CLASS} border-paper/30 text-paper hover:border-paper hover:bg-paper/10`;
-const BACK_CLASS = `${ROW_CLASS} border-dashed border-paper/30 text-paper/80 hover:border-paper hover:bg-paper/10`;
+const OPTION_CLASS = `${ROW_CLASS} border-paper/30 text-paper hover:border-paper hover:bg-paper/10 aria-disabled:border-dashed aria-disabled:border-paper/25 aria-disabled:text-paper/40 aria-disabled:hover:bg-transparent`;
 const LABEL_CLASS = "truncate text-[11px] leading-snug font-medium tracking-tight";
 
 type Props = {
   conversation: Conversation;
   tiles: TileDef[];
   tilesets: TilesetDef[];
+  /** The viewer's kit, for previewing a trade before it is asked for. */
+  equipment: Equipment;
   onTalk: (action: TalkAction) => void;
   className?: string;
   /**
-   * The dialog to draw, instead of the one on the conversation's tile.
+   * The dialog to run, instead of the one on the conversation's tile.
    *
    * For the editor, which is drawing a draft the catalogue does not hold yet.
    * The game never passes this: what a body says is what its tile says.
@@ -67,6 +70,7 @@ export function ConversationPanel({
   conversation,
   tiles,
   tilesets,
+  equipment,
   onTalk,
   className = "",
   dialog: draft,
@@ -76,6 +80,15 @@ export function ConversationPanel({
   const def = tilesById[conversation.tileId];
   const dialog = draft ?? (def ? resolveDialog(def) : null);
   const title = heading ?? def?.name ?? conversation.tileId;
+  const waiting = dialog ? waitingOn(dialog, conversation) : null;
+
+  // Scrolled to the newest line whenever one lands, so the controls under it
+  // are on screen without a thumb having to chase them.
+  const bodyRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (body) body.scrollTop = body.scrollHeight;
+  }, [conversation]);
 
   return (
     <section
@@ -94,9 +107,7 @@ export function ConversationPanel({
             background={null}
           />
         ) : null}
-        <h2 className="text-[11px] font-bold uppercase tracking-wide text-paper/50">
-          {title}
-        </h2>
+        <h2 className="text-[11px] font-bold uppercase tracking-wide text-paper/50">{title}</h2>
         <button
           type="button"
           onClick={() => onTalk({ kind: "close" })}
@@ -107,128 +118,201 @@ export function ConversationPanel({
         </button>
       </div>
 
-      {/* One scrolling body for the words and the buttons, so a long line is
+      {/* One scrolling body for the words and the controls, so a long line is
           read to its end before the choice under it, and the choice is never
           off the bottom of a box that stopped scrolling at the words. */}
-      <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain">
-        <p role="log" aria-live="polite" className="text-[12px] leading-snug text-paper">
-          {conversation.line}
-        </p>
-        {/* A def the catalogue no longer holds, or one whose dialog stopped
-            parsing under an open panel: the line still reads, and Close is
-            the only button. */}
-        {dialog ? <Choices dialog={dialog} conversation={conversation} onTalk={onTalk} /> : null}
+      <div
+        ref={bodyRef}
+        className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto overscroll-contain"
+      >
+        <ol role="log" aria-live="polite" className="flex flex-col gap-1">
+          {conversation.transcript.map((entry, i) => (
+            <TranscriptLine key={i} entry={entry} speaker={title} />
+          ))}
+        </ol>
+        {waiting?.kind === "choices" ? (
+          <div className="flex flex-col gap-1" key={conversation.pc.join(".")}>
+            {waiting.options.map((option, index) => (
+              <PanelButton key={index} onPress={() => onTalk({ kind: "choose", index })}>
+                <span className={LABEL_CLASS}>{option.label}</span>
+              </PanelButton>
+            ))}
+          </div>
+        ) : null}
+        {waiting?.kind === "request_trade" ? (
+          <TradeOffer
+            key={conversation.pc.join(".")}
+            trade={waiting}
+            tilesById={tilesById}
+            tilesets={tilesets}
+            equipment={equipment}
+            onTalk={onTalk}
+          />
+        ) : null}
       </div>
     </section>
   );
 }
 
-/** What is under the line, by stage. @see ConversationStage */
-function Choices({
-  dialog,
-  conversation,
-  onTalk,
-}: {
-  dialog: DialogDef;
-  conversation: Conversation;
-  onTalk: (action: TalkAction) => void;
-}) {
-  const atRoot = conversation.path.length === 0;
-  const back = atRoot ? null : (
-    <PanelButton className={BACK_CLASS} onPress={() => onTalk({ kind: "back" })}>
-      <IconArrowBackUp size={STEP_ICON_SIZE_PX} stroke={2.5} aria-hidden="true" />
-      <span className={LABEL_CLASS}>Back</span>
-    </PanelButton>
-  );
-
-  if (conversation.stage === "answered") return back;
-
-  if (conversation.stage === "counting") {
-    const amount = optionAt(dialog, conversation.path)?.amount;
+/**
+ * One line of the transcript, set by who said it.
+ *
+ * The NPC's lines are the panel's text; the player's are set off to the
+ * right and dimmed, the way a chat draws your own side; a note is neither,
+ * so it is italic and quieter still.
+ */
+function TranscriptLine({ entry, speaker }: { entry: TranscriptEntry; speaker: string }) {
+  if (entry.who === "npc") {
     return (
-      <>
-        {amount ? (
-          <AmountEntry
-            // Keyed on the path so a count never survives into another question.
-            key={conversation.path.join(".")}
-            amount={amount}
-            onConfirm={(count) => onTalk({ kind: "confirm", amount: count })}
-          />
-        ) : null}
-        {back}
-      </>
+      <li className="text-[12px] leading-snug text-paper">
+        <span className="sr-only">{speaker}: </span>
+        {entry.text}
+      </li>
     );
   }
-
-  return (
-    <>
-      {optionsAt(dialog, conversation.path).map((option, index) => (
-        <PanelButton
-          key={`${conversation.path.join(".")}:${index}`}
-          className={OPTION_CLASS}
-          onPress={() => onTalk({ kind: "choose", index })}
-        >
-          <span className={LABEL_CLASS}>{option.label}</span>
-        </PanelButton>
-      ))}
-      {back}
-    </>
-  );
+  if (entry.who === "you") {
+    return (
+      <li className="self-end text-right text-[11px] leading-snug text-paper/60">
+        <span className="sr-only">You: </span>› {entry.text}
+      </li>
+    );
+  }
+  return <li className="text-[11px] italic leading-snug text-paper/50">{entry.text}</li>;
 }
 
 /**
- * How many, and a button to say so.
+ * The trade on offer: what goes each way per unit, how many, and whether it
+ * would go through.
  *
- * The count is the entry's own state: it means nothing until the confirm
- * that carries it, and the server clamps it to the author's range again on
- * the way in.
+ * The count is the offer's own state until the press that carries it, and
+ * the preview re-plans on every change against the real kit — `planTrade`
+ * is the same call the server makes, so a greyed button here is a refusal
+ * there. The two warnings name the two ways a plan fails: short on a side,
+ * or nowhere for what comes back.
  */
-function AmountEntry({
-  amount,
-  onConfirm,
+function TradeOffer({
+  trade,
+  tilesById,
+  tilesets,
+  equipment,
+  onTalk,
 }: {
-  amount: DialogAmount;
-  onConfirm: (count: number) => void;
+  trade: DialogTrade;
+  tilesById: Record<string, TileDef>;
+  tilesets: TilesetDef[];
+  equipment: Equipment;
+  onTalk: (action: TalkAction) => void;
 }) {
-  const [count, setCount] = useState(amount.min);
-  const less = useTap(() => setCount((c) => Math.max(amount.min, c - 1)));
-  const more = useTap(() => setCount((c) => Math.min(amount.max, c + 1)));
+  const [amount, setAmount] = useState(clampAmount(trade, undefined));
+  const scaled = scaledTrade(trade, amount);
+  const short = scaled.effect === "trade"
+    ? scaled.take.filter((side) => carriedCount(tilesById, equipment, side.tileId) < side.count)
+    : [];
+  const plan =
+    scaled.effect === "trade" && short.length === 0
+      ? planTrade(tilesById, equipment, scaled.take, scaled.give, mintItemId)
+      : null;
+  const possible = plan !== null;
   const stepClass =
     "grid w-8 shrink-0 place-items-center border border-paper/30 text-paper hover:border-paper hover:bg-paper/10 aria-disabled:text-paper/30 aria-disabled:hover:border-paper/30 aria-disabled:hover:bg-transparent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent pointer-coarse:w-9";
+  const less = useTap(() => setAmount((c) => Math.max(trade.min, c - 1)));
+  const more = useTap(() => setAmount((c) => Math.min(trade.max, c + 1)));
+  const nameOf = (tileId: string) => tilesById[tileId]?.name ?? tileId;
 
   return (
-    <div className="flex items-stretch gap-1">
-      <button type="button" {...less} aria-label="Fewer" aria-disabled={count <= amount.min} className={stepClass}>
-        <IconMinus size={STEP_ICON_SIZE_PX} stroke={3} aria-hidden="true" />
-      </button>
-      <output
-        aria-live="polite"
-        className="grid min-w-8 flex-none place-items-center border border-paper/30 px-1 tabular-nums text-[12px] text-paper"
-      >
-        {count}
-      </output>
-      <button type="button" {...more} aria-label="More" aria-disabled={count >= amount.max} className={stepClass}>
-        <IconPlus size={STEP_ICON_SIZE_PX} stroke={3} aria-hidden="true" />
-      </button>
-      <PanelButton className={`${OPTION_CLASS} flex-1`} onPress={() => onConfirm(count)}>
-        <span className={LABEL_CLASS}>{amount.confirm ?? DEFAULT_CONFIRM_LABEL}</span>
-      </PanelButton>
+    <div className="flex flex-col gap-1 border border-paper/25 p-1">
+      {scaled.effect === "trade" ? (
+        <>
+          <TradeSideRow label="You give" sides={scaled.take} tilesById={tilesById} tilesets={tilesets} />
+          <TradeSideRow label="You get" sides={scaled.give} tilesById={tilesById} tilesets={tilesets} />
+        </>
+      ) : null}
+      {trade.max > trade.min ? (
+        <div className="flex items-stretch gap-1">
+          <button type="button" {...less} aria-label="Fewer" aria-disabled={amount <= trade.min} className={stepClass}>
+            <IconMinus size={STEP_ICON_SIZE_PX} stroke={3} aria-hidden="true" />
+          </button>
+          <output
+            aria-live="polite"
+            className="grid min-w-8 flex-1 place-items-center border border-paper/30 px-1 tabular-nums text-[12px] text-paper"
+          >
+            ×{amount}
+          </output>
+          <button type="button" {...more} aria-label="More" aria-disabled={amount >= trade.max} className={stepClass}>
+            <IconPlus size={STEP_ICON_SIZE_PX} stroke={3} aria-hidden="true" />
+          </button>
+        </div>
+      ) : null}
+      {short.map((side) => (
+        <p key={side.tileId} className="text-[11px] leading-snug text-paper/60">
+          You need {side.count} {nameOf(side.tileId)}, and have{" "}
+          {carriedCount(tilesById, equipment, side.tileId)}.
+        </p>
+      ))}
+      {short.length === 0 && !possible ? (
+        <p className="text-[11px] leading-snug text-paper/60">There is nowhere on you to put what you would get.</p>
+      ) : null}
+      <div className="flex gap-1">
+        <PanelButton
+          className={`${OPTION_CLASS} flex-1`}
+          disabled={!possible}
+          onPress={() => possible && onTalk({ kind: "trade", amount })}
+        >
+          <span className={LABEL_CLASS}>Trade</span>
+        </PanelButton>
+        <PanelButton className={`${OPTION_CLASS} flex-1`} onPress={() => onTalk({ kind: "cancel" })}>
+          <span className={LABEL_CLASS}>Cancel</span>
+        </PanelButton>
+      </div>
+    </div>
+  );
+}
+
+function TradeSideRow({
+  label,
+  sides,
+  tilesById,
+  tilesets,
+}: {
+  label: string;
+  sides: readonly TradeSide[];
+  tilesById: Record<string, TileDef>;
+  tilesets: TilesetDef[];
+}) {
+  return (
+    <div className="flex flex-wrap items-center gap-1 text-[11px] text-paper">
+      <span className="w-14 shrink-0 text-[10px] uppercase text-paper/50">{label}</span>
+      {sides.length === 0 ? <span className="text-paper/50">nothing</span> : null}
+      {sides.map((side) => {
+        const def = tilesById[side.tileId];
+        return (
+          <span key={side.tileId} className="flex items-center gap-1 border border-paper/20 px-1">
+            {def ? (
+              <TilePreview tile={def} tilesets={tilesets} size={ITEM_SPRITE_SIZE_PX} still chrome={false} background={null} />
+            ) : null}
+            <span className="tabular-nums">×{side.count}</span>
+            <span className="truncate">{def?.name ?? side.tileId}</span>
+          </span>
+        );
+      })}
     </div>
   );
 }
 
 function PanelButton({
   onPress,
-  className,
+  className = OPTION_CLASS,
+  disabled = false,
   children,
 }: {
   onPress: () => void;
-  className: string;
+  className?: string;
+  disabled?: boolean;
   children: React.ReactNode;
 }) {
   const press = useTap(onPress);
   return (
-    <button type="button" {...press} className={className}>
+    <button type="button" {...press} aria-disabled={disabled} className={className}>
       {children}
     </button>
   );

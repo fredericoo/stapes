@@ -1,240 +1,196 @@
 import { describe, expect, it } from "vitest";
-import type { DialogDef, DialogEffectDef } from "../lib/dialog";
+import type { DialogDef } from "../lib/dialog";
 import {
+  acceptTrade,
+  cancelTrade,
   chooseOption,
-  confirmAmount,
-  goBack,
+  MAX_STEPS_PER_PRESS,
   openConversation,
+  TRADE_REFUSED,
+  waitingOn,
   type Conversation,
+  type DialogEffectDef,
   type PartnerView,
 } from "./dialogRuntime";
 
 /**
- * A conversation driven by hand, without a session.
+ * A script run by hand, without a session.
  *
- * The functions are pure steps over (def, where you are, what was pressed);
- * these pin what a press does — where it leads, what is said, what is asked
- * of the partner, and what is left to press — against a partner built by hand.
+ * The interpreter is a pure step over (script, where you are, what was
+ * pressed); these pin what it runs, where it waits, and what the transcript
+ * says, against a partner built by hand.
  */
 
-const price: DialogEffectDef = {
-  effect: "trade",
-  take: [{ tileId: "shard", count: 14 }],
-  give: [{ tileId: "potion", count: 1 }],
-};
-
-const bottlePrice: DialogEffectDef = {
-  effect: "trade",
-  take: [{ tileId: "bottle", count: 1 }],
-  give: [{ tileId: "shard", count: 2 }],
-};
+const say = (text: string) => ({ kind: "say" as const, text });
+const back = { kind: "goto" as const, name: "main" };
 
 const shop: DialogDef = {
-  opening: "Hello, {partner}.",
-  options: [
-    { label: "Recipe", say: "Ten crystals, one solution." },
+  script: [
+    say("Hello, {partner}!"),
+    { kind: "anchor", name: "main" },
     {
-      label: "Buy a potion",
-      say: "Fourteen shards. Deal?",
-      then: [
+      kind: "choices",
+      options: [
         {
-          label: "Yes",
-          if: { cond: "carries", tileId: "shard", count: 14 },
-          do: [price],
-          say: "Here you go, {partner}.",
-          else: "That's not fourteen shards.",
+          label: "Buy",
+          then: [
+            say("Fourteen shards each."),
+            {
+              kind: "request_trade",
+              take: [{ tileId: "shard", count: 14 }],
+              give: [{ tileId: "potion", count: 1 }],
+              min: 1,
+              max: 4,
+              default: 2,
+              traded: [say("Thanks."), back],
+              cancel: [say("Stop wasting my time."), back],
+            },
+          ],
         },
-        { label: "No", say: "Suit yourself." },
+        { label: "How", then: [say("Crystals."), say("Light."), back] },
+        { label: "Bless me", then: [{ kind: "add_status", statusId: "luminous" }, { kind: "tag", tag: "blessed" }, say("Shine.")] },
+        { label: "Bye", then: [say("Mind the dark.")] },
       ],
     },
-    {
-      label: "Sell bottles",
-      amount: { min: 1, max: 12, prompt: "How many, {partner}?", confirm: "Sell" },
-      if: { cond: "carries", tileId: "bottle", count: 1 },
-      do: [bottlePrice],
-      say: "Ta.",
-      else: "You've no bottles.",
-    },
-    {
-      label: "Secret",
-      if: { combinator: "and", not: true, rules: [{ cond: "has_tag", tag: "told" }] },
-      do: [{ effect: "tag", tag: "told" }],
-      say: "Just this once.",
-      else: "I told you already.",
-    },
-    { label: "Quiet", if: { cond: "has_status", statusId: "luminous" }, say: "You're glowing." },
   ],
 };
 
 const npc = { id: "npc:1", tileId: "seller" };
 
-/** A partner with nothing on them, unless a test says otherwise. */
-function partner(
-  overrides: Partial<PartnerView> = {},
-): PartnerView & { attempts: DialogEffectDef[][] } {
+function partner(attempt: (effects: readonly DialogEffectDef[]) => boolean = () => true) {
   const attempts: DialogEffectDef[][] = [];
-  return {
+  const view: PartnerView & { attempts: DialogEffectDef[][] } = {
     name: () => "ann",
-    carries: () => false,
-    roomFor: () => false,
-    hasTag: () => false,
-    hasStatus: () => false,
-    attempt: (effects) => (attempts.push([...effects]), true),
+    attempt: (effects) => (attempts.push([...effects]), attempt(effects)),
     attempts,
-    ...overrides,
   };
+  return view;
 }
 
-function open(view: PartnerView = partner()): Conversation {
-  return openConversation(shop, npc, view);
-}
+const lines = (c: Conversation) => c.transcript.map((e) => `${e.who}: ${e.text}`);
 
-function choose(at: Conversation, index: number, view: PartnerView) {
-  return chooseOption(shop, at, index, view)!;
-}
-
-describe("opening and going back", () => {
-  it("opens at the root with the opening line, named, asking", () => {
-    expect(open()).toEqual({
-      npcId: "npc:1",
-      tileId: "seller",
-      path: [],
-      line: "Hello, ann.",
-      stage: "asking",
-    });
+describe("opening", () => {
+  it("runs to the first choice, saying everything before it", () => {
+    const view = partner();
+    const opened = openConversation(shop, npc, view);
+    expect(lines(opened)).toEqual(["npc: Hello, ann!"]);
+    expect(opened.pc).toEqual([2]);
+    expect(waitingOn(shop, opened)?.kind).toBe("choices");
   });
 
   it("names a partner who has gone as someone", () => {
-    expect(open(partner({ name: () => null })).line).toBe("Hello, someone.");
-  });
-
-  it("goes back one level, saying that reply again, and to the top from one deep", () => {
     const view = partner();
-    const asked = choose(open(view), 1, view);
-    const refused = choose(asked, 0, view);
-    expect(refused).toMatchObject({ path: [1, 0], stage: "answered" });
-    expect(goBack(shop, refused, view)).toEqual({ ...asked, path: [1], line: "Fourteen shards. Deal?", stage: "asking" });
-    expect(goBack(shop, asked, view)).toEqual({ ...asked, path: [], line: "Hello, ann.", stage: "asking" });
+    view.name = () => null;
+    expect(lines(openConversation(shop, npc, view))).toEqual(["npc: Hello, someone!"]);
   });
 
-  it("goes back without asking or running anything", () => {
-    const view = partner({ carries: () => true });
-    const asked = choose(open(view), 1, view);
-    const bought = choose(asked, 0, view);
-    expect(view.attempts).toHaveLength(1);
-    goBack(shop, bought, view);
-    expect(view.attempts).toHaveLength(1);
+  it("ends at once for a script with nothing to wait on", () => {
+    const view = partner();
+    const opened = openConversation({ script: [say("Hi."), say("Bye.")] }, npc, view);
+    expect(lines(opened)).toEqual(["npc: Hi.", "npc: Bye."]);
+    expect(waitingOn({ script: [say("Hi."), say("Bye.")] }, opened)).toBeNull();
   });
 });
 
-describe("pressing a button", () => {
-  it("answers a leaf with its line, and leaves only Back", () => {
+describe("choosing", () => {
+  it("records the press, runs the branch, and comes back to the menu by goto", () => {
     const view = partner();
-    expect(choose(open(view), 0, view)).toEqual({
-      ...open(view),
-      path: [0],
-      line: "Ten crystals, one solution.",
-      stage: "answered",
-    });
+    const how = chooseOption(shop, openConversation(shop, npc, view), 1, view)!;
+    expect(lines(how)).toEqual(["npc: Hello, ann!", "you: How", "npc: Crystals.", "npc: Light."]);
+    expect(how.pc).toEqual([2]);
+    expect(waitingOn(shop, how)?.kind).toBe("choices");
   });
 
-  it("descends into a reply's follow-ups", () => {
+  it("runs effects on the way, skipping ones that cannot be, and ends when a branch runs out", () => {
+    const view = partner((effects) => effects[0]?.effect !== "add_status");
+    const blessed = chooseOption(shop, openConversation(shop, npc, view), 2, view)!;
+    expect(view.attempts).toEqual([[{ effect: "add_status", statusId: "luminous" }], [{ effect: "tag", tag: "blessed" }]]);
+    expect(lines(blessed).at(-1)).toBe("npc: Shine.");
+    expect(waitingOn(shop, blessed)).toBeNull();
+  });
+
+  it("stops after a dangling branch, transcript intact", () => {
     const view = partner();
-    const asked = choose(open(view), 1, view);
-    expect(asked).toMatchObject({ path: [1], line: "Fourteen shards. Deal?", stage: "asking" });
-    // The buttons on offer are now the follow-ups: index 1 is "No".
-    expect(choose(asked, 1, view)).toMatchObject({ path: [1, 1], line: "Suit yourself.", stage: "answered" });
+    const bye = chooseOption(shop, openConversation(shop, npc, view), 3, view)!;
+    expect(lines(bye).at(-1)).toBe("npc: Mind the dark.");
+    expect(waitingOn(shop, bye)).toBeNull();
+    expect(chooseOption(shop, bye, 0, view)).toBeNull();
   });
 
-  it("refuses a position nothing is at, and a press while not asking", () => {
+  it("refuses a position nothing is at, and a press while not waiting on choices", () => {
     const view = partner();
-    expect(chooseOption(shop, open(view), 9, view)).toBeNull();
-    const leaf = choose(open(view), 0, view);
-    expect(chooseOption(shop, leaf, 0, view)).toBeNull();
-  });
-
-  it("says the else line when the condition fails, runs nothing, and is a leaf", () => {
-    const view = partner();
-    const asked = choose(open(view), 1, view);
-    const refused = choose(asked, 0, view);
-    expect(refused).toMatchObject({ path: [1, 0], line: "That's not fourteen shards.", stage: "answered" });
-    expect(view.attempts).toEqual([]);
-  });
-
-  it("runs the effects on the partner when the condition holds", () => {
-    const view = partner({ carries: (tileId, count) => tileId === "shard" && count === 14 });
-    const asked = choose(open(view), 1, view);
-    expect(choose(asked, 0, view)).toMatchObject({ path: [1, 0], line: "Here you go, ann.", stage: "answered" });
-    expect(view.attempts).toEqual([[price]]);
-  });
-
-  it("says the else line when the effects are refused", () => {
-    const view = partner({ carries: () => true, attempt: () => false });
-    const asked = choose(open(view), 1, view);
-    expect(choose(asked, 0, view).line).toBe("That's not fourteen shards.");
-  });
-
-  it("keeps the last line when a refusal has nothing to say", () => {
-    const view = partner();
-    const opened = open(view);
-    expect(choose(opened, 4, view)).toEqual({ ...opened, path: [4], stage: "answered" });
-  });
-
-  it("composes conditions, and reads a tag its own effect wrote", () => {
-    const tags = new Set<string>();
-    const view = partner({
-      hasTag: (tag) => tags.has(tag),
-      attempt: (effects) => {
-        for (const effect of effects) if (effect.effect === "tag") tags.add(effect.tag);
-        return true;
-      },
-    });
-    expect(choose(open(view), 3, view).line).toBe("Just this once.");
-    expect(choose(open(view), 3, view).line).toBe("I told you already.");
-  });
-
-  it("asks about a status", () => {
-    const view = partner({ hasStatus: (id) => id === "luminous" });
-    expect(choose(open(view), 4, view).line).toBe("You're glowing.");
+    const opened = openConversation(shop, npc, view);
+    expect(chooseOption(shop, opened, 9, view)).toBeNull();
+    const buying = chooseOption(shop, opened, 0, view)!;
+    expect(waitingOn(shop, buying)?.kind).toBe("request_trade");
+    expect(chooseOption(shop, buying, 0, view)).toBeNull();
   });
 });
 
-describe("an amount", () => {
-  it("asks first, running nothing, and counts", () => {
+describe("trading", () => {
+  function atCounter(view: PartnerView) {
+    return chooseOption(shop, openConversation(shop, npc, view), 0, view)!;
+  }
+
+  it("waits on the trade with its line said, and refuses a cancel or trade elsewhere", () => {
     const view = partner();
-    const asked = choose(open(view), 2, view);
-    expect(asked).toMatchObject({ path: [2], line: "How many, ann?", stage: "counting" });
-    expect(view.attempts).toEqual([]);
+    const offer = atCounter(view);
+    expect(lines(offer).at(-1)).toBe("npc: Fourteen shards each.");
+    expect(offer.pc).toEqual([2, 0, 1]);
+    expect(acceptTrade(shop, openConversation(shop, npc, view), 1, view)).toBeNull();
+    expect(cancelTrade(shop, openConversation(shop, npc, view), view)).toBeNull();
   });
 
-  it("multiplies every count in the condition and the trade on confirm", () => {
-    const counted: Array<[string, number]> = [];
-    const view = partner({ carries: (tileId, count) => (counted.push([tileId, count]), true) });
-    const asked = choose(open(view), 2, view);
-    const sold = confirmAmount(shop, asked, 5, view)!;
-    expect(sold).toMatchObject({ path: [2], line: "Ta.", stage: "answered" });
-    expect(counted).toEqual([["bottle", 5]]);
+  it("runs the trade for so many units, notes it, and continues the traded branch", () => {
+    const view = partner();
+    const done = acceptTrade(shop, atCounter(view), 3, view)!;
     expect(view.attempts).toEqual([
-      [{ effect: "trade", take: [{ tileId: "bottle", count: 5 }], give: [{ tileId: "shard", count: 10 }] }],
+      [{ effect: "trade", take: [{ tileId: "shard", count: 42 }], give: [{ tileId: "potion", count: 3 }] }],
     ]);
+    expect(lines(done).slice(-2)).toEqual(["note: Traded ×3.", "npc: Thanks."]);
+    expect(waitingOn(shop, done)?.kind).toBe("choices");
   });
 
-  it("is clamped to the author's range", () => {
-    const view = partner({ carries: () => true });
-    confirmAmount(shop, choose(open(view), 2, view), 40, view);
-    expect(view.attempts[0]![0]).toMatchObject({ take: [{ tileId: "bottle", count: 12 }] });
-  });
-
-  it("refuses a confirm when nothing was asked, and a press while counting", () => {
+  it("clamps the amount to the trade's range", () => {
     const view = partner();
-    expect(confirmAmount(shop, open(view), 3, view)).toBeNull();
-    const asked = choose(open(view), 2, view);
-    expect(chooseOption(shop, asked, 0, view)).toBeNull();
+    acceptTrade(shop, atCounter(view), 40, view);
+    expect(view.attempts[0]![0]).toMatchObject({ take: [{ tileId: "shard", count: 56 }] });
   });
 
-  it("says the else line and is a leaf when short", () => {
+  it("notes a refusal and keeps waiting, nothing run", () => {
+    const view = partner(() => false);
+    const refused = acceptTrade(shop, atCounter(view), 1, view)!;
+    expect(lines(refused).at(-1)).toBe(`note: ${TRADE_REFUSED}`);
+    expect(waitingOn(shop, refused)?.kind).toBe("request_trade");
+  });
+
+  it("runs the cancel branch on cancel", () => {
     const view = partner();
-    const asked = choose(open(view), 2, view);
-    expect(confirmAmount(shop, asked, 3, view)).toMatchObject({ line: "You've no bottles.", stage: "answered" });
+    const cancelled = cancelTrade(shop, atCounter(view), view)!;
+    expect(lines(cancelled).slice(-2)).toEqual(["you: Cancel", "npc: Stop wasting my time."]);
+    expect(view.attempts).toEqual([]);
+    expect(waitingOn(shop, cancelled)?.kind).toBe("choices");
+  });
+});
+
+describe("goto", () => {
+  it("lands after the anchor, wherever it is, and stops a loop that never waits", () => {
+    const nested: DialogDef = {
+      script: [
+        { kind: "choices", options: [{ label: "In", then: [{ kind: "anchor", name: "deep" }, say("Deep.")] }] },
+        say("Top."),
+        { kind: "goto", name: "deep" },
+      ],
+    };
+    const view = partner();
+    const gone = chooseOption(nested, openConversation(nested, npc, view), 0, view)!;
+    expect(lines(gone).slice(0, 4)).toEqual(["you: In", "npc: Deep.", "npc: Top.", "npc: Deep."]);
+    expect(gone.transcript.length).toBeLessThanOrEqual(MAX_STEPS_PER_PRESS);
+    expect(waitingOn(nested, gone)).toBeNull();
+  });
+
+  it("carries on past a goto naming no anchor", () => {
+    const lost: DialogDef = { script: [{ kind: "goto", name: "nowhere" }, say("Still here.")] };
+    expect(lines(openConversation(lost, npc, partner()))).toEqual(["npc: Still here."]);
   });
 });

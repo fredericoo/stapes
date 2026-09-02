@@ -258,17 +258,18 @@ import {
 } from "./movement";
 import { findPath } from "./pathfinding";
 import { resolveBrain } from "../lib/brain";
-import { resolveDialog, type DialogEffectDef } from "../lib/dialog";
+import { resolveDialog } from "../lib/dialog";
 import {
+  acceptTrade,
+  cancelTrade,
   chooseOption,
-  confirmAmount,
-  goBack,
   openConversation,
   type Conversation,
+  type DialogEffectDef,
   type PartnerView,
   type TalkAction,
 } from "./dialogRuntime";
-import { carriedCount, hasRoomFor, planTrade } from "./trade";
+import { planTrade } from "./trade";
 import { bodyNameFor } from "./displayName";
 import {
   initialMemory,
@@ -2641,8 +2642,8 @@ export class GameSession implements PlaySession {
   }
 
   /**
-   * Talk to a body, press one of its buttons, go back to the first ones, or
-   * close the panel — the player's side of a conversation.
+   * Talk to a body, press a choice, take or refuse a trade, or close the
+   * panel — the player's side of a conversation.
    *
    * Every verb re-asks what the client already checked, on the terms every
    * other message is: reach for an `open`, and for a press that there is a
@@ -2667,10 +2668,10 @@ export class GameSession implements PlaySession {
 
     const view = this.partnerViewFor(actor);
     const next =
-      action.kind === "back"
-        ? goBack(dialog, current, view)
-        : action.kind === "confirm"
-          ? confirmAmount(dialog, current, action.amount, view)
+      action.kind === "cancel"
+        ? cancelTrade(dialog, current, view)
+        : action.kind === "trade"
+          ? acceptTrade(dialog, current, action.amount, view)
           : chooseOption(dialog, current, action.index, view);
     if (!next) return false;
     return this.setConversation(actor, next);
@@ -2787,12 +2788,6 @@ export class GameSession implements PlaySession {
   private partnerViewFor(partner: ActorRuntime): PartnerView {
     return {
       name: () => this.bodyName(partner.id),
-      carries: (tileId, count) =>
-        carriedCount(this.tilesById, partner.equipment, tileId) >= count,
-      roomFor: (tileId, count) =>
-        hasRoomFor(this.tilesById, partner.equipment, { tileId, count }, mintItemId),
-      hasTag: (tag) => partner.tags.includes(tag),
-      hasStatus: (statusId) => partner.statuses.some((s) => s.defId === statusId),
       attempt: (effects) => this.attemptDialogEffects(partner.id, effects),
     };
   }
@@ -2840,9 +2835,25 @@ export class GameSession implements PlaySession {
       this.grantStatus(partner, { id: effect.statusId });
       return;
     }
+    if (effect.effect === "remove_status") {
+      this.clearStatus(partner, effect.statusId);
+      return;
+    }
     if (effect.effect === "tag" && !partner.tags.includes(effect.tag)) {
       this.setTags(partner, [...partner.tags, effect.tag]);
     }
+  }
+
+  /**
+   * Take one status off a body, if it is under it.
+   *
+   * Replaced wholesale on the terms `applyStatus` replaces, so the list going
+   * out on a snapshot changes identity; noted for the same reason a grant is.
+   */
+  private clearStatus(actor: ActorRuntime, statusId: string) {
+    if (!actor.statuses.some((s) => s.defId === statusId)) return;
+    actor.statuses = actor.statuses.filter((s) => s.defId !== statusId);
+    this.noteStatusReading(actor);
   }
 
   /**

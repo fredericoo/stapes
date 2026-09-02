@@ -298,152 +298,130 @@ A rule spelled out five times is a rule that is only ever four-fifths true.
 editor reads `map.json` and never sees an owned body, so it is consistency
 rather than a fix, which is the point.
 
-## A dialog is a tree of buttons, and the brain only asks whether anybody is talking
+## A dialog is a script, and the brain only asks whether anybody is talking
 
 `interactions.dialog` (`app/lib/dialog.ts`, run by `app/game/dialogRuntime.ts`)
-is how an NPC holds a conversation: an `opening` line and an ordered tree of
-options, each a button `label`, the line it `say`s, and optionally `then` —
-the buttons shown after that reply instead of the root's. A player presses
-*Talk* on the body, a panel opens with the line and the buttons, *Back*
-returns to the root, *Close* ends it. `{partner}` in any line is the player.
+is how an NPC holds a conversation: an ordered list of commands, the way an
+RPG Maker event is — `say` a line, `anchor` a label, `goto` one, offer
+`choices`, `request_trade`, `add_status`, `remove_status`, `tag`. A choice
+holds the commands each button leads to; a trade holds what happens when it
+goes through and when it is cancelled. The interpreter runs one list at a
+time from a counter, descends into a branch on the player's press, continues
+after the block when the branch runs out, and stops when the root does.
 
-**Why buttons, and not typed keywords.** The first cut of this heard words —
-the brain already had `heard`/`say` and the `shopkeeper` held a hi/bye
-conversation on nothing else — and it worked on a desktop with a chat bar. It
-did not work on a phone, where a keyword an NPC answers to is a keyword you
-have to guess and then type with a thumb. What an NPC can be asked is now
-what is on the buttons: that is the whole of its discoverability, and the
-tree, the conditions and the effects are exactly what they were. Only the way
-a branch is chosen moved from the ear to the finger. Chat is for people again.
+**Why a script, and not a tree of buttons.** The first cut was a tree —
+every button with its own condition, reply and effects — and it could say
+one thing per press and nothing between presses. A script says as much as it
+likes, in any order, and a new kind of command is one more arm rather than a
+new field on every option. `if` is the arm coming next; the interpreter
+already treats every nested list the same, so it will be a block like
+`choices` is. And before the tree there were typed keywords, which did not
+survive a phone: what an NPC can be asked is what is on the buttons, and chat
+is for people.
+
+**What the player sees is a transcript.** Every `say`, every button pressed
+(in the button's own words) and every trade that happened stays on the
+panel, and the only controls are the ones the command the script is waiting
+on needs. Running off the end, or a branch with no `goto` back, leaves the
+transcript up and the close button as the only thing left — the script
+stopped, and the panel says so by offering nothing.
 
 **A conversation is the player's, not the NPC's.** `ActorRuntime.conversation`
-— `{ npcId, tileId, path, line }` — lives on whoever pressed Talk, so any
-number of people can be talking to one salesman and none sees the others'
-panels. The NPC knows only whether anybody is (`anyoneTalkingTo`), which is
-the brain condition `talking`: a shopkeeper that wanders when idle and stands
-for a sale is `idle → serving if talking` and the `not` of it back, and
-nothing else in the brain knows a conversation exists. Not checkpointed, on
-brain memory's terms: a conversation is a state of play.
+— `{ npcId, tileId, pc, transcript }` — lives on whoever pressed Talk, so any
+number of people can be running one salesman's script and none sees the
+others' panels. The NPC knows only whether anybody is (`anyoneTalkingTo`),
+which is the brain condition `talking`. Not checkpointed, on brain memory's
+terms: a conversation is a state of play.
 
-- **The buttons are never on the wire.** The server sends the whole
+- **`pc` is a `CommandPath`**: indices alternating a command's position with
+  which branch to descend, `[2, 0, 1]` being the second command inside the
+  first branch of the third. One shape for the interpreter's counter, the
+  editor's cursor and a drag's destination, so none can disagree about what a
+  position means. A list running out pops to the command that held it and
+  continues after it.
+- **`goto` lands anywhere.** The anchor is found across the whole script and
+  the counter jumps to just past it, unwinding out of any branch — which is
+  how a branch comes back to its menu. A `goto` naming no anchor is carried
+  past, and the lint names it. A loop with no wait between its anchor and its
+  `goto` would run forever; `MAX_STEPS_PER_PRESS` stops it, which reads as
+  the script ending, and the author finds out the moment they try it.
+- **The script is never on the wire.** The server sends the whole
   `Conversation` to the one socket it is about (`flushConversations`, shaped
-  like `flushTags`), and null when the panel should close. The client draws
-  the buttons from the path against the tile catalogue it already holds —
-  `optionsAt` — because a list on the wire would be a second copy of one. The
-  line *is* on the wire, because whether it was the `say` or the `else` is
-  decided where the kit is, and the panel must not have to guess.
-- **`talk` is one message with a verb inside** — open, choose, back, close —
-  because the four are one thing, where the player is in a conversation, and
-  the server answers all four the same way. A press is an *index* among the
-  buttons on offer, on transmute's argument for a recipe index: both ends hold
-  the catalogue, so a position is something the server can check against a
-  list it already has. A press at a position nothing is at is refused, not
-  guessed at.
+  like `flushTags`) and null to close; the client reads the waiting command
+  off the counter against the tile catalogue it already holds. `talk` is one
+  message with a verb inside — open, choose, trade, cancel, close — because
+  the five are one thing.
+- **A trade is previewed where the kit is.** `request_trade` waits with a
+  preview: sprite and count per side per unit, a quantity between `min` and
+  `max`, and warnings from the client's own `carriedCount` and `planTrade`
+  against the viewer's real kit — the same calls the server makes, so a
+  greyed Trade button here is a refusal there, a round trip early. The server
+  re-runs the plan on Trade and, in the race where it refuses, notes it in
+  the transcript and keeps waiting.
+- **Effects that cannot be are skipped, not fatal.** A status nobody
+  authored is a command that did nothing; the line the author wrote after it
+  is still worth saying.
 - **Talk has its own reach.** `canTalkFrom`: line of sight, always; 3.5 cells
   of plan distance, wider than an arm because a counter between you is the
   ordinary case; and elevation within 3 height units — three quarters of a
   level, measured in elevation rather than levels because a stall on a step
   is the case and a balcony is not. Re-asked by `tickConversations` every
   simulation tick, so walking off closes the panel silently the tick you
-  have left. The Talk row is offered only where pressing it would open one.
-- **It is a tree, and it reads as one.** Under a reply are that reply's
-  `then` buttons and nothing else; under a leaf — a reply with no follow-ups,
-  or any refusal — only *Back*. `Conversation.stage` says which, decided
-  where the press was answered (`asking`, `counting`, `answered`) so the
-  panel never works out from a path whether a reply succeeded. *Back* goes
-  up one level and says the parent's line again — a repeat of words, never
-  of deeds — so somebody three presses deep who wants a different answer to
-  the last question does not have to find the question again.
-- **An amount is a question first.** Pressing an option with an `amount`
-  runs nothing: the NPC says the amount's `prompt`, the panel shows a
-  stepper and the `confirm` button, and only a `confirm` message runs the
-  option with every count multiplied. "How many" is a question the NPC asks,
-  and a tree of questions is what this is.
+  have left.
 - **The panel takes the reach list's place**, on desktop and on a phone
-  alike: a conversation is what is in reach, said longer. Same walls, same
-  rows, same close button as a container panel, so nothing about it has to be
-  learnt. It gets the identity-gated push the kit gets (`pushConversation`),
-  so `/play` and `/online` both have it.
-
-### An option may ask before it answers, and do something as it does
-
-Every option takes an `if`, a `do`, an `else` and an `amount`. The condition
-vocabulary is four questions about the partner and nothing else — `carries`,
-`room_for`, `has_tag`, `has_status` — composed by `conditions.ts`, the second
-vocabulary that module was written for. The effects are three: `trade`,
-`add_status`, `tag`. A failed `if` and a refused `do` read the same to the
-partner, because they are the same to them: nothing happened, and `else` says
-why. An option that can refuse and has no `else` is a lint warning, since a
-button that does nothing when pressed reads as broken.
-
-- **`chooseOption` never touches a kit.** It asks the `PartnerView` —
-  `carries`, `roomFor`, `hasTag`, `hasStatus`, `attempt` — and the session
-  answers. That keeps the step pure, keeps the editor's future try-it honest
-  (it hands over a pretend kit), and keeps every rule about a body's squares
-  in the modules that own them.
-- **An amount multiplies every count.** The number confirmed scales the trade
-  sides and the counted conditions alike, so "sell 5 bottles" is one
-  authored price. Clamped server-side rather than refused: the stepper and
-  the check are two readings of one range, and a press one over the edge is
-  a race.
-- **A `do` list is a transaction.** `attemptDialogEffects` plans every trade
-  against the kit the one before it leaves and checks every status against the
-  catalogue *before* anything is written; then the kit changes once and the
-  statuses and tags land beside it. An option that takes payment and grants a
-  status cannot take the payment and fail the status.
-- **A trade is `app/game/trade.ts`, and it is deliberately not a transmute.**
-  Several things on each side, counted, because a price is a number and a
-  number is what a pile already is: fourteen shards may be one pile or three
-  and `takeUnits` peels across them. Every square a body has — hands, the worn
-  bag, *and bags held in a hand*, which `carriedSlotOf` deliberately skips for
-  a recipe: offering what you carry is a different act from asking to be paid.
-  Gives land worn-bag → hand-held bags → off hand → weapon hand, pouring onto
-  piles first. **The plan is the kit**: there is no separate run, because
-  finding room for every last thing is the check and having found it there is
-  nothing left to decide. All or nothing, and nothing ever reaches the floor.
-- **A container is never on either side.** The schema refuses it with a
-  catalogue in hand, and the runtime refuses it without one.
-- **A refusal is a leaf.** The question was answered, even if the answer was
-  no, so only *Back* is on offer — and Back lands on the question, so "Deal"
-  again once the shards are in hand is one press away.
+  alike: a conversation is what is in reach, said longer. It gets the
+  identity-gated push the kit gets (`pushConversation`), so `/play` and
+  `/online` both have it.
 - **Passed through the tile save untouched**, like the brain and for the same
-  reason: the tree is `./dialog`'s to know, and until the editor has a tab for
-  it the only way one survives the tile dialog is unread.
+  reason: the script is `./dialog`'s to know.
 
-### Authoring a dialog is an outline, with the real panel beside it
+### A trade is `app/game/trade.ts`, and it is deliberately not a transmute
 
-The Dialog tab (`app/components/DialogEditor.tsx`) is one card per option,
-its follow-ups indented under it, on the same page the player will read it
-from: the panel shows a reply's follow-ups and nothing else, so the outline
-shows the same nesting. A card is dragged by its grip to reorder among its
-siblings or into another option's follow-ups — one `DragDropProvider` over
-the whole tree, each list a dnd-kit sortable *group* named by its path, and a
-droppable under every list for "into this, last". The one move refused is
-into its own descendants.
+Several things on each side, counted, because a price is a number and a
+number is what a pile already is: fourteen shards may be one pile or three
+and `takeUnits` peels across them. Every square a body has — hands, the worn
+bag, *and bags held in a hand*, which `carriedSlotOf` deliberately skips for
+a recipe: offering what you carry is a different act from asking to be paid.
+Gives land worn-bag → hand-held bags → off hand → weapon hand, pouring onto
+piles first. **The plan is the kit**: there is no separate run, because
+finding room for every last thing is the check and having found it there is
+nothing left to decide. All or nothing, and nothing ever reaches the floor. A
+container is never on either side: the schema refuses it with a catalogue in
+hand, and the runtime refuses it without one.
 
-- **Every edit is a rewrite by path.** `updateAt`, `insertAt`, `removeAt`,
-  `moveOption` are exported and tested (`dialogEditor.test.ts`), on the terms
-  `../lib/conditions` edits an `if`: a card is a copy React already rendered,
-  and naming the position is the only way a nested one can say which node it
-  means. `moveOption` removes first and re-reads the destination after — an
-  index named against the old tree lands one off.
-- **The condition tree is the brain's, lifted.** `ConditionTreeEditor` owns
-  add, nest, invert and remove for any leaf vocabulary; the caller brings the
-  one row that knows what a leaf is. The brain editor hands over its picker,
-  the dialog editor its own, and neither can grow a different idea of "and".
-  `EditorIssues` and `DragHandle` came out of the brain editor for the same
-  reason.
+### Authoring a dialog is a list of commands, with the real panel beside it
+
+The Dialog tab (`app/components/DialogEditor.tsx`) is one row per command in
+the order the interpreter runs them, a choice's buttons and a trade's two
+outcomes indented under the command that holds them. A row is dragged by its
+grip to reorder among its neighbours or into any other list on the page —
+one `DragDropProvider` over the whole script, each list a dnd-kit sortable
+*group* named by its path, and a droppable under every list for "at the end
+of this". The one move refused is into a list the row itself holds. Any kind
+of command can be added at the end of any list, which is what makes the
+thing composable.
+
+- **Every edit is a rewrite by path.** `updateCommandAt`, `insertCommandAt`,
+  `removeCommandAt`, `moveCommand` are exported and tested
+  (`dialogEditor.test.ts`), on the terms `../lib/conditions` edits an `if`: a
+  row is a copy React already rendered, and naming the position is the only
+  way a nested one can say which node it means. `moveCommand` removes first
+  and re-reads the destination after — an index named against the old script
+  lands one off.
+- **`ConditionTreeEditor`, `EditorIssues` and `DragHandle` came out of the
+  brain editor** so a second authored block could share them rather than grow
+  its own; the tree editor waits for the dialog's `if`.
 - **The catalog is the picker.** `app/lib/dialogCatalog.ts` mirrors the brain
-  catalog — one entry per condition and effect, with `make` — so the editor
-  cannot offer a verb the runtime lacks. `make` takes what a fresh entry has to
+  catalog — one entry per command kind, with `make` — so the editor cannot
+  offer a verb the interpreter lacks. `make` takes what a fresh entry has to
   point at, because unlike "the nearest player" there is no tile every world
   has; the editor hands over the first item and the first status it knows.
 - **Try it is the game's panel.** `DialogTryOut` renders `ConversationPanel`
   with the draft passed in over the catalogue's copy, driven by the same
-  runtime functions the server runs, against a pretend bag the author fills
-  in: things and counts, tags, statuses, and room for anything given. What a
-  press does on this page is what it will do online; whether fourteen shards
-  fit in a real bag is the trade module's question, tested there.
+  interpreter the server runs, against a pretend kit the author fills in — a
+  real `Equipment` wearing the roomiest bag the catalogue has, so the trade
+  preview's warnings are the trade module's own and a full bag is full for
+  the same reason it would be online.
 - **Save refuses what would load mute.** `validateDialog` with the catalogues
   in hand, on the brain's terms, so a button naming a tile nobody authored is
   caught where it is actionable.

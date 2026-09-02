@@ -2,57 +2,54 @@ import { DragDropProvider, useDroppable } from "@dnd-kit/react";
 import { isSortable, useSortable } from "@dnd-kit/react/sortable";
 import { useMemo, useState } from "react";
 import {
-  DEFAULT_CONFIRM_LABEL,
+  anchorNames,
+  commandAt,
   DEFAULT_DIALOG,
+  listAt,
   MAX_DIALOG_AMOUNT,
-  optionAt,
   validateDialog,
-  type DialogAmount,
-  type DialogConditionDef,
+  withListAt,
+  type CommandPath,
+  type DialogChoice,
+  type DialogCommand,
+  type DialogCommandKind,
   type DialogDef,
-  type DialogEffectDef,
-  type DialogOption,
+  type DialogTrade,
   type TradeSide,
 } from "../lib/dialog";
-import {
-  DIALOG_CONDITION_NAMES,
-  DIALOG_CONDITIONS,
-  DIALOG_EFFECT_NAMES,
-  DIALOG_EFFECTS,
-  type CatalogDefaults,
-} from "../lib/dialogCatalog";
-import { resolveItem } from "../lib/item";
+import { DIALOG_COMMAND_KINDS, DIALOG_COMMANDS, type CatalogDefaults } from "../lib/dialogCatalog";
+import { resolveContainer, resolveItem } from "../lib/item";
 import type { StatusDef } from "../lib/status";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
-import { Button, Input, Select, Switch, Textarea } from "../ui";
-import { ConditionTreeEditor } from "./ConditionTreeEditor";
+import { Button, Input, Select, Textarea } from "../ui";
 import { DialogTryOut } from "./DialogTryOut";
 import { DragHandle } from "./DragHandle";
 import { EditorIssues } from "./EditorIssues";
 
 /**
- * Author a dialog without touching JSON: an outline of options, nested as
- * deep as the tree goes, each with its condition, its effects and its
- * follow-ups — and the real panel beside it, to press through.
+ * Author a dialog without touching JSON: the script as a list of commands,
+ * nested lists indented under the commands that hold them — and the real
+ * panel beside it, to press through.
  *
- * ## The outline is the tree
+ * ## The list is the script
  *
- * One card per option, its follow-ups indented under it, on the same page the
- * player will read it from — the panel shows a reply's follow-ups and nothing
- * else, so the outline shows the same nesting. A card is dragged by its grip
- * to reorder among its siblings, or into another option's follow-ups; the one
- * move refused is into its own descendants, which would be a branch holding
- * its trunk.
+ * One row per command, in the order the interpreter will run them. A choice
+ * shows its buttons with each one's commands under it; a trade shows what
+ * happens when it goes through and when it is cancelled. A row is dragged by
+ * its grip to reorder among its neighbours or into any other list on the
+ * page; the one move refused is into a list the row itself holds, which
+ * would be a block holding its own trunk. A command of any kind can be added
+ * at the end of any list, which is what makes the thing composable.
  *
  * ## Edited by path
  *
- * Every edit names the option it is about by its indices from the root and
- * rewrites the tree — `updateAt`, `insertAt`, `removeAt`, `moveOption` — on the
- * terms `../lib/conditions` edits an `if`. A card is a copy React already
- * rendered, and the path is the only way a nested one can say which node it
- * means. Those helpers are exported and tested; the components are the thin
- * part.
+ * Every edit names the command it is about by its `CommandPath` and rewrites
+ * the script — `updateCommandAt`, `insertCommandAt`, `removeCommandAt`,
+ * `moveCommand` — on the terms `../lib/conditions` edits an `if`. A row is a
+ * copy React already rendered, and the path is the only way a nested one can
+ * say which node it means. Those helpers are exported and tested; the
+ * components are the thin part.
  */
 
 type Props = {
@@ -63,17 +60,14 @@ type Props = {
   onChange: (next: DialogDef | undefined) => void;
 };
 
-/** Indices from the root, one per `then` descended. */
-export type OptionPath = readonly number[];
-
-/** The root's group, for sortables whose parent is the dialog itself. */
+/** The root list's group, for rows whose parent is the script itself. */
 const ROOT_ID = "root";
 
-/** Prefix of the droppable that means "into this option's follow-ups". */
+/** Prefix of the droppable that means "at the end of this list". */
 const INTO_PREFIX = "into:";
 
-/** A path as a sortable id and a group name. `[]` is the root. */
-export function pathId(path: OptionPath): string {
+/** A path as a sortable id and a group name. `[]` is the root list. */
+export function pathId(path: CommandPath): string {
   return path.length === 0 ? ROOT_ID : path.join(".");
 }
 
@@ -82,119 +76,90 @@ export function parsePathId(id: string): number[] {
   return id.split(".").map((part) => Number(part));
 }
 
-/** Is `ancestor` a strict prefix of `path`? */
-export function isAncestor(ancestor: OptionPath, path: OptionPath): boolean {
-  if (ancestor.length >= path.length) return false;
-  return ancestor.every((index, i) => path[i] === index);
+/** Does `path` start with `prefix`? A list under a command starts with it. */
+export function startsWith(path: CommandPath, prefix: CommandPath): boolean {
+  if (prefix.length > path.length) return false;
+  return prefix.every((index, i) => path[i] === index);
 }
 
-/** The list an option at `path` sits in — the root's, or its parent's `then`. */
-function siblingsOf(dialog: DialogDef, parent: OptionPath): DialogOption[] {
-  if (parent.length === 0) return dialog.options;
-  return optionAt(dialog, parent)?.then ?? [];
-}
-
-/** The dialog with the list at `parent` replaced. */
-function withSiblings(dialog: DialogDef, parent: OptionPath, next: DialogOption[]): DialogDef {
-  if (parent.length === 0) return { ...dialog, options: next };
-  return updateAt(dialog, parent, (option) =>
-    next.length === 0 ? withoutThen(option) : { ...option, then: next },
-  );
-}
-
-/** An option with an empty `then` is an option with no `then`, in the file. */
-function withoutThen(option: DialogOption): DialogOption {
-  const { then: _dropped, ...rest } = option;
-  return rest;
-}
-
-/** The dialog with the option at `path` rewritten. */
-export function updateAt(
+/** The dialog with the command at `path` rewritten. */
+export function updateCommandAt(
   dialog: DialogDef,
-  path: OptionPath,
-  change: (option: DialogOption) => DialogOption,
+  path: CommandPath,
+  change: (command: DialogCommand) => DialogCommand,
 ): DialogDef {
-  const parent = path.slice(0, -1);
+  const listPath = path.slice(0, -1);
   const index = path[path.length - 1]!;
-  const siblings = siblingsOf(dialog, parent);
-  if (!siblings[index]) return dialog;
-  const next = siblings.map((option, i) => (i === index ? change(option) : option));
-  return withSiblings(dialog, parent, next);
+  const list = listAt(dialog, listPath);
+  if (!list?.[index]) return dialog;
+  return withListAt(dialog, listPath, list.map((c, i) => (i === index ? change(c) : c)));
 }
 
-/** The dialog with `option` put among the children of `parent` at `index`. */
-export function insertAt(
+/** The dialog with `command` put in the list at `listPath`, at `index`. */
+export function insertCommandAt(
   dialog: DialogDef,
-  parent: OptionPath,
+  listPath: CommandPath,
   index: number,
-  option: DialogOption,
+  command: DialogCommand,
 ): DialogDef {
-  const siblings = siblingsOf(dialog, parent);
-  const at = Math.max(0, Math.min(siblings.length, index));
-  return withSiblings(dialog, parent, [...siblings.slice(0, at), option, ...siblings.slice(at)]);
+  const list = listAt(dialog, listPath);
+  if (!list) return dialog;
+  const at = Math.max(0, Math.min(list.length, index));
+  return withListAt(dialog, listPath, [...list.slice(0, at), command, ...list.slice(at)]);
 }
 
-/** The dialog without the option at `path`, follow-ups and all. */
-export function removeAt(dialog: DialogDef, path: OptionPath): DialogDef {
-  const parent = path.slice(0, -1);
+/** The dialog without the command at `path`, blocks and all. */
+export function removeCommandAt(dialog: DialogDef, path: CommandPath): DialogDef {
+  const listPath = path.slice(0, -1);
   const index = path[path.length - 1]!;
-  const siblings = siblingsOf(dialog, parent);
-  if (!siblings[index]) return dialog;
-  return withSiblings(dialog, parent, siblings.filter((_, i) => i !== index));
+  const list = listAt(dialog, listPath);
+  if (!list?.[index]) return dialog;
+  return withListAt(dialog, listPath, list.filter((_, i) => i !== index));
 }
 
 /**
- * The dialog with the option at `from` moved among the children of `to`, at
- * `index` — or unchanged when the move is into its own descendants.
+ * The dialog with the command at `from` moved into the list at `toList`, at
+ * `index` — or unchanged when the move is into a list the command holds.
  *
  * Removed first and inserted second, with the destination re-read after the
- * removal: taking an option out of a list shifts every index after it, and a
- * destination named against the old tree would land one off.
+ * removal: taking a command out of a list shifts every index after it, and a
+ * destination named against the old script would land one off.
  */
-export function moveOption(
+export function moveCommand(
   dialog: DialogDef,
-  from: OptionPath,
-  to: OptionPath,
+  from: CommandPath,
+  toList: CommandPath,
   index: number,
 ): DialogDef {
-  const moving = optionAt(dialog, from);
-  if (!moving) return dialog;
-  if (isAncestor(from, to) || pathId(from) === pathId(to)) return dialog;
-
-  const without = removeAt(dialog, from);
-  const destination = adjustedForRemoval(to, from);
-  return insertAt(without, destination, index, moving);
+  const moving = commandAt(dialog, from);
+  if (!moving || startsWith(toList, from)) return dialog;
+  const without = removeCommandAt(dialog, from);
+  return insertCommandAt(without, adjustedForRemoval(toList, from), index, moving);
 }
 
 /**
- * A destination path re-read after `removed` is gone.
+ * A destination list re-read after `removed` is gone.
  *
- * Only a destination that shares the removed option's parent and sits after
- * it moves, and it moves by one: everything else was untouched by the removal.
+ * Only a destination inside the removed command's own list and after it
+ * moves, and it moves by one: everything else was untouched by the removal.
  */
-function adjustedForRemoval(path: OptionPath, removed: OptionPath): number[] {
-  const parent = removed.slice(0, -1);
+function adjustedForRemoval(listPath: CommandPath, removed: CommandPath): number[] {
+  const holder = removed.slice(0, -1);
   const removedIndex = removed[removed.length - 1]!;
-  const out = [...path];
-  const sharesParent =
-    parent.length < out.length && parent.every((index, i) => out[i] === index);
-  if (sharesParent && out[parent.length]! > removedIndex) out[parent.length]! -= 1;
+  const out = [...listPath];
+  const inSameList = holder.length < out.length && startsWith(out, holder);
+  if (inSameList && out[holder.length]! > removedIndex) out[holder.length]! -= 1;
   return out;
 }
 
-/** A fresh option, worth pressing as soon as it is on the page. */
-export function freshOption(): DialogOption {
-  return { label: "New option", say: "…" };
-}
-
 type EditorContext = {
-  tiles: TileDef[];
+  dialog: DialogDef;
   itemOptions: Array<{ value: string; label: string }>;
   statusOptions: Array<{ value: string; label: string }>;
   defaults: CatalogDefaults;
-  update: (path: OptionPath, change: (option: DialogOption) => DialogOption) => void;
-  remove: (path: OptionPath) => void;
-  add: (parent: OptionPath) => void;
+  update: (path: CommandPath, change: (command: DialogCommand) => DialogCommand) => void;
+  remove: (path: CommandPath) => void;
+  append: (listPath: CommandPath, kind: DialogCommandKind) => void;
 };
 
 export function DialogEditor({ dialog, tiles, tilesets, statusDefs, onChange }: Props) {
@@ -202,7 +167,7 @@ export function DialogEditor({ dialog, tiles, tilesets, statusDefs, onChange }: 
   const itemOptions = useMemo(
     () =>
       tiles
-        .filter((tile) => resolveItem(tile) != null)
+        .filter((tile) => resolveItem(tile) != null && resolveContainer(tile) == null)
         .map((tile) => ({ value: tile.id, label: tile.name }))
         .sort((a, b) => a.label.localeCompare(b.label)),
     [tiles],
@@ -216,65 +181,45 @@ export function DialogEditor({ dialog, tiles, tilesets, statusDefs, onChange }: 
     return (
       <div className="flex flex-col gap-2">
         <p className="text-[11px] leading-snug text-muted">
-          This body has nothing to say. A dialog gives it a <strong>Talk</strong> row and
-          a panel of buttons, and makes the tile an actor.
+          This body has nothing to say. A dialog gives it a <strong>Talk</strong> row and a
+          panel, and makes the tile an actor.
         </p>
-        <Button onClick={() => onChange({ ...DEFAULT_DIALOG, options: [freshOption()] })}>
-          Add dialog
-        </Button>
+        <Button onClick={() => onChange({ ...DEFAULT_DIALOG })}>Add dialog</Button>
       </div>
     );
   }
 
-  const issues = validateDialog(dialog, {
-    tilesById,
-    statusIds: new Set(Object.keys(statusDefs)),
-  });
+  const issues = validateDialog(dialog, { tilesById, statusIds: new Set(Object.keys(statusDefs)) });
   const ctx: EditorContext = {
-    tiles,
+    dialog,
     itemOptions,
     statusOptions,
-    defaults: {
-      tileId: itemOptions[0]?.value ?? "",
-      statusId: statusOptions[0]?.value ?? "",
-    },
-    update: (path, change) => onChange(updateAt(dialog, path, change)),
-    remove: (path) => onChange(removeAt(dialog, path)),
-    add: (parent) =>
-      onChange(insertAt(dialog, parent, Number.MAX_SAFE_INTEGER, freshOption())),
+    defaults: { tileId: itemOptions[0]?.value ?? "", statusId: statusOptions[0]?.value ?? "" },
+    update: (path, change) => onChange(updateCommandAt(dialog, path, change)),
+    remove: (path) => onChange(removeCommandAt(dialog, path)),
+    append: (listPath, kind) =>
+      onChange(
+        insertCommandAt(dialog, listPath, Number.MAX_SAFE_INTEGER, DIALOG_COMMANDS[kind].make(ctx.defaults)),
+      ),
   };
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(16rem,2fr)]">
       <div className="flex min-w-0 flex-col gap-3">
         <div className="flex items-center justify-between gap-2">
-          <h3 className="text-xs font-bold uppercase text-muted">Dialog</h3>
+          <h3 className="text-xs font-bold uppercase text-muted">Script</h3>
           <Button size="sm" variant="danger" onClick={() => onChange(undefined)}>
             Remove dialog
           </Button>
         </div>
         <EditorIssues issues={issues} />
-
-        <label className="flex flex-col gap-1 text-xs">
-          <span className="font-bold uppercase text-muted">Opening line</span>
-          <Textarea
-            rows={2}
-            value={dialog.opening}
-            onChange={(e) => onChange({ ...dialog, opening: e.target.value })}
-            aria-label="Opening line"
-          />
-          <span className="text-[11px] leading-snug text-muted">
-            What they say when Talk is pressed. <code>{"{partner}"}</code> is the player's name.
-          </span>
-        </label>
-
         <DragDropProvider
           onDragEnd={(event) => {
             const next = dropped(dialog, event);
             if (next !== dialog) onChange(next);
           }}
         >
-          <OptionList parent={[]} options={dialog.options} depth={0} ctx={ctx} />
+          <CommandList listPath={[]} commands={dialog.script} ctx={ctx} />
         </DragDropProvider>
       </div>
 
@@ -294,13 +239,14 @@ type DragEndEvent = Parameters<
 >[0];
 
 /**
- * Where a drag left an option, read off the sortable it moved.
+ * Where a drag left a command, read off the sortable it moved.
  *
  * The sortable plugin has already re-grouped and re-indexed the row while it
  * was dragged, so the source's `group` and `index` are where it now sits and
- * `initialGroup` / `initialIndex` are where it came from. A drop on a
- * follow-ups target that had no rows to sort among is the one case the plugin
- * does not know, so it is read off the target instead: into that option, last.
+ * `initialGroup` / `initialIndex` are where it came from. A drop on a list's
+ * end target — the one thing an empty list has to offer — is the one case the
+ * plugin does not know, so it is read off the target instead: into that
+ * list, last.
  */
 function dropped(dialog: DialogDef, event: DragEndEvent): DialogDef {
   if (event.canceled) return dialog;
@@ -311,87 +257,84 @@ function dropped(dialog: DialogDef, event: DragEndEvent): DialogDef {
   const targetId = target && !isSortable(target) ? String(target.id) : null;
   if (targetId?.startsWith(INTO_PREFIX)) {
     const into = parsePathId(targetId.slice(INTO_PREFIX.length));
-    return moveOption(dialog, from, into, Number.MAX_SAFE_INTEGER);
+    return moveCommand(dialog, from, into, Number.MAX_SAFE_INTEGER);
   }
 
-  const to = parsePathId(String(source.group ?? ROOT_ID));
-  if (pathId(to) === pathId(from.slice(0, -1)) && source.index === source.initialIndex) {
+  const toList = parsePathId(String(source.group ?? ROOT_ID));
+  if (pathId(toList) === pathId(from.slice(0, -1)) && source.index === source.initialIndex) {
     return dialog;
   }
-  return moveOption(dialog, from, to, source.index);
+  return moveCommand(dialog, from, toList, source.index);
 }
 
-function OptionList({
-  parent,
-  options,
-  depth,
+function CommandList({
+  listPath,
+  commands,
   ctx,
 }: {
-  parent: OptionPath;
-  options: readonly DialogOption[];
-  depth: number;
+  listPath: CommandPath;
+  commands: readonly DialogCommand[];
   ctx: EditorContext;
 }) {
   return (
     <div className="flex flex-col gap-1">
-      {options.map((option, index) => (
-        <OptionCard
-          key={pathId([...parent, index])}
-          path={[...parent, index]}
-          option={option}
-          depth={depth}
+      {commands.map((command, index) => (
+        <CommandRow
+          key={pathId([...listPath, index])}
+          path={[...listPath, index]}
+          command={command}
           ctx={ctx}
         />
       ))}
-      <IntoTarget parent={parent} onAdd={() => ctx.add(parent)} empty={options.length === 0} />
+      <ListEnd listPath={listPath} ctx={ctx} />
     </div>
   );
 }
 
 /**
- * The row under a list: a place to drop an option into it, and the button
- * that adds one. A list with rows can be dropped between them; this is what
- * an empty list has to offer, and what "put it last" means for a full one.
+ * The row under a list: a place to drop a command into it, and the control
+ * that adds one of any kind. A list with rows can be dropped between them;
+ * this is what an empty list has to offer, and what "put it last" means for a
+ * full one.
  */
-function IntoTarget({
-  parent,
-  onAdd,
-  empty,
-}: {
-  parent: OptionPath;
-  onAdd: () => void;
-  empty: boolean;
-}) {
-  const { ref, isDropTarget } = useDroppable({ id: `${INTO_PREFIX}${pathId(parent)}` });
+function ListEnd({ listPath, ctx }: { listPath: CommandPath; ctx: EditorContext }) {
+  const { ref, isDropTarget } = useDroppable({ id: `${INTO_PREFIX}${pathId(listPath)}` });
+  const [kind, setKind] = useState<DialogCommandKind>("say");
   return (
     <div
       ref={ref}
       className={[
-        "flex items-center gap-2 border-2 border-dashed px-2 py-1",
+        "flex flex-wrap items-center gap-2 border-2 border-dashed px-2 py-1",
         isDropTarget ? "border-accent bg-accent/10" : "border-border/40",
       ].join(" ")}
     >
-      <Button size="sm" variant="secondary" className="shrink-0 whitespace-nowrap" onClick={onAdd}>
-        + option
+      <Select
+        value={kind}
+        onValueChange={(v) => v && setKind(v as DialogCommandKind)}
+        options={DIALOG_COMMAND_KINDS.map((k) => ({ value: k, label: DIALOG_COMMANDS[k].label }))}
+        className="min-w-[8rem]"
+        ariaLabel="Command to add"
+      />
+      <Button
+        size="sm"
+        variant="secondary"
+        className="shrink-0 whitespace-nowrap"
+        onClick={() => ctx.append(listPath, kind)}
+      >
+        + add
       </Button>
-      {empty ? (
-        <span className="text-[11px] text-muted">
-          {parent.length === 0 ? "Nothing to press yet." : "No follow-ups: only Back."}
-        </span>
-      ) : null}
+      <span className="text-[11px] leading-snug text-muted">{DIALOG_COMMANDS[kind].hint}</span>
     </div>
   );
 }
 
-function OptionCard({
+function CommandRow({
   path,
-  option,
-  depth,
+  command,
   ctx,
 }: {
-  path: OptionPath;
-  option: DialogOption;
-  depth: number;
+  path: CommandPath;
+  command: DialogCommand;
   ctx: EditorContext;
 }) {
   const index = path[path.length - 1]!;
@@ -400,9 +343,7 @@ function OptionCard({
     index,
     group: pathId(path.slice(0, -1)),
   });
-  const [open, setOpen] = useState(depth === 0);
-  const set = (fields: Partial<DialogOption>) =>
-    ctx.update(path, (current) => ({ ...current, ...fields }));
+  const set = (next: DialogCommand) => ctx.update(path, () => next);
 
   return (
     <div
@@ -413,351 +354,75 @@ function OptionCard({
       ].join(" ")}
     >
       <div className="flex items-center gap-1">
-        <DragHandle handleRef={handleRef} label={`Move "${option.label}"`} />
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={() => setOpen(!open)}
-          aria-label={open ? "Collapse option" : "Expand option"}
-          aria-expanded={open}
-        >
-          {open ? "▾" : "▸"}
-        </Button>
-        <Input
-          value={option.label}
-          onChange={(e) => set({ label: e.target.value })}
-          className="w-48 font-bold"
-          aria-label="Button label"
-          placeholder="Button label"
-        />
-        <OptionSummary option={option} />
+        <DragHandle handleRef={handleRef} label={`Move ${DIALOG_COMMANDS[command.kind].label}`} />
+        <span className="border border-border bg-paper px-1 font-mono text-[11px] uppercase">
+          {DIALOG_COMMANDS[command.kind].label}
+        </span>
+        <CommandFields command={command} ctx={ctx} onChange={set} />
         <Button
           size="sm"
           variant="danger"
           className="ml-auto"
           onClick={() => ctx.remove(path)}
-          aria-label={`Remove "${option.label}"`}
+          aria-label={`Remove ${DIALOG_COMMANDS[command.kind].label}`}
         >
           ✕
         </Button>
       </div>
-
-      {open ? <OptionBody path={path} option={option} depth={depth} ctx={ctx} set={set} /> : null}
+      <CommandBlocks path={path} command={command} ctx={ctx} onChange={set} />
     </div>
   );
 }
 
-/** What a collapsed card says about itself, in a few marks. */
-function OptionSummary({ option }: { option: DialogOption }) {
-  const marks: string[] = [];
-  if (option.if) marks.push("if");
-  if (option.do?.length) marks.push(`${option.do.length} effect${option.do.length === 1 ? "" : "s"}`);
-  if (option.amount) marks.push("asks how many");
-  if (option.then?.length) marks.push(`${option.then.length} follow-up${option.then.length === 1 ? "" : "s"}`);
-  return (
-    <span className="truncate text-[11px] text-muted">
-      {marks.join(" · ")}
-    </span>
-  );
-}
-
-function OptionBody({
-  path,
-  option,
-  depth,
-  ctx,
-  set,
-}: {
-  path: OptionPath;
-  option: DialogOption;
-  depth: number;
-  ctx: EditorContext;
-  set: (fields: Partial<DialogOption>) => void;
-}) {
-  const canRefuse = option.if != null || (option.do?.length ?? 0) > 0;
-  return (
-    <div className="flex flex-col gap-2 pl-6">
-      <Field label="Says" hint="The reply when this is pressed and allowed.">
-        <Textarea
-          rows={2}
-          value={option.say}
-          onChange={(e) => set({ say: e.target.value })}
-          aria-label="Reply"
-        />
-      </Field>
-
-      <ToggledSection
-        label="Only if"
-        hint="A question about the partner, asked before the reply. Failing it says the else line."
-        on={option.if != null}
-        onToggle={(on) =>
-          ctx.update(path, (current) => {
-            const { if: _dropped, ...rest } = current;
-            return on ? { ...rest, if: DIALOG_CONDITIONS.carries.make(ctx.defaults) } : rest;
-          })
-        }
-      >
-        {option.if ? (
-          <ConditionTreeEditor<DialogConditionDef>
-            root={option.if}
-            onChange={(next) => set({ if: next })}
-            leaf={{
-              render: (leaf, change) => <ConditionLeaf leaf={leaf} ctx={ctx} onChange={change} />,
-              fresh: () => DIALOG_CONDITIONS.carries.make(ctx.defaults),
-            }}
-          />
-        ) : null}
-      </ToggledSection>
-
-      <EffectsList
-        effects={option.do ?? []}
-        ctx={ctx}
-        onChange={(effects) =>
-          ctx.update(path, (current) => {
-            const { do: _dropped, ...rest } = current;
-            return effects.length ? { ...rest, do: effects } : rest;
-          })
-        }
-      />
-
-      {canRefuse ? (
-        <Field label="Else" hint="Said instead when the condition fails or an effect is refused. Blank says nothing, which reads as a broken button.">
-          <Textarea
-            rows={2}
-            value={option.else ?? ""}
-            onChange={(e) =>
-              ctx.update(path, (current) => {
-                const { else: _dropped, ...rest } = current;
-                return e.target.value ? { ...rest, else: e.target.value } : rest;
-              })
-            }
-            aria-label="Else line"
-          />
-        </Field>
-      ) : null}
-
-      <ToggledSection
-        label="Ask how many"
-        hint="The NPC asks first, a stepper answers, and every count in the trade and the condition is multiplied."
-        on={option.amount != null}
-        onToggle={(on) =>
-          ctx.update(path, (current) => {
-            const { amount: _dropped, ...rest } = current;
-            return on ? { ...rest, amount: { min: 1, max: 12, prompt: "How many?" } } : rest;
-          })
-        }
-      >
-        {option.amount ? (
-          <AmountFields amount={option.amount} onChange={(amount) => set({ amount })} />
-        ) : null}
-      </ToggledSection>
-
-      <div className="flex flex-col gap-1">
-        <span className="text-[10px] font-bold uppercase text-muted">Follow-ups</span>
-        <span className="text-[11px] leading-snug text-muted">
-          The buttons under this reply. None means the reply is a leaf: only Back.
-        </span>
-        <OptionList parent={path} options={option.then ?? []} depth={depth + 1} ctx={ctx} />
-      </div>
-    </div>
-  );
-}
-
-function Field({
-  label,
-  hint,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <label className="flex flex-col gap-1 text-xs">
-      <span className="text-[10px] font-bold uppercase text-muted">{label}</span>
-      {children}
-      {hint ? <span className="text-[11px] leading-snug text-muted">{hint}</span> : null}
-    </label>
-  );
-}
-
-function ToggledSection({
-  label,
-  hint,
-  on,
-  onToggle,
-  children,
-}: {
-  label: string;
-  hint: string;
-  on: boolean;
-  onToggle: (on: boolean) => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      <label className="flex items-center gap-2 text-[10px] font-bold uppercase text-muted">
-        <Switch checked={on} onCheckedChange={onToggle} ariaLabel={label} />
-        {label}
-      </label>
-      {on ? children : <span className="text-[11px] leading-snug text-muted">{hint}</span>}
-    </div>
-  );
-}
-
-/** The condition picker and whatever that condition asks about. */
-function ConditionLeaf({
-  leaf,
+/** The one-line part of a command: what it says, names, or points at. */
+function CommandFields({
+  command,
   ctx,
   onChange,
 }: {
-  leaf: DialogConditionDef;
+  command: DialogCommand;
   ctx: EditorContext;
-  onChange: (next: DialogConditionDef) => void;
+  onChange: (next: DialogCommand) => void;
 }) {
-  return (
-    <>
-      <Select
-        value={leaf.cond}
-        onValueChange={(v) =>
-          v && onChange(DIALOG_CONDITIONS[v as DialogConditionDef["cond"]].make(ctx.defaults))
-        }
-        options={DIALOG_CONDITION_NAMES.map((name) => ({
-          value: name,
-          label: DIALOG_CONDITIONS[name].label,
-        }))}
-        className="min-w-[7rem]"
-        ariaLabel="Condition"
+  if (command.kind === "say") {
+    return (
+      <Textarea
+        rows={1}
+        value={command.text}
+        onChange={(e) => onChange({ ...command, text: e.target.value })}
+        className="min-w-0 flex-1"
+        aria-label="Line"
       />
-      {leaf.cond === "carries" || leaf.cond === "room_for" ? (
-        <CountedTile side={leaf} options={ctx.itemOptions} onChange={(side) => onChange({ ...leaf, ...side })} />
-      ) : leaf.cond === "has_tag" ? (
-        <Input
-          value={leaf.tag}
-          onChange={(e) => onChange({ ...leaf, tag: e.target.value })}
-          className="w-32"
-          placeholder="tag"
-          aria-label="Tag"
-        />
-      ) : (
-        <Select
-          value={leaf.statusId || null}
-          onValueChange={(v) => v && onChange({ ...leaf, statusId: v })}
-          options={ctx.statusOptions}
-          placeholder="Status…"
-          className="min-w-[8rem]"
-          ariaLabel="Status"
-        />
-      )}
-    </>
-  );
-}
-
-/** A tile and how many of it — a trade side, or a counted condition. */
-function CountedTile({
-  side,
-  options,
-  onChange,
-}: {
-  side: TradeSide;
-  options: Array<{ value: string; label: string }>;
-  onChange: (next: TradeSide) => void;
-}) {
-  return (
-    <>
+    );
+  }
+  if (command.kind === "anchor") {
+    return (
       <Input
-        type="number"
-        min={1}
-        max={MAX_DIALOG_AMOUNT}
-        value={side.count}
-        onChange={(e) => onChange({ ...side, count: Math.max(1, Number(e.target.value) || 1) })}
-        className="w-16"
-        aria-label="Count"
+        value={command.name}
+        onChange={(e) => onChange({ ...command, name: e.target.value })}
+        className="w-32 font-mono"
+        placeholder="name"
+        aria-label="Anchor name"
       />
-      <Select
-        value={side.tileId || null}
-        onValueChange={(v) => v && onChange({ ...side, tileId: v })}
-        options={options}
-        placeholder="Tile…"
-        className="min-w-[9rem]"
-        ariaLabel="Tile"
+    );
+  }
+  if (command.kind === "goto") return <GotoField command={command} ctx={ctx} onChange={onChange} />;
+  if (command.kind === "tag") {
+    return (
+      <Input
+        value={command.tag}
+        onChange={(e) => onChange({ ...command, tag: e.target.value })}
+        className="w-32 font-mono"
+        placeholder="tag"
+        aria-label="Tag"
       />
-    </>
-  );
-}
-
-function EffectsList({
-  effects,
-  ctx,
-  onChange,
-}: {
-  effects: readonly DialogEffectDef[];
-  ctx: EditorContext;
-  onChange: (next: DialogEffectDef[]) => void;
-}) {
-  const replace = (i: number, next: DialogEffectDef) =>
-    onChange(effects.map((effect, j) => (j === i ? next : effect)));
-  return (
-    <div className="flex flex-col gap-1">
-      <span className="text-[10px] font-bold uppercase text-muted">Does</span>
-      {effects.map((effect, i) => (
-        <div key={i} className="flex flex-wrap items-center gap-2">
-          <Select
-            value={effect.effect}
-            onValueChange={(v) =>
-              v && replace(i, DIALOG_EFFECTS[v as DialogEffectDef["effect"]].make(ctx.defaults))
-            }
-            options={DIALOG_EFFECT_NAMES.map((name) => ({
-              value: name,
-              label: DIALOG_EFFECTS[name].label,
-            }))}
-            className="min-w-[7rem]"
-            ariaLabel="Effect"
-          />
-          <EffectFields effect={effect} ctx={ctx} onChange={(next) => replace(i, next)} />
-          <Button
-            size="sm"
-            variant="danger"
-            onClick={() => onChange(effects.filter((_, j) => j !== i))}
-            aria-label="Remove effect"
-          >
-            ✕
-          </Button>
-        </div>
-      ))}
-      <div className="flex items-center gap-2">
-        <Button
-          size="sm"
-          variant="secondary"
-          className="shrink-0 whitespace-nowrap"
-          onClick={() => onChange([...effects, DIALOG_EFFECTS.trade.make(ctx.defaults)])}
-        >
-          + effect
-        </Button>
-        {effects.length === 0 ? (
-          <span className="text-[11px] leading-snug text-muted">
-            What pressing this does to the partner — a trade, a status, a tag. All or nothing.
-          </span>
-        ) : null}
-      </div>
-    </div>
-  );
-}
-
-function EffectFields({
-  effect,
-  ctx,
-  onChange,
-}: {
-  effect: DialogEffectDef;
-  ctx: EditorContext;
-  onChange: (next: DialogEffectDef) => void;
-}) {
-  if (effect.effect === "add_status") {
+    );
+  }
+  if (command.kind === "add_status" || command.kind === "remove_status") {
     return (
       <Select
-        value={effect.statusId || null}
-        onValueChange={(v) => v && onChange({ ...effect, statusId: v })}
+        value={command.statusId || null}
+        onValueChange={(v) => v && onChange({ ...command, statusId: v })}
         options={ctx.statusOptions}
         placeholder="Status…"
         className="min-w-[8rem]"
@@ -765,31 +430,150 @@ function EffectFields({
       />
     );
   }
-  if (effect.effect === "tag") {
-    return (
-      <Input
-        value={effect.tag}
-        onChange={(e) => onChange({ ...effect, tag: e.target.value })}
-        className="w-32"
-        placeholder="tag"
-        aria-label="Tag"
-      />
-    );
-  }
+  return null;
+}
+
+/**
+ * Where a goto lands, offered as the anchors that exist — and, for one that
+ * names none of them, as the name it has, so a script mid-edit keeps reading
+ * what the author typed rather than snapping to the first anchor.
+ */
+function GotoField({
+  command,
+  ctx,
+  onChange,
+}: {
+  command: Extract<DialogCommand, { kind: "goto" }>;
+  ctx: EditorContext;
+  onChange: (next: DialogCommand) => void;
+}) {
+  const anchors = anchorNames(ctx.dialog);
+  const options = anchors.includes(command.name) ? anchors : [command.name, ...anchors];
   return (
-    <div className="flex flex-col gap-1 border-2 border-border/40 p-1.5">
-      <TradeSides
-        label="Takes"
-        sides={effect.take}
-        ctx={ctx}
-        onChange={(take) => onChange({ ...effect, take })}
-      />
-      <TradeSides
-        label="Gives"
-        sides={effect.give}
-        ctx={ctx}
-        onChange={(give) => onChange({ ...effect, give })}
-      />
+    <Select
+      value={command.name}
+      onValueChange={(v) => v && onChange({ ...command, name: v })}
+      options={options.map((name) => ({ value: name, label: name }))}
+      className="min-w-[8rem]"
+      ariaLabel="Anchor to jump to"
+    />
+  );
+}
+
+/** The nested parts of a command: a choice's buttons, a trade's two outcomes. */
+function CommandBlocks({
+  path,
+  command,
+  ctx,
+  onChange,
+}: {
+  path: CommandPath;
+  command: DialogCommand;
+  ctx: EditorContext;
+  onChange: (next: DialogCommand) => void;
+}) {
+  if (command.kind === "choices") {
+    return <ChoicesBlocks path={path} command={command} ctx={ctx} onChange={onChange} />;
+  }
+  if (command.kind === "request_trade") {
+    return <TradeBlocks path={path} trade={command} ctx={ctx} onChange={onChange} />;
+  }
+  return null;
+}
+
+function ChoicesBlocks({
+  path,
+  command,
+  ctx,
+  onChange,
+}: {
+  path: CommandPath;
+  command: Extract<DialogCommand, { kind: "choices" }>;
+  ctx: EditorContext;
+  onChange: (next: DialogCommand) => void;
+}) {
+  const setOptions = (options: DialogChoice[]) => onChange({ ...command, options });
+  return (
+    <div className="flex flex-col gap-2 pl-6">
+      {command.options.map((option, i) => (
+        <div key={i} className="flex flex-col gap-1 border-l-2 border-border/40 pl-2">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold uppercase text-muted">Button</span>
+            <Input
+              value={option.label}
+              onChange={(e) =>
+                setOptions(command.options.map((o, j) => (j === i ? { ...o, label: e.target.value } : o)))
+              }
+              className="w-40 font-bold"
+              aria-label="Button label"
+            />
+            <Button
+              size="sm"
+              variant="danger"
+              onClick={() => setOptions(command.options.filter((_, j) => j !== i))}
+              aria-label={`Remove button "${option.label}"`}
+            >
+              ✕
+            </Button>
+          </div>
+          <CommandList listPath={[...path, i]} commands={option.then} ctx={ctx} />
+        </div>
+      ))}
+      <Button
+        size="sm"
+        variant="secondary"
+        className="self-start whitespace-nowrap"
+        onClick={() => setOptions([...command.options, { label: "New button", then: [] }])}
+      >
+        + button
+      </Button>
+    </div>
+  );
+}
+
+function TradeBlocks({
+  path,
+  trade,
+  ctx,
+  onChange,
+}: {
+  path: CommandPath;
+  trade: DialogTrade;
+  ctx: EditorContext;
+  onChange: (next: DialogCommand) => void;
+}) {
+  const number = (key: "min" | "max" | "default") => (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = Math.max(1, Math.min(MAX_DIALOG_AMOUNT, Number(e.target.value) || 1));
+    onChange({ ...trade, [key]: value });
+  };
+  return (
+    <div className="flex flex-col gap-2 pl-6">
+      <TradeSides label="Takes" sides={trade.take} ctx={ctx} onChange={(take) => onChange({ ...trade, take })} />
+      <TradeSides label="Gives" sides={trade.give} ctx={ctx} onChange={(give) => onChange({ ...trade, give })} />
+      <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase text-muted">
+        <span>how many: from</span>
+        <Input type="number" min={1} max={MAX_DIALOG_AMOUNT} value={trade.min} onChange={number("min")} className="w-16" aria-label="Least" />
+        <span>to</span>
+        <Input type="number" min={1} max={MAX_DIALOG_AMOUNT} value={trade.max} onChange={number("max")} className="w-16" aria-label="Most" />
+        <span>starting at</span>
+        <Input
+          type="number"
+          min={1}
+          max={MAX_DIALOG_AMOUNT}
+          value={trade.default ?? trade.min}
+          onChange={number("default")}
+          className="w-16"
+          aria-label="Starting quantity"
+        />
+      </div>
+      <div className="flex flex-col gap-1 border-l-2 border-border/40 pl-2">
+        <span className="text-[10px] font-bold uppercase text-muted">When traded</span>
+        <CommandList listPath={[...path, 0]} commands={trade.traded} ctx={ctx} />
+      </div>
+      <div className="flex flex-col gap-1 border-l-2 border-border/40 pl-2">
+        <span className="text-[10px] font-bold uppercase text-muted">When cancelled</span>
+        <CommandList listPath={[...path, 1]} commands={trade.cancel} ctx={ctx} />
+      </div>
     </div>
   );
 }
@@ -810,10 +594,24 @@ function TradeSides({
       <span className="w-10 text-[10px] font-bold uppercase text-muted">{label}</span>
       {sides.map((side, i) => (
         <span key={i} className="flex items-center gap-1">
-          <CountedTile
-            side={side}
+          <Input
+            type="number"
+            min={1}
+            max={MAX_DIALOG_AMOUNT}
+            value={side.count}
+            onChange={(e) =>
+              onChange(sides.map((s, j) => (j === i ? { ...s, count: Math.max(1, Number(e.target.value) || 1) } : s)))
+            }
+            className="w-16"
+            aria-label="Count"
+          />
+          <Select
+            value={side.tileId || null}
+            onValueChange={(v) => v && onChange(sides.map((s, j) => (j === i ? { ...s, tileId: v } : s)))}
             options={ctx.itemOptions}
-            onChange={(next) => onChange(sides.map((s, j) => (j === i ? next : s)))}
+            placeholder="Tile…"
+            className="min-w-[9rem]"
+            ariaLabel="Tile"
           />
           <Button
             size="sm"
@@ -832,46 +630,6 @@ function TradeSides({
       >
         +
       </Button>
-    </div>
-  );
-}
-
-function AmountFields({
-  amount,
-  onChange,
-}: {
-  amount: DialogAmount;
-  onChange: (next: DialogAmount) => void;
-}) {
-  const number = (key: "min" | "max") => (e: React.ChangeEvent<HTMLInputElement>) =>
-    onChange({ ...amount, [key]: Math.max(1, Math.min(MAX_DIALOG_AMOUNT, Number(e.target.value) || 1)) });
-  return (
-    <div className="flex flex-col gap-1">
-      <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase text-muted">
-        <span>from</span>
-        <Input type="number" min={1} max={MAX_DIALOG_AMOUNT} value={amount.min} onChange={number("min")} className="w-16" aria-label="Least" />
-        <span>to</span>
-        <Input type="number" min={1} max={MAX_DIALOG_AMOUNT} value={amount.max} onChange={number("max")} className="w-16" aria-label="Most" />
-        <span>button</span>
-        <Input
-          value={amount.confirm ?? ""}
-          onChange={(e) => {
-            const { confirm: _dropped, ...rest } = amount;
-            onChange(e.target.value ? { ...rest, confirm: e.target.value } : rest);
-          }}
-          className="w-28"
-          placeholder={DEFAULT_CONFIRM_LABEL}
-          aria-label="Confirm button label"
-        />
-      </div>
-      <Field label="Asks" hint="What they say while waiting on the number.">
-        <Textarea
-          rows={1}
-          value={amount.prompt}
-          onChange={(e) => onChange({ ...amount, prompt: e.target.value })}
-          aria-label="Amount prompt"
-        />
-      </Field>
     </div>
   );
 }
