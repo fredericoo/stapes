@@ -2108,7 +2108,7 @@ the interesting part.
   (reach, cover, the def) and this joins it to the kit. Both ends read it: the
   client to offer the row, the server to validate the message.
 
-## Food piles, and nothing else does
+## Food piles, and so does an artifact that is only ever counted
 
 A pile is a `count` on an `ItemInstance` or a `PlacedTile` (`app/lib/piles.ts`).
 There is no pile type, no container to open and no second model of a thing: a
@@ -2119,7 +2119,7 @@ things standing on each other, and nothing in a pile is standing on anything.
 
 **The cost is that the twelve become interchangeable.** They share one id, one
 description and one clock, and there is no way to ask which one you ate. That is
-the whole reason only food piles: two swords are two swords with two histories,
+the whole reason so little piles: two swords are two swords with two histories,
 and a count would be a lie about them. `pileMax` (`app/lib/item.ts`) is the one
 place that is decided — a sword answers `1`, so a pile is a count everywhere and
 never a special case. The size is authored per tile (`ConsumableItem.pile`,
@@ -2127,6 +2127,16 @@ twelve berries against three loaves) and defaults through `pileOf` rather than
 through the schema, on the same grounds `reachOf` does: the tile editor works on
 the raw authored block, so a default the schema filled in would be invisible in
 the one place somebody is choosing the number.
+
+**An artifact piles too, but only when its author writes the number.**
+`ArtifactItem.pile` exists for a currency — fourteen shards in fourteen squares
+is a bag nobody can trade out of — and it defaults the *other* way from food's:
+absent is one. Every artifact in the file predates the field, and a torch, a
+key or a signpost that quietly started heaping would be the default deciding
+something about content nobody had reread. So food gets a handful for nothing
+and an artifact gets nothing until asked; `pileMax` is where both sentences are
+written, and `itemForSave` drops an artifact's pile of one so the file has one
+spelling of the default.
 
 **A pile arriving somewhere pours into the first pile of its kind with room for
 all of it, and otherwise takes a square of its own.** It never splits across two

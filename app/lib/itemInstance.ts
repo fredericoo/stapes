@@ -46,8 +46,8 @@ export type ItemInstance = {
    * berries in a bag are one instance with one id and one description, not
    * twelve of anything — so the twelve are interchangeable by construction and
    * there is no way to ask which berry you ate. That is the whole trade, and it
-   * is why only food takes it: see `./item`'s {@link pileMax}, which is where
-   * "and nothing else piles" is written down.
+   * is why only food and a counted artifact take it: see `./item`'s
+   * {@link pileMax}, which is where "and nothing else piles" is written down.
    *
    * Absent rather than `1`, so every item that has never been in a pile
    * serializes exactly as it did before piles existed — the same rule every

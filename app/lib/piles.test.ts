@@ -84,8 +84,23 @@ const bag = tile({
 });
 const grass = tile({ id: "grass" });
 
+function artifact(id: string, pile?: number): TileDef {
+  return tile({
+    id,
+    kind: "item",
+    intangible: true,
+    interactions: { item: { type: "artifact", ...(pile ? { pile } : {}) } },
+  });
+}
+
+const shard = artifact("shard", 99);
+const torch = artifact("torch");
+
 const tilesById: Record<string, TileDef> = Object.fromEntries(
-  [berry, bread, plainFood, sword, bag, grass].map((def) => [def.id, def]),
+  [berry, bread, plainFood, sword, bag, grass, shard, torch].map((def) => [
+    def.id,
+    def,
+  ]),
 );
 
 describe("what piles", () => {
@@ -98,10 +113,38 @@ describe("what piles", () => {
     expect(pileMax(plainFood)).toBe(DEFAULT_PILE);
   });
 
+  it("is an artifact its author counted, at that count", () => {
+    expect(pileMax(shard)).toBe(99);
+  });
+
+  it("is not an artifact nobody counted — a torch is one torch", () => {
+    // The opposite default from food's, on purpose: every artifact in the file
+    // predates the field and none of them was ever meant to heap.
+    expect(pileMax(torch)).toBe(1);
+  });
+
   it("is nothing else — a sword is a pile of one, not a pile of none", () => {
     expect(pileMax(sword)).toBe(1);
     expect(pileMax(bag)).toBe(1);
     expect(pileMax(grass)).toBe(1);
+  });
+});
+
+describe("a counted artifact, in the arithmetic", () => {
+  it("fuses like food does", () => {
+    expect(
+      fuses({ tileId: "shard", count: 14 }, { tileId: "shard", count: 2 }, tilesById),
+    ).toBe(true);
+  });
+
+  it("stops at its own ceiling", () => {
+    expect(
+      fuses({ tileId: "shard", count: 98 }, { tileId: "shard", count: 2 }, tilesById),
+    ).toBe(false);
+  });
+
+  it("never fuses an uncounted one", () => {
+    expect(fuses({ tileId: "torch" }, { tileId: "torch" }, tilesById)).toBe(false);
   });
 });
 

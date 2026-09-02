@@ -387,11 +387,12 @@ export type ConsumableItem = {
   /**
    * Most of these that fit in one pile, before a second pile has to start.
    *
-   * **The one field that says a thing piles at all**, and it is on this arm
-   * rather than on every item because food is the only thing anybody wants a
-   * heap of: three loaves are three loaves, where two swords are two swords with
-   * two descriptions and two histories. A count is only honest about things that
-   * are interchangeable, and this is the arm where that is true.
+   * **On this arm and on an artifact's, and on nothing else**, because those
+   * are the two kinds of thing anybody wants a heap of: three loaves are three
+   * loaves and fourteen shards are fourteen shards, where two swords are two
+   * swords with two descriptions and two histories. A count is only honest
+   * about things that are interchangeable, and these are the arms where that
+   * is true. The two defaults differ — see {@link ArtifactItem.pile}.
    *
    * Authored per tile, because how much of a thing is a handful is a fact about
    * the thing: a dozen berries fit in a fist that holds three loaves. Absent
@@ -640,6 +641,18 @@ export type WeaponResistances = Partial<Record<WeaponMastery, number>>;
  */
 export type ArtifactItem = {
   type: "artifact";
+  /**
+   * Most of these that share one square, for the artifacts that are counted
+   * rather than kept.
+   *
+   * **Absent means one, unlike a consumable's.** A torch, a key, a signpost are
+   * each the one thing they look like and stay so; a shard is the case this
+   * exists for — a currency is nothing *but* a count, and fourteen of it taking
+   * fourteen squares is a bag nobody can trade out of. So an artifact piles
+   * only when its author writes the number, and every artifact in the file
+   * that never did is exactly as single as it was. See {@link pileMax}.
+   */
+  pile?: number;
 };
 
 /**
@@ -1140,18 +1153,22 @@ export function pileOf(consumable: { pile?: number }): number {
 /**
  * Most of this tile that may share one pile — one for everything that does not.
  *
- * **The single place "only food piles" is written down.** Everything that moves
- * a pile, fuses two or refuses a third asks this rather than asking what kind of
+ * **The single place "what piles" is written down.** Everything that moves a
+ * pile, fuses two or refuses a third asks this rather than asking what kind of
  * item it is holding, so letting something else pile later is this function and
- * nothing else.
+ * nothing else. Two arms answer today: food, at the handful every consumable
+ * gets for nothing, and an artifact, at the number its author wrote and at one
+ * where nobody did — see {@link ArtifactItem.pile} for why the defaults differ.
  *
  * One rather than zero for a sword, so a pile is a count and never a special
  * case: a pile of one is what every item in the game already was, and the
  * arithmetic downstream never has to ask whether it is looking at one.
  */
 export function pileMax(def: TileDef): number {
-  const consumable = resolveConsumable(def);
-  return consumable ? pileOf(consumable) : 1;
+  const item = resolveItem(def);
+  if (item?.type === "consumable") return pileOf(item);
+  if (item?.type === "artifact") return item.pile ?? MIN_PILE;
+  return MIN_PILE;
 }
 
 /**
@@ -1603,7 +1620,14 @@ const armorSchema = v.object({
  * actually keeps it out of the file is {@link itemForSave}, which names fields
  * rather than passing a draft through.
  */
-const artifactSchema = v.object({ type: v.literal("artifact") });
+const artifactSchema = v.object({
+  type: v.literal("artifact"),
+  // The same bounds a consumable's pile is held to, and optional on the
+  // opposite reading: absent is one, not a handful. See {@link ArtifactItem.pile}.
+  pile: v.optional(
+    v.pipe(v.number(), v.integer(), v.minValue(MIN_PILE), v.maxValue(MAX_PILE)),
+  ),
+});
 
 const shieldSchema = v.object({
   type: v.literal("shield"),
@@ -2036,11 +2060,14 @@ export function itemForSave(item: ItemDef | undefined): ItemDef | undefined {
       pile: pileOf(item),
     };
   }
-  // Nothing to name, and it is still rebuilt rather than passed through: the
-  // draft arriving here is whatever the last arm left behind, and an artifact
-  // carrying a dead weapon's `damage` onto disk would read as a weapon somebody
-  // half-edited.
-  if (item.type === "artifact") return { type: "artifact" };
+  // Rebuilt rather than passed through: the draft arriving here is whatever
+  // the last arm left behind, and an artifact carrying a dead weapon's `damage`
+  // onto disk would read as a weapon somebody half-edited. A pile of one is
+  // dropped, because that is what an absent pile already says of an artifact.
+  if (item.type === "artifact") {
+    const pile = item.pile ?? MIN_PILE;
+    return { type: "artifact", ...(pile > MIN_PILE ? { pile } : {}) };
+  }
   if (item.type === "shield") {
     return { type: "shield", def: item.def, ...elementsForSave(item.elements) };
   }
