@@ -279,3 +279,49 @@ export function pileOffsets(count: number): readonly PileOffset[] {
 export function pileDepthNudge(index: number, total: number): number {
   return total <= 1 ? 0 : (index + 1) / (total + 1);
 }
+
+/**
+ * Each sprite of a pile, and where the rest of the heap is from it.
+ *
+ * The outline layer's view of {@link pileOffsets}. A heap is outlined with one
+ * ring per sprite — a single ring around the middle berry of a dozen reads as
+ * "that one", where a press takes all of them — and each ring has to be told
+ * where its siblings are, or every ring lands on a neighbour and the
+ * heap fills in solid rather than coming out with one silhouette around the
+ * whole of it. See `./overlayMeshes`' `OutlinePeers` for what the shader does
+ * with them.
+ *
+ * `at` is the offset the sprite was *drawn* at, so the chrome cannot disagree
+ * with the art about where the berries are; `peers` is the vector from this
+ * sprite to each of the others, which is exactly the offset the shader samples
+ * its own alpha at to stand in for a sibling's.
+ *
+ * A pile of one — every tile in the world that is not a heap — comes back
+ * as a single ring with no peers, so nothing but a pile pays for any of it.
+ */
+export function pileRings(
+  count: number,
+): readonly { at: PileOffset; peers: readonly PileOffset[] }[] {
+  const cached = ringMemo.get(Math.min(Math.max(count, 1), MAX_PILE_SPRITES));
+  if (cached) return cached;
+
+  const offsets = pileOffsets(count);
+  const rings = offsets.map((at) => ({
+    at,
+    peers: offsets
+      .filter((other) => other !== at)
+      .map((other) => ({ dx: at.dx - other.dx, dy: at.dy - other.dy })),
+  }));
+
+  ringMemo.set(offsets.length, rings);
+  return rings;
+}
+
+/**
+ * Asked once per distinct count, on {@link memo}'s terms and for its reasons
+ * — more so here, since a ring's peer list is quadratic in the count.
+ */
+const ringMemo = new Map<
+  number,
+  readonly { at: PileOffset; peers: readonly PileOffset[] }[]
+>();

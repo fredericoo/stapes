@@ -81,6 +81,7 @@ import {
   NO_PILE_OFFSET,
   pileDepthNudge,
   pileOffsets,
+  pileRings,
 } from "./pileLayout";
 import { animationKey, type SpriteQuadAssets, spriteQuadFor } from "./spriteQuad";
 import { noTintUniforms, tintCacheKey, tintUniforms } from "./spriteTint";
@@ -921,18 +922,17 @@ export class WorldRenderer {
     // The borrowed branch above has already taken every tile with a mesh of its
     // own, which is every tile a pile is not — so the count is read straight
     // off the placement here, exactly as `cellItems` reads it.
-    const offsets = pileOffsets(countOf(subject.placed));
-    return offsets.map((offset, i) =>
+    //
+    // One ring per sprite, at the offset that sprite was drawn at, each told
+    // where the others are so the heap comes out with one silhouette around the
+    // whole of it rather than a dozen rings crossing through it. See
+    // `./pileLayout`'s `pileRings` and `./overlayMeshes`' `OutlinePeers`.
+    return pileRings(countOf(subject.placed)).map(({ at, peers }) =>
       makeSpriteOutline(
-        { ...quad, x: quad.x + offset.dx, y: quad.y + offset.dy },
+        { ...quad, x: quad.x + at.dx, y: quad.y + at.dy },
         spec.color,
         this.outlineMaterials,
-        // Where the others are, from here. Told to each ring so the heap comes
-        // out with one silhouette around the whole of it rather than a dozen
-        // rings crossing through it — see `./overlayMeshes`' `OutlinePeers`.
-        offsets.flatMap((other, j) =>
-          i === j ? [] : [{ dx: offset.dx - other.dx, dy: offset.dy - other.dy }],
-        ),
+        peers,
       ),
     );
   }
