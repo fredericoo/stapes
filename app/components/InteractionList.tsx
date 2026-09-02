@@ -6,6 +6,7 @@ import {
   IconGift,
   IconHandGrab,
   IconHandMove,
+  IconMessageCircle,
   IconPick,
   IconShirt,
   IconSwitch,
@@ -70,6 +71,9 @@ const FRONT: "s" = "s";
 
 const ICONS: Record<InteractionAction, typeof IconTarget> = {
   target: IconTarget,
+  // A speech bubble: the one row that opens a panel of words rather than
+  // doing something to the board.
+  talk: IconMessageCircle,
   open: IconBoxSeam,
   // A closing hand against push's sliding one: both are hands, and the
   // difference between taking a thing and shoving it is what the shape says.

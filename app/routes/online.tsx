@@ -10,6 +10,7 @@ import { LightingToggle } from "../components/LightingToggle";
 import { LoadingScreen } from "../components/LoadingScreen";
 import { WorldClock } from "../components/WorldClock";
 import { type Equipment, emptyEquipment } from "../game/equipment";
+import type { Conversation, TalkAction } from "../game/dialogRuntime";
 import type { MasteryXp } from "../lib/mastery";
 import { bindCastKeys, bindKeyboard, HeldDirections } from "../game/heldDirections";
 import { usePlayModes } from "../components/usePlayModes";
@@ -101,6 +102,10 @@ export default function OnlinePage() {
     (option: InteractionOption) => applyInteraction(sessionRef.current, option),
     [],
   );
+  const talk = useCallback(
+    (action: TalkAction) => sessionRef.current?.talk(action),
+    [],
+  );
   // Straight at the renderer rather than through state: an outline is a frame's
   // business, and routing it through React would re-render the page on every
   // row the cursor crosses.
@@ -135,6 +140,7 @@ export default function OnlinePage() {
   const [players, setPlayers] = useState<number | null>(null);
   const [interactions, setInteractions] = useState<InteractionOption[]>([]);
   const [equipment, setEquipment] = useState<Equipment>(emptyEquipment);
+  const [conversation, setConversation] = useState<Conversation | null>(null);
   /** What this player has learnt — theirs alone, beside the kit. */
   const [masteryXp, setMasteryXp] = useState<MasteryXp>({});
   /** What this player's body can take, and its ⭐. */
@@ -295,6 +301,7 @@ export default function OnlinePage() {
       // And a bag from the world that just went away, whose contents the next
       // `hello` is about to replace outright.
       setEquipment(emptyEquipment());
+      setConversation(null);
       setSpells([]);
       setMasteryXp({});
       setVitals({ hp: null, maxHp: null, rating: null, statuses: [] });
@@ -359,6 +366,7 @@ export default function OnlinePage() {
         renderer.setOnStats(setStats);
         renderer.setOnInteractions(setInteractions);
         renderer.setOnEquipment(setEquipment);
+        renderer.setOnConversation(setConversation);
         renderer.setOnSpells(setSpells);
         renderer.setOnMasteries(setMasteryXp);
         renderer.setOnVitals(setVitals);
@@ -508,6 +516,8 @@ export default function OnlinePage() {
                 interactions={interactions}
                 onInteract={act}
                 onHoverInteraction={hoverInteraction}
+                conversation={conversation}
+                onTalk={talk}
                 equipment={equipment}
                 masteryXp={masteryXp}
                 vitals={vitals}

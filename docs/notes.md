@@ -298,77 +298,90 @@ A rule spelled out five times is a rule that is only ever four-fifths true.
 editor reads `map.json` and never sees an owned body, so it is consistency
 rather than a fix, which is the point.
 
-## A dialog is a tree of topics, and the brain only asks whether it is talking
+## A dialog is a tree of buttons, and the brain only asks whether anybody is talking
 
 `interactions.dialog` (`app/lib/dialog.ts`, run by `app/game/dialogRuntime.ts`)
-is how an NPC holds a conversation: the words it greets on, the words it says
-goodbye on, and between them an ordered list of topics, each with the words it
-answers to, the line it says, and optionally the topics that are live *right
-after* that reply. `{partner}` in any line is whoever it is talking to.
+is how an NPC holds a conversation: an `opening` line and an ordered tree of
+options, each a button `label`, the line it `say`s, and optionally `then` —
+the buttons shown after that reply instead of the root's. A player presses
+*Talk* on the body, a panel opens with the line and the buttons, *Back*
+returns to the root, *Close* ends it. `{partner}` in any line is the player.
 
-**Why it is not more brain.** The brain already hears, remembers who spoke and
-talks, and the `shopkeeper` holds a whole hi → bye conversation on nothing
-else. What it cannot do is scale: every reply is a state, every state needs an
-`after` back, and every `heard` needs `from: is partner` copied onto it. Ten
-topics is thirty rows in a first-match-wins table that also drives the legs.
-So the brain stays the body's mind and the dialog is its mouth, and they meet
-at exactly one point — the brain condition `talking`, true while the dialog
-has a partner. A shopkeeper that wanders when idle and stands for a sale is
-`idle → serving if talking` and the `not` of it back; nothing else in the brain
-knows a conversation exists.
+**Why buttons, and not typed keywords.** The first cut of this heard words —
+the brain already had `heard`/`say` and the `shopkeeper` held a hi/bye
+conversation on nothing else — and it worked on a desktop with a chat bar. It
+did not work on a phone, where a keyword an NPC answers to is a keyword you
+have to guess and then type with a thumb. What an NPC can be asked is now
+what is on the buttons: that is the whole of its discoverability, and the
+tree, the conditions and the effects are exactly what they were. Only the way
+a branch is chosen moved from the ear to the finger. Chat is for people again.
 
-- **Same ear, same mouth.** The dialog reads the same `pendingHeard` page the
-  brain does, on the same brain tick, and speaks through `recordSpeech` — so a
-  line it says is a bubble on a brain's terms, and, like a brain's, is never
-  heard by another body. It is stepped *before* the brain in `tickBrains`, so
-  a greeting heard this pass is a conversation `talking` already sees.
-- **Whole words, in order, first match wins.** `hearsWord` matches a keyword
-  as a whole word, case-insensitively, by scanning rather than by regex so a
-  keyword is never a pattern. The brain's `heard` is a substring on purpose —
-  a cat answering "ps" inside "psps" — and a shop answering "potion" inside
-  "emotion" is a shop that mishears. Topics are tried in authored order, the
-  live reply's `then` ahead of the root, so "yes" answers the question just
-  asked before it answers anything else.
-- **One partner, and a busy line for everybody else.** Whoever greets first is
-  answered until they say bye, fall silent for `idleMs`, or leave earshot
-  (`cells`, and `los` if asked — measured on the brain's `within`, sight
-  levels included). Only `bye` says anything; the other two endings are
-  silent, checked before the tick's words are read, so a partner who walked
-  off and shouted is a stranger by the time the word arrives. A stranger's
-  greeting gets `busy` once per pass, not once per word.
-- **A path, not a topic.** `DialogMemory.path` is the indices from the root to
-  the live reply, so a def reloaded under a running memory resolves to *a*
-  topic or to nothing rather than to a stale object. Not checkpointed, on the
-  brain's terms: a conversation is a state of play, and a reload ends every
-  one.
-- **A talking tile is an actor.** `resolveActor` reads `dialog` beside `brain`,
-  so a body with only a dialog is adopted and ticked; `tickOneDialog` is mute
-  for a tile whose block did not parse, exactly as a brain that did not parse
-  stands still.
-- **Passed through the save untouched**, like the brain and for the same
-  reason: the tree is `./dialog`'s to know, and until the editor has a tab for
-  it the only way one survives the tile dialog is unread.
+**A conversation is the player's, not the NPC's.** `ActorRuntime.conversation`
+— `{ npcId, tileId, path, line }` — lives on whoever pressed Talk, so any
+number of people can be talking to one salesman and none sees the others'
+panels. The NPC knows only whether anybody is (`anyoneTalkingTo`), which is
+the brain condition `talking`: a shopkeeper that wanders when idle and stands
+for a sale is `idle → serving if talking` and the `not` of it back, and
+nothing else in the brain knows a conversation exists. Not checkpointed, on
+brain memory's terms: a conversation is a state of play.
 
-### A topic may ask before it answers, and do something as it does
+- **The buttons are never on the wire.** The server sends the whole
+  `Conversation` to the one socket it is about (`flushConversations`, shaped
+  like `flushTags`), and null when the panel should close. The client draws
+  the buttons from the path against the tile catalogue it already holds —
+  `optionsAt` — because a list on the wire would be a second copy of one. The
+  line *is* on the wire, because whether it was the `say` or the `else` is
+  decided where the kit is, and the panel must not have to guess.
+- **`talk` is one message with a verb inside** — open, choose, back, close —
+  because the four are one thing, where the player is in a conversation, and
+  the server answers all four the same way. A press is an *index* among the
+  buttons on offer, on transmute's argument for a recipe index: both ends hold
+  the catalogue, so a position is something the server can check against a
+  list it already has. A press at a position nothing is at is refused, not
+  guessed at.
+- **Talk has its own reach.** `canTalkFrom`: line of sight, always; 3.5 cells
+  of plan distance, wider than an arm because a counter between you is the
+  ordinary case; and elevation within 3 height units — three quarters of a
+  level, measured in elevation rather than levels because a stall on a step
+  is the case and a balcony is not. Re-asked by `tickConversations` every
+  simulation tick, so walking off closes the panel silently the tick you
+  have left. The Talk row is offered only where pressing it would open one.
+- **A reply with no follow-ups lands back at the root**, buttons and all, so
+  the panel never shows a line with nothing under it. A root button pressed
+  while a reply is on screen starts over from the root — the root's buttons
+  and a reply's follow-ups lead to different places, and `pathTo` keeps them
+  apart.
+- **The panel takes the reach list's place**, on desktop and on a phone
+  alike: a conversation is what is in reach, said longer. Same walls, same
+  rows, same close button as a container panel, so nothing about it has to be
+  learnt. It gets the identity-gated push the kit gets (`pushConversation`),
+  so `/play` and `/online` both have it.
 
-Every topic takes an `if`, a `do` and an `else`. The condition vocabulary is
-four questions about the partner and nothing else — `carries`, `room_for`,
-`has_tag`, `has_status` — composed by `conditions.ts`, the second vocabulary
-that module was written for. The effects are three: `trade`, `add_status`,
-`tag`. A failed `if` and a refused `do` read the same to the partner, because
-they are the same to them: nothing happened, and `else` says why. A topic that
-can refuse and has no `else` is a lint warning, since a silent refusal is
-indistinguishable from the word not having been heard.
+### An option may ask before it answers, and do something as it does
 
-- **`converse` never touches a kit.** It asks the `DialogView` — `carries`,
-  `roomFor`, `hasTag`, `hasStatus`, `attempt` — and the session answers. That
-  keeps the step pure, keeps the editor's future "try it" console honest (it
-  hands over a pretend kit), and keeps every rule about a body's squares in
-  the modules that own them.
+Every option takes an `if`, a `do`, an `else` and an `amount`. The condition
+vocabulary is four questions about the partner and nothing else — `carries`,
+`room_for`, `has_tag`, `has_status` — composed by `conditions.ts`, the second
+vocabulary that module was written for. The effects are three: `trade`,
+`add_status`, `tag`. A failed `if` and a refused `do` read the same to the
+partner, because they are the same to them: nothing happened, and `else` says
+why. An option that can refuse and has no `else` is a lint warning, since a
+button that does nothing when pressed reads as broken.
+
+- **`chooseOption` never touches a kit.** It asks the `PartnerView` —
+  `carries`, `roomFor`, `hasTag`, `hasStatus`, `attempt` — and the session
+  answers. That keeps the step pure, keeps the editor's future try-it honest
+  (it hands over a pretend kit), and keeps every rule about a body's squares
+  in the modules that own them.
+- **An amount multiplies every count.** `amount: { min, max }` puts a stepper
+  beside the button, and the chosen number scales the trade sides and the
+  counted conditions alike, so "sell 5 bottles" is one press and one authored
+  price. Clamped server-side rather than refused: the stepper and the check
+  are two readings of one range, and a press one over the edge is a race.
 - **A `do` list is a transaction.** `attemptDialogEffects` plans every trade
   against the kit the one before it leaves and checks every status against the
   catalogue *before* anything is written; then the kit changes once and the
-  statuses and tags land beside it. A topic that takes payment and grants a
+  statuses and tags land beside it. An option that takes payment and grants a
   status cannot take the payment and fail the status.
 - **A trade is `app/game/trade.ts`, and it is deliberately not a transmute.**
   Several things on each side, counted, because a price is a number and a
@@ -382,8 +395,12 @@ indistinguishable from the word not having been heard.
   nothing left to decide. All or nothing, and nothing ever reaches the floor.
 - **A container is never on either side.** The schema refuses it with a
   catalogue in hand, and the runtime refuses it without one.
-- **A refused follow-up stays live.** "yes" again once the shards are in hand
-  is the same question, not a new one, so `path` is left alone on a refusal.
+- **A refused follow-up stays on screen.** "Deal" again once the shards are
+  in hand is the same question, not a new one, so the path is left alone on a
+  refusal and only the line changes.
+- **Passed through the tile save untouched**, like the brain and for the same
+  reason: the tree is `./dialog`'s to know, and until the editor has a tab for
+  it the only way one survives the tile dialog is unread.
 
 ## Where a player comes back in
 

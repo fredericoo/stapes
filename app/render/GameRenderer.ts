@@ -18,6 +18,7 @@ import type {
 import { PLAYER_TILE_ID } from "../game/constants";
 import { bodyNameFor, sizedUpName } from "../game/displayName";
 import type { Equipment } from "../game/equipment";
+import type { Conversation } from "../game/dialogRuntime";
 import type { MasteryXp } from "../lib/mastery";
 import { weaponDemandFor } from "../lib/weaponDemand";
 import type { Vitals } from "../game/GameSession";
@@ -345,6 +346,9 @@ export class GameRenderer {
   private onEquipment: ((equipment: Equipment) => void) | null = null;
   /** Identity of the last equipment handed on, so an idle frame costs a compare. */
   private equipmentSent: Equipment | null = null;
+  private onConversation: ((conversation: Conversation | null) => void) | null = null;
+  /** Undefined until the first push, so a closed panel still gets reported once. */
+  private conversationSent: Conversation | null | undefined = undefined;
   private onVitals: ((vitals: Vitals) => void) | null = null;
   /**
    * The last vitals handed on, compared field by field rather than by identity.
@@ -639,6 +643,25 @@ export class GameRenderer {
     if (snap.equipment === this.equipmentSent) return;
     this.equipmentSent = snap.equipment;
     this.onEquipment(snap.equipment);
+  }
+
+  /**
+   * Where the viewer is in a conversation, when it changes.
+   *
+   * Identity-gated on the kit's terms: the session replaces the whole object
+   * on every press and never mutates one, so a player reading a line costs one
+   * reference compare per frame.
+   */
+  setOnConversation(cb: ((conversation: Conversation | null) => void) | null) {
+    this.onConversation = cb;
+    this.conversationSent = undefined;
+  }
+
+  private pushConversation(snap: GameSnapshot) {
+    if (!this.onConversation) return;
+    if (snap.conversation === this.conversationSent) return;
+    this.conversationSent = snap.conversation;
+    this.onConversation(snap.conversation);
   }
 
   setOnVitals(cb: ((vitals: Vitals) => void) | null) {
@@ -2018,6 +2041,7 @@ export class GameRenderer {
 
     this.world.setOverlays(this.overlaysFor(snap));
     this.pushEquipment(snap);
+    this.pushConversation(snap);
     this.pushMasteries(snap);
     this.pushSpells();
     this.pushNotices(nowMs);
@@ -2084,7 +2108,10 @@ export class GameRenderer {
     // are: it is a state a row is *named* for — "Target Rat" against "Attack
     // Rat" — so drawing a sword renames a row without anything on the board
     // having moved.
-    const at = `${snap.self.x},${snap.self.y},${snap.self.z},${snap.targetId},${opened},${snap.attacking}`;
+    // The conversation is in the key for the reason the target is: the Talk
+    // row reads as lit while its body is the one you are talking to.
+    const talking = snap.conversation?.npcId ?? "";
+    const at = `${snap.self.x},${snap.self.y},${snap.self.z},${snap.targetId},${opened},${snap.attacking},${talking}`;
     const health = healthSignature(snap.actors);
     if (
       snap.map === this.interactionsMap &&
@@ -2121,6 +2148,7 @@ export class GameRenderer {
       // entries are shared rather than copied, so a wait wound in place is
       // wound here too.
       new Map(snap.extractCooling.map((entry) => [entry.key, entry])),
+      snap.conversation,
     );
     // Held whether or not it is handed on, because the *references* inside it go
     // stale even when the list reads the same: a walking deer keeps its row and

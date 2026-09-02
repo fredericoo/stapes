@@ -1,13 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  clampAmount,
   DEFAULT_DIALOG,
-  hearsAny,
-  hearsWord,
   MAX_DIALOG_DEPTH,
-  normalizeKeyword,
+  optionAt,
+  optionsAt,
   resolveDialog,
   validateDialog,
   type DialogDef,
+  type DialogOption,
 } from "./dialog";
 import { normalizeTileDef } from "./types";
 
@@ -20,282 +21,219 @@ const frame = {
   durationMs: 200,
 };
 
-function tileWith(dialog: unknown) {
+function tileWith(dialog: unknown, id = "seller") {
   return normalizeTileDef({
-    id: "seller",
-    name: "Seller",
+    id,
+    name: id,
     height: 4,
     directional: false,
     variants: { default: [frame] },
     attributes: {},
     kind: "prop",
-    interactions: { dialog },
+    interactions: dialog === undefined ? {} : { dialog },
   });
 }
 
-describe("hearing a word", () => {
-  it("matches a whole word, whatever the case", () => {
-    expect(hearsWord("Buy a POTION please", "potion")).toBe(true);
-  });
-
-  it("does not match inside another word", () => {
-    // The brain's `heard` is a substring on purpose; this is not.
-    expect(hearsWord("such emotion", "motion")).toBe(false);
-    expect(hearsWord("potions", "potion")).toBe(false);
-  });
-
-  it("matches at either end and beside punctuation", () => {
-    expect(hearsWord("potion", "potion")).toBe(true);
-    expect(hearsWord("hi!", "hi")).toBe(true);
-    expect(hearsWord("a potion, then", "potion")).toBe(true);
-  });
-
-  it("finds a later whole-word match after an embedded one", () => {
-    expect(hearsWord("potions and a potion", "potion")).toBe(true);
-  });
-
-  it("matches a phrase as a phrase", () => {
-    expect(hearsWord("sell my empty  bottle", "empty bottle")).toBe(true);
-    expect(hearsWord("empty this bottle", "empty bottle")).toBe(false);
-  });
-
-  it("never matches an empty keyword", () => {
-    expect(hearsWord("anything", "")).toBe(false);
-  });
-
-  it("answers for any of a list", () => {
-    expect(hearsAny("hello there", ["hi", "hello"])).toBe(true);
-    expect(hearsAny("hey there", ["hi", "hello"])).toBe(false);
-  });
-
-  it("normalises a keyword the way it normalises an utterance", () => {
-    expect(normalizeKeyword("  Empty   Bottle ")).toBe("empty bottle");
-  });
-});
+const shop: DialogDef = {
+  opening: "Hello, {partner}.",
+  options: [
+    { label: "Recipe", say: "Ten crystals, one solution." },
+    {
+      label: "Buy a potion",
+      say: "Fourteen shards. Deal?",
+      then: [
+        { label: "Yes", say: "Here.", else: "No." },
+        { label: "No", say: "Suit yourself." },
+      ],
+    },
+  ],
+};
 
 describe("resolving a dialog", () => {
-  it("parses a block and lowercases its keywords", () => {
+  it("parses a block and trims its labels", () => {
     const dialog = resolveDialog(
-      tileWith({
-        ...DEFAULT_DIALOG,
-        greet: { hear: ["Hi ", "HELLO"], say: "Hello." },
-        topics: [{ hear: ["Potion"], say: "Fourteen shards.", then: [{ hear: ["Yes"], say: "Here." }] }],
-      }),
+      tileWith({ ...shop, options: [{ label: "  Recipe ", say: "x" }] }),
     );
-    expect(dialog?.greet.hear).toEqual(["hi", "hello"]);
-    expect(dialog?.topics[0]?.hear).toEqual(["potion"]);
-    expect(dialog?.topics[0]?.then?.[0]?.hear).toEqual(["yes"]);
+    expect(dialog?.options[0]?.label).toBe("Recipe");
   });
 
   it("is null for a tile with no dialog", () => {
     expect(resolveDialog(tileWith(undefined))).toBeNull();
   });
 
-  it("is null for a greeting that listens for nothing", () => {
-    expect(
-      resolveDialog(tileWith({ ...DEFAULT_DIALOG, greet: { hear: [], say: "Hello." } })),
-    ).toBeNull();
+  it("is null for a blank opening line", () => {
+    expect(resolveDialog(tileWith({ ...shop, opening: "" }))).toBeNull();
   });
 
-  it("is null for a keyword that is only spaces", () => {
-    expect(
-      resolveDialog(tileWith({ ...DEFAULT_DIALOG, greet: { hear: ["   "], say: "Hello." } })),
-    ).toBeNull();
+  it("is null for an option with no label or no line", () => {
+    expect(resolveDialog(tileWith({ ...shop, options: [{ label: " ", say: "x" }] }))).toBeNull();
+    expect(resolveDialog(tileWith({ ...shop, options: [{ label: "x", say: "" }] }))).toBeNull();
   });
 
-  it("is null for a topic with no line", () => {
-    expect(
-      resolveDialog(tileWith({ ...DEFAULT_DIALOG, topics: [{ hear: ["potion"], say: "" }] })),
-    ).toBeNull();
-  });
-
-  it("is memoised on the def", () => {
-    const def = tileWith(DEFAULT_DIALOG);
-    expect(resolveDialog(def)).toBe(resolveDialog(def));
-  });
-});
-
-describe("validating a dialog", () => {
-  const sound: DialogDef = {
-    ...DEFAULT_DIALOG,
-    topics: [{ hear: ["potion"], say: "Fourteen shards." }],
-  };
-
-  it("has nothing to say about a sound one", () => {
-    expect(validateDialog(sound)).toEqual([]);
-  });
-
-  it("warns about a dialog with no topics", () => {
-    expect(validateDialog(DEFAULT_DIALOG).map((i) => i.severity)).toEqual(["warn"]);
-  });
-
-  it("warns when the same word is answered twice at one level", () => {
-    const issues = validateDialog({
-      ...sound,
-      topics: [
-        { hear: ["potion", "buy"], say: "One." },
-        { hear: ["buy"], say: "Two." },
-      ],
-    });
-    expect(issues).toEqual([
-      { severity: "warn", message: expect.stringContaining('"buy" is answered by an earlier topic') },
-    ]);
-  });
-
-  it("does not mind the same word under two different replies", () => {
-    const issues = validateDialog({
-      ...sound,
-      topics: [
-        { hear: ["potion"], say: "Deal?", then: [{ hear: ["yes"], say: "Here." }] },
-        { hear: ["bottle"], say: "Sell?", then: [{ hear: ["yes"], say: "Ta." }] },
-      ],
-    });
-    expect(issues).toEqual([]);
-  });
-
-  it("warns when a word both greets and says goodbye", () => {
-    const issues = validateDialog({
-      ...sound,
-      greet: { hear: ["hi", "yo"], say: "Hello." },
-      bye: { hear: ["yo"], say: "Bye." },
-    });
-    expect(issues.map((i) => i.message)).toEqual([
-      expect.stringContaining('"yo" both greets'),
-    ]);
-  });
-
-  it("errors on a blank line, which the schema would refuse", () => {
-    const issues = validateDialog({ ...sound, bye: { hear: ["bye"], say: "  " } });
-    expect(issues).toEqual([{ severity: "error", message: "The farewell says nothing" }]);
-  });
-
-  it("errors on a blank busy line, where leaving it out is the way to say nothing", () => {
-    expect(validateDialog({ ...sound, busy: "" })[0]?.severity).toBe("error");
-  });
-
-  it("warns past the depth a conversation can follow", () => {
-    let topic = { hear: ["deep"], say: "Deepest." } as DialogDef["topics"][number];
-    for (let depth = 0; depth < MAX_DIALOG_DEPTH; depth++) {
-      topic = { hear: ["deep"], say: "Deeper.", then: [topic] };
-    }
-    const issues = validateDialog({ ...sound, topics: [topic] });
-    expect(issues.map((i) => i.message)).toEqual([
-      expect.stringContaining(`${MAX_DIALOG_DEPTH + 1} deep`),
-    ]);
-  });
-});
-
-describe("a topic that asks and does, as authored", () => {
-  const potion = normalizeTileDef({
-    id: "potion",
-    name: "Potion",
-    height: 0,
-    directional: false,
-    variants: { default: [frame] },
-    attributes: {},
-    kind: "item",
-    interactions: { item: { type: "consumable", hp: 0 } },
-  });
-  const bag = normalizeTileDef({
-    id: "bag",
-    name: "Bag",
-    height: 0,
-    directional: false,
-    variants: { default: [frame] },
-    attributes: {},
-    kind: "item",
-    interactions: { item: { type: "container", size: 4, equippable: true } },
-  });
-  const catalogue = {
-    tilesById: { potion, bag },
-    statusIds: new Set(["luminous"]),
-  };
-
-  it("parses a condition tree and an effect list", () => {
+  it("parses a condition tree, an effect list, and an amount", () => {
     const dialog = resolveDialog(
       tileWith({
-        ...DEFAULT_DIALOG,
-        topics: [
+        ...shop,
+        options: [
           {
-            hear: ["yes"],
-            if: { combinator: "and", rules: [{ cond: "carries", tileId: "shard", count: 14 }, { cond: "room_for", tileId: "potion", count: 1 }] },
+            label: "Sell bottles",
+            amount: { min: 1, max: 12 },
+            if: { combinator: "and", rules: [{ cond: "carries", tileId: "bottle", count: 1 }, { cond: "room_for", tileId: "shard", count: 2 }] },
             do: [
-              { effect: "trade", take: [{ tileId: "shard", count: 14 }], give: [{ tileId: "potion", count: 1 }] },
+              { effect: "trade", take: [{ tileId: "bottle", count: 1 }], give: [{ tileId: "shard", count: 2 }] },
               { effect: "add_status", statusId: "luminous" },
               { effect: "tag", tag: "customer" },
             ],
-            say: "Here.",
+            say: "Ta.",
             else: "No.",
           },
         ],
       }),
     );
-    expect(dialog?.topics[0]?.do).toHaveLength(3);
-    expect(dialog?.topics[0]?.else).toBe("No.");
+    expect(dialog?.options[0]?.do).toHaveLength(3);
+    expect(dialog?.options[0]?.amount).toEqual({ min: 1, max: 12 });
   });
 
-  it("refuses a trade of nothing for nothing", () => {
-    expect(
-      resolveDialog(
-        tileWith({
-          ...DEFAULT_DIALOG,
-          topics: [{ hear: ["x"], say: "x", do: [{ effect: "trade", take: [], give: [] }] }],
-        }),
-      ),
-    ).toBeNull();
+  it("refuses a trade of nothing for nothing, a count of nothing, and an inverted amount", () => {
+    const bad = (option: Record<string, unknown>) =>
+      resolveDialog(tileWith({ ...shop, options: [{ label: "x", say: "x", ...option }] }));
+    expect(bad({ do: [{ effect: "trade", take: [], give: [] }] })).toBeNull();
+    expect(bad({ if: { cond: "carries", tileId: "shard", count: 0 } })).toBeNull();
+    expect(bad({ amount: { min: 3, max: 2 } })).toBeNull();
   });
 
-  it("refuses a count of nothing", () => {
-    expect(
-      resolveDialog(
-        tileWith({
-          ...DEFAULT_DIALOG,
-          topics: [{ hear: ["x"], say: "x", if: { cond: "carries", tileId: "shard", count: 0 } }],
-        }),
-      ),
-    ).toBeNull();
+  it("is memoised on the def", () => {
+    const def = tileWith(shop);
+    expect(resolveDialog(def)).toBe(resolveDialog(def));
+  });
+});
+
+describe("walking the tree", () => {
+  it("finds an option by path, and nothing off the end", () => {
+    expect(optionAt(shop, [1, 0])?.label).toBe("Yes");
+    expect(optionAt(shop, [1, 5])).toBeNull();
+    expect(optionAt(shop, [0, 0])).toBeNull();
   });
 
-  it("warns about a topic that can refuse and has nothing to say about it", () => {
+  it("offers the root at the root, and a reply's follow-ups under it", () => {
+    expect(optionsAt(shop, []).map((o) => o.label)).toEqual(["Recipe", "Buy a potion"]);
+    expect(optionsAt(shop, [1]).map((o) => o.label)).toEqual(["Yes", "No"]);
+  });
+
+  it("offers the root again under a reply with no follow-ups", () => {
+    expect(optionsAt(shop, [0])).toBe(shop.options);
+    expect(optionsAt(shop, [1, 0])).toBe(shop.options);
+  });
+
+  it("clamps an amount to the author's range, and reads one where there is none", () => {
+    const counted: DialogOption = { label: "x", say: "x", amount: { min: 2, max: 5 } };
+    expect(clampAmount(counted, undefined)).toBe(2);
+    expect(clampAmount(counted, 9)).toBe(5);
+    expect(clampAmount(counted, 3.4)).toBe(3);
+    expect(clampAmount({ label: "x", say: "x" }, 7)).toBe(1);
+  });
+});
+
+describe("validating a dialog", () => {
+  it("has nothing to say about a sound one", () => {
+    expect(validateDialog(shop)).toEqual([]);
+  });
+
+  it("warns about a dialog with no options", () => {
+    expect(validateDialog(DEFAULT_DIALOG).map((i) => i.severity)).toEqual(["warn"]);
+  });
+
+  it("warns when two buttons at one level read the same", () => {
     const issues = validateDialog({
-      ...DEFAULT_DIALOG,
-      topics: [{ hear: ["x"], say: "x", if: { cond: "has_tag", tag: "t" } }],
+      ...shop,
+      options: [{ label: "Yes", say: "a" }, { label: "yes", say: "b" }],
     });
-    expect(issues.map((i) => i.message)).toEqual([
-      expect.stringContaining("no else line"),
-    ]);
-  });
-
-  it("names ids the catalogue does not hold, when it has one", () => {
-    const dialog: DialogDef = {
-      ...DEFAULT_DIALOG,
-      topics: [
-        {
-          hear: ["x"],
-          say: "x",
-          else: "no",
-          if: { cond: "carries", tileId: "shard", count: 1 },
-          do: [{ effect: "add_status", statusId: "glowing" }],
-        },
-      ],
-    };
-    expect(validateDialog(dialog)).toEqual([]);
-    expect(validateDialog(dialog, catalogue).map((i) => i.message)).toEqual([
-      expect.stringContaining('tile "shard"'),
-      expect.stringContaining('status "glowing"'),
-    ]);
-  });
-
-  it("refuses a container on either side of a trade", () => {
-    const issues = validateDialog(
-      {
-        ...DEFAULT_DIALOG,
-        topics: [{ hear: ["x"], say: "x", else: "no", do: [{ effect: "trade", take: [], give: [{ tileId: "bag", count: 1 }] }] }],
-      },
-      catalogue,
-    );
     expect(issues).toEqual([
-      { severity: "error", message: expect.stringContaining("Bag, and a container") },
+      { severity: "warn", message: expect.stringContaining('"yes" appears twice') },
     ]);
+  });
+
+  it("does not mind the same button under two different replies", () => {
+    expect(validateDialog(shop)).toEqual([]);
+  });
+
+  it("errors on a blank line, which the schema would refuse", () => {
+    const issues = validateDialog({ ...shop, options: [{ label: "x", say: "  " }] });
+    expect(issues).toEqual([{ severity: "error", message: "option 1 says nothing" }]);
+  });
+
+  it("warns about an option that can refuse and has nothing to say about it", () => {
+    const issues = validateDialog({
+      ...shop,
+      options: [{ label: "x", say: "x", if: { cond: "has_tag", tag: "t" } }],
+    });
+    expect(issues.map((i) => i.message)).toEqual([expect.stringContaining("no else line")]);
+  });
+
+  it("warns about a stepper with nothing to multiply", () => {
+    const issues = validateDialog({
+      ...shop,
+      options: [{ label: "x", say: "x", amount: { min: 1, max: 3 } }],
+    });
+    expect(issues.map((i) => i.message)).toEqual([expect.stringContaining("nothing counted")]);
+  });
+
+  it("warns past the depth a conversation can follow", () => {
+    let option: DialogOption = { label: "deep", say: "Deepest." };
+    for (let depth = 0; depth < MAX_DIALOG_DEPTH; depth++) {
+      option = { label: "deep", say: "Deeper.", then: [option] };
+    }
+    const issues = validateDialog({ ...shop, options: [option] });
+    expect(issues.map((i) => i.message)).toEqual([
+      expect.stringContaining(`${MAX_DIALOG_DEPTH + 1} deep`),
+    ]);
+  });
+
+  describe("with a catalogue in hand", () => {
+    const potion = tileWith(undefined, "potion");
+    const bag = normalizeTileDef({
+      id: "bag",
+      name: "Bag",
+      height: 0,
+      directional: false,
+      variants: { default: [frame] },
+      attributes: {},
+      kind: "item",
+      interactions: { item: { type: "container", size: 4, equippable: true } },
+    });
+    const catalogue = { tilesById: { potion, bag }, statusIds: new Set(["luminous"]) };
+
+    it("names ids nothing answers to", () => {
+      const dialog: DialogDef = {
+        ...shop,
+        options: [
+          {
+            label: "x",
+            say: "x",
+            else: "no",
+            if: { cond: "carries", tileId: "shard", count: 1 },
+            do: [{ effect: "add_status", statusId: "glowing" }],
+          },
+        ],
+      };
+      expect(validateDialog(dialog)).toEqual([]);
+      expect(validateDialog(dialog, catalogue).map((i) => i.message)).toEqual([
+        expect.stringContaining('tile "shard"'),
+        expect.stringContaining('status "glowing"'),
+      ]);
+    });
+
+    it("refuses a container on either side of a trade", () => {
+      const issues = validateDialog(
+        {
+          ...shop,
+          options: [{ label: "x", say: "x", else: "no", do: [{ effect: "trade", take: [], give: [{ tileId: "bag", count: 1 }] }] }],
+        },
+        catalogue,
+      );
+      expect(issues).toEqual([
+        { severity: "error", message: expect.stringContaining("Bag, and a container") },
+      ]);
+    });
   });
 });

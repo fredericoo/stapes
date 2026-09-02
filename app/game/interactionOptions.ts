@@ -20,6 +20,7 @@ import { MAX_LEVEL, MIN_LEVEL } from "../lib/types";
 import {
   canAddStatusFrom,
   canConsumeFrom,
+  canTalkFrom,
   canOpenFrom,
   canPickUpFrom,
   canPushFrom,
@@ -43,6 +44,7 @@ import {
 } from "./extract";
 import { offeredTransmutations } from "./transmute";
 import type { ActorSnapshot, PlaySession } from "./GameSession";
+import type { Conversation } from "./dialogRuntime";
 
 /**
  * Everything the player could do right now, as a list rather than as something
@@ -80,6 +82,7 @@ import type { ActorSnapshot, PlaySession } from "./GameSession";
 export type InteractionAction =
   | InteractionKind
   | "target"
+  | "talk"
   | "open"
   | "consume"
   /**
@@ -171,6 +174,9 @@ export type InteractionOption = {
 
 const LABELS: Record<InteractionAction, string> = {
   target: "Target",
+  // A body with a dialog: one verb, the same on every such body, because what
+  // is said is the panel's business and the row only opens it.
+  talk: "Talk",
   open: "Open",
   pickUp: "Pick up",
   // Only the fallback: an equip row is named for the *thing*, not for the slot
@@ -264,50 +270,54 @@ export function interactionText(option: InteractionOption): string {
  */
 const ACTION_ORDER: Record<InteractionAction, number> = {
   target: 0,
+  // Beside the target and above everything the board offers: it is a row about
+  // a body, drawn in that body's box, and a person you can talk to is a person
+  // before they are a thing to take from.
+  talk: 1,
   // Above everything the board offers, and above `open` in particular: a chest
   // authored as both a reward and a container is one you are meant to be *given*
   // the contents of, and rummaging in it is the lesser reading of the same tap.
-  reward: 1,
+  reward: 2,
   // Above the switch, for the reason the session's own precedence puts it
   // there: a door authored to both open and lead through is one tap, and the
   // half that takes you somewhere is the one with consequences.
-  teleport: 2,
-  switch: 3,
+  teleport: 3,
+  switch: 4,
   // Below the switch, on the session's own precedence: this is the only entry
   // here that changes the *presser* rather than the board, so a brazier that
   // both lights a room and burns the hand that lit it spends the tap on the
   // half the player can see.
-  addStatus: 4,
+  addStatus: 5,
   // Below the switch and above everything to do with carrying, which is where
   // an explicit authored act belongs — and it never competes with the tap
   // anyway, since a transmute row is reached by name and a tile that both
   // cooked and swung open would spend its tap on the hinge either way.
-  transmute: 5,
+  transmute: 6,
   // Below the transmute and above everything to do with carrying, which is
   // where the session's own precedence puts it and for the same reason: an
   // explicit authored act comes before lifting a thing off the floor. It never
   // actually competes with the four above it — nobody authors a door you can
   // also mine — and if they did, the hinge is the half the player can see.
-  extract: 6,
+  extract: 7,
   // Above pick-up, and this is the one that decides what a plain tap on a sword
   // does. An empty hand is the strongest thing a player can be saying about what
   // they want done with a weapon on the floor, and stowing it afterwards is one
   // drag; the reverse — fishing a sword back out of a bag you did not mean it to
   // go into — is the annoying direction. It only ever appears when the slot is
   // free, so it cannot take a tap away from anybody who is already armed.
-  equip: 7,
+  equip: 8,
   // Above pick-up, and only ever up against it on a container: a pack you are
   // already wearing the twin of can be taken into a hand now, and a tap that
   // picked it up rather than looking inside would be answering the less
   // interesting of the two questions. Nothing else in the game is both.
-  open: 8,
-  pickUp: 9,
+  open: 9,
+  pickUp: 10,
   // Below pick-up on purpose, and pick-up is what a plain tap on the tile runs:
   // eating destroys the thing where lifting it is reversible, so the row you
   // have to *find* is the destructive one and the gesture you can fire by
   // accident is the safe one.
-  consume: 10,
-  push: 11,
+  consume: 11,
+  push: 12,
 };
 
 /**
@@ -395,11 +405,13 @@ export function listInteractionOptions(
   tags: readonly string[] = [],
   attacking: boolean = false,
   cooling: CoolingResources = NOTHING_COOLING,
+  conversation: Conversation | null = null,
 ): InteractionOption[] {
   const bodies = bodiesByCell(self, visibleActors);
 
   return [
     ...targetOptions(tilesById, bodies, targetId, attacking),
+    ...talkOptions(map, tilesById, self, bodies, conversation),
     ...objectOptions(
       map,
       tilesById,
@@ -524,6 +536,13 @@ export function applyInteraction(
   if (option.cooldown) return;
   if (option.action === "target") {
     session.setTarget(option.active ? null : option.actorId);
+    return;
+  }
+  // Opens the panel; pressing it again while lit closes it, on the target's
+  // own thumb-friendly terms. Everything said after is the panel's, through
+  // the same verb.
+  if (option.action === "talk") {
+    session.talk(option.active ? { kind: "close" } : { kind: "open", ref: option.ref });
     return;
   }
   // Named rather than left to `interact`'s precedence. The row says "Pick up",
@@ -875,6 +894,43 @@ function objectActionLabel(
     return resolveExtract(def)?.actionName?.trim() || LABELS.extract;
   }
   return LABELS[action];
+}
+
+/**
+ * One entry per body the viewer could talk to, lit for the one they are.
+ *
+ * Reach is the Talk row's own — `canTalkFrom`, further than an arm and
+ * measured in elevation — and it is asked here rather than left to the tap so
+ * that a row is offered exactly where pressing it will open a panel. The body
+ * has to be somebody's: an authored placement nobody has adopted is scenery
+ * shaped like a salesman, and the session would find no actor behind it.
+ */
+function talkOptions(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  self: ActorSnapshot,
+  bodies: Map<string, ActorSnapshot>,
+  conversation: Conversation | null,
+): InteractionOption[] {
+  const out: InteractionOption[] = [];
+  for (const actor of bodies.values()) {
+    const ref: ObjectRef = { x: actor.x, y: actor.y, z: actor.z, stackIndex: actor.stackIndex };
+    if (!canTalkFrom(map, tilesById, self, ref)) continue;
+    out.push({
+      id: `talk:${actor.id}`,
+      action: "talk",
+      label: LABELS.talk,
+      ref,
+      actorId: actor.id,
+      recipeIndex: null,
+      cooldown: null,
+      tileId: actor.tileId,
+      name: bodyNameFor({ actorId: actor.id, tileId: actor.tileId }, tilesById),
+      health: healthOf(actor),
+      active: conversation?.npcId === actor.id,
+    });
+  }
+  return out;
 }
 
 /**

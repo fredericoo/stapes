@@ -70,6 +70,7 @@ import {
   canAddStatusFrom,
   canConsumeFrom,
   canEquipFrom,
+  canTalkFrom,
   dropDestinationAt,
   canPickUpFrom,
   pickUpDestination,
@@ -259,10 +260,12 @@ import { findPath } from "./pathfinding";
 import { resolveBrain } from "../lib/brain";
 import { resolveDialog, type DialogEffectDef } from "../lib/dialog";
 import {
-  converse,
-  initialDialogMemory,
-  isTalking,
-  type DialogMemory,
+  backToRoot,
+  chooseOption,
+  openConversation,
+  type Conversation,
+  type PartnerView,
+  type TalkAction,
 } from "./dialogRuntime";
 import { carriedCount, hasRoomFor, planTrade } from "./trade";
 import { bodyNameFor } from "./displayName";
@@ -653,6 +656,13 @@ export type GameSnapshot = {
    */
   tags: readonly string[];
   /**
+   * Where the viewer is in a conversation, or null when no panel is open.
+   *
+   * Theirs alone, on exactly the terms {@link tags} is, and replaced wholesale
+   * so identity is the change signal. @see ./dialogRuntime
+   */
+  conversation: Conversation | null;
+  /**
    * Which resources the viewer may not work just yet — see `./extract`'s
    * `extractKey`, which is how each one is named.
    *
@@ -896,6 +906,15 @@ export interface PlaySession {
    * the tile's authored list — see `./transmute`.
    */
   transmute(ref: ObjectRef, recipe: number): boolean;
+  /**
+   * Talk to a body, press one of its buttons, go back, or close the panel.
+   *
+   * On the interface because a conversation is a per-viewer fact the panel
+   * drives, and the two implementations differ only in where the buttons are
+   * answered: the local session decides, the remote one asks and is told by
+   * the `conversation` message that follows. @see ./dialogRuntime
+   */
+  talk(action: TalkAction): boolean;
   /**
    * Take one pull out of a resource — mine a crystal, pick a bush.
    *
@@ -1160,12 +1179,16 @@ type ActorRuntime = {
    */
   brain: BrainMemory | null;
   /**
-   * Who this body is talking to and where in its dialog it is, or null for a
-   * body with no dialog block. Built on first use and never checkpointed, on
-   * the brain's terms and for the brain's reason: a conversation is a state of
-   * play, and a world coming back from a save starts every one afresh.
+   * Who this body is talking to and where in their dialog it is, or null.
+   *
+   * The *player's* state, not the NPC's — see `./dialogRuntime`'s
+   * `Conversation` — which is what lets any number of people talk to one
+   * salesman at once. Never checkpointed, on the brain memory's terms: a
+   * conversation is a state of play, and a world coming back from a save
+   * starts every one afresh. Ended by the session the tick its partner is out
+   * of talking reach.
    */
-  dialog: DialogMemory | null;
+  conversation: Conversation | null;
   /**
    * The cell this body was authored on, or null for one nobody authored.
    *
@@ -1448,6 +1471,7 @@ export class GameSession implements PlaySession {
    * it and the flush that sends it.
    */
   private readonly equipmentChanged = new Set<string>();
+  private readonly conversationChanged = new Set<string>();
   /** Actors whose tags have changed and whose owner has not been told yet. */
   private readonly tagsChanged = new Set<string>();
   /**
@@ -1894,7 +1918,7 @@ export class GameSession implements PlaySession {
       defensiveDecay: null,
       assailants: null,
       brain: null,
-      dialog: null,
+      conversation: null,
       home: residentHome(id),
       // Restored where a returning player had any, and null otherwise — null
       // still means "ask the tile", which is what a fresh body and every
@@ -2459,6 +2483,9 @@ export class GameSession implements PlaySession {
 
     // Before the bodies move, so a decision taken now starts its walk on this
     // tick rather than the next.
+    // Before the brains, so a partner who walked off this tick is gone by the
+    // time a `talking` condition asks.
+    this.tickConversations();
     this.tickBrains(tickMs);
 
     // After the brains, so a creature that decided to close the distance this
@@ -2580,9 +2607,6 @@ export class GameSession implements PlaySession {
 
     for (const actor of this.actors.values()) {
       if (!actor.resident) continue;
-      // The mouth before the mind, so a greeting heard this pass is a
-      // conversation the brain's `talking` condition can already see.
-      this.tickOneDialog(actor);
       this.tickOneBrain(actor, sounds);
     }
 
@@ -2616,61 +2640,173 @@ export class GameSession implements PlaySession {
   }
 
   /**
-   * Let a body answer what it heard, at the brain's cadence.
+   * Talk to a body, press one of its buttons, go back to the first ones, or
+   * close the panel — the player's side of a conversation.
    *
-   * Reads the same `pendingHeard` page the brain does and speaks through the
-   * same `recordSpeech`, so a line a dialog says is a bubble on exactly the
-   * terms a brain's `say` is — and, like a brain's, is never heard by another
-   * body. A tile with no dialog, or one whose dialog did not parse, is mute.
+   * Every verb re-asks what the client already checked, on the terms every
+   * other message is: reach for an `open`, and for a press that there is a
+   * conversation and a button at that position. A press on a stale panel —
+   * the def reloaded, the button gone — is refused rather than guessed at,
+   * and the client learns what is there from the next `conversation`.
+   *
+   * True when the conversation changed, which is what the wire sends on.
    */
-  private tickOneDialog(actor: ActorRuntime) {
-    const dialog = resolveDialog(this.defFor(actor));
-    if (!dialog) return;
+  talk(action: TalkAction, id: string = LOCAL_ACTOR_ID): boolean {
+    const actor = this.actors.get(id);
+    if (!actor) return false;
+    if (action.kind === "open") return this.openTalk(actor, action.ref);
+    if (action.kind === "close") return this.setConversation(actor, null);
 
-    const loc = this.locate(actor);
-    actor.dialog ??= initialDialogMemory();
-    const lines = converse(dialog, actor.dialog, BRAIN_TICK_MS, {
-      self: { x: loc.x, y: loc.y, z: loc.z },
-      sight: this.battlerOf(actor)?.sight ?? DEFAULT_BATTLER.sight,
-      positionOf: (id) => this.actorCell(id),
-      canSee: (at) => this.canSeeFrom(actor, loc, at),
-      nameOf: (id) => this.bodyName(id),
-      heard: () => this.pendingHeard,
-      carries: (id, tileId, count) => {
-        const partner = this.actors.get(id);
-        return (
-          partner != null &&
-          carriedCount(this.tilesById, partner.equipment, tileId) >= count
-        );
-      },
-      roomFor: (id, tileId, count) => {
-        const partner = this.actors.get(id);
-        return (
-          partner != null &&
-          hasRoomFor(this.tilesById, partner.equipment, { tileId, count }, mintItemId)
-        );
-      },
-      hasTag: (id, tag) => this.actors.get(id)?.tags.includes(tag) ?? false,
-      hasStatus: (id, statusId) =>
-        this.actors.get(id)?.statuses.some((s) => s.defId === statusId) ?? false,
-      attempt: (id, effects) => this.attemptDialogEffects(id, effects),
-    });
-    for (const line of lines) this.recordSpeech(actor, loc, line);
+    const current = actor.conversation;
+    if (!current) return false;
+    const dialog = this.dialogOf(current.npcId);
+    // The NPC is gone or has stopped being one that talks: the panel closes
+    // rather than answering out of a def that no longer exists.
+    if (!dialog) return this.setConversation(actor, null);
+
+    const view = this.partnerViewFor(actor);
+    const next =
+      action.kind === "back"
+        ? backToRoot(dialog, current, view)
+        : chooseOption(dialog, current, action.index, action.amount, view);
+    if (!next) return false;
+    return this.setConversation(actor, next);
+  }
+
+  /** Could this actor open a conversation with the body at this slot? */
+  canTalk(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
+    const actor = this.actors.get(id);
+    const loc = actor && this.tryLocate(actor);
+    if (!loc) return false;
+    return canTalkFrom(this.map, this.tilesById, loc, ref) && this.npcAt(ref) != null;
+  }
+
+  private openTalk(actor: ActorRuntime, ref: ObjectRef): boolean {
+    const loc = this.tryLocate(actor);
+    if (!loc || !canTalkFrom(this.map, this.tilesById, loc, ref)) return false;
+    const npc = this.npcAt(ref);
+    const dialog = npc && resolveDialog(this.defFor(npc));
+    if (!npc || !dialog) return false;
+    const view = this.partnerViewFor(actor);
+    const body = { id: npc.id, tileId: this.defFor(npc).id };
+    return this.setConversation(actor, openConversation(dialog, body, view));
   }
 
   /**
-   * Run a topic's effects on the partner, all or none.
+   * The body standing at this slot, if it is one the runtime drives.
+   *
+   * Read off the placement's owner rather than searched for, because a
+   * placement's owner *is* the actor's id — see `adoptResidents`.
+   */
+  private npcAt(ref: ObjectRef): ActorRuntime | null {
+    const placed = getStack(this.map, ref.x, ref.y, ref.z)[ref.stackIndex];
+    if (!placed?.owner) return null;
+    return this.actors.get(placed.owner) ?? null;
+  }
+
+  private dialogOf(npcId: string) {
+    const npc = this.actors.get(npcId);
+    return npc ? resolveDialog(this.defFor(npc)) : null;
+  }
+
+  /**
+   * Replace an actor's conversation and note the change for the wire.
+   *
+   * Replaced wholesale rather than mutated, on the kit's terms: the object
+   * goes out on a snapshot and identity is what tells whoever is drawing it
+   * that something moved. Closing an already closed one is not a change.
+   */
+  private setConversation(actor: ActorRuntime, next: Conversation | null): boolean {
+    if (actor.conversation === next) return false;
+    actor.conversation = next;
+    this.conversationChanged.add(actor.id);
+    return true;
+  }
+
+  /**
+   * End every conversation whose partner has walked out of talking reach, or
+   * whose NPC has gone.
+   *
+   * Every tick rather than on the brain's cadence, so a panel closes the
+   * moment the player has left rather than a few steps later — and silently,
+   * because walking away is its own goodbye.
+   */
+  private tickConversations() {
+    for (const actor of this.actors.values()) {
+      const current = actor.conversation;
+      if (!current) continue;
+      if (this.withinTalkReach(actor, current.npcId)) continue;
+      this.setConversation(actor, null);
+    }
+  }
+
+  private withinTalkReach(actor: ActorRuntime, npcId: string): boolean {
+    const npc = this.actors.get(npcId);
+    if (!npc) return false;
+    const mine = this.tryLocate(actor);
+    const theirs = this.tryLocate(npc);
+    if (!mine || !theirs) return false;
+    return canTalkFrom(this.map, this.tilesById, mine, theirs);
+  }
+
+  /** Is anybody talking to this body? What the brain's `talking` reads. */
+  private anyoneTalkingTo(npcId: string): boolean {
+    for (const actor of this.actors.values()) {
+      if (actor.conversation?.npcId === npcId) return true;
+    }
+    return false;
+  }
+
+  /** One actor's conversation, for the socket that is theirs. */
+  conversationOf(id: string): Conversation | null {
+    return this.actors.get(id)?.conversation ?? null;
+  }
+
+  /**
+   * Whose conversation has changed since last asked, and forget.
+   *
+   * Its own queue beside the kit's and the tags', on the same argument: the
+   * server sends each of these to one socket, and a conversation that
+   * changed is one whose owner needs the whole of it again.
+   */
+  drainConversationChanges(): string[] {
+    if (this.conversationChanged.size === 0) return [];
+    const changed = [...this.conversationChanged];
+    this.conversationChanged.clear();
+    return changed;
+  }
+
+  /**
+   * What a press may ask of this partner. Every answer is a rule that lives
+   * elsewhere — `./trade`, the tag list, the status list — asked here so the
+   * dialog step never holds a kit.
+   */
+  private partnerViewFor(partner: ActorRuntime): PartnerView {
+    return {
+      name: () => this.bodyName(partner.id),
+      carries: (tileId, count) =>
+        carriedCount(this.tilesById, partner.equipment, tileId) >= count,
+      roomFor: (tileId, count) =>
+        hasRoomFor(this.tilesById, partner.equipment, { tileId, count }, mintItemId),
+      hasTag: (tag) => partner.tags.includes(tag),
+      hasStatus: (statusId) => partner.statuses.some((s) => s.defId === statusId),
+      attempt: (effects) => this.attemptDialogEffects(partner.id, effects),
+    };
+  }
+
+  /**
+   * Run an option's effects on the partner, all or none.
    *
    * Planned in full before anything is written: every trade is worked out
    * against the kit the one before it leaves, and a status has to be one the
    * catalogue holds. Only then does the kit change, once, and the statuses and
-   * tags land beside it — so a topic that both takes payment and grants a
+   * tags land beside it — so an option that both takes payment and grants a
    * status cannot take the payment and fail the status.
    *
    * A status nobody authored refuses here where a potion's grant is skipped
-   * silently, because a drink still did something — it was spent — and a topic
-   * whose whole point was the status did nothing at all. Saying `else` is the
-   * honest reading.
+   * silently, because a drink still did something — it was spent — and an
+   * option whose whole point was the status did nothing at all. Saying `else`
+   * is the honest reading.
    */
   private attemptDialogEffects(
     actorId: string,
@@ -2744,7 +2880,7 @@ export class GameSession implements PlaySession {
       say: (text) => this.recordSpeech(actor, loc, text),
       noise: (text) => this.recordNoise(actor.id, loc, text),
       canSee: (at) => this.canSeeFrom(actor, loc, at),
-      talking: () => isTalking(actor.dialog),
+      talking: () => this.anyoneTalkingTo(actor.id),
       // A creature with no stat block minds its own floor, which is what every
       // creature did before this was authorable.
       sight: this.battlerOf(actor)?.sight ?? DEFAULT_BATTLER.sight,
@@ -6683,6 +6819,7 @@ export class GameSession implements PlaySession {
       attacking: self.attacking,
       equipment: self.equipment,
       tags: self.tags,
+      conversation: self.conversation,
       extractCooling: this.extractCoolingOf(self.id),
       // Seeded by the line above rather than here: `actorSnapshots` asks every
       // body for its stats, which is what fills a fresh player's experience in

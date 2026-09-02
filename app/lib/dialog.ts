@@ -4,62 +4,50 @@ import { resolveContainer } from "./item";
 import type { TileDef } from "./types";
 
 /**
- * A conversation an NPC can hold, authored as a tree of topics.
+ * A conversation an NPC can hold, authored as a tree of options.
  *
- * ## Why this is not more brain
+ * ## The shape of a talk
  *
- * The brain already hears (`heard`), remembers who spoke (`speaker`, `bind`)
- * and talks (`say`), and the `shopkeeper` in `data/tiles.json` holds a whole
- * hi → talking → bye conversation on nothing else. What it cannot do well is
- * *scale*: every reply is a state, every state needs an `after` transition
- * back, and every `heard` needs the same `from: is partner` filter copied onto
- * it. Ten topics is thirty rows in a first-match-wins table that also drives
- * the legs. The brain stays the body's mind; this is its mouth.
+ * A player presses *Talk* on a body, a panel opens with the NPC's `opening`
+ * line and a button per root option, and every press answers with that
+ * option's `say` and — when it has `then` — a new set of buttons. *Back*
+ * returns to the root; *Close* ends it. Nothing is typed: what an NPC can be
+ * asked is what is on the buttons, which is the whole of its discoverability
+ * and the whole of why it works on a phone.
  *
- * ## Three rules
+ * This replaced typed keywords. The brain already hears (`heard`) and talks
+ * (`say`) and the `shopkeeper` holds a hi/bye conversation on nothing else,
+ * but a keyword an NPC answers to is a keyword a player has to guess, and a
+ * chat bar is the worst control a thumb has. The tree, the conditions and the
+ * effects are exactly what they were; only the way a branch is chosen moved
+ * from the ear to the finger.
  *
- * - **Topics are an ordered list, and the first match wins** — the brain's own
- *   rule, for the same reason: order is the only way to say "potion" beats
- *   "buy" when both are in the sentence, and an editor can make order loud.
- * - **A keyword matches as a whole word**, case-insensitively. The brain's
- *   `heard` is a substring on purpose — a cat answering "ps" inside "psps" —
- *   but a shop answering "potion" inside "emotion" is a shop that mishears.
- * - **One partner at a time.** Whoever greets first is answered until they say
- *   bye, fall silent for `idleMs`, or leave earshot; anybody else greeting in
- *   the meantime hears the `busy` line. This is the arrangement the shopkeeper
- *   already keeps, and the one a queue at a counter actually has.
+ * ## Many at once
  *
- * ## Shape
+ * A conversation is the *player's* state, not the NPC's, so any number of
+ * people can be talking to one salesman and none of them sees the others'
+ * panels. What the NPC knows is only whether anybody is — the brain condition
+ * `talking` — so it can stand still for a sale.
  *
- * `greet` opens a conversation and `bye` closes one; both are a line with the
- * words that trigger it. Between them, `topics`: each is the words it answers
- * to, the line it says, and optionally `then` — the topics that are live *right
- * after* that reply, so "Deal?" can be followed by "yes" without "yes" meaning
- * anything the rest of the time. A `then` branch is one exchange deep: the next
- * thing said that matches nothing in it falls through to the root topics.
+ * ## Options that ask and do
  *
- * `{partner}` in any line is the name of whoever the NPC is talking to, filled
- * on the terms a brain's `{slot}` is — see `../game/dialogRuntime`.
+ * An option may carry an `if` (asked of the partner: what they carry, whether
+ * there is room, a tag, a status), a `do` (a trade, a status, a tag — all or
+ * none), and an `else` said instead when either refuses. An `amount` puts a
+ * stepper beside the button and multiplies every count in the option's trade
+ * and conditions, which is how "sell 5 bottles" is one press.
  *
- * Parsed with valibot and memoised on def identity, on the same trust model as
- * every other interaction block: a malformed dialog is a mute NPC, never a
- * crashed world.
+ * Parsed with valibot and memoised on def identity, on the same trust model
+ * as every other interaction block: a malformed dialog is a body with no Talk
+ * row, never a crashed world.
  */
 
-/** A line and the words that trigger it — what `greet` and `bye` are. */
-export type DialogLine = {
-  /** Whole words, lowercased on the way in. At least one. */
-  hear: string[];
-  say: string;
-};
-
 /**
- * A question about the partner, asked before a topic answers.
+ * A question about the partner, asked before an option answers.
  *
  * All about the partner's kit and record, and nothing about time or distance:
- * those are the brain's, and ending a conversation on distance is the block's
- * own `cells`. Composed with `and`/`or`/`not` by `./conditions`, which was
- * written expecting a second vocabulary — this is it.
+ * reach is the Talk row's own rule. Composed with `and`/`or`/`not` by
+ * `./conditions`, which was written expecting a second vocabulary — this is it.
  */
 export type DialogConditionDef =
   /** At least `count` of a tile across everything carried, piles summed. */
@@ -77,10 +65,10 @@ export type DialogCondition = ConditionNode<DialogConditionDef>;
 export type TradeSide = { tileId: string; count: number };
 
 /**
- * Something a topic does when it answers.
+ * Something an option does when it answers.
  *
  * Every one of these can be refused — a trade short on either side, a status
- * nobody authored — and a refusal reads exactly as the topic's `if` failing:
+ * nobody authored — and a refusal reads exactly as the option's `if` failing:
  * the `else` line is said and nothing changes. A list is a transaction: all of
  * it runs or none of it does.
  */
@@ -99,109 +87,70 @@ export type DialogEffectDef =
   /** Mark the partner, on a reward tag's terms, so `has_tag` can ask later. */
   | { effect: "tag"; tag: string };
 
-export type DialogTopic = DialogLine & {
+/**
+ * A stepper beside the button, and what it multiplies.
+ *
+ * Every `count` in the option's trade and in its `carries` / `room_for`
+ * conditions is multiplied by the chosen amount, so one authored price covers
+ * "one bottle" and "all nine". The bounds are the author's: a shop that buys
+ * at most a dozen at a time says so here.
+ */
+export type DialogAmount = { min: number; max: number };
+
+export type DialogOption = {
+  /** The button. Short — it is a button. */
+  label: string;
   /** Asked of the partner first. Failing it says `else` instead. */
   if?: DialogCondition;
   /** Run when `if` holds, all or nothing. Refused says `else` instead. */
   do?: DialogEffectDef[];
+  /** What the NPC says when this is pressed and allowed. `{partner}` is filled. */
+  say: string;
   /** Said instead of `say` when `if` failed or `do` was refused. */
   else?: string;
-  /** Topics live only right after this reply. Absent or empty means none. */
-  then?: DialogTopic[];
+  /** A quantity to choose before pressing. @see DialogAmount */
+  amount?: DialogAmount;
+  /** The buttons shown after this reply, instead of the root's. */
+  then?: DialogOption[];
 };
 
 export type DialogDef = {
-  /** Earshot, in plan steps — the same meaning the brain's `heard.cells` has. */
-  cells: number;
-  /** Also demand a clear line of sight, like `heard.los`. */
-  los?: boolean;
-  /** The partner saying nothing for this long ends the conversation, silently. */
-  idleMs: number;
-  greet: DialogLine;
-  /** Said once to somebody else who greets mid-conversation. Absent is silence. */
-  busy?: string;
-  bye: DialogLine;
-  topics: DialogTopic[];
+  /** What the NPC says when the panel opens. `{partner}` is filled. */
+  opening: string;
+  options: DialogOption[];
 };
 
 /**
  * How deep `then` may nest before the editor says something.
  *
  * A warning rather than a refusal: nothing breaks at four, but a conversation
- * four replies deep before it falls back to the root is one a player cannot
- * hold in their head, and the outline that authored it will not fit on a
- * screen either.
+ * four presses deep before *Back* is one a player cannot hold in their head,
+ * and the outline that authored it will not fit on a screen either.
  */
 export const MAX_DIALOG_DEPTH = 3;
 
+/**
+ * The most of anything one press may move.
+ *
+ * A sanity bound on the amount stepper's ceiling, on the terms `MAX_PILE` is:
+ * two digits is more bottles than anybody is carrying, and a typo'd third
+ * reads as malformed rather than as a shop that buys a thousand.
+ */
+export const MAX_DIALOG_AMOUNT = 99;
+
 /** What a fresh dialog block says, so the editor has something to show. */
 export const DEFAULT_DIALOG: DialogDef = {
-  cells: 4,
-  los: true,
-  idleMs: 30_000,
-  greet: { hear: ["hi", "hello"], say: "Hello, {partner}." },
-  busy: "One moment, I'm with {partner}.",
-  bye: { hear: ["bye"], say: "See you, {partner}." },
-  topics: [],
+  opening: "Hello, {partner}.",
+  options: [],
 };
-
-/**
- * A keyword as it is compared: lowercase, trimmed, one space between words.
- *
- * Applied by the schema so a hand-authored "Potion " and a typed "potion" are
- * one keyword, and applied again by the matcher to the utterance so both sides
- * of the comparison have been through the same hands.
- */
-export function normalizeKeyword(raw: string): string {
-  return raw.trim().toLowerCase().replace(/\s+/g, " ");
-}
-
-const WORD_CHAR = /[a-z0-9]/;
-
-/**
- * Does this utterance contain this keyword as a whole word?
- *
- * Whole-word rather than substring — see the module note — and by scanning
- * rather than a regex, so a keyword is never a pattern: an author who writes
- * "c++" or "1.5" gets those characters and not a syntax error at match time.
- * A keyword may be several words; "empty bottle" matches as the phrase.
- */
-export function hearsWord(utterance: string, keyword: string): boolean {
-  const haystack = normalizeKeyword(utterance);
-  if (keyword.length === 0) return false;
-  let from = 0;
-  for (;;) {
-    const at = haystack.indexOf(keyword, from);
-    if (at === -1) return false;
-    const before = at === 0 ? "" : haystack[at - 1]!;
-    const after = haystack[at + keyword.length] ?? "";
-    if (!WORD_CHAR.test(before) && !WORD_CHAR.test(after)) return true;
-    from = at + 1;
-  }
-}
-
-/** Does this utterance contain any of these keywords as a whole word? */
-export function hearsAny(utterance: string, keywords: readonly string[]): boolean {
-  return keywords.some((keyword) => hearsWord(utterance, keyword));
-}
-
-const keywordSchema = v.pipe(
-  v.string(),
-  v.transform(normalizeKeyword),
-  v.minLength(1),
-);
-
-const hearSchema = v.pipe(v.array(keywordSchema), v.minLength(1));
-
-const lineSchema = v.pipe(v.string(), v.minLength(1));
-
-const dialogLineSchema = v.object({ hear: hearSchema, say: lineSchema });
 
 const tileId = v.pipe(v.string(), v.trim(), v.minLength(1));
 
 // At least one: a condition about zero of something is always true and never
 // what anybody typed.
 const count = v.pipe(v.number(), v.integer(), v.minValue(1));
+
+const line = v.pipe(v.string(), v.minLength(1));
 
 const conditionLeafSchema = v.variant("cond", [
   v.object({ cond: v.literal("carries"), tileId, count }),
@@ -221,32 +170,36 @@ const effectSchema = v.variant("effect", [
       take: v.array(tradeSideSchema),
       give: v.array(tradeSideSchema),
     }),
-    // A trade of nothing for nothing is a topic that should not have a trade.
+    // A trade of nothing for nothing is an option that should not have a trade.
     v.check((raw) => raw.take.length + raw.give.length > 0, "a trade moves something"),
   ),
   v.object({ effect: v.literal("add_status"), statusId: tileId }),
   v.object({ effect: v.literal("tag"), tag: v.pipe(v.string(), v.trim(), v.minLength(1)) }),
 ]);
 
-// Recursive through `then`, the way `./conditions` is through `rules`: a topic
-// holds topics, and valibot needs to be told the type it will arrive at.
-const topicSchema: v.GenericSchema<unknown, DialogTopic> = v.object({
-  hear: hearSchema,
-  say: lineSchema,
+const amountSchema = v.pipe(
+  v.object({
+    min: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_DIALOG_AMOUNT)),
+    max: v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_DIALOG_AMOUNT)),
+  }),
+  v.check((raw) => raw.max >= raw.min, "an amount's ceiling is at least its floor"),
+);
+
+// Recursive through `then`, the way `./conditions` is through `rules`: an
+// option holds options, and valibot needs to be told the type it will arrive at.
+const optionSchema: v.GenericSchema<unknown, DialogOption> = v.object({
+  label: v.pipe(v.string(), v.trim(), v.minLength(1)),
   if: v.optional(ifSchema),
   do: v.optional(v.array(effectSchema)),
-  else: v.optional(lineSchema),
-  then: v.optional(v.array(v.lazy(() => topicSchema))),
+  say: line,
+  else: v.optional(line),
+  amount: v.optional(amountSchema),
+  then: v.optional(v.array(v.lazy(() => optionSchema))),
 });
 
 const dialogSchema = v.object({
-  cells: v.pipe(v.number(), v.integer(), v.minValue(0)),
-  los: v.optional(v.boolean()),
-  idleMs: v.pipe(v.number(), v.integer(), v.minValue(0)),
-  greet: dialogLineSchema,
-  busy: v.optional(lineSchema),
-  bye: dialogLineSchema,
-  topics: v.array(topicSchema),
+  opening: line,
+  options: v.array(optionSchema),
 });
 
 const dialogCache = new WeakMap<TileDef, DialogDef | null>();
@@ -254,8 +207,8 @@ const dialogCache = new WeakMap<TileDef, DialogDef | null>();
 /**
  * Parsed dialog for a tile def, or null when it has none or it is malformed.
  *
- * Memoised on def identity like every other resolver, because the session asks
- * this for every resident on every brain tick.
+ * Memoised on def identity like every other resolver, because the option list
+ * asks this of every body in view on every frame.
  */
 export function resolveDialog(def: TileDef): DialogDef | null {
   const cached = dialogCache.get(def);
@@ -266,6 +219,56 @@ export function resolveDialog(def: TileDef): DialogDef | null {
   const dialog = parsed?.success ? parsed.output : null;
   dialogCache.set(def, dialog);
   return dialog;
+}
+
+/**
+ * The option a path names, or null when the def has none there.
+ *
+ * A path is indices from the root, one per `then` descended — see
+ * `../game/dialogRuntime`'s `Conversation`. Shared by the runtime, which
+ * follows it, and the panel, which draws the buttons at its end.
+ */
+export function optionAt(
+  dialog: DialogDef,
+  path: readonly number[],
+): DialogOption | null {
+  let options: readonly DialogOption[] = dialog.options;
+  let found: DialogOption | null = null;
+  for (const index of path) {
+    found = options[index] ?? null;
+    if (!found) return null;
+    options = found.then ?? [];
+  }
+  return found;
+}
+
+/**
+ * The buttons on offer at a path: the reply's own `then`, or the root's when
+ * there is none.
+ *
+ * The root rather than nothing, so an option with no follow-ups lands the
+ * player back at the top with the reply still on screen — the ordinary shape
+ * of "ask about the recipe, then ask about something else".
+ */
+export function optionsAt(
+  dialog: DialogDef,
+  path: readonly number[],
+): readonly DialogOption[] {
+  const current = path.length === 0 ? null : optionAt(dialog, path);
+  return current?.then?.length ? current.then : dialog.options;
+}
+
+/**
+ * The amount an option may be pressed with, or one where it has no stepper.
+ *
+ * Clamped rather than refused, because the client's stepper and the server's
+ * check are two readings of one authored range and a press one over the edge
+ * is a race, not an attack.
+ */
+export function clampAmount(option: DialogOption, requested: number | undefined): number {
+  if (!option.amount) return 1;
+  const wanted = Math.round(requested ?? option.amount.min);
+  return Math.min(option.amount.max, Math.max(option.amount.min, wanted));
 }
 
 /** One thing wrong with a dialog, at the level the editor should say it. */
@@ -299,44 +302,73 @@ export function validateDialog(
   const error = (message: string) => issues.push({ severity: "error", message });
   const warn = (message: string) => issues.push({ severity: "warn", message });
 
-  checkLine(dialog.greet, "greeting", error);
-  checkLine(dialog.bye, "farewell", error);
-  if (dialog.busy !== undefined && dialog.busy.trim() === "") {
-    error("The busy line is blank; leave it out to say nothing");
-  }
-  if (dialog.cells === 0) warn("Earshot is 0 cells, so only somebody standing on this body is heard");
-  if (dialog.topics.length === 0) warn("No topics: this body greets and says goodbye, and nothing between");
+  if (dialog.opening.trim() === "") error("The opening line is blank");
+  if (dialog.options.length === 0) warn("No options: this body opens its mouth and offers nothing to press");
 
-  const shared = dialog.greet.hear.filter((word) => dialog.bye.hear.includes(word));
-  for (const word of shared) {
-    warn(`"${word}" both greets and says goodbye, so saying it starts and ends the conversation`);
-  }
-
-  checkTopics(dialog.topics, "topic", 1, error, warn, catalogue);
+  checkOptions(dialog.options, "option", 1, error, warn, catalogue);
   return issues;
 }
 
 /**
- * What a topic's condition and effects point at, and whether they can.
+ * Walk a level of options, then each one's `then`.
  *
- * A topic that asks a question and has no `else` is the one warning here worth
- * explaining: a failed `if` then says nothing, and nothing is indistinguishable
- * from the word not having been heard.
+ * A duplicate label is reported at the level it is on: two "Yes" buttons under
+ * one reply are two buttons nobody can tell apart, where "Yes" under two
+ * different replies is two perfectly good answers to two different questions.
  */
-function checkTopicRules(
-  topic: DialogTopic,
+function checkOptions(
+  options: readonly DialogOption[],
+  where: string,
+  depth: number,
+  error: (message: string) => void,
+  warn: (message: string) => void,
+  catalogue?: DialogCatalogue,
+) {
+  const seen = new Set<string>();
+  options.forEach((option, index) => {
+    const name = `${where} ${index + 1}`;
+    if (option.label.trim() === "") error(`${name} has no label`);
+    if (option.say.trim() === "") error(`${name} says nothing`);
+    const label = option.label.trim().toLowerCase();
+    if (seen.has(label)) warn(`"${option.label}" appears twice among the same buttons`);
+    seen.add(label);
+    checkOptionRules(option, name, error, warn, catalogue);
+    if (!option.then?.length) return;
+    if (depth >= MAX_DIALOG_DEPTH) {
+      warn(`${name} nests replies ${depth + 1} deep; ${MAX_DIALOG_DEPTH} is as far as a conversation can follow`);
+    }
+    checkOptions(option.then, `${name} reply`, depth + 1, error, warn, catalogue);
+  });
+}
+
+/**
+ * What an option's condition, effects and amount point at, and whether they
+ * can.
+ *
+ * An option that asks a question and has no `else` is the one warning here
+ * worth explaining: a failed `if` then says nothing, and a button that does
+ * nothing when pressed reads as broken.
+ */
+function checkOptionRules(
+  option: DialogOption,
   name: string,
   error: (message: string) => void,
   warn: (message: string) => void,
   catalogue?: DialogCatalogue,
 ) {
-  if ((topic.if || topic.do?.length) && !topic.else) {
+  if ((option.if || option.do?.length) && !option.else) {
     warn(`${name} can refuse but has no else line, so a refusal says nothing`);
   }
-  if (topic.else !== undefined && topic.else.trim() === "") {
+  if (option.else !== undefined && option.else.trim() === "") {
     error(`${name} has a blank else line; leave it out to say nothing`);
   }
-  for (const effect of topic.do ?? []) {
+  if (option.amount && option.amount.max < option.amount.min) {
+    error(`${name} has an amount whose ceiling is below its floor`);
+  }
+  if (option.amount && countedIn(option) === 0) {
+    warn(`${name} has an amount stepper but nothing counted for it to multiply`);
+  }
+  for (const effect of option.do ?? []) {
     if (effect.effect !== "trade") continue;
     if (effect.take.length + effect.give.length === 0) {
       error(`${name} trades nothing for nothing`);
@@ -349,78 +381,45 @@ function checkTopicRules(
     }
   }
   if (!catalogue) return;
-  for (const id of tileIdsOf(topic)) {
+  for (const id of tileIdsOf(option)) {
     if (!catalogue.tilesById[id]) error(`${name} names a tile "${id}" the catalogue does not hold`);
   }
-  for (const id of statusIdsOf(topic)) {
+  for (const id of statusIdsOf(option)) {
     if (!catalogue.statusIds.has(id)) error(`${name} names a status "${id}" nobody authored`);
   }
 }
 
-function tileIdsOf(topic: DialogTopic): string[] {
+/** How many counted things — trade sides and counted conditions — an option has. */
+function countedIn(option: DialogOption): number {
+  let counted = 0;
+  for (const leaf of option.if ? conditionLeaves(option.if) : []) {
+    if (leaf.cond === "carries" || leaf.cond === "room_for") counted++;
+  }
+  for (const effect of option.do ?? []) {
+    if (effect.effect === "trade") counted += effect.take.length + effect.give.length;
+  }
+  return counted;
+}
+
+function tileIdsOf(option: DialogOption): string[] {
   const ids: string[] = [];
-  for (const leaf of topic.if ? conditionLeaves(topic.if) : []) {
+  for (const leaf of option.if ? conditionLeaves(option.if) : []) {
     if (leaf.cond === "carries" || leaf.cond === "room_for") ids.push(leaf.tileId);
   }
-  for (const effect of topic.do ?? []) {
+  for (const effect of option.do ?? []) {
     if (effect.effect !== "trade") continue;
     for (const side of [...effect.take, ...effect.give]) ids.push(side.tileId);
   }
   return ids;
 }
 
-function statusIdsOf(topic: DialogTopic): string[] {
+function statusIdsOf(option: DialogOption): string[] {
   const ids: string[] = [];
-  for (const leaf of topic.if ? conditionLeaves(topic.if) : []) {
+  for (const leaf of option.if ? conditionLeaves(option.if) : []) {
     if (leaf.cond === "has_status") ids.push(leaf.statusId);
   }
-  for (const effect of topic.do ?? []) {
+  for (const effect of option.do ?? []) {
     if (effect.effect === "add_status") ids.push(effect.statusId);
   }
   return ids;
-}
-
-function checkLine(
-  line: DialogLine,
-  what: string,
-  error: (message: string) => void,
-) {
-  if (line.hear.length === 0 || line.hear.every((word) => word.trim() === "")) {
-    error(`The ${what} listens for no word`);
-  }
-  if (line.say.trim() === "") error(`The ${what} says nothing`);
-}
-
-/**
- * Walk a level of topics, then each one's `then`.
- *
- * A duplicate is reported at the level it is on: "yes" twice under one reply is
- * a second row that can never fire, where "yes" under two different replies is
- * two perfectly good answers to two different questions.
- */
-function checkTopics(
-  topics: readonly DialogTopic[],
-  where: string,
-  depth: number,
-  error: (message: string) => void,
-  warn: (message: string) => void,
-  catalogue?: DialogCatalogue,
-) {
-  const seen = new Set<string>();
-  topics.forEach((topic, index) => {
-    const name = `${where} ${index + 1}`;
-    checkLine(topic, name, error);
-    checkTopicRules(topic, name, error, warn, catalogue);
-    for (const word of topic.hear) {
-      if (seen.has(word)) {
-        warn(`"${word}" is answered by an earlier ${where}, so ${name} never hears it`);
-      }
-      seen.add(word);
-    }
-    if (!topic.then?.length) return;
-    if (depth >= MAX_DIALOG_DEPTH) {
-      warn(`${name} nests replies ${depth + 1} deep; ${MAX_DIALOG_DEPTH} is as far as a conversation can follow`);
-    }
-    checkTopics(topic.then, `${name} reply`, depth + 1, error, warn, catalogue);
-  });
 }

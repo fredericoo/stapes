@@ -1,265 +1,219 @@
 import { evaluateCondition } from "../lib/conditions";
 import {
-  hearsAny,
+  clampAmount,
+  optionsAt,
   type DialogCondition,
   type DialogConditionDef,
   type DialogDef,
   type DialogEffectDef,
-  type DialogTopic,
+  type DialogOption,
 } from "../lib/dialog";
-import type { BattlerDef } from "../lib/battler";
-import type { Coord } from "../lib/types";
-import { NOBODY, within, type Utterance } from "./brainRuntime";
+import { NOBODY } from "./brainRuntime";
 
 /**
- * One NPC holding one conversation, a tick at a time.
+ * One player talking to one NPC, a press at a time.
  *
- * The sibling of `stepBrain` and shaped like it on purpose: a pure step over
- * (def, memory, what was heard) that mutates the memory and hands back what to
- * say, so a test can drive a whole conversation without a session and the
- * editor can run the same function against a typed line. Nothing here knows
- * how a word reached the ear or how a line reaches a bubble.
+ * Pure functions over (def, where the conversation is, what was pressed), so a
+ * test can drive a whole talk without a session and the editor can run the
+ * same functions against a pretend kit. Nothing here knows how a press reached
+ * the server or how a line reaches a panel.
  *
- * ## Who is heard
- *
- * The same `pendingHeard` page the brain reads, seen on exactly one tick and
- * then gone — see `GameSession.hear`. Every utterance is first checked for
- * earshot on the dialog's own `cells` and `los`, so somebody shouting "hi"
- * from across the map is not a partner and does not even earn a busy line.
- *
- * ## What ends it
- *
- * `bye`, said by the partner, with its line. Silence for `idleMs`, or the
- * partner leaving earshot, with none: the NPC simply stops waiting, and the
- * next greeting from anybody starts fresh. Both are checked before this tick's
- * words are read, so a partner who walked off and shouted from too far away
- * is a stranger by the time the word arrives.
+ * The state is the *player's* — see `Conversation` — which is what lets any
+ * number of people talk to one salesman at once. Whether they are still near
+ * enough to is the session's question, asked every tick; this module only
+ * answers what a press does.
  */
 
-export type DialogMemory = {
-  /** Whoever this body is talking to, or null between conversations. */
-  partnerId: string | null;
+/**
+ * What a player may do to a conversation: open one, press a button, go back
+ * to the first buttons, or close the panel. The `talk` message's payload — see
+ * `../net/protocol` — and `GameSession.talk`'s argument, so the wire and the
+ * local session take the same verb.
+ */
+export type TalkAction =
+  | { kind: "open"; ref: { x: number; y: number; z: number; stackIndex: number } }
+  | { kind: "choose"; index: number; amount?: number }
+  | { kind: "back" }
+  | { kind: "close" };
+
+/**
+ * Where one player is in one NPC's dialog.
+ *
+ * `path` is indices from the root, one per `then` descended, so a def reloaded
+ * under a running conversation resolves to *an* option or to nothing rather
+ * than to a stale object. `line` is what the NPC last said, `{partner}` filled,
+ * because whether it was the `say` or the `else` is decided where the kit is,
+ * and the panel must not have to guess.
+ */
+export type Conversation = {
+  npcId: string;
   /**
-   * Indices from the root topics to the reply whose `then` is live, or empty
-   * when only the root topics are. A path rather than a topic reference so a
-   * def reloaded under the memory still resolves to *a* topic or to nothing.
+   * The NPC's tile, so the panel can draw the body and read its dialog off the
+   * catalogue it already holds — the buttons are never on the wire.
    */
+  tileId: string;
   path: number[];
-  /** Milliseconds since the partner last said anything. */
-  msSilent: number;
+  line: string;
 };
 
 /**
- * The narrow view of the world a conversation needs — `BrainContext` with the
- * legs cut off. The same members, on the same terms, so the session builds
- * both from one place.
+ * What a press may ask of the partner — `BrainContext` with the legs cut off,
+ * and the partner already chosen. The session builds one per conversation.
  */
-export type DialogView = {
-  self: Coord;
-  sight: BattlerDef["sight"];
-  positionOf(actorId: string): Coord | null;
-  canSee(at: Coord): boolean;
-  nameOf(actorId: string): string | null;
-  heard(): readonly Utterance[];
-  /** Does this body carry at least so many of a tile? @see ./trade */
-  carries(actorId: string, tileId: string, count: number): boolean;
-  /** Is there room on this body for so many of a tile? @see ./trade */
-  roomFor(actorId: string, tileId: string, count: number): boolean;
-  hasTag(actorId: string, tag: string): boolean;
-  hasStatus(actorId: string, statusId: string): boolean;
+export type PartnerView = {
+  /** The partner's name, or null once they are gone. */
+  name(): string | null;
+  /** Does the partner carry at least so many of a tile? @see ./trade */
+  carries(tileId: string, count: number): boolean;
+  /** Is there room on the partner for so many of a tile? @see ./trade */
+  roomFor(tileId: string, count: number): boolean;
+  hasTag(tag: string): boolean;
+  hasStatus(statusId: string): boolean;
   /**
-   * Run these effects on this body, all or none. False when any of them
-   * cannot be — and then nothing has changed, which is what lets a topic's
+   * Run these effects on the partner, all or none. False when any of them
+   * cannot be — and then nothing has changed, which is what lets an option's
    * `else` be said honestly.
    */
-  attempt(actorId: string, effects: readonly DialogEffectDef[]): boolean;
+  attempt(effects: readonly DialogEffectDef[]): boolean;
 };
 
-export function initialDialogMemory(): DialogMemory {
-  return { partnerId: null, path: [], msSilent: 0 };
-}
-
-/** Is this body mid-conversation? What the brain's `talking` condition reads. */
-export function isTalking(memory: DialogMemory | null): boolean {
-  return memory?.partnerId != null;
-}
-
-/**
- * Advance a conversation by one tick, answering what was heard.
- *
- * Returns the lines to say, in order, with `{partner}` filled in. The memory is
- * mutated in place, exactly as `stepBrain` mutates its own.
- */
-export function converse(
+/** Talk pressed: the opening line, and the root buttons. */
+export function openConversation(
   dialog: DialogDef,
-  memory: DialogMemory,
-  tickMs: number,
-  view: DialogView,
-): string[] {
-  const says: string[] = [];
-  const say = (line: string) => says.push(fillPartner(line, memory, view));
+  npc: { id: string; tileId: string },
+  view: PartnerView,
+): Conversation {
+  return {
+    npcId: npc.id,
+    tileId: npc.tileId,
+    path: [],
+    line: fillPartner(dialog.opening, view),
+  };
+}
 
-  memory.msSilent += tickMs;
-  if (memory.partnerId !== null && !stillEngaged(dialog, memory, view)) {
-    endConversation(memory);
-  }
-
-  // Once per pass, however many strangers spoke: a busy line per word would be
-  // a shopkeeper shouting over a crowd.
-  let busySaid = false;
-
-  for (const utterance of view.heard()) {
-    if (!inEarshot(dialog, utterance.speakerId, view)) continue;
-
-    if (memory.partnerId === null) {
-      if (!hearsAny(utterance.text, dialog.greet.hear)) continue;
-      memory.partnerId = utterance.speakerId;
-      memory.path = [];
-      memory.msSilent = 0;
-      say(dialog.greet.say);
-      continue;
-    }
-
-    if (utterance.speakerId !== memory.partnerId) {
-      if (busySaid || !dialog.busy) continue;
-      if (!hearsAny(utterance.text, dialog.greet.hear)) continue;
-      busySaid = true;
-      say(dialog.busy);
-      continue;
-    }
-
-    memory.msSilent = 0;
-    if (hearsAny(utterance.text, dialog.bye.hear)) {
-      say(dialog.bye.say);
-      endConversation(memory);
-      continue;
-    }
-
-    const found = liveTopics(dialog, memory.path).find(({ topic }) =>
-      hearsAny(utterance.text, topic.hear),
-    );
-    if (!found) continue;
-    if (!answers(found.topic, memory.partnerId, view)) {
-      // Refused, and the follow-ups stay live: "yes" again once the shards are
-      // in hand is the same question, not a new one.
-      if (found.topic.else) say(found.topic.else);
-      continue;
-    }
-    memory.path = found.topic.then?.length ? found.path : [];
-    say(found.topic.say);
-  }
-
-  return says;
+/** Back pressed: the opening line again, and the root buttons. */
+export function backToRoot(
+  dialog: DialogDef,
+  conversation: Conversation,
+  view: PartnerView,
+): Conversation {
+  return { ...conversation, path: [], line: fillPartner(dialog.opening, view) };
 }
 
 /**
- * May this topic answer — does its `if` hold, and did its `do` run?
+ * A button pressed, by its position among the buttons on offer.
  *
- * The condition is asked first and the effects only then, so a topic that
+ * Null for a position nothing is at — a stale panel, or a client making it up
+ * — and the caller leaves the conversation as it was. Otherwise the option's
+ * `if` is asked, its `do` is run, and the reply is its `say`; a refusal of
+ * either leaves the path where it was with the `else` line, because "yes"
+ * again once the shards are in hand is the same question, not a new one.
+ */
+export function chooseOption(
+  dialog: DialogDef,
+  conversation: Conversation,
+  index: number,
+  requestedAmount: number | undefined,
+  view: PartnerView,
+): Conversation | null {
+  const option = optionsAt(dialog, conversation.path)[index];
+  if (!option) return null;
+
+  const amount = clampAmount(option, requestedAmount);
+  const scaled = scaledBy(option, amount);
+  if (!answers(scaled, view)) {
+    const line = option.else ? fillPartner(option.else, view) : conversation.line;
+    return { ...conversation, line };
+  }
+
+  // The path descends only where there is somewhere to descend to. A reply
+  // with no follow-ups lands back at the root, buttons and all, so the panel
+  // never shows a reply with nothing under it.
+  const pressed = pathTo(dialog, conversation.path, index);
+  const path = option.then?.length ? pressed : [];
+  return { ...conversation, path, line: fillPartner(option.say, view) };
+}
+
+/**
+ * Where a press at `index` among the buttons at `path` leads.
+ *
+ * The buttons at a path are either that reply's `then` or the root's, and the
+ * two lead to different places: a root button pressed while a reply is on
+ * screen starts over from the root.
+ */
+function pathTo(
+  dialog: DialogDef,
+  path: readonly number[],
+  index: number,
+): number[] {
+  const shownFromRoot = optionsAt(dialog, path) === dialog.options;
+  return shownFromRoot ? [index] : [...path, index];
+}
+
+/**
+ * The option with every count multiplied by the chosen amount.
+ *
+ * Trade sides and the counted conditions alike, so "sell 5" asks for five
+ * bottles, takes five, and gives five times the price. Uncounted parts — a
+ * tag, a status — are what they are however many.
+ */
+function scaledBy(option: DialogOption, amount: number): DialogOption {
+  if (amount === 1) return option;
+  const times = (side: { tileId: string; count: number }) => ({
+    tileId: side.tileId,
+    count: side.count * amount,
+  });
+  return {
+    ...option,
+    if: option.if ? scaleCondition(option.if, amount) : undefined,
+    do: option.do?.map((effect) =>
+      effect.effect === "trade"
+        ? { ...effect, take: effect.take.map(times), give: effect.give.map(times) }
+        : effect,
+    ),
+  };
+}
+
+function scaleCondition(condition: DialogCondition, amount: number): DialogCondition {
+  if ("rules" in condition) {
+    return { ...condition, rules: condition.rules.map((rule) => scaleCondition(rule, amount)) };
+  }
+  if (condition.cond === "carries" || condition.cond === "room_for") {
+    return { ...condition, count: condition.count * amount };
+  }
+  return condition;
+}
+
+/**
+ * May this option answer — does its `if` hold, and did its `do` run?
+ *
+ * The condition is asked first and the effects only then, so an option that
  * asks `carries` and then trades never runs a trade it already knows is short.
  * Both refusals read the same to the caller because they are the same to the
  * partner: nothing happened, and the `else` line says why.
  */
-function answers(
-  topic: DialogTopic,
-  partnerId: string,
-  view: DialogView,
-): boolean {
-  if (topic.if && !holds(topic.if, partnerId, view)) return false;
-  if (topic.do?.length && !view.attempt(partnerId, topic.do)) return false;
+function answers(option: DialogOption, view: PartnerView): boolean {
+  if (option.if && !holds(option.if, view)) return false;
+  if (option.do?.length && !view.attempt(option.do)) return false;
   return true;
 }
 
-function holds(
-  condition: DialogCondition,
-  partnerId: string,
-  view: DialogView,
-): boolean {
-  return evaluateCondition(condition, (leaf) => leafHolds(leaf, partnerId, view));
+function holds(condition: DialogCondition, view: PartnerView): boolean {
+  return evaluateCondition(condition, (leaf) => leafHolds(leaf, view));
 }
 
 /** Every leaf is a question about the partner and nothing else. */
-function leafHolds(
-  leaf: DialogConditionDef,
-  partnerId: string,
-  view: DialogView,
-): boolean {
+function leafHolds(leaf: DialogConditionDef, view: PartnerView): boolean {
   switch (leaf.cond) {
     case "carries":
-      return view.carries(partnerId, leaf.tileId, leaf.count);
+      return view.carries(leaf.tileId, leaf.count);
     case "room_for":
-      return view.roomFor(partnerId, leaf.tileId, leaf.count);
+      return view.roomFor(leaf.tileId, leaf.count);
     case "has_tag":
-      return view.hasTag(partnerId, leaf.tag);
+      return view.hasTag(leaf.tag);
     case "has_status":
-      return view.hasStatus(partnerId, leaf.statusId);
+      return view.hasStatus(leaf.statusId);
   }
-}
-
-/**
- * The topics an utterance may match right now, in the order they are tried.
- *
- * The live reply's `then` first, then the root — so "yes" answers the question
- * just asked before it answers anything else, and a root topic is always
- * reachable however deep the conversation has gone.
- */
-function liveTopics(
-  dialog: DialogDef,
-  path: readonly number[],
-): Array<{ topic: DialogTopic; path: number[] }> {
-  const root = dialog.topics.map((topic, index) => ({ topic, path: [index] }));
-  const current = topicAt(dialog, path);
-  if (!current?.then?.length) return root;
-  const children = current.then.map((topic, index) => ({
-    topic,
-    path: [...path, index],
-  }));
-  return [...children, ...root];
-}
-
-/** The topic a path names, or null when the def no longer has one there. */
-function topicAt(
-  dialog: DialogDef,
-  path: readonly number[],
-): DialogTopic | null {
-  let topics: readonly DialogTopic[] = dialog.topics;
-  let found: DialogTopic | null = null;
-  for (const index of path) {
-    found = topics[index] ?? null;
-    if (!found) return null;
-    topics = found.then ?? [];
-  }
-  return found;
-}
-
-function stillEngaged(
-  dialog: DialogDef,
-  memory: DialogMemory,
-  view: DialogView,
-): boolean {
-  if (memory.msSilent >= dialog.idleMs) return false;
-  return inEarshot(dialog, memory.partnerId!, view);
-}
-
-function endConversation(memory: DialogMemory) {
-  memory.partnerId = null;
-  memory.path = [];
-  memory.msSilent = 0;
-}
-
-/**
- * Is this body near enough — and, if the dialog asks, in view — to be talked
- * to? Measured on the brain's own terms, sight levels included.
- */
-function inEarshot(
-  dialog: DialogDef,
-  actorId: string,
-  view: DialogView,
-): boolean {
-  const at = view.positionOf(actorId);
-  if (at === null) return false;
-  if (!within(view.self, at, dialog.cells, view.sight)) return false;
-  return !dialog.los || view.canSee(at);
 }
 
 const PARTNER_PLACEHOLDER = /\{partner\}/g;
@@ -272,13 +226,7 @@ const PARTNER_PLACEHOLDER = /\{partner\}/g;
  * word for a subject that has gone missing, so a partner who logged out
  * mid-sentence reads the same way here as there.
  */
-function fillPartner(
-  line: string,
-  memory: DialogMemory,
-  view: DialogView,
-): string {
+export function fillPartner(line: string, view: PartnerView): string {
   if (!line.includes("{")) return line;
-  const id = memory.partnerId;
-  const name = (id === null ? null : view.nameOf(id)) ?? NOBODY;
-  return line.replace(PARTNER_PLACEHOLDER, name);
+  return line.replace(PARTNER_PLACEHOLDER, view.name() ?? NOBODY);
 }
