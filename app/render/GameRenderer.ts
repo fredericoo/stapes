@@ -2169,7 +2169,7 @@ export class GameRenderer {
           // catch; excluded as a number because the remainder changes every
           // frame, and a key that carried it would hand React a new list thirty
           // times a second to redraw a bar that CSS is already animating.
-          `${o.id}/${o.label}/${o.active}/${o.health?.hp ?? ""}/${o.cooldown ? "wait" : ""}`,
+          `${o.id}/${o.label}/${o.active}/${o.health?.hp ?? ""}/${o.blocked?.kind ?? ""}`,
       )
       .join("|");
     if (key === this.interactionsKey) return;

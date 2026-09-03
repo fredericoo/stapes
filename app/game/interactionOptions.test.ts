@@ -1278,7 +1278,7 @@ describe("groupInteractionOptions", () => {
       ref: { x: 1, y: 0, z: 0, stackIndex: 1 },
       actorId: null,
       recipeIndex: null,
-      cooldown: null,
+      blocked: null,
       tileId: "crate",
       name: "Crate",
       health: null,

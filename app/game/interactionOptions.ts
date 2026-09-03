@@ -37,8 +37,9 @@ import { pileTally } from "../lib/piles";
 import { bodyNameFor } from "./displayName";
 import type { Equipment } from "./equipment";
 import {
-  canExtractFrom,
   extractCooldownAt,
+  extractFits,
+  extractOfferedAt,
   type CoolingResources,
   type ExtractCooling,
 } from "./extract";
@@ -147,17 +148,17 @@ export type InteractionOption = {
    */
   active: boolean;
   /**
-   * How long before this row can be pressed, and how long the wait was — or
-   * null for the rows that can be pressed now, which is nearly all of them.
+   * Why this row cannot be pressed, or null for the rows that can be, which is
+   * nearly all of them.
    *
-   * **The one thing in the list that says "not yet" rather than "not here".**
+   * **The one thing in the list that says "not you" rather than "not here".**
    * Every other refusal takes a row away: a chest you have emptied, a recipe you
    * have nothing to spend on, a crate out of reach. That is right when the
    * answer is about the *world*, because a missing row and a thing that is not
    * worth walking up to are the same fact. It is wrong when the answer is about
-   * a clock, because the player did nothing and the row vanished — so a resource
-   * on a wait keeps its row, greys it, and runs a bar under it. See
-   * `./extract`'s {@link ExtractCooling}.
+   * the player, because then the thing is still worth walking up to and the row
+   * vanished anyway — so those keep their row, grey it, and say what is in the
+   * way. See {@link OptionBlock}.
    *
    * **A row carrying one is not actionable**, and that is the whole of what it
    * means here: {@link topInteractionAt} passes over it, so a tap on the world
@@ -166,11 +167,32 @@ export type InteractionOption = {
    * too — this is presentation and never permission.
    *
    * Only an extract has one today. Nothing about the field is extract-shaped
-   * though, and the next mechanism that makes a player wait rather than telling
-   * them no should use it rather than inventing a second way to be grey.
+   * though, and the next mechanism that tells a player "not you, not now"
+   * should add an arm here rather than inventing a second way to be grey.
    */
-  cooldown: ExtractCooling | null;
+  blocked: OptionBlock | null;
 };
+
+/**
+ * Why a row is offered and still cannot be pressed.
+ *
+ * Two arms, and the split is what each one gives the player to do about it: a
+ * wait resolves on its own and is drawn as a bar running out, where a refusal
+ * stands until they go and fix it and has to be said in words. Nothing here
+ * grants anything — see {@link InteractionOption.blocked}.
+ */
+export type OptionBlock =
+  /** A clock this player owes this placement. See `./extract`'s `ExtractCooling`. */
+  | { kind: "wait"; cooling: ExtractCooling }
+  /**
+   * Nothing they are carrying could hold what comes out of it.
+   *
+   * A bag with no square left in it, or no bag at all — one arm for both,
+   * because they are one fact to the player: the bush is pickable and they are
+   * not in a state to pick it. Which of the two it is, they can see by looking
+   * at what they are wearing.
+   */
+  | { kind: "noRoom" };
 
 const LABELS: Record<InteractionAction, string> = {
   target: "Target",
@@ -341,13 +363,13 @@ export function topInteractionAt(
   const key = refKey(ref);
   for (const option of options) {
     if (refKey(option.ref) !== key) continue;
-    // A row on a wait is passed over rather than named, and that is what keeps
+    // A blocked row is passed over rather than named, and that is what keeps
     // the pointer and the list telling one story: the list draws the row greyed
-    // with its bar running, and the world under the cursor offers nothing —
+    // with its reason on it, and the world under the cursor offers nothing —
     // which is honest, because a click there would do nothing. Falling through
     // is deliberate too: a resource that is also shovable is still shovable
-    // while you wait for it. See {@link InteractionOption.cooldown}.
-    if (option.cooldown) continue;
+    // while you wait for it. See {@link InteractionOption.blocked}.
+    if (option.blocked) continue;
     if (!best || ACTION_ORDER[option.action] < ACTION_ORDER[best.action]) {
       best = option;
     }
@@ -533,7 +555,7 @@ export function applyInteraction(
   // the server — a spell bar's discipline, for its reason: a greyed row that
   // quietly sent anyway would be asking for something the far end is going to
   // throw away, and the grey is a promise that pressing it does nothing.
-  if (option.cooldown) return;
+  if (option.blocked) return;
   if (option.action === "target") {
     session.setTarget(option.active ? null : option.actorId);
     return;
@@ -725,7 +747,7 @@ function slotOptions(
     action: InteractionAction,
     label: string,
     active = false,
-    cooldown: ExtractCooling | null = null,
+    blocked: OptionBlock | null = null,
   ) => {
     out.push({
       id: `${action}:${refKey(ref)}`,
@@ -734,7 +756,7 @@ function slotOptions(
       ref,
       actorId: null,
       recipeIndex: null,
-      cooldown,
+      blocked,
       tileId: placed.tileId,
       name,
       // A shove at a creature reports its health for the same reason the fight
@@ -753,10 +775,12 @@ function slotOptions(
   if (action) {
     // The one row that can arrive already disabled. Read here rather than
     // inside `objectAction`, because it is not part of deciding *which* verb a
-    // tap names — the verb is still "Pick", it simply cannot be pressed yet.
-    const cooldown =
-      action === "extract" ? extractCooldownAt(map, cooling, ref) : null;
-    add(action, objectActionLabel(action, tilesById[placed.tileId]), false, cooldown);
+    // tap names — the verb is still "Pick", it simply cannot be pressed.
+    const blocked =
+      action === "extract"
+        ? extractBlock(map, tilesById, self, equipment, ref, cooling)
+        : null;
+    add(action, objectActionLabel(action, tilesById[placed.tileId]), false, blocked);
   }
 
   // Beside a tap that would arm you, the row that merely puts the thing away:
@@ -803,7 +827,7 @@ function slotOptions(
       ref,
       actorId: null,
       recipeIndex: index,
-      cooldown: null,
+      blocked: null,
       tileId: recipe.fromTileId,
       name: input?.name ?? recipe.fromTileId,
       health: null,
@@ -822,6 +846,31 @@ function slotOptions(
   }
 
   return out;
+}
+
+/**
+ * What is standing between this player and a pull, or null when nothing is.
+ *
+ * **The refusal is ranked above the wait**, which is the only ordering that
+ * says something useful: a wait runs out on its own, so a row that showed the
+ * bar while the bag was full would count down to a verb that still does not
+ * work. Whichever is shown, the other is still true and still checked — this
+ * decides what the row *says*, and `./extract`'s `canWorkNow` decides what may
+ * happen.
+ */
+function extractBlock(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  self: ActorSnapshot,
+  equipment: Equipment,
+  ref: ObjectRef,
+  cooling: CoolingResources,
+): OptionBlock | null {
+  const extract = extractOfferedAt(map, tilesById, self, ref);
+  if (!extract) return null;
+  if (!extractFits(extract, tilesById, equipment)) return { kind: "noRoom" };
+  const wait = extractCooldownAt(map, cooling, ref);
+  return wait ? { kind: "wait", cooling: wait } : null;
 }
 
 function objectAction(
@@ -843,10 +892,11 @@ function objectAction(
   }
   if (canSwitchFrom(map, tilesById, self, ref)) return "switch";
   if (canAddStatusFrom(map, tilesById, self, ref)) return "addStatus";
-  // The wait is deliberately not asked here. A resource somebody is counting
-  // down on is still the row a tap on it names — it simply cannot be pressed
-  // yet, which is {@link InteractionOption.cooldown}'s job to say.
-  if (canExtractFrom(map, tilesById, self, equipment, ref)) return "extract";
+  // Neither the wait nor the room is asked here. A resource somebody is
+  // counting down on — or has nowhere to put — is still the row a tap on it
+  // names; it simply cannot be pressed, which is
+  // {@link InteractionOption.blocked}'s job to say.
+  if (extractOfferedAt(map, tilesById, self, ref)) return "extract";
   if (equipSlot) return "equip";
   if (canPickUpFrom(map, tilesById, self, ref, equipment)) return "pickUp";
   if (canPushFrom(map, tilesById, self, ref)) return "push";
@@ -923,7 +973,7 @@ function talkOptions(
       ref,
       actorId: actor.id,
       recipeIndex: null,
-      cooldown: null,
+      blocked: null,
       tileId: actor.tileId,
       name: bodyNameFor({ actorId: actor.id, tileId: actor.tileId }, tilesById),
       health: healthOf(actor),
@@ -972,7 +1022,7 @@ function targetOptions(
       ref,
       actorId: actor.id,
       recipeIndex: null,
-      cooldown: null,
+      blocked: null,
       tileId: actor.tileId,
       name: bodyNameFor(
         { actorId: actor.id, tileId: actor.tileId },
