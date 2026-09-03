@@ -15,11 +15,6 @@ import {
   N,
   NE,
   E,
-  SE,
-  S,
-  SW,
-  W,
-  NW,
 } from "./autotile";
 import type { MapFile, TileDef } from "./types";
 import { coordKey, levelKey } from "./types";
@@ -99,7 +94,9 @@ describe("neighbor matching", () => {
       { x: 0, y: 0, tileId: "grass" },
       { x: 0, y: -1, tileId: "dirt" },
     ]);
-    expect(neighborMask(map, 0, 0, 0, { id: "grass", connectsTo: ["dirt"] })).toBe(N);
+    expect(
+      neighborMask(map, 0, 0, 0, { id: "grass", connectsTo: ["dirt"] }),
+    ).toBe(N);
   });
 
   it("sees a connectsTo neighbour anywhere in the stack", () => {
@@ -108,7 +105,9 @@ describe("neighbor matching", () => {
       { x: 0, y: -1, tileId: "water" },
       { x: 0, y: -1, tileId: "dirt" },
     ]);
-    expect(neighborMask(map, 0, 0, 0, { id: "grass", connectsTo: ["dirt"] })).toBe(N);
+    expect(
+      neighborMask(map, 0, 0, 0, { id: "grass", connectsTo: ["dirt"] }),
+    ).toBe(N);
   });
 
   it("does not connect back the other way", () => {
@@ -124,7 +123,9 @@ describe("neighbor matching", () => {
       { x: 0, y: 0, tileId: "grass" },
       { x: 0, y: -1, tileId: "stone" },
     ]);
-    expect(neighborMask(map, 0, 0, 0, { id: "grass", connectsTo: ["dirt"] })).toBe(0);
+    expect(
+      neighborMask(map, 0, 0, 0, { id: "grass", connectsTo: ["dirt"] }),
+    ).toBe(0);
   });
 });
 
@@ -154,11 +155,15 @@ describe("pickAutotileSprite", () => {
   };
 
   it("returns the exact slice when present", () => {
-    expect(pickAutotileSprite(tile, 5)?.frames[0].light?.color).toBe("#050505");
+    expect(pickAutotileSprite(tile, 5)?.frames[0]!.light?.color).toBe(
+      "#050505",
+    );
   });
 
   it("falls back to slice 0 when missing", () => {
-    expect(pickAutotileSprite(tile, 12)?.frames[0].light?.color).toBe("#000000");
+    expect(pickAutotileSprite(tile, 12)?.frames[0]!.light?.color).toBe(
+      "#000000",
+    );
   });
 });
 
@@ -185,7 +190,9 @@ describe("wooden floor inner", () => {
 
   /** The cells an author would close: the ring touching the opening. */
   const RING = [-1, 0, 1]
-    .flatMap((dy) => [-1, 0, 1].map((dx) => ({ x: HOLE.x + dx, y: HOLE.y + dy })))
+    .flatMap((dy) =>
+      [-1, 0, 1].map((dx) => ({ x: HOLE.x + dx, y: HOLE.y + dy })),
+    )
     .filter((c) => !(c.x === HOLE.x && c.y === HOLE.y));
 
   /** A field of floor with one cell cut out, inner painted only on the ring. */
@@ -203,8 +210,10 @@ describe("wooden floor inner", () => {
     return mapWith(cells);
   }
 
-  const rectOf = (tile: TileDef, ctx: Parameters<typeof resolveTileSprite>[1]) =>
-    resolveTileSprite(tile, ctx)!.frames[0]!.sprite.rect;
+  const rectOf = (
+    tile: TileDef,
+    ctx: Parameters<typeof resolveTileSprite>[1],
+  ) => resolveTileSprite(tile, ctx)!.frames[0]!.sprite.rect;
 
   it("connects to the floor it sits on", () => {
     expect(inner.connectsTo).toContain("wooden-floor");

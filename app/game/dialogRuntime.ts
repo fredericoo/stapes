@@ -35,7 +35,10 @@ import { NOBODY } from "./brainRuntime";
  * local session take the same verb.
  */
 export type TalkAction =
-  | { kind: "open"; ref: { x: number; y: number; z: number; stackIndex: number } }
+  | {
+      kind: "open";
+      ref: { x: number; y: number; z: number; stackIndex: number };
+    }
   | { kind: "choose"; index: number }
   | { kind: "trade"; amount: number }
   | { kind: "cancel" }
@@ -113,7 +116,11 @@ export function openConversation(
   npc: { id: string; tileId: string },
   view: PartnerView,
 ): Conversation {
-  return run(dialog, { npcId: npc.id, tileId: npc.tileId, pc: [0], transcript: [] }, view);
+  return run(
+    dialog,
+    { npcId: npc.id, tileId: npc.tileId, pc: [0], transcript: [] },
+    view,
+  );
 }
 
 /** The command the conversation is waiting on, or null once it has ended. */
@@ -122,7 +129,8 @@ export function waitingOn(
   conversation: Conversation,
 ): Extract<DialogCommand, { kind: "choices" }> | DialogTrade | null {
   const command = commandAt(dialog, conversation.pc);
-  if (command?.kind === "choices" || command?.kind === "request_trade") return command;
+  if (command?.kind === "choices" || command?.kind === "request_trade")
+    return command;
   return null;
 }
 
@@ -143,8 +151,15 @@ export function chooseOption(
   if (waiting?.kind !== "choices") return null;
   const option = waiting.options[index];
   if (!option) return null;
-  const said = [...conversation.transcript, { who: "you" as const, text: option.label }];
-  return run(dialog, { ...conversation, pc: [...conversation.pc, index, 0], transcript: said }, view);
+  const said = [
+    ...conversation.transcript,
+    { who: "you" as const, text: option.label },
+  ];
+  return run(
+    dialog,
+    { ...conversation, pc: [...conversation.pc, index, 0], transcript: said },
+    view,
+  );
 }
 
 /**
@@ -169,14 +184,28 @@ export function acceptTrade(
     return { ...conversation, transcript: [...conversation.transcript, note] };
   }
   const note = { who: "note" as const, text: `Traded ×${amount}.` };
-  const at = { ...conversation, pc: [...conversation.pc, 0, 0], transcript: [...conversation.transcript, note] };
+  const at = {
+    ...conversation,
+    pc: [...conversation.pc, 0, 0],
+    transcript: [...conversation.transcript, note],
+  };
   return run(dialog, at, view);
 }
 
 /** A trade's sides for so many units, as the one effect it comes to. */
-export function scaledTrade(trade: DialogTrade, amount: number): DialogEffectDef {
-  const times = (side: TradeSide) => ({ tileId: side.tileId, count: side.count * amount });
-  return { effect: "trade", take: trade.take.map(times), give: trade.give.map(times) };
+export function scaledTrade(
+  trade: DialogTrade,
+  amount: number,
+): DialogEffectDef {
+  const times = (side: TradeSide) => ({
+    tileId: side.tileId,
+    count: side.count * amount,
+  });
+  return {
+    effect: "trade",
+    take: trade.take.map(times),
+    give: trade.give.map(times),
+  };
 }
 
 /** Cancel pressed on a trade: its cancel branch runs. */
@@ -187,8 +216,15 @@ export function cancelTrade(
 ): Conversation | null {
   const waiting = waitingOn(dialog, conversation);
   if (waiting?.kind !== "request_trade") return null;
-  const said = [...conversation.transcript, { who: "you" as const, text: CANCEL_LABEL }];
-  return run(dialog, { ...conversation, pc: [...conversation.pc, 1, 0], transcript: said }, view);
+  const said = [
+    ...conversation.transcript,
+    { who: "you" as const, text: CANCEL_LABEL },
+  ];
+  return run(
+    dialog,
+    { ...conversation, pc: [...conversation.pc, 1, 0], transcript: said },
+    view,
+  );
 }
 
 /**
@@ -199,7 +235,11 @@ export function cancelTrade(
  * be — a status nobody authored — are skipped rather than stopping the
  * script, because a line the author wrote after them is still worth saying.
  */
-function run(dialog: DialogDef, at: Conversation, view: PartnerView): Conversation {
+function run(
+  dialog: DialogDef,
+  at: Conversation,
+  view: PartnerView,
+): Conversation {
   let pc = at.pc;
   const transcript = [...at.transcript];
   for (let steps = 0; steps < MAX_STEPS_PER_PRESS; steps++) {
@@ -242,10 +282,14 @@ function advance(pc: CommandPath): number[] {
 }
 
 function effectOf(
-  command: Extract<DialogCommand, { kind: "add_status" | "remove_status" | "tag" }>,
+  command: Extract<
+    DialogCommand,
+    { kind: "add_status" | "remove_status" | "tag" }
+  >,
 ): DialogEffectDef {
   if (command.kind === "tag") return { effect: "tag", tag: command.tag };
-  if (command.kind === "add_status") return { effect: "add_status", statusId: command.statusId };
+  if (command.kind === "add_status")
+    return { effect: "add_status", statusId: command.statusId };
   return { effect: "remove_status", statusId: command.statusId };
 }
 

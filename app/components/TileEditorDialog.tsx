@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { WALK_DURATION_MS } from "../game/constants";
 import type {
   AutotileSlice,
@@ -55,7 +55,20 @@ import {
 import { validateBrain, type BrainDef } from "../lib/brain";
 import { validateDialog, type DialogDef } from "../lib/dialog";
 import { tilesByIdFromList } from "../lib/validation";
-import { Button, Dialog, Input, Segmented, Select, TabPanel, Tabs } from "../ui";
+import {
+  Button,
+  Dialog,
+  Input,
+  Segmented,
+  Select,
+  TabPanel,
+  Tabs,
+} from "../ui";
+
+// Hoisted so the default is one value rather than a new one per render. An
+// inline `{}` or `[]` in a destructuring default is a fresh identity every
+// time, which is a changed prop to everything memoised below it.
+const NO_STATUS_DEFS: Record<string, StatusDef> = {};
 
 function emptyFrame(tilesetId: string): Frame {
   const rect = { x: 0, y: 0, w: 1, h: 1 };
@@ -96,7 +109,9 @@ function blankTile(tilesets: TilesetDef[]): TileDef {
 
 function expandClimbFrom(tile: TileDef): NonNullable<TileDef["climbFrom"]> {
   // Four cardinals however wide the art is. @see Octant
-  const keys: VariantKey[] = isDirectional(tile) ? [...DIRECTIONS] : ["default"];
+  const keys: VariantKey[] = isDirectional(tile)
+    ? [...DIRECTIONS]
+    : ["default"];
   const out: NonNullable<TileDef["climbFrom"]> = {};
   for (const key of keys) {
     out[key] = resolveClimbFrom(tile, key);
@@ -182,10 +197,7 @@ function idleSprites(draft: TileDef): StateSprites {
 }
 
 /** Every sprite a {@link StateSprites} holds, on this tile's own axis. */
-function stateSpriteList(
-  draft: TileDef,
-  from: StateSprites,
-): TileSprite[] {
+function stateSpriteList(draft: TileDef, from: StateSprites): TileSprite[] {
   if (draft.type === "simple") return from.sprite ? [from.sprite] : [];
   if (isDirectional(draft)) {
     return facingKeysFor(draft)
@@ -226,17 +238,26 @@ function footprintMismatch(
   override: StateSprites,
 ): string | null {
   const idle = idleSprites(draft);
-  const check = (label: string, a: TileSprite | undefined, b: TileSprite | undefined) => {
+  const check = (
+    label: string,
+    a: TileSprite | undefined,
+    b: TileSprite | undefined,
+  ) => {
     const want = footprintOf(a);
     const got = footprintOf(b);
     if (want == null || got == null || want === got) return null;
     return `${state} ${label}: sprite is ${got} but idle is ${want} — a state must draw at idle's size and base`;
   };
 
-  if (draft.type === "simple") return check("sprite", idle.sprite, override.sprite);
+  if (draft.type === "simple")
+    return check("sprite", idle.sprite, override.sprite);
   if (isDirectional(draft)) {
     for (const d of facingKeysFor(draft)) {
-      const err = check(d.toUpperCase(), idle.sprites?.[d], override.sprites?.[d]);
+      const err = check(
+        d.toUpperCase(),
+        idle.sprites?.[d],
+        override.sprites?.[d],
+      );
       if (err) return err;
     }
     return null;
@@ -351,7 +372,7 @@ export function TileEditorDialog({
   tile,
   tiles,
   tilesets,
-  statusDefs = {},
+  statusDefs = NO_STATUS_DEFS,
   isNew,
   onSave,
   onDelete,
@@ -366,18 +387,6 @@ export function TileEditorDialog({
   const [frameIndex, setFrameIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    const next = withLightingDefaults(tile ?? blankTile(tilesets));
-    setDraft(next);
-    setTab(TAB_TILE);
-    setDir("n");
-    setSlice(0);
-    setState("idle");
-    setFrameIndex(0);
-    setError(null);
-  }, [open, tile, tilesets]);
-
   const sprite = currentSprite(draft, state, dir, slice);
   const frames = sprite?.frames ?? [];
   const frame = frames[frameIndex] ?? frames[0];
@@ -386,7 +395,9 @@ export function TileEditorDialog({
       ? Boolean(spriteHolder(draft, state).slices?.[slice])
       : true;
   const tileset =
-    tilesets.find((t) => t.id === frame?.sprite.tilesetId) ?? tilesets[0] ?? null;
+    tilesets.find((t) => t.id === frame?.sprite.tilesetId) ??
+    tilesets[0] ??
+    null;
 
   const setSprite = (next: TileSprite) => {
     setDraft((d) => setCurrentSprite(d, state, dir, slice, next));
@@ -533,7 +544,12 @@ export function TileEditorDialog({
   // Whether the Interactive tab has anything, brain aside — its own tab now.
   const i = draft.interactions;
   const hasNonBrainInteraction = Boolean(
-    i?.push || i?.switch || i?.decay || i?.pressurePlate || i?.emit || i?.receive,
+    i?.push ||
+    i?.switch ||
+    i?.decay ||
+    i?.pressurePlate ||
+    i?.emit ||
+    i?.receive,
   );
 
   // A tile faces one of eight ways in its art and is *walked into* from one of
@@ -588,7 +604,9 @@ export function TileEditorDialog({
         tilesById: tilesByIdFromList(tiles),
         statusIds: new Set(Object.keys(statusDefs)),
       };
-      const fatal = validateDialog(dialog, catalogue).find((i) => i.severity === "error");
+      const fatal = validateDialog(dialog, catalogue).find(
+        (i) => i.severity === "error",
+      );
       if (fatal) {
         setError(`Dialog: ${fatal.message}`);
         return;
@@ -661,7 +679,9 @@ export function TileEditorDialog({
       Record<VariantKey, Record<Direction, boolean>>
     > = {};
     // Four cardinals however wide the art is — climbing is a four-way question.
-    const keys: VariantKey[] = isDirectional(draft) ? [...DIRECTIONS] : ["default"];
+    const keys: VariantKey[] = isDirectional(draft)
+      ? [...DIRECTIONS]
+      : ["default"];
     for (const key of keys) {
       climbByVariant[key] = resolveClimbFrom(draft, key);
     }
@@ -727,7 +747,9 @@ export function TileEditorDialog({
 
   const climbPad = (
     <div className="flex items-center gap-3 pt-1">
-      <span className="text-xs font-bold uppercase text-muted">Climb up from</span>
+      <span className="text-xs font-bold uppercase text-muted">
+        Climb up from
+      </span>
       <div
         className="grid w-fit grid-cols-3 gap-1"
         role="group"
@@ -935,7 +957,9 @@ export function TileEditorDialog({
       <div className="mt-3 grid gap-3 lg:grid-cols-[1fr_180px]">
         <div className="flex flex-col gap-2">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold uppercase text-muted">Tileset</span>
+            <span className="text-xs font-bold uppercase text-muted">
+              Tileset
+            </span>
             <Select
               value={tileset?.id ?? null}
               onValueChange={(id) => {
@@ -959,7 +983,9 @@ export function TileEditorDialog({
           />
         </div>
         <div className="flex flex-col items-center gap-2">
-          <span className="text-xs font-bold uppercase text-muted">Preview</span>
+          <span className="text-xs font-bold uppercase text-muted">
+            Preview
+          </span>
           <TilePreview
             tile={draft}
             tilesets={tilesets}
@@ -1063,9 +1089,9 @@ export function TileEditorDialog({
 
           <TabPanel value={TAB_DIALOG} className="flex flex-col gap-3">
             <p className="text-[11px] leading-snug text-muted">
-              What this body does when somebody presses <strong>Talk</strong> — a
-              script of commands run in order: say a line, offer choices, ask for
-              a trade, jump back to a label. Authoring one makes the tile an{" "}
+              What this body does when somebody presses <strong>Talk</strong> —
+              a script of commands run in order: say a line, offer choices, ask
+              for a trade, jump back to a label. Authoring one makes the tile an{" "}
               <strong>Actor</strong>; a malformed dialog leaves it mute.
             </p>
             <DialogEditor
@@ -1100,271 +1126,275 @@ export function TileEditorDialog({
           </TabPanel>
 
           <TabPanel value={TAB_TILE} className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-end gap-3">
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="font-bold uppercase text-muted">Id</span>
-            <Input
-              value={draft.id}
-              disabled={!isNew}
-              onChange={(e) => setDraft({ ...draft, id: e.target.value })}
-              placeholder="grass"
-            />
-          </label>
-          <label className="flex flex-col gap-1 text-xs">
-            <span className="font-bold uppercase text-muted">Name</span>
-            <Input
-              value={draft.name}
-              onChange={(e) => setDraft({ ...draft, name: e.target.value })}
-            />
-          </label>
-          <div className="flex flex-col gap-1 text-xs">
-            <span className="font-bold uppercase text-muted">Height</span>
-            <Segmented<TileHeight>
-              value={draft.height}
-              onChange={(height) => setDraft({ ...draft, height })}
-              options={[
-                { value: 0, label: "0 flat" },
-                { value: 1, label: "1 seat" },
-                { value: 2, label: "2 half" },
-                { value: 3, label: "3 body" },
-                { value: 4, label: "4 full" },
-              ]}
-              size="sm"
-            />
-          </div>
-          <div className="flex flex-col gap-1 text-xs">
-            <span className="font-bold uppercase text-muted">Type</span>
-            <Segmented<TileType>
-              value={draft.type}
-              onChange={changeType}
-              options={[
-                { value: "simple", label: "Simple" },
-                { value: "directional", label: "4-way" },
-                { value: "directional8", label: "8-way" },
-                { value: "autotile", label: "Autotile" },
-              ]}
-              size="sm"
-            />
-          </div>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={draft.lightPassing ?? false}
-              onChange={(e) =>
-                setDraft({ ...draft, lightPassing: e.target.checked })
-              }
-              className="hard-checkbox"
-            />
-            Passes light
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={draft.intangible ?? false}
-              onChange={(e) =>
-                setDraft({ ...draft, intangible: e.target.checked })
-              }
-              className="hard-checkbox"
-            />
-            Intangible
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={draft.affectedByGravity ?? false}
-              onChange={(e) =>
-                setDraft({ ...draft, affectedByGravity: e.target.checked })
-              }
-              className="hard-checkbox"
-            />
-            Affected by gravity
-          </label>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={draft.walkable !== false}
-              onChange={(e) =>
-                setDraft({ ...draft, walkable: e.target.checked })
-              }
-              className="hard-checkbox"
-            />
-            Walkable
-          </label>
-          <label
-            className="flex items-center gap-2 text-sm"
-            title={
-              impliedByBrain
-                ? "A brain makes this an actor — set on the Interactive tab."
-                : "Every placement of this tile comes alive as its own actor when the world loads."
-            }
-          >
-            <input
-              type="checkbox"
-              // A brain already makes it an actor, so the box reads on and locks
-              // rather than pretending the flag is what decides.
-              checked={isActor}
-              disabled={impliedByBrain}
-              onChange={(e) => setDraft({ ...draft, actor: e.target.checked })}
-              className="hard-checkbox"
-            />
-            Actor{impliedByBrain ? " — from brain" : ""}
-          </label>
-        </div>
-
-        {isActor ? (
-          <label className="flex items-center gap-2 text-sm">
-            Step duration
-            <input
-              type="number"
-              min={1}
-              step={10}
-              // Blank means "the player's pace", which is a different thing from
-              // zero and has to survive a round trip through the field.
-              value={draft.walkDurationMs ?? ""}
-              placeholder={String(WALK_DURATION_MS)}
-              onChange={(e) =>
-                setDraft({
-                  ...draft,
-                  walkDurationMs:
-                    e.target.value === "" ? undefined : Number(e.target.value),
-                })
-              }
-              className="w-24"
-            />
-            <span className="text-xs text-ink/60">
-              ms per cell — larger is slower
-            </span>
-          </label>
-        ) : null}
-
-        {draft.type === "simple" ? climbPad : null}
-
-        {statePicker}
-
-        {draft.type === "simple" ? (
-          frameEditor
-        ) : isDirectional(draft) ? (
-          <Tabs
-            value={dir}
-            onValueChange={(v) => {
-              setDir(v as Octant);
-              setFrameIndex(0);
-            }}
-            items={dirTabs}
-          >
-            {climbPad}
-            {frameEditor}
-          </Tabs>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {climbPad}
-            <div className="flex flex-col gap-2">
-              <div className="flex flex-col gap-0.5">
-                <span className="text-xs font-bold uppercase text-muted">
-                  Autotile slices (47)
-                </span>
-                <p className="text-[11px] leading-snug text-muted">
-                  Each icon is a neighborhood: dark green = this tile, light
-                  green = matching neighbors. Rendering picks the slice from
-                  nearby tiles that count as this one — its own id, plus
-                  anything under Connects to. Sparse — only define the shapes
-                  you need (missing falls back to isolated).
-                </p>
-              </div>
-              <div
-                className="grid w-fit gap-1"
-                style={{ gridTemplateColumns: "repeat(8, minmax(0, 1fr))" }}
-                role="listbox"
-                aria-label="Autotile slices"
-              >
-                {Array.from({ length: AUTOTILE_SLICE_COUNT }, (_, i) => {
-                  const defined = Boolean(draft.slices?.[i]);
-                  const selected = slice === i;
-                  return (
-                    <button
-                      key={i}
-                      type="button"
-                      role="option"
-                      aria-selected={selected}
-                      aria-label={autotileSliceTitle(i)}
-                      title={`${autotileSliceTitle(i)}${defined ? "" : " — empty"}`}
-                      onClick={() => {
-                        setSlice(i);
-                        setFrameIndex(0);
-                        if (!draft.slices?.[i]) {
-                          const base =
-                            draft.slices?.[0] ??
-                            emptySprite(tilesets[0]?.id ?? "");
-                          setDraft({
-                            ...draft,
-                            slices: {
-                              ...draft.slices,
-                              [i]: structuredClone(base),
-                            },
-                          });
-                        }
-                      }}
-                      className={[
-                        "relative rounded-sm border-2 p-0.5",
-                        selected
-                          ? "border-accent bg-paper"
-                          : defined
-                            ? "border-border bg-panel hover:border-ink"
-                            : "border-dashed border-muted opacity-55 hover:opacity-100",
-                      ].join(" ")}
-                    >
-                      <AutotileSlicePreview slice={i} size={32} />
-                      <span
-                        className={[
-                          "pointer-events-none absolute right-0 bottom-0 px-0.5 font-mono text-[9px] leading-none",
-                          selected
-                            ? "bg-accent text-paper"
-                            : "bg-paper/90 text-ink",
-                        ].join(" ")}
-                      >
-                        {i}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="flex items-center gap-2 text-[11px] text-muted">
-                <AutotileSlicePreview slice={slice} size={20} />
-                <span>{autotileSliceTitle(slice)}</span>
-                {definedSlice ? (
-                  <span className="text-ink">· sprite defined</span>
-                ) : (
-                  <span>· using fallback</span>
-                )}
-              </div>
-              {draft.slices?.[slice] && slice !== 0 ? (
-                <Button
+            <div className="flex flex-wrap items-end gap-3">
+              <label className="flex flex-col gap-1 text-xs">
+                <span className="font-bold uppercase text-muted">Id</span>
+                <Input
+                  value={draft.id}
+                  disabled={!isNew}
+                  onChange={(e) => setDraft({ ...draft, id: e.target.value })}
+                  placeholder="grass"
+                />
+              </label>
+              <label className="flex flex-col gap-1 text-xs">
+                <span className="font-bold uppercase text-muted">Name</span>
+                <Input
+                  value={draft.name}
+                  onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                />
+              </label>
+              <div className="flex flex-col gap-1 text-xs">
+                <span className="font-bold uppercase text-muted">Height</span>
+                <Segmented<TileHeight>
+                  value={draft.height}
+                  onChange={(height) => setDraft({ ...draft, height })}
+                  options={[
+                    { value: 0, label: "0 flat" },
+                    { value: 1, label: "1 seat" },
+                    { value: 2, label: "2 half" },
+                    { value: 3, label: "3 body" },
+                    { value: 4, label: "4 full" },
+                  ]}
                   size="sm"
-                  variant="danger"
-                  className="w-fit"
-                  onClick={() => {
-                    const next = { ...draft.slices };
-                    delete next[slice];
-                    setDraft({ ...draft, slices: next });
-                    setSlice(0);
-                    setFrameIndex(0);
-                  }}
-                >
-                  Clear this slice
-                </Button>
-              ) : null}
+                />
+              </div>
+              <div className="flex flex-col gap-1 text-xs">
+                <span className="font-bold uppercase text-muted">Type</span>
+                <Segmented<TileType>
+                  value={draft.type}
+                  onChange={changeType}
+                  options={[
+                    { value: "simple", label: "Simple" },
+                    { value: "directional", label: "4-way" },
+                    { value: "directional8", label: "8-way" },
+                    { value: "autotile", label: "Autotile" },
+                  ]}
+                  size="sm"
+                />
+              </div>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={draft.lightPassing ?? false}
+                  onChange={(e) =>
+                    setDraft({ ...draft, lightPassing: e.target.checked })
+                  }
+                  className="hard-checkbox"
+                />
+                Passes light
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={draft.intangible ?? false}
+                  onChange={(e) =>
+                    setDraft({ ...draft, intangible: e.target.checked })
+                  }
+                  className="hard-checkbox"
+                />
+                Intangible
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={draft.affectedByGravity ?? false}
+                  onChange={(e) =>
+                    setDraft({ ...draft, affectedByGravity: e.target.checked })
+                  }
+                  className="hard-checkbox"
+                />
+                Affected by gravity
+              </label>
+              <label className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={draft.walkable !== false}
+                  onChange={(e) =>
+                    setDraft({ ...draft, walkable: e.target.checked })
+                  }
+                  className="hard-checkbox"
+                />
+                Walkable
+              </label>
+              <label
+                className="flex items-center gap-2 text-sm"
+                title={
+                  impliedByBrain
+                    ? "A brain makes this an actor — set on the Interactive tab."
+                    : "Every placement of this tile comes alive as its own actor when the world loads."
+                }
+              >
+                <input
+                  type="checkbox"
+                  // A brain already makes it an actor, so the box reads on and locks
+                  // rather than pretending the flag is what decides.
+                  checked={isActor}
+                  disabled={impliedByBrain}
+                  onChange={(e) =>
+                    setDraft({ ...draft, actor: e.target.checked })
+                  }
+                  className="hard-checkbox"
+                />
+                Actor{impliedByBrain ? " — from brain" : ""}
+              </label>
             </div>
-            <TileIdMultiSelect
-              tiles={tiles.filter((t) => t.id !== draft.id)}
-              tilesets={tilesets}
-              selectedIds={draft.connectsTo ?? []}
-              onChange={(connectsTo) => setDraft({ ...draft, connectsTo })}
-              label="Connects to"
-              emptyHint="Only its own id. Pick tiles this one should read as itself when it looks at its neighbours — an opening it should close around, or a window a wall should run through. One-directional: it does not make them read this tile back."
-            />
-            {frameEditor}
-          </div>
-        )}
+
+            {isActor ? (
+              <label className="flex items-center gap-2 text-sm">
+                Step duration
+                <input
+                  type="number"
+                  min={1}
+                  step={10}
+                  // Blank means "the player's pace", which is a different thing from
+                  // zero and has to survive a round trip through the field.
+                  value={draft.walkDurationMs ?? ""}
+                  placeholder={String(WALK_DURATION_MS)}
+                  onChange={(e) =>
+                    setDraft({
+                      ...draft,
+                      walkDurationMs:
+                        e.target.value === ""
+                          ? undefined
+                          : Number(e.target.value),
+                    })
+                  }
+                  className="w-24"
+                />
+                <span className="text-xs text-ink/60">
+                  ms per cell — larger is slower
+                </span>
+              </label>
+            ) : null}
+
+            {draft.type === "simple" ? climbPad : null}
+
+            {statePicker}
+
+            {draft.type === "simple" ? (
+              frameEditor
+            ) : isDirectional(draft) ? (
+              <Tabs
+                value={dir}
+                onValueChange={(v) => {
+                  setDir(v as Octant);
+                  setFrameIndex(0);
+                }}
+                items={dirTabs}
+              >
+                {climbPad}
+                {frameEditor}
+              </Tabs>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {climbPad}
+                <div className="flex flex-col gap-2">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-xs font-bold uppercase text-muted">
+                      Autotile slices (47)
+                    </span>
+                    <p className="text-[11px] leading-snug text-muted">
+                      Each icon is a neighborhood: dark green = this tile, light
+                      green = matching neighbors. Rendering picks the slice from
+                      nearby tiles that count as this one — its own id, plus
+                      anything under Connects to. Sparse — only define the
+                      shapes you need (missing falls back to isolated).
+                    </p>
+                  </div>
+                  <div
+                    className="grid w-fit gap-1"
+                    style={{ gridTemplateColumns: "repeat(8, minmax(0, 1fr))" }}
+                    role="listbox"
+                    aria-label="Autotile slices"
+                  >
+                    {Array.from({ length: AUTOTILE_SLICE_COUNT }, (_, i) => {
+                      const defined = Boolean(draft.slices?.[i]);
+                      const selected = slice === i;
+                      return (
+                        <button
+                          key={i}
+                          type="button"
+                          role="option"
+                          aria-selected={selected}
+                          aria-label={autotileSliceTitle(i)}
+                          title={`${autotileSliceTitle(i)}${defined ? "" : " — empty"}`}
+                          onClick={() => {
+                            setSlice(i);
+                            setFrameIndex(0);
+                            if (!draft.slices?.[i]) {
+                              const base =
+                                draft.slices?.[0] ??
+                                emptySprite(tilesets[0]?.id ?? "");
+                              setDraft({
+                                ...draft,
+                                slices: {
+                                  ...draft.slices,
+                                  [i]: structuredClone(base),
+                                },
+                              });
+                            }
+                          }}
+                          className={[
+                            "relative rounded-sm border-2 p-0.5",
+                            selected
+                              ? "border-accent bg-paper"
+                              : defined
+                                ? "border-border bg-panel hover:border-ink"
+                                : "border-dashed border-muted opacity-55 hover:opacity-100",
+                          ].join(" ")}
+                        >
+                          <AutotileSlicePreview slice={i} size={32} />
+                          <span
+                            className={[
+                              "pointer-events-none absolute right-0 bottom-0 px-0.5 font-mono text-[9px] leading-none",
+                              selected
+                                ? "bg-accent text-paper"
+                                : "bg-paper/90 text-ink",
+                            ].join(" ")}
+                          >
+                            {i}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="flex items-center gap-2 text-[11px] text-muted">
+                    <AutotileSlicePreview slice={slice} size={20} />
+                    <span>{autotileSliceTitle(slice)}</span>
+                    {definedSlice ? (
+                      <span className="text-ink">· sprite defined</span>
+                    ) : (
+                      <span>· using fallback</span>
+                    )}
+                  </div>
+                  {draft.slices?.[slice] && slice !== 0 ? (
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      className="w-fit"
+                      onClick={() => {
+                        const next = { ...draft.slices };
+                        delete next[slice];
+                        setDraft({ ...draft, slices: next });
+                        setSlice(0);
+                        setFrameIndex(0);
+                      }}
+                    >
+                      Clear this slice
+                    </Button>
+                  ) : null}
+                </div>
+                <TileIdMultiSelect
+                  tiles={tiles.filter((t) => t.id !== draft.id)}
+                  tilesets={tilesets}
+                  selectedIds={draft.connectsTo ?? []}
+                  onChange={(connectsTo) => setDraft({ ...draft, connectsTo })}
+                  label="Connects to"
+                  emptyHint="Only its own id. Pick tiles this one should read as itself when it looks at its neighbours — an opening it should close around, or a window a wall should run through. One-directional: it does not make them read this tile back."
+                />
+                {frameEditor}
+              </div>
+            )}
           </TabPanel>
         </Tabs>
       </div>

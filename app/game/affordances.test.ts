@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  DEFAULT_CONTAINER,
-  DEFAULT_SHIELD,
-  DEFAULT_WEAPON,
-} from "../lib/item";
+import { DEFAULT_CONTAINER, DEFAULT_SHIELD, DEFAULT_WEAPON } from "../lib/item";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
@@ -272,7 +268,13 @@ describe("canPickUpFrom", () => {
       weapon: { id: "itm_held", tileId: "sword" },
     };
     expect(
-      pickUpDestination(mapWith(1, 0, "sword"), tilesById, ME, ref(1, 0), armed),
+      pickUpDestination(
+        mapWith(1, 0, "sword"),
+        tilesById,
+        ME,
+        ref(1, 0),
+        armed,
+      ),
     ).toEqual({ kind: "slot", slot: "offhand" });
 
     // And the weapon hand once the spare one is taken. A berry, because a
@@ -340,7 +342,9 @@ describe("canPickUpFrom", () => {
   });
 
   it("refuses an empty cell", () => {
-    expect(canPickUpFrom(emptyMap(), tilesById, ME, ref(1, 0), KIT)).toBe(false);
+    expect(canPickUpFrom(emptyMap(), tilesById, ME, ref(1, 0), KIT)).toBe(
+      false,
+    );
   });
 });
 
@@ -377,9 +381,15 @@ describe("equipSlotFrom", () => {
 
   /** The point of the whole thing: a sword with nothing to put it in. */
   it("arms somebody carrying nothing", () => {
-    expect(canEquipFrom(mapWith(1, 0, "sword"), tilesById, ME, ref(1, 0), emptyEquipment())).toBe(
-      true,
-    );
+    expect(
+      canEquipFrom(
+        mapWith(1, 0, "sword"),
+        tilesById,
+        ME,
+        ref(1, 0),
+        emptyEquipment(),
+      ),
+    ).toBe(true);
   });
 
   it("refuses a slot that is already full", () => {
@@ -427,9 +437,9 @@ describe("equipSlotFrom", () => {
       { tileId: "sword", itemId: "itm_buried" },
       { tileId: "rock" },
     ]);
-    expect(
-      canEquipFrom(map, tilesById, ME, ref(1, 0), emptyEquipment()),
-    ).toBe(false);
+    expect(canEquipFrom(map, tilesById, ME, ref(1, 0), emptyEquipment())).toBe(
+      false,
+    );
   });
 });
 
@@ -504,9 +514,9 @@ describe("a body is not a lid", () => {
   });
 
   it("opens a chest you are standing on", () => {
-    expect(canOpenFrom(under("chest", ["rock"]), tilesById, ME, ref(0, 0))).toBe(
-      true,
-    );
+    expect(
+      canOpenFrom(under("chest", ["rock"]), tilesById, ME, ref(0, 0)),
+    ).toBe(true);
   });
 
   it("reaches under two bodies as readily as one", () => {
@@ -561,7 +571,9 @@ describe("canDropAt", () => {
 
   it("reaches five cells out, and no further", () => {
     const map = field();
-    expect(canDropAt(map, tilesById, ME, { x: 5, y: 0, z: 0 }, sword)).toBe(true);
+    expect(canDropAt(map, tilesById, ME, { x: 5, y: 0, z: 0 }, sword)).toBe(
+      true,
+    );
     expect(canDropAt(map, tilesById, ME, { x: -5, y: 0, z: 0 }, sword)).toBe(
       true,
     );
@@ -573,7 +585,9 @@ describe("canDropAt", () => {
   /** Round, like every other item reach — `3,4` is exactly five away. */
   it("measures the radius round rather than square", () => {
     const map = field();
-    expect(canDropAt(map, tilesById, ME, { x: 3, y: 4, z: 0 }, sword)).toBe(true);
+    expect(canDropAt(map, tilesById, ME, { x: 3, y: 4, z: 0 }, sword)).toBe(
+      true,
+    );
     expect(canDropAt(map, tilesById, ME, { x: 4, y: 4, z: 0 }, sword)).toBe(
       false,
     );
@@ -622,7 +636,13 @@ describe("canDropAt", () => {
 
     it("puts a thing inside the container it lands on", () => {
       expect(
-        dropDestinationAt(chestAt(1), tilesById, ME, { x: 1, y: 0, z: 0 }, sword),
+        dropDestinationAt(
+          chestAt(1),
+          tilesById,
+          ME,
+          { x: 1, y: 0, z: 0 },
+          sword,
+        ),
       ).toEqual({ kind: "contents", ref: { x: 1, y: 0, z: 0, stackIndex: 1 } });
     });
 
@@ -707,8 +727,6 @@ describe("pushableDefAt", () => {
 
   it("refuses a tile with no push on it", () => {
     const map = column("rock");
-    expect(
-      pushableDefAt(map, pushTilesById, ME, ref(1, 0, 0, 2)),
-    ).toBeNull();
+    expect(pushableDefAt(map, pushTilesById, ME, ref(1, 0, 0, 2))).toBeNull();
   });
 });

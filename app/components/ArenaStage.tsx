@@ -1,4 +1,7 @@
-import { DAMAGE_NUMBER_LIFETIME_MS, STRIKE_DURATION_MS } from "../game/constants";
+import {
+  DAMAGE_NUMBER_LIFETIME_MS,
+  STRIKE_DURATION_MS,
+} from "../game/constants";
 import type { Side } from "../game/duel";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { TilePreview } from "./TilePreview";
@@ -164,7 +167,11 @@ function Fighter({
           />
         </div>
         {mine.map((floater) => (
-          <FloatingNumber key={floater.id} floater={floater} elapsedMs={elapsedMs} />
+          <FloatingNumber
+            key={floater.id}
+            floater={floater}
+            elapsedMs={elapsedMs}
+          />
         ))}
       </div>
 

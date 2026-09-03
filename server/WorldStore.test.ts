@@ -51,7 +51,9 @@ describe("buffered writes", () => {
 
     db = await openDatabase(join(dir, "stapes.db"));
     store = new WorldStore(db);
-    expect(await store.get<unknown>("chunk:0:0")).toEqual([{ tileId: "grass" }]);
+    expect(await store.get<unknown>("chunk:0:0")).toEqual([
+      { tileId: "grass" },
+    ]);
   });
 
   it("hides a deleted key even before the delete is committed", async () => {
@@ -101,7 +103,7 @@ describe("listing", () => {
     // The listing is a range scan so the primary key index does the work. An
     // off-by-one in the upper bound would quietly pull in neighbouring keys —
     // `chunk:` reading `chunkX:` — and reassemble a board from them.
-    await store.put({ "chunk:1": [1], "chunkX:1": [2], "chunj": [3] });
+    await store.put({ "chunk:1": [1], "chunkX:1": [2], chunj: [3] });
     await store.flush();
 
     const listed = await store.list({ prefix: "chunk:" });

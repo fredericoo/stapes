@@ -20,16 +20,6 @@ import {
   type SpeakerFilter,
 } from "../lib/brain";
 import {
-  appendTo,
-  group,
-  isConditionGroup,
-  removeAt,
-  replaceAt,
-  type Combinator,
-  type ConditionGroup,
-  type ConditionPath,
-} from "../lib/conditions";
-import {
   ACTIONS,
   ACTION_NAMES,
   CONDITIONS,
@@ -199,7 +189,11 @@ function onSortEnd<T>(
 }
 
 /** Rebuild the states record with `oldName` re-keyed to `newName`, order kept. */
-export function renamedState(brain: BrainDef, oldName: string, newName: string): BrainDef {
+export function renamedState(
+  brain: BrainDef,
+  oldName: string,
+  newName: string,
+): BrainDef {
   const states: Record<string, BrainStateDef> = {};
   for (const [name, state] of Object.entries(brain.states)) {
     states[name === oldName ? newName : name] = state;
@@ -225,7 +219,11 @@ export function BrainEditor({ brain, tiles, onChange }: Props) {
           state machine: states each run an ordered list of actions, and an
           ordered list of transitions moves between them — first match wins.
         </p>
-        <Button size="sm" className="w-fit" onClick={() => onChange(EMPTY_BRAIN)}>
+        <Button
+          size="sm"
+          className="w-fit"
+          onClick={() => onChange(EMPTY_BRAIN)}
+        >
           Add a brain
         </Button>
       </div>
@@ -243,7 +241,10 @@ export function BrainEditor({ brain, tiles, onChange }: Props) {
   const addState = () => {
     let name = "state";
     for (let i = 2; Object.hasOwn(brain.states, name); i++) name = `state-${i}`;
-    onChange({ ...brain, states: { ...brain.states, [name]: { do: [{ action: "hold" }] } } });
+    onChange({
+      ...brain,
+      states: { ...brain.states, [name]: { do: [{ action: "hold" }] } },
+    });
   };
 
   const removeState = (name: string) => {
@@ -256,15 +257,16 @@ export function BrainEditor({ brain, tiles, onChange }: Props) {
     <div className="flex flex-col gap-3 border-t-2 border-border pt-3">
       <EditorIssues issues={issues} />
 
-      <label className="flex items-center gap-2 text-xs">
+      <div className="flex items-center gap-2 text-xs">
         <span className="font-bold uppercase text-muted">Initial state</span>
         <Select
+          ariaLabel="Initial state"
           value={brain.initial || null}
           onValueChange={(v) => v && onChange({ ...brain, initial: v })}
           options={stateNames.map((n) => ({ value: n, label: n }))}
           placeholder="Pick one…"
         />
-      </label>
+      </div>
 
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between">
@@ -282,7 +284,9 @@ export function BrainEditor({ brain, tiles, onChange }: Props) {
             taken={stateNames}
             onRename={(next) => onChange(renamedState(brain, name, next))}
             onChange={(next) => setState(name, next)}
-            onRemove={stateNames.length > 1 ? () => removeState(name) : undefined}
+            onRemove={
+              stateNames.length > 1 ? () => removeState(name) : undefined
+            }
           />
         ))}
       </div>
@@ -339,7 +343,12 @@ function StateCard({
           aria-label="State name"
         />
         {onRemove ? (
-          <Button size="sm" variant="danger" className="ml-auto" onClick={onRemove}>
+          <Button
+            size="sm"
+            variant="danger"
+            className="ml-auto"
+            onClick={onRemove}
+          >
             Remove
           </Button>
         ) : null}
@@ -437,23 +446,31 @@ function VerbList<T extends BrainActionDef | BrainEffectDef>({
   title: string;
   items: T[];
   names: string[];
-  registry: Record<string, { label: string; hint: string; params: ParamSpec[]; make: () => T }>;
+  registry: Record<
+    string,
+    { label: string; hint: string; params: ParamSpec[]; make: () => T }
+  >;
   discriminant: "action" | "effect";
   selectors: SelectorOption[];
   onChange: (next: T[]) => void;
 }) {
   const add = () => onChange([...items, registry[names[0]!]!.make()]);
-  const set = (i: number, next: T) => onChange(items.map((it, j) => (j === i ? next : it)));
+  const set = (i: number, next: T) =>
+    onChange(items.map((it, j) => (j === i ? next : it)));
 
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center justify-between">
-        <span className="text-[11px] font-bold uppercase text-muted">{title}</span>
+        <span className="text-[11px] font-bold uppercase text-muted">
+          {title}
+        </span>
         <Button size="sm" variant="secondary" onClick={add}>
           Add
         </Button>
       </div>
-      <DragDropProvider onDragEnd={(event) => onSortEnd(event, items, onChange)}>
+      <DragDropProvider
+        onDragEnd={(event) => onSortEnd(event, items, onChange)}
+      >
         <div className="flex flex-col gap-1">
           {items.map((item, i) => (
             <VerbRow
@@ -490,7 +507,10 @@ function VerbRow<T extends BrainActionDef | BrainEffectDef>({
   index: number;
   value: T;
   names: string[];
-  registry: Record<string, { label: string; hint: string; params: ParamSpec[]; make: () => T }>;
+  registry: Record<
+    string,
+    { label: string; hint: string; params: ParamSpec[]; make: () => T }
+  >;
   discriminant: "action" | "effect";
   selectors: SelectorOption[];
   onChange: (next: T) => void;
@@ -508,7 +528,10 @@ function VerbRow<T extends BrainActionDef | BrainEffectDef>({
         isDragging ? "opacity-60" : "",
       ].join(" ")}
     >
-      <DragHandle handleRef={handleRef} label={`Drag to reorder line ${index + 1}`} />
+      <DragHandle
+        handleRef={handleRef}
+        label={`Drag to reorder line ${index + 1}`}
+      />
       <span className="w-5 text-center font-mono text-[11px] text-muted">
         {index + 1}
       </span>
@@ -546,7 +569,11 @@ function TransitionsTable({
   const add = () =>
     onChange([
       ...items,
-      { from: ANY_STATE, if: CONDITIONS.after.make(), to: brain.initial || stateNames[0] || "" },
+      {
+        from: ANY_STATE,
+        if: CONDITIONS.after.make(),
+        to: brain.initial || stateNames[0] || "",
+      },
     ]);
   const set = (i: number, next: BrainTransitionDef) =>
     onChange(items.map((t, j) => (j === i ? next : t)));
@@ -561,7 +588,9 @@ function TransitionsTable({
           Add transition
         </Button>
       </div>
-      <DragDropProvider onDragEnd={(event) => onSortEnd(event, items, onChange)}>
+      <DragDropProvider
+        onDragEnd={(event) => onSortEnd(event, items, onChange)}
+      >
         <div className="flex flex-col gap-1">
           {items.map((t, i) => (
             <TransitionRow
@@ -599,7 +628,10 @@ function TransitionRow({
   onRemove: () => void;
 }) {
   const { ref, handleRef, isDragging } = useSortable({ id, index });
-  const fromOptions = [ANY_STATE, ...stateNames].map((n) => ({ value: n, label: n }));
+  const fromOptions = [ANY_STATE, ...stateNames].map((n) => ({
+    value: n,
+    label: n,
+  }));
   const toOptions = stateNames.map((n) => ({ value: n, label: n }));
 
   return (
@@ -611,29 +643,33 @@ function TransitionRow({
       ].join(" ")}
     >
       <div className="flex flex-wrap items-center gap-2">
-      <DragHandle
-        handleRef={handleRef}
-        label={`Drag to reorder transition ${index + 1}`}
-      />
-      <span className="w-5 text-center font-mono text-[11px] text-muted">
-        {index + 1}
-      </span>
-      <span className="text-[10px] uppercase text-muted">from</span>
-      <Select
-        value={transition.from}
-        onValueChange={(v) => v && onChange({ ...transition, from: v })}
-        options={fromOptions}
-        className="min-w-[6rem]"
-      />
-      <BindField transition={transition} selectors={selectors} onChange={onChange} />
-      <span className="text-[10px] uppercase text-muted">to</span>
-      <Select
-        value={transition.to || null}
-        onValueChange={(v) => v && onChange({ ...transition, to: v })}
-        options={toOptions}
-        className="min-w-[6rem]"
-        placeholder="…"
-      />
+        <DragHandle
+          handleRef={handleRef}
+          label={`Drag to reorder transition ${index + 1}`}
+        />
+        <span className="w-5 text-center font-mono text-[11px] text-muted">
+          {index + 1}
+        </span>
+        <span className="text-[10px] uppercase text-muted">from</span>
+        <Select
+          value={transition.from}
+          onValueChange={(v) => v && onChange({ ...transition, from: v })}
+          options={fromOptions}
+          className="min-w-[6rem]"
+        />
+        <BindField
+          transition={transition}
+          selectors={selectors}
+          onChange={onChange}
+        />
+        <span className="text-[10px] uppercase text-muted">to</span>
+        <Select
+          value={transition.to || null}
+          onValueChange={(v) => v && onChange({ ...transition, to: v })}
+          options={toOptions}
+          className="min-w-[6rem]"
+          placeholder="…"
+        />
         <Button
           size="sm"
           variant="danger"
@@ -673,7 +709,9 @@ function ConditionTree({
       root={root}
       onChange={onChange}
       leaf={{
-        render: (leaf, set) => <LeafFields leaf={leaf} selectors={selectors} onChange={set} />,
+        render: (leaf, set) => (
+          <LeafFields leaf={leaf} selectors={selectors} onChange={set} />
+        ),
         fresh: () => CONDITIONS.after.make(),
       }}
     />
@@ -988,4 +1026,3 @@ function SpeakerFilterField({
     </label>
   );
 }
-

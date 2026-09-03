@@ -19,6 +19,11 @@ import { tilesByIdFromList } from "../lib/validation";
 import { ItemSlot, ITEM_SLOT_SIZE_PX } from "./ItemSlot";
 import type { ItemDrag } from "./useItemDrag";
 
+// Hoisted so the default is one value rather than a new one per render. An
+// inline `{}` or `[]` in a destructuring default is a fresh identity every
+// time, which is a changed prop to everything memoised below it.
+const NO_MASTERY_XP: MasteryXp = {};
+
 /**
  * What you are wearing, drawn as a body rather than as a row.
  *
@@ -174,11 +179,12 @@ const SQUARES: readonly Square[] = [
 ];
 
 /** The bottom of the deepest square, so the grid claims exactly its own height. */
-const ROW_COUNT = Math.max(...SQUARES.map((square) => square.row)) + ROWS_PER_SQUARE - 1;
+const ROW_COUNT =
+  Math.max(...SQUARES.map((square) => square.row)) + ROWS_PER_SQUARE - 1;
 
 export function EquipmentPanel({
   equipment,
-  masteryXp = {},
+  masteryXp = NO_MASTERY_XP,
   bagOpen,
   handOpen = null,
   tiles,
@@ -286,7 +292,10 @@ export function EquipmentPanel({
  */
 function isOpen(
   slot: BodySlotRef,
-  { bagOpen, handOpen }: { bagOpen: boolean; handOpen: "weapon" | "offhand" | null },
+  {
+    bagOpen,
+    handOpen,
+  }: { bagOpen: boolean; handOpen: "weapon" | "offhand" | null },
 ): boolean {
   if (slot.kind === "bag") return bagOpen;
   return slot.kind === handOpen;
@@ -301,7 +310,11 @@ function isOpen(
  * replace: the panel names them here and nothing else knows they are the same
  * icon twice.
  */
-function MainHandIcon(props: { size?: number; stroke?: number; className?: string }) {
+function MainHandIcon(props: {
+  size?: number;
+  stroke?: number;
+  className?: string;
+}) {
   return <IconHandStop {...props} />;
 }
 

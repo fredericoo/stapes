@@ -45,11 +45,16 @@ function holdInSubprocess(path: string): Promise<ChildProcess> {
     console.log("HELD");
     await new Promise(() => {});
   `;
-  const child = spawn("bun", ["-e", source], { stdio: ["ignore", "pipe", "pipe"] });
+  const child = spawn("bun", ["-e", source], {
+    stdio: ["ignore", "pipe", "pipe"],
+  });
   children.push(child);
 
   return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => reject(new Error("holder never started")), 15_000);
+    const timer = setTimeout(
+      () => reject(new Error("holder never started")),
+      15_000,
+    );
     child.stdout!.on("data", (chunk: Buffer) => {
       if (chunk.toString().includes("HELD")) {
         clearTimeout(timer);
@@ -70,7 +75,9 @@ function waitForExit(child: ChildProcess): Promise<void> {
 afterEach(async () => {
   for (const child of children.splice(0)) child.kill("SIGKILL");
   await Promise.all(
-    temporaries.splice(0).map((dir) => rm(dir, { recursive: true, force: true })),
+    temporaries
+      .splice(0)
+      .map((dir) => rm(dir, { recursive: true, force: true })),
   );
 });
 

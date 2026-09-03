@@ -185,7 +185,9 @@ describe("the effect itself", () => {
  * is what carries the proof across that boundary.
  */
 function authoredPoison(): StatusDef {
-  const def = resolveStatus(statusesJson.find((entry) => entry.id === "poison"));
+  const def = resolveStatus(
+    statusesJson.find((entry) => entry.id === "poison"),
+  );
   if (!def) throw new Error("authored poison did not resolve");
   return def;
 }
@@ -280,13 +282,23 @@ describe("modifiers", () => {
   });
 
   it("holds a percent stat inside its band", () => {
-    const def = status({ id: "sure", effects: {}, modifiers: { accuracy: "500" } });
+    const def = status({
+      id: "sure",
+      effects: {},
+      modifiers: { accuracy: "500" },
+    });
     const held = applyStatus([], def, new Rng(1));
-    expect(withStatusModifiers(base, held, catalogue(def), 8).accuracy).toBe(100);
+    expect(withStatusModifiers(base, held, catalogue(def), 8).accuracy).toBe(
+      100,
+    );
   });
 
   it("never lets a maximum reach zero", () => {
-    const def = status({ id: "frail", effects: {}, modifiers: { maxHp: "0 - 999" } });
+    const def = status({
+      id: "frail",
+      effects: {},
+      modifiers: { maxHp: "0 - 999" },
+    });
     const held = applyStatus([], def, new Rng(1));
     expect(withStatusModifiers(base, held, catalogue(def), 8).maxHp).toBe(1);
   });

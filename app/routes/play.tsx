@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { useLoaderData } from "react-router";
-import type { Route } from "./+types/play";
 import { AppShell } from "../components/AppShell";
 import { GameViewport } from "../components/GameViewport";
 import { InkDocument } from "../components/InkDocument";
@@ -11,7 +10,11 @@ import { GameSession, type Vitals } from "../game/GameSession";
 import { type Equipment, emptyEquipment } from "../game/equipment";
 import type { Conversation, TalkAction } from "../game/dialogRuntime";
 import type { MasteryXp } from "../lib/mastery";
-import { bindCastKeys, bindKeyboard, HeldDirections } from "../game/heldDirections";
+import {
+  bindCastKeys,
+  bindKeyboard,
+  HeldDirections,
+} from "../game/heldDirections";
 import { usePlayModes } from "../components/usePlayModes";
 import {
   applyInteraction,
@@ -46,7 +49,8 @@ export async function clientLoader() {
 }
 
 export default function PlayPage() {
-  const { map, tiles, tilesets, statuses } = useLoaderData<typeof clientLoader>();
+  const { map, tiles, tilesets, statuses } =
+    useLoaderData<typeof clientLoader>();
   // Resolved once per load rather than per render: `statusesById` compiles every
   // formula in the catalogue, which is exactly the work that must not happen on
   // a frame. @see ../lib/status
@@ -89,9 +93,8 @@ export default function PlayPage() {
     (optionId: string | null) => rendererRef.current?.setListHover(optionId),
     [],
   );
-  const [minutesOfDay, setMinutesOfDay] = useState<MinutesOfDay>(
-    DEFAULT_PLAY_MINUTES,
-  );
+  const [minutesOfDay, setMinutesOfDay] =
+    useState<MinutesOfDay>(DEFAULT_PLAY_MINUTES);
   const [clockPaused, setClockPaused] = useState(false);
   // Held outside the renderer and the session because the buttons have to show
   // it: a key and a button are two ways into one mode, and only one of them is
@@ -105,7 +108,12 @@ export default function PlayPage() {
   /** What this player has learnt — theirs alone, beside the kit. */
   const [masteryXp, setMasteryXp] = useState<MasteryXp>({});
   /** What this player's body can take, and its ⭐. */
-  const [vitals, setVitals] = useState<Vitals>({ hp: null, maxHp: null, rating: null, statuses: [] });
+  const [vitals, setVitals] = useState<Vitals>({
+    hp: null,
+    maxHp: null,
+    rating: null,
+    statuses: [],
+  });
   const [openedContainer, setOpenedContainer] =
     useState<OpenedContainer | null>(null);
   /**
@@ -173,6 +181,13 @@ export default function PlayPage() {
     [],
   );
 
+  // The block below mirrors live props into refs during render, and is disabled
+  // for `react/refs` as one block rather than line by line. The renderer and the
+  // session are built once by the effect underneath and outlive every render
+  // after it; each of them reads these at a moment of its own choosing — a frame,
+  // a keypress — so a value that only landed in an effect would be one render
+  // stale exactly when something between the two asked for it.
+  /* oxlint-disable react/refs */
   const minutesRef = useRef(minutesOfDay);
   minutesRef.current = minutesOfDay;
   const pausedRef = useRef(clockPaused);
@@ -195,6 +210,7 @@ export default function PlayPage() {
   // it was carrying when the world was built.
   const spellsRef = useRef(spells);
   spellsRef.current = spells;
+  /* oxlint-enable react/refs */
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -202,6 +218,9 @@ export default function PlayPage() {
 
     let session: GameSession;
     try {
+      // `statusDefs` is deliberately not a dependency of this effect; the note
+      // on the dependency list below says why.
+      /* oxlint-disable-next-line react/exhaustive-effect-dependencies */
       session = new GameSession(map, tiles, { statuses: statusDefs });
     } catch (err) {
       console.error(err);
@@ -270,7 +289,14 @@ export default function PlayPage() {
     // `assetsReady` is in here for the canvas rather than for itself: the
     // element only exists once it is true, so without it this effect would have
     // run once against nothing and never again.
+    //
+    // `statusDefs` is deliberately out: this effect tears the world down and
+    // builds a new one, and an editor save must not do that just to recolour a
+    // plume. It reaches the running renderer through the effect below and
+    // through `statusDefsRef` for a session that outlives this render.
+    /* oxlint-disable react-hooks/exhaustive-deps */
   }, [map, tiles, tilesets, assetsReady]);
+  /* oxlint-enable react-hooks/exhaustive-deps */
 
   useEffect(() => {
     rendererRef.current?.setClockPaused(clockPaused);

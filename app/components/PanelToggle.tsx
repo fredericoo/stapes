@@ -2,7 +2,7 @@ import { IconBackpack, IconHeartbeat, IconShirt } from "@tabler/icons-react";
 import { useCallback } from "react";
 import { resolveContainer } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
-import type { TileDef, TilesetDef } from "../lib/types";
+import type { TileDef } from "../lib/types";
 import { Tooltip } from "../ui/Tooltip";
 import { ACTION_BUTTON_SIZE_CLASS, type ActionButtonSize } from "./ModeSwitch";
 import type { ItemDrag } from "./useItemDrag";

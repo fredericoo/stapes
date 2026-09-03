@@ -75,9 +75,9 @@ export function RespawnTab({ draft, onChange }: Props) {
           it grows back where the map put it, after a wait drawn from the range
           below. Every spot you place it is its own spawn point with its own
           clock: clearing one of five rats starts one clock, not five. A
-          creature counts as alive wherever it has wandered to; an object
-          counts only in its authored cell, so a sword carried off grows a new
-          one — that is the loop, not a leak.
+          creature counts as alive wherever it has wandered to; an object counts
+          only in its authored cell, so a sword carried off grows a new one —
+          that is the loop, not a leak.
         </p>
 
         {respawn ? (

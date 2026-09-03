@@ -247,7 +247,12 @@ export class Duel {
     const changes: { defId: string; hp: number }[] = [];
 
     for (const instance of fighter.statuses) {
-      const tick = advanceStatuses([instance], TICK_MS, bearer, this.statusDefs);
+      const tick = advanceStatuses(
+        [instance],
+        TICK_MS,
+        bearer,
+        this.statusDefs,
+      );
       next.push(...tick.statuses);
       for (const change of tick.hpChanges) {
         changes.push({ defId: instance.defId, hp: change.amount });

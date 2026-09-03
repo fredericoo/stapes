@@ -55,7 +55,9 @@ const frame = {
 function tile(
   partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
 ): TileDef {
-  const interactions = partial.interactions as { battler?: unknown } | undefined;
+  const interactions = partial.interactions as
+    | { battler?: unknown }
+    | undefined;
   return normalizeTileDef({
     name: partial.id,
     directional: false,
@@ -144,7 +146,10 @@ describe("level-ups out of a fight that actually happened", () => {
     // it happens inside `bodyOf`, on whichever tick first asks — so the ticks
     // are the point: this is silent because seeding is not earning, not because
     // nothing has run yet.
-    const session = new GameSession(field(), tiles, { actorIds: ["me"], seed: 1 });
+    const session = new GameSession(field(), tiles, {
+      actorIds: ["me"],
+      seed: 1,
+    });
     for (let elapsed = 0; elapsed < 10_000; elapsed += TICK_MS) {
       session.tick(TICK_MS);
     }
@@ -226,7 +231,10 @@ const rewardTiles: TileDef[] = [
     kind: "item",
     interactions: { item: DEFAULT_WEAPON },
   }),
-  named("bread", "Bread", { kind: "item", interactions: { item: DEFAULT_WEAPON } }),
+  named("bread", "Bread", {
+    kind: "item",
+    interactions: { item: DEFAULT_WEAPON },
+  }),
   named(BAG_TILE_ID, "Basic Bag", {
     kind: "item",
     interactions: { item: { ...DEFAULT_CONTAINER, size: 4 } },
@@ -272,7 +280,7 @@ describe("what a reward says", () => {
     expect(
       rewardNotice(
         reward("Open", ["hand-lantern", "rusty-sword"]),
-        rewardTilesById["quest-chest"],
+        rewardTilesById["quest-chest"]!,
         rewardTilesById,
       ),
     ).toBe("You open Quest Chest and receive 1 Hand Lantern, 1 Rusty Sword");
@@ -282,7 +290,7 @@ describe("what a reward says", () => {
     expect(
       rewardNotice(
         reward("Open", ["bread", "bread", "rusty-sword", "bread"]),
-        rewardTilesById["quest-chest"],
+        rewardTilesById["quest-chest"]!,
         rewardTilesById,
       ),
     ).toBe("You open Quest Chest and receive 3 Bread, 1 Rusty Sword");
@@ -290,13 +298,21 @@ describe("what a reward says", () => {
 
   it("falls back to taking when the author named no gesture", () => {
     expect(
-      rewardNotice(reward(undefined, ["bread"]), rewardTilesById["old-man"], rewardTilesById),
+      rewardNotice(
+        reward(undefined, ["bread"]),
+        rewardTilesById["old-man"]!,
+        rewardTilesById,
+      ),
     ).toBe("You take Old Man and receive 1 Bread");
   });
 
   it("drops the second clause for a reward that hands over nothing", () => {
     expect(
-      rewardNotice(reward("Speak to", []), rewardTilesById["old-man"], rewardTilesById),
+      rewardNotice(
+        reward("Speak to", []),
+        rewardTilesById["old-man"]!,
+        rewardTilesById,
+      ),
     ).toBe("You speak to Old Man");
   });
 
@@ -304,7 +320,7 @@ describe("what a reward says", () => {
     expect(
       rewardNotice(
         reward("Open", ["ghost-item"]),
-        rewardTilesById["quest-chest"],
+        rewardTilesById["quest-chest"]!,
         rewardTilesById,
       ),
     ).toBe("You open Quest Chest and receive 1 ghost-item");

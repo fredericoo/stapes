@@ -6,7 +6,6 @@ import { hasAnyInteraction, type TileInteractions } from "../lib/interactions";
 import type { WeaponItem } from "../lib/item";
 import { MAX_PERCENT_STAT } from "../lib/item";
 import {
-  MASTERIES,
   MAX_MASTERY,
   type Mastery,
   masteryLevel,
@@ -20,6 +19,11 @@ import { KitEditor } from "./KitEditor";
 import { StatField } from "./StatField";
 import { describeInterval, WeaponFields } from "./WeaponFields";
 
+// Hoisted so the default is one value rather than a new one per render. An
+// inline `{}` or `[]` in a destructuring default is a fresh identity every
+// time, which is a changed prop to everything memoised below it.
+const NO_STATUS_DEFS: Record<string, StatusDef> = {};
+
 type Props = {
   draft: TileDef;
   onChange: (next: TileDef) => void;
@@ -32,47 +36,56 @@ type Props = {
   statusDefs?: Record<string, StatusDef>;
 };
 
-const MASTERY_FIELDS: Array<{ mastery: Mastery; label: string; hint: string }> = [
-  {
-    mastery: "toughness",
-    label: "Toughness",
-    hint: "Hit points. Earned by taking blows worth taking.",
-  },
-  {
-    mastery: "agility",
-    label: "Agility",
-    hint: "Getting out of the way. Earned by dodging, and a little by landing blows.",
-  },
-  {
-    mastery: "fist",
-    label: "Fist",
-    hint: "Bare hands, and anything else answering to Fist.",
-  },
-  { mastery: "blade", label: "Blade", hint: "Swords, knives, anything edged." },
-  { mastery: "blunt", label: "Blunt", hint: "Clubs, axes, anything heavy." },
-  { mastery: "ranged", label: "Ranged", hint: "Bows and thrown things." },
-  { mastery: "arcane", label: "Arcane", hint: "Staves, and magic generally." },
-  // The elements, which are what this body can *cast* and emphatically not what
-  // it is made of — see the Made of control below, which is the other question.
-  // Here because the `player` tile's starting point in each of them is what puts
-  // the bottom rung of every element within a new player's reach, and a number
-  // nobody can see is a number nobody can tune.
-  {
-    mastery: "fire",
-    label: "Fire",
-    hint: "Fire spells this body may cast. Not what it is made of.",
-  },
-  {
-    mastery: "water",
-    label: "Water",
-    hint: "Water spells this body may cast. Not what it is made of.",
-  },
-  {
-    mastery: "nature",
-    label: "Nature",
-    hint: "Nature spells this body may cast. Not what it is made of.",
-  },
-];
+const MASTERY_FIELDS: Array<{ mastery: Mastery; label: string; hint: string }> =
+  [
+    {
+      mastery: "toughness",
+      label: "Toughness",
+      hint: "Hit points. Earned by taking blows worth taking.",
+    },
+    {
+      mastery: "agility",
+      label: "Agility",
+      hint: "Getting out of the way. Earned by dodging, and a little by landing blows.",
+    },
+    {
+      mastery: "fist",
+      label: "Fist",
+      hint: "Bare hands, and anything else answering to Fist.",
+    },
+    {
+      mastery: "blade",
+      label: "Blade",
+      hint: "Swords, knives, anything edged.",
+    },
+    { mastery: "blunt", label: "Blunt", hint: "Clubs, axes, anything heavy." },
+    { mastery: "ranged", label: "Ranged", hint: "Bows and thrown things." },
+    {
+      mastery: "arcane",
+      label: "Arcane",
+      hint: "Staves, and magic generally.",
+    },
+    // The elements, which are what this body can *cast* and emphatically not what
+    // it is made of — see the Made of control below, which is the other question.
+    // Here because the `player` tile's starting point in each of them is what puts
+    // the bottom rung of every element within a new player's reach, and a number
+    // nobody can see is a number nobody can tune.
+    {
+      mastery: "fire",
+      label: "Fire",
+      hint: "Fire spells this body may cast. Not what it is made of.",
+    },
+    {
+      mastery: "water",
+      label: "Water",
+      hint: "Water spells this body may cast. Not what it is made of.",
+    },
+    {
+      mastery: "nature",
+      label: "Nature",
+      hint: "Nature spells this body may cast. Not what it is made of.",
+    },
+  ];
 
 /**
  * What this evasion is worth against a typical weapon and against the best
@@ -82,7 +95,7 @@ const MASTERY_FIELDS: Array<{ mastery: Mastery; label: string; hint: string }> =
 function describeDodge(flee: number): string {
   const typical = Math.round(dodgeChance(flee, 85) * 100);
   const best = Math.round(dodgeChance(flee, MAX_PERCENT_STAT) * 100);
-  return `Dodges % against 85 accuracy, % against 100.`;
+  return `Dodges ${typical}% against 85 accuracy, ${best}% against 100.`;
 }
 
 /**
@@ -106,7 +119,12 @@ function describeDodge(flee: number): string {
  * honest way to show numbers nobody types — a readout that could disagree with
  * the formula would be worse than none.
  */
-export function BattleTab({ draft, onChange, tiles, statusDefs = {} }: Props) {
+export function BattleTab({
+  draft,
+  onChange,
+  tiles,
+  statusDefs = NO_STATUS_DEFS,
+}: Props) {
   const battler = draft.interactions?.battler ?? DEFAULT_BATTLER;
 
   const setBattler = (next: BattlerDef) => {
@@ -146,11 +164,11 @@ export function BattleTab({ draft, onChange, tiles, statusDefs = {} }: Props) {
       <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
         <span className="text-sm font-bold">Battler</span>
         <p className="text-[11px] leading-snug text-muted">
-          This tile has hit points. Every placement starts at full health, can be
-          targeted and attacked, and is <strong>deleted from the map</strong> the
-          moment it reaches zero. Independent of <strong>Actor</strong> and of
-          the brain: what a body can take is a separate question from what drives
-          it.
+          This tile has hit points. Every placement starts at full health, can
+          be targeted and attacked, and is <strong>deleted from the map</strong>{" "}
+          the moment it reaches zero. Independent of <strong>Actor</strong> and
+          of the brain: what a body can take is a separate question from what
+          drives it.
         </p>
 
         <div className="flex flex-col gap-1 border-t-2 border-border pt-3">
@@ -159,8 +177,8 @@ export function BattleTab({ draft, onChange, tiles, statusDefs = {} }: Props) {
           </span>
           <p className="max-w-lg text-[11px] leading-snug text-muted">
             What this body is good at. A creature's are fixed — it never gets
-            better. Toughness and Agility decide what it can take; the rest decide
-            how well it uses whatever it is holding.
+            better. Toughness and Agility decide what it can take; the rest
+            decide how well it uses whatever it is holding.
           </p>
         </div>
 
@@ -195,9 +213,9 @@ export function BattleTab({ draft, onChange, tiles, statusDefs = {} }: Props) {
             Natural weapon
           </span>
           <p className="max-w-lg text-[11px] leading-snug text-muted">
-            What this body fights with when its hands are empty — a bite, a claw,
-            a pair of fists. Anything it picks up <strong>replaces</strong> this
-            rather than adding to it.
+            What this body fights with when its hands are empty — a bite, a
+            claw, a pair of fists. Anything it picks up{" "}
+            <strong>replaces</strong> this rather than adding to it.
           </p>
         </div>
 
@@ -233,8 +251,8 @@ export function BattleTab({ draft, onChange, tiles, statusDefs = {} }: Props) {
             Fights as
           </span>
           <p className="max-w-lg text-[11px] leading-snug text-muted">
-            Derived, not authored — the same arithmetic the simulation runs, with
-            this body's bare hands.
+            Derived, not authored — the same arithmetic the simulation runs,
+            with this body's bare hands.
           </p>
           <dl className="mt-1 flex flex-wrap gap-x-6 gap-y-1 text-[11px]">
             <Derived label="Max HP" value={`${stats.maxHp}`} />

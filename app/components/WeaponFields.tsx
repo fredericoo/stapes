@@ -34,6 +34,11 @@ import { Segmented, Select } from "../ui";
 import { StatField } from "./StatField";
 import { StatusChanceField, StatusGrants } from "./StatusGrants";
 
+// Hoisted so the default is one value rather than a new one per render. An
+// inline `{}` or `[]` in a destructuring default is a fresh identity every
+// time, which is a changed prop to everything memoised below it.
+const NO_STATUS_DEFS: Record<string, StatusDef> = {};
+
 /**
  * How a weapon fights, authored once and edited in two places.
  *
@@ -98,7 +103,8 @@ export function describeDodging(accuracy: number): string {
 export function describeReachCells(cells: number): string {
   const whole = Math.floor(cells);
   if (whole < 1) return "Only its own cell — it cannot reach a neighbour.";
-  const diagonal = cells * cells >= whole * whole * 2 ? ", corners included" : "";
+  const diagonal =
+    cells * cells >= whole * whole * 2 ? ", corners included" : "";
   return `Reaches ${whole} cell${whole === 1 ? "" : "s"} across the floor${diagonal}.`;
 }
 
@@ -110,9 +116,13 @@ export function describeReachCells(cells: number): string {
  * readout does the halving.
  */
 export function describeReachHeight(height: number): string {
-  if (height <= 0) return "Its own floor only — nothing up a step, nothing down.";
+  if (height <= 0)
+    return "Its own floor only — nothing up a step, nothing down.";
   const levels = height / HEIGHT_PER_LEVEL;
-  const said = levels === 0.5 ? "half a level" : `${levels} level${levels === 1 ? "" : "s"}`;
+  const said =
+    levels === 0.5
+      ? "half a level"
+      : `${levels} level${levels === 1 ? "" : "s"}`;
   return `Reaches ${said} up and ${said} down.`;
 }
 
@@ -124,7 +134,10 @@ export function describeReachHeight(height: number): string {
  * choosing a speed for. A readout that could disagree with the formula is worse
  * than none.
  */
-export function describeFlight(reach: Reach, projectile: ProjectileDef): string {
+export function describeFlight(
+  reach: Reach,
+  projectile: ProjectileDef,
+): string {
   const ms = flightDurationMs(
     { x: 0, y: 0, elevAbs: 0 },
     { x: reach.cells, y: 0, elevAbs: 0 },
@@ -144,7 +157,7 @@ export function WeaponFields({
   onChange,
   masteryHint,
   tiles,
-  statusDefs = {},
+  statusDefs = NO_STATUS_DEFS,
 }: {
   weapon: WeaponItem;
   onChange: (fields: Partial<WeaponItem>) => void;
@@ -288,9 +301,10 @@ export function WeaponFields({
           flight.
         </p>
         <div className="flex flex-wrap items-end gap-4">
-          <label className="flex flex-col gap-1 text-xs">
+          <div className="flex flex-col gap-1 text-xs">
             <span className="font-bold uppercase text-muted">Fires</span>
             <Select
+              ariaLabel="Fires"
               className="w-56"
               value={projectile?.tileId ?? ""}
               onValueChange={(tileId) =>
@@ -307,10 +321,10 @@ export function WeaponFields({
               ]}
             />
             <span className="max-w-64 text-[11px] leading-snug text-muted">
-              An 8-way tile, so the arrow points where it is going. Author one on
-              the Tile tab if the list is empty.
+              An 8-way tile, so the arrow points where it is going. Author one
+              on the Tile tab if the list is empty.
             </span>
-          </label>
+          </div>
           {projectile ? (
             <StatField
               label="Speed"
@@ -351,8 +365,8 @@ export function WeaponFields({
           What this asks of whoever swings it. Zero asks nothing.{" "}
           <strong>The worst ratio decides</strong> — a requirement on a mastery
           this weapon does not even train is a real gate, so an axe asking Blunt
-          35 and Toughness 20 is held back by whichever of the wielder&rsquo;s is
-          further behind.
+          35 and Toughness 20 is held back by whichever of the wielder&rsquo;s
+          is further behind.
         </p>
       </div>
 
@@ -387,25 +401,26 @@ export function WeaponFields({
       </div>
 
       <p className="max-w-lg text-[11px] leading-snug text-muted">
-        <strong>These numbers are what the weapon is worth with every
-        requirement exactly met.</strong> Requirements are pooled and capped:
-        bringing 45 of the 55 points an axe asks for is 82% of the way there, and
-        a surplus in one mastery never covers a shortfall in another. Below that,
-        damage, accuracy and speed all fall on the cube of what you brought — 90%
-        of the way there is {Math.round(0.9 ** REQUIREMENT_FALLOFF * 100)}% of
-        the weapon, half way there is{" "}
-        {Math.round(0.5 ** REQUIREMENT_FALLOFF * 100)}%. Above it nothing more is
-        owed: a requirement is a gate, not a scale.
+        <strong>
+          These numbers are what the weapon is worth with every requirement
+          exactly met.
+        </strong>{" "}
+        Requirements are pooled and capped: bringing 45 of the 55 points an axe
+        asks for is 82% of the way there, and a surplus in one mastery never
+        covers a shortfall in another. Below that, damage, accuracy and speed
+        all fall on the cube of what you brought — 90% of the way there is{" "}
+        {Math.round(0.9 ** REQUIREMENT_FALLOFF * 100)}% of the weapon, half way
+        there is {Math.round(0.5 ** REQUIREMENT_FALLOFF * 100)}%. Above it
+        nothing more is owed: a requirement is a gate, not a scale.
       </p>
 
       <p className="max-w-lg text-[11px] leading-snug text-muted">
         <strong>Being good with it is paid separately.</strong> The{" "}
         {MASTERY_LABELS[weapon.mastery]} mastery adds up to{" "}
-        {DAMAGE_AT_MAX_MASTERY} damage and{" "}
-        {ACCURACY_AT_MAX_MASTERY} accuracy flat, plus a quarter of what the
-        weapon already brings — so a mastered starter weapon is a real weapon
-        rather than a rounding error, and it keeps paying long after its
-        requirements stopped.
+        {DAMAGE_AT_MAX_MASTERY} damage and {ACCURACY_AT_MAX_MASTERY} accuracy
+        flat, plus a quarter of what the weapon already brings — so a mastered
+        starter weapon is a real weapon rather than a rounding error, and it
+        keeps paying long after its requirements stopped.
       </p>
 
       <p className="max-w-lg text-[11px] leading-snug text-muted">

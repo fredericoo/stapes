@@ -104,7 +104,10 @@ function isGiveable(def: TileDef): boolean {
 }
 
 /** Display is top-first; store reorder uses bottom-first stack indices. */
-function displayIndexToStackIndex(displayIndex: number, length: number): number {
+function displayIndexToStackIndex(
+  displayIndex: number,
+  length: number,
+): number {
   return length - 1 - displayIndex;
 }
 
@@ -300,6 +303,9 @@ export function SelectedStackList({ stack, tilesById, tilesets }: Props) {
     >
       <datalist id={CHANNEL_LIST_ID}>
         {channels.map((channel) => (
+          // A `<datalist>` suggestion is its own label — the rule is about an
+          // `<option>` in a `<select>`, which needs text of its own.
+          // oxlint-disable-next-line jsx-a11y/control-has-associated-label
           <option key={channel} value={channel} />
         ))}
       </datalist>

@@ -1,0 +1,190 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+
+  "plugins": [
+    "typescript",
+    "unicorn",
+    "oxc",
+    "react",
+    "import",
+    "promise",
+    "vitest",
+    "jsx-a11y"
+  ],
+
+  // What these three actually put in the DOM, so
+  // `label-has-associated-control` stops being wrong about forty-six labels
+  // that do associate. `Input` and `Textarea` are thin wrappers around a real
+  // `<input>` and `<textarea>`; `@base-ui`'s `Switch.Root` renders a
+  // `<span role="switch">` beside a visually hidden `<input type="checkbox">`,
+  // and clicking the caption in a wrapping `<label>` does toggle it.
+  //
+  // `Select` and `Segmented` are deliberately **not** here. Both render a
+  // button, a label around a button labels nothing, and every hit on those was
+  // real — see `app/ui/Select.tsx`, which says so and takes an `ariaLabel`.
+  "settings": {
+    "jsx-a11y": {
+      "components": {
+        "Input": "input",
+        "Textarea": "textarea",
+        "Switch": "input"
+      }
+    }
+  },
+
+  // `correctness` is code that is outright wrong, `suspicious` code that almost
+  // certainly is, and `perf` code with a cheaper equivalent — the three that
+  // find bugs rather than argue about taste. `style` and `pedantic` stay off:
+  // shape is oxfmt's job, and the house style is written down in `AGENTS.md`
+  // rather than enforced by a linter.
+  //
+  // **Nothing here is `warn`.** A rule is denied, or off below with the reason,
+  // or disabled at the spot with the reason beside it — so a warning appearing
+  // in a run is news rather than part of the furniture.
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "error"
+  },
+
+  // **Suppress with the block form, not with `oxlint-disable-next-line`.** A
+  // `// oxlint-disable-next-line` inside a component silences that component's
+  // other react-plugin findings too (oxlint 1.81): one in `PlayPage` hid six
+  // `react/refs` warnings elsewhere in the same component. The paired
+  // `/* oxlint-disable <rule> */` … `/* oxlint-enable <rule> */` is scoped to
+  // what is between them — checked by stripping the directives and comparing
+  // the counts, which is worth doing whenever one is added.
+  "rules": {
+    // ---------------------------------------------------------------------
+    // Off, and why. Each of these was read at every site it fires on before
+    // being turned off — the list is short on purpose, and a rule that is
+    // right about even one site here belongs back on with a fix beside it.
+    // ---------------------------------------------------------------------
+
+    // The automatic JSX runtime (`"jsx": "react-jsx"`) means nothing imports
+    // React to write JSX, and nothing here does.
+    "react/react-in-jsx-scope": "off",
+
+    // `toSorted` / `toReversed` allocate. Every hit is a frame-loop sort of a
+    // scratch array the caller already owns (`textLabels`, `pileLayout`,
+    // `depthClump`, `pathfinding`), and `e2e/renderer-perf.spec.ts` holds those
+    // paths to an allocation budget. Same argument for `new Array(n)`, which
+    // `depthClump` fills by index immediately after.
+    "unicorn/no-array-sort": "off",
+    "unicorn/no-array-reverse": "off",
+    "unicorn/no-new-array": "off",
+
+    // **Its fix introduces bugs here.** Every hit is
+    // `for (const x of [...collection])` where the body removes from that
+    // collection — `disposeMotionGhost` deletes the key it was handed,
+    // `world.children` loses the child, a listener unsubscribes. The spread is
+    // the snapshot that makes the loop safe. It also reads
+    // `[...float32Array.slice(0, 4)]` as redundant when it is the conversion
+    // to a plain array that `toEqual([0, 0, 0, 0])` compares against.
+    "unicorn/no-useless-spread": "off",
+
+    // Its advice is "mutate in place instead". Map edits here are persistent —
+    // `setStacks`, `mapMutations` and the editor store all rebuild by spreading
+    // so the previous value stays valid for React and for undo. Mutating would
+    // be the bug the immutability exists to prevent.
+    "oxc/no-map-spread": "off",
+
+    // Six sites, all a handler assigned once to an object the line above
+    // created: a fresh `Image`, a fresh `Worker`, the worker's own global.
+    // Nothing registers a second handler, so `addEventListener` buys nothing.
+    "unicorn/prefer-add-event-listener": "off",
+
+    // Fires on `worker.postMessage(...)`, which takes a transfer list rather
+    // than a target origin — the rule is about `window.postMessage`.
+    "unicorn/require-post-message-target-origin": "off",
+
+    // Every hit is a `void promise.then(...)` whose chain ends there. The
+    // `void` says the result is not going anywhere; returning one would be a
+    // value nobody reads.
+    "promise/always-return": "off",
+
+    // A `describe` holds its fixtures and the helpers that read them. Hoisting
+    // those to module scope to save an allocation per test separates them from
+    // the data they are about.
+    "unicorn/consistent-function-scoping": "off",
+
+    // Thirty-odd hits, every one a short-lived callback local with the same
+    // natural name as something in an enclosing scope — `i` in a `map`, `rect`
+    // in a loop, `event` in a handler. Renaming them to satisfy the rule makes
+    // each one worse.
+    "no-shadow": "off",
+
+    // `then` is the authored name for a dialog branch — it is in the schema in
+    // `app/lib/dialog.ts`, in `data/tiles.json`, and in the editor that writes
+    // them — so this is a content format rather than a variable anybody chose
+    // here, and renaming it is a migration.
+    //
+    // The hazard the rule is about is real and worth knowing: a plain object
+    // carrying a `then` is a thenable, so `await`ing a `DialogChoice`, or
+    // returning one from an `async` function, would have the runtime call that
+    // array as a callback. Nothing does today — the script is parsed once and
+    // walked synchronously — and anything that starts to should rename the
+    // field rather than silence this again.
+    "unicorn/no-thenable": "off",
+
+    // `__editorPerf` is the name the renderer publishes its counters under for
+    // the Playwright budgets to read; the dangle marks it as a test seam.
+    "no-underscore-dangle": "off",
+
+    // Sequencing is usually the reason a loop awaits — the deploy script and
+    // the server's drain both need one request finished before the next
+    // starts, and `Promise.all` would be the bug.
+    "no-await-in-loop": "off",
+
+    // `app/root.tsx` imports the Tailwind entry point for its side effect,
+    // which is the only way a stylesheet gets into the bundle.
+    "import/no-unassigned-import": "off",
+
+    // These are Jest's rules, and Vitest is not Jest: `expect(actual, message)`
+    // takes the second argument, `it(name)` takes a name bound from a table of
+    // cases, and an assertion may sit behind the precondition it only holds
+    // under or inside a helper (`expectInFront`) that makes it.
+    "vitest/valid-expect": "off",
+    "vitest/valid-title": "off",
+    "vitest/expect-expect": "off",
+    "vitest/no-conditional-expect": "off",
+    "vitest/require-mock-type-parameters": "off",
+
+    // ---------------------------------------------------------------------
+    // Off for the whole codebase, rather than at a handful of spots.
+    // ---------------------------------------------------------------------
+
+    // Every hit is a list whose row *is* its position: the kit rows whose order
+    // is the priority, the container slots ("keying by instance id would be
+    // keying the container on its contents, and an empty slot has no id to key
+    // by at all"), the palette entries whose index is the value stored in the
+    // voxels, the brain's verbs and transitions, which pass that index as their
+    // drag id. Several of them say so in a comment already. Keying those by
+    // content is what would be wrong — two rows offering the same sword would
+    // collide.
+    "react/no-array-index-key": "off",
+
+    // Every hit is a widget that deliberately does not use the native element,
+    // because the native one cannot be styled or does not exist: a `<div
+    // role="img">` holding a tile sprite or a "+3" badge, a
+    // `role="progressbar"` with its own `aria-value*` (a `<progress>` cannot be
+    // drawn like the rest of this UI), `role="listbox"`/`role="option"` in a
+    // combobox that exists because `<select>` does not do this, and
+    // `role="status"` live regions that are not form output. Each of those is
+    // the ARIA authoring pattern rather than a shortcut around one.
+    "jsx-a11y/prefer-tag-over-role": "off",
+
+    // All four are a text field in something the reader just chose to open —
+    // the chat bar, the description dialog, the death screen's one button. That
+    // is the case the rule's own documentation allows: focus follows the
+    // decision to open the thing rather than being taken from somebody who was
+    // reading.
+    "jsx-a11y/no-autofocus": "off",
+
+    // Denied like the rest of `correctness`; the option is the whole change.
+    // `depth: 3` because a caption is often `<span><span>Two handed</span>…`,
+    // where the second span carries the explanation under the heading, and the
+    // default of 2 stops one level short of the text.
+    "jsx-a11y/label-has-associated-control": ["error", { "depth": 3 }]
+  }
+}

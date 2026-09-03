@@ -122,6 +122,10 @@ export function useTap(onTap: () => void): TapProps {
    * `useCallback` to avoid it.
    */
   const run = useRef(onTap);
+  // Mirrored during render on purpose: the handlers below are bound once and
+  // must run whatever the caller passed for *this* render, and an effect would
+  // leave them a render behind.
+  /* oxlint-disable-next-line react/refs */
   run.current = onTap;
 
   const onPointerDown = useCallback((event: React.PointerEvent) => {
@@ -132,25 +136,22 @@ export function useTap(onTap: () => void): TapProps {
     };
   }, []);
 
-  const onPointerUp = useCallback(
-    (event: React.PointerEvent) => {
-      const began = pressed.current;
-      pressed.current = null;
-      if (
-        !completesTap(began, {
-          pointerId: event.pointerId,
-          pointerType: event.pointerType,
-          x: event.clientX,
-          y: event.clientY,
-        })
-      ) {
-        return;
-      }
-      swallowSynthesisedClick();
-      run.current();
-    },
-    [],
-  );
+  const onPointerUp = useCallback((event: React.PointerEvent) => {
+    const began = pressed.current;
+    pressed.current = null;
+    if (
+      !completesTap(began, {
+        pointerId: event.pointerId,
+        pointerType: event.pointerType,
+        x: event.clientX,
+        y: event.clientY,
+      })
+    ) {
+      return;
+    }
+    swallowSynthesisedClick();
+    run.current();
+  }, []);
 
   const onPointerCancel = useCallback(() => {
     pressed.current = null;

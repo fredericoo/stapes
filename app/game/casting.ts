@@ -1,10 +1,6 @@
 import type { ArcaneStoneItem } from "../lib/item";
 import { reachOf, resolveStone } from "../lib/item";
-import {
-  type Masteries,
-  masteryLevel,
-  MASTERIES,
-} from "../lib/mastery";
+import { type Masteries, masteryLevel, MASTERIES } from "../lib/mastery";
 import type { MapFile, TileDef } from "../lib/types";
 import { canReach } from "./combat";
 import type { ReachPoint } from "./distance";
@@ -94,9 +90,7 @@ export type CastRefusal =
   | "outOfRange";
 
 /** Whether this stone can be cast, and why not when it cannot. */
-export type Castability =
-  | { ok: true }
-  | { ok: false; reason: CastRefusal };
+export type Castability = { ok: true } | { ok: false; reason: CastRefusal };
 
 /** The unit a countdown is drawn in, and so the grain {@link spellReading} compares at. */
 const MS_PER_SECOND = 1000;

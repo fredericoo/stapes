@@ -120,7 +120,10 @@ export function attackerEarnings(
   if (earned <= 0) return {};
 
   const requirement = weapon.requirements?.[weapon.mastery] ?? 0;
-  const rate = learningRate(masteryLevel(masteries, weapon.mastery), requirement);
+  const rate = learningRate(
+    masteryLevel(masteries, weapon.mastery),
+    requirement,
+  );
 
   const earnings: MasteryXp = { agility: earned * AGILITY_SHARE_OF_OFFENCE };
   earnings[weapon.mastery] = earned * rate;
@@ -217,7 +220,6 @@ export function practiceEarnings(
   return earnings;
 }
 
-
 /**
  * What one cast earns the body that made it.
  *
@@ -299,7 +301,10 @@ export function casterEarnings(
   // read against its own requirement rather than against Arcane's, so a caster
   // who has outgrown a stone's Fire keeps learning from its Water.
   const rateFor = (mastery: Mastery) =>
-    learningRate(masteryLevel(masteries, mastery), requirements?.[mastery] ?? 0);
+    learningRate(
+      masteryLevel(masteries, mastery),
+      requirements?.[mastery] ?? 0,
+    );
 
   const earnings: MasteryXp = { arcane: earned * rateFor("arcane") };
   for (const element of elements) earnings[element] = earned * rateFor(element);

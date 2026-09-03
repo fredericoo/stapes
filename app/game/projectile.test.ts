@@ -63,7 +63,9 @@ describe("how long a shot is in the air", () => {
   });
 
   it("divides the screen distance by the speed", () => {
-    expect(flightDurationMs(at(0, 0), at(4, 0), STEADY)).toBeCloseTo(4 * CELL_MS);
+    expect(flightDurationMs(at(0, 0), at(4, 0), STEADY)).toBeCloseTo(
+      4 * CELL_MS,
+    );
     expect(
       flightDurationMs(at(0, 0), at(4, 0), { ...STEADY, cellsPerSecond: 20 }),
     ).toBeCloseTo(2 * CELL_MS);

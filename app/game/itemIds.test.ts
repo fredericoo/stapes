@@ -29,8 +29,13 @@ const tiles = [
 ];
 const tilesById = tilesByIdFromList(tiles);
 
-function mapWith(stacks: Array<{ x: number; y: number; stack: PlacedTile[] }>): MapFile {
-  return setStacks({ version: 1, levels: {} }, stacks.map((s) => ({ ...s, z: 0 })));
+function mapWith(
+  stacks: Array<{ x: number; y: number; stack: PlacedTile[] }>,
+): MapFile {
+  return setStacks(
+    { version: 1, levels: {} },
+    stacks.map((s) => ({ ...s, z: 0 })),
+  );
 }
 
 describe("mintItemIds", () => {
@@ -40,8 +45,8 @@ describe("mintItemIds", () => {
     ]);
     const next = mintItemIds(map, tilesById);
     const stack = getStack(next, 0, 0, 0);
-    expect(stack[0].itemId).toBeUndefined();
-    expect(stack[1].itemId).toMatch(/^itm_/);
+    expect(stack[0]!.itemId).toBeUndefined();
+    expect(stack[1]!.itemId).toMatch(/^itm_/);
   });
 
   it("gives two of the same tile two different identities", () => {
@@ -50,8 +55,8 @@ describe("mintItemIds", () => {
       { x: 1, y: 0, stack: [{ tileId: "rusty-sword" }] },
     ]);
     const next = mintItemIds(map, tilesById);
-    const a = getStack(next, 0, 0, 0)[0].itemId;
-    const b = getStack(next, 1, 0, 0)[0].itemId;
+    const a = getStack(next, 0, 0, 0)[0]!.itemId;
+    const b = getStack(next, 1, 0, 0)[0]!.itemId;
     expect(a).toBeDefined();
     expect(a).not.toBe(b);
   });
@@ -65,13 +70,11 @@ describe("mintItemIds", () => {
       { x: 0, y: 0, stack: [{ tileId: "rusty-sword", itemId: "itm_known" }] },
     ]);
     const next = mintItemIds(map, tilesById);
-    expect(getStack(next, 0, 0, 0)[0].itemId).toBe("itm_known");
+    expect(getStack(next, 0, 0, 0)[0]!.itemId).toBe("itm_known");
   });
 
   it("is idempotent — a second pass changes nothing at all", () => {
-    const map = mapWith([
-      { x: 0, y: 0, stack: [{ tileId: "basic-bag" }] },
-    ]);
+    const map = mapWith([{ x: 0, y: 0, stack: [{ tileId: "basic-bag" }] }]);
     const once = mintItemIds(map, tilesById);
     const twice = mintItemIds(once, tilesById);
     // Same object, not merely equal: a pass with nothing to do must not copy
@@ -103,11 +106,16 @@ describe("mintItemIds", () => {
       {
         x: 0,
         y: 0,
-        stack: [{ tileId: "basic-bag", contents: [{ tileId: "rusty-sword" }] as never }],
+        stack: [
+          {
+            tileId: "basic-bag",
+            contents: [{ tileId: "rusty-sword" }] as never,
+          },
+        ],
       },
     ]);
-    const placed = getStack(mintItemIds(map, tilesById), 0, 0, 0)[0];
-    expect(placed.contents?.[0].id).toMatch(/^itm_/);
+    const placed = getStack(mintItemIds(map, tilesById), 0, 0, 0)[0]!;
+    expect(placed.contents?.[0]!.id).toMatch(/^itm_/);
   });
 
   it("gives a chest and the sword in it two different identities", () => {
@@ -115,11 +123,16 @@ describe("mintItemIds", () => {
       {
         x: 0,
         y: 0,
-        stack: [{ tileId: "basic-bag", contents: [{ tileId: "rusty-sword" }] as never }],
+        stack: [
+          {
+            tileId: "basic-bag",
+            contents: [{ tileId: "rusty-sword" }] as never,
+          },
+        ],
       },
     ]);
-    const placed = getStack(mintItemIds(map, tilesById), 0, 0, 0)[0];
-    expect(placed.itemId).not.toBe(placed.contents?.[0].id);
+    const placed = getStack(mintItemIds(map, tilesById), 0, 0, 0)[0]!;
+    expect(placed.itemId).not.toBe(placed.contents?.[0]!.id);
   });
 
   it("leaves an identity a content already had alone", () => {
@@ -137,7 +150,7 @@ describe("mintItemIds", () => {
       },
     ]);
     const next = mintItemIds(map, tilesById);
-    expect(getStack(next, 0, 0, 0)[0].contents?.[0].id).toBe("itm_known");
+    expect(getStack(next, 0, 0, 0)[0]!.contents?.[0]!.id).toBe("itm_known");
     // Nothing needed minting, so nothing was copied.
     expect(next).toBe(map);
   });
@@ -150,7 +163,7 @@ describe("mintItemIds", () => {
         stack: [{ tileId: "basic-bag", channel: "gate", description: "loot" }],
       },
     ]);
-    const placed = getStack(mintItemIds(map, tilesById), 0, 0, 0)[0];
+    const placed = getStack(mintItemIds(map, tilesById), 0, 0, 0)[0]!;
     expect(placed.channel).toBe("gate");
     expect(placed.description).toBe("loot");
   });

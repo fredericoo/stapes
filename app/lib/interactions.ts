@@ -477,7 +477,6 @@ export type PlacedReward = {
   itemTileIds: string[];
 };
 
-
 /**
  * One thing this tile turns into others: spend that, get these.
  *
@@ -1642,21 +1641,21 @@ export function hasAnyInteraction(
 ): boolean {
   return Boolean(
     interactions?.brain ||
-      interactions?.dialog ||
-      interactions?.battler ||
-      interactions?.item ||
-      interactions?.push ||
-      interactions?.switch ||
-      interactions?.reward ||
-      interactions?.transmute ||
-      interactions?.extract ||
-      interactions?.teleport ||
-      interactions?.addStatus ||
-      interactions?.decay ||
-      interactions?.respawn ||
-      interactions?.pressurePlate ||
-      interactions?.emit ||
-      interactions?.receive,
+    interactions?.dialog ||
+    interactions?.battler ||
+    interactions?.item ||
+    interactions?.push ||
+    interactions?.switch ||
+    interactions?.reward ||
+    interactions?.transmute ||
+    interactions?.extract ||
+    interactions?.teleport ||
+    interactions?.addStatus ||
+    interactions?.decay ||
+    interactions?.respawn ||
+    interactions?.pressurePlate ||
+    interactions?.emit ||
+    interactions?.receive,
   );
 }
 
@@ -1850,9 +1849,9 @@ export function interactionsForSave(
   const savedBattler = battler
     ? {
         masteries: Object.fromEntries(
-          MASTERIES.filter((mastery) => (battler.masteries?.[mastery] ?? 0) > 0).map(
-            (mastery) => [mastery, battler.masteries[mastery]],
-          ),
+          MASTERIES.filter(
+            (mastery) => (battler.masteries?.[mastery] ?? 0) > 0,
+          ).map((mastery) => [mastery, battler.masteries[mastery]]),
         ),
         naturalWeapon: weaponForSave(
           battler.naturalWeapon ?? DEFAULT_BATTLER.naturalWeapon,

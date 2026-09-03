@@ -282,7 +282,16 @@ export function TilePreview({
       alive = false;
       cancelAnimationFrame(raf);
     };
-  }, [tile, tilesets, size, direction, autotileSlice, state, still, background]);
+  }, [
+    tile,
+    tilesets,
+    size,
+    direction,
+    autotileSlice,
+    state,
+    still,
+    background,
+  ]);
 
   return (
     <canvas

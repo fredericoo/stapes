@@ -72,7 +72,15 @@ describe("the views a frame is drawn from", () => {
   it("carries the position, the bearing and the floor", () => {
     const flight = { ...shot(4, 0), elapsedMs: 100 };
     expect(projectileViews([flight])).toEqual([
-      { id: "shot-1", tileId: "arrow", direction: "e", x: 12, y: 10, elevAbs: 0, z: 0 },
+      {
+        id: "shot-1",
+        tileId: "arrow",
+        direction: "e",
+        x: 12,
+        y: 10,
+        elevAbs: 0,
+        z: 0,
+      },
     ]);
   });
 

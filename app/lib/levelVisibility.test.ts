@@ -11,9 +11,7 @@ import type { MapFile, TileDef } from "./types";
 import { coordKey, levelKey, normalizeTileDef } from "./types";
 import { tilesByIdFromList } from "./validation";
 
-function tile(
-  partial: Partial<TileDef> & Pick<TileDef, "id">,
-): TileDef {
+function tile(partial: Partial<TileDef> & Pick<TileDef, "id">): TileDef {
   return normalizeTileDef({
     name: partial.id,
     height: 0,
@@ -174,9 +172,7 @@ describe("levelsAboveShouldHide", () => {
       { x: 0, y: 0, z: 0, tiles: ["floor"] },
       { x: 2, y: 1, z: 1, tiles: ["roof"] },
     ]);
-    expect(levelsAboveShouldHide(map, tilesById, view, VIEW_RADIUS)).toBe(
-      true,
-    );
+    expect(levelsAboveShouldHide(map, tilesById, view, VIEW_RADIUS)).toBe(true);
   });
 
   it("excludes a roof just outside the Euclidean radius", () => {
@@ -281,9 +277,9 @@ describe("occluders out at the probe radius", () => {
       { x: 2, y: 0, tiles: ["floor", "wall"] },
       { x: 2, y: 0, z: 1, tiles: ["roof"] },
     ]);
-    expect(
-      levelsAboveShouldHide(map, tilesById, { x: 0, y: 0, z: 0 }),
-    ).toBe(false);
+    expect(levelsAboveShouldHide(map, tilesById, { x: 0, y: 0, z: 0 })).toBe(
+      false,
+    );
   });
 
   it("still hides when that far cell is see-through", () => {
@@ -293,9 +289,9 @@ describe("occluders out at the probe radius", () => {
       { x: 2, y: 0, tiles: ["floor", "window"] },
       { x: 2, y: 0, z: 1, tiles: ["roof"] },
     ]);
-    expect(
-      levelsAboveShouldHide(map, tilesById, { x: 0, y: 0, z: 0 }),
-    ).toBe(true);
+    expect(levelsAboveShouldHide(map, tilesById, { x: 0, y: 0, z: 0 })).toBe(
+      true,
+    );
   });
 
   it("a wall midway blocks content above the cell beyond it", () => {
@@ -305,9 +301,9 @@ describe("occluders out at the probe radius", () => {
       { x: 2, y: 0, tiles: ["floor"] },
       { x: 2, y: 0, z: 1, tiles: ["roof"] },
     ]);
-    expect(
-      levelsAboveShouldHide(map, tilesById, { x: 0, y: 0, z: 0 }),
-    ).toBe(false);
+    expect(levelsAboveShouldHide(map, tilesById, { x: 0, y: 0, z: 0 })).toBe(
+      false,
+    );
   });
 
   it("VIEW_RADIUS reaches at least two cells, which the box must cover", () => {

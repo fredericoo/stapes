@@ -23,6 +23,9 @@ a world in the way.
 - `bun run seed` — load `data/` into a database that already has content. Rarely
   needed: a fresh one seeds itself on boot
 - `bun run typecheck` — route typegen, then all three tsconfigs
+- `bun run lint` — oxlint. `bun run lint:fix` applies what it can fix on its own
+- `bun run format` — oxfmt, in place. `bun run format:check` is what CI and the
+  pre-commit hook run
 - `bun run test:unit` — `app/` logic, in vitest
 - `bun run test:server` — the world, on Bun, against a real database file
 - `bun run test:perf` — renderer budgets, in Playwright
@@ -93,6 +96,70 @@ Three configs, because the code spans three places:
 - `tsconfig.json` — `app/`, typed for a browser tab. No Node types
 - `tsconfig.server.json` — `server/`, plus the modules it shares with `app/`
 - `tsconfig.node.json` — `scripts/`, `e2e/` and the `*.config.ts` files
+
+They differ only in what they include and which globals they admit; the
+strictness settings are the same in all three, so a module shared between
+`app/` and `server/` cannot be stricter in one than in the other. Beyond
+`strict`, the ones worth knowing about:
+
+- **`noUncheckedIndexedAccess`** — `array[i]` is `T | undefined`. Most of the
+  hits are provably in-range reads of a typed array inside a bounds-checked
+  loop, and those are written `grid[i]!`; the point is that the ones that are
+  *not* provable now have to say so.
+- **`module: "preserve"`** — nothing here is compiled by `tsc`. Vite compiles
+  the app and Bun runs the server as written, `.ts` extensions and all, and
+  `preserve` is the setting that describes that instead of pretending to emit.
+- **`isolatedModules`, `verbatimModuleSyntax`, `moduleDetection: "force"`** —
+  everything the bundler and Bun already assume: one file at a time, imports
+  left exactly as typed, and no file quietly being a script.
+
+## Lint and format
+
+`bun run lint` (oxlint) and `bun run format` (oxfmt), both pinned to an exact
+version: a formatter that moves under you mid-branch turns one review into two.
+CI runs `lint` and `format:check` beside the typecheck, and so does a
+`pre-commit` hook — `bun install` puts it in place, because lefthook installs
+its own hooks on postinstall.
+
+**The hook checks the whole tree, not the staged files.** Together they take
+about half a second, so there is nothing to buy by narrowing them, and a
+staged-files check answers the wrong question: what matters at a commit is
+whether the tree it leaves behind is clean, and a file made unformatted by a
+rebase or by an editor writing on save is not staged by anybody. Neither job
+writes — a failure names the command that fixes it. `LEFTHOOK=0 git commit`
+skips both for one commit.
+
+**`.oxlintrc.json` is worth reading before adding to it.** It denies
+`correctness`, `suspicious` and `perf`, and the rules it turns off each carry
+the reason — several of them are rules whose *fix* is wrong here. The
+`for (const x of [...collection])` in the renderer is a snapshot taken because
+the loop body deletes from that collection, `Array#sort` is used in the frame
+loop where `toSorted` would allocate, and spreading a map edit is what keeps the
+previous value valid for React and for undo. A rule that is right about even one
+site belongs back on with a fix beside it.
+
+**A clean run is zero, not "zero errors".** Nothing is warned — a rule is either
+denied, or off here with the reason, or suppressed at the spot with the reason
+beside it. So a warning appearing is news.
+
+**Suppress with the block form.** A `// oxlint-disable-next-line` inside a
+component silences that component's other react-plugin findings as well: one in
+`PlayPage` hid six `react/refs` warnings elsewhere in it. Use the paired
+`/* oxlint-disable <rule> */` … `/* oxlint-enable <rule> */`, and check it by
+stripping every directive from the file and comparing the counts.
+
+`settings.jsx-a11y.components` maps `Input`, `Textarea` and `Switch` to what
+they put in the DOM. Anything added there wants checking in a browser first, not
+reasoning about: `Switch` is on the list because clicking a caption in a
+wrapping `<label>` really does toggle it, and `Select` is off it because the
+same click does nothing.
+
+**oxfmt only formats TypeScript here.** `.oxfmtrc.json` ignores three things,
+each for its own reason: `data/`, because `serializeMap` round-trips those files
+byte-for-byte and reformatting them would make the editor's next Save a
+whole-file diff; Markdown, because the prose is hand-wrapped and oxfmt rewrites
+`*emphasis*` to `_emphasis_`; and `app/app.css`, whose text-shadow rings are
+laid out as a grid of offsets that the formatter flattens into a list.
 
 ## Third-party assets
 

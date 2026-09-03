@@ -99,7 +99,6 @@ describe("reading a typed line", () => {
     });
   });
 
-
   it("reads a status by the id it was written with", () => {
     // Not lower-cased, unlike a mastery: a status id is a key out of an authored
     // file rather than a word from a list this module owns, and folding its case
@@ -276,7 +275,9 @@ const frame = {
 function tile(
   partial: Record<string, unknown> & Pick<TileDef, "id" | "height">,
 ): TileDef {
-  const interactions = partial.interactions as { battler?: unknown } | undefined;
+  const interactions = partial.interactions as
+    | { battler?: unknown }
+    | undefined;
   return normalizeTileDef({
     name: partial.id,
     directional: false,
@@ -476,7 +477,6 @@ describe("what a command does to a body", () => {
   });
 });
 
-
 /**
  * The same again for the tile command, where "did anything happen" is a
  * question about the board rather than about a number on a body.
@@ -561,9 +561,7 @@ describe("what a command does to the board", () => {
     // Placing the tile is the whole of putting a creature in the world, and
     // this is what makes that true of a summoned one as well as an authored
     // one: without the runtime it is scenery shaped like a deer.
-    const summoned = session
-      .actorIds()
-      .filter((id) => !before.includes(id));
+    const summoned = session.actorIds().filter((id) => !before.includes(id));
     expect(summoned).toEqual(["npc:0,1,0,1"]);
     expect(session.isResident("npc:0,1,0,1")).toBe(true);
     expect(stackAt(session, 0, 1, 0)[1]?.owner).toBe("npc:0,1,0,1");
@@ -708,7 +706,11 @@ describe("moving health by hand", () => {
   it("reads a bare figure as a place to put somebody", () => {
     expect(parseCommand("/health 12")).toEqual({
       ok: true,
-      command: { name: "health", health: { kind: "set", hp: 12 }, target: null },
+      command: {
+        name: "health",
+        health: { kind: "set", hp: 12 },
+        target: null,
+      },
     });
   });
 
@@ -718,18 +720,30 @@ describe("moving health by hand", () => {
     // and moving them.
     expect(parseCommand("/health +10")).toEqual({
       ok: true,
-      command: { name: "health", health: { kind: "shift", by: 10 }, target: null },
+      command: {
+        name: "health",
+        health: { kind: "shift", by: 10 },
+        target: null,
+      },
     });
     expect(parseCommand("/health -10")).toEqual({
       ok: true,
-      command: { name: "health", health: { kind: "shift", by: -10 }, target: null },
+      command: {
+        name: "health",
+        health: { kind: "shift", by: -10 },
+        target: null,
+      },
     });
   });
 
   it("carries a target the way every other command does", () => {
     expect(parseCommand("/health +5 somebody")).toEqual({
       ok: true,
-      command: { name: "health", health: { kind: "shift", by: 5 }, target: "somebody" },
+      command: {
+        name: "health",
+        health: { kind: "shift", by: 5 },
+        target: "somebody",
+      },
     });
     expect(parseCommand("/health +5 self")).toEqual(parseCommand("/health +5"));
   });

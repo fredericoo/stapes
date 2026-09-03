@@ -23,7 +23,6 @@ import {
   resizeGrid,
   sheetSprites,
   sheetVariants,
-  voxelCount,
   voxelDims,
   voxelIndex,
   type OutlineMode,
@@ -32,7 +31,15 @@ import {
   type VoxelProject,
   type VoxelSize,
 } from "../lib/voxel";
-import { Button, Dialog, Input, Segmented, Select, Switch, useToast } from "../ui";
+import {
+  Button,
+  Dialog,
+  Input,
+  Segmented,
+  Select,
+  Switch,
+  useToast,
+} from "../ui";
 
 const STORAGE_KEY = "stapes-voxel-project";
 const AUTOSAVE_DELAY_MS = 400;
@@ -52,7 +59,8 @@ const DEFAULT_PALETTE = [
 export async function clientAction({ request }: Route.ClientActionArgs) {
   const form = await request.formData();
   const intent = String(form.get("intent") ?? "");
-  if (intent !== "export-tileset") return { ok: false, error: "Unknown intent" };
+  if (intent !== "export-tileset")
+    return { ok: false, error: "Unknown intent" };
 
   const name = String(form.get("name") ?? "").trim();
   const file = form.get("file");
@@ -69,7 +77,10 @@ export async function clientAction({ request }: Route.ClientActionArgs) {
 
   const id = slugify(name);
   const fileName = `${id}.png`;
-  await uploadTileset(new File([bytes], fileName, { type: "image/png" }), fileName);
+  await uploadTileset(
+    new File([bytes], fileName, { type: "image/png" }),
+    fileName,
+  );
   const tilesets = await fetchTilesets();
   const def: TilesetDef = {
     id,
@@ -130,8 +141,12 @@ function loadStoredProject(): VoxelProject | null {
 }
 
 export default function VoxelPage() {
-  const [project, setProject] = useState<VoxelProject>(defaultProject);
-  const [hydrated, setHydrated] = useState(false);
+  // Read once, as the initial value. There is no server render (`ssr: false`),
+  // so `localStorage` is there on the first one — reading it in an effect drew
+  // the default project for a frame and then replaced it.
+  const [project, setProject] = useState<VoxelProject>(
+    () => loadStoredProject() ?? defaultProject(),
+  );
   const [frameIdx, setFrameIdx] = useState(0);
   const [sliceZ, setSliceZ] = useState(0);
   const [selectedColor, setSelectedColor] = useState(1);
@@ -147,21 +162,17 @@ export default function VoxelPage() {
   );
 
   useEffect(() => {
-    const stored = loadStoredProject();
-    if (stored) setProject(stored);
-    setHydrated(true);
-  }, []);
-
-  useEffect(() => {
-    if (!hydrated) return;
     const timer = setTimeout(() => {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(project));
     }, AUTOSAVE_DELAY_MS);
     return () => clearTimeout(timer);
-  }, [project, hydrated]);
+  }, [project]);
 
   const dims = voxelDims(project.size);
-  const frame = project.frames[Math.min(frameIdx, project.frames.length - 1)];
+  // `voxelProjectSchema` holds `frames` at one or more, so a clamped index
+  // always lands on a frame.
+  const clampedFrameIdx = Math.min(frameIdx, project.frames.length - 1);
+  const frame = project.frames[clampedFrameIdx]!;
   const clampedSliceZ = Math.min(sliceZ, dims.vz - 1);
 
   const paintWrites = (writes: { x: number; y: number; value: number }[]) => {
@@ -169,11 +180,11 @@ export default function VoxelPage() {
     setProject((p) => {
       const d = voxelDims(p.size);
       const frames = p.frames.slice();
-      const voxels = frames[frameIdx].voxels.slice();
+      const voxels = frames[clampedFrameIdx]!.voxels.slice();
       for (const w of writes) {
         voxels[voxelIndex(d, w.x, w.y, clampedSliceZ)] = w.value;
       }
-      frames[frameIdx] = { ...frames[frameIdx], voxels };
+      frames[clampedFrameIdx] = { ...frames[clampedFrameIdx]!, voxels };
       return { ...p, frames };
     });
   };
@@ -184,9 +195,7 @@ export default function VoxelPage() {
       size: next,
       frames: p.frames.map((f) => ({
         ...f,
-        voxels: Array.from(
-          resizeGrid(Uint8Array.from(f.voxels), p.size, next),
-        ),
+        voxels: Array.from(resizeGrid(Uint8Array.from(f.voxels), p.size, next)),
       })),
     }));
     setSliceZ((z) => Math.min(z, voxelDims(next).vz - 1));
@@ -254,7 +263,11 @@ export default function VoxelPage() {
           <Button size="sm" variant="ghost-inverse" onClick={downloadSheetPng}>
             Download PNG
           </Button>
-          <Button size="sm" variant="primary" onClick={() => setExportOpen(true)}>
+          <Button
+            size="sm"
+            variant="primary"
+            onClick={() => setExportOpen(true)}
+          >
             Export tileset
           </Button>
         </>
@@ -262,7 +275,11 @@ export default function VoxelPage() {
     >
       <div className="grid h-full min-h-0 grid-cols-[240px_1fr_280px]">
         <aside className="flex min-h-0 flex-col gap-4 overflow-auto border-r-2 border-border bg-panel p-3">
-          <ProjectControls project={project} onChange={setProject} onResize={changeSize} />
+          <ProjectControls
+            project={project}
+            onChange={setProject}
+            onResize={changeSize}
+          />
           <PalettePanel
             palette={project.palette}
             selected={selectedColor}
@@ -308,12 +325,18 @@ export default function VoxelPage() {
               if (idx > 0) setSelectedColor(idx);
             }}
           />
-          <HeightSlider dims={dims} sliceZ={clampedSliceZ} onChange={setSliceZ} />
+          <HeightSlider
+            dims={dims}
+            sliceZ={clampedSliceZ}
+            onChange={setSliceZ}
+          />
         </main>
 
         <aside className="flex min-h-0 flex-col gap-3 overflow-auto border-l-2 border-border bg-panel p-3">
           <div className="flex flex-col gap-2">
-            <span className="text-xs font-bold uppercase text-muted">Preview</span>
+            <span className="text-xs font-bold uppercase text-muted">
+              Preview
+            </span>
             <label className="flex items-center justify-between gap-2 text-xs">
               Face shading
               <Switch
@@ -322,7 +345,7 @@ export default function VoxelPage() {
                 ariaLabel="Toggle face shading"
               />
             </label>
-            <label className="flex flex-col gap-1 text-xs">
+            <div className="flex flex-col gap-1 text-xs">
               <span className="font-bold uppercase text-muted">Outline</span>
               <Segmented
                 size="sm"
@@ -335,7 +358,7 @@ export default function VoxelPage() {
                   { value: "full", label: "Edge+depth" },
                 ]}
               />
-            </label>
+            </div>
           </div>
           <div className="grid grid-cols-2 place-items-center gap-3">
             {(project.directional ? DIRECTIONS : (["s"] as const)).map((d) => (
@@ -363,6 +386,10 @@ export default function VoxelPage() {
       </div>
 
       <ExportDialog
+        // One mount per opening, rather than an effect pushing the name back
+        // into the field: the fields are a fresh answer to "what shall this be
+        // called" every time the dialog is opened.
+        key={exportOpen ? "open" : "closed"}
         open={exportOpen}
         onOpenChange={setExportOpen}
         project={project}
@@ -548,15 +575,13 @@ function FramesPanel({
   onSelect: (idx: number) => void;
   onChange: React.Dispatch<React.SetStateAction<VoxelProject>>;
 }) {
-  const frame = project.frames[frameIdx];
+  const clampedFrameIdx = Math.min(frameIdx, project.frames.length - 1);
+  const frame = project.frames[clampedFrameIdx]!;
 
   const addFrame = (voxels: number[]) => {
     onChange((p) => ({
       ...p,
-      frames: [
-        ...p.frames,
-        { voxels, durationMs: frame?.durationMs ?? DEFAULT_FRAME_DURATION_MS },
-      ],
+      frames: [...p.frames, { voxels, durationMs: frame.durationMs }],
     }));
     onSelect(project.frames.length);
   };
@@ -564,9 +589,9 @@ function FramesPanel({
   const deleteFrame = () => {
     onChange((p) => ({
       ...p,
-      frames: p.frames.filter((_, i) => i !== frameIdx),
+      frames: p.frames.filter((_, i) => i !== clampedFrameIdx),
     }));
-    onSelect(Math.max(0, frameIdx - 1));
+    onSelect(Math.max(0, clampedFrameIdx - 1));
   };
 
   return (
@@ -580,6 +605,7 @@ function FramesPanel({
             key={`frame-${idx}-${project.frames.length}`}
             project={project}
             voxels={f.voxels}
+            index={idx}
             render={render}
             active={idx === frameIdx}
             onClick={() => onSelect(idx)}
@@ -610,12 +636,15 @@ function FramesPanel({
         <Input
           type="number"
           min={1}
-          value={frame?.durationMs ?? DEFAULT_FRAME_DURATION_MS}
+          value={frame.durationMs}
           onChange={(e) => {
             const durationMs = Math.max(1, Number(e.target.value) || 1);
             onChange((p) => {
               const frames = p.frames.slice();
-              frames[frameIdx] = { ...frames[frameIdx], durationMs };
+              frames[clampedFrameIdx] = {
+                ...frames[clampedFrameIdx]!,
+                durationMs,
+              };
               return { ...p, frames };
             });
           }}
@@ -630,12 +659,15 @@ function FramesPanel({
 function FrameThumb({
   project,
   voxels,
+  index,
   render,
   active,
   onClick,
 }: {
   project: VoxelProject;
   voxels: number[];
+  /** Zero-based, and named one-based in the label the way the tabs are. */
+  index: number;
   render: RenderOptions;
   active: boolean;
   onClick: () => void;
@@ -666,6 +698,10 @@ function FrameThumb({
     <button
       type="button"
       onClick={onClick}
+      // The button holds a canvas and nothing else, so without this it is
+      // announced as an unnamed button.
+      aria-label={`Frame ${index + 1}`}
+      aria-pressed={active}
       className={[
         "border-2 p-0.5",
         active ? "border-accent" : "border-border hover:border-muted",
@@ -711,7 +747,10 @@ function triggerDownload(blob: Blob, fileName: string) {
 
 const TILE_HEIGHT_OPTIONS: { value: string; label: string }[] = [
   { value: "0", label: "0 — flat" },
-  { value: "1", label: "1 — a seat, the tallest thing you can stand on indoors" },
+  {
+    value: "1",
+    label: "1 — a seat, the tallest thing you can stand on indoors",
+  },
   { value: "2", label: "2 — half level" },
   { value: "3", label: "3 — a body, as tall as the player" },
   { value: "4", label: "4 — full level" },
@@ -734,10 +773,6 @@ function ExportDialog({
   const [createTile, setCreateTile] = useState(true);
   const [tileHeight, setTileHeight] = useState("4");
   const submittedRef = useRef(false);
-
-  useEffect(() => {
-    if (open) setName(project.name);
-  }, [open, project.name]);
 
   useEffect(() => {
     if (!submittedRef.current || fetcher.state !== "idle" || !fetcher.data) {
@@ -764,7 +799,10 @@ function ExportDialog({
     fd.set("name", name);
     fd.set("file", new File([blob], `${tilesetId}.png`, { type: "image/png" }));
     if (createTile) {
-      fd.set("tile", JSON.stringify(buildTileDef(project, tilesetId, tileHeight)));
+      fd.set(
+        "tile",
+        JSON.stringify(buildTileDef(project, tilesetId, tileHeight)),
+      );
     }
     submittedRef.current = true;
     fetcher.submit(fd, { method: "post", encType: "multipart/form-data" });
@@ -810,21 +848,23 @@ function ExportDialog({
           Also create/update tile <code>{slugify(name) || "…"}</code>
         </label>
         {createTile ? (
-          <label className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1">
             <span className="font-bold uppercase text-muted">Tile height</span>
             <Select
+              ariaLabel="Tile height"
               value={tileHeight}
               onValueChange={(v) => {
                 if (v) setTileHeight(v);
               }}
               options={TILE_HEIGHT_OPTIONS}
             />
-          </label>
+          </div>
         ) : null}
         <p className="text-muted">
           Writes <code>{slugify(name) || "…"}.png</code> to the tilesets folder
           ({project.directional ? "4 direction rows" : "1 row"} ×{" "}
-          {project.frames.length} frame{project.frames.length === 1 ? "" : "s"}).
+          {project.frames.length} frame{project.frames.length === 1 ? "" : "s"}
+          ).
         </p>
       </div>
     </Dialog>

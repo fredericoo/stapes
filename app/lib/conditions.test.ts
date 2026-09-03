@@ -51,7 +51,9 @@ describe("telling a group from a leaf", () => {
   it("still reads a group that lost its combinator as a group", () => {
     const broken = { rules: [leaf("a")] } as unknown as ConditionNode<Leaf>;
     expect(isConditionGroup(broken)).toBe(true);
-    expect(v.safeParse(conditionSchema(leafSchema), broken).success).toBe(false);
+    expect(v.safeParse(conditionSchema(leafSchema), broken).success).toBe(
+      false,
+    );
   });
 });
 
@@ -79,7 +81,10 @@ describe("evaluating", () => {
 
   it("nests", () => {
     // a and (b or c)
-    const nested = group("and", [leaf("a"), group("or", [leaf("b"), leaf("c")])]);
+    const nested = group("and", [
+      leaf("a"),
+      group("or", [leaf("b"), leaf("c")]),
+    ]);
     expect(evaluateCondition(nested, asking(["a", "c"]))).toBe(true);
     expect(evaluateCondition(nested, asking(["b", "c"]))).toBe(false);
   });
@@ -92,10 +97,7 @@ describe("evaluating", () => {
    */
   it("stops asking as soon as the answer is settled", () => {
     const asked: string[] = [];
-    evaluateCondition(
-      group("and", [leaf("a"), leaf("b")]),
-      asking([], asked),
-    );
+    evaluateCondition(group("and", [leaf("a"), leaf("b")]), asking([], asked));
     expect(asked).toEqual(["a"]);
 
     const alsoAsked: string[] = [];

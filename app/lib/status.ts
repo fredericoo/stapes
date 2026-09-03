@@ -1,11 +1,6 @@
 import * as v from "valibot";
 import { type Formula, parseFormula } from "./formula";
-import {
-  NO_VFX,
-  resolveStatusVfx,
-  type StatusVfx,
-  statusVfxSchema,
-} from "./statusVfx";
+import { resolveStatusVfx, type StatusVfx, statusVfxSchema } from "./statusVfx";
 import { type CellRect, defaultBase, type SpriteRef } from "./types";
 
 /**
@@ -157,7 +152,11 @@ export const DEFAULT_STATUS_SOURCE = {
   name: "",
   description: "",
   tone: "good" as StatusTone,
-  icon: { tilesetId: "", rect: { x: 0, y: 0, w: 1, h: 1 }, base: { x: 0, y: 0 } },
+  icon: {
+    tilesetId: "",
+    rect: { x: 0, y: 0, w: 1, h: 1 },
+    base: { x: 0, y: 0 },
+  },
   fromMs: 10_000,
   toMs: 30_000,
   stacks: false,
@@ -236,7 +235,10 @@ const statusSourceSchema = v.pipe(
       v.object(
         Object.fromEntries(
           MODIFIER_KEYS.map((key) => [key, v.optional(v.string())]),
-        ) as Record<(typeof MODIFIER_KEYS)[number], v.OptionalSchema<v.StringSchema<undefined>, undefined>>,
+        ) as Record<
+          (typeof MODIFIER_KEYS)[number],
+          v.OptionalSchema<v.StringSchema<undefined>, undefined>
+        >,
       ),
       () => ({}),
     ),
@@ -384,7 +386,9 @@ export function fullDurationMs(def: StatusDef): number {
  * rather than the same `??` at each of the four places that draw one.
  */
 export function completeSprite(
-  sprite: { tilesetId: string; rect: CellRect; base?: { x: number; y: number } } | undefined,
+  sprite:
+    | { tilesetId: string; rect: CellRect; base?: { x: number; y: number } }
+    | undefined,
 ): SpriteRef | null {
   if (!sprite) return null;
   return { ...sprite, base: sprite.base ?? defaultBase(sprite.rect) };

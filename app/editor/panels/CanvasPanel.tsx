@@ -76,10 +76,7 @@ function CanvasStatus() {
     <div className="relative z-10 shrink-0 border-2 border-border bg-paper/90 px-2 py-1 text-xs shadow-hard">
       {hover ? `${hover.x},${hover.y}` : "—"} · z{currentLevel} · ×{zoom}
       {previewMode ? <span className="text-accent"> · preview</span> : null}
-      {tool !== "select" &&
-      tool !== "erase" &&
-      !selected &&
-      !armedTileId ? (
+      {tool !== "select" && tool !== "erase" && !selected && !armedTileId ? (
         <span className="text-danger"> · no tile armed</span>
       ) : null}
       {autotileSlices && autotileSlices.length > 0 ? (
@@ -88,7 +85,10 @@ function CanvasStatus() {
             <span key={a.id} className="mr-2 last:mr-0">
               {a.id} slice {a.slice}
               {a.fallback ? (
-                <span className="text-danger" title="Missing slice — using fallback">
+                <span
+                  className="text-danger"
+                  title="Missing slice — using fallback"
+                >
                   {" "}
                   (fallback)
                 </span>

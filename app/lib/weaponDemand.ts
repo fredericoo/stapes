@@ -50,7 +50,9 @@ export function weaponDemand(
   masteries: Masteries,
   requirements: Masteries | undefined,
 ): string[] {
-  const asked = MASTERIES.filter((mastery) => (requirements?.[mastery] ?? 0) > 0);
+  const asked = MASTERIES.filter(
+    (mastery) => (requirements?.[mastery] ?? 0) > 0,
+  );
   if (asked.length === 0) return [];
 
   const lines = asked.map((mastery) => {

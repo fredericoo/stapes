@@ -250,7 +250,10 @@ describe("the authored ladder", () => {
 
   /** Learning the sword is what turns the snake from a death into a fight. */
   it("turns the snake winnable once the sword is learnt", () => {
-    const trained = playerAt("blade", weaponOf("rusty-sword").requirements?.blade ?? 0);
+    const trained = playerAt(
+      "blade",
+      weaponOf("rusty-sword").requirements?.blade ?? 0,
+    );
     const snake = fists(bodyOf("snake"));
 
     expect(winRate(armed(trained, "rusty-sword"), snake)).toBeGreaterThan(
@@ -355,7 +358,9 @@ describe("the wolf", () => {
   /** It stands above everything else, which is what makes it the next rung. */
   it("rates above every other creature in the world", () => {
     for (const id of ["rat", "deer", "cat", "snake"]) {
-      expect(rating(wolf.masteries)).toBeGreaterThan(rating(bodyOf(id).masteries));
+      expect(rating(wolf.masteries)).toBeGreaterThan(
+        rating(bodyOf(id).masteries),
+      );
     }
   });
 
@@ -388,11 +393,19 @@ describe("the wolf", () => {
    */
   it("is out of reach until the right sword is earned, and then a real fight", () => {
     const fresh = winRate(fists(bodyOf("player")), fists(wolf));
-    const starter = winRate(armed(playerAt("blade", 22), "rusty-sword"), fists(wolf));
+    const starter = winRate(
+      armed(playerAt("blade", 22), "rusty-sword"),
+      fists(wolf),
+    );
 
     const earned = {
       ...bodyOf("player"),
-      masteries: { ...bodyOf("player").masteries, blade: 20, toughness: 20, agility: 20 },
+      masteries: {
+        ...bodyOf("player").masteries,
+        blade: 20,
+        toughness: 20,
+        agility: 20,
+      },
     };
     const properly = winRate(armed(earned, "knights-sword"), fists(wolf));
 
@@ -476,7 +489,8 @@ describe("the duel loop", () => {
     const b = fists(bodyOf("wolf"));
     const results = new Set(
       [1, 2, 3, 4, 5, 6, 7, 8].map(
-        (seed) => runDuel({ swings: [a] }, { swings: [b] }, new Rng(seed)).ticks,
+        (seed) =>
+          runDuel({ swings: [a] }, { swings: [b] }, new Rng(seed)).ticks,
       ),
     );
     expect(results.size).toBeGreaterThan(1);
@@ -493,7 +507,11 @@ describe("the duel loop", () => {
     const swings = duel.tick().filter((event) => event.kind === "swing");
     expect(swings.map((event) => event.by)).toEqual(["a", "b"]);
 
-    const second = new Duel({ swings: [slow] }, { swings: [quick] }, new Rng(1));
+    const second = new Duel(
+      { swings: [slow] },
+      { swings: [quick] },
+      new Rng(1),
+    );
     second.tick();
     // A whole cooldown on — `MIN_ATTACK_TICKS`, the floor between two blows —
     // and only the quick one has come round again, wherever it is sitting.
@@ -512,11 +530,21 @@ describe("the duel loop", () => {
    */
   it("takes the killing blow's target out before it can answer", () => {
     const killer = dummy({ spd: 100, hitChance: 1, damage: 999, variance: 0 });
-    const victim = dummy({ spd: 100, hitChance: 1, damage: 999, variance: 0, flee: 0 });
+    const victim = dummy({
+      spd: 100,
+      hitChance: 1,
+      damage: 999,
+      variance: 0,
+      flee: 0,
+    });
     // Enough fights that the defender's one-in-twenty escape cannot carry the
     // assertion — see `MIN_CHANCE`.
     for (let seed = 0; seed < 50; seed++) {
-      const duel = new Duel({ swings: [killer] }, { swings: [victim] }, new Rng(seed));
+      const duel = new Duel(
+        { swings: [killer] },
+        { swings: [victim] },
+        new Rng(seed),
+      );
       const events = duel.tick();
       const answered = events.some(
         (event) => event.kind === "swing" && event.by === "b",
@@ -552,9 +580,14 @@ describe("the duel loop", () => {
     // Long enough for a 10% venom to take at the snake's rate, over enough
     // seeds that the assertion is about the mechanism and not about one roll.
     const poisoned = [0, 1, 2, 3, 4].map((seed) => {
-      const duel = new Duel({ swings: [snake] }, { swings: [victim] }, new Rng(seed), {
-        statusDefs,
-      });
+      const duel = new Duel(
+        { swings: [snake] },
+        { swings: [victim] },
+        new Rng(seed),
+        {
+          statusDefs,
+        },
+      );
       const ailments: number[] = [];
       for (let tick = 0; tick < 3_000; tick++) {
         for (const event of duel.tick()) {
@@ -592,9 +625,14 @@ describe("the duel loop", () => {
   /** A fight nobody can win is called rather than hung. */
   it("calls a draw when neither side can get through", () => {
     const stone = dummy({ damage: 0, def: 99, maxHp: 50 });
-    const result = runDuel({ swings: [stone] }, { swings: [stone] }, new Rng(1), {
-      maxTicks: 500,
-    });
+    const result = runDuel(
+      { swings: [stone] },
+      { swings: [stone] },
+      new Rng(1),
+      {
+        maxTicks: 500,
+      },
+    );
     expect(result.winner).toBeNull();
     expect(result.ticks).toBe(500);
   });

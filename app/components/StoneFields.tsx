@@ -45,6 +45,11 @@ import {
   describeReachHeight,
 } from "./WeaponFields";
 
+// Hoisted so the default is one value rather than a new one per render. An
+// inline `{}` or `[]` in a destructuring default is a fresh identity every
+// time, which is a changed prop to everything memoised below it.
+const NO_STATUS_DEFS: Record<string, StatusDef> = {};
+
 /**
  * What an arcane stone is, in the editor.
  *
@@ -115,7 +120,7 @@ export function StoneFields({
   stone,
   onChange,
   tiles,
-  statusDefs = {},
+  statusDefs = NO_STATUS_DEFS,
 }: {
   stone: ArcaneStoneItem;
   onChange: (fields: Partial<ArcaneStoneItem>) => void;
@@ -149,11 +154,6 @@ export function StoneFields({
     label: tile.name,
   }));
 
-  const statusOptions = Object.values(statusDefs).map((def) => ({
-    value: def.id,
-    label: def.name,
-  }));
-
   // Narrowed where the conjure list is not, and the asymmetry is the rule rather
   // than an inconsistency: anything can be placed on the board, and only an
   // 8-way tile can point where it is going. The one already picked is kept
@@ -162,18 +162,19 @@ export function StoneFields({
   const boltProjectile =
     stone.effect.kind === "bolt" ? stone.effect.projectile : undefined;
   const projectileTiles = tiles.filter(
-    (tile) => tile.type === "directional8" || tile.id === boltProjectile?.tileId,
+    (tile) =>
+      tile.type === "directional8" || tile.id === boltProjectile?.tileId,
   );
 
   return (
     <div className="flex flex-col gap-3">
       <p className="max-w-lg text-[11px] leading-snug text-muted">
-        <strong>Held and never swung at anybody.</strong> A stone sits out of the
-        swing rotation exactly as a shield does, so carrying one costs a hand
-        rather than a fight: one stone and a sword swings the sword every turn,
-        and two stones falls back to fists. It goes in either hand or on the
-        charm, and what it can do is decided by what you carry and how recently
-        you used it — there is no mana anywhere in this game.
+        <strong>Held and never swung at anybody.</strong> A stone sits out of
+        the swing rotation exactly as a shield does, so carrying one costs a
+        hand rather than a fight: one stone and a sword swings the sword every
+        turn, and two stones falls back to fists. It goes in either hand or on
+        the charm, and what it can do is decided by what you carry and how
+        recently you used it — there is no mana anywhere in this game.
       </p>
 
       <div className="flex flex-col gap-1 text-xs">
@@ -257,13 +258,14 @@ export function StoneFields({
               and just as purely a picture: the health has already moved by the
               time the first frame appears, so a bolt cannot miss in the air and
               one that killed still finishes its flight.{" "}
-              <strong>Nothing flies at the caster</strong> &mdash; a bolt at your
-              own body has no distance to cross.
+              <strong>Nothing flies at the caster</strong> &mdash; a bolt at
+              your own body has no distance to cross.
             </p>
             <div className="flex flex-wrap items-end gap-4">
-              <label className="flex flex-col gap-1 text-xs">
+              <div className="flex flex-col gap-1 text-xs">
                 <span className="font-bold uppercase text-muted">Throws</span>
                 <Select
+                  ariaLabel="Throws"
                   className="w-56"
                   value={effect.projectile?.tileId ?? ""}
                   onValueChange={(tileId) =>
@@ -271,7 +273,10 @@ export function StoneFields({
                       effect: {
                         ...effect,
                         projectile: tileId
-                          ? { ...(effect.projectile ?? STARTER_PROJECTILE), tileId }
+                          ? {
+                              ...(effect.projectile ?? STARTER_PROJECTILE),
+                              tileId,
+                            }
                           : undefined,
                       },
                     })
@@ -288,7 +293,7 @@ export function StoneFields({
                   An 8-way tile, so it points where it is going. Author one on
                   the Tile tab if the list is empty.
                 </span>
-              </label>
+              </div>
               {effect.projectile ? (
                 <StatField
                   label="Speed"
@@ -318,8 +323,8 @@ export function StoneFields({
             <strong>Arcane</strong> and by the <strong>elements</strong> this
             stone asks for, averaged: the figure is what the stone does for
             somebody who has learnt nothing. A harm then has to get through the
-            subject&rsquo;s armour and is weighed on the wheel; a mend is stopped
-            by neither and stops at a full health bar, and earns what it{" "}
+            subject&rsquo;s armour and is weighed on the wheel; a mend is
+            stopped by neither and stops at a full health bar, and earns what it{" "}
             <strong>actually restored</strong> rather than what it says.
           </p>
 
@@ -339,13 +344,15 @@ export function StoneFields({
               <>
                 What the bolt <strong>leaves on whoever it landed on</strong> —
                 a ward on yourself, a burn on what you were pointing at. Rolled
-                once per entry per cast. <strong>Armour eating the damage does
-                not save anybody from the burn</strong>, exactly as it does not
-                for a weapon; only a body that is not there, or one the same
-                cast killed, gets away with nothing. The chance is the{" "}
-                <strong>stone&rsquo;s own</strong> and no mastery moves it:
-                Arcane and the elements have already had their say on how deep
-                the bolt ran.
+                once per entry per cast.{" "}
+                <strong>
+                  Armour eating the damage does not save anybody from the burn
+                </strong>
+                , exactly as it does not for a weapon; only a body that is not
+                there, or one the same cast killed, gets away with nothing. The
+                chance is the <strong>stone&rsquo;s own</strong> and no mastery
+                moves it: Arcane and the elements have already had their say on
+                how deep the bolt ran.
                 <br />
                 <br />
                 A bolt needs <strong>one of the two halves</strong> — some
@@ -373,8 +380,8 @@ export function StoneFields({
             <span className="max-w-lg text-[11px] leading-snug text-muted">
               Placed at the target&rsquo;s cell, or in front of the caster when
               nothing is targeted — the player never picks a square.{" "}
-              <strong>Give it a decay lifetime</strong>, or the battlefield fills
-              up with everything anybody has ever cast.
+              <strong>Give it a decay lifetime</strong>, or the battlefield
+              fills up with everything anybody has ever cast.
             </span>
           </label>
         </div>
@@ -415,16 +422,15 @@ export function StoneFields({
       </div>
 
       <p className="max-w-lg text-[11px] leading-snug text-muted">
-        The cooldown belongs to <strong>this stone</strong> and not to the kind of
-        stone — two of these in two hands cool independently — and it is{" "}
-        <strong>spent whether or not the spell accomplished anything</strong>, on
-        the terms a swing costs its wait before the dice are rolled. A cooling
-        stone is locked in its square: it cannot be moved, swapped or put down
-        until it is ready, so nobody beats the wait by rotating stones out of a
-        bag. Reach and height are read only for a stone that acts on somebody
-        else; a spell at its own caster and a charm are always at arm&rsquo;s
-        length. Default is{" "}
-        {MELEE_REACH.cells} cells.
+        The cooldown belongs to <strong>this stone</strong> and not to the kind
+        of stone — two of these in two hands cool independently — and it is{" "}
+        <strong>spent whether or not the spell accomplished anything</strong>,
+        on the terms a swing costs its wait before the dice are rolled. A
+        cooling stone is locked in its square: it cannot be moved, swapped or
+        put down until it is ready, so nobody beats the wait by rotating stones
+        out of a bag. Reach and height are read only for a stone that acts on
+        somebody else; a spell at its own caster and a charm are always at
+        arm&rsquo;s length. Default is {MELEE_REACH.cells} cells.
       </p>
 
       <label className="flex items-start gap-2 border-t-2 border-border pt-3 text-xs">
@@ -438,11 +444,10 @@ export function StoneFields({
           <span className="max-w-72 text-[11px] leading-snug text-muted">
             On, it fires by itself the moment it is ready and would not be
             wasted: a mending bolt waits until its wearer is hurt, a status
-            until they
-            are not already under it. It gets no button, because there is nothing
-            to press — and it may only be worn on the <strong>charm</strong>,
-            since a hand that acted on its own would be a body casting spells
-            nobody asked it to.
+            until they are not already under it. It gets no button, because
+            there is nothing to press — and it may only be worn on the{" "}
+            <strong>charm</strong>, since a hand that acted on its own would be
+            a body casting spells nobody asked it to.
           </span>
         </span>
       </label>
@@ -468,9 +473,7 @@ export function StoneFields({
         </p>
         <ElementReading
           elements={spellElements(stone.requirements)}
-          harms={
-            stone.effect.kind !== "bolt" || (stone.effect.damage ?? 0) > 0
-          }
+          harms={stone.effect.kind !== "bolt" || (stone.effect.damage ?? 0) > 0}
         />
         <div className="flex flex-wrap gap-4">
           {MASTERIES.map((mastery) => (

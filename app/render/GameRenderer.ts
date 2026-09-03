@@ -5,11 +5,9 @@ import {
   depthStackBias,
   drawOrder,
   elevationScreenOffset,
-  PX_PER_HEIGHT,
 } from "../lib/geometry";
 import type {
   ActorSnapshot,
-  ChatBubble,
   DamageNumber,
   GameSnapshot,
   ObjectRef,
@@ -54,10 +52,7 @@ import {
 import { emitterCenter } from "../lib/lighting";
 import { elevationAt, getStack, stackHeight } from "../lib/mapData";
 import { pileTally } from "../lib/piles";
-import {
-  levelsAboveShouldHide,
-  viewAnchorFor,
-} from "../lib/levelVisibility";
+import { levelsAboveShouldHide, viewAnchorFor } from "../lib/levelVisibility";
 import type {
   Coord,
   LightDef,
@@ -86,11 +81,7 @@ import {
 } from "../lib/statusVfx";
 import { SmoothedRemaining, taperKey } from "./statusTaper";
 import { spriteStatesFor } from "./spriteState";
-import {
-  pickBattlerAt,
-  pickInteractiveAt,
-  pickTileAt,
-} from "./pick";
+import { pickBattlerAt, pickInteractiveAt, pickTileAt } from "./pick";
 import { DamageNumberLayer, type DamageNumberView } from "./damageNumbers";
 import { NoticeQueue, NotificationLayer } from "./notifications";
 import { healthBarColor, healthFraction } from "./healthBar";
@@ -346,7 +337,8 @@ export class GameRenderer {
   private onEquipment: ((equipment: Equipment) => void) | null = null;
   /** Identity of the last equipment handed on, so an idle frame costs a compare. */
   private equipmentSent: Equipment | null = null;
-  private onConversation: ((conversation: Conversation | null) => void) | null = null;
+  private onConversation: ((conversation: Conversation | null) => void) | null =
+    null;
   /** Undefined until the first push, so a closed panel still gets reported once. */
   private conversationSent: Conversation | null | undefined = undefined;
   private onVitals: ((vitals: Vitals) => void) | null = null;
@@ -425,9 +417,8 @@ export class GameRenderer {
   private openedFrom = "";
   /** Last value handed on. `undefined` means "nothing said yet". */
   private openedSent: OpenedContainer | null | undefined = undefined;
-  private onInteractions:
-    | ((options: InteractionOption[]) => void)
-    | null = null;
+  private onInteractions: ((options: InteractionOption[]) => void) | null =
+    null;
   /** Board and cell the held list was derived from. @see pushInteractionOptions */
   private interactionsMap: MapFile | null = null;
   private interactionsAt = "";
@@ -451,9 +442,11 @@ export class GameRenderer {
    * it. Routing a ghost through React state would re-render the page around the
    * game to move one translucent sprite.
    */
-  private dropDrag:
-    | { from: SlotRef; tileId: string; point: { x: number; y: number } }
-    | null = null;
+  private dropDrag: {
+    from: SlotRef;
+    tileId: string;
+    point: { x: number; y: number };
+  } | null = null;
   private profiler = new FrameProfiler();
   private disposed = false;
   private raf = 0;
@@ -787,7 +780,9 @@ export class GameRenderer {
     this.openedSent = undefined;
   }
 
-  setOnOpenedContainer(cb: ((container: OpenedContainer | null) => void) | null) {
+  setOnOpenedContainer(
+    cb: ((container: OpenedContainer | null) => void) | null,
+  ) {
     this.onOpenedContainer = cb;
     this.openedPlacement = null;
     this.openedFrom = "";
@@ -891,9 +886,7 @@ export class GameRenderer {
   /** The hovered row's option as it stands this frame, or null. */
   private listHoverOption(): InteractionOption | null {
     if (this.listHoverId === null) return null;
-    return (
-      this.interactionsSent.find((o) => o.id === this.listHoverId) ?? null
-    );
+    return this.interactionsSent.find((o) => o.id === this.listHoverId) ?? null;
   }
 
   start() {
@@ -1183,7 +1176,12 @@ export class GameRenderer {
    * already knows where the canvas is.
    */
   setDropGhost(
-    drag: { from: SlotRef; tileId: string; clientX: number; clientY: number } | null,
+    drag: {
+      from: SlotRef;
+      tileId: string;
+      clientX: number;
+      clientY: number;
+    } | null,
   ) {
     if (!drag) {
       this.dropDrag = null;
@@ -1263,7 +1261,12 @@ export class GameRenderer {
     if (!ref) return null;
     const at = { x: ref.x, y: ref.y, z: ref.z };
     if (!this.session.canDrop(drag.from, at)) return null;
-    return { kind: "ghost", tileId: drag.tileId, ...at, alpha: DROP_GHOST_ALPHA };
+    return {
+      kind: "ghost",
+      tileId: drag.tileId,
+      ...at,
+      alpha: DROP_GHOST_ALPHA,
+    };
   }
 
   /**
@@ -1387,7 +1390,8 @@ export class GameRenderer {
     // answer for a body drawn behind the floors below you, and there now is one.
     // Approximating a floor's worth of doubt on top of an exact answer would
     // only take back the cases the exact answer got right.
-    if (hideLevelsAbove !== undefined && actor.z > hideLevelsAbove) return false;
+    if (hideLevelsAbove !== undefined && actor.z > hideLevelsAbove)
+      return false;
     if (!this.isWithinView(snap.map, actor, camera)) return false;
     return !isHiddenFromCamera(
       snap.map,
@@ -1411,7 +1415,6 @@ export class GameRenderer {
     };
   }
 
-
   /**
    * What is being looked at right now, resolved against the board.
    *
@@ -1428,7 +1431,12 @@ export class GameRenderer {
     snap: GameSnapshot,
   ): { ref: ObjectRef; placed: PlacedTile; def: TileDef } | null {
     if (!this.lookedAt) return null;
-    const stack = getStack(snap.map, this.lookedAt.x, this.lookedAt.y, this.lookedAt.z);
+    const stack = getStack(
+      snap.map,
+      this.lookedAt.x,
+      this.lookedAt.y,
+      this.lookedAt.z,
+    );
     const placed = stack[this.lookedAt.stackIndex];
     const def = placed && this.tilesById[placed.tileId];
     if (!placed || !def) {
@@ -1516,7 +1524,8 @@ export class GameRenderer {
       this.session.setTarget(null);
       return;
     }
-    if (!this.isWithinView(snap.map, actor, camera)) this.session.setTarget(null);
+    if (!this.isWithinView(snap.map, actor, camera))
+      this.session.setTarget(null);
   }
 
   /**
@@ -1642,9 +1651,7 @@ export class GameRenderer {
    * behind. Accepted for now — see plans/looking-and-signs.md.
    */
   private pushPointerLabel(snap: GameSnapshot, into: WorldLabel[]) {
-    const said = this.lookMode
-      ? this.lookLines(snap)
-      : this.pointerLines(snap);
+    const said = this.lookMode ? this.lookLines(snap) : this.pointerLines();
     if (!said) return;
 
     const { ref, height, lines, color } = said;
@@ -1691,7 +1698,10 @@ export class GameRenderer {
     if (placed.description) {
       lines.push({ id: "description", text: placed.description });
     }
-    for (const [index, text] of weaponDemandFor(def, snap.masteryXp).entries()) {
+    for (const [index, text] of weaponDemandFor(
+      def,
+      snap.masteryXp,
+    ).entries()) {
       lines.push({ id: `demand-${index}`, text });
     }
     // No colour: the stylesheet's blue is the mode's own, and look mode is the
@@ -1710,7 +1720,7 @@ export class GameRenderer {
    * Read off the same option the outline is drawn from and the click will run,
    * so the words cannot describe an action other than the one that happens.
    */
-  private pointerLines(snap: GameSnapshot): PointerLabel | null {
+  private pointerLines(): PointerLabel | null {
     const option = this.pointerOption();
     if (!option) return null;
     const def = this.tilesById[option.tileId];
@@ -2003,11 +2013,7 @@ export class GameRenderer {
     this.enforceTargetVisibility(snap, camera);
 
     const anchor = viewAnchorFor(snap.self);
-    const hideAbove = levelsAboveShouldHide(
-      snap.map,
-      this.tilesById,
-      anchor,
-    );
+    const hideAbove = levelsAboveShouldHide(snap.map, this.tilesById, anchor);
 
     // The list is built first because the pointer is *read out of it*: what is
     // under the cursor is a row, so resolving one against last frame's list
@@ -2056,11 +2062,7 @@ export class GameRenderer {
       camera,
       fit.cssScale,
     );
-    this.damageLayer?.set(
-      this.damageFor(snap, ceiling),
-      camera,
-      fit.cssScale,
-    );
+    this.damageLayer?.set(this.damageFor(snap, ceiling), camera, fit.cssScale);
     // Driven by the frame, not the pointer: walking away from an object
     // revokes the affordance without the pointer having moved at all.
     this.applyCursor();
@@ -2346,7 +2348,8 @@ export class GameRenderer {
         // outranking one that has just landed.
         if (vfx.tint) {
           const worn = taperedTint(vfx.tint, taper);
-          if (!strongest || worn.strength > strongest.strength) strongest = worn;
+          if (!strongest || worn.strength > strongest.strength)
+            strongest = worn;
         }
         if (!vfx.particles) continue;
         (emitters ??= []).push(
@@ -2618,10 +2621,7 @@ export class GameRenderer {
    * a box that travelled half a cell into the target would put the two bodies on
    * the boundary where their sort order flips, for 150ms, every swing.
    */
-  private actorMotion(
-    map: MapFile,
-    actor: ActorSnapshot,
-  ): TileMotion | null {
+  private actorMotion(map: MapFile, actor: ActorSnapshot): TileMotion | null {
     const lean = actor.strike
       ? strikeOffset(actor.strike, actor.strikeProgress)
       : null;

@@ -37,7 +37,6 @@ import {
   DEFAULT_TRANSMUTE_VERB,
   MAX_EXTRACT_CHANCE,
   MAX_EXTRACT_SLOTS,
-  MAX_REWARD_ITEMS,
   MAX_TRANSMUTATION_OUTPUTS,
   MAX_TRANSMUTATIONS,
   MIN_EXTRACT_CHANCE,
@@ -166,7 +165,8 @@ const KIND_OPTIONS: Array<{ value: TileKind; label: string }> = [
 /** What choosing each kind gets you, in one line under the select. */
 const KIND_HINTS: Record<TileKind, string> = {
   prop: "Scenery and machinery — everything the world is made of. It can still be pushed, switched, wired, and driven by a brain.",
-  battler: "It has hit points, and can be targeted, hurt and killed. Stats are on the Battle tab.",
+  battler:
+    "It has hit points, and can be targeted, hurt and killed. Stats are on the Battle tab.",
   item: "It can be picked up and carried. What it does in a bag or a hand is on the Item tab.",
 };
 
@@ -487,8 +487,8 @@ export function InteractiveTab({
         <div className="flex flex-col gap-1 text-xs">
           <span className="text-sm font-bold">Kind</span>
           <p className="text-[11px] leading-snug text-muted">
-            What this tile <em>is</em>, as opposed to what it does. The three are
-            exclusive, and each opens the tab that configures it. Everything
+            What this tile <em>is</em>, as opposed to what it does. The three
+            are exclusive, and each opens the tab that configures it. Everything
             below — push, switch, plates, wires — is available whichever you
             pick.
           </p>
@@ -511,7 +511,9 @@ export function InteractiveTab({
         <label className="flex items-center gap-2 text-sm font-bold">
           <Switch
             checked={Boolean(push)}
-            onCheckedChange={(on) => setPush(on ? { ...DEFAULT_PUSH } : undefined)}
+            onCheckedChange={(on) =>
+              setPush(on ? { ...DEFAULT_PUSH } : undefined)
+            }
             ariaLabel="Pushable"
           />
           Push
@@ -570,10 +572,10 @@ export function InteractiveTab({
           Switch
         </label>
         <p className="text-[11px] leading-snug text-muted">
-          Clicking this object replaces it with another tile. Put switch on
-          both tiles to toggle (e.g. door closed ↔ open). The swap is refused
-          when the target would not fit in the stack. A tile with both switch
-          and push switches — push is the fallback.
+          Clicking this object replaces it with another tile. Put switch on both
+          tiles to toggle (e.g. door closed ↔ open). The swap is refused when
+          the target would not fit in the stack. A tile with both switch and
+          push switches — push is the fallback.
         </p>
 
         {sw ? (
@@ -582,9 +584,7 @@ export function InteractiveTab({
               tiles={tiles.filter((t) => t.id !== draft.id)}
               tilesets={tilesets}
               selectedIds={sw.targetTileId ? [sw.targetTileId] : []}
-              onChange={(ids) =>
-                patchSwitch({ targetTileId: ids[0] ?? "" })
-              }
+              onChange={(ids) => patchSwitch({ targetTileId: ids[0] ?? "" })}
               label="Target tile"
               emptyHint="Pick the tile this becomes when switched."
               single
@@ -658,7 +658,9 @@ export function InteractiveTab({
           <Switch
             checked={Boolean(transmute)}
             onCheckedChange={(on) =>
-              setTransmute(on ? { recipes: [...DEFAULT_TRANSMUTE.recipes] } : undefined)
+              setTransmute(
+                on ? { recipes: [...DEFAULT_TRANSMUTE.recipes] } : undefined,
+              )
             }
             ariaLabel="Transmutes"
           />
@@ -671,11 +673,13 @@ export function InteractiveTab({
           recipe rather than an exchange of particular objects.
         </p>
         <p className="text-[11px] leading-snug text-muted">
-          <strong>The tile never changes and nothing is spent but the input.</strong>{" "}
+          <strong>
+            The tile never changes and nothing is spent but the input.
+          </strong>{" "}
           Unlike a reward it is not once per player: the fire cooks the second
-          steak too, and what limits it is having something to spend. A recipe is
-          only offered while the player is actually carrying its input, so a fire
-          you have nothing to cook at is just a fire.
+          steak too, and what limits it is having something to spend. A recipe
+          is only offered while the player is actually carrying its input, so a
+          fire you have nothing to cook at is just a fire.
         </p>
 
         {transmute ? (
@@ -702,15 +706,18 @@ export function InteractiveTab({
                   Verb
                   <Input
                     value={recipe.verb ?? ""}
-                    onChange={(e) => patchRecipe(index, { verb: e.target.value })}
+                    onChange={(e) =>
+                      patchRecipe(index, { verb: e.target.value })
+                    }
                     placeholder={DEFAULT_TRANSMUTE_VERB}
                   />
                   <span className="text-[11px] font-normal leading-snug text-muted">
                     What the player is doing, as they would say it — “Cook” at a
                     fire, “Trade” with a salesman. The row reads as the verb and
                     the thing being spent, so this one says “Cook Raw Meat”. Per
-                    recipe rather than per tile, because one stall may both trade
-                    and cook. Leave it blank and it reads as “{DEFAULT_TRANSMUTE_VERB}”.
+                    recipe rather than per tile, because one stall may both
+                    trade and cook. Leave it blank and it reads as “
+                    {DEFAULT_TRANSMUTE_VERB}”.
                   </span>
                 </label>
 
@@ -766,7 +773,6 @@ export function InteractiveTab({
         ) : null}
       </section>
 
-
       <section className="flex flex-col gap-3 border-2 border-border bg-panel p-3">
         <label className="flex items-center gap-2 text-sm font-bold">
           <Switch
@@ -790,9 +796,9 @@ export function InteractiveTab({
         <p className="text-[11px] leading-snug text-muted">
           <strong>It is shared, and it runs out.</strong> Unlike a reward, which
           is once per player and leaves the chest standing, the pulls come off
-          the placement itself: the crystal is the same crystal for everybody who
-          walks up to it, and two people working one vein race each other. The{" "}
-          <em>wait</em> is the other way round — it is per player and per
+          the placement itself: the crystal is the same crystal for everybody
+          who walks up to it, and two people working one vein race each other.
+          The <em>wait</em> is the other way round — it is per player and per
           placement, so a bush somebody has just picked is still full for the
           person walking up behind them.
         </p>
@@ -830,8 +836,8 @@ export function InteractiveTab({
               />
               <span className="text-[11px] font-normal leading-snug text-muted">
                 How many times a fresh placement can be worked before it turns
-                into whatever you name below. Shared: this is the whole vein, not
-                each player’s share of it. Lowering it later shortens every
+                into whatever you name below. Shared: this is the whole vein,
+                not each player’s share of it. Lowering it later shortens every
                 placement in the world, including ones somebody has already
                 started on.
               </span>
@@ -863,10 +869,10 @@ export function InteractiveTab({
               </span>
               <span className="text-[11px] font-normal leading-snug text-muted">
                 How long <em>this</em> player must wait before working{" "}
-                <em>this</em> placement again. Nobody else sees it, so it paces a
-                person rather than the world, and somebody with two bushes in
-                front of them alternates rather than waits. Zero means as fast as
-                they can press it, until the pulls run out.
+                <em>this</em> placement again. Nobody else sees it, so it paces
+                a person rather than the world, and somebody with two bushes in
+                front of them alternates rather than waits. Zero means as fast
+                as they can press it, until the pulls run out.
               </span>
             </label>
 
@@ -992,7 +998,9 @@ export function InteractiveTab({
           traveller would not fit at the far end.
         </p>
         <p className="text-[11px] leading-snug text-muted">
-          <strong>Where it leads is set by whichever half actually varies.</strong>{" "}
+          <strong>
+            Where it leads is set by whichever half actually varies.
+          </strong>{" "}
           A ladder makes the same journey wherever it is dropped, so its offset
           lives here and is authored once. A portal leads somewhere different
           from every doorway, so its target lives on each placement — select one
@@ -1067,9 +1075,9 @@ export function InteractiveTab({
                 />
                 <span className="text-[11px] font-normal leading-snug text-muted">
                   What the player is doing, as they would say it — “Enter” a
-                  portal, “Climb” a ladder. The one part that belongs to the tile
-                  rather than to the spot: every ladder cut from this tile is
-                  climbed, wherever they go. Leave it blank and it reads as
+                  portal, “Climb” a ladder. The one part that belongs to the
+                  tile rather than to the spot: every ladder cut from this tile
+                  is climbed, wherever they go. Leave it blank and it reads as
                   “Enter”.
                 </span>
               </label>
@@ -1091,9 +1099,9 @@ export function InteractiveTab({
         </label>
         <p className="text-[11px] leading-snug text-muted">
           Puts a condition on whoever sets it off — a flame that burns, a shrine
-          that blesses. Only a body with hit points takes it: everything a status
-          does is arithmetic on health or on the numbers a fight is fought with,
-          so a crate walking through fire is a crate.
+          that blesses. Only a body with hit points takes it: everything a
+          status does is arithmetic on health or on the numbers a fight is
+          fought with, so a crate walking through fire is a crate.
         </p>
         <p className="text-[11px] leading-snug text-muted">
           Nothing is spent and nothing is remembered — walk back in and it
@@ -1128,13 +1136,16 @@ export function InteractiveTab({
                 <>
                   <Select
                     value={addStatus.statusId || null}
-                    onValueChange={(id) => id && patchAddStatus({ statusId: id })}
+                    onValueChange={(id) =>
+                      id && patchAddStatus({ statusId: id })
+                    }
                     options={statusOptions}
                   />
                   <span className="text-[11px] font-normal leading-snug text-muted">
-                    Which condition this hands over. Until one is picked the tile
-                    grants nothing and offers no row — a block naming no status
-                    reads as unauthored rather than as something that shrugs.
+                    Which condition this hands over. Until one is picked the
+                    tile grants nothing and offers no row — a block naming no
+                    status reads as unauthored rather than as something that
+                    shrugs.
                   </span>
                 </>
               )}
@@ -1319,7 +1330,9 @@ export function InteractiveTab({
         <label className="flex items-center gap-2 text-sm font-bold">
           <Switch
             checked={Boolean(emit)}
-            onCheckedChange={(on) => setEmit(on ? { ...DEFAULT_EMIT } : undefined)}
+            onCheckedChange={(on) =>
+              setEmit(on ? { ...DEFAULT_EMIT } : undefined)
+            }
             ariaLabel="Emits a signal"
           />
           Emit
@@ -1334,7 +1347,9 @@ export function InteractiveTab({
 
         {emit ? (
           <div className="flex flex-col items-start gap-1 border-t-2 border-border pt-3 text-xs">
-            <span className="font-bold uppercase text-muted">Drives channel</span>
+            <span className="font-bold uppercase text-muted">
+              Drives channel
+            </span>
             <Segmented<SignalValue>
               value={emit.value}
               onChange={(value) => setEmit({ value })}

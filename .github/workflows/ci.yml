@@ -30,6 +30,15 @@ jobs:
       - name: Typecheck
         run: bun run typecheck
 
+      # Seconds, and the kind of thing nobody wants to read a review comment
+      # about. `format:check` rather than `format`, so a run cannot quietly
+      # rewrite the branch it is checking.
+      - name: Lint
+        run: bun run lint
+
+      - name: Format
+        run: bun run format:check
+
       - name: App tests
         run: bun run test:unit
 

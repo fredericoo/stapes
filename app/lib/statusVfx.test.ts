@@ -281,9 +281,9 @@ describe("what validates", () => {
 
   it("refuses an inverted lifetime range", () => {
     const inverted = { ...DEFAULT_PARTICLES, ttlFromMs: 900, ttlToMs: 100 };
-    expect(
-      v.safeParse(statusVfxSchema, { particles: inverted }).success,
-    ).toBe(false);
+    expect(v.safeParse(statusVfxSchema, { particles: inverted }).success).toBe(
+      false,
+    );
   });
 
   it("refuses a colour that is not a colour", () => {

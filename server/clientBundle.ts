@@ -1,4 +1,11 @@
-import { mkdir, readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import {
+  mkdir,
+  readdir,
+  readFile,
+  rm,
+  stat,
+  writeFile,
+} from "node:fs/promises";
 import { dirname, join, normalize, sep } from "node:path";
 import type { Config } from "./config";
 
@@ -102,7 +109,10 @@ export class ClientBundle {
     }
 
     const dated = await Promise.all(
-      ids.map(async (id) => ({ id, writtenAt: await writtenAt(join(this.root, id)) })),
+      ids.map(async (id) => ({
+        id,
+        writtenAt: await writtenAt(join(this.root, id)),
+      })),
     );
     // The name only breaks ties, where two builds share a millisecond and any
     // order is as true as another — it keeps the result deterministic.
@@ -121,7 +131,9 @@ export class ClientBundle {
   async store(buildId: string, files: Map<string, Uint8Array>): Promise<void> {
     assertSafeId(buildId);
     if (!files.has("index.html")) {
-      throw new Error(`Build ${buildId} has no index.html — refusing to store it`);
+      throw new Error(
+        `Build ${buildId} has no index.html — refusing to store it`,
+      );
     }
 
     const directory = join(this.root, buildId);
@@ -163,7 +175,10 @@ export class ClientBundle {
     const assets = new Map<string, Asset>();
 
     for (const path of await walk(directory)) {
-      const relative = path.slice(directory.length + 1).split(sep).join("/");
+      const relative = path
+        .slice(directory.length + 1)
+        .split(sep)
+        .join("/");
       assets.set(relative, {
         bytes: new Uint8Array(await readFile(path)),
         contentType: contentTypeFor(relative),
@@ -171,14 +186,18 @@ export class ClientBundle {
     }
 
     if (!assets.has("index.html")) {
-      throw new Error(`Build ${buildId} has no index.html — refusing to serve it`);
+      throw new Error(
+        `Build ${buildId} has no index.html — refusing to serve it`,
+      );
     }
     return assets;
   }
 
   private evictOldBuilds() {
     while (this.builds.size > MAX_RESIDENT_BUILDS) {
-      const oldest = [...this.builds.keys()].find((id) => id !== this.activeBuildId);
+      const oldest = [...this.builds.keys()].find(
+        (id) => id !== this.activeBuildId,
+      );
       if (!oldest) return;
       this.builds.delete(oldest);
     }

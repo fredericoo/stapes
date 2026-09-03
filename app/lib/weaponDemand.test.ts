@@ -67,14 +67,17 @@ describe("weaponDemand", () => {
   });
 
   it("reads a hundred percent once everything is met", () => {
-    expect(weaponDemand({ blade: 20, toughness: 10 }, { blade: 20, toughness: 10 })).toContain(
-      "You get 100% out of it",
-    );
+    expect(
+      weaponDemand({ blade: 20, toughness: 10 }, { blade: 20, toughness: 10 }),
+    ).toContain("You get 100% out of it");
   });
 
   /** A surplus in one mastery never covers a shortfall in another. */
   it("does not let a mastered blade stand in for missing toughness", () => {
-    const lines = weaponDemand({ blade: 100, toughness: 0 }, { blade: 20, toughness: 20 });
+    const lines = weaponDemand(
+      { blade: 100, toughness: 0 },
+      { blade: 20, toughness: 20 },
+    );
     expect(lines).toContain("Toughness 20 — you have 0");
     expect(lines).not.toContain("You get 100% out of it");
   });
@@ -92,7 +95,9 @@ describe("weaponDemandFor", () => {
    * floor and the sword in your bag cannot disagree about the same hands.
    */
   it("reads the wielder's level out of their experience", () => {
-    const demand = weaponDemandFor(sword({ blade: 20 }), { blade: xpForLevel(12) });
+    const demand = weaponDemandFor(sword({ blade: 20 }), {
+      blade: xpForLevel(12),
+    });
     expect(demand).toContain("Blade 20 — you have 12");
   });
 });

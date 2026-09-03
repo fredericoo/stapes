@@ -1,7 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { defFrom } from "../lib/battler";
 import { DEFAULT_ARTIFACT, DEFAULT_CONTAINER } from "../lib/item";
-import { emptyMap, getStack, parseMap, replaceStack, serializeMap } from "../lib/mapData";
+import {
+  emptyMap,
+  getStack,
+  parseMap,
+  replaceStack,
+  serializeMap,
+} from "../lib/mapData";
 import { parseServerMessage } from "../net/protocol";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { MapFile, TileDef } from "../lib/types";
@@ -113,7 +119,15 @@ const tiles: TileDef[] = [
       // {@link DUMMY_DEF}, which every blow in this file is written to clear.
       battler: {
         masteries: { toughness: DUMMY_TOUGHNESS },
-        naturalWeapon: { type: "weapon", damage: 0, def: 0, accuracy: 50, variance: 0, spd: 0, mastery: "fist" },
+        naturalWeapon: {
+          type: "weapon",
+          damage: 0,
+          def: 0,
+          accuracy: 50,
+          variance: 0,
+          spd: 0,
+          mastery: "fist",
+        },
       },
     },
   }),
@@ -129,7 +143,15 @@ const tiles: TileDef[] = [
     interactions: {
       battler: {
         masteries: { toughness: 1 },
-        naturalWeapon: { type: "weapon", damage: 0, def: 0, accuracy: 50, variance: 0, spd: 0, mastery: "fist" },
+        naturalWeapon: {
+          type: "weapon",
+          damage: 0,
+          def: 0,
+          accuracy: 50,
+          variance: 0,
+          spd: 0,
+          mastery: "fist",
+        },
         kit: [{ slot: "weapon", tileId: "light-sword", chance: 100 }],
       },
     },
@@ -143,9 +165,21 @@ const tiles: TileDef[] = [
     interactions: {
       battler: {
         masteries: { toughness: 2 },
-        naturalWeapon: { type: "weapon", damage: 0, def: 0, accuracy: 50, variance: 0, spd: 0, mastery: "fist" },
+        naturalWeapon: {
+          type: "weapon",
+          damage: 0,
+          def: 0,
+          accuracy: 50,
+          variance: 0,
+          spd: 0,
+          mastery: "fist",
+        },
       },
-      brain: { initial: "idle", states: { idle: { do: [{ action: "hold" }] } }, transitions: [] },
+      brain: {
+        initial: "idle",
+        states: { idle: { do: [{ action: "hold" }] } },
+        transitions: [],
+      },
     },
   }),
   tile({
@@ -162,7 +196,15 @@ const tiles: TileDef[] = [
     kind: "item",
     intangible: true,
     interactions: {
-      item: { type: "weapon", damage: SWORD_DAMAGE + DUMMY_DEF, def: 0, accuracy: 100, variance: 0, spd: 100, mastery: "blade" },
+      item: {
+        type: "weapon",
+        damage: SWORD_DAMAGE + DUMMY_DEF,
+        def: 0,
+        accuracy: 100,
+        variance: 0,
+        spd: 100,
+        mastery: "blade",
+      },
     },
   }),
   tile({
@@ -181,7 +223,15 @@ const tiles: TileDef[] = [
     intangible: true,
     light: { radius: 6, intensity: 1, color: "#ffcc88" },
     interactions: {
-      item: { type: "weapon", damage: 5, def: 0, accuracy: 100, variance: 0, spd: 100, mastery: "blunt" },
+      item: {
+        type: "weapon",
+        damage: 5,
+        def: 0,
+        accuracy: 100,
+        variance: 0,
+        spd: 100,
+        mastery: "blunt",
+      },
     },
   }),
   // Something that belongs nowhere in particular, so a hand is the first place
@@ -210,7 +260,15 @@ const tiles: TileDef[] = [
     kind: "item",
     intangible: true,
     interactions: {
-      item: { type: "weapon", damage: OFF_SWORD_DAMAGE + DUMMY_DEF, def: 0, accuracy: 100, variance: 0, spd: 100, mastery: "blunt" },
+      item: {
+        type: "weapon",
+        damage: OFF_SWORD_DAMAGE + DUMMY_DEF,
+        def: 0,
+        accuracy: 100,
+        variance: 0,
+        spd: 100,
+        mastery: "blunt",
+      },
     },
   }),
   tile({
@@ -223,7 +281,15 @@ const tiles: TileDef[] = [
       // weapon is a 24–30 blow, which the bag's twenty points turn into a 4–10
       // one. The weapon is narrow and what gets through is wide, which is the
       // honest behaviour of subtracting armour rather than scaling it.
-      item: { type: "weapon", damage: SWORD_DAMAGE + DUMMY_DEF, def: 2, accuracy: 90, variance: 20, spd: 20, mastery: "blade" },
+      item: {
+        type: "weapon",
+        damage: SWORD_DAMAGE + DUMMY_DEF,
+        def: 2,
+        accuracy: 90,
+        variance: 20,
+        spd: 20,
+        mastery: "blade",
+      },
     },
   }),
 ];
@@ -368,9 +434,7 @@ describe("a weapon reaches the blow", () => {
 
   function fightingSession(): GameSession {
     const session = new GameSession(withBody(field(), 1, 0, "dummy"), tiles);
-    const dummy = session
-      .actorSnapshots()
-      .find((a) => a.tileId === "dummy")!;
+    const dummy = session.actorSnapshots().find((a) => a.tileId === "dummy")!;
     session.setTarget(dummy.id);
     session.setAttackMode(true);
     return session;
@@ -583,16 +647,16 @@ describe("picking things up", () => {
       "grass",
     ]);
     expect(bagOf(session).contents).toHaveLength(1);
-    expect(bagOf(session).contents![0].tileId).toBe(SWORD);
+    expect(bagOf(session).contents![0]!.tileId).toBe(SWORD);
   });
 
   it("keeps the identity the world gave it", () => {
     const session = withItem(1, 0, SWORD);
-    const onFloor = getStack(session.getMap(), 1, 0, 0)[1].itemId;
+    const onFloor = getStack(session.getMap(), 1, 0, 0)[1]!.itemId;
     session.pickUp(refAt(session, 1, 0));
 
     expect(onFloor).toMatch(/^itm_/);
-    expect(bagOf(session).contents![0].id).toBe(onFloor);
+    expect(bagOf(session).contents![0]!.id).toBe(onFloor);
   });
 
   it("reaches a diagonal, where a push would not", () => {
@@ -635,7 +699,10 @@ describe("picking things up", () => {
       [1, 1],
     ];
     for (const [x, y] of cells) {
-      map = replaceStack(map, x, y, 0, [{ tileId: "grass" }, { tileId: SWORD }]);
+      map = replaceStack(map, x, y, 0, [
+        { tileId: "grass" },
+        { tileId: SWORD },
+      ]);
     }
     const session = new GameSession(map, tiles);
 
@@ -652,9 +719,7 @@ describe("picking things up", () => {
   it("carries a second bag in hand, and refuses it once they are full", () => {
     const session = withItem(1, 0, BAG_TILE_ID);
     expect(session.pickUp(refAt(session, 1, 0))).toBe(true);
-    expect(session.getSnapshot().equipment.offhand?.tileId).toBe(
-      BAG_TILE_ID,
-    );
+    expect(session.getSnapshot().equipment.offhand?.tileId).toBe(BAG_TILE_ID);
     expect(bagOf(session).contents).toEqual([]);
 
     const laden = withItem(1, 0, BAG_TILE_ID);
@@ -937,27 +1002,27 @@ describe("moving things between slots", () => {
 
   it("draws a weapon out of the bag, and puts it back again", () => {
     const session = stocked();
-    expect(session.moveItem({ kind: "contents",
-index: 0 }, { kind: "weapon" })).toBe(
-      true,
-    );
+    expect(
+      session.moveItem({ kind: "contents", index: 0 }, { kind: "weapon" }),
+    ).toBe(true);
     expect(kitOf(session).weapon?.tileId).toBe(SWORD);
     expect(kitOf(session).bag?.contents).toEqual([]);
 
-    expect(session.moveItem({ kind: "weapon" }, { kind: "contents",
-index: 0 })).toBe(
-      true,
-    );
+    expect(
+      session.moveItem({ kind: "weapon" }, { kind: "contents", index: 0 }),
+    ).toBe(true);
     expect(kitOf(session).weapon).toBeNull();
     expect(kitOf(session).bag?.contents).toHaveLength(1);
   });
 
   it("counts a drawn weapon towards the blow it lands", () => {
     const map = withBody(field(), 1, 0, "dummy");
-    const session = new GameSession(replaceStack(map, 1, 1, 0, [{ tileId: "grass" }, { tileId: SWORD }]), tiles);
+    const session = new GameSession(
+      replaceStack(map, 1, 1, 0, [{ tileId: "grass" }, { tileId: SWORD }]),
+      tiles,
+    );
     session.pickUp(refAt(session, 1, 1));
-    session.moveItem({ kind: "contents",
-index: 0 }, { kind: "weapon" });
+    session.moveItem({ kind: "contents", index: 0 }, { kind: "weapon" });
 
     const dummy = session.actorSnapshots().find((a) => a.tileId === "dummy")!;
     session.setTarget(dummy.id);
@@ -980,14 +1045,17 @@ index: 0 }, { kind: "weapon" });
     const session = stocked();
     const chest = refAt(session, 1, 0);
     expect(
-      session.moveItem({ kind: "ground", ref: chest, index: 0 }, {
-        kind: "contents",
-index: 0,
-      }),
+      session.moveItem(
+        { kind: "ground", ref: chest, index: 0 },
+        {
+          kind: "contents",
+          index: 0,
+        },
+      ),
     ).toBe(true);
 
     expect(kitOf(session).bag?.contents).toHaveLength(2);
-    expect(getStack(session.getMap(), 1, 0, 0)[1].contents).toEqual([]);
+    expect(getStack(session.getMap(), 1, 0, 0)[1]!.contents).toEqual([]);
   });
 
   /**
@@ -1020,7 +1088,7 @@ index: 0,
     ).toBe(true);
 
     const equipment = kitOf(session);
-    expect(equipment.bag?.contents?.[0].id).toMatch(/^itm_/);
+    expect(equipment.bag?.contents?.[0]!.id).toMatch(/^itm_/);
     expect(
       parseServerMessage(JSON.stringify({ type: "equipment", equipment })),
     ).not.toBeNull();
@@ -1039,7 +1107,11 @@ index: 0,
   it("survives a map save while it is inside a container on the floor", () => {
     let map = replaceStack(field(), 1, 0, 0, [
       { tileId: "grass" },
-      { tileId: "chest", itemId: "itm_chest", contents: [{ id: "itm_loot", tileId: "lantern" }] },
+      {
+        tileId: "chest",
+        itemId: "itm_chest",
+        contents: [{ id: "itm_loot", tileId: "lantern" }],
+      },
     ]);
     // The editor's save button, and the load that follows it.
     const saved = new GameSession(parseMap(serializeMap(map)), tiles);
@@ -1053,8 +1125,8 @@ index: 0,
     ).toBe(true);
 
     const equipment = kitOf(saved);
-    expect(equipment.bag?.contents?.[0].tileId).toBe("lantern");
-    expect(equipment.bag?.contents?.[0].id).toMatch(/^itm_/);
+    expect(equipment.bag?.contents?.[0]!.tileId).toBe("lantern");
+    expect(equipment.bag?.contents?.[0]!.id).toMatch(/^itm_/);
     expect(
       parseServerMessage(JSON.stringify({ type: "equipment", equipment })),
     ).not.toBeNull();
@@ -1076,7 +1148,7 @@ index: 0,
     expect(session.pickUp(refAt(session, 1, 0))).toBe(true);
 
     const equipment = kitOf(session);
-    expect(equipment.bag?.contents?.[0].id).toMatch(/^itm_/);
+    expect(equipment.bag?.contents?.[0]!.id).toMatch(/^itm_/);
     expect(
       parseServerMessage(JSON.stringify({ type: "equipment", equipment })),
     ).not.toBeNull();
@@ -1086,26 +1158,31 @@ index: 0,
     const session = stocked();
     const chest = refAt(session, 1, 0);
     expect(
-      session.moveItem({ kind: "contents",
-index: 0 }, {
-        kind: "ground",
-        ref: chest,
-        index: 0,
-      }),
+      session.moveItem(
+        { kind: "contents", index: 0 },
+        {
+          kind: "ground",
+          ref: chest,
+          index: 0,
+        },
+      ),
     ).toBe(true);
 
     expect(kitOf(session).bag?.contents).toEqual([]);
-    expect(getStack(session.getMap(), 1, 0, 0)[1].contents).toHaveLength(2);
+    expect(getStack(session.getMap(), 1, 0, 0)[1]!.contents).toHaveLength(2);
   });
 
   it("refuses a chest the player has walked away from", () => {
     const session = stocked([3, 0]);
     const chest = refAt(session, 3, 0);
     expect(
-      session.moveItem({ kind: "ground", ref: chest, index: 0 }, {
-        kind: "contents",
-index: 0,
-      }),
+      session.moveItem(
+        { kind: "ground", ref: chest, index: 0 },
+        {
+          kind: "contents",
+          index: 0,
+        },
+      ),
     ).toBe(false);
     expect(kitOf(session).bag?.contents).toHaveLength(1);
   });
@@ -1115,38 +1192,40 @@ index: 0,
     const me = selfId(session);
     session.drainEquipmentChanges();
 
-    session.moveItem({ kind: "contents",
-index: 0 }, { kind: "weapon" });
+    session.moveItem({ kind: "contents", index: 0 }, { kind: "weapon" });
     expect(session.drainEquipmentChanges()).toEqual([me]);
 
     // A refused move is nobody's kit changing, and neither is one that only
     // rearranged a box on the floor.
-    session.moveItem({ kind: "contents",
-index: 0 }, { kind: "weapon" });
+    session.moveItem({ kind: "contents", index: 0 }, { kind: "weapon" });
     expect(session.drainEquipmentChanges()).toEqual([]);
   });
 
   it("has nothing to say for an actor who is not here", () => {
     const session = stocked();
     expect(
-      session.moveItem({ kind: "contents",
-index: 0 }, { kind: "weapon" }, "nobody"),
+      session.moveItem(
+        { kind: "contents", index: 0 },
+        { kind: "weapon" },
+        "nobody",
+      ),
     ).toBe(false);
     expect(
-      session.canMoveItem({ kind: "contents",
-index: 0 }, { kind: "weapon" }, "nobody"),
+      session.canMoveItem(
+        { kind: "contents", index: 0 },
+        { kind: "weapon" },
+        "nobody",
+      ),
     ).toBe(false);
   });
 
   it("answers the same question the move runs", () => {
     const session = stocked();
     expect(
-      session.canMoveItem({ kind: "contents",
-index: 0 }, { kind: "weapon" }),
+      session.canMoveItem({ kind: "contents", index: 0 }, { kind: "weapon" }),
     ).toBe(true);
     expect(
-      session.canMoveItem({ kind: "contents",
-index: 3 }, { kind: "weapon" }),
+      session.canMoveItem({ kind: "contents", index: 3 }, { kind: "weapon" }),
     ).toBe(false);
   });
 });
@@ -1186,9 +1265,9 @@ describe("putting things down", () => {
 
   it("puts the thing on the board and takes it out of the bag", () => {
     const session = armed();
-    expect(session.drop({ kind: "contents", index: 0 }, { x: 2, y: 0, z: 0 })).toBe(
-      true,
-    );
+    expect(
+      session.drop({ kind: "contents", index: 0 }, { x: 2, y: 0, z: 0 }),
+    ).toBe(true);
 
     expect(tilesAt(session, 2, 0)).toEqual(["grass", SWORD]);
     expect(session.getSnapshot().equipment.bag?.contents).toEqual([]);
@@ -1204,9 +1283,9 @@ describe("putting things down", () => {
 
   it("throws further than it can reach, and no further than five", () => {
     const near = armed();
-    expect(near.drop({ kind: "contents", index: 0 }, { x: 3, y: 0, z: 0 })).toBe(
-      true,
-    );
+    expect(
+      near.drop({ kind: "contents", index: 0 }, { x: 3, y: 0, z: 0 }),
+    ).toBe(true);
     const far = armed();
     expect(far.drop({ kind: "contents", index: 0 }, { x: 6, y: 0, z: 0 })).toBe(
       false,
@@ -1280,9 +1359,9 @@ describe("putting things down", () => {
 
   it("refuses a cell with no ground in it", () => {
     const session = armed();
-    expect(session.drop({ kind: "contents", index: 0 }, { x: 0, y: 4, z: 0 })).toBe(
-      false,
-    );
+    expect(
+      session.drop({ kind: "contents", index: 0 }, { x: 0, y: 4, z: 0 }),
+    ).toBe(false);
   });
 
   it("tells the owner their kit changed", () => {
@@ -1294,13 +1373,15 @@ describe("putting things down", () => {
 
   it("answers the same question the drop runs", () => {
     const session = armed();
-    expect(session.canDrop({ kind: "contents", index: 0 }, { x: 2, y: 0, z: 0 })).toBe(
-      true,
-    );
-    expect(session.canDrop({ kind: "contents", index: 0 }, { x: 9, y: 0, z: 0 })).toBe(
+    expect(
+      session.canDrop({ kind: "contents", index: 0 }, { x: 2, y: 0, z: 0 }),
+    ).toBe(true);
+    expect(
+      session.canDrop({ kind: "contents", index: 0 }, { x: 9, y: 0, z: 0 }),
+    ).toBe(false);
+    expect(session.canDrop({ kind: "weapon" }, { x: 2, y: 0, z: 0 })).toBe(
       false,
     );
-    expect(session.canDrop({ kind: "weapon" }, { x: 2, y: 0, z: 0 })).toBe(false);
   });
 });
 
@@ -1370,8 +1451,14 @@ describe("carried lights", () => {
   // thing being spent rather than the carrying.
   it("counts the one in hand and not the spare in the bag", () => {
     let map = field();
-    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: LANTERN }]);
-    map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: LANTERN }]);
+    map = replaceStack(map, 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: LANTERN },
+    ]);
+    map = replaceStack(map, 0, 1, 0, [
+      { tileId: "grass" },
+      { tileId: LANTERN },
+    ]);
     const session = new GameSession(map, tiles);
 
     session.pickUp(refAt(session, 1, 0));
@@ -1439,11 +1526,7 @@ describe("dying with something on you", () => {
     advance(session, LONG_ENOUGH_TO_KILL_MS);
 
     expect(session.actorIds()).not.toContain(LOCAL_ACTOR_ID);
-    expect(tilesAt(session, 0, 0)).toEqual([
-      "grass",
-      SWORD,
-      BAG_TILE_ID,
-    ]);
+    expect(tilesAt(session, 0, 0)).toEqual(["grass", SWORD, BAG_TILE_ID]);
   });
 
   it("keeps the identity of everything it drops", () => {

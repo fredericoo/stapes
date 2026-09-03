@@ -260,7 +260,10 @@ export const OUTGROWN_FALLOFF = 6;
  * Toughness untrained must not turn it into a Blade trainer that never stops
  * paying.
  */
-export function learningRate(masteryLevel: number, requirement: number): number {
+export function learningRate(
+  masteryLevel: number,
+  requirement: number,
+): number {
   if (requirement <= 0) return 1;
   if (masteryLevel <= requirement) return 1;
   return (requirement / masteryLevel) ** OUTGROWN_FALLOFF;

@@ -97,8 +97,11 @@ describe("makeFollowingSpriteOutline", () => {
 
   /** One texel, worked out from the quad rather than handed in. */
   it("reads the atlas scale off the mesh", () => {
-    const outline =
-      makeFollowingSpriteOutline(sourceMesh(), 0xffffff, materials)!;
+    const outline = makeFollowingSpriteOutline(
+      sourceMesh(),
+      0xffffff,
+      materials,
+    )!;
     const px = (outline.material as THREE.ShaderMaterial).uniforms.uPx!.value;
     expect(px.x).toBeCloseTo(1 / TILESET_PX, 6);
     expect(px.y).toBeCloseTo(1 / TILESET_PX, 6);

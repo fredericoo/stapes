@@ -140,11 +140,18 @@ function swapReceiverAt(
   const def = tilesById[placed.tileId];
   const receive: ReceiveInteraction | null = def ? resolveReceive(def) : null;
   if (!receive || !tilesById[receive.tileId]) return null;
-  if (!receiveTriggers(receive, channelPowered(state, placed.channel, receive.mode))) {
+  if (
+    !receiveTriggers(
+      receive,
+      channelPowered(state, placed.channel, receive.mode),
+    )
+  ) {
     return null;
   }
 
-  const next = stack.map((p, j) => (j === i ? { ...p, tileId: receive.tileId } : p));
+  const next = stack.map((p, j) =>
+    j === i ? { ...p, tileId: receive.tileId } : p,
+  );
   return canReplaceStack(map, cell.x, cell.y, cell.z, next, tilesById).ok
     ? next
     : null;

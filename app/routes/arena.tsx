@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useLoaderData } from "react-router";
-import type { Route } from "./+types/arena";
 import { AppShell } from "../components/AppShell";
 import { ArenaFighterPanel } from "../components/ArenaFighterPanel";
 import { ArenaMetrics } from "../components/ArenaMetrics";
-import { type Floater, ArenaStage, type StageSide } from "../components/ArenaStage";
+import {
+  type Floater,
+  ArenaStage,
+  type StageSide,
+} from "../components/ArenaStage";
 import {
   type ArenaFighter,
   battlerTiles,
@@ -13,7 +16,13 @@ import {
 } from "../game/arena";
 import { swingOdds } from "../game/combatMetrics";
 import { DAMAGE_NUMBER_LIFETIME_MS, TICK_MS } from "../game/constants";
-import { type DuelEvent, Duel, opponentOf, type Side, SIDES } from "../game/duel";
+import {
+  type DuelEvent,
+  Duel,
+  opponentOf,
+  type Side,
+  SIDES,
+} from "../game/duel";
 import { Rng } from "../game/rng";
 import { fetchBootstrap } from "../lib/api";
 import type { FightingStats } from "../lib/battler";
@@ -145,8 +154,6 @@ export default function ArenaPage() {
   );
   const [seed, setSeed] = useState(1);
   const [speed, setSpeed] = useState<number>(1);
-  const [playing, setPlaying] = useState(false);
-  const [snapshot, setSnapshot] = useState<Snapshot>(emptySnapshot);
 
   // Every blow each side throws, in the order its hands take turns — one entry
   // for the overwhelmingly common one-weapon body, two for a body fighting with
@@ -164,11 +171,15 @@ export default function ArenaPage() {
     [a.tileId, b.tileId, tilesById],
   );
 
-  const runtime = useRef<Runtime | null>(null);
-  const publish = useCallback(() => {
-    const current = runtime.current;
-    if (current) setSnapshot(current.snapshot(statusDefs));
-  }, [statusDefs]);
+  /**
+   * Everything a fight is built from, as one value, so "has what is being
+   * fought changed" is one identity comparison.
+   */
+  const setup: FightSetup | null = useMemo(
+    () =>
+      statsA && statsB ? { swingsA, swingsB, seed, statusDefs, names } : null,
+    [statsA, statsB, swingsA, swingsB, seed, statusDefs, names],
+  );
 
   /**
    * A fresh fight whenever what is being fought changes.
@@ -177,20 +188,38 @@ export default function ArenaPage() {
    * on the stage that came from different loadouts is the one state this page
    * must never be in — somebody edits a mastery mid-fight and reads the rest of
    * the bout as though it had been fought that way.
+   *
+   * The runtime, whether it is running and what it last said are one piece of
+   * state because they are one thing: a fight. Replaced during render rather
+   * than from an effect, so the first render of a new setup already shows that
+   * setup's opening position instead of the previous fight's last frame.
    */
-  useEffect(() => {
-    setPlaying(false);
-    runtime.current =
-      statsA && statsB
-        ? new Runtime(swingsA, swingsB, seed, statusDefs, names)
-        : null;
-    setSnapshot(runtime.current?.snapshot(statusDefs) ?? emptySnapshot());
-  }, [statsA, statsB, swingsA, swingsB, seed, statusDefs, names]);
+  const [fight, setFight] = useState<Fight>(() => startFight(setup));
+  if (fight.setup !== setup) setFight(startFight(setup));
+  const { runtime, playing, snapshot } = fight;
+
+  const setPlaying = useCallback((next: boolean) => {
+    setFight((was) => (was.playing === next ? was : { ...was, playing: next }));
+  }, []);
+
+  /**
+   * Read off the runtime *outside* the updater, because `Runtime.snapshot`
+   * prunes the floaters it has aged out — a mutation, and an updater may be run
+   * more than once for one update.
+   */
+  const publish = useCallback(
+    (current: Runtime) => {
+      const next = current.snapshot(statusDefs);
+      setFight((was) =>
+        was.runtime === current ? { ...was, snapshot: next } : was,
+      );
+    },
+    [statusDefs],
+  );
 
   useEffect(() => {
-    if (!playing) return;
-    const current = runtime.current;
-    if (!current) return;
+    if (!playing || !runtime) return;
+    const current = runtime;
 
     let frame = 0;
     let lastAt = performance.now();
@@ -200,7 +229,7 @@ export default function ArenaPage() {
       // much of it a second of watching is worth.
       current.advance((now - lastAt) * speed);
       lastAt = now;
-      publish();
+      publish(current);
       if (current.finished) {
         setPlaying(false);
         return;
@@ -210,21 +239,16 @@ export default function ArenaPage() {
 
     frame = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frame);
-  }, [playing, speed, publish]);
+  }, [playing, runtime, speed, publish, setPlaying]);
 
   const step = () => {
     setPlaying(false);
-    runtime.current?.step();
-    publish();
+    if (!runtime) return;
+    runtime.step();
+    publish(runtime);
   };
 
-  const restart = () => {
-    setPlaying(false);
-    if (statsA && statsB) {
-      runtime.current = new Runtime(swingsA, swingsB, seed, statusDefs, names);
-    }
-    publish();
-  };
+  const restart = () => setFight(startFight(setup));
 
   const ready = statsA !== null && statsB !== null;
 
@@ -234,12 +258,16 @@ export default function ArenaPage() {
         <div className="flex flex-wrap items-center gap-2 border-2 border-border bg-panel p-2">
           <Button
             size="sm"
-            onClick={() => setPlaying((was) => !was)}
+            onClick={() => setPlaying(!playing)}
             disabled={!ready || snapshot.finished}
           >
             {playing ? "Pause" : "Play"}
           </Button>
-          <Button size="sm" onClick={step} disabled={!ready || snapshot.finished}>
+          <Button
+            size="sm"
+            onClick={step}
+            disabled={!ready || snapshot.finished}
+          >
             Step
           </Button>
           <Button size="sm" onClick={restart} disabled={!ready}>
@@ -250,7 +278,10 @@ export default function ArenaPage() {
             onChange={setSpeed}
             ariaLabel="Playback speed"
             size="sm"
-            options={SPEEDS.map((rate) => ({ value: rate as number, label: `${rate}×` }))}
+            options={SPEEDS.map((rate) => ({
+              value: rate as number,
+              label: `${rate}×`,
+            }))}
           />
           <label className="ml-auto flex items-center gap-2 text-xs">
             <span className="font-bold uppercase text-muted">Seed</span>
@@ -383,6 +414,47 @@ const LOG_TONE: Record<LogEntry["tone"], string> = {
  * be forty renders where one per frame is what a screen can show. The component
  * asks for a {@link Snapshot} once a frame and draws that.
  */
+/** Everything a `Runtime` is built from. Compared by identity, not by field. */
+type FightSetup = {
+  swingsA: readonly FightingStats[];
+  swingsB: readonly FightingStats[];
+  seed: number;
+  statusDefs: Record<string, StatusDef>;
+  names: Record<Side, string>;
+};
+
+/**
+ * A fight, and the setup it came from.
+ *
+ * One value rather than three pieces of state, because "which fight" is the
+ * thing that changes and the other two are always answers about it.
+ */
+type Fight = {
+  setup: FightSetup | null;
+  runtime: Runtime | null;
+  playing: boolean;
+  snapshot: Snapshot;
+};
+
+function startFight(setup: FightSetup | null): Fight {
+  if (!setup) {
+    return { setup, runtime: null, playing: false, snapshot: emptySnapshot() };
+  }
+  const runtime = new Runtime(
+    setup.swingsA,
+    setup.swingsB,
+    setup.seed,
+    setup.statusDefs,
+    setup.names,
+  );
+  return {
+    setup,
+    runtime,
+    playing: false,
+    snapshot: runtime.snapshot(setup.statusDefs),
+  };
+}
+
 class Runtime {
   private readonly duel: Duel;
   private readonly floaters: Floater[] = [];
@@ -467,7 +539,10 @@ class Runtime {
       // No number floats. The hop is the whole account of a dodge — a word
       // beside it would be the same event told twice.
       this.lean[at] = { atMs: this.duel.elapsedMs, kind: "dodge" };
-      this.note(`${arrow} dodged (worth ${event.outcome.potentialDamage})`, "miss");
+      this.note(
+        `${arrow} dodged (worth ${event.outcome.potentialDamage})`,
+        "miss",
+      );
       return;
     }
 
@@ -475,7 +550,10 @@ class Runtime {
     this.float(at, damage === 0 ? "miss" : "damage", String(damage));
     const absorbed =
       damage === 0 ? ` (armour ate ${event.outcome.potentialDamage})` : "";
-    this.note(`${arrow} −${damage}${absorbed} → ${event.hpLeft} hp`, damage === 0 ? "miss" : "damage");
+    this.note(
+      `${arrow} −${damage}${absorbed} → ${event.hpLeft} hp`,
+      damage === 0 ? "miss" : "damage",
+    );
 
     for (const grant of event.outcome.inflicted) {
       this.note(`${arrow} inflicted ${grant.id}`, "ailment");
@@ -531,7 +609,9 @@ class Runtime {
       maxHp[side] = this.duel.statsOf(side).maxHp;
       ailments[side] = this.duel
         .fighter(side)
-        .statuses.map((status) => statusDefs[status.defId]?.name ?? status.defId);
+        .statuses.map(
+          (status) => statusDefs[status.defId]?.name ?? status.defId,
+        );
     }
 
     return {

@@ -21,9 +21,6 @@ import { Rng } from "./rng";
 
 const SAMPLES = 200_000;
 
-/** Enough draws that a share settles to about three decimal places. */
-const SHARE_TOLERANCE = 0.005;
-
 function statsOf(over: Partial<FightingStats>): FightingStats {
   return {
     maxHp: 20,
@@ -145,7 +142,12 @@ describe("swing odds", () => {
    * the Arena's table is the fight.
    */
   it("predicts every outcome a swing can have", () => {
-    const attacker = statsOf({ hitChance: 0.72, accuracy: 84, damage: 12, variance: 45 });
+    const attacker = statsOf({
+      hitChance: 0.72,
+      accuracy: 84,
+      damage: 12,
+      variance: 45,
+    });
     const defender = statsOf({ flee: 46, def: 3 });
 
     const predicted = swingOdds(attacker, defender);
@@ -256,7 +258,8 @@ describe("what the closed form assumes about the dice", () => {
     let last = -Infinity;
     for (let step = 0; step <= 500; step++) {
       const worth = Math.round(
-        attacker.damage * damageFraction(attacker.variance, [step / 500, step / 500]),
+        attacker.damage *
+          damageFraction(attacker.variance, [step / 500, step / 500]),
       );
       expect(worth).toBeGreaterThanOrEqual(last);
       last = worth;

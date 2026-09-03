@@ -25,7 +25,11 @@ import { normalizeTileDef, type TileDef } from "./types";
  */
 
 const frame = {
-  sprite: { tilesetId: "basic", rect: { x: 0, y: 0, w: 1, h: 1 }, base: { x: 0, y: 0 } },
+  sprite: {
+    tilesetId: "basic",
+    rect: { x: 0, y: 0, w: 1, h: 1 },
+    base: { x: 0, y: 0 },
+  },
   durationMs: 200,
 };
 
@@ -66,7 +70,9 @@ describe("the authoring catalog", () => {
     };
 
     expect(resolveBrain(tileWithBrain(brain))).not.toBeNull();
-    expect(validateBrain(brain).filter((i) => i.severity === "error")).toEqual([]);
+    expect(validateBrain(brain).filter((i) => i.severity === "error")).toEqual(
+      [],
+    );
   });
 
   /**
@@ -160,7 +166,9 @@ describe("the shapes a condition can grow", () => {
         },
       ],
     };
-    expect(resolveBrain(tileWithBrain(brain as unknown as BrainDef))).toBeNull();
+    expect(
+      resolveBrain(tileWithBrain(brain as unknown as BrainDef)),
+    ).toBeNull();
   });
 
   it("round-trips a nested group of conditions", () => {

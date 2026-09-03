@@ -56,7 +56,10 @@ export async function seedFromDirectory(
     await blobs.put(
       `${TILESET_DIRECTORY}/${file}`,
       new Uint8Array(
-        bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength),
+        bytes.buffer.slice(
+          bytes.byteOffset,
+          bytes.byteOffset + bytes.byteLength,
+        ),
       ) as Uint8Array<ArrayBuffer>,
       "image/png",
     );

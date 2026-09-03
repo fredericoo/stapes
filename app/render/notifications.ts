@@ -104,7 +104,11 @@ export class NoticeQueue {
       return;
     }
 
-    this.notices.push({ id: `notice-${this.nextId++}`, text, shownAtMs: nowMs });
+    this.notices.push({
+      id: `notice-${this.nextId++}`,
+      text,
+      shownAtMs: nowMs,
+    });
     if (this.notices.length > MAX_NOTICES) {
       this.notices.splice(0, this.notices.length - MAX_NOTICES);
     }
@@ -127,7 +131,7 @@ export class NoticeQueue {
     let expired = 0;
     while (
       expired < this.notices.length &&
-      nowMs - this.notices[expired].shownAtMs >= NOTICE_LIFETIME_MS
+      nowMs - this.notices[expired]!.shownAtMs >= NOTICE_LIFETIME_MS
     ) {
       expired++;
     }

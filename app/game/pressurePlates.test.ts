@@ -160,11 +160,7 @@ describe("loadAbove", () => {
   });
 
   it("ignores flat and intangible tiles", () => {
-    const stack = [
-      { tileId: "plate" },
-      { tileId: "rug" },
-      { tileId: "ghost" },
-    ];
+    const stack = [{ tileId: "plate" }, { tileId: "rug" }, { tileId: "ghost" }];
     expect(loadAbove(stack, 0, tilesById)).toBe(0);
   });
 });
@@ -258,14 +254,20 @@ describe("GameSession pressure plates", () => {
       { tileId: "grass" },
       { tileId: "player", direction: "e" },
     ]);
-    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "crate" }]);
+    map = replaceStack(map, 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "crate" },
+    ]);
     map = replaceStack(map, 2, 0, 0, [{ tileId: "plate" }]);
     map = replaceStack(map, 3, 0, 0, [{ tileId: "grass" }]);
 
     const session = new GameSession(map, tiles);
     expect(session.push({ x: 1, y: 0, z: 0, stackIndex: 1 })).toBe(true);
     session.tick(TICK_MS);
-    expect(stackIds(session.getMap(), 2, 0)).toEqual(["plate-pressed", "crate"]);
+    expect(stackIds(session.getMap(), 2, 0)).toEqual([
+      "plate-pressed",
+      "crate",
+    ]);
 
     // Walk up to it and shove it off again.
     step(session, "e");
@@ -333,13 +335,18 @@ describe("GameSession pressure plates", () => {
         push: { climb: "half", moveOnTileIds: [] },
       },
     });
-    const withPushable = tiles.map((t) => (t.id === "plate" ? pushablePlate : t));
+    const withPushable = tiles.map((t) =>
+      t.id === "plate" ? pushablePlate : t,
+    );
 
     let map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "grass" },
       { tileId: "player", direction: "e" },
     ]);
-    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "plate" }]);
+    map = replaceStack(map, 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "plate" },
+    ]);
     map = replaceStack(map, 2, 0, 0, [{ tileId: "grass" }]);
 
     const session = new GameSession(map, withPushable);

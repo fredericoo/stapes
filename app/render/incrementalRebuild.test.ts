@@ -27,7 +27,12 @@ import {
   replaceStack,
 } from "../lib/mapData";
 import type { FlatMapFile, MapFile, PlacedTile, TileDef } from "../lib/types";
-import { MAX_LEVEL, MIN_LEVEL, normalizeTileDef, parseCoordKey } from "../lib/types";
+import {
+  MAX_LEVEL,
+  MIN_LEVEL,
+  normalizeTileDef,
+  parseCoordKey,
+} from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { GameSession } from "../game/GameSession";
 import { TICK_MS, WALK_DURATION_MS } from "../game/constants";
@@ -125,7 +130,10 @@ function walkableFloor(): MapFile {
 }
 
 /** Every cell that differs between two maps, as `z -> cell keys`. */
-function changedByLevel(prev: MapFile, next: MapFile): Map<number, Set<string>> {
+function changedByLevel(
+  prev: MapFile,
+  next: MapFile,
+): Map<number, Set<string>> {
   const out = new Map<number, Set<string>>();
   for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
     const changed = changedCellsOnLevel(prev, next, z);
@@ -176,7 +184,10 @@ describe("a walk stays cheap to rebuild", () => {
     session.setInput({ directions: ["e"] });
 
     const step = stepUntilMapChanges(session);
-    expect(step, "the player never moved — fixture or input is wrong").not.toBeNull();
+    expect(
+      step,
+      "the player never moved — fixture or input is wrong",
+    ).not.toBeNull();
 
     const changed = changedByLevel(step!.before, step!.after);
     let total = 0;
@@ -250,7 +261,9 @@ describe("mobility classification", () => {
    * classification is right.
    */
   it("counts gravity, pushability and bodies, and nothing else", () => {
-    expect(isMobileTile(tile({ id: "boulder", height: 4, affectedByGravity: true }))).toBe(true);
+    expect(
+      isMobileTile(tile({ id: "boulder", height: 4, affectedByGravity: true })),
+    ).toBe(true);
     // A body moves under its own steam, and saying so explicitly is what keeps
     // one that ignores gravity out of the static bake — baked into the floor,
     // and smearing across it the moment it walked.
@@ -258,7 +271,9 @@ describe("mobility classification", () => {
       true,
     );
     expect(
-      isMobileTile(tile({ id: "crate", height: 2, interactions: { push: DEFAULT_PUSH } })),
+      isMobileTile(
+        tile({ id: "crate", height: 2, interactions: { push: DEFAULT_PUSH } }),
+      ),
     ).toBe(true);
     expect(isMobileTile(tile({ id: "grass", height: 0 }))).toBe(false);
     // Interactive, but nothing about it changes cell: it stays in the batch.

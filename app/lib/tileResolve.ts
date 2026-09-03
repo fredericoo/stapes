@@ -1,7 +1,4 @@
-import {
-  pickAutotileSprite,
-  resolveAutotileSlice,
-} from "./autotile";
+import { pickAutotileSprite, resolveAutotileSlice } from "./autotile";
 import {
   facingKeysFor,
   frameAtTime,
@@ -75,7 +72,13 @@ export function resolveTileSprite(
   }
   // autotile
   let slice = ctx.autotileSlice;
-  if (slice == null && ctx.map != null && ctx.x != null && ctx.y != null && ctx.z != null) {
+  if (
+    slice == null &&
+    ctx.map != null &&
+    ctx.x != null &&
+    ctx.y != null &&
+    ctx.z != null
+  ) {
     slice = resolveAutotileSlice(ctx.map, ctx.x, ctx.y, ctx.z, tile);
   }
   if (slice == null) slice = 0;
@@ -124,7 +127,7 @@ export function tileLightSignature(tile: TileDef): string {
   const pushSprite = (key: string, sprite: TileSprite | undefined) => {
     if (!sprite) return;
     for (let i = 0; i < sprite.frames.length; i++) {
-      const L = sprite.frames[i].light;
+      const L = sprite.frames[i]!.light;
       if (!L) continue;
       parts.push(`${key}@${i}:${L.radius},${L.intensity},${L.color}`);
     }

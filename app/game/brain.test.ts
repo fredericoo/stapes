@@ -15,7 +15,13 @@ import {
 import { group } from "../lib/conditions";
 import { displayNameFor } from "./displayName";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
-import type { Coord, Direction, FlatMapFile, MapFile, TileDef } from "../lib/types";
+import type {
+  Coord,
+  Direction,
+  FlatMapFile,
+  MapFile,
+  TileDef,
+} from "../lib/types";
 import { normalizeTileDef, normalizeTiles } from "../lib/types";
 import { initialMemory, stepBrain } from "./brainRuntime";
 import { fightingStats, resolveBattler } from "../lib/battler";
@@ -122,7 +128,12 @@ function field(half: number): MapFile {
   return map;
 }
 
-function withDeer(map: MapFile, x: number, y: number, tileId = "deer"): MapFile {
+function withDeer(
+  map: MapFile,
+  x: number,
+  y: number,
+  tileId = "deer",
+): MapFile {
   return replaceStack(map, x, y, 0, [{ tileId: "grass" }, { tileId }]);
 }
 
@@ -158,7 +169,11 @@ function deerCell(session: GameSession): string {
 
 describe("authoring a brain", () => {
   it("takes a machine that holds together", () => {
-    const def = tile({ id: "ok", height: 2, interactions: { brain: wanderingBrain() } });
+    const def = tile({
+      id: "ok",
+      height: 2,
+      interactions: { brain: wanderingBrain() },
+    });
     expect(resolveBrain(def)?.initial).toBe("idle");
   });
 
@@ -343,7 +358,9 @@ describe("deciding", () => {
 
 describe("a wandering deer", () => {
   it("holds still through its idle, then moves", () => {
-    const session = new GameSession(withDeer(field(4), 0, 0), tiles, { actorIds: ["alice"] });
+    const session = new GameSession(withDeer(field(4), 0, 0), tiles, {
+      actorIds: ["alice"],
+    });
     const start = deerCell(session);
 
     advance(session, IDLE_MS - BRAIN_TICK_MS);
@@ -358,7 +375,9 @@ describe("a wandering deer", () => {
    * simulation tick would reconsider six times per step it cannot retake.
    */
   it("decides on its own slower clock", () => {
-    const session = new GameSession(withDeer(field(4), 0, 0), tiles, { actorIds: ["alice"] });
+    const session = new GameSession(withDeer(field(4), 0, 0), tiles, {
+      actorIds: ["alice"],
+    });
 
     // One brain tick short of the transition, however many sim ticks that is.
     advance(session, IDLE_MS - BRAIN_TICK_MS);
@@ -368,7 +387,10 @@ describe("a wandering deer", () => {
 
   it("walks the same path twice from the same seed", () => {
     const path = (seed: number) => {
-      const session = new GameSession(withDeer(field(4), 0, 0), tiles, { actorIds: ["alice"], seed: seed });
+      const session = new GameSession(withDeer(field(4), 0, 0), tiles, {
+        actorIds: ["alice"],
+        seed: seed,
+      });
       const seen: string[] = [];
       for (let i = 0; i < 40; i++) {
         advance(session, BRAIN_TICK_MS);
@@ -384,7 +406,11 @@ describe("a wandering deer", () => {
 
   it("runs the first action that does not fail, and no further", () => {
     // `hold` sits above `step_random` on this one, and always succeeds.
-    const session = new GameSession(withDeer(field(4), 0, 0, "deer-holding"), tiles, { actorIds: ["alice"] });
+    const session = new GameSession(
+      withDeer(field(4), 0, 0, "deer-holding"),
+      tiles,
+      { actorIds: ["alice"] },
+    );
 
     advance(session, IDLE_MS * 6);
 
@@ -401,9 +427,14 @@ describe("a wandering deer", () => {
       [0, 1],
       [0, -1],
     ]) {
-      map = replaceStack(map, x!, y!, 0, [{ tileId: "grass" }, { tileId: "wall" }]);
+      map = replaceStack(map, x!, y!, 0, [
+        { tileId: "grass" },
+        { tileId: "wall" },
+      ]);
     }
-    const session = new GameSession(withDeer(map, 0, 0), tiles, { actorIds: ["alice"] });
+    const session = new GameSession(withDeer(map, 0, 0), tiles, {
+      actorIds: ["alice"],
+    });
 
     expect(() => advance(session, IDLE_MS * 6)).not.toThrow();
     expect(deerCell(session)).toBe("0,0");
@@ -486,7 +517,9 @@ function withPlayerAt(map: MapFile, x: number, y: number): MapFile {
 /** Steps between the one creature and the player, on the plan. */
 function gap(session: GameSession): number {
   const actors = session.actorSnapshots();
-  const creature = actors.find((a) => a.tileId === "cat" || a.tileId === "shy")!;
+  const creature = actors.find(
+    (a) => a.tileId === "cat" || a.tileId === "shy",
+  )!;
   const player = actors.find((a) => a.tileId === "player")!;
   return Math.abs(creature.x - player.x) + Math.abs(creature.y - player.y);
 }
@@ -501,12 +534,15 @@ describe("noticing you", () => {
     map = replaceStack(map, -9, -9, 0, [{ tileId: "grass" }]);
     map = withDeer(map, 0, 0, creature);
     map = withPlayerAt(map, apart, 0);
-    return new GameSession(map, noticing, { actorIds: ["alice"], spawnAt: {
-      x: -9,
-      y: -9,
-      z: 0,
-      stackIndex: 1,
-    } });
+    return new GameSession(map, noticing, {
+      actorIds: ["alice"],
+      spawnAt: {
+        x: -9,
+        y: -9,
+        z: 0,
+        stackIndex: 1,
+      },
+    });
   }
 
   it("closes on somebody who comes near", () => {
@@ -571,12 +607,15 @@ describe("noticing you", () => {
     // away that the cat looks, finds them, ignores them — and has built the
     // index by the time bob arrives.
     map = withPlayerAt(map, 9, 0);
-    const session = new GameSession(map, noticing, { actorIds: ["alice"], spawnAt: {
-      x: -9,
-      y: -9,
-      z: 0,
-      stackIndex: 1,
-    } });
+    const session = new GameSession(map, noticing, {
+      actorIds: ["alice"],
+      spawnAt: {
+        x: -9,
+        y: -9,
+        z: 0,
+        stackIndex: 1,
+      },
+    });
     advance(session, BRAIN_TICK_MS * 2);
     expect(deerCell(session)).toBe("0,0");
 
@@ -591,12 +630,15 @@ describe("noticing you", () => {
     map = replaceStack(map, -9, -9, 0, [{ tileId: "grass" }]);
     map = withDeer(map, 0, 0, "cat");
     map = withPlayerAt(map, NOTICE_CELLS, 0);
-    const session = new GameSession(map, noticing, { actorIds: ["alice"], spawnAt: {
-      x: -9,
-      y: -9,
-      z: 0,
-      stackIndex: 1,
-    } });
+    const session = new GameSession(map, noticing, {
+      actorIds: ["alice"],
+      spawnAt: {
+        x: -9,
+        y: -9,
+        z: 0,
+        stackIndex: 1,
+      },
+    });
 
     advance(session, BRAIN_TICK_MS);
     // A second person arrives, closer than the first.
@@ -687,7 +729,10 @@ describe("chasing round an obstacle", () => {
     map = withDeer(map, 0, 0, "hunter");
     map = withPlayerAt(map, 3, 0);
     for (const [x, y] of wall) {
-      map = replaceStack(map, x, y, 0, [{ tileId: "grass" }, { tileId: "wall" }]);
+      map = replaceStack(map, x, y, 0, [
+        { tileId: "grass" },
+        { tileId: "wall" },
+      ]);
     }
     return new GameSession(map, hunters, {
       actorIds: ["alice"],
@@ -705,7 +750,11 @@ describe("chasing round an obstacle", () => {
 
   it("walks round the box it used to stand behind", () => {
     // A three-cell screen: every step that shortens the gap is into it.
-    const session = penned([[1, -1], [1, 0], [1, 1]]);
+    const session = penned([
+      [1, -1],
+      [1, 0],
+      [1, 1],
+    ]);
     expect(between(session)).toBe(3);
 
     advance(session, BRAIN_TICK_MS * 10);
@@ -721,7 +770,14 @@ describe("chasing round an obstacle", () => {
    * visible progress in the direction of somewhere it will never arrive.
    */
   it("gives up on somebody it has no way of reaching", () => {
-    const session = penned([[2, -1], [2, 0], [2, 1], [3, -1], [3, 1], [4, 0]]);
+    const session = penned([
+      [2, -1],
+      [2, 0],
+      [2, 1],
+      [3, -1],
+      [3, 1],
+      [4, 0],
+    ]);
 
     const heard: string[] = [];
     for (let elapsed = 0; elapsed < BRAIN_TICK_MS * 6; elapsed += TICK_MS) {
@@ -802,12 +858,15 @@ describe("picking out a tile to follow", () => {
     let map = field(9);
     map = replaceStack(map, -9, -9, 0, [{ tileId: "grass" }]);
     for (const [tileId, x, y] of bodies) map = withDeer(map, x, y, tileId);
-    return new GameSession(map, flocking, { actorIds: ["alice"], spawnAt: {
-      x: -9,
-      y: -9,
-      z: 0,
-      stackIndex: 1,
-    } });
+    return new GameSession(map, flocking, {
+      actorIds: ["alice"],
+      spawnAt: {
+        x: -9,
+        y: -9,
+        z: 0,
+        stackIndex: 1,
+      },
+    });
   }
 
   function cellOf(session: GameSession, tileId: string, nth = 0) {
@@ -854,9 +913,9 @@ describe("picking out a tile to follow", () => {
     advance(session, BRAIN_TICK_MS * 4);
 
     const chaser = cellOf(session, "ratcatcher");
-    expect(Math.abs(chaser.x - rat.x) + Math.abs(chaser.y - rat.y)).toBeLessThan(
-      NOTICE_CELLS,
-    );
+    expect(
+      Math.abs(chaser.x - rat.x) + Math.abs(chaser.y - rat.y),
+    ).toBeLessThan(NOTICE_CELLS);
   });
 
   /** The one that would make a lone creature chase itself around the board. */
@@ -934,9 +993,9 @@ describe("giving up", () => {
         { tileId: "wall" },
       ]);
     }
-    return new GameSession(withDeer(map, 0, 0, "trapped"), cornerable, { actorIds: [
-      "alice",
-    ] });
+    return new GameSession(withDeer(map, 0, 0, "trapped"), cornerable, {
+      actorIds: ["alice"],
+    });
   }
 
   /**
@@ -997,7 +1056,11 @@ describe("giving up", () => {
   it("is not stuck merely because it chose to stand still", () => {
     // `hold` succeeds, so a state resting on it can never report stuck — the
     // authoring gotcha worth having a test pinned to.
-    const session = new GameSession(withDeer(field(4), 0, 0, "deer"), cornerable, { actorIds: ["alice"] });
+    const session = new GameSession(
+      withDeer(field(4), 0, 0, "deer"),
+      cornerable,
+      { actorIds: ["alice"] },
+    );
 
     advance(session, BRAIN_TICK_MS * 2);
 
@@ -1043,7 +1106,10 @@ describe("watching its footing", () => {
   /** A one-cell plinth a level up, with open floor all around below. */
   function plinth(creature: string): GameSession {
     let map = field(4);
-    map = replaceStack(map, 0, 0, 1, [{ tileId: "grass" }, { tileId: creature }]);
+    map = replaceStack(map, 0, 0, 1, [
+      { tileId: "grass" },
+      { tileId: creature },
+    ]);
     return new GameSession(map, ledgeDwellers, { actorIds: ["alice"] });
   }
 
@@ -1217,7 +1283,9 @@ describe("actions that take time", () => {
     // Somebody to walk towards, or nobody — which is the whole of whether the
     // line above the count gets to run.
     let arrived = false;
-    const c = ctx({ positionOf: () => (arrived ? { x: 4, y: 0, z: 0 } : null) });
+    const c = ctx({
+      positionOf: () => (arrived ? { x: 4, y: 0, z: 0 } : null),
+    });
 
     stepBrain(brain, memory, BRAIN_TICK_MS, c);
     stepBrain(brain, memory, BRAIN_TICK_MS, c);
@@ -1282,7 +1350,9 @@ describe("actions that take time", () => {
   ];
 
   function grazing(): GameSession {
-    return new GameSession(withDeer(field(9), 0, 0, "grazer"), timed, { actorIds: ["alice"] });
+    return new GameSession(withDeer(field(9), 0, 0, "grazer"), timed, {
+      actorIds: ["alice"],
+    });
   }
 
   it("grazes where it stands, strolls a bounded way, then settles", () => {
@@ -1312,7 +1382,11 @@ describe("actions that take time", () => {
 
     expect(JSON.stringify(session.getMap())).not.toContain("scratch");
 
-    const resumed = new GameSession(session.getMap(), timed, { actorIds: ["alice"], spawnAt: session.getSpawnPoint(), seed: session.getSeed() });
+    const resumed = new GameSession(session.getMap(), timed, {
+      actorIds: ["alice"],
+      spawnAt: session.getSpawnPoint(),
+      seed: session.getSeed(),
+    });
     const where = deerCell(resumed);
 
     // Back at the top of its sequence: a fresh graze before it strolls again.
@@ -1359,7 +1433,10 @@ describe("walking at its own pace", () => {
 
   /** How many cells a creature covers in a fixed stretch of time. */
   function cellsCovered(creature: string): number {
-    const session = new GameSession(withDeer(field(9), 0, 0, creature), paced, { actorIds: ["alice"], seed: 11 });
+    const session = new GameSession(withDeer(field(9), 0, 0, creature), paced, {
+      actorIds: ["alice"],
+      seed: 11,
+    });
     let moves = 0;
     let last = deerCell(session);
     for (let i = 0; i < 40; i++) {
@@ -1376,7 +1453,11 @@ describe("walking at its own pace", () => {
   });
 
   it("times a step by the walker's own tile, not a shared constant", () => {
-    const session = new GameSession(withDeer(field(9), 0, 0, "plodder"), paced, { actorIds: ["alice"] });
+    const session = new GameSession(
+      withDeer(field(9), 0, 0, "plodder"),
+      paced,
+      { actorIds: ["alice"] },
+    );
     advance(session, BRAIN_TICK_MS);
 
     const walk = session
@@ -1386,10 +1467,14 @@ describe("walking at its own pace", () => {
   });
 
   it("leaves a body that authored no pace walking like a player", () => {
-    const session = new GameSession(withDeer(field(9), 0, 0, "deer"), paced, { actorIds: ["alice"] });
+    const session = new GameSession(withDeer(field(9), 0, 0, "deer"), paced, {
+      actorIds: ["alice"],
+    });
     advance(session, IDLE_MS + BRAIN_TICK_MS);
 
-    const walk = session.actorSnapshots().find((a) => a.tileId === "deer")!.walk;
+    const walk = session
+      .actorSnapshots()
+      .find((a) => a.tileId === "deer")!.walk;
     expect(walk?.durationMs).toBe(WALK_DURATION_MS);
   });
 });
@@ -1409,7 +1494,9 @@ describe("a deer that yelps", () => {
         calm: { do: [{ action: "hold" }] },
         alarm: {
           onEnter: [{ effect: "say", text: "!" }],
-          ...(emitTo ? { emit: { channel: emitTo, value: "on" as const } } : {}),
+          ...(emitTo
+            ? { emit: { channel: emitTo, value: "on" as const } }
+            : {}),
           do: [{ action: "hold" }],
         },
       },
@@ -1453,7 +1540,9 @@ describe("a deer that yelps", () => {
       id: "gate",
       height: 4,
       walkable: false,
-      interactions: { receive: { tileId: "gate-open", when: "on", mode: "any" } },
+      interactions: {
+        receive: { tileId: "gate-open", when: "on", mode: "any" },
+      },
     }),
     tile({
       id: "gate-open",
@@ -1471,12 +1560,15 @@ describe("a deer that yelps", () => {
   }
 
   function session(creature: string): GameSession {
-    return new GameSession(startled(creature), yelpers, { actorIds: ["alice"], spawnAt: {
-      x: -9,
-      y: -9,
-      z: 0,
-      stackIndex: 1,
-    } });
+    return new GameSession(startled(creature), yelpers, {
+      actorIds: ["alice"],
+      spawnAt: {
+        x: -9,
+        y: -9,
+        z: 0,
+        stackIndex: 1,
+      },
+    });
   }
 
   it("says its word on entry, pinned to the cell it stood in", () => {
@@ -1514,10 +1606,15 @@ describe("a deer that yelps", () => {
     const brain: BrainDef = {
       initial: "ringing",
       states: {
-        ringing: { onEnter: [{ effect: "say", text: "!" }], do: [{ action: "hold" }] },
+        ringing: {
+          onEnter: [{ effect: "say", text: "!" }],
+          do: [{ action: "hold" }],
+        },
       },
       // Always true, always pointing back at the current state.
-      transitions: [{ from: "any", if: { cond: "after", ms: 0 }, to: "ringing" }],
+      transitions: [
+        { from: "any", if: { cond: "after", ms: 0 }, to: "ringing" },
+      ],
     };
     const memory = initialMemory(brain);
     const say = vi.fn();
@@ -1543,7 +1640,8 @@ describe("a deer that yelps", () => {
       nameOf: (id: string) => id,
     };
 
-    for (let tick = 0; tick < 5; tick++) stepBrain(brain, memory, BRAIN_TICK_MS, c);
+    for (let tick = 0; tick < 5; tick++)
+      stepBrain(brain, memory, BRAIN_TICK_MS, c);
 
     // Once for entering the initial state, and never again for staying in it.
     expect(say).toHaveBeenCalledTimes(1);
@@ -1555,12 +1653,15 @@ describe("a deer that yelps", () => {
       { tileId: "grass" },
       { tileId: "gate", channel: "gate" },
     ]);
-    const s = new GameSession(map, yelpers, { actorIds: ["alice"], spawnAt: {
-      x: -9,
-      y: -9,
-      z: 0,
-      stackIndex: 1,
-    } });
+    const s = new GameSession(map, yelpers, {
+      actorIds: ["alice"],
+      spawnAt: {
+        x: -9,
+        y: -9,
+        z: 0,
+        stackIndex: 1,
+      },
+    });
 
     const gateAt = () =>
       getStack(s.getMap(), 5, 0, 0).some((p) => p.tileId === "gate-open");
@@ -1642,12 +1743,18 @@ describe("resuming a world", () => {
    * longer has.
    */
   it("starts a resumed creature over from its initial state", () => {
-    const first = new GameSession(withDeer(field(4), 0, 0), tiles, { actorIds: ["alice"] });
+    const first = new GameSession(withDeer(field(4), 0, 0), tiles, {
+      actorIds: ["alice"],
+    });
     advance(first, IDLE_MS * 2);
     const wandered = deerCell(first);
     expect(wandered).not.toBe("0,0");
 
-    const resumed = new GameSession(first.getMap(), tiles, { actorIds: ["alice"], spawnAt: first.getSpawnPoint(), seed: first.getSeed() });
+    const resumed = new GameSession(first.getMap(), tiles, {
+      actorIds: ["alice"],
+      spawnAt: first.getSpawnPoint(),
+      seed: first.getSeed(),
+    });
 
     // Where it left off, but back at the top of its machine — so it waits out a
     // fresh idle rather than carrying on mid-wander.
@@ -1657,7 +1764,10 @@ describe("resuming a world", () => {
   });
 
   it("carries the dice on, rather than replaying the same wander", () => {
-    const first = new GameSession(withDeer(field(4), 0, 0), tiles, { actorIds: ["alice"], seed: 5 });
+    const first = new GameSession(withDeer(field(4), 0, 0), tiles, {
+      actorIds: ["alice"],
+      seed: 5,
+    });
     advance(first, IDLE_MS * 3);
 
     // Resumed mid-stream, so the draws that follow are new ones.
@@ -1674,7 +1784,9 @@ describe("staying awake to think", () => {
    * wildlife stopped existing.
    */
   it("is not at rest while a watched creature is counting down", () => {
-    const session = new GameSession(withDeer(field(4), 0, 0), tiles, { actorIds: ["alice"] });
+    const session = new GameSession(withDeer(field(4), 0, 0), tiles, {
+      actorIds: ["alice"],
+    });
 
     // Mid-idle: nobody is moving, and there is still something to wait for.
     advance(session, BRAIN_TICK_MS);
@@ -1689,7 +1801,9 @@ describe("staying awake to think", () => {
     const inert = tiles.map((t) =>
       t.id === "deer" ? tile({ ...t, interactions: {} }) : t,
     );
-    const session = new GameSession(withDeer(field(4), 0, 0), inert, { actorIds: ["alice"] });
+    const session = new GameSession(withDeer(field(4), 0, 0), inert, {
+      actorIds: ["alice"],
+    });
 
     advance(session, BRAIN_TICK_MS * 4);
 
@@ -1699,7 +1813,9 @@ describe("staying awake to think", () => {
 
 describe("a world nobody is watching", () => {
   it("does not think while nobody is connected", () => {
-    const session = new GameSession(withDeer(field(4), 0, 0), tiles, { actorIds: [] });
+    const session = new GameSession(withDeer(field(4), 0, 0), tiles, {
+      actorIds: [],
+    });
 
     advance(session, IDLE_MS * 10);
 
@@ -1708,7 +1824,9 @@ describe("a world nobody is watching", () => {
   });
 
   it("picks up thinking when somebody arrives", () => {
-    const session = new GameSession(withDeer(field(4), 0, 0), tiles, { actorIds: [] });
+    const session = new GameSession(withDeer(field(4), 0, 0), tiles, {
+      actorIds: [],
+    });
     advance(session, IDLE_MS * 10);
 
     session.spawn("alice");
@@ -1723,7 +1841,9 @@ describe("a world nobody is watching", () => {
    * simulation is written to make impossible.
    */
   it("lets a step already under way finish after the last player leaves", () => {
-    const session = new GameSession(withDeer(field(4), 0, 0), tiles, { actorIds: ["alice"] });
+    const session = new GameSession(withDeer(field(4), 0, 0), tiles, {
+      actorIds: ["alice"],
+    });
     advance(session, IDLE_MS);
 
     // Mid-stride: the brain has just committed to a walk.
@@ -1762,10 +1882,16 @@ describe("hearing", () => {
         idle: { do: [{ action: "hold" }] },
         answering: {
           onEnter: [{ effect: "say", text: "meow" }],
-          do: [{ action: "step_toward", of: slot("caller") }, { action: "hold" }],
+          do: [
+            { action: "step_toward", of: slot("caller") },
+            { action: "hold" },
+          ],
         },
         following: {
-          do: [{ action: "step_toward", of: slot("caller") }, { action: "hold" }],
+          do: [
+            { action: "step_toward", of: slot("caller") },
+            { action: "hold" },
+          ],
         },
       },
       transitions: [
@@ -1775,7 +1901,11 @@ describe("hearing", () => {
           bind: { caller: SPEAKER_SELECTOR },
           to: "answering",
         },
-        { from: "answering", if: { cond: "after", ms: BRAIN_TICK_MS }, to: "following" },
+        {
+          from: "answering",
+          if: { cond: "after", ms: BRAIN_TICK_MS },
+          to: "following",
+        },
       ],
     };
   }
@@ -1806,12 +1936,15 @@ describe("hearing", () => {
     map = replaceStack(map, -9, -9, 0, [{ tileId: "grass" }]);
     map = withDeer(map, 0, 0, creature);
     map = withPlayerAt(map, apart, 0);
-    return new GameSession(map, listeners, { actorIds: ["alice"], spawnAt: {
-      x: -9,
-      y: -9,
-      z: 0,
-      stackIndex: 1,
-    } });
+    return new GameSession(map, listeners, {
+      actorIds: ["alice"],
+      spawnAt: {
+        x: -9,
+        y: -9,
+        z: 0,
+        stackIndex: 1,
+      },
+    });
   }
 
   /** Everything said out loud over one stretch of ticks. */
@@ -1896,17 +2029,25 @@ describe("hearing", () => {
       let map = field(9);
       map = replaceStack(map, -9, -9, 0, [{ tileId: "grass" }]);
       map = withDeer(map, 0, 0, creature);
-      map = replaceStack(map, 2, 0, 0, [{ tileId: "grass" }, { tileId: "wall" }]);
+      map = replaceStack(map, 2, 0, 0, [
+        { tileId: "grass" },
+        { tileId: "wall" },
+      ]);
       map = withPlayerAt(map, 4, 0);
-      const session = new GameSession(map, listeners, { actorIds: ["alice"], spawnAt: {
-        x: -9,
-        y: -9,
-        z: 0,
-        stackIndex: 1,
-      } });
+      const session = new GameSession(map, listeners, {
+        actorIds: ["alice"],
+        spawnAt: {
+          x: -9,
+          y: -9,
+          z: 0,
+          stackIndex: 1,
+        },
+      });
 
       session.hear("alice", "psps");
-      expect(saidDuring(session, BRAIN_TICK_MS * 2), creature).toEqual(answered);
+      expect(saidDuring(session, BRAIN_TICK_MS * 2), creature).toEqual(
+        answered,
+      );
     }
   });
 
@@ -1939,12 +2080,15 @@ describe("hearing", () => {
     map = replaceStack(map, -9, -9, 0, [{ tileId: "grass" }]);
     map = withDeer(map, 0, 0, "listener");
     map = withPlayerAt(map, 3, 0);
-    const session = new GameSession(map, listeners, { actorIds: ["alice"], spawnAt: {
-      x: -9,
-      y: -9,
-      z: 0,
-      stackIndex: 1,
-    } });
+    const session = new GameSession(map, listeners, {
+      actorIds: ["alice"],
+      spawnAt: {
+        x: -9,
+        y: -9,
+        z: 0,
+        stackIndex: 1,
+      },
+    });
     session.spawn("bob", { at: { x: 0, y: 3, z: 0 } });
 
     session.hear("alice", "psps");
@@ -1971,12 +2115,15 @@ describe("hearing", () => {
     map = withDeer(map, 0, 0, "listener");
     map = withDeer(map, 0, 1, "listener");
     map = withPlayerAt(map, 3, 0);
-    const session = new GameSession(map, listeners, { actorIds: ["alice"], spawnAt: {
-      x: -9,
-      y: -9,
-      z: 0,
-      stackIndex: 1,
-    } });
+    const session = new GameSession(map, listeners, {
+      actorIds: ["alice"],
+      spawnAt: {
+        x: -9,
+        y: -9,
+        z: 0,
+        stackIndex: 1,
+      },
+    });
 
     session.hear("alice", "psps");
     expect(saidDuring(session, BRAIN_TICK_MS * 2)).toEqual(["meow", "meow"]);
@@ -2040,13 +2187,20 @@ describe("hearing a sound", () => {
         idle: { do: [{ action: "hold" }] },
         looking: {
           onEnter: [{ effect: "say", text: "?" }],
-          do: [{ action: "step_toward", of: slot("source") }, { action: "hold" }],
+          do: [
+            { action: "step_toward", of: slot("source") },
+            { action: "hold" },
+          ],
         },
       },
       transitions: [
         {
           from: "idle",
-          if: { cond: "heard_noise", cells: EARSHOT, ...(text ? { text } : {}) },
+          if: {
+            cond: "heard_noise",
+            cells: EARSHOT,
+            ...(text ? { text } : {}),
+          },
           bind: { source: SPEAKER_SELECTOR },
           to: "looking",
         },
@@ -2133,7 +2287,11 @@ describe("hearing a sound", () => {
    * A listener at the origin, a `maker` `apart` cells east, alice parked in the
    * corner because a world with nobody connected freezes every brain in it.
    */
-  function room(listener: string, maker: string | null, apart = 3): GameSession {
+  function room(
+    listener: string,
+    maker: string | null,
+    apart = 3,
+  ): GameSession {
     let map = field(9);
     map = replaceStack(map, -9, -9, 0, [{ tileId: "grass" }]);
     map = withDeer(map, 0, 0, listener);
@@ -2302,7 +2460,12 @@ describe("composing conditions", () => {
       { cond: "after", ms: 0 },
       { cond: "in_range", of: nearest("player"), cells: 3 },
     ]);
-    expect(stateAfterOneTick(both, { positionOf: () => ({ x: 1, y: 0, z: 0 }), nearestOnTile: () => "alice" })).toBe("alert");
+    expect(
+      stateAfterOneTick(both, {
+        positionOf: () => ({ x: 1, y: 0, z: 0 }),
+        nearestOnTile: () => "alice",
+      }),
+    ).toBe("alert");
     // Same tree, nobody to be in range of.
     expect(stateAfterOneTick(both, { nearestOnTile: () => null })).toBe("idle");
   });
@@ -2315,13 +2478,20 @@ describe("composing conditions", () => {
     expect(stateAfterOneTick(either)).toBe("idle");
     expect(
       stateAfterOneTick(
-        group<BrainConditionDef>("or", [{ cond: "after", ms: NEVER_MS }, { cond: "after", ms: 0 }]),
+        group<BrainConditionDef>("or", [
+          { cond: "after", ms: NEVER_MS },
+          { cond: "after", ms: 0 },
+        ]),
       ),
     ).toBe("alert");
   });
 
   it("inverts a group with not", () => {
-    const notYet = group<BrainConditionDef>("and", [{ cond: "after", ms: NEVER_MS }], true);
+    const notYet = group<BrainConditionDef>(
+      "and",
+      [{ cond: "after", ms: NEVER_MS }],
+      true,
+    );
     expect(stateAfterOneTick(notYet)).toBe("alert");
   });
 
@@ -2330,7 +2500,11 @@ describe("composing conditions", () => {
       { cond: "after", ms: 0 },
       group<BrainConditionDef>("or", [
         { cond: "stuck" },
-        group<BrainConditionDef>("and", [{ cond: "after", ms: NEVER_MS }], true),
+        group<BrainConditionDef>(
+          "and",
+          [{ cond: "after", ms: NEVER_MS }],
+          true,
+        ),
       ]),
     ]);
     expect(stateAfterOneTick(tree)).toBe("alert");
@@ -2355,7 +2529,11 @@ describe("composing conditions", () => {
           from: "idle",
           // Fires on the clock, whatever anyone said.
           if: group<BrainConditionDef>("or", [
-            group<BrainConditionDef>("and", [{ cond: "heard", text: "bye", cells: 5 }], true),
+            group<BrainConditionDef>(
+              "and",
+              [{ cond: "heard", text: "bye", cells: 5 }],
+              true,
+            ),
             { cond: "after", ms: 0 },
           ]),
           bind: { caller: SPEAKER_SELECTOR },
@@ -2381,9 +2559,19 @@ describe("composing conditions", () => {
     const brain = {
       initial: "idle",
       states: { idle: { do: [] } },
-      transitions: [{ from: "idle", if: { combinator: "and", rules: [] }, to: "idle" }],
+      transitions: [
+        { from: "idle", if: { combinator: "and", rules: [] }, to: "idle" },
+      ],
     };
-    expect(resolveBrain(tile({ id: "empty-group", height: 2, interactions: { brain } as never }))).toBeNull();
+    expect(
+      resolveBrain(
+        tile({
+          id: "empty-group",
+          height: 2,
+          interactions: { brain } as never,
+        }),
+      ),
+    ).toBeNull();
   });
 });
 
@@ -2433,7 +2621,11 @@ describe("holding a conversation", () => {
           bind: { partner: SPEAKER_SELECTOR },
           to: "greeting",
         },
-        { from: "greeting", if: { cond: "after", ms: GREETING_MS }, to: "talking" },
+        {
+          from: "greeting",
+          if: { cond: "after", ms: GREETING_MS },
+          to: "talking",
+        },
         // Above the interruption, so the person being talked to is answered
         // first when two people speak between one tick and the next.
         {
@@ -2458,7 +2650,11 @@ describe("holding a conversation", () => {
           },
           to: "busy",
         },
-        { from: "busy", if: { cond: "after", ms: BRAIN_TICK_MS }, to: "talking" },
+        {
+          from: "busy",
+          if: { cond: "after", ms: BRAIN_TICK_MS },
+          to: "talking",
+        },
         // Two ways for a conversation to lapse, and one row, because they lead
         // to the same place: there is no priority between them to bury.
         {
@@ -2469,7 +2665,11 @@ describe("holding a conversation", () => {
           ]),
           to: "idle",
         },
-        { from: "farewell", if: { cond: "after", ms: BRAIN_TICK_MS }, to: "idle" },
+        {
+          from: "farewell",
+          if: { cond: "after", ms: BRAIN_TICK_MS },
+          to: "idle",
+        },
       ],
     };
   }
@@ -2516,7 +2716,9 @@ describe("holding a conversation", () => {
     const session = shop();
     session.hear("alice", "hi there");
 
-    expect(saidDuring(session, BRAIN_TICK_MS * 2)).toEqual([`Hello, ${ALICE}.`]);
+    expect(saidDuring(session, BRAIN_TICK_MS * 2)).toEqual([
+      `Hello, ${ALICE}.`,
+    ]);
   });
 
   it("stays out of it for a word it is not listening for", () => {
@@ -2698,12 +2900,15 @@ describe("the cat we ship", () => {
       { tileId: "grass" },
       { tileId: "player", direction: "e", owner: "alice" },
     ]);
-    return new GameSession(map, authored, { actorIds: ["alice"], spawnAt: {
-      x: -9,
-      y: -9,
-      z: 0,
-      stackIndex: 1,
-    } });
+    return new GameSession(map, authored, {
+      actorIds: ["alice"],
+      spawnAt: {
+        x: -9,
+        y: -9,
+        z: 0,
+        stackIndex: 1,
+      },
+    });
   }
 
   function catAt(session: GameSession) {
@@ -2802,7 +3007,10 @@ describe("the wolf we ship", () => {
       }
     }
     map = replaceStack(map, 0, 0, 0, [{ tileId: "dirt" }, { tileId: "wolf" }]);
-    map = replaceStack(map, apart, 0, 0, [{ tileId: "dirt" }, { tileId: "cat" }]);
+    map = replaceStack(map, apart, 0, 0, [
+      { tileId: "dirt" },
+      { tileId: "cat" },
+    ]);
     map = replaceStack(map, apart, 2, 0, [
       { tileId: "dirt" },
       { tileId: "player", direction: "e", owner: "alice" },
@@ -2973,7 +3181,9 @@ describe("knowing where it belongs", () => {
       initial: "roaming",
       states: {
         roaming: { do: [{ action: "step_random" }] },
-        homing: { do: [{ action: "step_toward", of: HOME }, { action: "hold" }] },
+        homing: {
+          do: [{ action: "step_toward", of: HOME }, { action: "hold" }],
+        },
       },
       transitions: [
         {
@@ -3275,7 +3485,10 @@ describe("the vermin we ship", () => {
     for (let beat = 0; beat < 20; beat++) {
       advance(session, BRAIN_TICK_MS);
       const [a, b] = bodies(session, "rat");
-      closest = Math.min(closest, Math.abs(a!.x - b!.x) + Math.abs(a!.y - b!.y));
+      closest = Math.min(
+        closest,
+        Math.abs(a!.x - b!.x) + Math.abs(a!.y - b!.y),
+      );
     }
 
     // They found each other, rather than each keeping its own corner.
@@ -3322,18 +3535,24 @@ describe("the vermin we ship", () => {
     let crowdedBeats = 0;
     let lockedBeats = 0;
     const beats = 60;
-    const stepsApart = (a: { x: number; y: number }, b: { x: number; y: number }) =>
-      Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
+    const stepsApart = (
+      a: { x: number; y: number },
+      b: { x: number; y: number },
+    ) => Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
 
     for (let beat = 0; beat < beats; beat++) {
       advance(session, BRAIN_TICK_MS);
       const rats = bodies(session, "rat");
-      if (rats.some((a) => rats.some((b) => a !== b && stepsApart(a, b) <= 1))) {
+      if (
+        rats.some((a) => rats.some((b) => a !== b && stepsApart(a, b) <= 1))
+      ) {
         crowdedBeats++;
       }
       // The zigzag: every rat diagonally glued to another, the whole chain
       // shuffling in place. Rare now; it used to be three beats in four.
-      if (rats.every((a) => rats.some((b) => a !== b && stepsApart(a, b) === 2))) {
+      if (
+        rats.every((a) => rats.some((b) => a !== b && stepsApart(a, b) === 2))
+      ) {
         lockedBeats++;
       }
     }

@@ -77,6 +77,6 @@ describe("what is on screen", () => {
     queue.push("second", 10);
 
     const [a, b] = queue.live(20);
-    expect(a.id).not.toBe(b.id);
+    expect(a!.id).not.toBe(b!.id);
   });
 });

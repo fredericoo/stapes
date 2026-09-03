@@ -15,9 +15,7 @@ import { MAX_LIGHT_LEVEL } from "./lightingFlood";
 import type { MapFile, TileDef } from "./types";
 import { coordKey, levelKey, normalizeTileDef } from "./types";
 
-function tile(
-  partial: Record<string, unknown> & Pick<TileDef, "id">,
-): TileDef {
+function tile(partial: Record<string, unknown> & Pick<TileDef, "id">): TileDef {
   return normalizeTileDef({
     name: partial.id,
     height: 0,
@@ -120,9 +118,7 @@ describe("isSkyExposed", () => {
   });
 
   it("is blocked by a floor plate above", () => {
-    const occlusion = new Map([
-      ["1:0,0", { opacity: 0, sealsLevel: true }],
-    ]);
+    const occlusion = new Map([["1:0,0", { opacity: 0, sealsLevel: true }]]);
     expect(isSkyExposed(0, 0, 0, occlusion)).toBe(false);
     expect(isSkyExposed(0, 0, 1, occlusion)).toBe(true);
   });
@@ -134,39 +130,31 @@ describe("rayTransmission", () => {
   });
 
   it("hard-blocks at a full wall", () => {
-    const occlusion = new Map([
-      ["0:1,0", { opacity: 1, sealsLevel: true }],
-    ]);
+    const occlusion = new Map([["0:1,0", { opacity: 1, sealsLevel: true }]]);
     expect(rayTransmission(0, 0, 0, 3, 0, 0, occlusion)).toBe(0);
   });
 
   it("half-decays through a half-block", () => {
-    const occlusion = new Map([
-      ["0:1,0", { opacity: 0.5, sealsLevel: true }],
-    ]);
+    const occlusion = new Map([["0:1,0", { opacity: 0.5, sealsLevel: true }]]);
     expect(rayTransmission(0, 0, 0, 3, 0, 0, occlusion)).toBeCloseTo(0.5);
   });
 
   it("seals vertical travel through a floor plate", () => {
-    const occlusion = new Map([
-      ["1:0,0", { opacity: 0, sealsLevel: true }],
-    ]);
+    const occlusion = new Map([["1:0,0", { opacity: 0, sealsLevel: true }]]);
     expect(rayTransmission(0, 0, 0, 0, 0, 2, occlusion)).toBe(0);
   });
 
   it("half-decays vertical travel through a half-block", () => {
-    const occlusion = new Map([
-      ["1:0,0", { opacity: 0.5, sealsLevel: true }],
-    ]);
+    const occlusion = new Map([["1:0,0", { opacity: 0.5, sealsLevel: true }]]);
     expect(rayTransmission(0, 0, 0, 0, 0, 2, occlusion)).toBeCloseTo(0.5);
   });
 });
 
 describe("emitterCenter", () => {
   it("emits from the cell centre at floor level for a flat lit tile", () => {
-    expect(
-      emitterCenter(3, 4, 0, [{ tileId: "torch" }], 0, tilesById),
-    ).toEqual({ fx: 3.5, fy: 4.5, fz: 0 });
+    expect(emitterCenter(3, 4, 0, [{ tileId: "torch" }], 0, tilesById)).toEqual(
+      { fx: 3.5, fy: 4.5, fz: 0 },
+    );
   });
 
   it("raises Z by half the tile height", () => {
@@ -191,9 +179,9 @@ describe("emitterCenter", () => {
       light: { radius: 4, intensity: 1, color: "#ffffff" },
     });
     const byId = { ...tilesById, "ghost-lamp": lamp };
-    expect(
-      emitterCenter(0, 0, 0, [{ tileId: "ghost-lamp" }], 0, byId),
-    ).toEqual({ fx: 0.5, fy: 0.5, fz: 0.5 });
+    expect(emitterCenter(0, 0, 0, [{ tileId: "ghost-lamp" }], 0, byId)).toEqual(
+      { fx: 0.5, fy: 0.5, fz: 0.5 },
+    );
   });
 
   it("accounts for standing on a half-block base", () => {
@@ -434,13 +422,21 @@ describe("computeLighting flood fill", () => {
       { x: 3, y: 0, tiles: ["floor"] },
     ]);
     const omit = new Set(["torch"]);
-    const staticGrid = computeLighting(map, tilesById, [0, 0, 0], undefined, omit);
+    const staticGrid = computeLighting(
+      map,
+      tilesById,
+      [0, 0, 0],
+      undefined,
+      omit,
+    );
     const painted = overlayEmitterOverrides(staticGrid, map, tilesById, [
       { x: 0, y: 0, z: 0, fx: 0.5, fy: 0.5, fz: 0 },
     ]);
 
     // Open cell before the wall is lit; the one it shadows is not.
-    expect(sampleLevelLight(painted.levels.get(0)!, 1, 0)[0]).toBeGreaterThan(0);
+    expect(sampleLevelLight(painted.levels.get(0)!, 1, 0)[0]).toBeGreaterThan(
+      0,
+    );
     expect(sampleLevelLight(painted.levels.get(0)!, 3, 0)[0]).toBe(0);
   });
 
@@ -451,7 +447,13 @@ describe("computeLighting flood fill", () => {
     for (let x = 1; x <= 6; x++) cells.push({ x, y: 0, tiles: ["floor"] });
     const map = mapAt(cells);
     const omit = new Set(["torch"]);
-    const staticGrid = computeLighting(map, tilesById, [0, 0, 0], undefined, omit);
+    const staticGrid = computeLighting(
+      map,
+      tilesById,
+      [0, 0, 0],
+      undefined,
+      omit,
+    );
     const painted = overlayEmitterOverrides(staticGrid, map, tilesById, [
       { x: 0, y: 0, z: 0, fx: 0.5, fy: 0.5, fz: 0 },
     ]);
@@ -470,7 +472,13 @@ describe("computeLighting flood fill", () => {
       { x: 1, y: 0, tiles: ["floor"] },
     ]);
     const omit = new Set(["torch"]);
-    const staticGrid = computeLighting(map, tilesById, [0, 0, 0], undefined, omit);
+    const staticGrid = computeLighting(
+      map,
+      tilesById,
+      [0, 0, 0],
+      undefined,
+      omit,
+    );
     expect(sampleLevelLight(staticGrid.levels.get(0)!, 0, 0)[0]).toBe(0);
     const painted = overlayEmitterOverrides(staticGrid, map, tilesById, [
       { x: 0, y: 0, z: 0, fx: 0.5, fy: 0.5, fz: 0 },
@@ -506,7 +514,9 @@ describe("computeLighting flood fill", () => {
     expect(sampleLevelLight(painted.levels.get(0)!, 0, 0)[0]).toBeGreaterThan(
       0.5,
     );
-    expect(sampleLevelLight(painted.levels.get(0)!, 1, 0)[0]).toBeGreaterThan(0);
+    expect(sampleLevelLight(painted.levels.get(0)!, 1, 0)[0]).toBeGreaterThan(
+      0,
+    );
   });
 
   // Two lanterns is twice the light, and it falls out of the cast accumulating

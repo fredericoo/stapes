@@ -11,7 +11,6 @@ import {
   MIN_LEVEL,
   coordKey,
   levelKey,
-  parseCoordKey,
   resolveLightPassing,
 } from "./types";
 import { elevationAt, getStack } from "./mapData";
@@ -126,9 +125,7 @@ export function composeAmbientRgb(
 ): void {
   for (let i = 0, p = 0; i < sky.length; i++, p += 3) {
     const sk = sky[i]! / 255;
-    rgb[p] = Math.round(
-      Math.min(1, sk * ambient[0] + block[p]! / 255) * 255,
-    );
+    rgb[p] = Math.round(Math.min(1, sk * ambient[0] + block[p]! / 255) * 255);
     rgb[p + 1] = Math.round(
       Math.min(1, sk * ambient[1] + block[p + 1]! / 255) * 255,
     );
@@ -309,7 +306,8 @@ export function emitterCenter(
 ): { fx: number; fy: number; fz: number } {
   const def = tilesById[stack[stackIndex]?.tileId ?? ""];
   const height = def?.height ?? 0;
-  const baseAbs = z * HEIGHT_PER_LEVEL + elevationAt(stack, stackIndex, tilesById);
+  const baseAbs =
+    z * HEIGHT_PER_LEVEL + elevationAt(stack, stackIndex, tilesById);
   return {
     fx: x + 0.5,
     fy: y + 0.5,
@@ -413,7 +411,9 @@ export function rayBlocked(
   for (const k of opaque) {
     occlusion.set(k, { opacity: 1, sealsLevel: true });
   }
-  return rayTransmission(x0, y0, z0, x1, y1, z1, occlusion) < TRANSMISSION_EPSILON;
+  return (
+    rayTransmission(x0, y0, z0, x1, y1, z1, occlusion) < TRANSMISSION_EPSILON
+  );
 }
 
 function accumulateAt(
@@ -480,7 +480,7 @@ function castEmitter(
         const dy = ty - e.y;
         const dz = tz - e.z;
         const dist = Math.sqrt(
-          dx * dx + dy * dy + (dz * VERTICAL_FALLOFF) * (dz * VERTICAL_FALLOFF),
+          dx * dx + dy * dy + dz * VERTICAL_FALLOFF * (dz * VERTICAL_FALLOFF),
         );
         if (dist > e.radius) continue;
 
@@ -499,7 +499,15 @@ function castEmitter(
 
         let transmission = 1;
         if (!isSelf && dist > 0) {
-          transmission = denseRayTransmission(occlusion, sx, sy, sz, tx, ty, tz);
+          transmission = denseRayTransmission(
+            occlusion,
+            sx,
+            sy,
+            sz,
+            tx,
+            ty,
+            tz,
+          );
           if (transmission < TRANSMISSION_EPSILON) continue;
         }
 
@@ -569,7 +577,14 @@ export function cloneLightGrid(grid: LightGrid): LightGrid {
 }
 
 /** Cells an emitter set can reach: a rect plus the levels it spans. */
-type Reach = { x0: number; y0: number; x1: number; y1: number; z0: number; z1: number };
+type Reach = {
+  x0: number;
+  y0: number;
+  x1: number;
+  y1: number;
+  z0: number;
+  z1: number;
+};
 
 function emitterReach(emitters: readonly Emitter[]): Reach {
   const r: Reach = {
@@ -671,11 +686,17 @@ export type DenseOcclusion = {
   seals: Uint8Array;
 };
 
-function denseIndex(o: DenseOcclusion, x: number, y: number, z: number): number {
+function denseIndex(
+  o: DenseOcclusion,
+  x: number,
+  y: number,
+  z: number,
+): number {
   const lx = x - o.reach.x0;
   const ly = y - o.reach.y0;
   const lz = z - o.reach.z0;
-  if (lx < 0 || ly < 0 || lz < 0 || lx >= o.w || ly >= o.h || lz >= o.d) return -1;
+  if (lx < 0 || ly < 0 || lz < 0 || lx >= o.w || ly >= o.h || lz >= o.d)
+    return -1;
   return (lz * o.h + ly) * o.w + lx;
 }
 
@@ -696,7 +717,11 @@ function denseOcclusionIn(
     seals: new Uint8Array(w * h * d),
   };
 
-  for (let z = Math.max(MIN_LEVEL, reach.z0); z <= Math.min(MAX_LEVEL, reach.z1); z++) {
+  for (
+    let z = Math.max(MIN_LEVEL, reach.z0);
+    z <= Math.min(MAX_LEVEL, reach.z1);
+    z++
+  ) {
     if (!map.levels[levelKey(z)]) continue;
     fillDenseLevel(dense, map, tilesById, z);
   }
@@ -809,7 +834,12 @@ type ChannelView = {
 };
 
 /** Lift the reach rect out of a level into float accumulators. */
-function readReachFloats(level: ChannelView, reach: Reach, w: number, h: number) {
+function readReachFloats(
+  level: ChannelView,
+  reach: Reach,
+  w: number,
+  h: number,
+) {
   const floats = new Float32Array(w * h * 3);
   for (let ly = 0; ly < h; ly++) {
     const sy = reach.y0 + ly - level.y0;
@@ -834,7 +864,8 @@ function writeReachFloats(
   w: number,
   h: number,
 ) {
-  const quantise = (v: number) => (v <= 0 ? 0 : v >= 1 ? 255 : Math.round(v * 255));
+  const quantise = (v: number) =>
+    v <= 0 ? 0 : v >= 1 ? 255 : Math.round(v * 255);
   for (let ly = 0; ly < h; ly++) {
     const sy = reach.y0 + ly - level.y0;
     if (sy < 0 || sy >= level.h) continue;
@@ -948,9 +979,7 @@ export function overlayEmitterOverrides(
 }
 
 /** Every (cellKey, stack) on a level, across its chunks. */
-function* allCells(
-  level: LevelChunks,
-): Generator<[string, PlacedTile[]]> {
+function* allCells(level: LevelChunks): Generator<[string, PlacedTile[]]> {
   for (const chunk of Object.values(level)) {
     yield* Object.entries(chunk);
   }
@@ -1007,5 +1036,9 @@ export function sampleLevelLight(
     return [0, 0, 0];
   }
   const i = (ly * level.w + lx) * 3;
-  return [level.rgb[i]! / 255, level.rgb[i + 1]! / 255, level.rgb[i + 2]! / 255];
+  return [
+    level.rgb[i]! / 255,
+    level.rgb[i + 1]! / 255,
+    level.rgb[i + 2]! / 255,
+  ];
 }

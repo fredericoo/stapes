@@ -619,7 +619,8 @@ export function placeInSlot(
   instance: ItemInstance,
 ): ItemMoveResult | null {
   if (!slotAccepts(slot.kind, instance, tilesById)) return null;
-  if (!slotHasRoom(map, tilesById, actor, equipment, slot, instance)) return null;
+  if (!slotHasRoom(map, tilesById, actor, equipment, slot, instance))
+    return null;
   return fillSlot(map, tilesById, actor, equipment, slot, instance);
 }
 

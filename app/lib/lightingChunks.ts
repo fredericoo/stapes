@@ -194,7 +194,10 @@ function blitPacked(
       const src = row * LIGHT_CHUNK_SIZE * RAW_STRIDE;
       const dstRow = oy * LIGHT_CHUNK_SIZE + row;
       const dst = (dstRow * w + ox * LIGHT_CHUNK_SIZE) * RAW_STRIDE;
-      dstPlane.set(plane.subarray(src, src + LIGHT_CHUNK_SIZE * RAW_STRIDE), dst);
+      dstPlane.set(
+        plane.subarray(src, src + LIGHT_CHUNK_SIZE * RAW_STRIDE),
+        dst,
+      );
     }
   }
 }
@@ -233,7 +236,12 @@ function chunkSpanKey(rect: WorldRect): string {
 function chunkRect(cx: number, cy: number): WorldRect {
   const x0 = cx * LIGHT_CHUNK_SIZE;
   const y0 = cy * LIGHT_CHUNK_SIZE;
-  return { x0, y0, x1: x0 + LIGHT_CHUNK_SIZE - 1, y1: y0 + LIGHT_CHUNK_SIZE - 1 };
+  return {
+    x0,
+    y0,
+    x1: x0 + LIGHT_CHUNK_SIZE - 1,
+    y1: y0 + LIGHT_CHUNK_SIZE - 1,
+  };
 }
 
 /**
@@ -360,7 +368,8 @@ export function bakeRegion(
     for (let cx = chunkOf(rect.x0); cx <= chunkOf(rect.x1); cx++) {
       const cr = chunkRect(cx, cy);
       const planes: ChunkLight = new Map();
-      for (const [z, level] of grid.levels) planes.set(z, sliceChunk(level, cr));
+      for (const [z, level] of grid.levels)
+        planes.set(z, sliceChunk(level, cr));
       const key = chunkCacheKey(cx, cy);
       out.set(key, {
         planes,
@@ -552,11 +561,7 @@ export class ChunkedLighting {
   }
 
   /** File a whole region's worth, all baked at the same clock reading. */
-  private storeAll(
-    baked: Map<string, BakedChunk>,
-    timeMs: number,
-    at: number,
-  ) {
+  private storeAll(baked: Map<string, BakedChunk>, timeMs: number, at: number) {
     for (const [key, chunk] of baked) this.store(key, chunk, timeMs, at);
   }
 
@@ -1080,7 +1085,6 @@ export class ChunkedLighting {
       });
   }
 
-
   /**
    * Light covering `rect` in the GPU's own layout, untinted.
    *
@@ -1089,11 +1093,7 @@ export class ChunkedLighting {
    * the path a continuously moving clock should use — changing time of day
    * touches a uniform and nothing else.
    */
-  packedGridFor(
-    map: MapFile,
-    rect: WorldRect,
-    timeMs = 0,
-  ): PackedLightGrid {
+  packedGridFor(map: MapFile, rect: WorldRect, timeMs = 0): PackedLightGrid {
     this.tick++;
     this.fillMissing(map, rect, timeMs);
     // Nothing on screen is waiting, so it is worth warming what might be.

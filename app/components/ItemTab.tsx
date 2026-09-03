@@ -41,6 +41,11 @@ import { StoneFields } from "./StoneFields";
 import { ElementFields } from "./ElementFields";
 import { WeaponFields } from "./WeaponFields";
 
+// Hoisted so the default is one value rather than a new one per render. An
+// inline `{}` or `[]` in a destructuring default is a fresh identity every
+// time, which is a changed prop to everything memoised below it.
+const NO_STATUS_DEFS: Record<string, StatusDef> = {};
+
 type Props = {
   draft: TileDef;
   onChange: (next: TileDef) => void;
@@ -86,7 +91,12 @@ const TYPE_OPTIONS: Array<{ value: ItemType; label: string }> = [
  * rather than deciding it. Like that tab it has no on/off switch — it is only
  * ever shown for a tile whose kind is already `item`.
  */
-export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
+export function ItemTab({
+  draft,
+  onChange,
+  statusDefs = NO_STATUS_DEFS,
+  tiles,
+}: Props) {
   const item = draft.interactions?.item ?? DEFAULT_WEAPON;
 
   const setItem = (next: ItemDef) => {
@@ -186,8 +196,8 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
         <span className="text-sm font-bold">Item</span>
         <p className="text-[11px] leading-snug text-muted">
           This tile can be picked up. On the floor it is a placement like any
-          other — it falls, it can be shoved — and picking it up lifts it off the
-          board into somebody&rsquo;s bag. Author it flat and{" "}
+          other — it falls, it can be shoved — and picking it up lifts it off
+          the board into somebody&rsquo;s bag. Author it flat and{" "}
           <strong>intangible</strong> on the Tile tab so it lies on the ground
           without blocking it.
         </p>
@@ -210,8 +220,8 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
             <p className="max-w-lg text-[11px] leading-snug text-muted">
               These numbers <strong>are</strong> the fight, not a bonus on one.
               Holding this replaces whatever the wielder&rsquo;s own hands or
-              jaws would have done — see a creature&rsquo;s natural weapon on the
-              Battle tab, which is the same block.
+              jaws would have done — see a creature&rsquo;s natural weapon on
+              the Battle tab, which is the same block.
             </p>
             <WeaponFields
               weapon={item}
@@ -245,10 +255,10 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
           <div className="flex flex-col gap-3">
             <p className="max-w-lg text-[11px] leading-snug text-muted">
               Worn, and defence is the whole of what it does. It{" "}
-              <strong>adds</strong> to everything else being worn and to whatever
-              is in either hand — a helm, a mail shirt and a shield are three
-              different answers to being hit, and a body with all three gets all
-              three.
+              <strong>adds</strong> to everything else being worn and to
+              whatever is in either hand — a helm, a mail shirt and a shield are
+              three different answers to being hit, and a body with all three
+              gets all three.
             </p>
 
             <div className="flex flex-col gap-1 text-xs">
@@ -333,8 +343,8 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
               <span className="max-w-64 text-[11px] leading-snug text-muted">
                 What using it is called — &ldquo;Eat&rdquo; for a cherry,
                 &ldquo;Drink&rdquo; for a potion. Shown beside the tile&rsquo;s
-                name wherever the action is offered. Blank falls back to
-                &ldquo;{CONSUME_FALLBACK_VERB}&rdquo;.
+                name wherever the action is offered. Blank falls back to &ldquo;
+                {CONSUME_FALLBACK_VERB}&rdquo;.
               </span>
             </label>
 
@@ -382,7 +392,9 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
               statuses={item.statuses ?? []}
               statusDefs={statusDefs}
               onChange={(statuses) =>
-                patchConsumable({ statuses: statuses.length ? statuses : undefined })
+                patchConsumable({
+                  statuses: statuses.length ? statuses : undefined,
+                })
               }
               blank={(id) => ({ id })}
               blurb={
@@ -395,7 +407,7 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
               }
             />
 
-            <label className="flex flex-col gap-1 text-xs">
+            <div className="flex flex-col gap-1 text-xs">
               <span className="font-bold uppercase text-muted">Leaves</span>
               <Select
                 className="w-56"
@@ -414,15 +426,17 @@ export function ItemTab({ draft, onChange, statusDefs = {}, tiles }: Props) {
               />
               <span className="max-w-64 text-[11px] leading-snug text-muted">
                 What is left once it is used &mdash; an empty bottle. It lands
-                where the drink was, then in the bag, then in a free hand, and
-                a body with nowhere to put it cannot drink.
+                where the drink was, then in the bag, then in a free hand, and a
+                body with nowhere to put it cannot drink.
               </span>
-            </label>
+            </div>
           </div>
         ) : item.type === "artifact" ? (
           <div className="flex flex-col gap-3">
             <p className="max-w-lg text-[11px] leading-snug text-muted">
-              <strong>Almost nothing to configure, and that is what it is for.</strong>{" "}
+              <strong>
+                Almost nothing to configure, and that is what it is for.
+              </strong>{" "}
               It can be picked up, carried and held in the off hand, and it does
               nothing else: it never replaces what its holder fights with, adds
               no defence, and cannot be used. A torch is the case this exists
@@ -555,4 +569,3 @@ function describeShift(value: number, up: string, down: string): string {
   if (value === 0) return "No effect.";
   return `${value > 0 ? up : down} by ${Math.abs(value)}.`;
 }
-

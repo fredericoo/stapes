@@ -164,9 +164,7 @@ describe("looking from higher up", () => {
           x,
           y,
           0,
-          extra
-            ? [{ tileId: floor }, { tileId: extra }]
-            : [{ tileId: floor }],
+          extra ? [{ tileId: floor }, { tileId: extra }] : [{ tileId: floor }],
         );
       }
     }
@@ -237,7 +235,13 @@ describe("looking from higher up", () => {
    */
   it("still looks up through open air", () => {
     expect(
-      hasLineOfSight(ground("grass"), tilesById, from, { x: 3, y: 0, z: 1 }, RAT),
+      hasLineOfSight(
+        ground("grass"),
+        tilesById,
+        from,
+        { x: 3, y: 0, z: 1 },
+        RAT,
+      ),
     ).toBe(true);
   });
 });

@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  type FormulaScope,
-  integerise,
-  parseFormula,
-} from "./formula";
+import { type FormulaScope, integerise, parseFormula } from "./formula";
 
 const scope: FormulaScope = {
   DURATION_SEC: 30,
@@ -14,7 +10,10 @@ const scope: FormulaScope = {
 };
 
 /** Compile and run in one go; the tests are about answers, not about handles. */
-function evaluate(source: string, over: Partial<FormulaScope> = {}): number | null {
+function evaluate(
+  source: string,
+  over: Partial<FormulaScope> = {},
+): number | null {
   const formula = parseFormula(source);
   return formula ? formula.evaluate({ ...scope, ...over }) : null;
 }

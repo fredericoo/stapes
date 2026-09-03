@@ -37,8 +37,7 @@ export function TileIdMultiSelect({
     const q = query.trim().toLowerCase();
     if (!q) return tiles;
     return tiles.filter(
-      (t) =>
-        t.id.toLowerCase().includes(q) || t.name.toLowerCase().includes(q),
+      (t) => t.id.toLowerCase().includes(q) || t.name.toLowerCase().includes(q),
     );
   }, [tiles, query]);
 
@@ -83,11 +82,7 @@ export function TileIdMultiSelect({
       />
 
       <ScrollArea className="h-40 border-2 border-border bg-panel">
-        <div
-          role="listbox"
-          aria-multiselectable={!single}
-          aria-label={label}
-        >
+        <div role="listbox" aria-multiselectable={!single} aria-label={label}>
           {matches.map((tile) => {
             const isSelected = selected.has(tile.id);
             return (

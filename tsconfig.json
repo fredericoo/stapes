@@ -7,16 +7,21 @@
     // different now and the rule is the same — this code runs in a tab.
     "types": ["vite/client"],
     "target": "ES2022",
-    "module": "ES2022",
-    "moduleResolution": "bundler",
+    // Vite compiles this, not `tsc`, so `preserve` is the honest setting: it
+    // leaves every import shape alone and lets the bundler resolve them.
+    "module": "preserve",
     "jsx": "react-jsx",
     "rootDirs": [".", "./.react-router/types"],
     "paths": { "~/*": ["./app/*"] },
     "esModuleInterop": true,
     "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
     "noEmit": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
-    "strict": true
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true
   }
 }

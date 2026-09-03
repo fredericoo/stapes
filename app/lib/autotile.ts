@@ -1,8 +1,6 @@
 import { getStack } from "./mapData";
 import {
   AUTOTILE_SLICE_COUNT,
-  coordKey,
-  levelKey,
   type AutotileSlice,
   type MapFile,
   type StateSprites,
@@ -77,7 +75,7 @@ export const AUTOTILE_SLICE_MASKS: readonly number[] = (() => {
   for (let raw = 0; raw < 256; raw++) {
     const masked = maskBlobCorners(raw);
     const slice = MASK_TO_SLICE[raw]!;
-    if (masks[slice] < 0) masks[slice] = masked;
+    if (masks[slice]! < 0) masks[slice] = masked;
   }
   return masks;
 })();
@@ -93,7 +91,7 @@ export function blobMaskToSlice(rawMask: number): AutotileSlice {
 /** Number of unique blob configurations (should be 47). */
 export function blobSliceCount(): number {
   const uniq = new Set<number>();
-  for (let i = 0; i < 256; i++) uniq.add(MASK_TO_SLICE[i]);
+  for (let i = 0; i < 256; i++) uniq.add(MASK_TO_SLICE[i]!);
   return uniq.size;
 }
 

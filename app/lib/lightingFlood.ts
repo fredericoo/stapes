@@ -50,16 +50,46 @@ const VERTICAL_FALLOFF = 1;
  */
 const SKY_EDGE_STRIDE = 4;
 const SKY_EDGES = new Float64Array([
-  1, 0, 0, 1,
-  -1, 0, 0, 1,
-  0, 1, 0, 1,
-  0, -1, 0, 1,
-  0, 0, 1, 1,
-  0, 0, -1, 1,
-  1, 1, 0, Math.SQRT2,
-  1, -1, 0, Math.SQRT2,
-  -1, 1, 0, Math.SQRT2,
-  -1, -1, 0, Math.SQRT2,
+  1,
+  0,
+  0,
+  1,
+  -1,
+  0,
+  0,
+  1,
+  0,
+  1,
+  0,
+  1,
+  0,
+  -1,
+  0,
+  1,
+  0,
+  0,
+  1,
+  1,
+  0,
+  0,
+  -1,
+  1,
+  1,
+  1,
+  0,
+  Math.SQRT2,
+  1,
+  -1,
+  0,
+  Math.SQRT2,
+  -1,
+  1,
+  0,
+  Math.SQRT2,
+  -1,
+  -1,
+  0,
+  Math.SQRT2,
 ]);
 const SKY_EDGE_COUNT = SKY_EDGES.length / SKY_EDGE_STRIDE;
 
@@ -219,7 +249,14 @@ function denseRayTransmission(
     const lx = x - dom.x0;
     const ly = y - dom.y0;
     const lz = z - dom.z0;
-    if (lx < 0 || ly < 0 || lz < 0 || lx >= dom.w || ly >= dom.h || lz >= dom.d) {
+    if (
+      lx < 0 ||
+      ly < 0 ||
+      lz < 0 ||
+      lx >= dom.w ||
+      ly >= dom.h ||
+      lz >= dom.d
+    ) {
       continue;
     }
     const i = idx(dom, lx, ly, lz);
@@ -525,7 +562,14 @@ export function computeLightingFlood(
     const lx = c.x - dom.x0;
     const ly = c.y - dom.y0;
     const lz = c.z - dom.z0;
-    if (lx < 0 || ly < 0 || lz < 0 || lx >= dom.w || ly >= dom.h || lz >= dom.d) {
+    if (
+      lx < 0 ||
+      ly < 0 ||
+      lz < 0 ||
+      lx >= dom.w ||
+      ly >= dom.h ||
+      lz >= dom.d
+    ) {
       continue;
     }
     const o = stackOcc(c.stack, tilesById);
@@ -632,7 +676,14 @@ export function computeLightingFlood(
       const tx = lx + dx;
       const ty = ly + dy;
       const tz = lz + dz;
-      if (tx < 0 || ty < 0 || tz < 0 || tx >= dom.w || ty >= dom.h || tz >= dom.d) {
+      if (
+        tx < 0 ||
+        ty < 0 ||
+        tz < 0 ||
+        tx >= dom.w ||
+        ty >= dom.h ||
+        tz >= dom.d
+      ) {
         continue;
       }
       const j = idx(dom, tx, ty, tz);
@@ -698,14 +749,21 @@ export function computeLightingFlood(
           const lx = tx - dom.x0;
           const ly = ty - dom.y0;
           const lz = tz - dom.z0;
-          if (lx < 0 || ly < 0 || lz < 0 || lx >= dom.w || ly >= dom.h || lz >= dom.d) {
+          if (
+            lx < 0 ||
+            ly < 0 ||
+            lz < 0 ||
+            lx >= dom.w ||
+            ly >= dom.h ||
+            lz >= dom.d
+          ) {
             continue;
           }
           const dx = tx - e.x;
           const dy = ty - e.y;
           const dz = tz - e.z;
           const dist = Math.sqrt(
-            dx * dx + dy * dy + (dz * VERTICAL_FALLOFF) * (dz * VERTICAL_FALLOFF),
+            dx * dx + dy * dy + dz * VERTICAL_FALLOFF * (dz * VERTICAL_FALLOFF),
           );
           if (dist > e.radius) continue;
 
@@ -714,11 +772,7 @@ export function computeLightingFlood(
           if (!isSelf) {
             if (opacity[i]! >= 1) continue;
             // Height-0 floors refuse light climbing from below.
-            if (
-              tz > sz &&
-              seals[i]! &&
-              opacity[i]! < TRANSMISSION_EPSILON
-            ) {
+            if (tz > sz && seals[i]! && opacity[i]! < TRANSMISSION_EPSILON) {
               continue;
             }
           }

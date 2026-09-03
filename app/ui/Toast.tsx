@@ -8,8 +8,9 @@ import {
   type ReactNode,
 } from "react";
 
-const ToastManagerContext =
-  createContext<UseToastManagerReturnValue | null>(null);
+const ToastManagerContext = createContext<UseToastManagerReturnValue | null>(
+  null,
+);
 
 export function ToastProvider({ children }: { children: ReactNode }) {
   return (

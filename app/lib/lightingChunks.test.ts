@@ -26,7 +26,6 @@ import {
   coordKey,
   levelKey,
   normalizeTileDef,
-  parseCoordKey,
 } from "./types";
 
 const tilesById = Object.fromEntries(
@@ -424,7 +423,8 @@ describe("chunked lighting", () => {
       const found = listCoords(mapFile, z).find(
         ({ x }) => offset(x) >= EDGE_OFFSET_LO && offset(x) <= EDGE_OFFSET_HI,
       );
-      if (!found) throw new Error(`fixture has no near-edge cell on level ${z}`);
+      if (!found)
+        throw new Error(`fixture has no near-edge cell on level ${z}`);
       return { x: found.x, y: found.y };
     }
 
@@ -510,12 +510,18 @@ describe("chunked lighting", () => {
         },
         durationMs: 100,
       };
-      const off: TileDef = { ...base, id: "test-lamp-off", sprite: { frames: [frame] } };
+      const off: TileDef = {
+        ...base,
+        id: "test-lamp-off",
+        sprite: { frames: [frame] },
+      };
       const on: TileDef = {
         ...base,
         id: "test-lamp-on",
         sprite: {
-          frames: [{ ...frame, light: { radius, intensity: 1, color: "#ffffff" } }],
+          frames: [
+            { ...frame, light: { radius, intensity: 1, color: "#ffffff" } },
+          ],
         },
       };
       return {
@@ -655,7 +661,12 @@ describe("chunked lighting", () => {
 
 describe("chunked lighting prefetch and eviction", () => {
   const ambient = [...AMBIENT_PRESETS.night] as [number, number, number];
-  const window40 = (x: number): WorldRect => ({ x0: x, y0: 0, x1: x + 40, y1: 40 });
+  const window40 = (x: number): WorldRect => ({
+    x0: x,
+    y0: 0,
+    x1: x + 40,
+    y1: 40,
+  });
 
   /** Hold the window still long enough for the ring trickle to catch up. */
   function idle(c: ChunkedLighting, rect: WorldRect, calls: number) {

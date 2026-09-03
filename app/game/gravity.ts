@@ -247,9 +247,10 @@ export function settleGravity(
 }
 
 /** Map cell where an entity with feet at `feetAbs` should be stored. */
-export function cellForFeetAbs(
-  feetAbs: number,
-): { z: number; elevInLevel: number } {
+export function cellForFeetAbs(feetAbs: number): {
+  z: number;
+  elevInLevel: number;
+} {
   let z = Math.floor(feetAbs / HEIGHT_PER_LEVEL);
   let elev = feetAbs - z * HEIGHT_PER_LEVEL;
   if (z < MIN_LEVEL) {

@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { useLoaderData } from "react-router";
-import type { Route } from "./+types/online";
 import { AppShell } from "../components/AppShell";
 import { DeathScreen } from "../components/DeathScreen";
 import { FrameStatsReadout } from "../components/FrameStatsReadout";
@@ -12,7 +11,11 @@ import { WorldClock } from "../components/WorldClock";
 import { type Equipment, emptyEquipment } from "../game/equipment";
 import type { Conversation, TalkAction } from "../game/dialogRuntime";
 import type { MasteryXp } from "../lib/mastery";
-import { bindCastKeys, bindKeyboard, HeldDirections } from "../game/heldDirections";
+import {
+  bindCastKeys,
+  bindKeyboard,
+  HeldDirections,
+} from "../game/heldDirections";
 import { usePlayModes } from "../components/usePlayModes";
 import {
   applyInteraction,
@@ -65,7 +68,12 @@ const RESTART_RECONNECT_JITTER_MS = 750;
 /** Guards the reload-on-stale-client path against looping. */
 const RELOADED_FOR_VERSION = "stapes:reloaded-for-version";
 
-type Status = "connecting" | "live" | "reconnecting" | "restarting" | "outdated";
+type Status =
+  | "connecting"
+  | "live"
+  | "reconnecting"
+  | "restarting"
+  | "outdated";
 
 export default function OnlinePage() {
   const { tiles, tilesets, statuses, socketPath } =
@@ -130,9 +138,8 @@ export default function OnlinePage() {
   const rebirth = useCallback(() => sessionRef.current?.rebirth(), []);
   // Placeholder until `hello` says what time it is out there. Nobody scrubs it:
   // the hour belongs to the world, not to whoever is looking at it.
-  const [minutesOfDay, setMinutesOfDay] = useState<MinutesOfDay>(
-    DEFAULT_PLAY_MINUTES,
-  );
+  const [minutesOfDay, setMinutesOfDay] =
+    useState<MinutesOfDay>(DEFAULT_PLAY_MINUTES);
   const [stats, setStats] = useState<FrameStats | null>(null);
   // Null while there is no connection to have heard it from, which is not the
   // same as an empty world — an unknown headcount reads as a dash rather than
@@ -144,7 +151,12 @@ export default function OnlinePage() {
   /** What this player has learnt — theirs alone, beside the kit. */
   const [masteryXp, setMasteryXp] = useState<MasteryXp>({});
   /** What this player's body can take, and its ⭐. */
-  const [vitals, setVitals] = useState<Vitals>({ hp: null, maxHp: null, rating: null, statuses: [] });
+  const [vitals, setVitals] = useState<Vitals>({
+    hp: null,
+    maxHp: null,
+    rating: null,
+    statuses: [],
+  });
   const [openedContainer, setOpenedContainer] =
     useState<OpenedContainer | null>(null);
   /**
@@ -214,6 +226,13 @@ export default function OnlinePage() {
 
   const [lightingEnabled, setLightingEnabled] = useState(true);
   const { mode, looking, attacking, setMode } = usePlayModes();
+  // The block below mirrors live props into refs during render, and is disabled
+  // for `react/refs` as one block rather than line by line. The renderer, the
+  // session and the key bindings are all built on `hello` and outlive every
+  // render after it; each reads these at a moment of its own choosing, so a
+  // value that only landed in an effect would be one render stale exactly when
+  // something between the two asked for it.
+  /* oxlint-disable react/refs */
   // Same reason as the lighting ref below: a reconnect builds a fresh renderer,
   // and it has to come up in whatever mode the player is already in.
   const lookingRef = useRef(looking);
@@ -238,6 +257,7 @@ export default function OnlinePage() {
   statusDefsRef.current = statusDefs;
   const lightingRef = useRef(lightingEnabled);
   lightingRef.current = lightingEnabled;
+  /* oxlint-enable react/refs */
 
   useEffect(() => {
     rendererRef.current?.setLightingEnabled(lightingEnabled);
@@ -434,6 +454,7 @@ export default function OnlinePage() {
     // element only exists once it is true. It also holds the socket back until
     // then, which is right: a world being simulated for somebody who cannot see
     // it yet is a walk they never asked for.
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies
   }, [tiles, tilesets, socketPath, assetsReady]);
 
   // Held in a variable because it rides in one of two slots. A world that is

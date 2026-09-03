@@ -71,7 +71,9 @@ function intersects(
 
 describe("an uncontested label", () => {
   it("hangs above its anchor, centred on it", () => {
-    const requests = [request("a", "speech", 300, 400, { width: 80, height: 24 })];
+    const requests = [
+      request("a", "speech", 300, 400, { width: 80, height: 24 }),
+    ];
     const layout = layoutLabels(requests, VIEW);
 
     expect(layout.get("a")).toEqual({ left: 260, top: 376 });
@@ -139,7 +141,10 @@ describe("two labels at one spot", () => {
   it("leaves the earlier label where it was", () => {
     const alone = layoutLabels([request("first", "speech", 300, 400)], VIEW);
     const crowded = layoutLabels(
-      [request("first", "speech", 300, 400), request("second", "speech", 300, 400)],
+      [
+        request("first", "speech", 300, 400),
+        request("second", "speech", 300, 400),
+      ],
       VIEW,
     );
 

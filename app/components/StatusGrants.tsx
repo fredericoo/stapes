@@ -48,7 +48,9 @@ export function StatusGrants<Grant extends StatusGrant>({
 
   const patchAt = (index: number, fields: Partial<Grant>) =>
     onChange(
-      statuses.map((entry, i) => (i === index ? { ...entry, ...fields } : entry)),
+      statuses.map((entry, i) =>
+        i === index ? { ...entry, ...fields } : entry,
+      ),
     );
 
   return (
@@ -64,22 +66,24 @@ export function StatusGrants<Grant extends StatusGrant>({
 
       {statuses.map((entry, index) => {
         const def = statusDefs[entry.id];
-        const overriding = entry.fromMs !== undefined && entry.toMs !== undefined;
+        const overriding =
+          entry.fromMs !== undefined && entry.toMs !== undefined;
         return (
           <div
             key={`${entry.id}-${index}`}
             className="flex flex-wrap items-end gap-2 border-2 border-border p-2"
           >
-            <label className="flex flex-col gap-0.5 text-xs">
+            <div className="flex flex-col gap-0.5 text-xs">
               <span className="font-bold uppercase text-muted">Status</span>
               <Select
+                ariaLabel="Status"
                 value={entry.id || null}
                 onValueChange={(id) =>
                   id && patchAt(index, { id } as Partial<Grant>)
                 }
                 options={options}
               />
-            </label>
+            </div>
 
             {extra?.(entry, (fields) => patchAt(index, fields))}
 
@@ -96,7 +100,10 @@ export function StatusGrants<Grant extends StatusGrant>({
                     index,
                     (on
                       ? { fromMs: def?.fromMs ?? 0, toMs: def?.toMs ?? 0 }
-                      : { fromMs: undefined, toMs: undefined }) as Partial<Grant>,
+                      : {
+                          fromMs: undefined,
+                          toMs: undefined,
+                        }) as Partial<Grant>,
                   )
                 }
               />
@@ -105,7 +112,9 @@ export function StatusGrants<Grant extends StatusGrant>({
             {overriding ? (
               <>
                 <label className="flex flex-col gap-0.5 text-xs">
-                  <span className="font-bold uppercase text-muted">From (ms)</span>
+                  <span className="font-bold uppercase text-muted">
+                    From (ms)
+                  </span>
                   <Input
                     type="number"
                     className="w-28"
@@ -124,7 +133,9 @@ export function StatusGrants<Grant extends StatusGrant>({
                   />
                 </label>
                 <label className="flex flex-col gap-0.5 text-xs">
-                  <span className="font-bold uppercase text-muted">To (ms)</span>
+                  <span className="font-bold uppercase text-muted">
+                    To (ms)
+                  </span>
                   <Input
                     type="number"
                     className="w-28"
@@ -184,10 +195,9 @@ export function StatusGrants<Grant extends StatusGrant>({
  * plain ones knocks the whole row out of line for a hint the section's own prose
  * already gives.
  */
-export function StatusChanceField<Grant extends StatusGrant & { chance: number }>(
-  entry: Grant,
-  patch: (fields: Partial<Grant>) => void,
-) {
+export function StatusChanceField<
+  Grant extends StatusGrant & { chance: number },
+>(entry: Grant, patch: (fields: Partial<Grant>) => void) {
   return (
     <label className="flex flex-col gap-0.5 text-xs">
       <span className="font-bold uppercase text-muted">Chance (%)</span>

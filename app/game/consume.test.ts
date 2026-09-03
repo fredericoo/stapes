@@ -77,7 +77,12 @@ function consumable(id: string, hp: number, sound?: string): TileDef {
     kind: "item",
     intangible: true,
     interactions: {
-      item: { type: "consumable", label: "Eat", hp, ...(sound ? { sound } : {}) },
+      item: {
+        type: "consumable",
+        label: "Eat",
+        hp,
+        ...(sound ? { sound } : {}),
+      },
     },
   });
 }
@@ -97,7 +102,15 @@ const tiles: TileDef[] = [
     interactions: {
       battler: {
         masteries: { toughness: PLAYER_TOUGHNESS },
-        naturalWeapon: { type: "weapon", damage: 5, def: 0, accuracy: 100, variance: 0, spd: 100, mastery: "fist" },
+        naturalWeapon: {
+          type: "weapon",
+          damage: 5,
+          def: 0,
+          accuracy: 100,
+          variance: 0,
+          spd: 100,
+          mastery: "fist",
+        },
         // Where the bag on a player's back comes from — see `app/lib/kit.ts`.
         kit: [{ slot: "bag", tileId: BAG_TILE_ID, chance: 100 }],
       },
@@ -130,7 +143,13 @@ const tiles: TileDef[] = [
     kind: "item",
     intangible: true,
     interactions: {
-      item: { type: "consumable", label: "Drink", hp: 0, pile: 4, leaves: "bottle" },
+      item: {
+        type: "consumable",
+        label: "Drink",
+        hp: 0,
+        pile: 4,
+        leaves: "bottle",
+      },
     },
   }),
   tile({
@@ -144,7 +163,12 @@ const tiles: TileDef[] = [
     kind: "item",
     intangible: true,
     interactions: {
-      item: { type: "consumable", label: "Drink", hp: 0, leaves: "no-such-tile" },
+      item: {
+        type: "consumable",
+        label: "Drink",
+        hp: 0,
+        leaves: "no-such-tile",
+      },
     },
   }),
   tile({
@@ -152,14 +176,24 @@ const tiles: TileDef[] = [
     kind: "item",
     intangible: true,
     interactions: {
-      item: { type: "weapon", damage: 1, def: 0, accuracy: 100, variance: 0, spd: 50, mastery: "blade" },
+      item: {
+        type: "weapon",
+        damage: 1,
+        def: 0,
+        accuracy: 100,
+        variance: 0,
+        spd: 50,
+        mastery: "blade",
+      },
     },
   }),
   tile({
     id: "chest",
     kind: "item",
     intangible: true,
-    interactions: { item: { ...DEFAULT_CONTAINER, size: 2, equippable: false } },
+    interactions: {
+      item: { ...DEFAULT_CONTAINER, size: 2, equippable: false },
+    },
   }),
 ];
 
@@ -178,10 +212,7 @@ function field(half = 4): MapFile {
 }
 
 function withItem(x: number, y: number, tileId: string): GameSession {
-  const map = replaceStack(field(), x, y, 0, [
-    { tileId: "grass" },
-    { tileId },
-  ]);
+  const map = replaceStack(field(), x, y, 0, [{ tileId: "grass" }, { tileId }]);
   return new GameSession(map, tiles);
 }
 
@@ -216,8 +247,14 @@ describe("eating off the floor", () => {
 
   it("heals by what the tile says, up to the body's own maximum", () => {
     let map = field();
-    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "poison" }]);
-    map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "cherry" }]);
+    map = replaceStack(map, 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "poison" },
+    ]);
+    map = replaceStack(map, 0, 1, 0, [
+      { tileId: "grass" },
+      { tileId: "cherry" },
+    ]);
     const session = new GameSession(map, tiles);
 
     session.consume({ kind: "floor", ref: refAt(session, 1, 0) });
@@ -276,7 +313,10 @@ describe("eating off the floor", () => {
     ]);
     const session = new GameSession(map, tiles);
     expect(
-      session.consume({ kind: "floor", ref: { x: 1, y: 0, z: 0, stackIndex: 1 } }),
+      session.consume({
+        kind: "floor",
+        ref: { x: 1, y: 0, z: 0, stackIndex: 1 },
+      }),
     ).toBe(false);
   });
 
@@ -302,9 +342,9 @@ describe("eating out of a slot", () => {
     session.pickUp(refAt(session, 1, 0));
     session.drainEquipmentChanges();
 
-    expect(session.consume({ kind: "slot", slot: { kind: "contents", index: 0 } })).toBe(
-      true,
-    );
+    expect(
+      session.consume({ kind: "slot", slot: { kind: "contents", index: 0 } }),
+    ).toBe(true);
     expect(session.getSnapshot().equipment.bag?.contents).toEqual([]);
     expect(session.drainEquipmentChanges()).toEqual([
       session.getSnapshot().self.id,
@@ -313,8 +353,14 @@ describe("eating out of a slot", () => {
 
   it("moves the hit points exactly as a floor meal does", () => {
     let map = field();
-    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "poison" }]);
-    map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "cherry" }]);
+    map = replaceStack(map, 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "poison" },
+    ]);
+    map = replaceStack(map, 0, 1, 0, [
+      { tileId: "grass" },
+      { tileId: "cherry" },
+    ]);
     const session = new GameSession(map, tiles);
     session.pickUp(refAt(session, 1, 0));
     session.pickUp(refAt(session, 0, 1));
@@ -552,7 +598,6 @@ describe("a consumer with no hit points", () => {
   });
 });
 
-
 /**
  * A consumable that hands over a status instead of moving hit points.
  *
@@ -593,7 +638,10 @@ describe("eating something that grants a status", () => {
       { tileId: "grass" },
       { tileId: "berry" },
     ]);
-    map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "poison" }]);
+    map = replaceStack(map, 0, 1, 0, [
+      { tileId: "grass" },
+      { tileId: "poison" },
+    ]);
     return new GameSession(map, tiles, { statuses: catalogue });
   }
 
@@ -615,7 +663,9 @@ describe("eating something that grants a status", () => {
     const before = hpOf(session);
     expect(before).toBe(PLAYER_MAX_HP - 10);
 
-    expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(true);
+    expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(
+      true,
+    );
     expect(hpOf(session)).toBe(before);
     expect(session.statusesOf("local")?.map((s) => s.defId)).toEqual(["fed"]);
   });
@@ -655,7 +705,10 @@ describe("eating something that grants a status", () => {
 
   it("stacks a second helping onto what is left", () => {
     const map = replaceStack(
-      replaceStack(field(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "berry" }]),
+      replaceStack(field(), 1, 0, 0, [
+        { tileId: "grass" },
+        { tileId: "berry" },
+      ]),
       0,
       1,
       0,
@@ -690,7 +743,10 @@ describe("eating something that grants a status", () => {
   /** And stacking is what makes the pair worth having: one Fed, longer. */
   it("stacks a meal onto a snack as one status", () => {
     const map = replaceStack(
-      replaceStack(field(), 1, 0, 0, [{ tileId: "grass" }, { tileId: "berry" }]),
+      replaceStack(field(), 1, 0, 0, [
+        { tileId: "grass" },
+        { tileId: "berry" },
+      ]),
       0,
       1,
       0,
@@ -715,7 +771,9 @@ describe("eating something that grants a status", () => {
       { tileId: "mystery-fruit" },
     ]);
     const session = new GameSession(map, tiles, { statuses: catalogue });
-    expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(true);
+    expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(
+      true,
+    );
     expect(session.statusesOf("local")).toEqual([]);
     expect(tilesAt(session, 1, 0)).toEqual(["grass"]);
   });
@@ -770,14 +828,21 @@ describe("a drink that leaves its bottle", () => {
   const BAG_SLOT = { kind: "contents", index: 0 } as const;
 
   function bagOf(session: GameSession) {
-    return session.getSnapshot().equipment.bag?.contents?.map((i) =>
-      i.count ? `${i.tileId}x${i.count}` : i.tileId,
-    );
+    return session
+      .getSnapshot()
+      .equipment.bag?.contents?.map((i) =>
+        i.count ? `${i.tileId}x${i.count}` : i.tileId,
+      );
   }
 
   /** The bag filled with swords, so nothing else fits in it. */
   function fillBag(session: GameSession) {
-    for (const [x, y] of [[-1, 0], [-1, 1], [0, -1], [-1, -1]] as const) {
+    for (const [x, y] of [
+      [-1, 0],
+      [-1, 1],
+      [0, -1],
+      [-1, -1],
+    ] as const) {
       session.pickUp(refAt(session, x, y));
     }
   }
@@ -785,16 +850,29 @@ describe("a drink that leaves its bottle", () => {
   /** Swords on four cells within reach, and a potion on a fifth. */
   function armoury(): GameSession {
     let map = field();
-    for (const [x, y] of [[-1, 0], [-1, 1], [0, -1], [-1, -1]] as const) {
-      map = replaceStack(map, x, y, 0, [{ tileId: "grass" }, { tileId: "sword" }]);
+    for (const [x, y] of [
+      [-1, 0],
+      [-1, 1],
+      [0, -1],
+      [-1, -1],
+    ] as const) {
+      map = replaceStack(map, x, y, 0, [
+        { tileId: "grass" },
+        { tileId: "sword" },
+      ]);
     }
-    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "potion" }]);
+    map = replaceStack(map, 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "potion" },
+    ]);
     return new GameSession(map, tiles);
   }
 
   it("leaves the bottle on the floor when drunk where it lay", () => {
     const session = withItem(1, 0, "potion");
-    expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(true);
+    expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(
+      true,
+    );
     expect(tilesAt(session, 1, 0)).toEqual(["grass", "bottle"]);
     // Never in the bag: a floor drink never entered it, and neither does its glass.
     expect(bagOf(session)).toEqual([]);
@@ -822,7 +900,9 @@ describe("a drink that leaves its bottle", () => {
 
     expect(session.consume({ kind: "slot", slot: BAG_SLOT })).toBe(true);
     expect(bagOf(session)).toEqual(["bottle"]);
-    expect(session.drainEquipmentChanges()).toEqual([session.getSnapshot().self.id]);
+    expect(session.drainEquipmentChanges()).toEqual([
+      session.getSnapshot().self.id,
+    ]);
   });
 
   it("pours onto the bottles already in the bag", () => {
@@ -844,7 +924,9 @@ describe("a drink that leaves its bottle", () => {
     session.pickUp(refAt(session, 1, 0));
     expect(session.getSnapshot().equipment.offhand?.tileId).toBe("potion");
 
-    expect(session.consume({ kind: "slot", slot: { kind: "offhand" } })).toBe(true);
+    expect(session.consume({ kind: "slot", slot: { kind: "offhand" } })).toBe(
+      true,
+    );
     expect(session.getSnapshot().equipment.offhand?.tileId).toBe("bottle");
   });
 
@@ -860,11 +942,14 @@ describe("a drink that leaves its bottle", () => {
     const session = new GameSession(map, tiles);
     const chest = refAt(session, 1, 0);
     expect(
-      session.consume({ kind: "slot", slot: { kind: "ground", ref: chest, index: 0 } }),
+      session.consume({
+        kind: "slot",
+        slot: { kind: "ground", ref: chest, index: 0 },
+      }),
     ).toBe(true);
-    expect(getStack(session.getMap(), 1, 0, 0)[1]!.contents?.map((i) => i.tileId)).toEqual([
-      "bottle",
-    ]);
+    expect(
+      getStack(session.getMap(), 1, 0, 0)[1]!.contents?.map((i) => i.tileId),
+    ).toEqual(["bottle"]);
   });
 
   it("refuses the drink, says so, and leaves the potion where it was", () => {
@@ -873,21 +958,43 @@ describe("a drink that leaves its bottle", () => {
     // there is genuinely nowhere for the bottle. A sword would not do for the
     // second hand — a pickup refuses a thing that has a slot of its own.
     let map = field();
-    for (const [x, y] of [[-1, 0], [-1, 1], [0, -1], [-1, -1]] as const) {
-      map = replaceStack(map, x, y, 0, [{ tileId: "grass" }, { tileId: "sword" }]);
+    for (const [x, y] of [
+      [-1, 0],
+      [-1, 1],
+      [0, -1],
+      [-1, -1],
+    ] as const) {
+      map = replaceStack(map, x, y, 0, [
+        { tileId: "grass" },
+        { tileId: "sword" },
+      ]);
     }
-    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "potion", count: 2 }]);
-    map = replaceStack(map, 1, 1, 0, [{ tileId: "grass" }, { tileId: "cherry" }]);
+    map = replaceStack(map, 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "potion", count: 2 },
+    ]);
+    map = replaceStack(map, 1, 1, 0, [
+      { tileId: "grass" },
+      { tileId: "cherry" },
+    ]);
     const session = new GameSession(map, tiles);
     fillBag(session);
     session.pickUp(refAt(session, 1, 0));
     session.pickUp(refAt(session, 1, 1));
-    expect(session.getSnapshot().equipment.offhand).toMatchObject({ tileId: "potion", count: 2 });
+    expect(session.getSnapshot().equipment.offhand).toMatchObject({
+      tileId: "potion",
+      count: 2,
+    });
     expect(session.getSnapshot().equipment.weapon?.tileId).toBe("cherry");
     session.drainEquipmentChanges();
 
-    expect(session.consume({ kind: "slot", slot: { kind: "offhand" } })).toBe(false);
-    expect(session.getSnapshot().equipment.offhand).toMatchObject({ tileId: "potion", count: 2 });
+    expect(session.consume({ kind: "slot", slot: { kind: "offhand" } })).toBe(
+      false,
+    );
+    expect(session.getSnapshot().equipment.offhand).toMatchObject({
+      tileId: "potion",
+      count: 2,
+    });
     expect(session.drainEquipmentChanges()).toEqual([]);
     expect(session.drainNotices()).toEqual(["There is nowhere to put bottle"]);
   });
@@ -904,14 +1011,18 @@ describe("a drink that leaves its bottle", () => {
     ]);
     const session = new GameSession(map, tiles);
     const before = tilesAt(session, 1, 0);
-    expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(false);
+    expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(
+      false,
+    );
     expect(tilesAt(session, 1, 0)).toEqual(before);
     expect(session.drainNotices()).toEqual(["There is nowhere to put bottle"]);
   });
 
   it("leaves nothing for a residue the catalogue no longer holds", () => {
     const session = withItem(1, 0, "lost-potion");
-    expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(true);
+    expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(
+      true,
+    );
     expect(tilesAt(session, 1, 0)).toEqual(["grass"]);
     expect(session.drainNotices()).toEqual([]);
   });
@@ -931,7 +1042,9 @@ describe("drinking the luminous potion, as authored", () => {
 
   it("glows for a real hour, and leaves the bottle where it stood", () => {
     const session = potionWorld();
-    expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(true);
+    expect(session.consume({ kind: "floor", ref: refAt(session, 1, 0) })).toBe(
+      true,
+    );
     expect(tilesAt(session, 1, 0)).toEqual(["grass", "empty-bottle"]);
     const held = session.statusesOf("local");
     expect(held?.map((s) => s.defId)).toEqual(["luminous"]);
@@ -943,9 +1056,11 @@ describe("drinking the luminous potion, as authored", () => {
   it("puts the bottle in the bag when drunk out of it", () => {
     const session = potionWorld();
     session.pickUp(refAt(session, 1, 0));
-    expect(session.consume({ kind: "slot", slot: { kind: "contents", index: 0 } })).toBe(true);
-    expect(session.getSnapshot().equipment.bag?.contents?.map((i) => i.tileId)).toEqual([
-      "empty-bottle",
-    ]);
+    expect(
+      session.consume({ kind: "slot", slot: { kind: "contents", index: 0 } }),
+    ).toBe(true);
+    expect(
+      session.getSnapshot().equipment.bag?.contents?.map((i) => i.tileId),
+    ).toEqual(["empty-bottle"]);
   });
 });

@@ -68,9 +68,9 @@ describe("serving a build", () => {
     await bundle.activate("aaa");
 
     expect(bundle.respond("/")!.headers.get("Cache-Control")).toBe("no-store");
-    expect(bundle.respond("/assets/app-aaa.js")!.headers.get("Cache-Control")).toBe(
-      "public, max-age=31536000, immutable",
-    );
+    expect(
+      bundle.respond("/assets/app-aaa.js")!.headers.get("Cache-Control"),
+    ).toBe("public, max-age=31536000, immutable");
   });
 
   it("keeps serving an older build's assets to tabs still on it", async () => {
@@ -181,7 +181,9 @@ describe("housekeeping", () => {
       await bundle.store(id, build(id));
       await bundle.activate(id);
     }
-    const left = (await readdir(join(dir, "clients"))).filter((n) => n !== "active");
+    const left = (await readdir(join(dir, "clients"))).filter(
+      (n) => n !== "active",
+    );
     expect(left.length).toBeLessThanOrEqual(5);
     expect(left).toContain("b7");
   });
@@ -200,10 +202,14 @@ describe("untar", () => {
     // than about the archives continuous integration produces on Linux.
     await Bun.$`COPYFILE_DISABLE=1 tar -cf ${join(source, "b.tar")} -C ${source} index.html assets`.quiet();
 
-    const files = untar(new Uint8Array(await Bun.file(join(source, "b.tar")).arrayBuffer()));
+    const files = untar(
+      new Uint8Array(await Bun.file(join(source, "b.tar")).arrayBuffer()),
+    );
 
     expect([...files.keys()].sort()).toEqual(["assets/app.js", "index.html"]);
-    expect(new TextDecoder().decode(files.get("index.html")!)).toBe("<title>hi</title>");
+    expect(new TextDecoder().decode(files.get("index.html")!)).toBe(
+      "<title>hi</title>",
+    );
     await rm(source, { recursive: true, force: true });
   });
 

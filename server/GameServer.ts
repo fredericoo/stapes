@@ -6,7 +6,7 @@ import {
   type ActorSnapshot,
   type Death,
 } from "../app/game/GameSession";
-import { TICK_MS, WALK_DURATION_MS } from "../app/game/constants";
+import { TICK_MS } from "../app/game/constants";
 import { cellKey } from "../app/game/pressurePlates";
 import {
   findSpawnPoints,
@@ -845,9 +845,8 @@ export class GameServer {
     // copy can be behind on: the pass above is only a migration if it sticks.
     this.persistRespawnPoints();
 
-    const pending = await this.ctx.storage.get<Record<string, number>>(
-      RESPAWN_PENDING_KEY,
-    );
+    const pending =
+      await this.ctx.storage.get<Record<string, number>>(RESPAWN_PENDING_KEY);
     this.respawnPending = new Map(
       Object.entries(pending ?? {}).filter(([key]) =>
         this.respawnPoints.has(key),
@@ -940,7 +939,10 @@ export class GameServer {
    */
   private armRespawn(point: SpawnPoint, nowMs: number) {
     if (this.respawnPending.has(point.key)) return;
-    this.respawnPending.set(point.key, nowMs + rollRespawnDelayMs(point.respawn));
+    this.respawnPending.set(
+      point.key,
+      nowMs + rollRespawnDelayMs(point.respawn),
+    );
     this.persistRespawnPending();
     this.scheduleRespawnAlarm();
   }
@@ -1780,7 +1782,7 @@ export class GameServer {
       // Theirs alone, beside the kit and the tags, and in full for the same
       // reason all three are: a joiner has nothing to patch against, and the
       // panel showing it is on screen before the first blow.
-      masteryXp: { ...(session.masteryXpOf(actorId) ?? {}) },
+      masteryXp: { ...session.masteryXpOf(actorId) },
       // Theirs alone again, and in full on arrival for the reason all of these
       // are: there is nothing to patch against, and the lane that draws them is
       // on screen before the first berry.
@@ -2026,7 +2028,12 @@ export class GameServer {
       // Gone between the change and the flush — a body that died still had its
       // kit changed, and there is nobody left to tell.
       if (!equipment) continue;
-      ws.send(JSON.stringify({ type: "equipment", equipment } satisfies ServerMessage));
+      ws.send(
+        JSON.stringify({
+          type: "equipment",
+          equipment,
+        } satisfies ServerMessage),
+      );
     }
   }
 
@@ -2133,7 +2140,9 @@ export class GameServer {
       const attachment = ws.deserializeAttachment() as Attachment | null;
       if (!attachment) continue;
       for (const text of session.drainNotices(attachment.actorId)) {
-        ws.send(JSON.stringify({ type: "notice", text } satisfies ServerMessage));
+        ws.send(
+          JSON.stringify({ type: "notice", text } satisfies ServerMessage),
+        );
       }
     }
   }
@@ -2199,7 +2208,9 @@ export class GameServer {
       // Gone between the change and the flush — the poison that ticked was also
       // the one that killed them.
       if (!statuses) continue;
-      ws.send(JSON.stringify({ type: "statuses", statuses } satisfies ServerMessage));
+      ws.send(
+        JSON.stringify({ type: "statuses", statuses } satisfies ServerMessage),
+      );
     }
   }
 
@@ -2733,7 +2744,9 @@ export class GameServer {
         statuses:
           running.get(attachment.actorId) ??
           (await this.lastStatusesOf(attachment.actorId)),
-        hp: health.get(attachment.actorId) ?? (await this.lastHpOf(attachment.actorId)),
+        hp:
+          health.get(attachment.actorId) ??
+          (await this.lastHpOf(attachment.actorId)),
       });
     }
     for (const ws of this.ctx.getWebSockets()) {
@@ -2861,7 +2874,6 @@ export class GameServer {
    * has never met.
    */
   async resetWorld(): Promise<void> {
-
     // The tick and the session go together, and *before the first await*.
     // A flush is the one thing here that writes the world back out, and one
     // landing between the wipe and the reload would restore the very checkpoint

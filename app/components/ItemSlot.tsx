@@ -18,6 +18,11 @@ import { weaponDemandFor } from "../lib/weaponDemand";
 import type { ItemDrag } from "./useItemDrag";
 import { TilePreview } from "./TilePreview";
 
+// Hoisted so the default is one value rather than a new one per render. An
+// inline `{}` or `[]` in a destructuring default is a fresh identity every
+// time, which is a changed prop to everything memoised below it.
+const NO_MASTERY_XP: MasteryXp = {};
+
 /**
  * One square that either holds a thing or does not.
  *
@@ -47,7 +52,7 @@ import { TilePreview } from "./TilePreview";
  */
 
 /** Which sprite stands for a tile in a slot — the one facing the reader. */
-const FRONT: "s" = "s";
+const FRONT = "s" as const;
 
 /**
  * How long a finger has to rest on a square before it is asking about it.
@@ -103,7 +108,8 @@ function pressHintFor(
   if (!instance) return null;
   const use = itemUseFor(instance, slot, tilesById);
   if (!use) return null;
-  if (use.type === "open") return open ? "Press to close it." : "Press to open it.";
+  if (use.type === "open")
+    return open ? "Press to close it." : "Press to open it.";
   if (use.type === "consume") {
     // The author's verb, in the middle of a sentence: "Eat" reads back as
     // "Press to eat it", so the hint and the row in the world use one word.
@@ -131,7 +137,7 @@ export function ItemSlot({
   open,
   drag,
   inspecting = false,
-  masteryXp = {},
+  masteryXp = NO_MASTERY_XP,
   sizePx = ITEM_SLOT_SIZE_PX,
   spilledInto = null,
 }: {
@@ -173,7 +179,11 @@ export function ItemSlot({
    * A component rather than a name, so nothing here has to hold a table of
    * icons: the panel that knows what its slots are is the panel that names them.
    */
-  emptyIcon?: ComponentType<{ size?: number; stroke?: number; className?: string }>;
+  emptyIcon?: ComponentType<{
+    size?: number;
+    stroke?: number;
+    className?: string;
+  }>;
   /**
    * This thing is currently open, and the panel showing its insides is on
    * screen.
@@ -235,11 +245,13 @@ export function ItemSlot({
   // Keyed on the string rather than the slot object, which is rebuilt every
   // render: a ref callback whose identity changed each time would be torn down
   // and re-attached on every frame the panel drew.
+  // oxlint-disable-next-line react/memo-dependencies
   const attach = useCallback(
     (el: HTMLElement | null) => register(key, slot, el),
     // `slot` is deliberately absent: the key is derived from it, so two slot
     // objects with one key are the same slot and rebinding for the new object
     // would be work with no answer attached to it.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
     [key, register],
   );
 
@@ -552,6 +564,9 @@ function SlotTooltip({ lines }: { lines: string[] }) {
     // the beginning of a name is the half worth keeping.
     if (offLeft > 0) setShiftPx(offLeft);
     else if (offRight > 0) setShiftPx(-offRight);
+    // `lines` is a signal rather than a value: the body measures the DOM, and
+    // the words changing is what makes the old measurement wrong.
+    // oxlint-disable-next-line react/exhaustive-effect-dependencies
   }, [lines]);
 
   return (

@@ -1,5 +1,17 @@
-import { appendTile, getStack, listCoords, removeTileAt, replaceStack } from "../lib/mapData";
-import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
+import {
+  appendTile,
+  getStack,
+  listCoords,
+  removeTileAt,
+  replaceStack,
+} from "../lib/mapData";
+import type {
+  Coord,
+  Direction,
+  MapFile,
+  PlacedTile,
+  TileDef,
+} from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL, resolveActor } from "../lib/types";
 import { PLAYER_TILE_ID } from "./constants";
 import { requireSinglePlayer } from "./player";
@@ -45,7 +57,7 @@ export function actorStillAt(
   at: Coord & { stackIndex: number },
 ): ActorLocation | null {
   const placed = getStack(map, at.x, at.y, at.z)[at.stackIndex];
-  if (!isActor(placed, ownerId)) return null;
+  if (!placed || !isActor(placed, ownerId)) return null;
   return { x: at.x, y: at.y, z: at.z, stackIndex: at.stackIndex, placed };
 }
 

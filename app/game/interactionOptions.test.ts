@@ -94,7 +94,9 @@ const tiles: TileDef[] = [
     height: 0,
     kind: "item",
     intangible: true,
-    interactions: { item: { ...DEFAULT_CONTAINER, size: 2, equippable: false } },
+    interactions: {
+      item: { ...DEFAULT_CONTAINER, size: 2, equippable: false },
+    },
   }),
   tile({
     id: "cherry",
@@ -283,7 +285,9 @@ describe("listInteractionOptions — objects", () => {
     map = place(map, 2, 0, ["grass", "crate"]);
     const me = playerAt(map);
 
-    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
+    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual(
+      [],
+    );
   });
 
   it("says nothing about a crate on the diagonal", () => {
@@ -291,7 +295,9 @@ describe("listInteractionOptions — objects", () => {
     map = place(map, 1, 1, ["grass", "crate"]);
     const me = playerAt(map);
 
-    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
+    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual(
+      [],
+    );
   });
 
   /**
@@ -308,7 +314,9 @@ describe("listInteractionOptions — objects", () => {
     ]);
     const me = playerAt(map);
 
-    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
+    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual(
+      [],
+    );
   });
 
   /** And the case the slack exists for: the same crate, down an open shaft. */
@@ -338,7 +346,9 @@ describe("listInteractionOptions — objects", () => {
     ]);
     const me = playerAt(map);
 
-    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
+    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual(
+      [],
+    );
   });
 
   it("offers a door a floor down where that ground is missing", () => {
@@ -362,7 +372,9 @@ describe("listInteractionOptions — objects", () => {
     map = place(map, 2, 0, []);
     const me = playerAt(map);
 
-    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
+    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual(
+      [],
+    );
   });
 
   it("names a switch by its authored verb", () => {
@@ -403,7 +415,9 @@ describe("listInteractionOptions — objects", () => {
     map = place(map, 1, 0, ["grass", "door_shut", "rock"]);
     const me = playerAt(map);
 
-    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
+    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual(
+      [],
+    );
   });
 
   /**
@@ -454,7 +468,14 @@ describe("listInteractionOptions — battlers", () => {
     const me = playerAt(map);
     const deer = actor("npc:deer", "deer", 1, 0, map, 10);
 
-    const targets = listInteractionOptions(map, tilesById, me, [me, deer], null, KIT);
+    const targets = listInteractionOptions(
+      map,
+      tilesById,
+      me,
+      [me, deer],
+      null,
+      KIT,
+    );
 
     expect(targets).toHaveLength(1);
     expect(targets[0]!.name).toBe("Deer");
@@ -471,7 +492,14 @@ describe("listInteractionOptions — battlers", () => {
     const me = playerAt(map);
     const deer = actor("npc:deer", "deer", 4, -4, map, 10);
 
-    const targets = listInteractionOptions(map, tilesById, me, [me, deer], null, KIT);
+    const targets = listInteractionOptions(
+      map,
+      tilesById,
+      me,
+      [me, deer],
+      null,
+      KIT,
+    );
 
     expect(actionsIn(targets)).toEqual(["target"]);
   });
@@ -491,16 +519,28 @@ describe("listInteractionOptions — battlers", () => {
     const me = playerAt(map);
     const deer = actor("npc:deer", "deer", 2, 0, map, 10);
 
-    const targets = listInteractionOptions(map, tilesById, me, [me, deer], null, KIT);
+    const targets = listInteractionOptions(
+      map,
+      tilesById,
+      me,
+      [me, deer],
+      null,
+      KIT,
+    );
 
     expect(actionsIn(targets)).toContain("target");
-    expect(targets.find((t) => t.action === "target")!.actorId).toBe("npc:deer");
+    expect(targets.find((t) => t.action === "target")!.actorId).toBe(
+      "npc:deer",
+    );
   });
 
   /** And the same through a floor, which is the harder half of the rule. */
   it("offers a target on a body a level down under solid ground", () => {
     let map = field();
-    map = replaceStack(map, 1, 0, -1, [{ tileId: "grass" }, { tileId: "deer" }]);
+    map = replaceStack(map, 1, 0, -1, [
+      { tileId: "grass" },
+      { tileId: "deer" },
+    ]);
     const me = playerAt(map);
     const deer: ActorSnapshot = {
       ...actor("npc:deer", "deer", 1, 0, map, 10),
@@ -508,7 +548,14 @@ describe("listInteractionOptions — battlers", () => {
       stackIndex: 1,
     };
 
-    const targets = listInteractionOptions(map, tilesById, me, [me, deer], null, KIT);
+    const targets = listInteractionOptions(
+      map,
+      tilesById,
+      me,
+      [me, deer],
+      null,
+      KIT,
+    );
 
     expect(actionsIn(targets)).toContain("target");
   });
@@ -527,10 +574,26 @@ describe("listInteractionOptions — battlers", () => {
     const deer = actor("npc:deer", "deer", 1, 0, map, 10);
 
     const peaceful = listInteractionOptions(
-      map, tilesById, me, [me, deer], null, KIT, null, [], false,
+      map,
+      tilesById,
+      me,
+      [me, deer],
+      null,
+      KIT,
+      null,
+      [],
+      false,
     );
     const armed = listInteractionOptions(
-      map, tilesById, me, [me, deer], null, KIT, null, [], true,
+      map,
+      tilesById,
+      me,
+      [me, deer],
+      null,
+      KIT,
+      null,
+      [],
+      true,
     );
 
     expect(peaceful[0]!.label).toBe("Target");
@@ -544,7 +607,9 @@ describe("listInteractionOptions — battlers", () => {
     const map = field();
     const me = playerAt(map);
 
-    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual([]);
+    expect(listInteractionOptions(map, tilesById, me, [me], null, KIT)).toEqual(
+      [],
+    );
   });
 
   it("marks the body being pointed at", () => {
@@ -584,7 +649,14 @@ describe("listInteractionOptions — health", () => {
     const me = playerAt(map);
     const hurt = { ...actor("npc:deer", "deer", 1, 0, map, 10), hp: 3 };
 
-    const targets = listInteractionOptions(map, tilesById, me, [me, hurt], null, KIT);
+    const targets = listInteractionOptions(
+      map,
+      tilesById,
+      me,
+      [me, hurt],
+      null,
+      KIT,
+    );
 
     expect(targets[0]!.health).toEqual({ hp: 3, maxHp: 10 });
   });
@@ -595,7 +667,14 @@ describe("listInteractionOptions — health", () => {
     const me = playerAt(map);
     const them = actor("them", "player", 1, 0, map, 10);
 
-    const targets = listInteractionOptions(map, tilesById, me, [me, them], null, KIT);
+    const targets = listInteractionOptions(
+      map,
+      tilesById,
+      me,
+      [me, them],
+      null,
+      KIT,
+    );
 
     expect(targets.map((o) => o.health)).toEqual([
       { hp: 10, maxHp: 10 },
@@ -621,7 +700,14 @@ describe("listInteractionOptions — a body that is both", () => {
     const me = playerAt(map);
     const them = actor("them", "player", 1, 0, map, 10);
 
-    const targets = listInteractionOptions(map, tilesById, me, [me, them], null, KIT);
+    const targets = listInteractionOptions(
+      map,
+      tilesById,
+      me,
+      [me, them],
+      null,
+      KIT,
+    );
 
     expect(actionsIn(targets)).toEqual(["target", "push"]);
   });
@@ -632,7 +718,14 @@ describe("listInteractionOptions — a body that is both", () => {
     const me = playerAt(map);
     const them = actor("them", "player", 1, 0, map, 10);
 
-    const targets = listInteractionOptions(map, tilesById, me, [me, them], null, KIT);
+    const targets = listInteractionOptions(
+      map,
+      tilesById,
+      me,
+      [me, them],
+      null,
+      KIT,
+    );
 
     // A person is behind a cookie, so their name is derived from it; reading it
     // off the placement would have the shove announcing a tile called "Player"
@@ -650,7 +743,14 @@ describe("listInteractionOptions — ordering", () => {
     const me = playerAt(map);
     const deer = actor("npc:deer", "deer", 3, 3, map, 10);
 
-    const targets = listInteractionOptions(map, tilesById, me, [me, deer], null, KIT);
+    const targets = listInteractionOptions(
+      map,
+      tilesById,
+      me,
+      [me, deer],
+      null,
+      KIT,
+    );
 
     expect(targets.map((o) => o.name)).toEqual(["Crate", "Deer"]);
   });
@@ -703,10 +803,7 @@ describe("listInteractionOptions — ordering", () => {
       KIT,
     );
 
-    expect(targets.map((o) => o.actorId)).toEqual([
-      "npc:here",
-      "npc:up",
-    ]);
+    expect(targets.map((o) => o.actorId)).toEqual(["npc:here", "npc:up"]);
   });
 });
 
@@ -716,7 +813,14 @@ describe("listInteractionOptions — picking things up", () => {
     map = place(map, 1, 0, ["grass", "sword"]);
     const me = playerAt(map);
 
-    const options = listInteractionOptions(map, tilesById, me, [me], null, ARMED);
+    const options = listInteractionOptions(
+      map,
+      tilesById,
+      me,
+      [me],
+      null,
+      ARMED,
+    );
 
     expect(options).toHaveLength(1);
     expect(options[0]!.action).toBe("pickUp");
@@ -794,7 +898,9 @@ describe("listInteractionOptions — picking things up", () => {
     const me = playerAt(map);
 
     expect(
-      actionsIn(listInteractionOptions(map, tilesById, me, [me], null, FULL_KIT)),
+      actionsIn(
+        listInteractionOptions(map, tilesById, me, [me], null, FULL_KIT),
+      ),
     ).toEqual(["pickUp", "consume"]);
   });
 
@@ -932,7 +1038,9 @@ describe("listInteractionOptions — bags on the floor", () => {
     const me = playerAt(map);
 
     expect(
-      actionsIn(listInteractionOptions(map, tilesById, me, [me], null, FULL_KIT)),
+      actionsIn(
+        listInteractionOptions(map, tilesById, me, [me], null, FULL_KIT),
+      ),
     ).toEqual(["open"]);
   });
 
@@ -966,9 +1074,14 @@ describe("listInteractionOptions — consumables on the floor", () => {
     map = place(map, 1, 0, ["grass", "cherry"]);
     const me = playerAt(map);
 
-    const eat = listInteractionOptions(map, tilesById, me, [me], null, KIT).find(
-      (o) => o.action === "consume",
-    );
+    const eat = listInteractionOptions(
+      map,
+      tilesById,
+      me,
+      [me],
+      null,
+      KIT,
+    ).find((o) => o.action === "consume");
     expect(eat?.label).toBe("Eat");
     expect(interactionText(eat!)).toBe("Eat Cherry");
   });
@@ -978,9 +1091,14 @@ describe("listInteractionOptions — consumables on the floor", () => {
     map = place(map, 1, 0, ["grass", "mystery-snack"]);
     const me = playerAt(map);
 
-    const eat = listInteractionOptions(map, tilesById, me, [me], null, KIT).find(
-      (o) => o.action === "consume",
-    );
+    const eat = listInteractionOptions(
+      map,
+      tilesById,
+      me,
+      [me],
+      null,
+      KIT,
+    ).find((o) => o.action === "consume");
     expect(eat?.label).toBe("Use");
   });
 
@@ -1053,7 +1171,14 @@ describe("listInteractionOptions — standing on things", () => {
     const map = withBodyOver(field(), 0, 0, ["grass", "sword"], "me");
     const me = actor("me", "player", 0, 0, map);
 
-    const options = listInteractionOptions(map, tilesById, me, [me], null, ARMED);
+    const options = listInteractionOptions(
+      map,
+      tilesById,
+      me,
+      [me],
+      null,
+      ARMED,
+    );
 
     expect(actionsIn(options)).toEqual(["pickUp"]);
     expect(options[0]!.ref).toEqual({ x: 0, y: 0, z: 0, stackIndex: 1 });
@@ -1186,7 +1311,9 @@ describe("topInteractionAt", () => {
     map = place(map, 1, 0, ["grass", "sword"]);
     const ref = { x: 1, y: 0, z: 0, stackIndex: 1 };
 
-    expect(topInteractionAt(optionsAround(map, KIT), ref)?.action).toBe("equip");
+    expect(topInteractionAt(optionsAround(map, KIT), ref)?.action).toBe(
+      "equip",
+    );
     expect(topInteractionAt(optionsAround(map, ARMED), ref)?.action).toBe(
       "pickUp",
     );
@@ -1355,8 +1482,20 @@ describe("groupInteractionOptions", () => {
   it("keeps two bodies apart even where one stands where the other is listed", () => {
     const ref = { x: 1, y: 0, z: 0, stackIndex: 1 };
     const groups = groupInteractionOptions([
-      option({ id: "target:a", action: "target", ref, tileId: "player", name: "Ada" }),
-      option({ id: "target:b", action: "target", ref, tileId: "player", name: "Bo" }),
+      option({
+        id: "target:a",
+        action: "target",
+        ref,
+        tileId: "player",
+        name: "Ada",
+      }),
+      option({
+        id: "target:b",
+        action: "target",
+        ref,
+        tileId: "player",
+        name: "Bo",
+      }),
     ]);
 
     expect(groups).toHaveLength(2);

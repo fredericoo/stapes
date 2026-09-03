@@ -40,9 +40,7 @@ describe("the placement ↔ instance round trip", () => {
   });
 
   it("keeps a container's contents", () => {
-    const contents: ItemInstance[] = [
-      { id: "itm_b", tileId: "rusty-sword" },
-    ];
+    const contents: ItemInstance[] = [{ id: "itm_b", tileId: "rusty-sword" }];
     const placed: PlacedTile = {
       tileId: "basic-bag",
       itemId: "itm_a",

@@ -229,9 +229,12 @@ export function isSpawnFilled(map: MapFile, point: SpawnPoint): boolean {
   }
   const owed = point.count ?? 1;
   if (point.itemIds) return presentItemIds(map, point).length >= owed;
-  const present = getStack(map, point.cell.x, point.cell.y, point.cell.z).filter(
-    (placed) => placed.tileId === point.placed.tileId,
-  ).length;
+  const present = getStack(
+    map,
+    point.cell.x,
+    point.cell.y,
+    point.cell.z,
+  ).filter((placed) => placed.tileId === point.placed.tileId).length;
   return present >= owed;
 }
 
@@ -263,4 +266,3 @@ export function withMigratedItemIds(
   );
   return itemIds.length > 0 ? { ...point, itemIds } : point;
 }
-

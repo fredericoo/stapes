@@ -25,7 +25,6 @@ import type { TileMotion } from "./WorldRenderer";
  * is the slot each is anchored at.
  */
 
-
 /**
  * How tall the slot's clump stands. A shoved column's members rest on each
  * other rather than in each other, so this is each tile's own height — until

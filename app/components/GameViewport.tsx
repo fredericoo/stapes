@@ -31,6 +31,15 @@ import { StatusStrip } from "./StatusStrip";
 import { useItemDrag } from "./useItemDrag";
 import { useNoZoom } from "./useNoZoom";
 
+// Hoisted so the default is one value rather than a new one per render. An
+// inline `{}` or `[]` in a destructuring default is a fresh identity every
+// time, which is a changed prop to everything memoised below it.
+const NO_INTERACTIONS: InteractionOption[] = [];
+const NO_MASTERY_XP: MasteryXp = {};
+const NO_TILES: TileDef[] = [];
+const NO_TILESETS: TilesetDef[] = [];
+const NEVER_MOVES = () => false;
+
 /** A body nothing has reported on yet. Shared, so a default costs no allocation. */
 const NO_VITALS: Vitals = { hp: null, maxHp: null, rating: null, statuses: [] };
 
@@ -97,26 +106,26 @@ export function GameViewport({
   mode = "interact",
   onModeChange,
   readouts,
-  interactions = [],
+  interactions = NO_INTERACTIONS,
   onInteract,
   conversation = null,
   onTalk,
   onHoverInteraction,
   equipment = emptyEquipment(),
-  masteryXp = {},
+  masteryXp = NO_MASTERY_XP,
   vitals = NO_VITALS,
   statuses = NO_STATUSES,
   openedContainer = null,
   onOpenContainer,
-  canMoveItem = () => false,
+  canMoveItem = NEVER_MOVES,
   onMoveItem,
   onConsumeItem,
   onDragOverWorld,
   onDropOnWorld,
   spells = NO_SPELLS,
   onCast,
-  tiles = [],
-  tilesets = [],
+  tiles = NO_TILES,
+  tilesets = NO_TILESETS,
 }: {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   /**
@@ -269,14 +278,14 @@ export function GameViewport({
     (from: SlotRef, to: SlotRef) => onMoveItem?.(from, to),
     [onMoveItem],
   );
-  const cast = useCallback(
-    (square: CastSquare) => onCast?.(square),
-    [onCast],
-  );
+  const cast = useCallback((square: CastSquare) => onCast?.(square), [onCast]);
   const world = useMemo(
     () => ({
       over: (
-        over: { held: { instance: ItemInstance; from: SlotRef }; point: { x: number; y: number } } | null,
+        over: {
+          held: { instance: ItemInstance; from: SlotRef };
+          point: { x: number; y: number };
+        } | null,
       ) =>
         onDragOverWorld?.(
           over
@@ -329,9 +338,7 @@ export function GameViewport({
   const showBag = bagOpen ?? !coarse;
   const showStats = statsOpen;
   /** The pack in that hand, or null once it is no longer a pack in that hand. */
-  const heldContainer = openHand
-    ? (equipment[openHand] ?? null)
-    : null;
+  const heldContainer = openHand ? (equipment[openHand] ?? null) : null;
 
   /**
    * On a phone the two panels want the same space, so opening one closes the
@@ -418,10 +425,21 @@ export function GameViewport({
    * The same rule the bag panel follows by asking `equipment.bag` before it
    * draws — written as an effect here because the *reference* has to go too, or
    * the next thing put in that hand would open by itself.
+   *
+   * **The one place in this file where the reset cannot simply be derived.**
+   * `heldContainer` above already draws nothing once the hand is empty, so the
+   * panel closes without this; what this clears is the *reference*, and the only
+   * derived form of that is to remember which item was open rather than which
+   * hand. That gets the different-item case right and the same-item case wrong:
+   * put the pack down and pick that same pack up, and the panel would come back
+   * on its own. A hand you have emptied is not a panel you opened, whichever
+   * item lands in it next.
    */
+  /* oxlint-disable react/set-state-in-effect */
   useEffect(() => {
     if (openHand && !equipment[openHand]) setOpenHand(null);
   }, [openHand, equipment]);
+  /* oxlint-enable react/set-state-in-effect */
 
   /**
    * A panel is standing in for the list of what is in reach. Only on a phone.
@@ -441,8 +459,6 @@ export function GameViewport({
       showStats ||
       heldContainer != null ||
       openedContainer != null);
-  const press = useCallback(onDirectionPress, [onDirectionPress]);
-  const release = useCallback(onDirectionRelease, [onDirectionRelease]);
   const noteTyping = useCallback(
     (typing: boolean) => onTypingChange?.(typing),
     [onTypingChange],
@@ -679,7 +695,10 @@ export function GameViewport({
             {/* Ruled off from the switch beside it, because they are a
                 different kind of button: the switch changes what a tap on the
                 world means, and these only open something. */}
-            <span className="h-8 w-px shrink-0 bg-paper/20" aria-hidden="true" />
+            <span
+              className="h-8 w-px shrink-0 bg-paper/20"
+              aria-hidden="true"
+            />
             {panelButtons("touch")}
           </div>
         ) : onSay ? (
@@ -758,7 +777,10 @@ export function GameViewport({
                   // reads as a control that has come loose from it.
                   className="justify-center"
                 />
-                <DirectionPad onPress={press} onRelease={release} />
+                <DirectionPad
+                  onPress={onDirectionPress}
+                  onRelease={onDirectionRelease}
+                />
               </div>
               {/* The far corner, under the arrows, which is the one place on a
                   phone that is never on the way to anything: the thumb steering
@@ -790,11 +812,7 @@ export function GameViewport({
               that was already that. The lane takes what is left after the
               reading, so a clock of fixed width never squeezes it to nothing. */}
           <div className="flex shrink-0 items-center gap-2 border-b-2 border-paper/20 pb-2">
-            <StatusStrip
-              statuses={statuses}
-              interactive
-              tilesets={tilesets}
-            />
+            <StatusStrip statuses={statuses} interactive tilesets={tilesets} />
             {readouts ? (
               <div className="flex shrink-0 items-center gap-2">{readouts}</div>
             ) : null}

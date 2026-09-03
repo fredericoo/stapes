@@ -5,12 +5,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { PNG } from "pngjs";
-import type {
-  FlatMapFile,
-  PlacedTile,
-  TileDef,
-  TilesetDef,
-} from "../app/lib/types";
+import type { FlatMapFile, PlacedTile, TilesetDef } from "../app/lib/types";
 import { normalizeTiles } from "../app/lib/types";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
@@ -126,7 +121,11 @@ async function main() {
 
   // torches row 3: N0 N1 E0 E1 S0 S1 W0 W1
   // Simple flame + bracket oriented by direction
-  function drawTorch(cx: number, flameBright: boolean, dir: "n" | "e" | "s" | "w") {
+  function drawTorch(
+    cx: number,
+    flameBright: boolean,
+    dir: "n" | "e" | "s" | "w",
+  ) {
     const ox = cx * 8;
     const oy = 24;
     fillRect(png, ox, oy, 8, 8, 0, 0, 0, 0);
@@ -278,12 +277,7 @@ async function main() {
   // Built flat, then grouped — same shape the file on disk uses.
   const map: FlatMapFile = { version: 1, levels: {} };
 
-  const put = (
-    z: number,
-    x: number,
-    y: number,
-    stack: PlacedTile[],
-  ) => {
+  const put = (z: number, x: number, y: number, stack: PlacedTile[]) => {
     const zk = String(z);
     if (!map.levels[zk]) map.levels[zk] = {};
     map.levels[zk]![`${x},${y}`] = stack;
@@ -320,10 +314,7 @@ async function main() {
     { tileId: "stone-wall" },
     { tileId: "torch", direction: "s" },
   ]);
-  put(0, 3, 5, [
-    { tileId: "grass" },
-    { tileId: "half-stone" },
-  ]);
+  put(0, 3, 5, [{ tileId: "grass" }, { tileId: "half-stone" }]);
 
   // Upper floor sample
   put(1, 2, 5, [{ tileId: "dirt" }]);
@@ -346,7 +337,9 @@ async function main() {
     `${JSON.stringify(map, null, 2)}\n`,
   );
 
-  console.log("Generated data/tilesets/basic.png, tilesets.json, tiles.json, map.json");
+  console.log(
+    "Generated data/tilesets/basic.png, tilesets.json, tiles.json, map.json",
+  );
 }
 
 main().catch((err) => {

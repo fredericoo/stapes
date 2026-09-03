@@ -1,7 +1,13 @@
 import { elevationAt, getStack, surfaceTileAt } from "../lib/mapData";
 import type { PushInteraction } from "../lib/interactions";
 import { CLIMB_HEIGHT_UNITS } from "../lib/interactions";
-import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
+import type {
+  Coord,
+  Direction,
+  MapFile,
+  PlacedTile,
+  TileDef,
+} from "../lib/types";
 import { HEIGHT_PER_LEVEL, physicalHeight } from "../lib/types";
 import { fitsHeightAtElevation } from "../lib/validation";
 import { findLandingAbs } from "./gravity";
@@ -25,10 +31,7 @@ export type PushFrom = Coord & { stackIndex: number };
  * Exported because the affordance layer asks the same question a step earlier,
  * to find out whether the riders are things that *can* be carried at all.
  */
-export function pushedColumn(
-  map: MapFile,
-  from: PushFrom,
-): PlacedTile[] {
+export function pushedColumn(map: MapFile, from: PushFrom): PlacedTile[] {
   return getStack(map, from.x, from.y, from.z).slice(from.stackIndex);
 }
 

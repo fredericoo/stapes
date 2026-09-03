@@ -109,48 +109,62 @@ export const DEFAULT_DIALOG: DialogDef = {
 const tileId = v.pipe(v.string(), v.trim(), v.minLength(1));
 const name = v.pipe(v.string(), v.trim(), v.minLength(1));
 const line = v.pipe(v.string(), v.minLength(1));
-const count = v.pipe(v.number(), v.integer(), v.minValue(1), v.maxValue(MAX_DIALOG_AMOUNT));
+const count = v.pipe(
+  v.number(),
+  v.integer(),
+  v.minValue(1),
+  v.maxValue(MAX_DIALOG_AMOUNT),
+);
 
 const tradeSideSchema = v.object({ tileId, count });
 
 // Recursive through every block, the way `./conditions` is through `rules`:
 // a command holds commands, and valibot needs to be told the type it will
 // arrive at.
-const commandSchema: v.GenericSchema<unknown, DialogCommand> = v.variant("kind", [
-  v.object({ kind: v.literal("say"), text: line }),
-  v.object({ kind: v.literal("anchor"), name }),
-  v.object({ kind: v.literal("goto"), name }),
-  v.object({
-    kind: v.literal("choices"),
-    options: v.pipe(
-      v.array(
-        v.object({
-          label: v.pipe(v.string(), v.trim(), v.minLength(1)),
-          then: v.array(v.lazy(() => commandSchema)),
-        }),
-      ),
-      v.minLength(1),
-    ),
-  }),
-  v.pipe(
+const commandSchema: v.GenericSchema<unknown, DialogCommand> = v.variant(
+  "kind",
+  [
+    v.object({ kind: v.literal("say"), text: line }),
+    v.object({ kind: v.literal("anchor"), name }),
+    v.object({ kind: v.literal("goto"), name }),
     v.object({
-      kind: v.literal("request_trade"),
-      take: v.array(tradeSideSchema),
-      give: v.array(tradeSideSchema),
-      min: count,
-      max: count,
-      default: v.optional(count),
-      traded: v.array(v.lazy(() => commandSchema)),
-      cancel: v.array(v.lazy(() => commandSchema)),
+      kind: v.literal("choices"),
+      options: v.pipe(
+        v.array(
+          v.object({
+            label: v.pipe(v.string(), v.trim(), v.minLength(1)),
+            then: v.array(v.lazy(() => commandSchema)),
+          }),
+        ),
+        v.minLength(1),
+      ),
     }),
-    // A trade of nothing for nothing is a command that should not be one.
-    v.check((raw) => raw.take.length + raw.give.length > 0, "a trade moves something"),
-    v.check((raw) => raw.max >= raw.min, "a quantity's ceiling is at least its floor"),
-  ),
-  v.object({ kind: v.literal("add_status"), statusId: tileId }),
-  v.object({ kind: v.literal("remove_status"), statusId: tileId }),
-  v.object({ kind: v.literal("tag"), tag: name }),
-]);
+    v.pipe(
+      v.object({
+        kind: v.literal("request_trade"),
+        take: v.array(tradeSideSchema),
+        give: v.array(tradeSideSchema),
+        min: count,
+        max: count,
+        default: v.optional(count),
+        traded: v.array(v.lazy(() => commandSchema)),
+        cancel: v.array(v.lazy(() => commandSchema)),
+      }),
+      // A trade of nothing for nothing is a command that should not be one.
+      v.check(
+        (raw) => raw.take.length + raw.give.length > 0,
+        "a trade moves something",
+      ),
+      v.check(
+        (raw) => raw.max >= raw.min,
+        "a quantity's ceiling is at least its floor",
+      ),
+    ),
+    v.object({ kind: v.literal("add_status"), statusId: tileId }),
+    v.object({ kind: v.literal("remove_status"), statusId: tileId }),
+    v.object({ kind: v.literal("tag"), tag: name }),
+  ],
+);
 
 const dialogSchema = v.object({ script: v.array(commandSchema) });
 
@@ -187,7 +201,8 @@ export type CommandPath = readonly number[];
 
 /** The nested lists a command holds, in branch order. */
 export function branchesOf(command: DialogCommand): readonly DialogCommand[][] {
-  if (command.kind === "choices") return command.options.map((option) => option.then);
+  if (command.kind === "choices")
+    return command.options.map((option) => option.then);
   if (command.kind === "request_trade") return [command.traded, command.cancel];
   return [];
 }
@@ -201,21 +216,29 @@ export function withBranch(
   if (command.kind === "choices") {
     return {
       ...command,
-      options: command.options.map((option, i) => (i === index ? { ...option, then: list } : option)),
+      options: command.options.map((option, i) =>
+        i === index ? { ...option, then: list } : option,
+      ),
     };
   }
   if (command.kind === "request_trade") {
-    return index === 0 ? { ...command, traded: list } : { ...command, cancel: list };
+    return index === 0
+      ? { ...command, traded: list }
+      : { ...command, cancel: list };
   }
   return command;
 }
 
 /** The list at an even-length path, or null when the path names nothing. */
-export function listAt(dialog: DialogDef, path: CommandPath): DialogCommand[] | null {
+export function listAt(
+  dialog: DialogDef,
+  path: CommandPath,
+): DialogCommand[] | null {
   let list: DialogCommand[] | null = dialog.script;
   for (let i = 0; i + 1 < path.length; i += 2) {
     const command: DialogCommand | undefined = list?.[path[i]!];
-    const branch: DialogCommand[] | undefined = command && branchesOf(command)[path[i + 1]!];
+    const branch: DialogCommand[] | undefined =
+      command && branchesOf(command)[path[i + 1]!];
     if (!branch) return null;
     list = branch;
   }
@@ -223,7 +246,10 @@ export function listAt(dialog: DialogDef, path: CommandPath): DialogCommand[] | 
 }
 
 /** The command at an odd-length path, or null when the path names nothing. */
-export function commandAt(dialog: DialogDef, path: CommandPath): DialogCommand | null {
+export function commandAt(
+  dialog: DialogDef,
+  path: CommandPath,
+): DialogCommand | null {
   if (path.length % 2 === 0) return null;
   return listAt(dialog, path.slice(0, -1))?.[path[path.length - 1]!] ?? null;
 }
@@ -241,7 +267,9 @@ export function withListAt(
   const branch = path[path.length - 1]!;
   const command = parent?.[index];
   if (!parent || !command) return dialog;
-  const next = parent.map((c, i) => (i === index ? withBranch(command, branch, list) : c));
+  const next = parent.map((c, i) =>
+    i === index ? withBranch(command, branch, list) : c,
+  );
   return withListAt(dialog, parentPath, next);
 }
 
@@ -273,13 +301,17 @@ export function anchorPath(dialog: DialogDef, anchor: string): number[] | null {
 export function anchorNames(dialog: DialogDef): string[] {
   const names: string[] = [];
   for (const { command } of walkCommands(dialog)) {
-    if (command.kind === "anchor" && !names.includes(command.name)) names.push(command.name);
+    if (command.kind === "anchor" && !names.includes(command.name))
+      names.push(command.name);
   }
   return names;
 }
 
 /** The quantity a trade opens at, or one requested, held to its range. */
-export function clampAmount(trade: DialogTrade, requested: number | undefined): number {
+export function clampAmount(
+  trade: DialogTrade,
+  requested: number | undefined,
+): number {
   const wanted = Math.round(requested ?? trade.default ?? trade.min);
   return Math.min(trade.max, Math.max(trade.min, wanted));
 }
@@ -313,25 +345,33 @@ export function validateDialog(
   catalogue?: DialogCatalogue,
 ): DialogIssue[] {
   const issues: DialogIssue[] = [];
-  const error = (message: string) => issues.push({ severity: "error", message });
+  const error = (message: string) =>
+    issues.push({ severity: "error", message });
   const warn = (message: string) => issues.push({ severity: "warn", message });
 
-  if (dialog.script.length === 0) warn("The script is empty: Talk opens a panel with nothing in it");
+  if (dialog.script.length === 0)
+    warn("The script is empty: Talk opens a panel with nothing in it");
 
   const anchors = new Map<string, number>();
   const all = walkCommands(dialog);
   for (const { command } of all) {
-    if (command.kind === "anchor") anchors.set(command.name, (anchors.get(command.name) ?? 0) + 1);
+    if (command.kind === "anchor")
+      anchors.set(command.name, (anchors.get(command.name) ?? 0) + 1);
   }
   for (const [anchor, times] of anchors) {
-    if (times > 1) warn(`Anchor "${anchor}" appears ${times} times; a goto lands on the first`);
+    if (times > 1)
+      warn(
+        `Anchor "${anchor}" appears ${times} times; a goto lands on the first`,
+      );
   }
 
   for (const { path, command } of all) {
     const where = `${command.kind} at ${path.join(".")}`;
     const depth = Math.floor(path.length / 2);
     if (depth > MAX_DIALOG_DEPTH && path[path.length - 1] === 0) {
-      warn(`${where} is ${depth} blocks deep; ${MAX_DIALOG_DEPTH} is as far as an outline can follow`);
+      warn(
+        `${where} is ${depth} blocks deep; ${MAX_DIALOG_DEPTH} is as far as an outline can follow`,
+      );
     }
     checkCommand(command, where, anchors, error, catalogue);
   }
@@ -345,14 +385,18 @@ function checkCommand(
   error: (message: string) => void,
   catalogue?: DialogCatalogue,
 ) {
-  if (command.kind === "say" && command.text.trim() === "") error(`${where} says nothing`);
-  if (command.kind === "anchor" && command.name.trim() === "") error(`${where} has no name`);
+  if (command.kind === "say" && command.text.trim() === "")
+    error(`${where} says nothing`);
+  if (command.kind === "anchor" && command.name.trim() === "")
+    error(`${where} has no name`);
   if (command.kind === "goto" && !anchors.has(command.name)) {
     error(`${where} jumps to "${command.name}", and no anchor has that name`);
   }
-  if (command.kind === "tag" && command.tag.trim() === "") error(`${where} has no tag`);
+  if (command.kind === "tag" && command.tag.trim() === "")
+    error(`${where} has no tag`);
   if (command.kind === "choices") checkChoices(command.options, where, error);
-  if (command.kind === "request_trade") checkTrade(command, where, error, catalogue);
+  if (command.kind === "request_trade")
+    checkTrade(command, where, error, catalogue);
   if (!catalogue) return;
   if (command.kind === "add_status" || command.kind === "remove_status") {
     if (!catalogue.statusIds.has(command.statusId)) {
@@ -371,7 +415,8 @@ function checkChoices(
   for (const option of options) {
     const label = option.label.trim().toLowerCase();
     if (label === "") error(`${where} has a button with no label`);
-    if (seen.has(label)) error(`${where} has two buttons reading "${option.label}"`);
+    if (seen.has(label))
+      error(`${where} has two buttons reading "${option.label}"`);
     seen.add(label);
   }
 }
@@ -382,17 +427,27 @@ function checkTrade(
   error: (message: string) => void,
   catalogue?: DialogCatalogue,
 ) {
-  if (trade.take.length + trade.give.length === 0) error(`${where} trades nothing for nothing`);
-  if (trade.max < trade.min) error(`${where} has a quantity whose ceiling is below its floor`);
-  if (trade.default !== undefined && (trade.default < trade.min || trade.default > trade.max)) {
+  if (trade.take.length + trade.give.length === 0)
+    error(`${where} trades nothing for nothing`);
+  if (trade.max < trade.min)
+    error(`${where} has a quantity whose ceiling is below its floor`);
+  if (
+    trade.default !== undefined &&
+    (trade.default < trade.min || trade.default > trade.max)
+  ) {
     error(`${where} opens at a quantity outside its own range`);
   }
   if (!catalogue) return;
   for (const side of [...trade.take, ...trade.give]) {
     const def = catalogue.tilesById[side.tileId];
-    if (!def) error(`${where} names a tile "${side.tileId}" the catalogue does not hold`);
+    if (!def)
+      error(
+        `${where} names a tile "${side.tileId}" the catalogue does not hold`,
+      );
     else if (resolveContainer(def)) {
-      error(`${where} trades ${def.name}, and a container is not a thing a trade may move`);
+      error(
+        `${where} trades ${def.name}, and a container is not a thing a trade may move`,
+      );
     }
   }
 }

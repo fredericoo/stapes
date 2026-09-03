@@ -9,7 +9,8 @@ export function stacksEqual(a: PlacedTile[], b: PlacedTile[]): boolean {
     const pa = a[i]!;
     const pb = b[i]!;
     if (pa.tileId !== pb.tileId) return false;
-    if ((pa.direction ?? undefined) !== (pb.direction ?? undefined)) return false;
+    if ((pa.direction ?? undefined) !== (pb.direction ?? undefined))
+      return false;
   }
   return true;
 }

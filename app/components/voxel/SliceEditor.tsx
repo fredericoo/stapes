@@ -48,7 +48,9 @@ export function SliceEditor({
     drawSlice(ctx, voxels, size, sliceZ, palette);
   }, [voxels, size, sliceZ, palette]);
 
-  const voxelAtPointer = (e: React.PointerEvent): { x: number; y: number } | null => {
+  const voxelAtPointer = (
+    e: React.PointerEvent,
+  ): { x: number; y: number } | null => {
     const canvas = canvasRef.current;
     if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
@@ -60,11 +62,19 @@ export function SliceEditor({
 
   const applyAt = (pos: { x: number; y: number }, erase: boolean) => {
     if (tool === "pick") {
-      onPick(voxels[voxelIndex(dims, pos.x, pos.y, sliceZ)]);
+      onPick(voxels[voxelIndex(dims, pos.x, pos.y, sliceZ)]!);
       return;
     }
     if (tool === "fill") {
-      onPaint(floodFillWrites(voxels, size, sliceZ, pos, erase ? EMPTY_VOXEL : selectedColor));
+      onPaint(
+        floodFillWrites(
+          voxels,
+          size,
+          sliceZ,
+          pos,
+          erase ? EMPTY_VOXEL : selectedColor,
+        ),
+      );
       return;
     }
     const value = erase || tool === "erase" ? EMPTY_VOXEL : selectedColor;
@@ -76,7 +86,8 @@ export function SliceEditor({
     if (!pos) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     const erase = e.button === 2;
-    paintingRef.current = tool === "paint" || tool === "erase" ? { erase } : null;
+    paintingRef.current =
+      tool === "paint" || tool === "erase" ? { erase } : null;
     applyAt(pos, erase);
   };
 
@@ -136,8 +147,8 @@ function paintVoxel(
   sliceZ: number,
 ) {
   const below =
-    sliceZ > 0 ? voxels[voxelIndex(dims, x, y, sliceZ - 1)] : EMPTY_VOXEL;
-  const current = voxels[voxelIndex(dims, x, y, sliceZ)];
+    sliceZ > 0 ? voxels[voxelIndex(dims, x, y, sliceZ - 1)]! : EMPTY_VOXEL;
+  const current = voxels[voxelIndex(dims, x, y, sliceZ)]!;
 
   if (below !== EMPTY_VOXEL && current === EMPTY_VOXEL) {
     const [r, g, b] = parseHexColor(palette[below] ?? "#ff00ff");

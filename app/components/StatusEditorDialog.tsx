@@ -11,7 +11,12 @@ import {
 } from "../lib/status";
 import { snapToTick } from "../game/statuses";
 import type { StatusVfx } from "../lib/statusVfx";
-import { defaultBase, type SpriteRef, type TileDef, type TilesetDef } from "../lib/types";
+import {
+  defaultBase,
+  type SpriteRef,
+  type TileDef,
+  type TilesetDef,
+} from "../lib/types";
 import { Button, Dialog, Input, Select, Switch } from "../ui";
 import { SpritePreview } from "./TilePreview";
 import { SpriteSelector } from "./SpriteSelector";
@@ -71,7 +76,9 @@ function FormulaField({
   const preview = previewOf(value);
   return (
     <label className="flex flex-col gap-0.5">
-      <span className="text-[11px] font-bold uppercase text-muted">{label}</span>
+      <span className="text-[11px] font-bold uppercase text-muted">
+        {label}
+      </span>
       <Input
         value={value}
         placeholder="blank for none"
@@ -100,7 +107,9 @@ function MsField({
 }) {
   return (
     <label className="flex flex-col gap-0.5">
-      <span className="text-[11px] font-bold uppercase text-muted">{label}</span>
+      <span className="text-[11px] font-bold uppercase text-muted">
+        {label}
+      </span>
       <Input
         type="number"
         min={0}
@@ -169,12 +178,11 @@ export function StatusEditorDialog({
   // divide the tick rate would drift, so it is snapped up — and an author is
   // told rather than left to find out.
   const snapped = snapToTick(status.everyMs ?? 0);
-  const cadenceHint =
-    !status.everyMs
-      ? "0 fires nothing — for a status that only changes stats."
-      : Math.abs(snapped - status.everyMs) < 1
-        ? `Every ${(snapped / 1000).toFixed(2)}s.`
-        : `Snapped up to ${snapped.toFixed(1)}ms — cadences run in whole ticks.`;
+  const cadenceHint = !status.everyMs
+    ? "0 fires nothing — for a status that only changes stats."
+    : Math.abs(snapped - status.everyMs) < 1
+      ? `Every ${(snapped / 1000).toFixed(2)}s.`
+      : `Snapped up to ${snapped.toFixed(1)}ms — cadences run in whole ticks.`;
 
   return (
     <Dialog
@@ -194,29 +202,36 @@ export function StatusEditorDialog({
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap gap-3">
           <label className="flex flex-col gap-0.5">
-            <span className="text-[11px] font-bold uppercase text-muted">Id</span>
+            <span className="text-[11px] font-bold uppercase text-muted">
+              Id
+            </span>
             <Input
               value={status.id}
               onChange={(e) => patch({ id: e.target.value })}
             />
           </label>
           <label className="flex flex-col gap-0.5">
-            <span className="text-[11px] font-bold uppercase text-muted">Name</span>
+            <span className="text-[11px] font-bold uppercase text-muted">
+              Name
+            </span>
             <Input
               value={status.name}
               onChange={(e) => patch({ name: e.target.value })}
             />
           </label>
-          <label className="flex flex-col gap-0.5">
-            <span className="text-[11px] font-bold uppercase text-muted">Tone</span>
+          <div className="flex flex-col gap-0.5">
+            <span className="text-[11px] font-bold uppercase text-muted">
+              Tone
+            </span>
             <Select
+              ariaLabel="Tone"
               value={status.tone}
               onValueChange={(v) =>
                 patch({ tone: (v as StatusSource["tone"]) ?? "good" })
               }
               options={STATUS_TONES.map((t) => ({ value: t, label: t }))}
             />
-          </label>
+          </div>
         </div>
 
         <label className="flex flex-col gap-0.5">
@@ -246,11 +261,12 @@ export function StatusEditorDialog({
         </div>
         <div className="flex flex-wrap items-start gap-3">
           <div className="flex flex-col gap-2">
-            <label className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
               <span className="text-[11px] font-bold uppercase text-muted">
                 Tileset
               </span>
               <Select
+                ariaLabel="Tileset"
                 value={icon?.tilesetId || null}
                 onValueChange={(id) => {
                   if (!id) return;
@@ -262,7 +278,7 @@ export function StatusEditorDialog({
                 }}
                 options={tilesets.map((t) => ({ value: t.id, label: t.name }))}
               />
-            </label>
+            </div>
             <SpriteSelector
               tileset={iconTileset}
               value={icon}
@@ -285,7 +301,9 @@ export function StatusEditorDialog({
         </div>
 
         <div className="flex flex-col gap-1 border-t-2 border-border pt-3">
-          <span className="text-xs font-bold uppercase text-muted">Duration</span>
+          <span className="text-xs font-bold uppercase text-muted">
+            Duration
+          </span>
           <p className="max-w-lg text-[11px] leading-snug text-muted">
             Drawn once per application, both ends included. Equal ends mean an
             exact lifetime; an inverted range is malformed and reads as "not a
@@ -296,12 +314,16 @@ export function StatusEditorDialog({
           <MsField
             label="From (ms)"
             value={status.fromMs}
-            onChange={(fromMs) => patch({ fromMs, toMs: Math.max(fromMs, status.toMs) })}
+            onChange={(fromMs) =>
+              patch({ fromMs, toMs: Math.max(fromMs, status.toMs) })
+            }
           />
           <MsField
             label="To (ms)"
             value={status.toMs}
-            onChange={(toMs) => patch({ toMs, fromMs: Math.min(toMs, status.fromMs) })}
+            onChange={(toMs) =>
+              patch({ toMs, fromMs: Math.min(toMs, status.fromMs) })
+            }
           />
           <label className="flex flex-col gap-0.5">
             <span className="text-[11px] font-bold uppercase text-muted">
@@ -320,7 +342,11 @@ export function StatusEditorDialog({
           </label>
           <MsField
             label="Max (ms)"
-            hint={status.stacks ? "Ceiling on the stack." : "Only read when it stacks."}
+            hint={
+              status.stacks
+                ? "Ceiling on the stack."
+                : "Only read when it stacks."
+            }
             value={status.maxMs ?? MAX_STATUS_DURATION_MS}
             onChange={(maxMs) => patch({ maxMs })}
           />
@@ -332,8 +358,8 @@ export function StatusEditorDialog({
           </span>
           <p className="max-w-lg text-[11px] leading-snug text-muted">
             Signed: positive heals and clamps at the maximum, negative goes
-            through the same damage the blows do — so it shows a number, tells the
-            brains, and can kill.
+            through the same damage the blows do — so it shows a number, tells
+            the brains, and can kill.
           </p>
         </div>
         <div className="flex flex-wrap items-start gap-3">
@@ -355,11 +381,12 @@ export function StatusEditorDialog({
             While it lasts
           </span>
           <p className="max-w-lg text-[11px] leading-snug text-muted">
-            Added to the numbers a fight is fought with, every time they are read.
-            Variables: <code>DURATION_SEC</code>, <code>REMAINING_SEC</code>,{" "}
-            <code>ELAPSED_SEC</code>, <code>MAX_HP</code>, <code>HP</code>.
-            Functions: ceil, floor, round, abs, min, max. Previewed against a
-            16-point body 20 seconds into a 30-second run.
+            Added to the numbers a fight is fought with, every time they are
+            read. Variables: <code>DURATION_SEC</code>,{" "}
+            <code>REMAINING_SEC</code>, <code>ELAPSED_SEC</code>,{" "}
+            <code>MAX_HP</code>, <code>HP</code>. Functions: ceil, floor, round,
+            abs, min, max. Previewed against a 16-point body 20 seconds into a
+            30-second run.
           </p>
         </div>
         <div className="flex flex-wrap gap-3">
@@ -369,7 +396,7 @@ export function StatusEditorDialog({
               label={key}
               value={status.modifiers?.[key] ?? ""}
               onChange={(source) => {
-                const modifiers = { ...(status.modifiers ?? {}) };
+                const modifiers = { ...status.modifiers };
                 if (source) modifiers[key] = source;
                 else delete modifiers[key];
                 patch({ modifiers });

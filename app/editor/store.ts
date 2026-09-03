@@ -1,5 +1,11 @@
 import { create } from "zustand";
-import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
+import type {
+  Coord,
+  Direction,
+  MapFile,
+  PlacedTile,
+  TileDef,
+} from "../lib/types";
 import { isDirectional } from "../lib/types";
 import {
   DEFAULT_EDITOR_MINUTES,
@@ -20,7 +26,11 @@ import {
   updatePlacedTeleport,
   updatePlacedDirection,
 } from "../lib/mapData";
-import { canPlace, canReplaceStack, tilesByIdFromList } from "../lib/validation";
+import {
+  canPlace,
+  canReplaceStack,
+  tilesByIdFromList,
+} from "../lib/validation";
 
 export type ToolId =
   | "select"
@@ -138,9 +148,10 @@ export type EditorStore = {
   selectCoord: (x: number, y: number) => void;
   eraseAt: (x: number, y: number) => void;
   stampAt: (x: number, y: number) => { skipped: boolean; reason?: string };
-  stampMany: (
-    coords: Array<{ x: number; y: number }>,
-  ) => { skipped: number; reason?: string };
+  stampMany: (coords: Array<{ x: number; y: number }>) => {
+    skipped: number;
+    reason?: string;
+  };
   appendArmed: () => { ok: boolean; reason?: string };
   removeFromStack: (stackIndex: number) => void;
   reorderSelectedStack: (from: number, to: number) => void;
@@ -209,13 +220,11 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     });
   },
 
-  setTiles: (tiles) =>
-    set({ tiles, tilesById: tilesByIdFromList(tiles) }),
+  setTiles: (tiles) => set({ tiles, tilesById: tilesByIdFromList(tiles) }),
 
   setLevel: (z) => set({ currentLevel: z }),
   setShowOtherLevels: (v) => set({ showOtherLevels: v }),
-  toggleShowOtherLevels: () =>
-    set({ showOtherLevels: !get().showOtherLevels }),
+  toggleShowOtherLevels: () => set({ showOtherLevels: !get().showOtherLevels }),
   setPreviewMode: (v) => set({ previewMode: v }),
   togglePreviewMode: () => set({ previewMode: !get().previewMode }),
   setMinutesOfDay: (m) =>
@@ -312,8 +321,15 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   },
 
   undo: () => {
-    const { past, future, map, currentLevel, mapVersion, savedMap, strokeBase } =
-      get();
+    const {
+      past,
+      future,
+      map,
+      currentLevel,
+      mapVersion,
+      savedMap,
+      strokeBase,
+    } = get();
     if (strokeBase || past.length === 0) return;
     const entry = past[past.length - 1]!;
     set({
@@ -327,8 +343,15 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   },
 
   redo: () => {
-    const { past, future, map, currentLevel, mapVersion, savedMap, strokeBase } =
-      get();
+    const {
+      past,
+      future,
+      map,
+      currentLevel,
+      mapVersion,
+      savedMap,
+      strokeBase,
+    } = get();
     if (strokeBase || future.length === 0) return;
     const entry = future[future.length - 1]!;
     set({
@@ -358,14 +381,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     if (selected) {
       const source = getStack(map, selected.x, selected.y, currentLevel);
       const clone: PlacedTile[] = source.map((p) => ({ ...p }));
-      const check = canReplaceStack(
-        map,
-        x,
-        y,
-        currentLevel,
-        clone,
-        tilesById,
-      );
+      const check = canReplaceStack(map, x, y, currentLevel, clone, tilesById);
       if (!check.ok) {
         return { skipped: true, reason: check.reason };
       }
@@ -382,10 +398,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     if (!def) return { skipped: true, reason: "Unknown tile" };
     const check = canPlace(map, x, y, currentLevel, def, tilesById);
     if (!check.ok) return { skipped: true, reason: check.reason };
-    const placed: PlacedTile =
-      isDirectional(def)
-        ? { tileId: def.id, direction: "s" }
-        : { tileId: def.id };
+    const placed: PlacedTile = isDirectional(def)
+      ? { tileId: def.id, direction: "s" }
+      : { tileId: def.id };
     get().commitMap(appendTile(map, x, y, currentLevel, placed), {
       coalesceInStroke: true,
     });
@@ -403,7 +418,14 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       for (const { x, y } of coords) {
         // Fresh clone per cell so stacks don't share identity across coords.
         const clone: PlacedTile[] = source.map((p) => ({ ...p }));
-        const check = canReplaceStack(map, x, y, currentLevel, clone, tilesById);
+        const check = canReplaceStack(
+          map,
+          x,
+          y,
+          currentLevel,
+          clone,
+          tilesById,
+        );
         if (!check.ok) {
           skipped++;
           reason = check.reason;
@@ -418,10 +440,9 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       }
       const def = tilesById[armedTileId];
       if (!def) return { skipped: coords.length, reason: "Unknown tile" };
-      const placed: PlacedTile =
-        isDirectional(def)
-          ? { tileId: def.id, direction: "s" }
-          : { tileId: def.id };
+      const placed: PlacedTile = isDirectional(def)
+        ? { tileId: def.id, direction: "s" }
+        : { tileId: def.id };
       for (const { x, y } of coords) {
         const check = canPlace(map, x, y, currentLevel, def, tilesById);
         if (!check.ok) {

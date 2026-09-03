@@ -121,7 +121,12 @@ describe("crossing open ground", () => {
   it("gives up on somebody who has left the board's walkable part", () => {
     let map = field(4);
     // Ringed in, with the target sealed inside.
-    for (const [x, y] of [[3, 0], [5, 0], [4, 1], [4, -1]]) {
+    for (const [x, y] of [
+      [3, 0],
+      [5, 0],
+      [4, 1],
+      [4, -1],
+    ]) {
       map = put(map, x!, y!, "wall");
     }
 
@@ -233,9 +238,14 @@ describe("ledges", () => {
   });
 
   it("takes the ledge when the action allows it, landing where it falls", () => {
-    const path = route(plateau(), standing(0, 0, 1, 0), { x: 5, y: 0, z: 0 }, {
-      allowDrops: true,
-    });
+    const path = route(
+      plateau(),
+      standing(0, 0, 1, 0),
+      { x: 5, y: 0, z: 0 },
+      {
+        allowDrops: true,
+      },
+    );
 
     expect(walked(path)).toEqual(["e", "e", "e", "e"]);
     // Two legs along the roof, then off it — and the search carries on from the
@@ -258,9 +268,14 @@ describe("how far out of its way", () => {
   }
 
   it("rounds a screen it can get past in a few extra steps", () => {
-    const path = route(screen(2), standing(0, 0), { x: 2, y: 0, z: 0 }, {
-      maxNodes: 400,
-    });
+    const path = route(
+      screen(2),
+      standing(0, 0),
+      { x: 2, y: 0, z: 0 },
+      {
+        maxNodes: 400,
+      },
+    );
 
     expect(path).toHaveLength(7);
   });
@@ -269,7 +284,12 @@ describe("how far out of its way", () => {
     // The same board with a longer wall: still a route, and still not a chase.
     // A generous budget, so what refuses it is the detour rather than the cost.
     expect(
-      route(screen(10), standing(0, 0), { x: 2, y: 0, z: 0 }, { maxNodes: 400 }),
+      route(
+        screen(10),
+        standing(0, 0),
+        { x: 2, y: 0, z: 0 },
+        { maxNodes: 400 },
+      ),
     ).toBeNull();
   });
 });
@@ -284,9 +304,16 @@ describe("what it costs", () => {
   it("gives up rather than sweeping the board", () => {
     const map = field(40);
 
-    expect(route(map, standing(-40, -40), { x: 40, y: 40, z: 0 }, {
-      maxNodes: 8,
-    })).toBeNull();
+    expect(
+      route(
+        map,
+        standing(-40, -40),
+        { x: 40, y: 40, z: 0 },
+        {
+          maxNodes: 8,
+        },
+      ),
+    ).toBeNull();
   });
 
   it("proves a sealed target impossible inside the budget", () => {
@@ -304,7 +331,9 @@ describe("what it costs", () => {
     // A budget just over the route length is enough in the open, which is the
     // whole reason an exact plan-distance heuristic is worth having.
     for (let budget = 1; budget <= PATH_MAX_NODES; budget++) {
-      if (route(map, standing(0, 0), { x: 20, y: 0, z: 0 }, { maxNodes: budget })) {
+      if (
+        route(map, standing(0, 0), { x: 20, y: 0, z: 0 }, { maxNodes: budget })
+      ) {
         expanded = budget;
         break;
       }

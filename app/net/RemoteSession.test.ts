@@ -488,9 +488,9 @@ describe("RemoteSession chat", () => {
       minutesOfDay: SERVER_MINUTES,
       hps: [],
       carriedLights: [],
-    equipment: emptyEquipment(),
-    tags: [],
-    statuses: [],
+      equipment: emptyEquipment(),
+      tags: [],
+      statuses: [],
     });
 
     expect(session.getSnapshot().chats).toHaveLength(0);
@@ -755,7 +755,11 @@ describe("RemoteSession prediction", () => {
     const before = session.getSnapshot().self;
     socket.deliver(
       patch(committedTo(0), [
-        { ...walkStarted, from: { x: 0, y: 0, z: 0 }, to: { x: 1, y: 0, z: 0 } },
+        {
+          ...walkStarted,
+          from: { x: 0, y: 0, z: 0 },
+          to: { x: 1, y: 0, z: 0 },
+        },
       ]),
     );
 
@@ -876,7 +880,6 @@ describe("RemoteSession prediction", () => {
 
     expect(framesOfType(socket, "face")).toHaveLength(1);
   });
-
 });
 
 describe("RemoteSession headcount", () => {
@@ -900,8 +903,12 @@ describe("RemoteSession headcount", () => {
     const seen: number[] = [];
     session.setOnPlayers((count) => seen.push(count));
 
-    socket.deliver(patch([], [{ kind: "joined", actorId: OTHER, playerCount: 2 }]));
-    socket.deliver(patch([], [{ kind: "left", actorId: OTHER, playerCount: 1 }]));
+    socket.deliver(
+      patch([], [{ kind: "joined", actorId: OTHER, playerCount: 2 }]),
+    );
+    socket.deliver(
+      patch([], [{ kind: "left", actorId: OTHER, playerCount: 1 }]),
+    );
 
     expect(seen).toEqual([1, 2, 1]);
     expect(session.playerCount()).toBe(1);
@@ -917,7 +924,9 @@ describe("RemoteSession headcount", () => {
     const seen: number[] = [];
     session.setOnPlayers((count) => seen.push(count));
 
-    socket.deliver(patch([], [{ kind: "joined", actorId: SELF, playerCount: 1 }]));
+    socket.deliver(
+      patch([], [{ kind: "joined", actorId: SELF, playerCount: 1 }]),
+    );
 
     expect(seen).toEqual([1]);
   });
@@ -962,9 +971,9 @@ describe("RemoteSession attack mode", () => {
       minutesOfDay: SERVER_MINUTES,
       hps: [],
       carriedLights: [],
-    equipment: emptyEquipment(),
-    tags: [],
-    statuses: [],
+      equipment: emptyEquipment(),
+      tags: [],
+      statuses: [],
     });
 
     expect(framesOfType(socket, "attackMode")).toEqual([
@@ -976,7 +985,7 @@ describe("RemoteSession attack mode", () => {
   });
 
   it("says nothing again when it was never on", () => {
-    const { socket, session } = connected();
+    const { socket } = connected();
 
     socket.deliver({
       type: "hello",
@@ -987,9 +996,9 @@ describe("RemoteSession attack mode", () => {
       minutesOfDay: SERVER_MINUTES,
       hps: [],
       carriedLights: [],
-    equipment: emptyEquipment(),
-    tags: [],
-    statuses: [],
+      equipment: emptyEquipment(),
+      tags: [],
+      statuses: [],
     });
 
     expect(framesOfType(socket, "attackMode")).toEqual([]);
@@ -1229,8 +1238,9 @@ describe("RemoteSession bodies taken off the board", () => {
 
   it("draws another body under a status the wire broadcast the ids of", () => {
     const { socket, session } = connectedWithRat();
-    expect(session.getSnapshot().actors.find((a) => a.id === RAT)?.statuses)
-      .toEqual([]);
+    expect(
+      session.getSnapshot().actors.find((a) => a.id === RAT)?.statuses,
+    ).toEqual([]);
 
     socket.deliver({
       ...patch([]),
@@ -1258,8 +1268,9 @@ describe("RemoteSession bodies taken off the board", () => {
       ...patch([]),
       statusIds: [{ actorId: RAT, defIds: [] }],
     });
-    expect(session.getSnapshot().actors.find((a) => a.id === RAT)?.statuses)
-      .toEqual([]);
+    expect(
+      session.getSnapshot().actors.find((a) => a.id === RAT)?.statuses,
+    ).toEqual([]);
   });
 
   it("keeps the viewer's own countdown rather than the broadcast ids", () => {

@@ -40,7 +40,9 @@ describe("what a number says", () => {
 
 describe("what colour it says it in", () => {
   it("marks a blow the viewer took, and only if it took something", () => {
-    expect(classFor(swing({ amount: 3, own: true }))).toContain("damage-number--own");
+    expect(classFor(swing({ amount: 3, own: true }))).toContain(
+      "damage-number--own",
+    );
     expect(classFor(swing({ amount: 3, own: false }))).not.toContain("--own");
   });
 
@@ -54,6 +56,8 @@ describe("what colour it says it in", () => {
   });
 
   it("reads a miss and a dodge as nothing too", () => {
-    expect(classFor(swing({ outcome: "miss", own: true }))).toContain("--nothing");
+    expect(classFor(swing({ outcome: "miss", own: true }))).toContain(
+      "--nothing",
+    );
   });
 });

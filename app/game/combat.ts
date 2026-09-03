@@ -1,7 +1,4 @@
-import {
-  clampChance,
-  type FightingStats,
-} from "../lib/battler";
+import { clampChance, type FightingStats } from "../lib/battler";
 import {
   MAX_PERCENT_STAT,
   type Reach,
@@ -253,7 +250,10 @@ export function landChance(attacker: FightingStats): number {
  * @param roll two independent draws in [0, 1), which the caller owns so this
  *   stays a function rather than a thing that touches the world's dice.
  */
-export function damageFraction(variance: number, roll: [number, number]): number {
+export function damageFraction(
+  variance: number,
+  roll: [number, number],
+): number {
   const spread = clamp(variance, 0, 100) / 100;
   const peaked = (roll[0] + roll[1]) / 2;
   return 1 - spread + spread * peaked;
@@ -464,7 +464,7 @@ export function inflictedBy(
 ): readonly WeaponStatus[] {
   if (statuses.length === 0) return NOTHING_INFLICTED;
   const took = statuses.filter(
-    (status, index) => rolls[index] * MAX_PERCENT_STAT < status.chance,
+    (status, index) => rolls[index]! * MAX_PERCENT_STAT < status.chance,
   );
   return took.length === 0 ? NOTHING_INFLICTED : took;
 }

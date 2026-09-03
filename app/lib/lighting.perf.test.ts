@@ -10,7 +10,7 @@ import {
   overlayEmitterOverrides,
   staticLightingMapKey,
 } from "./lighting";
-import type { MapFile, TileDef } from "./types";
+import type { TileDef } from "./types";
 import { PLAYER_TILE_ID } from "../game/constants";
 import { requireSinglePlayer } from "../game/player";
 
@@ -72,46 +72,68 @@ describe("lighting bake perf", () => {
   const mapFile = chunkifyMap(map as FlatMapFile);
   const omit = new Set([PLAYER_TILE_ID]);
 
-  it(`full static bake p95 < ${BAKE_MS}ms on fixture map`, () => {
-    for (let i = 0; i < WARMUP_RUNS; i++) {
-      computeLighting(mapFile, tilesById, AMBIENT_PRESETS.night, undefined, omit);
-    }
-    const samples: number[] = [];
-    for (let i = 0; i < SAMPLES; i++) {
-      const t0 = performance.now();
-      computeLighting(mapFile, tilesById, AMBIENT_PRESETS.night, undefined, omit);
-      samples.push(performance.now() - t0);
-    }
-    samples.sort((a, b) => a - b);
-    const p95 = percentile(samples, 95);
-    expect(
-      p95,
-      `bake p95 ${p95.toFixed(2)}ms (p50=${percentile(samples, 50).toFixed(2)})`,
-    ).toBeLessThanOrEqual(BAKE_MS);
-  }, timeoutFor(BAKE_MS));
+  it(
+    `full static bake p95 < ${BAKE_MS}ms on fixture map`,
+    () => {
+      for (let i = 0; i < WARMUP_RUNS; i++) {
+        computeLighting(
+          mapFile,
+          tilesById,
+          AMBIENT_PRESETS.night,
+          undefined,
+          omit,
+        );
+      }
+      const samples: number[] = [];
+      for (let i = 0; i < SAMPLES; i++) {
+        const t0 = performance.now();
+        computeLighting(
+          mapFile,
+          tilesById,
+          AMBIENT_PRESETS.night,
+          undefined,
+          omit,
+        );
+        samples.push(performance.now() - t0);
+      }
+      samples.sort((a, b) => a - b);
+      const p95 = percentile(samples, 95);
+      expect(
+        p95,
+        `bake p95 ${p95.toFixed(2)}ms (p50=${percentile(samples, 50).toFixed(2)})`,
+      ).toBeLessThanOrEqual(BAKE_MS);
+    },
+    timeoutFor(BAKE_MS),
+  );
 
-  it(`player overlay p95 < ${OVERLAY_MS}ms`, () => {
-    const staticGrid = computeLighting(
-      mapFile,
-      tilesById,
-      AMBIENT_PRESETS.night,
-      undefined,
-      omit,
-    );
-    const p = requireSinglePlayer(mapFile);
-    const ov = [{ x: p.x, y: p.y, z: p.z, fx: p.x + 0.5, fy: p.y + 0.5, fz: p.z + 0.5 }];
-    for (let i = 0; i < WARMUP_RUNS; i++) {
-      overlayEmitterOverrides(staticGrid, mapFile, tilesById, ov);
-    }
-    const samples: number[] = [];
-    for (let i = 0; i < SAMPLES; i++) {
-      const t0 = performance.now();
-      overlayEmitterOverrides(staticGrid, mapFile, tilesById, ov);
-      samples.push(performance.now() - t0);
-    }
-    samples.sort((a, b) => a - b);
-    expect(percentile(samples, 95)).toBeLessThanOrEqual(OVERLAY_MS);
-  }, timeoutFor(OVERLAY_MS));
+  it(
+    `player overlay p95 < ${OVERLAY_MS}ms`,
+    () => {
+      const staticGrid = computeLighting(
+        mapFile,
+        tilesById,
+        AMBIENT_PRESETS.night,
+        undefined,
+        omit,
+      );
+      const p = requireSinglePlayer(mapFile);
+      const ov = [
+        { x: p.x, y: p.y, z: p.z, fx: p.x + 0.5, fy: p.y + 0.5, fz: p.z + 0.5 },
+      ];
+      for (let i = 0; i < WARMUP_RUNS; i++) {
+        overlayEmitterOverrides(staticGrid, mapFile, tilesById, ov);
+      }
+      const samples: number[] = [];
+      for (let i = 0; i < SAMPLES; i++) {
+        const t0 = performance.now();
+        overlayEmitterOverrides(staticGrid, mapFile, tilesById, ov);
+        samples.push(performance.now() - t0);
+      }
+      samples.sort((a, b) => a - b);
+      expect(percentile(samples, 95)).toBeLessThanOrEqual(OVERLAY_MS);
+    },
+    timeoutFor(OVERLAY_MS),
+  );
 
   it("staticLightingMapKey ignores player moves", () => {
     const a = staticLightingMapKey(mapFile, omit);

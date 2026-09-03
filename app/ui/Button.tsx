@@ -14,7 +14,8 @@ const variantClass: Record<Variant, string> = {
     "bg-transparent text-paper border-transparent hover:bg-paper/20",
 };
 
-const defaultPressedClass = "bg-ink text-paper border-border hover:brightness-125";
+const defaultPressedClass =
+  "bg-ink text-paper border-border hover:brightness-125";
 
 const pressedClass: Partial<Record<Variant, string>> = {
   "ghost-inverse": "bg-paper text-ink border-paper",

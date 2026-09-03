@@ -29,12 +29,10 @@ import {
 } from "../lib/item";
 import {
   appendItem,
-  countOf,
   peelOne,
   pourInto,
   stackWithItem,
   stow,
-  withCount,
 } from "../lib/piles";
 import type {
   Coord,
@@ -128,7 +126,6 @@ import {
   PUSH_STEP_MS,
   STRIKE_DURATION_MS,
   TICK_MS,
-  WALK_DURATION_MS,
 } from "./constants";
 import {
   type BattlerDef,
@@ -205,16 +202,9 @@ import {
   type StrikeState,
 } from "./strike";
 import type { ReachPoint } from "./distance";
-import {
-  flightDurationMs,
-  type ProjectileFlight,
-} from "./projectile";
+import { flightDurationMs, type ProjectileFlight } from "./projectile";
 import { pushedColumn } from "./push";
-import {
-  isSpawnFilled,
-  type RespawnOutcome,
-  type SpawnPoint,
-} from "./respawn";
+import { isSpawnFilled, type RespawnOutcome, type SpawnPoint } from "./respawn";
 import {
   applyItemMove,
   canMoveItem,
@@ -1856,7 +1846,10 @@ export class GameSession implements PlaySession {
         this.map = adoptBodyAt(this.map, body, owner);
       }
       if (!this.actors.has(owner)) {
-        this.addActor(owner, { resident: true, bodyTileId: body.placed.tileId });
+        this.addActor(owner, {
+          resident: true,
+          bodyTileId: body.placed.tileId,
+        });
       }
     }
   }
@@ -2335,7 +2328,8 @@ export class GameSession implements PlaySession {
     const emitterSig = this.emitterSignature(emitters);
     // Two ways the board can owe a pass: the map changed, or a mind driving a
     // wire did. The second leaves no trace on the map, so it needs its own say.
-    if (before === this.settledMap && emitterSig === this.settledEmitters) return;
+    if (before === this.settledMap && emitterSig === this.settledEmitters)
+      return;
     this.settledMap = before;
     this.settledEmitters = emitterSig;
 
@@ -2682,7 +2676,9 @@ export class GameSession implements PlaySession {
     const actor = this.actors.get(id);
     const loc = actor && this.tryLocate(actor);
     if (!loc) return false;
-    return canTalkFrom(this.map, this.tilesById, loc, ref) && this.npcAt(ref) != null;
+    return (
+      canTalkFrom(this.map, this.tilesById, loc, ref) && this.npcAt(ref) != null
+    );
   }
 
   private openTalk(actor: ActorRuntime, ref: ObjectRef): boolean {
@@ -2720,7 +2716,10 @@ export class GameSession implements PlaySession {
    * goes out on a snapshot and identity is what tells whoever is drawing it
    * that something moved. Closing an already closed one is not a change.
    */
-  private setConversation(actor: ActorRuntime, next: Conversation | null): boolean {
+  private setConversation(
+    actor: ActorRuntime,
+    next: Conversation | null,
+  ): boolean {
     if (actor.conversation === next) return false;
     actor.conversation = next;
     this.conversationChanged.add(actor.id);
@@ -2819,7 +2818,13 @@ export class GameSession implements PlaySession {
         return false;
       }
       if (effect.effect !== "trade") continue;
-      const next = planTrade(this.tilesById, kit, effect.take, effect.give, mintItemId);
+      const next = planTrade(
+        this.tilesById,
+        kit,
+        effect.take,
+        effect.give,
+        mintItemId,
+      );
       if (!next) return false;
       kit = next;
     }
@@ -2861,7 +2866,11 @@ export class GameSession implements PlaySession {
    * a person clears the crates a rat has to walk around. Shared by the brain
    * and the dialog, so the two never disagree about a wall.
    */
-  private canSeeFrom(actor: ActorRuntime, loc: ActorLocation, at: Coord): boolean {
+  private canSeeFrom(
+    actor: ActorRuntime,
+    loc: ActorLocation,
+    at: Coord,
+  ): boolean {
     return hasLineOfSight(
       this.map,
       this.tilesById,
@@ -3341,7 +3350,13 @@ export class GameSession implements PlaySession {
     // something — a target picked through a window stays picked, and the shot
     // simply does not go.
     if (
-      !canReach(this.map, this.tilesById, fromPoint, toPoint, attackerStats.reach)
+      !canReach(
+        this.map,
+        this.tilesById,
+        fromPoint,
+        toPoint,
+        attackerStats.reach,
+      )
     ) {
       return false;
     }
@@ -3648,7 +3663,6 @@ export class GameSession implements PlaySession {
       elements,
       experienceMultiplier(victimRating, casterRating),
     );
-
   }
 
   /**
@@ -3714,7 +3728,8 @@ export class GameSession implements PlaySession {
       // for one mastery exist at once, and earning is the only thing that moves
       // one. A body *seeded* with masteries never comes through here, which is
       // why announcing at the source needs no baseline to be quiet about.
-      if (levelForXp(after) > levelForXp(before)) (crossed ??= []).push(mastery);
+      if (levelForXp(after) > levelForXp(before))
+        (crossed ??= []).push(mastery);
     }
     if (!moved) return;
 
@@ -3725,7 +3740,10 @@ export class GameSession implements PlaySession {
     // a receipt, and a receipt printed ahead of the thing it receipts is a lie
     // waiting for an early return to be added above it.
     for (const mastery of crossed ?? []) {
-      this.say(actor.id, masteryNotice(mastery, levelForXp(moved[mastery] ?? 0)));
+      this.say(
+        actor.id,
+        masteryNotice(mastery, levelForXp(moved[mastery] ?? 0)),
+      );
     }
   }
 
@@ -3737,7 +3755,10 @@ export class GameSession implements PlaySession {
    * body farming another: a fight against something new starts at full rate
    * however long you have just spent being chewed on by a rat.
    */
-  private spendDefensiveDecay(target: ActorRuntime, attackerId: string): number {
+  private spendDefensiveDecay(
+    target: ActorRuntime,
+    attackerId: string,
+  ): number {
     const decayed = (target.defensiveDecay ??= new Map());
     const seen = decayed.get(attackerId);
     if (!seen) {
@@ -4370,7 +4391,9 @@ export class GameSession implements PlaySession {
     // effect says.
     const onTarget = square !== "charm" && effect.on === "target";
     const subject = onTarget
-      ? (actor.targetId ? this.actors.get(actor.targetId) : undefined)
+      ? actor.targetId
+        ? this.actors.get(actor.targetId)
+        : undefined
       : actor;
     if (!subject) return;
 
@@ -4443,7 +4466,11 @@ export class GameSession implements PlaySession {
 
     // What the stone is worth in *these* hands, off Arcane and off the elements
     // the stone asks for. @see `../lib/battler`'s {@link spellPower}
-    const power = spellPower(effect.damage, stone.requirements, context.masteries);
+    const power = spellPower(
+      effect.damage,
+      stone.requirements,
+      context.masteries,
+    );
     // The one thing left of a swing's dice. Drawn whichever way the bolt runs and
     // before either branch, so the world's dice advance by exactly as much for a
     // mend as for a harm — the same property `rollAttack` protects by taking all
@@ -4571,7 +4598,6 @@ export class GameSession implements PlaySession {
     );
   }
 
-
   /**
    * Put a conjured tile on the board — at the target's cell, or in front of the
    * caster.
@@ -4640,9 +4666,10 @@ export class GameSession implements PlaySession {
     // useless against exactly the thing it is aimed at. The rule is the tile's
     // own either way — `statusOnArrival` reads the stack below the body and
     // honours whatever it finds, caster included.
-    const stood = where.under != null && actor.targetId
-      ? this.actors.get(actor.targetId)
-      : undefined;
+    const stood =
+      where.under != null && actor.targetId
+        ? this.actors.get(actor.targetId)
+        : undefined;
     if (stood) this.statusOnArrival(stood);
   }
 
@@ -5334,10 +5361,24 @@ export class GameSession implements PlaySession {
   ): PlacedTile[] | null {
     const residue = this.residueOf(consumable);
     if (!residue) return spent;
-    const next = stackWithItem(spent, placementFromInstance(residue), this.tilesById);
-    const room = canReplaceStack(this.map, ref.x, ref.y, ref.z, next, this.tilesById);
+    const next = stackWithItem(
+      spent,
+      placementFromInstance(residue),
+      this.tilesById,
+    );
+    const room = canReplaceStack(
+      this.map,
+      ref.x,
+      ref.y,
+      ref.z,
+      next,
+      this.tilesById,
+    );
     if (room.ok) return next;
-    this.say(actor.id, noRoomToLeaveNotice(this.tilesById[residue.tileId]!.name));
+    this.say(
+      actor.id,
+      noRoomToLeaveNotice(this.tilesById[residue.tileId]!.name),
+    );
     return null;
   }
 
@@ -5367,7 +5408,10 @@ export class GameSession implements PlaySession {
       residue,
     );
     if (landed) return landed;
-    this.say(actor.id, noRoomToLeaveNotice(this.tilesById[residue.tileId]!.name));
+    this.say(
+      actor.id,
+      noRoomToLeaveNotice(this.tilesById[residue.tileId]!.name),
+    );
     return null;
   }
 
@@ -5408,7 +5452,13 @@ export class GameSession implements PlaySession {
     // One off the pile, where `drop` takes the whole of it: the two verbs are
     // the two ways something leaves a slot, and `peelSlot` falls through to
     // `clearSlot` for the last one anyway.
-    const emptied = peelSlot(this.map, this.tilesById, loc, actor.equipment, slot);
+    const emptied = peelSlot(
+      this.map,
+      this.tilesById,
+      loc,
+      actor.equipment,
+      slot,
+    );
     if (!emptied) return null;
     // Before anything is written, so a drink with nowhere to leave its bottle
     // leaves the potion exactly where it was.
@@ -5496,11 +5546,7 @@ export class GameSession implements PlaySession {
     return true;
   }
 
-  canDrop(
-    from: SlotRef,
-    to: Coord,
-    id: string = LOCAL_ACTOR_ID,
-  ): boolean {
+  canDrop(from: SlotRef, to: Coord, id: string = LOCAL_ACTOR_ID): boolean {
     return this.dropCandidate(from, to, id) != null;
   }
 
@@ -5577,7 +5623,13 @@ export class GameSession implements PlaySession {
     // cooling stone down and picking it up again would clear the cooldown, which
     // is the exploit the lock exists for.
     if (stoneLocked(instance, this.tilesById)) return null;
-    const destination = dropDestinationAt(this.map, this.tilesById, loc, to, def);
+    const destination = dropDestinationAt(
+      this.map,
+      this.tilesById,
+      loc,
+      to,
+      def,
+    );
     if (!destination) return null;
     return { actor, instance, destination };
   }
@@ -5599,7 +5651,8 @@ export class GameSession implements PlaySession {
     const at = thrower ? this.tryLocate(thrower) : null;
     // Ahead of the candidate, which refuses a cooling stone silently: a throw
     // that goes nowhere owes the same sentence a drag that goes nowhere does.
-    if (thrower && at && this.noteCoolingRefusal(thrower, at, from)) return false;
+    if (thrower && at && this.noteCoolingRefusal(thrower, at, from))
+      return false;
 
     const candidate = this.dropCandidate(from, to, id);
     if (!candidate) return false;
@@ -5797,7 +5850,9 @@ export class GameSession implements PlaySession {
     // Read before anything is written, because the notice names the giver and
     // `reachableRewardAt` has already proved the slot holds one.
     const giverDef =
-      this.tilesById[getStack(this.map, ref.x, ref.y, ref.z)[ref.stackIndex].tileId];
+      this.tilesById[
+        getStack(this.map, ref.x, ref.y, ref.z)[ref.stackIndex]!.tileId
+      ];
     if (!giverDef) return false;
 
     const bag = actor.equipment.bag!;
@@ -5974,7 +6029,8 @@ export class GameSession implements PlaySession {
     // `decayedStack`'s terms: a typo in `tiles.json` should read as a pull that
     // never happened rather than as content quietly deleting itself. A *blank*
     // target is the authored way to say "and then it is gone", and is not this.
-    if (!after && extract.tileId && !this.tilesById[extract.tileId]) return false;
+    if (!after && extract.tileId && !this.tilesById[extract.tileId])
+      return false;
 
     const next: PlacedTile[] = [];
     for (let i = 0; i < stack.length; i++) {
@@ -5995,7 +6051,9 @@ export class GameSession implements PlaySession {
       next.push({ ...rest, tileId: extract.tileId });
     }
 
-    if (!canReplaceStack(this.map, ref.x, ref.y, ref.z, next, this.tilesById).ok) {
+    if (
+      !canReplaceStack(this.map, ref.x, ref.y, ref.z, next, this.tilesById).ok
+    ) {
       return false;
     }
     this.map = replaceStack(this.map, ref.x, ref.y, ref.z, next);
@@ -6410,8 +6468,9 @@ export class GameSession implements PlaySession {
     if (this.pendingNotices.length === 0) return [];
     const mine: string[] = [];
     for (let i = this.pendingNotices.length - 1; i >= 0; i--) {
-      if (this.pendingNotices[i].actorId !== id) continue;
-      mine.unshift(this.pendingNotices[i].text);
+      const notice = this.pendingNotices[i]!;
+      if (notice.actorId !== id) continue;
+      mine.unshift(notice.text);
       this.pendingNotices.splice(i, 1);
     }
     return mine;
@@ -6629,7 +6688,11 @@ export class GameSession implements PlaySession {
       // stepped onto.
       if (i >= loc.stackIndex) continue;
       const placed = stack[i]!;
-      const teleport = resolveTeleport(placed, this.tilesById[placed.tileId], loc);
+      const teleport = resolveTeleport(
+        placed,
+        this.tilesById[placed.tileId],
+        loc,
+      );
       if (!teleport || teleport.trigger !== "step") continue;
       if (!teleportFits(this.map, this.tilesById, def, teleport.to)) return;
       this.moveThrough(actor, teleport.to);
@@ -6779,7 +6842,10 @@ export class GameSession implements PlaySession {
       walk: actor.walk,
       fall: actor.fall,
       walkProgress: actor.walk
-        ? Math.min(1, (actor.walk.elapsedMs + visualExtra) / actor.walk.durationMs)
+        ? Math.min(
+            1,
+            (actor.walk.elapsedMs + visualExtra) / actor.walk.durationMs,
+          )
         : 0,
       // Unclamped, unlike the walk: a fall is a run of height units rather than
       // one lerp, and the tick that commits a unit lands after the unit's time
@@ -6798,7 +6864,10 @@ export class GameSession implements PlaySession {
       // By reference and clamped, on the same terms as the slide above.
       strike: actor.strike,
       strikeProgress: actor.strike
-        ? Math.min(1, (actor.strike.elapsedMs + visualExtra) / STRIKE_DURATION_MS)
+        ? Math.min(
+            1,
+            (actor.strike.elapsedMs + visualExtra) / STRIKE_DURATION_MS,
+          )
         : 0,
       hp: this.hpOf(actor),
       maxHp: this.battlerOf(actor)?.maxHp ?? null,
@@ -7030,7 +7099,8 @@ export class GameSession implements PlaySession {
     for (const other of this.actors.values()) {
       if (other === except) continue;
       const to = other.walk?.to;
-      if (!to || to.x !== cell.x || to.y !== cell.y || to.z !== cell.z) continue;
+      if (!to || to.x !== cell.x || to.y !== cell.y || to.z !== cell.z)
+        continue;
       if (throughPlayers && isPlayerBody(this.locate(other).placed)) continue;
       return true;
     }
@@ -7046,10 +7116,7 @@ export class GameSession implements PlaySession {
    * asked for" to "what the actor does", whether the asking is a held key in
    * `/play` or a step a networked client has already predicted.
    */
-  private applyStepRequest(
-    actor: ActorRuntime,
-    request: StepRequest,
-  ): boolean {
+  private applyStepRequest(actor: ActorRuntime, request: StepRequest): boolean {
     const loc = this.locate(actor);
     const choice = chooseStep(
       this.map,
@@ -7161,10 +7228,17 @@ export class GameSession implements PlaySession {
       loc.stackIndex,
       this.tilesById,
     );
-    const landing = findLandingAbs(this.map, loc.x, loc.y, feetAbs, this.tilesById, {
-      z: loc.z,
-      stackIndex: loc.stackIndex,
-    });
+    const landing = findLandingAbs(
+      this.map,
+      loc.x,
+      loc.y,
+      feetAbs,
+      this.tilesById,
+      {
+        z: loc.z,
+        stackIndex: loc.stackIndex,
+      },
+    );
     if (landing == null || landing >= feetAbs) return;
 
     // Drops within climb height are step-downs (same as same-level height

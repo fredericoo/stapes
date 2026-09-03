@@ -9,13 +9,19 @@ import {
   rating,
 } from "../lib/mastery";
 import type { Vitals } from "../game/GameSession";
-import type { TileDef, TilesetDef } from "../lib/types";
+import type { TilesetDef } from "../lib/types";
 import { healthBarColor, healthFraction } from "../render/healthBar";
 import { secondsLeft } from "../game/statuses";
 import { Tooltip } from "../ui";
 import type { ActiveStatus } from "../lib/status";
 import { compareStatuses, STATUS_ICON_SIZE_PX } from "./StatusStrip";
 import { SpritePreview } from "./TilePreview";
+
+// Hoisted so the default is one value rather than a new one per render. An
+// inline `{}` or `[]` in a destructuring default is a fresh identity every
+// time, which is a changed prop to everything memoised below it.
+const NO_STATUSES: ActiveStatus[] = [];
+const NO_TILESETS: TilesetDef[] = [];
 
 /**
  * What you are, in numbers: what you can take, and what you are good at.
@@ -34,8 +40,8 @@ import { SpritePreview } from "./TilePreview";
 export function StatsPanel({
   vitals,
   masteryXp,
-  statuses = [],
-  tilesets = [],
+  statuses = NO_STATUSES,
+  tilesets = NO_TILESETS,
   className = "",
 }: {
   vitals: Vitals;
@@ -94,7 +100,11 @@ export function StatsPanel({
                 <span className="capitalize text-paper/80">{mastery}</span>
                 <span className="ml-auto tabular-nums text-paper">{level}</span>
               </span>
-              <MasteryProgress mastery={mastery} level={level} progress={progress} />
+              <MasteryProgress
+                mastery={mastery}
+                level={level}
+                progress={progress}
+              />
             </li>
           ))}
         </ul>
@@ -190,7 +200,10 @@ function EffectRow({
         {/* Not live text, on exactly the terms `MasteryProgress` is: a reading
             that changed as text would have a screen reader narrate every second
             of an hour. The row's own label carries it instead. */}
-        <span aria-hidden="true" className="ml-auto shrink-0 tabular-nums text-paper/70">
+        <span
+          aria-hidden="true"
+          className="ml-auto shrink-0 tabular-nums text-paper/70"
+        >
           {seconds}s
         </span>
       </li>
@@ -209,7 +222,9 @@ function EffectRow({
 function Health({ vitals }: { vitals: Vitals }) {
   const { hp, maxHp } = vitals;
   if (hp === null || maxHp === null) {
-    return <p className="px-1 text-xs text-paper/50">No hit points to speak of.</p>;
+    return (
+      <p className="px-1 text-xs text-paper/50">No hit points to speak of.</p>
+    );
   }
 
   const fraction = healthFraction(hp, maxHp);

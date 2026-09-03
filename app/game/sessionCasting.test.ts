@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import { defFrom, maxHpFrom } from "../lib/battler";
-import type { ItemInstance } from "../lib/itemInstance";
 import { emptyMap, getStack, replaceStack } from "../lib/mapData";
 import {
   learningRate,
@@ -11,7 +10,6 @@ import {
 import { statusesById } from "../lib/status";
 import type { Coord, MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
-import { tilesByIdFromList } from "../lib/validation";
 import { TICK_MS } from "./constants";
 import {
   casterEarnings,
@@ -183,11 +181,13 @@ const props: TileDef[] = [
   // the burns below is which side of the wheel each one is on.
   body("nature-rat", RAT_TOUGHNESS, { actor: true }, [], ["nature"]),
   body("water-rat", RAT_TOUGHNESS, { actor: true }, [], ["water"]),
-  body("even-rat", RAT_TOUGHNESS, { actor: true }, [], [
-    "fire",
-    "water",
-    "nature",
-  ]),
+  body(
+    "even-rat",
+    RAT_TOUGHNESS,
+    { actor: true },
+    [],
+    ["fire", "water", "nature"],
+  ),
   // Neutral in itself, and born wearing something that is not — the equipped
   // half of what a body counts as.
   body("robed-rat", RAT_TOUGHNESS, { actor: true }, [
@@ -401,7 +401,9 @@ const props: TileDef[] = [
 ];
 
 /** The catalogue a body born carrying `kit` is simulated against. */
-function catalogueWith(kit: Array<{ slot: string; tileId: string }>): TileDef[] {
+function catalogueWith(
+  kit: Array<{ slot: string; tileId: string }>,
+): TileDef[] {
   return [...props, playerTile(kit)];
 }
 
@@ -753,7 +755,11 @@ describe("what pressing a stone teaches you for its own sake", () => {
   const arcane = (play: GameSession) => play.masteryXpOf("local")?.arcane ?? 0;
 
   /** Cast, wait out the cooldown, repeat. */
-  function castRepeatedly(play: GameSession, times: number, cooldownMs: number) {
+  function castRepeatedly(
+    play: GameSession,
+    times: number,
+    cooldownMs: number,
+  ) {
     for (let i = 0; i < times; i++) {
       expect(play.cast("weapon")).toBe(true);
       run(play, TICKS_PER_SECOND * Math.ceil(cooldownMs / 1000));
@@ -774,11 +780,15 @@ describe("what pressing a stone teaches you for its own sake", () => {
    */
   it("earns the first level of Arcane from a light alone", () => {
     const play = session({ weapon: "ward-stone" });
-    expect(masteryLevel(masteriesFromXp(play.masteryXpOf("local") ?? {}), "arcane")).toBe(0);
+    expect(
+      masteryLevel(masteriesFromXp(play.masteryXpOf("local") ?? {}), "arcane"),
+    ).toBe(0);
 
     castRepeatedly(play, xpForLevel(1) / XP_PER_CAST, WARD_COOLDOWN_MS);
 
-    expect(masteryLevel(masteriesFromXp(play.masteryXpOf("local") ?? {}), "arcane")).toBe(1);
+    expect(
+      masteryLevel(masteriesFromXp(play.masteryXpOf("local") ?? {}), "arcane"),
+    ).toBe(1);
   });
 
   /**
@@ -841,10 +851,9 @@ describe("casterEarnings", () => {
   });
 
   it("pays at full rate for a stone that asks nothing", () => {
-    expect(casterEarnings(5, undefined, [], { arcane: 40 }, 1).arcane).toBeCloseTo(
-      XP_PER_DAMAGE * 5,
-      6,
-    );
+    expect(
+      casterEarnings(5, undefined, [], { arcane: 40 }, 1).arcane,
+    ).toBeCloseTo(XP_PER_DAMAGE * 5, 6);
   });
 });
 
@@ -908,7 +917,10 @@ describe("a flame you conjured, burning somebody else", () => {
   const RAT_CELL = { x: 2, y: 0, z: 0 };
 
   function litWorld(): GameSession {
-    const play = session({ weapon: "flame-stone" }, spawnRat(world(), RAT_CELL));
+    const play = session(
+      { weapon: "flame-stone" },
+      spawnRat(world(), RAT_CELL),
+    );
     play.setTarget(ratAt(play, RAT_CELL));
     play.cast("weapon");
     play.drainNotices();
@@ -953,12 +965,17 @@ describe("a status cast at somebody", () => {
   const RAT_CELL = { x: 2, y: 0, z: 0 };
 
   it("lands on the target and pays for what it burns", () => {
-    const play = session({ weapon: "brand-stone" }, spawnRat(world(), RAT_CELL));
+    const play = session(
+      { weapon: "brand-stone" },
+      spawnRat(world(), RAT_CELL),
+    );
     const rat = ratAt(play, RAT_CELL);
     play.setTarget(rat);
 
     expect(play.cast("weapon")).toBe(true);
-    expect((play.statusesOf(rat) ?? []).map((s) => s.defId)).toEqual(["burned"]);
+    expect((play.statusesOf(rat) ?? []).map((s) => s.defId)).toEqual([
+      "burned",
+    ]);
 
     const before = play.masteryXpOf("local")?.arcane ?? 0;
     run(play, TICKS_PER_SECOND * 2);
@@ -1184,12 +1201,18 @@ describe("an elemental spell", () => {
 describe("a bolt thrown at somebody", () => {
   const RAT_CELL = { x: 2, y: 0, z: 0 };
 
-  function boltAt(stone: string, victim = "rat"): {
+  function boltAt(
+    stone: string,
+    victim = "rat",
+  ): {
     play: GameSession;
     target: string;
     before: number;
   } {
-    const play = session({ weapon: stone }, spawnRat(world(), RAT_CELL, victim));
+    const play = session(
+      { weapon: stone },
+      spawnRat(world(), RAT_CELL, victim),
+    );
     const target = bodyAt(play, RAT_CELL, victim);
     play.setTarget(target);
     return { play, target, before: hpOf(play, target)! };
@@ -1250,7 +1273,9 @@ describe("a bolt thrown at somebody", () => {
 
     const weak = boltAt("ember-bolt-stone", "water-rat");
     expect(weak.play.cast("weapon")).toBe(true);
-    expect(took(weak.play, weak.target, weak.before)).toBeLessThan(BOLT_THROUGH);
+    expect(took(weak.play, weak.target, weak.before)).toBeLessThan(
+      BOLT_THROUGH,
+    );
   });
 
   /**
@@ -1367,10 +1392,7 @@ describe("what a spell is worth in a trained hand", () => {
     masteries: readonly string[],
     stone = "ember-bolt-stone",
   ): number {
-    const play = session(
-      { weapon: stone },
-      spawnRat(world(), RAT_CELL, "rat"),
-    );
+    const play = session({ weapon: stone }, spawnRat(world(), RAT_CELL, "rat"));
     for (const command of masteries) play.runCommand(command);
     play.drainNotices();
     const target = bodyAt(play, RAT_CELL, "rat");
@@ -1400,7 +1422,10 @@ describe("what an elemental cast teaches", () => {
   const RAT_CELL = { x: 2, y: 0, z: 0 };
 
   function castAt(stone: string, victim = "rat"): GameSession {
-    const play = session({ weapon: stone }, spawnRat(world(), RAT_CELL, victim));
+    const play = session(
+      { weapon: stone },
+      spawnRat(world(), RAT_CELL, victim),
+    );
     play.setTarget(bodyAt(play, RAT_CELL, victim));
     expect(play.cast("weapon")).toBe(true);
     return play;

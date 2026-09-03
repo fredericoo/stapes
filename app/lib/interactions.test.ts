@@ -102,7 +102,9 @@ describe("resolvePressurePlate", () => {
     const badType = tile({
       id: "b",
       height: 0,
-      interactions: { pressurePlate: { tileId: "x", type: "roughly", height: 1 } },
+      interactions: {
+        pressurePlate: { tileId: "x", type: "roughly", height: 1 },
+      },
     });
     const negative = tile({
       id: "c",
@@ -341,7 +343,8 @@ describe("interactionsForSave", () => {
    */
   it("omits an empty kit rather than writing it out", () => {
     expect(
-      interactionsForSave({ battler: { ...DEFAULT_BATTLER, kit: [] } })?.battler,
+      interactionsForSave({ battler: { ...DEFAULT_BATTLER, kit: [] } })
+        ?.battler,
     ).not.toHaveProperty("kit");
   });
 

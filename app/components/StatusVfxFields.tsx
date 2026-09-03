@@ -61,7 +61,9 @@ function Field({
 }) {
   return (
     <label className="flex flex-col gap-0.5">
-      <span className="text-[11px] font-bold uppercase text-muted">{label}</span>
+      <span className="text-[11px] font-bold uppercase text-muted">
+        {label}
+      </span>
       {children}
       {hint ? <span className="text-[11px] text-muted">{hint}</span> : null}
     </label>
@@ -202,13 +204,17 @@ function RampEditor({
     <div className="flex flex-col gap-2">
       <p className="max-w-lg text-[11px] leading-snug text-muted">
         The colour over one particle's life. One stop is a constant colour; four
-        is a fire. Stops are sorted when they are drawn, so dragging one past its
-        neighbour reorders the ramp rather than breaking it — and a life before
-        the first stop or after the last holds that stop.
+        is a fire. Stops are sorted when they are drawn, so dragging one past
+        its neighbour reorders the ramp rather than breaking it — and a life
+        before the first stop or after the last holds that stop.
       </p>
       {ramp.map((stop, i) => (
         <div key={i} className="flex flex-wrap items-end gap-2">
-          <ColorField label={`Stop ${i + 1}`} value={stop.color} onChange={(color) => patch(i, { color })} />
+          <ColorField
+            label={`Stop ${i + 1}`}
+            value={stop.color}
+            onChange={(color) => patch(i, { color })}
+          />
           <Field label={`At · ${stop.at.toFixed(2)}`}>
             <input
               type="range"
@@ -274,7 +280,10 @@ function ParticleFields({
           min={0}
           max={MAX_PARTICLE_TTL_MS}
           onChange={(ttlFromMs) =>
-            patch({ ttlFromMs, ttlToMs: Math.max(ttlFromMs, particles.ttlToMs) })
+            patch({
+              ttlFromMs,
+              ttlToMs: Math.max(ttlFromMs, particles.ttlToMs),
+            })
           }
         />
         <NumberField
@@ -284,7 +293,10 @@ function ParticleFields({
           min={0}
           max={MAX_PARTICLE_TTL_MS}
           onChange={(ttlToMs) =>
-            patch({ ttlToMs, ttlFromMs: Math.min(ttlToMs, particles.ttlFromMs) })
+            patch({
+              ttlToMs,
+              ttlFromMs: Math.min(ttlToMs, particles.ttlFromMs),
+            })
           }
         />
       </Row>
@@ -497,7 +509,11 @@ export function StatusVfxFields({
         label="Particles"
         on={vfx.particles !== null}
         onToggle={(on) =>
-          setParticles(on ? { ...DEFAULT_PARTICLES, ramp: [...DEFAULT_PARTICLES.ramp] } : null)
+          setParticles(
+            on
+              ? { ...DEFAULT_PARTICLES, ramp: [...DEFAULT_PARTICLES.ramp] }
+              : null,
+          )
         }
       >
         {vfx.particles ? (

@@ -128,7 +128,9 @@ const tiles: TileDef[] = [
   tile({
     id: "blood",
     height: 0,
-    interactions: { decay: { tileId: "stain", fromMs: BLOOD_MS, toMs: BLOOD_MS } },
+    interactions: {
+      decay: { tileId: "stain", fromMs: BLOOD_MS, toMs: BLOOD_MS },
+    },
   }),
   tile({
     id: "stain",
@@ -147,13 +149,17 @@ const tiles: TileDef[] = [
   tile({
     id: "swell",
     height: 0,
-    interactions: { decay: { tileId: "wall", fromMs: BLOOD_MS, toMs: BLOOD_MS } },
+    interactions: {
+      decay: { tileId: "wall", fromMs: BLOOD_MS, toMs: BLOOD_MS },
+    },
   }),
   // Names a tile this world does not have.
   tile({
     id: "orphan",
     height: 0,
-    interactions: { decay: { tileId: "nope", fromMs: BLOOD_MS, toMs: BLOOD_MS } },
+    interactions: {
+      decay: { tileId: "nope", fromMs: BLOOD_MS, toMs: BLOOD_MS },
+    },
   }),
   // Zero lifetime is not a decay at all.
   tile({
@@ -194,7 +200,11 @@ const tiles: TileDef[] = [
     toMs: BERRY_MS,
   }),
   // Rots into scenery: a thing, and then not a thing at all.
-  itemTile("mushroom", EDIBLE, { tileId: "stain", fromMs: BERRY_MS, toMs: BERRY_MS }),
+  itemTile("mushroom", EDIBLE, {
+    tileId: "stain",
+    fromMs: BERRY_MS,
+    toMs: BERRY_MS,
+  }),
   // A weapon that rots into something nobody can swing.
   itemTile(
     "bone-club",
@@ -210,11 +220,15 @@ const tiles: TileDef[] = [
     { tileId: "berry", fromMs: BERRY_MS, toMs: BERRY_MS },
   ),
   // A bag that rots away — but only once there is nothing left inside it.
-  itemTile("satchel", { type: "container", size: 2, equippable: true }, {
-    tileId: "",
-    fromMs: BERRY_MS,
-    toMs: BERRY_MS,
-  }),
+  itemTile(
+    "satchel",
+    { type: "container", size: 2, equippable: true },
+    {
+      tileId: "",
+      fromMs: BERRY_MS,
+      toMs: BERRY_MS,
+    },
+  ),
   // Long enough to outlive the fight that spills it, which is the whole point
   // of it: a berry would have gone off in the hand that was still holding it.
   itemTile("gourd", EDIBLE, {
@@ -280,7 +294,10 @@ const ORIGIN = { x: 0, y: 0, z: 0 };
 describe("findDecayCells", () => {
   it("finds decaying placements across levels and skips inert ones", () => {
     let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "blood" }]);
-    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "inert" }]);
+    map = replaceStack(map, 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "inert" },
+    ]);
     map = replaceStack(map, 2, 0, 0, [{ tileId: "backwards" }]);
     map = replaceStack(map, 4, 2, 3, [{ tileId: "stain" }]);
     expect(findDecayCells(map, tilesById)).toEqual([
@@ -298,12 +315,16 @@ describe("DecayIndex", () => {
   };
 
   it("holds nothing until something decaying is armed", () => {
-    const index = armed(replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }]));
+    const index = armed(
+      replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }]),
+    );
     expect(index.pending()).toBe(false);
   });
 
   it("yields an entry only once its lifetime has elapsed", () => {
-    const index = armed(replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "blood" }]));
+    const index = armed(
+      replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "blood" }]),
+    );
     expect(index.pending()).toBe(true);
 
     index.advance(BLOOD_MS - 1);
@@ -404,9 +425,9 @@ describe("DecayIndex", () => {
     index.advance(JITTER_TO_MS);
     const due = index.takeDue();
     expect(due).toHaveLength(1);
-    expect(due[0]!.dueMs).toBe(JITTER_FROM_MS + new Rng(3).int(
-      JITTER_TO_MS - JITTER_FROM_MS + 1,
-    ));
+    expect(due[0]!.dueMs).toBe(
+      JITTER_FROM_MS + new Rng(3).int(JITTER_TO_MS - JITTER_FROM_MS + 1),
+    );
   });
 });
 
@@ -477,7 +498,10 @@ describe("applyDecay", () => {
 describe("GameSession decay", () => {
   it("ages authored decay from the moment the world opens", () => {
     const map = withIdlePlayer(
-      replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, { tileId: "blood" }]),
+      replaceStack(emptyMap(), 0, 0, 0, [
+        { tileId: "grass" },
+        { tileId: "blood" },
+      ]),
     );
     const session = new GameSession(map, tiles);
     expect(stackIds(session.getMap(), 0, 0)).toEqual(["grass", "blood"]);
@@ -488,7 +512,10 @@ describe("GameSession decay", () => {
 
   it("chains through a tile that decays in turn", () => {
     const map = withIdlePlayer(
-      replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, { tileId: "blood" }]),
+      replaceStack(emptyMap(), 0, 0, 0, [
+        { tileId: "grass" },
+        { tileId: "blood" },
+      ]),
     );
     const session = new GameSession(map, tiles);
 
@@ -498,7 +525,10 @@ describe("GameSession decay", () => {
 
   it("does not rest while anything is counting down", () => {
     const map = withIdlePlayer(
-      replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, { tileId: "stain" }]),
+      replaceStack(emptyMap(), 0, 0, 0, [
+        { tileId: "grass" },
+        { tileId: "stain" },
+      ]),
     );
     const session = new GameSession(map, tiles);
     expect(session.isAtRest()).toBe(false);
@@ -515,7 +545,10 @@ describe("GameSession decay", () => {
 
   it("does not offer decay as something the player can click", () => {
     const map = withIdlePlayer(
-      replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }, { tileId: "blood" }]),
+      replaceStack(emptyMap(), 0, 0, 0, [
+        { tileId: "grass" },
+        { tileId: "blood" },
+      ]),
     );
     const session = new GameSession(map, tiles);
     const ref = { x: 0, y: 0, z: 0, stackIndex: 1 };
@@ -535,10 +568,13 @@ function withCompany(map: MapFile): MapFile {
 
 /** Grass beside the player with `placed` standing on it. */
 function beside(placed: PlacedTile): MapFile {
-  return replaceStack(withIdlePlayer(emptyMap()), BESIDE.x, BESIDE.y, BESIDE.z, [
-    { tileId: "grass" },
-    placed,
-  ]);
+  return replaceStack(
+    withIdlePlayer(emptyMap()),
+    BESIDE.x,
+    BESIDE.y,
+    BESIDE.z,
+    [{ tileId: "grass" }, placed],
+  );
 }
 
 function thing(id: string, tileId: string): ItemInstance {
@@ -818,7 +854,10 @@ describe("things that decay while somebody is holding them", () => {
 
     // The ground holds anything, which is the only rule the floor has.
     run(session, BERRY_MS);
-    expect(asideStack(session).map((p) => p.tileId)).toEqual(["grass", "crate"]);
+    expect(asideStack(session).map((p) => p.tileId)).toEqual([
+      "grass",
+      "crate",
+    ]);
   });
 
   it("gives up its identity when it rots into scenery", () => {

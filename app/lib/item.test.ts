@@ -120,37 +120,96 @@ describe("resolveItem", () => {
   });
 
   it("refuses an item block on a battler", () => {
-    expect(resolveItem(tile("battler", { item: { ...DEFAULT_WEAPON } }))).toBeNull();
+    expect(
+      resolveItem(tile("battler", { item: { ...DEFAULT_WEAPON } })),
+    ).toBeNull();
   });
 
   describe("malformed blocks read as not-an-item", () => {
     const cases: Array<[string, unknown]> = [
       ["an unknown type", { type: "hat", damage: 1 }],
-      ["no type at all", { damage: 1, def: 1, accuracy: 0, variance: 0, spd: 0, mastery: "blade" }],
+      [
+        "no type at all",
+        {
+          damage: 1,
+          def: 1,
+          accuracy: 0,
+          variance: 0,
+          spd: 0,
+          mastery: "blade",
+        },
+      ],
       ["an unknown mastery", { ...DEFAULT_WEAPON, mastery: "sonic" }],
       ["a fractional stat", { ...DEFAULT_WEAPON, damage: 1.5 }],
       ["a negative stat", { ...DEFAULT_WEAPON, damage: -1 }],
-      ["a percent stat past the cap", { ...DEFAULT_WEAPON, spd: MAX_PERCENT_STAT + 1 }],
-      ["a percent stat below zero, which is broken rather than worse", { ...DEFAULT_WEAPON, accuracy: -1 }],
+      [
+        "a percent stat past the cap",
+        { ...DEFAULT_WEAPON, spd: MAX_PERCENT_STAT + 1 },
+      ],
+      [
+        "a percent stat below zero, which is broken rather than worse",
+        { ...DEFAULT_WEAPON, accuracy: -1 },
+      ],
       ["a fractional percent stat", { ...DEFAULT_WEAPON, variance: 60.5 }],
-      ["damage past the cap", { ...DEFAULT_WEAPON, damage: MAX_WEAPON_DAMAGE + 1 }],
-      ["a weapon missing its accuracy", { type: "weapon", damage: 1, def: 1, variance: 0, spd: 0, mastery: "blade" }],
-      ["a weapon missing its variance", { type: "weapon", damage: 1, def: 1, accuracy: 60, spd: 0, mastery: "blade" }],
+      [
+        "damage past the cap",
+        { ...DEFAULT_WEAPON, damage: MAX_WEAPON_DAMAGE + 1 },
+      ],
+      [
+        "a weapon missing its accuracy",
+        {
+          type: "weapon",
+          damage: 1,
+          def: 1,
+          variance: 0,
+          spd: 0,
+          mastery: "blade",
+        },
+      ],
+      [
+        "a weapon missing its variance",
+        {
+          type: "weapon",
+          damage: 1,
+          def: 1,
+          accuracy: 60,
+          spd: 0,
+          mastery: "blade",
+        },
+      ],
       ["a consumable with no hp at all", { type: "consumable", label: "Eat" }],
       [
         "a noise longer than the cap",
-        { ...DEFAULT_CONSUMABLE, sound: "z".repeat(MAX_CONSUMABLE_SOUND_LENGTH + 1) },
+        {
+          ...DEFAULT_CONSUMABLE,
+          sound: "z".repeat(MAX_CONSUMABLE_SOUND_LENGTH + 1),
+        },
       ],
       ["a fractional hp", { ...DEFAULT_CONSUMABLE, hp: 2.5 }],
-      ["an hp past the cap", { ...DEFAULT_CONSUMABLE, hp: MAX_CONSUMABLE_HP_SHIFT + 1 }],
-      ["an hp past the floor", { ...DEFAULT_CONSUMABLE, hp: -MAX_CONSUMABLE_HP_SHIFT - 1 }],
+      [
+        "an hp past the cap",
+        { ...DEFAULT_CONSUMABLE, hp: MAX_CONSUMABLE_HP_SHIFT + 1 },
+      ],
+      [
+        "an hp past the floor",
+        { ...DEFAULT_CONSUMABLE, hp: -MAX_CONSUMABLE_HP_SHIFT - 1 },
+      ],
       ["armour with a fractional defence", { ...DEFAULT_ARMOR, def: 1.5 }],
       ["armour that makes blows worse", { ...DEFAULT_ARMOR, def: -1 }],
       ["armour past the cap", { ...DEFAULT_ARMOR, def: MAX_ARMOR_DEF + 1 }],
-      ["armour resisting by a fraction", { ...DEFAULT_ARMOR, resist: { blade: 0.5 } }],
-      ["armour resisting a kind negatively", { ...DEFAULT_ARMOR, resist: { blade: -1 } }],
+      [
+        "armour resisting by a fraction",
+        { ...DEFAULT_ARMOR, resist: { blade: 0.5 } },
+      ],
+      [
+        "armour resisting a kind negatively",
+        { ...DEFAULT_ARMOR, resist: { blade: -1 } },
+      ],
       ["a container with no room", { ...DEFAULT_CONTAINER, size: 0 }],
-      ["a container past the cap", { ...DEFAULT_CONTAINER, size: MAX_CONTAINER_SIZE + 1 }],
+      [
+        "a container past the cap",
+        { ...DEFAULT_CONTAINER, size: MAX_CONTAINER_SIZE + 1 },
+      ],
       ["a container missing equippable", { type: "container", size: 2 }],
       [
         "a weapon status with no chance on it",
@@ -158,7 +217,10 @@ describe("resolveItem", () => {
       ],
       [
         "a chance past the cap",
-        { ...DEFAULT_WEAPON, statuses: [{ id: "poison", chance: MAX_PERCENT_STAT + 1 }] },
+        {
+          ...DEFAULT_WEAPON,
+          statuses: [{ id: "poison", chance: MAX_PERCENT_STAT + 1 }],
+        },
       ],
       [
         "a chance below zero",
@@ -170,7 +232,10 @@ describe("resolveItem", () => {
       ],
       [
         "half a duration override on a weapon",
-        { ...DEFAULT_WEAPON, statuses: [{ id: "poison", chance: 10, fromMs: 1000 }] },
+        {
+          ...DEFAULT_WEAPON,
+          statuses: [{ id: "poison", chance: 10, fromMs: 1000 }],
+        },
       ],
       [
         "an inverted duration override on a weapon",
@@ -363,7 +428,11 @@ describe("itemForSave", () => {
   });
 
   it("keeps a container's own fields", () => {
-    const container = { type: "container", size: 2, equippable: false } as const;
+    const container = {
+      type: "container",
+      size: 2,
+      equippable: false,
+    } as const;
     expect(itemForSave(container)).toEqual(container);
   });
 
@@ -372,12 +441,14 @@ describe("itemForSave", () => {
   });
 
   it("keeps a consumable's verb and drops a blank one", () => {
-    expect(itemForSave({ type: "consumable", label: "Drink", hp: -2 })).toEqual({
-      type: "consumable",
-      label: "Drink",
-      hp: -2,
-      pile: DEFAULT_PILE,
-    });
+    expect(itemForSave({ type: "consumable", label: "Drink", hp: -2 })).toEqual(
+      {
+        type: "consumable",
+        label: "Drink",
+        hp: -2,
+        pile: DEFAULT_PILE,
+      },
+    );
     // A blank verb is an absent key, not an empty string in the file.
     expect(itemForSave({ type: "consumable", label: "  ", hp: 2 })).toEqual({
       type: "consumable",
@@ -396,9 +467,11 @@ describe("itemForSave", () => {
       hp: 1,
       pile: DEFAULT_PILE,
     });
-    expect(
-      itemForSave({ type: "consumable", sound: "   ", hp: 1 }),
-    ).toEqual({ type: "consumable", hp: 1, pile: DEFAULT_PILE });
+    expect(itemForSave({ type: "consumable", sound: "   ", hp: 1 })).toEqual({
+      type: "consumable",
+      hp: 1,
+      pile: DEFAULT_PILE,
+    });
   });
 
   it("keeps a consumable's statuses and drops an empty list", () => {
@@ -425,9 +498,11 @@ describe("itemForSave", () => {
       statuses: [{ id: "fed", fromMs: 60_000, toMs: 120_000 }],
       pile: DEFAULT_PILE,
     });
-    expect(
-      itemForSave({ type: "consumable", hp: 0, statuses: [] }),
-    ).toEqual({ type: "consumable", hp: 0, pile: DEFAULT_PILE });
+    expect(itemForSave({ type: "consumable", hp: 0, statuses: [] })).toEqual({
+      type: "consumable",
+      hp: 0,
+      pile: DEFAULT_PILE,
+    });
     expect(
       itemForSave({ type: "consumable", hp: 0, statuses: [{ id: "  " }] }),
     ).toEqual({ type: "consumable", hp: 0, pile: DEFAULT_PILE });
@@ -439,7 +514,9 @@ describe("itemForSave", () => {
       statuses: [{ id: "poison", chance: 10, fromMs: 30_000, toMs: 60_000 }],
     };
     expect(itemForSave(venomous)).toEqual(venomous);
-    expect(itemForSave({ ...DEFAULT_WEAPON, statuses: [] })).toEqual(DEFAULT_WEAPON);
+    expect(itemForSave({ ...DEFAULT_WEAPON, statuses: [] })).toEqual(
+      DEFAULT_WEAPON,
+    );
     expect(
       itemForSave({ ...DEFAULT_WEAPON, statuses: [{ id: " ", chance: 10 }] }),
     ).toEqual(DEFAULT_WEAPON);
@@ -573,7 +650,11 @@ describe("itemForSave", () => {
     expect(resolveItem(tile("item", { item: empty }))).toBeNull();
     // And an empty *list* says exactly what no key says, so it is refused too.
     expect(
-      resolveItem(tile("item", { item: { ...empty, effect: { ...empty.effect, statuses: [] } } })),
+      resolveItem(
+        tile("item", {
+          item: { ...empty, effect: { ...empty.effect, statuses: [] } },
+        }),
+      ),
     ).toBeNull();
   });
 
@@ -626,7 +707,9 @@ describe("normalizeTileDef and kind", () => {
       height: 0,
       type: "simple",
       attributes: {},
-      interactions: { battler: { maxHp: 1, atk: 1, def: 0, acc: 1, flee: 1, spd: 1 } },
+      interactions: {
+        battler: { maxHp: 1, atk: 1, def: 0, acc: 1, flee: 1, spd: 1 },
+      },
     });
     expect(def.kind).toBe("prop");
     expect(resolveBattler(def)).toBeNull();
@@ -699,14 +782,22 @@ describe("resolveArmor", () => {
    */
   it("drops a resistance against something no weapon strikes with", () => {
     const def = tile("item", {
-      item: { type: "armor", def: 2, resist: { blade: 4, toughness: 9, sonic: 9 } },
+      item: {
+        type: "armor",
+        def: 2,
+        resist: { blade: 4, toughness: 9, sonic: 9 },
+      },
     });
     expect(resolveArmor(def)?.resist).toEqual({ blade: 4 });
   });
 
   it("is null for a weapon, and for a tile that is not an item", () => {
-    expect(resolveArmor(tile("item", { item: { ...DEFAULT_WEAPON } }))).toBeNull();
-    expect(resolveArmor(tile("prop", { item: { ...DEFAULT_ARMOR } }))).toBeNull();
+    expect(
+      resolveArmor(tile("item", { item: { ...DEFAULT_WEAPON } })),
+    ).toBeNull();
+    expect(
+      resolveArmor(tile("prop", { item: { ...DEFAULT_ARMOR } })),
+    ).toBeNull();
   });
 });
 
@@ -741,7 +832,9 @@ describe("resolveItem, for an artifact", () => {
   });
 
   it("is not an item at all on a tile whose kind is not one", () => {
-    expect(resolveItem(tile("prop", { item: { ...DEFAULT_ARTIFACT } }))).toBeNull();
+    expect(
+      resolveItem(tile("prop", { item: { ...DEFAULT_ARTIFACT } })),
+    ).toBeNull();
   });
 });
 
@@ -751,11 +844,15 @@ describe("resolveItem, for an artifact", () => {
  */
 describe("equipVerb", () => {
   it("wears armour, wields a sword, holds a torch, puts on a pack", () => {
-    expect(equipVerb(tile("item", { item: { ...DEFAULT_ARMOR } }))).toBe("Wear");
-    expect(equipVerb(tile("item", { item: { ...DEFAULT_WEAPON } }))).toBe("Wield");
-    expect(
-      equipVerb(tile("item", { item: { ...DEFAULT_SHIELD } })),
-    ).toBe("Hold");
+    expect(equipVerb(tile("item", { item: { ...DEFAULT_ARMOR } }))).toBe(
+      "Wear",
+    );
+    expect(equipVerb(tile("item", { item: { ...DEFAULT_WEAPON } }))).toBe(
+      "Wield",
+    );
+    expect(equipVerb(tile("item", { item: { ...DEFAULT_SHIELD } }))).toBe(
+      "Hold",
+    );
     expect(equipVerb(tile("item", { item: { ...DEFAULT_CONTAINER } }))).toBe(
       "Put on",
     );

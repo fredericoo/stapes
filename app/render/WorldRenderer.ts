@@ -51,10 +51,7 @@ import { hasSpriteStates, isMobileTile } from "../lib/interactions";
 import { clumpExtents } from "./depthClump";
 import { getFrames } from "../lib/tileResolve";
 import { ChunkedLighting, type WorldRect } from "../lib/lightingChunks";
-import {
-  canBakeOffThread,
-  WorkerChunkBaker,
-} from "../lib/lightBakerClient";
+import { canBakeOffThread, WorkerChunkBaker } from "../lib/lightBakerClient";
 import type { FramePhase, FrameProfiler } from "./frameProfile";
 import type { ProjectileView } from "./projectileMotion";
 import { GpuLighting } from "./gpuLighting";
@@ -84,7 +81,11 @@ import {
   pileOffsets,
   pileRings,
 } from "./pileLayout";
-import { animationKey, type SpriteQuadAssets, spriteQuadFor } from "./spriteQuad";
+import {
+  animationKey,
+  type SpriteQuadAssets,
+  spriteQuadFor,
+} from "./spriteQuad";
 import { noTintUniforms, tintCacheKey, tintUniforms } from "./spriteTint";
 import type { StatusTint } from "../lib/statusVfx";
 import { ParticleLayer } from "./particleLayer";
@@ -359,9 +360,7 @@ function overlaySpecKey(spec: OverlaySpec): string {
  * answerable from the map: two people standing in one spot, one of them holding
  * a lantern, are the same six numbers and a different room.
  */
-function emitterOverridesKey(
-  overrides: EmitterOverride[] | undefined,
-): string {
+function emitterOverridesKey(overrides: EmitterOverride[] | undefined): string {
   if (!overrides?.length) return "";
   return overrides
     .map((o) => {
@@ -844,7 +843,8 @@ export class WorldRenderer {
     const key = overlaySpecKey(spec);
     if (spec.kind === "ghost") return key;
     const map = this.view?.map;
-    const placed = map && getStack(map, spec.x, spec.y, spec.z)[spec.stackIndex];
+    const placed =
+      map && getStack(map, spec.x, spec.y, spec.z)[spec.stackIndex];
     const count = placed ? countOf(placed) : 1;
     return count > 1 ? `${key}x${count}` : key;
   }
@@ -938,7 +938,6 @@ export class WorldRenderer {
     );
   }
 
-
   /**
    * Draw a tile that is not there, on top of the cell it would land in.
    *
@@ -972,8 +971,7 @@ export class WorldRenderer {
   private applyLevelVisibility(hideLevelsAbove?: number) {
     this.hideLevelsAbove = hideLevelsAbove;
     for (const [z, group] of this.levelGroups) {
-      group.visible =
-        hideLevelsAbove === undefined || z <= hideLevelsAbove;
+      group.visible = hideLevelsAbove === undefined || z <= hideLevelsAbove;
     }
   }
 
@@ -1059,7 +1057,9 @@ export class WorldRenderer {
     if (this.view) {
       this.applyCamera(this.view.camera.x, this.view.camera.y, this.view.zoom);
     }
-    const bg = sampleIllumination(this.view?.minutesOfDay ?? 12 * 60).background;
+    const bg = sampleIllumination(
+      this.view?.minutesOfDay ?? 12 * 60,
+    ).background;
     const r = this.renderer;
 
     // PROTOTYPE — always palettise play frames.
@@ -1138,7 +1138,12 @@ export class WorldRenderer {
       writeBoxAttr(
         mesh.geometry,
         motion
-          ? depthBox(motion.box.x, motion.box.y, motion.box.foot, motion.box.top)
+          ? depthBox(
+              motion.box.x,
+              motion.box.y,
+              motion.box.foot,
+              motion.box.top,
+            )
           : baseBox.box,
         motion ? motion.box.stackBias : baseBox.stackBias,
       );
@@ -1494,7 +1499,8 @@ export class WorldRenderer {
       const lightUniforms = this.ensureLightUniforms(z);
       // Resolved once, here, rather than per frame: the uniforms are the tint,
       // so a material that has one never needs telling about it again.
-      const tintU = tint && tint.strength > 0 ? tintUniforms(tint) : noTintUniforms();
+      const tintU =
+        tint && tint.strength > 0 ? tintUniforms(tint) : noTintUniforms();
       mat = new THREE.MeshBasicMaterial({
         map: texture,
         side: THREE.DoubleSide,
@@ -1673,7 +1679,12 @@ export class WorldRenderer {
     let tex = this.lightTextures.get(z);
     if (!tex || tex.image.width !== level.w || tex.image.height !== level.h) {
       tex?.dispose();
-      tex = new THREE.DataTexture(level.rgba, level.w, level.h, THREE.RGBAFormat);
+      tex = new THREE.DataTexture(
+        level.rgba,
+        level.w,
+        level.h,
+        THREE.RGBAFormat,
+      );
       tex.magFilter = THREE.LinearFilter;
       tex.minFilter = THREE.LinearFilter;
       tex.generateMipmaps = false;
@@ -1687,7 +1698,6 @@ export class WorldRenderer {
     }
     u.uLightMap.value = tex;
   }
-
 
   private rebuildAll(map: MapFile) {
     this.clearMotionGhosts();
@@ -1826,7 +1836,13 @@ export class WorldRenderer {
     const animated = this.animatedByLevel.get(z) ?? [];
     for (const key of changed) {
       const { x, y } = parseCoordKey(key);
-      for (const item of this.cellItems(next, z, x, y, getStack(next, x, y, z))) {
+      for (const item of this.cellItems(
+        next,
+        z,
+        x,
+        y,
+        getStack(next, x, y, z),
+      )) {
         if (!item.anim && !item.tileKey) continue;
         this.installSeparate(group, item, z, animated);
       }
@@ -1962,7 +1978,6 @@ export class WorldRenderer {
       const tileset = this.tilesetById.get(first.sprite.tilesetId);
       if (!tileset) return;
 
-      const foot = absoluteElevation(z, elev);
       const baseOrigin = baseCellWorldOrigin(x, y, z, elev);
       const origin = spriteWorldOrigin(baseOrigin, first.sprite.base);
       const { rect } = first.sprite;
@@ -2263,7 +2278,8 @@ export class WorldRenderer {
       // sixty times a second for a uniform that has not moved.
       if (held && held.mesh === mesh && held.tintKey === tintKey) continue;
 
-      const texture = held?.texture ?? (mesh.material as THREE.MeshBasicMaterial).map;
+      const texture =
+        held?.texture ?? (mesh.material as THREE.MeshBasicMaterial).map;
       if (!texture) continue;
       const z = tileInstanceLevel(key);
       mesh.material = this.materialFor(texture, z, tint);
@@ -2271,7 +2287,9 @@ export class WorldRenderer {
     }
   }
 
-  private applySpriteStates(states: ReadonlyMap<string, SpriteState> | undefined) {
+  private applySpriteStates(
+    states: ReadonlyMap<string, SpriteState> | undefined,
+  ) {
     if (this.animated.length === 0) return;
     let swapped = false;
 

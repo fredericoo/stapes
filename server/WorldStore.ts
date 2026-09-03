@@ -67,7 +67,9 @@ export class WorldStore {
     if (this.tombstones.has(key)) return undefined;
     if (this.pending.has(key)) return this.pending.get(key) as T;
 
-    const statement = await this.db.prepare("SELECT value FROM kv WHERE key = ?");
+    const statement = await this.db.prepare(
+      "SELECT value FROM kv WHERE key = ?",
+    );
     const row = (await statement.get([key])) as
       | { value: Uint8Array | string }
       | undefined;
@@ -307,7 +309,8 @@ export class WorldStore {
 function prefixEnd(prefix: string): string {
   if (prefix === "") return "￿";
   return (
-    prefix.slice(0, -1) + String.fromCharCode(prefix.charCodeAt(prefix.length - 1) + 1)
+    prefix.slice(0, -1) +
+    String.fromCharCode(prefix.charCodeAt(prefix.length - 1) + 1)
   );
 }
 

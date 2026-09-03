@@ -140,7 +140,11 @@ export function depthBox(
  * (screenPx = CELL_SIZE*cell - PX_PER_HEIGHT*elev) gives this in terms of the
  * pixel a fragment lands on plus the elevation it depicts.
  */
-export function rayDepth(screenX: number, screenY: number, elev: number): number {
+export function rayDepth(
+  screenX: number,
+  screenY: number,
+  elev: number,
+): number {
   return (screenX + screenY) / CELL_SIZE + RAY_DEPTH_ELEV * elev;
 }
 

@@ -63,7 +63,7 @@ function hash(text: string): number {
  * by the colour. Salting sidesteps the question rather than getting it right.
  */
 function pick(words: readonly string[], id: string, salt: string): string {
-  return words[hash(`${salt}:${id}`) % words.length];
+  return words[hash(`${salt}:${id}`) % words.length]!;
 }
 
 /**

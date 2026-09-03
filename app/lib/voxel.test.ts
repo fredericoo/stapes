@@ -26,7 +26,7 @@ function pixel(
   y: number,
 ): [number, number, number, number] {
   const p = (y * widthPx + x) * 4;
-  return [rgba[p], rgba[p + 1], rgba[p + 2], rgba[p + 3]];
+  return [rgba[p]!, rgba[p + 1]!, rgba[p + 2]!, rgba[p + 3]!];
 }
 
 describe("rotateGridCW", () => {
@@ -73,7 +73,9 @@ describe("renderGrid", () => {
     const dims = voxelDims(ONE_CELL);
     const grid = emptyGrid(ONE_CELL);
     grid[voxelIndex(dims, 0, 0, 0)] = 1;
-    const sprite = renderGrid(grid, ONE_CELL, ["#000000", "#ff0000"], { shadeMode: "flat" });
+    const sprite = renderGrid(grid, ONE_CELL, ["#000000", "#ff0000"], {
+      shadeMode: "flat",
+    });
     // z=0 x=0 lands at widthPx - vx = 8; fully transparent elsewhere.
     expect(pixel(sprite.rgba, sprite.widthPx, 8, 8)).toEqual([255, 0, 0, 255]);
     expect(pixel(sprite.rgba, sprite.widthPx, 7, 8)[3]).toBe(0);
@@ -101,14 +103,23 @@ describe("renderGrid", () => {
     const eastShade = Math.round(255 * 0.6);
     // Top face: the up-left region of the solid cube's projection.
     expect(pixel(sprite.rgba, sprite.widthPx, 4, 4)).toEqual([
-      topShade, topShade, topShade, 255,
+      topShade,
+      topShade,
+      topShade,
+      255,
     ]);
     // South wall: bottom edge. East wall: right edge.
     expect(pixel(sprite.rgba, sprite.widthPx, 8, 15)).toEqual([
-      southShade, southShade, southShade, 255,
+      southShade,
+      southShade,
+      southShade,
+      255,
     ]);
     expect(pixel(sprite.rgba, sprite.widthPx, 15, 8)).toEqual([
-      eastShade, eastShade, eastShade, 255,
+      eastShade,
+      eastShade,
+      eastShade,
+      255,
     ]);
   });
 });
@@ -134,13 +145,15 @@ describe("outline pass", () => {
       outline: "silhouette",
     });
     const [sx, sy] = [8 + 4, 8 + 4];
-    expect(pixel(sprite.rgba, sprite.widthPx, sx, sy)).toEqual([255, 0, 0, 255]);
+    expect(pixel(sprite.rgba, sprite.widthPx, sx, sy)).toEqual([
+      255, 0, 0, 255,
+    ]);
     for (const [dx, dy] of [
       [1, 0],
       [-1, 0],
       [0, 1],
       [0, -1],
-    ]) {
+    ] as const) {
       expect(pixel(sprite.rgba, sprite.widthPx, sx + dx, sy + dy)).toEqual(
         BLACK,
       );
@@ -243,15 +256,15 @@ describe("sheet export", () => {
     const project = testProject();
     const variants = sheetVariants(project, "my-sheet");
     expect(Object.keys(variants)).toEqual(["n", "e", "s", "w"]);
-    expect(variants.e?.[0].sprite.rect).toEqual({ x: 0, y: 2, w: 2, h: 2 });
-    expect(variants.e?.[0].sprite.base).toEqual({ x: 1, y: 1 });
+    expect(variants.e?.[0]!.sprite.rect).toEqual({ x: 0, y: 2, w: 2, h: 2 });
+    expect(variants.e?.[0]!.sprite.base).toEqual({ x: 1, y: 1 });
   });
 
   it("emits typed sprites for TileDef export", () => {
     const project = testProject();
     const sheet = sheetSprites(project, "my-sheet");
     expect(sheet.type).toBe("directional");
-    expect(sheet.sprites?.e?.frames[0].sprite.rect).toEqual({
+    expect(sheet.sprites?.e?.frames[0]!.sprite.rect).toEqual({
       x: 0,
       y: 2,
       w: 2,
@@ -271,14 +284,21 @@ describe("sheet export", () => {
 
 describe("parseVoxelProject", () => {
   it("rejects frames that do not match the model size", () => {
-    const bad = { ...testProject(), frames: [{ voxels: [0], durationMs: 100 }] };
-    expect(() => parseVoxelProject(bad)).toThrow();
+    const bad = {
+      ...testProject(),
+      frames: [{ voxels: [0], durationMs: 100 }],
+    };
+    expect(() => parseVoxelProject(bad)).toThrow(
+      "frame voxel data does not match model size",
+    );
   });
 
   it("rejects out-of-palette voxel indices", () => {
     const project = testProject();
-    project.frames[0].voxels[0] = 99;
-    expect(() => parseVoxelProject(project)).toThrow();
+    project.frames[0]!.voxels[0] = 99;
+    expect(() => parseVoxelProject(project)).toThrow(
+      "voxel references a palette index that does not exist",
+    );
   });
 
   it("accepts a valid round-tripped project", () => {

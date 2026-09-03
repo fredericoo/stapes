@@ -377,9 +377,9 @@ describe("6 — a deer directly beneath the floor I am standing on", () => {
   it("and the diagonal alone would have missed it", () => {
     // Nothing on the screen ray from the deer: proof the column is load-bearing
     // rather than a second way of saying the same thing.
-    expect(isHiddenFromCamera(board(), tilesById, deer, deer.z, undefined)).toBe(
-      false,
-    );
+    expect(
+      isHiddenFromCamera(board(), tilesById, deer, deer.z, undefined),
+    ).toBe(false);
   });
 
   it("keeps it unhittable through the floor", () => {
