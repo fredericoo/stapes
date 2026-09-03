@@ -3578,7 +3578,12 @@ export class GameServer {
         // Whatever has just come into reach, at its current state — there is
         // nothing on the far end to diff it against.
         if (moved) mine.push(...cellsEntered(map, before, now));
-        payload = JSON.stringify({ type: "patch", cells: mine, ...rest });
+        payload = JSON.stringify({
+          type: "patch",
+          cells: mine,
+          ...rest,
+          events: rest.events.filter((event) => this.eventReaches(event, now)),
+        });
         payloads.set(signature, payload);
       }
 
@@ -3588,6 +3593,46 @@ export class GameServer {
         // Dropped by the runtime; webSocketClose cleans the actor up.
       }
     }
+  }
+
+  /**
+   * Is this event about something the holder of `interest` could see?
+   *
+   * Motion is scoped with the cells it animates, and has to be: a client keeps
+   * one entry per actor it has heard of and asks the board where each of them
+   * is on every frame. Told about bodies whose cells it does not have, it asks
+   * about bodies it can never find, and `locateActor` answers a miss by
+   * searching the whole board. A hundred and fifty of those a frame measured
+   * 108ms of a 116ms frame — a client can only afford to know about what it can
+   * see.
+   *
+   * Arrivals and departures are never scoped. They carry the world's player
+   * count, and a client that missed one would draw the wrong number for the
+   * rest of the session.
+   */
+  private eventReaches(event: MotionEvent, interest: Interest): boolean {
+    // Arrivals and departures carry the world's player count; a client that
+    // missed one would draw the wrong number for the rest of the session.
+    if (event.kind === "joined" || event.kind === "left") return true;
+
+    if ("actorId" in event) {
+      const at = this.session?.actorCell(event.actorId);
+      // Nowhere to be found is a body that has just left the board — a death,
+      // or a departure. Whoever was told about it is owed the news.
+      return at ? covers(interest, at.x, at.y) : true;
+    }
+    // A projectile is the one thing here with no body behind it. Either end of
+    // its flight is enough: an arrow that lands in front of you is worth
+    // drawing even when whoever loosed it is not.
+    if ("from" in event && "to" in event) {
+      return (
+        covers(interest, event.from.x, event.from.y) ||
+        covers(interest, event.to.x, event.to.y)
+      );
+    }
+    // Anything else is sent. A new kind of event should arrive by default and
+    // be scoped deliberately, rather than go missing because nobody came here.
+    return true;
   }
 
   private broadcast(message: ServerMessage) {

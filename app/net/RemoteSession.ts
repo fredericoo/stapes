@@ -1691,12 +1691,30 @@ export class RemoteSession implements PlaySession {
   getSnapshot(): GameSnapshot {
     const actors: ActorSnapshot[] = [];
     let self: ActorSnapshot | null = null;
+    /**
+     * Bodies the board no longer has, forgotten after the walk rather than
+     * during it.
+     *
+     * A miss costs a search of the whole board (`locateActor`), and paying that
+     * once is the price of noticing somebody has gone. Paying it *every frame*
+     * for the same body is what happens if the entry is left behind — which is
+     * what a client scoped to part of the map is full of, since a creature
+     * walking out of view leaves the board without dying. Measured at 108ms of
+     * a 116ms frame before this. @see `../net/interest`
+     */
+    let gone: string[] | null = null;
     for (const [id, motion] of this.motions) {
       const snapshot = this.actorSnapshot(id, motion);
-      if (!snapshot) continue;
+      if (!snapshot) {
+        // Never this client's own body: a death takes it off the board and it
+        // has to be here to come back to. @see dead
+        if (id !== this.selfId) (gone ??= []).push(id);
+        continue;
+      }
       actors.push(snapshot);
       if (id === this.selfId) self = snapshot;
     }
+    if (gone) for (const id of gone) this.forgetActor(id);
     if (self) this.lastSelf = self;
 
     return {

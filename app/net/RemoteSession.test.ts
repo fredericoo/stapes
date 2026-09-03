@@ -169,6 +169,52 @@ const stepCommitted: CellPatch[] = [
   { x: 1, y: 0, z: 0, stack: [grass, player] },
 ];
 
+describe("RemoteSession bodies that walk out of view", () => {
+  /** Somebody else, standing where this client can see them. */
+  const OTHER = "other";
+  const otherBody = { tileId: "player", direction: "s", owner: OTHER } as const;
+
+  function withOther() {
+    const { socket, session } = connected();
+    socket.deliver(
+      patch(
+        [{ x: 2, y: 0, z: 0, stack: [grass, otherBody] }],
+        [{ kind: "joined", actorId: OTHER, playerCount: 2 }],
+      ),
+    );
+    return { socket, session };
+  }
+
+  it("draws somebody the board has put in front of it", () => {
+    const { session } = withOther();
+    expect(session.getSnapshot().actors.map((a) => a.id)).toContain(OTHER);
+  });
+
+  it("forgets somebody the board no longer has, and stays forgetting them", () => {
+    // A client is only sent the part of the map it can reach, so a body walking
+    // out of view leaves the board without dying — the cell it left arrives and
+    // the cell it went to never does. Left in the table, it would cost a search
+    // of the whole board on every frame for the rest of the session, which is
+    // what `getSnapshot` used to do. @see ./interest
+    const { socket, session } = withOther();
+    socket.deliver(patch([{ x: 2, y: 0, z: 0, stack: [grass] }]));
+
+    expect(session.getSnapshot().actors.map((a) => a.id)).not.toContain(OTHER);
+    // Asked twice, because the point is that the entry is gone rather than
+    // merely unresolvable.
+    expect(session.getSnapshot().actors.map((a) => a.id)).not.toContain(OTHER);
+  });
+
+  it("keeps this client's own body when the board takes it away", () => {
+    // A death takes the player's tile off the board, and that body has to still
+    // be there to come back to. @see the `dead` handling.
+    const { socket, session } = connected();
+    socket.deliver(patch([{ x: 0, y: 0, z: 0, stack: [grass] }]));
+
+    expect(session.getSnapshot().self.id).toBe(SELF);
+  });
+});
+
 describe("RemoteSession walk interpolation", () => {
   it("holds the sprite at the destination until the patch commits the step", () => {
     const { socket, session } = connected();
