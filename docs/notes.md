@@ -8228,16 +8228,59 @@ so the burn that kills a rat three trees away still names whoever cast the first
 flame and still turns on the wheel that spell was made of. This falls out of
 `awardCausedDamage` with no new code, and it is worth not losing.
 
+### A burning tile draws a plume, and cannot draw a tint
+
+`AfflictedPlacement` is what the fire looks like from outside: cell, tile id and
+the status ids running on it. It reaches the renderer on the snapshot and the
+wire as `AfflictedPatch`, and `GameRenderer.groundEmitterFor` turns each one into
+the same plume a burning body gets, off the same authored `StatusVfx.particles`.
+
+**A tint is not on the table**, and it is worth knowing why before anybody tries:
+`applySpriteTints` reaches only `movableMeshes`, and a bush or a tree is merged
+into its floor's batch — tinting that material tints the ground. Particles are
+their own geometry and need no mesh, which is exactly what makes them the half a
+merged tile can have. A **cast light** is the other half that would work and is
+not wired up; `burned` already authors one, and it would ride the
+`EmitterOverride` overlay a torch already travels. Read the flicker note further
+down first — a light that varies per frame rebakes the window every frame.
+
+The plume is anchored to the **top** of the thing burning, not the floor it
+stands on: a tree burns in its canopy, and sparks rising from under a four-high
+sprite read as smoke from beneath it.
+
+**A fire rides its cell.** `CellPatch` carries `afflicted`, what is running on
+the placements in that cell, and like the stack it replaces what the client held
+for the cell: a cell sent with nothing burning in it puts the fire out. That
+makes a status change a cell change, and the cell transport already knows who
+to tell:
+
+- `GameServer.diffCells` adds every cell whose fire differs from what was last
+  sent (`sentAfflicted`, one map for the whole world, the pattern
+  `sentStatusIds` uses) to the tick's diff as terrain. `cellsInScope` then
+  sends it to the clients subscribed to its chunk and nobody else, exactly as
+  a tile swap.
+- A chunk handed over as it comes into reach is its cells, so it carries its
+  fires. Ground that went out while a client was away comes back without them.
+- Every cell the server sends goes through `cellPatch`, so no cell can reach a
+  client without its fire and put it out by mistake.
+- The `hello` carries the fires in the joiner's ground as a list beside the
+  map, since a `FlatMapFile` has no room for them.
+
+There is no per-client record of which fires anybody was told about. Scoping is
+the cell's, so a fire is exact inside a client's subscription and frozen outside
+it, the same bargain terrain takes: a fire that goes out after its chunk leaves
+reach is still held for a cell the client cannot see, and is corrected when the
+chunk is handed back.
+
+No countdown travels, so there is no taper — a burning tile burns at full
+strength until it turns, on exactly the terms a remote body's statuses do. When
+it turns, the emitter simply stops being offered and the particle system retires
+it, so the sparks already in the air finish their own lives rather than
+disappearing mid-rise.
+
 ### What it does not do yet
 
-- **A burning tile draws nothing.** `GameRenderer.statusVfxFor` walks actors
-  only. Particles and cast light are the cheap half — `ParticleEmitterSpec` is
-  already cell-positioned — but a **tint is not possible at all** for a merged
-  tile: see the status-VFX notes below, where a bush cannot be tinted because it
-  shares its floor's batch.
-- **Nothing is on the wire.** Other clients see the tile change and not the fire.
-  The patch to add is `StatusIdsPatch`'s shape — cells to status ids, the same
-  bytes for everybody, no countdown.
+- **No cast light.** See above — the cheap remaining half.
 - **No editor UI.** Both blocks round-trip through `interactionsForSave`
   untouched, so nothing is dropped, but they are authored in `tiles.json` by
   hand.

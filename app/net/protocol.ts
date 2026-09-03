@@ -197,6 +197,14 @@ const castingPatchSchema = v.object({
   ),
 });
 
+const afflictedPatchSchema = v.object({
+  x: v.number(),
+  y: v.number(),
+  z: v.number(),
+  tileId: v.string(),
+  defIds: v.array(v.string()),
+});
+
 /**
  * One carried thing, as it travels.
  *
@@ -336,6 +344,33 @@ export type CellPatch = {
   y: number;
   z: number;
   stack: PlacedTile[];
+  /**
+   * What is running on the placements in this cell — the ground that is on
+   * fire. Replaces what the client had for the cell, like the stack does, so
+   * **absent means nothing is burning here**. @see CellAffliction
+   */
+  afflicted?: CellAffliction[];
+};
+
+/**
+ * What is running on one placement in a cell, named by tile id — see
+ * `../game/endure`'s `poolKey` for why an index is not a name a placement can
+ * keep.
+ *
+ * **Carried on the cell rather than in a list of its own**, so it goes wherever
+ * the cell goes and nowhere else: a status change marks its cell changed, and
+ * the cell is scoped to the clients subscribed to its chunk exactly as a tile
+ * swap is (`./scope`'s `cellsInScope`). A chunk handed over as it comes into
+ * reach carries its fires with it. Nothing about a fire outside a client's
+ * ground goes on the wire, and the server keeps no per-client record to decide
+ * that.
+ *
+ * No countdown, for {@link StatusIdsPatch}'s reason: a remaining time is a
+ * per-second message per cell that only a wind-down would read.
+ */
+export type CellAffliction = {
+  tileId: string;
+  defIds: string[];
 };
 
 /**
@@ -496,6 +531,20 @@ export type ExtractionPatch = {
 export type CastingPatch = {
   actorId: string;
   progress: CastProgress | null;
+};
+
+/**
+ * One burning placement and the cell it is in, for a `hello`: the map a joiner
+ * is sent has no room for it, so the fires in the joiner's ground travel beside
+ * it. After that, every change arrives on a cell. @see CellAffliction
+ */
+export type AfflictedPatch = {
+  x: number;
+  y: number;
+  z: number;
+  /** Which placement in the cell — see `../game/endure`'s `poolKey`. */
+  tileId: string;
+  defIds: string[];
 };
 
 export type MotionEvent =
@@ -846,6 +895,13 @@ export type ServerMessage =
        * arrived has to have a bar on the first frame.
        */
       castings: CastingPatch[];
+      /**
+       * Every placement alight in the ground this viewer is sent, on
+       * {@link statusIds}' terms: a joiner has nothing to patch against, and a
+       * wood that is already burning has to be burning on the first frame.
+       * Replaces what the client held. @see AfflictedPatch
+       */
+      afflicted: AfflictedPatch[];
       /** What this viewer is carrying. Theirs alone — see {@link Equipment}. */
       equipment: Equipment;
       /**
@@ -1652,6 +1708,9 @@ const serverMessageSchema = v.variant("type", [
     // And the same for casts, on the same terms: a skew degrades to "nobody
     // else's cast bar is drawn".
     castings: v.optional(v.array(castingPatchSchema), () => []),
+    // Optional on `statusIds`' terms: a version skew degrades to "no fire is
+    // drawn" rather than to a handshake that fails to parse.
+    afflicted: v.optional(v.array(afflictedPatchSchema), () => []),
     equipment: tolerantEquipmentSchema,
     tags: v.array(v.string()),
     // Optional with a null default, on `statusIds`' terms: a skew degrades to
@@ -1730,6 +1789,10 @@ const serverMessageSchema = v.variant("type", [
         y: v.number(),
         z: v.number(),
         stack: v.array(v.looseObject({ tileId: v.string() })),
+        // Optional because absent is the ordinary answer: nothing is burning.
+        afflicted: v.optional(
+          v.array(v.object({ tileId: v.string(), defIds: v.array(v.string()) })),
+        ),
       }),
     ),
     events: v.array(
@@ -1979,7 +2042,7 @@ export const GAME_SOCKET_PATH = "/online/ws";
  * This is deliberately not the build id. A client deploy that changes no
  * messages should not disconnect anybody, and most client deploys are that.
  */
-export const PROTOCOL_VERSION = 16;
+export const PROTOCOL_VERSION = 17;
 
 /**
  * How often the world says nothing, to keep a proxy from hanging up.
