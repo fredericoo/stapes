@@ -73,9 +73,17 @@ export const PERF_BUDGETS = {
   /** CI without a discrete GPU — looser timing; structure caps still apply. */
   frameMsP95Ci: 8,
   /**
-   * Cold static lighting bake on fixture map (circular hybrid: Euclidean sky
-   * spill + spherical torches). Half-blocks participate in sky flood.
+   * Cold static lighting bake on the fixture town (circular hybrid: Euclidean
+   * sky spill + spherical torches). Half-blocks participate in sky flood.
    * Asserted in `app/lib/lighting.perf.test.ts` — not the editor frame probe.
+   *
+   * The map it is measured against is `app/lib/fixtureTown.ts`, not
+   * `data/map.json`, so this number stops moving every time somebody authors a
+   * building. The fixture is deliberately sized near the shipped map — 23.0k
+   * cells and 68 emitters against 20.9k and 68 — and measures ~44ms p50 /
+   * ~46ms p95 where the shipped map measured ~41/42 on the same machine.
+   * Trimming the generator makes this budget pass for the wrong reason, so
+   * `app/lib/mapData.test.ts` pins its scale.
    *
    * This runs synchronously on any non-player map change — a push landing, a
    * door switching — so the budget is counted in dropped frames, not in "does

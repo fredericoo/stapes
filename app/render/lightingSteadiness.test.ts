@@ -1,9 +1,10 @@
 /**
  * The light cache must not rebake because something walked.
  *
- * This is a behavioural test against the *shipped* catalogue and map rather
- * than a fixture, because both regressions it guards were invisible in unit
- * terms and only showed up on the real data:
+ * This is a behavioural test against the *shipped tile catalogue* — the real
+ * heights and `lightPassing` flags — on the fixture town, because both
+ * regressions it guards were invisible in unit terms and only showed up once
+ * real tile definitions were in play:
  *
  * - `dynamicLightTileIds` derived its set from `resolveActor`, which refuses
  *   the player by design — so the set came out empty and every player step
@@ -14,13 +15,16 @@
  * A rebake is asserted rather than a wall-clock time: the cost is real but
  * machine-dependent, and "baked a chunk at all" is the thing that has to stay
  * false while a body is merely walking.
+ *
+ * The map is `fixtureTown`, not `data/map.json`: the creatures this watches
+ * have to be near the spawn for the whole run, and where a deer stands in the
+ * shipped world is an authoring decision that changes weekly.
  */
 import { describe, expect, it } from "vitest";
-import mapJson from "../../data/map.json";
 import tilesJson from "../../data/tiles.json";
-import { chunkifyMap } from "../lib/mapData";
+import { fixtureTown } from "../lib/fixtureTown";
 import { ChunkedLighting } from "../lib/lightingChunks";
-import type { FlatMapFile, MapFile, TileDef } from "../lib/types";
+import type { MapFile, TileDef } from "../lib/types";
 import { GameSession, LOCAL_ACTOR_ID } from "../game/GameSession";
 import { PLAYER_TILE_ID, TICK_MS } from "../game/constants";
 import { dynamicLightTileIds } from "./WorldRenderer";
@@ -31,7 +35,7 @@ const tilesById = Object.fromEntries(tiles.map((t) => [t.id, t])) as Record<
   TileDef
 >;
 
-/** Wide enough to hold the creatures that roam near the spawn. */
+/** Wide enough to hold the creatures the fixture puts around the square. */
 const WINDOW_HALF_W = 30;
 const WINDOW_HALF_H = 17;
 
@@ -78,12 +82,12 @@ describe("lighting steadiness on the shipped catalogue", () => {
   });
 
   it("does not rebake while creatures roam", () => {
-    const session = new GameSession(chunkifyMap(mapJson as FlatMapFile), tiles);
+    const session = new GameSession(fixtureTown(), tiles);
     expect(drive(session, false)).toBe(0);
   });
 
   it("does not rebake while the player walks", () => {
-    const session = new GameSession(chunkifyMap(mapJson as FlatMapFile), tiles);
+    const session = new GameSession(fixtureTown(), tiles);
     expect(drive(session, true)).toBe(0);
   });
 });

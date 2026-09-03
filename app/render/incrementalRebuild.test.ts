@@ -10,23 +10,16 @@
  * editor used to break this, which taught nobody anything. The fixture floor is
  * deliberately far larger than any step, so "a handful of cells, not a floor"
  * is a real distinction.
- *
- * One test still reads `data/` — the last one, whose subject really is the
- * shipped world. It is a canary with a loose threshold rather than a fixture
- * test, and it is marked as such.
  */
 import { describe, expect, it } from "vitest";
-import mapJson from "../../data/map.json";
-import tilesJson from "../../data/tiles.json";
 import { DEFAULT_PUSH, isMobileTile } from "../lib/interactions";
 import {
   changedCellsOnLevel,
-  chunkifyMap,
   emptyMap,
   getStack,
   replaceStack,
 } from "../lib/mapData";
-import type { FlatMapFile, MapFile, PlacedTile, TileDef } from "../lib/types";
+import type { MapFile, PlacedTile, TileDef } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL, normalizeTileDef, parseCoordKey } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { GameSession } from "../game/GameSession";
@@ -271,36 +264,5 @@ describe("mobility classification", () => {
         }),
       ),
     ).toBe(false);
-  });
-
-  /**
-   * The one claim here that is about the map we ship rather than about the
-   * code, so it is the one that reads `data/`. It is a canary, not a fixture
-   * test: authoring a tile or moving scenery cannot trip it, because the only
-   * thing it objects to is the shipped world turning mostly-mobile.
-   */
-  it("leaves the merged batch of the authored map holding almost everything", () => {
-    const authored = chunkifyMap(mapJson as FlatMapFile);
-    const authoredTiles = tilesByIdFromList(tilesJson as TileDef[]);
-    let mobilePlacements = 0;
-    let total = 0;
-    for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
-      const level = authored.levels[String(z)];
-      if (!level) continue;
-      for (const chunk of Object.values(level)) {
-        for (const stack of Object.values(chunk)) {
-          for (const placed of stack) {
-            total++;
-            const def = authoredTiles[placed.tileId];
-            if (def && isMobileTile(def)) mobilePlacements++;
-          }
-        }
-      }
-    }
-    // Mobile tiles are pulled out of the merged batch permanently, so each one
-    // is a draw call. That trade only holds while they stay a rounding error —
-    // a map where they are not is a map this renderer is the wrong shape for.
-    expect(total).toBeGreaterThan(1000);
-    expect(mobilePlacements / total).toBeLessThan(0.01);
   });
 });

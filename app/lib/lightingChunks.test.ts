@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { chunkifyMap, getStack, listCoords, replaceStack } from "./mapData";
-import type { FlatMapFile } from "./types";
-import map from "../../data/map.json";
+import { fixtureTown } from "./fixtureTown";
 import tiles from "../../data/tiles.json";
 import {
   AMBIENT_PRESETS,
@@ -18,7 +17,7 @@ import {
   type WorldRect,
 } from "./lightingChunks";
 import { PLAYER_TILE_ID } from "../game/constants";
-import type { MapFile, TileDef } from "./types";
+import type { FlatMapFile, MapFile, TileDef } from "./types";
 import {
   MAX_LEVEL,
   MIN_LEVEL,
@@ -32,10 +31,10 @@ import {
 const tilesById = Object.fromEntries(
   (tiles as TileDef[]).map((t) => [t.id, t]),
 ) as Record<string, TileDef>;
-const mapFile = chunkifyMap(map as FlatMapFile);
+const mapFile = fixtureTown();
 const omit = new Set([PLAYER_TILE_ID]);
 
-/** Bounding box of everything placed on the fixture map. */
+/** Bounding box of everything placed on the fixture town. */
 function mapBounds(m: MapFile): WorldRect {
   let x0 = Infinity;
   let y0 = Infinity;
@@ -224,7 +223,7 @@ describe("chunked lighting", () => {
      * does.
      *
      * Synthetic on both halves deliberately. A bare floor gives the light
-     * somewhere to travel — dropped onto `data/map.json` the lamp would most
+     * somewhere to travel — dropped onto the fixture town the lamp would most
      * likely land against a wall and the test would pass either way — and the
      * lamp stands `LIGHT_APRON` + 2 cells from the target chunk's edge, which is
      * the only band that discriminates: near enough that an unclamped radius
@@ -909,8 +908,8 @@ describe("a flickering emitter", () => {
  * therefore not be charged — and the light stops one cell short of the radius,
  * because the flood attenuates by `1 - dist / radius` and drops the remainder.
  *
- * Pinned on a map built for it rather than on the fixture, so that moving a
- * torch in `data/map.json` cannot quietly stop this being covered.
+ * Pinned on a map built for it rather than on the fixture town, whose torches
+ * are placed for scale rather than for this.
  */
 describe("a flicker's reach", () => {
   const RADIUS = 6;
