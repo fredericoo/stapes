@@ -160,13 +160,29 @@ export function composeLightGrid(
 
 export type CellOcclusion = {
   /**
-   * 0 = open, 1 = fully sealed. Half-height blockers are 0.5
-   * (`blockH / HEIGHT_PER_LEVEL`); rays multiply transmission by `(1 - opacity)`.
+   * How much of this cell you can see *past*, sideways: 0 = open, 1 = solid.
+   * Half-height blockers are 0.5 (`blockH / HEIGHT_PER_LEVEL`); rays crossing
+   * horizontally multiply transmission by `(1 - opacity)`.
+   *
+   * Horizontal only. A sign is half a level tall, so half a wall's worth of
+   * light gets over it — and none of that says anything about whether light
+   * may travel *down* through the cell. That is {@link sealsLevel}'s question,
+   * and asking it of this number instead is what let daylight into every
+   * sealed room with a bush on the ground above it.
    */
   opacity: number;
   /**
-   * Non-light-passing tiles present. Height-0 floors hard-seal vertical
-   * travel; positive-height blockers use {@link opacity} instead.
+   * Non-light-passing tiles present: this cell has a lid.
+   *
+   * Independent of {@link opacity}, and deliberately so. Whatever its height, a
+   * solid tile covers its cell's whole footprint at the level's floor plane, so
+   * light travelling vertically has to cross it and does not get through.
+   * Height-0 floors are the case that makes the two facts come apart — they
+   * score no opacity at all — but the rule is the same for a floor, a sign
+   * standing on that floor, and a wall.
+   *
+   * False for an empty cell and for light-passing tiles (water, glass, a
+   * ladder-top), which is what keeps an authored skylight a skylight.
    */
   sealsLevel: boolean;
 };
@@ -244,11 +260,12 @@ export function isSkyExposed(
 }
 
 /**
- * How much a stack occludes light.
- * - Light-passing tiles (water) ignored.
+ * How much a stack occludes light, as two independent facts.
+ * - Light-passing tiles (water) ignored by both.
  * - Blocking height maps to opacity as `min(1, blockH / HEIGHT_PER_LEVEL)` —
- *   half-blocks decay light by half, full blocks seal.
- * - Height 0 floors still hard-seal vertically only (`sealsLevel`, opacity 0).
+ *   half-blocks decay light crossing them sideways by half, full blocks seal.
+ * - Anything solid at all sets `sealsLevel`, and that alone decides vertical
+ *   passage. @see CellOcclusion
  */
 export function stackOcclusion(
   stack: PlacedTile[],
@@ -383,9 +400,9 @@ export function rayTransmission(
     const cell = occlusion.get(cellKey(x, y, z));
     if (!cell) continue;
 
-    // Height-0 floors hard-seal vertical *passage* past them (opacity 0).
-    // Positive-height blockers (half/full) use opacity decay instead.
-    if (movedZ && cell.sealsLevel && cell.opacity < TRANSMISSION_EPSILON) {
+    // Anything solid hard-seals vertical *passage* past it, however short.
+    // Opacity is the sideways question and takes no part in this one.
+    if (movedZ && cell.sealsLevel) {
       if (stepZ < 0 && z1 < z) return 0;
       if (stepZ > 0 && z1 > z) return 0;
     }
@@ -439,8 +456,8 @@ function accumulateAt(
 
 /**
  * Cast one emitter into `floatsByZ` (player overlay / dynamic lights).
- * Floors (sealsLevel, opacity 0) accept light from above but refuse light
- * climbing from below. Solids stay dark except the emitter's own cell.
+ * A sealing cell accepts light from above but refuses light climbing from
+ * below. Solids stay dark except the emitter's own cell.
  */
 function castEmitter(
   e: Emitter,
@@ -491,10 +508,8 @@ function castEmitter(
 
         if (!isSelf) {
           if (targetOpacity >= 1) continue;
-          // Height-0 floors refuse light climbing from below.
-          if (tz > sz && targetSeals && targetOpacity < TRANSMISSION_EPSILON) {
-            continue;
-          }
+          // A cell with a lid refuses light climbing from below.
+          if (tz > sz && targetSeals) continue;
         }
 
         let transmission = 1;
@@ -783,7 +798,7 @@ function denseRayTransmission(
     const seals = o.seals[i2]!;
     if (!opacity && !seals) continue;
 
-    if (movedZ && seals && opacity < TRANSMISSION_EPSILON) {
+    if (movedZ && seals) {
       if (stepZ < 0 && z1 < z) return 0;
       if (stepZ > 0 && z1 > z) return 0;
     }

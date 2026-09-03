@@ -109,7 +109,13 @@ function idx(dom: Domain, lx: number, ly: number, lz: number): number {
   return lz * dom.w * dom.h + ly * dom.w + lx;
 }
 
-/** Mirrors {@link stackOcclusion} — kept local to avoid a lighting↔flood cycle. */
+/**
+ * Mirrors {@link stackOcclusion} — kept local to avoid a lighting↔flood cycle.
+ *
+ * `opacity` is how much gets past sideways; `seals` is whether the cell has a
+ * lid. Two independent facts — see `CellOcclusion` for why they must stay that
+ * way.
+ */
 function stackOcc(
   stack: PlacedTile[],
   tilesById: Record<string, TileDef>,
@@ -223,8 +229,8 @@ function denseRayTransmission(
       continue;
     }
     const i = idx(dom, lx, ly, lz);
-    // Height-0 floors hard-seal vertical passage; half/full use opacity.
-    if (movedZ && seals[i]! && opacity[i]! < TRANSMISSION_EPSILON) {
+    // Anything solid hard-seals vertical passage, however short it stands.
+    if (movedZ && seals[i]!) {
       if (stepZ < 0 && z1 < z) return 0;
       if (stepZ > 0 && z1 > z) return 0;
     }
@@ -536,9 +542,11 @@ export function computeLightingFlood(
 
   const slice = dom.w * dom.h;
 
-  // Sky column seed. Full solids still receive the shaft that hits their top —
-  // otherwise outdoor bricks bake black. Half-blocks attenuate the shaft by
-  // half; height-0 floors seal it. Flood spreads through non-full cells.
+  // Sky column seed. Every cell still receives the shaft that reaches its top —
+  // otherwise outdoor bricks bake black — and anything solid in the cell then
+  // ends the shaft, whether that is a floor, a bush, or a wall. Height governs
+  // what gets past sideways and has no say here. Flood spreads through
+  // non-full cells.
   //
   // The seed also records a heightmap, `fullFrom`: the lowest local z in each
   // column whose cell still has the whole shaft. The shaft only ever decreases
@@ -552,16 +560,9 @@ export function computeLightingFlood(
       let full = dom.d - 1;
       for (let lz = dom.d - 1; lz >= 0; lz--) {
         const i = idx(dom, lx, ly, lz);
-        const op = opacity[i]!;
         sky[i] = shaft;
         if (shaft >= MAX_LIGHT_LEVEL) full = lz;
-        if (op >= 1) {
-          shaft = 0;
-        } else if (op > 0) {
-          shaft *= 1 - op;
-        } else if (seals[i]!) {
-          shaft = 0;
-        }
+        if (seals[i]!) shaft = 0;
       }
       fullFrom[ly * dom.w + lx] = full;
     }
@@ -639,9 +640,11 @@ export function computeLightingFlood(
       const topOp = opacity[j]!;
       if (topOp >= 1) continue;
       if (dz !== 0) {
-        const upper = dz > 0 ? j : i;
-        // Height-0 floors hard-seal vertical flood edges.
-        if (seals[upper]! && opacity[upper]! < TRANSMISSION_EPSILON) continue;
+        // The floor between the two cells decides this edge, and nothing
+        // standing on that floor gets a vote: a lid is a lid whether it is
+        // bare grass or grass with a sign on it. Reading `opacity` here as
+        // well is what let daylight down into every sealed room under a bush.
+        if (seals[dz > 0 ? j : i]!) continue;
       }
       let next = s - cost;
       if (topOp > 0) next *= 1 - topOp;
@@ -713,14 +716,8 @@ export function computeLightingFlood(
           const isSelf = tx === e.lx && ty === e.ly && tz === e.lz;
           if (!isSelf) {
             if (opacity[i]! >= 1) continue;
-            // Height-0 floors refuse light climbing from below.
-            if (
-              tz > sz &&
-              seals[i]! &&
-              opacity[i]! < TRANSMISSION_EPSILON
-            ) {
-              continue;
-            }
+            // A cell with a lid refuses light climbing from below.
+            if (tz > sz && seals[i]!) continue;
           }
 
           let transmission = 1;
