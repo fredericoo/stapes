@@ -81,9 +81,11 @@ export type ParticleEmitterDef = {
   /**
    * Cells per second of sideways wander, drawn per particle per axis.
    *
-   * The "some randomisation" half of a plume. Drawn once at birth rather than
-   * re-drawn per frame: a particle that picked a new direction every frame is
-   * noise, and one that picks a direction and keeps it is a bubble.
+   * The "some randomisation" half of a plume, and symmetric: it spreads a
+   * plume without moving it anywhere. Drawn once at birth rather than re-drawn
+   * per frame — a particle that picked a new direction every frame is noise,
+   * and one that picks a direction and keeps it is a bubble. For a plume that
+   * *goes* somewhere, see {@link windX}.
    */
   driftCellsPerSecond: number;
   /**
@@ -91,6 +93,20 @@ export type ParticleEmitterDef = {
    * down — the fallout on a plume that runs out of push.
    */
   gravity: number;
+  /**
+   * Cells per second squared, applied sideways along the map's axes.
+   *
+   * **Gravity's horizontal twin, and an acceleration rather than a speed**, for
+   * the reason the vertical one is: a plume that leaves the chimney already
+   * travelling reads as a jet, and one that leaves it straight and bends over as
+   * it climbs reads as smoke in a breeze. The curve is the effect, and only an
+   * acceleration draws a curve.
+   *
+   * Map axes, not screen ones — `+x` is east and `+y` is south, and the
+   * projection makes the diagonal, exactly as it does for {@link riseFrom}.
+   */
+  windX: number;
+  windY: number;
   /**
    * Whether the room's light reaches these particles.
    *
@@ -193,6 +209,8 @@ export const DEFAULT_PARTICLES: ParticleEmitterDef = {
   riseTo: 6,
   driftCellsPerSecond: 0.25,
   gravity: -1.6,
+  windX: 0,
+  windY: 0,
   // Lit by default on the *editor's* fresh emitter, unlike the type's own
   // resting state: a new plume is far more often smoke or gas than fire, and an
   // author who wants embers turns it off having seen what the difference is.
@@ -228,6 +246,8 @@ const particleTtlMs = v.pipe(
   v.maxValue(MAX_PARTICLE_TTL_MS),
 );
 
+const wind = v.pipe(v.number(), v.minValue(-32), v.maxValue(32));
+
 const radiusPx = v.pipe(
   v.number(),
   v.minValue(0),
@@ -250,6 +270,10 @@ export const particleEmitterSchema = v.pipe(
     // reads would be worse than an author having to tick a box.
     lit: v.optional(v.boolean(), false),
     gravity: v.pipe(v.number(), v.minValue(-32), v.maxValue(32)),
+    // Zero-defaulted on the same terms `lit` is, and for the plainer reason:
+    // every plume authored before there was a wind was authored in still air.
+    windX: v.optional(wind, 0),
+    windY: v.optional(wind, 0),
     radiusFromPx: radiusPx,
     radiusToPx: radiusPx,
     alphaFrom: unitIntervalSchema,

@@ -141,6 +141,13 @@ describe("what validates", () => {
     ).toBe(false);
   });
 
+  it("defaults a plume authored before the wind to still air", () => {
+    const { windX: _x, windY: _y, ...stillAir } = DEFAULT_PARTICLES;
+    const parsed = v.parse(particleEmitterSchema, stillAir);
+    expect(parsed.windX).toBe(0);
+    expect(parsed.windY).toBe(0);
+  });
+
   it("defaults a plume to lighting itself", () => {
     // Every emitter authored before `lit` existed glowed in the dark, and it has
     // to keep doing so — a silent change to how a fire reads at night would be

@@ -374,6 +374,31 @@ function ParticleFields({
       </Row>
 
       <Row>
+        {/* Labelled by compass rather than by axis, because an author looking
+            at the canvas is deciding which way the wind blows, not which way
+            `+x` runs. The projection turns east into down-right on screen and
+            nothing here has to say so. */}
+        <NumberField
+          label="Wind east"
+          hint="Cells a second squared. Negative blows west."
+          value={particles.windX}
+          min={-32}
+          max={32}
+          step={0.25}
+          onChange={(windX) => patch({ windX })}
+        />
+        <NumberField
+          label="Wind south"
+          hint="Builds over a particle's life, so a plume bends as it climbs."
+          value={particles.windY}
+          min={-32}
+          max={32}
+          step={0.25}
+          onChange={(windY) => patch({ windY })}
+        />
+      </Row>
+
+      <Row>
         <NumberField
           label="Radius from (px)"
           hint="Rounded to whole pixels — a circle between two sizes does not exist."
