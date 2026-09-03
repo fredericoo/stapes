@@ -741,6 +741,35 @@ a threshold at the boundary between "nothing solid" and "something solid", so
 stopped a stool tripping a plate. `BattlerDef.sight.up`/`down` count **floors**,
 not units. Both were left alone on purpose.
 
+**A full-height stack tops out on the floor plane of the level above, and the
+level above owns that plane.** Two stacks can claim one elevation: a
+`height: 4` tile at level z tops out at exactly `(z + 1) * HEIGHT_PER_LEVEL`,
+which is also where a height-0 floor plate at level z+1 sits. That is not an
+edge case — it is how every cave in `data/map.json` is roofed, and the tie has
+to resolve the same way everywhere or the two answers describe different worlds.
+The plate is what a body's feet are on, so the **highest** level that surfaces
+at an elevation is the one that answers. `listStandingSurfaces`
+(`../app/game/movement.ts`) has always said so; `surfaceTileAt` and
+`climbFromSourceAt` (`../app/lib/mapData.ts`) walked levels upward from
+`MIN_LEVEL` and answered with the lower one, and now walk downward from
+`MAX_LEVEL`.
+
+Answering with the buried tile read the wrong tile's flags. `isWalkableSurfaceAt`
+is the landing check, so a `height: 4`, non-walkable `arcane-crystal-1` in a
+cave at L-1 made the grassed cell above it unwalkable: a player who fell onto
+that meadow was told there was nothing to stand on and dropped through into the
+cave. Nothing about the surface cell was wrong, which is why it presented as
+scattered holes in a forest tens of cells from anything that looked responsible.
+The same tie in `climbFromSourceAt` let a ramp sealed under a floor decide which
+way you could climb out of the cell above it.
+
+Two things follow for anything new that reads a column. A full-height tile is
+still a floor for the level above when nothing is on top of it — the loop finds
+it once the upper levels come up empty, which is what keeps the caves walkable.
+And a non-walkable one is not a hole any more, but it is also not a floor: cover
+it and the cover answers, leave it bare and it answers itself, correctly, as
+something you cannot stand on.
+
 ## A chase is a route, and it stops being one
 
 `step_toward` used to judge one step on its own: of the four directions, take

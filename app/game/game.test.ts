@@ -964,6 +964,34 @@ describe("GameSession fall", () => {
       ),
     ).toBe(true);
   });
+
+  it("lands on a floor sealed over a full-height non-walkable tile", () => {
+    // The landing check reads the tile that owns the plane. Reading the buried
+    // tree instead made the meadow an unwalkable hole, and a lander dropped
+    // through it into the cave. The wall is there so the alternative to
+    // landing is falling rather than sliding out of shot.
+    let map = replaceStack(emptyMap(), 0, 0, -1, [
+      { tileId: "dirt" },
+      { tileId: "tree" },
+    ]);
+    map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }]);
+    map = replaceStack(map, 0, 1, 0, [{ tileId: "wall" }]);
+    map = replaceStack(map, 0, 0, 1, [{ tileId: "player", direction: "s" }]);
+    const session = new GameSession(map, tiles);
+
+    const budgetMs = FALL_MS_PER_HEIGHT * 16;
+    for (let elapsed = 0; elapsed < budgetMs; elapsed += 1000 / 30) {
+      session.tick(1000 / 30);
+    }
+
+    const snap = session.getSnapshot();
+    expect(snap.self.fall).toBeNull();
+    expect({ x: snap.self.x, y: snap.self.y, z: snap.self.z }).toEqual({
+      x: 0,
+      y: 0,
+      z: 0,
+    });
+  });
 });
 
 describe("walkable surfaces", () => {
@@ -999,6 +1027,45 @@ describe("walkable surfaces", () => {
         tilesById,
       ).ok,
     ).toBe(false);
+  });
+
+  it("walks onto a floored cell sealed over a full-height non-walkable tile", () => {
+    // A crystal underground is not a hole in the meadow: the grass plate at L0
+    // is the floor, and the tree below it is buried rather than underfoot.
+    let map = replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "player", direction: "e" },
+    ]);
+    map = replaceStack(map, 1, 0, -1, [{ tileId: "dirt" }, { tileId: "tree" }]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }]);
+    const loc = requireSinglePlayer(map);
+    const check = canWalk(
+      map,
+      { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex },
+      "e",
+      tilesById.player!,
+      tilesById,
+    );
+    expect(check).toEqual({ ok: true, to: { x: 1, y: 0, z: 0 } });
+  });
+
+  it("walks onto the floor a full walkable level below forms", () => {
+    // Every cave in the world is roofed this way — nothing at L0, and the
+    // level below sums to exactly HEIGHT_PER_LEVEL.
+    let map = replaceStack(emptyMap(), 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "player", direction: "e" },
+    ]);
+    map = replaceStack(map, 1, 0, -1, [{ tileId: "slab" }, { tileId: "slab" }]);
+    const loc = requireSinglePlayer(map);
+    const check = canWalk(
+      map,
+      { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex },
+      "e",
+      tilesById.player!,
+      tilesById,
+    );
+    expect(check).toEqual({ ok: true, to: { x: 1, y: 0, z: 0 } });
   });
 
   it("rejects stepping down onto a lone tree from above", () => {
