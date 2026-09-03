@@ -8,6 +8,7 @@ import { coveredBySomething } from "../game/affordances";
 import type { ObjectRef } from "../game/GameSession";
 import { isBattler } from "../lib/battler";
 import { isInteractive } from "../lib/interactions";
+import { type RoofCut, cutHides } from "../lib/levelVisibility";
 import { elevationAt, getStack } from "../lib/mapData";
 import type { MapFile, PlacedTile, TileDef } from "../lib/types";
 import { CELL_SIZE, MAX_LEVEL, MIN_LEVEL } from "../lib/types";
@@ -153,18 +154,14 @@ function pickTopAt(
   opts: {
     centerZ: number;
     levelSlack: number;
-    /** Highest level to consider. @see pickTileAt */
-    ceiling?: number;
+    /** Geometry the view has cut away, which is not there to be picked. */
+    cut?: RoofCut;
     /** Which tiles are candidates at all. Every tile, when absent. */
     accepts?: (def: TileDef) => boolean;
     isActionable?: (ref: ObjectRef) => boolean;
   },
 ): ObjectRef | null {
-  const zMax = Math.min(
-    MAX_LEVEL,
-    opts.centerZ + opts.levelSlack,
-    opts.ceiling ?? MAX_LEVEL,
-  );
+  const zMax = Math.min(MAX_LEVEL, opts.centerZ + opts.levelSlack);
   const zMin = Math.max(MIN_LEVEL, opts.centerZ - opts.levelSlack);
 
   let best: ObjectRef | null = null;
@@ -182,6 +179,8 @@ function pickTopAt(
       ctx.camera.y,
       z,
     );
+
+    if (cutHides(opts.cut, x, y, z)) continue;
 
     const stack = getStack(ctx.map, x, y, z);
     const candidate = candidateIn(stack, ctx.tilesById, opts.accepts, (i) =>
@@ -249,9 +248,11 @@ export function pickBattlerAt(
  * *looking*.
  *
  * Every tile is a candidate, because looking names whatever is there rather
- * than whatever can be done to it. `hideLevelsAbove` is honoured for the reason
- * only the top of a stack is offered: a roof the view has cut away is not there
- * to be named. A roof that is still drawn very much is, and reports "Roof".
+ * than whatever can be done to it. The roof-cut is honoured for the reason only
+ * the top of a stack is offered: a roof the view has cut away is not there to be
+ * named. A roof that is still drawn very much is, and reports "Roof" — including
+ * the one on the house next door, now that the cut is a structure and no longer
+ * a level.
  *
  * This used to probe a square of cells around the pointer, sized by the widest
  * sprite in the tile set, and test each one's art. Both the search and the
@@ -263,12 +264,12 @@ export function pickTileAt(
   screenY: number,
   centerZ: number,
   levelSlack: number,
-  hideLevelsAbove?: number,
+  cut?: RoofCut,
 ): ObjectRef | null {
   return pickTopAt(ctx, screenX, screenY, {
     centerZ,
     levelSlack,
-    ceiling: hideLevelsAbove,
+    cut,
   });
 }
 

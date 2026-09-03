@@ -8,6 +8,22 @@ import {
   tileEmitterPrefix,
 } from "./tileEmitters";
 import { DEFAULT_PARTICLES } from "../lib/particleVfx";
+import type { RoofCut } from "../lib/levelVisibility";
+import { coordKey } from "../lib/types";
+
+/** A cut that takes exactly the cells named, on the levels they are on. */
+const cutting = (
+  floor: number,
+  ...cells: Array<{ x: number; y: number; z: number }>
+): RoofCut => {
+  const byZ = new Map<number, Set<string>>();
+  for (const cell of cells) {
+    const level = byZ.get(cell.z) ?? new Set<string>();
+    level.add(coordKey(cell.x, cell.y));
+    byZ.set(cell.z, level);
+  }
+  return { floor, cells: byZ };
+};
 
 /**
  * Which chimneys are worth simulating.
@@ -98,10 +114,23 @@ describe("culling the board's plumes", () => {
     const out = appendVisibleTileEmitters(
       byLevel(under, at(6, 6, 1), at(7, 7, 2)),
       WINDOW,
-      0,
+      cutting(0, { x: 6, y: 6, z: 1 }, { x: 7, y: 7, z: 2 }),
       [],
     );
     expect(out).toEqual([under]);
+  });
+
+  it("keeps a chimney on the roof next door, which the cut left standing", () => {
+    // The whole point of a per-structure cut: the level is no longer the answer,
+    // so a plume on an uncut roof at the same height still smokes.
+    const neighbour = at(8, 8, 1);
+    const out = appendVisibleTileEmitters(
+      byLevel(at(6, 6, 1), neighbour),
+      WINDOW,
+      cutting(0, { x: 6, y: 6, z: 1 }),
+      [],
+    );
+    expect(out).toEqual([neighbour]);
   });
 
   it("shows every level when nothing is cut", () => {

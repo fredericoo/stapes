@@ -50,6 +50,7 @@ import type { EditorPerfMeasure, EditorPerfSnapshot } from "./perf";
 import { floodCoords, stacksEqual } from "./tools";
 import {
   type LevelLightUniforms,
+  noCutUniforms,
   type Quad,
   WORLD_SHADER_CACHE_KEY,
   buildMergedQuadGeometry,
@@ -515,7 +516,14 @@ export class EditorRenderer {
         // running world, and there is no running world here. The inert uniforms
         // keep one shader program shared with play rather than compiling a
         // second one that differs only by a branch nothing takes.
-        injectWorldShader(shader, lightUniforms, noTintUniforms());
+        injectWorldShader(
+          shader,
+          lightUniforms,
+          noTintUniforms(),
+          // No roof cut either: authoring hides levels with a slider, whole
+          // storeys at a time, and has no viewer standing in a house.
+          noCutUniforms(this.whiteTex),
+        );
       };
       mat.customProgramCacheKey = () => WORLD_SHADER_CACHE_KEY;
       mat.userData.lightUniforms = lightUniforms;

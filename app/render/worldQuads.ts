@@ -54,11 +54,51 @@ export type LevelLightUniforms = {
   uAmbient: { value: THREE.Vector3 };
 };
 
+/**
+ * The roof-cut, as a per-level mask the fragment shader reads.
+ *
+ * A cut is a set of *cells* now rather than a level threshold (see
+ * `lib/levelVisibility`), and level geometry is merged into one draw call per
+ * texture — so there is no object to hide. This is the same road the light map
+ * already travels: a small texture in cell space, sampled at the quad's own
+ * cell, and a fragment whose cell is cut is discarded.
+ *
+ * Uploaded when the cut changes rather than per frame, and it is the bounding
+ * box of that level's cut cells plus an apron, so a lifted roof is a few
+ * hundred bytes whatever the size of the world.
+ */
+export type LevelCutUniforms = {
+  /** Red channel: nonzero where the cell is cut away. */
+  uCutMask: { value: THREE.Texture };
+  /** Cell coordinate of the mask's first texel. */
+  uCutOrigin: { value: THREE.Vector2 };
+  /** Mask size in cells, which is also its size in texels. */
+  uCutSize: { value: THREE.Vector2 };
+  uCutEnabled: { value: number };
+};
+
+/**
+ * A cut that takes nothing, for a renderer that has none.
+ *
+ * Takes a texture rather than making one because the sampler is bound whatever
+ * the branch does with it, and a null sampler is a warning per frame per
+ * material. Any 1×1 texture will do — the shader never reads it while
+ * `uCutEnabled` is 0.
+ */
+export function noCutUniforms(placeholder: THREE.Texture): LevelCutUniforms {
+  return {
+    uCutMask: { value: placeholder },
+    uCutOrigin: { value: new THREE.Vector2(0, 0) },
+    uCutSize: { value: new THREE.Vector2(1, 1) },
+    uCutEnabled: { value: 0 },
+  };
+}
+
 const VERTS_PER_QUAD = 4;
 const BOX_COMPONENTS = 4;
 
 /** Both renderers must agree, or the same tile sorts differently in each. */
-export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v8";
+export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v9";
 
 function glsl(n: number): string {
   return Number.isInteger(n) ? `${n}.0` : `${n}`;
@@ -318,8 +358,9 @@ export function injectWorldShader(
   shader: { vertexShader: string; fragmentShader: string; uniforms: object },
   lightUniforms: LevelLightUniforms,
   tint: TintUniforms,
+  cut: LevelCutUniforms,
 ) {
-  Object.assign(shader.uniforms, lightUniforms, tint);
+  Object.assign(shader.uniforms, lightUniforms, tint, cut);
   shader.vertexShader = shader.vertexShader
     .replace(
       "#include <common>",
@@ -356,6 +397,10 @@ uniform vec2 uLightOrigin;
 uniform vec2 uLightSize;
 uniform float uLightingEnabled;
 uniform vec3 uAmbient;
+uniform sampler2D uCutMask;
+uniform vec2 uCutOrigin;
+uniform vec2 uCutSize;
+uniform float uCutEnabled;
 varying vec2 vLightUv;
 varying float vUnlit;
 varying vec4 vBox;
@@ -367,6 +412,17 @@ ${TINT_GLSL_COMMON}`,
     .replace(
       "#include <map_fragment>",
       /* glsl */ `#include <map_fragment>
+// The roof cut, first, because a discarded fragment is not worth shading.
+//
+// vBox.xy are this quad's own base cell — the unshifted east and south edges in
+// world pixels — so the cell is constant across the quad however tall the
+// sprite is. A wall two levels high is cut with the cell it stands on, which is
+// the cell the fill claimed.
+if (uCutEnabled > 0.5) {
+  vec2 cutCell = vBox.xy / ${glsl(CELL_SIZE)} - 0.5;
+  vec2 cutUv = (cutCell - uCutOrigin) / uCutSize;
+  if (texture2D(uCutMask, cutUv).r > 0.5) discard;
+}
 ${TINT_GLSL_FRAGMENT}
 // Everything below samples at the centre of the art pixel this fragment falls
 // in, not at the fragment itself. A fragment is smaller than a texel once

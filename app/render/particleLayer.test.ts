@@ -4,6 +4,8 @@ import { circleSlice, ParticleLayer, particleWorldPx } from "./particleLayer";
 import type { ParticleEmitterSpec } from "./particles";
 import { DEFAULT_PARTICLES, type ParticleEmitterDef } from "../lib/particleVfx";
 import type { LevelLightUniforms } from "./worldQuads";
+import type { RoofCut } from "../lib/levelVisibility";
+import { coordKey } from "../lib/types";
 import { CELL_SIZE, HEIGHT_PER_LEVEL } from "../lib/types";
 import { PX_PER_HEIGHT } from "../lib/geometry";
 
@@ -58,6 +60,20 @@ function emitter(
     ...over,
   };
 }
+
+/** A cut over exactly the cells named — the shape `roofCutFor` hands back. */
+const cutting = (
+  floor: number,
+  ...cells: Array<{ x: number; y: number; z: number }>
+): RoofCut => {
+  const byZ = new Map<number, Set<string>>();
+  for (const cell of cells) {
+    const level = byZ.get(cell.z) ?? new Set<string>();
+    level.add(coordKey(cell.x, cell.y));
+    byZ.set(cell.z, level);
+  }
+  return { floor, cells: byZ };
+};
 
 const attr = (l: ParticleLayer, name: string) =>
   l.mesh.geometry.getAttribute(name) as THREE.BufferAttribute;
@@ -146,11 +162,23 @@ describe("what the buffers say", () => {
     l.update(1_000, undefined);
     expect(l.mesh.visible).toBe(true);
 
-    l.update(16, 0);
+    // The emitter hangs from cell (3, 4) — see `emitter` — so that is the cell
+    // the cut has to name.
+    l.update(16, cutting(0, { x: 3, y: 4, z: 2 }));
     expect(l.mesh.visible).toBe(false);
     // Still in the air. Walking under a roof and back out should find the fire
     // burning, not restarted.
     expect(l.system.count).toBeGreaterThan(0);
+  });
+
+  it("keeps a plume on a structure the cut left standing", () => {
+    // Same level as the cut, different cell: the cut is a building now, not a
+    // storey, so being high up is no longer a reason to be hidden.
+    const l = layer();
+    l.setEmitters([emitter({ id: "next-door", z: 2 })]);
+    l.update(1_000, cutting(0, { x: 9, y: 9, z: 2 }));
+
+    expect(l.mesh.visible).toBe(true);
   });
 });
 

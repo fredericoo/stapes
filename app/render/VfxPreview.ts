@@ -23,6 +23,7 @@ import {
   buildSingleQuadGeometry,
   injectWorldShader,
   type LevelLightUniforms,
+  noCutUniforms,
   type Quad,
   WORLD_SHADER_CACHE_KEY,
 } from "./worldQuads";
@@ -460,7 +461,12 @@ export class VfxPreview {
       alphaTest: SPRITE_ALPHA_TEST,
     });
     material.onBeforeCompile = (shader) => {
-      injectWorldShader(shader, this.lightUniforms, this.tintU);
+      injectWorldShader(
+        shader,
+        this.lightUniforms,
+        this.tintU,
+        noCutUniforms(this.whiteTex),
+      );
     };
     material.customProgramCacheKey = () => WORLD_SHADER_CACHE_KEY;
 

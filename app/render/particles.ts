@@ -286,15 +286,16 @@ export class ParticleSystem {
   }
 
   /**
-   * The level one particle belongs to, without reading the rest of it.
+   * The emitter one particle came out of, without reading the particle itself.
    *
    * Its own accessor because the layer has to bucket every live particle by
-   * level before it writes any of them, and a full {@link read} per particle
-   * for one number is the sort of thing that is free once and not free at two
-   * thousand.
+   * level, and decide whether the roof cut takes it, before it writes any of
+   * them — both facts about where the plume hangs rather than about the spark.
+   * A full {@link read} per particle for that is the sort of thing that is free
+   * once and not free at two thousand.
    */
-  levelAt(index: number): number {
-    return this.emitters[this.emitterIdx[index]!]!.spec.z;
+  specAt(index: number): ParticleEmitterSpec {
+    return this.emitters[this.emitterIdx[index]!]!.spec;
   }
 
   /**

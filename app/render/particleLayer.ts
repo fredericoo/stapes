@@ -6,6 +6,7 @@ import {
   MAX_PARTICLE_RADIUS_PX,
   rampIndexAt,
 } from "../lib/particleVfx";
+import { type RoofCut, cutHides } from "../lib/levelVisibility";
 import { CELL_SIZE } from "../lib/types";
 import {
   type ParticleEmitterSpec,
@@ -16,6 +17,7 @@ import {
 import { noTintUniforms } from "./spriteTint";
 import {
   injectWorldShader,
+  noCutUniforms,
   type LevelLightUniforms,
   WORLD_SHADER_CACHE_KEY,
 } from "./worldQuads";
@@ -291,7 +293,15 @@ export class ParticleLayer {
     });
     const lightUniforms = this.lightUniformsFor(z);
     material.onBeforeCompile = (shader) => {
-      injectWorldShader(shader, lightUniforms, noTintUniforms());
+      // The roof cut is honoured by `writeQuads` and not by the shader: a
+      // plume is written per particle anyway, so the cheap answer is to not
+      // write the quad rather than to draw it and throw the fragments away.
+      injectWorldShader(
+        shader,
+        lightUniforms,
+        noTintUniforms(),
+        noCutUniforms(this.atlas),
+      );
       injectParticleShader(shader);
     };
     material.customProgramCacheKey = () => PARTICLE_SHADER_CACHE_KEY;
@@ -305,9 +315,9 @@ export class ParticleLayer {
   }
 
   /** Advance the plumes and rewrite the buffers. True when anything is drawn. */
-  update(dtMs: number, hideLevelsAbove: number | undefined): boolean {
+  update(dtMs: number, cut: RoofCut | undefined): boolean {
     this.system.advance(dtMs);
-    const drawn = this.writeQuads(hideLevelsAbove);
+    const drawn = this.writeQuads(cut);
     this.mesh.visible = drawn > 0;
     return drawn > 0;
   }
@@ -332,12 +342,17 @@ export class ParticleLayer {
    * ceiling is still *there* — walking under a roof and back out should find the
    * fire still burning, not restarted.
    */
-  private writeQuads(hideLevelsAbove: number | undefined): number {
+  private writeQuads(cut: RoofCut | undefined): number {
     for (const bucket of this.buckets.values()) bucket.length = 0;
 
     for (let i = 0; i < this.system.count; i++) {
-      const z = this.system.levelAt(i);
-      if (hideLevelsAbove !== undefined && z > hideLevelsAbove) continue;
+      const spec = this.system.specAt(i);
+      const z = spec.z;
+      // The cell the plume *hangs from*, not the one the spark has drifted over.
+      // A chimney on a roof the view has cut away is gone with the roof, and a
+      // spark that has risen a cell north of it is part of that plume rather
+      // than a thing happening on the cell it happens to be over.
+      if (cutHides(cut, Math.floor(spec.cx), Math.floor(spec.cy), z)) continue;
       let bucket = this.buckets.get(z);
       if (!bucket) {
         bucket = [];
