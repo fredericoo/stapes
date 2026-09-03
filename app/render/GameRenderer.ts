@@ -56,7 +56,10 @@ import { emitterCenter } from "../lib/lighting";
 import { elevationAt, getStack, stackHeight } from "../lib/mapData";
 import { pileTally } from "../lib/piles";
 import {
-  levelsAboveShouldHide,
+  type RoofCut,
+  type ViewAnchor,
+  cutHides,
+  roofCutFor,
   viewAnchorFor,
 } from "../lib/levelVisibility";
 import type {
@@ -1218,8 +1221,6 @@ export class GameRenderer {
     point: { x: number; y: number },
     snap: GameSnapshot,
   ): ObjectRef | null {
-    const anchor = viewAnchorFor(snap.self);
-    const hidden = levelsAboveShouldHide(snap.map, this.tilesById, anchor);
     return pickTileAt(
       {
         map: snap.map,
@@ -1231,7 +1232,7 @@ export class GameRenderer {
       point.y,
       snap.self.z,
       PICK_LEVEL_SLACK,
-      hidden ? anchor.z : undefined,
+      this.roofCutFor(snap),
     );
   }
 
@@ -1339,11 +1340,11 @@ export class GameRenderer {
    */
   private isVisibleLevel(
     snap: GameSnapshot,
-    z: number,
-    hideLevelsAbove: number | undefined,
+    at: { x: number; y: number; z: number },
+    cut: RoofCut | undefined,
   ): boolean {
-    if (hideLevelsAbove !== undefined && z > hideLevelsAbove) return false;
-    return Math.abs(z - snap.self.z) <= CHROME_LEVEL_SLACK;
+    if (cutHides(cut, at.x, at.y, at.z)) return false;
+    return Math.abs(at.z - snap.self.z) <= CHROME_LEVEL_SLACK;
   }
 
   /**
@@ -1371,7 +1372,7 @@ export class GameRenderer {
     snap: GameSnapshot,
     actor: ActorSnapshot,
     camera: { x: number; y: number },
-    hideLevelsAbove: number | undefined,
+    cut: RoofCut | undefined,
   ): boolean {
     // The roof-cut, which is exact — anything above it is not drawn at all.
     // Deliberately *without* {@link CHROME_LEVEL_SLACK}, which the rest of the
@@ -1379,14 +1380,14 @@ export class GameRenderer {
     // answer for a body drawn behind the floors below you, and there now is one.
     // Approximating a floor's worth of doubt on top of an exact answer would
     // only take back the cases the exact answer got right.
-    if (hideLevelsAbove !== undefined && actor.z > hideLevelsAbove) return false;
+    if (cutHides(cut, actor.x, actor.y, actor.z)) return false;
     if (!this.isWithinView(snap.map, actor, camera)) return false;
     return !isHiddenFromCamera(
       snap.map,
       this.tilesById,
       actor,
       snap.self.z,
-      hideLevelsAbove,
+      cut,
     );
   }
 
@@ -1568,10 +1569,10 @@ export class GameRenderer {
   private labelsFor(
     snap: GameSnapshot,
     camera: { x: number; y: number },
-    hideLevelsAbove: number | undefined,
+    cut: RoofCut | undefined,
   ): WorldLabel[] {
     const labels: WorldLabel[] = [];
-    this.pushNameLabels(snap, labels, camera, hideLevelsAbove);
+    this.pushNameLabels(snap, labels, camera, cut);
     this.pushSpeechLabels(snap, labels);
     this.pushNoiseLabels(snap, labels);
     this.forgetStaleAnchors(snap);
@@ -1754,11 +1755,11 @@ export class GameRenderer {
     snap: GameSnapshot,
     into: WorldLabel[],
     camera: { x: number; y: number },
-    hideLevelsAbove: number | undefined,
+    cut: RoofCut | undefined,
   ) {
     for (const actor of snap.actors) {
       if (actor.hp === null || actor.maxHp === null) continue;
-      if (!this.isVisibleBody(snap, actor, camera, hideLevelsAbove)) continue;
+      if (!this.isVisibleBody(snap, actor, camera, cut)) continue;
 
       const visual = this.actorVisualWorld(snap.map, actor);
       const height = this.bodyOwnHeight(snap.map, actor, actor.stackIndex);
@@ -1968,6 +1969,45 @@ export class GameRenderer {
   }
 
   /**
+   * What the view cuts away, asked once and reused for the rest of the frame.
+   *
+   * **Cached on the map and the anchor, and on nothing else.** Those are the
+   * only two things the answer depends on: `MapFile` is copy-on-write, so any
+   * edit anywhere in the world hands us a new object and the cut is recomputed,
+   * and the anchor changes when the player takes a step. Everything else that
+   * moves in a frame — an arrow, a rat, the clock — cannot change which
+   * structure is between the player and the sky.
+   *
+   * Worth caching at all because the cut is a flood fill over one building
+   * rather than the old boolean probe, and three callers ask for it in a frame:
+   * the pointer pick, the view push, and the labels behind it. Held on the
+   * renderer rather than inside `roofCutFor` so the identity is stable, which is
+   * what lets `WorldRenderer.applyRoofCut` skip a frame that changed nothing.
+   */
+  private cutCache: {
+    map: MapFile;
+    anchor: ViewAnchor;
+    cut: RoofCut | undefined;
+  } | null = null;
+
+  private roofCutFor(snap: GameSnapshot): RoofCut | undefined {
+    const anchor = viewAnchorFor(snap.self);
+    const cached = this.cutCache;
+    if (
+      cached &&
+      cached.map === snap.map &&
+      cached.anchor.x === anchor.x &&
+      cached.anchor.y === anchor.y &&
+      cached.anchor.z === anchor.z
+    ) {
+      return cached.cut;
+    }
+    const cut = roofCutFor(snap.map, this.tilesById, anchor);
+    this.cutCache = { map: snap.map, anchor, cut };
+    return cut;
+  }
+
+  /**
    * Top-left of the view in world pixels. Derived on demand rather than cached
    * from the last frame so pointer picking inverts the projection the player
    * is looking at, even between frames or before the first one.
@@ -1994,17 +2034,12 @@ export class GameRenderer {
     this.repickLook(snap, camera);
     this.enforceTargetVisibility(snap, camera);
 
-    const anchor = viewAnchorFor(snap.self);
-    const hideAbove = levelsAboveShouldHide(
-      snap.map,
-      this.tilesById,
-      anchor,
-    );
+    const cut = this.roofCutFor(snap);
 
     // The list is built first because the pointer is *read out of it*: what is
     // under the cursor is a row, so resolving one against last frame's list
     // would outline a deer by the row it had before it moved.
-    this.pushInteractionOptions(snap, camera, hideAbove ? anchor.z : undefined);
+    this.pushInteractionOptions(snap, camera, cut);
     this.repickPointer(snap, camera);
 
     const motions = this.tileMotionsFor(snap);
@@ -2028,7 +2063,7 @@ export class GameRenderer {
       emitterOverrides: this.emitterOverridesFor(snap),
       spriteTints: vfx.tints,
       particleEmitters: vfx.emitters,
-      hideLevelsAbove: hideAbove ? anchor.z : undefined,
+      roofCut: cut,
     });
 
     this.world.setOverlays(this.overlaysFor(snap));
@@ -2042,17 +2077,12 @@ export class GameRenderer {
     // Written from inside the render loop's own rAF, so the style change and the
     // canvas paint land in the same commit — which is what stops DOM text from
     // trailing the sprite it belongs to.
-    const ceiling = hideAbove ? anchor.z : undefined;
     this.labelLayer?.set(
-      this.labelsFor(snap, camera, ceiling),
+      this.labelsFor(snap, camera, cut),
       camera,
       fit.cssScale,
     );
-    this.damageLayer?.set(
-      this.damageFor(snap, ceiling),
-      camera,
-      fit.cssScale,
-    );
+    this.damageLayer?.set(this.damageFor(snap, cut), camera, fit.cssScale);
     // Driven by the frame, not the pointer: walking away from an object
     // revokes the affordance without the pointer having moved at all.
     this.applyCursor();
@@ -2083,7 +2113,7 @@ export class GameRenderer {
   private pushInteractionOptions(
     snap: GameSnapshot,
     camera: { x: number; y: number },
-    hideLevelsAbove: number | undefined,
+    cut: RoofCut | undefined,
   ) {
     if (!this.onInteractions) return;
 
@@ -2126,7 +2156,7 @@ export class GameRenderer {
       snap.map,
       this.tilesById,
       snap.self,
-      this.targetableActors(snap, camera, hideLevelsAbove),
+      this.targetableActors(snap, camera, cut),
       snap.targetId,
       snap.equipment,
       this.openedRef,
@@ -2191,12 +2221,12 @@ export class GameRenderer {
   private targetableActors(
     snap: GameSnapshot,
     camera: { x: number; y: number },
-    hideLevelsAbove: number | undefined,
+    cut: RoofCut | undefined,
   ): ActorSnapshot[] {
     return snap.actors.filter(
       (actor) =>
         actor.id === snap.targetId ||
-        this.isVisibleBody(snap, actor, camera, hideLevelsAbove),
+        this.isVisibleBody(snap, actor, camera, cut),
     );
   }
 
@@ -2222,13 +2252,13 @@ export class GameRenderer {
    */
   private damageFor(
     snap: GameSnapshot,
-    hideLevelsAbove: number | undefined,
+    cut: RoofCut | undefined,
   ): DamageNumberView[] {
     if (snap.damage.length === 0) return [];
 
     const out: DamageNumberView[] = [];
     for (const hit of snap.damage) {
-      if (!this.isVisibleLevel(snap, hit.z, hideLevelsAbove)) continue;
+      if (!this.isVisibleLevel(snap, hit, cut)) continue;
 
       const at = this.damageAnchor(hit, snap.map);
       out.push({

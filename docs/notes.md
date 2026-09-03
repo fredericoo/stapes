@@ -838,6 +838,78 @@ and deliberately stay single-anchor; `snap.actors` is what gets drawn and lerped
 `GameRenderer` is typed against `PlaySession`, not `GameSession`, so a remote
 session can drive it.
 
+### The roof-cut is a structure, not a storey
+
+`roofCutFor` (`app/lib/levelVisibility.ts`) answers with a `RoofCut` — the
+*cells* the view has taken away — and everything downstream asks it per cell
+through `cutHides`. It used to answer a boolean and the whole scene took it:
+stepping into one house lifted the roof off every house in town, which reads as
+a claim about the town when the only thing that happened is that somebody opened
+a door.
+
+- **The probe did not change; only what it reports.** Same `VIEW_RADIUS` of 2.5
+  cells, same light-model line of sight, same see-through windows. It now
+  collects the cells above the viewer it can see rather than merely noting that
+  it saw one, and those seed a flood fill through touching geometry above the
+  viewer's level. That component is the cut.
+- **The fill is 26-way, and generously so on purpose.** Merging two structures
+  that touch at a corner costs one extra roof lifting with yours — which is what
+  every roof did until now. Splitting one costs a hard diagonal edge with half a
+  roof drawn either side, and that is the artefact a 4-way fill produces the
+  first time a roof steps diagonally. The level above and below are in the same
+  neighbourhood, or a two-storey house whose upper floor sits in from its roof
+  cuts as two things.
+- **Past `MAX_CUT_CELLS` the cut falls back to the whole storey**, `cells: null`,
+  which is exactly what this did before. The level above a cliff is a hillside
+  with no building in it to single out, and a *truncated* fill would put a moving
+  hard edge across continuous ground. The worst case is the old behaviour rather
+  than a new artefact.
+- **There is no structure index, and there should not be.** One built at load
+  would need invalidating by every wall a player places, every roof authored and
+  every decay — and would still be answering a question that changes when the
+  viewer steps, since which component counts depends on where they are standing.
+  The fill is proportional to one building, so `GameRenderer` caches the cut on
+  map identity and the view anchor: `MapFile` is copy-on-write, so any edit
+  anywhere hands over a new object, and nothing else in a frame can change which
+  structure stands between the player and the sky.
+
+**A subset of a level has no object to hide, so the cut is a shader mask.**
+Static level geometry is merged into one draw call per texture. Rebuilding it is
+the obvious alternative and the wrong one — `buildLevel` walks every coordinate
+on the floor and the cut changes on every step. So the cut rides the road the
+light map already travels: a small texture in cell space, sampled at the quad's
+own base cell, and a cut fragment is discarded. `vBox.xy` already carries that
+cell (the unshifted east and south edges of the base cell), so there is no new
+attribute and no new geometry — and it covers merged batches and separately
+meshed tiles alike, because both wear a `materialFor` material.
+
+- The mask is sized to the cut's own bounding box plus a one-cell apron of zeros
+  (`app/render/cutMask.ts`), so it is a few hundred bytes whatever the viewport
+  or the world measures, and it does not have to be rewritten when the camera
+  slides. The apron is load-bearing: a texture clamps at its edge rather than
+  reading zero past it, and without the ring the outermost cut row would smear
+  across the rest of the floor.
+- `unpackAlignment = 1`, because a row of a single-channel mask is `w` bytes and
+  `w` is whatever the roof measures — the default four-byte alignment reads the
+  wrong pixels for three widths in four.
+- `applyRoofCut` skips a frame whose cut is the same *object* as last frame's,
+  which is the usual case. Level groups built after that point read the standing
+  cut for themselves; both `buildLevel` and `ensureLevelGroup` have to, and
+  forgetting either leaves one floor still drawing its roof.
+- The whole-storey path stays `group.visible = false`, which skips the floor's
+  draw calls outright. A structure cut draws the level and discards, and that is
+  the cost of being able to lift one roof and not its neighbour.
+- **An arrow is the one thing the mask cannot reach.** A flight is parented to
+  `world` rather than to a level group, and its box is where the arrow *is* —
+  never a cell the fill claimed — so `applyProjectiles` tests the cut itself.
+
+**`isHiddenFromCamera` gained real behaviour rather than a translated clamp.** It
+skips the cells the cut took and keeps walking, instead of stopping at a ceiling
+level. That is the only version that works once one roof can lift while its
+neighbour stays: a body under the roof that is *still drawn* has to stay
+anonymous even though a roof at its level lifted a street away, and a level
+threshold cannot tell the two roofs apart.
+
 ## Fighting is stats on a tile, and nothing else
 
 A **battler** is any tile with an `interactions.battler` block (`app/lib/battler.ts`):

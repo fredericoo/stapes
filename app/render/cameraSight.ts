@@ -49,9 +49,16 @@
  * anything. Without this the rule would invert itself in the one place it is
  * most used: step indoors, the roof lifts so you can see the room, and every
  * body in it would go anonymous behind a ceiling that is no longer on screen.
+ *
+ * The cut is per cell, so this skips the cells it took and keeps walking rather
+ * than stopping at a ceiling level. That is not a refinement of the old clamp —
+ * it is the only version that works once one roof can lift while its neighbour
+ * stays: the rat on the *drawn* roof two cells over must still go anonymous, and
+ * a level threshold cannot tell the two roofs apart.
  */
 
 import { stackOcclusion } from "../lib/lighting";
+import { type RoofCut, cutHides } from "../lib/levelVisibility";
 import { getStack } from "../lib/mapData";
 import type { Coord, MapFile, TileDef } from "../lib/types";
 import { MAX_LEVEL } from "../lib/types";
@@ -98,23 +105,28 @@ function covers(
  *
  * @param viewerZ the level the viewer's eye is on. Only bodies *below* it can be
  *   under a roof of theirs; anything above is the roof-cut's business.
- * @param hideLevelsAbove the roof-cut, or undefined when nothing is cut. Levels
- *   strictly above it are not drawn and therefore hide nothing.
+ * @param cut the roof-cut, or undefined when nothing is cut. A cell it takes is
+ *   not drawn and therefore hides nothing — asked per cell rather than against a
+ *   ceiling, because the cut is now the structure the viewer can see into and
+ *   the roof of the house next door is still very much in the way.
  */
 export function isHiddenFromCamera(
   map: MapFile,
   tilesById: Record<string, TileDef>,
   at: Coord,
   viewerZ: number,
-  hideLevelsAbove: number | undefined,
+  cut: RoofCut | undefined,
 ): boolean {
-  const top = Math.min(MAX_LEVEL, hideLevelsAbove ?? MAX_LEVEL);
-  for (let z = at.z + 1; z <= top; z++) {
+  for (let z = at.z + 1; z <= MAX_LEVEL; z++) {
     const step = z - at.z;
-    if (covers(map, tilesById, at.x + step, at.y + step, z)) return true;
+    const x = at.x + step;
+    const y = at.y + step;
+    if (cutHides(cut, x, y, z)) continue;
+    if (covers(map, tilesById, x, y, z)) return true;
   }
 
-  for (let z = at.z + 1; z <= Math.min(viewerZ, top); z++) {
+  for (let z = at.z + 1; z <= viewerZ; z++) {
+    if (cutHides(cut, at.x, at.y, z)) continue;
     if (covers(map, tilesById, at.x, at.y, z)) return true;
   }
   return false;

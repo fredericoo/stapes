@@ -24,7 +24,13 @@ import {
   stackHeight,
   terrainHeight,
 } from "../lib/mapData";
+import {
+  type RoofCut,
+  cutHides,
+  cutHidesWholeLevel,
+} from "../lib/levelVisibility";
 import { countOf } from "../lib/piles";
+import { cutMaskFor } from "./cutMask";
 import type {
   Frame,
   MapFile,
@@ -61,12 +67,14 @@ import type { ProjectileView } from "./projectileMotion";
 import { GpuLighting } from "./gpuLighting";
 import { PalettePass } from "./palettePass";
 import {
+  type LevelCutUniforms,
   type LevelLightUniforms,
   type Quad,
   WORLD_SHADER_CACHE_KEY,
   buildMergedQuadGeometry,
   buildSingleQuadGeometry,
   injectWorldShader,
+  noCutUniforms,
   writeBoxAttr,
   writeLightUvAttr,
 } from "./worldQuads";
@@ -293,10 +301,10 @@ export type WorldView = {
    */
   emitterOverrides?: EmitterOverride[];
   /**
-   * When set, hide every level group with z strictly above this value
-   * (player roof-cut). Omit to show all levels (editor / preview).
+   * The geometry the view has cut away — the structure the player can see
+   * into, not a whole storey. Omit to draw everything (editor / preview).
    */
-  hideLevelsAbove?: number;
+  roofCut?: RoofCut;
   /**
    * The colour each placement is wearing, keyed by {@link TileInstanceKey}.
    *
@@ -578,8 +586,18 @@ export class WorldRenderer {
    * Geometry is cloned (not shared) so level dispose cannot free the source.
    */
   private motionGhosts = new Map<string, THREE.Mesh>();
-  /** Last roof-cut ceiling — empty level groups created mid-frame need it. */
-  private hideLevelsAbove: number | undefined;
+  /** Last roof-cut — level groups created mid-frame need it. */
+  private roofCut: RoofCut | undefined;
+  /**
+   * The cut, per level, as the shader reads it.
+   *
+   * Held beside {@link lightUniformsByZ} and for the same reason: materials bind
+   * uniforms by reference, so writing the level's own object reaches every
+   * material on that floor without touching any of them.
+   */
+  private cutUniformsByZ = new Map<number, LevelCutUniforms>();
+  /** Mask textures owned here, so a replaced one is freed rather than leaked. */
+  private cutTextures = new Map<number, THREE.DataTexture>();
   private animClock = 0;
   private lastAnimTime = 0;
   private frameIndices = new Map<string, number>();
@@ -755,7 +773,7 @@ export class WorldRenderer {
 
     this.time("map", () => {
       this.applyMap(view.map, false);
-      this.applyLevelVisibility(view.hideLevelsAbove);
+      this.applyRoofCut(view.roofCut);
     });
     if (this.lightingEnabled) {
       this.time("light", () => this.updateLighting(view));
@@ -800,7 +818,7 @@ export class WorldRenderer {
     return appendVisibleTileEmitters(
       this.tileEmittersByLevel,
       this.cameraWindow(view),
-      view.hideLevelsAbove,
+      view.roofCut,
       out,
     );
   }
@@ -1032,13 +1050,76 @@ export class WorldRenderer {
     this.overlays.add(makeSpriteGhost(quad, spec.alpha));
   }
 
-  /** Toggle whole level groups; no mesh rebuild. */
-  private applyLevelVisibility(hideLevelsAbove?: number) {
-    this.hideLevelsAbove = hideLevelsAbove;
+  /**
+   * Hand the frame's cut to the geometry. No mesh rebuild, ever.
+   *
+   * **Two mechanisms, because the cut has two shapes.** A whole-storey cut is a
+   * level threshold and stays what it always was: `group.visible = false`, which
+   * skips the floor's draw calls outright. A structure cut is a set of cells
+   * inside a level whose static geometry is merged into one draw call per
+   * texture, so there is no object to hide — that one is a mask the fragment
+   * shader reads (see {@link writeCutMask}).
+   *
+   * Rebuilding the merged geometry instead was the obvious alternative and is
+   * the one thing that must not happen here: `buildLevel` walks every coordinate
+   * on the floor, and the cut changes every time the player takes a step.
+   *
+   * Skipped when the cut is the same object as last frame, which is the usual
+   * case — `GameRenderer` caches it on the map and the anchor, so it is a new
+   * object only when one of those moved. Level groups made after this point read
+   * {@link roofCut} for themselves.
+   */
+  private applyRoofCut(cut: RoofCut | undefined) {
+    if (cut === this.roofCut) return;
+    this.roofCut = cut;
     for (const [z, group] of this.levelGroups) {
-      group.visible =
-        hideLevelsAbove === undefined || z <= hideLevelsAbove;
+      group.visible = !cutHidesWholeLevel(cut, z);
     }
+    for (const z of this.cutUniformsByZ.keys()) this.writeCutMask(z);
+  }
+
+  /**
+   * Upload one level's cut as a mask in cell space, or switch it off.
+   *
+   * The layout is `./cutMask`'s; what is left here is the one thing that needs a
+   * renderer. A fresh texture per change rather than a resized one: the cut
+   * changes when the player steps or the world is edited, which is a few times a
+   * second at most, and a few hundred bytes uploaded then is not worth a pool.
+   */
+  private writeCutMask(z: number) {
+    const u = this.cutUniformsByZ.get(z);
+    if (!u) return;
+
+    const cut = this.roofCut;
+    const mask =
+      cut && cut.cells !== null && z > cut.floor
+        ? cutMaskFor(cut.cells.get(z))
+        : null;
+    if (!mask) {
+      u.uCutEnabled.value = 0;
+      return;
+    }
+
+    const texture = new THREE.DataTexture(
+      mask.data,
+      mask.w,
+      mask.h,
+      THREE.RedFormat,
+    );
+    texture.magFilter = THREE.NearestFilter;
+    texture.minFilter = THREE.NearestFilter;
+    // A row of a single-channel mask is `w` bytes and `w` is whatever the roof
+    // measures, so the default four-byte row alignment would read the wrong
+    // pixels for three widths in four.
+    texture.unpackAlignment = 1;
+    texture.needsUpdate = true;
+
+    this.cutTextures.get(z)?.dispose();
+    this.cutTextures.set(z, texture);
+    u.uCutMask.value = texture;
+    u.uCutOrigin.value.set(mask.x0, mask.y0);
+    u.uCutSize.value.set(mask.w, mask.h);
+    u.uCutEnabled.value = 1;
   }
 
   /**
@@ -1072,7 +1153,7 @@ export class WorldRenderer {
     // thing that moves while the world is perfectly still, which is exactly the
     // case `updateAnimations` reports nothing to do in.
     if (this.particles.active) {
-      this.particles.update(dt, this.hideLevelsAbove);
+      this.particles.update(dt, this.roofCut);
       this.needsRender = true;
     }
     if (!this.updateAnimations()) return;
@@ -1175,6 +1256,7 @@ export class WorldRenderer {
     for (const tex of this.textures.values()) tex.dispose();
     for (const mat of this.materials.values()) mat.dispose();
     for (const tex of this.lightTextures.values()) tex.dispose();
+    for (const tex of this.cutTextures.values()) tex.dispose();
     this.magentaTex.dispose();
     this.whiteTex.dispose();
   }
@@ -1342,8 +1424,11 @@ export class WorldRenderer {
       entry.z = view.z;
       entry.mesh.material = this.materialFor(entry.texture, view.z);
     }
-    entry.mesh.visible =
-      this.hideLevelsAbove === undefined || view.z <= this.hideLevelsAbove;
+    // An arrow is parented to `world` rather than to a level group, so the group
+    // toggle does not reach it — and neither can the shader mask, whose cell
+    // comes from the box, which for a flight is where the arrow *is* rather than
+    // a cell the fill ever claimed.
+    entry.mesh.visible = !cutHides(this.roofCut, view.x, view.y, view.z);
 
     const localElev = view.elevAbs - view.z * HEIGHT_PER_LEVEL;
     const baseOrigin = baseCellWorldOrigin(view.x, view.y, view.z, localElev);
@@ -1374,8 +1459,7 @@ export class WorldRenderer {
     group.name = `level:${z}`;
     group.matrixAutoUpdate = false;
     group.updateMatrix();
-    group.visible =
-      this.hideLevelsAbove === undefined || z <= this.hideLevelsAbove;
+    group.visible = !cutHidesWholeLevel(this.roofCut, z);
     this.world.add(group);
     this.levelGroups.set(z, group);
     return group;
@@ -1521,6 +1605,19 @@ export class WorldRenderer {
     this.camera.updateMatrixWorld(true);
   }
 
+  /** This level's cut uniforms, with the mask already written into them. */
+  private ensureCutUniforms(z: number): LevelCutUniforms {
+    let u = this.cutUniformsByZ.get(z);
+    if (!u) {
+      u = noCutUniforms(this.whiteTex);
+      this.cutUniformsByZ.set(z, u);
+      // A level whose first material appears while a cut is already standing has
+      // to arrive cut, or it is the one floor still drawing its roof.
+      this.writeCutMask(z);
+    }
+    return u;
+  }
+
   private ensureLightUniforms(z: number): LevelLightUniforms {
     let u = this.lightUniformsByZ.get(z);
     if (!u) {
@@ -1556,6 +1653,7 @@ export class WorldRenderer {
     let mat = this.materials.get(key);
     if (!mat) {
       const lightUniforms = this.ensureLightUniforms(z);
+      const cutUniforms = this.ensureCutUniforms(z);
       // Resolved once, here, rather than per frame: the uniforms are the tint,
       // so a material that has one never needs telling about it again.
       const tintU = tint && tint.strength > 0 ? tintUniforms(tint) : noTintUniforms();
@@ -1564,7 +1662,7 @@ export class WorldRenderer {
         side: THREE.DoubleSide,
       });
       mat.onBeforeCompile = (shader) => {
-        injectWorldShader(shader, lightUniforms, tintU);
+        injectWorldShader(shader, lightUniforms, tintU, cutUniforms);
       };
       mat.customProgramCacheKey = () => WORLD_SHADER_CACHE_KEY;
       this.materials.set(key, mat);
@@ -2263,6 +2361,10 @@ export class WorldRenderer {
     levelGroup.name = `level:${z}`;
     levelGroup.matrixAutoUpdate = false;
     levelGroup.updateMatrix();
+    // From the standing cut, for the reason `ensureLevelGroup` does it: this
+    // runs inside `applyMap`, which is before the frame's cut is applied, and a
+    // cut that has not changed since last frame does not reach back for it.
+    levelGroup.visible = !cutHidesWholeLevel(this.roofCut, z);
     this.world.add(levelGroup);
     this.levelGroups.set(z, levelGroup);
 

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { normalizeTileDef } from "../lib/types";
+import type { RoofCut } from "../lib/levelVisibility";
+import { coordKey } from "../lib/types";
 import { isHiddenFromCamera } from "./cameraSight";
 
 /**
@@ -18,6 +20,20 @@ import { isHiddenFromCamera } from "./cameraSight";
  * own case at the bottom, and the scenarios in `game/perception.test.ts` are
  * where the two are exercised together.
  */
+
+/** A cut over exactly the cells named — the shape `roofCutFor` hands back. */
+function cutting(
+  floor: number,
+  ...cells: Array<{ x: number; y: number; z: number }>
+): RoofCut {
+  const byZ = new Map<number, Set<string>>();
+  for (const cell of cells) {
+    const level = byZ.get(cell.z) ?? new Set<string>();
+    level.add(coordKey(cell.x, cell.y));
+    byZ.set(cell.z, level);
+  }
+  return { floor, cells: byZ };
+}
 
 const frame = {
   sprite: {
@@ -146,11 +162,23 @@ describe("camera sight", () => {
    */
   it("ignores anything the roof-cut has taken away", () => {
     const map = put(field(), 1, 1, 1, "wall");
+    const cut = cutting(0, { x: 1, y: 1, z: 1 });
 
-    expect(isHiddenFromCamera(map, tilesById, origin, origin.z, 0)).toBe(false);
-    // Still cut at the viewer's own level; one level higher and the roof is
-    // back on screen and back in the answer.
-    expect(isHiddenFromCamera(map, tilesById, origin, origin.z, 1)).toBe(true);
+    expect(isHiddenFromCamera(map, tilesById, origin, origin.z, cut)).toBe(false);
+  });
+
+  /**
+   * The reason this takes a cut and not a ceiling. One roof lifts and the one
+   * next door does not, so a body under the roof that is still drawn is still
+   * anonymous — at the same level as the one that lifted.
+   */
+  it("still counts a roof the cut left standing", () => {
+    const map = put(field(), 1, 1, 1, "wall");
+    const elsewhere = cutting(0, { x: 5, y: 5, z: 1 });
+
+    expect(
+      isHiddenFromCamera(map, tilesById, origin, origin.z, elsewhere),
+    ).toBe(true);
   });
 
   it("is never hidden by its own cell", () => {

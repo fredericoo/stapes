@@ -3,6 +3,7 @@ import { MELEE_REACH } from "../lib/item";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import type { MapFile, TileDef } from "../lib/types";
 import { HEIGHT_PER_LEVEL, normalizeTileDef } from "../lib/types";
+import type { RoofCut } from "../lib/levelVisibility";
 import { isHiddenFromCamera } from "../render/cameraSight";
 import { canReach } from "./combat";
 import { levelElevation } from "./distance";
@@ -107,7 +108,7 @@ function canRead(
   map: MapFile,
   body: Body,
   viewer: Body,
-  roofCut?: number,
+  roofCut?: RoofCut,
 ): boolean {
   return !isHiddenFromCamera(map, tilesById, body, viewer.z, roofCut);
 }

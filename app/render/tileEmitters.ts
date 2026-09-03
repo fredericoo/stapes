@@ -1,3 +1,4 @@
+import { type RoofCut, cutHides } from "../lib/levelVisibility";
 import type { WorldRect } from "../lib/lightingChunks";
 import type { ParticleEmitterSpec } from "./particles";
 
@@ -86,19 +87,18 @@ export function tileEmitterPrefix(z: number, x: number, y: number): string {
  * @param window The visible cell rect **at level 0**, with no apron of its own.
  * {@link PARTICLE_WINDOW_MARGIN} is added here so this module owns the whole
  * rule and a test can assert it.
- * @param ceiling The roof-cut. A particle above it is hidden by
+ * @param cut The roof-cut. A plume on a cut cell is dropped by
  * `./particleLayer` *after* it has been simulated and written, so dropping the
  * emitter here spends nothing on it at all.
  */
 export function appendVisibleTileEmitters(
   byLevel: ReadonlyMap<number, readonly ParticleEmitterSpec[]>,
   window: WorldRect,
-  ceiling: number | undefined,
+  cut: RoofCut | undefined,
   into: ParticleEmitterSpec[],
 ): ParticleEmitterSpec[] {
   let taken = 0;
   for (const [z, emitters] of byLevel) {
-    if (ceiling !== undefined && z > ceiling) continue;
     // This level's own reach, from the level-0 rect. Computed per level and not
     // per emitter, which is what makes it free.
     const x0 = window.x0 + z - PARTICLE_WINDOW_MARGIN;
@@ -114,6 +114,10 @@ export function appendVisibleTileEmitters(
       const cy = Math.floor(spec.cy);
       if (cx < x0 || cx > x1) continue;
       if (cy < y0 || cy > y1) continue;
+      // After the rect and not before it: the cut is a set lookup per emitter
+      // and the rect is four compares, so the cheap test culls the many and
+      // this one answers for the few left on screen.
+      if (cutHides(cut, cx, cy, z)) continue;
       // Counted over the board's own, never over the caller's: the cap is about
       // how many chimneys are worth reconciling, and a room full of burning rats
       // is not a reason to stop drawing the chimney.

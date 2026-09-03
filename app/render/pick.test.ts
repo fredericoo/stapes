@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { emptyMap, replaceStack } from "../lib/mapData";
 import type { ObjectRef } from "../game/GameSession";
 import type { MapFile, TileDef } from "../lib/types";
-import { CELL_SIZE, normalizeTileDef } from "../lib/types";
+import { CELL_SIZE, coordKey, normalizeTileDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import {
   footRect,
@@ -484,6 +484,26 @@ describe("pickTileAt", () => {
     // Drawn: looking up at a roof over your head reports "Roof", which is the
     // right answer. Cut away: it is not on screen, so it is not there to name.
     expect(pickTileAt(ctx(map), p.x, p.y, 0, 1)).toEqual(roof);
-    expect(pickTileAt(ctx(map), p.x, p.y, 0, 1, 0)).toBeNull();
+    expect(
+      pickTileAt(ctx(map), p.x, p.y, 0, 1, {
+        floor: 0,
+        cells: new Map([[1, new Set([coordKey(0, 0)])]]),
+      }),
+    ).toBeNull();
+  });
+
+  it("still names a roof the cut did not take", () => {
+    const map = replaceStack(emptyMap(), 0, 0, 1, [{ tileId: "grass" }]);
+    const roof: ObjectRef = { x: 0, y: 0, z: 1, stackIndex: 0 };
+    const p = onFoot(roof);
+
+    // A cut over somebody else's building leaves this one on screen, and what is
+    // on screen can be looked at.
+    expect(
+      pickTileAt(ctx(map), p.x, p.y, 0, 1, {
+        floor: 0,
+        cells: new Map([[1, new Set([coordKey(9, 9)])]]),
+      }),
+    ).toEqual(roof);
   });
 });
