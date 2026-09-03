@@ -1570,8 +1570,30 @@ export class GameSession implements PlaySession {
    * wins a contested cell.
    */
   private readonly rng: Rng;
-  /** Time towards the next round of decisions. See {@link BRAIN_TICK_MS}. */
+  /** Time into the current round of decisions. See {@link BRAIN_TICK_MS}. */
   private brainAccumulatorMs = 0;
+  /**
+   * Who has not thought yet this round, in the order they will.
+   *
+   * **A round is still a round; it is the work that is spread out.** Every
+   * creature thinks once per {@link BRAIN_TICK_MS} as it always did, but they
+   * no longer all think on the same tick: the queue is filled when a round
+   * opens and drained a slice at a time across it, so the cost of deciding is
+   * paid evenly instead of arriving as one spike every six ticks.
+   *
+   * That spike was not a simulation problem — 154 animals thinking at once
+   * measured ~11ms of a 33ms tick, which fits. It was that all of them *moved*
+   * at once, and a hundred-odd cells changing in one frame is far past what the
+   * renderer's incremental path will diff (`MAX_INCREMENTAL_CELLS`), so every
+   * one of those frames rebuilt whole levels of merged geometry. Spreading the
+   * decisions spreads the edits, and the renderer stays on the cheap path.
+   *
+   * Ids rather than actors, so somebody who leaves mid-round is skipped rather
+   * than thought for; somebody who joins mid-round waits for the next one.
+   */
+  private brainQueue: string[] = [];
+  /** How far into {@link brainQueue} this round has got. */
+  private brainQueueAt = 0;
   /**
    * What creatures said this tick, waiting to be broadcast.
    *
@@ -1635,6 +1657,25 @@ export class GameSession implements PlaySession {
    * the sound, which the wire deliberately does not. @see NoiseEmission
    */
   private pendingSound: Sound[] = [];
+  /**
+   * What this round's brains are deciding against, taken when it opened.
+   *
+   * The three `pending` lists above are what has happened *since*; these are
+   * the round's own copy. Taking one is what keeps one word reaching every ear
+   * at once now that a round is drained across several ticks: without it a
+   * shout landing halfway through would be heard by the creatures that had not
+   * thought yet and missed by the ones that had, and which of those you are is
+   * the order of a Map.
+   *
+   * {@link pendingSound} was already handed over exactly this way, for exactly
+   * that reason, back when the whole round was one loop and the only thing that
+   * could land inside it was a noise a brain made. The other two join it now
+   * that a player can speak or swing in the middle of a round. The rule has not
+   * changed — it applies to more of them.
+   */
+  private roundHeard: Utterance[] = [];
+  private roundHurt = new Map<string, string[]>();
+  private roundSounds: Sound[] = [];
   /**
    * Damage dealt this tick, waiting to be broadcast. Drained by the server
    * exactly as {@link pendingSpeech} is, and emptied at the top of every tick so
@@ -2595,32 +2636,90 @@ export class GameSession implements PlaySession {
       this.pendingHeard = [];
       this.pendingHurt.clear();
       this.pendingSound = [];
+      this.endBrainRound();
       return;
     }
 
     this.brainAccumulatorMs += tickMs;
-    if (this.brainAccumulatorMs < BRAIN_TICK_MS) return;
-    this.brainAccumulatorMs -= BRAIN_TICK_MS;
+    if (this.brainAccumulatorMs >= BRAIN_TICK_MS) {
+      this.brainAccumulatorMs -= BRAIN_TICK_MS;
+      this.openBrainRound();
+    }
+    this.drainBrainQueue(tickMs);
+  }
 
-    // Taken before anybody decides anything, so a howl made during this pass is
-    // next pass's business for every ear alike. @see pendingSound
-    const sounds = this.pendingSound;
+  /**
+   * Open a round: everybody due to think, and what they are deciding against.
+   *
+   * Opening on the beat whether or not the last round drained is deliberate. A
+   * round that overran had more creatures in it than the tick rate could carry,
+   * and this round is the one that matters — carrying the stragglers over would
+   * have a creature think twice in a row and let the backlog grow without
+   * bound. What is dropped is one turn for whoever was at the end of the queue,
+   * and the world already treats a missed turn as a thing that happens.
+   */
+  private openBrainRound() {
+    this.roundHeard = this.pendingHeard;
+    this.pendingHeard = [];
+    this.roundHurt = this.pendingHurt;
+    this.pendingHurt = new Map();
+    this.roundSounds = this.pendingSound;
     this.pendingSound = [];
 
+    this.brainQueue = [];
+    this.brainQueueAt = 0;
     for (const actor of this.actors.values()) {
-      if (!actor.resident) continue;
-      this.tickOneBrain(actor, sounds);
+      if (actor.resident) this.brainQueue.push(actor.id);
+    }
+  }
+
+  /**
+   * Think for a slice of the queue, sized so the round finishes on the beat.
+   *
+   * What is left over the ticks that are left, recomputed every tick, so it
+   * self-corrects: a long frame takes a bigger bite, and a single `tick`
+   * spanning a whole round takes the lot — which is what keeps a test that
+   * ticks one {@link BRAIN_TICK_MS} seeing every creature decide, exactly as it
+   * did when the round was one loop.
+   *
+   * The queue is walked with a cursor rather than shifted, because shifting a
+   * hundred and fifty ids six times a round is the sort of quadratic nobody
+   * notices until the map is big enough to feel it — which is the bug this
+   * whole change exists to answer.
+   */
+  private drainBrainQueue(tickMs: number) {
+    if (this.brainQueueAt >= this.brainQueue.length) return;
+
+    const remainingMs = Math.max(0, BRAIN_TICK_MS - this.brainAccumulatorMs);
+    const ticksLeft = Math.max(1, Math.ceil(remainingMs / Math.max(1, tickMs)));
+    const left = this.brainQueue.length - this.brainQueueAt;
+    const slice = Math.ceil(left / ticksLeft);
+
+    const end = Math.min(this.brainQueue.length, this.brainQueueAt + slice);
+    for (; this.brainQueueAt < end; this.brainQueueAt++) {
+      const actor = this.actors.get(this.brainQueue[this.brainQueueAt]!);
+      // Gone since the round opened, or no longer somebody the world drives.
+      if (!actor?.resident) continue;
+      this.tickOneBrain(actor, this.roundSounds);
     }
 
-    // Every brain has now had its one chance at this round of speech. Clearing
-    // after the whole pass rather than per creature is what makes one word
-    // reach every ear at once — and clearing at all is what keeps it an event
-    // instead of a standing fact about the world.
-    this.pendingHeard = [];
-    // And its one chance to notice being hit, on the same terms: a blow is an
-    // event, so a creature that was struck reacts once rather than reacting
-    // forever to a fact that never goes away.
-    this.pendingHurt.clear();
+    if (this.brainQueueAt >= this.brainQueue.length) this.endBrainRound();
+  }
+
+  /**
+   * The round is spent: every brain in it has had its one chance at what
+   * happened.
+   *
+   * Clearing at all is what keeps these events rather than standing facts about
+   * the world — a blow left lying here would be noticed again by whoever thinks
+   * next, and a creature would react to it forever.
+   */
+  private endBrainRound() {
+    this.brainQueue = [];
+    this.brainQueueAt = 0;
+    this.roundHeard = [];
+    this.roundHurt.clear();
+    this.roundSounds = [];
   }
 
   /**
@@ -2898,9 +2997,9 @@ export class GameSession implements PlaySession {
       // A creature with no stat block minds its own floor, which is what every
       // creature did before this was authorable.
       sight: this.battlerOf(actor)?.sight ?? DEFAULT_BATTLER.sight,
-      heard: () => this.pendingHeard,
+      heard: () => this.roundHeard,
       heardNoise: () => soundsHeardBy(sounds, actor.id),
-      hurtBy: () => this.pendingHurt.get(actor.id) ?? EMPTY_ATTACKERS,
+      hurtBy: () => this.roundHurt.get(actor.id) ?? EMPTY_ATTACKERS,
       attack: (id) => this.tryAttack(actor, id),
       nameOf: (id) => this.bodyName(id),
     });
@@ -6876,6 +6975,11 @@ export class GameSession implements PlaySession {
     if (this.pendingHurt.size > 0) return false;
     // A sound nobody has had a turn to hear, on exactly those grounds again.
     if (this.pendingSound.length > 0) return false;
+    // A round of decisions part-way through being taken. The three clauses
+    // above are about events waiting for a round; this is a round waiting for
+    // the ticks that carry it, and stopping the clock now would leave whoever
+    // is still in the queue having never had their turn at all.
+    if (this.brainQueueAt < this.brainQueue.length) return false;
     // Something is counting down, and this loop is the only clock it has. The
     // world therefore stays awake for as long as the longest lifetime on the
     // board — which is the price of decay being simulated rather than read off
