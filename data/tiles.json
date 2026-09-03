@@ -7190,7 +7190,7 @@
   {
     "id": "barrel",
     "name": "Barrel",
-    "height": 2,
+    "height": 3,
     "type": "simple",
     "kind": "prop",
     "attributes": {},

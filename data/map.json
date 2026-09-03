@@ -52694,9 +52694,6 @@
         },
         {
           "tileId": "counter-top"
-        },
-        {
-          "tileId": "bread"
         }
       ],
       "12,-6": [
@@ -52705,9 +52702,6 @@
         },
         {
           "tileId": "counter-top"
-        },
-        {
-          "tileId": "bread"
         }
       ],
       "12,-5": [
@@ -53761,9 +53755,6 @@
         },
         {
           "tileId": "counter-top"
-        },
-        {
-          "tileId": "berry"
         }
       ],
       "13,-5": [
@@ -54823,7 +54814,7 @@
           "tileId": "wooden-floor"
         },
         {
-          "tileId": "shopkeeper",
+          "tileId": "potion-salesman",
           "direction": "s"
         }
       ],
@@ -54833,9 +54824,6 @@
         },
         {
           "tileId": "counter-top"
-        },
-        {
-          "tileId": "berry"
         }
       ],
       "14,-5": [
@@ -107594,11 +107582,17 @@
         },
         {
           "tileId": "wooden-box"
+        },
+        {
+          "tileId": "empty-bottle"
         }
       ],
       "8,-6": [
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "empty-bottle"
         }
       ],
       "8,-5": [
@@ -108117,6 +108111,9 @@
         },
         {
           "tileId": "wooden-box"
+        },
+        {
+          "tileId": "empty-bottle"
         }
       ],
       "13,-6": [
@@ -127894,10 +127891,6 @@
       "-9,55": [
         {
           "tileId": "grass-2"
-        },
-        {
-          "tileId": "potion-salesman",
-          "direction": "n"
         }
       ],
       "-9,56": [
@@ -132783,6 +132776,9 @@
         },
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "empty-bottle"
         }
       ],
       "2,5": [
@@ -132810,6 +132806,9 @@
         },
         {
           "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "empty-bottle"
         }
       ],
       "2,8": [
@@ -140121,6 +140120,12 @@
         },
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "empty-bottle"
+        },
+        {
+          "tileId": "empty-bottle"
         }
       ],
       "17,4": [
@@ -140633,6 +140638,9 @@
         },
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "empty-bottle"
         }
       ],
       "18,4": [
@@ -141660,6 +141668,9 @@
         },
         {
           "tileId": "barrel"
+        },
+        {
+          "tileId": "empty-bottle"
         }
       ],
       "20,2": [
