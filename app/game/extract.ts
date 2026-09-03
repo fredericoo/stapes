@@ -206,21 +206,48 @@ export function extractFits(
 }
 
 /**
+ * The resource here worth walking up to, or null — leaving aside both whether
+ * this actor could carry what comes out and whether they have waited long
+ * enough.
+ *
+ * **Two refusals and neither of them distinguished**, on `canRewardFrom`'s
+ * terms: out of reach, or spent. Both are facts about the *world*, and a row
+ * for either would name a bush that is not worth crossing the field for — so
+ * there is no row and no outline, and a bush somebody has stripped bare reads
+ * as a bush rather than as something withholding.
+ *
+ * **What is left out is everything that is a fact about the player**, and that
+ * split is the whole reason this is its own function. A bush you have no room
+ * for is still a bush worth walking up to; so is one you are counting down on.
+ * Neither may be *pulled* — that is {@link canWorkNow}'s answer and the
+ * server's — but taking the row away for either tells a player who did nothing
+ * that the world changed, which is the one thing a list of affordances must
+ * never do. So the row is offered and the reason travels beside it, as
+ * `./interactionOptions`' `OptionBlock`.
+ */
+export function extractOfferedAt(
+  map: MapFile,
+  tilesById: Record<string, TileDef>,
+  actor: Actor,
+  ref: ObjectRef,
+): ExtractInteraction | null {
+  const extract = reachableExtractAt(map, tilesById, actor, ref);
+  if (!extract) return null;
+  if (pullsLeftAt(map, tilesById, extract, ref) <= 0) return null;
+  return extract;
+}
+
+/**
  * Is there a resource here this actor could work — leaving aside whether they
  * have waited long enough?
  *
- * **Three refusals and none of them distinguished**, on `canRewardFrom`'s
- * terms: out of reach, spent, or nowhere to put what comes out. Whichever it is
- * there is no row and no outline, so a bush somebody has stripped bare reads as
- * a bush rather than as something withholding.
- *
- * **The wait is deliberately not one of them**, and that split is the whole
- * reason this is two functions. A resource you are still waiting on is not
- * withholding — it is *counting*, and the player is owed the count: an
- * unexplained missing row reads as a bug where a disabled one with a bar
- * running under it reads as "not yet". So the row is offered either way and the
- * wait travels beside it, as {@link extractCooldownAt}. What may not happen is
- * the *pull*, and that is {@link canWorkNow}'s answer and the server's.
+ * {@link extractOfferedAt}'s two refusals plus the third one, which is room:
+ * all or nothing against the best roll, on {@link extractFits}' terms. Together
+ * they are **permission** — what the session asks before it spends a pull and
+ * what the server asks before it believes a message — where the two halves
+ * apart are what the list draws. The client asks both, through
+ * {@link canWorkNow}, which is what stops it offering a pull the server would
+ * refuse.
  */
 export function canExtractFrom(
   map: MapFile,
@@ -229,9 +256,8 @@ export function canExtractFrom(
   equipment: Equipment,
   ref: ObjectRef,
 ): boolean {
-  const extract = reachableExtractAt(map, tilesById, actor, ref);
+  const extract = extractOfferedAt(map, tilesById, actor, ref);
   if (!extract) return false;
-  if (pullsLeftAt(map, tilesById, extract, ref) <= 0) return false;
   return extractFits(extract, tilesById, equipment);
 }
 

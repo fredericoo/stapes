@@ -2458,9 +2458,9 @@ contrast.
   come up, because a skipped draw would make one player's luck change what the
   next creature in the world rolled.
 - **Room is checked against the best possible roll, never the actual one.** The
-  roll has not happened when the row is offered and must not — drawing to decide
-  whether to draw would make the row flicker while nothing moved, and would spend
-  the world's dice on a question. So room is found for every authored slot.
+  roll has not happened when room is asked about and must not — drawing to decide
+  whether to draw would make the answer flicker while nothing moved, and would
+  spend the world's dice on a question. So room is found for every authored slot.
   All-or-nothing on `rewardFits`' terms and for a sharper reason: a pull spends
   shared durability, so anything that would not fit would have been destroyed on
   everybody's behalf. Nothing an extract yields is ever dropped on the floor.
@@ -2490,30 +2490,46 @@ contrast.
   because one placement offers several recipes; a bush offers one thing, which is
   the bush.
 
-### A wait greys the row rather than taking it away
+### The row greys rather than vanishing whenever the refusal is about the player
 
-**A missing row and a waiting row are different facts, and the list has to say
-which.** Every other refusal in `listInteractionOptions` removes the row — an
-emptied chest, a recipe you cannot pay for, a crate out of reach — and that is
-right, because all of those are answers about the *world*: there is nothing here
-worth walking up to. A cooldown is not that. The player did nothing, the bush is
-still full, and a row that vanished under them would read as a bug. So the row
-stays, goes grey, and runs a bar under it.
+**A missing row and a greyed row are different facts, and the list has to say
+which.** A refusal in `listInteractionOptions` that is about the *world* removes
+the row — an emptied chest, a recipe you cannot pay for, a crate out of reach —
+and that is right, because all of those say the same thing: there is nothing here
+worth walking up to. A refusal about the *player* is not that. The bush is still
+full and still worth crossing the field for; it is the player who is not in a
+state to work it, and a row that vanished under them would read as a broken bush
+rather than as something they can go and fix. So the row stays, goes grey, and
+says what is in the way.
 
-That is what `canExtractFrom` and `canWorkNow` being two functions is for. The
-first is the board's and the bag's answer — reach, pulls left, room — and is what
-puts the row there. The second adds the wait and is what the session, the server
-and the client's own tap all ask before anything happens.
+Two of those exist, and `InteractionOption.blocked` carries either:
 
-- **`InteractionOption.cooldown` carries it**, and a row that has one is not
-  actionable: `topInteractionAt` passes over it, so the pointer outlines nothing
-  and a click on the world does nothing; `applyInteraction` refuses it; and the
-  button is `aria-disabled` with the verb suffixed "not ready yet". Four refusals
-  for one press is the spell bar's discipline, and it is why the grey is not a
-  lie.
+| `OptionBlock` | what is in the way | how the row says it |
+| ------------- | ------------------ | ------------------- |
+| `wait`        | this player's cooldown on this placement | a bar running out under the verb |
+| `noRoom`      | nothing they carry could hold the yield  | "no room" beside the verb |
+
+That split is what `extractOfferedAt`, `canExtractFrom` and `canWorkNow` being
+three functions is for. The first is the board's answer alone — reach and pulls
+left — and is what puts the row there. The second adds room and is *permission*:
+what the session spends a pull on and what the server believes. The third adds
+the wait, and is what the client's own tap asks before anything happens.
+
+- **The refusal is ranked above the wait**, because a wait runs out on its own: a
+  row that drew the bar while the bag was full would be counting down to a verb
+  that still does not work.
+- **A row carrying either is not actionable**: `topInteractionAt` passes over it,
+  so the pointer outlines nothing and a click on the world does nothing;
+  `applyInteraction` refuses it; and the button is `aria-disabled` with the
+  reason read out after the verb. Four refusals for one press is the spell bar's
+  discipline, and it is why the grey is not a lie.
+- **`noRoom` is one arm for two states** — a full bag and no bag at all — because
+  they are one fact to the player, who can see which by looking at what they are
+  wearing. It was the last silent refusal in the list: a player carrying four
+  things found no row on any bush in the world and nothing saying why.
 - **The field is not extract-shaped.** Nothing else uses it yet, but the next
-  mechanism that makes a player *wait* rather than telling them no should take
-  this rather than inventing a second way to be grey.
+  mechanism that tells a player "not you, not now" should add an arm here rather
+  than inventing a second way to be grey.
 - **The bar is a CSS keyframe with a negative delay** (`fill-wait` in `app.css`),
   given the whole `durationMs` and started `durationMs - remainingMs` in. That is
   the whole reason a cooling row costs nothing: the browser runs it on the
@@ -2521,9 +2537,9 @@ and the client's own tap all ask before anything happens.
   a row rebuilt mid-wait picks the fill up where it already was rather than
   restarting it. `waitElapsedMs` clamps both ends, because the two numbers arrive
   separately and nothing forces them into a ratio.
-- **The renderer's option key carries the *presence* of a wait and never the
+- **The renderer's option key carries the *kind* of block and never the
   remainder.** A key with the number in it would hand React a new list thirty
-  times a second to redraw a bar CSS is already animating; a key without the flag
+  times a second to redraw a bar CSS is already animating; a key without the kind
   would never tell it the row had gone grey at all.
 
 ### The cooling list is a per-player channel, sent twice a pull

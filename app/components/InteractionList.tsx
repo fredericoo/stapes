@@ -19,6 +19,7 @@ import type {
   InteractionAction,
   InteractionGroup,
   InteractionOption,
+  OptionBlock,
 } from "../game/interactionOptions";
 import {
   groupInteractionOptions,
@@ -250,11 +251,11 @@ function boxClass(
  */
 function actionClass(option: InteractionOption, attacking: boolean): string {
   // Ahead of every other case, because it is the one that says the verb cannot
-  // be run at all — a "Pick" that is also a reward is still a "Pick" you have
-  // to wait for. Dashed and faint on exactly the terms a cooling spell is, and
+  // be run at all — a "Pick" that is also a reward is still a "Pick" nothing
+  // can press. Dashed and faint on exactly the terms a cooling spell is, and
   // for the same reason: the state has to survive being looked at on a bright
   // phone outdoors. No hover, because there is nothing to hover towards.
-  if (option.cooldown) {
+  if (option.blocked) {
     return "border-dashed border-paper/25 text-paper/40";
   }
   if (option.active) return litClass(option, attacking);
@@ -359,6 +360,22 @@ function InteractionBox({
 }
 
 /**
+ * Why a greyed row is greyed, in the fewest words that survive an 11px column.
+ *
+ * **Said in words rather than left to the grey**, which is the whole of what a
+ * refusal buys over a missing row: a player looking at a faint "Pick" with
+ * nothing beside it has been told no as flatly as one looking at no row at all.
+ * Read aloud by the button's own label too — a screen reader cannot see the
+ * grey, and a bar cannot say anything.
+ *
+ * A wait keeps its bar and needs no words on screen; the phrase here is only
+ * what it is announced as. See {@link OptionBlock}.
+ */
+function blockReason(blocked: OptionBlock): string {
+  return blocked.kind === "wait" ? "not ready yet" : "no room";
+}
+
+/**
  * The bar that fills as a row's wait runs out.
  *
  * White, faint, and driven entirely by CSS — see `fill-wait` in `app.css`. The
@@ -426,7 +443,8 @@ function ActionButton({
   onHover?: (optionId: string | null) => void;
 }) {
   const Icon = ICONS[option.action];
-  const waiting = option.cooldown;
+  const blocked = option.blocked;
+  const waiting = blocked?.kind === "wait" ? blocked.cooling : null;
   // Pointer-driven rather than click-driven: a button has to answer a thumb
   // that is already holding the d-pad, and a click never arrives while it is.
   // See `./useTap`.
@@ -435,7 +453,7 @@ function ActionButton({
   // server — a spell button's discipline: a row that is visibly greyed must not
   // quietly send anyway, or the grey is a lie about what pressing it does.
   const tap = useTap(() => {
-    if (!waiting) onAct(option);
+    if (!blocked) onAct(option);
   });
 
   return (
@@ -451,15 +469,15 @@ function ActionButton({
       // rest is its state. Spelled out rather than left to the grey, which a
       // screen reader cannot see and a bar cannot say.
       aria-label={
-        waiting
-          ? `${interactionText(option)}, not ready yet`
+        blocked
+          ? `${interactionText(option)}, ${blockReason(blocked)}`
           : interactionText(option)
       }
       // Not `disabled` and not out of the tab order, exactly as a cooling spell
       // is not: a row somebody is waiting on is the row they most want to read,
       // and one that vanished from the keyboard's reach whenever it went grey
       // would be unreachable at precisely the moment it is interesting.
-      aria-disabled={waiting ? true : undefined}
+      aria-disabled={blocked ? true : undefined}
       // Pointing at somebody and having a box open are states you are in, and
       // both buttons toggle out of them; a push happens and is over, and a
       // button that claimed otherwise would be announced as stuck on.
@@ -500,9 +518,26 @@ function ActionButton({
           and in sentence case — the verbs are authored ("Climb", "Warm your
           hands"), a column this narrow truncates a long one, and capitals cost
           width to shout a heading the box above no longer needs shouted. */}
-      <span className="relative truncate text-[11px] leading-snug font-medium tracking-tight">
+      {/* `min-w-0` so the truncation actually happens: a flex item will not
+          shrink below its content without it, and the reason beside it would
+          be pushed out past the button's own `overflow-hidden` instead. */}
+      <span className="relative min-w-0 truncate text-[11px] leading-snug font-medium tracking-tight">
         {option.label}
       </span>
+      {/* The reason, after the verb and never instead of it: the verb is what a
+          player scans the column for, so it keeps the room and this takes what
+          is left. `shrink-0` so a long verb truncates before the reason does —
+          a row reading "Warm your h…" still says why it is grey, where one
+          reading "Warm your hands · no r…" says neither thing. Absent for a
+          wait, which has a bar to say it with. */}
+      {blocked && blocked.kind !== "wait" ? (
+        <span
+          aria-hidden="true"
+          className="relative ml-auto shrink-0 text-[10px] leading-snug tracking-tight"
+        >
+          {blockReason(blocked)}
+        </span>
+      ) : null}
     </button>
   );
 }

@@ -603,7 +603,7 @@ describe("what it says afterwards", () => {
 });
 
 describe("the row it offers", () => {
-  function optionsFor(session: GameSession) {
+  function optionsFor(session: GameSession, equipment?: Equipment) {
     const snap = session.getSnapshot();
     return listInteractionOptions(
       snap.map,
@@ -611,7 +611,7 @@ describe("the row it offers", () => {
       snap.self,
       [],
       null,
-      snap.equipment,
+      equipment ?? snap.equipment,
       null,
       snap.tags,
       false,
@@ -619,8 +619,10 @@ describe("the row it offers", () => {
     );
   }
 
-  function rowsFor(session: GameSession) {
-    return optionsFor(session).filter((option) => option.action === "extract");
+  function rowsFor(session: GameSession, equipment?: Equipment) {
+    return optionsFor(session, equipment).filter(
+      (option) => option.action === "extract",
+    );
   }
 
   it("is named by the author", () => {
@@ -637,7 +639,7 @@ describe("the row it offers", () => {
 
   /**
    * The row stays and goes grey rather than disappearing, and this is the whole
-   * argument for the `cooldown` field: a player who did nothing and watched a
+   * argument for the `blocked` field: a player who did nothing and watched a
    * row vanish has been told nothing, where one looking at a greyed row with a
    * bar under it has been told to wait.
    */
@@ -647,10 +649,13 @@ describe("the row it offers", () => {
 
     const [row] = rowsFor(session);
     expect(row.label).toBe("Pick");
-    expect(row.cooldown).toEqual({
-      key: extractKey(BUSH, "bush"),
-      remainingMs: COOLDOWN_MS,
-      durationMs: COOLDOWN_MS,
+    expect(row.blocked).toEqual({
+      kind: "wait",
+      cooling: {
+        key: extractKey(BUSH, "bush"),
+        remainingMs: COOLDOWN_MS,
+        durationMs: COOLDOWN_MS,
+      },
     });
   });
 
@@ -659,7 +664,11 @@ describe("the row it offers", () => {
     session.interact(BUSH);
     session.tick(COOLDOWN_MS / 2);
 
-    expect(rowsFor(session)[0].cooldown?.remainingMs).toBe(COOLDOWN_MS / 2);
+    const [row] = rowsFor(session);
+    expect(row.blocked).toEqual({
+      kind: "wait",
+      cooling: expect.objectContaining({ remainingMs: COOLDOWN_MS / 2 }),
+    });
   });
 
   it("comes back ready once the wait is up", () => {
@@ -667,7 +676,67 @@ describe("the row it offers", () => {
     session.interact(BUSH);
     session.tick(COOLDOWN_MS);
 
-    expect(rowsFor(session)[0].cooldown).toBeNull();
+    expect(rowsFor(session)[0].blocked).toBeNull();
+  });
+
+  /**
+   * The same argument as the wait, for the refusal that used to be silent. A
+   * player with a full bag walked up to a bush and found no row on it at all,
+   * which reads as a broken bush — the one thing they cannot do anything about
+   * — rather than as a full bag, which they can.
+   */
+  it("stays with a full bag, saying that is what is in the way", () => {
+    const session = new GameSession(board(), tiles);
+
+    const [row] = rowsFor(session, bagWith(4));
+    expect(row.label).toBe("Pick");
+    expect(row.blocked).toEqual({ kind: "noRoom" });
+  });
+
+  it("stays with no bag at all, on the same terms", () => {
+    const session = new GameSession(board(), tiles);
+
+    expect(rowsFor(session, emptyEquipment())[0].blocked).toEqual({
+      kind: "noRoom",
+    });
+  });
+
+  it("comes back ready once a square is free", () => {
+    const session = new GameSession(board(), tiles);
+
+    expect(rowsFor(session, bagWith(3))[0].blocked).toBeNull();
+  });
+
+  /**
+   * A wait runs out on its own where a full bag does not, so a row that drew
+   * the bar would be counting down to a verb that still would not work.
+   */
+  it("names the bag ahead of the wait when both are true", () => {
+    const session = new GameSession(board(), tiles);
+    session.interact(BUSH);
+
+    expect(rowsFor(session, bagWith(4))[0].blocked).toEqual({ kind: "noRoom" });
+  });
+
+  /**
+   * Presentation, never permission: the row is drawn and the pull is still
+   * refused by the session — and by the server behind it.
+   */
+  it("is offered without the pull being allowed", () => {
+    const session = new GameSession(board(), tiles);
+
+    expect(rowsFor(session, bagWith(4))).toHaveLength(1);
+    expect(canWorkNow(board(), tilesById, ME, bagWith(4), BUSH, NOTHING_COOLING)).toBe(
+      false,
+    );
+  });
+
+  it("is passed over by the tap while the bag is full", () => {
+    const session = new GameSession(board(), tiles);
+
+    expect(
+      topInteractionAt(optionsFor(session, bagWith(4)), BUSH),
+    ).toBeNull();
   });
 
   /**
