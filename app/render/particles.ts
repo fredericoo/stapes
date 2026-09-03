@@ -2,8 +2,8 @@ import type { DepthBox } from "../lib/geometry";
 import {
   compileRamp,
   MAX_LIVE_PARTICLES,
-  type StatusParticles,
-} from "../lib/statusVfx";
+  type ParticleEmitterDef,
+} from "../lib/particleVfx";
 
 /**
  * The particle pool: where every spark on screen is, and where it is going.
@@ -50,7 +50,7 @@ export type Random = () => number;
 export type ParticleEmitterSpec = {
   /** Stable across frames, and how a plume is recognised as the same plume. */
   id: string;
-  config: StatusParticles;
+  config: ParticleEmitterDef;
   /** Cell centre the plume is anchored to, in cells. */
   cx: number;
   cy: number;
@@ -118,7 +118,7 @@ export type ParticleReading = {
   elev: number;
   /** 0 at birth, 1 at death. What every ramp and every lerp is sampled against. */
   life: number;
-  config: StatusParticles;
+  config: ParticleEmitterDef;
   /** The plume's colours, flattened. @see compileRamp */
   ramp: Float32Array;
   /** The level this plume is drawn on. */

@@ -7,8 +7,8 @@ import {
 import {
   DEFAULT_PARTICLES,
   MAX_LIVE_PARTICLES,
-  type StatusParticles,
-} from "../lib/statusVfx";
+  type ParticleEmitterDef,
+} from "../lib/particleVfx";
 
 /**
  * A plume, as arithmetic.
@@ -24,7 +24,7 @@ const fixed = (value: number) => () => value;
 
 const emitter = (
   over: Partial<ParticleEmitterSpec> = {},
-  config: Partial<StatusParticles> = {},
+  config: Partial<ParticleEmitterDef> = {},
 ): ParticleEmitterSpec => ({
   id: "rat:burning",
   config: { ...DEFAULT_PARTICLES, ...config },

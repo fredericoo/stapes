@@ -1,16 +1,18 @@
 import type { LightDef } from "../lib/types";
 import { MAX_LIGHT_LEVEL } from "../lib/lightingFlood";
 import {
-  DEFAULT_GLOW,
   DEFAULT_PARTICLES,
-  DEFAULT_TINT,
   MAX_PARTICLE_RADIUS_PX,
   MAX_PARTICLE_RATE,
   MAX_PARTICLE_TTL_MS,
   MAX_RAMP_STOPS,
-  MAX_TAPER_MS,
+  type ParticleEmitterDef,
   type RampStop,
-  type StatusParticles,
+} from "../lib/particleVfx";
+import {
+  DEFAULT_GLOW,
+  DEFAULT_TINT,
+  MAX_TAPER_MS,
   type StatusTint,
   type StatusVfx,
 } from "../lib/statusVfx";
@@ -248,10 +250,10 @@ function ParticleFields({
   particles,
   onChange,
 }: {
-  particles: StatusParticles;
-  onChange: (next: StatusParticles) => void;
+  particles: ParticleEmitterDef;
+  onChange: (next: ParticleEmitterDef) => void;
 }) {
-  const patch = (fields: Partial<StatusParticles>) =>
+  const patch = (fields: Partial<ParticleEmitterDef>) =>
     onChange({ ...particles, ...fields });
 
   return (
@@ -433,7 +435,7 @@ export function StatusVfxFields({
   onChange: (next: StatusVfx) => void;
 }) {
   const setTint = (tint: StatusTint | null) => onChange({ ...vfx, tint });
-  const setParticles = (particles: StatusParticles | null) =>
+  const setParticles = (particles: ParticleEmitterDef | null) =>
     onChange({ ...vfx, particles });
   const setLight = (light: LightDef | null) => onChange({ ...vfx, light });
 

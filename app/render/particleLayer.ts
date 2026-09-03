@@ -5,7 +5,7 @@ import {
   MAX_LIVE_PARTICLES,
   MAX_PARTICLE_RADIUS_PX,
   rampIndexAt,
-} from "../lib/statusVfx";
+} from "../lib/particleVfx";
 import { CELL_SIZE } from "../lib/types";
 import {
   type ParticleEmitterSpec,
@@ -34,7 +34,7 @@ import {
  * pixel art and a scaled sprite.
  *
  * Radii are integers because a circle between two pixel sizes does not exist.
- * {@link StatusParticles.radiusFromPx} is interpolated and then rounded, so a
+ * {@link ParticleEmitterDef.radiusFromPx} is interpolated and then rounded, so a
  * particle growing from 1 to 3 visibly steps through 2 rather than smearing.
  *
  * ## Why one mesh and not one per plume
