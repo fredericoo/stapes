@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { WALK_DURATION_MS } from "../game/constants";
 import type {
   AutotileSlice,
@@ -22,6 +22,8 @@ import {
   type ParticleEmitterDef,
 } from "../lib/particleVfx";
 import { ParticleFields } from "./ParticleFields";
+import { VfxPreview } from "./VfxPreview";
+import { NO_VFX } from "../lib/statusVfx";
 import {
   AUTOTILE_SLICE_COUNT,
   DIRECTIONS,
@@ -401,6 +403,24 @@ export function TileEditorDialog({
       : true;
   const tileset =
     tilesets.find((t) => t.id === frame?.sprite.tilesetId) ?? tilesets[0] ?? null;
+
+  /**
+   * The preview's two inputs, held steady across edits that do not reach them.
+   *
+   * `draft` is a fresh object on every keystroke, and the preview rebuilds its
+   * subject mesh whenever the object it was handed changes — which is what makes
+   * a sprite swap show up, and would otherwise restart the sprite's animation
+   * every time a particle slider moved. Keyed on the fields that decide the art,
+   * all of which are stable references until they are edited.
+   */
+  const previewSubject = useMemo(
+    () => draft,
+    [draft.type, draft.height, draft.sprite, draft.sprites, draft.slices, draft.states],
+  );
+  const previewVfx = useMemo(
+    () => ({ ...NO_VFX, particles: draft.particles ?? null }),
+    [draft.particles],
+  );
 
   const setSprite = (next: TileSprite) => {
     setDraft((d) => setCurrentSprite(d, state, dir, slice, next));
@@ -1283,12 +1303,31 @@ export function TileEditorDialog({
                 leaves the top of a full-height tile. Nothing in a bag emits: an
                 inventory draws its own sprites and never the world.
               </p>
-              <ParticleFields
-                particles={draft.particles}
-                onChange={(particles: ParticleEmitterDef) =>
-                  setDraft({ ...draft, particles })
-                }
-              />
+              {/* Beside the controls rather than under them, because what an
+                  author is deciding is whether the smoke looks like smoke and
+                  fifteen numbers do not answer that. The subject is this tile
+                  and cannot be anything else, so the picker the status editor
+                  needs is absent — see `./VfxPreview`. */}
+              <div className="flex flex-wrap items-start gap-4">
+                <VfxPreview
+                  vfx={previewVfx}
+                  tilesets={tilesets}
+                  subject={previewSubject}
+                />
+                {/* Basis zero rather than content width, so the controls take
+                    whatever the canvas leaves and reflow inside it. Sized by
+                    their content they wrap under the preview instead, which
+                    scrolls the canvas off the top of the thing it is there to
+                    answer questions about. */}
+                <div className="min-w-0 flex-1 basis-80">
+                  <ParticleFields
+                    particles={draft.particles}
+                    onChange={(particles: ParticleEmitterDef) =>
+                      setDraft({ ...draft, particles })
+                    }
+                  />
+                </div>
+              </div>
             </>
           ) : null}
         </div>

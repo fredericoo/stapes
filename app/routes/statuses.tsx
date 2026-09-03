@@ -28,7 +28,7 @@ import { Button, useToast } from "../ui";
 
 export async function clientLoader() {
   // The tiles are here for the effects preview, which draws on any of them —
-  // see `StatusVfxPreview`. Fetched beside the rest rather than lazily, because
+  // see `VfxPreview`. Fetched beside the rest rather than lazily, because
   // the dialog is the only thing on this page and it needs all three.
   const [statuses, tilesets, tiles] = await Promise.all([
     fetchStatuses(),

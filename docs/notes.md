@@ -2908,9 +2908,22 @@ stopped smoking. The same parse is what fills in a field an authored block
 predates, so the renderer reads a complete emitter and never a partial one.
 
 **The map editor draws no plumes**, tile or status: `/map` is
-`app/editor/EditorRenderer.ts`, which is a separate renderer from the one play
-uses and has no particle layer in it. A tile emitter is authored in the tile
-dialog and seen in `/play`.
+`app/editor/EditorRenderer.ts`, a separate renderer from the one play uses, with
+no particle layer in it. What answers for that is the preview in the tile dialog
+— `app/render/VfxPreview.ts`, the status editor's rendering simulation, with the
+subject pinned to the tile being edited.
+
+Two things had to change for it to take a *draft* rather than a catalogue entry,
+and both are the same fact: the subject is now an object that changes while the
+dialog is open.
+
+- **`setSubject` compares by object, not by id.** An id comparison left the
+  preview showing the sprite the tile had when it was opened. The sheet is still
+  only re-fetched when the *tileset* changes, or a dragged slider would download
+  a tilesheet a frame.
+- **The dialog memoises what it hands over**, keyed on the fields that decide the
+  art. Without it every keystroke rebuilds the subject mesh and restarts the
+  sprite's animation.
 
 ### Anything parented to `world` that a map rebuild does not own must be named
 
