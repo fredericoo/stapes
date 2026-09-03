@@ -42,9 +42,26 @@ export const PERF_BUDGETS = {
    * with the map and read a failure here as "look at the map", not "look at
    * the renderer".
    *
+   * The animal den — three cave floors spread through the whole underworld —
+   * took it from 38.6k quads / 154.4k tris to 72.5k / 289.8k, which is the
+   * biggest single jump this number has taken and the reason it is now 350k.
+   * **Nothing else moved with it**: draw calls 48 → 68 against 180, world
+   * meshes 50 → 54 against 96, and the frame p95 measured *lower* afterwards
+   * (0.6ms against 1.0ms, both inside a 1ms budget) because merged static
+   * geometry is drawn per level and per tileset rather than per triangle. That
+   * is the shape of this budget's whole argument: it is an alarm for the map,
+   * and the map going up 1.9× while the frame time did not is exactly the case
+   * it exists to notice and then be raised for.
+   *
+   * The den is also why the ceiling is not higher still. `scripts/carve-caves.ts`
+   * lays rock only as a two-cell shell around what it opened, rather than
+   * filling its footprint — the difference is about forty thousand quads of
+   * stone nobody would ever see the inside of, which would have put this past
+   * 500k for nothing.
+   *
    * Whether the *renderer* regressed is {@link maxTrianglesPerQuad}'s question.
    */
-  maxTriangles: 200_000,
+  maxTriangles: 350_000,
   /**
    * Triangles per placed quad — the renderer's own share, independent of how
    * big the map is.
