@@ -31,6 +31,21 @@ import type { ParticleEmitterSpec } from "./particles";
  */
 export const MAX_VISIBLE_TILE_EMITTERS = 128;
 
+/**
+ * Slack cells around the camera's reach, for plumes just out of frame.
+ *
+ * A plume is anchored to its cell but is not *drawn* there: a particle rises,
+ * and rising is up-and-left on screen, so an emitter a little below the bottom
+ * edge can put sparks inside it. Too small and a plume pops into existence at
+ * the edge of the screen instead of drifting in; too large and the pool is spent
+ * on smoke nobody can see.
+ *
+ * A little wider than `LIGHT_WINDOW_MARGIN`, because light stops at its radius
+ * and a particle travels. Six cells is 48 world pixels, which is 24 height units
+ * of rise — more than any plume worth authoring climbs before it fades.
+ */
+export const PARTICLE_WINDOW_MARGIN = 6;
+
 /** The id one placement's plume is reconciled by. @see tileInstanceKey */
 export function tileEmitterId(instanceKey: string): string {
   return `tile:${instanceKey}`;
@@ -54,6 +69,23 @@ export function tileEmitterPrefix(z: number, x: number, y: number): string {
  * runs on every frame that has a plume in it and an array per frame at 120fps is
  * a collection in the middle of the frame budget for a list three entries long.
  *
+ * ## The window is per level, and that is the whole point of taking level 0
+ *
+ * The obvious thing to hand this is the rect the light bake crops to, and it is
+ * the wrong one. That rect is the **union across every level**, because a light
+ * on any storey can reach the cells you are looking at; the projection shifts
+ * level `z` by exactly `z` cells, so unioning seventeen levels grows it by eight
+ * cells on each side before its own margin. Against a 23-cell viewport that is
+ * a window over four times the visible area, and every emitter inside it spends
+ * the shared pool and has quads written for sparks nobody can see.
+ *
+ * A plume is not a light: it is on one known level, so it gets that level's own
+ * rect — the level-0 rect shifted by `z`, which is one add per level rather than
+ * anything per emitter.
+ *
+ * @param window The visible cell rect **at level 0**, with no apron of its own.
+ * {@link PARTICLE_WINDOW_MARGIN} is added here so this module owns the whole
+ * rule and a test can assert it.
  * @param ceiling The roof-cut. A particle above it is hidden by
  * `./particleLayer` *after* it has been simulated and written, so dropping the
  * emitter here spends nothing on it at all.
@@ -67,11 +99,21 @@ export function appendVisibleTileEmitters(
   let taken = 0;
   for (const [z, emitters] of byLevel) {
     if (ceiling !== undefined && z > ceiling) continue;
+    // This level's own reach, from the level-0 rect. Computed per level and not
+    // per emitter, which is what makes it free.
+    const x0 = window.x0 + z - PARTICLE_WINDOW_MARGIN;
+    const x1 = window.x1 + z + PARTICLE_WINDOW_MARGIN;
+    const y0 = window.y0 + z - PARTICLE_WINDOW_MARGIN;
+    const y1 = window.y1 + z + PARTICLE_WINDOW_MARGIN;
     for (const spec of emitters) {
-      // The window the light bake uses: a plume that has drifted a cell off
-      // screen is still worth emitting, one two rooms away is not.
-      if (spec.cx < window.x0 || spec.cx > window.x1) continue;
-      if (spec.cy < window.y0 || spec.cy > window.y1) continue;
+      // The emitter's *cell*, not its anchor. A plume hangs from the middle of
+      // its cell (`cx` is `x + 0.5`), and comparing that against an integer cell
+      // rect drops the whole eastern and southern edge of the window — every
+      // emitter there sits half a cell past its own bound.
+      const cx = Math.floor(spec.cx);
+      const cy = Math.floor(spec.cy);
+      if (cx < x0 || cx > x1) continue;
+      if (cy < y0 || cy > y1) continue;
       // Counted over the board's own, never over the caller's: the cap is about
       // how many chimneys are worth reconciling, and a room full of burning rats
       // is not a reason to stop drawing the chimney.

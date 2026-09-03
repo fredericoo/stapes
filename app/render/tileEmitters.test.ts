@@ -3,6 +3,7 @@ import type { ParticleEmitterSpec } from "./particles";
 import {
   appendVisibleTileEmitters,
   MAX_VISIBLE_TILE_EMITTERS,
+  PARTICLE_WINDOW_MARGIN,
   tileEmitterId,
   tileEmitterPrefix,
 } from "./tileEmitters";
@@ -16,6 +17,7 @@ import { DEFAULT_PARTICLES } from "../lib/particleVfx";
  * roof-cut is simulated in full and then hidden.
  */
 
+/** The camera's own reach at level 0. The apron is the module's to add. */
 const WINDOW = { x0: 0, y0: 0, x1: 10, y1: 10 };
 
 const at = (x: number, y: number, z = 0): ParticleEmitterSpec => ({
@@ -50,6 +52,45 @@ describe("culling the board's plumes", () => {
       [],
     );
     expect(out).toEqual([inside]);
+  });
+
+  it("keeps a plume just off screen, whose sparks can still drift into it", () => {
+    // A plume is anchored to its cell but is not drawn there — a particle rises,
+    // and rising is up-and-left. An emitter a little past the edge still puts
+    // sparks inside the frame, and one that popped into existence at the border
+    // would read as a bug.
+    const justOutside = at(WINDOW.x1 + PARTICLE_WINDOW_MARGIN, 5);
+    const wellOutside = at(WINDOW.x1 + PARTICLE_WINDOW_MARGIN + 1, 5);
+    const out = appendVisibleTileEmitters(
+      byLevel(justOutside, wellOutside),
+      WINDOW,
+      undefined,
+      [],
+    );
+    expect(out).toEqual([justOutside]);
+  });
+
+  it("gives each level its own reach rather than the union of every level", () => {
+    // The projection shifts level `z` by exactly `z` cells, so a plume two
+    // storeys up is visible two cells further east than one on the ground. The
+    // light bake unions all seventeen levels because a light on any of them can
+    // reach here; a plume is on one known level, and taking the union instead
+    // would admit emitters over four times the visible area to spend the pool
+    // on sparks nobody can see.
+    const eastEdge = WINDOW.x1 + PARTICLE_WINDOW_MARGIN;
+    const beyondGround = at(eastEdge + 2, 5, 2);
+    const out = appendVisibleTileEmitters(
+      byLevel(beyondGround),
+      WINDOW,
+      undefined,
+      [],
+    );
+    expect(out).toEqual([beyondGround]);
+
+    // The same cell on the ground floor is past the edge and is dropped.
+    expect(
+      appendVisibleTileEmitters(byLevel(at(eastEdge + 2, 5, 0)), WINDOW, undefined, []),
+    ).toEqual([]);
   });
 
   it("drops a plume the roof-cut is hiding anyway", () => {

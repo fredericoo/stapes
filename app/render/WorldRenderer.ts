@@ -799,7 +799,7 @@ export class WorldRenderer {
     if (view.particleEmitters) out.push(...view.particleEmitters);
     return appendVisibleTileEmitters(
       this.tileEmittersByLevel,
-      this.lightWindow(view),
+      this.cameraWindow(view),
       view.hideLevelsAbove,
       out,
     );
@@ -1587,15 +1587,33 @@ export class WorldRenderer {
    * the level span. Cheap enough to redo every frame.
    */
   private lightWindow(view: WorldView): WorldRect {
+    const base = this.cameraWindow(view);
+    return {
+      x0: base.x0 + MIN_LEVEL - LIGHT_WINDOW_MARGIN,
+      y0: base.y0 + MIN_LEVEL - LIGHT_WINDOW_MARGIN,
+      x1: base.x1 + MAX_LEVEL + LIGHT_WINDOW_MARGIN,
+      y1: base.y1 + MAX_LEVEL + LIGHT_WINDOW_MARGIN,
+    };
+  }
+
+  /**
+   * The cells the camera covers **on level 0**, with no apron and no level span.
+   *
+   * The one honest primitive under both windows: the projection shifts level `z`
+   * by exactly `z` cells, so every consumer's rect is this one plus whatever
+   * slack that consumer actually needs. {@link lightWindow} unions the whole
+   * level span onto it because a light on any storey can reach here; a plume is
+   * on one known level and takes that level's own shift instead — see
+   * `./tileEmitters`.
+   */
+  private cameraWindow(view: WorldView): WorldRect {
     const viewW = this.canvasW / view.zoom;
     const viewH = this.canvasH / view.zoom;
-    const cell = (px: number, z: number) =>
-      Math.floor((px + CELL_SIZE * z) / CELL_SIZE);
     return {
-      x0: cell(view.camera.x, MIN_LEVEL) - LIGHT_WINDOW_MARGIN,
-      y0: cell(view.camera.y, MIN_LEVEL) - LIGHT_WINDOW_MARGIN,
-      x1: cell(view.camera.x + viewW, MAX_LEVEL) + LIGHT_WINDOW_MARGIN,
-      y1: cell(view.camera.y + viewH, MAX_LEVEL) + LIGHT_WINDOW_MARGIN,
+      x0: Math.floor(view.camera.x / CELL_SIZE),
+      y0: Math.floor(view.camera.y / CELL_SIZE),
+      x1: Math.floor((view.camera.x + viewW) / CELL_SIZE),
+      y1: Math.floor((view.camera.y + viewH) / CELL_SIZE),
     };
   }
 

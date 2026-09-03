@@ -2885,10 +2885,30 @@ Four things about the machinery are worth knowing before touching it:
   still, unanimated ones a chimney is. Collecting after the `continue` means the
   chimney smokes until the first time anything near it changes and then never
   again.
-- **The cull is `app/render/tileEmitters.ts`, and it is pure.** A rect test
-  against the light bake's own window, the roof cut, and a cap. Separate from
-  the renderer for the reason `particles.ts` is separate from `particleLayer.ts`:
-  it is arithmetic, so it can be asserted rather than eyeballed.
+- **The cull is `app/render/tileEmitters.ts`, and it is pure.** A rect test per
+  level, the roof cut, and a cap. Separate from the renderer for the reason
+  `particles.ts` is separate from `particleLayer.ts`: it is arithmetic, so it can
+  be asserted rather than eyeballed.
+- **The window is the camera's reach on that emitter's own level, and it must
+  not be the light bake's.** `lightWindow` is the union across every level —
+  right for a light, since one on any storey can reach the cells you are looking
+  at, and the projection shifts level `z` by exactly `z` cells so unioning
+  seventeen of them grows the rect by eight cells a side before its own margin.
+  Against a 23-cell viewport that is a window over **four times** the visible
+  area, and every emitter inside it spends the shared pool and has quads written
+  for sparks nobody can see. A plume is on one known level, so it takes that
+  level's own rect plus `PARTICLE_WINDOW_MARGIN` — one add per level, nothing per
+  emitter, and 45% fewer emitters admitted.
+
+  Both windows are now built on `WorldRenderer.cameraWindow`, the level-0 rect
+  with no slack of its own. `lightWindow` adds the level span and its margin back
+  and is **byte-identical** to what it replaces: `floor((px + 8z) / 8)` is
+  `floor(px / 8) + z` for every camera position, which is checked rather than
+  asserted from the algebra.
+- **The rect is compared cell to cell, not against the anchor.** A plume hangs
+  from the middle of its cell, so `cx` is `x + 0.5`; comparing that against an
+  integer cell rect silently drops the whole eastern and southern edge of the
+  window, since every emitter there sits half a cell past its own bound.
 - **The board's plumes come after the caller's, and that order is load-bearing.**
   The pool is fixed and emission is served in emitter order, so a crowded board
   thins its own smoke rather than dropping the fire on the rat.
