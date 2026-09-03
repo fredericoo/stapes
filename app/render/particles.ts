@@ -2,8 +2,8 @@ import type { DepthBox } from "../lib/geometry";
 import {
   compileRamp,
   MAX_LIVE_PARTICLES,
-  type StatusParticles,
-} from "../lib/statusVfx";
+  type ParticleEmitterDef,
+} from "../lib/particleVfx";
 
 /**
  * The particle pool: where every spark on screen is, and where it is going.
@@ -50,7 +50,7 @@ export type Random = () => number;
 export type ParticleEmitterSpec = {
   /** Stable across frames, and how a plume is recognised as the same plume. */
   id: string;
-  config: StatusParticles;
+  config: ParticleEmitterDef;
   /** Cell centre the plume is anchored to, in cells. */
   cx: number;
   cy: number;
@@ -118,7 +118,7 @@ export type ParticleReading = {
   elev: number;
   /** 0 at birth, 1 at death. What every ramp and every lerp is sampled against. */
   life: number;
-  config: StatusParticles;
+  config: ParticleEmitterDef;
   /** The plume's colours, flattened. @see compileRamp */
   ramp: Float32Array;
   /** The level this plume is drawn on. */
@@ -249,10 +249,18 @@ export class ParticleSystem {
       }
       this.ageMs[i] = age;
       const config = this.emitters[this.emitterIdx[i]!]!.spec.config;
+      // Three accelerations, one per axis, integrated the same way: velocity
+      // first, then position from the velocity this frame ends on. The wind is
+      // gravity's horizontal twin and is applied identically, which is what
+      // makes a plume bend over as it climbs rather than lean from birth.
+      const vx = this.vx[i]! + config.windX * dtSec;
+      const vy = this.vy[i]! + config.windY * dtSec;
       const vElev = this.vElev[i]! + config.gravity * dtSec;
+      this.vx[i] = vx;
+      this.vy[i] = vy;
       this.vElev[i] = vElev;
-      this.x[i] = this.x[i]! + this.vx[i]! * dtSec;
-      this.y[i] = this.y[i]! + this.vy[i]! * dtSec;
+      this.x[i] = this.x[i]! + vx * dtSec;
+      this.y[i] = this.y[i]! + vy * dtSec;
       this.elev[i] = this.elev[i]! + vElev * dtSec;
       i++;
     }

@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { describe, expect, it } from "vitest";
 import { circleSlice, ParticleLayer, particleWorldPx } from "./particleLayer";
 import type { ParticleEmitterSpec } from "./particles";
-import { DEFAULT_PARTICLES, type StatusParticles } from "../lib/statusVfx";
+import { DEFAULT_PARTICLES, type ParticleEmitterDef } from "../lib/particleVfx";
 import type { LevelLightUniforms } from "./worldQuads";
 import { CELL_SIZE, HEIGHT_PER_LEVEL } from "../lib/types";
 import { PX_PER_HEIGHT } from "../lib/geometry";
@@ -37,7 +37,7 @@ function layer() {
 
 function emitter(
   over: Partial<ParticleEmitterSpec> = {},
-  config: Partial<StatusParticles> = {},
+  config: Partial<ParticleEmitterDef> = {},
 ): ParticleEmitterSpec {
   return {
     id: "one",

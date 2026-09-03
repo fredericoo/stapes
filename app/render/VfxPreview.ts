@@ -101,7 +101,7 @@ const PREVIEW_EMITTER_ID = "preview";
  */
 const MAX_FRAME_MS = 100;
 
-export class StatusVfxPreview {
+export class VfxPreview {
   private readonly canvas: HTMLCanvasElement;
   private readonly renderer: THREE.WebGLRenderer;
   private readonly scene = new THREE.Scene();
@@ -200,21 +200,52 @@ export class StatusVfxPreview {
    * Null clears the subject and leaves the plume over bare ground, which is a
    * useful thing to look at on its own — an emitter is easier to judge without a
    * sprite in front of half of it.
+   *
+   * **Compared by object, not by id**, because one caller's subject is a tile
+   * being edited: the tile dialog hands over its own draft, whose art changes
+   * under it while the dialog is open, and an id comparison would leave the
+   * preview showing the sprite the tile had when it was opened. The status
+   * editor picks from the catalogue, where the defs are stable objects, so it
+   * still costs it nothing.
+   *
+   * The sheet is only re-fetched when the *tileset* changes. Without that, a
+   * dragged slider on a draft would re-download a tilesheet a frame.
    */
   setSubject(def: TileDef | null, tilesets: readonly TilesetDef[]) {
-    if (def?.id === this.def?.id) return;
+    if (def === this.def) return;
+    const heldTilesetId = this.tileset?.id;
+    const held = this.texture;
     this.def = def;
+    // The texture is handed back if the next subject can use it, so `clearSubject`
+    // does not dispose the thing that is about to be re-bound.
+    this.texture = null;
     this.clearSubject();
-    if (!def) return;
+    if (!def) {
+      held?.dispose();
+      return;
+    }
 
     const frames = getFrames(def, {});
     const first = frames?.[0];
-    if (!first) return;
+    if (!first) {
+      held?.dispose();
+      return;
+    }
     const tileset = tilesets.find((t) => t.id === first.sprite.tilesetId);
-    if (!tileset) return;
+    if (!tileset) {
+      held?.dispose();
+      return;
+    }
 
     this.frames = frames;
     this.tileset = tileset;
+
+    if (held && tileset.id === heldTilesetId) {
+      this.texture = held;
+      this.buildSubject();
+      return;
+    }
+    held?.dispose();
 
     const token = ++this.loadToken;
     const loader = new THREE.TextureLoader();

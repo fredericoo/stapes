@@ -7,8 +7,8 @@ import {
 import {
   DEFAULT_PARTICLES,
   MAX_LIVE_PARTICLES,
-  type StatusParticles,
-} from "../lib/statusVfx";
+  type ParticleEmitterDef,
+} from "../lib/particleVfx";
 
 /**
  * A plume, as arithmetic.
@@ -24,7 +24,7 @@ const fixed = (value: number) => () => value;
 
 const emitter = (
   over: Partial<ParticleEmitterSpec> = {},
-  config: Partial<StatusParticles> = {},
+  config: Partial<ParticleEmitterDef> = {},
 ): ParticleEmitterSpec => ({
   id: "rat:burning",
   config: { ...DEFAULT_PARTICLES, ...config },
@@ -181,6 +181,53 @@ describe("living and dying", () => {
     // spent at half a second, and everything after that is fallout.
     for (let i = 0; i < 8; i++) system.advance(250);
     expect(system.read(0, blank()).elev).toBeLessThan(rising);
+  });
+
+  it("bends away under the wind rather than leaning from birth", () => {
+    // The whole reason the wind is an acceleration: a plume that left the
+    // chimney already travelling would read as a jet. Asserted as a *curve* —
+    // the second second of travel is longer than the first — because a constant
+    // sideways speed would make the two equal and pass a weaker test.
+    const system = new ParticleSystem(fixed(0.5));
+    system.setEmitters([
+      emitter({}, {
+        ratePerSecond: 1,
+        ttlFromMs: 9_000,
+        ttlToMs: 9_000,
+        driftCellsPerSecond: 0,
+        windX: 2,
+        windY: 0,
+      }),
+    ]);
+    system.advance(1_000);
+    const born = system.read(0, blank());
+    expect(born.x).toBeCloseTo(4.5);
+
+    system.advance(1_000);
+    const first = system.read(0, blank()).x - 4.5;
+    system.advance(1_000);
+    const second = system.read(0, blank()).x - 4.5 - first;
+    expect(first).toBeGreaterThan(0);
+    expect(second).toBeGreaterThan(first);
+  });
+
+  it("leaves a still plume where the drift put it", () => {
+    // No wind is the state every plume authored before this existed is in, and
+    // it has to stay exactly the straight-up column it always was.
+    const system = new ParticleSystem(fixed(0.5));
+    system.setEmitters([
+      emitter({}, {
+        ratePerSecond: 1,
+        ttlFromMs: 9_000,
+        ttlToMs: 9_000,
+        driftCellsPerSecond: 0,
+      }),
+    ]);
+    system.advance(1_000);
+    system.advance(2_000);
+    const reading = system.read(0, blank());
+    expect(reading.x).toBeCloseTo(4.5);
+    expect(reading.y).toBeCloseTo(6.5);
   });
 });
 

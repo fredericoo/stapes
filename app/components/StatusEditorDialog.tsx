@@ -16,7 +16,7 @@ import { Button, Dialog, Input, Select, Switch } from "../ui";
 import { SpritePreview } from "./TilePreview";
 import { SpriteSelector } from "./SpriteSelector";
 import { StatusVfxFields } from "./StatusVfxFields";
-import { StatusVfxPreview } from "./StatusVfxPreview";
+import { VfxPreview } from "./VfxPreview";
 import { TITLE_SPRITE_SIZE_PX } from "./ContainerPanel";
 
 /**
@@ -121,7 +121,7 @@ export function StatusEditorDialog({
   onSave,
 }: {
   draft: StatusSource;
-  /** The catalogue the preview's subject is picked from. @see StatusVfxPreview */
+  /** The catalogue the preview's subject is picked from. @see VfxPreview */
   tiles: TileDef[];
   tilesets: TilesetDef[];
   onCancel: () => void;
@@ -394,7 +394,7 @@ export function StatusEditorDialog({
             vfx={vfx}
             onChange={(next) => patch({ vfx: next })}
           />
-          <StatusVfxPreview vfx={vfx} tiles={tiles} tilesets={tilesets} />
+          <VfxPreview vfx={vfx} tiles={tiles} tilesets={tilesets} />
         </div>
 
         {valid ? null : (

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { PLAYER_TILE_ID } from "../game/constants";
 import type { StatusVfx } from "../lib/statusVfx";
 import type { TileDef, TilesetDef } from "../lib/types";
-import { StatusVfxPreview as PreviewRenderer } from "../render/StatusVfxPreview";
+import { VfxPreview as PreviewRenderer } from "../render/VfxPreview";
 import { Select, Switch } from "../ui";
 
 /**
@@ -13,7 +13,7 @@ import { Select, Switch } from "../ui";
  * an author is actually deciding is whether a fire looks like a fire, and the
  * only way to answer that is to show them one — through the same particle
  * simulation, the same tint shader and the same palette quantise the world uses,
- * so what they approve here is what ships. See `../render/StatusVfxPreview`.
+ * so what they approve here is what ships. See `../render/VfxPreview`.
  *
  * ## Why it draws on a *tile* and not on a battler
  *
@@ -21,6 +21,14 @@ import { Select, Switch } from "../ui";
  * catching fire is the same effect on a different subject, and an author needs to
  * see it on the thing it will be on. So the subject is anything in the catalogue,
  * and switching it is one control.
+ *
+ * ## Two callers, and one of them already knows its subject
+ *
+ * The status editor picks a subject, because a status has none of its own. The
+ * tile editor **is** the subject, so it passes one and the picker goes away with
+ * it — along with the wind-down scrubber, which is a fact about a status and
+ * nothing a tile has. A control that can never do anything is worse than no
+ * control: it implies the tile has a taper somewhere.
  */
 
 /** How the picker is ordered: the player first, then everything alphabetically. */
@@ -46,14 +54,33 @@ function subjectOptions(tiles: readonly TileDef[]) {
  */
 const NO_SUBJECT = "~none";
 
-export function StatusVfxPreview({
+/** Shared empty, so a caller with a fixed subject allocates nothing to say so. */
+const NO_TILES: TileDef[] = [];
+
+export function VfxPreview({
   vfx,
-  tiles,
+  tiles = NO_TILES,
   tilesets,
+  subject: fixedSubject,
 }: {
   vfx: StatusVfx;
-  tiles: TileDef[];
+  /**
+   * The catalogue the subject is picked from.
+   *
+   * Unread when {@link fixedSubject} says what to draw on, and optional for
+   * exactly that caller — handing a whole catalogue to a picker that is not
+   * going to be rendered says the wrong thing about what this needs.
+   */
+  tiles?: TileDef[];
   tilesets: TilesetDef[];
+  /**
+   * The tile to draw on, for a caller that already has one.
+   *
+   * Present is what turns the picker and the scrubber off — see the note above.
+   * Null draws the plume over bare ground, which is the honest answer for a tile
+   * that has no sprite authored yet.
+   */
+  subject?: TileDef | null;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const previewRef = useRef<PreviewRenderer | null>(null);
@@ -75,7 +102,10 @@ export function StatusVfxPreview({
   const [taper, setTaper] = useState(1);
 
   const options = useMemo(() => subjectOptions(tiles), [tiles]);
-  const subject = tiles.find((t) => t.id === subjectId) ?? null;
+  const subject =
+    fixedSubject !== undefined
+      ? fixedSubject
+      : (tiles.find((t) => t.id === subjectId) ?? null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -121,37 +151,45 @@ export function StatusVfxPreview({
         aria-label={`Preview of the effect on ${subject?.name ?? "bare ground"}`}
         role="img"
       />
-      <label className="flex flex-col gap-0.5">
-        <span className="text-[11px] font-bold uppercase text-muted">
-          Drawn on
-        </span>
-        <Select
-          value={subjectId}
-          onValueChange={(id) => setSubjectId(id ?? PLAYER_TILE_ID)}
-          options={options}
-        />
-      </label>
-      <label className="flex flex-col gap-0.5">
-        <span className="text-[11px] font-bold uppercase text-muted">
-          {vfx.taperMs > 0
-            ? `Left to run · ${taper.toFixed(2)}`
-            : "Left to run · not set"}
-        </span>
-        {/* Scrubbed rather than waited out: a fade an author had to sit through
-            thirty seconds of is a fade nobody would tune. Disabled when nothing
-            winds down, so the control cannot imply an effect that is not there. */}
-        <input
-          type="range"
-          className="w-full max-w-[288px] accent-accent disabled:opacity-40"
-          min={0}
-          max={1}
-          step={0.05}
-          value={taper}
-          disabled={vfx.taperMs <= 0}
-          aria-label="Left to run"
-          onChange={(e) => setTaper(Number(e.target.value))}
-        />
-      </label>
+      {/* Both belong to the status editor: one picks a subject the status does
+          not have, the other scrubs a wind-down a tile does not have. A caller
+          that brought its own subject gets neither. */}
+      {fixedSubject === undefined ? (
+        <>
+          <label className="flex flex-col gap-0.5">
+            <span className="text-[11px] font-bold uppercase text-muted">
+              Drawn on
+            </span>
+            <Select
+              value={subjectId}
+              onValueChange={(id) => setSubjectId(id ?? PLAYER_TILE_ID)}
+              options={options}
+            />
+          </label>
+          <label className="flex flex-col gap-0.5">
+            <span className="text-[11px] font-bold uppercase text-muted">
+              {vfx.taperMs > 0
+                ? `Left to run · ${taper.toFixed(2)}`
+                : "Left to run · not set"}
+            </span>
+            {/* Scrubbed rather than waited out: a fade an author had to sit
+                through thirty seconds of is a fade nobody would tune. Disabled
+                when nothing winds down, so the control cannot imply an effect
+                that is not there. */}
+            <input
+              type="range"
+              className="w-full max-w-[288px] accent-accent disabled:opacity-40"
+              min={0}
+              max={1}
+              step={0.05}
+              value={taper}
+              disabled={vfx.taperMs <= 0}
+              aria-label="Left to run"
+              onChange={(e) => setTaper(Number(e.target.value))}
+            />
+          </label>
+        </>
+      ) : null}
       <label className="flex items-center gap-2">
         <span className="text-[11px] font-bold uppercase text-muted">
           Unlit room

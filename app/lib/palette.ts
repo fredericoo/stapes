@@ -77,6 +77,17 @@ function linearChannelToSrgb(c: number): number {
 }
 
 /** Björn Ottosson sRGB → OKLab. Inputs are sRGB 0..1. */
+/**
+ * A colour channel dragged back into range.
+ *
+ * Here rather than private to each caller because every use of it in this
+ * codebase is the same use: a round trip through OKLab can land a saturated
+ * colour outside sRGB, and a negative channel is not a colour.
+ */
+export function clamp01(n: number): number {
+  return n < 0 ? 0 : n > 1 ? 1 : n;
+}
+
 export function srgbToOklab(r: number, g: number, b: number): Oklab {
   const lr = srgbChannelToLinear(r);
   const lg = srgbChannelToLinear(g);

@@ -3,6 +3,7 @@ import { tilesetUrl } from "../lib/api";
 import {
   absoluteElevation,
   baseCellWorldOrigin,
+  CELL_CENTRE,
   type DepthBox,
   DEPTH_LEAST_BODY,
   depthBox,
@@ -89,6 +90,11 @@ import { noTintUniforms, tintCacheKey, tintUniforms } from "./spriteTint";
 import type { StatusTint } from "../lib/statusVfx";
 import { ParticleLayer } from "./particleLayer";
 import type { ParticleEmitterSpec } from "./particles";
+import {
+  appendVisibleTileEmitters,
+  tileEmitterId,
+  tileEmitterPrefix,
+} from "./tileEmitters";
 import { PLAYER_TILE_ID } from "../game/constants";
 
 /**
@@ -165,6 +171,19 @@ type BuildItem = Quad & {
   /** Set when this tile gets its own mesh rather than joining a merged batch. */
   tileKey?: string;
   anim?: Omit<AnimatedInstance, "mesh" | "key">;
+  /**
+   * The plume this placement gives off, on the one quad that stands for it.
+   *
+   * Ridden in on the build item rather than gathered in a sweep of its own,
+   * because the emitter needs the placement's foot elevation and its depth box
+   * and {@link WorldRenderer.cellItems} has just worked both of those out. A
+   * second walk would be a second copy of the elevation arithmetic, and the two
+   * would drift.
+   *
+   * A pile draws one quad per thing in it and emits once, so this is set on the
+   * first offset only. @see WorldRenderer.tileEmittersByLevel
+   */
+  emitter?: ParticleEmitterSpec;
 };
 
 /** Shared empties, so the common frame allocates nothing to say "none". */
@@ -498,6 +517,28 @@ export class WorldRenderer {
   private tilesById: Record<string, TileDef> = {};
   private levelGroups = new Map<number, THREE.Group>();
   private animatedByLevel = new Map<number, AnimatedInstance[]>();
+  /**
+   * Every emitting placement on the board, by level.
+   *
+   * Kept beside {@link animatedByLevel} and maintained by the same three
+   * functions, because it answers the same shape of question — "what did this
+   * level's build produce that outlives the geometry" — and a fourth index with
+   * its own lifecycle is a fourth thing to forget in `removeLevel`.
+   *
+   * The whole board, not the window: culling is a per-frame question about where
+   * the camera is, and re-deriving this on every pan would rebuild the index for
+   * a step.
+   */
+  private tileEmittersByLevel = new Map<number, ParticleEmitterSpec[]>();
+  /**
+   * The plumes handed to the particle system this frame, refilled in place.
+   *
+   * One array reused rather than a fresh one per frame: this is written on every
+   * frame that has a plume in it, and an array per frame at 120fps is a
+   * collection in the middle of the frame budget for a list that is usually
+   * three entries long.
+   */
+  private readonly visibleEmitters: ParticleEmitterSpec[] = [];
   private animated: AnimatedInstance[] = [];
   private animatedByKey = new Map<string, AnimatedInstance[]>();
   /** @see WorldView.spriteStates — held so the map build can read it. */
@@ -736,9 +777,32 @@ export class WorldRenderer {
       // The plumes are only *reconciled* here. Advancing them is `tick`'s job,
       // because a plume moves with the clock rather than with the world: a
       // frame in which nothing at all changed still has sparks in it.
-      this.particles.setEmitters(view.particleEmitters ?? EMPTY_EMITTERS);
+      this.particles.setEmitters(this.emittersFor(view));
     });
     this.needsRender = true;
+  }
+
+  /**
+   * Every plume on screen this frame: the caller's, then the board's own.
+   *
+   * The board's half is culled by `./tileEmitters`, which owns the rule and the
+   * arithmetic. What is left here is the one thing that needs a renderer: the
+   * window, which is the camera's and is the same one the light bake crops to.
+   */
+  private emittersFor(view: WorldView): readonly ParticleEmitterSpec[] {
+    if (this.tileEmittersByLevel.size === 0) {
+      return view.particleEmitters ?? EMPTY_EMITTERS;
+    }
+
+    const out = this.visibleEmitters;
+    out.length = 0;
+    if (view.particleEmitters) out.push(...view.particleEmitters);
+    return appendVisibleTileEmitters(
+      this.tileEmittersByLevel,
+      this.cameraWindow(view),
+      view.hideLevelsAbove,
+      out,
+    );
   }
 
   /**
@@ -1523,15 +1587,33 @@ export class WorldRenderer {
    * the level span. Cheap enough to redo every frame.
    */
   private lightWindow(view: WorldView): WorldRect {
+    const base = this.cameraWindow(view);
+    return {
+      x0: base.x0 + MIN_LEVEL - LIGHT_WINDOW_MARGIN,
+      y0: base.y0 + MIN_LEVEL - LIGHT_WINDOW_MARGIN,
+      x1: base.x1 + MAX_LEVEL + LIGHT_WINDOW_MARGIN,
+      y1: base.y1 + MAX_LEVEL + LIGHT_WINDOW_MARGIN,
+    };
+  }
+
+  /**
+   * The cells the camera covers **on level 0**, with no apron and no level span.
+   *
+   * The one honest primitive under both windows: the projection shifts level `z`
+   * by exactly `z` cells, so every consumer's rect is this one plus whatever
+   * slack that consumer actually needs. {@link lightWindow} unions the whole
+   * level span onto it because a light on any storey can reach here; a plume is
+   * on one known level and takes that level's own shift instead — see
+   * `./tileEmitters`.
+   */
+  private cameraWindow(view: WorldView): WorldRect {
     const viewW = this.canvasW / view.zoom;
     const viewH = this.canvasH / view.zoom;
-    const cell = (px: number, z: number) =>
-      Math.floor((px + CELL_SIZE * z) / CELL_SIZE);
     return {
-      x0: cell(view.camera.x, MIN_LEVEL) - LIGHT_WINDOW_MARGIN,
-      y0: cell(view.camera.y, MIN_LEVEL) - LIGHT_WINDOW_MARGIN,
-      x1: cell(view.camera.x + viewW, MAX_LEVEL) + LIGHT_WINDOW_MARGIN,
-      y1: cell(view.camera.y + viewH, MAX_LEVEL) + LIGHT_WINDOW_MARGIN,
+      x0: Math.floor(view.camera.x / CELL_SIZE),
+      y0: Math.floor(view.camera.y / CELL_SIZE),
+      x1: Math.floor((view.camera.x + viewW) / CELL_SIZE),
+      y1: Math.floor((view.camera.y + viewH) / CELL_SIZE),
     };
   }
 
@@ -1713,6 +1795,7 @@ export class WorldRenderer {
     }
     this.levelGroups.clear();
     this.animatedByLevel.clear();
+    this.tileEmittersByLevel.clear();
     this.animated = [];
     this.animatedByKey.clear();
     this.movableMeshes.clear();
@@ -1821,18 +1904,26 @@ export class WorldRenderer {
     for (const key of changed) {
       const { x, y } = parseCoordKey(key);
       this.removeSeparatesAt(z, x, y);
+      this.removeTileEmittersAt(z, x, y);
     }
 
     const animated = this.animatedByLevel.get(z) ?? [];
+    const emitters = this.tileEmittersByLevel.get(z) ?? [];
     for (const key of changed) {
       const { x, y } = parseCoordKey(key);
       for (const item of this.cellItems(next, z, x, y, getStack(next, x, y, z))) {
+        // Ahead of the separates filter, and that placement is the whole reason
+        // this is not inside it: the merged tiles this loop skips are exactly
+        // the still, unanimated ones a chimney is.
+        if (item.emitter) emitters.push(item.emitter);
         if (!item.anim && !item.tileKey) continue;
         this.installSeparate(group, item, z, animated);
       }
     }
     if (animated.length > 0) this.animatedByLevel.set(z, animated);
     else this.animatedByLevel.delete(z);
+    if (emitters.length > 0) this.tileEmittersByLevel.set(z, emitters);
+    else this.tileEmittersByLevel.delete(z);
 
     return "rebuilt";
   }
@@ -1874,6 +1965,24 @@ export class WorldRenderer {
     else this.animatedByLevel.delete(z);
   }
 
+  /**
+   * Drop every plume a cell was giving off, so the cell can be rebuilt.
+   *
+   * Filtered by id prefix rather than by coordinate fields, on the terms
+   * {@link removeSeparatesAt} does it: the id *is* the instance key, so one
+   * spelling of "this cell" serves both indexes and there is no second parse of
+   * the same string to get out of step.
+   */
+  private removeTileEmittersAt(z: number, x: number, y: number) {
+    const emitters = this.tileEmittersByLevel.get(z);
+    if (!emitters) return;
+    const prefix = tileEmitterPrefix(z, x, y);
+    const kept = emitters.filter((spec) => !spec.id.startsWith(prefix));
+    if (kept.length === emitters.length) return;
+    if (kept.length > 0) this.tileEmittersByLevel.set(z, kept);
+    else this.tileEmittersByLevel.delete(z);
+  }
+
   private removeLevel(z: number) {
     for (const [key, ghost] of this.motionGhosts) {
       if (ghost.userData.drawOnZ === z) this.disposeMotionGhost(key);
@@ -1885,6 +1994,7 @@ export class WorldRenderer {
       this.levelGroups.delete(z);
     }
     this.animatedByLevel.delete(z);
+    this.tileEmittersByLevel.delete(z);
     for (const key of [...this.movableMeshes.keys()]) {
       if (key.startsWith(`${z}:`)) {
         this.movableMeshes.delete(key);
@@ -2028,6 +2138,31 @@ export class WorldRenderer {
           : boxTop,
       );
 
+      // Anchored to the cell and sorted with the placement, which is the rule
+      // `./particles` states and the reason it is built here: a plume takes the
+      // depth box of the thing it comes off, so a chimney's smoke is in front of
+      // the chimney at every pixel they share and behind whatever is nearer.
+      //
+      // Its foot is the placement's own, so an author's spawn elevation is
+      // measured from the tile the plume belongs to rather than from the floor
+      // of the cell — smoke leaves the pot on top of the stack, not the bricks
+      // under it.
+      const emitter: ParticleEmitterSpec | undefined = def.particles
+        ? {
+            id: tileEmitterId(instanceKey),
+            config: def.particles,
+            cx: x + CELL_CENTRE,
+            cy: y + CELL_CENTRE,
+            footElev: foot,
+            z,
+            box,
+            stackBias,
+            // A tile is never winding down: a taper is what is left of a status,
+            // and a chimney has nothing left to run.
+            taper: 1,
+          }
+        : undefined;
+
       // An indexed loop rather than `forEach`: this runs once per placement on a
       // floor — thousands of them per rebuild — and a callback here is a closure
       // allocated per tile to walk a list that is one long for all but a handful
@@ -2055,6 +2190,9 @@ export class WorldRenderer {
           lightY1: y + 1,
           unlit: tileCanEmitLight(def),
           tileKey: separate ? instanceKey : undefined,
+          // On the first quad only — a heap of six berries is one placement and
+          // gives off one plume, not six.
+          emitter: i === 0 ? emitter : undefined,
           // Registered when it merely *can* change state, not only when it
           // animates: a creature standing still on one frame becomes a four-frame
           // walk cycle the moment it steps, and the registry is what the state
@@ -2130,8 +2268,14 @@ export class WorldRenderer {
 
     const staticByTex = new Map<THREE.Texture, Quad[]>();
     const animated: AnimatedInstance[] = [];
+    const emitters: ParticleEmitterSpec[] = [];
 
     for (const item of items) {
+      // Before the split, because an emitting tile is as likely to be merged
+      // into the floor's batch as to have a mesh of its own: a chimney does not
+      // move and does not animate, and a plume is drawn by the particle layer
+      // either way.
+      if (item.emitter) emitters.push(item.emitter);
       if (item.anim || item.tileKey) {
         this.installSeparate(levelGroup, item, z, animated);
       } else {
@@ -2156,6 +2300,9 @@ export class WorldRenderer {
 
     if (animated.length > 0) {
       this.animatedByLevel.set(z, animated);
+    }
+    if (emitters.length > 0) {
+      this.tileEmittersByLevel.set(z, emitters);
     }
   }
 

@@ -2762,11 +2762,17 @@ Every change to map data (`MapFile` / placed tiles) **must** go through `useEdit
 
 ## A status is drawn twice: on the body, and over the tile
 
-`app/lib/statusVfx.ts` is the vocabulary — a tint and an emitter — and it is a
-fourth file rather than more of `app/lib/status.ts` because **the simulation
-never reads it**. A status's numbers are the server's business; what it looks
-like is not on the wire, is not ticked, and cannot kill anybody. Keeping the two
-in separate files is what stops an effect quietly growing a consequence.
+`app/lib/statusVfx.ts` is the vocabulary — a tint, a cast light and an emitter —
+and it is a fourth file rather than more of `app/lib/status.ts` because **the
+simulation never reads it**. A status's numbers are the server's business; what
+it looks like is not on the wire, is not ticked, and cannot kill anybody.
+Keeping the two in separate files is what stops an effect quietly growing a
+consequence.
+
+The emitter itself lives one file further out, in `app/lib/particleVfx.ts`,
+because a status is not the only thing that has one: a **tile** carries one too,
+and a chimney is not under an effect. See "A tile emits because it is that tile"
+below.
 
 Everything below is **client-side and deliberately amnesiac**. Particles are
 simulated by whoever is watching, from their own frame clock and their own dice
@@ -2850,6 +2856,110 @@ target **before** `app/render/palettePass.ts` quantises, so a half-faded spark i
 composited and then snapped, and what lands on the canvas is a solid palette
 entry. Fading *after* the quantise — which is what the editor's level fade does —
 puts colours on screen that are not in the palette.
+
+### A plume can be blown sideways, and the wind is an acceleration
+
+`driftCellsPerSecond` is symmetric — a per-axis roll in ±drift, drawn once at
+birth — so it spreads a plume and never moves one. `windX` / `windY` are the
+other thing: cells per second squared along the map's axes, integrated in
+`ParticleSystem.advance` exactly as `gravity` already is on the vertical.
+
+**An acceleration and not a speed**, and the difference is the whole effect: a
+plume that leaves the chimney already travelling reads as a jet, and one that
+leaves it straight and bends over as it climbs reads as smoke in a breeze. Only
+an acceleration draws that curve, which is what `particles.test.ts` asserts —
+the second second of sideways travel has to be longer than the first, not merely
+non-zero.
+
+Map axes, never screen ones. `+x` is east, `+y` is south, and the projection
+makes the diagonal, the same way it does for `rise`.
+
+### A tile emits because it is that tile, not because something happened to it
+
+`TileDef.particles` is the same `ParticleEmitterDef` a status carries, and every
+placement of that tile on the board gives off a plume: a chimney, a flame, a
+torch lying on the floor. An item in a bag emits nothing without anything having
+to say so — an inventory draws its own sprites and never the world.
+
+**On the tile and not on the frame**, unlike `Frame.light`. A thing that emits
+and the same thing not emitting are already two defs here with a swap between
+them, so per-frame emitters would buy smoking on frames 2 and 4 of a fire and
+cost a plume that restarts or changes shape every time the animation came round.
+
+Four things about the machinery are worth knowing before touching it:
+
+- **The index is built by the mesh builder, not by a sweep.** `cellItems` has
+  just worked out the placement's foot elevation and its depth box, which is
+  exactly what an emitter needs; a second walk would be a second copy of that
+  arithmetic and the two would drift. The emitter rides in on the `BuildItem`
+  and is collected into `tileEmittersByLevel` — maintained by `buildLevel`,
+  `rebuildLevelIncrementally` and `removeLevel`, the same three functions
+  `animatedByLevel` is. **A fourth index with its own lifecycle is a fourth
+  thing to forget in `removeLevel`.**
+- **The incremental path collects before it filters.** That loop skips items
+  with no mesh of their own, and the merged tiles it skips are exactly the
+  still, unanimated ones a chimney is. Collecting after the `continue` means the
+  chimney smokes until the first time anything near it changes and then never
+  again.
+- **The cull is `app/render/tileEmitters.ts`, and it is pure.** A rect test per
+  level, the roof cut, and a cap. Separate from the renderer for the reason
+  `particles.ts` is separate from `particleLayer.ts`: it is arithmetic, so it can
+  be asserted rather than eyeballed.
+- **The window is the camera's reach on that emitter's own level, and it must
+  not be the light bake's.** `lightWindow` is the union across every level —
+  right for a light, since one on any storey can reach the cells you are looking
+  at, and the projection shifts level `z` by exactly `z` cells so unioning
+  seventeen of them grows the rect by eight cells a side before its own margin.
+  Against a 23-cell viewport that is a window over **four times** the visible
+  area, and every emitter inside it spends the shared pool and has quads written
+  for sparks nobody can see. A plume is on one known level, so it takes that
+  level's own rect plus `PARTICLE_WINDOW_MARGIN` — one add per level, nothing per
+  emitter, and 45% fewer emitters admitted.
+
+  Both windows are now built on `WorldRenderer.cameraWindow`, the level-0 rect
+  with no slack of its own. `lightWindow` adds the level span and its margin back
+  and is **byte-identical** to what it replaces: `floor((px + 8z) / 8)` is
+  `floor(px / 8) + z` for every camera position, which is checked rather than
+  asserted from the algebra.
+- **The rect is compared cell to cell, not against the anchor.** A plume hangs
+  from the middle of its cell, so `cx` is `x + 0.5`; comparing that against an
+  integer cell rect silently drops the whole eastern and southern edge of the
+  window, since every emitter there sits half a cell past its own bound.
+- **The board's plumes come after the caller's, and that order is load-bearing.**
+  The pool is fixed and emission is served in emitter order, so a crowded board
+  thins its own smoke rather than dropping the fire on the rat.
+
+`MAX_VISIBLE_TILE_EMITTERS` is not the budget — `MAX_LIVE_PARTICLES` is. It
+bounds the per-frame reconcile, and its truncation is arbitrary rather than
+nearest-first: past 128 emitting tiles in one window, which of them smoke changes
+as you walk. That is already a content mistake, and a sort would cost more every
+frame to fix it.
+
+**Nothing parses a tile on the way in**, so `normalizeTileDef` is the only door
+between a hand-edited `tiles.json` and a `ratePerSecond` of `"lots"` reaching the
+emission loop. A malformed plume is **dropped rather than refused**, on exactly
+the terms `clampTileLight` is silent: this is one author's own content, and a
+world that would not load over a smoke plume is worse than a chimney that has
+stopped smoking. The same parse is what fills in a field an authored block
+predates, so the renderer reads a complete emitter and never a partial one.
+
+**The map editor draws no plumes**, tile or status: `/map` is
+`app/editor/EditorRenderer.ts`, a separate renderer from the one play uses, with
+no particle layer in it. What answers for that is the preview in the tile dialog
+— `app/render/VfxPreview.ts`, the status editor's rendering simulation, with the
+subject pinned to the tile being edited.
+
+Two things had to change for it to take a *draft* rather than a catalogue entry,
+and both are the same fact: the subject is now an object that changes while the
+dialog is open.
+
+- **`setSubject` compares by object, not by id.** An id comparison left the
+  preview showing the sprite the tile had when it was opened. The sheet is still
+  only re-fetched when the *tileset* changes, or a dragged slider would download
+  a tilesheet a frame.
+- **The dialog memoises what it hands over**, keyed on the fields that decide the
+  art. Without it every keystroke rebuilds the subject mesh and restarts the
+  sprite's animation.
 
 ### Anything parented to `world` that a map rebuild does not own must be named
 
