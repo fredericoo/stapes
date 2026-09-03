@@ -741,6 +741,98 @@ a threshold at the boundary between "nothing solid" and "something solid", so
 stopped a stool tripping a plate. `BattlerDef.sight.up`/`down` count **floors**,
 not units. Both were left alone on purpose.
 
+### A full-height tile is the floor above it, and an unwalkable one is a hole in it
+
+A stack exactly `HEIGHT_PER_LEVEL` tall tops out at the floor plane of the level
+above, which is the same elevation the level above's own floor surfaces at.
+`surfaceTileAt` walks **up** from `MIN_LEVEL` and returns the first stack that
+surfaces at the elevation asked about, so on a tie the *lower* one answers — and
+whether that cell can be walked on is then read off whatever tile that is. This
+is what makes the caves work at all: a level of `half-stone` is what the ground
+above it stands on, and `half-stone` is walkable, so nobody notices.
+
+**A tile that fills a level and is `walkable: false` therefore puts a hole in
+the floor above it.** `arcane-crystal-1` and `-2` are height 4 and unwalkable,
+and a row of them planted on the top floor of the animal den made the forest
+cells directly above them refuse to be stepped on — a hole in a meadow, tens of
+cells from the cave that caused it, with nothing wrong at the cell itself.
+`arcane-crystal-3` is half a level and cannot do it. The rule for authoring is
+the same one the den's generator follows: **a full-height unwalkable tile needs
+stone over its head**, not an open cell, and the check is the tile's height
+against `HEIGHT_PER_LEVEL` rather than anything about crystals.
+
+The same arithmetic applies to a body — `cave-troll` is four high — and there it
+is left alone: a creature standing under an open cell blocks it while it stands
+there and walks off a moment later, which is a fact about a body being somewhere
+rather than about the map being wrong.
+
+### A ramp between two levels needs a hole above it
+
+`ramp` and `stone-stairs` are two units tall, and two units is exactly
+`MAX_CLIMB_HEIGHT` — half a level. That is what lets one of them join two levels
+at all: a body climbs a whole level in two ordinary steps, floor → ramp → the
+floor above, and neither step is a fall or a special case.
+
+**The cell directly over the ramp has to be empty.** A body standing on the ramp
+has its feet two units up and its head a unit *into* the level above, so a floor
+plate up there is a ceiling and `fitsHeightAtElevation` refuses to put anybody on
+the slope — the ramp becomes scenery you cannot stand on, with no error anywhere
+to say so. So a ramp from level *z* to *z+1* is three cells, not one:
+
+```
+(x, y,   z  )  [dirt, ramp]      facing the way you came from
+(x, y,   z+1)  empty             the hole, and the way in from above
+(x±1, y, z+1)  [dirt]            what you climb out onto
+```
+
+That empty cell is not a defect to be tidied up later. It is the top of the
+slope: from the floor above you step into it, land on the ramp two units down —
+an ordinary walk, not a drop — and carry on down. The animal den's mouth is the
+same three cells with the surface as its upper level, which is why walking off
+the road into it feels like walking into a cave rather than like using a door.
+
+**The facing is the opposite of the way you climb.** `climbFrom` on both tiles
+reads "from a ramp facing *n*, you may climb north-**wards**… no": variant `n`
+permits travel `s`. So a ramp you ascend heading north is placed facing south.
+Get it backwards and the ramp is walkable, reachable, and refuses to go up.
+`scripts/carve-caves.ts` derives it (`RAMP_FACING`) rather than typing it, and
+then proves every ramp it placed by asking `canWalk` to climb one.
+
+## A roof over a cave is not what keeps the daylight out of it
+
+Anything underground that is meant to be dark has to be *checked* dark, against
+the baker, at noon. Walling it in does not do it, and every one of the reasons
+is invisible from the cell that ends up lit.
+
+`isSkyExposed` answers a narrower question than it looks like it does: whether
+the shaft straight up is sealed. The flood that follows spreads light sideways
+*and vertically* between levels, so a cave is lit by geometry a dozen cells away
+and three levels up with nothing wrong overhead. Three ways in, all found by
+lighting one:
+
+- **Past the edge of the map.** Outside the surface's own footprint there is no
+  content to occlude anything, so the bake's domain margin is open air at every
+  depth, seeded at full sky. It spills `MAX_LIGHT_LEVEL` cells inward, which is
+  why `carve-caves.ts` keeps that far back from the edge rather than walling
+  against it.
+- **Any empty column.** A column with nothing in it takes the shaft all the way
+  down, and the flood then walks out of its foot into whatever it touches. A
+  wall beside a cave does nothing about a gap *over* the cave: the light goes
+  round. The fix is a lid — rock in those columns at the topmost cave level,
+  which is enough for every level under it, because the shaft stops at the first
+  full block and there is then no lit cell underground to spread from.
+- **A floor with something standing on it.** A bare floor hard-seals the
+  vertical flood edge; the same floor with a bush, a sign or a fence on it is
+  half opaque, which disqualifies it, and daylight comes through the ground at
+  half strength. Most of the map's surface has something on it. This one is a
+  bug rather than a rule — the seal is a property of the floor and the opacity
+  is a property of the thing standing on it — and until it is fixed, a cave
+  simply does not run under those cells.
+
+The check that catches all three is the last thing `scripts/carve-caves.ts`
+does: bake the map it just wrote and assert no carved cell has any sky in it
+away from the mouth. Everything above was found by that assertion failing.
+
 ## A chase is a route, and it stops being one
 
 `step_toward` used to judge one step on its own: of the four directions, take
