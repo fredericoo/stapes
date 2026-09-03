@@ -3427,7 +3427,7 @@
                 "then": [
                   {
                     "kind": "say",
-                    "text": "Drink one and you glow for an hour. Fourteen shards apiece — how many?"
+                    "text": "Drink one and you glow for an hour. Fourteen shards apiece \u2014 how many?"
                   },
                   {
                     "kind": "request_trade",
@@ -12492,6 +12492,43 @@
             "intensity": 0.93,
             "color": "#e18e52"
           }
+        }
+      ]
+    },
+    "particles": {
+      "ratePerSecond": 14,
+      "ttlFromMs": 900,
+      "ttlToMs": 1800,
+      "spawnRadiusCells": 0.22,
+      "spawnElevFrom": 1,
+      "spawnElevTo": 2.5,
+      "riseFrom": 3,
+      "riseTo": 6,
+      "driftCellsPerSecond": 0.18,
+      "gravity": -0.4,
+      "windX": 0.35,
+      "windY": -0.2,
+      "lit": false,
+      "radiusFromPx": 1,
+      "radiusToPx": 2,
+      "alphaFrom": 1,
+      "alphaTo": 0,
+      "ramp": [
+        {
+          "at": 0.0,
+          "color": "#ffe0a0"
+        },
+        {
+          "at": 0.18,
+          "color": "#fb6b1d"
+        },
+        {
+          "at": 0.45,
+          "color": "#7b3b2a"
+        },
+        {
+          "at": 1.0,
+          "color": "#4b4158"
         }
       ]
     }
