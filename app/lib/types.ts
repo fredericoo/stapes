@@ -1,5 +1,10 @@
+import * as v from "valibot";
 import type { Element } from "./element";
 import type { TileInteractions } from "./interactions";
+import {
+  particleEmitterSchema,
+  type ParticleEmitterDef,
+} from "./particleVfx";
 import type { ItemInstance } from "./itemInstance";
 
 export type Direction = "n" | "e" | "s" | "w";
@@ -326,6 +331,28 @@ export type TileDef = StateSprites & {
    * ./interactions, which validate the on-disk shape.
    */
   interactions?: TileInteractions;
+  /**
+   * A plume this tile gives off wherever it is placed, or absent for the
+   * overwhelming majority that give off nothing.
+   *
+   * On the *tile* and not on the frame, unlike {@link Frame.light}, because a
+   * thing that emits and the same thing not emitting are already two defs here
+   * with a swap between them — a lit torch and a dead one. Per-frame emitters
+   * would buy the ability to smoke on frames 2 and 4 of a fire, and cost a
+   * plume that restarts or changes shape mid-flight every time the animation
+   * came round.
+   *
+   * Read by the renderer and by nothing else: the simulation has no idea this
+   * field exists, and a tile that emits is exactly as solid, as flammable and
+   * as heavy as one that does not. See `./particleVfx`.
+   *
+   * It is drawn wherever the placement is, which is what makes this the answer
+   * for a dropped torch as well as for a chimney — an item lying on the floor is
+   * a placement like any other. An item in a bag is not on the board at all and
+   * draws through the inventory's own sprite path, so it emits nothing without
+   * anything here having to say so.
+   */
+  particles?: ParticleEmitterDef;
   /**
    * Sprites for the non-idle {@link SpriteState}s, sparse at every level.
    *
@@ -827,7 +854,7 @@ export function normalizeTileDef(raw: unknown): TileDef {
   const t = raw as Record<string, unknown>;
   if (t && typeof t.type === "string" && TILE_TYPES.includes(t.type as TileType)) {
     const def = raw as TileDef;
-    return clampTileLight({
+    return normalizeTileVfx({
       ...def,
       attributes: def.attributes ?? {},
       kind: readKind(t),
@@ -876,10 +903,10 @@ export function normalizeTileDef(raw: unknown): TileDef {
       const frames = legacy.variants?.[d];
       if (frames) sprites[d] = framesToSprite(frames, light);
     }
-    return clampTileLight({ ...base, sprites });
+    return normalizeTileVfx({ ...base, sprites });
   }
 
-  return clampTileLight({
+  return normalizeTileVfx({
     ...base,
     sprite: framesToSprite(legacy.variants?.default, light),
   });
@@ -975,6 +1002,42 @@ function clampTileLight(def: TileDef): TileDef {
       ]),
     ) as typeof out.states,
   };
+}
+
+/**
+ * Everything a tile draws, held to what the renderer can actually draw.
+ *
+ * One call rather than two at each of {@link normalizeTileDef}'s three exits,
+ * because "the visual fields are checked here" is one fact and a second exit
+ * that grew only half of it is the bug this shape exists to make impossible.
+ */
+function normalizeTileVfx(def: TileDef): TileDef {
+  return withCheckedParticles(clampTileLight(def));
+}
+
+/**
+ * A tile whose plume parses, or the same tile with no plume at all.
+ *
+ * A tile is not validated on the way in — {@link normalizeTileDef} migrates and
+ * clamps rather than parses — so this is the only thing standing between a
+ * hand-edited `tiles.json` and a `ratePerSecond` of `"lots"` reaching the
+ * emission loop. Parsed rather than trusted, and **dropped rather than
+ * refused**, on exactly the terms {@link clampTileLight} is silent: this is one
+ * author's own content, and a world that would not load over a smoke plume is
+ * worse than a chimney that has stopped smoking.
+ *
+ * The parse is also what fills in a field the block predates — `windX` on a
+ * plume authored before there was a wind — so the renderer reads a complete
+ * emitter and never a partial one.
+ */
+function withCheckedParticles(def: TileDef): TileDef {
+  if (!def.particles) return def;
+  const parsed = v.safeParse(particleEmitterSchema, def.particles);
+  if (!parsed.success) {
+    const { particles: _malformed, ...rest } = def;
+    return rest;
+  }
+  return { ...def, particles: parsed.output };
 }
 
 /** The TileSprites one {@link StateSprites} holds, on this tile's own axis. */

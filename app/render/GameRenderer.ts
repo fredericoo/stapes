@@ -1,6 +1,7 @@
 import {
   absoluteElevation,
   baseCellWorldOrigin,
+  CELL_CENTRE,
   depthBox,
   depthStackBias,
   drawOrder,
@@ -266,15 +267,6 @@ type PointerLabel = {
  * sum that has not moved. Collisions cost nothing worse than a bar redrawn at
  * the next commit instead of the next frame.
  */
-/**
- * Middle of a cell, in cells — where a plume hangs from.
- *
- * A cell is one unit across, so its centre is half of one. Named rather than
- * written as `0.5` at the two places that want it, because `+ 0.5` next to a
- * coordinate reads as a rounding nudge and this is a position.
- */
-const CELL_CENTRE = 0.5;
-
 function healthSignature(actors: readonly ActorSnapshot[]): number {
   let signature = 0;
   for (const actor of actors) {

@@ -18,6 +18,11 @@ import type {
   VariantKey,
 } from "../lib/types";
 import {
+  DEFAULT_PARTICLES,
+  type ParticleEmitterDef,
+} from "../lib/particleVfx";
+import { ParticleFields } from "./ParticleFields";
+import {
   AUTOTILE_SLICE_COUNT,
   DIRECTIONS,
   MAX_LIGHT_LEVEL,
@@ -55,7 +60,16 @@ import {
 import { validateBrain, type BrainDef } from "../lib/brain";
 import { validateDialog, type DialogDef } from "../lib/dialog";
 import { tilesByIdFromList } from "../lib/validation";
-import { Button, Dialog, Input, Segmented, Select, TabPanel, Tabs } from "../ui";
+import {
+  Button,
+  Dialog,
+  Input,
+  Segmented,
+  Select,
+  Switch,
+  TabPanel,
+  Tabs,
+} from "../ui";
 
 function emptyFrame(tilesetId: string): Frame {
   const rect = { x: 0, y: 0, w: 1, h: 1 };
@@ -686,6 +700,7 @@ export function TileEditorDialog({
           ? draft.connectsTo
           : undefined,
       climbFrom: climbFromForSave(draft, climbByVariant),
+      particles: draft.particles,
       interactions: interactionsForSave(draft.interactions),
       states: savedStates,
     };
@@ -1236,6 +1251,47 @@ export function TileEditorDialog({
             </span>
           </label>
         ) : null}
+
+        <div className="flex flex-col gap-2 border-t-2 border-border pt-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold uppercase text-muted">
+              Particles
+            </span>
+            <Switch
+              checked={draft.particles != null}
+              onCheckedChange={(on) =>
+                setDraft({
+                  ...draft,
+                  // The default rather than a zeroed block, so turning this on
+                  // draws something on the map immediately. The ramp is copied
+                  // rather than shared, or every tile switched on would author
+                  // the same array.
+                  particles: on
+                    ? { ...DEFAULT_PARTICLES, ramp: [...DEFAULT_PARTICLES.ramp] }
+                    : undefined,
+                })
+              }
+              ariaLabel="Particles"
+            />
+          </div>
+          {draft.particles ? (
+            <>
+              <p className="max-w-lg text-[11px] leading-snug text-muted">
+                Given off by every placement of this tile that is on the board —
+                a chimney, a flame, a torch lying on the floor. Measured from
+                this tile&rsquo;s own foot, so a plume that starts at height 4
+                leaves the top of a full-height tile. Nothing in a bag emits: an
+                inventory draws its own sprites and never the world.
+              </p>
+              <ParticleFields
+                particles={draft.particles}
+                onChange={(particles: ParticleEmitterDef) =>
+                  setDraft({ ...draft, particles })
+                }
+              />
+            </>
+          ) : null}
+        </div>
 
         {draft.type === "simple" ? climbPad : null}
 

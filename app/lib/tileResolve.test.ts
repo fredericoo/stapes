@@ -5,6 +5,7 @@ import {
   type TileDef,
 } from "./types";
 import { getFrames, resolveLight, resolveTileSprite } from "./tileResolve";
+import { DEFAULT_PARTICLES } from "./particleVfx";
 
 describe("normalizeTileDef", () => {
   it("migrates simple variants and tile light onto frames", () => {
@@ -82,5 +83,40 @@ describe("normalizeTileDef", () => {
       },
     };
     expect(normalizeTileDef(def)).toEqual(def);
+  });
+
+  it("fills in an emitter field the authored plume predates", () => {
+    // A plume written before there was a wind was written in still air, and the
+    // renderer reads a complete emitter rather than checking for holes in one.
+    const { windX: _x, windY: _y, ...stillAir } = DEFAULT_PARTICLES;
+    const def = normalizeTileDef({
+      id: "chimney",
+      name: "Chimney",
+      height: 4,
+      type: "simple",
+      kind: "prop",
+      attributes: {},
+      particles: stillAir,
+    });
+    expect(def.particles?.windX).toBe(0);
+    expect(def.particles?.windY).toBe(0);
+  });
+
+  it("drops a malformed plume rather than refusing the tile", () => {
+    // Nothing parses a tile on the way in, so a hand-edited `tiles.json` is the
+    // way a `ratePerSecond` of "lots" reaches the emission loop. A world that
+    // would not load over a smoke plume is worse than a chimney that has
+    // stopped smoking.
+    const def = normalizeTileDef({
+      id: "chimney",
+      name: "Chimney",
+      height: 4,
+      type: "simple",
+      kind: "prop",
+      attributes: {},
+      particles: { ...DEFAULT_PARTICLES, ratePerSecond: "lots" },
+    });
+    expect(def.id).toBe("chimney");
+    expect(def.particles).toBeUndefined();
   });
 });

@@ -15,6 +15,15 @@ export const RAY_DEPTH_ELEV = HEIGHT_PER_LEVEL + 0.5;
  * Matches gameplay (`absoluteStandingElevation`) so overflow stacks sort
  * against superior-level tiles by height, not by level membership.
  */
+/**
+ * Middle of a cell, in cells — where a plume hangs from.
+ *
+ * A cell is one unit across, so its centre is half of one. Named rather than
+ * written as `0.5` at the places that want it, because `+ 0.5` next to a
+ * coordinate reads as a rounding nudge and this is a position.
+ */
+export const CELL_CENTRE = 0.5;
+
 export function absoluteElevation(z: number, elevation: number): number {
   return z * HEIGHT_PER_LEVEL + elevation;
 }
