@@ -63,6 +63,7 @@ import {
   WorkerChunkBaker,
 } from "../lib/lightBakerClient";
 import type { FramePhase, FrameProfiler } from "./frameProfile";
+import { incrementalCellLimit } from "./rebuildBudget";
 import type { ProjectileView } from "./projectileMotion";
 import { GpuLighting } from "./gpuLighting";
 import { PalettePass } from "./palettePass";
@@ -453,16 +454,6 @@ export function dynamicLightTileIds(
  */
 const LIGHT_WINDOW_MARGIN = 4;
 
-/**
- * Changed cells past which the incremental path stops being worth it.
- *
- * Each one costs two {@link cellItems} rebuilds for the comparison, plus nine
- * more for its autotile ring. A step touches two cells; a paint stroke or a
- * level load touches hundreds, and for those the wholesale rebuild is both
- * simpler and faster. Set well above what gameplay produces and well below
- * what an edit does.
- */
-const MAX_INCREMENTAL_CELLS = 16;
 
 /** The cells themselves plus their 8 neighbours — an autotile's whole input. */
 function withNeighbourRing(cells: Set<string>): Set<string> {
@@ -524,6 +515,15 @@ export class WorldRenderer {
   private tilesetById = new Map<string, TilesetDef>();
   private tilesById: Record<string, TileDef> = {};
   private levelGroups = new Map<number, THREE.Group>();
+  /**
+   * Cells each level held when it was last built whole.
+   *
+   * The denominator {@link incrementalLimitFor} takes its share of. Not kept
+   * exact across incremental edits — a step neither adds nor removes a cell,
+   * and the handful that do are nowhere near a sixteenth of a floor — so it is
+   * refreshed by the next wholesale build rather than maintained.
+   */
+  private levelCellCount = new Map<number, number>();
   private animatedByLevel = new Map<number, AnimatedInstance[]>();
   /**
    * Every emitting placement on the board, by level.
@@ -1977,9 +1977,9 @@ export class WorldRenderer {
   ): "unchanged" | "rebuilt" | "needs-full-rebuild" {
     const changed = changedCellsOnLevel(prev, next, z);
     if (changed.size === 0) return "unchanged";
-    // Bail rather than diff half a floor: past a handful of cells the
+    // Bail rather than diff half a floor: past a share of the level the
     // comparison costs more than the rebuild it is trying to avoid.
-    if (changed.size > MAX_INCREMENTAL_CELLS) return "needs-full-rebuild";
+    if (changed.size > this.incrementalLimitFor(z)) return "needs-full-rebuild";
 
     // An autotile reads its 8 neighbours, so a changed cell can restyle the
     // ring around it without those cells changing themselves.
@@ -2024,6 +2024,17 @@ export class WorldRenderer {
     else this.tileEmittersByLevel.delete(z);
 
     return "rebuilt";
+  }
+
+  /**
+   * How many changed cells are worth diffing on this level.
+   *
+   * Read off the level as it was last built, which is what makes it a share of
+   * the right floor rather than of the map. A level nobody has built yet has no
+   * count, and gets the floor — the full build is about to run anyway.
+   */
+  private incrementalLimitFor(z: number): number {
+    return incrementalCellLimit(this.levelCellCount.get(z) ?? 0);
   }
 
   /** The merged-batch contribution of one cell, as a comparable string. */
@@ -2346,6 +2357,9 @@ export class WorldRenderer {
 
   private buildLevel(map: MapFile, z: number) {
     const coords = listCoords(map, z);
+    // Recorded even when the level turns out to have no geometry, so the
+    // incremental limit is asked of a number that was actually counted.
+    this.levelCellCount.set(z, coords.length);
     if (coords.length === 0) return;
 
     const items: BuildItem[] = [];

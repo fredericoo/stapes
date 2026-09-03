@@ -1,9 +1,17 @@
 /**
- * The claim the incremental geometry rebuild rests on: gameplay motion touches
- * a couple of cells, and touches only tiles that are already drawn as their own
- * mesh. If either stops holding, the renderer quietly falls back to rebuilding
- * a whole floor per step and the walk stutter returns — so both are pinned here
- * rather than left as an assumption in a comment.
+ * The claims the incremental geometry rebuild rests on: motion touches few
+ * cells relative to the floor it happens on, and touches only tiles that are
+ * already drawn as their own mesh. If either stops holding, the renderer
+ * quietly falls back to rebuilding a whole floor per step and the walk stutter
+ * returns — so both are pinned here rather than left as an assumption in a
+ * comment.
+ *
+ * *Relative to the floor* is the part that had to be learned. The first of
+ * these was written as "a couple of cells" against a flat limit of sixteen, and
+ * that held for as long as one player and a handful of creatures were all that
+ * moved. A cave with a hundred and fifty animals in it breaks the sentence and
+ * not the claim: what matters is the ratio, which is what
+ * {@link incrementalCellLimit} now takes.
  *
  * Built on fixtures. The claim is about how motion touches a map, not about the
  * map we happen to ship: authoring a tile or shoving a crate around in the
@@ -23,6 +31,7 @@ import type { MapFile, PlacedTile, TileDef } from "../lib/types";
 import { MAX_LEVEL, MIN_LEVEL, normalizeTileDef, parseCoordKey } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { GameSession } from "../game/GameSession";
+import { MIN_INCREMENTAL_CELLS, incrementalCellLimit } from "./rebuildBudget";
 import { TICK_MS, WALK_DURATION_MS } from "../game/constants";
 
 function tile(
@@ -181,6 +190,27 @@ describe("a walk stays cheap to rebuild", () => {
     expect(total).toBeGreaterThan(0);
     expect(total).toBeLessThanOrEqual(4);
     expect(total).toBeLessThan(FLOOR_CELLS);
+  });
+
+  it("keeps a crowd on the incremental path, in proportion to the floor", () => {
+    // One walker changes four cells; a den of a hundred and fifty animals
+    // deciding together changes tens, and did so on a floor of eleven thousand
+    // cells. A flat limit said "rebuild the floor" to both, which is how a few
+    // dozen rats taking a step came to cost 40ms a frame.
+    // Small enough that a sixteenth of it is less than a step's worth: the
+    // floor under the share is what keeps those levels on the cheap path.
+    const smallFloor = 100;
+    const bigFloor = 11_334;
+
+    expect(incrementalCellLimit(smallFloor)).toBe(MIN_INCREMENTAL_CELLS);
+    // A level nobody has built yet still answers, and still says "diff it".
+    expect(incrementalCellLimit(0)).toBe(MIN_INCREMENTAL_CELLS);
+
+    // The measured shape of a crowd on the den's biggest floor: 24 cells on a
+    // median tick, 62 on the worst one seen over 300 ticks.
+    expect(incrementalCellLimit(bigFloor)).toBeGreaterThan(62);
+    // And an editor stroke over a real part of the floor still is worth one.
+    expect(incrementalCellLimit(bigFloor)).toBeLessThan(bigFloor / 2);
   });
 
   it("moves only tiles that already have their own mesh", () => {
