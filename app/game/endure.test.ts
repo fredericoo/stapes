@@ -323,6 +323,58 @@ describe("EndureIndex", () => {
   });
 });
 
+describe("what is reported as alight", () => {
+  function index() {
+    return new EndureIndex(new Rng(1));
+  }
+
+  it("names the placement, not the stack index", () => {
+    const endure = index();
+    endure.afflict(ORIGIN, "grass", grassEndure(), BURNED);
+
+    expect(endure.afflictedPlacements()).toEqual([
+      { x: 0, y: 0, z: 0, tileId: "grass", defIds: ["burned"] },
+    ]);
+  });
+
+  it("says nothing about a world with no fire in it", () => {
+    expect(index().afflictedPlacements()).toEqual([]);
+  });
+
+  /**
+   * The distinction the whole thing turns on: a pool outlives its statuses so a
+   * scorched tree stays scorched, and a scorched tree is not a burning one.
+   */
+  it("drops a tree that is damaged but no longer burning", () => {
+    const endure = index();
+    endure.afflict(ORIGIN, "tree", resolveEndure(tilesById.tree!)!, BURNED);
+    for (let ms = 0; ms < BURN_MS + TICK_MS; ms += TICK_MS) {
+      endure.advance(TICK_MS, catalogue);
+    }
+
+    // Still held, and still damaged — but nothing is running on it.
+    expect(endure.pending()).toBe(true);
+    expect(endure.afflictedPlacements()).toEqual([]);
+  });
+
+  it("reaches the snapshot, and goes quiet when the fire does", () => {
+    const play = new GameSession(
+      world([{ at: ORIGIN, stack: ["grass", "flame"] }]),
+      tiles,
+      { statuses: catalogue },
+    );
+    play.tick(TICK_MS);
+    expect(play.getSnapshot("local").afflicted).toEqual([
+      { x: 0, y: 0, z: 0, tileId: "grass", defIds: ["burned"] },
+    ]);
+
+    // Once the grass is dirt there is nothing left in the cell to burn.
+    run(play, Math.ceil((GRASS_DURABILITY / BURN_PER_SECOND) * 1_000 / TICK_MS) + 2);
+    expect(stackIds(play.getMap(), 0, 0)).toEqual(["dirt", "flame"]);
+    expect(play.getSnapshot("local").afflicted).toEqual([]);
+  });
+});
+
 describe("spreadShares", () => {
   const consumed = {
     cell: ORIGIN,

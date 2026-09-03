@@ -90,6 +90,7 @@ import {
   type CellPatch,
   type ClientMessage,
   type CarriedLightsPatch,
+  type AfflictedPatch,
   type StatusIdsPatch,
   type HpPatch,
   type MotionEvent,
@@ -564,6 +565,7 @@ export class RemoteSession implements PlaySession {
       this.applyHps(message.hps);
       this.applyCarriedLights(message.carriedLights);
       this.applyStatusIds(message.statusIds);
+      this.afflicted = message.afflicted;
       this.setPlayers(message.playerCount);
       // A `hello` is a body, whichever of the two sent it: the answer to
       // `rebirth`, or a world replaced under a socket that happened to be dead
@@ -704,6 +706,9 @@ export class RemoteSession implements PlaySession {
     this.applyHps(message.hps);
     this.applyCarriedLights(message.carriedLights);
     this.applyStatusIds(message.statusIds);
+    // Absent means unchanged, not empty — see `AfflictedPatch`. Assigning on an
+    // absent field would put every fire out on the first tick nothing burned.
+    if (message.afflicted) this.afflicted = message.afflicted;
     for (const event of message.events) this.applyEvent(event);
     this.forgetDeparted(leaving);
     this.rebuildPredicted();
@@ -774,6 +779,15 @@ export class RemoteSession implements PlaySession {
    * down". Somebody else's poison therefore burns at full strength until it
    * ends, and that is the documented trade rather than a bug to fix here.
    */
+  /**
+   * Every placement the server says is alight.
+   *
+   * Replaced wholesale rather than patched per cell, because that is how it
+   * arrives — see `AfflictedPatch`. Held as the wire's own shape, so nothing
+   * here has to know what a plume is.
+   */
+  private afflicted: AfflictedPatch[] = [];
+
   private applyStatusIds(patches: StatusIdsPatch[]) {
     for (const patch of patches) {
       this.statusesById.set(
@@ -1722,6 +1736,7 @@ export class RemoteSession implements PlaySession {
       masteryXp: this.masteryXp,
       chats: this.chats,
       noises: this.noises,
+      afflicted: this.afflicted,
       damage: this.damage,
       projectiles: this.projectiles,
     };

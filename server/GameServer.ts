@@ -50,6 +50,7 @@ import { CHAT_MIN_INTERVAL_MS, sanitizeChatText } from "../app/net/chat";
 import {
   parseClientMessage,
   type CarriedLightsPatch,
+  type AfflictedPatch,
   type StatusIdsPatch,
   type CellPatch,
   type HpPatch,
@@ -584,6 +585,15 @@ export class GameServer {
   private sentCarriedLights = new Map<string, string>();
   /** Last broadcast status ids per actor, joined. @see diffStatusIds */
   private sentStatusIds = new Map<string, string>();
+  /**
+   * The last afflicted set broadcast, joined.
+   *
+   * One string rather than a map keyed by cell, unlike {@link sentStatusIds}:
+   * the whole set travels whenever any of it changes — see `AfflictedPatch` for
+   * why a cell has no identity worth addressing a removal to — so what has to be
+   * remembered is only whether it is the same set as last time.
+   */
+  private sentAfflicted = "";
   private events: MotionEvent[] = [];
   /** Steps clients say they have taken, oldest first, per actor. */
   private readonly queuedSteps = new Map<string, QueuedStep[]>();
@@ -1765,8 +1775,10 @@ export class GameServer {
       hps: currentHps(actors),
       carriedLights: currentCarriedLights(actors),
       statusIds: currentStatusIds(actors),
-      // Theirs alone, and sent in full here for the same reason the map and the
-      // hit points are: a joiner has nothing to patch against.
+      // In full on arrival on `statusIds`' terms: a joiner has nothing to patch
+      // against, and a wood that is already alight has to be alight on the
+      // first frame rather than the next time the set happens to change.
+      afflicted: session.afflictedPlacements(),
       equipment: session.equipmentOf(actorId) ?? emptyEquipment(),
       // Beside the kit, and needed before the first frame for a sharper reason:
       // a client with no tags offers every reward in the room, so a joiner
@@ -3028,12 +3040,16 @@ export class GameServer {
     const hps = this.diffHps(actors);
     const carriedLights = this.diffCarriedLights(actors);
     const statusIds = this.diffStatusIds(actors);
+    // Null for "unchanged", which is the ordinary answer: a world with nothing
+    // burning in it compares two empty readings and adds nothing to the patch.
+    const afflicted = this.diffAfflicted(session.afflictedPlacements());
     if (
       cells.length > 0 ||
       this.events.length > 0 ||
       hps.length > 0 ||
       carriedLights.length > 0 ||
-      statusIds.length > 0
+      statusIds.length > 0 ||
+      afflicted != null
     ) {
       this.broadcast({
         type: "patch",
@@ -3042,6 +3058,7 @@ export class GameServer {
         hps,
         carriedLights,
         statusIds,
+        ...(afflicted ? { afflicted } : {}),
       });
       this.broadcastMap = session.getMap();
       this.events = [];
@@ -3470,6 +3487,27 @@ export class GameServer {
    * reference compare rather than a walk of thousands of cells. This is the
    * whole reason the protocol stays cheap as the map grows.
    */
+  /**
+   * Every placement alight, but only on the ticks that changed.
+   *
+   * Returns null for "unchanged", which is what keeps this off the wire on the
+   * overwhelming majority of ticks — a world with nothing burning in it compares
+   * two empty strings and sends nothing.
+   *
+   * The reading is the joined set rather than its identity, on `statusReading`'s
+   * terms: the list is rebuilt every tick from a live index, so identity says
+   * "changed" thirty times a second and tells you nothing.
+   */
+  private diffAfflicted(afflicted: AfflictedPatch[]): AfflictedPatch[] | null {
+    const reading = afflicted
+      .map((one) => `${one.x},${one.y},${one.z}|${one.tileId}|${one.defIds.join(",")}`)
+      .sort()
+      .join(";");
+    if (reading === this.sentAfflicted) return null;
+    this.sentAfflicted = reading;
+    return afflicted;
+  }
+
   private diffCells(next: MapFile): CellPatch[] {
     const prev = this.broadcastMap;
     if (!prev || prev === next) return [];

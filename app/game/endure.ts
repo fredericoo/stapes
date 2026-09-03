@@ -88,6 +88,25 @@ export type Consumed = {
   elements?: readonly Element[];
 };
 
+/**
+ * One placement with something running on it, for whoever draws it.
+ *
+ * **Ids only, and no countdown**, on exactly `StatusIdsPatch`'s terms: a
+ * remaining time is a per-second message per cell that only a wind-down would
+ * read, and a burning tile is drawn at full strength right up until it goes.
+ * That is also why this is the same shape on the wire and off it — the local
+ * session has no reason to offer more than the online one can.
+ */
+export type AfflictedPlacement = {
+  x: number;
+  y: number;
+  z: number;
+  /** Which placement in the cell, named as {@link poolKey} names it. */
+  tileId: string;
+  /** What is running on it, in the order the pool holds it. */
+  defIds: string[];
+};
+
 /** This tile's endurance, or null when nothing can wear it down. */
 function endureOf(
   tileId: string,
@@ -298,6 +317,34 @@ export class EndureIndex {
   /** Every placement currently under something, for the wire. */
   afflicted(): Iterable<Endurance> {
     return this.pools.values();
+  }
+
+  /**
+   * Every placement with something actually running on it, as the wire and the
+   * renderer want it.
+   *
+   * **Pools with nothing running are left out**, and that is the whole reason
+   * this is not just {@link afflicted}: a pool outlives its statuses so a
+   * scorched tree stays scorched, and a tree that is merely damaged is not on
+   * fire and must not draw a plume.
+   *
+   * The tile id rather than a stack index, on {@link poolKey}'s terms — an index
+   * shifts the moment anything is placed under it, and whoever draws this has
+   * the stack to find it in.
+   */
+  afflictedPlacements(): AfflictedPlacement[] {
+    const out: AfflictedPlacement[] = [];
+    for (const pool of this.pools.values()) {
+      if (pool.statuses.length === 0) continue;
+      out.push({
+        x: pool.cell.x,
+        y: pool.cell.y,
+        z: pool.cell.z,
+        tileId: pool.tileId,
+        defIds: pool.statuses.map((one) => one.defId),
+      });
+    }
+    return out;
   }
 
   /**

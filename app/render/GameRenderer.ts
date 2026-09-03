@@ -22,6 +22,7 @@ import type { Conversation } from "../game/dialogRuntime";
 import type { MasteryXp } from "../lib/mastery";
 import { weaponDemandFor } from "../lib/weaponDemand";
 import type { Vitals } from "../game/GameSession";
+import type { AfflictedPlacement } from "../game/endure";
 import { statusReading } from "../game/statuses";
 import { type SpellButton, spellReading } from "../game/casting";
 import type { OpenedContainer, SlotRef } from "../game/itemMoves";
@@ -2367,8 +2368,73 @@ export class GameRenderer {
       }
     }
 
+    for (const placement of snap.afflicted) {
+      for (const defId of placement.defIds) {
+        const particles = this.statusDefs[defId]?.vfx?.particles;
+        if (!particles) continue;
+        const spec = this.groundEmitterFor(snap, placement, defId, particles);
+        if (spec) (emitters ??= []).push(spec);
+      }
+    }
+
     this.remaining.endFrame();
     return { tints, emitters };
+  }
+
+  /**
+   * One plume over a burning piece of ground.
+   *
+   * The counterpart to {@link emitterFor}, and deliberately a second function
+   * rather than a widening of that one: a body is found by id and carries its
+   * own stack index, where a placement is found by *tile id within a cell* —
+   * see `../game/endure`'s `poolKey` for why an index is not a name a placement
+   * can keep — and can have gone by the time this frame draws.
+   *
+   * **A tint is not offered, and cannot be.** `applySpriteTints` reaches only
+   * `movableMeshes`; a bush is merged into its floor's batch, so tinting its
+   * material would tint the ground. Particles need no mesh, which is exactly why
+   * they are the half a burning tile can have — see `docs/notes.md`.
+   *
+   * **No taper.** Only status ids travel, so there is no countdown to wind down
+   * against, on precisely the terms a remote body's plume has none. A burning
+   * tile therefore burns at full strength right up until it turns, which is also
+   * when the emitter stops being offered and the system retires it — the sparks
+   * already in the air finish their own lives.
+   */
+  private groundEmitterFor(
+    snap: GameSnapshot,
+    placement: AfflictedPlacement,
+    defId: string,
+    particles: NonNullable<StatusDef["vfx"]["particles"]>,
+  ): ParticleEmitterSpec | null {
+    const { x, y, z, tileId } = placement;
+    const stack = getStack(snap.map, x, y, z);
+    // The placement may have burned away between the tick that reported it and
+    // the frame drawing it, which is not an error: the fire went out.
+    const stackIndex = stack.findIndex((placed) => placed.tileId === tileId);
+    if (stackIndex < 0) return null;
+
+    const foot = absoluteElevation(
+      z,
+      elevationAt(stack, stackIndex, this.tilesById),
+    );
+    const top = foot + (this.tilesById[tileId]?.height ?? 0);
+    return {
+      // Per placement per status, on `emitterFor`'s terms: one cell can hold two
+      // burning things and neither plume inherits the other's particles.
+      id: `${x},${y},${z}:${tileId}:${defId}`,
+      config: particles,
+      cx: x + CELL_CENTRE,
+      cy: y + CELL_CENTRE,
+      // The *top* of the thing that is burning, not the floor it stands on: a
+      // tree burns in its canopy, and a plume rising from the roots of a
+      // four-high sprite reads as smoke from under it.
+      footElev: top,
+      z,
+      box: depthBox(x, y, top, top + HEIGHT_PER_LEVEL),
+      stackBias: depthStackBias(z, stackIndex + 1),
+      taper: 1,
+    };
   }
 
   /**

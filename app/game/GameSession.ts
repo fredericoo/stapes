@@ -312,6 +312,7 @@ import {
 } from "./decay";
 import {
   EndureIndex,
+  type AfflictedPlacement,
   afflictionsFrom,
   applyConsumed,
   cellAfflicts,
@@ -721,6 +722,19 @@ export type GameSnapshot = {
    * every hiss and crunch in it. @see NoiseEmission
    */
   noises: NoiseEmission[];
+  /**
+   * Placements with a status running on them — the ground that is on fire.
+   *
+   * Beside {@link actors} rather than folded into the map, because it is not a
+   * fact about the board: the map says a tile is grass, and this says that grass
+   * is currently burning. Nothing in the simulation reads it — a pool's
+   * arithmetic is `./endure`'s and never the renderer's — so this exists purely
+   * so a fire can be *seen*. @see `./endure`'s {@link AfflictedPlacement}
+   *
+   * Present in every session on {@link noises}' terms: a flame lit in `/play`
+   * has nobody to broadcast to and still has to draw.
+   */
+  afflicted: readonly AfflictedPlacement[];
 };
 
 /**
@@ -6981,6 +6995,17 @@ export class GameSession implements PlaySession {
     return [...this.actors.values()].map((a) => this.actorSnapshot(a));
   }
 
+  /**
+   * Every placement with a status running on it.
+   *
+   * Public because the server broadcasts it and the local renderer reads it off
+   * the snapshot — two callers, one list, and nothing in the simulation reads it
+   * back. @see `./endure`'s `AfflictedPlacement`
+   */
+  afflictedPlacements(): AfflictedPlacement[] {
+    return this.endure.afflictedPlacements();
+  }
+
   getSnapshot(id: string = LOCAL_ACTOR_ID): GameSnapshot {
     const self = this.actor(id);
     const actors = this.actorSnapshots();
@@ -7006,6 +7031,7 @@ export class GameSession implements PlaySession {
       // noise is a thing that happened, and a world with one player in it still
       // has snakes in it.
       noises: this.liveNoise,
+      afflicted: this.afflictedPlacements(),
       damage: this.liveDamage,
       // By reference, and aged in place: the renderer reads the elapsed time off
       // the same object the tick loop is winding forward, exactly as a walk or a

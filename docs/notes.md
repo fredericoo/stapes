@@ -2810,16 +2810,43 @@ so the burn that kills a rat three trees away still names whoever cast the first
 flame and still turns on the wheel that spell was made of. This falls out of
 `awardCausedDamage` with no new code, and it is worth not losing.
 
+### A burning tile draws a plume, and cannot draw a tint
+
+`AfflictedPlacement` is what the fire looks like from outside: cell, tile id and
+the status ids running on it. It reaches the renderer on the snapshot and the
+wire as `AfflictedPatch`, and `GameRenderer.groundEmitterFor` turns each one into
+the same plume a burning body gets, off the same authored `StatusVfx.particles`.
+
+**A tint is not on the table**, and it is worth knowing why before anybody tries:
+`applySpriteTints` reaches only `movableMeshes`, and a bush or a tree is merged
+into its floor's batch — tinting that material tints the ground. Particles are
+their own geometry and need no mesh, which is exactly what makes them the half a
+merged tile can have. A **cast light** is the other half that would work and is
+not wired up; `burned` already authors one, and it would ride the
+`EmitterOverride` overlay a torch already travels. Read the flicker note further
+down first — a light that varies per frame rebakes the window every frame.
+
+The plume is anchored to the **top** of the thing burning, not the floor it
+stands on: a tree burns in its canopy, and sparks rising from under a four-high
+sprite read as smoke from beneath it.
+
+**The patch carries the whole set, not a diff**, and that is the one thing to
+keep. A cell has no identity the client already holds — a placement can stop
+being afflicted by ceasing to exist — so there is nothing to address a removal
+to. The set is bounded by the fire and the fire is bounded by its own fuel, so
+sending all of it is cheaper than inventing a key. The consequence, which has a
+test on it: **an absent `afflicted` means unchanged, never empty.** Reading it as
+empty puts every fire on the board out one tick after it is lit.
+
+No countdown travels, so there is no taper — a burning tile burns at full
+strength until it turns, on exactly the terms a remote body's statuses do. When
+it turns, the emitter simply stops being offered and the particle system retires
+it, so the sparks already in the air finish their own lives rather than
+disappearing mid-rise.
+
 ### What it does not do yet
 
-- **A burning tile draws nothing.** `GameRenderer.statusVfxFor` walks actors
-  only. Particles and cast light are the cheap half — `ParticleEmitterSpec` is
-  already cell-positioned — but a **tint is not possible at all** for a merged
-  tile: see the status-VFX notes below, where a bush cannot be tinted because it
-  shares its floor's batch.
-- **Nothing is on the wire.** Other clients see the tile change and not the fire.
-  The patch to add is `StatusIdsPatch`'s shape — cells to status ids, the same
-  bytes for everybody, no countdown.
+- **No cast light.** See above — the cheap remaining half.
 - **No editor UI.** Both blocks round-trip through `interactionsForSave`
   untouched, so nothing is dropped, but they are authored in `tiles.json` by
   hand.

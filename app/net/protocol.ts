@@ -130,6 +130,14 @@ const statusIdsPatchSchema = v.object({
   defIds: v.array(v.string()),
 });
 
+const afflictedPatchSchema = v.object({
+  x: v.number(),
+  y: v.number(),
+  z: v.number(),
+  tileId: v.string(),
+  defIds: v.array(v.string()),
+});
+
 /**
  * One carried thing, as it travels.
  *
@@ -340,6 +348,32 @@ export type StatusIdsPatch = {
   defIds: string[];
 };
 
+/**
+ * One placement with a status running on it — the ground that is on fire.
+ *
+ * Broadcast rather than sent per socket, on exactly {@link StatusIdsPatch}'s
+ * terms: it is the *same bytes for everybody*, so it is one diff and one
+ * serialization, and it is an empty array on almost every tick.
+ *
+ * **The whole set, whenever any of it changes**, unlike `statusIds` which is
+ * keyed per actor and patched one body at a time. A cell has no identity the
+ * client already holds — a placement can stop being afflicted by ceasing to
+ * exist — so there is nothing to address a removal to. The set is small by
+ * construction (it is bounded by the fire on the board, and the fire is bounded
+ * by its own fuel), so sending all of it is cheaper than inventing a key.
+ *
+ * No countdown, for {@link StatusIdsPatch}'s reason: a remaining time is a
+ * per-second message per cell that only a wind-down would read.
+ */
+export type AfflictedPatch = {
+  x: number;
+  y: number;
+  z: number;
+  /** Which placement in the cell — see `../game/endure`'s `poolKey`. */
+  tileId: string;
+  defIds: string[];
+};
+
 export type MotionEvent =
   | {
       kind: "walkStarted";
@@ -541,6 +575,12 @@ export type ServerMessage =
        * the first frame rather than the next time somebody sets it alight.
        */
       statusIds: StatusIdsPatch[];
+      /**
+       * Every placement currently alight, on {@link statusIds}' terms: a joiner
+       * has nothing to patch against, and a wood that is already burning has to
+       * be burning on the first frame.
+       */
+      afflicted: AfflictedPatch[];
       /** What this viewer is carrying. Theirs alone — see {@link Equipment}. */
       equipment: Equipment;
       /**
@@ -707,6 +747,12 @@ export type ServerMessage =
       carriedLights: CarriedLightsPatch[];
       /** Only the actors whose statuses changed since the last patch. */
       statusIds: StatusIdsPatch[];
+      /**
+       * Every placement alight, whenever that set changed — see
+       * {@link AfflictedPatch} for why it is the whole set and not a diff.
+       * Absent when nothing changed, which is almost every tick.
+       */
+      afflicted?: AfflictedPatch[];
     }
   /**
    * Something somebody said, pinned to the cell they said it in.
@@ -1207,6 +1253,9 @@ const serverMessageSchema = v.variant("type", [
     // else's effects are drawn" rather than to a handshake that fails to parse.
     // The output type is still required, because the server always sends it.
     statusIds: v.optional(v.array(statusIdsPatchSchema), () => []),
+    // Optional on `statusIds`' terms: a version skew degrades to "no fire is
+    // drawn" rather than to a handshake that fails to parse.
+    afflicted: v.optional(v.array(afflictedPatchSchema), () => []),
     equipment: tolerantEquipmentSchema,
     tags: v.array(v.string()),
     // Optional with an empty default, on `statusIds`' terms: a version skew
@@ -1344,6 +1393,9 @@ const serverMessageSchema = v.variant("type", [
     // else's effects are drawn" rather than to a handshake that fails to parse.
     // The output type is still required, because the server always sends it.
     statusIds: v.optional(v.array(statusIdsPatchSchema), () => []),
+    // Genuinely optional here, unlike on `hello`: the whole set is sent only on
+    // the ticks it changed, and absent means "unchanged" rather than "empty".
+    afflicted: v.optional(v.array(afflictedPatchSchema)),
   }),
   v.object({
     type: v.literal("chat"),
@@ -1459,7 +1511,7 @@ export const GAME_SOCKET_PATH = "/online/ws";
  * This is deliberately not the build id. A client deploy that changes no
  * messages should not disconnect anybody, and most client deploys are that.
  */
-export const PROTOCOL_VERSION = 4;
+export const PROTOCOL_VERSION = 5;
 
 /**
  * How often the world says nothing, to keep a proxy from hanging up.
