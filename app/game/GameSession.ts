@@ -5081,8 +5081,14 @@ export class GameSession implements PlaySession {
     return index;
   }
 
-  /** Where an actor is standing, or null once they are off the board. */
-  private actorCell(id: string): Coord | null {
+  /**
+   * Where an actor is standing, or null once they are off the board.
+   *
+   * Public because the wire asks it: what a client is sent is scoped to what
+   * its body can reach, which is a question about one actor's cell rather than
+   * about the snapshot of every actor in the world. @see `../net/interest`
+   */
+  actorCell(id: string): Coord | null {
     const actor = this.actors.get(id);
     if (!actor) return null;
     const loc = this.tryLocate(actor);

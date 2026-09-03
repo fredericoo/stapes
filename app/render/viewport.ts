@@ -13,16 +13,12 @@
  * grown past the view, so a step never reveals an unbuilt or unlit strip at the
  * edge.
  */
-import { CELL_SIZE } from "../lib/types";
-
-/**
- * Cells across the square view. Odd, so the player stands in a true centre
- * cell rather than on the seam between two.
- */
-export const VIEW_CELLS = 23;
-
-/** Side of the view in world pixels — what the camera spans on both axes. */
-export const VIEW_PX = VIEW_CELLS * CELL_SIZE;
+// The two numbers themselves live in `app/lib/view`, because the server needs
+// them too: it sends each client the part of the map its view can reach. They
+// are re-exported here so everything that draws still reads them from the
+// viewport, which is where they are applied.
+export { VIEW_CELLS, VIEW_PX } from "../lib/view";
+import { VIEW_PX } from "../lib/view";
 
 export type ViewportFit = {
   /** Side of the drawing buffer, in pixels. Always a whole multiple of the view. */

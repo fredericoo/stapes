@@ -1,4 +1,12 @@
 import type { GameSocket, WorldContext } from "./sockets";
+import {
+  cellsEntered,
+  covers,
+  interestAt,
+  mapOfInterest,
+  sameInterest,
+} from "../app/net/interest";
+import type { Interest } from "../app/net/interest";
 import * as v from "valibot";
 import {
   GameSession,
@@ -565,6 +573,20 @@ export class GameServer {
   private statusDefs: Record<string, StatusDef> = {};
   /** Map identity the last broadcast was diffed against. */
   private broadcastMap: MapFile | null = null;
+  /**
+   * The square of world each actor has been told about, by actor id.
+   *
+   * A client is sent the part of the map its view can reach and nothing else —
+   * see `../app/net/interest` for why that is the rule and what sets its size.
+   * This is the record of what each of them holds, so that walking into new
+   * country sends it and walking back over old country does not send it twice.
+   *
+   * Keyed by actor rather than held on the socket's attachment because an
+   * attachment read is a deserialization, and this is read once per socket per
+   * tick — the same reason {@link silenced} is a set here rather than a flag
+   * there.
+   */
+  private interest = new Map<string, Interest>();
   private sentMotion = new Map<string, SentMotion>();
   /**
    * The hit points each client has been told about, so an unchanged bar costs
@@ -1760,7 +1782,9 @@ export class GameServer {
     const message: ServerMessage = {
       type: "hello",
       selfId: actorId,
-      map: flattenMap(session.getMap()),
+      // Only the chunks this body can reach. The rest arrives as they walk
+      // into it; see `../app/net/interest`.
+      map: mapOfInterest(session.getMap(), this.refreshInterest(actorId)),
       actorIds: session.actorIds(),
       hps: currentHps(actors),
       carriedLights: currentCarriedLights(actors),
@@ -2519,6 +2543,12 @@ export class GameServer {
     // to; left behind, it would be a row per player the world has ever killed,
     // growing with visitors rather than with anything.
     this.silenced.delete(attachment.actorId);
+    // Beside the silence and for the same reason: what this client had been
+    // sent of the map is a fact about a connection, and a row per player the
+    // world has ever seen would grow with visitors rather than with anything.
+    // A rejoin is sent the whole of its view again, which is what `sendHello`
+    // does for a joiner anyway.
+    this.interest.delete(attachment.actorId);
     this.events.push({
       kind: "left",
       actorId: attachment.actorId,
@@ -3035,9 +3065,7 @@ export class GameServer {
       carriedLights.length > 0 ||
       statusIds.length > 0
     ) {
-      this.broadcast({
-        type: "patch",
-        cells,
+      this.broadcastPatch(session.getMap(), cells, {
         events: this.events,
         hps,
         carriedLights,
@@ -3464,6 +3492,24 @@ export class GameServer {
   }
 
   /**
+   * Bring one actor's subscription up to date, and hand back what it is now.
+   *
+   * Recomputed from where they are standing rather than tracked as they move,
+   * because it is a pure function of a cell and comparing two small sets is
+   * cheaper than reasoning about which steps could have changed one.
+   */
+  private refreshInterest(actorId: string): Interest {
+    const at = this.session?.actorCell(actorId);
+    // Nowhere to stand is a body that has not been seated yet. Keeping the last
+    // subscription is the conservative answer: they are about to be somewhere,
+    // and it will be recomputed on the tick after that.
+    if (!at) return this.interest.get(actorId) ?? interestAt(0, 0);
+    const next = interestAt(at.x, at.y);
+    this.interest.set(actorId, next);
+    return next;
+  }
+
+  /**
    * Cells that changed since the last broadcast.
    *
    * Chunk identity first (`changedCellsOnLevel`), so an unchanged floor costs a
@@ -3482,6 +3528,66 @@ export class GameServer {
       }
     }
     return out;
+  }
+
+  /**
+   * The tick's patch, scoped to what each client can reach.
+   *
+   * Two things travel here and they are scoped differently. **Cells** are the
+   * board, and a client is only sent the ones in the chunks it is subscribed to
+   * — plus, for anybody who has just walked into new country, everything in the
+   * chunks they entered. Everything else — motion, hit points, lights, statuses
+   * — is about *actors* rather than about the board, is small, and goes to
+   * everybody unchanged: an actor whose cells you do not have is an actor you
+   * cannot see, and a health bar for one costs a handful of bytes.
+   *
+   * **The one serialization per tick is now one per distinct view**, which is
+   * the property this trades away and the reason it is done carefully. Payloads
+   * are memoised on the set of chunks a socket holds, so two people standing
+   * together still serialize once between them, and the cost is bounded by how
+   * many *places* are occupied rather than by how many people are connected.
+   * What it buys is that the payload each of them gets is a fraction of the
+   * board rather than all of it — which is the trade in the right direction as
+   * soon as the map is bigger than a screen.
+   */
+  private broadcastPatch(
+    map: MapFile,
+    cells: CellPatch[],
+    rest: Omit<Extract<ServerMessage, { type: "patch" }>, "type" | "cells">,
+  ) {
+    const anySilenced = this.silenced.size > 0;
+    const payloads = new Map<string, string>();
+    for (const ws of this.ctx.getWebSockets()) {
+      if (anySilenced && this.isSilenced(ws)) continue;
+      const attachment = ws.deserializeAttachment() as Attachment | null;
+      if (!attachment) continue;
+
+      const before = this.interest.get(attachment.actorId);
+      const now = this.refreshInterest(attachment.actorId);
+      const moved = !sameInterest(before, now);
+
+      // A view that has not moved shares its payload with anybody standing in
+      // the same square; one that has is its own, because the strip it is owed
+      // is its own.
+      const signature = moved
+        ? `moved:${attachment.actorId}`
+        : `${now.x0},${now.y0}`;
+      let payload = payloads.get(signature);
+      if (payload === undefined) {
+        const mine = cells.filter((cell) => covers(now, cell.x, cell.y));
+        // Whatever has just come into reach, at its current state — there is
+        // nothing on the far end to diff it against.
+        if (moved) mine.push(...cellsEntered(map, before, now));
+        payload = JSON.stringify({ type: "patch", cells: mine, ...rest });
+        payloads.set(signature, payload);
+      }
+
+      try {
+        ws.send(payload);
+      } catch {
+        // Dropped by the runtime; webSocketClose cleans the actor up.
+      }
+    }
   }
 
   private broadcast(message: ServerMessage) {

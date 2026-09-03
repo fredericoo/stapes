@@ -326,6 +326,60 @@ afterEach(async () => {
   await harness.dispose();
 });
 
+/**
+ * A board far wider than anybody can see, so what a joiner is *not* sent is a
+ * real distinction rather than an artefact of a four-cell fixture.
+ */
+const WIDE_CELLS = CHUNK_SIZE * 8;
+
+function wideMap(): FlatMapFile {
+  const levels: Record<string, Record<string, unknown[]>> = { "0": {} };
+  for (let x = 0; x < WIDE_CELLS; x++) {
+    levels["0"]![`${x},0`] = [{ tileId: "grass" }];
+  }
+  levels["0"]!["0,0"] = [{ tileId: "grass" }, { tileId: "player", direction: "s" }];
+  return { version: 1, levels } as FlatMapFile;
+}
+
+describe("a client is sent the part of the map it can reach", () => {
+  beforeEach(async () => {
+    await harness.blobs.put("map.json", JSON.stringify(wideMap()), JSON_TYPE);
+  });
+
+  it("gives a joiner what is around them and not the rest of the world", async () => {
+    const { hello } = await connect("alice");
+    const cells = (hello as { map: { levels: Record<string, Record<string, unknown>> } })
+      .map.levels["0"]!;
+
+    // Standing on the spawn at the origin: the cell underfoot and the ones a
+    // step away have to be there, or the first frame is a hole.
+    expect(cells["0,0"]).toBeDefined();
+    expect(cells["1,0"]).toBeDefined();
+
+    // The far end of the strip is chunks away and cannot be seen from here.
+    expect(cells[`${WIDE_CELLS - 1},0`]).toBeUndefined();
+
+    // And the saving is the point: a fraction of the board, not most of it.
+    expect(Object.keys(cells).length).toBeLessThan(WIDE_CELLS / 2);
+    // Everything sent is within reach; nothing is sent that is not.
+    for (const key of Object.keys(cells)) {
+      expect(Number(key.split(",")[0])).toBeLessThan(WIDE_CELLS / 2);
+    }
+  });
+
+  it("still sends the whole of a board smaller than the view", async () => {
+    // Nothing is scoped away that a player could see. A world the size of the
+    // old fixture arrives complete, which is what keeps every other test in
+    // this file honest.
+    await harness.blobs.put("map.json", JSON.stringify(authoredMap()), JSON_TYPE);
+    const { hello } = await connect("alice");
+    const cells = (hello as { map: { levels: Record<string, Record<string, unknown>> } })
+      .map.levels["0"]!;
+
+    expect(Object.keys(cells).length).toBe(AUTHORED_CELLS);
+  });
+});
+
 describe("joining and leaving", () => {
   it("tells a joiner who they are and who is present", async () => {
     const { hello } = await connect("alice");
