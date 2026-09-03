@@ -3615,50 +3615,32 @@
       ],
       "-37,-8": [
         {
-          "tileId": "dirt"
-        },
-        {
-          "tileId": "sw2"
+          "tileId": "grass-2"
         }
       ],
       "-37,-7": [
         {
-          "tileId": "dirt"
-        },
-        {
-          "tileId": "sw2"
+          "tileId": "grass-2"
         }
       ],
       "-37,-6": [
         {
-          "tileId": "dirt"
-        },
-        {
-          "tileId": "sw2"
+          "tileId": "grass-2"
         }
       ],
       "-37,-5": [
         {
-          "tileId": "dirt"
-        },
-        {
-          "tileId": "sw2"
+          "tileId": "grass-2"
         }
       ],
       "-37,-4": [
         {
-          "tileId": "dirt"
-        },
-        {
-          "tileId": "sw2"
+          "tileId": "grass-2"
         }
       ],
       "-37,-3": [
         {
-          "tileId": "dirt"
-        },
-        {
-          "tileId": "sw2"
+          "tileId": "grass-2"
         }
       ],
       "-37,-2": [
@@ -4396,10 +4378,7 @@
       ],
       "-36,-3": [
         {
-          "tileId": "dirt"
-        },
-        {
-          "tileId": "sw2"
+          "tileId": "grass-2"
         }
       ],
       "-36,-2": [
@@ -5299,10 +5278,7 @@
       ],
       "-35,-3": [
         {
-          "tileId": "dirt"
-        },
-        {
-          "tileId": "sw2"
+          "tileId": "grass-2"
         }
       ],
       "-35,-2": [
@@ -6200,11 +6176,7 @@
       ],
       "-34,-7": [
         {
-          "tileId": "dirt"
-        },
-        {
-          "tileId": "stone-stairs",
-          "direction": "s"
+          "tileId": "grass-2"
         }
       ],
       "-34,-6": [
@@ -6224,10 +6196,7 @@
       ],
       "-34,-3": [
         {
-          "tileId": "dirt"
-        },
-        {
-          "tileId": "sw2"
+          "tileId": "grass-2"
         }
       ],
       "-34,-2": [
@@ -7136,10 +7105,7 @@
       ],
       "-33,-3": [
         {
-          "tileId": "dirt"
-        },
-        {
-          "tileId": "sw2"
+          "tileId": "grass-2"
         }
       ],
       "-33,-2": [
@@ -8026,23 +7992,26 @@
       ],
       "-32,-8": [
         {
-          "tileId": "dirt"
-        },
-        {
-          "tileId": "sw2"
+          "tileId": "grass-2"
         }
       ],
       "-32,-7": [
         {
-          "tileId": "dirt"
-        },
-        {
-          "tileId": "sw2"
+          "tileId": "grass-2"
         }
       ],
       "-32,-6": [
         {
+          "tileId": "dirt"
+        },
+        {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "fence"
         }
       ],
       "-32,-5": [
@@ -8050,7 +8019,13 @@
           "tileId": "dirt"
         },
         {
-          "tileId": "sw2"
+          "tileId": "grass-2"
+        },
+        {
+          "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "fence"
         }
       ],
       "-32,-4": [
@@ -8058,7 +8033,13 @@
           "tileId": "dirt"
         },
         {
-          "tileId": "sw2"
+          "tileId": "grass-2"
+        },
+        {
+          "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "fence"
         }
       ],
       "-32,-3": [
@@ -8066,12 +8047,27 @@
           "tileId": "dirt"
         },
         {
-          "tileId": "sw2"
+          "tileId": "grass-2"
+        },
+        {
+          "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "fence"
         }
       ],
       "-32,-2": [
         {
+          "tileId": "dirt"
+        },
+        {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "fence"
         }
       ],
       "-32,-1": [
@@ -8942,27 +8938,67 @@
       ],
       "-31,-6": [
         {
+          "tileId": "dirt"
+        },
+        {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "fence"
         }
       ],
       "-31,-5": [
         {
+          "tileId": "dirt"
+        },
+        {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "anvil",
+          "direction": "s"
         }
       ],
       "-31,-4": [
         {
+          "tileId": "dirt"
+        },
+        {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "wooden-floor"
         }
       ],
       "-31,-3": [
         {
+          "tileId": "dirt"
+        },
+        {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "wooden-floor"
         }
       ],
       "-31,-2": [
         {
+          "tileId": "dirt"
+        },
+        {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "fence"
         }
       ],
       "-31,-1": [
@@ -9842,27 +9878,63 @@
       ],
       "-30,-6": [
         {
+          "tileId": "dirt"
+        },
+        {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "fence"
         }
       ],
       "-30,-5": [
         {
+          "tileId": "dirt"
+        },
+        {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "wooden-floor"
         }
       ],
       "-30,-4": [
         {
+          "tileId": "dirt"
+        },
+        {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "wooden-floor"
         }
       ],
       "-30,-3": [
         {
+          "tileId": "dirt"
+        },
+        {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "wooden-floor"
         }
       ],
       "-30,-2": [
         {
+          "tileId": "dirt"
+        },
+        {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "fence"
         }
       ],
       "-30,-1": [
@@ -10733,27 +10805,63 @@
       ],
       "-29,-6": [
         {
+          "tileId": "dirt"
+        },
+        {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "fence"
         }
       ],
       "-29,-5": [
         {
+          "tileId": "dirt"
+        },
+        {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "wooden-floor"
         }
       ],
       "-29,-4": [
         {
+          "tileId": "dirt"
+        },
+        {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "wooden-floor"
         }
       ],
       "-29,-3": [
         {
+          "tileId": "dirt"
+        },
+        {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "wooden-floor"
         }
       ],
       "-29,-2": [
         {
+          "tileId": "dirt"
+        },
+        {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "fence"
         }
       ],
       "-29,-1": [
@@ -11671,9 +11779,6 @@
         },
         {
           "tileId": "wooden-floor"
-        },
-        {
-          "tileId": "sw2"
         }
       ],
       "-28,-4": [
@@ -11706,7 +11811,16 @@
       ],
       "-28,-2": [
         {
+          "tileId": "dirt"
+        },
+        {
           "tileId": "grass-2"
+        },
+        {
+          "tileId": "wooden-floor"
+        },
+        {
+          "tileId": "fence"
         }
       ],
       "-28,-1": [
@@ -12618,12 +12732,6 @@
       "-27,-6": [
         {
           "tileId": "wooden-floor"
-        },
-        {
-          "tileId": "counter-top"
-        },
-        {
-          "tileId": "bread"
         }
       ],
       "-27,-5": [
@@ -12652,6 +12760,9 @@
         }
       ],
       "-27,-2": [
+        {
+          "tileId": "dirt"
+        },
         {
           "tileId": "grass-2"
         }
@@ -13633,12 +13744,6 @@
       "-26,-6": [
         {
           "tileId": "wooden-floor"
-        },
-        {
-          "tileId": "counter-top"
-        },
-        {
-          "tileId": "bread"
         }
       ],
       "-26,-5": [
@@ -13666,6 +13771,9 @@
         }
       ],
       "-26,-2": [
+        {
+          "tileId": "dirt"
+        },
         {
           "tileId": "grass-2"
         }
@@ -14667,12 +14775,6 @@
       "-25,-6": [
         {
           "tileId": "wooden-floor"
-        },
-        {
-          "tileId": "counter-top"
-        },
-        {
-          "tileId": "apple"
         }
       ],
       "-25,-5": [
@@ -15788,7 +15890,7 @@
         {
           "tileId": "sign",
           "direction": "s",
-          "description": "Bram's Ovens\nHot bread daily."
+          "description": "Blacksmith"
         }
       ],
       "-24,-1": [
@@ -71223,6 +71325,9 @@
         },
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "half-wall"
         }
       ],
       "30,31": [
@@ -74155,6 +74260,9 @@
         },
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "half-wall"
         }
       ],
       "33,33": [
@@ -77064,6 +77172,9 @@
         },
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "half-wall"
         }
       ],
       "36,31": [
@@ -103558,65 +103669,6 @@
           "tileId": "brick-slab"
         }
       ],
-      "-37,-10": [
-        {
-          "tileId": "roof-1",
-          "direction": "s"
-        }
-      ],
-      "-37,-9": [
-        {
-          "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
-        }
-      ],
-      "-37,-8": [
-        {
-          "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
-        }
-      ],
-      "-37,-7": [
-        {
-          "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
-        }
-      ],
-      "-37,-6": [
-        {
-          "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
-        }
-      ],
-      "-37,-5": [
-        {
-          "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
-        }
-      ],
-      "-37,-4": [
-        {
-          "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
-        }
-      ],
-      "-37,-3": [
-        {
-          "tileId": "roof-1"
-        }
-      ],
       "-37,11": [
         {
           "tileId": "brick-slab"
@@ -103625,65 +103677,6 @@
       "-36,-38": [
         {
           "tileId": "brick-slab"
-        }
-      ],
-      "-36,-10": [
-        {
-          "tileId": "roof-1",
-          "direction": "s"
-        }
-      ],
-      "-36,-9": [
-        {
-          "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
-        }
-      ],
-      "-36,-8": [
-        {
-          "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
-        }
-      ],
-      "-36,-7": [
-        {
-          "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
-        }
-      ],
-      "-36,-6": [
-        {
-          "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
-        }
-      ],
-      "-36,-5": [
-        {
-          "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
-        }
-      ],
-      "-36,-4": [
-        {
-          "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
-        }
-      ],
-      "-36,-3": [
-        {
-          "tileId": "roof-1"
         }
       ],
       "-36,11": [
@@ -103699,65 +103692,6 @@
           "tileId": "brick-slab"
         }
       ],
-      "-35,-10": [
-        {
-          "tileId": "roof-1",
-          "direction": "s"
-        }
-      ],
-      "-35,-9": [
-        {
-          "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
-        }
-      ],
-      "-35,-8": [
-        {
-          "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
-        }
-      ],
-      "-35,-7": [
-        {
-          "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
-        }
-      ],
-      "-35,-6": [
-        {
-          "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
-        }
-      ],
-      "-35,-5": [
-        {
-          "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
-        }
-      ],
-      "-35,-4": [
-        {
-          "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
-        }
-      ],
-      "-35,-3": [
-        {
-          "tileId": "roof-1"
-        }
-      ],
       "-35,11": [
         {
           "tileId": "brick-slab"
@@ -103771,65 +103705,6 @@
           "tileId": "brick-slab"
         }
       ],
-      "-34,-10": [
-        {
-          "tileId": "roof-1",
-          "direction": "s"
-        }
-      ],
-      "-34,-9": [
-        {
-          "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
-        }
-      ],
-      "-34,-8": [
-        {
-          "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
-        }
-      ],
-      "-34,-7": [
-        {
-          "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
-        }
-      ],
-      "-34,-6": [
-        {
-          "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
-        }
-      ],
-      "-34,-5": [
-        {
-          "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
-        }
-      ],
-      "-34,-4": [
-        {
-          "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
-        }
-      ],
-      "-34,-3": [
-        {
-          "tileId": "roof-1"
-        }
-      ],
       "-34,11": [
         {
           "tileId": "brick-slab"
@@ -103838,65 +103713,6 @@
       "-33,-38": [
         {
           "tileId": "brick-slab"
-        }
-      ],
-      "-33,-10": [
-        {
-          "tileId": "roof-1",
-          "direction": "s"
-        }
-      ],
-      "-33,-9": [
-        {
-          "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
-        }
-      ],
-      "-33,-8": [
-        {
-          "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
-        }
-      ],
-      "-33,-7": [
-        {
-          "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
-        }
-      ],
-      "-33,-6": [
-        {
-          "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
-        }
-      ],
-      "-33,-5": [
-        {
-          "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
-        }
-      ],
-      "-33,-4": [
-        {
-          "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
-        }
-      ],
-      "-33,-3": [
-        {
-          "tileId": "roof-1"
         }
       ],
       "-33,11": [
@@ -103912,65 +103728,6 @@
           "tileId": "brick-slab"
         }
       ],
-      "-32,-10": [
-        {
-          "tileId": "roof-1",
-          "direction": "s"
-        }
-      ],
-      "-32,-9": [
-        {
-          "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
-        }
-      ],
-      "-32,-8": [
-        {
-          "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
-        }
-      ],
-      "-32,-7": [
-        {
-          "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
-        }
-      ],
-      "-32,-6": [
-        {
-          "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
-        }
-      ],
-      "-32,-5": [
-        {
-          "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
-        }
-      ],
-      "-32,-4": [
-        {
-          "tileId": "plaster"
-        },
-        {
-          "tileId": "plaster"
-        }
-      ],
-      "-32,-3": [
-        {
-          "tileId": "roof-1"
-        }
-      ],
       "-32,11": [
         {
           "tileId": "brick-slab"
@@ -103984,11 +103741,6 @@
           "tileId": "brick-slab"
         }
       ],
-      "-31,0": [
-        {
-          "tileId": "grass-2"
-        }
-      ],
       "-31,11": [
         {
           "tileId": "brick-slab"
@@ -103997,11 +103749,6 @@
       "-30,-38": [
         {
           "tileId": "brick-slab"
-        }
-      ],
-      "-30,0": [
-        {
-          "tileId": "grass-2"
         }
       ],
       "-30,11": [
