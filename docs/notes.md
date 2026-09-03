@@ -3292,6 +3292,42 @@ it are worth knowing before writing a test:
   listener existed. A test that wants only what comes *next* says so with
   `record(ws)`, which discards what is pending first.
 
+### The map a unit test runs against is never `data/map.json`
+
+`data/map.json` is authored content, edited constantly and from inside the game
+as much as by hand. Tests that read it broke on ordinary authoring — moving a
+shopkeeper across the square, roofing a building, swapping a wall for a window
+— and each break was a red build that said nothing about the code. They were
+re-baselined a few times before it was worth admitting the map was not the
+thing under test.
+
+`app/lib/fixtureTown.ts` is the stand-in: a generated walled town on a road
+grid, with roofed houses, a lamplit street grid, a forest and a cave under the
+square. It exists for two reasons.
+
+- **Coverage.** The mix is chosen for the branches the lighting and geometry
+  paths split on: sky-exposed cells and roofed ones, half-height occluders that
+  block sight but still take part in the sky flood, emitters at four levels,
+  and a level under the ground plane that sees no sky at all.
+- **A standing scale.** It is sized near the shipped map — 23.0k cells, 29.8k
+  quads and 68 emitters against 20.9k / 38.7k / 68 — and measures ~44ms p50 /
+  ~46ms p95 on the cold bake where the shipped map measured ~41/42. That is
+  what makes `PERF_BUDGETS.lightingBakeMsP95` mean something a year from now:
+  the budget used to be re-raised every time the world grew, and half of those
+  raises were content rather than code. `app/lib/mapData.test.ts` pins the
+  fixture's quad count so a future trim cannot silently make the budget pass.
+
+`data/tiles.json` stays real in all of these. Heights, `lightPassing` flags and
+per-frame emitter radii are what the code under test is reasoning about, and a
+fixture tile with an invented radius tests the fixture. Keep the catalogue,
+build the geometry.
+
+Claims *about* the shipped world went with the map: "the shopkeeper is placed
+somewhere", "the authored map is mostly static tiles". Both read as safe
+because they name no coordinate, and both still failed on an afternoon's
+authoring. If a claim really is about the world we ship, the Playwright run
+against a real world is where it belongs.
+
 Two rules learned the hard way, which still hold:
 
 - **Revert one fix at a time when proving a test can fail.** Reverting all three

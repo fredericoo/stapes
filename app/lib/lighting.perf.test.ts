@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { chunkifyMap } from "./mapData";
-import type { FlatMapFile } from "./types";
-import map from "../../data/map.json";
+import { fixtureTown } from "./fixtureTown";
 import tiles from "../../data/tiles.json";
 import { PERF_BUDGETS } from "../editor/perf";
 import {
@@ -69,10 +67,10 @@ describe("lighting bake perf", () => {
   const tilesById = Object.fromEntries(
     (tiles as TileDef[]).map((t) => [t.id, t]),
   ) as Record<string, TileDef>;
-  const mapFile = chunkifyMap(map as FlatMapFile);
+  const mapFile = fixtureTown();
   const omit = new Set([PLAYER_TILE_ID]);
 
-  it(`full static bake p95 < ${BAKE_MS}ms on fixture map`, () => {
+  it(`full static bake p95 < ${BAKE_MS}ms on the fixture town`, () => {
     for (let i = 0; i < WARMUP_RUNS; i++) {
       computeLighting(mapFile, tilesById, AMBIENT_PRESETS.night, undefined, omit);
     }

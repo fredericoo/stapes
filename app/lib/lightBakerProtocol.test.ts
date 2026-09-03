@@ -6,18 +6,12 @@
  * longer exists, and it stays wrong until something else invalidates the chunk.
  */
 import { describe, expect, it } from "vitest";
-import mapJson from "../../data/map.json";
-import {
-  chunkifyMap,
-  clearStack,
-  getStack,
-  replaceStack,
-  setStacks,
-} from "./mapData";
+import { clearStack, getStack, replaceStack, setStacks } from "./mapData";
+import { fixtureTown } from "./fixtureTown";
 import { applyMapPatch, diffMapChunks } from "./lightBakerProtocol";
-import type { FlatMapFile, MapFile } from "./types";
+import type { MapFile } from "./types";
 
-const base = chunkifyMap(mapJson as FlatMapFile);
+const base = fixtureTown();
 
 /** What the worker would hold after being initialised and then told about `next`. */
 function mirrorThrough(versions: MapFile[]): MapFile {

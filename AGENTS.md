@@ -31,6 +31,32 @@ an oblique cabinet projection with Three.js.
 
 `CLAUDE.md` is a symlink to this file.
 
+## No unit test reads `data/map.json`
+
+`data/map.json` is the world being authored. It is edited constantly — from
+the in-game editor as much as by hand — and every edit is a legitimate one. A
+unit test that reads it turns "somebody moved the shopkeeper" or "somebody
+roofed a building" into a red build that says nothing about the code, so the
+test gets re-baselined until nobody trusts it.
+
+**Build the scenario the test is about.** `app/lib/fixtureTown.ts` is the
+stand-in world for anything that needs a whole map — a generated town at a
+fixed scale, so the lighting budgets it backs stop drifting with the content.
+For anything smaller, build the cells by hand: `emptyMap` plus `replaceStack`,
+or a local `mapAt([...])` helper like the ones in `app/lib/lighting.test.ts`
+and `app/lib/levelVisibility.test.ts`.
+
+`data/tiles.json` is the opposite case and stays real. Heights,
+`lightPassing`, per-frame emitter radii and interaction blocks are what these
+subsystems reason about, and a fixture tile with an invented radius tests the
+fixture. Keep the tile catalogue; build the geometry.
+
+This covers claims about the shipped world too — "the shopkeeper is placed
+somewhere", "the map is mostly static tiles". They read as safe because they
+name no coordinate, and they still fail on an ordinary afternoon's authoring.
+If a claim really is about the world we ship, it belongs in the Playwright run
+against a real world, not in `vitest`.
+
 ## A commit is one revert, and a PR title is the commit main keeps
 
 Every PR here is squash-merged, so the PR title *is* the commit message on

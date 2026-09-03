@@ -10,19 +10,17 @@ import {
   stackHeight,
   surfaceTileAt,
   chunkKeyFor,
-  chunkifyMap,
   emptyMap,
   listChannels,
   updatePlacedChannel,
   updatePlacedDescription,
 } from "./mapData";
-import mapJson from "../../data/map.json";
-import type { FlatMapFile, MapFile, PlacedTile, TileDef } from "./types";
+import { fixtureTown } from "./fixtureTown";
+import type { MapFile, PlacedTile, TileDef } from "./types";
 import { coordKey, levelKey, normalizeTileDef, physicalHeight } from "./types";
 import { fitsAtElevation, fitsTile, tilesByIdFromList } from "./validation";
 
-// The file on disk is flat; the runtime shape is chunked.
-const fixtureMap: MapFile = chunkifyMap(mapJson as FlatMapFile);
+const fixtureMap: MapFile = fixtureTown();
 
 describe("mapData copy-on-write", () => {
   it("keeps untouched levels, chunks and cells by reference", () => {
@@ -177,7 +175,13 @@ describe("placement descriptions", () => {
   });
 });
 
-describe("fixture map scale", () => {
+/**
+ * The fixture is sized to stand in for a real world, not to be the smallest
+ * map that exercises the code — the lighting bake budget in `app/editor/perf.ts`
+ * is a wall-clock number measured against a map of roughly this size, and it
+ * passes for the wrong reason on a map that is merely small.
+ */
+describe("fixture town scale", () => {
   it("has enough quads that a one-mesh-per-quad path would blow budgets", () => {
     let quads = 0;
     for (const z of Object.keys(fixtureMap.levels)) {
@@ -185,8 +189,8 @@ describe("fixture map scale", () => {
         quads += c.stack.length;
       }
     }
-    // Guard against someone swapping in a tiny demo map and silencing perf tests.
-    expect(quads).toBeGreaterThan(500);
+    // Guard against someone trimming the generator and silencing the perf test.
+    expect(quads).toBeGreaterThan(20_000);
   });
 });
 

@@ -7,9 +7,9 @@
  * of things it has to race.
  */
 import { describe, expect, it } from "vitest";
-import mapJson from "../../data/map.json";
 import tilesJson from "../../data/tiles.json";
-import { chunkifyMap, getStack, replaceStack } from "./mapData";
+import { getStack, replaceStack } from "./mapData";
+import { fixtureTown } from "./fixtureTown";
 import {
   type BakedChunk,
   bakeRegion,
@@ -18,15 +18,15 @@ import {
   type WorldRect,
 } from "./lightingChunks";
 import { PLAYER_TILE_ID } from "../game/constants";
-import type { FlatMapFile, MapFile, TileDef } from "./types";
+import type { MapFile, TileDef } from "./types";
 
 const tilesById = Object.fromEntries(
   (tilesJson as TileDef[]).map((t) => [t.id, t]),
 ) as Record<string, TileDef>;
 const omit = new Set([PLAYER_TILE_ID]);
-const base = chunkifyMap(mapJson as FlatMapFile);
+const base = fixtureTown();
 
-/** A window well inside the fixture map's content. */
+/** A window well inside the fixture town's content. */
 const WINDOW: WorldRect = { x0: -8, y0: -8, x1: 8, y1: 8 };
 
 /** Somewhere in that window with a stack to mutate. */
