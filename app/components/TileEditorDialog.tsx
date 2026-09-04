@@ -1601,11 +1601,17 @@ export function TileEditorDialog({
           </div>
           <div className="flex flex-col gap-1 text-xs">
             <span className="font-bold uppercase text-muted">Type</span>
-            <Segmented<TileType>
+            {/* A dropdown rather than the segmented row the height uses: five
+                options is already more than fits on one line beside a dialog's
+                other controls, and the list only grows. */}
+            <Select
+              ariaLabel="Tile type"
               value={draft.type}
-              onChange={changeType}
+              onValueChange={(v) => {
+                if (v) changeType(v as TileType);
+              }}
               options={TILE_TYPE_OPTIONS}
-              size="sm"
+              className="w-fit"
             />
           </div>
           <label className="flex items-center gap-2 text-sm">
