@@ -819,7 +819,36 @@ export class RemoteSession implements PlaySession {
     if (cells.length === 0) return NO_OWNERS;
     const leaving = this.ownersLeaving(cells);
     this.serverMap = setStacks(this.serverMap, cells);
+    this.noticeArrivals(cells);
     return leaving;
+  }
+
+  /**
+   * Start following anybody these cells put on the board.
+   *
+   * The counterpart of forgetting somebody the board no longer has, and needed
+   * for the same reason: a client is sent the part of the map it can reach, so a
+   * body comes and goes from that board by *walking*, not only by living and
+   * dying. Coming back has to be as ordinary as going.
+   *
+   * Without this, a creature was drawn only if the client happened to hear it
+   * start a step while already in view. One standing still — which is most of
+   * them, most of the time — was on the board and in no list, so nothing drew
+   * it, nothing offered it as a target, and the cursor went straight through
+   * it.
+   *
+   * A fresh entry rather than a remembered one: whatever it was doing while
+   * nobody was watching is over, and the next event it is part of will say what
+   * it is doing now.
+   */
+  private noticeArrivals(cells: CellPatch[]) {
+    for (const cell of cells) {
+      for (const placed of cell.stack) {
+        const owner = placed.owner;
+        if (owner === undefined || this.motions.has(owner)) continue;
+        this.motions.set(owner, emptyMotion());
+      }
+    }
   }
 
   /**

@@ -190,6 +190,20 @@ describe("RemoteSession bodies that walk out of view", () => {
     expect(session.getSnapshot().actors.map((a) => a.id)).toContain(OTHER);
   });
 
+  it("draws somebody again when the board hands them back", () => {
+    // Walking out of view is not dying, and walking back in is not being born:
+    // a body arrives on this client's board with no event to announce it,
+    // because the event that moved it was for somebody who could see it. If
+    // only events could add one, a creature standing still where you have just
+    // walked would be on the board and in no list — undrawn and untargetable.
+    const { socket, session } = withOther();
+    socket.deliver(patch([{ x: 2, y: 0, z: 0, stack: [grass] }]));
+    expect(session.getSnapshot().actors.map((a) => a.id)).not.toContain(OTHER);
+
+    socket.deliver(patch([{ x: 3, y: 0, z: 0, stack: [grass, otherBody] }]));
+    expect(session.getSnapshot().actors.map((a) => a.id)).toContain(OTHER);
+  });
+
   it("forgets somebody the board no longer has, and stays forgetting them", () => {
     // A client is only sent the part of the map it can reach, so a body walking
     // out of view leaves the board without dying — the cell it left arrives and

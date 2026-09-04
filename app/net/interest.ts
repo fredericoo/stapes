@@ -42,9 +42,17 @@ import { VIEW_CELLS } from "../lib/view";
  * screen, and so how wrong the server may be about where somebody is going
  * before they can tell. Six cells is a little over a second at a walk.
  *
+ * **It is not the lever for the light that leaks in at the boundary**, which is
+ * the tempting reading and was measured to be wrong. What a client does not
+ * hold, the sky flood reads as open air, so the edge of a subscription seeds
+ * daylight that spills inward — and the obvious answer, an apron wider than
+ * `MAX_LIGHT_LEVEL`, pushes the leak off-screen at the cost of a client holding
+ * 2.3x the map. Measured over two interleaved rounds, that traded a frame p50 of
+ * 6.0ms for one of 8.3–16.9ms: the extra world costs more to carry than the
+ * light costs to get wrong. Unknown has to be *told* to read as solid instead.
+ *
  * It is also the term that costs, and it is paid on the square: six puts a join
- * at about 190KB of the den, where twelve would make it 340KB for a margin
- * nothing measured needs.
+ * at about 190KB of the den, where fifteen makes it 460KB.
  */
 export const INTEREST_APRON_CELLS = 6;
 
