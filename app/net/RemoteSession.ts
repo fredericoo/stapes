@@ -883,13 +883,17 @@ export class RemoteSession implements PlaySession {
   }
 
   /**
-   * Forget the actors this frame took off the board for good.
+   * Stop following the actors this frame took off the board.
    *
    * A death is not on the wire — the body simply stops being in any cell — so
    * absence from the board the server just described is the only thing that
-   * says it happened. Which is enough here, and is *not* enough for this
-   * client's own body: see {@link dead} for why that one is told rather than
-   * inferred, and {@link ownersLeaving} for where it is excluded.
+   * says it happened. Since the board is only the part of the map this client
+   * can reach, the same absence also means "walked out of view", and the two
+   * are not told apart: a body that has died and one that has stepped away are
+   * both bodies not worth asking the board about until it shows them again.
+   * Absence *is* enough here, and is *not* enough for this client's own body:
+   * see {@link dead} for why that one is told rather than inferred, and
+   * {@link ownersLeaving} for where it is excluded.
    *
    * What this leaves behind if it is not done is a reservation nobody can ever
    * release. {@link releaseArrivedWalk} ends another actor's walk when the map
@@ -907,21 +911,40 @@ export class RemoteSession implements PlaySession {
   private forgetDeparted(leaving: readonly string[]) {
     for (const id of leaving) {
       if (locateActor(this.serverMap, id)) continue;
-      this.forgetActor(id);
+      this.loseSightOf(id);
     }
   }
 
   /**
-   * Drop everything this client is holding about somebody who is gone.
+   * Drop everything this client is holding about somebody who has left the
+   * world.
    *
-   * One place for it because there are two ways to go — a socket closing and a
-   * death — and nothing about what a client remembers distinguishes them.
+   * Only for a departure the server announces — a socket closing — and not for
+   * a body the board has merely stopped showing. The difference is what the
+   * server will say again. Hit points, carried lights and statuses are sent to
+   * everybody once, on join, and after that only when they change; a body that
+   * walks out of view and back is not sent them a second time, so whatever was
+   * dropped on the way out is gone until a reload. Dropped, a rat came back as
+   * scenery: on the board, drawn, and with nothing to attack. @see loseSightOf
    */
   private forgetActor(id: string) {
-    this.motions.delete(id);
+    this.loseSightOf(id);
     this.hps.delete(id);
     this.carriedLights.delete(id);
     this.statusesById.delete(id);
+  }
+
+  /**
+   * Stop following somebody the board no longer shows.
+   *
+   * The motion is the only entry that costs anything to keep — it is what
+   * {@link getSnapshot} asks the board about every frame, and a miss searches
+   * the whole board — and the only one the server will fill in again, from the
+   * cells that bring the body back. Everything else stays, still kept current
+   * by the world-wide patches that carry it. @see noticeArrivals
+   */
+  private loseSightOf(id: string) {
+    this.motions.delete(id);
     if (this.targetId === id) this.targetId = null;
   }
 
@@ -1744,7 +1767,7 @@ export class RemoteSession implements PlaySession {
       actors.push(snapshot);
       if (id === this.selfId) self = snapshot;
     }
-    if (gone) for (const id of gone) this.forgetActor(id);
+    if (gone) for (const id of gone) this.loseSightOf(id);
     if (self) this.lastSelf = self;
 
     return {

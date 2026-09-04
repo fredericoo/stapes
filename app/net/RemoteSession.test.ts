@@ -204,6 +204,43 @@ describe("RemoteSession bodies that walk out of view", () => {
     expect(session.getSnapshot().actors.map((a) => a.id)).toContain(OTHER);
   });
 
+  it("still knows a battler's hit points when the board hands them back", () => {
+    // The server sends hit points once, on join, and again only when they
+    // change. A body that walks out of view is not sent them again on the way
+    // back, so whatever this client remembers is all it will ever have — and
+    // a battler remembered without them is scenery: nothing to target, nothing
+    // to attack, until a reload asks the server for everything again.
+    const { socket, session } = withOther();
+    socket.deliver(
+      patch([], [], [{ actorId: OTHER, hp: 7, maxHp: 10, rating: 0 }]),
+    );
+    socket.deliver(patch([{ x: 2, y: 0, z: 0, stack: [grass] }]));
+    expect(session.getSnapshot().actors.map((a) => a.id)).not.toContain(OTHER);
+
+    socket.deliver(patch([{ x: 3, y: 0, z: 0, stack: [grass, otherBody] }]));
+    const other = session.getSnapshot().actors.find((a) => a.id === OTHER);
+    expect(other?.hp).toBe(7);
+    expect(other?.maxHp).toBe(10);
+  });
+
+  it("forgets a battler's hit points when they leave the world", () => {
+    // The other way off the board. A returning player is a fresh body, and
+    // must not inherit the reading their last one died on.
+    const { socket, session } = withOther();
+    socket.deliver(
+      patch([], [], [{ actorId: OTHER, hp: 7, maxHp: 10, rating: 0 }]),
+    );
+    socket.deliver(
+      patch(
+        [{ x: 2, y: 0, z: 0, stack: [grass] }],
+        [{ kind: "left", actorId: OTHER, playerCount: 1 }],
+      ),
+    );
+    socket.deliver(patch([{ x: 3, y: 0, z: 0, stack: [grass, otherBody] }]));
+    const other = session.getSnapshot().actors.find((a) => a.id === OTHER);
+    expect(other?.hp).toBeNull();
+  });
+
   it("forgets somebody the board no longer has, and stays forgetting them", () => {
     // A client is only sent the part of the map it can reach, so a body walking
     // out of view leaves the board without dying — the cell it left arrives and
