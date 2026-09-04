@@ -1078,6 +1078,42 @@ neighbour stays: a body under the roof that is *still drawn* has to stay
 anonymous even though a roof at its level lifted a street away, and a level
 threshold cannot tell the two roofs apart.
 
+#### A cut is a local question, and underground it is the most expensive one
+
+The cut was the single most expensive thing on a frame in the caves — 27–33ms,
+more than the map, the light and the draw together — and none of it was
+visible. Three separate reasons, each worth knowing on its own:
+
+- **It was cached on whole-map identity.** Map identity changes when any cell
+  anywhere does, and a world with a couple of hundred creatures in it changes
+  on almost every tick, so the cache missed on almost every frame. A cut is a
+  local question — what stands between this body and the sky within
+  `VIEW_RADIUS` — so it is now keyed on the chunk records the *probe* reads
+  (`cutProbeChunks`). A rat stepping on the far side of the world no longer
+  re-runs it. What that deliberately does not cover is the fill, which can run
+  far past the probe: a roof cell added at the other end of a building is not
+  noticed until the body moves, and cells that far away are not on screen.
+- **The fill rebuilt three keys per neighbour probe.** Twenty-six neighbours per
+  cell, up to `MAX_CUT_CELLS` cells, each asking `getStack` for a level key, a
+  chunk key and a cell key. Neighbours are adjacent by construction, so holding
+  the last level and chunk record makes the common probe one object lookup.
+- **`MAX_CUT_CELLS` was ten times larger than anything the world contains.**
+  Sampling 2,947 anchors across every level of `data/map.json`: the largest
+  structure cut anywhere is 392 cells, p95 is 280, and *every* anchor
+  underground refuses and falls back to the whole storey. So the cap never
+  decides a real building's cut — it only decides how long the fill spends
+  finding out that a cave ceiling is not a building. At 1024 there is 2.6x
+  headroom over anything authored and the same sample returns every cut
+  identical.
+
+Together: 27–33ms to 1.9–2.9ms per cut, and computed once per step rather than
+once per frame.
+
+**The lesson that generalises is the first one.** Anything cached on `map`
+identity in a world with a crowd in it is cached on nothing at all. Ask what
+region the computation reads and key on that.
+
+
 ## Fighting is stats on a tile, and nothing else
 
 A **battler** is any tile with an `interactions.battler` block (`app/lib/battler.ts`):
