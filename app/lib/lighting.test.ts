@@ -625,3 +625,82 @@ describe("daylight through the surface into a room below", () => {
     expect(litBelow(["ladder-top"])).toBeGreaterThan(0.5);
   });
 });
+
+/**
+ * Void: a cell with nothing at or below it in its column, on any level.
+ *
+ * Below the map's edge, under a bridge, beneath a pond authored over nothing.
+ * It is pitch black, it does not relay the sky flood, and it takes no block
+ * light — but daylight still lands on the top of every column exactly as it
+ * did, wherever that top happens to be.
+ */
+describe("void", () => {
+  function skyAt(map: MapFile, x: number, y: number, z: number): number {
+    const level = map && computeLighting(map, tilesById, AMBIENT_PRESETS.day).levels.get(z);
+    if (!level) throw new Error(`no light plane for level ${z}`);
+    return sampleLevelLight(level, x, y)[0]!;
+  }
+
+  it("a column with nothing in it bakes black beside a lit floor", () => {
+    const map = mapAt([{ x: 0, y: 0, tiles: ["floor"] }]);
+    expect(skyAt(map, 0, 0, 0)).toBeCloseTo(1, 5);
+    expect(skyAt(map, 1, 0, 0)).toBe(0);
+  });
+
+  it("daylight lands on the top of a column wherever that top is", () => {
+    const map = mapAt([{ x: 0, y: 0, z: -3, tiles: ["floor"] }]);
+    expect(skyAt(map, 0, 0, -2)).toBeCloseTo(1, 5);
+    expect(skyAt(map, 0, 0, -3)).toBeCloseTo(1, 5);
+    expect(skyAt(map, 0, 0, -4)).toBe(0);
+  });
+
+  it("does not carry daylight down an empty column and back under the floor", () => {
+    // Ground at 0 over a basement at (1,0,-1); the column at x=2 is empty all
+    // the way down. The shaft used to run down x=2 to the bottom of the world
+    // and flood sideways into the basement, which then followed the hour.
+    const map = mapAt([
+      { x: 0, y: 0, tiles: ["floor"] },
+      { x: 1, y: 0, tiles: ["floor"] },
+      { x: 1, y: 0, z: -1, tiles: ["floor"] },
+    ]);
+    expect(skyAt(map, 1, 0, -1)).toBe(0);
+  });
+
+  it("a pond authored over nothing is a lid after all — there is nothing under it", () => {
+    const map = mapAt([{ x: 0, y: 0, tiles: ["water"] }]);
+    expect(skyAt(map, 0, 0, 0)).toBeCloseTo(1, 5);
+    expect(skyAt(map, 0, 0, -1)).toBe(0);
+  });
+
+  it("a torch does not paint the drop beside it, and still reaches across it", () => {
+    const map = mapAt([
+      { x: 0, y: 0, tiles: ["floor", "torch"] },
+      { x: 2, y: 0, tiles: ["floor"] },
+    ]);
+    const level = computeLighting(map, tilesById, [0, 0, 0]).levels.get(0)!;
+    expect(sampleLevelLight(level, 1, 0)[0]).toBe(0);
+    expect(sampleLevelLight(level, 2, 0)[0]).toBeGreaterThan(0.1);
+  });
+
+  it("a carried torch obeys the same rule on the dynamic path", () => {
+    const map = mapAt([
+      { x: 0, y: 0, tiles: ["floor"] },
+      { x: 2, y: 0, tiles: ["floor"] },
+    ]);
+    const base = computeLighting(map, tilesById, [0, 0, 0]);
+    const lit = overlayEmitterOverrides(base, map, tilesById, [
+      {
+        x: 0,
+        y: 0,
+        z: 0,
+        fx: 0.5,
+        fy: 0.5,
+        fz: 0.5,
+        lights: [{ radius: 4, intensity: 1, color: "#ffffff" }],
+      },
+    ]);
+    const level = lit.levels.get(0)!;
+    expect(sampleLevelLight(level, 1, 0)[0]).toBe(0);
+    expect(sampleLevelLight(level, 2, 0)[0]).toBeGreaterThan(0.1);
+  });
+});

@@ -12,6 +12,7 @@ import {
 } from "../lib/geometry";
 import {
   overlayEmitterOverridesPacked,
+  VOID_BACKGROUND,
   type EmitterOverride,
   type PackedLevelLight,
   type PackedLightGrid,
@@ -198,7 +199,6 @@ type BuildItem = Quad & {
 const EMPTY_EMITTERS: readonly ParticleEmitterSpec[] = [];
 const EMPTY_TINTS: ReadonlyMap<string, StatusTint> = new Map();
 
-const DEFAULT_BACKGROUND = sampleIllumination(12 * 60).background;
 const LIGHT_MAP_CELL_OFFSET = 0.5;
 
 /** Map cell + stack slot identifying a placed tile instance. */
@@ -675,7 +675,7 @@ export class WorldRenderer {
       antialias: false,
       alpha: false,
     });
-    this.renderer.setClearColor(DEFAULT_BACKGROUND, 1);
+    this.renderer.setClearColor(VOID_BACKGROUND, 1);
     this.renderer.setPixelRatio(1);
     this.renderer.autoClear = true;
 
@@ -1204,13 +1204,12 @@ export class WorldRenderer {
     if (this.view) {
       this.applyCamera(this.view.camera.x, this.view.camera.y, this.view.zoom);
     }
-    const bg = sampleIllumination(this.view?.minutesOfDay ?? 12 * 60).background;
     const r = this.renderer;
 
     // PROTOTYPE — always palettise play frames.
     const target = this.palettePass.sceneTarget(r);
     r.setRenderTarget(target);
-    r.setClearColor(bg, 1);
+    r.setClearColor(VOID_BACKGROUND, 1);
     r.clear();
     r.render(this.scene, this.camera);
     this.palettePass.blitToCanvas(r);

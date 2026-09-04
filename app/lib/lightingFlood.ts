@@ -39,6 +39,15 @@ export { MAX_LIGHT_LEVEL };
 const TRANSMISSION_EPSILON = 1e-3;
 const VERTICAL_FALLOFF = 1;
 
+/** A column's lowest tile level when the column holds no tile at all. */
+const NO_TILE_IN_COLUMN = MAX_LEVEL + 1;
+
+/**
+ * `fullFrom` for a column that holds the full shaft nowhere: one below the
+ * domain, so the frontier scan covers nothing and no neighbour is raised.
+ */
+const FULL_SHAFT_NOWHERE = -1;
+
 /**
  * 6-face + 4 diagonal (XY) with Euclidean step cost — softens diamond shapes.
  *
@@ -250,7 +259,8 @@ function denseRayTransmission(
  * which is fine for a whole map but wrong for a windowed bake: an empty
  * neighbourhood shrinks the domain inside the window, and the caller silently
  * gets no plane for the cells it asked about. State the domain and empty space
- * still bakes — as sky, which is what empty space looks like.
+ * still bakes — as void, black, which is what empty space with nothing under it
+ * looks like.
  */
 export type FloodDomain = {
   x0: number;
@@ -352,6 +362,12 @@ function collectLevelCellsIn(
 
 /**
  * Hybrid bake: Euclidean-cost sky flood + circular block emitters.
+ *
+ * A cell with nothing at or below it in its column is *void*: it bakes black,
+ * the sky flood stops at it, and block light never lands in it. Daylight is
+ * seeded onto the top of every column regardless, so a lone floor three levels
+ * down is as sunlit as the ground — what changes is only that the shaft ends
+ * where the tiles end instead of running on to the bottom of the world.
  *
  * Ambient is *not* applied here — sky factor and block light are stored
  * separately so time of day can re-tint without rebaking. Compose with
@@ -542,6 +558,34 @@ export function computeLightingFlood(
 
   const slice = dom.w * dom.h;
 
+  // Void: a cell with nothing at or below it in its column, on any level the
+  // map has — not only the levels being baked. Past the map's edge, under a
+  // bridge, beneath a pond authored over nothing. It bakes black, the sky
+  // flood does not pass through it, and no block light lands in it.
+  //
+  // What it exists to stop: the shaft used to run down every empty column to
+  // the bottom of the world and come back *sideways* under the floor, so a
+  // basement beside the map's edge was lit by daylight and followed the hour.
+  // Daylight still lands on the top of every column exactly as before — the
+  // seed below paints down to the first seal, wherever that is — this only
+  // ends the column where the tiles end.
+  //
+  // `cells` was gathered on every level, so a column's lowest tile is known
+  // even when it sits under the domain's floor.
+  const lowestTileZ = new Int32Array(slice).fill(NO_TILE_IN_COLUMN);
+  for (const c of cells) {
+    const lx = c.x - dom.x0;
+    const ly = c.y - dom.y0;
+    if (lx < 0 || ly < 0 || lx >= dom.w || ly >= dom.h) continue;
+    const col = ly * dom.w + lx;
+    if (c.z < lowestTileZ[col]!) lowestTileZ[col] = c.z;
+  }
+  const isVoid = new Uint8Array(n);
+  for (let col = 0; col < slice; col++) {
+    const voidDepth = Math.min(dom.d, lowestTileZ[col]! - dom.z0);
+    for (let lz = 0; lz < voidDepth; lz++) isVoid[col + lz * slice] = 1;
+  }
+
   // Sky column seed. Every cell still receives the shaft that reaches its top —
   // otherwise outdoor bricks bake black — and anything solid in the cell then
   // ends the shaft, whether that is a floor, a bush, or a wall. Height governs
@@ -553,13 +597,18 @@ export function computeLightingFlood(
   // on the way down and a cell is painted before it attenuates, so the cells
   // holding {@link MAX_LIGHT_LEVEL} are exactly the run from `fullFrom` to the
   // top of the domain. That fact is what the frontier seeding below rests on.
+  //
+  // Void is only ever the bottom of a column, so reaching it ends the walk. A
+  // column that is void from the top holds the shaft nowhere, so it neither
+  // seeds itself nor raises a neighbour's frontier — nothing can push into it.
   const fullFrom = new Int32Array(slice);
   for (let ly = 0; ly < dom.h; ly++) {
     for (let lx = 0; lx < dom.w; lx++) {
       let shaft = MAX_LIGHT_LEVEL;
-      let full = dom.d - 1;
+      let full = FULL_SHAFT_NOWHERE;
       for (let lz = dom.d - 1; lz >= 0; lz--) {
         const i = idx(dom, lx, ly, lz);
+        if (isVoid[i]!) break;
         sky[i] = shaft;
         if (shaft >= MAX_LIGHT_LEVEL) full = lz;
         if (seals[i]!) shaft = 0;
@@ -639,6 +688,7 @@ export function computeLightingFlood(
       const j = idx(dom, tx, ty, tz);
       const topOp = opacity[j]!;
       if (topOp >= 1) continue;
+      if (isVoid[j]!) continue;
       if (dz !== 0) {
         // The floor between the two cells decides this edge, and nothing
         // standing on that floor gets a vote: a lid is a lid whether it is
@@ -716,6 +766,9 @@ export function computeLightingFlood(
           const isSelf = tx === e.lx && ty === e.ly && tz === e.lz;
           if (!isSelf) {
             if (opacity[i]! >= 1) continue;
+            // Nothing lands in the void, though the ray still crosses it: a
+            // torch lights the far side of a chasm and not the drop.
+            if (isVoid[i]!) continue;
             // A cell with a lid refuses light climbing from below.
             if (tz > sz && seals[i]!) continue;
           }

@@ -15,6 +15,7 @@ import {
 } from "../lib/geometry";
 import {
   computeLighting,
+  VOID_BACKGROUND,
   type LevelLightMap,
   type LightGrid,
 } from "../lib/lighting";
@@ -1491,16 +1492,15 @@ export class EditorRenderer {
   /**
    * The clear colour behind the world.
    *
-   * Preview is meant to be play, and play's sky moves with the hour, so it
-   * takes the same colour. Authoring keeps the flat paper colour — as does
-   * preview with lighting off, where the hour has stopped meaning anything and
-   * a midnight sky behind fully lit tiles is just confusing.
+   * Preview is meant to be play, so it clears to the same void black play does.
+   * Authoring keeps the flat paper colour — as does preview with lighting off,
+   * where black behind fully lit tiles would only read as a hole in the map.
    */
   private backgroundFor(
     s: ReturnType<typeof useEditorStore.getState>,
   ): number {
     if (!s.previewMode || !s.lighting.enabled) return BACKGROUND_COLOR;
-    return sampleIllumination(s.lighting.minutesOfDay).background;
+    return VOID_BACKGROUND;
   }
 
   /**

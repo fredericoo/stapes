@@ -3548,6 +3548,39 @@ map's surface rather than the fraction of it that happens to be bare.
 Measured on the fixture town, the bake is unchanged: p50 ~44ms either way, p95
 47–50ms against a 65ms budget.
 
+### Empty space with nothing under it is void, and void is black
+
+A cell is **void** when its column holds no tile at that level or any level
+below it — past the map's edge, under a bridge, beneath a pond authored over
+nothing. `computeLightingFlood` in `app/lib/lightingFlood.ts` marks it from the
+column's lowest tile (gathered on every level, so a windowed bake sees a tile
+under its floor), and then three things are true of it: it bakes with sky 0 and
+block 0, the sky flood never relaxes into it, and a block emitter never lands
+light in it. Its opacity stays 0, so a ray still *crosses* it: a torch lights
+the far side of a chasm and not the drop. `denseOcclusionIn` in
+`app/lib/lighting.ts` carries the same mask for the per-frame overlay, probing
+under the reach for a tile only in columns that have room below their lowest
+one, so a carried torch at a cliff's edge does not relight what the bake left
+black.
+
+What it fixes is not the void itself — nothing is drawn there — but where the
+shaft went afterwards. The column seed used to paint the full shaft down every
+empty column to the bottom of the world, and the flood then carried it
+*sideways* under the floor: a basement one cell in from the map's edge was
+daylit through the ground, and got darker at night. The seed still paints down
+to the first seal, wherever that is, so daylight lands on the top of every
+column exactly as before; it only stops where the tiles stop. The frontier
+seeding relies on this being the bottom of a column and nothing else: a column
+void from the top gets a `fullFrom` below the domain, so it neither seeds
+itself nor raises a neighbour's frontier.
+
+The clear colour follows. `VOID_BACKGROUND` in `app/lib/lighting.ts` is black,
+for play and for the editor's preview, replacing a sky tint that rode on the
+clock keyframes and read as a lit floor plane under every level — the grey
+around a level −1 cutaway that dimmed at dusk. Authoring keeps its paper
+colour, and preview with lighting off keeps it too, where black behind fully
+lit tiles would only read as a hole.
+
 ## Testing the world
 
 `server/` runs under `bun test` (`bun run test:server`), on the runtime it
