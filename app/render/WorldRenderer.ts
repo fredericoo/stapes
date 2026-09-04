@@ -475,7 +475,7 @@ const LIGHT_WINDOW_MARGIN = 4;
 const MAX_ANALYSED_CELLS = 64;
 
 /** The cells themselves plus their 8 neighbours — an autotile's whole input. */
-function withNeighbourRing(cells: Set<string>): Set<string> {
+function withNeighbourRing(cells: Iterable<string>): Set<string> {
   const out = new Set<string>();
   for (const key of cells) {
     const { x, y } = parseCoordKey(key);
@@ -484,6 +484,42 @@ function withNeighbourRing(cells: Set<string>): Set<string> {
     }
   }
   return out;
+}
+
+/**
+ * Every tile id that some autotile in the catalogue reads as a neighbour.
+ *
+ * An autotile picks its slice from an eight-way mask, and `stackConnects` fills
+ * that mask by matching a neighbour's placements against the autotile's own id
+ * and its `connectsTo` list — nothing else in a stack is looked at. So a change
+ * to a cell that touches none of these ids cannot restyle anything around it,
+ * however much else about the cell moved.
+ *
+ * Which is the difference between a cheap frame and an expensive one, because
+ * the change a tick actually produces is creatures walking: a rat is not in any
+ * autotile's vocabulary, so its step needs no ring at all.
+ */
+function autotileVocabulary(tilesById: Record<string, TileDef>): Set<string> {
+  const out = new Set<string>();
+  for (const def of Object.values(tilesById)) {
+    if (def.type !== "autotile") continue;
+    out.add(def.id);
+    for (const id of def.connectsTo ?? []) out.add(id);
+  }
+  return out;
+}
+
+/** The placements of a stack that any autotile would notice, in order. */
+function autotileInputOf(
+  stack: readonly PlacedTile[] | undefined,
+  vocabulary: ReadonlySet<string>,
+): string {
+  if (!stack || stack.length === 0) return "";
+  let sig = "";
+  for (const placed of stack) {
+    if (vocabulary.has(placed.tileId)) sig += placed.tileId + "|";
+  }
+  return sig;
 }
 
 /**
@@ -702,6 +738,10 @@ export class WorldRenderer {
   private flickeringDynamicDefs: TileDef[] = [];
   /** @see setLightingEnabled */
   private lightingEnabled = true;
+  /** @see autotileVocabulary — rebuilt only when the catalogue is replaced. */
+  private autotileVocab: ReadonlySet<string> = new Set();
+  /** The catalogue {@link autotileVocab} was derived from. */
+  private autotileVocabFor: Record<string, TileDef> | null = null;
   private prevMap: MapFile | null = null;
   private needsRender = true;
   private canvasW = 0;
@@ -2089,7 +2129,12 @@ export class WorldRenderer {
         continue;
       }
 
-      for (const key of withNeighbourRing(changed)) {
+      // **The ring is only owed to a cell that could restyle its neighbours**,
+      // and what a tick actually changes is where creatures are standing. A rat
+      // is in no autotile's vocabulary, so its step is asked about on its own
+      // cell and nowhere else — which turns the common frame from nine
+      // signature comparisons per changed cell into one.
+      for (const key of this.restyled(prev, next, z, changed)) {
         const { x, y } = parseCoordKey(key);
         const addr = chunkAddressKey(z, chunkKeyFor(x, y));
         if (!wanted.has(addr) || dirty.has(addr)) continue;
@@ -2102,6 +2147,41 @@ export class WorldRenderer {
       }
     }
     return dirty;
+  }
+
+  /**
+   * The cells whose merged contribution has to be compared, given what changed.
+   *
+   * Every changed cell, plus the eight around any of them that touched a tile
+   * an autotile reads — see {@link autotileVocabulary}. A creature stepping
+   * therefore costs its own two cells and nothing else, while placing a wall
+   * costs the ring that wall can restyle.
+   */
+  private restyled(
+    prev: MapFile,
+    next: MapFile,
+    z: number,
+    changed: ReadonlySet<string>,
+  ): Set<string> {
+    if (this.autotileVocabFor !== this.tilesById) {
+      this.autotileVocab = autotileVocabulary(this.tilesById);
+      this.autotileVocabFor = this.tilesById;
+    }
+    const vocabulary = this.autotileVocab;
+    // Nothing in the catalogue autotiles, so nothing has neighbours to notice.
+    if (vocabulary.size === 0) return new Set(changed);
+
+    const out = new Set(changed);
+    const restyling: string[] = [];
+    for (const key of changed) {
+      const { x, y } = parseCoordKey(key);
+      const before = autotileInputOf(getStack(prev, x, y, z), vocabulary);
+      const after = autotileInputOf(getStack(next, x, y, z), vocabulary);
+      if (before !== after) restyling.push(key);
+    }
+    if (restyling.length === 0) return out;
+    for (const key of withNeighbourRing(restyling)) out.add(key);
+    return out;
   }
 
   /**
