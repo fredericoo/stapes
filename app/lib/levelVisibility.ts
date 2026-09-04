@@ -157,8 +157,23 @@ function hideRayClear(
  * continuous ground, moving as you walk. Hiding all of it is what this did
  * before per-structure cuts existed, so the worst case is the old behaviour and
  * not a new artefact.
+ *
+ * **The number is measured, and it is a budget rather than a limit.** Sampling
+ * 2,947 anchors across every level of `data/map.json`: the largest structure
+ * cut anywhere on the shipped map is 392 cells, p95 is 280, and *every* anchor
+ * underground refuses. So the cap is never what decides a real building's cut —
+ * it only decides how much work is spent discovering that a cave ceiling is not
+ * a building, and underground that is every anchor, every time the cut is
+ * re-derived.
+ *
+ * It was 4096, ten times the largest structure the world contains, and it cost
+ * 16-24ms per cut in the caves — the most expensive single thing on a frame
+ * down there. At 1024 there is still 2.6x headroom over anything authored, and
+ * the same sample comes back with every cut identical. If a building ever
+ * genuinely wants more, the symptom is its roof cutting as a whole storey
+ * rather than as itself: visible, specific, and a good reason to raise this.
  */
-export const MAX_CUT_CELLS = 4096;
+export const MAX_CUT_CELLS = 1024;
 
 /**
  * The geometry the view has cut away, and the level it was cut for.
