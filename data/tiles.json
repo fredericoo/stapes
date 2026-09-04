@@ -27692,6 +27692,7 @@
     "type": "simple",
     "kind": "item",
     "attributes": {},
+    "lightPassing": true,
     "walkable": false,
     "interactions": {
       "item": {
