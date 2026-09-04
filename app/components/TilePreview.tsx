@@ -21,6 +21,8 @@ type Props = {
   direction?: Octant;
   /** Autotile slice for preview (default isolated = 0). */
   autotileSlice?: AutotileSlice;
+  /** Scatter face for preview (default first authored = 0). */
+  scatterIndex?: number;
   /** Which sprite state to draw. Default / absent → idle. */
   state?: SpriteState;
   /**
@@ -70,6 +72,7 @@ function framesForPreview(
   direction: Octant | undefined,
   dirIndex: number,
   autotileSlice: AutotileSlice | undefined,
+  scatterIndex: number | undefined,
   state: SpriteState | undefined,
 ): Frame[] | undefined {
   if (isDirectional(tile)) {
@@ -81,6 +84,9 @@ function framesForPreview(
   }
   if (tile.type === "autotile") {
     return getFrames(tile, { state, autotileSlice: autotileSlice ?? 0 });
+  }
+  if (tile.type === "scatter") {
+    return getFrames(tile, { state, scatterIndex: scatterIndex ?? 0 });
   }
   return getFrames(tile, { state });
 }
@@ -205,6 +211,7 @@ export function TilePreview({
   className = "",
   direction,
   autotileSlice,
+  scatterIndex,
   state,
   still = false,
   background = DEFAULT_PREVIEW_BACKGROUND,
@@ -243,6 +250,7 @@ export function TilePreview({
         direction,
         dirIndex,
         autotileSlice,
+        scatterIndex,
         state,
       );
       disableSmoothing(ctx);
@@ -282,7 +290,17 @@ export function TilePreview({
       alive = false;
       cancelAnimationFrame(raf);
     };
-  }, [tile, tilesets, size, direction, autotileSlice, state, still, background]);
+  }, [
+    tile,
+    tilesets,
+    size,
+    direction,
+    autotileSlice,
+    scatterIndex,
+    state,
+    still,
+    background,
+  ]);
 
   return (
     <canvas

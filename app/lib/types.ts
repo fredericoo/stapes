@@ -130,13 +130,19 @@ export type TileHeight = 0 | 1 | 2 | 3 | 4;
  * happens to be authored on it. A four-way tile with a stray `ne` sprite in the
  * file is a four-way tile.
  */
-export type TileType = "simple" | "directional" | "directional8" | "autotile";
+export type TileType =
+  | "simple"
+  | "directional"
+  | "directional8"
+  | "autotile"
+  | "scatter";
 
 export const TILE_TYPES: TileType[] = [
   "simple",
   "directional",
   "directional8",
   "autotile",
+  "scatter",
 ];
 
 /**
@@ -235,6 +241,20 @@ export type StateSprites = {
   sprites?: Partial<Record<Octant, TileSprite>>;
   /** type === "autotile" — sparse 0..46 */
   slices?: Partial<Record<AutotileSlice, TileSprite>>;
+  /**
+   * type === "scatter" — the faces one tile wears, in author order.
+   *
+   * Dense and ordered, unlike {@link slices}, because there is no meaning
+   * attached to a position: face 3 is not a shape the world can be in, it is
+   * simply the fourth thing the author drew. Removing one closes the gap, and
+   * every placement that was wearing a later face shifts — which is honest,
+   * since the pick is a modulo over however many there are.
+   *
+   * Named for its type rather than pluralised like the fields above it because
+   * `variants` is taken: {@link normalizeTileDef} still migrates a legacy field
+   * of that name that meant something else entirely.
+   */
+  scatter?: TileSprite[];
 };
 
 export type TileDef = StateSprites & {
@@ -265,6 +285,20 @@ export type TileDef = StateSprites & {
    * on the changed tile to explain why.
    */
   connectsTo?: string[];
+  /**
+   * Re-rolls which face each cell wears. Only meaningful when
+   * `type === "scatter"`. Absent reads as 0.
+   *
+   * On the def and not on the placement, which is the whole point of the type:
+   * a scattered field is a thousand cells of one tile, and a face stored per
+   * placement would be a thousand numbers in `map.json` saying what the
+   * coordinates already say. The cost is that the author cannot overrule one
+   * awkward cell — for that, place a plain tile there instead.
+   *
+   * The tile's own id is folded in beneath this, so two scatter tiles left on
+   * the default do not agree with each other. See `./scatter`.
+   */
+  scatterSeed?: number;
   /**
    * When true, this tile does not occlude light (e.g. water).
    * Default / absent → blocks. Prefer this over deprecated {@link blocksLight}.
@@ -440,6 +474,22 @@ export function isDirectional(def: TileDef): boolean {
  */
 export function facingKeysFor(def: TileDef): readonly Octant[] {
   return def.type === "directional8" ? OCTANTS : DIRECTIONS;
+}
+
+/**
+ * Does this tile draw differently depending on *where* the placement stands?
+ *
+ * Both of the two that do, and for unrelated reasons: an autotile reads its
+ * neighbours, a scatter tile hashes its own coordinates. What they share is
+ * the consequence — two placements of one tile can be running different frame
+ * lists — so anything keying an animation clock per tile has to key these per
+ * cell instead, or one placement indexes the other's frames.
+ *
+ * Deliberately *not* what decides an autotile's neighbour ring on a rebuild:
+ * that is about reading the cells around you, which scatter does not do.
+ */
+export function isCellVarying(def: TileDef): boolean {
+  return def.type === "autotile" || def.type === "scatter";
 }
 
 /** World climb-from flags for a variant; missing dirs default to true. */
@@ -819,6 +869,8 @@ export type TileResolveContext = {
   z?: number;
   /** Override slice for previews (isolated = 0). */
   autotileSlice?: AutotileSlice;
+  /** Override scatter face for previews (first authored = 0). */
+  scatterIndex?: number;
 };
 
 function framesWithLight(frames: Frame[], light?: LightDef): Frame[] {
@@ -958,6 +1010,7 @@ function clampStateLight<T extends StateSprites>(state: T): T {
       ]),
     ) as typeof out.slices;
   }
+  if (out.scatter) out.scatter = out.scatter.map(clampSpriteLight);
   return out;
 }
 
@@ -1049,6 +1102,9 @@ function stateSpritesOn(tile: TileDef, from: StateSprites): TileSprite[] {
     return facingKeysFor(tile)
       .map((d) => from.sprites?.[d])
       .filter((s): s is TileSprite => s != null);
+  }
+  if (tile.type === "scatter") {
+    return (from.scatter ?? []).filter((s): s is TileSprite => s != null);
   }
   if (!from.slices) return [];
   return Object.values(from.slices).filter((s): s is TileSprite => s != null);

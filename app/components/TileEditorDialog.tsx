@@ -40,6 +40,7 @@ import {
   resolveLightPassing,
   resolveWalkable,
 } from "../lib/types";
+import { resolveScatterIndex } from "../lib/scatter";
 import { SpriteSelector } from "./SpriteSelector";
 import { TilePreview } from "./TilePreview";
 import {
@@ -143,42 +144,60 @@ function spriteHolder(draft: TileDef, state: SpriteState): StateSprites {
   return state === "idle" ? draft : (draft.states?.[state] ?? {});
 }
 
+/**
+ * Where in the tile's own sprite table the editor is pointed.
+ *
+ * One object rather than a parameter per axis, because only one of the three is
+ * ever read — whichever the {@link TileType} uses — and the other two are along
+ * for the ride. Passed positionally they were three arguments every caller had
+ * to keep in the right order to hand two of them to a function that ignores
+ * them.
+ */
+type SpriteCursor = {
+  dir: Octant;
+  slice: AutotileSlice;
+  variant: number;
+};
+
 function currentSprite(
   draft: TileDef,
   state: SpriteState,
-  dir: Octant,
-  slice: AutotileSlice,
+  at: SpriteCursor,
 ): TileSprite | undefined {
   const from = spriteHolder(draft, state);
   if (draft.type === "simple") return from.sprite;
-  if (isDirectional(draft)) return from.sprites?.[dir];
-  return from.slices?.[slice];
+  if (isDirectional(draft)) return from.sprites?.[at.dir];
+  if (draft.type === "scatter") return from.scatter?.[at.variant];
+  return from.slices?.[at.slice];
 }
 
 /** The one sprite field this tile's {@link TileType} uses, patched. */
 function patchHolder(
   draft: TileDef,
   state: SpriteState,
-  dir: Octant,
-  slice: AutotileSlice,
+  at: SpriteCursor,
   sprite: TileSprite,
 ): StateSprites {
   const from = spriteHolder(draft, state);
   if (draft.type === "simple") return { sprite };
   if (isDirectional(draft)) {
-    return { sprites: { ...from.sprites, [dir]: sprite } };
+    return { sprites: { ...from.sprites, [at.dir]: sprite } };
   }
-  return { slices: { ...from.slices, [slice]: sprite } };
+  if (draft.type === "scatter") {
+    const scatter = [...(from.scatter ?? [])];
+    scatter[at.variant] = sprite;
+    return { scatter };
+  }
+  return { slices: { ...from.slices, [at.slice]: sprite } };
 }
 
 function setCurrentSprite(
   draft: TileDef,
   state: SpriteState,
-  dir: Octant,
-  slice: AutotileSlice,
+  at: SpriteCursor,
   sprite: TileSprite,
 ): TileDef {
-  const patch = patchHolder(draft, state, dir, slice, sprite);
+  const patch = patchHolder(draft, state, at, sprite);
   if (state === "idle") return { ...draft, ...patch };
   return { ...draft, states: { ...draft.states, [state]: patch } };
 }
@@ -194,6 +213,7 @@ function setCurrentSprite(
 function idleSprites(draft: TileDef): StateSprites {
   if (draft.type === "simple") return { sprite: draft.sprite };
   if (isDirectional(draft)) return { sprites: draft.sprites };
+  if (draft.type === "scatter") return { scatter: draft.scatter };
   return { slices: draft.slices };
 }
 
@@ -207,6 +227,9 @@ function stateSpriteList(
     return facingKeysFor(draft)
       .map((d) => from.sprites?.[d])
       .filter((s): s is TileSprite => s != null);
+  }
+  if (draft.type === "scatter") {
+    return (from.scatter ?? []).filter((s): s is TileSprite => s != null);
   }
   return Object.values(from.slices ?? {}).filter(
     (s): s is TileSprite => s != null,
@@ -253,6 +276,13 @@ function footprintMismatch(
   if (isDirectional(draft)) {
     for (const d of facingKeysFor(draft)) {
       const err = check(d.toUpperCase(), idle.sprites?.[d], override.sprites?.[d]);
+      if (err) return err;
+    }
+    return null;
+  }
+  if (draft.type === "scatter") {
+    for (let i = 0; i < (override.scatter?.length ?? 0); i++) {
+      const err = check(`variant ${i + 1}`, idle.scatter?.[i], override.scatter?.[i]);
       if (err) return err;
     }
     return null;
@@ -328,6 +358,35 @@ function sanitizeSprite(sprite: TileSprite): TileSprite {
   };
 }
 
+/**
+ * The seed control's range. Any 31-bit value is as good as any other — the hash
+ * mixes it before it reaches a coordinate — so this is only wide enough that
+ * re-rolling twice in a row is very unlikely to land back where it started.
+ */
+const MAX_SCATTER_SEED = 0x7fffffff;
+
+/** The type dropdown's list, in the order a tile's art gets more elaborate. */
+const TILE_TYPE_OPTIONS: Array<{ value: TileType; label: string }> = [
+  { value: "simple", label: "Simple" },
+  { value: "directional", label: "4-way" },
+  { value: "directional8", label: "8-way" },
+  { value: "autotile", label: "Autotile" },
+  { value: "scatter", label: "Scatter" },
+];
+
+/**
+ * The scatter sample: a patch of imaginary ground, at z 0, drawn with the real
+ * hash.
+ *
+ * Wide enough to read as ground rather than as a row of thumbnails, and small
+ * enough that a dialog does not have to scroll to show it. Without it the seed
+ * is a number box whose effect is invisible until the tile is painted onto the
+ * map and looked at.
+ */
+const SCATTER_SAMPLE_COLS = 10;
+const SCATTER_SAMPLE_ROWS = 3;
+const SCATTER_SAMPLE_CELL_PX = 28;
+
 type Props = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -378,6 +437,7 @@ export function TileEditorDialog({
   const [tab, setTab] = useState(TAB_TILE);
   const [dir, setDir] = useState<Octant>("n");
   const [slice, setSlice] = useState<AutotileSlice>(0);
+  const [variant, setVariant] = useState(0);
   const [state, setState] = useState<SpriteState>("idle");
   const [frameIndex, setFrameIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -389,12 +449,14 @@ export function TileEditorDialog({
     setTab(TAB_TILE);
     setDir("n");
     setSlice(0);
+    setVariant(0);
     setState("idle");
     setFrameIndex(0);
     setError(null);
   }, [open, tile, tilesets]);
 
-  const sprite = currentSprite(draft, state, dir, slice);
+  const at: SpriteCursor = { dir, slice, variant };
+  const sprite = currentSprite(draft, state, at);
   const frames = sprite?.frames ?? [];
   const frame = frames[frameIndex] ?? frames[0];
   const definedSlice =
@@ -415,7 +477,15 @@ export function TileEditorDialog({
    */
   const previewSubject = useMemo(
     () => draft,
-    [draft.type, draft.height, draft.sprite, draft.sprites, draft.slices, draft.states],
+    [
+      draft.type,
+      draft.height,
+      draft.sprite,
+      draft.sprites,
+      draft.slices,
+      draft.scatter,
+      draft.states,
+    ],
   );
   const previewVfx = useMemo(
     () => ({ ...NO_VFX, particles: draft.particles ?? null }),
@@ -423,7 +493,7 @@ export function TileEditorDialog({
   );
 
   const setSprite = (next: TileSprite) => {
-    setDraft((d) => setCurrentSprite(d, state, dir, slice, next));
+    setDraft((d) => setCurrentSprite(d, state, at, next));
   };
 
   const states = availableStates(draft);
@@ -475,6 +545,7 @@ export function TileEditorDialog({
       draft.sprites?.n ??
       draft.sprites?.s ??
       draft.slices?.[0] ??
+      draft.scatter?.[0] ??
       emptySprite(ts);
 
     if (type === "simple") {
@@ -490,6 +561,7 @@ export function TileEditorDialog({
         sprite: structuredClone(from),
         sprites: undefined,
         slices: undefined,
+        scatter: undefined,
         states: undefined,
         climbFrom: {
           default: resolveClimbFrom(
@@ -520,10 +592,26 @@ export function TileEditorDialog({
         sprite: undefined,
         sprites,
         slices: undefined,
+        scatter: undefined,
         states: undefined,
         climbFrom,
       });
       setDir("n");
+    } else if (type === "scatter") {
+      setDraft({
+        ...draft,
+        type: "scatter",
+        sprite: undefined,
+        sprites: undefined,
+        slices: undefined,
+        // Whatever was already drawn becomes the first face rather than the
+        // only one: a scatter tile with one variant is a simple tile that has
+        // paid for a hash, so the panel opens on something to add to.
+        scatter: [structuredClone(from)],
+        states: undefined,
+        climbFrom: { default: resolveClimbFrom(draft, "default") },
+      });
+      setVariant(0);
     } else {
       setDraft({
         ...draft,
@@ -531,6 +619,7 @@ export function TileEditorDialog({
         sprite: undefined,
         sprites: undefined,
         slices: { 0: structuredClone(from) },
+        scatter: undefined,
         states: undefined,
         climbFrom: { default: resolveClimbFrom(draft, "default") },
       });
@@ -651,6 +740,23 @@ export function TileEditorDialog({
           return;
         }
       }
+    } else if (draft.type === "scatter") {
+      const variants = draft.scatter ?? [];
+      if (!variants.length) {
+        setError("Add at least one scatter variant");
+        return;
+      }
+      for (let i = 0; i < variants.length; i++) {
+        if (!variants[i]?.frames.length) {
+          setError(`Variant ${i + 1}: at least one frame is required`);
+          return;
+        }
+        const err = validateFrameLights(variants[i]!.frames);
+        if (err) {
+          setError(`Variant ${i + 1}: ${err}`);
+          return;
+        }
+      }
     } else {
       const defined = Object.values(draft.slices ?? {}).filter(Boolean);
       if (!defined.length) {
@@ -719,6 +825,10 @@ export function TileEditorDialog({
         draft.type === "autotile" && draft.connectsTo?.length
           ? draft.connectsTo
           : undefined,
+      scatterSeed:
+        draft.type === "scatter" && draft.scatterSeed
+          ? draft.scatterSeed
+          : undefined,
       climbFrom: climbFromForSave(draft, climbByVariant),
       particles: draft.particles,
       interactions: interactionsForSave(draft.interactions),
@@ -737,6 +847,8 @@ export function TileEditorDialog({
         if (draft.sprites[d]) sprites[d] = sanitizeSprite(draft.sprites[d]!);
       }
       saved.sprites = sprites;
+    } else if (draft.type === "scatter" && draft.scatter) {
+      saved.scatter = draft.scatter.map(sanitizeSprite);
     } else if (draft.type === "autotile" && draft.slices) {
       const slices: Partial<Record<AutotileSlice, TileSprite>> = {};
       for (const [k, s] of Object.entries(draft.slices)) {
@@ -1002,11 +1114,331 @@ export function TileEditorDialog({
             state={state}
             direction={isDirectional(draft) ? dir : undefined}
             autotileSlice={draft.type === "autotile" ? slice : undefined}
+            scatterIndex={draft.type === "scatter" ? variant : undefined}
           />
         </div>
       </div>
     </Tabs>
   );
+
+  /**
+   * The autotile author's whole surface: the 47 shapes, which of them this tile
+   * has drawn, and what it counts as itself when it looks around.
+   */
+  const autotileSection = (
+    <div className="flex flex-col gap-3">
+      {climbPad}
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-xs font-bold uppercase text-muted">
+            Autotile slices (47)
+          </span>
+          <p className="text-[11px] leading-snug text-muted">
+            Each icon is a neighborhood: dark green = this tile, light
+            green = matching neighbors. Rendering picks the slice from
+            nearby tiles that count as this one — its own id, plus
+            anything under Connects to. Sparse — only define the shapes
+            you need (missing falls back to isolated).
+          </p>
+        </div>
+        <div
+          className="grid w-fit gap-1"
+          style={{ gridTemplateColumns: "repeat(8, minmax(0, 1fr))" }}
+          role="listbox"
+          aria-label="Autotile slices"
+        >
+          {Array.from({ length: AUTOTILE_SLICE_COUNT }, (_, i) => {
+            const defined = Boolean(draft.slices?.[i]);
+            const selected = slice === i;
+            return (
+              <button
+                key={i}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                aria-label={autotileSliceTitle(i)}
+                title={`${autotileSliceTitle(i)}${defined ? "" : " — empty"}`}
+                onClick={() => {
+                  setSlice(i);
+                  setFrameIndex(0);
+                  if (!draft.slices?.[i]) {
+                    const base =
+                      draft.slices?.[0] ??
+                      emptySprite(tilesets[0]?.id ?? "");
+                    setDraft({
+                      ...draft,
+                      slices: {
+                        ...draft.slices,
+                        [i]: structuredClone(base),
+                      },
+                    });
+                  }
+                }}
+                className={[
+                  "relative rounded-sm border-2 p-0.5",
+                  selected
+                    ? "border-accent bg-paper"
+                    : defined
+                      ? "border-border bg-panel hover:border-ink"
+                      : "border-dashed border-muted opacity-55 hover:opacity-100",
+                ].join(" ")}
+              >
+                <AutotileSlicePreview slice={i} size={32} />
+                <span
+                  className={[
+                    "pointer-events-none absolute right-0 bottom-0 px-0.5 font-mono text-[9px] leading-none",
+                    selected
+                      ? "bg-accent text-paper"
+                      : "bg-paper/90 text-ink",
+                  ].join(" ")}
+                >
+                  {i}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="flex items-center gap-2 text-[11px] text-muted">
+          <AutotileSlicePreview slice={slice} size={20} />
+          <span>{autotileSliceTitle(slice)}</span>
+          {definedSlice ? (
+            <span className="text-ink">· sprite defined</span>
+          ) : (
+            <span>· using fallback</span>
+          )}
+        </div>
+        {draft.slices?.[slice] && slice !== 0 ? (
+          <Button
+            size="sm"
+            variant="danger"
+            className="w-fit"
+            onClick={() => {
+              const next = { ...draft.slices };
+              delete next[slice];
+              setDraft({ ...draft, slices: next });
+              setSlice(0);
+              setFrameIndex(0);
+            }}
+          >
+            Clear this slice
+          </Button>
+        ) : null}
+      </div>
+      <TileIdMultiSelect
+        tiles={tiles.filter((t) => t.id !== draft.id)}
+        tilesets={tilesets}
+        selectedIds={draft.connectsTo ?? []}
+        onChange={(connectsTo) => setDraft({ ...draft, connectsTo })}
+        label="Connects to"
+        emptyHint="Only its own id. Pick tiles this one should read as itself when it looks at its neighbours — an opening it should close around, or a window a wall should run through. One-directional: it does not make them read this tile back."
+      />
+      {frameEditor}
+    </div>
+  );
+
+  const variants = draft.scatter ?? [];
+
+  /**
+   * The scatter author's surface: the faces, the seed, and a patch of ground
+   * showing what the two of them do together.
+   */
+  const scatterSection = (
+    <div className="flex flex-col gap-3">
+      {climbPad}
+      <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-0.5">
+          <span className="text-xs font-bold uppercase text-muted">
+            Variants ({variants.length})
+          </span>
+          <p className="text-[11px] leading-snug text-muted">
+            Every placement picks one, decided by where it stands — so a field
+            of this tile is laid down once and never repeats a run. The pick is
+            fixed for a cell: walking over it does not reshuffle it, and neither
+            does anything happening nearby.
+          </p>
+        </div>
+        <div
+          className="flex flex-wrap items-center gap-1"
+          role="listbox"
+          aria-label="Scatter variants"
+        >
+          {variants.map((_, i) => (
+            <button
+              key={i}
+              type="button"
+              role="option"
+              aria-selected={variant === i}
+              aria-label={`Variant ${i + 1}`}
+              title={`Variant ${i + 1}`}
+              onClick={() => {
+                setVariant(i);
+                setFrameIndex(0);
+              }}
+              className={[
+                "relative border-2 p-0.5",
+                variant === i
+                  ? "border-accent bg-paper"
+                  : "border-border bg-panel hover:border-ink",
+              ].join(" ")}
+            >
+              <TilePreview
+                tile={draft}
+                tilesets={tilesets}
+                size={36}
+                state={state}
+                scatterIndex={i}
+                chrome={false}
+                still
+              />
+              <span
+                className={[
+                  "pointer-events-none absolute right-0 bottom-0 px-0.5 font-mono text-[9px] leading-none",
+                  variant === i ? "bg-accent text-paper" : "bg-paper/90 text-ink",
+                ].join(" ")}
+              >
+                {i + 1}
+              </span>
+            </button>
+          ))}
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() => {
+              // Cloned from the one being looked at rather than started blank,
+              // on the same grounds the autotile grid clones slice 0: a second
+              // bush is the first bush with a few pixels moved.
+              const base =
+                variants[variant] ?? variants[0] ?? emptySprite(tilesets[0]?.id ?? "");
+              setDraft({
+                ...draft,
+                scatter: [...variants, structuredClone(base)],
+              });
+              setVariant(variants.length);
+              setFrameIndex(0);
+            }}
+          >
+            + Variant
+          </Button>
+        </div>
+        {variants.length > 1 ? (
+          <Button
+            size="sm"
+            variant="danger"
+            className="w-fit"
+            onClick={() => {
+              // Every state keys its faces by position, so a state that
+              // authored this one has to lose it too or its list slides out
+              // from under idle's.
+              const drop = (list: TileSprite[] | undefined) =>
+                list ? list.filter((_, i) => i !== variant) : undefined;
+              const states = Object.fromEntries(
+                Object.entries(draft.states ?? {}).map(([key, sprites]) => [
+                  key,
+                  sprites ? { ...sprites, scatter: drop(sprites.scatter) } : sprites,
+                ]),
+              ) as TileDef["states"];
+              setDraft({ ...draft, scatter: drop(variants), states });
+              setVariant(Math.max(0, variant - 1));
+              setFrameIndex(0);
+            }}
+          >
+            Remove variant {variant + 1}
+          </Button>
+        ) : null}
+      </div>
+      <div className="flex flex-col gap-2">
+        <div className="flex items-center gap-2">
+          <span className="text-xs font-bold uppercase text-muted">Seed</span>
+          <Input
+            type="number"
+            value={String(draft.scatterSeed ?? 0)}
+            onChange={(e) =>
+              setDraft({
+                ...draft,
+                scatterSeed: Number.isFinite(e.target.valueAsNumber)
+                  ? Math.trunc(e.target.valueAsNumber)
+                  : 0,
+              })
+            }
+            className="w-32"
+          />
+          <Button
+            size="sm"
+            variant="secondary"
+            onClick={() =>
+              setDraft({
+                ...draft,
+                scatterSeed: Math.floor(Math.random() * MAX_SCATTER_SEED),
+              })
+            }
+          >
+            Reroll
+          </Button>
+        </div>
+        <p className="text-[11px] leading-snug text-muted">
+          Shuffles which cell gets which face, without changing how often each
+          one comes up. Two scatter tiles left on the same seed still disagree
+          with each other — the tile&rsquo;s own id is mixed in underneath.
+        </p>
+        <div
+          className="grid w-fit border-2 border-border"
+          style={{
+            gridTemplateColumns: `repeat(${SCATTER_SAMPLE_COLS}, minmax(0, 1fr))`,
+          }}
+          aria-label="Scatter sample"
+        >
+          {Array.from(
+            { length: SCATTER_SAMPLE_COLS * SCATTER_SAMPLE_ROWS },
+            (_, i) => {
+              const x = i % SCATTER_SAMPLE_COLS;
+              const y = Math.floor(i / SCATTER_SAMPLE_COLS);
+              return (
+                <TilePreview
+                  key={i}
+                  tile={draft}
+                  tilesets={tilesets}
+                  size={SCATTER_SAMPLE_CELL_PX}
+                  state={state}
+                  scatterIndex={resolveScatterIndex(x, y, 0, draft, variants.length)}
+                  chrome={false}
+                  still
+                />
+              );
+            },
+          )}
+        </div>
+      </div>
+      {frameEditor}
+    </div>
+  );
+
+  /**
+   * The sprite table for whichever axis this tile's type uses.
+   *
+   * Early returns rather than a ternary chain four deep: the four are
+   * alternatives, not a nesting, and reading which one a `scatter` tile lands
+   * in should not mean counting colons.
+   */
+  const spriteSection = (() => {
+    if (draft.type === "simple") return frameEditor;
+    if (isDirectional(draft)) {
+      return (
+        <Tabs
+          value={dir}
+          onValueChange={(v) => {
+            setDir(v as Octant);
+            setFrameIndex(0);
+          }}
+          items={dirTabs}
+        >
+          {climbPad}
+          {frameEditor}
+        </Tabs>
+      );
+    }
+    if (draft.type === "scatter") return scatterSection;
+    return autotileSection;
+  })();
 
   return (
     <Dialog
@@ -1172,12 +1604,7 @@ export function TileEditorDialog({
             <Segmented<TileType>
               value={draft.type}
               onChange={changeType}
-              options={[
-                { value: "simple", label: "Simple" },
-                { value: "directional", label: "4-way" },
-                { value: "directional8", label: "8-way" },
-                { value: "autotile", label: "Autotile" },
-              ]}
+              options={TILE_TYPE_OPTIONS}
               size="sm"
             />
           </div>
@@ -1336,130 +1763,7 @@ export function TileEditorDialog({
 
         {statePicker}
 
-        {draft.type === "simple" ? (
-          frameEditor
-        ) : isDirectional(draft) ? (
-          <Tabs
-            value={dir}
-            onValueChange={(v) => {
-              setDir(v as Octant);
-              setFrameIndex(0);
-            }}
-            items={dirTabs}
-          >
-            {climbPad}
-            {frameEditor}
-          </Tabs>
-        ) : (
-          <div className="flex flex-col gap-3">
-            {climbPad}
-            <div className="flex flex-col gap-2">
-              <div className="flex flex-col gap-0.5">
-                <span className="text-xs font-bold uppercase text-muted">
-                  Autotile slices (47)
-                </span>
-                <p className="text-[11px] leading-snug text-muted">
-                  Each icon is a neighborhood: dark green = this tile, light
-                  green = matching neighbors. Rendering picks the slice from
-                  nearby tiles that count as this one — its own id, plus
-                  anything under Connects to. Sparse — only define the shapes
-                  you need (missing falls back to isolated).
-                </p>
-              </div>
-              <div
-                className="grid w-fit gap-1"
-                style={{ gridTemplateColumns: "repeat(8, minmax(0, 1fr))" }}
-                role="listbox"
-                aria-label="Autotile slices"
-              >
-                {Array.from({ length: AUTOTILE_SLICE_COUNT }, (_, i) => {
-                  const defined = Boolean(draft.slices?.[i]);
-                  const selected = slice === i;
-                  return (
-                    <button
-                      key={i}
-                      type="button"
-                      role="option"
-                      aria-selected={selected}
-                      aria-label={autotileSliceTitle(i)}
-                      title={`${autotileSliceTitle(i)}${defined ? "" : " — empty"}`}
-                      onClick={() => {
-                        setSlice(i);
-                        setFrameIndex(0);
-                        if (!draft.slices?.[i]) {
-                          const base =
-                            draft.slices?.[0] ??
-                            emptySprite(tilesets[0]?.id ?? "");
-                          setDraft({
-                            ...draft,
-                            slices: {
-                              ...draft.slices,
-                              [i]: structuredClone(base),
-                            },
-                          });
-                        }
-                      }}
-                      className={[
-                        "relative rounded-sm border-2 p-0.5",
-                        selected
-                          ? "border-accent bg-paper"
-                          : defined
-                            ? "border-border bg-panel hover:border-ink"
-                            : "border-dashed border-muted opacity-55 hover:opacity-100",
-                      ].join(" ")}
-                    >
-                      <AutotileSlicePreview slice={i} size={32} />
-                      <span
-                        className={[
-                          "pointer-events-none absolute right-0 bottom-0 px-0.5 font-mono text-[9px] leading-none",
-                          selected
-                            ? "bg-accent text-paper"
-                            : "bg-paper/90 text-ink",
-                        ].join(" ")}
-                      >
-                        {i}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-              <div className="flex items-center gap-2 text-[11px] text-muted">
-                <AutotileSlicePreview slice={slice} size={20} />
-                <span>{autotileSliceTitle(slice)}</span>
-                {definedSlice ? (
-                  <span className="text-ink">· sprite defined</span>
-                ) : (
-                  <span>· using fallback</span>
-                )}
-              </div>
-              {draft.slices?.[slice] && slice !== 0 ? (
-                <Button
-                  size="sm"
-                  variant="danger"
-                  className="w-fit"
-                  onClick={() => {
-                    const next = { ...draft.slices };
-                    delete next[slice];
-                    setDraft({ ...draft, slices: next });
-                    setSlice(0);
-                    setFrameIndex(0);
-                  }}
-                >
-                  Clear this slice
-                </Button>
-              ) : null}
-            </div>
-            <TileIdMultiSelect
-              tiles={tiles.filter((t) => t.id !== draft.id)}
-              tilesets={tilesets}
-              selectedIds={draft.connectsTo ?? []}
-              onChange={(connectsTo) => setDraft({ ...draft, connectsTo })}
-              label="Connects to"
-              emptyHint="Only its own id. Pick tiles this one should read as itself when it looks at its neighbours — an opening it should close around, or a window a wall should run through. One-directional: it does not make them read this tile back."
-            />
-            {frameEditor}
-          </div>
-        )}
+        {spriteSection}
           </TabPanel>
         </Tabs>
       </div>
