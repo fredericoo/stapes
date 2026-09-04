@@ -3651,6 +3651,114 @@ can look like it went away after a browser restart. To reproduce without editing
 anything, call `world.outlineMaterials.dispose()` between rebuilds: that is
 precisely what the old code did.
 
+### An animated tile is drawn by the shader, and only a *mobile* one leaves the batch
+
+Animation used to be a second reason for a tile to have a mesh of its own: the
+only way to change a frame was to rewrite the UVs of geometry nobody else
+shared. That is fine for the few dozen torches a map has and ruinous for water,
+which is terrain — a 73-cell pond took the shipped map from ~50 world meshes to
+131 against a budget of 96, and from ~124 draw calls to 205 against 180.
+
+The frame is a function the **vertex** shader evaluates now. `app/render/animTable.ts`
+bakes one level's animations into a small `RGBA32F` texture — a row per
+animation, a texel per frame, holding that frame's atlas offset from frame 0 and
+the millisecond it ends at — and each quad carries `aAnim`, a `(row, phaseMs)`
+pair. `injectWorldShader` walks the row to the live frame and adds its offset to
+`vMapUv`. The whole pond costs one uniform write per level per frame.
+Measured on the shipped map: **131 world meshes and 205 draw calls became 23 and
+50**, with triangles unchanged.
+
+- **Vertex, not fragment.** A frame is constant across a quad, so this is four
+  lookups per animated quad and the fragment stage — where the depth and
+  lighting work is — is untouched.
+- **A merged quad is built at frame 0; a separate one at the live frame.** The
+  table's offsets are measured from frame 0, so a quad built anywhere else is
+  shifted by however far the clock had run when its level was last rebuilt.
+  `tableCanHold` is asked *before* the quad is built, by the same predicate
+  `AnimationTable.add` uses afterwards, so the two cannot disagree about which
+  kind of quad this is.
+- **The table refuses what it cannot draw.** Frames that disagree about size,
+  origin or sheet, and cycles past `ANIM_MAX_FRAMES`. All were already
+  impossible for anything that animated under the old path — rewriting UVs into
+  fixed geometry only works when the rect never changes — but they were
+  impossible implicitly, and this path would mis-draw rather than refuse.
+- **Rows are append-only**, which is what lets the incremental rebuild leave
+  merged geometry alone: a new animation in a rebuilt cell cannot renumber the
+  rows quads elsewhere are already pointing at.
+- **`crossedFrame` is what stops a world with a pond in it rendering for ever.**
+  The clock moves every frame; the picture only changes when it crosses a frame
+  boundary.
+
+### A phase is a vector on the sprite, and it is for art whose light does not vary
+
+`TileSprite.phase` — `{ x: 3, y: -1 }` on water — advances the cycle by that
+many frames per cell, so neighbouring placements are out of step. Without one a
+pond is one motif stamped in lockstep and reads as wallpaper; the vector is what
+makes the wave travel diagonally across it. It is deliberately a vector rather
+than a hash of the cell: the direction is art direction, and a hash gives static.
+
+**A sprite whose light varies may not declare one**, and `spritePhase` returns
+nothing for the pair rather than trusting authors not to write it. The bake
+caches a chunk per emission phase (see *A chunk holds one bake per emission
+phase*), so a per-cell phase multiplies that by the number of distinct phases in
+reach of the flood. Phasing the art and leaving the light alone is the worse
+option — `animClock` is one clock precisely so a lamp's glow cannot drift from
+its own flame. `app/lib/spritePhase.test.ts` asserts the catalogue never authors
+the pair, so the guard never fires in practice.
+
+The phase is always a whole number of frames, and that is load-bearing beyond
+tidiness: shifting a cycle by one of its own boundaries lands its boundaries
+back on the same set, so one `crossedFrame` answer covers every placement
+however it is phased.
+
+**It is set for the whole tile, never for one sprite.** The field lives on
+`TileSprite` because the modulo is `frames.length`, which is per-sprite — but an
+autotile is 47 sprites of one material, and nobody wants to phase a
+neighbourhood apart from its neighbours. `withSpritePhase` writes one pair onto
+every sprite the tile has, states included, and `tilePhase` reads one back;
+the editor's "Frames per cell" control is those two functions and nothing else.
+A phase of zero is stored as *no phase* rather than as `{x: 0, y: 0}`, so a tile
+that was never phased and one that was phased back to nothing are the same tile.
+
+Both live beside `mapStateSprites`, which is the write-side twin of
+`stateSpritesOn` and now the only other place that knows where sprites
+structurally hang off a tile. The read side was already careful about that; the
+write side had `clampStateLight` open-coding the same walk.
+
+**Rebuilding a sprite from its frames alone drops it.** `setFrames` in the tile
+editor did exactly that — `setSprite({ frames: next })` — which made every frame
+edit in the dialog, including changing a duration, silently unphase the tile.
+Spread the sprite.
+
+### The water autotile is generated from two masks, not drawn
+
+`bun run generate:water` writes `data/tilesets/water.png` and the `water` tile's
+47 slices together, from:
+
+- `scripts/wave-frames.png` — the fourteen recovered wave frames, white where
+  the wave catches the light. Not in `data/tilesets/` because it is not a
+  tileset: nothing draws it, it is only ever an input.
+- the green autotile block in `data/tilesets/floors.png` — its green pixels are
+  the shape of each of the 47 neighbourhoods.
+
+The slice-to-source-cell map is read off `dirt`, the ground autotile already laid
+out on that sheet, rather than restated. A pond's rim has to tuck into its
+neighbours exactly the way the ground does, and two hand-maintained copies of
+the same 47-entry mapping would drift.
+
+47 slices x 14 frames is 47 rows in the level's animation table and one texture
+either way, so it costs a few hundred texels and **no extra draw call**. Measured
+on the shipped map with the pond in view: 27 world meshes, 58 draw calls.
+
+The tile is **opaque**, unlike the translucent slab water used to be. A wash over
+whatever was underneath made a pond over a dirt bed read as mud; the ground still
+shows at the rim, because that is where the autotile's own shape stops rather
+than where its alpha does. Three tones, not two: the third is a shadow one pixel
+down and right of every bright one, which is what stops a crest reading as a flat
+line. It never lands on another bright pixel, and it wraps at the tile edge — the
+wave is an 8x8 pattern that tiles, so a shadow clipped at the edge would draw a
+seam where there is none.
+
 ### Mobility is a property of the tile, not of the frame
 
 `isMobileTile` (in `app/lib/interactions.ts`) answers "can this ever change
@@ -3660,7 +3768,9 @@ subsystems key off it and both must keep using the same answer:
 - The renderer keeps mobile tiles **out of the merged geometry batch**, always —
   not only while they are moving. Membership used to follow the live motion set,
   so a tile joined and left the batch as it started and stopped, and changing
-  membership rebuilds the whole floor. That was a full rebuild per step.
+  membership rebuilds the whole floor. That was a full rebuild per step. This is
+  now the *only* reason a tile leaves the batch: animation stopped being one when
+  the shader learned to read a frame off a table.
 - The light cache keeps **actors** out of the static bake, so a step does not
   dirty the chunks around them. The overlay paints them per frame instead.
 

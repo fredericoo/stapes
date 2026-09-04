@@ -8,6 +8,7 @@ import type {
   Octant,
   SpriteRef,
   OverrideSpriteState,
+  SpritePhase,
   SpriteState,
   StateSprites,
   TileDef,
@@ -39,6 +40,8 @@ import {
   resolveIntangible,
   resolveLightPassing,
   resolveWalkable,
+  tilePhase,
+  withSpritePhase,
 } from "../lib/types";
 import { resolveScatterIndex } from "../lib/scatter";
 import { SpriteSelector } from "./SpriteSelector";
@@ -496,6 +499,14 @@ export function TileEditorDialog({
     setDraft((d) => setCurrentSprite(d, state, at, next));
   };
 
+  // Read from and written to the whole tile rather than the sprite in front of
+  // you: an autotile is 47 sprites of one material, and phasing them apart from
+  // each other is not a thing anybody wants.
+  const phase = tilePhase(draft) ?? { x: 0, y: 0 };
+  const setPhase = (next: SpritePhase) => {
+    setDraft((d) => withSpritePhase(d, next));
+  };
+
   const states = availableStates(draft);
 
   /**
@@ -518,7 +529,12 @@ export function TileEditorDialog({
   };
 
   const setFrames = (next: Frame[]) => {
-    setSprite({ frames: next });
+    // Spread, because a sprite is not only its frames any more: `phase` lives
+    // beside them, and rebuilding the object from the frames alone silently
+    // dropped it. Every frame edit in this dialog — duration, add, remove,
+    // duplicate, pick a sprite — comes through here, so that was every way of
+    // touching an animated tile.
+    setSprite({ ...sprite, frames: next });
   };
 
   const updateFrame = (patch: Partial<Frame>) => {
@@ -942,6 +958,48 @@ export function TileEditorDialog({
         </p>
       </div>
     ) : null;
+
+  /**
+   * How far the cycle advances per cell, for a tile that has a cycle.
+   *
+   * Above the frame tabs rather than inside them, next to the state picker,
+   * because it is a property of the tile and not of the frame those tabs are
+   * showing — putting it beside "Duration ms" would read as one more thing this
+   * frame does. Hidden entirely for a tile with a single frame, which is almost
+   * all of them and none of which can use it.
+   */
+  const phasePicker = isAnimated(draft) ? (
+    <div className="flex flex-col gap-1 pt-1">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="text-xs font-bold uppercase text-muted">
+          Frames per cell
+        </span>
+        <label className="flex items-center gap-2 text-xs">
+          <span className="text-muted">East</span>
+          <Input
+            type="number"
+            className="w-20"
+            value={phase.x}
+            onChange={(e) => setPhase({ ...phase, x: Number(e.target.value) || 0 })}
+          />
+        </label>
+        <label className="flex items-center gap-2 text-xs">
+          <span className="text-muted">South</span>
+          <Input
+            type="number"
+            className="w-20"
+            value={phase.y}
+            onChange={(e) => setPhase({ ...phase, y: Number(e.target.value) || 0 })}
+          />
+        </label>
+      </div>
+      <p className="text-[11px] leading-snug text-muted">
+        {phase.x === 0 && phase.y === 0
+          ? "Every placement shows the same frame. Give this a value so neighbouring tiles fall out of step — water blinking as one reads as wallpaper."
+          : "Neighbouring placements start this many frames apart, so the animation travels across them. Applies to every variant of this tile."}
+      </p>
+    </div>
+  ) : null;
 
   const frameEditor = (
     <Tabs
@@ -1768,6 +1826,8 @@ export function TileEditorDialog({
         {draft.type === "simple" ? climbPad : null}
 
         {statePicker}
+
+        {phasePicker}
 
         {spriteSection}
           </TabPanel>

@@ -130,6 +130,26 @@ const SQUARE: Rect = {
   y1: SQUARE_HALF_SPAN,
 };
 
+/**
+ * The block the pond fills, two blocks out from the square.
+ *
+ * The pond is here so the renderer budgets in `app/editor/perf.ts` are measured
+ * against **animated terrain**, which is the one thing the fixture had none of.
+ * Torches animate, and a map has a few dozen of them; water animates and a map
+ * has hundreds of it, so it is the only tile whose animation can plausibly move
+ * a draw-call count. Without a pond here the budgets pass on a fixture that
+ * cannot fail them, while the shipped map goes over.
+ *
+ * Kept clear of the streets that bound its block, so the grid the rest of the
+ * town is laid out on still runs past it.
+ */
+const POND: Rect = {
+  x0: -BLOCK_SIZE * 2 + 1,
+  y0: BLOCK_SIZE + 1,
+  x1: -BLOCK_SIZE - 1,
+  y1: BLOCK_SIZE * 2 - 1,
+};
+
 function contains(r: Rect, x: number, y: number): boolean {
   return x >= r.x0 && x <= r.x1 && y >= r.y0 && y <= r.y1;
 }
@@ -158,6 +178,7 @@ function houseAt(bx: number, by: number): Rect | null {
     house.x1 <= TOWN_HALF_SPAN && house.y1 <= TOWN_HALF_SPAN;
   if (!insideTown) return null;
   if (overlaps(house, SQUARE)) return null;
+  if (overlaps(house, POND)) return null;
   return house;
 }
 
@@ -288,6 +309,30 @@ function layCave(levels: Map<number, Cells>) {
   }
 }
 
+/**
+ * A pond filling one block, in water over a dirt bed.
+ *
+ * An ellipse rather than the block, because a rectangle of water would sit
+ * entirely inside one lighting chunk boundary and one autotile neighbourhood,
+ * and the interesting cells are the ones on a curve.
+ */
+function layPond(levels: Map<number, Cells>) {
+  const cx = (POND.x0 + POND.x1) / 2;
+  const cy = (POND.y0 + POND.y1) / 2;
+  const rx = (POND.x1 - POND.x0) / 2;
+  const ry = (POND.y1 - POND.y0) / 2;
+  for (let y = POND.y0; y <= POND.y1; y++) {
+    for (let x = POND.x0; x <= POND.x1; x++) {
+      if (isStreet(x, y)) continue;
+      const dx = (x - cx) / rx;
+      const dy = (y - cy) / ry;
+      if (dx * dx + dy * dy > 1) continue;
+      put(levels, x, y, 0, { tileId: "dirt" });
+      put(levels, x, y, 0, { tileId: "water" });
+    }
+  }
+}
+
 function layTownSquare(levels: Map<number, Cells>) {
   put(levels, 0, 0, 0, { tileId: "player" });
   for (const { x, y, tileId } of SPAWN_CREATURES) put(levels, x, y, 0, { tileId });
@@ -303,6 +348,7 @@ function build(): FlatMapFile {
   layHouses(levels);
   layStreetLamps(levels);
   layCave(levels);
+  layPond(levels);
   layTownSquare(levels);
 
   const out: FlatMapFile["levels"] = {};

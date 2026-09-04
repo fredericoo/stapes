@@ -11,6 +11,7 @@ import {
   RAY_DEPTH_ELEV,
 } from "../lib/geometry";
 import { CELL_SIZE, HEIGHT_PER_LEVEL } from "../lib/types";
+import { ANIM_MAX_FRAMES, NO_ANIMATION } from "./animTable";
 import {
   TINT_GLSL_COMMON,
   TINT_GLSL_FRAGMENT,
@@ -34,6 +35,17 @@ export type Quad = {
   box: DepthBox;
   /** Breaks ties between coplanar surfaces; normally the tile's stack index. */
   stackBias: number;
+  /**
+   * Row in the level's {@link AnimationTable}, or absent for a quad that does
+   * not animate — which is almost all of them, and is why this is optional
+   * rather than a number every caller has to think about.
+   *
+   * Only the merged path can use it. A quad with a mesh of its own is rebuilt
+   * wherever it moves to, so it rewrites its own UVs and never asks the table.
+   */
+  animRow?: number;
+  /** Where in the cycle this placement starts — see `types.cellPhaseMs`. */
+  animPhaseMs?: number;
   lightX0: number;
   lightY0: number;
   lightX1: number;
@@ -94,11 +106,49 @@ export function noCutUniforms(placeholder: THREE.Texture): LevelCutUniforms {
   };
 }
 
+/**
+ * The level's animations, as a table the *vertex* shader reads.
+ *
+ * Vertex rather than fragment because a frame is constant across a quad: this
+ * costs four lookups per animated quad and leaves the fragment stage — which is
+ * where the depth and lighting work is — untouched.
+ *
+ * `uAnimClockMs` is the only one that moves, and it moves once per level per
+ * frame. Everything else changes when the level is rebuilt. See
+ * `./animTable` for the encoding.
+ */
+export type LevelAnimUniforms = {
+  uAnimTable: { value: THREE.Texture };
+  /** Table size in texels: frames across, animations down. */
+  uAnimSize: { value: THREE.Vector2 };
+  uAnimClockMs: { value: number };
+  uAnimEnabled: { value: number };
+};
+
+/**
+ * No animations, for a renderer whose quads never carry a row.
+ *
+ * Same reason {@link noCutUniforms} takes a placeholder: the sampler is bound
+ * whatever the branch does, and a null one is a warning per frame per material.
+ * The particle and preview layers share this shader without sharing its
+ * geometry, so their quads have no `aAnim` at all — an absent attribute reads
+ * as zero, and zero is a valid row, which is exactly why the branch is on a
+ * uniform and not on the attribute alone.
+ */
+export function noAnimUniforms(placeholder: THREE.Texture): LevelAnimUniforms {
+  return {
+    uAnimTable: { value: placeholder },
+    uAnimSize: { value: new THREE.Vector2(1, 1) },
+    uAnimClockMs: { value: 0 },
+    uAnimEnabled: { value: 0 },
+  };
+}
+
 const VERTS_PER_QUAD = 4;
 const BOX_COMPONENTS = 4;
 
 /** Both renderers must agree, or the same tile sorts differently in each. */
-export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v9";
+export const WORLD_SHADER_CACHE_KEY = "stapes-lit-world-v10";
 
 function glsl(n: number): string {
   return Number.isInteger(n) ? `${n}.0` : `${n}`;
@@ -150,6 +200,7 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
   const boxes = new Float32Array(n * VERTS_PER_QUAD * BOX_COMPONENTS);
   const stacks = new Float32Array(n * VERTS_PER_QUAD);
   const lightScales = new Float32Array(n * VERTS_PER_QUAD * 2);
+  const anims = new Float32Array(n * VERTS_PER_QUAD * 2);
   const indices =
     n * VERTS_PER_QUAD > 65535 ? new Uint32Array(n * 6) : new Uint16Array(n * 6);
 
@@ -204,9 +255,13 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
     writeQuadBox(boxes, stacks, i, q.box, q.stackBias);
 
     const [lsx, lsy] = lightCellsPerPixel(q);
+    const row = q.animRow ?? NO_ANIMATION;
+    const phase = q.animPhaseMs ?? 0;
     for (let v = 0; v < VERTS_PER_QUAD; v++) {
       lightScales[ub + v * 2] = lsx;
       lightScales[ub + v * 2 + 1] = lsy;
+      anims[ub + v * 2] = row;
+      anims[ub + v * 2 + 1] = phase;
     }
 
     const base = i * VERTS_PER_QUAD;
@@ -231,6 +286,7 @@ export function buildMergedQuadGeometry(quads: Quad[]): THREE.BufferGeometry {
     "aLightScale",
     new THREE.BufferAttribute(lightScales, 2),
   );
+  geo.setAttribute("aAnim", new THREE.BufferAttribute(anims, 2));
   geo.setIndex(new THREE.BufferAttribute(indices, 1));
   return geo;
 }
@@ -265,6 +321,11 @@ export function buildSingleQuadGeometry(
   writeQuadBox(boxes, stacks, 0, q.box, q.stackBias);
   const [lsx, lsy] = lightCellsPerPixel(q);
   const lightScales = new Float32Array([lsx, lsy, lsx, lsy, lsx, lsy, lsx, lsy]);
+  // Never the table's: a quad with its own mesh rewrites its own UVs. The
+  // attribute is still written, because an absent one reads as zero and zero is
+  // a valid row.
+  const anims = new Float32Array(VERTS_PER_QUAD * 2);
+  for (let v = 0; v < VERTS_PER_QUAD; v++) anims[v * 2] = NO_ANIMATION;
 
   geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
   geo.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
@@ -276,6 +337,7 @@ export function buildSingleQuadGeometry(
     "aLightScale",
     new THREE.BufferAttribute(lightScales, 2),
   );
+  geo.setAttribute("aAnim", new THREE.BufferAttribute(anims, 2));
   geo.setIndex(
     new THREE.BufferAttribute(new Uint16Array([0, 2, 1, 2, 3, 1]), 1),
   );
@@ -359,8 +421,9 @@ export function injectWorldShader(
   lightUniforms: LevelLightUniforms,
   tint: TintUniforms,
   cut: LevelCutUniforms,
+  anim: LevelAnimUniforms,
 ) {
-  Object.assign(shader.uniforms, lightUniforms, tint, cut);
+  Object.assign(shader.uniforms, lightUniforms, tint, cut, anim);
   shader.vertexShader = shader.vertexShader
     .replace(
       "#include <common>",
@@ -370,12 +433,38 @@ attribute float aUnlit;
 attribute vec4 aBox;
 attribute float aStack;
 attribute vec2 aLightScale;
+attribute vec2 aAnim;
+uniform sampler2D uAnimTable;
+uniform vec2 uAnimSize;
+uniform float uAnimClockMs;
+uniform float uAnimEnabled;
 varying vec2 vLightUv;
 varying float vUnlit;
 varying vec4 vBox;
 varying float vStack;
 varying vec2 vWorldPx;
-varying vec2 vLightScale;`,
+varying vec2 vLightScale;
+
+// Where this row's frame at clockMs sits, relative to frame 0, in UV space.
+//
+// The walk stops at the live frame, so its cost is the frame's index rather
+// than the cycle's length — and the loop's bound is a constant only because
+// GLSL needs one, never because a row is expected to be that long. The last
+// column always holds the cycle length in its z channel (rows are padded with
+// copies of their final frame), so the modulo needs no separate lookup.
+vec2 animFrameOffset(float row, float clockMs) {
+  float v = (row + 0.5) / uAnimSize.y;
+  float total = texture2D(uAnimTable, vec2(1.0 - 0.5 / uAnimSize.x, v)).z;
+  float t = mod(clockMs, max(total, 1.0));
+  vec2 offset = vec2(0.0);
+  for (int i = 0; i < ${ANIM_MAX_FRAMES}; i++) {
+    if (float(i) >= uAnimSize.x) break;
+    vec4 texel = texture2D(uAnimTable, vec2((float(i) + 0.5) / uAnimSize.x, v));
+    offset = texel.xy;
+    if (t < texel.z) break;
+  }
+  return offset;
+}`,
     )
     .replace(
       "#include <uv_vertex>",
@@ -385,7 +474,15 @@ vUnlit = aUnlit;
 vBox = aBox;
 vStack = aStack;
 vLightScale = aLightScale;
-vWorldPx = (modelMatrix * vec4(position, 1.0)).xy;`,
+vWorldPx = (modelMatrix * vec4(position, 1.0)).xy;
+#ifdef USE_MAP
+if (uAnimEnabled > 0.5 && aAnim.x >= 0.0) {
+  // Straight onto the map coordinate, which is sound because nothing here sets
+  // a texture transform, so mapTransform is the identity and UV space and
+  // atlas space are the same space.
+  vMapUv += animFrameOffset(aAnim.x, uAnimClockMs + aAnim.y);
+}
+#endif`,
     );
 
   shader.fragmentShader = shader.fragmentShader

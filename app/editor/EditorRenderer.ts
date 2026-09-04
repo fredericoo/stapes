@@ -44,14 +44,18 @@ import {
   tileCanEmitLight,
 } from "../lib/types";
 import { clumpExtents } from "../render/depthClump";
-import { getFrames, tileLightSignature } from "../lib/tileResolve";
+import { getFrames, resolveTileSprite, tileLightSignature } from "../lib/tileResolve";
+import { cellPhaseMs } from "../lib/types";
+import { AnimationTable, NO_ANIMATION } from "../render/animTable";
 import { canPlace, canReplaceStack } from "../lib/validation";
 import { useEditorStore, type ToolId } from "./store";
 import { panCameraByWheel } from "./camera";
 import type { EditorPerfMeasure, EditorPerfSnapshot } from "./perf";
 import { floodCoords, stacksEqual } from "./tools";
 import {
+  type LevelAnimUniforms,
   type LevelLightUniforms,
+  noAnimUniforms,
   noCutUniforms,
   type Quad,
   WORLD_SHADER_CACHE_KEY,
@@ -193,6 +197,10 @@ export class EditorRenderer {
   /** Precomputed grouping of animated instances by anim key. */
   private animatedByKey = new Map<string, AnimatedInstance[]>();
   private animClock = 0;
+  /** Per level, the uniforms its materials read the animation table through. */
+  private animUniformsByZ = new Map<number, LevelAnimUniforms>();
+  /** Held only so a rebuilt level can free the texture it replaces. */
+  private animTablesByZ = new Map<number, AnimationTable>();
   private lastAnimTime = 0;
   private frameIndices = new Map<string, number>();
   private raf = 0;
@@ -503,6 +511,23 @@ export class EditorRenderer {
     return u;
   }
 
+  /**
+   * This level's animation uniforms, created inert and filled in when the level
+   * is built.
+   *
+   * Held by reference the way {@link ensureLightUniforms}’ are: a material binds
+   * the object once at compile time, so a rebuild replaces the texture *inside*
+   * it rather than handing out a new one nothing is looking at.
+   */
+  private ensureAnimUniforms(z: number): LevelAnimUniforms {
+    let u = this.animUniformsByZ.get(z);
+    if (!u) {
+      u = noAnimUniforms(this.whiteTex);
+      this.animUniformsByZ.set(z, u);
+    }
+    return u;
+  }
+
   private materialFor(texture: THREE.Texture, z: number): THREE.MeshBasicMaterial {
     const key = this.materialKey(texture, z);
     let mat = this.materials.get(key);
@@ -525,6 +550,7 @@ export class EditorRenderer {
           // No roof cut either: authoring hides levels with a slider, whole
           // storeys at a time, and has no viewer standing in a house.
           noCutUniforms(this.whiteTex),
+          this.ensureAnimUniforms(z),
         );
       };
       mat.customProgramCacheKey = () => WORLD_SHADER_CACHE_KEY;
@@ -1199,6 +1225,11 @@ export class EditorRenderer {
     };
 
     const items: Item[] = [];
+    // Filled as the cells are walked and baked once they all are. An animation
+    // that lands in here is drawn by the shader from the merged batch; one that
+    // this refuses still gets a mesh of its own, so the refusal costs draw calls
+    // rather than correctness.
+    const animTable = new AnimationTable();
 
     for (const cell of coords) {
       let elev = 0;
@@ -1232,22 +1263,32 @@ export class EditorRenderer {
           return;
         }
 
-        const frames = getFrames(def, {
+        const sprite = resolveTileSprite(def, {
           direction: placed.direction,
           map,
           x: cell.x,
           y: cell.y,
           z,
         });
+        const frames = sprite?.frames;
         // The frame the shared clock is on, not frame 0 — a rebuilt mesh that
         // started at 0 would sit there until the clock crossed into the next
         // index. @see WorldRenderer.updateAnimations
         const frameIdx = frames ? frameIndexAtTime(frames, this.animClock) : 0;
-        const first = frames?.[frameIdx];
-        if (!first) return;
+        if (!frames?.length) return;
 
-        const tileset = this.tilesetById.get(first.sprite.tilesetId);
+        const tileset = this.tilesetById.get(frames[0]!.sprite.tilesetId);
         if (!tileset) return;
+
+        // A quad the table accepts is built at **frame 0** and moved by the
+        // shader; one it refuses is built at the live frame and moved by
+        // `updateAnimations`. The two must not be mixed: the table's offsets are
+        // measured from frame 0, so a quad built anywhere else would be shifted
+        // by however far the clock happened to have run when the level was last
+        // rebuilt.
+        const animRow = animTable.add(frames, tileset);
+        const merged = animRow !== NO_ANIMATION;
+        const first = merged ? frames[0]! : frames[frameIdx]!;
 
         const baseOrigin = baseCellWorldOrigin(cell.x, cell.y, z, elev);
         const origin = spriteWorldOrigin(baseOrigin, first.sprite.base);
@@ -1291,8 +1332,10 @@ export class EditorRenderer {
           lightX1,
           lightY1,
           unlit,
+          animRow: merged ? animRow : undefined,
+          animPhaseMs: merged && sprite ? cellPhaseMs(sprite, cell.x, cell.y) : undefined,
           anim:
-            isAnimated && frames
+            isAnimated && frames && !merged
               ? {
                   frames,
                   tileId: def.id,
@@ -1357,6 +1400,18 @@ export class EditorRenderer {
     if (animated.length > 0) {
       this.animatedByLevel.set(z, animated);
     }
+
+    const animUniforms = this.ensureAnimUniforms(z);
+    if (animTable.empty) {
+      animUniforms.uAnimEnabled.value = 0;
+    } else {
+      animUniforms.uAnimTable.value = animTable.bake();
+      animUniforms.uAnimSize.value.set(animTable.width, animTable.height);
+      animUniforms.uAnimClockMs.value = this.animClock;
+      animUniforms.uAnimEnabled.value = 1;
+      this.animTablesByZ.get(z)?.dispose();
+      this.animTablesByZ.set(z, animTable);
+    }
   }
 
   private addQuadMesh(
@@ -1384,6 +1439,20 @@ export class EditorRenderer {
 
     this.animClock += dt;
     let changed = false;
+
+    // The merged batch's animations are a function of this one number, so the
+    // whole pond costs a uniform write per level rather than a UV rewrite per
+    // cell. Whether it *looks* different is a separate question from whether
+    // the clock moved: `crossedFrame` answers it so a still world still stops
+    // rendering.
+    for (const [z, u] of this.animUniformsByZ) {
+      if (u.uAnimEnabled.value === 0) continue;
+      const table = this.animTablesByZ.get(z);
+      if (table && table.crossedFrame(u.uAnimClockMs.value, this.animClock)) {
+        changed = true;
+      }
+      u.uAnimClockMs.value = this.animClock;
+    }
 
     for (const [key, instances] of this.animatedByKey) {
       const sample = instances[0]!;

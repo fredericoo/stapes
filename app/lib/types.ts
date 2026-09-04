@@ -112,8 +112,30 @@ export type Frame = {
   light?: LightDef;
 };
 
+/**
+ * How many frames to advance this sprite's cycle per cell, so that neighbouring
+ * placements are out of step with each other.
+ *
+ * Without one, every placement of a tile reads the same clock and shows the same
+ * frame, which is right for a torch and wrong for water: a pond drawn that way
+ * is one motif stamped in lockstep, and reads as wallpaper rather than as a
+ * surface. A *vector* rather than a scatter because the offset is art direction
+ * — `{ x: 3, y: -1 }` runs the wave diagonally across the pond, and a hash of
+ * the cell would give static instead.
+ *
+ * Absent means lockstep, which is what every tile authored before this did.
+ */
+export type SpritePhase = {
+  /** Frames advanced per cell east. */
+  x: number;
+  /** Frames advanced per cell south. */
+  y: number;
+};
+
 export type TileSprite = {
   frames: Frame[];
+  /** Absent means every placement shows the same frame — see {@link SpritePhase}. */
+  phase?: SpritePhase;
 };
 
 /** 0 = flat, 4 = a full level. See {@link HEIGHT_PER_LEVEL}. */
@@ -991,27 +1013,84 @@ function clampSpriteLight(sprite: TileSprite): TileSprite {
 }
 
 /** {@link clampSpriteLight} across the three sprite fields a state can hold. */
-function clampStateLight<T extends StateSprites>(state: T): T {
+/**
+ * Every sprite on one state, rebuilt through `fn`.
+ *
+ * The write-side twin of {@link stateSpritesOn}, and the only other place that
+ * knows where sprites structurally live on a tile. Anything that edits all of
+ * them goes through here, so a fifth sprite field would have one place to be
+ * added rather than one per caller — which is the mistake the *read* side was
+ * already careful about.
+ */
+function mapStateSprites<T extends StateSprites>(
+  state: T,
+  fn: (sprite: TileSprite) => TileSprite,
+): T {
   const out = { ...state };
-  if (out.sprite) out.sprite = clampSpriteLight(out.sprite);
+  if (out.sprite) out.sprite = fn(out.sprite);
   if (out.sprites) {
     out.sprites = Object.fromEntries(
-      Object.entries(out.sprites).map(([k, v]) => [
-        k,
-        v ? clampSpriteLight(v) : v,
-      ]),
+      Object.entries(out.sprites).map(([k, v]) => [k, v ? fn(v) : v]),
     ) as typeof out.sprites;
   }
   if (out.slices) {
     out.slices = Object.fromEntries(
-      Object.entries(out.slices).map(([k, v]) => [
-        k,
-        v ? clampSpriteLight(v) : v,
-      ]),
+      Object.entries(out.slices).map(([k, v]) => [k, v ? fn(v) : v]),
     ) as typeof out.slices;
   }
-  if (out.scatter) out.scatter = out.scatter.map(clampSpriteLight);
+  if (out.scatter) out.scatter = out.scatter.map(fn);
   return out;
+}
+
+function clampStateLight<T extends StateSprites>(state: T): T {
+  return mapStateSprites(state, clampSpriteLight);
+}
+
+/**
+ * The phase this tile's sprites are wearing, if any of them is.
+ *
+ * One answer for the whole tile, because {@link withSpritePhase} is the only
+ * thing that sets one and it sets them all together. An autotile is 47 sprites
+ * of the same material; asking somebody to phase each neighbourhood separately
+ * would be asking them to type the same pair 47 times and to keep them in step
+ * by hand for ever after.
+ */
+export function tilePhase(tile: TileDef): SpritePhase | undefined {
+  for (const sprite of allTileSprites(tile)) {
+    const phase = sprite.phase;
+    if (phase) return phase;
+  }
+  return undefined;
+}
+
+/**
+ * The tile with `phase` on every sprite it has — or with none left anywhere,
+ * for a phase of zero, which is the same thing as not being phased.
+ */
+export function withSpritePhase(
+  tile: TileDef,
+  phase: SpritePhase | undefined,
+): TileDef {
+  const wanted = phase && (phase.x !== 0 || phase.y !== 0) ? phase : undefined;
+  const apply = (sprite: TileSprite): TileSprite => {
+    if (!wanted) {
+      if (!sprite.phase) return sprite;
+      const { phase: _dropped, ...rest } = sprite;
+      return rest;
+    }
+    return { ...sprite, phase: wanted };
+  };
+  const out = mapStateSprites(tile, apply);
+  if (!out.states) return out;
+  return {
+    ...out,
+    states: Object.fromEntries(
+      Object.entries(out.states).map(([k, v]) => [
+        k,
+        v ? mapStateSprites(v, apply) : v,
+      ]),
+    ) as TileDef["states"],
+  };
 }
 
 /**
@@ -1228,6 +1307,61 @@ export function frameIndexAtTime(frames: Frame[], timeMs: number): number {
     t -= d;
   }
   return frames.length - 1;
+}
+
+/** Length of one full turn of the cycle, which is what a phase is taken modulo. */
+export function cycleMs(frames: Frame[]): number {
+  let total = 0;
+  for (const f of frames) total += Math.max(1, f.durationMs);
+  return total;
+}
+
+/** Where frame `index` begins, measured from the start of the cycle. */
+export function frameStartMs(frames: Frame[], index: number): number {
+  let start = 0;
+  const upto = Math.min(index, frames.length);
+  for (let i = 0; i < upto; i++) start += Math.max(1, frames[i]!.durationMs);
+  return start;
+}
+
+/**
+ * The phase this sprite may actually be drawn with.
+ *
+ * Refuses one whose light varies, and the refusal is the whole reason this is a
+ * function rather than a field read. The lighting bake caches a chunk per
+ * *emission phase* (see `tileEmissionPhase`), and a per-cell phase multiplies
+ * that by the number of distinct phases in reach of the flood — a flickering
+ * torch phased across a wall would bake once per torch instead of once per
+ * flicker. The alternative, phasing the art and leaving the light alone, is
+ * worse: `WorldRenderer.animClock` is deliberately the one clock both read so
+ * that a lamp's glow cannot drift away from its own flame.
+ *
+ * So a phase is for art whose light does not change, which is every phase
+ * anybody has wanted so far. `tiles.test.ts` asserts the catalogue never
+ * authors the pair, so in practice this never fires — it is here so the
+ * desync is impossible rather than merely unauthored.
+ */
+export function spritePhase(sprite: TileSprite): SpritePhase | undefined {
+  if (!sprite.phase) return undefined;
+  if (sprite.frames.length < 2) return undefined;
+  if (spriteLightVaries(sprite)) return undefined;
+  return sprite.phase;
+}
+
+/**
+ * How far into its cycle the placement at cell `(x, y)` starts, in milliseconds.
+ *
+ * In milliseconds rather than in frames because that is what the clock is in,
+ * and because it stays exact for a sprite whose frames are not all the same
+ * length: "start three frames along" means the sum of those three durations,
+ * which is not `3 × anything` unless they happen to match.
+ */
+export function cellPhaseMs(sprite: TileSprite, x: number, y: number): number {
+  const phase = spritePhase(sprite);
+  if (!phase) return 0;
+  const count = sprite.frames.length;
+  const step = ((phase.x * x + phase.y * y) % count + count) % count;
+  return frameStartMs(sprite.frames, step);
 }
 
 // resolveTileSprite / getFrames / resolveLight live in ./tileResolve

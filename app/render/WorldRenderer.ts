@@ -53,6 +53,7 @@ import {
   MAX_LEVEL,
   MIN_LEVEL,
   coordKey,
+  cellPhaseMs,
   frameIndexAtTime,
   levelKey,
   parseCoordKey,
@@ -64,7 +65,7 @@ import {
 } from "../lib/types";
 import { hasSpriteStates, isMobileTile } from "../lib/interactions";
 import { clumpExtents } from "./depthClump";
-import { getFrames } from "../lib/tileResolve";
+import { getFrames, resolveTileSprite } from "../lib/tileResolve";
 import {
   ChunkedLighting,
   LIGHT_WINDOW_MARGIN,
@@ -86,10 +87,13 @@ import {
   buildMergedQuadGeometry,
   buildSingleQuadGeometry,
   injectWorldShader,
+  type LevelAnimUniforms,
+  noAnimUniforms,
   noCutUniforms,
   writeBoxAttr,
   writeLightUvAttr,
 } from "./worldQuads";
+import { AnimationTable, tableCanHold } from "./animTable";
 import {
   disposeGroupChildren,
   makeFollowingSpriteOutline,
@@ -191,6 +195,17 @@ type BuildItem = Quad & {
   /** Set when this tile gets its own mesh rather than joining a merged batch. */
   tileKey?: string;
   anim?: Omit<AnimatedInstance, "mesh" | "key">;
+  /**
+   * The animation this quad plays from inside the merged batch, before the
+   * level's table has given it a row.
+   *
+   * The row is assigned in {@link WorldRenderer.buildLevel} rather than here so
+   * that {@link WorldRenderer.cellItems} stays a pure function of the map: the
+   * incremental path calls it twice on the same cell to compare, and a call
+   * that quietly grew the level's table would make the two comparisons differ
+   * by having been run.
+   */
+  mergedAnim?: { frames: Frame[]; tileset: TilesetDef; phaseMs: number };
   /**
    * The plume this placement gives off, on the one quad that stands for it.
    *
@@ -702,6 +717,10 @@ export class WorldRenderer {
    * material on that floor without touching any of them.
    */
   private cutUniformsByZ = new Map<number, LevelCutUniforms>();
+  /** Per level, the uniforms its materials read the animation table through. */
+  private animUniformsByZ = new Map<number, LevelAnimUniforms>();
+  /** Per level, the table itself — kept to free its texture and to time frames. */
+  private animTablesByZ = new Map<number, AnimationTable>();
   /** Mask textures owned here, so a replaced one is freed rather than leaked. */
   private cutTextures = new Map<number, THREE.DataTexture>();
   private animClock = 0;
@@ -1367,6 +1386,7 @@ export class WorldRenderer {
     for (const mat of this.materials.values()) mat.dispose();
     for (const tex of this.lightTextures.values()) tex.dispose();
     for (const tex of this.cutTextures.values()) tex.dispose();
+    for (const table of this.animTablesByZ.values()) table.dispose();
     this.magentaTex.dispose();
     this.whiteTex.dispose();
   }
@@ -1726,6 +1746,57 @@ export class WorldRenderer {
   }
 
   /** This level's cut uniforms, with the mask already written into them. */
+  /**
+   * This level's animation uniforms, inert until the level is built.
+   *
+   * Held by reference the way the light and cut ones are: a material binds the
+   * object once when its program compiles, so a rebuild must replace what is
+   * *inside* it rather than hand out a new object nothing is looking at.
+   */
+  private ensureAnimUniforms(z: number): LevelAnimUniforms {
+    let u = this.animUniformsByZ.get(z);
+    if (!u) {
+      u = noAnimUniforms(this.whiteTex);
+      this.animUniformsByZ.set(z, u);
+    }
+    return u;
+  }
+
+  /**
+   * This level's animation table, which outlives any one chunk of it.
+   *
+   * Level-scoped because materials are: `materialFor` keys on (texture, level),
+   * so every chunk on a floor draws through one set of uniforms and therefore
+   * one table. It only ever grows — a chunk streaming out does not take its rows
+   * with it — which is what keeps the rows the surviving chunks point at valid,
+   * and costs a texel per frame per animation that floor has ever shown.
+   */
+  private ensureAnimTable(z: number): AnimationTable {
+    let table = this.animTablesByZ.get(z);
+    if (!table) {
+      table = new AnimationTable();
+      this.animTablesByZ.set(z, table);
+    }
+    return table;
+  }
+
+  /** Point this level's materials at its table, after a chunk may have grown it. */
+  private publishAnimTable(z: number) {
+    const table = this.animTablesByZ.get(z);
+    const u = this.ensureAnimUniforms(z);
+    if (!table || table.empty) {
+      u.uAnimEnabled.value = 0;
+      return;
+    }
+    // `bake` is cached until a row is added, so re-publishing per chunk is a
+    // map lookup on the overwhelmingly common chunk that brought no new
+    // animation with it.
+    u.uAnimTable.value = table.bake();
+    u.uAnimSize.value.set(table.width, table.height);
+    u.uAnimClockMs.value = this.animClock;
+    u.uAnimEnabled.value = 1;
+  }
+
   private ensureCutUniforms(z: number): LevelCutUniforms {
     let u = this.cutUniformsByZ.get(z);
     if (!u) {
@@ -1782,7 +1853,13 @@ export class WorldRenderer {
         side: THREE.DoubleSide,
       });
       mat.onBeforeCompile = (shader) => {
-        injectWorldShader(shader, lightUniforms, tintU, cutUniforms);
+        injectWorldShader(
+          shader,
+          lightUniforms,
+          tintU,
+          cutUniforms,
+          this.ensureAnimUniforms(z),
+        );
       };
       mat.customProgramCacheKey = () => WORLD_SHADER_CACHE_KEY;
       this.materials.set(key, mat);
@@ -2016,6 +2093,12 @@ export class WorldRenderer {
     }
     this.levelGroups.clear();
     this.chunkGeometry.clear();
+    // The rows only mean anything to the geometry that carried them, and that
+    // has just gone. Kept across a *chunk* being dropped, cleared when the whole
+    // world is.
+    for (const table of this.animTablesByZ.values()) table.dispose();
+    this.animTablesByZ.clear();
+    for (const u of this.animUniformsByZ.values()) u.uAnimEnabled.value = 0;
     this.meshedWindow = null;
     this.tileEmittersByLevel.clear();
     this.tileEmittersStale = false;
@@ -2283,6 +2366,11 @@ export class WorldRenderer {
     };
     this.chunkGeometry.set(chunkAddressKey(z, chunk), entry);
 
+    // The table is the *level's*, not this chunk's: materials are keyed by
+    // level, so every chunk on a floor reads one table. Rows are append-only, so
+    // a chunk streaming in can add to it without renumbering the rows the
+    // chunks already built are pointing at.
+    const animTable = this.ensureAnimTable(z);
     const staticByTex = new Map<THREE.Texture, Quad[]>();
     for (const item of items) {
       // Before the split, because an emitting tile is as likely to be merged
@@ -2293,6 +2381,13 @@ export class WorldRenderer {
       if (item.anim || item.tileKey) {
         this.installSeparate(entry, item);
       } else {
+        if (item.mergedAnim) {
+          item.animRow = animTable.add(
+            item.mergedAnim.frames,
+            item.mergedAnim.tileset,
+          );
+          item.animPhaseMs = item.mergedAnim.phaseMs;
+        }
         let list = staticByTex.get(item.texture);
         if (!list) {
           list = [];
@@ -2301,6 +2396,8 @@ export class WorldRenderer {
         list.push(item);
       }
     }
+
+    this.publishAnimTable(z);
 
     for (const [tex, quads] of staticByTex) {
       const geo = buildMergedQuadGeometry(quads);
@@ -2326,7 +2423,11 @@ export class WorldRenderer {
     for (const item of this.cellItems(map, z, x, y, getStack(map, x, y, z))) {
       if (item.anim || item.tileKey) continue;
       const b = item.box;
-      sig += `${item.x},${item.y},${item.w},${item.h}|${item.u0},${item.v0},${item.u1},${item.v1}|${b.eastPx},${b.southPx},${b.foot},${b.top}|${item.stackBias}|${item.unlit ? 1 : 0}|${item.texture.uuid}~`;
+      // The animation is part of the merged contribution now, so an edit that
+      // changes which cycle a cell plays — or how far into it that cell starts —
+      // has to fall through to a full rebuild rather than be read as unchanged.
+      const a = item.mergedAnim;
+      sig += `${item.x},${item.y},${item.w},${item.h}|${item.u0},${item.v0},${item.u1},${item.v1}|${b.eastPx},${b.southPx},${b.foot},${b.top}|${item.stackBias}|${item.unlit ? 1 : 0}|${item.texture.uuid}|${a ? `${a.frames.length},${a.phaseMs}` : ""}~`;
     }
     return sig;
   }
@@ -2436,7 +2537,7 @@ export class WorldRenderer {
       // mid-step comes back walking, rather than snapping to standing and
       // waiting for the next state pass to notice.
       const state = this.spriteStates?.get(instanceKey) ?? "idle";
-      const frames = getFrames(def, {
+      const sprite = resolveTileSprite(def, {
         state,
         direction: placed.direction,
         map,
@@ -2444,22 +2545,55 @@ export class WorldRenderer {
         y,
         z,
       });
+      const frames = sprite?.frames;
       // The phase the shared clock is at, not frame 0. A rebuild happens on
       // whatever frame the world happened to change on — every step, for a
       // walker — and a mesh born at frame 0 would sit there until the clock
       // crossed into the *next* index, which is a walk cycle that restarts
       // several times a second. See `updateAnimations`.
       const frameIdx = frames ? frameIndexAtTime(frames, this.animClock) : 0;
-      const first = frames?.[frameIdx];
-      if (!first) return;
+      const live = frames?.[frameIdx];
+      if (!live || !frames) return;
 
-      const tileset = this.tilesetById.get(first.sprite.tilesetId);
+      const tileset = this.tilesetById.get(live.sprite.tilesetId);
       if (!tileset) return;
+
+      const animates = frames.length > 1;
+      // Own mesh only when the tile can *move* — not merely when it animates.
+      // Animation used to be a reason too, because the only way to change a
+      // frame was to rewrite the UVs of a mesh nobody else shared; the shader
+      // reads the frame off a table now, so a still animated tile merges like
+      // any other scenery. That is what makes a pond affordable: water is
+      // terrain and arrives in hundreds, and hundreds of meshes is hundreds of
+      // draw calls. See `./animTable`.
+      //
+      // Keying this on the live motion set was the older bug: a tile changed
+      // batch membership the instant it started and stopped, and changing
+      // membership rebuilds the whole floor — a full rebuild per step.
+      //
+      // `isMobileTile` also covers every tile that can change sprite state,
+      // because `moving` is the only state and `availableStates` gates it on
+      // exactly this predicate. A state that a still tile can be in — an opened
+      // chest — would need its own term here; see plans/stateful-sprites.md.
+      const separate = isMobileTile(def);
+      // The shader moves a merged quad, so it is built at frame 0 and the table's
+      // offsets are measured from there. A separate one is built at the frame the
+      // clock is on and moved by `updateAnimations`. Mixing the two would shift a
+      // sprite by however far the clock had run when its level was last rebuilt.
+      const mergedAnim =
+        !separate && animates && tableCanHold(frames)
+          ? {
+              frames,
+              tileset,
+              phaseMs: sprite ? cellPhaseMs(sprite, x, y) : 0,
+            }
+          : undefined;
+      const art = mergedAnim ? frames[0]! : live;
 
       const foot = absoluteElevation(z, elev);
       const baseOrigin = baseCellWorldOrigin(x, y, z, elev);
-      const origin = spriteWorldOrigin(baseOrigin, first.sprite.base);
-      const { rect } = first.sprite;
+      const origin = spriteWorldOrigin(baseOrigin, art.sprite.base);
+      const { rect } = art.sprite;
       const w = rect.w * CELL_SIZE;
       const h = rect.h * CELL_SIZE;
       const u0 = (rect.x * CELL_SIZE) / tileset.width;
@@ -2467,19 +2601,6 @@ export class WorldRenderer {
       const v1 = 1 - (rect.y * CELL_SIZE) / tileset.height;
       const v0 = 1 - ((rect.y + rect.h) * CELL_SIZE) / tileset.height;
       const texture = this.textures.get(tileset.id) ?? this.magentaTex;
-      const isAnimated = (frames?.length ?? 0) > 1;
-      // Own mesh when animated, or when the tile can move at all — not merely
-      // when it happens to be moving right now. Keying this on the live motion
-      // set meant a tile changed batch membership the instant it started and
-      // stopped, and changing membership rebuilt the merged geometry for the
-      // whole floor: a full rebuild per step, for a sprite that only needed a
-      // new position.
-      //
-      // `isMobileTile` also covers every tile that can change sprite state,
-      // because `moving` is the only state and `availableStates` gates it on
-      // exactly this predicate. A state that a still tile can be in — an opened
-      // chest — would need its own term here; see plans/stateful-sprites.md.
-      const separate = isAnimated || isMobileTile(def);
       const animKey = animationKey(def, placed, x, y, z, state);
 
       // **A pile draws once per thing in it**, laid out like the pips on a die —
@@ -2574,6 +2695,7 @@ export class WorldRenderer {
           lightY1: y + 1,
           unlit: tileCanEmitLight(def),
           tileKey: separate ? instanceKey : undefined,
+          mergedAnim,
           // On the first quad only — a heap of six berries is one placement and
           // gives off one plume, not six.
           emitter: i === 0 ? emitter : undefined,
@@ -2581,8 +2703,10 @@ export class WorldRenderer {
           // animates: a creature standing still on one frame becomes a four-frame
           // walk cycle the moment it steps, and the registry is what the state
           // pass reaches it through.
+          // Only a tile with a mesh of its own: everything else animates in the
+          // shader, and an entry here would hand it a mesh to rewrite.
           anim:
-            (isAnimated || hasSpriteStates(def)) && frames
+            separate && (animates || hasSpriteStates(def))
               ? {
                   frames,
                   tileset,
@@ -2655,8 +2779,20 @@ export class WorldRenderer {
    * to write" about a mesh that was showing something else entirely.
    */
   private updateAnimations(): boolean {
-    if (this.animatedByKey.size === 0) return false;
+    // The merged batch's animations are a function of this one number, so a
+    // pond costs a uniform write per level rather than a UV rewrite per cell.
+    // Whether it *looks* different is the separate question `crossedFrame`
+    // answers, so a world sitting between two frames still stops rendering.
     let changed = false;
+    for (const [z, u] of this.animUniformsByZ) {
+      if (u.uAnimEnabled.value === 0) continue;
+      const table = this.animTablesByZ.get(z);
+      if (table?.crossedFrame(u.uAnimClockMs.value, this.animClock)) {
+        changed = true;
+      }
+      u.uAnimClockMs.value = this.animClock;
+    }
+    if (this.animatedByKey.size === 0) return changed;
 
     for (const [key, instances] of this.animatedByKey) {
       const sample = instances[0]!;
