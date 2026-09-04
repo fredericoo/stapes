@@ -60,6 +60,8 @@ import {
   type ViewAnchor,
   cutHides,
   roofCutFor,
+  cutProbeChunks,
+  sameProbeChunks,
   viewAnchorFor,
 } from "../lib/levelVisibility";
 import type {
@@ -1988,22 +1990,46 @@ export class GameRenderer {
     map: MapFile;
     anchor: ViewAnchor;
     cut: RoofCut | undefined;
+    /** The chunks the probe read, so a distant edit does not re-run it. */
+    probe: readonly unknown[];
   } | null = null;
 
+  /**
+   * The frame's roof cut, re-derived only when it can have changed.
+   *
+   * **Keyed on the map the probe actually reads, never on the whole map.** Map
+   * identity changes whenever any cell anywhere does, and a world with a couple
+   * of hundred creatures in it changes on almost every tick — so a cache keyed
+   * that way misses constantly and the cut is rebuilt every frame. Underground
+   * that is not cheap: the seeds are the rock over your head, the fill spreads
+   * 26-way through every touching cell of it, and it walks `MAX_CUT_CELLS`
+   * before giving up and cutting the whole storey. Measured while walking the
+   * den, that was 10.7ms of every frame — as much as the map, the light and the
+   * draw together.
+   *
+   * `cutProbeChunks` says what the question depends on, and the comment there
+   * says what it deliberately leaves out.
+   */
   private roofCutFor(snap: GameSnapshot): RoofCut | undefined {
     const anchor = viewAnchorFor(snap.self);
     const cached = this.cutCache;
-    if (
-      cached &&
-      cached.map === snap.map &&
+    const sameAnchor =
+      cached !== null &&
       cached.anchor.x === anchor.x &&
       cached.anchor.y === anchor.y &&
-      cached.anchor.z === anchor.z
-    ) {
+      cached.anchor.z === anchor.z;
+    if (sameAnchor && cached.map === snap.map) return cached.cut;
+
+    const probe = cutProbeChunks(snap.map, anchor);
+    if (sameAnchor && sameProbeChunks(cached.probe, probe)) {
+      // Nothing the cut reads has moved. Record the map it was confirmed
+      // against so the next frame takes the identity check above instead.
+      this.cutCache = { ...cached, map: snap.map };
       return cached.cut;
     }
+
     const cut = roofCutFor(snap.map, this.tilesById, anchor);
-    this.cutCache = { map: snap.map, anchor, cut };
+    this.cutCache = { map: snap.map, anchor, cut, probe };
     return cut;
   }
 

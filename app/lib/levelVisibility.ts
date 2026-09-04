@@ -384,4 +384,56 @@ export function roofCutFor(
   return { floor: view.z, cells: fillStructure(map, view.z, seeds) };
 }
 
+/**
+ * The chunk records the *probe* can read, as references to compare by identity.
+ *
+ * A cut is a local question — what stands between this body and the sky, within
+ * {@link VIEW_RADIUS} — and this is the map it asks. Handing a caller these
+ * lets it skip re-deriving a cut that cannot have changed, which matters
+ * because the obvious cheaper test is wrong in the expensive direction: keying
+ * on whole-map identity means a creature stepping anywhere in the world
+ * re-runs the probe, and with a couple of hundred of them that is every frame.
+ *
+ * **What it deliberately does not cover is the fill.** `fillStructure` walks
+ * the whole structure the seeds belong to, which can run far past the probe, so
+ * a roof cell added at the other end of a building is not noticed here until
+ * the body moves. That is invisible: cells that far away are not on screen. The
+ * one case it could show is a structure sitting exactly on
+ * {@link MAX_CUT_CELLS}, where one cell either way flips the cut between a set
+ * and the whole storey — and a structure that large is already being cut
+ * wholesale in practice.
+ */
+export function cutProbeChunks(
+  map: MapFile,
+  view: ViewAnchor,
+  radius = VIEW_RADIUS,
+): unknown[] {
+  const span = Math.ceil(radius);
+  const out: unknown[] = [];
+  const cx0 = Math.floor((view.x - span) / CHUNK_SIZE);
+  const cx1 = Math.floor((view.x + span) / CHUNK_SIZE);
+  const cy0 = Math.floor((view.y - span) / CHUNK_SIZE);
+  const cy1 = Math.floor((view.y + span) / CHUNK_SIZE);
+  // Every level, not only those above the body: the occlusion the probe walks
+  // is built from the body's own storey as well as the ones over it.
+  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+    for (let cx = cx0; cx <= cx1; cx++) {
+      for (let cy = cy0; cy <= cy1; cy++) {
+        out.push(getChunk(map, z, chunkKeyAt(cx, cy)));
+      }
+    }
+  }
+  return out;
+}
+
+/** Do two probe reads name the same chunk records? */
+export function sameProbeChunks(
+  a: readonly unknown[] | undefined,
+  b: readonly unknown[],
+): boolean {
+  if (a === undefined || a.length !== b.length) return false;
+  for (let i = 0; i < b.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
 
