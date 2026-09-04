@@ -56,6 +56,33 @@ export const PLAYER_TILE_ID = "player";
 export const BRAIN_TICK_MS = WALK_DURATION_MS;
 
 /**
+ * How near a player has to be for a creature to think every round, at least.
+ *
+ * A creature's real reach is the furthest distance its own brain ever asks
+ * about — see `brainReach` — and this is the floor under it: a screen is
+ * `VIEW_CELLS` (23) across, so anything nearer than this is on it or about to
+ * be, and a wander that only happened every seventh round would be seen
+ * stuttering. One more than the view, so the floor covers a body standing at
+ * the very edge of the screen rather than one cell inside it.
+ */
+export const BRAIN_ATTENTION_FLOOR_CELLS = 24;
+
+/**
+ * Creatures that nobody is near enough to notice, given a turn per round.
+ *
+ * The rest of the round is spent on the creatures somebody *could* notice, so
+ * this is the only term in a round's cost that the map contributes: the round
+ * is players plus this, however many creatures the world holds. What it buys
+ * a dozing creature is a turn every `dozing / budget` rounds — with today's
+ * hundred and eighty residents, about every seventh — and at ten times the
+ * population every seventieth, which is the trade this exists to make. A
+ * creature far from everybody is not asleep: its clock keeps running, and
+ * when its turn comes it is handed every millisecond it slept through, so a
+ * wait ends when it should and a walk is merely slow.
+ */
+export const BRAIN_DOZE_BUDGET = 24;
+
+/**
  * Max climb up in absolute height units when walking into a cell.
  *
  * Half a level, derived rather than written down, so subdividing a level never

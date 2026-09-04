@@ -913,6 +913,56 @@ no destination to route to; "away" is a direction rather than a place, so the
 question a fleeing animal asks really is the local one. Inventing a goal cell to
 run at would be the pathfinder deciding where something wants to hide.
 
+## A creature thinks every round only while somebody could notice it
+
+`GameSession.tickBrains` used to give every resident brain a turn every round,
+which made a round's cost a function of how many creatures the map holds. The
+animal den made that 182 brains, ~13ms every 200ms on a laptop, and the wire
+followed: every one of them wandering is ~40 changed cells a tick, 110 KB/s
+to every socket, wherever the one player was standing. The same map ten times
+over would have been ten times that, for the same one player.
+
+A round is now split in two, and the split is where the cost goes:
+
+- **Attentive** creatures think every round, exactly as before. A creature is
+  attentive while a player is within the furthest distance its *own* brain
+  ever asks about — `brainReach`, the largest `cells` on any condition in any
+  of its transitions — or within a screen (`BRAIN_ATTENTION_FLOOR_CELLS`),
+  whichever is further, on any level. A wolf reaches 22 (it investigates a
+  sound at 22), a troll 30, a deer with no distance in its brain gets the
+  floor. The reach is read off the authored conditions, so longer ears are a
+  longer reach in the same edit. It is also why there is no separate
+  "engaged" flag: every authored chase gives up at some `out_of_range`, and a
+  creature still chasing is by construction inside its own reach of the
+  person it is chasing. Being hit counts too — a blow is delivered by the next
+  round, and dozing through it would drop it rather than delay it.
+- **Dozing** creatures — everybody else — share `BRAIN_DOZE_BUDGET` turns a
+  round, round-robin. That budget is the only term in a round the *map*
+  contributes; the rest is players. What a dozing creature gets is a turn
+  every `dozing / budget` rounds: about every seventh with today's
+  population, every seventieth at ten times it. The rounds it is passed over
+  are banked as `brainDeferredMs` and handed to the brain with its next turn,
+  so a `wait` ends when it should, an `after` fires on time, and only its
+  walking is slow.
+
+Measured with `bun run bench:server` on the den map, one player standing in
+town: brain round 13.6ms → 3.4ms p95, 42 → 19 changed cells a tick, 112 →
+50 KB/s raw — and the 50 that is left is the budget's, not the map's.
+
+The seams worth knowing:
+
+- Distance is a square on the plan, ignoring level. A superset of every
+  distance a condition reckons in, and a rat three floors under the street is
+  attentive to somebody walking over it. That costs a turn; the other error
+  would cost a creature its chance to notice somebody.
+- `turnsOver` in `brain.test.ts` counts *noises*, not steps: a creature's
+  step can be blocked by another creature's, and a noise cannot. Each of
+  those tests was checked red by breaking the rule it pins — dropping the
+  banked time, making everybody attentive, ignoring the reach.
+- A round used to be one loop and one clock. It is still one clock: nothing
+  here changes `BRAIN_TICK_MS` or the accumulator, and a test that advances
+  one `BRAIN_TICK_MS` still sees every attentive creature decide.
+
 ## The wire is patches plus motion events
 
 Two kinds of thing travel, and keeping them apart is what makes it cheap.

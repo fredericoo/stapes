@@ -1,5 +1,5 @@
 import * as v from "valibot";
-import { conditionSchema, type ConditionNode } from "./conditions";
+import { conditionLeaves, conditionSchema, type ConditionNode } from "./conditions";
 import type { TileDef } from "./types";
 
 /**
@@ -776,6 +776,33 @@ function unreachableStates(brain: BrainDef): string[] {
     }
   }
   return names.filter((name) => !reached.has(name));
+}
+
+const reachCache = new WeakMap<BrainDef, number>();
+
+/**
+ * The furthest distance, in cells, that this brain ever asks about.
+ *
+ * The largest `cells` on any condition in any transition. It is what the
+ * session uses to decide whether a creature could notice a player at all: a
+ * wolf that sees at nine, hunts to fourteen and investigates a sound at
+ * twenty-two reaches twenty-two, and somebody further away than that cannot
+ * appear in any question it asks. Zero for a brain with no distance in it.
+ *
+ * Read off the authored conditions rather than written down beside them, so a
+ * brain given longer ears is given a longer reach in the same edit.
+ */
+export function brainReach(brain: BrainDef): number {
+  const cached = reachCache.get(brain);
+  if (cached !== undefined) return cached;
+
+  let reach = 0;
+  const leaves = brain.transitions.flatMap((transition) => conditionLeaves(transition.if));
+  for (const leaf of leaves) {
+    if ("cells" in leaf && leaf.cells > reach) reach = leaf.cells;
+  }
+  reachCache.set(brain, reach);
+  return reach;
 }
 
 const brainCache = new WeakMap<TileDef, BrainDef | null>();

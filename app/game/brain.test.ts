@@ -3,6 +3,7 @@ import tilesJson from "../../data/tiles.json";
 import {
   ANY_STATE,
   SPEAKER_SELECTOR,
+  brainReach,
   nearest,
   resolveBrain,
   slot,
@@ -19,7 +20,13 @@ import { normalizeTileDef, normalizeTiles } from "../lib/types";
 import { initialMemory, stepBrain } from "./brainRuntime";
 import { fightingStats, resolveBattler } from "../lib/battler";
 import { attackIntervalMs } from "./combat";
-import { BRAIN_TICK_MS, TICK_MS, WALK_DURATION_MS } from "./constants";
+import {
+  BRAIN_ATTENTION_FLOOR_CELLS,
+  BRAIN_DOZE_BUDGET,
+  BRAIN_TICK_MS,
+  TICK_MS,
+  WALK_DURATION_MS,
+} from "./constants";
 import { GameSession } from "./GameSession";
 import { Rng } from "./rng";
 
@@ -3638,5 +3645,217 @@ describe("the shopkeeper we ship", () => {
     session.hear("alice", "hi");
 
     expect(saidDuring(session, ENGAGED_MS)).toEqual([]);
+  });
+});
+
+/**
+ * Who gets a turn each round.
+ *
+ * A creature somebody could notice thinks every round; everybody else shares
+ * {@link BRAIN_DOZE_BUDGET} turns between them. The creatures here make a
+ * noise every time they are given a turn, so the noise log is the turn log —
+ * a noise is the one thing a brain does that no other creature's step can
+ * interfere with, which a count of cells walked cannot say.
+ */
+const TURN_NOISE = "tick";
+
+/** A brain that makes a noise on every turn it is given. */
+function tickerBrain(afterMs = 1): BrainDef {
+  return {
+    initial: "start",
+    states: {
+      start: { do: [{ action: "hold" }] },
+      a: { onEnter: [{ effect: "noise", text: TURN_NOISE }], do: [{ action: "hold" }] },
+      b: { onEnter: [{ effect: "noise", text: TURN_NOISE }], do: [{ action: "hold" }] },
+    },
+    transitions: [
+      { from: "start", if: { cond: "after", ms: afterMs }, to: "a" },
+      { from: "a", if: { cond: "after", ms: 1 }, to: "b" },
+      { from: "b", if: { cond: "after", ms: 1 }, to: "a" },
+    ],
+  };
+}
+
+/** How far the far-sighted ticker's brain looks — well past the floor. */
+const FAR_SIGHT_CELLS = 60;
+
+/** How long the slow ticker waits before its first turn counts. */
+const SLOW_START_MS = 1000;
+
+const attention: TileDef[] = [
+  ...tiles,
+  tile({
+    id: "ticker",
+    height: 2,
+    actor: true,
+    affectedByGravity: true,
+    walkable: false,
+    interactions: { brain: tickerBrain() },
+  }),
+  tile({
+    id: "ticker-far-sighted",
+    height: 2,
+    actor: true,
+    affectedByGravity: true,
+    walkable: false,
+    interactions: {
+      brain: {
+        ...tickerBrain(),
+        transitions: [
+          // Reaches further than anything else here, and never holds: the
+          // creature is only ever placed nearer than this.
+          {
+            from: "a",
+            if: { cond: "out_of_range", of: nearest("player"), cells: FAR_SIGHT_CELLS },
+            to: "a",
+          },
+          ...tickerBrain().transitions,
+        ],
+      },
+    },
+  }),
+  tile({
+    id: "ticker-slow",
+    height: 2,
+    actor: true,
+    affectedByGravity: true,
+    walkable: false,
+    interactions: { brain: tickerBrain(SLOW_START_MS) },
+  }),
+];
+
+/** Half-width of the field the attention tests stand on. */
+const ATTENTION_FIELD = 45;
+
+/** A row of creatures along `y`, one every cell from `x0`. */
+function withRow(map: MapFile, tileId: string, y: number, x0: number, count: number): MapFile {
+  for (let i = 0; i < count; i++) {
+    map = withDeer(map, x0 + i, y, tileId);
+  }
+  return map;
+}
+
+/** Noises this round, as turns per creature cell. */
+function turnsByCell(session: GameSession, into: Map<string, number>) {
+  for (const noise of session.drainNoise()) {
+    if (noise.text !== TURN_NOISE) continue;
+    const key = `${noise.x},${noise.y}`;
+    into.set(key, (into.get(key) ?? 0) + 1);
+  }
+}
+
+/** Run `rounds` brain rounds, counting turns per creature. */
+function turnsOver(session: GameSession, rounds: number): Map<string, number> {
+  const turns = new Map<string, number>();
+  for (let round = 0; round < rounds; round++) {
+    advance(session, BRAIN_TICK_MS);
+    turnsByCell(session, turns);
+  }
+  return turns;
+}
+
+describe("who gets a turn", () => {
+  const ROUNDS = 6;
+  /** Far from the player at the field's corner, whichever way it is measured. */
+  const FAR_ROW_Y = 10;
+  const FAR_ROW_X0 = -30;
+
+  it("shares the budget between creatures nobody is near", () => {
+    const count = BRAIN_DOZE_BUDGET * 3;
+    const session = new GameSession(
+      withRow(field(ATTENTION_FIELD), "ticker", FAR_ROW_Y, FAR_ROW_X0, count),
+      attention,
+      { actorIds: ["alice"] },
+    );
+
+    const turns = turnsOver(session, ROUNDS);
+
+    expect(turns.size).toBe(count);
+    for (const [, taken] of turns) expect(taken).toBe(ROUNDS / 3);
+  });
+
+  it("spends exactly the budget on them each round", () => {
+    const session = new GameSession(
+      withRow(field(ATTENTION_FIELD), "ticker", FAR_ROW_Y, FAR_ROW_X0, BRAIN_DOZE_BUDGET * 3),
+      attention,
+      { actorIds: ["alice"] },
+    );
+
+    for (let round = 0; round < ROUNDS; round++) {
+      const turns = new Map<string, number>();
+      advance(session, BRAIN_TICK_MS);
+      turnsByCell(session, turns);
+      expect([...turns.values()].reduce((sum, n) => sum + n, 0)).toBe(BRAIN_DOZE_BUDGET);
+    }
+  });
+
+  it("gives every turn to a creature within a screen of somebody", () => {
+    let map = withRow(field(ATTENTION_FIELD), "ticker", FAR_ROW_Y, FAR_ROW_X0, BRAIN_DOZE_BUDGET * 3);
+    const near = { x: -ATTENTION_FIELD + BRAIN_ATTENTION_FLOOR_CELLS, y: -ATTENTION_FIELD };
+    map = withDeer(map, near.x, near.y, "ticker");
+    const session = new GameSession(map, attention, { actorIds: ["alice"] });
+
+    const turns = turnsOver(session, ROUNDS);
+
+    expect(turns.get(`${near.x},${near.y}`)).toBe(ROUNDS);
+  });
+
+  it("reaches as far as the creature's own brain looks", () => {
+    const apart = FAR_SIGHT_CELLS - 10;
+    let map = withRow(field(ATTENTION_FIELD), "ticker", FAR_ROW_Y, FAR_ROW_X0, BRAIN_DOZE_BUDGET * 3);
+    const farSighted = { x: -ATTENTION_FIELD + apart, y: -ATTENTION_FIELD };
+    const shortSighted = { x: -ATTENTION_FIELD + apart, y: -ATTENTION_FIELD + 2 };
+    map = withDeer(map, farSighted.x, farSighted.y, "ticker-far-sighted");
+    map = withDeer(map, shortSighted.x, shortSighted.y, "ticker");
+    const session = new GameSession(map, attention, { actorIds: ["alice"] });
+
+    const turns = turnsOver(session, ROUNDS);
+
+    expect(turns.get(`${farSighted.x},${farSighted.y}`)).toBe(ROUNDS);
+    expect(turns.get(`${shortSighted.x},${shortSighted.y}`)).toBeLessThan(ROUNDS);
+  });
+
+  it("hands a dozing creature the time it slept through", () => {
+    // Two creatures per turn, so each is passed over every other round. A
+    // wait of a second is five rounds of wall time; counted only on the
+    // rounds it was given, it would be ten.
+    const count = BRAIN_DOZE_BUDGET * 2;
+    const session = new GameSession(
+      withRow(field(ATTENTION_FIELD), "ticker-slow", FAR_ROW_Y, FAR_ROW_X0, count),
+      attention,
+      { actorIds: ["alice"] },
+    );
+    const rounds = SLOW_START_MS / BRAIN_TICK_MS + 2;
+
+    const turns = turnsOver(session, rounds);
+
+    expect(turns.size).toBe(count);
+  });
+});
+
+describe("how far a brain looks", () => {
+  it("is the furthest cells any of its conditions asks about", () => {
+    expect(brainReach(followBrain())).toBe(NOTICE_CELLS);
+  });
+
+  it("is nothing for a brain that never measures", () => {
+    expect(brainReach(wanderingBrain())).toBe(0);
+  });
+
+  it("looks inside grouped conditions", () => {
+    const brain: BrainDef = {
+      ...wanderingBrain(),
+      transitions: [
+        {
+          from: "idle",
+          if: group<BrainConditionDef>("and", [
+            { cond: "after", ms: 1 },
+            group("or", [{ cond: "in_range", of: nearest("player"), cells: 40 }]),
+          ]),
+          to: "wander",
+        },
+      ],
+    };
+    expect(brainReach(brain)).toBe(40);
   });
 });

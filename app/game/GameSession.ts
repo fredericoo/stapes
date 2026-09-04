@@ -119,6 +119,8 @@ import {
 } from "./commands";
 import { findEntryCell } from "./entry";
 import {
+  BRAIN_ATTENTION_FLOOR_CELLS,
+  BRAIN_DOZE_BUDGET,
   BRAIN_TICK_MS,
   DAMAGE_NUMBER_LIFETIME_MS,
   FALL_MS_PER_HEIGHT,
@@ -257,7 +259,7 @@ import {
   surfacesInClimbBand,
 } from "./movement";
 import { findPath } from "./pathfinding";
-import { resolveBrain } from "../lib/brain";
+import { brainReach, resolveBrain } from "../lib/brain";
 import { resolveDialog } from "../lib/dialog";
 import {
   acceptTrade,
@@ -986,6 +988,9 @@ type SlideState = {
  * The board's own state — the map, plate and wire indexes, what has settled —
  * stays on the session: a plate does not care which actor stepped on it.
  */
+/** A cell on the plan, with no level. */
+type PlanCoord = { x: number; y: number };
+
 type ActorRuntime = {
   readonly id: string;
   /**
@@ -1180,6 +1185,17 @@ type ActorRuntime = {
    * state resets on load" free: a fresh runtime has no memory to restore.
    */
   brain: BrainMemory | null;
+  /**
+   * Rounds this creature has slept through since it last had a turn, as the
+   * milliseconds they were worth.
+   *
+   * A creature nobody is near is given a turn only when the round's budget
+   * reaches it — see {@link GameSession.tickBrains} — and the rounds it was
+   * passed over are not lost: they are handed to the brain along with the one
+   * it is deciding in, so a `wait` still ends when it should and an `after`
+   * still fires. Zero for every creature that thinks every round.
+   */
+  brainDeferredMs: number;
   /**
    * Who this body is talking to and where in their dialog it is, or null.
    *
@@ -1573,6 +1589,15 @@ export class GameSession implements PlaySession {
   /** Time towards the next round of decisions. See {@link BRAIN_TICK_MS}. */
   private brainAccumulatorMs = 0;
   /**
+   * Where the dozing budget picks up next round. See {@link tickBrains}.
+   *
+   * A plain count of turns handed out, taken modulo however many creatures are
+   * dozing that round: the pool changes as people move, so this is fair over
+   * time rather than exact, and exactness would cost a stable list nobody
+   * else needs.
+   */
+  private dozeCursor = 0;
+  /**
    * What creatures said this tick, waiting to be broadcast.
    *
    * Emptied at the top of every tick and refilled by whatever brains say during
@@ -1920,6 +1945,7 @@ export class GameSession implements PlaySession {
       defensiveDecay: null,
       assailants: null,
       brain: null,
+      brainDeferredMs: 0,
       conversation: null,
       home: residentHome(id),
       // Restored where a returning player had any, and null otherwise — null
@@ -2607,10 +2633,25 @@ export class GameSession implements PlaySession {
     const sounds = this.pendingSound;
     this.pendingSound = [];
 
+    // Two kinds of creature this round, and the split is what keeps a round's
+    // cost a function of who is here rather than of how big the world is.
+    // A creature somebody could notice — anybody within the furthest distance
+    // its brain ever asks about, or within a screen — thinks now, every round,
+    // so every authored chase, flight and investigation is exactly what it was.
+    // Everybody else is dozing: still on the clock, but given a turn only as
+    // the budget comes round to them. @see BRAIN_DOZE_BUDGET
+    const players = this.playerPlans();
+    const dozing: ActorRuntime[] = [];
     for (const actor of this.actors.values()) {
       if (!actor.resident) continue;
-      this.tickOneBrain(actor, sounds);
+      if (this.attentive(actor, players)) {
+        this.tickOneBrain(actor, sounds, BRAIN_TICK_MS + actor.brainDeferredMs);
+        actor.brainDeferredMs = 0;
+      } else {
+        dozing.push(actor);
+      }
     }
+    this.tickDozing(dozing, sounds);
 
     // Every brain has now had its one chance at this round of speech. Clearing
     // after the whole pass rather than per creature is what makes one word
@@ -2871,7 +2912,87 @@ export class GameSession implements PlaySession {
     );
   }
 
-  private tickOneBrain(actor: ActorRuntime, sounds: readonly Sound[]) {
+  /**
+   * The dozing creatures' share of the round: the next `BRAIN_DOZE_BUDGET` of
+   * them in turn, each handed the time it slept through.
+   *
+   * Round-robin from {@link dozeCursor}, so over enough rounds every one of
+   * them gets its turn at the same rate — the rate being the pool's size over
+   * the budget, which is the one place the size of the world reaches a round.
+   * The creatures passed over bank the round they missed instead.
+   */
+  private tickDozing(dozing: readonly ActorRuntime[], sounds: readonly Sound[]) {
+    if (dozing.length === 0) return;
+    const turns = Math.min(BRAIN_DOZE_BUDGET, dozing.length);
+    const start = this.dozeCursor % dozing.length;
+    for (let i = 0; i < dozing.length; i++) {
+      const actor = dozing[(start + i) % dozing.length]!;
+      if (i < turns) {
+        this.tickOneBrain(actor, sounds, BRAIN_TICK_MS + actor.brainDeferredMs);
+        actor.brainDeferredMs = 0;
+      } else {
+        actor.brainDeferredMs += BRAIN_TICK_MS;
+      }
+    }
+    this.dozeCursor = start + turns;
+  }
+
+  /**
+   * Could anybody notice this creature right now?
+   *
+   * Yes when a player stands within the furthest distance its own brain ever
+   * asks about — see `brainReach` — or within a screen of it, whichever is
+   * further, on any level: a creature can be seen down a hole and cannot see
+   * further than it is authored to. And yes when something has just hit it,
+   * because a blow is an event the next round delivers and dozing through it
+   * would drop it rather than delay it — a rat being eaten by a troll in the
+   * dark still gets to flinch.
+   *
+   * Measured as a square rather than in steps, which is a superset of every
+   * distance a condition reckons in. Being generous here costs a turn; being
+   * mean would cost a creature its chance to notice somebody.
+   */
+  private attentive(actor: ActorRuntime, players: readonly PlanCoord[]): boolean {
+    if (this.pendingHurt.has(actor.id)) return true;
+    const loc = this.tryLocate(actor);
+    if (!loc) return false;
+    const reach = Math.max(
+      BRAIN_ATTENTION_FLOOR_CELLS,
+      this.reachOf(this.defFor(actor)),
+    );
+    for (const player of players) {
+      if (
+        Math.abs(player.x - loc.x) <= reach &&
+        Math.abs(player.y - loc.y) <= reach
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /** The furthest distance this body's brain ever asks about, or zero. */
+  private reachOf(def: TileDef): number {
+    const brain = resolveBrain(def);
+    return brain ? brainReach(brain) : 0;
+  }
+
+  /** Where every connected person is standing, on the plan. */
+  private playerPlans(): PlanCoord[] {
+    const out: PlanCoord[] = [];
+    for (const actor of this.actors.values()) {
+      if (actor.resident) continue;
+      const loc = this.tryLocate(actor);
+      if (loc) out.push({ x: loc.x, y: loc.y });
+    }
+    return out;
+  }
+
+  private tickOneBrain(
+    actor: ActorRuntime,
+    sounds: readonly Sound[],
+    tickMs: number,
+  ) {
     // A body with no brain, or one whose authored brain did not hold together,
     // simply stands there. Resolving is memoised on def identity, so asking
     // every tick costs a map lookup rather than a parse.
@@ -2880,7 +3001,7 @@ export class GameSession implements PlaySession {
 
     const loc = this.locate(actor);
     actor.brain ??= initialMemory(brain);
-    stepBrain(brain, actor.brain, BRAIN_TICK_MS, {
+    stepBrain(brain, actor.brain, tickMs, {
       busy: !this.idle(actor),
       rng: this.rng,
       self: { x: loc.x, y: loc.y, z: loc.z },
