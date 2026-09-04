@@ -245,6 +245,26 @@ export function elevationAt(
 }
 
 /**
+ * Is this placement part of the world's solid volume?
+ *
+ * Two things are not, and both are only ever passed through: a person, who is
+ * somebody standing in the cell rather than part of it, and an intangible tile,
+ * which has no volume by definition. **Every question about what holds a body
+ * up goes through this** — the surface search, the support check under an
+ * actor's feet, and the landing search a fall aims at. It was three separate
+ * `isPlayerBody` guards, and the two that forgot intangibles let a ladder with
+ * nothing under it hold up whoever walked into it.
+ */
+export function isSolidPlacement(
+  placed: PlacedTile,
+  tilesById: Record<string, TileDef>,
+): boolean {
+  if (isPlayerBody(placed)) return false;
+  const def = tilesById[placed.tileId];
+  return !(def && resolveIntangible(def));
+}
+
+/**
  * Topmost non-intangible tile in a stack. Intangibles don't form a solid
  * surface — walk/land checks look through them to the tile underneath.
  */
@@ -254,10 +274,7 @@ export function solidTopOfStack(
 ): PlacedTile | null {
   for (let i = stack.length - 1; i >= 0; i--) {
     const placed = stack[i]!;
-    if (isPlayerBody(placed)) continue;
-    const def = tilesById[placed.tileId];
-    if (def && resolveIntangible(def)) continue;
-    return placed;
+    if (isSolidPlacement(placed, tilesById)) return placed;
   }
   return null;
 }

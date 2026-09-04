@@ -515,15 +515,6 @@ describe("stepping onto a pad", () => {
   });
 });
 
-/**
- * The shape a real ladder was authored in: rungs on the floor below, an
- * intangible top above, and nothing else up there.
- *
- * Written down because it is the case that looked broken and was not — the
- * climb happens and sticks. A body is supported by anything beneath it in its
- * own stack (`isSupported`), and the intangible top counts, so the climber does
- * not drop back the way an empty column would send them.
- */
 describe("being shoved onto a pad", () => {
   /**
    * Player at the origin, a shovable body beside them, a pad beyond it. The
@@ -553,24 +544,32 @@ describe("being shoved onto a pad", () => {
   });
 });
 
+/**
+ * The shape a ladder has to be authored in: rungs on the floor below, and a
+ * floor of its own under the intangible top. The top is scenery hanging in the
+ * cell, not a surface — a landing needs something solid, exactly as it does
+ * anywhere else, which is what keeps an intangible floor readable as a hole.
+ */
 describe("climbing onto an intangible ladder top", () => {
-  function ladderColumn() {
-    let map = replaceStack(emptyMap(), 0, 0, 0, [
+  function ladderColumn(top: { tileId: string }[]) {
+    const map = replaceStack(emptyMap(), 0, 0, 0, [
       { tileId: "grass" },
       { tileId: "ladder" },
       { tileId: "player", direction: "s" },
     ]);
-    map = replaceStack(map, 0, 0, 1, [{ tileId: "ladder-top" }]);
-    return map;
+    return replaceStack(map, 0, 0, 1, top);
   }
 
+  const flooredTop = [{ tileId: "grass" }, { tileId: "ladder-top" }];
+  const floorlessTop = [{ tileId: "ladder-top" }];
+
   it("offers the climb", () => {
-    const session = new GameSession(ladderColumn(), tiles);
+    const session = new GameSession(ladderColumn(flooredTop), tiles);
     expect(session.canTeleport({ x: 0, y: 0, z: 0, stackIndex: 1 })).toBe(true);
   });
 
   it("climbs, and stays up there", () => {
-    const session = new GameSession(ladderColumn(), tiles);
+    const session = new GameSession(ladderColumn(flooredTop), tiles);
     expect(session.activateTeleport({ x: 0, y: 0, z: 0, stackIndex: 1 })).toBe(
       true,
     );
@@ -582,18 +581,13 @@ describe("climbing onto an intangible ladder top", () => {
     });
   });
 
-  it("climbs onto a proper floor too", () => {
-    let map = ladderColumn();
-    map = replaceStack(map, 0, 0, 1, [
-      { tileId: "grass" },
-      { tileId: "ladder-top" },
-    ]);
-    const session = new GameSession(map, tiles);
+  it("drops back down through a top with no floor under it", () => {
+    const session = new GameSession(ladderColumn(floorlessTop), tiles);
     expect(session.activateTeleport({ x: 0, y: 0, z: 0, stackIndex: 1 })).toBe(
       true,
     );
     run(session, 30);
-    expect(whereIs(session.getMap(), "player")).toMatchObject({ z: 1 });
+    expect(whereIs(session.getMap(), "player")).toMatchObject({ z: 0 });
   });
 
   /**
@@ -602,7 +596,7 @@ describe("climbing onto an intangible ladder top", () => {
    * however long its owner felt like standing there.
    */
   it("climbs past somebody already standing on the top", () => {
-    const session = new GameSession(ladderColumn(), tiles, {
+    const session = new GameSession(ladderColumn(flooredTop), tiles, {
       actorIds: ["up-there", "climber"],
     });
     const rung = { x: 0, y: 0, z: 0, stackIndex: 1 };
@@ -617,6 +611,7 @@ describe("climbing onto an intangible ladder top", () => {
 
     const upstairs = getStack(session.getMap(), 0, 0, 1);
     expect(upstairs.map((placed) => placed.owner)).toEqual([
+      undefined,
       undefined,
       "up-there",
       "climber",
