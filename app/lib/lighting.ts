@@ -505,9 +505,12 @@ function castEmitter(
         const ti = denseIndex(occlusion, tx, ty, tz);
         const targetOpacity = ti < 0 ? 0 : occlusion.opacity[ti]!;
         const targetSeals = ti < 0 ? 0 : occlusion.seals[ti]!;
+        const targetVoid = ti < 0 ? 0 : occlusion.voids[ti]!;
 
         if (!isSelf) {
           if (targetOpacity >= 1) continue;
+          // Nothing lands in the void, though the ray still crosses it.
+          if (targetVoid) continue;
           // A cell with a lid refuses light climbing from below.
           if (tz > sz && targetSeals) continue;
         }
@@ -684,7 +687,15 @@ export type DenseOcclusion = {
   opacity: Float32Array;
   /** 1 where {@link CellOcclusion.sealsLevel}. */
   seals: Uint8Array;
+  /**
+   * 1 where nothing is at or below the cell in its column — the bake's void
+   * (see `computeLightingFlood`). Light crosses it and never lands in it.
+   */
+  voids: Uint8Array;
 };
+
+/** A column's lowest tile level when the column holds no tile in reach. */
+const NO_TILE_IN_REACH = MAX_LEVEL + 1;
 
 function denseIndex(o: DenseOcclusion, x: number, y: number, z: number): number {
   const lx = x - o.reach.x0;
@@ -709,13 +720,73 @@ function denseOcclusionIn(
     d,
     opacity: new Float32Array(w * h * d),
     seals: new Uint8Array(w * h * d),
+    voids: new Uint8Array(w * h * d),
   };
 
+  const lowestTileZ = new Int32Array(w * h).fill(NO_TILE_IN_REACH);
   for (let z = Math.max(MIN_LEVEL, reach.z0); z <= Math.min(MAX_LEVEL, reach.z1); z++) {
     if (!map.levels[levelKey(z)]) continue;
-    fillDenseLevel(dense, map, tilesById, z);
+    fillDenseLevel(dense, map, tilesById, z, lowestTileZ);
   }
+  fillDenseVoids(dense, map, lowestTileZ);
   return dense;
+}
+
+/**
+ * Mark the void inside `reach`: cells with nothing at or below them, by the
+ * same rule as the bake. A carried torch at the edge of a drop must not paint
+ * the drop, or the overlay would relight what the bake left black.
+ *
+ * Scoped to the reach like everything else here, with the one exception the
+ * rule forces: whether a cell is void depends on levels *under* the reach. A
+ * column with room below its lowest tile in reach is probed downward until a
+ * tile turns up — a level the map does not have costs one lookup for every
+ * column, and a level it does have is usually the one with the tile in it.
+ */
+function fillDenseVoids(
+  dense: DenseOcclusion,
+  map: MapFile,
+  lowestTileZ: Int32Array,
+) {
+  const { reach, w, h } = dense;
+  const levelsBelow: number[] = [];
+  for (let z = reach.z0 - 1; z >= MIN_LEVEL; z--) {
+    if (map.levels[levelKey(z)]) levelsBelow.push(z);
+  }
+  for (let ly = 0; ly < h; ly++) {
+    for (let lx = 0; lx < w; lx++) {
+      const lowest = lowestTileZ[ly * w + lx]!;
+      if (lowest <= reach.z0) continue;
+      const x = reach.x0 + lx;
+      const y = reach.y0 + ly;
+      if (columnHasTileAt(map, x, y, levelsBelow)) continue;
+      markVoidColumn(dense, x, y, Math.min(reach.z1, lowest - 1));
+    }
+  }
+}
+
+function columnHasTileAt(
+  map: MapFile,
+  x: number,
+  y: number,
+  levels: readonly number[],
+): boolean {
+  for (const z of levels) {
+    if (getStack(map, x, y, z).length) return true;
+  }
+  return false;
+}
+
+/** Void from the reach's floor up to and including `zTop`. */
+function markVoidColumn(
+  dense: DenseOcclusion,
+  x: number,
+  y: number,
+  zTop: number,
+) {
+  for (let z = dense.reach.z0; z <= zTop; z++) {
+    dense.voids[denseIndex(dense, x, y, z)] = 1;
+  }
 }
 
 function fillDenseLevel(
@@ -723,12 +794,15 @@ function fillDenseLevel(
   map: MapFile,
   tilesById: Record<string, TileDef>,
   z: number,
+  lowestTileZ: Int32Array,
 ) {
   const { reach } = dense;
   for (let y = reach.y0; y <= reach.y1; y++) {
     for (let x = reach.x0; x <= reach.x1; x++) {
       const stack = getStack(map, x, y, z);
       if (!stack.length) continue;
+      const col = (y - reach.y0) * dense.w + (x - reach.x0);
+      if (z < lowestTileZ[col]!) lowestTileZ[col] = z;
       const occ = stackOcclusion(stack, tilesById);
       if (occ.opacity <= 0 && !occ.sealsLevel) continue;
       const i = denseIndex(dense, x, y, z);
