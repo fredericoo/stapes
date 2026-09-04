@@ -3711,6 +3711,45 @@ tidiness: shifting a cycle by one of its own boundaries lands its boundaries
 back on the same set, so one `crossedFrame` answer covers every placement
 however it is phased.
 
+**It is set for the whole tile, never for one sprite.** The field lives on
+`TileSprite` because the modulo is `frames.length`, which is per-sprite — but an
+autotile is 47 sprites of one material, and nobody wants to phase a
+neighbourhood apart from its neighbours. `withSpritePhase` writes one pair onto
+every sprite the tile has, states included, and `tilePhase` reads one back;
+the editor's "Frames per cell" control is those two functions and nothing else.
+A phase of zero is stored as *no phase* rather than as `{x: 0, y: 0}`, so a tile
+that was never phased and one that was phased back to nothing are the same tile.
+
+Both live beside `mapStateSprites`, which is the write-side twin of
+`stateSpritesOn` and now the only other place that knows where sprites
+structurally hang off a tile. The read side was already careful about that; the
+write side had `clampStateLight` open-coding the same walk.
+
+**Rebuilding a sprite from its frames alone drops it.** `setFrames` in the tile
+editor did exactly that — `setSprite({ frames: next })` — which made every frame
+edit in the dialog, including changing a duration, silently unphase the tile.
+Spread the sprite.
+
+### The water autotile is generated from two masks, not drawn
+
+`bun run generate:water` writes `data/tilesets/water.png` and the `water` tile's
+47 slices together, from:
+
+- `scripts/wave-frames.png` — the fourteen recovered wave frames, white where
+  the wave catches the light. Not in `data/tilesets/` because it is not a
+  tileset: nothing draws it, it is only ever an input.
+- the green autotile block in `data/tilesets/floors.png` — its green pixels are
+  the shape of each of the 47 neighbourhoods.
+
+The slice-to-source-cell map is read off `dirt`, the ground autotile already laid
+out on that sheet, rather than restated. A pond's rim has to tuck into its
+neighbours exactly the way the ground does, and two hand-maintained copies of
+the same 47-entry mapping would drift.
+
+47 slices x 14 frames is 47 rows in the level's animation table and one texture
+either way, so it costs a few hundred texels and **no extra draw call**. Measured
+on the shipped map with the pond in view: 27 world meshes, 58 draw calls.
+
 ### Mobility is a property of the tile, not of the frame
 
 `isMobileTile` (in `app/lib/interactions.ts`) answers "can this ever change
