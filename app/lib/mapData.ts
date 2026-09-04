@@ -368,10 +368,19 @@ export function walkableTileAtElev(
 
 /**
  * The placed tile forming the solid surface at absolute `abs`, or null when
- * nothing surfaces there. The first stack whose top lands on `abs` wins even
- * if it is not walkable — that tile still owns the plane, and callers that
- * care about standing on it check {@link resolveWalkable} themselves.
- * Intangible tops are skipped so pass-through tiles don't block standing.
+ * nothing surfaces there. Non-walkable tops count — that tile still owns the
+ * plane, and callers that care about standing on it check
+ * {@link resolveWalkable} themselves. Intangible tops are skipped so
+ * pass-through tiles don't block standing.
+ *
+ * **The highest level that surfaces at `abs` wins.** A stack exactly
+ * `HEIGHT_PER_LEVEL` tall tops out on the floor plane of the level above, so
+ * two stacks can claim one plane: the tall tile below, and the floor plate of
+ * the level above sitting on it. The plate is what a body's feet are actually
+ * on, and the rest of the codebase already resolves the tie that way — see
+ * `listStandingSurfaces` in `../game/movement`. Answering with the lower stack
+ * read walkability off the buried tile: a `height: 4` non-walkable crystal in a
+ * cave punched an unwalkable hole in the meadow above it.
  */
 export function surfaceTileAt(
   map: MapFile,
@@ -381,7 +390,7 @@ export function surfaceTileAt(
   tilesById: Record<string, TileDef>,
   exclude?: { z: number; stackIndex: number },
 ): PlacedTile | null {
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+  for (let z = MAX_LEVEL; z >= MIN_LEVEL; z--) {
     let stack = getStack(map, x, y, z);
     if (exclude && exclude.z === z) {
       stack = stack.filter((_, i) => i !== exclude.stackIndex);
@@ -422,7 +431,15 @@ export function isWalkableSurfaceAt(
   return def ? resolveWalkable(def) : true;
 }
 
-/** Climb-from source underfoot at absolute standing elevation `fromAbs`. */
+/**
+ * Climb-from source underfoot at absolute standing elevation `fromAbs`.
+ *
+ * Highest level first, for the reason {@link surfaceTileAt} spells out: a stack
+ * topping out on the floor plane of the level above shares that plane with the
+ * plate lying on it, and the plate is the thing underfoot. Reading the flags
+ * off the buried tile restricted which way you could climb out of a cell by
+ * whatever happened to be sealed under its floor.
+ */
 export function climbFromSourceAt(
   map: MapFile,
   x: number,
@@ -431,7 +448,7 @@ export function climbFromSourceAt(
   tilesById: Record<string, TileDef>,
   exclude?: { z: number; stackIndex: number },
 ): { def: TileDef; direction: Direction } | null {
-  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+  for (let z = MAX_LEVEL; z >= MIN_LEVEL; z--) {
     let stack = getStack(map, x, y, z);
     if (exclude && exclude.z === z) {
       stack = stack.filter((_, i) => i !== exclude.stackIndex);

@@ -6,6 +6,8 @@ import {
   getStack,
   listCoords,
   replaceStack,
+  climbFromSourceAt,
+  isWalkableSurfaceAt,
   solidTopOfStack,
   stackHeight,
   surfaceTileAt,
@@ -291,6 +293,76 @@ describe("intangible physical height", () => {
     expect(
       fitsTile(map, 0, 0, 0, tilesById["door-open"]!, tilesById).ok,
     ).toBe(true);
+  });
+});
+
+/**
+ * A stack exactly one level tall tops out on the floor plane of the level
+ * above, so two stacks claim one elevation. Which of them answers is the
+ * difference between a cave roof you can walk on and a hole in the meadow.
+ */
+describe("the floor plane a full-height stack shares with the level above", () => {
+  const tilesById = tilesByIdFromList([
+    tile({ id: "dirt", height: 0 }),
+    tile({ id: "grass", height: 0 }),
+    tile({ id: "half-stone", height: 2 }),
+    tile({ id: "crystal", height: 4, walkable: false }),
+    tile({
+      id: "ramp",
+      height: 2,
+      climbFrom: { default: { n: false, e: false, s: true, w: false } },
+    }),
+  ]);
+
+  /** `below` sealed under `above`, with the seam at abs 0. */
+  function column(below: string[], above: string[]): MapFile {
+    let map = replaceStack(
+      emptyMap(),
+      0,
+      0,
+      -1,
+      below.map((tileId) => ({ tileId })),
+    );
+    if (above.length) {
+      map = replaceStack(
+        map,
+        0,
+        0,
+        0,
+        above.map((tileId) => ({ tileId })),
+      );
+    }
+    return map;
+  }
+
+  it("answers with the floor above, not the full-height tile under it", () => {
+    const map = column(["dirt", "crystal"], ["grass"]);
+    expect(surfaceTileAt(map, 0, 0, 0, tilesById)).toEqual({ tileId: "grass" });
+    expect(isWalkableSurfaceAt(map, 0, 0, 0, tilesById)).toBe(true);
+  });
+
+  it("still lets a full level below be the floor when nothing is above it", () => {
+    const map = column(["half-stone", "half-stone"], []);
+    expect(surfaceTileAt(map, 0, 0, 0, tilesById)).toEqual({
+      tileId: "half-stone",
+    });
+    expect(isWalkableSurfaceAt(map, 0, 0, 0, tilesById)).toBe(true);
+  });
+
+  it("keeps an uncovered full-height non-walkable tile unwalkable", () => {
+    const map = column(["dirt", "crystal"], []);
+    expect(surfaceTileAt(map, 0, 0, 0, tilesById)).toEqual({
+      tileId: "crystal",
+    });
+    expect(isWalkableSurfaceAt(map, 0, 0, 0, tilesById)).toBe(false);
+  });
+
+  it("reads climb-from off the floor above rather than what is sealed under it", () => {
+    const covered = column(["dirt", "half-stone", "ramp"], ["grass"]);
+    expect(climbFromSourceAt(covered, 0, 0, 0, tilesById)?.def.id).toBe("grass");
+
+    const bare = column(["dirt", "half-stone", "ramp"], []);
+    expect(climbFromSourceAt(bare, 0, 0, 0, tilesById)?.def.id).toBe("ramp");
   });
 });
 
