@@ -49612,6 +49612,9 @@
       ],
       "9,-7": [
         {
+          "tileId": "wooden-floor"
+        },
+        {
           "tileId": "ladder-top"
         }
       ],
@@ -104764,6 +104767,9 @@
       ],
       "-18,-27": [
         {
+          "tileId": "wooden-floor"
+        },
+        {
           "tileId": "ladder-top"
         }
       ],
@@ -106204,6 +106210,9 @@
       ],
       "-6,-7": [
         {
+          "tileId": "wooden-floor"
+        },
+        {
           "tileId": "ladder-top"
         }
       ],
@@ -107055,6 +107064,9 @@
       ],
       "6,-31": [
         {
+          "tileId": "wooden-floor"
+        },
+        {
           "tileId": "ladder-top"
         }
       ],
@@ -107550,6 +107562,9 @@
         }
       ],
       "10,-7": [
+        {
+          "tileId": "wooden-floor"
+        },
         {
           "tileId": "ladder-top"
         }
@@ -127975,6 +127990,9 @@
         }
       ],
       "-8,40": [
+        {
+          "tileId": "dirt"
+        },
         {
           "tileId": "ladder-top"
         }
