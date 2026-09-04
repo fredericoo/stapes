@@ -75,7 +75,7 @@ test.describe("editor renderer perf", () => {
 
     expect(
       result.placedQuads,
-      "fixture map should have enough quads to make this a real budget",
+      "the authored map should have enough quads to make this a real budget",
     ).toBeGreaterThan(500);
 
     expect(
