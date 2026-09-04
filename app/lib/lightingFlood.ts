@@ -369,6 +369,28 @@ function collectLevelCellsIn(
  * frames must also read {@link RawLightGrid.animated} — that is the list of
  * emitters this bake goes stale with.
  */
+/**
+ * How much of the world the caller actually holds, when that is not all of it.
+ *
+ * A client is sent the part of the map its view can reach, so its board simply
+ * stops at a boundary — and this flood reads a cell that is not there as open
+ * air. For a whole map that is the only sensible reading: the sky has to get to
+ * the ground somehow. For part of one it invents a wall of daylight along the
+ * edge, which spills inward a level a cell and lights caves that are meant to be
+ * black. What the player sees is light coming from off-screen that goes away as
+ * they walk into it.
+ *
+ * Outside this rect every cell is treated as solid and sealing, which is the
+ * conservative reading of "I do not know": unknown world casts no light and
+ * passes none. Cells the caller *does* hold outside the rect are sealed too —
+ * they are further away than the rect is wide, so nothing on screen is looking
+ * at them.
+ *
+ * Absent means the caller has the whole map, which is what the editor and any
+ * local session have.
+ */
+export type KnownRegion = { x0: number; y0: number; x1: number; y1: number };
+
 export function computeLightingFlood(
   map: MapFile,
   tilesById: Record<string, TileDef>,
@@ -376,6 +398,7 @@ export function computeLightingFlood(
   omitLightTileIds?: ReadonlySet<string>,
   domain?: FloodDomain,
   timeMs = 0,
+  known?: KnownRegion,
 ): RawLightGrid {
   const levels = new Map<number, RawLevelLight>();
 
@@ -526,6 +549,26 @@ export function computeLightingFlood(
   const blockR = new Float32Array(n);
   const blockG = new Float32Array(n);
   const blockB = new Float32Array(n);
+
+  // Solid before anything is read off the map, so what the map does say wins.
+  // An absent cell is open air to this flood, which is right for a whole map —
+  // the sky has to reach the ground — and wrong for part of one, where absent
+  // means *unknown*. See {@link KnownRegion}.
+  if (known) {
+    for (let lz = 0; lz < dom.d; lz++) {
+      for (let ly = 0; ly < dom.h; ly++) {
+        const y = ly + dom.y0;
+        const insideY = y >= known.y0 && y <= known.y1;
+        for (let lx = 0; lx < dom.w; lx++) {
+          const x = lx + dom.x0;
+          if (insideY && x >= known.x0 && x <= known.x1) continue;
+          const i = idx(dom, lx, ly, lz);
+          opacity[i] = 1;
+          seals[i] = 1;
+        }
+      }
+    }
+  }
 
   for (const c of cells) {
     const lx = c.x - dom.x0;

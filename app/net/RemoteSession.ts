@@ -1,3 +1,4 @@
+import { interestAt } from "./interest";
 import {
   DAMAGE_NUMBER_LIFETIME_MS,
   FALL_MS_PER_HEIGHT,
@@ -1748,6 +1749,15 @@ export class RemoteSession implements PlaySession {
 
     return {
       map: this.map,
+      // What this client has been sent, which is not the whole board. Without
+      // it the light bake reads the empty space past the boundary as open sky
+      // and floods the caves with a daylight nobody can see the source of.
+      // Derived rather than told: the rule is shared, so the same cell the
+      // server scoped by is the one this asks about. @see ./interest
+      knownRegion: interestAt(
+        (self ?? this.lastSelf)?.x ?? 0,
+        (self ?? this.lastSelf)?.y ?? 0,
+      ),
       // Before the first hello, or in the gap after a restart, there is nothing
       // to centre on. A placeholder keeps the renderer's contract total rather
       // than making every caller handle a null actor.

@@ -586,6 +586,14 @@ export type ChatBubble = {
 export type GameSnapshot = {
   map: MapFile;
   /**
+   * How much of the map this snapshot's owner holds, when that is not all of it.
+   *
+   * A local session holds the whole board and leaves this absent; a client
+   * scoped to what it can reach sets it, so the light bake stops reading the
+   * empty space past its boundary as open sky. @see `../net/interest`
+   */
+  knownRegion?: { x0: number; y0: number; x1: number; y1: number };
+  /**
    * The viewer's own actor. Camera and roof-cut follow this one and only this
    * one — they are affordances for whoever is looking, not properties of the
    * board.

@@ -2064,6 +2064,7 @@ export class GameRenderer {
       spriteTints: vfx.tints,
       particleEmitters: vfx.emitters,
       roofCut: cut,
+      knownRegion: snap.knownRegion,
     });
 
     this.world.setOverlays(this.overlaysFor(snap));

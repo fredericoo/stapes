@@ -13,6 +13,7 @@
  * a patch cannot silently miss an edit that a reference compare can see.
  */
 import type { ChunkCells, MapFile, TileDef } from "./types";
+import type { KnownRegion } from "./lightingFlood";
 import type { WorldRect } from "./lightingChunks";
 
 /**
@@ -32,7 +33,17 @@ export type BakerRequest =
    * carried rather than read on arrival because the clock will have moved by
    * then, and the caller files the result under the phase it *asked* for.
    */
-  | { type: "bake"; id: number; rect: WorldRect; timeMs: number };
+  | {
+      type: "bake";
+      id: number;
+      rect: WorldRect;
+      timeMs: number;
+      /**
+       * How much of the world the *caller* holds, when that is not all of it.
+       * Absent means the whole map. @see `./lightingFlood`'s `KnownRegion`
+       */
+      known?: KnownRegion;
+    };
 
 /** One chunk's planes, flattened for the wire: `[z, rgba]` per level. */
 export type WirePlanes = Array<[number, Uint8Array]>;

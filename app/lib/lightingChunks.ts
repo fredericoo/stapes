@@ -24,6 +24,7 @@ import type {
 } from "./lighting";
 import { composeAmbientRgb } from "./lighting";
 import { computeLightingFlood, MAX_LIGHT_LEVEL } from "./lightingFlood";
+import type { KnownRegion } from "./lightingFlood";
 import type {
   ChunkCells,
   LevelChunks,
@@ -164,7 +165,11 @@ export type BakedChunk = {
  * bright frame in the slot its dim one is looked up from.
  */
 export type ChunkBaker = {
-  bake(rect: WorldRect, timeMs: number): Promise<Map<string, BakedChunk>>;
+  bake(
+    rect: WorldRect,
+    timeMs: number,
+    known?: KnownRegion,
+  ): Promise<Map<string, BakedChunk>>;
 };
 
 /**
@@ -334,6 +339,7 @@ export function bakeRegion(
   omitLightTileIds: ReadonlySet<string> | undefined,
   rect: WorldRect,
   timeMs: number,
+  known?: KnownRegion,
 ): Map<string, BakedChunk> {
   const padded: WorldRect = {
     x0: rect.x0 - LIGHT_APRON,
@@ -352,6 +358,7 @@ export function bakeRegion(
     omitLightTileIds,
     { ...padded, z0: MIN_LEVEL, z1: MAX_LEVEL },
     timeMs,
+    known,
   );
   const animated = animatedByChunk(grid.animated);
 
@@ -797,6 +804,26 @@ export class ChunkedLighting {
    * why it costs a frame that was otherwise idle instead of the frame where a
    * chunk edge is crossed.
    */
+  /**
+   * How much of the world the caller holds, when that is not all of it.
+   *
+   * Held on the cache rather than passed per bake because every path here bakes
+   * — the cold fill, the ring it warms, the refresh of a stale chunk, and the
+   * worker — and a region that reached three of the four would leak light
+   * through the fourth. @see `./lightingFlood`'s `KnownRegion`
+   *
+   * Changing it does *not* invalidate what is already baked. The boundary moves
+   * a cell at a time as its owner walks, and the cells that cross it arrive as
+   * map edits, which invalidate exactly the chunks that need it. What is left
+   * behind is a chunk lit as though it were still known, which it was, and which
+   * is off screen by the width of the apron.
+   */
+  setKnownRegion(known: KnownRegion | undefined) {
+    this.known = known;
+  }
+
+  private known: KnownRegion | undefined;
+
   gridFor(
     map: MapFile,
     ambient: [number, number, number],
@@ -894,7 +921,7 @@ export class ChunkedLighting {
         const at = this.dirtySeq;
         this.inFlight++;
         void this.baker
-          .bake(rect, timeMs)
+          .bake(rect, timeMs, this.known)
           .then((baked) => this.storeAll(baked, timeMs, at))
           .catch(() => {})
           .finally(() => {
@@ -903,7 +930,7 @@ export class ChunkedLighting {
         continue;
       }
       this.storeAll(
-        bakeRegion(map, this.tilesById, this.omitLightTileIds, rect, timeMs),
+        bakeRegion(map, this.tilesById, this.omitLightTileIds, rect, timeMs, this.known),
         timeMs,
         this.dirtySeq,
       );
@@ -1011,6 +1038,7 @@ export class ChunkedLighting {
       this.omitLightTileIds,
       { x0, y0, x1, y1 },
       timeMs,
+      this.known,
     );
     this.storeAll(baked, timeMs, this.dirtySeq);
     this.lastBakedChunks = baked.size;
@@ -1066,7 +1094,7 @@ export class ChunkedLighting {
     const at = this.dirtySeq;
     this.inFlight++;
     void baker
-      .bake({ x0, y0, x1, y1 }, timeMs)
+      .bake({ x0, y0, x1, y1 }, timeMs, this.known)
       .then((baked) => {
         this.storeAll(baked, timeMs, at);
         this.version++;

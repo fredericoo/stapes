@@ -63,6 +63,7 @@ import {
   WorkerChunkBaker,
 } from "../lib/lightBakerClient";
 import type { FramePhase, FrameProfiler } from "./frameProfile";
+import type { KnownRegion } from "../lib/lightingFlood";
 import { incrementalCellLimit } from "./rebuildBudget";
 import type { ProjectileView } from "./projectileMotion";
 import { GpuLighting } from "./gpuLighting";
@@ -306,6 +307,16 @@ export type WorldView = {
    * into, not a whole storey. Omit to draw everything (editor / preview).
    */
   roofCut?: RoofCut;
+  /**
+   * How much of the world this view's owner holds, when that is not all of it.
+   *
+   * A client scoped to what it can reach has a board that simply stops, and the
+   * light bake reads a cell that is not there as open air — so without this the
+   * boundary seeds daylight that spills inward and lights caves that are meant
+   * to be black. Omit for the editor and for local play, which hold everything.
+   * @see `../lib/lightingFlood`'s `KnownRegion`
+   */
+  knownRegion?: KnownRegion;
   /**
    * The colour each placement is wearing, keyed by {@link TileInstanceKey}.
    *
@@ -1716,6 +1727,7 @@ export class WorldRenderer {
   }
 
   private updateLighting(view: WorldView) {
+    this.lighting.setKnownRegion(view.knownRegion);
     if (view.tilesById !== this.lightingTilesById) {
       const dynamicIds = dynamicLightTileIds(view.tilesById);
       this.lighting = new ChunkedLighting(view.tilesById, dynamicIds);

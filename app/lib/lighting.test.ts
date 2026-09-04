@@ -11,7 +11,7 @@ import {
   sampleLevelLight,
   stackOcclusion,
 } from "./lighting";
-import { MAX_LIGHT_LEVEL } from "./lightingFlood";
+import { MAX_LIGHT_LEVEL, computeLightingFlood } from "./lightingFlood";
 import type { MapFile, TileDef } from "./types";
 import { coordKey, levelKey, normalizeTileDef } from "./types";
 
@@ -623,5 +623,75 @@ describe("daylight through the surface into a room below", () => {
 
   it("a ladder-top in the shaft does not turn it into a lid", () => {
     expect(litBelow(["ladder-top"])).toBeGreaterThan(0.5);
+  });
+});
+
+describe("a caller that holds only part of the map", () => {
+  /**
+   * A roofed corridor running east, with nothing at all beyond its western end
+   * — which is what a client scoped to its own view has: a board that simply
+   * stops, rather than a board with a wall at the edge.
+   */
+  function roofedCorridor(): MapFile {
+    const cells: Array<{ x: number; y: number; z?: number; tiles: string[] }> = [];
+    for (let x = 0; x <= 30; x++) {
+      cells.push({ x, y: 0, z: -1, tiles: ["floor"] });
+      // Walled on both sides and roofed, so the only way in is the open west
+      // end — which is the only thing this is testing.
+      cells.push({ x, y: -1, z: -1, tiles: ["wall"] });
+      cells.push({ x, y: 1, z: -1, tiles: ["wall"] });
+      for (const y of [-1, 0, 1]) cells.push({ x, y, z: 0, tiles: ["floor"] });
+    }
+    return mapAt(cells);
+  }
+
+  /** Sky factor at a cell, 0–255, from the ambient-free bake. */
+  function skyAt(grid: ReturnType<typeof computeLightingFlood>, x: number, y: number, z: number) {
+    const level = grid.levels.get(z);
+    if (!level) return 0;
+    const lx = x - level.x0;
+    const ly = y - level.y0;
+    if (lx < 0 || ly < 0 || lx >= level.w || ly >= level.h) return 0;
+    return level.sky[ly * level.w + lx]!;
+  }
+
+  it("leaks daylight in from the edge of what it holds, told nothing", () => {
+    // Not a bug being pinned as correct — the behaviour this documents is why
+    // `KnownRegion` exists. Absent means open air, so the empty space past the
+    // corridor's end is a shaft of sky, and it spills along the corridor.
+    const grid = computeLightingFlood(roofedCorridor(), tilesById);
+    // Open to the west only because the map stops there, and the flood cannot
+    // tell "nothing here" from "nothing in the way".
+    expect(skyAt(grid, 0, 0, -1)).toBeGreaterThan(0);
+  });
+
+  it("reads unknown as solid when told where its map stops", () => {
+    const grid = computeLightingFlood(
+      roofedCorridor(),
+      tilesById,
+      undefined,
+      undefined,
+      undefined,
+      0,
+      { x0: 0, y0: -20, x1: 30, y1: 20 },
+    );
+    // Every cell of the corridor is under its own roof and beside nothing that
+    // is open to the sky, so all of it is dark.
+    for (let x = 0; x <= 30; x++) {
+      expect(skyAt(grid, x, 0, -1), `daylight reached ${x},0`).toBe(0);
+    }
+  });
+
+  it("still lets the sky reach what is inside the region", () => {
+    // The region says "past here I know nothing", not "past here is night".
+    // An open cell inside it is lit exactly as it was.
+    const open = mapAt([{ x: 0, y: 0, z: -1, tiles: ["floor"] }]);
+    const grid = computeLightingFlood(open, tilesById, undefined, undefined, undefined, 0, {
+      x0: -20,
+      y0: -20,
+      x1: 20,
+      y1: 20,
+    });
+    expect(skyAt(grid, 0, 0, -1)).toBeGreaterThan(0);
   });
 });

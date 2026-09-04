@@ -53,7 +53,7 @@ self.onmessage = (event: MessageEvent<BakerRequest>) => {
   }
 
   try {
-    const baked = bakeRegion(map, tilesById, omit, msg.rect, msg.timeMs);
+    const baked = bakeRegion(map, tilesById, omit, msg.rect, msg.timeMs, msg.known);
     const chunks: Array<[string, WireChunk]> = [];
     // Every plane is freshly allocated by the bake and read by nobody here, so
     // they go across by transfer rather than by copy — the buffers are simply

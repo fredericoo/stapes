@@ -6,6 +6,7 @@
  * nothing and everything bakes inline exactly as it always did.
  */
 import type { BakedChunk, ChunkBaker, WorldRect } from "./lightingChunks";
+import type { KnownRegion } from "./lightingFlood";
 import {
   type BakerRequest,
   type BakerResponse,
@@ -70,12 +71,12 @@ export class WorkerChunkBaker implements ChunkBaker {
     if (patch) this.post({ type: "patch", patch });
   }
 
-  bake(rect: WorldRect, timeMs: number): Promise<Map<string, BakedChunk>> {
+  bake(rect: WorldRect, timeMs: number, known?: KnownRegion): Promise<Map<string, BakedChunk>> {
     if (this.disposed) return Promise.reject(new Error("baker disposed"));
     const id = this.nextId++;
     return new Promise((resolve, reject) => {
       this.pending.set(id, { resolve, reject });
-      this.post({ type: "bake", id, rect, timeMs });
+      this.post({ type: "bake", id, rect, timeMs, known });
     });
   }
 
