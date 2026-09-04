@@ -73,6 +73,11 @@ const tiles: TileDef[] = [
     walkable: false,
     variants: { n: [frame], e: [frame], s: [frame], w: [frame] },
   }),
+  // The hole: a floor tile you can see and cannot stand on.
+  tile({ id: "hole-floor", height: 0, intangible: true }),
+  // A ladder shaft's worth of intangible with real authored height — the thing
+  // that used to fill a level and read as a floor.
+  tile({ id: "shaft", height: 4, intangible: true }),
   // A full-height crate that can be shoved: the support to pull out.
   tile({
     id: "crate",
@@ -131,6 +136,68 @@ describe("settling loose gravity", () => {
 
     expect(changed).toEqual([]);
     expect(ids(getStack(map, 0, 0, 1))).toEqual(["box"]);
+  });
+});
+
+/**
+ * Intangible tiles have no volume, so nothing rests on one. Everything here is
+ * one rule seen from three sides: a hole you can see through is a hole you fall
+ * through, and a floor that holds you up has to be a solid tile you then put
+ * the ladder, the water or the hole art on top of.
+ */
+describe("intangible tiles are not a floor", () => {
+  it("drops a body lying on an intangible floor tile", () => {
+    let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }]);
+    map = replaceStack(map, 0, 0, 1, [{ tileId: "hole-floor" }, { tileId: "box" }]);
+
+    const { map: next } = settleGravity(map, findLooseGravityCells(map, byId), byId);
+
+    expect(ids(getStack(next, 0, 0, 1))).toEqual(["hole-floor"]);
+    expect(ids(getStack(next, 0, 0, 0))).toEqual(["grass", "box"]);
+  });
+
+  it("falls past a level filled by nothing but intangibles", () => {
+    // `shaft` is four units tall and authored to be walked through, so the
+    // level it sits in is full by sprite and empty by physics.
+    let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }]);
+    map = replaceStack(map, 0, 0, 1, [{ tileId: "shaft" }]);
+    map = replaceStack(map, 0, 0, 2, [{ tileId: "box" }]);
+
+    const { map: next } = settleGravity(map, findLooseGravityCells(map, byId), byId);
+
+    expect(getStack(next, 0, 0, 2)).toHaveLength(0);
+    expect(ids(getStack(next, 0, 0, 0))).toEqual(["grass", "box"]);
+  });
+
+  it("still rests on the solid tile under the intangible one", () => {
+    let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }]);
+    map = replaceStack(map, 0, 0, 1, [
+      { tileId: "pillar" },
+      { tileId: "shaft" },
+      { tileId: "box" },
+    ]);
+
+    const { changed } = settleGravity(map, findLooseGravityCells(map, byId), byId);
+
+    expect(changed).toEqual([]);
+  });
+
+  it("walks a player into a hole and drops them through it", () => {
+    let map = replaceStack(emptyMap(), 0, 0, 0, [{ tileId: "grass" }]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }]);
+    map = replaceStack(map, 0, 0, 1, [
+      { tileId: "pillar" },
+      { tileId: "player", direction: "e" },
+    ]);
+    map = replaceStack(map, 1, 0, 1, [{ tileId: "hole-floor" }]);
+
+    const session = new GameSession(map, tiles);
+    const player = session.actorIds()[0]!;
+    expect(session.requestStep(player, "e")).toBe("started");
+    for (let i = 0; i < 60; i++) session.tick(TICK_MS);
+
+    expect(ids(getStack(session.getMap(), 1, 0, 1))).toEqual(["hole-floor"]);
+    expect(ids(getStack(session.getMap(), 1, 0, 0))).toEqual(["grass", "player"]);
   });
 });
 

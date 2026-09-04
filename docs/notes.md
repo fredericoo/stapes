@@ -696,6 +696,28 @@ rather than as numbers. They were numbers, and every one of them would have
 silently halved the thing it measures. If you subdivide a level again, the test
 of whether you have finished is that none of these needed touching.
 
+**An intangible tile holds nothing up, and that is the whole of intangibility.**
+`physicalHeight` has always read one as 0, so it adds no elevation, but "adds no
+elevation" and "is not something to stand on" were two separate facts and only
+the first was written down in one place. `solidTopOfStack` knew the second;
+`isSupported` and `findLandingAbs` did not, and each had its own `isPlayerBody`
+guard that let anything else in the stack count. So a ladder top with nothing
+underneath held up whoever climbed onto it, an item lay on an intangible floor
+tile instead of dropping through it, and a level filled by a four-unit
+intangible read as a landing at its own base. All three are now one predicate —
+`../app/lib/mapData`'s `isSolidPlacement`, which the surface search, the support
+check and the landing search share. **Every new question about what holds a body
+up goes through it**, or it will grow a fourth guard that forgets.
+
+The consequence is an authoring rule, and it is the useful half: **art that you
+walk through is never a floor**. A ladder top, a doorway, a patch of water, a
+hole you can see down — all of them are scenery hanging in a cell, and if you
+want somebody to stand there you put a solid tile in the stack first and the
+intangible one on top of it. That is what makes an intangible floor tile
+readable as a hole rather than as a floor with a picture of a hole on it, and
+`data/map.json`'s ladder tops each grew a `wooden-floor` under them when this
+landed.
+
 **Things sharing one space sort by stack order, not by geometry**
 (`../app/render/depthClump`). This is the one thing that broke on the way here,
 and the fix is worth understanding because the rule is more general than the

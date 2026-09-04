@@ -3,7 +3,7 @@ import {
   absoluteWalkableElevation,
   appendTile,
   getStack,
-  isPlayerBody,
+  isSolidPlacement,
   listCoords,
   replaceStack,
   stackHeight,
@@ -17,7 +17,7 @@ import { sceneryStack, standingAbs } from "./movement";
 
 /**
  * True when the entity has solid underfoot:
- * - another tile below it on the same stack, or
+ * - a solid tile below it on the same stack, or
  * - the level below is full (≥ HEIGHT_PER_LEVEL), forming a floor.
  */
 export function isSupported(
@@ -28,12 +28,12 @@ export function isSupported(
   stackIndex: number,
   tilesById: Record<string, TileDef>,
 ): boolean {
-  // Anything below in the stack holds this up, except a person: two players in
-  // one cell stand on the same floor rather than on each other, so a body under
-  // your feet is not a reason to stop falling. @see ../lib/mapData isPlayerBody
+  // Anything *solid* below in the stack holds this up. Neither of the two
+  // things that are not — a person, and an intangible tile — is a reason to
+  // stop falling. @see ../lib/mapData isSolidPlacement
   const stack = getStack(map, x, y, z);
   for (let i = 0; i < stackIndex; i++) {
-    if (!isPlayerBody(stack[i]!)) return true;
+    if (isSolidPlacement(stack[i]!, tilesById)) return true;
   }
 
   if (z > MIN_LEVEL) {
@@ -66,7 +66,10 @@ export function findLandingAbs(
       stack = sceneryStack(map, x, y, z, exclude.stackIndex);
     }
 
-    if (stack.some((placed) => !isPlayerBody(placed))) {
+    // A stack of nothing but intangibles is open air with art in it, and its
+    // "top" is the bare level base — landing on that is how a body came to
+    // hover in a ladder shaft with no floor under it.
+    if (stack.some((placed) => isSolidPlacement(placed, tilesById))) {
       const top = absoluteStandingElevation(z, stack, tilesById);
       if (top < feetAbs) {
         best = best == null ? top : Math.max(best, top);
@@ -186,6 +189,29 @@ export type GravityResult = {
 };
 
 /**
+ * Lowest loose gravity body in this cell that nothing solid is holding up, or
+ * null when every one of them is resting on something.
+ *
+ * Almost always index 0 — anything sitting on a *solid* tile is supported by
+ * definition. The exception is what this whole file exists to get right: a
+ * stack of intangibles is open air with art in it, so an item lying in an
+ * intangible floor hole is at index 1 and falling.
+ */
+function unsupportedGravityIndex(
+  map: MapFile,
+  cell: Coord,
+  tilesById: Record<string, TileDef>,
+): number | null {
+  const stack = getStack(map, cell.x, cell.y, cell.z);
+  for (let i = 0; i < stack.length; i++) {
+    if (!isLooseGravityBody(stack[i], tilesById)) continue;
+    if (isSupported(map, cell.x, cell.y, cell.z, i, tilesById)) continue;
+    return i;
+  }
+  return null;
+}
+
+/**
  * Drop every unsupported gravity body in `cells` onto whatever is beneath it.
  *
  * The counterpart to an actor's animated fall, for bodies with no runtime to
@@ -194,11 +220,9 @@ export type GravityResult = {
  * broken switch. Run before plates settle, so a body that drops onto a plate
  * presses it the same tick.
  *
- * A body only ever falls from the base of its level — anything sitting on top of
- * something is supported by definition — so a single drop takes it straight to
- * its landing rather than one height unit at a time. A stack of them collapses
- * over successive settles, on the same next-tick convergence plates settle
- * under.
+ * One body per cell per pass, and a single drop takes it straight to its
+ * landing rather than one height unit at a time. A stack of them collapses over
+ * successive settles, on the same next-tick convergence plates settle under.
  */
 export function settleGravity(
   map: MapFile,
@@ -209,14 +233,21 @@ export function settleGravity(
   let next = map;
 
   for (const cell of cells) {
-    const placed = getStack(next, cell.x, cell.y, cell.z)[0];
-    if (!isLooseGravityBody(placed, tilesById)) continue;
-    if (isSupported(next, cell.x, cell.y, cell.z, 0, tilesById)) continue;
+    const stackIndex = unsupportedGravityIndex(next, cell, tilesById);
+    if (stackIndex == null) continue;
+    const placed = getStack(next, cell.x, cell.y, cell.z)[stackIndex];
 
-    const feetAbs = standingAbs(next, cell.x, cell.y, cell.z, 0, tilesById);
+    const feetAbs = standingAbs(
+      next,
+      cell.x,
+      cell.y,
+      cell.z,
+      stackIndex,
+      tilesById,
+    );
     const landing = findLandingAbs(next, cell.x, cell.y, feetAbs, tilesById, {
       z: cell.z,
-      stackIndex: 0,
+      stackIndex,
     });
     // Nothing underneath, or nothing lower than it already stands: an object
     // over the void has nowhere to fall, exactly as it does for an actor.
@@ -224,7 +255,7 @@ export function settleGravity(
 
     const body = { ...placed! };
     const { z: destZ } = cellForFeetAbs(landing);
-    next = removeEntity(next, cell.x, cell.y, cell.z, 0);
+    next = removeEntity(next, cell.x, cell.y, cell.z, stackIndex);
 
     const destStack = getStack(next, cell.x, cell.y, destZ);
     // A pile falling onto a pile of the same thing joins it, before either
