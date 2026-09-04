@@ -169,6 +169,50 @@ const stepCommitted: CellPatch[] = [
   { x: 1, y: 0, z: 0, stack: [grass, player] },
 ];
 
+describe("RemoteSession afflicted placements", () => {
+  const alight = {
+    x: 1,
+    y: 0,
+    z: 0,
+    tileId: "grass",
+    defIds: ["burned"],
+  };
+
+  it("starts with nothing alight", () => {
+    const { session } = connected();
+    expect(session.getSnapshot().afflicted).toEqual([]);
+  });
+
+  it("takes the whole set when one arrives", () => {
+    const { socket, session } = connected();
+    socket.deliver({ ...patch([]), afflicted: [alight] });
+
+    expect(session.getSnapshot().afflicted).toEqual([alight]);
+  });
+
+  /**
+   * The rule the field lives or dies by. A patch without it means "unchanged",
+   * not "empty" — it is left off on every tick the set did not move, which is
+   * almost all of them, so reading absent as empty would put every fire on the
+   * board out one tick after it was lit.
+   */
+  it("keeps what it has when a later patch does not mention it", () => {
+    const { socket, session } = connected();
+    socket.deliver({ ...patch([]), afflicted: [alight] });
+    socket.deliver(patch([]));
+
+    expect(session.getSnapshot().afflicted).toEqual([alight]);
+  });
+
+  it("puts the fire out when an empty set is actually sent", () => {
+    const { socket, session } = connected();
+    socket.deliver({ ...patch([]), afflicted: [alight] });
+    socket.deliver({ ...patch([]), afflicted: [] });
+
+    expect(session.getSnapshot().afflicted).toEqual([]);
+  });
+});
+
 describe("RemoteSession walk interpolation", () => {
   it("holds the sprite at the destination until the patch commits the step", () => {
     const { socket, session } = connected();
