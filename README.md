@@ -20,6 +20,14 @@ a world in the way.
   server, on ports it asks the OS for so several worktrees can run together.
   Prints both URLs; open the client one
 - `bun run generate` — regenerate placeholder tileset + seed JSON in `data/`
+- `bun run carve:caves` — carve a multi-floor cave system into `data/map.json`,
+  then walk every cell of it with the game's own movement rules. What to carve
+  is the `SYSTEM` block at the top of the script; `--verify` checks the map as
+  it stands without touching it
+- `bun run bench:server` — tick the world headless against `data/map.json`
+  with players standing in a few scenarios, and print what a tick costs and
+  how many bytes it puts on the wire. `--scenario <name>` for one,
+  `--seconds <n>` for a shorter run
 - `bun run seed` — load `data/` into a database that already has content. Rarely
   needed: a fresh one seeds itself on boot
 - `bun run typecheck` — route typegen, then all three tsconfigs

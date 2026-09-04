@@ -1,11 +1,12 @@
-import { getStack } from "./mapData";
+import { chunkKeyAt, chunkKeyFor, getChunk, getStack } from "./mapData";
 import {
   type CellOcclusion,
   rayTransmission,
   stackOcclusion,
 } from "./lighting";
-import type { MapFile, TileDef } from "./types";
+import type { ChunkCells, LevelChunks, MapFile, TileDef } from "./types";
 import {
+  CHUNK_SIZE,
   HEIGHT_PER_LEVEL,
   MAX_LEVEL,
   MIN_LEVEL,
@@ -156,8 +157,23 @@ function hideRayClear(
  * continuous ground, moving as you walk. Hiding all of it is what this did
  * before per-structure cuts existed, so the worst case is the old behaviour and
  * not a new artefact.
+ *
+ * **The number is measured, and it is a budget rather than a limit.** Sampling
+ * 2,947 anchors across every level of `data/map.json`: the largest structure
+ * cut anywhere on the shipped map is 392 cells, p95 is 280, and *every* anchor
+ * underground refuses. So the cap is never what decides a real building's cut —
+ * it only decides how much work is spent discovering that a cave ceiling is not
+ * a building, and underground that is every anchor, every time the cut is
+ * re-derived.
+ *
+ * It was 4096, ten times the largest structure the world contains, and it cost
+ * 16-24ms per cut in the caves — the most expensive single thing on a frame
+ * down there. At 1024 there is still 2.6x headroom over anything authored, and
+ * the same sample comes back with every cut identical. If a building ever
+ * genuinely wants more, the symptom is its roof cutting as a whole storey
+ * rather than as itself: visible, specific, and a good reason to raise this.
  */
-export const MAX_CUT_CELLS = 4096;
+export const MAX_CUT_CELLS = 1024;
 
 /**
  * The geometry the view has cut away, and the level it was cut for.
@@ -278,6 +294,36 @@ function fillStructure(
 
   for (const seed of seeds) claim(seed.x, seed.y, seed.z);
 
+  // **The occupancy test is the whole cost of this function**, so it does not
+  // go through `getStack`. That builds three keys per probe — the level, the
+  // chunk and the cell — and this asks about twenty-six neighbours per cell,
+  // for up to {@link MAX_CUT_CELLS} of them: underground, where the structure
+  // over your head is the entire rock mass and the fill always runs to the cap,
+  // that measured 10.7ms of every frame. Neighbours are adjacent by
+  // construction, so nearly all of them share a chunk with the one before —
+  // holding the last level and chunk record makes the common probe a single
+  // object lookup.
+  let lastZ = Number.NaN;
+  let lastLevel: LevelChunks | undefined;
+  let lastChunkKey = "";
+  let lastChunk: ChunkCells | undefined;
+  const occupied = (x: number, y: number, z: number): boolean => {
+    if (z !== lastZ) {
+      lastZ = z;
+      lastLevel = map.levels[levelKey(z)];
+      lastChunkKey = "";
+      lastChunk = undefined;
+    }
+    if (lastLevel === undefined) return false;
+    const chunkKey = chunkKeyFor(x, y);
+    if (chunkKey !== lastChunkKey) {
+      lastChunkKey = chunkKey;
+      lastChunk = lastLevel[chunkKey];
+    }
+    const stack = lastChunk?.[coordKey(x, y)];
+    return stack !== undefined && stack.length > 0;
+  };
+
   // Index rather than shift: a shift off the front of a several-hundred entry
   // array is a copy of the rest of it, once per cell.
   for (let head = 0; head < queue.length; head++) {
@@ -291,7 +337,7 @@ function fillStructure(
           if (dx === 0 && dy === 0 && dz === 0) continue;
           const x = cell.x + dx;
           const y = cell.y + dy;
-          if (getStack(map, x, y, z).length === 0) continue;
+          if (!occupied(x, y, z)) continue;
           if (!claim(x, y, z)) continue;
           queue.push({ x, y, z });
         }
@@ -337,3 +383,57 @@ export function roofCutFor(
   if (seeds.length === 0) return undefined;
   return { floor: view.z, cells: fillStructure(map, view.z, seeds) };
 }
+
+/**
+ * The chunk records the *probe* can read, as references to compare by identity.
+ *
+ * A cut is a local question — what stands between this body and the sky, within
+ * {@link VIEW_RADIUS} — and this is the map it asks. Handing a caller these
+ * lets it skip re-deriving a cut that cannot have changed, which matters
+ * because the obvious cheaper test is wrong in the expensive direction: keying
+ * on whole-map identity means a creature stepping anywhere in the world
+ * re-runs the probe, and with a couple of hundred of them that is every frame.
+ *
+ * **What it deliberately does not cover is the fill.** `fillStructure` walks
+ * the whole structure the seeds belong to, which can run far past the probe, so
+ * a roof cell added at the other end of a building is not noticed here until
+ * the body moves. That is invisible: cells that far away are not on screen. The
+ * one case it could show is a structure sitting exactly on
+ * {@link MAX_CUT_CELLS}, where one cell either way flips the cut between a set
+ * and the whole storey — and a structure that large is already being cut
+ * wholesale in practice.
+ */
+export function cutProbeChunks(
+  map: MapFile,
+  view: ViewAnchor,
+  radius = VIEW_RADIUS,
+): unknown[] {
+  const span = Math.ceil(radius);
+  const out: unknown[] = [];
+  const cx0 = Math.floor((view.x - span) / CHUNK_SIZE);
+  const cx1 = Math.floor((view.x + span) / CHUNK_SIZE);
+  const cy0 = Math.floor((view.y - span) / CHUNK_SIZE);
+  const cy1 = Math.floor((view.y + span) / CHUNK_SIZE);
+  // Every level, not only those above the body: the occlusion the probe walks
+  // is built from the body's own storey as well as the ones over it.
+  for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+    for (let cx = cx0; cx <= cx1; cx++) {
+      for (let cy = cy0; cy <= cy1; cy++) {
+        out.push(getChunk(map, z, chunkKeyAt(cx, cy)));
+      }
+    }
+  }
+  return out;
+}
+
+/** Do two probe reads name the same chunk records? */
+export function sameProbeChunks(
+  a: readonly unknown[] | undefined,
+  b: readonly unknown[],
+): boolean {
+  if (a === undefined || a.length !== b.length) return false;
+  for (let i = 0; i < b.length; i++) if (a[i] !== b[i]) return false;
+  return true;
+}
+
+

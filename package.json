@@ -11,6 +11,8 @@
     "generate": "bun scripts/generate-tilesets.ts",
     "generate:complement": "bun scripts/generate-autotile-complement.ts",
     "generate:townsfolk": "bun scripts/generate-townsfolk.ts",
+    "carve:caves": "bun scripts/carve-caves.ts",
+    "bench:server": "bun scripts/bench-server.ts",
     "test": "bun run test:unit && bun run test:server && bun run test:perf",
     "test:unit": "vitest run",
     "test:server": "bun test server/",

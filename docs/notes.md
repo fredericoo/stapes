@@ -792,6 +792,73 @@ And a non-walkable one is not a hole any more, but it is also not a floor: cover
 it and the cover answers, leave it bare and it answers itself, correctly, as
 something you cannot stand on.
 
+### A ramp between two levels needs a hole above it
+
+`ramp` and `stone-stairs` are two units tall, and two units is exactly
+`MAX_CLIMB_HEIGHT` — half a level. That is what lets one of them join two levels
+at all: a body climbs a whole level in two ordinary steps, floor → ramp → the
+floor above, and neither step is a fall or a special case.
+
+**The cell directly over the ramp has to be empty.** A body standing on the ramp
+has its feet two units up and its head a unit *into* the level above, so a floor
+plate up there is a ceiling and `fitsHeightAtElevation` refuses to put anybody on
+the slope — the ramp becomes scenery you cannot stand on, with no error anywhere
+to say so. So a ramp from level *z* to *z+1* is three cells, not one:
+
+```
+(x, y,   z  )  [dirt, ramp]      facing the way you came from
+(x, y,   z+1)  empty             the hole, and the way in from above
+(x±1, y, z+1)  [dirt]            what you climb out onto
+```
+
+That empty cell is not a defect to be tidied up later. It is the top of the
+slope: from the floor above you step into it, land on the ramp two units down —
+an ordinary walk, not a drop — and carry on down. The animal den's mouth is the
+same three cells with the surface as its upper level, which is why walking off
+the road into it feels like walking into a cave rather than like using a door.
+
+**The facing is the opposite of the way you climb.** `climbFrom` on both tiles
+reads "from a ramp facing *n*, you may climb north-**wards**… no": variant `n`
+permits travel `s`. So a ramp you ascend heading north is placed facing south.
+Get it backwards and the ramp is walkable, reachable, and refuses to go up.
+`scripts/carve-caves.ts` derives it (`RAMP_FACING`) rather than typing it, and
+then proves every ramp it placed by asking `canWalk` to climb one.
+
+## A roof over a cave is not what keeps the daylight out of it
+
+Anything underground that is meant to be dark has to be *checked* dark, against
+the baker, at noon. Walling it in does not do it, and every one of the reasons
+is invisible from the cell that ends up lit.
+
+`isSkyExposed` answers a narrower question than it looks like it does: whether
+the shaft straight up is sealed. The flood that follows spreads light sideways
+*and vertically* between levels, so a cave is lit by geometry a dozen cells away
+and three levels up with nothing wrong overhead. Three ways in, all found by
+lighting one:
+
+- **Past the edge of the map.** Outside the surface's own footprint there is no
+  content to occlude anything, so the bake's domain margin is open air at every
+  depth, seeded at full sky. It spills `MAX_LIGHT_LEVEL` cells inward, which is
+  why `carve-caves.ts` keeps that far back from the edge rather than walling
+  against it.
+- **Any empty column.** A column with nothing in it takes the shaft all the way
+  down, and the flood then walks out of its foot into whatever it touches. A
+  wall beside a cave does nothing about a gap *over* the cave: the light goes
+  round. The fix is a lid — rock in those columns at the topmost cave level,
+  which is enough for every level under it, because the shaft stops at the first
+  full block and there is then no lit cell underground to spread from.
+- **A floor with something standing on it.** A bare floor hard-seals the
+  vertical flood edge; the same floor with a bush, a sign or a fence on it is
+  half opaque, which disqualifies it, and daylight comes through the ground at
+  half strength. Most of the map's surface has something on it. This one is a
+  bug rather than a rule — the seal is a property of the floor and the opacity
+  is a property of the thing standing on it — and until it is fixed, a cave
+  simply does not run under those cells.
+
+The check that catches all three is the last thing `scripts/carve-caves.ts`
+does: bake the map it just wrote and assert no carved cell has any sky in it
+away from the mouth. Everything above was found by that assertion failing.
+
 ## A chase is a route, and it stops being one
 
 `step_toward` used to judge one step on its own: of the four directions, take
@@ -845,6 +912,109 @@ kept route was still true would cost about what recomputing it does.
 no destination to route to; "away" is a direction rather than a place, so the
 question a fleeing animal asks really is the local one. Inventing a goal cell to
 run at would be the pathfinder deciding where something wants to hide.
+
+## A creature thinks every round only while somebody could notice it
+
+`GameSession.tickBrains` used to give every resident brain a turn every round,
+which made a round's cost a function of how many creatures the map holds. The
+animal den made that 182 brains, ~13ms every 200ms on a laptop, and the wire
+followed: every one of them wandering is ~40 changed cells a tick, 110 KB/s
+to every socket, wherever the one player was standing. The same map ten times
+over would have been ten times that, for the same one player.
+
+A round is now split in two, and the split is where the cost goes:
+
+- **Attentive** creatures think every round, exactly as before. A creature is
+  attentive while a player is within the furthest distance its *own* brain
+  ever asks about — `brainReach`, the largest `cells` on any condition in any
+  of its transitions — or within a screen (`BRAIN_ATTENTION_FLOOR_CELLS`),
+  whichever is further, on any level. A wolf reaches 22 (it investigates a
+  sound at 22), a troll 30, a deer with no distance in its brain gets the
+  floor. The reach is read off the authored conditions, so longer ears are a
+  longer reach in the same edit. It is also why there is no separate
+  "engaged" flag: every authored chase gives up at some `out_of_range`, and a
+  creature still chasing is by construction inside its own reach of the
+  person it is chasing. Being hit counts too — a blow is delivered by the next
+  round, and dozing through it would drop it rather than delay it.
+- **Dozing** creatures — everybody else — share `BRAIN_DOZE_BUDGET` turns a
+  round, round-robin. That budget is the only term in a round the *map*
+  contributes; the rest is players. What a dozing creature gets is a turn
+  every `dozing / budget` rounds: about every seventh with today's
+  population, every seventieth at ten times it. The rounds it is passed over
+  are banked as `brainDeferredMs` and handed to the brain with its next turn,
+  so a `wait` ends when it should, an `after` fires on time, and only its
+  walking is slow.
+
+Measured with `bun run bench:server` on the den map, one player standing in
+town: brain round 13.6ms → 3.4ms p95, 42 → 19 changed cells a tick, 112 →
+50 KB/s raw — and the 50 that is left is the budget's, not the map's.
+
+The seams worth knowing:
+
+- Distance is a square on the plan, ignoring level. A superset of every
+  distance a condition reckons in, and a rat three floors under the street is
+  attentive to somebody walking over it. That costs a turn; the other error
+  would cost a creature its chance to notice somebody.
+- `turnsOver` in `brain.test.ts` counts *noises*, not steps: a creature's
+  step can be blocked by another creature's, and a noise cannot. Each of
+  those tests was checked red by breaking the rule it pins — dropping the
+  banked time, making everybody attentive, ignoring the reach.
+- A round used to be one loop and one clock. It is still one clock: nothing
+  here changes `BRAIN_TICK_MS` or the accumulator, and a test that advances
+  one `BRAIN_TICK_MS` still sees every attentive creature decide.
+## A joiner is sent the chunks its view can reach
+
+The per-tick patch stream is bounded by how much the world changes, and since
+brains only think when somebody could notice them that is bounded by the
+players. The **join** was not: a client was sent the whole map, which on the
+den map is 4.9MB of JSON, and that number grows with the world for ever.
+
+A client is now sent the chunks within `INTEREST_REACH_CELLS` of its body, on
+every level, and the chunks that come into reach as it walks arrive a couple
+per tick, nearest first (`app/net/interest.ts`).
+
+**The reach is derived, not chosen, and that is the whole of why this is
+safe.** A cell a client has not been sent is a cell its own sky flood reads as
+open air, so a subscription narrower than what the client's light bake reads
+seeds daylight at its own boundary — a cave with a lit edge that moves as you
+walk. The terms are all somebody else's constants:
+
+```
+half the view + the level span + LIGHT_WINDOW_MARGIN + LIGHT_CHUNK_SIZE + LIGHT_APRON
+```
+
+so widening any of them widens this in the same edit. The prefetch ring is
+deliberately absent: a light chunk baked before its map arrives is a cache
+entry, and the cells arriving is an edit that invalidates it, so it costs a
+rebake rather than a wrong picture. The alternative — a small subscription plus
+telling the bake to read absence as *solid* — trades the leak for the opposite
+error, an outdoor cell shadowed by a wall that is not there.
+
+**Three things are deliberately not scoped**, and each is a bug that a previous
+attempt at this shipped:
+
+- **The per-tick patch is still one broadcast to everybody.** What changes on a
+  tick is where creatures are walking, which is bounded by the brain budget
+  rather than by the map, so scoping it would spend the one serialization the
+  protocol has and buy nothing.
+- **Nothing about an actor is scoped** — hit points, statuses, carried lights,
+  motion. They are small, they are about bodies rather than about ground, and a
+  client that stopped hearing them would have a creature walk back into view
+  with no health bar and nothing able to hit it.
+- **Because of those two, no body can ever go missing.** Every client hears
+  every cell that changes, so a creature outside somebody's subscription is
+  still on their board — its surrounding terrain is what they lack, not the
+  creature. That is what keeps `locateActor` off the whole-board sweep that
+  turned a 116ms frame into 108ms of searching last time.
+
+**What it is worth today is almost nothing, and that is expected.** The reach
+is 79 cells, five chunks, a square 176 cells across; `data/map.json` is 118 by
+142. Measured over the map, a client holds 84% of it on average and 49% at
+best. The value is the shape rather than the number: the subscription is a
+function of where the body is, so at ten times the map it is still about 37,000
+cells while the world is 440,000. If it ever needs to be *smaller* than this,
+the lever is the light cache — `LIGHT_CHUNK_SIZE` and `LIGHT_APRON` are 47 of
+the 79 — and not the subscription, which is only as wide as what it must cover.
 
 ## The wire is patches plus motion events
 
@@ -960,6 +1130,42 @@ level. That is the only version that works once one roof can lift while its
 neighbour stays: a body under the roof that is *still drawn* has to stay
 anonymous even though a roof at its level lifted a street away, and a level
 threshold cannot tell the two roofs apart.
+
+#### A cut is a local question, and underground it is the most expensive one
+
+The cut was the single most expensive thing on a frame in the caves — 27–33ms,
+more than the map, the light and the draw together — and none of it was
+visible. Three separate reasons, each worth knowing on its own:
+
+- **It was cached on whole-map identity.** Map identity changes when any cell
+  anywhere does, and a world with a couple of hundred creatures in it changes
+  on almost every tick, so the cache missed on almost every frame. A cut is a
+  local question — what stands between this body and the sky within
+  `VIEW_RADIUS` — so it is now keyed on the chunk records the *probe* reads
+  (`cutProbeChunks`). A rat stepping on the far side of the world no longer
+  re-runs it. What that deliberately does not cover is the fill, which can run
+  far past the probe: a roof cell added at the other end of a building is not
+  noticed until the body moves, and cells that far away are not on screen.
+- **The fill rebuilt three keys per neighbour probe.** Twenty-six neighbours per
+  cell, up to `MAX_CUT_CELLS` cells, each asking `getStack` for a level key, a
+  chunk key and a cell key. Neighbours are adjacent by construction, so holding
+  the last level and chunk record makes the common probe one object lookup.
+- **`MAX_CUT_CELLS` was ten times larger than anything the world contains.**
+  Sampling 2,947 anchors across every level of `data/map.json`: the largest
+  structure cut anywhere is 392 cells, p95 is 280, and *every* anchor
+  underground refuses and falls back to the whole storey. So the cap never
+  decides a real building's cut — it only decides how long the fill spends
+  finding out that a cave ceiling is not a building. At 1024 there is 2.6x
+  headroom over anything authored and the same sample returns every cut
+  identical.
+
+Together: 27–33ms to 1.9–2.9ms per cut, and computed once per step rather than
+once per frame.
+
+**The lesson that generalises is the first one.** Anything cached on `map`
+identity in a world with a crowd in it is cached on nothing at all. Ask what
+region the computation reads and key on that.
+
 
 ## Fighting is stats on a tile, and nothing else
 
@@ -3289,6 +3495,63 @@ if (current.direction === direction) return map;
 
 Any new mutation helper needs the same no-op guard.
 
+### Geometry is per (level, chunk), and only where the camera can reach
+
+The renderer used to build every cell of every level the moment it had a map,
+and rebuild a whole level whenever one of its chunks changed. Both costs are
+the world's rather than the player's, and the den is what made that
+unaffordable: 44,160 cells meshed for somebody who can see 23 across, and an
+edit rebuilding 11,334 cells of cave floor.
+
+What exists as geometry is now the chunks a window over the camera reaches
+(`app/render/meshWindow.ts`). Three things follow, and each is load-bearing:
+
+- **The unit is the chunk because copy-on-write already gives it identity.** A
+  chunk that scrolled off is a group to dispose; a chunk that changed is a
+  reference compare (`getChunk(prev, …) === getChunk(next, …)`). Nothing here
+  hashes or walks cells to find out what moved.
+- **The window takes each level's own shift, not the union.** The projection
+  moves level `z` by exactly `z` cells. `lightWindow` unions the whole level
+  span because a light on any storey can reach you; a level's *mesh* is drawn
+  where that level is, so it takes that level's shift — the same distinction
+  `appendVisibleTileEmitters` makes for a plume.
+- **Levels are never culled, only their chunks.** A cut roof still has to be
+  built: the cut is applied to geometry that already exists, as a group toggle
+  for a whole storey and a shader mask for part of one. Deciding it here would
+  rebuild a floor's meshes every time somebody stepped under an eave.
+
+**The autotile seam is the one thing chunking breaks, and it is invisible in
+the diff.** A cell restyles its eight neighbours, and a neighbour can be in the
+chunk next door without that chunk changing. A whole-level rebuild covered that
+for free. `dirtyChunks` therefore asks the merged-signature question over the
+changed cells *and their ring*, and marks whichever chunk owns each cell whose
+answer moved — so a wall placed at a boundary rebuilds both sides. Skip it and
+you get a stale strip at a chunk edge that nothing later repairs.
+
+Everything gameplay produces still takes the cheap path, for the reason it
+always did: a mobile tile is never in the merged batch, so a step is one mesh
+swapped inside a group that is otherwise untouched.
+
+Measured on the den map, walking `/play` in a headless browser — an A/B, since
+software GL makes the absolute numbers pessimistic:
+
+| | before | after |
+|---|---|---|
+| `map` phase p50 | 66–140ms | 6.8–16.3ms |
+| frame p50 | 115–183ms | 56–71ms |
+| cells meshed at once | 44,160 | 5,237 mean, 11,104 worst |
+
+The last row is the one that matters: it is a function of the window, so it
+does not move when the map does.
+
+**What it costs is draw calls: 51 per frame to 147**, because the merged batch
+is now one per (chunk, texture) rather than one per (level, texture). The
+`draw` phase did not move — 1.6–3.4ms before, 2.1–2.6ms after — so the submit
+cost is in the noise at this count, and a modern GPU is nowhere near troubled
+by it. If it ever does matter, the lever is re-merging a level's chunk batches
+for the draw while keeping the build per chunk, which is real work and has not
+been needed.
+
 ### Levels are chunked; keep it that way
 
 `map.levels[z]` is `Record<chunkKey, Record<cellKey, PlacedTile[]>>`, not a flat
@@ -3729,27 +3992,13 @@ Measure in Node, or read the in-game counter on a real screen.
 
 Not yet fixed, and worth knowing before you profile something else:
 
-- **Level geometry rebuilds wholesale whenever the merged batch really changes.**
-  `rebuildDirty` now takes an incremental path first: it diffs the level to its
-  changed cells, compares each one's *merged* contribution before and after
-  (plus the autotile ring around it), and if none differ it rebuilds only the
-  own-mesh tiles in those cells. Gameplay motion always lands on that path,
-  because mobile tiles are never in the merged batch.
-
-  An actual edit — placing or erasing terrain — still falls back to
-  `removeLevel(z)` + `buildLevel(next, z)`, which is every cell of the floor.
-  Level 0 is 4565 cells / 6402 quads, and `listCoords` + `getFrames` over it is
-  6.5ms before THREE builds a single buffer. That is the remaining cliff, and
-  the per-(level, chunk) batching below is still the answer to it.
-
-  The data model is already chunked, so the dirty *chunk* is available by
-  identity (`prev.levels[z][chk] !== next.levels[z][chk]`). What remains is the
-  renderer side: geometry is batched into one merged group per level, so making
-  it per (level, chunk) means re-keying `levelGroups`, `animatedByLevel`, the
-  `movableMeshes` key prefixes, motion ghosts, and `applyLevelVisibility`'s
-  roof-cut. Depth itself is safe — it comes from the per-quad box attribute
-  resolved in the shader, not from draw order — but verify visually in a real
-  browser regardless.
+- **A chunk that comes into range is built in the frame it does.** Geometry is
+  per (level, chunk) now — see the section above — so the cliff that used to be
+  a whole floor is at most `CHUNK_SIZE` squared. What is left is that the build
+  happens on one frame rather than spread over several: walking into a fresh
+  chunk column of dense cave is a handful of chunks at once. `MESH_WINDOW_MARGIN`
+  is what buys the warning, and a budget that built one chunk per frame out of a
+  queue is the structural answer if it is ever felt.
 - **A creature that has bound a target it cannot reach re-proves it every brain
   tick.** A route search that fails costs the full `PATH_MAX_NODES` — about five
   milliseconds on the shipped map, against well under one for a route it finds —

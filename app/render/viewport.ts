@@ -14,12 +14,11 @@
  * edge.
  */
 import { CELL_SIZE } from "../lib/types";
+import { VIEW_CELLS } from "../lib/view";
 
-/**
- * Cells across the square view. Odd, so the player stands in a true centre
- * cell rather than on the seam between two.
- */
-export const VIEW_CELLS = 23;
+// Re-exported so the renderer's callers keep one import for the view, and
+// defined in `../lib/view` because the server needs it too — see there.
+export { VIEW_CELLS };
 
 /** Side of the view in world pixels — what the camera spans on both axes. */
 export const VIEW_PX = VIEW_CELLS * CELL_SIZE;

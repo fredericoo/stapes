@@ -34,7 +34,16 @@ await bundle.restore(config.CLIENT_BUILD_ID);
 /** Actor id per connection, for the close handler after the socket is gone. */
 const sockets = new WeakMap<object, GameSocket>();
 
-const app = new Elysia()
+const app = new Elysia({
+  /**
+   * Compress every frame the world sends. The wire is JSON of tile stacks,
+   * which is the most repetitive text there is: measured on the den map, the
+   * `hello` a joiner is sent goes 1.97MB to 135KB and a tick's patch shrinks
+   * by about the same factor. Bun leaves this off by default; the browser
+   * side negotiates it without being asked.
+   */
+  websocket: { perMessageDeflate: true },
+})
   .use(createApi(world, bundle, config))
   .ws(GAME_SOCKET_PATH, {
     /**

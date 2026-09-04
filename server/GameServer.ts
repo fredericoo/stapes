@@ -7,6 +7,13 @@ import {
   type Death,
 } from "../app/game/GameSession";
 import { TICK_MS, WALK_DURATION_MS } from "../app/game/constants";
+import {
+  cellsOfChunks,
+  chunksEntered,
+  interestChunks,
+  mapOfInterest,
+  sameChunks,
+} from "../app/net/interest";
 import { cellKey } from "../app/game/pressurePlates";
 import {
   findSpawnPoints,
@@ -85,6 +92,17 @@ const CHECKPOINT_KEY = "world";
 const CHUNK_KEY_PREFIX = "chunk:";
 
 /** Where one chunk of the board is kept. */
+/**
+ * Chunks handed to one client per tick as they walk into reach.
+ *
+ * A chunk column of the den's caves is a few hundred cells, and handing a
+ * whole leading edge over at once is the lump that made a previous attempt at
+ * scoping measure *worse* than sending the world. Walking is five cells a
+ * second and a chunk is sixteen across, so two a tick is minutes ahead of
+ * need — this exists to spread the cost, not to ration it.
+ */
+const CHUNKS_STREAMED_PER_TICK = 2;
+
 function boardKey(levelKey: string, chunkKey: string): string {
   return `${CHUNK_KEY_PREFIX}${levelKey}:${chunkKey}`;
 }
@@ -675,6 +693,15 @@ export class GameServer {
    * lookup cannot miss.
    */
   private readonly spawns = new Map<string, ActorPosition>();
+  /**
+   * The chunks each connected actor has been sent, by actor id.
+   *
+   * Keyed by actor rather than by socket because two tabs are one person with
+   * one body — they stand in the same place and are owed the same ground, and
+   * a set per socket would compute it twice. Dropped when their last socket
+   * goes, in {@link webSocketClose}.
+   */
+  private readonly subscribed = new Map<string, Set<string>>();
   /** Where the world grows things back, by spawn-point key. */
   private respawnPoints = new Map<string, SpawnPoint>();
   /**
@@ -1757,10 +1784,13 @@ export class GameServer {
   private sendHello(ws: GameSocket, actorId: string) {
     const session = this.session!;
     const actors = session.actorSnapshots();
+    // Recorded as this socket is told, so the stream below hands over what
+    // comes into reach *after* this rather than replaying what is in it.
+    const chunks = this.subscriptionFor(actorId);
     const message: ServerMessage = {
       type: "hello",
       selfId: actorId,
-      map: flattenMap(session.getMap()),
+      map: mapOfInterest(session.getMap(), chunks),
       actorIds: session.actorIds(),
       hps: currentHps(actors),
       carriedLights: currentCarriedLights(actors),
@@ -2510,6 +2540,10 @@ export class GameServer {
     this.session?.despawn(attachment.actorId);
     this.writtenActors.delete(attachment.actorId);
     this.sentMotion.delete(attachment.actorId);
+    // What ground they had been sent, which is only true of a connection. A
+    // returning tab is a fresh `hello` and a fresh subscription, so keeping it
+    // would be a row per visitor the world has ever had.
+    this.subscribed.delete(attachment.actorId);
     this.queuedSteps.delete(attachment.actorId);
     this.lastSaidAt.delete(attachment.actorId);
     // Their last socket has gone, so there is nothing left to be silent
@@ -3047,6 +3081,11 @@ export class GameServer {
       this.events = [];
     }
 
+    // After the shared patch, and that ordering is the point: a chunk coming
+    // into reach is handed over as it stands *now*, so it must not be followed
+    // by a diff computed against a board this client had not been shown.
+    this.streamEnteredChunks();
+
     // After the patch, which is the whole of the ordering: that patch is the
     // last thing these sockets will hear, and this is what tells them so.
     this.announceDeaths();
@@ -3482,6 +3521,110 @@ export class GameServer {
       }
     }
     return out;
+  }
+
+  /**
+   * The chunks this actor is owed right now, recorded as their subscription.
+   *
+   * Computed from where their body is standing. A body that is not on the
+   * board — dead, or between a despawn and a respawn — keeps whatever it had,
+   * because the alternative is dropping the subscription and then handing the
+   * whole thing back a tick later.
+   */
+  private subscriptionFor(actorId: string): Set<string> {
+    const at = this.session?.actorPosition(actorId);
+    const held = this.subscribed.get(actorId);
+    if (!at) return held ?? interestChunks(0, 0);
+    const chunks = interestChunks(at.x, at.y);
+    this.subscribed.set(actorId, chunks);
+    return chunks;
+  }
+
+  /**
+   * Hand each connected client the ground that has come into reach.
+   *
+   * **Only what comes into reach, and never the tick's own changes** — those
+   * are the shared `patch` every socket already gets, serialized once for
+   * everybody. Scoping *those* per client is the tempting next step and buys
+   * nothing: what changes on a tick is where creatures are walking, which is
+   * bounded by the brain budget rather than by the size of the map, and paying
+   * a serialization per client for it would trade the one property the
+   * broadcast has.
+   *
+   * A budget per tick, nearest chunk first, because a chunk column of dense
+   * cave is a few hundred cells and arriving all at once is the lump that made
+   * a previous attempt at this measure *worse* than sending everything. At a
+   * walking pace a player has a whole chunk to cross before any of the ground
+   * ahead is on screen, so a handful a tick is far ahead of need.
+   */
+  private streamEnteredChunks() {
+    const session = this.session;
+    if (!session) return;
+    const map = session.getMap();
+    const sent = new Set<string>();
+    for (const ws of this.ctx.getWebSockets()) {
+      const attachment = ws.deserializeAttachment() as Attachment | null;
+      if (!attachment) continue;
+      const { actorId } = attachment;
+      // Two tabs on one body are owed the same ground, and the first of them
+      // through here has already moved the subscription on. Sending to both
+      // would be right; computing it twice would not.
+      if (sent.has(actorId)) continue;
+      sent.add(actorId);
+
+      const before = this.subscribed.get(actorId);
+      const at = session.actorPosition(actorId);
+      if (!at) continue;
+      const now = interestChunks(at.x, at.y);
+      if (sameChunks(before, now)) continue;
+
+      const entered = chunksEntered(before, now, at);
+      const take = entered.slice(0, CHUNKS_STREAMED_PER_TICK);
+      // The record advances only as far as what has actually been sent, so a
+      // chunk the budget left behind is still owed next tick rather than
+      // silently skipped. What has fallen out of reach is dropped from the
+      // record but never taken back off the client — a cell it already holds is
+      // correct, and unsending it would put a hole where it has just walked
+      // from.
+      const reached = new Set<string>();
+      for (const chunk of before ?? []) if (now.has(chunk)) reached.add(chunk);
+      for (const chunk of take) reached.add(chunk);
+      this.subscribed.set(actorId, reached);
+
+      const cells = cellsOfChunks(map, take);
+      if (cells.length === 0) continue;
+      this.sendToEverySocketOf(actorId, {
+        type: "patch",
+        cells,
+        events: [],
+        hps: [],
+        carriedLights: [],
+        statusIds: [],
+      });
+    }
+  }
+
+  /**
+   * One message to **every** socket this actor has open.
+   *
+   * Beside {@link sendTo} rather than replacing it, and the difference is the
+   * whole reason both exist: `sendTo` answers one tab's own action and stops at
+   * the first socket, which is right for a rejected step. Ground coming into
+   * reach is not an answer to anything — it is a fact about the board that both
+   * tabs need, and a second tab that missed it would have a hole in its map for
+   * as long as it stayed open.
+   */
+  private sendToEverySocketOf(actorId: string, message: ServerMessage) {
+    const payload = JSON.stringify(message);
+    for (const ws of this.ctx.getWebSockets()) {
+      const attachment = ws.deserializeAttachment() as Attachment | null;
+      if (attachment?.actorId !== actorId) continue;
+      try {
+        ws.send(payload);
+      } catch {
+        // Dropped by the runtime; webSocketClose cleans the actor up.
+      }
+    }
   }
 
   private broadcast(message: ServerMessage) {
