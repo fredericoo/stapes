@@ -913,6 +913,60 @@ no destination to route to; "away" is a direction rather than a place, so the
 question a fleeing animal asks really is the local one. Inventing a goal cell to
 run at would be the pathfinder deciding where something wants to hide.
 
+## A joiner is sent the chunks its view can reach
+
+The per-tick patch stream is bounded by how much the world changes, and since
+brains only think when somebody could notice them that is bounded by the
+players. The **join** was not: a client was sent the whole map, which on the
+den map is 4.9MB of JSON, and that number grows with the world for ever.
+
+A client is now sent the chunks within `INTEREST_REACH_CELLS` of its body, on
+every level, and the chunks that come into reach as it walks arrive a couple
+per tick, nearest first (`app/net/interest.ts`).
+
+**The reach is derived, not chosen, and that is the whole of why this is
+safe.** A cell a client has not been sent is a cell its own sky flood reads as
+open air, so a subscription narrower than what the client's light bake reads
+seeds daylight at its own boundary — a cave with a lit edge that moves as you
+walk. The terms are all somebody else's constants:
+
+```
+half the view + the level span + LIGHT_WINDOW_MARGIN + LIGHT_CHUNK_SIZE + LIGHT_APRON
+```
+
+so widening any of them widens this in the same edit. The prefetch ring is
+deliberately absent: a light chunk baked before its map arrives is a cache
+entry, and the cells arriving is an edit that invalidates it, so it costs a
+rebake rather than a wrong picture. The alternative — a small subscription plus
+telling the bake to read absence as *solid* — trades the leak for the opposite
+error, an outdoor cell shadowed by a wall that is not there.
+
+**Three things are deliberately not scoped**, and each is a bug that a previous
+attempt at this shipped:
+
+- **The per-tick patch is still one broadcast to everybody.** What changes on a
+  tick is where creatures are walking, which is bounded by the brain budget
+  rather than by the map, so scoping it would spend the one serialization the
+  protocol has and buy nothing.
+- **Nothing about an actor is scoped** — hit points, statuses, carried lights,
+  motion. They are small, they are about bodies rather than about ground, and a
+  client that stopped hearing them would have a creature walk back into view
+  with no health bar and nothing able to hit it.
+- **Because of those two, no body can ever go missing.** Every client hears
+  every cell that changes, so a creature outside somebody's subscription is
+  still on their board — its surrounding terrain is what they lack, not the
+  creature. That is what keeps `locateActor` off the whole-board sweep that
+  turned a 116ms frame into 108ms of searching last time.
+
+**What it is worth today is almost nothing, and that is expected.** The reach
+is 79 cells, five chunks, a square 176 cells across; `data/map.json` is 118 by
+142. Measured over the map, a client holds 84% of it on average and 49% at
+best. The value is the shape rather than the number: the subscription is a
+function of where the body is, so at ten times the map it is still about 37,000
+cells while the world is 440,000. If it ever needs to be *smaller* than this,
+the lever is the light cache — `LIGHT_CHUNK_SIZE` and `LIGHT_APRON` are 47 of
+the 79 — and not the subscription, which is only as wide as what it must cover.
+
 ## The wire is patches plus motion events
 
 Two kinds of thing travel, and keeping them apart is what makes it cheap.

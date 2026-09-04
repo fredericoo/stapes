@@ -58,7 +58,11 @@ import {
 import { hasSpriteStates, isMobileTile } from "../lib/interactions";
 import { clumpExtents } from "./depthClump";
 import { getFrames } from "../lib/tileResolve";
-import { ChunkedLighting, type WorldRect } from "../lib/lightingChunks";
+import {
+  ChunkedLighting,
+  LIGHT_WINDOW_MARGIN,
+  type WorldRect,
+} from "../lib/lightingChunks";
 import {
   canBakeOffThread,
   WorkerChunkBaker,
@@ -445,13 +449,6 @@ export function dynamicLightTileIds(
   return ids;
 }
 
-/**
- * Slack cells around the camera's reach, for sprite overhang the strict cell
- * rect misses. Deliberately small: the apron that makes edge light *correct* is
- * applied inside the bake, and chunk alignment already keeps a nudging camera
- * from refilling, so widening this only bakes cells nobody looks at.
- */
-const LIGHT_WINDOW_MARGIN = 4;
 
 /**
  * Changed cells past which the incremental path stops being worth it.
