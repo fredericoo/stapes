@@ -82,5 +82,12 @@
     "file": "roofs.png",
     "width": 160,
     "height": 64
+  },
+  {
+    "id": "water",
+    "name": "Water",
+    "file": "water.png",
+    "width": 112,
+    "height": 8
   }
 ]
