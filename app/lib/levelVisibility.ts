@@ -1,11 +1,12 @@
-import { getStack } from "./mapData";
+import { chunkKeyAt, chunkKeyFor, getChunk, getStack } from "./mapData";
 import {
   type CellOcclusion,
   rayTransmission,
   stackOcclusion,
 } from "./lighting";
-import type { MapFile, TileDef } from "./types";
+import type { ChunkCells, LevelChunks, MapFile, TileDef } from "./types";
 import {
+  CHUNK_SIZE,
   HEIGHT_PER_LEVEL,
   MAX_LEVEL,
   MIN_LEVEL,
@@ -278,6 +279,36 @@ function fillStructure(
 
   for (const seed of seeds) claim(seed.x, seed.y, seed.z);
 
+  // **The occupancy test is the whole cost of this function**, so it does not
+  // go through `getStack`. That builds three keys per probe — the level, the
+  // chunk and the cell — and this asks about twenty-six neighbours per cell,
+  // for up to {@link MAX_CUT_CELLS} of them: underground, where the structure
+  // over your head is the entire rock mass and the fill always runs to the cap,
+  // that measured 10.7ms of every frame. Neighbours are adjacent by
+  // construction, so nearly all of them share a chunk with the one before —
+  // holding the last level and chunk record makes the common probe a single
+  // object lookup.
+  let lastZ = Number.NaN;
+  let lastLevel: LevelChunks | undefined;
+  let lastChunkKey = "";
+  let lastChunk: ChunkCells | undefined;
+  const occupied = (x: number, y: number, z: number): boolean => {
+    if (z !== lastZ) {
+      lastZ = z;
+      lastLevel = map.levels[levelKey(z)];
+      lastChunkKey = "";
+      lastChunk = undefined;
+    }
+    if (lastLevel === undefined) return false;
+    const chunkKey = chunkKeyFor(x, y);
+    if (chunkKey !== lastChunkKey) {
+      lastChunkKey = chunkKey;
+      lastChunk = lastLevel[chunkKey];
+    }
+    const stack = lastChunk?.[coordKey(x, y)];
+    return stack !== undefined && stack.length > 0;
+  };
+
   // Index rather than shift: a shift off the front of a several-hundred entry
   // array is a copy of the rest of it, once per cell.
   for (let head = 0; head < queue.length; head++) {
@@ -291,7 +322,7 @@ function fillStructure(
           if (dx === 0 && dy === 0 && dz === 0) continue;
           const x = cell.x + dx;
           const y = cell.y + dy;
-          if (getStack(map, x, y, z).length === 0) continue;
+          if (!occupied(x, y, z)) continue;
           if (!claim(x, y, z)) continue;
           queue.push({ x, y, z });
         }
@@ -337,3 +368,5 @@ export function roofCutFor(
   if (seeds.length === 0) return undefined;
   return { floor: view.z, cells: fillStructure(map, view.z, seeds) };
 }
+
+
