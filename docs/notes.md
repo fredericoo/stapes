@@ -3316,6 +3316,63 @@ if (current.direction === direction) return map;
 
 Any new mutation helper needs the same no-op guard.
 
+### Geometry is per (level, chunk), and only where the camera can reach
+
+The renderer used to build every cell of every level the moment it had a map,
+and rebuild a whole level whenever one of its chunks changed. Both costs are
+the world's rather than the player's, and the den is what made that
+unaffordable: 44,160 cells meshed for somebody who can see 23 across, and an
+edit rebuilding 11,334 cells of cave floor.
+
+What exists as geometry is now the chunks a window over the camera reaches
+(`app/render/meshWindow.ts`). Three things follow, and each is load-bearing:
+
+- **The unit is the chunk because copy-on-write already gives it identity.** A
+  chunk that scrolled off is a group to dispose; a chunk that changed is a
+  reference compare (`getChunk(prev, …) === getChunk(next, …)`). Nothing here
+  hashes or walks cells to find out what moved.
+- **The window takes each level's own shift, not the union.** The projection
+  moves level `z` by exactly `z` cells. `lightWindow` unions the whole level
+  span because a light on any storey can reach you; a level's *mesh* is drawn
+  where that level is, so it takes that level's shift — the same distinction
+  `appendVisibleTileEmitters` makes for a plume.
+- **Levels are never culled, only their chunks.** A cut roof still has to be
+  built: the cut is applied to geometry that already exists, as a group toggle
+  for a whole storey and a shader mask for part of one. Deciding it here would
+  rebuild a floor's meshes every time somebody stepped under an eave.
+
+**The autotile seam is the one thing chunking breaks, and it is invisible in
+the diff.** A cell restyles its eight neighbours, and a neighbour can be in the
+chunk next door without that chunk changing. A whole-level rebuild covered that
+for free. `dirtyChunks` therefore asks the merged-signature question over the
+changed cells *and their ring*, and marks whichever chunk owns each cell whose
+answer moved — so a wall placed at a boundary rebuilds both sides. Skip it and
+you get a stale strip at a chunk edge that nothing later repairs.
+
+Everything gameplay produces still takes the cheap path, for the reason it
+always did: a mobile tile is never in the merged batch, so a step is one mesh
+swapped inside a group that is otherwise untouched.
+
+Measured on the den map, walking `/play` in a headless browser — an A/B, since
+software GL makes the absolute numbers pessimistic:
+
+| | before | after |
+|---|---|---|
+| `map` phase p50 | 66–140ms | 6.8–16.3ms |
+| frame p50 | 115–183ms | 56–71ms |
+| cells meshed at once | 44,160 | 5,237 mean, 11,104 worst |
+
+The last row is the one that matters: it is a function of the window, so it
+does not move when the map does.
+
+**What it costs is draw calls: 51 per frame to 147**, because the merged batch
+is now one per (chunk, texture) rather than one per (level, texture). The
+`draw` phase did not move — 1.6–3.4ms before, 2.1–2.6ms after — so the submit
+cost is in the noise at this count, and a modern GPU is nowhere near troubled
+by it. If it ever does matter, the lever is re-merging a level's chunk batches
+for the draw while keeping the build per chunk, which is real work and has not
+been needed.
+
 ### Levels are chunked; keep it that way
 
 `map.levels[z]` is `Record<chunkKey, Record<cellKey, PlacedTile[]>>`, not a flat
@@ -3756,27 +3813,13 @@ Measure in Node, or read the in-game counter on a real screen.
 
 Not yet fixed, and worth knowing before you profile something else:
 
-- **Level geometry rebuilds wholesale whenever the merged batch really changes.**
-  `rebuildDirty` now takes an incremental path first: it diffs the level to its
-  changed cells, compares each one's *merged* contribution before and after
-  (plus the autotile ring around it), and if none differ it rebuilds only the
-  own-mesh tiles in those cells. Gameplay motion always lands on that path,
-  because mobile tiles are never in the merged batch.
-
-  An actual edit — placing or erasing terrain — still falls back to
-  `removeLevel(z)` + `buildLevel(next, z)`, which is every cell of the floor.
-  Level 0 is 4565 cells / 6402 quads, and `listCoords` + `getFrames` over it is
-  6.5ms before THREE builds a single buffer. That is the remaining cliff, and
-  the per-(level, chunk) batching below is still the answer to it.
-
-  The data model is already chunked, so the dirty *chunk* is available by
-  identity (`prev.levels[z][chk] !== next.levels[z][chk]`). What remains is the
-  renderer side: geometry is batched into one merged group per level, so making
-  it per (level, chunk) means re-keying `levelGroups`, `animatedByLevel`, the
-  `movableMeshes` key prefixes, motion ghosts, and `applyLevelVisibility`'s
-  roof-cut. Depth itself is safe — it comes from the per-quad box attribute
-  resolved in the shader, not from draw order — but verify visually in a real
-  browser regardless.
+- **A chunk that comes into range is built in the frame it does.** Geometry is
+  per (level, chunk) now — see the section above — so the cliff that used to be
+  a whole floor is at most `CHUNK_SIZE` squared. What is left is that the build
+  happens on one frame rather than spread over several: walking into a fresh
+  chunk column of dense cave is a handful of chunks at once. `MESH_WINDOW_MARGIN`
+  is what buys the warning, and a budget that built one chunk per frame out of a
+  queue is the structural answer if it is ever felt.
 - **A creature that has bound a target it cannot reach re-proves it every brain
   tick.** A route search that fails costs the full `PATH_MAX_NODES` — about five
   milliseconds on the shipped map, against well under one for a route it finds —
