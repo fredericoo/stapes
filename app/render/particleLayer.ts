@@ -17,6 +17,7 @@ import {
 import { noTintUniforms } from "./spriteTint";
 import {
   injectWorldShader,
+  noAnimUniforms,
   noCutUniforms,
   type LevelLightUniforms,
   WORLD_SHADER_CACHE_KEY,
@@ -301,6 +302,9 @@ export class ParticleLayer {
         lightUniforms,
         noTintUniforms(),
         noCutUniforms(this.atlas),
+        // Particles build their own geometry, so they carry no `aAnim` at all —
+        // see `noAnimUniforms` for why the branch is on the uniform.
+        noAnimUniforms(this.atlas),
       );
       injectParticleShader(shader);
     };

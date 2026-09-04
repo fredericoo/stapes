@@ -23,6 +23,7 @@ import {
   buildSingleQuadGeometry,
   injectWorldShader,
   type LevelLightUniforms,
+  noAnimUniforms,
   noCutUniforms,
   type Quad,
   WORLD_SHADER_CACHE_KEY,
@@ -466,6 +467,9 @@ export class VfxPreview {
         this.lightUniforms,
         this.tintU,
         noCutUniforms(this.whiteTex),
+        // The preview draws one sprite and rewrites its own UVs; there is no
+        // level and no table for it to read.
+        noAnimUniforms(this.whiteTex),
       );
     };
     material.customProgramCacheKey = () => WORLD_SHADER_CACHE_KEY;
