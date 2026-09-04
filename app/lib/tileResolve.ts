@@ -2,6 +2,7 @@ import {
   pickAutotileSprite,
   resolveAutotileSlice,
 } from "./autotile";
+import { pickScatterSprite, resolveScatterIndex } from "./scatter";
 import {
   facingKeysFor,
   frameAtTime,
@@ -73,6 +74,19 @@ export function resolveTileSprite(
       tile.sprites?.s
     );
   }
+  if (tile.type === "scatter") {
+    // Counted off idle even when a state is drawing, so a bush keeps its
+    // species while it moves. Counting off the override instead would let a
+    // state authoring three faces where idle has five re-pick every placement
+    // the moment it started moving, and pick it back on the way down.
+    const count = tile.scatter?.length ?? 0;
+    let index = ctx.scatterIndex;
+    if (index == null && ctx.x != null && ctx.y != null && ctx.z != null) {
+      index = resolveScatterIndex(ctx.x, ctx.y, ctx.z, tile, count);
+    }
+    if (index == null) index = 0;
+    return override?.scatter?.[index] ?? pickScatterSprite(tile, index);
+  }
   // autotile
   let slice = ctx.autotileSlice;
   if (slice == null && ctx.map != null && ctx.x != null && ctx.y != null && ctx.z != null) {
@@ -136,6 +150,8 @@ export function tileLightSignature(tile: TileDef): string {
       for (const d of facingKeysFor(tile)) {
         pushSprite(`${prefix}${d}`, from.sprites?.[d]);
       }
+    } else if (tile.type === "scatter") {
+      from.scatter?.forEach((s, i) => pushSprite(`${prefix}${i}`, s));
     } else if (from.slices) {
       for (const [k, s] of Object.entries(from.slices)) {
         pushSprite(`${prefix}${k}`, s);

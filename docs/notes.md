@@ -3170,6 +3170,46 @@ Worth knowing while tuning: a burn is genuinely lethal at authored values, so
 `/mastery toughness 100` and `/health +999` are what keep a body standing long
 enough to look at one.
 
+## A scatter tile is one tile with several faces, picked by where it stands
+
+`TileType` has a fifth member, `scatter`, for ground and undergrowth: grass,
+bushes, a brick road, a stand of trees. The author draws a handful of faces and
+every placement wears one of them, decided by a hash of its own coordinates —
+so a field is laid down in one stroke and never repeats a run.
+
+**The pick is a pure function of the cell, and nothing else.** Not stored on the
+placement, which is the whole point: a scattered field is a thousand cells of
+one tile, and a face per placement would be a thousand numbers in `map.json`
+saying what the coordinates already say. Not read from neighbours either, which
+is what separates it from the autotile beside it in the union — `resolveScatterIndex`
+never touches the map, so an edit invalidates the cell it touched and no ring
+around it. The cost of both is that the author cannot overrule one awkward cell;
+for that, place a plain tile there instead.
+
+**The tile's own id is folded into the seed.** Every scatter tile would
+otherwise share seed 0, and a grass field and a pebble field laid over the same
+cells would pick the *same* index in every one of them. Two independent
+scatters that correlate read as a pattern, which is exactly what the type
+exists to remove, so they are decorrelated before anybody has to know the seed
+control exists. The stored `scatterSeed` then means what it says: re-roll *this*
+tile.
+
+**The noise is white on purpose.** Each cell is drawn independently of its
+neighbours. Anything smoother — value noise, a repeating table — puts visible
+structure back in, and structure in a brick road is the thing you notice first.
+The unit tests assert the absence of it along a row, a column and a diagonal,
+because stripes are the failure a bad mix actually produces.
+
+**It shares one consequence with autotile and nothing else.** Two placements of
+one scatter tile can be running different frame lists, so an animation clock
+keyed per tile would index one placement's frames with the other's position.
+Both renderers key these per cell instead, through `isCellVarying` — which is
+deliberately *not* what decides an autotile's neighbour ring on a rebuild, since
+that is about reading the cells around you and scatter does not.
+
+It composes with nothing. A scatter tile is not also an autotile, is not
+directional, and has no `connectsTo`; the type is the axis, and a tile has one.
+
 ## Renderer and simulation performance
 
 The game targets **120fps — an 8.3ms frame budget**, and the whole budget is

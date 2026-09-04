@@ -8,7 +8,7 @@ import type {
   TileDef,
   TilesetDef,
 } from "../lib/types";
-import { CELL_SIZE } from "../lib/types";
+import { CELL_SIZE, isCellVarying } from "../lib/types";
 
 /** A sprite's footprint in world pixels plus its slice of the atlas. */
 export type SpriteQuad = {
@@ -33,9 +33,9 @@ export type SpriteQuadAssets = {
 };
 
 /**
- * Autotiles vary per cell; everything else varies only by facing and state. Both
- * renderers key their frame clocks this way, so overlays stay in step with
- * the animated tile they are drawn over.
+ * Autotiles and scatter tiles vary per cell; everything else varies only by
+ * facing and state. Both renderers key their frame clocks this way, so overlays
+ * stay in step with the animated tile they are drawn over.
  *
  * The state is part of the key because two placements of one tile in different
  * states run different frame lists — a grazing deer has one frame and a walking
@@ -50,7 +50,7 @@ export function animationKey(
   z: number,
   state: SpriteState = "idle",
 ): string {
-  if (def.type === "autotile") return `${def.id}:${x},${y},${z}:${state}`;
+  if (isCellVarying(def)) return `${def.id}:${x},${y},${z}:${state}`;
   return `${def.id}:${placed.direction ?? "default"}:${state}`;
 }
 

@@ -38,6 +38,7 @@ import {
   MAX_LEVEL,
   MIN_LEVEL,
   frameIndexAtTime,
+  isCellVarying,
   isDirectional,
   levelKey,
   tileCanEmitLight,
@@ -1264,10 +1265,9 @@ export class EditorRenderer {
         const lightX1 = cell.x + 1;
         const lightY1 = cell.y + 1;
         const unlit = tileCanEmitLight(def);
-        const animKey =
-          def.type === "autotile"
-            ? `${def.id}:${cell.x},${cell.y},${z}`
-            : `${def.id}:${placed.direction ?? "default"}`;
+        const animKey = isCellVarying(def)
+          ? `${def.id}:${cell.x},${cell.y},${z}`
+          : `${def.id}:${placed.direction ?? "default"}`;
 
         items.push({
           x: origin.x,
