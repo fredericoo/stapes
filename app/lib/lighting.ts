@@ -110,6 +110,17 @@ export function clonePackedLightGrid(grid: PackedLightGrid): PackedLightGrid {
   return { levels };
 }
 
+/**
+ * The clear colour behind the world, 0xRRGGBB.
+ *
+ * What shows through where no tile is drawn is a cell with nothing at or below
+ * it — the void the bake leaves black (see `computeLightingFlood`) — so the
+ * canvas is cleared to the same black. It used to be a sky tint that followed
+ * the hour, which read as a lit floor plane under every level and changed
+ * colour at night as though it were one.
+ */
+export const VOID_BACKGROUND = 0x000000;
+
 /** Named presets kept for tests — samples from the clock keyframes. */
 export const AMBIENT_PRESETS = {
   day: [1, 1, 1] as [number, number, number],

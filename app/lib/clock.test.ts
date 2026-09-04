@@ -29,8 +29,8 @@ describe("formatClock", () => {
 
 describe("sampleIllumination", () => {
   const keys: IlluminationKeyframe[] = [
-    { at: 0, ambient: [0, 0, 0], background: 0x000000 },
-    { at: 12 * 60, ambient: [1, 1, 1], background: 0xffffff },
+    { at: 0, ambient: [0, 0, 0] },
+    { at: 12 * 60, ambient: [1, 1, 1] },
   ];
 
   it("hits keyframes exactly", () => {
@@ -41,7 +41,6 @@ describe("sampleIllumination", () => {
   it("lerps midpoint", () => {
     const mid = sampleIllumination(6 * 60, keys);
     expect(mid.ambient[0]).toBeCloseTo(0.5, 5);
-    expect(mid.background).toBe(0x808080);
   });
 
   it("wraps midnight", () => {

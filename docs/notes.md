@@ -3574,6 +3574,13 @@ seeding relies on this being the bottom of a column and nothing else: a column
 void from the top gets a `fullFrom` below the domain, so it neither seeds
 itself nor raises a neighbour's frontier.
 
+The clear colour follows. `VOID_BACKGROUND` in `app/lib/lighting.ts` is black,
+for play and for the editor's preview, replacing a sky tint that rode on the
+clock keyframes and read as a lit floor plane under every level — the grey
+around a level −1 cutaway that dimmed at dusk. Authoring keeps its paper
+colour, and preview with lighting off keeps it too, where black behind fully
+lit tiles would only read as a hole.
+
 ## Testing the world
 
 `server/` runs under `bun test` (`bun run test:server`), on the runtime it
