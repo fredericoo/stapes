@@ -3755,9 +3755,50 @@ whatever was underneath made a pond over a dirt bed read as mud; the ground stil
 shows at the rim, because that is where the autotile's own shape stops rather
 than where its alpha does. Three tones, not two: the third is a shadow one pixel
 down and right of every bright one, which is what stops a crest reading as a flat
-line. It never lands on another bright pixel, and it wraps at the tile edge — the
-wave is an 8x8 pattern that tiles, so a shadow clipped at the edge would draw a
-seam where there is none.
+line, plus a two-pixel band inside each slice's top and left edges so the water
+reads as sunken into the bank rather than painted onto it.
+
+**A phased pattern does not wrap within its own frame.** The shadow on a tile's
+left column is cast by the pixel to its left, which is in the tile to the *west*
+— and that tile is `phase.x` frames further round the cycle, so its column 7 is
+not this frame's column 7. Wrapping within the frame is what a plain tiling
+pattern wants, and this one only tiles across space after the clock has been
+shifted per cell. The source frame therefore steps back by `-phase.x` across the
+left seam, `-phase.y` across the top one, and both at the corner.
+
+The consequence is worth stating plainly: **the phase is baked into the art.**
+Change it on the tile — in the editor, say — and the sheet has to be regenerated
+with `bun run generate:water`, or every tile's leading edges stop lining up with
+its neighbours.
+
+The bank band reads its edges off the slice's own shape, with off-tile counting
+as inside. That is what separates open water, whose shape fills the tile and
+which gets no band at all, from an edge slice whose outline the artwork already
+cuts in. The reach is a square rather than a row and a column of it: two
+separate reaches leave the corner where they meet unshaded, and a bank that turns
+a corner in two strips with a gap between them reads as two shadows rather than
+as one edge.
+
+**A shaded autotile needs its corner slices, and a flat one does not.** The
+ground autotiles map the whole 47-slice blob set onto the sixteen cells their
+artwork has, so a cell with material on two sides but ground on the diagonal
+between them draws the same square corner as one with material all round.
+Nobody minded, because a flat fill makes the two identical. Water shaded from the
+top and left is not flat: a corner with no nick taken out of it has no shade in
+it either, and the bank stops exactly where the eye is looking.
+
+So the generator cuts one pixel out of each corner the ground reaches into, on
+top of the shape it borrows — one pixel because that is the radius the artwork
+rounds its own corners by, and picking any other number would be picking a
+different sheet's answer. The 47 slices become 47 distinct shapes rather than
+sixteen repeated.
+
+**Only the northern nicks cast a bank.** A nick at a *southern* corner is the
+near shore: the light comes over the water's top-left shoulder, so that ground is
+lit rather than casting, and letting it cast drew a bar of shadow running off to
+the right along the bottom of the tile with nothing above it to explain itself.
+So the bank is measured from a shape carrying only the north-west and north-east
+nicks, while the tile is drawn from the shape carrying all four.
 
 ### Mobility is a property of the tile, not of the frame
 

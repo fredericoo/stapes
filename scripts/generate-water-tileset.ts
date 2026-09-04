@@ -24,6 +24,7 @@
 import { promises as fs } from "node:fs";
 import path from "node:path";
 import { PNG } from "pngjs";
+import { AUTOTILE_SLICE_MASKS, E, N, NE, NW, S, SE, SW, W } from "../app/lib/autotile";
 import type { TileDef, TileSprite } from "../app/lib/types";
 
 const ROOT = path.resolve(import.meta.dirname, "..");
@@ -52,6 +53,13 @@ const SHAPE_FILL: [number, number, number] = [35, 144, 99];
 const SHADOW: [number, number, number, number] = [0x24, 0x43, 0x6b, 255];
 const BASE: [number, number, number, number] = [0x33, 0x5c, 0x8c, 255];
 const HIGHLIGHT: [number, number, number, number] = [0x5b, 0x8f, 0xbf, 255];
+
+/**
+ * How far the bank's shade reaches into the water, in pixels.
+ *
+ * @see bankOf
+ */
+const BANK_DEPTH = 2;
 
 /** Frame cadence, in milliseconds. 12.5fps — what the recording was captured at. */
 const FRAME_MS = 80;
@@ -108,6 +116,99 @@ function shadowOf(litByFrame: boolean[][][], frame: number): boolean[][] {
       const source = litByFrame[(((frame + step) % count) + count) % count]!;
       if (source[(y + CELL - 1) % CELL]![(x + CELL - 1) % CELL]!) {
         out[y]![x] = true;
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * The band just inside a slice's top and left edges, as a mask.
+ *
+ * What makes the water read as *sunken* rather than as painted on: the bank
+ * above it and to its left is between the surface and the light, so the first
+ * couple of pixels of water sit in its shade. Two pixels because one reads as an
+ * outline and three swallows a small slice whole.
+ *
+ * Off-tile counts as **inside**, which is the whole trick. Slice 46 is water
+ * with water on every side and its mask fills the tile, so nothing here fires
+ * and open water gets no bank — while an edge slice, whose shape the artwork
+ * already cuts in from the tile's edge, gets exactly the band its own outline
+ * describes.
+ */
+/**
+ * The four inner corners, as the bit that has to be missing and the pixel it
+ * takes when it is.
+ *
+ * A blob autotile's extra 31 slices are exactly these: a cell with water on two
+ * adjacent sides but *not* on the diagonal between them, where a wedge of ground
+ * pokes into the corner. The ground autotiles get away with ignoring them —
+ * their fill is flat, so a nicked corner and a square one look identical — but
+ * water is shaded from the top and left now, and a corner with no nick has no
+ * shade in it either. That is the whole reason this exists.
+ *
+ * One pixel, because that is the radius the artwork rounds its own corners by:
+ * the cell that has neither north nor west drops its top row, its left column,
+ * and one more pixel at the corner of what is left. Rounding the inner corner
+ * by the same amount is the only answer that matches the sheet it sits in.
+ */
+const CORNERS: {
+  needs: number;
+  missing: number;
+  x: number;
+  y: number;
+  /** Whether ground in this corner is above the water, and so can shade it. */
+  casts: boolean;
+}[] = [
+  { needs: N | W, missing: NW, x: 0, y: 0, casts: true },
+  { needs: N | E, missing: NE, x: CELL - 1, y: 0, casts: true },
+  { needs: S | W, missing: SW, x: 0, y: CELL - 1, casts: false },
+  { needs: S | E, missing: SE, x: CELL - 1, y: CELL - 1, casts: false },
+];
+
+/**
+ * The slice's shape, with a pixel taken out of each corner the ground reaches
+ * into.
+ *
+ * `casting` asks for the shape the **bank** is measured from rather than the one
+ * drawn, and the two differ at the southern corners. A nick there is the near
+ * shore: the light is coming over the water's top-left shoulder, so that ground
+ * is lit rather than casting, and letting it cast drew a bar of shadow running
+ * off to the right along the bottom of the tile with nothing above it to explain
+ * itself. The northern nicks do cast, because ground poking in at the top is
+ * between the surface and the light exactly like the bank along a whole edge is.
+ */
+function nickCorners(inside: boolean[][], mask: number, casting = false): boolean[][] {
+  const out = inside.map((row) => [...row]);
+  for (const corner of CORNERS) {
+    if (casting && !corner.casts) continue;
+    const bothEdges = (mask & corner.needs) === corner.needs;
+    if (!bothEdges || mask & corner.missing) continue;
+    out[corner.y]![corner.x] = false;
+  }
+  return out;
+}
+
+function bankOf(shape: boolean[][], inside: boolean[][]): boolean[][] {
+  const at = (x: number, y: number): boolean =>
+    x < 0 || y < 0 || x >= CELL || y >= CELL ? true : shape[y]![x]!;
+  const out = shape.map((row) => row.map(() => false));
+  for (let y = 0; y < CELL; y++) {
+    for (let x = 0; x < CELL; x++) {
+      if (!inside[y]![x]!) continue;
+      // The whole square up and to the left, not a row and a column of it. Two
+      // separate reaches leave the corner where they meet unshaded, and a bank
+      // that turns a corner in two strips with a gap between them reads as two
+      // shadows rather than as one edge — most visibly around a corner nick,
+      // where the strips do not touch at all.
+      for (let dy = 0; dy <= BANK_DEPTH && !out[y]![x]; dy++) {
+        for (let dx = 0; dx <= BANK_DEPTH; dx++) {
+          if (dx === 0 && dy === 0) continue;
+          if (!at(x - dx, y - dy)) {
+            out[y]![x] = true;
+            break;
+          }
+        }
       }
     }
   }
@@ -183,26 +284,39 @@ async function main() {
       ),
     );
   }
-  // Every frame, because a shadow on a tile's leading edge is cast from the
-  // neighbour's frame rather than this one's.
   const shadowByFrame = litByFrame.map((_, frame) => shadowOf(litByFrame, frame));
 
   slices.forEach((slice, row) => {
     const cell = cells.get(slice)!;
+    const inside = Array.from({ length: CELL }, (_, y) =>
+      Array.from({ length: CELL }, (_, x) => {
+        const [r, g, b, a] = pixel(
+          floors,
+          (SHAPE_BLOCK_X + cell.x) * CELL + x,
+          cell.y * CELL + y,
+        );
+        return a > 0 && r === SHAPE_FILL[0] && g === SHAPE_FILL[1] && b === SHAPE_FILL[2];
+      }),
+    );
+    const mask = AUTOTILE_SLICE_MASKS[slice]!;
+    const shape = nickCorners(inside, mask);
+    const bank = bankOf(nickCorners(inside, mask, true), shape);
+
     for (let frame = 0; frame < frameCount; frame++) {
       const lit = litByFrame[frame]!;
       const shade = shadowByFrame[frame]!;
       for (let y = 0; y < CELL; y++) {
         for (let x = 0; x < CELL; x++) {
-          const [r, g, b, a] = pixel(
-            floors,
-            (SHAPE_BLOCK_X + cell.x) * CELL + x,
-            cell.y * CELL + y,
-          );
-          const inside =
-            a > 0 && r === SHAPE_FILL[0] && g === SHAPE_FILL[1] && b === SHAPE_FILL[2];
-          if (!inside) continue;
-          const tone = lit[y]![x]! ? HIGHLIGHT : shade[y]![x]! ? SHADOW : BASE;
+          if (!shape[y]![x]!) continue;
+          // The bank outranks the wave: this is the ground shading the water,
+          // and a crest does not catch light it is standing in the shade of.
+          const tone = bank[y]![x]!
+            ? SHADOW
+            : lit[y]![x]!
+              ? HIGHLIGHT
+              : shade[y]![x]!
+                ? SHADOW
+                : BASE;
           setPixel(sheet, frame * CELL + x, row * CELL + y, tone);
         }
       }
