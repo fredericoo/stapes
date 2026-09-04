@@ -20,6 +20,9 @@ a world in the way.
   server, on ports it asks the OS for so several worktrees can run together.
   Prints both URLs; open the client one
 - `bun run generate` — regenerate placeholder tileset + seed JSON in `data/`
+- `bun run generate:water` — rebuild the water autotile from two masks: the wave
+  frames in `scripts/wave-frames.png` and the green shapes in the `floors` sheet.
+  Writes `data/tilesets/water.png` and the `water` tile's 47 slices together
 - `bun run carve:caves` — carve a multi-floor cave system into `data/map.json`,
   then walk every cell of it with the game's own movement rules. What to carve
   is the `SYSTEM` block at the top of the script; `--verify` checks the map as
