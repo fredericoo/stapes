@@ -91,6 +91,38 @@ export function changedCellsOnLevel(
 }
 
 /**
+ * The cells that differ inside **one chunk** of a level.
+ *
+ * The same comparison {@link changedCellsOnLevel} makes, addressed to a chunk
+ * the caller already has in hand. It exists because the renderer's unit of
+ * geometry is now the chunk rather than the floor: asking about the level and
+ * then discarding the cells outside the chunk being patched would walk every
+ * other chunk that changed on that tick, which on a busy floor is most of them.
+ *
+ * An absent chunk on either side is the empty one, so a chunk appearing reads
+ * as every cell in it changing and a chunk vanishing as every cell it had.
+ */
+export function changedCellsInChunk(
+  prev: MapFile,
+  next: MapFile,
+  z: number,
+  chunk: string,
+): Set<string> {
+  const out = new Set<string>();
+  const before = prev.levels[levelKey(z)]?.[chunk];
+  const after = next.levels[levelKey(z)]?.[chunk];
+  if (before === after) return out;
+
+  for (const key in after) {
+    if (before?.[key] !== after[key]) out.add(key);
+  }
+  for (const key in before) {
+    if (after?.[key] === undefined) out.add(key);
+  }
+  return out;
+}
+
+/**
  * One chunk's worth of difference between two versions of a map.
  *
  * `cells` is the chunk as it stands *now*, and is empty for a chunk that has

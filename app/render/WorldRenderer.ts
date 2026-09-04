@@ -19,12 +19,19 @@ import {
 } from "../lib/lighting";
 import { sampleIllumination } from "../lib/clock";
 import {
+  changedCellsInChunk,
   changedCellsOnLevel,
+  chunkKeyFor,
+  getChunk,
   getStack,
-  listCoords,
   stackHeight,
   terrainHeight,
 } from "../lib/mapData";
+import {
+  chunkAddressKey,
+  parseChunkAddress,
+  visibleChunkKeys,
+} from "./meshWindow";
 import {
   type RoofCut,
   cutHides,
@@ -454,15 +461,18 @@ export function dynamicLightTileIds(
 const LIGHT_WINDOW_MARGIN = 4;
 
 /**
- * Changed cells past which the incremental path stops being worth it.
+ * Changed cells on one level past which they stop being examined one by one.
  *
- * Each one costs two {@link cellItems} rebuilds for the comparison, plus nine
- * more for its autotile ring. A step touches two cells; a paint stroke or a
- * level load touches hundreds, and for those the wholesale rebuild is both
- * simpler and faster. Set well above what gameplay produces and well below
- * what an edit does.
+ * Deciding whether an edit moved the *merged* batch costs two
+ * {@link cellItems} rebuilds per cell, over the cell and its autotile ring. A
+ * tick of ordinary play changes a couple of dozen cells across the world and is
+ * worth asking about, because the answer is almost always "no" and the reward
+ * is swapping one sprite instead of rebuilding a chunk. A paint stroke or a
+ * level load changes hundreds, and there the question costs more than
+ * rebuilding the chunks outright. Set well above what gameplay produces and
+ * well below what an edit does.
  */
-const MAX_INCREMENTAL_CELLS = 16;
+const MAX_ANALYSED_CELLS = 64;
 
 /** The cells themselves plus their 8 neighbours — an autotile's whole input. */
 function withNeighbourRing(cells: Set<string>): Set<string> {
@@ -474,6 +484,39 @@ function withNeighbourRing(cells: Set<string>): Set<string> {
     }
   }
   return out;
+}
+
+/**
+ * One chunk's geometry, and everything built alongside it.
+ *
+ * Held together rather than spread across four indexes keyed the same way,
+ * because they are created and destroyed as a unit: a chunk leaving the window
+ * has to take its meshes, its animated instances, its plumes *and* its entries
+ * in the renderer-wide movable registry with it, and the failure when one of
+ * those is forgotten is a stale key pointing at disposed geometry.
+ */
+type ChunkGeometry = {
+  group: THREE.Group;
+  z: number;
+  chunk: string;
+  animated: AnimatedInstance[];
+  emitters: ParticleEmitterSpec[];
+  /**
+   * The {@link movableMeshes} keys this chunk installed.
+   *
+   * Recorded rather than recovered by prefix, because the prefix of a movable
+   * key is its *cell* and what is being dropped is a chunk: finding them any
+   * other way means walking the registry, which holds every mesh in the built
+   * world.
+   */
+  movableKeys: Set<string>;
+};
+
+/** Do two windows name the same cells? Four compares on the common frame. */
+function sameRect(a: WorldRect | null, b: WorldRect): boolean {
+  return (
+    a !== null && a.x0 === b.x0 && a.y0 === b.y0 && a.x1 === b.x1 && a.y1 === b.y1
+  );
 }
 
 function disposeObject3D(obj: THREE.Object3D) {
@@ -523,21 +566,51 @@ export class WorldRenderer {
   private tilesets: TilesetDef[] = [];
   private tilesetById = new Map<string, TilesetDef>();
   private tilesById: Record<string, TileDef> = {};
+  /**
+   * One group per level, holding that level's built chunks.
+   *
+   * Kept as the parent of the chunk groups rather than replaced by them,
+   * because the roof-cut's whole-storey arm is `group.visible = false` on one
+   * object — a cut that hides a floor should skip that floor's draw calls with
+   * one flag, not with a walk of however many chunks happen to be built.
+   */
   private levelGroups = new Map<number, THREE.Group>();
-  private animatedByLevel = new Map<number, AnimatedInstance[]>();
+  /**
+   * The geometry that exists right now, one entry per built chunk.
+   *
+   * Keyed by {@link chunkAddressKey}. This is the whole of what makes the
+   * renderer's cost track the window rather than the world: a chunk outside the
+   * window has no entry, no group and no quads, and comes into being on the
+   * frame the camera reaches for it. @see meshWindow
+   */
+  private chunkGeometry = new Map<string, ChunkGeometry>();
+  /**
+   * The window the built set was last decided against, so a frame in which
+   * neither the map nor the camera moved costs one comparison.
+   */
+  private meshedWindow: WorldRect | null = null;
   /**
    * Every emitting placement on the board, by level.
    *
-   * Kept beside {@link animatedByLevel} and maintained by the same three
-   * functions, because it answers the same shape of question — "what did this
-   * level's build produce that outlives the geometry" — and a fourth index with
-   * its own lifecycle is a fourth thing to forget in `removeLevel`.
+   * Derived from the built chunks rather than maintained beside them — see
+   * {@link refreshTileEmitters} — because the geometry's unit is the chunk and
+   * this one's is the level, which is the shape `appendVisibleTileEmitters`
+   * culls in.
    *
-   * The whole board, not the window: culling is a per-frame question about where
-   * the camera is, and re-deriving this on every pan would rebuild the index for
-   * a step.
+   * Every built chunk, not the window: what is built is already a window, and
+   * the per-frame cull is a finer question than this index answers.
    */
   private tileEmittersByLevel = new Map<number, ParticleEmitterSpec[]>();
+  /**
+   * Whether {@link tileEmittersByLevel} still agrees with the built chunks.
+   *
+   * The index is per level because that is the shape `appendVisibleTileEmitters`
+   * culls in, and the geometry is per chunk, so the two are reconciled — lazily,
+   * on the next frame that asks for emitters. Plumes are a handful in the whole
+   * world, so rebuilding the index outright is cheaper than keeping it in step
+   * edit by edit.
+   */
+  private tileEmittersStale = false;
   /**
    * The plumes handed to the particle system this frame, refilled in place.
    *
@@ -740,7 +813,7 @@ export class WorldRenderer {
       this.lightingKey = "";
       this.staticLightGrid = null;
       if (this.view) {
-        this.applyMap(this.view.map, true);
+        this.applyMap(this.view.map, this.cameraWindow(this.view), true);
         if (this.lightingEnabled) this.updateLighting(this.view);
       }
       this.assetsReady = true;
@@ -772,7 +845,7 @@ export class WorldRenderer {
     }
 
     this.time("map", () => {
-      this.applyMap(view.map, false);
+      this.applyMap(view.map, this.cameraWindow(view), false);
       this.applyRoofCut(view.roofCut);
     });
     if (this.lightingEnabled) {
@@ -808,6 +881,7 @@ export class WorldRenderer {
    * window, which is the camera's and is the same one the light bake crops to.
    */
   private emittersFor(view: WorldView): readonly ParticleEmitterSpec[] {
+    if (this.tileEmittersStale) this.refreshTileEmitters();
     if (this.tileEmittersByLevel.size === 0) {
       return view.particleEmitters ?? EMPTY_EMITTERS;
     }
@@ -1061,8 +1135,8 @@ export class WorldRenderer {
    * shader reads (see {@link writeCutMask}).
    *
    * Rebuilding the merged geometry instead was the obvious alternative and is
-   * the one thing that must not happen here: `buildLevel` walks every coordinate
-   * on the floor, and the cut changes every time the player takes a step.
+   * the one thing that must not happen here: rebuilding walks every coordinate
+   * of a chunk, and the cut changes every time the player takes a step.
    *
    * Skipped when the cut is the same object as last frame, which is the usual
    * case — `GameRenderer` caches it on the map and the anchor, so it is a new
@@ -1516,15 +1590,25 @@ export class WorldRenderer {
     }
   }
 
-  private applyMap(map: MapFile, force: boolean) {
-    if (!force && map === this.prevMap) return;
+  /**
+   * Bring the built geometry into line with this map, seen from this window.
+   *
+   * Two things can make it out of date and they are not the same thing. The
+   * *map* changing is an edit, and costs the chunks it touched. The *window*
+   * moving is a walk, and costs the chunks that have come into range and the
+   * ones that have left. A frame where neither moved is the common one and
+   * costs the comparison below and nothing else.
+   */
+  private applyMap(map: MapFile, window: WorldRect, force: boolean) {
+    const mapMoved = force || map !== this.prevMap;
+    if (!mapMoved && sameRect(this.meshedWindow, window)) return;
     // Stacks moved under the chrome — whatever it was anchored to may be gone.
-    this.overlaySig = null;
-    if (!force && this.prevMap) {
-      this.rebuildDirty(map);
-    } else {
-      this.rebuildAll(map);
-    }
+    // Only for an edit: panning does not move anything the chrome is anchored
+    // to, and clearing this on every step would rebuild the overlays for a
+    // camera that merely scrolled.
+    if (mapMoved) this.overlaySig = null;
+    if (force || !this.prevMap) this.discardGeometry();
+    this.syncChunks(map, window);
   }
 
   private bindResize() {
@@ -1868,21 +1952,24 @@ export class WorldRenderer {
   }
 
 
-  private rebuildAll(map: MapFile) {
+  /**
+   * Throw away every mesh this class owns, so the next sync builds from nothing.
+   *
+   * **Anything parented to `world` that this does not own has to be named
+   * here**, and the failure when it is not is total rather than subtle: the
+   * child is removed *and disposed*, so its geometry is freed underneath a
+   * renderer that goes on thinking it is drawing. The particle mesh is built
+   * once in the constructor and the first map build ate it, which looked
+   * exactly like a particle system that had never been wired up at all.
+   * @see projectileGroup
+   *
+   * Arrows and plumes survive on purpose: a new tile catalogue is not a reason
+   * for a shot already in the air to vanish or a fire to go out, and neither is
+   * keyed by cell, so there is nothing in either that a rebuilt board
+   * invalidates.
+   */
+  private discardGeometry() {
     this.clearMotionGhosts();
-    // Every level group, and deliberately not the arrows or the plumes: a map
-    // edit is not a reason for a shot already in the air to vanish, nor for a
-    // fire to go out. Neither is keyed by cell — an arrow is keyed by flight and
-    // a particle by nothing at all — so there is nothing in either that a
-    // rebuilt board could invalidate.
-    //
-    // **Anything parented to `world` that this function does not own has to be
-    // named here**, and the failure when it is not is total rather than subtle:
-    // the child is removed *and disposed*, so its geometry is freed underneath a
-    // renderer that goes on thinking it is drawing. The particle mesh is built
-    // once in the constructor and the first map build ate it, which looked
-    // exactly like a particle system that had never been wired up at all.
-    // @see projectileGroup
     for (const child of [...this.world.children]) {
       if (child === this.projectileGroup || child === this.particles.mesh) {
         continue;
@@ -1891,138 +1978,264 @@ export class WorldRenderer {
       disposeObject3D(child);
     }
     this.levelGroups.clear();
-    this.animatedByLevel.clear();
+    this.chunkGeometry.clear();
+    this.meshedWindow = null;
     this.tileEmittersByLevel.clear();
+    this.tileEmittersStale = false;
     this.animated = [];
     this.animatedByKey.clear();
     this.movableMeshes.clear();
     this.movableBasePos.clear();
     this.movableBaseBox.clear();
-
-    for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
-      this.buildLevel(map, z);
-    }
-    this.rebuildAnimatedIndex();
-    this.prevMap = map;
-    this.world.updateMatrixWorld(true);
-  }
-
-  private rebuildDirty(next: MapFile) {
-    const prev = this.prevMap;
-    if (!prev) {
-      this.rebuildAll(next);
-      return;
-    }
-
-    const dirtyLevels = new Set<number>();
-    const allZ = new Set<number>();
-    for (const zk of Object.keys(prev.levels)) allZ.add(Number(zk));
-    for (const zk of Object.keys(next.levels)) allZ.add(Number(zk));
-
-    for (const z of allZ) {
-      const prevLevel = prev.levels[levelKey(z)];
-      const nextLevel = next.levels[levelKey(z)];
-      if (prevLevel === nextLevel) continue;
-      dirtyLevels.add(z);
-    }
-
-    if (dirtyLevels.size === 0) {
-      this.prevMap = next;
-      return;
-    }
-
-    // A level can change identity without any cell differing — a chunk record
-    // rewritten to the same contents. Nothing to push to the GPU for those.
-    let meshesChanged = false;
-    for (const z of dirtyLevels) {
-      const outcome = this.rebuildLevelIncrementally(prev, next, z);
-      if (outcome === "unchanged") continue;
-      if (outcome === "rebuilt") {
-        meshesChanged = true;
-        continue;
-      }
-      this.removeLevel(z);
-      this.buildLevel(next, z);
-      meshesChanged = true;
-    }
-    if (meshesChanged) {
-      this.rebuildAnimatedIndex();
-      this.world.updateMatrixWorld(true);
-    }
-    this.prevMap = next;
   }
 
   /**
-   * Rebuild only what changed on a level, or report that it cannot.
+   * Build what has come into range, drop what has left, patch what changed.
    *
-   * Merged geometry is one batch per (level, texture), so any change to it
-   * means rebuilding the floor — 4565 cells on level 0, ~8.7ms, for a step that
-   * moved one sprite. But a mobile tile is never in that batch, so a step
-   * changes only its own mesh, and the batch is byte-identical across the edit.
-   * This detects that case and takes the cheap path.
+   * The three arms are deliberately separate rather than "drop everything
+   * outside and rebuild everything inside": a chunk that is both still wanted
+   * and unchanged is the overwhelming majority on every frame, and it must cost
+   * a set lookup and a reference compare. That compare is the map's own
+   * copy-on-write identity — a step rewrites the one chunk it crossed and
+   * leaves every other chunk the same object.
+   */
+  private syncChunks(next: MapFile, window: WorldRect) {
+    const prev = this.prevMap;
+    const wanted = visibleChunkKeys(next, window);
+    const dirty = prev ? this.dirtyChunks(prev, next, wanted) : wanted;
+
+    for (const key of [...this.chunkGeometry.keys()]) {
+      if (!wanted.has(key)) this.dropChunk(key);
+    }
+
+    let meshesChanged = false;
+    for (const key of wanted) {
+      const { z, chunk } = parseChunkAddress(key);
+      const built = this.chunkGeometry.get(key);
+      if (built && dirty.has(key)) {
+        this.dropChunk(key);
+        this.buildChunk(next, z, chunk);
+        meshesChanged = true;
+        continue;
+      }
+      if (!built) {
+        this.buildChunk(next, z, chunk);
+        meshesChanged = true;
+        continue;
+      }
+      // Unchanged merged geometry, by {@link dirtyChunks}. What is left is
+      // whatever moved *through* the chunk, which is a mesh of its own and can
+      // be swapped without touching the batch.
+      if (prev && getChunk(prev, z, chunk) === getChunk(next, z, chunk)) continue;
+      this.patchChunkSeparates(prev!, next, built);
+      meshesChanged = true;
+    }
+
+    // Dropping a chunk changes the animated index as much as building one does,
+    // so this is not gated on `meshesChanged`: a chunk that only scrolled off
+    // has taken its animated instances with it.
+    this.rebuildAnimatedIndex();
+    if (meshesChanged) this.world.updateMatrixWorld(true);
+    this.prevMap = next;
+    this.meshedWindow = window;
+  }
+
+  /**
+   * The built chunks whose **merged** geometry this edit moved.
    *
-   * Detection is by rebuilding the affected cells' quads and comparing the
-   * merged ones — the same {@link cellItems} the full build uses, so the two
-   * cannot disagree about what a cell should look like.
+   * The one question worth asking carefully, because the answer decides between
+   * rebuilding a chunk and swapping one sprite. A changed *cell* is not a
+   * changed batch: a creature stepping rewrites two cells and neither is in the
+   * merged batch at all, which is the case every frame of ordinary play. So the
+   * test is the cell's merged contribution before and after, through the same
+   * {@link cellItems} the build uses.
    *
-   * Ordering inside the level group is not a concern: depth comes from the box
+   * **The ring is why this is not asked chunk by chunk.** An autotile reads its
+   * eight neighbours, so a wall placed at the edge of one chunk restyles cells
+   * in the chunk next door without those cells changing. When geometry was one
+   * batch per floor that fell out for free — the whole floor was rebuilt. Per
+   * chunk it has to be said out loud, and the failure it prevents is a visible
+   * seam at a chunk boundary that nothing later would repair.
+   *
+   * A cell outside the built set is skipped before its signature is computed,
+   * so an edit in an unwatched corner of the world costs the walk and nothing
+   * else.
+   */
+  private dirtyChunks(
+    prev: MapFile,
+    next: MapFile,
+    wanted: ReadonlySet<string>,
+  ): Set<string> {
+    const dirty = new Set<string>();
+    if (prev === next) return dirty;
+
+    for (let z = MIN_LEVEL; z <= MAX_LEVEL; z++) {
+      if (prev.levels[levelKey(z)] === next.levels[levelKey(z)]) continue;
+      const changed = changedCellsOnLevel(prev, next, z);
+      if (changed.size === 0) continue;
+
+      // Past a paint stroke's worth, stop asking one cell at a time and dirty
+      // everything the edit and its ring could possibly have restyled. The
+      // comparison is two `cellItems` builds a cell, so at this size it costs
+      // more than the rebuilds it is trying to avoid — and an edit that large
+      // is somebody in the editor rather than the world going about its
+      // business.
+      if (changed.size > MAX_ANALYSED_CELLS) {
+        for (const key of withNeighbourRing(changed)) {
+          const { x, y } = parseCoordKey(key);
+          const addr = chunkAddressKey(z, chunkKeyFor(x, y));
+          if (wanted.has(addr)) dirty.add(addr);
+        }
+        continue;
+      }
+
+      for (const key of withNeighbourRing(changed)) {
+        const { x, y } = parseCoordKey(key);
+        const addr = chunkAddressKey(z, chunkKeyFor(x, y));
+        if (!wanted.has(addr) || dirty.has(addr)) continue;
+        if (
+          this.mergedSignatureAt(prev, z, x, y) !==
+          this.mergedSignatureAt(next, z, x, y)
+        ) {
+          dirty.add(addr);
+        }
+      }
+    }
+    return dirty;
+  }
+
+  /**
+   * Swap the own-mesh tiles of a chunk whose merged batch did not move.
+   *
+   * Everything a tick of ordinary play produces lands here: a creature is a
+   * mobile tile, a mobile tile is never merged, and so a step is a mesh
+   * replaced inside a group that is otherwise untouched. That the batch really
+   * is unchanged is {@link dirtyChunks}'s finding, not an assumption made here.
+   *
+   * Ordering inside the group is not a concern: depth comes from the box
    * attribute each quad carries, resolved per fragment, so a mesh appended late
    * still sorts where it belongs.
    */
-  private rebuildLevelIncrementally(
+  private patchChunkSeparates(
     prev: MapFile,
     next: MapFile,
-    z: number,
-  ): "unchanged" | "rebuilt" | "needs-full-rebuild" {
-    const changed = changedCellsOnLevel(prev, next, z);
-    if (changed.size === 0) return "unchanged";
-    // Bail rather than diff half a floor: past a handful of cells the
-    // comparison costs more than the rebuild it is trying to avoid.
-    if (changed.size > MAX_INCREMENTAL_CELLS) return "needs-full-rebuild";
-
-    // An autotile reads its 8 neighbours, so a changed cell can restyle the
-    // ring around it without those cells changing themselves.
-    const affected = withNeighbourRing(changed);
-    for (const key of affected) {
-      const { x, y } = parseCoordKey(key);
-      if (
-        this.mergedSignatureAt(prev, z, x, y) !==
-        this.mergedSignatureAt(next, z, x, y)
-      ) {
-        return "needs-full-rebuild";
-      }
-    }
-
-    // No group yet means this level had no geometry at all — there is nothing
-    // to patch into, so let the full build create it.
-    const group = this.levelGroups.get(z);
-    if (!group) return "needs-full-rebuild";
-
+    entry: ChunkGeometry,
+  ) {
+    const { z, chunk } = entry;
+    const changed = changedCellsInChunk(prev, next, z, chunk);
     for (const key of changed) {
       const { x, y } = parseCoordKey(key);
-      this.removeSeparatesAt(z, x, y);
-      this.removeTileEmittersAt(z, x, y);
+      this.removeSeparatesAt(entry, x, y);
+      this.removeTileEmittersAt(entry, x, y);
     }
-
-    const animated = this.animatedByLevel.get(z) ?? [];
-    const emitters = this.tileEmittersByLevel.get(z) ?? [];
     for (const key of changed) {
       const { x, y } = parseCoordKey(key);
       for (const item of this.cellItems(next, z, x, y, getStack(next, x, y, z))) {
         // Ahead of the separates filter, and that placement is the whole reason
         // this is not inside it: the merged tiles this loop skips are exactly
         // the still, unanimated ones a chimney is.
-        if (item.emitter) emitters.push(item.emitter);
+        if (item.emitter) {
+          entry.emitters.push(item.emitter);
+          this.tileEmittersStale = true;
+        }
         if (!item.anim && !item.tileKey) continue;
-        this.installSeparate(group, item, z, animated);
+        this.installSeparate(entry, item);
       }
     }
-    if (animated.length > 0) this.animatedByLevel.set(z, animated);
-    else this.animatedByLevel.delete(z);
-    if (emitters.length > 0) this.tileEmittersByLevel.set(z, emitters);
-    else this.tileEmittersByLevel.delete(z);
+  }
 
-    return "rebuilt";
+  /**
+   * Every mesh and index entry one chunk owns, gone.
+   *
+   * Ordinary on every walk, which is what makes the bookkeeping worth being
+   * exact about: a leftover key in {@link movableMeshes} points at geometry
+   * that has been disposed, and the next motion frame writes attributes into
+   * freed buffers.
+   */
+  private dropChunk(key: string) {
+    const entry = this.chunkGeometry.get(key);
+    if (!entry) return;
+
+    for (const movableKey of entry.movableKeys) {
+      this.movableMeshes.delete(movableKey);
+      this.movableBasePos.delete(movableKey);
+      this.movableBaseBox.delete(movableKey);
+      this.disposeMotionGhost(movableKey);
+    }
+    entry.group.parent?.remove(entry.group);
+    disposeObject3D(entry.group);
+    this.chunkGeometry.delete(key);
+    if (entry.emitters.length > 0) this.tileEmittersStale = true;
+  }
+
+  /**
+   * Turn one chunk of one level into geometry.
+   *
+   * The same split the level build always made — merged batches per texture for
+   * everything still, a mesh of its own for anything animated or mobile — with
+   * the floor replaced by the chunk. Which is the whole change: the merged
+   * batch an edit used to invalidate was 4,565 cells of ground on level 0 and
+   * is now at most `CHUNK_SIZE` squared.
+   */
+  private buildChunk(map: MapFile, z: number, chunk: string) {
+    const cells = getChunk(map, z, chunk);
+    if (!cells) return;
+
+    const items: BuildItem[] = [];
+    for (const cellKey in cells) {
+      const { x, y } = parseCoordKey(cellKey);
+      for (const item of this.cellItems(map, z, x, y, cells[cellKey]!)) {
+        items.push(item);
+      }
+    }
+    if (items.length === 0) return;
+
+    const group = new THREE.Group();
+    group.name = `chunk:${z}:${chunk}`;
+    group.matrixAutoUpdate = false;
+    group.updateMatrix();
+    this.ensureLevelGroup(z).add(group);
+
+    const entry: ChunkGeometry = {
+      group,
+      z,
+      chunk,
+      animated: [],
+      emitters: [],
+      movableKeys: new Set(),
+    };
+    this.chunkGeometry.set(chunkAddressKey(z, chunk), entry);
+
+    const staticByTex = new Map<THREE.Texture, Quad[]>();
+    for (const item of items) {
+      // Before the split, because an emitting tile is as likely to be merged
+      // into the floor's batch as to have a mesh of its own: a chimney does not
+      // move and does not animate, and a plume is drawn by the particle layer
+      // either way.
+      if (item.emitter) entry.emitters.push(item.emitter);
+      if (item.anim || item.tileKey) {
+        this.installSeparate(entry, item);
+      } else {
+        let list = staticByTex.get(item.texture);
+        if (!list) {
+          list = [];
+          staticByTex.set(item.texture, list);
+        }
+        list.push(item);
+      }
+    }
+
+    for (const [tex, quads] of staticByTex) {
+      const geo = buildMergedQuadGeometry(quads);
+      geo.computeBoundingSphere();
+      const mesh = new THREE.Mesh(geo, this.materialFor(tex, z));
+      mesh.frustumCulled = false;
+      mesh.matrixAutoUpdate = false;
+      mesh.updateMatrix();
+      group.add(mesh);
+    }
+
+    if (entry.emitters.length > 0) this.tileEmittersStale = true;
   }
 
   /** The merged-batch contribution of one cell, as a comparable string. */
@@ -2042,24 +2255,23 @@ export class WorldRenderer {
   }
 
   /** Drop every own-mesh tile at a cell, so the cell can be rebuilt from scratch. */
-  private removeSeparatesAt(z: number, x: number, y: number) {
-    const prefix = `${z}:${x},${y}:`;
-    for (const key of [...this.movableMeshes.keys()]) {
+  private removeSeparatesAt(entry: ChunkGeometry, x: number, y: number) {
+    const prefix = `${entry.z}:${x},${y}:`;
+    for (const key of entry.movableKeys) {
       if (!key.startsWith(prefix)) continue;
-      const mesh = this.movableMeshes.get(key)!;
-      mesh.parent?.remove(mesh);
-      mesh.geometry.dispose();
+      const mesh = this.movableMeshes.get(key);
+      if (mesh) {
+        mesh.parent?.remove(mesh);
+        mesh.geometry.dispose();
+      }
       this.movableMeshes.delete(key);
       this.movableBasePos.delete(key);
       this.movableBaseBox.delete(key);
       this.disposeMotionGhost(key);
+      entry.movableKeys.delete(key);
     }
-    const animated = this.animatedByLevel.get(z);
-    if (!animated) return;
-    const kept = animated.filter((inst) => !inst.key.startsWith(prefix));
-    if (kept.length === animated.length) return;
-    if (kept.length > 0) this.animatedByLevel.set(z, kept);
-    else this.animatedByLevel.delete(z);
+    const kept = entry.animated.filter((inst) => !inst.key.startsWith(prefix));
+    if (kept.length !== entry.animated.length) entry.animated = kept;
   }
 
   /**
@@ -2070,42 +2282,40 @@ export class WorldRenderer {
    * spelling of "this cell" serves both indexes and there is no second parse of
    * the same string to get out of step.
    */
-  private removeTileEmittersAt(z: number, x: number, y: number) {
-    const emitters = this.tileEmittersByLevel.get(z);
-    if (!emitters) return;
-    const prefix = tileEmitterPrefix(z, x, y);
-    const kept = emitters.filter((spec) => !spec.id.startsWith(prefix));
-    if (kept.length === emitters.length) return;
-    if (kept.length > 0) this.tileEmittersByLevel.set(z, kept);
-    else this.tileEmittersByLevel.delete(z);
+  private removeTileEmittersAt(entry: ChunkGeometry, x: number, y: number) {
+    const prefix = tileEmitterPrefix(entry.z, x, y);
+    const kept = entry.emitters.filter((spec) => !spec.id.startsWith(prefix));
+    if (kept.length === entry.emitters.length) return;
+    entry.emitters = kept;
+    this.tileEmittersStale = true;
   }
 
-  private removeLevel(z: number) {
-    for (const [key, ghost] of this.motionGhosts) {
-      if (ghost.userData.drawOnZ === z) this.disposeMotionGhost(key);
-    }
-    const group = this.levelGroups.get(z);
-    if (group) {
-      group.parent?.remove(group);
-      disposeObject3D(group);
-      this.levelGroups.delete(z);
-    }
-    this.animatedByLevel.delete(z);
-    this.tileEmittersByLevel.delete(z);
-    for (const key of [...this.movableMeshes.keys()]) {
-      if (key.startsWith(`${z}:`)) {
-        this.movableMeshes.delete(key);
-        this.movableBasePos.delete(key);
-        this.movableBaseBox.delete(key);
-        this.disposeMotionGhost(key);
+  /**
+   * Every built chunk's plumes, gathered by level for the frame's culling.
+   *
+   * Rebuilt outright rather than kept in step, and only when something has said
+   * it is out of date: the whole world holds a handful of emitting placements,
+   * so walking the built chunks costs less than maintaining a second index
+   * through every drop, build and patch.
+   */
+  private refreshTileEmitters() {
+    this.tileEmittersStale = false;
+    this.tileEmittersByLevel.clear();
+    for (const entry of this.chunkGeometry.values()) {
+      if (entry.emitters.length === 0) continue;
+      let list = this.tileEmittersByLevel.get(entry.z);
+      if (!list) {
+        list = [];
+        this.tileEmittersByLevel.set(entry.z, list);
       }
+      for (const spec of entry.emitters) list.push(spec);
     }
   }
 
   private rebuildAnimatedIndex() {
     this.animated = [];
-    for (const list of this.animatedByLevel.values()) {
-      for (const inst of list) this.animated.push(inst);
+    for (const entry of this.chunkGeometry.values()) {
+      for (const inst of entry.animated) this.animated.push(inst);
     }
     this.animatedByKey.clear();
     for (const inst of this.animated) {
@@ -2320,14 +2530,10 @@ export class WorldRenderer {
   }
 
   /** Give an item its own mesh and register it in whichever indexes claim it. */
-  private installSeparate(
-    parent: THREE.Object3D,
-    item: BuildItem,
-    z: number,
-    animated: AnimatedInstance[],
-  ) {
-    const mesh = this.addQuadMesh(parent, item, item.texture, z);
+  private installSeparate(entry: ChunkGeometry, item: BuildItem) {
+    const mesh = this.addQuadMesh(entry.group, item, item.texture, entry.z);
     if (item.tileKey) {
+      entry.movableKeys.add(item.tileKey);
       this.movableMeshes.set(item.tileKey, mesh);
       this.movableBasePos.set(item.tileKey, {
         x: mesh.position.x,
@@ -2339,71 +2545,7 @@ export class WorldRenderer {
       });
     }
     if (item.anim) {
-      animated.push({ mesh, key: item.tileKey ?? "", ...item.anim });
-    }
-  }
-
-  private buildLevel(map: MapFile, z: number) {
-    const coords = listCoords(map, z);
-    if (coords.length === 0) return;
-
-    const items: BuildItem[] = [];
-    for (const cell of coords) {
-      for (const item of this.cellItems(map, z, cell.x, cell.y, cell.stack)) {
-        items.push(item);
-      }
-    }
-
-    if (items.length === 0) return;
-
-    const levelGroup = new THREE.Group();
-    levelGroup.name = `level:${z}`;
-    levelGroup.matrixAutoUpdate = false;
-    levelGroup.updateMatrix();
-    // From the standing cut, for the reason `ensureLevelGroup` does it: this
-    // runs inside `applyMap`, which is before the frame's cut is applied, and a
-    // cut that has not changed since last frame does not reach back for it.
-    levelGroup.visible = !cutHidesWholeLevel(this.roofCut, z);
-    this.world.add(levelGroup);
-    this.levelGroups.set(z, levelGroup);
-
-    const staticByTex = new Map<THREE.Texture, Quad[]>();
-    const animated: AnimatedInstance[] = [];
-    const emitters: ParticleEmitterSpec[] = [];
-
-    for (const item of items) {
-      // Before the split, because an emitting tile is as likely to be merged
-      // into the floor's batch as to have a mesh of its own: a chimney does not
-      // move and does not animate, and a plume is drawn by the particle layer
-      // either way.
-      if (item.emitter) emitters.push(item.emitter);
-      if (item.anim || item.tileKey) {
-        this.installSeparate(levelGroup, item, z, animated);
-      } else {
-        let list = staticByTex.get(item.texture);
-        if (!list) {
-          list = [];
-          staticByTex.set(item.texture, list);
-        }
-        list.push(item);
-      }
-    }
-
-    for (const [tex, quads] of staticByTex) {
-      const geo = buildMergedQuadGeometry(quads);
-      geo.computeBoundingSphere();
-      const mesh = new THREE.Mesh(geo, this.materialFor(tex, z));
-      mesh.frustumCulled = false;
-      mesh.matrixAutoUpdate = false;
-      mesh.updateMatrix();
-      levelGroup.add(mesh);
-    }
-
-    if (animated.length > 0) {
-      this.animatedByLevel.set(z, animated);
-    }
-    if (emitters.length > 0) {
-      this.tileEmittersByLevel.set(z, emitters);
+      entry.animated.push({ mesh, key: item.tileKey ?? "", ...item.anim });
     }
   }
 
