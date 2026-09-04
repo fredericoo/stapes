@@ -70,6 +70,16 @@ export const LIGHT_CHUNK_SIZE = 32;
  */
 export const LIGHT_APRON = MAX_LIGHT_LEVEL;
 
+/**
+ * Cells of slack around the camera's reach before the light window is taken.
+ *
+ * Here rather than in the renderer that applies it, because the server has to
+ * know how far a client's bake reads: what a client is not sent, the sky flood
+ * reads as open air, so the subscription has to cover everything the bake can
+ * touch or daylight seeds itself at the boundary. See `app/net/interest`.
+ */
+export const LIGHT_WINDOW_MARGIN = 4;
+
 export type WorldRect = { x0: number; y0: number; x1: number; y1: number };
 
 /**
