@@ -39,16 +39,19 @@ const SHAPE_BLOCK_X = 4;
 const SHAPE_FILL: [number, number, number] = [35, 144, 99];
 
 /**
- * The two tones the water is drawn in.
+ * The three tones the water is drawn in, and they are opaque.
  *
- * The slab water already was, and a highlight lifted by the delta the recording
- * showed between its own base and its own wave — so the tile reads as this
- * game's water rather than importing the recording's much brighter cyan. Both
- * keep the slab's alpha, so water still lies over the ground rather than
- * replacing it.
+ * The tile used to be the translucent slab water has always been, which made it
+ * whatever it was lying on with a blue wash over it — a pond over dirt read as
+ * mud. Opaque, water is water, and the ground still shows at the rim because
+ * that is where the autotile's own shape stops.
+ *
+ * Three rather than two because the wave needed somewhere to fall: see
+ * {@link shadowOf}.
  */
-const BASE: [number, number, number, number] = [50, 51, 83, 210];
-const HIGHLIGHT: [number, number, number, number] = [61, 83, 111, 210];
+const SHADOW: [number, number, number, number] = [0x24, 0x43, 0x6b, 255];
+const BASE: [number, number, number, number] = [0x33, 0x5c, 0x8c, 255];
+const HIGHLIGHT: [number, number, number, number] = [0x5b, 0x8f, 0xbf, 255];
 
 /** Frame cadence, in milliseconds. 12.5fps — what the recording was captured at. */
 const FRAME_MS = 80;
@@ -67,6 +70,34 @@ const SHAPE_SOURCE_TILE = "dirt";
 
 const TILESET_ID = "water";
 const TILE_ID = "water";
+
+/**
+ * Where a frame's wave casts, as a mask.
+ *
+ * One darker pixel down and to the right of every bright one, which is all a
+ * crest needs to stop reading as a flat line and start reading as something
+ * standing up out of the surface.
+ *
+ * Two rules keep it honest. It never lands **on** a bright pixel, so a dense
+ * stretch of wave stays bright rather than eating itself; and it **wraps** at
+ * the tile edge, because the wave is an 8x8 pattern that tiles, and a shadow
+ * that stopped at the edge would draw a seam exactly where there is none. Being
+ * outside the slice's own shape is handled where it is drawn — the shadow is
+ * clipped by the same mask as everything else.
+ */
+function shadowOf(lit: boolean[][]): boolean[][] {
+  const out = lit.map((row) => row.map(() => false));
+  for (let y = 0; y < CELL; y++) {
+    for (let x = 0; x < CELL; x++) {
+      if (!lit[y]![x]!) continue;
+      const ty = (y + 1) % CELL;
+      const tx = (x + 1) % CELL;
+      if (lit[ty]![tx]!) continue;
+      out[ty]![tx] = true;
+    }
+  }
+  return out;
+}
 
 async function readPng(file: string): Promise<PNG> {
   return PNG.sync.read(await fs.readFile(file));
@@ -126,9 +157,24 @@ async function main() {
   });
   sheet.data.fill(0);
 
+  // Per frame rather than per slice-and-frame: the wave and its shadow are the
+  // same 8x8 pattern in all 47 neighbourhoods, and only the shape cutting them
+  // differs.
+  const litByFrame: boolean[][][] = [];
+  const shadowByFrame: boolean[][][] = [];
+  for (let frame = 0; frame < frameCount; frame++) {
+    const lit = Array.from({ length: CELL }, (_, y) =>
+      Array.from({ length: CELL }, (_, x) => pixel(waves, frame * CELL + x, y)[3] > 0),
+    );
+    litByFrame.push(lit);
+    shadowByFrame.push(shadowOf(lit));
+  }
+
   slices.forEach((slice, row) => {
     const cell = cells.get(slice)!;
     for (let frame = 0; frame < frameCount; frame++) {
+      const lit = litByFrame[frame]!;
+      const shade = shadowByFrame[frame]!;
       for (let y = 0; y < CELL; y++) {
         for (let x = 0; x < CELL; x++) {
           const [r, g, b, a] = pixel(
@@ -139,8 +185,8 @@ async function main() {
           const inside =
             a > 0 && r === SHAPE_FILL[0] && g === SHAPE_FILL[1] && b === SHAPE_FILL[2];
           if (!inside) continue;
-          const lit = pixel(waves, frame * CELL + x, y)[3] > 0;
-          setPixel(sheet, frame * CELL + x, row * CELL + y, lit ? HIGHLIGHT : BASE);
+          const tone = lit[y]![x]! ? HIGHLIGHT : shade[y]![x]! ? SHADOW : BASE;
+          setPixel(sheet, frame * CELL + x, row * CELL + y, tone);
         }
       }
     }

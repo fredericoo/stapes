@@ -3750,6 +3750,15 @@ the same 47-entry mapping would drift.
 either way, so it costs a few hundred texels and **no extra draw call**. Measured
 on the shipped map with the pond in view: 27 world meshes, 58 draw calls.
 
+The tile is **opaque**, unlike the translucent slab water used to be. A wash over
+whatever was underneath made a pond over a dirt bed read as mud; the ground still
+shows at the rim, because that is where the autotile's own shape stops rather
+than where its alpha does. Three tones, not two: the third is a shadow one pixel
+down and right of every bright one, which is what stops a crest reading as a flat
+line. It never lands on another bright pixel, and it wraps at the tile edge — the
+wave is an 8x8 pattern that tiles, so a shadow clipped at the edge would draw a
+seam where there is none.
+
 ### Mobility is a property of the tile, not of the frame
 
 `isMobileTile` (in `app/lib/interactions.ts`) answers "can this ever change
