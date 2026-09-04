@@ -61,6 +61,13 @@ const floor = tile({ id: "floor", height: 0 });
 const wall = tile({ id: "wall", height: 4 });
 const half = tile({ id: "half", height: 2 });
 const water = tile({ id: "water", height: 0, lightPassing: true });
+const sign = tile({ id: "sign", height: 2 });
+const ladderTop = tile({
+  id: "ladder-top",
+  height: 2,
+  lightPassing: true,
+  intangible: true,
+});
 const torch = tile({
   id: "torch",
   height: 0,
@@ -72,6 +79,8 @@ const tilesById: Record<string, TileDef> = {
   wall,
   half,
   water,
+  sign,
+  "ladder-top": ladderTop,
   torch,
 };
 
@@ -154,11 +163,13 @@ describe("rayTransmission", () => {
     expect(rayTransmission(0, 0, 0, 0, 0, 2, occlusion)).toBe(0);
   });
 
-  it("half-decays vertical travel through a half-block", () => {
+  it("seals vertical travel through a half-block too", () => {
+    // Half a level tall is half a wall to look across and a whole lid to fall
+    // through: the ray meets the tile's footprint however short it stands.
     const occlusion = new Map([
       ["1:0,0", { opacity: 0.5, sealsLevel: true }],
     ]);
-    expect(rayTransmission(0, 0, 0, 0, 0, 2, occlusion)).toBeCloseTo(0.5);
+    expect(rayTransmission(0, 0, 0, 0, 0, 2, occlusion)).toBe(0);
   });
 });
 
@@ -551,5 +562,66 @@ describe("computeLighting flood fill", () => {
 
   it(`uses MAX_LIGHT_LEVEL=${MAX_LIGHT_LEVEL}`, () => {
     expect(MAX_LIGHT_LEVEL).toBe(15);
+  });
+});
+
+/**
+ * The ground is a lid, and what somebody stands on it does not open one.
+ *
+ * Every case here is one cell of surface over a sealed room, changing only what
+ * is in that surface cell. The room below is walled in on all eight sides and
+ * floored, so daylight has exactly one way in — down through the surface — and
+ * the reading is about that cell and nothing else.
+ */
+describe("daylight through the surface into a room below", () => {
+  /** 3×3 of ground at L0 over a 1-cell room at L-1, walled in all round. */
+  function roomUnder(surface: string[]): MapFile {
+    const cells: Array<{ x: number; y: number; z: number; tiles: string[] }> =
+      [];
+    for (let x = -1; x <= 1; x++) {
+      for (let y = -1; y <= 1; y++) {
+        const middle = x === 0 && y === 0;
+        cells.push({ x, y, z: 0, tiles: middle ? surface : ["floor"] });
+        cells.push({
+          x,
+          y,
+          z: -1,
+          tiles: middle ? ["floor"] : ["floor", "wall"],
+        });
+      }
+    }
+    return mapAt(cells);
+  }
+
+  function litBelow(surface: string[]): number {
+    const grid = computeLighting(roomUnder(surface), tilesById, AMBIENT_PRESETS.day);
+    return sampleLevelLight(grid.levels.get(-1)!, 0, 0)[0]!;
+  }
+
+  it("a bare floor keeps the room dark", () => {
+    expect(litBelow(["floor"])).toBe(0);
+  });
+
+  it("a floor with a sign standing on it seals it exactly the same", () => {
+    // The bug this covers: a sign is half a level tall, which made the cell
+    // half opaque, which disqualified the floor under it from sealing at all.
+    // Nothing about the floor changed — something was placed on it.
+    expect(litBelow(["floor", "sign"])).toBe(litBelow(["floor"]));
+  });
+
+  it("so does a floor under a full block", () => {
+    expect(litBelow(["floor", "wall"])).toBe(0);
+  });
+
+  it("an open shaft still lets daylight down", () => {
+    expect(litBelow([])).toBeGreaterThan(0.5);
+  });
+
+  it("an authored skylight of light-passing water stays a skylight", () => {
+    expect(litBelow(["water"])).toBeGreaterThan(0.5);
+  });
+
+  it("a ladder-top in the shaft does not turn it into a lid", () => {
+    expect(litBelow(["ladder-top"])).toBeGreaterThan(0.5);
   });
 });

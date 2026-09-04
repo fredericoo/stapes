@@ -3479,6 +3479,46 @@ therefore calls `invalidateAll` and drops the grid identity; the editor clears
 `lightingKey` for the same reason. Anything cleverer here would have to reason
 about edits nobody was watching.
 
+### A floor is a lid; what stands on it is not
+
+`stackOcclusion` answers two questions and they are not the same question.
+`opacity` is blocking *height* over a level — how much of the cell you can see
+past **sideways**, so a half-height sign is 0.5 and light gets over it.
+`sealsLevel` is whether anything solid is in the cell at all, and that is what
+decides whether light may travel **down** through it: however short it stands, a
+solid tile covers its cell's whole footprint at the level's floor plane.
+
+The sky flood used to decide its vertical edges with `seals && opacity <
+TRANSMISSION_EPSILON` — "sealed *and* height zero", which is a test for a bare
+floor rather than for a lid. Put a sign, a bush, anything 1–3 high on a patch of
+grass and the cell scored 0.5 opacity, failed that test, and the seal was
+skipped: daylight descended at half strength into the sealed room underneath and
+the flood then spread it sideways through the whole room. Nothing about the
+floor had changed. Something had been placed on it.
+
+The rule now is one line in five places — `rayTransmission`, `castEmitter` and
+`denseRayTransmission` in `app/lib/lighting.ts`, the column seed and the spread
+in `app/lib/lightingFlood.ts` — and it is **`seals` alone**. Opacity takes no
+part in a vertical decision, which is coherent because `opacity > 0` implies
+`seals` by construction: only a non-light-passing tile contributes height. So
+the two facts stay orthogonal, opacity is purely horizontal, and the seed
+collapses to "paint the cell, then let anything solid end the shaft".
+
+Two things this deliberately does not touch. Light-passing tiles seal nothing,
+so the pond authored over the city dungeon and the ladder-top in a shaft are
+still holes in the ground. And horizontal attenuation is unchanged: a half-block
+still passes half the light travelling across it, which is what makes a low wall
+read as a low wall.
+
+The knock-on is in `scripts/carve-caves.ts`, whose `SEALED_ROOF` mask only
+carves under a surface column that is *either* a bare floor *or* a full block,
+because everything in between leaked. That restriction exists only because of
+this bug and can now be relaxed to "anything that seals" — which is most of the
+map's surface rather than the fraction of it that happens to be bare.
+
+Measured on the fixture town, the bake is unchanged: p50 ~44ms either way, p95
+47–50ms against a 65ms budget.
+
 ## Testing the world
 
 `server/` runs under `bun test` (`bun run test:server`), on the runtime it
