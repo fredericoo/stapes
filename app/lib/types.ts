@@ -1013,27 +1013,84 @@ function clampSpriteLight(sprite: TileSprite): TileSprite {
 }
 
 /** {@link clampSpriteLight} across the three sprite fields a state can hold. */
-function clampStateLight<T extends StateSprites>(state: T): T {
+/**
+ * Every sprite on one state, rebuilt through `fn`.
+ *
+ * The write-side twin of {@link stateSpritesOn}, and the only other place that
+ * knows where sprites structurally live on a tile. Anything that edits all of
+ * them goes through here, so a fifth sprite field would have one place to be
+ * added rather than one per caller — which is the mistake the *read* side was
+ * already careful about.
+ */
+function mapStateSprites<T extends StateSprites>(
+  state: T,
+  fn: (sprite: TileSprite) => TileSprite,
+): T {
   const out = { ...state };
-  if (out.sprite) out.sprite = clampSpriteLight(out.sprite);
+  if (out.sprite) out.sprite = fn(out.sprite);
   if (out.sprites) {
     out.sprites = Object.fromEntries(
-      Object.entries(out.sprites).map(([k, v]) => [
-        k,
-        v ? clampSpriteLight(v) : v,
-      ]),
+      Object.entries(out.sprites).map(([k, v]) => [k, v ? fn(v) : v]),
     ) as typeof out.sprites;
   }
   if (out.slices) {
     out.slices = Object.fromEntries(
-      Object.entries(out.slices).map(([k, v]) => [
-        k,
-        v ? clampSpriteLight(v) : v,
-      ]),
+      Object.entries(out.slices).map(([k, v]) => [k, v ? fn(v) : v]),
     ) as typeof out.slices;
   }
-  if (out.scatter) out.scatter = out.scatter.map(clampSpriteLight);
+  if (out.scatter) out.scatter = out.scatter.map(fn);
   return out;
+}
+
+function clampStateLight<T extends StateSprites>(state: T): T {
+  return mapStateSprites(state, clampSpriteLight);
+}
+
+/**
+ * The phase this tile's sprites are wearing, if any of them is.
+ *
+ * One answer for the whole tile, because {@link withSpritePhase} is the only
+ * thing that sets one and it sets them all together. An autotile is 47 sprites
+ * of the same material; asking somebody to phase each neighbourhood separately
+ * would be asking them to type the same pair 47 times and to keep them in step
+ * by hand for ever after.
+ */
+export function tilePhase(tile: TileDef): SpritePhase | undefined {
+  for (const sprite of allTileSprites(tile)) {
+    const phase = sprite.phase;
+    if (phase) return phase;
+  }
+  return undefined;
+}
+
+/**
+ * The tile with `phase` on every sprite it has — or with none left anywhere,
+ * for a phase of zero, which is the same thing as not being phased.
+ */
+export function withSpritePhase(
+  tile: TileDef,
+  phase: SpritePhase | undefined,
+): TileDef {
+  const wanted = phase && (phase.x !== 0 || phase.y !== 0) ? phase : undefined;
+  const apply = (sprite: TileSprite): TileSprite => {
+    if (!wanted) {
+      if (!sprite.phase) return sprite;
+      const { phase: _dropped, ...rest } = sprite;
+      return rest;
+    }
+    return { ...sprite, phase: wanted };
+  };
+  const out = mapStateSprites(tile, apply);
+  if (!out.states) return out;
+  return {
+    ...out,
+    states: Object.fromEntries(
+      Object.entries(out.states).map(([k, v]) => [
+        k,
+        v ? mapStateSprites(v, apply) : v,
+      ]),
+    ) as TileDef["states"],
+  };
 }
 
 /**

@@ -5,6 +5,8 @@ import {
   cycleMs,
   frameStartMs,
   spritePhase,
+  tilePhase,
+  withSpritePhase,
   type Frame,
   type TileDef,
   type TileSprite,
@@ -82,6 +84,47 @@ describe("spritePhase", () => {
 
   it("refuses one on a sprite with nothing to phase", () => {
     expect(spritePhase({ frames: frames(1), phase: { x: 1, y: 0 } })).toBeUndefined();
+  });
+});
+
+describe("withSpritePhase", () => {
+  const autotile = (): TileDef =>
+    ({
+      id: "water",
+      name: "Water",
+      height: 0,
+      type: "autotile",
+      kind: "prop",
+      attributes: {},
+      slices: { 0: sprite(14), 5: sprite(14), 46: sprite(14) },
+      states: { moving: { slices: { 0: sprite(14) } } },
+    }) as unknown as TileDef;
+
+  it("puts one phase on every sprite the tile has, states included", () => {
+    const out = withSpritePhase(autotile(), { x: 3, y: -1 });
+    const all = allTileSprites(out);
+    expect(all).toHaveLength(4);
+    for (const s of all) expect(s.phase).toEqual({ x: 3, y: -1 });
+  });
+
+  it("reads back as one answer for the tile", () => {
+    expect(tilePhase(withSpritePhase(autotile(), { x: 3, y: -1 }))).toEqual({
+      x: 3,
+      y: -1,
+    });
+    expect(tilePhase(autotile())).toBeUndefined();
+  });
+
+  it("takes the phase off rather than storing a zero", () => {
+    const phased = withSpritePhase(autotile(), { x: 3, y: -1 });
+    const cleared = withSpritePhase(phased, { x: 0, y: 0 });
+    for (const s of allTileSprites(cleared)) expect(s.phase).toBeUndefined();
+    expect(tilePhase(cleared)).toBeUndefined();
+  });
+
+  it("leaves a tile with no sprites alone", () => {
+    const bare = { id: "x", name: "X", height: 0, type: "simple", kind: "prop", attributes: {} } as unknown as TileDef;
+    expect(withSpritePhase(bare, { x: 1, y: 0 })).toEqual(bare);
   });
 });
 
