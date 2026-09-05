@@ -3184,6 +3184,28 @@ Every change to map data (`MapFile` / placed tiles) **must** go through `useEdit
 - Paint drags use `beginStroke` → `commitMap(next, { coalesceInStroke: true })` → `endStroke` so the whole drag is one undo step.
 - If you add a new map-editing path, wire it through `commitMap` and confirm ⌘Z undoes it before considering the work done.
 
+### The bucket fills blank cells, bounded by the level's own extent
+
+`floodCoords` floods a blank start cell as readily as a tiled one — painting the
+inside of an outline you have just drawn is the ordinary way to make a cave
+floor, and refusing it made the tool useless for exactly the shape it is best
+at. Blank space has no far edge, though, so a flood started in the open world
+has no reason to ever stop and the map has no size to clamp it against.
+
+The stop is the box around every cell the level already holds: a blank flood
+that steps outside it fills **nothing**, rather than some arbitrary prefix of
+the void. That box is the exact test rather than a guess at one — every cell
+beyond it is blank too, so a region that leaves it can reach any coordinate
+there is, and a region that never leaves it is enclosed by tiles on all four
+sides. A gap in the outline therefore reads as "open space" and not as a
+part-filled cave, which is the answer you want: the fill you asked for was never
+possible, and a half-flood would leave you hunting for the leak in a floor you
+had already painted over.
+
+Only the current level's cells count, because the flood only ever compares
+stacks on that level. Drawing the outline on the level you are filling is not a
+convention — it is the whole of what makes the fill terminate.
+
 ## A status is drawn twice: on the body, and over the tile
 
 `app/lib/statusVfx.ts` is the vocabulary — a tint, a cast light and an emitter —

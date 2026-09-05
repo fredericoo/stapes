@@ -1862,7 +1862,6 @@ export class EditorRenderer {
         coord.y,
         store.currentLevel,
       );
-      if (target.length === 0) return;
       if (store.selected) {
         const source = getStack(
           store.map,
@@ -1878,7 +1877,16 @@ export class EditorRenderer {
         coord.y,
         store.currentLevel,
       );
-      if (coords.length === 0) return;
+      if (coords.length === 0) {
+        // Blank cells only flood inside an enclosure; the open world has no
+        // edge to stop at, so say why nothing happened rather than looking dead.
+        if (target.length === 0) {
+          useEditorStore.setState({
+            lastToast: "Open space — enclose it before filling",
+          });
+        }
+        return;
+      }
       const result = store.stampMany(coords);
       if (result.skipped > 0) {
         useEditorStore.setState({
