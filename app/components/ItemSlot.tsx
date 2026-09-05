@@ -48,14 +48,14 @@ import { TilePreview } from "./TilePreview";
  * world reads a door instead of opening it — so the kit follows the same rule,
  * and the same gesture is safe because it no longer does the other thing.
  *
- * What either gesture produces is a whole card rather than three lines — see
- * `./ItemCard` — drawn through the shared `../ui/Tooltip`, in a portal. The
- * portal is the point: an absolutely positioned span inside this button is
- * clipped by the `overflow-y-auto` column the panels sit in on a phone, which
- * makes `overflow-x` non-visible too, and the card anchored on the leftmost
- * square was cut off at the panel's edge. A measured nudge fixed that on the
- * horizontal only; a portal has no clipping ancestor to escape, and Base UI
- * flips and shifts it into whatever room there is on both axes.
+ * Either gesture produces a whole card rather than three lines — see
+ * `./ItemCard` — drawn through the shared `../ui/Tooltip` and rendered into a
+ * portal. The portal matters: a span positioned inside this button is clipped by
+ * the `overflow-y-auto` column the panels sit in on a phone, which makes
+ * `overflow-x` non-visible as well, so a card anchored on the leftmost square
+ * was cut off at the panel edge. Measuring and nudging fixed that horizontally
+ * only. A portal has no clipping ancestor, and Base UI flips and shifts it into
+ * whatever space exists on both axes.
  */
 
 /** Which sprite stands for a tile in a slot — the one facing the reader. */
@@ -366,9 +366,9 @@ export function ItemSlot({
   const inspected = useMemo(() => {
     if (!asking || !tile) return null;
     const card = itemCard(tile, instance, masteryXp, statusDefs);
-    // Carried together rather than separately, because they are only ever used
-    // together and only ever both present: the card is built *from* the tile, so
-    // one object is what saves every reader below a non-null assertion.
+    // Kept together because they are only ever used together and are always
+    // both present: the card is built from the tile, so one object saves every
+    // reader below a non-null assertion.
     return card ? { card, tile } : null;
   }, [asking, tile, instance, masteryXp, statusDefs]);
 
@@ -534,11 +534,10 @@ export function ItemSlot({
     </button>
   );
 
-  // Wrapped whether or not there is anything to say, rather than only while
-  // asking: a square that gained and lost a parent as the eye went on and off
-  // would remount its button, and the button is what holds this slot's
-  // registration in the page-wide drag. A shut tooltip mounts no portal, so the
-  // idle cost is one context apiece.
+  // Wrapped whether or not there is anything to say. A square that gained and
+  // lost a parent as look mode toggled would remount its button, and the button
+  // holds this slot's registration in the page-wide drag. A closed tooltip
+  // mounts no portal, so an idle square costs one context.
   return (
     <Tooltip
       content={
@@ -550,14 +549,14 @@ export function ItemSlot({
           />
         ) : null
       }
-      // Above the square, because a bag is a grid and a card hanging downward
-      // covers the row a reader is working along. It flips of its own accord
-      // when there is no room up there — see `../ui/Tooltip`.
+      // Above the square: a bag is a grid, and a card hanging downward covers
+      // the row the reader is working along. It flips on its own when there is
+      // no room above — see `../ui/Tooltip`.
       side="top"
       open={showTooltip}
       // Inert to the pointer, so it cannot come between a finger and the square
-      // it is describing: that would take the pointer off the slot and dismiss
-      // the very card that had just appeared.
+      // it describes. That would take the pointer off the slot and dismiss the
+      // card that had just appeared.
       className="pointer-events-none"
     >
       {square}

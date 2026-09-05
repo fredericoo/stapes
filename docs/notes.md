@@ -2394,6 +2394,56 @@ thumb, where look mode's promise is that pointing at something tells you about i
 now. Entering the mode also cancels a drag in flight, since shift is a key that
 can be pressed halfway through one.
 
+### The gate is one section of a card
+
+The lines `weaponDemand` produces are what the world's look label says, over the
+canvas, in the pixel font. Inspecting a slot gets the same facts plus the rest of
+the profile, as a card: `app/game/itemCard.ts` computes it and
+`app/components/ItemCard.tsx` draws it. Damage, the wait between blows, the
+chance of landing one, the spread, the reach, every requirement against what you
+have, the share of the weapon that comes to, what a blow leaves behind, and for
+worn things the kinds of blow they turn aside.
+
+The card exists because the gate is not the only question. Somebody holding two
+swords wants to know the difference between them — not which is better, which is
+what the fighting settles — and there is no way to separate a fast light blade
+from a slow heavy one without giving both numbers.
+
+Three rules keep it from becoming the requirements panel that was deleted:
+
+- **Nothing volunteers.** The equipment panel at rest is a grid of squares. The
+  card only exists while somebody holds a slot with the eye on, or rests a finger
+  on one. Chrome that ranked your swords unasked would answer the only question
+  the fighting has to offer.
+- **Every figure is the reader's, with the item's own struck through beside it.**
+  The card runs the item through the same `fightingStats` a swing uses, so a
+  greataxe you cannot lift reports 4 damage rather than 17. Printing the authored
+  numbers would make it a catalogue entry; printing yours makes it about you.
+- **It computes nothing.** `itemCard` calls `fightingStats`, `swingIntervalMs`,
+  `requirementShare` and `weaponReadiness` rather than restating them. A second
+  definition of what a weapon is worth would diverge the next time somebody
+  changed the falloff. The mastery rebalance replaced every formula underneath
+  and the card needed no arithmetic changed.
+
+Each item kind reports what it has and nothing else. A weapon has a profile, a
+gate and a share; armour has a defence figure and a resistance table but no
+share, because it has no requirements to meet; a shield has the one defence
+figure; a stone reports what it moves, on whom, its cooldown and its reach, and
+its requirements without a share, because an unmet requirement refuses a cast
+rather than weakening it. An artifact reports nothing at all: it is the kind with
+no fields, and everything it does it does by being a placement.
+
+A resistance row shows the **total** a blow of that kind loses — `def +
+resist[kind]` — with the flat number struck through beside it. A bare "+3" has to
+be added to a figure further up the card before it means anything.
+
+The card is portalled through `app/ui/Tooltip.tsx` rather than positioned inside
+the slot button. On a phone the panels sit in an `overflow-y-auto` column, which
+makes `overflow-x` non-visible too, so a card anchored on the leftmost square was
+clipped at the panel edge. Measuring the rect and nudging it back fixed that
+horizontally; a portal has no clipping ancestor at all, and Base UI flips and
+shifts it into whatever space exists on both axes.
+
 ### A notice is a sentence with nowhere else to go
 
 The bottom of the view carries at most two lines of white text — "Your blade

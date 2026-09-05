@@ -300,7 +300,7 @@ describe("itemCard", () => {
         null,
         NOTHING_LEARNT,
       )!;
-      expect(card.kind).toBe("Worn on the body");
+      expect(card.kind).toBe("Worn on your body");
       // The same word a shield's row uses, because they are the same field and
       // `../game/equipment`'s `wornDefence` adds them.
       expect(statAt(card.stats, "def")).toMatchObject({
@@ -315,6 +315,17 @@ describe("itemCard", () => {
      * place the reader on, and a card offering one would be inventing a
      * mechanic.
      */
+    it("names which square it goes in", () => {
+      // The player's word, not the stored key: the chest square is `armor` on
+      // the wire because it was the only one when it was named.
+      const helm = itemCard(
+        tileWith({ type: "armor", slot: "head", def: 2 }),
+        null,
+        NOTHING_LEARNT,
+      )!;
+      expect(helm.kind).toBe("Worn on your head");
+    });
+
     it("has nothing to say about the hands wearing it", () => {
       const card = itemCard(tileWith({ type: "armor", def: 4 }), null, {
         blade: xpForLevel(60),
@@ -365,6 +376,156 @@ describe("itemCard", () => {
       value: "6 health",
       tone: "bad",
     });
+  });
+
+  describe("the kinds that are not weapons or armour", () => {
+    it("gives a shield the same defence row a weapon's def gets", () => {
+      const card = itemCard(tileWith({ type: "shield", def: 4 }), null, NOTHING_LEARNT)!;
+      expect(card.kind).toBe("Held in either hand");
+      expect(statAt(card.stats, "def")).toMatchObject({
+        label: "Blocks",
+        value: "4 a blow",
+      });
+      // No share and no requirements: a shield asks nothing and is not swung.
+      expect(card.effectiveness).toBeNull();
+      expect(card.requirements).toEqual([]);
+    });
+
+    /**
+     * An artifact is the kind with no fields. Everything it does it does by
+     * being a placement — its light, its sprite, its being in the way — so
+     * there is nothing for a profile to report.
+     */
+    it("gives an artifact a name and nothing else", () => {
+      const card = itemCard(tileWith({ type: "artifact" }), null, NOTHING_LEARNT)!;
+      expect(card.kind).toBe("Carried");
+      expect(card.stats).toEqual([]);
+      expect(card.effectiveness).toBeNull();
+    });
+
+    it("says what a stone does, to whom, and when it is ready again", () => {
+      const card = itemCard(
+        tileWith({
+          type: "stone",
+          cooldownMs: 8_000,
+          requirements: { arcane: 12 },
+          effect: { kind: "bolt", on: "target", damage: 9, variance: 20 },
+        }),
+        null,
+        { arcane: xpForLevel(4) },
+      )!;
+
+      expect(card.kind).toBe("Arcane stone");
+      expect(statAt(card.stats, "power")).toMatchObject({ label: "Harms", value: "9" });
+      expect(statAt(card.stats, "subject").value).toBe("Whoever you point at");
+      expect(statAt(card.stats, "cooldown").value).toBe("8s");
+      // The requirements are reported because they decide whether it fires at
+      // all, but there is no partial share: an unmet stone refuses the cast.
+      expect(card.requirements).toEqual([
+        { mastery: "arcane", required: 12, have: 4, met: false },
+      ]);
+      expect(card.effectiveness).toBeNull();
+    });
+
+    it("reads a mending stone as mending rather than as negative damage", () => {
+      const card = itemCard(
+        tileWith({
+          type: "stone",
+          cooldownMs: 30_000,
+          effect: { kind: "bolt", on: "caster", damage: -12 },
+        }),
+        null,
+        NOTHING_LEARNT,
+      )!;
+      expect(statAt(card.stats, "power")).toMatchObject({
+        label: "Mends",
+        value: "12",
+        tone: "good",
+      });
+      expect(statAt(card.stats, "subject").value).toBe("You");
+    });
+
+      it("heads the list with the act that causes it", () => {
+      // A stone's grants carry a chance just as a weapon's do, so a heading
+      // picked from the chance alone would say a necklace burns people "on hit".
+      expect(itemCard(tileWith(SWORD), null, NOTHING_LEARNT)!.effectsTitle).toBe(
+        "On hit",
+      );
+      expect(
+        itemCard(
+          tileWith({
+            type: "stone",
+            cooldownMs: 1_000,
+            effect: { kind: "bolt", on: "target", damage: 1 },
+          }),
+          null,
+          NOTHING_LEARNT,
+        )!.effectsTitle,
+      ).toBe("On cast");
+      expect(
+        itemCard(tileWith({ type: "consumable", hp: 1 }), null, NOTHING_LEARNT)!
+          .effectsTitle,
+      ).toBe("Grants");
+    });
+
+  it("names what a stone leaves behind, wherever its kind keeps the list", () => {
+      const venom: StatusDef = {
+        id: "venom",
+        name: "Venom",
+        description: "Saps a little health",
+        tone: "bad",
+        fromMs: 10_000,
+        toMs: 10_000,
+        stacks: false,
+        maxMs: 60_000,
+        everyMs: 1_000,
+        effects: {},
+        modifiers: {},
+        vfx: { tint: null, particles: null, light: null, taperMs: 0 },
+      };
+      const card = itemCard(
+        tileWith({
+          type: "stone",
+          cooldownMs: 5_000,
+          effect: {
+            kind: "bolt",
+            on: "target",
+            damage: 1,
+            statuses: [{ id: "venom", chance: 40 }],
+          },
+        }),
+        null,
+        NOTHING_LEARNT,
+        { venom },
+      )!;
+      expect(card.effects).toMatchObject([{ name: "Venom", chance: 40 }]);
+    });
+  });
+
+  it("names what holding it attunes you to", () => {
+    const card = itemCard(
+      tileWith({ ...SWORD, elements: ["fire"] }),
+      null,
+      NOTHING_LEARNT,
+    )!;
+    expect(card.elements).toEqual(["fire"]);
+    expect(card.speech).toContain("Attuned to fire");
+    // Only the kinds a fight can see carry them.
+    expect(
+      itemCard(tileWith({ type: "artifact" }), null, NOTHING_LEARNT)!.elements,
+    ).toEqual([]);
+  });
+
+  it("puts the count beside the name rather than in a row", () => {
+    const pile: ItemInstance = { id: "1", tileId: "thing", count: 6 };
+    const card = itemCard(tileWith({ type: "artifact", pile: 20 }), pile, NOTHING_LEARNT)!;
+    expect(card.count).toBe(6);
+    expect(card.speech).toContain("Thing, 6 of them");
+
+    // A single thing has no count to show, and "×1" would say what its absence
+    // already says.
+    const one: ItemInstance = { id: "2", tileId: "thing" };
+    expect(itemCard(tileWith({ type: "artifact" }), one, NOTHING_LEARNT)!.count).toBeNull();
   });
 
   it("counts a container against its capacity, not its contents", () => {

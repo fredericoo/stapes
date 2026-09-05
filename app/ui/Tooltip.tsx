@@ -16,9 +16,8 @@ export function TooltipProvider({ children }: { children: ReactNode }) {
 /**
  * How far a popup stays from the edge of whatever is clipping it.
  *
- * Bigger than Base UI's own five, because these popups sit over a game rather
- * than over a form: a card flush against the edge of a phone reads as something
- * that has been cut off, whether or not a single pixel of it actually was.
+ * Larger than Base UI's default of five. A card sitting flush against the edge
+ * of a phone screen looks cut off even when none of it is.
  */
 const COLLISION_PADDING_PX = 8;
 

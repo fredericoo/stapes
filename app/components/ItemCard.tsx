@@ -11,39 +11,33 @@ import type { TileDef, TilesetDef } from "../lib/types";
 import { SpritePreview, TilePreview } from "./TilePreview";
 
 /**
- * What one item is, drawn the way a game draws it.
+ * One item, drawn as a card.
  *
- * ## Borrowed from the genre on purpose
+ * ## The layout follows the genre convention
  *
- * The shape is the one every MMO settled on twenty years ago, and it is worth
- * copying because it was arrived at the same way: a player comparing two swords
- * reads top-down and stops as soon as they have their answer. So the order is
- * fixed and never conditional on content — picture and name, what kind of thing
- * it is, what is written on this one, the profile, what it stops better than
- * everything else, what it asks, what you get out of it, what it leaves behind,
- * and the sentence about your hands last. A card whose rows moved about
- * depending on the item would have to be *read* rather than scanned.
+ * The order is the one RPG item tooltips have used for decades, and it works
+ * for the same reason: a player comparing two swords reads top-down and stops
+ * once they have their answer. Picture and name, kind, what is written on this
+ * copy, the profile, what it resists, what it asks, the share of it you get,
+ * and what a blow leaves behind. The order never varies with the item.
  *
- * Every section but the first two disappears when it has nothing to say, and
- * that is the same rule rather than an exception to it: what remains keeps its
- * order. A weapon shows the profile and what it asks; a breastplate shows the
- * profile and what it resists; both are read top-down and neither has a row in
- * a place the other put something else.
+ * Sections with nothing to say are omitted, and the ones that remain keep their
+ * positions. A weapon shows a profile and requirements; a breastplate shows a
+ * profile and resistances; neither puts a row where the other put something
+ * different.
  *
- * ## Light, over a dark game
+ * ## Light card over a dark game
  *
- * `bg-paper` with a hard border and a hard shadow, which is every other popup in
- * this game and not a decision taken again here. It also settles the one thing
- * the panels could not do: red and green are the vocabulary this card is written
- * in — met and unmet, better and worse — and on the near-black panel background
- * both of them sit at about twice the contrast a reader needs. On paper they are
- * five to one and up.
+ * `bg-paper` with a hard border and shadow, matching every other popup here.
+ * It also fixes a contrast problem the dark panels have: red and green carry
+ * meaning on this card — met and unmet, better and worse — and on the near-black
+ * panel background both sit near 1.8:1. On paper they are above 5:1.
  *
- * ## It says nothing aloud
+ * ## The drawing is not announced
  *
- * `aria-hidden` throughout, because the trigger's own `aria-label` already
- * carries the whole card as sentences — see `../game/itemCard`'s `speech`. Two
- * copies of one fact in one accessible name reads the name twice.
+ * `aria-hidden` throughout. The trigger's `aria-label` already carries the card
+ * as sentences — see `../game/itemCard`'s `speech` — and two copies in one
+ * accessible name would read it twice.
  */
 
 /** Big enough to read a 2×2 sprite at, and the size the slot draws it. */
@@ -53,13 +47,12 @@ const CARD_SPRITE_SIZE_PX = 32;
 const EFFECT_ICON_SIZE_PX = 14;
 
 /**
- * Where meeting everything a weapon asks falls on the bar, and its top.
+ * Where meeting everything a weapon asks falls on the bar, and also its top.
  *
- * The same figure twice, and deliberately: requirements are a gate rather than a
- * scaling term, so a fully-met weapon is *all* of the weapon and there is
- * nothing past it to draw. The bar used to run to 125 with a notch at 100, back
- * when exceeding a requirement bought a little extra — see `../lib/mastery`'s
- * `REQUIREMENTS_MET`, which is where that stopped being true.
+ * The same figure twice. Requirements gate rather than scale, so meeting them
+ * is worth the whole weapon and there is nothing past that to draw. The bar ran
+ * to 125 with a mark at 100 while exceeding a requirement still paid something
+ * extra; see `../lib/mastery`'s `REQUIREMENTS_MET`.
  */
 const BAR_MET_PERCENT = 100;
 
@@ -76,8 +69,8 @@ export function ItemCard({
     <div aria-hidden className="flex w-64 max-w-full flex-col gap-1.5 py-0.5">
       <header className="flex items-start gap-2">
         {/* The thing itself, at the size the square it came out of drew it — so
-            the card reads as that square opened up rather than as a separate
-            window about it. */}
+            the card reads as an expansion of that square rather than a
+            separate window about it. */}
         <span
           className="grid shrink-0 place-items-center border-2 border-ink/20 bg-ink/5"
           style={{ width: CARD_SPRITE_SIZE_PX + 4, height: CARD_SPRITE_SIZE_PX + 4 }}
@@ -95,10 +88,31 @@ export function ItemCard({
         <span className="flex min-w-0 flex-col">
           <span className="text-sm font-bold leading-tight break-words">
             {card.name}
+            {card.count === null ? null : (
+              // Beside the name rather than as a row: it is part of what the
+              // reader is looking at. The same multiplication sign the badge on
+              // the square uses — see `../lib/piles`' `pileTally`.
+              <span className="ml-1 tabular-nums text-ink/60">
+                {"\u00d7"}
+                {card.count}
+              </span>
+            )}
           </span>
           {card.kind ? (
             <span className="text-[10px] font-bold uppercase tracking-wide text-ink/70">
               {card.kind}
+            </span>
+          ) : null}
+          {card.elements.length > 0 ? (
+            <span className="mt-0.5 flex flex-wrap gap-1">
+              {card.elements.map((element) => (
+                <span
+                  key={element}
+                  className="border border-ink/30 px-1 text-[9px] font-bold uppercase tracking-wide text-ink/70"
+                >
+                  {element}
+                </span>
+              ))}
             </span>
           ) : null}
         </span>
@@ -145,7 +159,7 @@ export function ItemCard({
       ) : null}
 
       {card.effects.length > 0 ? (
-        <Section title={card.effectiveness === null ? "Grants" : "On hit"}>
+        <Section title={card.effectsTitle}>
           <ul className="flex flex-col gap-1">
             {card.effects.map((effect) => (
               <EffectRow key={effect.id} effect={effect} tilesets={tilesets} />
@@ -160,8 +174,8 @@ export function ItemCard({
 /**
  * A ruled-off block with a small heading over it.
  *
- * The rule is what makes the card scannable at a glance: a reader looking for
- * what a weapon asks finds the word "Requires" rather than counting rows.
+ * The rules keep the card scannable: a reader looking for what a weapon asks
+ * finds the word "Requires" instead of counting rows.
  */
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
@@ -175,12 +189,12 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 }
 
 /**
- * One figure: what it is on the left, what it comes to on the right.
+ * One figure: the label on the left, the value on the right.
  *
- * The item's own number rides alongside in brackets whenever it differs from
- * what the reader would get — which is the whole argument for the card carrying
- * numbers at all. "Damage 6" says nothing a sentence could not; "Damage 6, and
- * this sword does 17" says exactly what is wrong and what fixing it is worth.
+ * The item's own number appears beside it whenever the two differ. That
+ * comparison is the main reason the card carries numbers: "Damage 6" says
+ * nothing a sentence could not, while "Damage 6, and this sword does 17" says
+ * what is wrong and what fixing it is worth.
  */
 function StatRow({ stat }: { stat: ItemCardStat }) {
   return (
@@ -245,11 +259,11 @@ function RequirementRow({ row }: { row: ItemCardRequirement }) {
 /**
  * One kind of blow this piece is unusually good against.
  *
- * **The total is what is set in bold, and the flat number sits behind it struck
- * through** — the same shape a weapon's rows use for "yours against the item's
- * own", because it is the same question: this is what a blade loses, and *that*
- * is what everything else does. A bare "+3" would be a figure the reader has to
- * add to something further up the card before it says anything.
+ * The total is bold and the flat number is struck through behind it, the same
+ * shape the weapon rows use for yours-against-the-item's-own. It answers the
+ * same question: this is what a blade loses, that is what everything else
+ * loses. A bare "+3" would have to be added to a figure further up the card
+ * before it meant anything.
  */
 function ResistRow({ row }: { row: ItemCardResist }) {
   return (
@@ -306,12 +320,12 @@ function Effectiveness({ percent }: { percent: number }) {
 }
 
 /**
- * One thing an item leaves behind: what it is, how likely, how long, what it does.
+ * One thing an item leaves behind: what it is, how likely, how long, what it
+ * does.
  *
- * The description is on its own line under the name rather than being left to a
- * second tooltip, because there is no second tooltip to be had — this *is* the
- * popup, and a status named inside one that a player would have to hover to
- * understand would be a dead end.
+ * The description sits under the name rather than in a tooltip of its own,
+ * because this is already the tooltip. A status named here that needed a second
+ * hover to explain would be unreachable.
  */
 function EffectRow({
   effect,
