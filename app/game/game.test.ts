@@ -1739,3 +1739,82 @@ describe("GameSession switch", () => {
     ).toBe(false);
   });
 });
+
+/**
+ * A step never crosses a sealed floor plane.
+ *
+ * The climb band alone could not tell a staircase from a ceiling: a lone
+ * half-block under a bare floor is two units below it, which is exactly a
+ * climb, so a rat on the block walked up through the ground and a snake on the
+ * grass walked down through it. Den rats surfaced two levels up and then homed
+ * to the plan position of a burrow three floors down — the spawn room — and a
+ * snake blinked in and out of the level below the field it lived on.
+ */
+describe("a step never crosses a sealed floor plane", () => {
+  const body = tilesById.dwarf!;
+  const person = tilesById.player!;
+  const halfBlockUnderFloor = (): MapFile => {
+    let map = emptyMap();
+    map = replaceStack(map, 0, 0, -1, [{ tileId: "slab" }, { tileId: "dwarf" }]);
+    map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }]);
+    map = replaceStack(map, 1, 0, -1, [{ tileId: "grass" }]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }]);
+    return map;
+  };
+  const from = { x: 0, y: 0, z: -1, stackIndex: 1 };
+
+  it("keeps a body on a half-block under the floor from stepping up onto it", () => {
+    const check = canWalk(halfBlockUnderFloor(), from, "e", body, tilesById);
+    expect(check).toEqual({ ok: true, to: { x: 1, y: 0, z: -1 } });
+  });
+
+  it("keeps a person under it too", () => {
+    let map = halfBlockUnderFloor();
+    map = replaceStack(map, 0, 0, -1, [{ tileId: "slab" }, { tileId: "player" }]);
+    const check = canWalk(map, from, "e", person, tilesById);
+    expect(check).toEqual({ ok: true, to: { x: 1, y: 0, z: -1 } });
+  });
+
+  // The ramp shape: the same half-block with nothing over it climbs out onto
+  // the floor beside the hole, exactly as the den mouth is authored.
+  it("climbs out of a hole whose column is open above", () => {
+    let map = halfBlockUnderFloor();
+    map = replaceStack(map, 0, 0, 0, []);
+    const check = canWalk(map, from, "e", body, tilesById);
+    expect(check).toEqual({ ok: true, to: { x: 1, y: 0, z: 0 } });
+  });
+
+  it("refuses to step down through a floor onto a half-block under it", () => {
+    let map = emptyMap();
+    map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }, { tileId: "dwarf" }]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "wall" }]);
+    map = replaceStack(map, 1, 0, -1, [{ tileId: "slab" }]);
+    const at = { x: 0, y: 0, z: 0, stackIndex: 1 };
+    expect(canWalk(map, at, "e", body, tilesById).ok).toBe(false);
+
+    // Take the floor away and it is a hole: the drop is an ordinary step.
+    map = replaceStack(map, 1, 0, 0, []);
+    expect(canWalk(map, at, "e", body, tilesById)).toEqual({
+      ok: true,
+      to: { x: 1, y: 0, z: -1 },
+    });
+  });
+
+  // A crate under an upper floor is a step *down* onto it only through the
+  // floor, which is how a rat in a loft kept dropping onto a barrel in the
+  // room below and climbing back.
+  it("refuses to drop through an upper floor onto what stands under it", () => {
+    let map = emptyMap();
+    map = replaceStack(map, 0, 0, 1, [{ tileId: "roof" }, { tileId: "dwarf" }]);
+    map = replaceStack(map, 1, 0, 1, [{ tileId: "roof" }, { tileId: "wall" }]);
+    map = replaceStack(map, 1, 0, 0, [{ tileId: "grass" }, { tileId: "slab" }]);
+    const at = { x: 0, y: 0, z: 1, stackIndex: 1 };
+    expect(canWalk(map, at, "e", body, tilesById).ok).toBe(false);
+
+    map = replaceStack(map, 1, 0, 1, []);
+    expect(canWalk(map, at, "e", body, tilesById)).toEqual({
+      ok: true,
+      to: { x: 1, y: 0, z: 0 },
+    });
+  });
+});

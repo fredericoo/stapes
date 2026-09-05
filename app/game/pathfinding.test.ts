@@ -314,3 +314,31 @@ describe("what it costs", () => {
     expect(expanded).toBeLessThanOrEqual(20);
   });
 });
+
+/**
+ * A route is made of steps the board allows, so it inherits the rule that a
+ * step never crosses a sealed floor plane. Pinned here as well because the
+ * search's own ground check reads the same band, and the two answering
+ * differently would plan a route the walk loop then refuses.
+ */
+describe("a route stays under a floor", () => {
+  const underFloor = (): MapFile => {
+    let map = emptyMap();
+    map = replaceStack(map, 0, 0, -1, [{ tileId: "step" }, { tileId: "rat" }]);
+    map = replaceStack(map, 0, 0, 0, [{ tileId: "grass" }]);
+    for (const x of [1, 2]) {
+      map = replaceStack(map, x, 0, -1, [{ tileId: "grass" }]);
+      map = replaceStack(map, x, 0, 0, [{ tileId: "grass" }]);
+    }
+    return map;
+  };
+
+  it("finds no way up through the floor over a step", () => {
+    expect(route(underFloor(), standing(0, 0, -1), { x: 2, y: 0, z: 0 })).toBeNull();
+  });
+
+  it("climbs out where the column over the step is open", () => {
+    const map = replaceStack(underFloor(), 0, 0, 0, []);
+    expect(walked(route(map, standing(0, 0, -1), { x: 2, y: 0, z: 0 }))).toEqual(["e"]);
+  });
+});
