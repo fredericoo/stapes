@@ -57,12 +57,42 @@ name no coordinate, and they still fail on an ordinary afternoon's authoring.
 If a claim really is about the world we ship, it belongs in the Playwright run
 against a real world, not in `vitest`.
 
+## Say what you mean
+
+This applies to everything written here: commit messages, PR titles and
+descriptions, `docs/notes.md`, and code comments.
+
+Mannered prose substitutes metaphor and flourish for direct statement. Instead
+of "a parameter worth varying," the mannered writer produces "a dial worth
+turning." Instead of "this point still matters," they write "this point earns
+its keep." The phrases exist to display the writer, not to convey the idea, and
+readers can tell. That is why mannered prose irritates: it makes the reader work
+harder so the writer can perform. It is also imprecise. Metaphors drag in
+connotations the writer did not choose and cannot control. The fix is to say
+what you mean. When a literal phrase is available, use it.
+
 ## A commit is one revert, and a PR title is the commit main keeps
 
 Every PR here is squash-merged, so the PR title *is* the commit message on
 `main` — permanently, and it is the only line anybody bisecting, skimming
 `git log`, or writing release notes will ever read. Branch commits are for the
 reviewer; the PR title is for everybody who comes after.
+
+### A task is finished when there is a draft PR
+
+Green tests on a local branch are not a delivered change. **Every task ends in
+a pull request, and every pull request opens as a draft** — `gh pr create
+--draft`, no exceptions, however small or however certain the change. Then hand
+back the URL and stop. Marking a PR ready asks a reviewer to spend time on it,
+and only the author should decide when to ask.
+
+Pushing agent work to a branch whose PR is already marked ready leaves
+unreviewed changes under that label, so convert it back: `gh pr ready --undo`.
+There is no `--draft` flag on `gh pr edit`; it fails after the push has landed,
+and the PR stays marked ready.
+
+The description is a different document with its own rules — see the
+`pull-request-standards` skill in `.claude/skills/`.
 
 ### Commit messages
 
