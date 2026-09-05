@@ -824,6 +824,54 @@ Get it backwards and the ramp is walkable, reachable, and refuses to go up.
 `scripts/carve-caves.ts` derives it (`RAMP_FACING`) rather than typing it, and
 then proves every ramp it placed by asking `canWalk` to climb one.
 
+### A step never crosses a sealed floor plane
+
+`canWalk` lands a step on any standing surface in the destination column within
+`MAX_CLIMB_HEIGHT` of the walker's feet, on whatever level that surface is. The
+band alone could not tell a staircase from a ceiling: a lone `half-stone`
+(height 2) under a bare floor tops out two units below that floor, which is
+exactly a climb, so a body on the block stepped **up through the ground** onto
+the grass, and a body on the grass stepped **down through it** onto the block.
+Nothing was wrong with either cell. Only the stack next door decided it.
+
+It presented as two unrelated complaints. Two rats sat on the spawn cell killing
+whoever stood there: den rats at L-3 climbed onto single half-stones and stepped
+up through the L-2 floor, took the real ramps to L-1, and then `homing` took
+over — `within` applies the creature's `sight` (`up: 0, down: 0` for a rat), so
+a body off its home level is never `in_range home` and always `out_of_range
+home`, and it walks to the *plan* position of a burrow three floors down and
+stays. Two burrows are under the spawn room. Separately, a snake authored on
+the field over the ladder room blinked in and out of L-1 next to the ladder:
+a half-stone at (-1,42,-1) sits under grass, and it stepped down onto it and
+back up 65 times in twelve simulated minutes. Players could do all of this too.
+The reproduction is `scripts/bench-server.ts`'s setup with one idle player at
+spawn: 66 deaths in 30 simulated minutes, all to two rats from L-3.
+
+The rule now lives in `surfacesInClimbBand` (`app/game/movement.ts`), which
+`canWalk`, the route search's ground check and the brain's `stepLeavesGround`
+all read, so the three cannot disagree. A surface is dropped from the band when
+reaching it would cross a sealed plane — `stackOcclusion().sealsLevel`, the same
+fact that stops light and a look travelling vertically (*A floor is a lid*). A
+light-passing tile seals nothing, so a ladder shaft and a pond bottom stay open.
+
+**Which column the vertical travel happens in is the whole of the rule, and it
+is asymmetric on purpose.** A step *up* rises in the column being left: that is
+what makes a ramp work — the cell over it is empty (*A ramp between two levels
+needs a hole above it*), so a body climbs out of the hole onto the floor beside
+it, while the same two-unit climb from under a ceiling is refused. A step *down*
+drops in the column being entered — into the den mouth, where nothing is
+overhead, and not through the field beside it. Measuring the drop in the column
+being left would find the very floor the body stands on and refuse every step
+off a ledge. Planes strictly above the lower end and up to the higher end count:
+the plane a body finishes standing on is arrived at, not crossed.
+
+What this does not touch: `push.ts` still picks a shove's destination from the
+raw `listStandingSurfaces`, so a crate can in principle be shoved through a
+ceiling the same way. Gravity was never affected — `findLandingAbs` stops at the
+highest solid below the feet, so a fall lands on the plate rather than under it.
+And a creature already stranded off its home level is not rescued by this; it
+only stops any more from joining it.
+
 ## A roof over a cave is not what keeps the daylight out of it
 
 Anything underground that is meant to be dark has to be *checked* dark, against

@@ -4993,9 +4993,9 @@ export class GameSession implements PlaySession {
     return (
       surfacesInClimbBand(
         this.map,
+        { x: loc.x, y: loc.y, abs: fromAbs },
         loc.x + dx,
         loc.y + dy,
-        fromAbs,
         this.tilesById,
       ).length === 0
     );

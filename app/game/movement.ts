@@ -7,8 +7,10 @@ import {
   surfaceTileAt,
   walkableFloorAbove,
 } from "../lib/mapData";
+import { stackOcclusion } from "../lib/lighting";
 import type { Coord, Direction, MapFile, PlacedTile, TileDef } from "../lib/types";
 import {
+  HEIGHT_PER_LEVEL,
   MAX_LEVEL,
   MIN_LEVEL,
   resolveClimbFrom,
@@ -115,13 +117,68 @@ export function listStandingSurfaces(
 }
 
 /**
- * Surfaces at (x,y) a body with its feet at `fromAbs` could step onto.
+ * Does travelling straight up or down between `fromAbs` and `toAbs` in column
+ * (x, y) pass through a floor somebody has laid there?
  *
- * The climb band and nothing else — no fit check, no direction, no opinion
- * about what is standing there. That narrowness is what lets three callers
- * share it: {@link canWalk} picks the surface it will land on, a creature asks
- * whether a step this way would leave it in mid-air, and a route search asks
- * the same question one cell ahead of where anybody is standing.
+ * A level's floor plane sits at `z * HEIGHT_PER_LEVEL`, and it is sealed when
+ * anything solid stands in that level's cell — `sealsLevel`, the same fact that
+ * decides whether light and a look may travel vertically, so a walk cannot
+ * disagree with either about what a ceiling is. A light-passing tile seals
+ * nothing, which is what keeps a ladder shaft and a pond bottom open.
+ *
+ * Planes strictly above the lower end and up to the higher end count. The
+ * plane a body finishes standing *on* is the one it arrives at, not one it went
+ * through, and the plane under its feet at the start is not between it and
+ * anywhere.
+ */
+function crossesSealedPlane(
+  map: MapFile,
+  x: number,
+  y: number,
+  fromAbs: number,
+  toAbs: number,
+  tilesById: Record<string, TileDef>,
+): boolean {
+  const lowAbs = Math.min(fromAbs, toAbs);
+  const highAbs = Math.max(fromAbs, toAbs);
+  const firstZ = Math.max(
+    MIN_LEVEL,
+    Math.floor(lowAbs / HEIGHT_PER_LEVEL) + 1,
+  );
+  const lastZ = Math.min(MAX_LEVEL, Math.floor(highAbs / HEIGHT_PER_LEVEL));
+  for (let z = firstZ; z <= lastZ; z++) {
+    if (stackOcclusion(getStack(map, x, y, z), tilesById).sealsLevel) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/** Where a step starts: the column being left, and the feet's elevation in it. */
+export type StepOrigin = { x: number; y: number; abs: number };
+
+/**
+ * Surfaces at (x,y) a body standing at `from` could step onto.
+ *
+ * The climb band, less anything the step would have to pass through a floor to
+ * reach — and nothing else: no fit check, no direction, no opinion about what is
+ * standing there. That narrowness is what lets three callers share it:
+ * {@link canWalk} picks the surface it will land on, a creature asks whether a
+ * step this way would leave it in mid-air, and a route search asks the same
+ * question one cell ahead of where anybody is standing.
+ *
+ * **A step never crosses a sealed floor plane.** The band alone let a body
+ * change level through a ceiling: a lone half-block under a bare floor is two
+ * units below that floor, which is exactly a climb, so a rat on it stepped up
+ * through the ground onto the grass and a snake on the grass stepped down
+ * through it onto the block. Which column the vertical travel happens in is
+ * the whole of the rule. A step *up* rises in the column being left — that is
+ * what makes a ramp work at all: the cell over it is empty, so a body climbs
+ * out of the hole onto the floor beside it, while the same climb from under a
+ * ceiling is refused. A step *down* drops in the column being entered — into
+ * the den mouth, where nothing is overhead, and not through the field next to
+ * it. Measuring the drop in the column being left would find the very floor
+ * the body is standing on and refuse every step off a ledge.
  *
  * Empty means open air. The board deliberately allows walking into it so
  * gravity can pull an actor through a steeper drop, so an empty answer is a
@@ -130,16 +187,24 @@ export function listStandingSurfaces(
  */
 export function surfacesInClimbBand(
   map: MapFile,
+  from: StepOrigin,
   x: number,
   y: number,
-  fromAbs: number,
   tilesById: Record<string, TileDef>,
 ): StandingSurface[] {
-  return listStandingSurfaces(map, x, y, tilesById).filter(
-    (surface) =>
-      surface.abs >= fromAbs - MAX_CLIMB_HEIGHT &&
-      surface.abs <= fromAbs + MAX_CLIMB_HEIGHT,
-  );
+  return listStandingSurfaces(map, x, y, tilesById).filter((surface) => {
+    if (surface.abs < from.abs - MAX_CLIMB_HEIGHT) return false;
+    if (surface.abs > from.abs + MAX_CLIMB_HEIGHT) return false;
+    const travelColumn = surface.abs > from.abs ? from : { x, y };
+    return !crossesSealedPlane(
+      map,
+      travelColumn.x,
+      travelColumn.y,
+      from.abs,
+      surface.abs,
+      tilesById,
+    );
+  });
 }
 
 /** Scenery tile whose solid top is at absolute `abs`, if any. */
@@ -225,9 +290,9 @@ export function canWalk(
 
   const candidates = surfacesInClimbBand(
     map,
+    { x: from.x, y: from.y, abs: fromAbs },
     destX,
     destY,
-    fromAbs,
     tilesById,
   ).sort((a, b) => (opts?.preferDescend ? a.abs - b.abs : b.abs - a.abs));
 

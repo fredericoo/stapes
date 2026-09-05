@@ -193,7 +193,13 @@ function neighbours(
     // a column scan is the expensive half of a step check, and a ledge nothing
     // is willing to go over is answered here without paying for the other half.
     const grounded =
-      surfacesInClimbBand(map, x, y, fromAbs, tilesById).length > 0;
+      surfacesInClimbBand(
+        map,
+        { x: at.x, y: at.y, abs: fromAbs },
+        x,
+        y,
+        tilesById,
+      ).length > 0;
     if (!grounded && !opts.allowDrops) continue;
 
     const check = canWalk(
