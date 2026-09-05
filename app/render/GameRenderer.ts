@@ -1366,6 +1366,16 @@ export class GameRenderer {
    * sprite is on their screen, so that is the question asked: inside the drawn
    * square, and not drawn over. See {@link isHiddenFromCamera}.
    *
+   * **Except on the viewer's own floor, which is asked nothing but "is it on
+   * screen".** The occlusion walk is there for the storeys you are not standing
+   * on, where a body really is painted behind a floor or a roof. On your own
+   * level it mostly catches furniture — a body stepping behind the far side of a
+   * wall it is standing beside, or under the lip of the roof over its head — and
+   * a name blinking out because a rat walked past a crate reads as a bug, not as
+   * cover. The floor you are on is the one you are playing on: everything drawn
+   * there is named and targetable, and the rule only starts asking questions
+   * once a body is somewhere else.
+   *
    * Whether you can *fight* it is a separate rule with a separate answer, and
    * the two are meant to disagree — reading a creature's health from across a
    * courtyard and being unable to touch it is the normal state of affairs.
@@ -1384,6 +1394,7 @@ export class GameRenderer {
     // only take back the cases the exact answer got right.
     if (cutHides(cut, actor.x, actor.y, actor.z)) return false;
     if (!this.isWithinView(snap.map, actor, camera)) return false;
+    if (actor.z === snap.self.z) return true;
     return !isHiddenFromCamera(
       snap.map,
       this.tilesById,

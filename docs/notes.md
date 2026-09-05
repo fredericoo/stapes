@@ -1131,6 +1131,15 @@ neighbour stays: a body under the roof that is *still drawn* has to stay
 anonymous even though a roof at its level lifted a street away, and a level
 threshold cannot tell the two roofs apart.
 
+**The walk is skipped entirely for a body on the viewer's own floor.**
+`GameRenderer.isVisibleBody` asks it only of the storeys you are not standing
+on, which is where a body genuinely is painted behind a floor or a roof. On your
+own level the same test mostly catches furniture — a rat stepping behind the far
+side of a wall beside it, or under the lip of the roof over its head — and a
+name blinking out as a creature walks past a crate reads as a bug rather than as
+cover. On-screen is the whole rule there; occlusion starts mattering a floor
+away.
+
 #### A cut is a local question, and underground it is the most expensive one
 
 The cut was the single most expensive thing on a frame in the caves — 27–33ms,
