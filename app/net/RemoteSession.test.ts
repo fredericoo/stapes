@@ -1192,6 +1192,54 @@ describe("RemoteSession teleports", () => {
  * A creature killed mid-step never arrives anywhere, and this client is the
  * only one holding the reservation its walk made.
  */
+/**
+ * A body the world took on after this client's `hello`.
+ *
+ * Before the `spawned` event existed, the only thing that added an unknown id
+ * was a motion event for it — so a summoned shopkeeper with a `hold` brain was
+ * drawn on the board and was in no actor list, which is a body with no name
+ * over its head and nothing to press.
+ */
+describe("RemoteSession bodies that arrive after hello", () => {
+  const SMITH = "npc:2,0,0,1";
+  const smithBody: PlacedTile = {
+    tileId: "rat",
+    direction: "w",
+    owner: SMITH,
+  } as PlacedTile;
+
+  it("adds a body it is told about, and finds it on the board", () => {
+    const { socket, session } = connected();
+    expect(session.getSnapshot().actors.map((a) => a.id)).toEqual([SELF]);
+
+    // The cell and the announcement ride the same patch, which is how the
+    // server sends them: the id says there is somebody, the cells say where.
+    socket.deliver(
+      patch(
+        [{ x: 2, y: 0, z: 0, stack: [grass, smithBody] }],
+        [{ kind: "spawned", actorId: SMITH }],
+      ),
+    );
+
+    const smith = session.getSnapshot().actors.find((a) => a.id === SMITH);
+    expect(smith).toMatchObject({ x: 2, y: 0, z: 0, tileId: "rat" });
+  });
+
+  it("leaves a body it already knows exactly as it was", () => {
+    const { socket, session } = connected();
+    socket.deliver(patch([], [walkStarted]));
+    const walking = session.getSnapshot().actors.find((a) => a.id === SELF);
+    expect(walking?.walk).not.toBeNull();
+
+    // The same id twice is ordinary: a socket that connected just after the
+    // spawn was told about it by name as well. Taking the announcement as news
+    // would drop the lerp this body is halfway through.
+    socket.deliver(patch([], [{ kind: "spawned", actorId: SELF }]));
+    expect(session.getSnapshot().actors.find((a) => a.id === SELF)?.walk)
+      .toBe(walking?.walk);
+  });
+});
+
 describe("RemoteSession bodies taken off the board", () => {
   const RAT = "rat";
   const ratBody: PlacedTile = {

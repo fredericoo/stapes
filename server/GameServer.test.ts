@@ -1035,6 +1035,11 @@ function say(ws: TestSocket, text: string) {
   ws.send(JSON.stringify({ type: "say", text }));
 }
 
+/** A slash line, on the frame the client sends one on rather than as speech. */
+function command(ws: TestSocket, text: string) {
+  ws.send(JSON.stringify({ type: "command", text }));
+}
+
 /** Whether the tick loop is running, which is what blocks hibernation. */
 async function isTicking(): Promise<boolean> {
   let ticking = false;
@@ -1274,6 +1279,48 @@ describe("calling a creature", () => {
 
     expect(await noiseWithin(alice.ws, QUIET_MS * 4)).toBeNull();
   });
+
+  /**
+   * The bug this exists for: a client's actor set is its `hello` plus what it
+   * is told afterwards, and a body summoned into a world somebody is already
+   * looking at used to be told to nobody. Its tile arrived — that rides in the
+   * cell patches — and everything keyed on the actor did not, so it had no name
+   * over its head and no Talk row until a reload. A creature papered over it by
+   * walking, since a `walkStarted` for an unknown id quietly adds one; a
+   * shopkeeper that stands still never did.
+   */
+  it("tells the room about a body summoned into it", async () => {
+    const alice = await connect("alice");
+
+    command(alice.ws, "/tile deer +1");
+
+    const spawned = await eventWithin(alice.ws, "spawned", 2000);
+    expect(spawned).toMatchObject({ kind: "spawned" });
+    // The owner scheme's own name for a body called into that cell, which is
+    // the id every patch beside this one is keyed by.
+    expect(spawned?.actorId).toBe("npc:1,0,0,1");
+  });
+
+  /**
+   * The other half, and the reason the set starts as null rather than empty:
+   * a world that has just been loaded has already named every actor in the
+   * `hello` it sent, so announcing them again would be a message per rat on
+   * every wake.
+   */
+  it("does not announce the actors a hello already named", async () => {
+    const alice = await withCat();
+    const seen = record(alice.ws);
+
+    // Long enough for several ticks, and the cat is standing in the world for
+    // all of them.
+    await wait(QUIET_MS * 4);
+
+    const spawns = seen
+      .of("patch")
+      .flatMap((message) => message.events as Record<string, unknown>[])
+      .filter((event) => event.kind === "spawned");
+    expect(spawns).toEqual([]);
+  });
 });
 
 /**
@@ -1353,6 +1400,30 @@ function record(ws: TestSocket) {
     types: () => seen.map((message) => message.type as string),
     of: (type: string) => seen.filter((message) => message.type === type),
   };
+}
+
+/** Wait for a patch carrying an event of this kind, and hand back that event. */
+function eventWithin(
+  ws: TestSocket,
+  kind: string,
+  ms: number,
+): Promise<Record<string, unknown> | null> {
+  return new Promise((resolve) => {
+    const done = (value: Record<string, unknown> | null) => {
+      clearTimeout(timer);
+      ws.removeEventListener("message", onMessage);
+      resolve(value);
+    };
+    const onMessage = (event: { data: string }) => {
+      const message = JSON.parse(event.data) as Record<string, unknown>;
+      if (message.type !== "patch") return;
+      const events = message.events as Record<string, unknown>[];
+      const found = events.find((e) => e.kind === kind);
+      if (found) done(found);
+    };
+    const timer = setTimeout(() => done(null), ms);
+    ws.addEventListener("message", onMessage);
+  });
 }
 
 /** Wait for a patch carrying a `walkStarted`, and hand back that event. */

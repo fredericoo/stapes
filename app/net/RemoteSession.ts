@@ -907,6 +907,21 @@ export class RemoteSession implements PlaySession {
       return;
     }
 
+    // A body the world took on after this client's `hello`. Added only if it is
+    // new, because the same id can arrive twice — a socket that connected just
+    // after the spawn was already told about it by name — and `emptyMotion()`
+    // over a body mid-stride would drop the lerp it is halfway through.
+    //
+    // The id is the whole of the message: where the body is comes from the cell
+    // patches in this frame, and its bar and its lantern from the diffs beside
+    // them. This only says there is somebody to hang them on.
+    if (event.kind === "spawned") {
+      if (!this.motions.has(event.actorId)) {
+        this.motions.set(event.actorId, emptyMotion());
+      }
+      return;
+    }
+
     if (event.kind === "damage") {
       this.damage.push({
         id: event.id,
