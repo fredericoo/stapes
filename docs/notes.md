@@ -389,6 +389,20 @@ nothing left to decide. All or nothing, and nothing ever reaches the floor. A
 container is never on either side: the schema refuses it with a catalogue in
 hand, and the runtime refuses it without one.
 
+**A trade has one side that is a kit, and the other side is nowhere.**
+`GameSession.attemptDialogEffects` resolves the *player* and runs `planTrade`
+against their equipment alone; the NPC is never asked, and its id is not even
+passed in. So what a trade takes is destroyed and what it gives is minted on
+the spot with a fresh `mintItemId`. A shop has infinite stock and infinite
+money, and **a shopkeeper needs no kit at all** — the blacksmith and the
+armourer are props with no `battler` block, so they have nowhere to keep one,
+and they sell every rung of every rack regardless.
+
+That is worth writing down because the opposite is the obvious guess, and it is
+the guess an author would act on: authoring a shopkeeper carrying one of
+everything it sells would do nothing except roll a kit nothing reads. If stock
+is ever wanted, it is a feature to build and not a field to fill in.
+
 ### A shop with a catalogue is a menu of menus, and two limits shape it
 
 Two shops are authored this way: the blacksmith (`blacksmith`), who sells
