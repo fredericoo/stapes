@@ -34,6 +34,10 @@
     "type": "autotile",
     "kind": "prop",
     "attributes": {},
+    "connectsTo": [
+      "half-stone",
+      "hole"
+    ],
     "slices": {
       "0": {
         "frames": [
@@ -975,10 +979,7 @@
           }
         ]
       }
-    },
-    "connectsTo": [
-      "half-stone"
-    ]
+    }
   },
   {
     "id": "water",
@@ -29909,6 +29910,26 @@
           }
         ]
       },
+      "14": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "tiny-ranch-tiles",
+              "rect": {
+                "x": 2,
+                "y": 14,
+                "w": 2,
+                "h": 2
+              },
+              "base": {
+                "x": 1,
+                "y": 1
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
       "15": {
         "frames": [
           {
@@ -30050,7 +30071,7 @@
         "statuses": [
           {
             "id": "fed",
-            "fromMs": 0,
+            "fromMs": 15000,
             "toMs": 45000
           }
         ],
@@ -30676,6 +30697,7 @@
     "kind": "prop",
     "attributes": {},
     "lightPassing": true,
+    "intangible": true,
     "variants": {
       "grass": {
         "frames": [
@@ -30780,6 +30802,79 @@
             },
             "base": {
               "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "apple-pie",
+    "name": "Apple Pie",
+    "height": 0,
+    "type": "simple",
+    "kind": "item",
+    "attributes": {},
+    "interactions": {
+      "item": {
+        "type": "consumable",
+        "label": "Eat",
+        "sound": "crackle",
+        "hp": 2,
+        "statuses": [
+          {
+            "id": "fed",
+            "fromMs": 45000,
+            "toMs": 90000
+          }
+        ],
+        "pile": 6
+      }
+    },
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 18,
+              "y": 9,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "lilypad",
+    "name": "Lilypad",
+    "height": 0,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "walkable": false,
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 7,
+              "y": 2,
+              "w": 2,
+              "h": 1
+            },
+            "base": {
+              "x": 1,
               "y": 0
             }
           },
