@@ -1,7 +1,8 @@
 /** Pure helpers for paint tools. */
 
-import { getStack } from "../lib/mapData";
+import { getChunk, getStack, listChunkKeys } from "../lib/mapData";
 import type { MapFile, PlacedTile } from "../lib/types";
+import { parseCoordKey } from "../lib/types";
 
 export function stacksEqual(a: PlacedTile[], b: PlacedTile[]): boolean {
   if (a.length !== b.length) return false;
@@ -14,9 +15,42 @@ export function stacksEqual(a: PlacedTile[], b: PlacedTile[]): boolean {
   return true;
 }
 
+type Bounds = { minX: number; maxX: number; minY: number; maxY: number };
+
+/** Box around every cell a level has, or null when the level is empty. */
+function occupiedBounds(map: MapFile, z: number): Bounds | null {
+  let bounds: Bounds | null = null;
+  for (const chunk of listChunkKeys(map, z)) {
+    const cells = getChunk(map, z, chunk);
+    for (const key in cells) {
+      const { x, y } = parseCoordKey(key);
+      if (!bounds) {
+        bounds = { minX: x, maxX: x, minY: y, maxY: y };
+        continue;
+      }
+      if (x < bounds.minX) bounds.minX = x;
+      if (x > bounds.maxX) bounds.maxX = x;
+      if (y < bounds.minY) bounds.minY = y;
+      if (y > bounds.maxY) bounds.maxY = y;
+    }
+  }
+  return bounds;
+}
+
 /**
  * 4-connected flood of cells whose stack equals the start cell.
- * Empty start stacks yield no coords (no filling empty space).
+ *
+ * A blank start cell floods too — painting the inside of an outline you just
+ * drew is the whole point of the tool — but blank space has no far edge, so it
+ * only counts as fillable while it stays inside the box around everything the
+ * level already holds. Step outside that box and every cell beyond it is blank
+ * as well, so the flood is walking into open world and would only stop when it
+ * ran out of memory: that case fills nothing at all rather than some arbitrary
+ * prefix of the void.
+ *
+ * The box is the exact test, not an approximation of one. A blank region that
+ * never leaves it is enclosed by tiles on every side; one that leaves it can
+ * reach any coordinate at all.
  */
 export function floodCoords(
   map: MapFile,
@@ -25,7 +59,8 @@ export function floodCoords(
   z: number,
 ): Array<{ x: number; y: number }> {
   const target = getStack(map, x, y, z);
-  if (target.length === 0) return [];
+  const bounds = target.length === 0 ? occupiedBounds(map, z) : null;
+  if (target.length === 0 && !bounds) return [];
 
   const out: Array<{ x: number; y: number }> = [];
   const seen = new Set<string>();
@@ -33,6 +68,15 @@ export function floodCoords(
 
   while (queue.length > 0) {
     const pos = queue.pop()!;
+    if (
+      bounds &&
+      (pos.x < bounds.minX ||
+        pos.x > bounds.maxX ||
+        pos.y < bounds.minY ||
+        pos.y > bounds.maxY)
+    ) {
+      return [];
+    }
     const key = `${pos.x},${pos.y}`;
     if (seen.has(key)) continue;
     seen.add(key);
