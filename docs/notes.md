@@ -3594,6 +3594,47 @@ field unless the tile really is a `variant` tile — without that, every sprite
 walker is handed `Frame[]` where it expects `TileSprite`. The old `VariantKey`
 type is now `FacingKey`, and the scatter editor calls its faces faces, so the
 word means one thing.
+## The editor explains itself in tooltips, and validates when you leave the box
+
+**A caption says what a field is; the `i` beside it says what the engine does
+with it.** The tile editor used to carry a paragraph under nearly every
+control, and most of them restated the caption — "How this looks at rest"
+under *Idle*. A panel of forty paragraphs is a panel nobody reads, so the
+paragraphs are gone and the engine's side of each field (unit, clamp, what it
+interacts with two tabs away) lives in `InfoTip`, reached through `FieldLabel`
+and `SectionTitle` in `app/ui`. The one line that still belongs under a box is
+a *readout*: a sentence computed from the number in it, which `StatField`
+keeps. Captions use the engine's names — "Elements", "Derived stats",
+"Cooldown (s)" — not the fiction's.
+
+**Number boxes commit on blur or Enter, never on keystroke.** Every numeric
+field clamped as you typed, so clearing "1" to type "7" snapped straight back
+to 1. `NumberInput` (`app/ui/NumberInput.tsx`) holds a draft while focused and
+reads it against its range when you leave: a good number is committed and the
+box rewritten in canonical form, a bad one stays in the box with the reason
+underneath and commits nothing, Escape reverts. The parser is pure
+(`numberParse.ts`) and tested. Rejecting rather than clamping is a choice: a
+box showing "99999" in red beside Save will save the *previous* number, which
+is the trade for never writing a number the author did not type. Range pairs
+(decay, respawn, status durations) still carry each other in the caller.
+
+**Tabs are flat flaps on a rule, not buttons.** `Tabs` had the button chrome —
+hard shadow, pressed travel — and a strip of them read as a row of actions.
+The open flap paints its bottom border paper to erase its stretch of the rule,
+which assumes a paper ground; every tab strip sits on one.
+
+**A wide `Dialog` is 90vh, fixed.** A popup sized to its content jumped on every
+tab switch and moved Save under the pointer. Narrow dialogs still fit their
+content.
+
+**Gotcha: `app.css` resets `button, input, select, textarea { font: inherit }`
+outside any cascade layer**, and an unlayered rule beats every layered Tailwind
+utility regardless of specificity. So `text-xs`, `font-medium` and `font-bold`
+on a `<button>` have never applied anywhere in the app, and `Button`'s size
+variants only differ in padding. The tab strip uses `font-bold!` to get past
+it. Moving the reset into `@layer base` would fix it globally, and would also
+shrink every button in the app to the size its class asks for — do it on
+purpose, with a visual pass, not by accident.
 
 ## Renderer and simulation performance
 
