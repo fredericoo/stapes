@@ -51,7 +51,25 @@ jobs:
       # needs the hostname before the deploy has finished.
       PREVIEW_ORIGIN: https://pr-${{ github.event.number }}.${{ vars.PREVIEW_DOMAIN }}
     steps:
+      # **The head commit, because that is what Coolify deploys.** Left to
+      # itself, `checkout` takes `refs/pull/N/merge` on a pull-request event —
+      # the branch already merged into main — so the client built below carried
+      # main's code while the server beside it carried the branch's. The two
+      # only ever disagree about something that matters when main has moved,
+      # and `PROTOCOL_VERSION` is the case that bites: #150 bumped it 4 → 5,
+      # and every preview on a branch cut before that served a v5 client to a
+      # v4 server, which closed the socket with 4001 and never let anybody in.
+      #
+      # Nothing else in this job reads the tree — the deploy is Coolify's, the
+      # seed is the container's own `data/`, and every remaining step talks to
+      # the origin over HTTP — so nothing here wanted the merge result. The
+      # thing being given up is real but belongs elsewhere: a preview no longer
+      # says anything about how the branch behaves once merged. `deploy.yml` is
+      # where that is found out, and required checks on the merge ref are where
+      # it should be found out sooner.
       - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
 
       # Production and every preview share one machine, so the count is worth
       # saying out loud. This is a **warning and not a gate**: the container is
@@ -197,6 +215,48 @@ jobs:
             -H "Authorization: Bearer ${{ secrets.PREVIEW_ADMIN_SECRET }}" \
             -H "Content-Type: application/json" \
             -d '{"buildId":"${{ github.event.pull_request.head.sha }}"}'
+
+      # **Every check above passes through a preview nobody can connect to.**
+      # A client and a server that disagree about the wire version produce a
+      # world that is healthy and unusable: `/api/health` answers `ok`, the page
+      # loads, and then the server sends `outdated` and closes the socket with
+      # 4001. That is what #152 shipped green, and #119 before it. Health was
+      # never the question — agreement is.
+      #
+      # So ask both halves what version they speak. The server says so from
+      # `/api/session`. The client's is minified into whichever chunk opens the
+      # socket, as the `?v=` it sets, and is reached the way a browser reaches
+      # it: the served page names the route manifest, and the manifest names the
+      # chunk. Following that chain from the origin rather than reading
+      # `build/client` is the point — it is the *live* client that is being
+      # asked, so an upload that never activated is caught here too.
+      #
+      # The one thing this is brittle to is the client no longer building its
+      # socket URL with `searchParams.set`. That fails loudly and says so: the
+      # fix then is to teach this step the new shape, not to drop the check.
+      - name: Check the client and the server agree on the protocol version
+        run: |
+          fail() { echo "::error::$1"; exit 1; }
+
+          SERVER_VERSION=$(curl -fsS --max-time 10 "${PREVIEW_ORIGIN}/api/session" | jq -r '.protocolVersion // empty')
+          [ -n "$SERVER_VERSION" ] || fail "the preview's /api/session reported no protocolVersion"
+
+          PAGE=$(curl -fsS --max-time 10 "${PREVIEW_ORIGIN}/online")
+          MANIFEST=$(printf '%s' "$PAGE" | grep -oE '/assets/manifest-[A-Za-z0-9_-]+\.js' | head -1)
+          [ -n "$MANIFEST" ] || fail "the preview's /online names no route manifest, so no client bundle is being served"
+
+          MAIN=$(curl -fsS --max-time 10 "${PREVIEW_ORIGIN}${MANIFEST}" | grep -oE '/assets/online-main-[A-Za-z0-9_-]+\.js' | head -1)
+          [ -n "$MAIN" ] || fail "${MANIFEST} names no online-main chunk"
+
+          CLIENT_VERSION=$(curl -fsS --max-time 10 "${PREVIEW_ORIGIN}${MAIN}" \
+            | grep -oE 'searchParams\.set\(["'"'"'`]v["'"'"'`],[^)]*[0-9]+' \
+            | grep -oE '[0-9]+$' | head -1)
+          [ -n "$CLIENT_VERSION" ] || fail "no protocol version found in ${MAIN} — if the socket URL stopped being built with searchParams.set, this step needs teaching the new shape rather than deleting"
+
+          if [ "$CLIENT_VERSION" != "$SERVER_VERSION" ]; then
+            fail "the served client speaks protocol v${CLIENT_VERSION} and the server speaks v${SERVER_VERSION}, so every socket is closed with 4001 and nobody can enter this preview. The branch is behind a main that bumped PROTOCOL_VERSION — rebase it."
+          fi
+          echo "client and server both speak protocol v${SERVER_VERSION}"
 
       - name: Say what is live
         run: curl -sS "${PREVIEW_ORIGIN}/api/health"
