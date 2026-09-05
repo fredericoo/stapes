@@ -4318,6 +4318,40 @@ per-frame emitter radii are what the code under test is reasoning about, and a
 fixture tile with an invented radius tests the fixture. Keep the catalogue,
 build the geometry.
 
+#### A tile edit that reddens the suite is usually pointing at the fixture
+
+The catalogue staying real has a cost, and it is worth naming so the next one
+is read correctly rather than reverted. `torch` gained `lightPassing: true`,
+which is a fix — a wall torch is a prop that hangs on a wall, and without the
+flag its four height units sealed its own cell, so a torch shadowed itself and
+cut the daylight to whatever was under it. That edit turned
+`lightingChunksAsync.test.ts` red.
+
+The test was asserting that a torch placed at `(0, 0, 0)` changes the level-0
+plane once the off-thread bake lands. It never did. That cell is the fixture
+town's square, sky-lit past anything a torch adds, and the emitter's light
+lands on the levels around it and not on its own plane. The one thing the edit
+had ever moved there was a single pixel — the torch's own cell, dimmed and
+marked sealed by the occlusion it should never have had. Take the occlusion
+away and the assertion had nothing left to hold.
+
+So the failure was not the content and not the budget. **The test's scenario
+never matched its claim, and a tile edit removed the coincidence that had been
+standing in for it.** The fix is the same rule as the map: build the scenario
+the test is about. The edit moved to `(4, 4, -1)`, on the cave floor under the
+square, which is the part of the fixture that exists for exactly this — no sky
+reaches it, so a torch there is the only light there is and its bake moves 94
+pixels rather than one. The placement passes against the catalogue on either
+side of the change, which is the point: it is measuring the light, not a side
+effect of the tile's height.
+
+Two things to do when a `data/tiles.json` edit turns a test red. Find which
+pixels the assertion was actually holding onto — if it is one, or if it is the
+edited cell itself, the scenario is the suspect and not the content. And check
+whether the test still fails for the reason it exists: sabotage the mechanism
+under test (here, releasing the bake against the pre-edit map) and confirm it
+goes red.
+
 Claims *about* the shipped world went with the map: "the shopkeeper is placed
 somewhere", "the authored map is mostly static tiles". Both read as safe
 because they name no coordinate, and both still failed on an afternoon's
