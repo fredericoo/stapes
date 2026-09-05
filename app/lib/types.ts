@@ -192,8 +192,15 @@ export type TileKind = "prop" | "battler" | "item";
 
 export const TILE_KINDS: TileKind[] = ["prop", "battler", "item"];
 
-/** Climb / facing key: non-directional use `"default"`; directional use n/e/s/w. */
-export type VariantKey = "default" | Direction;
+/**
+ * Which facing a per-facing table is keyed by: non-directional tiles use
+ * `"default"`, directional ones use n/e/s/w.
+ *
+ * Not to be confused with {@link TileDef.variants}, which is the art a
+ * `variant` tile wears and is chosen per placement rather than derived from
+ * how the placement faces.
+ */
+export type FacingKey = "default" | Direction;
 
 /** Blob autotile slice index (0 = isolated … 46 = full). */
 export type AutotileSlice = number;
@@ -375,11 +382,11 @@ export type TileDef = StateSprites & {
    */
   walkDurationMs?: number;
   /**
-   * World-side dirs you may climb UP toward, keyed by variant.
+   * World-side dirs you may climb UP toward, keyed by facing.
    * Simple / autotile use `"default"`; directional use `n`/`e`/`s`/`w`
    * for each placement facing. Missing dirs default to true.
    */
-  climbFrom?: Partial<Record<VariantKey, Partial<Record<Direction, boolean>>>>;
+  climbFrom?: Partial<Record<FacingKey, Partial<Record<Direction, boolean>>>>;
   /**
    * How this object behaves in play mode — what the player can do to it, and
    * what it does on its own. Absent → inert. Read through `resolvePush` /
@@ -514,15 +521,15 @@ export function isCellVarying(def: TileDef): boolean {
   return def.type === "autotile" || def.type === "scatter";
 }
 
-/** World climb-from flags for a variant; missing dirs default to true. */
+/** World climb-from flags for one facing; missing dirs default to true. */
 export function resolveClimbFrom(
   def: TileDef,
-  variant: VariantKey = "default",
+  facing: FacingKey = "default",
 ): Record<Direction, boolean> {
-  const key: VariantKey = isDirectional(def)
-    ? variant === "default"
+  const key: FacingKey = isDirectional(def)
+    ? facing === "default"
       ? "s"
-      : variant
+      : facing
     : "default";
   const flags = def.climbFrom?.[key] ?? def.climbFrom?.default;
   return {
@@ -533,16 +540,16 @@ export function resolveClimbFrom(
   };
 }
 
-/** Persist climb-from; omit all-open variants and the field when unrestricted. */
+/** Persist climb-from; omit all-open facings and the field when unrestricted. */
 export function climbFromForSave(
   def: TileDef,
-  byVariant: Partial<Record<VariantKey, Record<Direction, boolean>>>,
+  byFacing: Partial<Record<FacingKey, Record<Direction, boolean>>>,
 ): TileDef["climbFrom"] {
-  const keys: VariantKey[] = isDirectional(def) ? DIRECTIONS : ["default"];
+  const keys: FacingKey[] = isDirectional(def) ? DIRECTIONS : ["default"];
   const out: NonNullable<TileDef["climbFrom"]> = {};
   let any = false;
   for (const key of keys) {
-    const flags = byVariant[key] ?? OPEN_CLIMB;
+    const flags = byFacing[key] ?? OPEN_CLIMB;
     if (flags.n && flags.e && flags.s && flags.w) continue;
     const partial: Partial<Record<Direction, boolean>> = {};
     for (const d of DIRECTIONS) {
@@ -940,7 +947,7 @@ export function normalizeTileDef(raw: unknown): TileDef {
     name: string;
     height: TileHeight;
     directional?: boolean;
-    variants?: Partial<Record<VariantKey, Frame[]>>;
+    variants?: Partial<Record<FacingKey, Frame[]>>;
     attributes?: Record<string, never>;
     light?: LightDef;
   };

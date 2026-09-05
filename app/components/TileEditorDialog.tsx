@@ -16,7 +16,7 @@ import type {
   TileSprite,
   TileType,
   TilesetDef,
-  VariantKey,
+  FacingKey,
 } from "../lib/types";
 import {
   DEFAULT_PARTICLES,
@@ -116,7 +116,7 @@ function blankTile(tilesets: TilesetDef[]): TileDef {
 
 function expandClimbFrom(tile: TileDef): NonNullable<TileDef["climbFrom"]> {
   // Four cardinals however wide the art is. @see Octant
-  const keys: VariantKey[] = isDirectional(tile) ? [...DIRECTIONS] : ["default"];
+  const keys: FacingKey[] = isDirectional(tile) ? [...DIRECTIONS] : ["default"];
   const out: NonNullable<TileDef["climbFrom"]> = {};
   for (const key of keys) {
     out[key] = resolveClimbFrom(tile, key);
@@ -159,7 +159,7 @@ function spriteHolder(draft: TileDef, state: SpriteState): StateSprites {
 type SpriteCursor = {
   dir: Octant;
   slice: AutotileSlice;
-  variant: number;
+  face: number;
 };
 
 function currentSprite(
@@ -170,7 +170,7 @@ function currentSprite(
   const from = spriteHolder(draft, state);
   if (draft.type === "simple") return from.sprite;
   if (isDirectional(draft)) return from.sprites?.[at.dir];
-  if (draft.type === "scatter") return from.scatter?.[at.variant];
+  if (draft.type === "scatter") return from.scatter?.[at.face];
   return from.slices?.[at.slice];
 }
 
@@ -188,7 +188,7 @@ function patchHolder(
   }
   if (draft.type === "scatter") {
     const scatter = [...(from.scatter ?? [])];
-    scatter[at.variant] = sprite;
+    scatter[at.face] = sprite;
     return { scatter };
   }
   return { slices: { ...from.slices, [at.slice]: sprite } };
@@ -285,7 +285,7 @@ function footprintMismatch(
   }
   if (draft.type === "scatter") {
     for (let i = 0; i < (override.scatter?.length ?? 0); i++) {
-      const err = check(`variant ${i + 1}`, idle.scatter?.[i], override.scatter?.[i]);
+      const err = check(`face ${i + 1}`, idle.scatter?.[i], override.scatter?.[i]);
       if (err) return err;
     }
     return null;
@@ -440,7 +440,7 @@ export function TileEditorDialog({
   const [tab, setTab] = useState(TAB_TILE);
   const [dir, setDir] = useState<Octant>("n");
   const [slice, setSlice] = useState<AutotileSlice>(0);
-  const [variant, setVariant] = useState(0);
+  const [face, setFace] = useState(0);
   const [state, setState] = useState<SpriteState>("idle");
   const [frameIndex, setFrameIndex] = useState(0);
   const [error, setError] = useState<string | null>(null);
@@ -452,13 +452,13 @@ export function TileEditorDialog({
     setTab(TAB_TILE);
     setDir("n");
     setSlice(0);
-    setVariant(0);
+    setFace(0);
     setState("idle");
     setFrameIndex(0);
     setError(null);
   }, [open, tile, tilesets]);
 
-  const at: SpriteCursor = { dir, slice, variant };
+  const at: SpriteCursor = { dir, slice, face };
   const sprite = currentSprite(draft, state, at);
   const frames = sprite?.frames ?? [];
   const frame = frames[frameIndex] ?? frames[0];
@@ -600,7 +600,7 @@ export function TileEditorDialog({
           draft.sprites?.[d] ?? draft.sprite ?? from,
         );
       }
-      // Four, always: see the note on {@link climbVariant}.
+      // Four, always: see the note on {@link climbFacing}.
       for (const d of DIRECTIONS) climbFrom[d] = { ...climbBase };
       setDraft({
         ...draft,
@@ -621,13 +621,13 @@ export function TileEditorDialog({
         sprites: undefined,
         slices: undefined,
         // Whatever was already drawn becomes the first face rather than the
-        // only one: a scatter tile with one variant is a simple tile that has
+        // only one: a scatter tile with one face is a simple tile that has
         // paid for a hash, so the panel opens on something to add to.
         scatter: [structuredClone(from)],
         states: undefined,
         climbFrom: { default: resolveClimbFrom(draft, "default") },
       });
-      setVariant(0);
+      setFace(0);
     } else {
       setDraft({
         ...draft,
@@ -679,17 +679,17 @@ export function TileEditorDialog({
   // four, so an eight-way tile's corners share their neighbouring cardinal's
   // climb flags rather than getting variants of their own. Climbing is a
   // four-way question and stays one. @see Octant
-  const climbVariant: VariantKey = isDirectional(draft)
+  const climbFacing: FacingKey = isDirectional(draft)
     ? nearestCardinal(dir)
     : "default";
-  const climbFlags = resolveClimbFrom(draft, climbVariant);
+  const climbFlags = resolveClimbFrom(draft, climbFacing);
 
   const setClimbSide = (side: Direction, value: boolean) => {
     setDraft({
       ...draft,
       climbFrom: {
         ...draft.climbFrom,
-        [climbVariant]: { ...climbFlags, [side]: value },
+        [climbFacing]: { ...climbFlags, [side]: value },
       },
     });
   };
@@ -757,19 +757,19 @@ export function TileEditorDialog({
         }
       }
     } else if (draft.type === "scatter") {
-      const variants = draft.scatter ?? [];
-      if (!variants.length) {
-        setError("Add at least one scatter variant");
+      const faces = draft.scatter ?? [];
+      if (!faces.length) {
+        setError("Add at least one scatter face");
         return;
       }
-      for (let i = 0; i < variants.length; i++) {
-        if (!variants[i]?.frames.length) {
-          setError(`Variant ${i + 1}: at least one frame is required`);
+      for (let i = 0; i < faces.length; i++) {
+        if (!faces[i]?.frames.length) {
+          setError(`Face ${i + 1}: at least one frame is required`);
           return;
         }
-        const err = validateFrameLights(variants[i]!.frames);
+        const err = validateFrameLights(faces[i]!.frames);
         if (err) {
-          setError(`Variant ${i + 1}: ${err}`);
+          setError(`Face ${i + 1}: ${err}`);
           return;
         }
       }
@@ -813,13 +813,13 @@ export function TileEditorDialog({
     }
 
     setError(null);
-    const climbByVariant: Partial<
-      Record<VariantKey, Record<Direction, boolean>>
+    const climbByFacing: Partial<
+      Record<FacingKey, Record<Direction, boolean>>
     > = {};
     // Four cardinals however wide the art is — climbing is a four-way question.
-    const keys: VariantKey[] = isDirectional(draft) ? [...DIRECTIONS] : ["default"];
+    const keys: FacingKey[] = isDirectional(draft) ? [...DIRECTIONS] : ["default"];
     for (const key of keys) {
-      climbByVariant[key] = resolveClimbFrom(draft, key);
+      climbByFacing[key] = resolveClimbFrom(draft, key);
     }
 
     const saved: TileDef = {
@@ -845,7 +845,7 @@ export function TileEditorDialog({
         draft.type === "scatter" && draft.scatterSeed
           ? draft.scatterSeed
           : undefined,
-      climbFrom: climbFromForSave(draft, climbByVariant),
+      climbFrom: climbFromForSave(draft, climbByFacing),
       particles: draft.particles,
       interactions: interactionsForSave(draft.interactions),
       states: savedStates,
@@ -996,7 +996,7 @@ export function TileEditorDialog({
       <p className="text-[11px] leading-snug text-muted">
         {phase.x === 0 && phase.y === 0
           ? "Every placement shows the same frame. Give this a value so neighbouring tiles fall out of step — water blinking as one reads as wallpaper."
-          : "Neighbouring placements start this many frames apart, so the animation travels across them. Applies to every variant of this tile."}
+          : "Neighbouring placements start this many frames apart, so the animation travels across them. Applies to every face of this tile."}
       </p>
     </div>
   ) : null;
@@ -1172,7 +1172,7 @@ export function TileEditorDialog({
             state={state}
             direction={isDirectional(draft) ? dir : undefined}
             autotileSlice={draft.type === "autotile" ? slice : undefined}
-            scatterIndex={draft.type === "scatter" ? variant : undefined}
+            scatterIndex={draft.type === "scatter" ? face : undefined}
           />
         </div>
       </div>
@@ -1294,7 +1294,7 @@ export function TileEditorDialog({
     </div>
   );
 
-  const variants = draft.scatter ?? [];
+  const faces = draft.scatter ?? [];
 
   /**
    * The scatter author's surface: the faces, the seed, and a patch of ground
@@ -1306,7 +1306,7 @@ export function TileEditorDialog({
       <div className="flex flex-col gap-2">
         <div className="flex flex-col gap-0.5">
           <span className="text-xs font-bold uppercase text-muted">
-            Variants ({variants.length})
+            Faces ({faces.length})
           </span>
           <p className="text-[11px] leading-snug text-muted">
             Every placement picks one, decided by where it stands — so a field
@@ -1318,23 +1318,23 @@ export function TileEditorDialog({
         <div
           className="flex flex-wrap items-center gap-1"
           role="listbox"
-          aria-label="Scatter variants"
+          aria-label="Scatter faces"
         >
-          {variants.map((_, i) => (
+          {faces.map((_, i) => (
             <button
               key={i}
               type="button"
               role="option"
-              aria-selected={variant === i}
-              aria-label={`Variant ${i + 1}`}
-              title={`Variant ${i + 1}`}
+              aria-selected={face === i}
+              aria-label={`Face ${i + 1}`}
+              title={`Face ${i + 1}`}
               onClick={() => {
-                setVariant(i);
+                setFace(i);
                 setFrameIndex(0);
               }}
               className={[
                 "relative border-2 p-0.5",
-                variant === i
+                face === i
                   ? "border-accent bg-paper"
                   : "border-border bg-panel hover:border-ink",
               ].join(" ")}
@@ -1351,7 +1351,7 @@ export function TileEditorDialog({
               <span
                 className={[
                   "pointer-events-none absolute right-0 bottom-0 px-0.5 font-mono text-[9px] leading-none",
-                  variant === i ? "bg-accent text-paper" : "bg-paper/90 text-ink",
+                  face === i ? "bg-accent text-paper" : "bg-paper/90 text-ink",
                 ].join(" ")}
               >
                 {i + 1}
@@ -1366,19 +1366,19 @@ export function TileEditorDialog({
               // on the same grounds the autotile grid clones slice 0: a second
               // bush is the first bush with a few pixels moved.
               const base =
-                variants[variant] ?? variants[0] ?? emptySprite(tilesets[0]?.id ?? "");
+                faces[face] ?? faces[0] ?? emptySprite(tilesets[0]?.id ?? "");
               setDraft({
                 ...draft,
-                scatter: [...variants, structuredClone(base)],
+                scatter: [...faces, structuredClone(base)],
               });
-              setVariant(variants.length);
+              setFace(faces.length);
               setFrameIndex(0);
             }}
           >
-            + Variant
+            + Face
           </Button>
         </div>
-        {variants.length > 1 ? (
+        {faces.length > 1 ? (
           <Button
             size="sm"
             variant="danger"
@@ -1388,19 +1388,19 @@ export function TileEditorDialog({
               // authored this one has to lose it too or its list slides out
               // from under idle's.
               const drop = (list: TileSprite[] | undefined) =>
-                list ? list.filter((_, i) => i !== variant) : undefined;
+                list ? list.filter((_, i) => i !== face) : undefined;
               const states = Object.fromEntries(
                 Object.entries(draft.states ?? {}).map(([key, sprites]) => [
                   key,
                   sprites ? { ...sprites, scatter: drop(sprites.scatter) } : sprites,
                 ]),
               ) as TileDef["states"];
-              setDraft({ ...draft, scatter: drop(variants), states });
-              setVariant(Math.max(0, variant - 1));
+              setDraft({ ...draft, scatter: drop(faces), states });
+              setFace(Math.max(0, face - 1));
               setFrameIndex(0);
             }}
           >
-            Remove variant {variant + 1}
+            Remove face {face + 1}
           </Button>
         ) : null}
       </div>
@@ -1457,7 +1457,7 @@ export function TileEditorDialog({
                   tilesets={tilesets}
                   size={SCATTER_SAMPLE_CELL_PX}
                   state={state}
-                  scatterIndex={resolveScatterIndex(x, y, 0, draft, variants.length)}
+                  scatterIndex={resolveScatterIndex(x, y, 0, draft, faces.length)}
                   chrome={false}
                   still
                 />
