@@ -257,17 +257,24 @@ function bodyWith(masteries: BattlerDef["masteries"], weapon: WeaponItem): Battl
   return { masteries, naturalWeapon: weapon, sight: { up: 0, down: 0 }, kit: [] };
 }
 
+/** A minute, past which seconds stop being the unit anybody reads in. */
+const SECONDS_PER_MINUTE = 60;
+
 /**
- * Seconds, with a decimal only where it carries information.
+ * A duration, in whichever unit a reader can hold.
  *
  * A tenth of a second distinguishes a fast weapon from a slow one at the bottom
  * of the scale and distinguishes nothing at the top, where a range would read
  * "5.0s–20s" and leave the reader wondering why one end has more precision than
- * the other.
+ * the other. Past a minute seconds stop working entirely: an hour-long status
+ * reported as "3600s" is a number to convert rather than to read.
  */
 function seconds(ms: number): string {
   const s = ms / 1000;
-  return s < 10 ? `${Number(s.toFixed(1))}s` : `${Math.round(s)}s`;
+  if (s < 10) return `${Number(s.toFixed(1))}s`;
+  if (s < SECONDS_PER_MINUTE) return `${Math.round(s)}s`;
+  const minutes = s / SECONDS_PER_MINUTE;
+  return `${Number(minutes.toFixed(minutes < 10 ? 1 : 0))}m`;
 }
 
 /** How long a grant runs, read off the override or off the status itself. */

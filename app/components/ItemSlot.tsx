@@ -15,6 +15,7 @@ import { pileTally } from "../lib/piles";
 import type { MasteryXp } from "../lib/mastery";
 import type { TileDef, TilesetDef } from "../lib/types";
 import type { StatusDef } from "../lib/status";
+import { DWELL_MS } from "../lib/useDwell";
 import { useCoarsePointer } from "../lib/useMediaQuery";
 import { Tooltip } from "../ui";
 import { ItemCard } from "./ItemCard";
@@ -61,15 +62,7 @@ import { TilePreview } from "./TilePreview";
 /** Which sprite stands for a tile in a slot — the one facing the reader. */
 const FRONT: "s" = "s";
 
-/**
- * How long a finger has to rest on a square before it is asking about it.
- *
- * Long enough that a tap never trips it — a tap is a tenth of a second and this
- * is four — and short enough that it does not feel like waiting. It also has to
- * clear the drag threshold in *practice* rather than in principle: a thumb on
- * its way to another slot has crossed six pixels long before this is up.
- */
-const DWELL_MS = 400;
+
 
 /**
  * What a surface that has not wired the catalogue gets.

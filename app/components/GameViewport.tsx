@@ -467,6 +467,8 @@ export function GameViewport({
       tiles={tiles}
       tilesets={tilesets}
       equipment={equipment}
+      masteryXp={masteryXp}
+      statusDefs={statusDefs}
       onTalk={(action) => onTalk?.(action)}
       className="min-h-0 w-full flex-1"
     />

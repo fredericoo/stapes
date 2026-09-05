@@ -582,7 +582,7 @@ describe("itemCard", () => {
         statuses: [{ id: "venom", fromMs: 60_000, toMs: 60_000 }],
       };
       const card = itemCard(tileWith(loaf), null, NOTHING_LEARNT, { venom: VENOM })!;
-      expect(card.effects[0]).toMatchObject({ duration: "60s", chance: null });
+      expect(card.effects[0]).toMatchObject({ duration: "1m", chance: null });
     });
 
     /**
@@ -609,6 +609,18 @@ describe("itemCard", () => {
         itemCard(tileWith(brief), null, NOTHING_LEARNT, { venom: VENOM })!.effects[0]!
           .duration,
       ).toBe("1.5s");
+
+      // Past a minute, seconds stop being a unit anybody reads in: an hour-long
+      // status reported as "3600s" is a number to convert rather than to read.
+      const blessing: ItemDef = {
+        type: "consumable",
+        hp: 1,
+        statuses: [{ id: "venom", fromMs: 3_600_000, toMs: 3_600_000 }],
+      };
+      expect(
+        itemCard(tileWith(blessing), null, NOTHING_LEARNT, { venom: VENOM })!.effects[0]!
+          .duration,
+      ).toBe("60m");
     });
 
     /**

@@ -15,6 +15,13 @@ import type { TileDef, TilesetDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { TITLE_SPRITE_SIZE_PX } from "./ContainerPanel";
 import { TilePreview } from "./TilePreview";
+import { itemCard } from "../game/itemCard";
+import type { MasteryXp } from "../lib/mastery";
+import type { StatusDef } from "../lib/status";
+import { useCoarsePointer } from "../lib/useMediaQuery";
+import { useDwell } from "../lib/useDwell";
+import { Tooltip } from "../ui";
+import { ItemCard } from "./ItemCard";
 import { useTap } from "./useTap";
 
 /**
@@ -42,6 +49,16 @@ const CLOSE_ICON_SIZE_PX = 12;
 const STEP_ICON_SIZE_PX = 12;
 const ITEM_SPRITE_SIZE_PX = 18;
 
+/**
+ * What a caller that has wired neither gets.
+ *
+ * Shared frozen objects rather than `{}` defaults written at the parameter,
+ * which build a fresh one on every render and would rebuild every card below
+ * with them.
+ */
+const NO_MASTERY_XP: MasteryXp = {};
+const NO_STATUS_DEFS: Record<string, StatusDef> = {};
+
 const ROW_CLASS =
   "flex min-h-6 w-full items-center gap-1 border px-1 py-0.5 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent pointer-coarse:min-h-9";
 const OPTION_CLASS = `${ROW_CLASS} border-paper/30 text-paper hover:border-paper hover:bg-paper/10 aria-disabled:border-dashed aria-disabled:border-paper/25 aria-disabled:text-paper/40 aria-disabled:hover:bg-transparent`;
@@ -53,6 +70,17 @@ type Props = {
   tilesets: TilesetDef[];
   /** The viewer's kit, for previewing a trade before it is asked for. */
   equipment: Equipment;
+  /**
+   * What the viewer has learnt, so a trade can be read in their own hands.
+   *
+   * The reason a card here is worth having: "is this sword better than mine" is
+   * exactly the question a trade poses, and the figures that answer it depend on
+   * who is being offered the sword. Defaulted to nothing, which is what the
+   * editor's preview passes — see `./DialogTryOut`.
+   */
+  masteryXp?: MasteryXp;
+  /** Every status the world has, by id, so a card can name what a blade leaves. */
+  statusDefs?: Record<string, StatusDef>;
   onTalk: (action: TalkAction) => void;
   className?: string;
   /**
@@ -71,6 +99,8 @@ export function ConversationPanel({
   tiles,
   tilesets,
   equipment,
+  masteryXp = NO_MASTERY_XP,
+  statusDefs = NO_STATUS_DEFS,
   onTalk,
   className = "",
   dialog: draft,
@@ -160,6 +190,8 @@ export function ConversationPanel({
             tilesById={tilesById}
             tilesets={tilesets}
             equipment={equipment}
+            masteryXp={masteryXp}
+            statusDefs={statusDefs}
             onTalk={onTalk}
           />
         ) : null}
@@ -234,12 +266,16 @@ function TradeOffer({
   tilesById,
   tilesets,
   equipment,
+  masteryXp,
+  statusDefs,
   onTalk,
 }: {
   trade: DialogTrade;
   tilesById: Record<string, TileDef>;
   tilesets: TilesetDef[];
   equipment: Equipment;
+  masteryXp: MasteryXp;
+  statusDefs: Record<string, StatusDef>;
   onTalk: (action: TalkAction) => void;
 }) {
   const [amount, setAmount] = useState(clampAmount(trade, undefined));
@@ -262,8 +298,22 @@ function TradeOffer({
     <div className="flex flex-col gap-1 border border-paper/25 p-1">
       {scaled.effect === "trade" ? (
         <>
-          <TradeSideRow label="You give" sides={scaled.take} tilesById={tilesById} tilesets={tilesets} />
-          <TradeSideRow label="You get" sides={scaled.give} tilesById={tilesById} tilesets={tilesets} />
+          <TradeSideRow
+            label="You give"
+            sides={scaled.take}
+            tilesById={tilesById}
+            tilesets={tilesets}
+            masteryXp={masteryXp}
+            statusDefs={statusDefs}
+          />
+          <TradeSideRow
+            label="You get"
+            sides={scaled.give}
+            tilesById={tilesById}
+            tilesets={tilesets}
+            masteryXp={masteryXp}
+            statusDefs={statusDefs}
+          />
         </>
       ) : null}
       {trade.max > trade.min ? (
@@ -312,29 +362,124 @@ function TradeSideRow({
   sides,
   tilesById,
   tilesets,
+  masteryXp,
+  statusDefs,
 }: {
   label: string;
   sides: readonly TradeSide[];
   tilesById: Record<string, TileDef>;
   tilesets: TilesetDef[];
+  masteryXp: MasteryXp;
+  statusDefs: Record<string, StatusDef>;
 }) {
   return (
     <div className="flex flex-wrap items-center gap-1 text-[11px] text-paper">
       <span className="w-14 shrink-0 text-[10px] uppercase text-paper/50">{label}</span>
       {sides.length === 0 ? <span className="text-paper/50">nothing</span> : null}
-      {sides.map((side) => {
-        const def = tilesById[side.tileId];
-        return (
-          <span key={side.tileId} className="flex items-center gap-1 border border-paper/20 px-1">
-            {def ? (
-              <TilePreview tile={def} tilesets={tilesets} size={ITEM_SPRITE_SIZE_PX} still chrome={false} background={null} />
-            ) : null}
-            <span className="tabular-nums">×{side.count}</span>
-            <span className="truncate">{def?.name ?? side.tileId}</span>
-          </span>
-        );
-      })}
+      {sides.map((side) => (
+        <TradeSideItem
+          key={side.tileId}
+          side={side}
+          tilesById={tilesById}
+          tilesets={tilesets}
+          masteryXp={masteryXp}
+          statusDefs={statusDefs}
+        />
+      ))}
     </div>
+  );
+}
+
+/**
+ * One thing changing hands, and what it is.
+ *
+ * The card is the same one an item slot shows — see `./ItemCard` — and it is
+ * read in the viewer's own hands, which is the point of having it here: a trade
+ * asks whether the sword on offer beats the one you are carrying, and that
+ * depends on who is carrying it.
+ *
+ * No count on the card. The row beside it already says how many, and the card's
+ * own count is a fact about a stack somebody owns rather than about an offer.
+ *
+ * Hover shows it on a mouse; a held finger shows it on a touchscreen, since
+ * there is no hover to have. The same gesture and the same delay an item slot
+ * uses — see `../lib/useDwell` — so a player who learnt it in their bag already
+ * knows it here.
+ */
+function TradeSideItem({
+  side,
+  tilesById,
+  tilesets,
+  masteryXp,
+  statusDefs,
+}: {
+  side: TradeSide;
+  tilesById: Record<string, TileDef>;
+  tilesets: TilesetDef[];
+  masteryXp: MasteryXp;
+  statusDefs: Record<string, StatusDef>;
+}) {
+  const def = tilesById[side.tileId];
+  const coarse = useCoarsePointer();
+  const { dwelling, handlers } = useDwell(coarse);
+  const [pointedAt, setPointedAt] = useState(false);
+
+  const card = useMemo(
+    // No instance: nobody owns this yet, and passing the offer as one would put
+    // the trade's count on a card that means "how many are in this square".
+    () => (def ? itemCard(def, null, masteryXp, statusDefs) : null),
+    [def, masteryXp, statusDefs],
+  );
+
+  const row = (
+    <span
+      {...handlers}
+      onPointerEnter={() => setPointedAt(true)}
+      onPointerLeave={() => {
+        setPointedAt(false);
+        handlers.onPointerLeave();
+      }}
+      // Focusable so a keyboard can reach the description, and labelled with the
+      // spoken card for the same reason a slot is: the drawing is `aria-hidden`.
+      tabIndex={card ? 0 : undefined}
+      onFocus={() => setPointedAt(true)}
+      onBlur={() => setPointedAt(false)}
+      // The count in front of the spoken card, which already opens with the
+      // name — the same order the visible row reads in.
+      aria-label={card ? `${side.count} ${card.speech}` : undefined}
+      className="flex items-center gap-1 border border-paper/20 px-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+      style={{
+        // Without this a finger held on the row scrolls the transcript instead,
+        // and the pointer events stop arriving before the dwell is up.
+        touchAction: coarse ? "none" : undefined,
+      }}
+    >
+      {def ? (
+        <TilePreview
+          tile={def}
+          tilesets={tilesets}
+          size={ITEM_SPRITE_SIZE_PX}
+          still
+          chrome={false}
+          background={null}
+        />
+      ) : null}
+      <span className="tabular-nums">×{side.count}</span>
+      <span className="truncate">{def?.name ?? side.tileId}</span>
+    </span>
+  );
+
+  if (!card || !def) return row;
+
+  return (
+    <Tooltip
+      content={<ItemCard card={card} tile={def} tilesets={tilesets} />}
+      side="top"
+      open={dwelling || pointedAt}
+      className="pointer-events-none"
+    >
+      {row}
+    </Tooltip>
   );
 }
 
