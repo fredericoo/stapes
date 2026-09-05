@@ -301,7 +301,18 @@ function remaining(at: Coord, goal: Coord, arrive: Arrival): number {
  * a fall settles onto — asked here so a route that takes a ledge knows which
  * cell it continues from rather than planning the rest of the way from mid-air.
  */
-function dropLanding(
+/**
+ * Where a body entering this column from `fromAbs` comes to rest, or null when
+ * nothing down there will hold it.
+ *
+ * Exported because a click into a hole asks exactly this question — see
+ * `./walkTo`'s `standingCellOn`. The pointer names whatever is *visible* at the
+ * bottom, which is not the same as what a body lands on: a sealed surface under
+ * a half-wall is drawn and cannot be stood on, so the fall carries past it. One
+ * definition, because a click that aimed somewhere the search would not put the
+ * body is a route to a cell nobody ends up in.
+ */
+export function dropLanding(
   map: MapFile,
   x: number,
   y: number,

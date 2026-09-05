@@ -602,3 +602,77 @@ describe("asking the board only when the answer could have changed", () => {
     expect(last()?.[0]).not.toBe("e");
   });
 });
+
+/**
+ * A hole is a column, not a tile.
+ *
+ * The shipped tutorial opens with a hole whose bottom is a `half-wall` on one
+ * level and bare ground on the level below it. The pointer names the half-wall,
+ * nothing stands on a half-wall, and a click at the very mouth of the hole was
+ * refused about a fall that was one step away — so what the pick *names* and
+ * where a body *lands* had to stop being the same question.
+ *
+ * The pair of cases is the whole rule: a column empty at the walker's own level
+ * is read as somewhere to fall into, and every other column is read exactly as
+ * before, including one with a wall standing in it.
+ */
+describe("clicking into a hole", () => {
+  /**
+   * Ground at level -1, a floor of blocks at level 0 over all of it, and one
+   * column where that floor is missing — with a half-wall at the bottom of the
+   * gap, so the fall carries past the level the pointer can see.
+   */
+  function pit(): MapFile {
+    let map = emptyMap();
+    for (let x = -3; x <= 3; x++) {
+      for (let y = -3; y <= 3; y++) {
+        map = replaceStack(map, x, y, -2, [{ tileId: "grass" }]);
+        map = replaceStack(map, x, y, -1, [{ tileId: "block" }]);
+        map = replaceStack(map, x, y, 0, [{ tileId: "grass" }]);
+      }
+    }
+    // The hole: nothing at the walker's level, and the level below it holds a
+    // wall nobody can stand on, so a body falls through to the ground under it.
+    map = replaceStack(map, 0, -1, 0, []);
+    map = replaceStack(map, 0, -1, -1, [{ tileId: "grass" }, { tileId: "crate" }]);
+    return replaceStack(map, 0, 0, 0, [
+      { tileId: "grass" },
+      { tileId: PLAYER_TILE_ID },
+    ]);
+  }
+
+  it("steps in, falling past the level the pointer could name", () => {
+    const { walk, last } = walker();
+    const map = pit();
+    // What a pick reaches: the crate at the bottom of the gap, one level down —
+    // half a level tall, exactly as the shipped hole's `half-wall` is.
+    const wall = { x: 0, y: -1, z: -1, stackIndex: 1 };
+
+    walk.start(wall, view(map));
+
+    expect(last()).toEqual(["n"]);
+    expect(walk.walking).toBe(true);
+    expect(walk.drainNotices()).toEqual([]);
+  });
+
+  it("resolves the click to where a body lands, not to what was pointed at", () => {
+    const map = pit();
+    const wall = { x: 0, y: -1, z: -1, stackIndex: 1 };
+
+    // Two levels down from the walker, and one below what the pick can reach.
+    expect(standingCellOn(view(map), wall)).toEqual({ x: 0, y: -1, z: -2 });
+  });
+
+  it("still refuses the foot of a wall standing on ordinary ground", () => {
+    const { walk, asked } = walker();
+    // Same wall tile, but the walker's own level has ground in that column, so
+    // it is a thing with a wall on it rather than a hole.
+    const map = put(field(3), 0, -1, "wall");
+
+    walk.start({ x: 0, y: -1, z: 0, stackIndex: 1 }, view(map));
+
+    expect(standingCellOn(view(map), { x: 0, y: -1, z: 0, stackIndex: 1 })).toBeNull();
+    expect(asked).toEqual([]);
+    expect(walk.drainNotices()).toEqual([noRouteNotice("unreachable")]);
+  });
+});
