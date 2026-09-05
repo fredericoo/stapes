@@ -983,12 +983,12 @@
   {
     "id": "water",
     "name": "Water",
-    "height": 0,
+    "height": 1,
     "type": "autotile",
     "kind": "prop",
     "attributes": {},
     "lightPassing": true,
-    "intangible": true,
+    "walkable": false,
     "slices": {
       "0": {
         "frames": [
@@ -1216,11 +1216,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "1": {
         "frames": [
@@ -1448,11 +1444,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "2": {
         "frames": [
@@ -1680,11 +1672,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "3": {
         "frames": [
@@ -1912,11 +1900,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "4": {
         "frames": [
@@ -2144,11 +2128,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "5": {
         "frames": [
@@ -2376,11 +2356,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "6": {
         "frames": [
@@ -2608,11 +2584,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "7": {
         "frames": [
@@ -2840,11 +2812,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "8": {
         "frames": [
@@ -3072,11 +3040,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "9": {
         "frames": [
@@ -3304,11 +3268,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "10": {
         "frames": [
@@ -3536,11 +3496,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "11": {
         "frames": [
@@ -3768,11 +3724,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "12": {
         "frames": [
@@ -4000,11 +3952,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "13": {
         "frames": [
@@ -4232,11 +4180,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "14": {
         "frames": [
@@ -4464,11 +4408,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "15": {
         "frames": [
@@ -4696,11 +4636,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "16": {
         "frames": [
@@ -4928,11 +4864,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "17": {
         "frames": [
@@ -5160,11 +5092,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "18": {
         "frames": [
@@ -5392,11 +5320,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "19": {
         "frames": [
@@ -5624,11 +5548,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "20": {
         "frames": [
@@ -5856,11 +5776,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "21": {
         "frames": [
@@ -6088,11 +6004,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "22": {
         "frames": [
@@ -6320,11 +6232,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "23": {
         "frames": [
@@ -6552,11 +6460,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "24": {
         "frames": [
@@ -6784,11 +6688,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "25": {
         "frames": [
@@ -7016,11 +6916,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "26": {
         "frames": [
@@ -7248,11 +7144,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "27": {
         "frames": [
@@ -7480,11 +7372,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "28": {
         "frames": [
@@ -7712,11 +7600,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "29": {
         "frames": [
@@ -7944,11 +7828,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "30": {
         "frames": [
@@ -8176,11 +8056,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "31": {
         "frames": [
@@ -8408,11 +8284,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "32": {
         "frames": [
@@ -8640,11 +8512,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "33": {
         "frames": [
@@ -8872,11 +8740,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "34": {
         "frames": [
@@ -9104,11 +8968,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "35": {
         "frames": [
@@ -9336,11 +9196,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "36": {
         "frames": [
@@ -9568,11 +9424,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "37": {
         "frames": [
@@ -9800,11 +9652,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "38": {
         "frames": [
@@ -10032,11 +9880,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "39": {
         "frames": [
@@ -10264,11 +10108,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "40": {
         "frames": [
@@ -10496,11 +10336,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "41": {
         "frames": [
@@ -10728,11 +10564,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "42": {
         "frames": [
@@ -10960,11 +10792,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "43": {
         "frames": [
@@ -11192,11 +11020,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "44": {
         "frames": [
@@ -11424,11 +11248,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "45": {
         "frames": [
@@ -11656,11 +11476,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       },
       "46": {
         "frames": [
@@ -11888,11 +11704,7 @@
             },
             "durationMs": 80
           }
-        ],
-        "phase": {
-          "x": 3,
-          "y": -1
-        }
+        ]
       }
     }
   },
@@ -11988,6 +11800,7 @@
     "type": "directional",
     "kind": "prop",
     "attributes": {},
+    "lightPassing": true,
     "intangible": true,
     "sprites": {
       "n": {
@@ -14426,37 +14239,52 @@
     "name": "Potion Salesman",
     "height": 4,
     "type": "directional",
-    "kind": "battler",
+    "kind": "prop",
     "attributes": {},
     "lightPassing": true,
     "affectedByGravity": true,
     "walkable": false,
     "interactions": {
-      "battler": {
-        "masteries": {
-          "fist": 5,
-          "blade": 5,
-          "blunt": 5,
-          "ranged": 5,
-          "arcane": 5,
-          "toughness": 8,
-          "agility": 5
+      "brain": {
+        "initial": "idle",
+        "states": {
+          "idle": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          },
+          "serving": {
+            "do": [
+              {
+                "action": "hold"
+              }
+            ]
+          }
         },
-        "naturalWeapon": {
-          "type": "weapon",
-          "damage": 4,
-          "def": 0,
-          "accuracy": 82,
-          "variance": 25,
-          "spd": 58,
-          "mastery": "fist"
-        },
-        "range": 1.87,
-        "sight": {
-          "up": 0,
-          "down": 0
-        },
-        "kit": []
+        "transitions": [
+          {
+            "from": "idle",
+            "if": {
+              "cond": "talking"
+            },
+            "to": "serving"
+          },
+          {
+            "from": "serving",
+            "if": {
+              "combinator": "and",
+              "not": true,
+              "rules": [
+                {
+                  "cond": "talking"
+                }
+              ]
+            },
+            "to": "idle"
+          }
+        ]
       },
       "dialog": {
         "script": [
@@ -14592,47 +14420,6 @@
                 ]
               }
             ]
-          }
-        ]
-      },
-      "brain": {
-        "initial": "idle",
-        "states": {
-          "idle": {
-            "do": [
-              {
-                "action": "hold"
-              }
-            ]
-          },
-          "serving": {
-            "do": [
-              {
-                "action": "hold"
-              }
-            ]
-          }
-        },
-        "transitions": [
-          {
-            "from": "idle",
-            "if": {
-              "cond": "talking"
-            },
-            "to": "serving"
-          },
-          {
-            "from": "serving",
-            "if": {
-              "combinator": "and",
-              "not": true,
-              "rules": [
-                {
-                  "cond": "talking"
-                }
-              ]
-            },
-            "to": "idle"
           }
         ]
       }
@@ -19110,6 +18897,9 @@
     "type": "autotile",
     "kind": "prop",
     "attributes": {},
+    "connectsTo": [
+      "hole"
+    ],
     "slices": {
       "0": {
         "frames": [
@@ -27744,6 +27534,126 @@
             "base": {
               "x": 1,
               "y": 1
+            }
+          },
+          "durationMs": 200
+        }
+      ]
+    }
+  },
+  {
+    "id": "hole",
+    "name": "Hole",
+    "height": 0,
+    "type": "variant",
+    "kind": "prop",
+    "attributes": {},
+    "lightPassing": true,
+    "variants": {
+      "grass": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 5,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "wood": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 6,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "sand": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 7,
+                "y": 4,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      },
+      "dirt": {
+        "frames": [
+          {
+            "sprite": {
+              "tilesetId": "floors",
+              "rect": {
+                "x": 7,
+                "y": 5,
+                "w": 1,
+                "h": 1
+              },
+              "base": {
+                "x": 0,
+                "y": 0
+              }
+            },
+            "durationMs": 200
+          }
+        ]
+      }
+    }
+  },
+  {
+    "id": "lift",
+    "name": "Support",
+    "height": 2,
+    "type": "simple",
+    "kind": "prop",
+    "attributes": {},
+    "lightPassing": true,
+    "sprite": {
+      "frames": [
+        {
+          "sprite": {
+            "tilesetId": "tiny-ranch-tiles",
+            "rect": {
+              "x": 0,
+              "y": 2,
+              "w": 1,
+              "h": 1
+            },
+            "base": {
+              "x": 0,
+              "y": 0
             }
           },
           "durationMs": 200
