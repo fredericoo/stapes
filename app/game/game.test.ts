@@ -116,6 +116,10 @@ const tiles: TileDef[] = [
     affectedByGravity: true,
   }),
   tile({ id: "tree", height: 4, walkable: false }),
+  tile({ id: "bush", height: 2, walkable: false }),
+  // A dropped item: no volume of its own, so it tops out wherever it
+  // lands. Walkable, like every tile that does not say otherwise.
+  tile({ id: "berry", height: 0 }),
   tile({
     id: "crate",
     height: 2,
@@ -1066,6 +1070,53 @@ describe("walkable surfaces", () => {
       tilesById,
     );
     expect(check).toEqual({ ok: true, to: { x: 1, y: 0, z: 0 } });
+  });
+
+  /**
+   * Dropping something on a bush used to pave over it.
+   *
+   * A berry has no volume, so it tops out at the bush's own height, and both
+   * helpers that answer "which tile owns this plane" took the last one in the
+   * stack. The berry was dropped last and berries are walkable, so anybody
+   * carrying food could walk over any hedge in the world — and the two helpers
+   * are consulted by different branches of `canWalk`, so fixing one left the
+   * other still saying yes.
+   */
+  it("does not let a dropped item pave over the non-walkable tile under it", () => {
+    let map = mapWithPlayer({ x: 0, y: 0 });
+    map = replaceStack(map, 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "bush" },
+      { tileId: "berry" },
+    ]);
+    const loc = requireSinglePlayer(map);
+    expect(
+      canWalk(
+        map,
+        { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex },
+        "e",
+        tilesById.player!,
+        tilesById,
+      ).ok,
+    ).toBe(false);
+  });
+
+  it("still walks onto a dropped item lying on ordinary ground", () => {
+    let map = mapWithPlayer({ x: 0, y: 0 });
+    map = replaceStack(map, 1, 0, 0, [
+      { tileId: "grass" },
+      { tileId: "berry" },
+    ]);
+    const loc = requireSinglePlayer(map);
+    expect(
+      canWalk(
+        map,
+        { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex },
+        "e",
+        tilesById.player!,
+        tilesById,
+      ),
+    ).toEqual({ ok: true, to: { x: 1, y: 0, z: 0 } });
   });
 
   it("rejects stepping down onto a lone tree from above", () => {

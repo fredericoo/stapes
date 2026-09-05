@@ -11,6 +11,7 @@ import {
   solidTopOfStack,
   stackHeight,
   surfaceTileAt,
+  walkableElevInStack,
   chunkKeyFor,
   emptyMap,
   listChannels,
@@ -363,6 +364,93 @@ describe("the floor plane a full-height stack shares with the level above", () =
 
     const bare = column(["dirt", "half-stone", "ramp"], []);
     expect(climbFromSourceAt(bare, 0, 0, 0, tilesById)?.def.id).toBe("ramp");
+  });
+});
+
+/**
+ * Two tiles can top out at one elevation, and only one of them owns it.
+ *
+ * A zero-height tile adds no volume, so it surfaces at exactly the height of
+ * whatever it was laid on. Resolving that tie by stack order meant drop order
+ * decided walkability: a berry dropped on a bush became the surface, berries
+ * are walkable, and anybody carrying food could pave a path over any hedge in
+ * the world. The tile with the volume owns the plane.
+ */
+describe("a tile with no volume does not own the plane it lies on", () => {
+  const tilesById = tilesByIdFromList([
+    tile({ id: "grass", height: 0 }),
+    tile({ id: "berry", height: 0 }),
+    tile({ id: "arrow", height: 0, intangible: true }),
+    tile({ id: "bush", height: 2, walkable: false }),
+    tile({ id: "half-wall", height: 2, walkable: false }),
+    tile({ id: "half-stone", height: 2 }),
+    tile({ id: "wolf", height: 2, walkable: false, actor: true }),
+  ]);
+
+  function column(...tileIds: string[]): MapFile {
+    return replaceStack(
+      emptyMap(),
+      0,
+      0,
+      0,
+      tileIds.map((tileId) => ({ tileId })),
+    );
+  }
+
+  it("keeps the bush as the surface under anything dropped on it", () => {
+    const map = column("grass", "bush", "berry");
+    expect(surfaceTileAt(map, 0, 0, 2, tilesById)).toEqual({ tileId: "bush" });
+    expect(isWalkableSurfaceAt(map, 0, 0, 2, tilesById)).toBe(false);
+    expect(walkableElevInStack(getStack(map, 0, 0, 0), tilesById)).toBe(0);
+  });
+
+  it("answers the same however the two were stacked", () => {
+    // Nothing in the world builds this way, but the rule is about an
+    // elevation rather than an ordering, and an order-dependent answer is one
+    // an editor or a settle pass could still walk into.
+    const map = column("grass", "berry", "bush");
+    expect(isWalkableSurfaceAt(map, 0, 0, 2, tilesById)).toBe(false);
+    expect(walkableElevInStack(getStack(map, 0, 0, 0), tilesById)).toBe(0);
+  });
+
+  it("names the ground, not the item lying on it, as the surface", () => {
+    const map = column("grass", "berry");
+    expect(surfaceTileAt(map, 0, 0, 0, tilesById)).toEqual({ tileId: "grass" });
+    expect(isWalkableSurfaceAt(map, 0, 0, 0, tilesById)).toBe(true);
+    expect(walkableElevInStack(getStack(map, 0, 0, 0), tilesById)).toBe(0);
+  });
+
+  it("looks through an intangible top to the tile beneath it either way", () => {
+    expect(
+      isWalkableSurfaceAt(column("grass", "bush", "arrow"), 0, 0, 2, tilesById),
+    ).toBe(false);
+    expect(
+      isWalkableSurfaceAt(column("grass", "arrow"), 0, 0, 0, tilesById),
+    ).toBe(true);
+  });
+
+  /**
+   * The three cases that rule out the blunter version of this — refusing the
+   * whole column the moment anything non-walkable stands in it. Each of these
+   * is a surface something legitimately stands or lands on, and a stack scan
+   * that gives up at the first non-walkable tile takes all three away.
+   */
+  it("keeps the ground under a bush as a surface to fall onto", () => {
+    const map = column("grass", "bush");
+    expect(walkableElevInStack(getStack(map, 0, 0, 0), tilesById)).toBe(0);
+  });
+
+  it("keeps the ground a creature is standing on as a surface", () => {
+    const map = column("grass", "wolf");
+    expect(walkableElevInStack(getStack(map, 0, 0, 0), tilesById)).toBe(0);
+  });
+
+  it("keeps a slab laid across a low wall walkable", () => {
+    const map = column("grass", "half-wall", "half-stone");
+    expect(surfaceTileAt(map, 0, 0, 4, tilesById)).toEqual({
+      tileId: "half-stone",
+    });
+    expect(isWalkableSurfaceAt(map, 0, 0, 4, tilesById)).toBe(true);
   });
 });
 

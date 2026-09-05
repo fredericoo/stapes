@@ -297,16 +297,34 @@ export function isSolidPlacement(
 }
 
 /**
- * Topmost non-intangible tile in a stack. Intangibles don't form a solid
+ * The tile that owns the stack's top plane. Intangibles don't form a solid
  * surface — walk/land checks look through them to the tile underneath.
+ *
+ * **A tile with no volume of its own does not own the plane it lies on.** A
+ * zero-height tile tops out at exactly the elevation of whatever is under it,
+ * so both share one plane, and answering with the topmost placement resolved
+ * that tie by drop order. An apple laid on a bush was the last thing in the
+ * stack, so the apple became the surface, and the apple is walkable — which is
+ * how anybody carrying food could pave a path over any hedge in the world. The
+ * bush has the volume, so the bush owns the plane, whatever gets dropped on it
+ * afterwards. See {@link walkableElevInStack}, which has to agree.
  */
 export function solidTopOfStack(
   stack: PlacedTile[],
   tilesById: Record<string, TileDef>,
 ): PlacedTile | null {
   for (let i = stack.length - 1; i >= 0; i--) {
-    const placed = stack[i]!;
-    if (isSolidPlacement(placed, tilesById)) return placed;
+    if (!isSolidPlacement(stack[i]!, tilesById)) continue;
+
+    let owner = i;
+    while (
+      owner > 0 &&
+      terrainHeight(stack[owner]!, tilesById) === 0 &&
+      isSolidPlacement(stack[owner - 1]!, tilesById)
+    ) {
+      owner--;
+    }
+    return stack[owner]!;
   }
   return null;
 }
@@ -326,6 +344,20 @@ export function absoluteStandingElevation(
 /**
  * Elevation (within the level) of the highest walkable tile top in `stack`.
  * Null when no walkable tile is present.
+ *
+ * **A plane is walkable only if every solid tile topping out there is.** This
+ * is {@link solidTopOfStack}'s rule from the other end, and the two must not
+ * disagree: {@link surfaceTileAt} asks which tile owns a plane, this asks which
+ * plane a body may stand on, and `canWalk` consults both — the climb-band
+ * search through this one, and its walk-into-a-hole fallthrough through the
+ * other. Fixing only one left the exploit alive through the other.
+ *
+ * Sealing a plane rather than abandoning the whole stack is deliberate. A
+ * non-walkable tile is not a claim about the column, only about its own top:
+ * the ground under a bush is still a surface a body can fall onto, a wolf
+ * standing on grass is not a hole in the world, and a slab laid across a
+ * half-wall is still something to walk along. Refusing the column outright
+ * takes all three away to fix a tie between two tiles at one elevation.
  */
 export function walkableElevInStack(
   stack: PlacedTile[],
@@ -333,13 +365,19 @@ export function walkableElevInStack(
 ): number | null {
   let elev = 0;
   let best: number | null = null;
+  const sealed = new Set<number>();
   for (const p of stack) {
     elev += terrainHeight(p, tilesById);
     if (isPlayerBody(p)) continue;
     const def = tilesById[p.tileId];
     if (!def) continue;
-    // Intangible walkable tops don't form a standing plane — pass through.
-    if (resolveWalkable(def) && !resolveIntangible(def)) best = elev;
+    if (resolveIntangible(def)) continue;
+    if (!resolveWalkable(def)) {
+      sealed.add(elev);
+      if (best === elev) best = null;
+      continue;
+    }
+    if (!sealed.has(elev)) best = elev;
   }
   return best;
 }
