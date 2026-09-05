@@ -29,8 +29,21 @@ const base = fixtureTown();
 /** A window well inside the fixture town's content. */
 const WINDOW: WorldRect = { x0: -8, y0: -8, x1: 8, y1: 8 };
 
-/** Somewhere in that window with a stack to mutate. */
-const EDIT = { x: 0, y: 0, z: 0 };
+/**
+ * A cave floor cell inside that window, on the fixture town's dark level.
+ *
+ * Every one of these tests turns on a torch being *visible* once its bake
+ * lands, so the cell has to be one where the torch's light is what moves the
+ * pixels. On the ground plane it is not: the town square is sky-lit past what
+ * a torch adds, and the only byte an edit there ever moved was the torch's own
+ * cell, back when the tile was not light-passing and occluded itself. The cave
+ * under the square sees no sky, so an emitter down here is the only light
+ * there is.
+ *
+ * Off the cave's own torch grid and off its walls, so the light being measured
+ * is the one the test placed.
+ */
+const EDIT = { x: 4, y: 4, z: -1 };
 
 /** A baker whose results only land when the test says so. */
 class ManualBaker implements ChunkBaker {
