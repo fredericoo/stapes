@@ -5154,16 +5154,25 @@ export class GameSession implements PlaySession {
     at: Coord,
     allowDrops: boolean | undefined,
   ): Direction | "arrived" | null {
-    const path = findPath(
+    // A creature decides where to go while standing still, so the cell it
+    // searches from and the body to leave off the board are the same one. They
+    // are not for a body mid-step — see `./pathfinding`'s `PathStart`, and
+    // `./walkTo`, which is where the two come apart.
+    const self = { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex };
+    const found = findPath(
       this.map,
-      { x: loc.x, y: loc.y, z: loc.z, stackIndex: loc.stackIndex },
+      { at: self, self },
       at,
       this.defFor(actor),
       this.tilesById,
       { allowDrops },
     );
-    if (path === null) return null;
-    return path[0]?.direction ?? "arrived";
+    // Which limit a refusal hit is not a distinction a brain has anything to do
+    // with: unreachable, too far round and given up on all mean the same thing
+    // to a creature, which is that this is not the action to take. The sentence
+    // that needs them apart is the player's. @see PathRefusal
+    if (!found.ok) return null;
+    return found.route[0]?.direction ?? "arrived";
   }
 
   /**
