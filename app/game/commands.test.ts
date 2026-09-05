@@ -176,6 +176,7 @@ describe("reading a typed line", () => {
       command: {
         name: "tile",
         tileId: "apple",
+        count: 1,
         at: {
           x: { kind: "relative", offset: 0 },
           y: { kind: "relative", offset: 0 },
@@ -241,6 +242,60 @@ describe("reading a typed line", () => {
     // There are three axes, so a fourth number is a typo rather than something
     // to ignore.
     expect(parseCommand("/tile apple 1 2 3 4")).toEqual({
+      ok: false,
+      refusal: { kind: "badArguments", command: "tile" },
+    });
+  });
+
+  it("reads a count written in front of the coordinates", () => {
+    // `x` cannot begin a coordinate, which is what lets a count share the
+    // first argument's place without the grammar becoming ambiguous.
+    expect(parseCommand("/tile apple x12 +1 -2 3")).toMatchObject({
+      ok: true,
+      command: {
+        tileId: "apple",
+        count: 12,
+        at: {
+          x: { kind: "relative", offset: 1 },
+          y: { kind: "relative", offset: -2 },
+          z: { kind: "absolute", value: 3 },
+        },
+      },
+    });
+    // A phone capitalises it as readily as it capitalises the verb.
+    expect(parseCommand("/tile apple X3")).toMatchObject({
+      ok: true,
+      command: { count: 3, at: { x: { kind: "relative", offset: 0 } } },
+    });
+  });
+
+  it("counts one when no count was typed", () => {
+    expect(parseCommand("/tile apple +1")).toMatchObject({
+      ok: true,
+      command: { count: 1 },
+    });
+  });
+
+  it("names a count that is zero or past the ceiling", () => {
+    for (const typed of ["x0", "x1000"]) {
+      expect(parseCommand(`/tile apple ${typed}`)).toEqual({
+        ok: false,
+        refusal: { kind: "badCount", typed },
+      });
+    }
+  });
+
+  it("refuses a count anywhere but first", () => {
+    // Read as the coordinate it is standing in the place of, which is the
+    // honest answer: there is no reading of "x5" that makes it an axis.
+    expect(parseCommand("/tile apple +1 x5")).toEqual({
+      ok: false,
+      refusal: { kind: "badCoordinate", typed: "x5" },
+    });
+  });
+
+  it("still allows only three axes behind a count", () => {
+    expect(parseCommand("/tile apple x2 1 2 3 4")).toEqual({
       ok: false,
       refusal: { kind: "badArguments", command: "tile" },
     });
@@ -591,6 +646,50 @@ describe("what a command does to the board", () => {
     // Said even though the thing is on the board, because an absolute cell is
     // very likely off screen — and because it is the only confirmation that a
     // step went the way the player thought it did.
+    expect(session.drainNotices("me")).toEqual(["Apple appears at 2, -2, 0"]);
+  });
+
+  it("runs the placement once per count, pouring as it goes", () => {
+    const session = world();
+    // An apple piles eight deep, so ten of them is a full pile and a second
+    // beside it — the same thing ten separate commands would have left.
+    session.runCommand("/tile apple x10 2 -2 0", "me");
+
+    expect(
+      stackAt(session, 2, -2, 0).map((placed) => `${placed.tileId}x${placed.count ?? 1}`),
+    ).toEqual(["grassx1", "applex8", "applex2"]);
+  });
+
+  it("names every summoned body separately", () => {
+    const session = world();
+    session.runCommand("/tile deer x2 0 1 0", "me");
+
+    // The names are minted before any of them is adopted, so within one
+    // command the runtime cannot see the clash for itself.
+    const owners = stackAt(session, 0, 1, 0)
+      .map((placed) => placed.owner)
+      .filter((owner) => owner != null);
+    expect(owners).toHaveLength(2);
+    expect(new Set(owners).size).toBe(2);
+    for (const owner of owners) expect(session.isResident(owner)).toBe(true);
+  });
+
+  it("places all of a count or none of it", () => {
+    const session = world();
+    session.runCommand("/tile deer x9 0 1 0", "me");
+
+    // Half a command carried out is the one outcome nobody could act on, so a
+    // count that runs out of room leaves the cell exactly as it was.
+    expect(session.drainNotices("me")).toEqual(["Nothing will fit at 0, 1, 0"]);
+    expect(stackAt(session, 0, 1, 0).map((placed) => placed.tileId)).toEqual(["grass"]);
+  });
+
+  it("says how many appeared, and only when it was more than one", () => {
+    const session = world();
+    session.runCommand("/tile apple x3 2 -2 0", "me");
+    expect(session.drainNotices("me")).toEqual(["Apple ×3 appears at 2, -2, 0"]);
+
+    session.runCommand("/tile apple 2 -2 0", "me");
     expect(session.drainNotices("me")).toEqual(["Apple appears at 2, -2, 0"]);
   });
 

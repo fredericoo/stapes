@@ -2585,6 +2585,23 @@ world.
 - **The `player` tile is the one refusal that is about the file.** A map is
   allowed exactly one, and `requireSinglePlayer` throws rather than choosing, so
   a second one is a world that cannot be opened again.
+- **A count is written `x12`, and only ever directly after the tile.** It means
+  *run the placement that many times*, not "make a pile that big": a hundred
+  shards is a full pile of ninety-nine and one beside it, a hundred crates is a
+  hundred crates until the column runs out, and either way it is the same rule a
+  single `/tile` is under said N times. Sharing the first argument's place with
+  a coordinate is safe because no coordinate can begin with a letter — but only
+  in that position, so `/tile apple +1 x5` is refused as the coordinate `x5` is
+  standing in the place of, which is the honest reading. `MAX_TILE_COUNT` is a
+  sanity bound at 999 rather than a pile's ceiling.
+- **All of a count or none of it.** The whole stack is built against a candidate
+  map before any of it is committed, so a count that runs out of room leaves the
+  cell exactly as it was. Half a command carried out is the one outcome nobody
+  could act on, and it is the rule a trade already keeps. It is also why
+  `summonedOwnerId` takes the names this same command has already minted: with
+  nothing adopted until the end, the runtime cannot see a clash inside one
+  `/tile wolf x3` for itself.
+
 ## A reward happens to the player, not to the board
 
 `interactions.reward` hands over a list of items once per player — a quest
