@@ -1167,10 +1167,13 @@ carry it.
   the two are not both null: the first falls through to the next line of the
   priority list, and so does the second, but only the second is a `stuck` an
   author can transition on.
-- **A drop is a one-way edge and it is opt-in**, on the same `allowDrops` the
-  action already carried. Where gravity would put the body down is resolved as
+- **A drop is a one-way edge, and which legs may take one is one setting with
+  three values.** `PathOptions.drops` is `"never"` (the default), `"toGoal"` or
+  `"anywhere"`; a creature's `allowDrops` maps onto the outer two and reads
+  exactly as it always did. Where gravity would put the body down is resolved as
   part of the edge, because a route planned from mid-air is a route about a cell
-  nobody is ever standing in.
+  nobody is ever standing in. `"toGoal"` is a click's answer and is written
+  below.
 
 **Two caps, doing two different jobs, and it is worth not confusing them.**
 `PATH_DETOUR_SLACK` is about *behaviour*: a route far longer than the gap is not
@@ -1211,6 +1214,19 @@ client making up where it is allowed to go.
   overestimate: measuring to the goal itself while stopping beside it is one
   step too many, which returns routes that are not the shortest and prunes
   legitimate ones against `PATH_DETOUR_SLACK`.
+- **A fall may be the last leg of a clicked route, and nothing before it.**
+  `WalkTo` passes `drops: "toGoal"`, so a leg that leaves the ground is an edge
+  only when the cell gravity resolves it to is the cell that was clicked — asked
+  with the same `arrived` the search finishes on, rather than with a second
+  opinion about what arriving means. Click into a hole and the walk goes down it; click across a
+  balcony and the walk goes round by the stairs. **Not pathing through a hole is
+  deliberate, and it is not the next obvious feature.** A leg costs one step
+  whether it walks or falls and there is nothing else to pay — this game does
+  not hurt you for landing — so a search free to fall anywhere takes the drop
+  the moment it is the shorter line, and a click meant to cross a room throws
+  the player off the edge of it and leaves them to find the stairs back up.
+  Lifting the limit is not a flag: it is deciding what a fall is worth, which
+  means costing the climb back out of it, and nothing has measured that yet.
 - **A pick names a tile; a body wants the cell it would stand in.** The two
   differ for anything filling its own level — the block a floor is made of is
   stored on the level below the one you stand on it at — so the destination goes

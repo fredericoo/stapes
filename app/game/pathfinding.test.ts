@@ -317,19 +317,20 @@ describe("heights", () => {
   });
 });
 
+/** A three-cell plateau at (0..2, 0), one level up, over open grass. */
+function plateau(): MapFile {
+  let map = field(6);
+  for (let x = 0; x <= 2; x++) map = put(map, x, 0, "block");
+  return map;
+}
+
 /**
- * A drop is a way down and never a way back, so it is opt-in and it resolves
- * where gravity would actually put the body — a route planned from mid-air is
- * a route about a cell nobody is ever standing in.
+ * A drop is a way down and never a way back, so which legs may take one is the
+ * caller's to say — and it resolves where gravity would actually put the body,
+ * because a route planned from mid-air is a route about a cell nobody is ever
+ * standing in.
  */
 describe("ledges", () => {
-  /** A three-cell plateau at (0..2, 0), one level up, over open grass. */
-  function plateau(): MapFile {
-    let map = field(6);
-    for (let x = 0; x <= 2; x++) map = put(map, x, 0, "block");
-    return map;
-  }
-
   it("refuses a ledge by default, and stays up there", () => {
     expect(
       route(plateau(), standing(0, 0, 1, 0), { x: 5, y: 0, z: 0 }),
@@ -338,13 +339,82 @@ describe("ledges", () => {
 
   it("takes the ledge when the action allows it, landing where it falls", () => {
     const path = route(plateau(), standing(0, 0, 1, 0), { x: 5, y: 0, z: 0 }, {
-      allowDrops: true,
+      drops: "anywhere",
     });
 
     expect(walked(path)).toEqual(["e", "e", "e", "e"]);
     // Two legs along the roof, then off it — and the search carries on from the
     // ground rather than from the cell it stepped into.
     expect(path?.map((step) => step.to.z)).toEqual([1, 1, 0, 0]);
+  });
+});
+
+/**
+ * The middle setting, which is what a click asks for: a fall may be the arrival
+ * and nothing else.
+ *
+ * A leg costs one step whether it walks or falls, and there is nothing else to
+ * pay, so a search free to fall anywhere steps off the nearest ledge the moment
+ * that is the shorter line. That is right for a creature an author has told to
+ * take drops and wrong for a person who pointed at a cell across the room, so
+ * `"toGoal"` allows the fall exactly when the cell it lands in is the cell that
+ * was asked for. @see ../game/walkTo
+ */
+describe("a drop that has to be the destination", () => {
+  /**
+   * The same plateau with a way down that is a walk rather than a fall: a step
+   * off the far end, half a level at a time.
+   */
+  function stairs(): MapFile {
+    let map = field(3);
+    for (let x = 0; x <= 2; x++) map = put(map, x, 0, "block");
+    return put(map, 3, 0, "step");
+  }
+
+  it("steps off the ledge when the landing is the cell asked for", () => {
+    // Where a body stepping off the east end of the plateau comes down.
+    const path = route(plateau(), standing(0, 0, 1, 0), { x: 3, y: 0, z: 0 }, {
+      drops: "toGoal",
+      arrive: "on",
+    });
+
+    expect(walked(path)).toEqual(["e", "e", "e"]);
+    expect(path?.map((step) => step.to.z)).toEqual([1, 1, 0]);
+  });
+
+  it("refuses the same fall when it lands somewhere else", () => {
+    // Two cells further on, and the fall is now a way *through* to somewhere
+    // rather than the way down to what was asked for. There is no other way off
+    // the plateau, so there is no route at all.
+    expect(
+      route(plateau(), standing(0, 0, 1, 0), { x: 5, y: 0, z: 0 }, {
+        drops: "toGoal",
+        arrive: "on",
+      }),
+    ).toBeNull();
+  });
+
+  /**
+   * The case that would regress without anybody noticing, because both answers
+   * are routes and only one of them is the one somebody asked for.
+   */
+  it("walks the long way down rather than stepping off on the way past", () => {
+    const shortcut = route(stairs(), standing(0, 0, 1, 0), { x: 0, y: -2, z: 0 }, {
+      drops: "anywhere",
+      arrive: "on",
+    });
+    // Off the north edge and one step on: strictly shorter, and not what a
+    // player clicking a cell two along from themselves meant.
+    expect(walked(shortcut)).toEqual(["n", "n"]);
+
+    const path = route(stairs(), standing(0, 0, 1, 0), { x: 0, y: -2, z: 0 }, {
+      drops: "toGoal",
+      arrive: "on",
+    });
+
+    // East along the shelf to the step, down it, and back round underneath.
+    expect(walked(path)?.[0]).toBe("e");
+    expect(path).toHaveLength(8);
   });
 });
 

@@ -40,6 +40,28 @@ import type { Coord, MapFile, TileDef } from "../lib/types";
  * the frame rate dropped, which is the exact fault the prediction's overshoot
  * accounting exists to avoid.
  *
+ * ## A fall may be the last leg of a route, and nothing before it
+ *
+ * Clicking the floor of a pit walks to the floor of the pit — the route is
+ * allowed to step off a ledge when the cell it lands in is the cell that was
+ * clicked. Every other leg has to stay on the ground, so **a route never passes
+ * through a fall on its way to somewhere else**: click across the balcony and
+ * the walk goes round by the stairs, however much longer that is. @see
+ * ./pathfinding's `PathOptions.drops`, which is where the rule is written.
+ *
+ * That limit will read as unfinished, and it is deliberate. A leg costs one
+ * step whether it walks or falls, and nothing else — this game does not hurt
+ * you for landing — so a search free to fall anywhere takes the drop the moment
+ * it is the shorter line, and a click meant to cross a room throws the player
+ * off the edge of it and leaves them to find the stairs back up. Nobody asked
+ * for that, and it is a worse answer than the long walk it replaced.
+ *
+ * Lifting the limit is not a flag; it is deciding what a fall is worth. A drop
+ * would have to cost the climb back out of it — which is a second search, or a
+ * number somebody has justified — before the search can be trusted to weigh one
+ * against walking round. Until somebody has done that, a fall that is not the
+ * destination is not an edge.
+ *
  * ## The route is recomputed every step, and never kept
  *
  * `docs/notes.md` makes this argument for a chase and it is *stronger* for a
@@ -255,9 +277,15 @@ export class WalkTo {
       destination,
       view.def,
       view.tilesById,
-      // The cell itself, not a neighbour of it: a patch of floor is not
-      // something you stop next to. @see ./pathfinding
-      { arrive: "on" },
+      {
+        // The cell itself, not a neighbour of it: a patch of floor is not
+        // something you stop next to. @see ./pathfinding
+        arrive: "on",
+        // A fall is allowed to be the last leg and nothing else, so clicking
+        // down a hole walks to the bottom of it while a walk across a balcony
+        // never steps off one. @see PathOptions.drops
+        drops: "toGoal",
+      },
     );
     if (!found.ok) {
       this.cancel();
