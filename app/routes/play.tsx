@@ -239,6 +239,10 @@ export default function PlayPage() {
 
     const input = new HeldDirections((i) => session.setInput(i));
     inputRef.current = input;
+    // The keys, the on-screen pad and a click on the world all press the same
+    // list, which is what settles between them: taking the keys back ends a
+    // clicked walk, and neither has to know the other exists.
+    renderer.setDirections(input);
     const unbindKeyboard = bindKeyboard(input);
     // The key presses the *position*, and the row of buttons holds the list —
     // so `2` is whatever the second button is showing, whichever square that

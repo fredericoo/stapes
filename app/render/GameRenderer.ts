@@ -45,6 +45,8 @@ import { strikeOffset } from "./strikeMotion";
 import { isHiddenFromCamera } from "./cameraSight";
 import { labelHeadroomPx } from "./labelHeadroom";
 import { sceneryStack } from "../game/movement";
+import type { HeldDirections } from "../game/heldDirections";
+import { WalkTo, type WalkView } from "../game/walkTo";
 import type { EmitterOverride } from "../lib/lighting";
 import {
   DEFAULT_PLAY_MINUTES,
@@ -484,6 +486,15 @@ export class GameRenderer {
    * happened while it was not looking.
    */
   private readonly notices = new NoticeQueue();
+  /**
+   * Where the last click is sending this body, or null until the page has said
+   * where a direction goes. @see setDirections
+   *
+   * Held by the renderer because a destination comes from a pointer over a
+   * canvas and nothing else in the game has one. What it *does* with the
+   * destination is not this class's business at all — see `../game/walkTo`.
+   */
+  private walkTo: WalkTo | null = null;
   /** @see setLookMode */
   private lookMode = false;
   private lookedAt: ObjectRef | null = null;
@@ -558,6 +569,25 @@ export class GameRenderer {
    */
   setStatuses(defs: Record<string, StatusDef>) {
     this.statusDefs = defs;
+  }
+
+  /**
+   * Hand over the direction list a click should press, and with it the ability
+   * to walk to a cell at all.
+   *
+   * Separate from the constructor for the reason {@link setStatuses} is: a
+   * renderer draws a world without one, and online there is a socket and a
+   * `hello` between the page having a list and having a session to build a
+   * renderer around. A renderer nobody gave one to simply does not click-walk,
+   * which is the right answer for the editor's preview.
+   *
+   * The list rather than the session's `setInput`, because *which* direction is
+   * in force is not this class's decision to make: a key held over a click and
+   * a click over a held key are one rule, and `../game/heldDirections` is where
+   * it is written down. @see ../game/walkTo
+   */
+  setDirections(directions: HeldDirections) {
+    this.walkTo = new WalkTo(directions);
   }
 
   setMinutesOfDay(m: MinutesOfDay) {
@@ -745,7 +775,8 @@ export class GameRenderer {
    * it describes happened — a reward as it is handed over, a mastery as the
    * experience that crossed it is written — and arrives through
    * `PlaySession.drainNotices`: the session's own queue in single-player, and
-   * the addressed `notice` message online. @see ../game/notices
+   * the addressed `notice` message online. A refused click is drained beside
+   * them from the walk controller, on the same terms. @see ../game/notices
    *
    * The level-up line used to be a diff taken here, across successive
    * `masteryXp` blocks, and it is worth knowing why it is not: reconstructing an
@@ -763,7 +794,38 @@ export class GameRenderer {
     for (const text of this.session.drainNotices()) {
       this.notices.push(text, nowMs);
     }
+    // The one queue that is not the session's, and it is composed at its own
+    // source for the same reason the others are: a click with no route to it is
+    // a search this side ran about a cell the server was never told about, so
+    // there is nothing to be told. @see ../game/walkTo
+    for (const text of this.walkTo?.drainNotices() ?? []) {
+      this.notices.push(text, nowMs);
+    }
     this.notificationLayer?.set(this.notices.live(nowMs));
+  }
+
+  /**
+   * Give a walk in progress its next direction.
+   *
+   * Once a frame, off the snapshot this frame already took rather than one of
+   * its own: building a snapshot walks every actor, and steering one body is
+   * not worth that twice.
+   *
+   * After `session.update` rather than before it, which is what makes the walk
+   * seamless. The step that finished this frame has already been chained into
+   * the next by then, so what gets named here is the leg after the one now in
+   * flight — waiting there for the pipeline to ask for it, rather than arriving
+   * a frame after it was wanted.
+   */
+  private stepWalkTo(snap: GameSnapshot) {
+    const walkTo = this.walkTo;
+    if (!walkTo?.walking) return;
+    const view = this.walkView(snap);
+    if (!view) {
+      walkTo.cancel();
+      return;
+    }
+    walkTo.tick(view);
   }
 
   /**
@@ -945,6 +1007,13 @@ export class GameRenderer {
     this.stop();
     this.detachPointer();
     this.detachKeys();
+    // The one thing this class leaves outside itself: a clicked walk is a
+    // direction pressed on a list the page owns, and a renderer that went away
+    // mid-walk without letting go of it would leave the body walking on with
+    // nothing left to steer it. Everything else disposed here is this
+    // renderer's own. @see ../game/walkTo
+    this.walkTo?.cancel();
+    this.walkTo = null;
     this.labelLayer?.dispose();
     this.labelLayer = null;
     this.damageLayer?.dispose();
@@ -1061,11 +1130,76 @@ export class GameRenderer {
     const point = this.localPoint(e);
     this.pointerRef = this.pickRefAt(point, snap);
     const option = this.pointerOption();
-    if (!option) return;
+    if (option) {
+      e.preventDefault();
+      this.runOption(option);
+      return;
+    }
 
-    e.preventDefault();
-    this.runOption(option);
+    // Deliberately without `preventDefault`, unlike every branch above it.
+    //
+    // Cancelling a pointerdown buys nothing here — the canvas carries
+    // `touch-action: none` (see `../components/GameViewport`), so scrolling,
+    // pinch and double-tap zoom are already off for a gesture that starts on
+    // it, and that is what governs them rather than this event. What cancelling
+    // *does* do, measured in Chrome, is suppress the compatibility mouse events
+    // the press would otherwise fire: no `mousedown`, so no focus change. A
+    // walk click is the one that lands on nearly every tap of the world, and
+    // with it cancelled the chat field somebody has just typed into keeps
+    // focus — which `isTypingTarget` reads as typing, so the arrow keys stop
+    // walking the body and go on filling the field instead.
+    this.walkToPointer(point, snap);
   };
+
+  /**
+   * Set off for whatever the pointer is over, when there was nothing to do to
+   * it.
+   *
+   * The second half of one button doing everything: a thing that offers a row
+   * is acted on, and everything else is somewhere to go. Which of the two a
+   * click is has already been decided above — this is only reached when the
+   * interaction list had no answer — so pointing at a door still opens it, and
+   * pointing at the floor beyond it walks.
+   *
+   * The pick is the *looking* one, where every tile is a candidate: a patch of
+   * grass offers nothing and is still a place. It is also the pick that honours
+   * the roof cut, so a click cannot send anybody to a cell the view has taken
+   * the roof off to show.
+   */
+  private walkToPointer(point: { x: number; y: number }, snap: GameSnapshot) {
+    const walkTo = this.walkTo;
+    if (!walkTo) return;
+    const ref = this.lookAt(point, snap);
+    if (!ref) return;
+    const view = this.walkView(snap);
+    if (!view) return;
+    walkTo.start(ref, view);
+  }
+
+  /**
+   * What the walk controller needs to know about this body, or null when there
+   * is no body to steer.
+   *
+   * The placement is checked rather than trusted, because a snapshot's `self`
+   * outlives the actor: a killed body is off the board and the last cell it
+   * stood in is reported for as long as the death screen is up. Steering from
+   * there would have whatever respawns set off for a cell clicked before the
+   * death.
+   */
+  private walkView(snap: GameSnapshot): WalkView | null {
+    const def = this.tilesById[PLAYER_TILE_ID];
+    if (!def) return null;
+    const self = snap.self;
+    const standing = getStack(snap.map, self.x, self.y, self.z)[self.stackIndex];
+    if (standing?.tileId !== PLAYER_TILE_ID) return null;
+    return {
+      map: snap.map,
+      at: { x: self.x, y: self.y, z: self.z, stackIndex: self.stackIndex },
+      stepping: self.walk ? self.walk.to : null,
+      def,
+      tilesById: this.tilesById,
+    };
+  }
 
   /**
    * Do what the row under the pointer says.
@@ -2108,6 +2242,7 @@ export class GameRenderer {
     this.pushConversation(snap);
     this.pushMasteries(snap);
     this.pushSpells();
+    this.stepWalkTo(snap);
     this.pushNotices(nowMs);
     this.pushVitals(snap);
     this.pushOpenedContainer(snap);
