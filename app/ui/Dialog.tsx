@@ -14,6 +14,15 @@ export function Dialog({
   title: string;
   children: ReactNode;
   footer?: ReactNode;
+  /**
+   * The editor size: as wide as the window allows, and a fixed height.
+   *
+   * Fixed rather than fitted because a wide dialog is a tabbed one, and a
+   * popup sized to its content jumps every time a tab with a different amount
+   * in it is opened — the footer and its Save button move under the pointer.
+   * The body scrolls inside the box instead. A narrow dialog is one short form
+   * and keeps fitting its content.
+   */
   wide?: boolean;
 }) {
   return (
@@ -22,9 +31,11 @@ export function Dialog({
         <BaseDialog.Backdrop className="fixed inset-0 z-40 bg-ink/50" />
         <BaseDialog.Popup
           className={[
-            "fixed top-1/2 left-1/2 z-50 max-h-[90vh] -translate-x-1/2 -translate-y-1/2",
+            "fixed top-1/2 left-1/2 z-50 -translate-x-1/2 -translate-y-1/2",
             "flex flex-col border-2 border-border bg-paper shadow-hard",
-            wide ? "w-[min(1100px,96vw)]" : "w-[min(560px,94vw)]",
+            wide
+              ? "h-[90vh] w-[min(1100px,96vw)]"
+              : "max-h-[90vh] w-[min(560px,94vw)]",
           ].join(" ")}
         >
           <div className="flex items-center justify-between border-b-2 border-border bg-ink px-3 py-2 text-paper">
