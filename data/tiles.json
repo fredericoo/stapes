@@ -31005,6 +31005,7 @@
     "type": "simple",
     "kind": "item",
     "attributes": {},
+    "lightPassing": true,
     "interactions": {
       "item": {
         "type": "consumable",
