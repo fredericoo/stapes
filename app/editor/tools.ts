@@ -9,7 +9,12 @@ export function stacksEqual(a: PlacedTile[], b: PlacedTile[]): boolean {
     const pa = a[i]!;
     const pb = b[i]!;
     if (pa.tileId !== pb.tileId) return false;
+    // The two axes a placement chooses for itself. A bucket that ignored either
+    // would flood across the seam between a hole in planks and a hole in sand,
+    // or between a fence facing north and one facing east, and call them one
+    // region because they share a tile id.
     if ((pa.direction ?? undefined) !== (pb.direction ?? undefined)) return false;
+    if ((pa.variant ?? undefined) !== (pb.variant ?? undefined)) return false;
   }
   return true;
 }

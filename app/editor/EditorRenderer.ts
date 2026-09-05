@@ -38,7 +38,6 @@ import {
   MAX_LEVEL,
   MIN_LEVEL,
   frameIndexAtTime,
-  isCellVarying,
   isDirectional,
   levelKey,
   tileCanEmitLight,
@@ -78,6 +77,7 @@ import {
   OutlineMaterials,
 } from "../render/overlayMeshes";
 import {
+  animationKey,
   type SpriteQuad,
   type SpriteQuadAssets,
   spriteQuadFor,
@@ -1265,6 +1265,7 @@ export class EditorRenderer {
 
         const sprite = resolveTileSprite(def, {
           direction: placed.direction,
+          variant: placed.variant,
           map,
           x: cell.x,
           y: cell.y,
@@ -1306,9 +1307,7 @@ export class EditorRenderer {
         const lightX1 = cell.x + 1;
         const lightY1 = cell.y + 1;
         const unlit = tileCanEmitLight(def);
-        const animKey = isCellVarying(def)
-          ? `${def.id}:${cell.x},${cell.y},${z}`
-          : `${def.id}:${placed.direction ?? "default"}`;
+        const animKey = animationKey(def, placed, cell.x, cell.y, z);
 
         items.push({
           x: origin.x,

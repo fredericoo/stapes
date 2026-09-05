@@ -2540,6 +2540,7 @@ export class WorldRenderer {
       const sprite = resolveTileSprite(def, {
         state,
         direction: placed.direction,
+        variant: placed.variant,
         map,
         x,
         y,
@@ -2886,6 +2887,7 @@ export class WorldRenderer {
       const frames = getFrames(inst.def, {
         state: next,
         direction: inst.placed.direction,
+        variant: inst.placed.variant,
         map: this.prevMap ?? undefined,
         x,
         y,

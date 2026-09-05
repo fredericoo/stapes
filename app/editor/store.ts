@@ -19,6 +19,7 @@ import {
   updatePlacedReward,
   updatePlacedTeleport,
   updatePlacedDirection,
+  updatePlacedVariant,
 } from "../lib/mapData";
 import { canPlace, canReplaceStack, tilesByIdFromList } from "../lib/validation";
 
@@ -86,6 +87,16 @@ export type EditorStore = {
   selected: { x: number; y: number } | null;
   hover: { x: number; y: number } | null;
   armedTileId: string | null;
+  /**
+   * Which face the armed tile is laid down wearing, when it is a `variant`
+   * tile. Absent → the tile's first authored face.
+   *
+   * On the store rather than on the tile because it is a brush setting, not a
+   * fact about the catalogue: an author paints a run of holes in planks, then
+   * switches to sand and paints another run, and neither the tile nor any
+   * placement already down should notice.
+   */
+  armedVariant: string | null;
   zoom: number;
   /** Camera top-left in world pixels. */
   camera: { x: number; y: number };
@@ -118,6 +129,7 @@ export type EditorStore = {
   setSelected: (sel: { x: number; y: number } | null) => void;
   setHover: (h: { x: number; y: number } | null) => void;
   setArmedTileId: (id: string | null) => void;
+  setArmedVariant: (variant: string | null) => void;
   setZoom: (z: number) => void;
   setCamera: (c: { x: number; y: number }) => void;
   setShapePreview: (p: EditorStore["shapePreview"]) => void;
@@ -145,6 +157,7 @@ export type EditorStore = {
   removeFromStack: (stackIndex: number) => void;
   reorderSelectedStack: (from: number, to: number) => void;
   setStackDirection: (stackIndex: number, direction: Direction) => void;
+  setStackVariant: (stackIndex: number, variant: string) => void;
   setStackChannel: (stackIndex: number, channel: string) => void;
   setStackDescription: (stackIndex: number, description: string) => void;
   setStackReward: (
@@ -155,6 +168,20 @@ export type EditorStore = {
   /** Where one placement sends people; `null` clears it. */
   setStackTeleport: (stackIndex: number, to: Coord | null) => void;
 };
+
+/**
+ * A fresh placement of `def`, wearing whatever the brush is set to.
+ *
+ * The two axes a *placement* carries — which way it faces, which face it wears
+ * — and nothing else, so the three paints below cannot drift apart. They had
+ * this expression three times over and it already only knew about one of them.
+ */
+function armedPlacement(def: TileDef, variant: string | null): PlacedTile {
+  const placed: PlacedTile = { tileId: def.id };
+  if (isDirectional(def)) placed.direction = "s";
+  if (def.type === "variant" && variant) placed.variant = variant;
+  return placed;
+}
 
 export const useEditorStore = create<EditorStore>((set, get) => ({
   map: EMPTY_MAP,
@@ -170,6 +197,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   selected: null,
   hover: null,
   armedTileId: null,
+  armedVariant: null,
   zoom: 4,
   camera: { x: -32, y: -32 },
   shapePreview: null,
@@ -233,7 +261,12 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     if (!prev && !h) return;
     set({ hover: h });
   },
-  setArmedTileId: (id) => set({ armedTileId: id }),
+  // Arming a different tile drops the face with it: a face name belongs to one
+  // tile's catalogue, and carrying "planks" over to another variant tile would
+  // silently place its first face while the picker said otherwise.
+  setArmedTileId: (id) =>
+    set(id === get().armedTileId ? { armedTileId: id } : { armedTileId: id, armedVariant: null }),
+  setArmedVariant: (variant) => set({ armedVariant: variant }),
   setZoom: (z) => set({ zoom: snapZoom(z) }),
   setCamera: (c) => {
     const prev = get().camera;
@@ -351,7 +384,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   },
 
   stampAt: (x, y) => {
-    const { map, selected, currentLevel, tilesById, armedTileId } = get();
+    const { map, selected, currentLevel, tilesById, armedTileId, armedVariant } =
+      get();
 
     // With a coordinate selected: copy that cell’s full stack onto the target.
     // Without one: append the armed tile picker tile instead.
@@ -382,10 +416,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     if (!def) return { skipped: true, reason: "Unknown tile" };
     const check = canPlace(map, x, y, currentLevel, def, tilesById);
     if (!check.ok) return { skipped: true, reason: check.reason };
-    const placed: PlacedTile =
-      isDirectional(def)
-        ? { tileId: def.id, direction: "s" }
-        : { tileId: def.id };
+    const placed = armedPlacement(def, armedVariant);
     get().commitMap(appendTile(map, x, y, currentLevel, placed), {
       coalesceInStroke: true,
     });
@@ -395,7 +426,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   stampMany: (coords) => {
     let skipped = 0;
     let reason: string | undefined;
-    let { map, selected, currentLevel, tilesById, armedTileId } = get();
+    let { map, selected, currentLevel, tilesById, armedTileId, armedVariant } =
+      get();
     let wrote = false;
 
     if (selected) {
@@ -418,10 +450,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       }
       const def = tilesById[armedTileId];
       if (!def) return { skipped: coords.length, reason: "Unknown tile" };
-      const placed: PlacedTile =
-        isDirectional(def)
-          ? { tileId: def.id, direction: "s" }
-          : { tileId: def.id };
+      const placed = armedPlacement(def, armedVariant);
       for (const { x, y } of coords) {
         const check = canPlace(map, x, y, currentLevel, def, tilesById);
         if (!check.ok) {
@@ -439,7 +468,8 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   },
 
   appendArmed: () => {
-    const { map, selected, currentLevel, armedTileId, tilesById } = get();
+    const { map, selected, currentLevel, armedTileId, tilesById, armedVariant } =
+      get();
     if (!selected) return { ok: false, reason: "No coordinate selected" };
     if (!armedTileId) return { ok: false, reason: "No tile armed" };
     const def = tilesById[armedTileId];
@@ -453,9 +483,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       tilesById,
     );
     if (!check.ok) return { ok: false, reason: check.reason };
-    const placed: PlacedTile = isDirectional(def)
-      ? { tileId: def.id, direction: "s" }
-      : { tileId: def.id };
+    const placed = armedPlacement(def, armedVariant);
     get().commitMap(
       appendTile(map, selected.x, selected.y, currentLevel, placed),
     );
@@ -489,6 +517,21 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
         currentLevel,
         stackIndex,
         direction,
+      ),
+    );
+  },
+
+  setStackVariant: (stackIndex, variant) => {
+    const { map, selected, currentLevel } = get();
+    if (!selected) return;
+    get().commitMap(
+      updatePlacedVariant(
+        map,
+        selected.x,
+        selected.y,
+        currentLevel,
+        stackIndex,
+        variant,
       ),
     );
   },

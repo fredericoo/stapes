@@ -74,7 +74,14 @@ for (let z = zMin!; z <= zMax!; z++) {
       getStack(map, x, y, z).forEach((placed, stackIndex) => {
         const def = tilesById[placed.tileId];
         if (!def) return;
-        const frame = getFrames(def, { direction: placed.direction, map, x, y, z })?.[0];
+        const frame = getFrames(def, {
+          direction: placed.direction,
+          variant: placed.variant,
+          map,
+          x,
+          y,
+          z,
+        })?.[0];
         const tileset = frame && tilesetById.get(frame.sprite.tilesetId);
         if (!frame || !tileset) return;
 

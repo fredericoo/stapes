@@ -46,6 +46,32 @@ const tiles: TileDef[] = [
   }),
 ];
 
+const holeSprite = (tilesetId: string) => ({
+  frames: [
+    {
+      sprite: {
+        tilesetId,
+        rect: { x: 0, y: 0, w: 1, h: 1 },
+        base: { x: 0, y: 0 },
+      },
+      durationMs: 200,
+    },
+  ],
+});
+
+const hole: TileDef = normalizeTileDef({
+  id: "hole",
+  name: "Hole",
+  height: 0,
+  type: "variant",
+  kind: "prop",
+  attributes: {},
+  variants: {
+    grass: holeSprite("grass-sheet"),
+    planks: holeSprite("planks-sheet"),
+  },
+});
+
 const seedMap: MapFile = chunkifyMap({
   version: 1,
   levels: {
@@ -183,5 +209,71 @@ describe("editor store paint", () => {
     expect(getStack(useEditorStore.getState().map, 1, 0, 0)).toEqual([
       { tileId: "rock" },
     ]);
+  });
+});
+
+describe("the armed face is a brush setting", () => {
+  beforeEach(() => {
+    // The store is a module singleton and `hydrate` does not touch the brush,
+    // so the arm is cleared here or one test's face is the next one's default.
+    useEditorStore.getState().setArmedTileId(null);
+    useEditorStore.getState().hydrate(structuredClone(seedMap), [...tiles, hole]);
+  });
+
+  it("writes the armed face onto every placement it lays down", () => {
+    const store = useEditorStore.getState();
+    store.setArmedTileId("hole");
+    store.setArmedVariant("planks");
+    store.stampAt(4, 4);
+    store.stampMany([{ x: 5, y: 4 }]);
+
+    for (const [x, y] of [[4, 4], [5, 4]] as const) {
+      const top = getStack(useEditorStore.getState().map, x, y, 0).at(-1);
+      expect(top).toEqual({ tileId: "hole", variant: "planks" });
+    }
+  });
+
+  // A face name belongs to one tile's catalogue. Carrying "planks" across to
+  // another variant tile would place its first face while the picker still
+  // showed a face it does not have.
+  it("drops the face when a different tile is armed", () => {
+    const store = useEditorStore.getState();
+    store.setArmedTileId("hole");
+    store.setArmedVariant("planks");
+    store.setArmedTileId("grass");
+    expect(useEditorStore.getState().armedVariant).toBeNull();
+  });
+
+  it("keeps the face when the same tile is re-armed", () => {
+    const store = useEditorStore.getState();
+    store.setArmedTileId("hole");
+    store.setArmedVariant("planks");
+    store.setArmedTileId("hole");
+    expect(useEditorStore.getState().armedVariant).toBe("planks");
+  });
+
+  // Nothing armed means nothing written: the resolver's "first authored"
+  // fallback is the same answer, and a name in the file is a promise the
+  // catalogue has to keep across a rename.
+  it("writes no face when none is armed", () => {
+    const store = useEditorStore.getState();
+    store.setArmedTileId("hole");
+    store.stampAt(6, 4);
+    expect(getStack(useEditorStore.getState().map, 6, 4, 0).at(-1)).toEqual({
+      tileId: "hole",
+    });
+  });
+
+  it("changes the face on a placement already down", () => {
+    const store = useEditorStore.getState();
+    store.setArmedTileId("hole");
+    store.setArmedVariant("planks");
+    store.stampAt(7, 4);
+    store.selectCoord(7, 4);
+    useEditorStore.getState().setStackVariant(0, "grass");
+    expect(getStack(useEditorStore.getState().map, 7, 4, 0)[0]).toEqual({
+      tileId: "hole",
+      variant: "grass",
+    });
   });
 });

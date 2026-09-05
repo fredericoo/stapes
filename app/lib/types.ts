@@ -157,7 +157,8 @@ export type TileType =
   | "directional"
   | "directional8"
   | "autotile"
-  | "scatter";
+  | "scatter"
+  | "variant";
 
 export const TILE_TYPES: TileType[] = [
   "simple",
@@ -165,6 +166,7 @@ export const TILE_TYPES: TileType[] = [
   "directional8",
   "autotile",
   "scatter",
+  "variant",
 ];
 
 /**
@@ -284,6 +286,22 @@ export type StateSprites = {
    * of that name that meant something else entirely.
    */
   scatter?: TileSprite[];
+  /**
+   * type === "variant" — the faces one tile wears, keyed by the author's own
+   * name for each.
+   *
+   * The third way a tile can have more than one face, and the only one where
+   * nothing derives which. An autotile reads its neighbours and a scatter tile
+   * hashes its coordinates; a variant tile is *told*, by the placement, and
+   * {@link PlacedTile.variant} is where the answer lives.
+   *
+   * Keyed rather than positional, unlike {@link scatter}, because the key is
+   * the whole point: a hole cut in planks and a hole cut in sand are one hole
+   * drawn twice, and "wood" says which of them a placement means where "2" only
+   * says how many were drawn before it. It also makes the list reorderable and
+   * extendable without every placement in the map quietly changing face.
+   */
+  variants?: Record<string, TileSprite>;
 };
 
 export type TileDef = StateSprites & {
@@ -604,6 +622,23 @@ export type PlacedTile = {
   tileId: string;
   direction?: Direction;
   /**
+   * Which of a `variant` tile's faces this placement wears. Absent → the first
+   * one the tile authors. See {@link TileDef.variants}.
+   *
+   * A placement field on exactly the terms {@link direction} is: the tile says
+   * *what kind of thing this is* — a hole cut through the ground — and the slot
+   * says which particular one, because only the author knows the floor was
+   * planks. That is the whole difference from {@link TileDef.scatterSeed},
+   * which is on the def precisely because a scattered field is a thousand cells
+   * nobody chose one by one. Here every cell is chosen, so every cell says so,
+   * and a map holding a thousand of them is a map somebody meant to author.
+   *
+   * A name that no longer exists on the def falls back to the first authored
+   * face rather than drawing nothing, so renaming a face degrades to art that
+   * is wrong rather than to a hole in the world.
+   */
+  variant?: string;
+  /**
    * Signal channel this placement is wired to. Emitters drive it, receivers
    * follow it, and sharing a name is the whole of the binding — there is no
    * link table and no per-tile identity to keep alive.
@@ -900,6 +935,13 @@ export type TileResolveContext = {
   autotileSlice?: AutotileSlice;
   /** Override scatter face for previews (first authored = 0). */
   scatterIndex?: number;
+  /**
+   * Which face a `variant` tile wears — {@link PlacedTile.variant}, carried
+   * through. Not an override the way {@link scatterIndex} is: for a variant
+   * tile there is nothing to override, since the placement is the only thing
+   * that knows.
+   */
+  variant?: string;
 };
 
 function framesWithLight(frames: Frame[], light?: LightDef): Frame[] {
@@ -937,6 +979,13 @@ export function normalizeTileDef(raw: unknown): TileDef {
     const def = raw as TileDef;
     return normalizeTileVfx({
       ...def,
+      // `variants` means two things depending on how old the tile is: a
+      // `variant` tile's faces, and — on a tile written before `type` existed —
+      // the old per-facing `Frame[]` table the legacy branch below migrates.
+      // A tile that has both a valid `type` and a legacy `variants` is
+      // half-migrated data, and carrying the old field through would hand every
+      // sprite walker an object of `Frame[]` where it expects `TileSprite`.
+      variants: def.type === "variant" ? def.variants : undefined,
       attributes: def.attributes ?? {},
       kind: readKind(t),
     });
@@ -1019,14 +1068,13 @@ function clampSpriteLight(sprite: TileSprite): TileSprite {
   };
 }
 
-/** {@link clampSpriteLight} across the three sprite fields a state can hold. */
 /**
  * Every sprite on one state, rebuilt through `fn`.
  *
  * The write-side twin of {@link stateSpritesOn}, and the only other place that
  * knows where sprites structurally live on a tile. Anything that edits all of
- * them goes through here, so a fifth sprite field would have one place to be
- * added rather than one per caller — which is the mistake the *read* side was
+ * them goes through here, so the next sprite field has one place to be added
+ * rather than one per caller — which is the mistake the *read* side was
  * already careful about.
  */
 function mapStateSprites<T extends StateSprites>(
@@ -1046,6 +1094,11 @@ function mapStateSprites<T extends StateSprites>(
     ) as typeof out.slices;
   }
   if (out.scatter) out.scatter = out.scatter.map(fn);
+  if (out.variants) {
+    out.variants = Object.fromEntries(
+      Object.entries(out.variants).map(([k, v]) => [k, fn(v)]),
+    );
+  }
   return out;
 }
 
@@ -1188,6 +1241,11 @@ function stateSpritesOn(tile: TileDef, from: StateSprites): TileSprite[] {
     return facingKeysFor(tile)
       .map((d) => from.sprites?.[d])
       .filter((s): s is TileSprite => s != null);
+  }
+  if (tile.type === "variant") {
+    return Object.values(from.variants ?? {}).filter(
+      (s): s is TileSprite => s != null,
+    );
   }
   if (tile.type === "scatter") {
     return (from.scatter ?? []).filter((s): s is TileSprite => s != null);

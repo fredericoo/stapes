@@ -3473,6 +3473,68 @@ that is about reading the cells around you and scatter does not.
 It composes with nothing. A scatter tile is not also an autotile, is not
 directional, and has no `connectsTo`; the type is the axis, and a tile has one.
 
+## A variant tile is one tile with several faces, and the placement picks
+
+`TileType`'s sixth member, `variant`, is the third and last way a tile can have
+more than one face — and the only one where **nothing derives which**. An
+autotile reads its neighbours, a scatter tile hashes its coordinates, and a
+variant tile is told: `PlacedTile.variant` names a key in `TileDef.variants`,
+and that is the whole mechanism.
+
+It exists for a shape the other two cannot express: **one thing, drawn to match
+whatever it was cut into.** A hole in the ground is the case that asked for it.
+A hole has to be a real absence — the cell holds an intangible, light-passing
+tile and nothing solid, so a body falls through it (*An intangible tile holds
+nothing up*) and daylight goes down it (*A floor is a lid*) — and it also has to
+look like a hole *in planks*, or in sand, or in grass, because the rim is the
+material it was cut through. Neither of those is negotiable and neither implies
+the other.
+
+**Why not the other two.** An autotile cannot do it: an 8-neighbour mask asks
+"is my neighbour more of me?", and a hole's neighbours are never more hole —
+they are the floor it interrupts, which the mask cannot see the identity of. The
+same blindness `connectsTo` exists to work around (*a stair well cut through a
+floor*), one level further out. And a scatter tile cannot do it because the pick
+would be a hash: the hole in the wooden platform would be sand because of where
+it happens to sit.
+
+**The face is on the placement, and that is the argument.** `scatterSeed` is on
+the *def* precisely because a scattered field is a thousand cells nobody chose
+one by one, and a face stored per placement would be a thousand numbers in
+`map.json` saying what the coordinates already say. Here the opposite is true:
+every hole is cut deliberately, by somebody who knows what the floor was, and
+nothing in the cell's coordinates knows it. So it goes beside `direction` —
+which the tile also cannot derive — and for the same reason.
+
+**Named, not numbered.** `variants` is a `Record<string, TileSprite>` where
+`scatter` is a dense array. The key is written into every placement wearing it
+in a file that is hand-edited and lives in version control, so `"planks"` earns
+its bytes where `2` would not, and reordering or inserting a face does not
+silently repaint the map. Numeric-only names are refused in the editor: object
+keys that parse as array indices sort ahead of everything else whatever order
+they were written in, which would move which face "first authored" means.
+
+**Everything falls back to the first authored face**, both for a placement that
+names none and for one naming a face that has since been renamed away. A tile
+whose whole job is to be a hole in the world must not fail by drawing nothing:
+the two would be indistinguishable. `resolveTileSprite` settles the key against
+*idle* before it asks either holder, so a placement wearing no name does not
+change face when a state starts drawing.
+
+The frame clock is keyed per face (`animationKey`), for the reason it is keyed
+per state: a hole cut in planks has no obligation to have been drawn with as
+many frames as a hole cut in water, and one placement must not index the other's
+frame list.
+
+**`variants` meant something else once.** Tiles written before `TileType`
+existed keyed a `variants` table by *facing* and held `Frame[]`, and
+`normalizeTileDef` still migrates them. A tile carrying both a valid `type` and
+a legacy `variants` is half-migrated data, and the typed branch now drops the
+field unless the tile really is a `variant` tile — without that, every sprite
+walker is handed `Frame[]` where it expects `TileSprite`. The old `VariantKey`
+type is now `FacingKey`, and the scatter editor calls its faces faces, so the
+word means one thing.
+
 ## Renderer and simulation performance
 
 The game targets **120fps — an 8.3ms frame budget**, and the whole budget is

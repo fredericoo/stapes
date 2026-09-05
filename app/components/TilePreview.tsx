@@ -23,6 +23,8 @@ type Props = {
   autotileSlice?: AutotileSlice;
   /** Scatter face for preview (default first authored = 0). */
   scatterIndex?: number;
+  /** Which face a variant tile wears (default first authored). */
+  variantKey?: string;
   /** Which sprite state to draw. Default / absent → idle. */
   state?: SpriteState;
   /**
@@ -73,6 +75,7 @@ function framesForPreview(
   dirIndex: number,
   autotileSlice: AutotileSlice | undefined,
   scatterIndex: number | undefined,
+  variantKey: string | undefined,
   state: SpriteState | undefined,
 ): Frame[] | undefined {
   if (isDirectional(tile)) {
@@ -87,6 +90,9 @@ function framesForPreview(
   }
   if (tile.type === "scatter") {
     return getFrames(tile, { state, scatterIndex: scatterIndex ?? 0 });
+  }
+  if (tile.type === "variant") {
+    return getFrames(tile, { state, variant: variantKey });
   }
   return getFrames(tile, { state });
 }
@@ -212,6 +218,7 @@ export function TilePreview({
   direction,
   autotileSlice,
   scatterIndex,
+  variantKey,
   state,
   still = false,
   background = DEFAULT_PREVIEW_BACKGROUND,
@@ -251,6 +258,7 @@ export function TilePreview({
         dirIndex,
         autotileSlice,
         scatterIndex,
+        variantKey,
         state,
       );
       disableSmoothing(ctx);
@@ -297,6 +305,7 @@ export function TilePreview({
     direction,
     autotileSlice,
     scatterIndex,
+    variantKey,
     state,
     still,
     background,

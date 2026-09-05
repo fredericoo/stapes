@@ -12,8 +12,9 @@ import {
   resolveTeleportDef,
 } from "../lib/interactions";
 import { resolveContainer, resolveItem } from "../lib/item";
+import { variantKeys } from "../lib/variant";
 import { useEditorStore } from "../editor/store";
-import { Button, Segmented, Tooltip } from "../ui";
+import { Button, Segmented, Select, Tooltip } from "../ui";
 import { PlacementSettingsDialog } from "./PlacementSettingsDialog";
 import { TilePreview } from "./TilePreview";
 
@@ -167,6 +168,7 @@ function SortableStackItem({
         tilesets={tilesets}
         size={24}
         direction={placed.direction}
+        variantKey={placed.variant}
       />
       <div className="min-w-0 flex-1">
         <div className="truncate text-xs font-bold">{def.name}</div>
@@ -185,6 +187,25 @@ function SortableStackItem({
               { value: "s", label: "S" },
               { value: "w", label: "W" },
             ]}
+          />
+        ) : null}
+        {/* A select rather than the Segmented above it: facings are four and
+            fixed, faces are however many the tile authors and are named in
+            prose. Beside it and not in the settings dialog because it is the
+            same kind of fact as the facing — what this placement *is*, not what
+            it is wired to. */}
+        {def.type === "variant" ? (
+          <Select
+            className="mt-1 min-w-0 py-0.5 text-xs"
+            ariaLabel={`Face for ${def.name}`}
+            value={placed.variant ?? variantKeys(def)[0] ?? null}
+            options={variantKeys(def).map((key) => ({
+              value: key,
+              label: key,
+            }))}
+            onValueChange={(v) =>
+              useEditorStore.getState().setStackVariant(stackIndex, v ?? "")
+            }
           />
         ) : null}
         {/* What the placement carries, rather than the fields themselves: the

@@ -33,14 +33,17 @@ export type SpriteQuadAssets = {
 };
 
 /**
- * Autotiles and scatter tiles vary per cell; everything else varies only by
- * facing and state. Both renderers key their frame clocks this way, so overlays
- * stay in step with the animated tile they are drawn over.
+ * Autotiles and scatter tiles vary per cell; everything else varies only by what
+ * the placement says — its facing, its variant — and by state. Both renderers
+ * key their frame clocks this way, so overlays stay in step with the animated
+ * tile they are drawn over.
  *
  * The state is part of the key because two placements of one tile in different
  * states run different frame lists — a grazing deer has one frame and a walking
  * one has four. Sharing a clock between them would index the short list with the
- * long list's position.
+ * long list's position. A variant is part of it for exactly that reason one step
+ * along: two holes in one map wear different faces, and a hole cut in planks has
+ * no obligation to have been drawn with as many frames as a hole cut in water.
  */
 export function animationKey(
   def: TileDef,
@@ -51,7 +54,8 @@ export function animationKey(
   state: SpriteState = "idle",
 ): string {
   if (isCellVarying(def)) return `${def.id}:${x},${y},${z}:${state}`;
-  return `${def.id}:${placed.direction ?? "default"}:${state}`;
+  const face = placed.variant ?? placed.direction ?? "default";
+  return `${def.id}:${face}:${state}`;
 }
 
 /**
@@ -70,6 +74,7 @@ export function spriteQuadFor(
   const frames = getFrames(def, {
     state,
     direction: placed.direction,
+    variant: placed.variant,
     map,
     x,
     y,
