@@ -33,7 +33,7 @@ import {
   canTeleportFrom,
   type ObjectRef,
 } from "../game/affordances";
-import { canWorkNow, type ExtractCooling } from "../game/extract";
+import { canBeginExtract, type Extraction } from "../game/extract";
 import { type Equipment, emptyEquipment } from "../game/equipment";
 import {
   castability,
@@ -285,27 +285,15 @@ export class RemoteSession implements PlaySession {
    */
   private conversation: Conversation | null = null;
   /**
-   * Which resources this player may not work just yet, as the server last said
-   * — see `../game/extract`'s `extractKey`.
+   * The pull this player is part-way through, as the server last said — see
+   * `../game/extract`'s `extractKey`, which is how the placement is named.
    *
-   * Never predicted, on the terms the kit and the tags are not: the wait is the
-   * server's clock, and a client guessing when it ran out would offer a row that
-   * is about to be refused. Replaced wholesale, so its identity is what tells
-   * the renderer to rebuild its rows.
+   * Never predicted, on the terms the kit and the tags are not: the pull is the
+   * server's clock, and a client that started one of its own would draw a bar
+   * for a pull the far end never began. Replaced outright, so its identity is
+   * what tells the renderer to rebuild its rows.
    */
-  private extractCooling: readonly ExtractCooling[] = NO_COOLING;
-  /**
-   * {@link extractCooling} as something the rules can ask, rebuilt beside it.
-   *
-   * Derived and cached rather than built where it is read, on exactly the
-   * grounds the server caches the list beside its map: `canInteract` is asked
-   * per candidate cell on every pointer move, and building a map per call would
-   * be an allocation per cell per frame for a list that changes twice a pull.
-   *
-   * Holds **the same entries** the list does, so {@link update} winding one
-   * advances both.
-   */
-  private coolingByKey = new Map<string, ExtractCooling>();
+  private extracting: Extraction | null = null;
   /**
    * What this player has learnt, as the server last said.
    *
@@ -561,9 +549,9 @@ export class RemoteSession implements PlaySession {
       // them every reward in the map a second time.
       this.tags = message.tags;
       // Same rule a third time. The world may have been replaced under them,
-      // but the wait they owe that bush is a fact about the last few seconds and
-      // the server is still counting it.
-      this.setExtractCooling(message.extractCooling);
+      // but the pull they are half way through is a fact about the last few
+      // seconds and the server is still counting it.
+      this.setExtracting(message.extracting);
       // Same rule again: a fresh body in a replaced world is still the same
       // person, and what they have learnt came with them.
       this.masteryXp = message.masteryXp;
@@ -642,9 +630,9 @@ export class RemoteSession implements PlaySession {
       return;
     }
 
-    if (message.type === "extractCooling") {
+    if (message.type === "extracting") {
       // Whole state, like everything else addressed to one socket here.
-      this.setExtractCooling(message.cooling);
+      this.setExtracting(message.extracting);
       return;
     }
 
@@ -726,22 +714,14 @@ export class RemoteSession implements PlaySession {
   };
 
   /**
-   * Hold the cooling list and the set built from it, together.
+   * Hold the pull the server says this player is making.
    *
-   * The one place either is written, on the terms the server's own
-   * `setExtractCooldowns` is: the list is what the snapshot carries and the set
-   * is what the rules ask, and one moving without the other would be a row
-   * offered on a resource the far end knows is still cooling.
+   * Copied rather than adopted, because {@link update} winds it in place: the
+   * parsed message is this client's to spend, and holding the validator's own
+   * object would be mutating something nothing else expects to move.
    */
-  private setExtractCooling(cooling: readonly ExtractCooling[]) {
-    // Copied entry by entry rather than adopted, because {@link update} winds
-    // these in place: the parsed message is this client's to spend, and holding
-    // the validator's own objects would be mutating something nothing else
-    // expects to move.
-    this.extractCooling = cooling.map((entry) => ({ ...entry }));
-    this.coolingByKey = new Map(
-      this.extractCooling.map((entry) => [entry.key, entry]),
-    );
+  private setExtracting(extracting: Extraction | null) {
+    this.extracting = extracting ? { ...extracting } : null;
   }
 
   /**
@@ -1127,7 +1107,7 @@ export class RemoteSession implements PlaySession {
     if (this.attackRecoveryMs > 0) {
       this.attackRecoveryMs = Math.max(0, this.attackRecoveryMs - dtMs);
     }
-    this.windExtractCooling(dtMs);
+    this.windExtraction(dtMs);
     this.agePendingSteps(dtMs);
     this.advancePrediction();
     this.expireChats(dtMs);
@@ -1137,28 +1117,27 @@ export class RemoteSession implements PlaySession {
   }
 
   /**
-   * Wind the resource waits down against the render clock.
+   * Wind the pull in progress on against the render clock.
    *
    * **Local, and not a prediction of anything.** The server is still the only
-   * thing that decides when a wait is over — its "it is over" message is what
-   * clears the entry, and nothing here ever removes one. What this keeps true is
-   * the *number*, which the bar under a greyed row is a fraction of: the wire
-   * carries a wait twice, at its start and at its end, so between those two the
-   * client is the only thing that knows any time has passed.
+   * thing that decides when a pull lands or is taken away — its message is what
+   * clears this, and nothing here ever does. What this keeps true is the
+   * *number*, which the bar on the row is a fraction of: the wire carries a
+   * pull twice, at its start and at its end, so between those two the client is
+   * the only thing that knows any time has passed.
    *
-   * Floored rather than allowed negative, and the entry is kept at zero: a bar
-   * that has run out reads as "any moment now", which is exactly true — the
+   * Floored rather than allowed negative, and the value is kept at zero: a bar
+   * that has filled reads as "any moment now", which is exactly true — the
    * message clearing it is at most a tick away.
    *
-   * Wound in place, so the list handed to the snapshot keeps its identity and
+   * Wound in place, so the value handed to the snapshot keeps its identity and
    * the interaction rows are not rebuilt thirty times a second. The same
    * hand-over the motions above travel on.
    */
-  private windExtractCooling(dtMs: number) {
-    for (const entry of this.extractCooling) {
-      if (entry.remainingMs <= 0) continue;
-      entry.remainingMs = Math.max(0, entry.remainingMs - dtMs);
-    }
+  private windExtraction(dtMs: number) {
+    const running = this.extracting;
+    if (!running || running.remainingMs <= 0) return;
+    running.remainingMs = Math.max(0, running.remainingMs - dtMs);
   }
 
   /**
@@ -1749,7 +1728,7 @@ export class RemoteSession implements PlaySession {
       equipment: this.equipment,
       tags: this.tags,
       conversation: this.conversation,
-      extractCooling: this.extractCooling,
+      extracting: this.extracting,
       masteryXp: this.masteryXp,
       chats: this.chats,
       noises: this.noises,
@@ -1944,18 +1923,18 @@ export class RemoteSession implements PlaySession {
       // everything this client can drive is a battler, so a row this offers is
       // one the server will honour.
       canAddStatusFrom(this.map, this.tilesById, loc, ref) ||
-      // The same three questions the server asks — how much is left in it,
-      // whether this player is still waiting on it, and whether what comes out
-      // would fit — off the same map, the same cooling list and the same kit.
-      // Being the same function is what stops this offering a pull the far end
-      // would refuse.
-      canWorkNow(
+      // The same four questions the server asks — how much is left in it, how
+      // much of that somebody else is already holding, whether what comes out
+      // would fit, and whether this player is already on it — off the same map,
+      // the same pull and the same kit. Being the same function is what stops
+      // this offering a pull the far end would refuse.
+      canBeginExtract(
         this.map,
         this.tilesById,
         loc,
         this.equipment,
         ref,
-        this.coolingByKey,
+        this.extracting,
       ) ||
       canEquipFrom(this.map, this.tilesById, loc, ref, this.equipment) ||
       canPickUpFrom(this.map, this.tilesById, loc, ref, this.equipment) ||
@@ -2263,7 +2242,6 @@ const NO_CARRIED_LIGHTS: string[] = [];
 const NO_TAGS: readonly string[] = [];
 
 /** The same emptiness for the waits, and shared for the same reason. */
-const NO_COOLING: readonly ExtractCooling[] = [];
 
 /** Shared empty list, since no remote body ever carries statuses. */
 const NO_STATUSES: readonly StatusInstance[] = [];

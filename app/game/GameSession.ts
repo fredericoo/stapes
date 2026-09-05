@@ -283,13 +283,17 @@ import {
 } from "./brainRuntime";
 import type { ConsumeSource } from "./itemUse";
 import { canTransmuteFrom, planTransmute, runTransmute } from "./transmute";
-import type { CoolingResources, ExtractCooling } from "./extract";
+import type { Extraction } from "./extract";
 import {
-  canWorkNow,
+  canBeginExtract,
+  clearExtractReservations,
   extractKey,
   placementAfterPull,
+  reachableExtractAt,
   rollExtract,
   stowExtracted,
+  withReservation,
+  withoutReservations,
 } from "./extract";
 import { hasLineOfSight } from "./sight";
 import { Rng } from "./rng";
@@ -668,24 +672,24 @@ export type GameSnapshot = {
    */
   conversation: Conversation | null;
   /**
-   * Which resources the viewer may not work just yet — see `./extract`'s
-   * `extractKey`, which is how each one is named.
+   * The pull the viewer is part-way through making, or null — see `./extract`'s
+   * `extractKey`, which is how the placement is named.
    *
    * Theirs alone on exactly the terms {@link tags} is, and the pairing with the
    * shared half is the whole of what makes a resource a resource: how much is
-   * left in a bush is on the board where everybody sees it, and how long *you*
-   * must wait before pulling at it again is here.
+   * left in a vein and how much of that people are already holding is on the
+   * board where everybody sees it, and what *you* are half way through is here.
    *
-   * Each entry carries how much of the wait is left *and* how long the whole
-   * wait is, which is what lets a row draw the bar under it rather than merely
-   * go quiet. See `./extract`'s {@link ExtractCooling}.
+   * Carries how much of the pull is left *and* how long the whole pull takes,
+   * which is what lets a row draw a bar filling rather than merely go quiet.
+   * See `./extract`'s {@link Extraction}.
    *
-   * Replaced wholesale when the *set* changes and wound in place in between, so
+   * Replaced when a pull starts or ends and wound in place in between, so
    * identity is the change signal — the same contract the kit and the tags
    * have, and what lets the renderer gate the interaction list on it without
-   * walking the list or rebuilding it every tick.
+   * walking the list.
    */
-  extractCooling: readonly ExtractCooling[];
+  extracting: Extraction | null;
   /**
    * What the viewer has learnt, as raw experience.
    *
@@ -765,19 +769,6 @@ const EMPTY_SOUNDS: readonly Sound[] = [];
  * tag to appear on another.
  */
 const NO_TAGS: readonly string[] = [];
-
-/** Shared empty answer for the great majority of actors, who owe no waits. */
-const NO_COOLING: CoolingResources = { get: () => undefined };
-
-/**
- * The same emptiness as a list, for the snapshot.
- *
- * A second constant rather than one derived from the other, because the
- * *identity* is the point: every actor who owes nothing shares this one array,
- * so a snapshot from a quiet frame is the same answer as the one before it and
- * nothing downstream rebuilds.
- */
-const NO_COOLING_LIST: readonly ExtractCooling[] = [];
 
 /** Shared empty list for a tile nobody in the world is standing on. */
 const NO_ACTORS: readonly string[] = [];
@@ -992,6 +983,46 @@ type SlideState = {
 /** A cell on the plan, with no level. */
 type PlanCoord = { x: number; y: number };
 
+/**
+ * One pull being made, as the session has to hold it.
+ *
+ * The {@link Extraction} everybody downstream draws, plus the three facts that
+ * decide whether it may go on. All three are read every tick — see
+ * `holdsExtraction` — and all three are recorded at the start rather than
+ * re-derived, because every one of them is a thing that can change out from
+ * under the pull and the whole point is to notice when it does.
+ */
+type ExtractionRun = {
+  /** The half that goes out on the snapshot and the wire, wound in place. */
+  progress: Extraction;
+  /** Which slot is being worked. */
+  ref: ObjectRef;
+  /**
+   * What was standing there when the pull began.
+   *
+   * The other half of {@link extractKey}, kept beside the ref so the reservation
+   * can be handed back to the same tile it was taken from. A bush that somebody
+   * else emptied is a different tile and owes nothing.
+   */
+  tileId: string;
+  /**
+   * Where the player was standing when the pull began.
+   *
+   * Standing still is the rule, so the cell is what the rule is checked against.
+   */
+  from: Coord;
+};
+
+/**
+ * What a player is told when a pull is taken off them.
+ *
+ * Said rather than left to the bar disappearing, because the bar disappearing
+ * is exactly what a finished pull looks like: without a line, a mine
+ * interrupted at thirteen seconds and one that paid out nothing are the same
+ * event on screen.
+ */
+const EXTRACT_INTERRUPTED_NOTICE = "You are interrupted";
+
 type ActorRuntime = {
   readonly id: string;
   /**
@@ -1068,43 +1099,24 @@ type ActorRuntime = {
    */
   masteryXp: MasteryXp | null;
   /**
-   * How long this actor must wait before working each resource again, by
-   * `./extract`'s `extractKey`.
+   * The pull this actor is part-way through making, or null.
    *
-   * **The per-player half of an extract, and the reason a shared resource paces
-   * right.** The pulls left in a bush are the world's and live on the placement;
-   * this is one person's opinion of that same bush, so somebody walking up
-   * behind them finds it full.
+   * **The per-player half of an extract, and the reason a shared resource is
+   * worth fighting over.** How much is left in a vein and how much of that is
+   * spoken for are the world's and live on the placement; this is one person's
+   * hands, and there is only one pair of them — starting a pull elsewhere
+   * abandons whatever this was.
    *
-   * **Not durable**, like {@link hp} and unlike {@link tags} — and the line
-   * between those two is exactly the one this falls on. A tag records that
-   * something *happened* and can never be rebuilt; a wait records that something
-   * happened *recently*, and a world that has been unloaded long enough to lose
-   * it has been unloaded for longer than any cooldown worth authoring. Coming
-   * back to find a bush ready is the right failure.
+   * **Not durable**, like {@link hp} and unlike {@link tags}. A tag records that
+   * something *happened*; this records something that is happening, and a world
+   * that has gone quiet is a world where nobody is standing at the vein any
+   * more. The reservation it was holding is dropped with it — see
+   * `./extract`'s `clearExtractReservations`.
    *
-   * Null until this actor first works something, so the great majority of
-   * actors — every deer in the world — never allocate one. Entries are struck
-   * off as they expire rather than left at zero, because the map's *size* is
-   * what {@link GameSession.extractCoolingOf} reports and a spent entry would be
-   * a row hidden for ever.
+   * Null for the great majority of actors, every deer in the world included, so
+   * nothing is allocated for a body that never works anything.
    */
-  extractCooldowns: Map<string, ExtractCooling> | null;
-  /**
-   * The same entries as a list, for the snapshot and the wire.
-   *
-   * **The very same objects**, not copies: winding a wait mutates the entry both
-   * of these hold, so a tick costs no allocation and leaves this array's
-   * identity alone. That identity is what tells the renderer its interaction
-   * rows are stale — a fresh array per tick would rebuild the whole list thirty
-   * times a second for a set that changes twice a pull — and it is the same
-   * hand-over-by-reference a `walk` or a `strike` already travels on.
-   *
-   * The one rule, {@link carriedLights}': written only beside
-   * {@link extractCooldowns}, in {@link GameSession.setExtractCooldowns}, so
-   * there is no way to change one without the other following.
-   */
-  extractCooling: readonly ExtractCooling[];
+  extraction: ExtractionRun | null;
   /**
    * The authored body with this actor's earned masteries in it, keyed on the
    * authored block it was built from.
@@ -1494,15 +1506,15 @@ export class GameSession implements PlaySession {
   /** Actors whose tags have changed and whose owner has not been told yet. */
   private readonly tagsChanged = new Set<string>();
   /**
-   * Actors whose set of cooling resources has changed and whose owner has not
-   * been told yet.
+   * Actors whose pull has started, ended or been taken off them, and whose
+   * owner has not been told yet.
    *
    * A fourth queue beside the kit, the tags and the experience, and not folded
    * into any of them for the reason they are not folded into each other: it
    * moves on a different event at a different rate, and sharing a queue would
-   * put a whole inventory on the wire every time a bush came ready.
+   * put a whole inventory on the wire every time somebody started mining.
    */
-  private readonly extractCoolingChanged = new Set<string>();
+  private readonly extractionChanged = new Set<string>();
   /**
    * Actors whose experience has moved and whose owner has not been told yet.
    *
@@ -1840,6 +1852,11 @@ export class GameSession implements PlaySession {
     // whose items were minted the last time it loaded.
     this.map = mintItemIds(this.map, this.tilesById);
 
+    // A checkpoint can only have been written while somebody was mid-pull, and
+    // there is nobody mid-anything in a world that is only now starting. Left
+    // in, those holds would be held by nobody for ever.
+    this.map = clearExtractReservations(this.map);
+
     for (const cell of findPlateCells(this.map, this.tilesById)) {
       this.plateCells.set(cellKey(cell), cell);
     }
@@ -1964,8 +1981,7 @@ export class GameSession implements PlaySession {
       statuses: resident ? NO_STATUSES : (opts.statuses ?? NO_STATUSES),
       attackCooldownMs: 0,
       attackRecoveryMs: 0,
-      extractCooldowns: null,
-      extractCooling: NO_COOLING_LIST,
+      extraction: null,
       targetId: null,
       attacking: false,
       input: { directions: [] },
@@ -2127,6 +2143,11 @@ export class GameSession implements PlaySession {
     // they were under last time and told nothing.
     this.statusReadings.delete(id);
     this.statusesChanged.delete(id);
+    // Before the delete too, and for a sharper reason: a body that leaves the
+    // board holding one of a vein's pulls holds it for ever, because there is
+    // nothing left to wind the clock that would have given it back.
+    const leaving = this.actors.get(id);
+    if (leaving) this.cancelExtraction(leaving);
     if (!this.actors.delete(id)) return;
     this.forgetTileIndex();
     this.map = despawnActor(this.map, id);
@@ -2244,20 +2265,20 @@ export class GameSession implements PlaySession {
   }
 
   /**
-   * Which resources one actor may not work just yet, as `./extract` keys.
+   * The pull one actor is part-way through, or null.
    *
-   * The cached projection rather than a fresh read of the map, on
-   * {@link ActorRuntime.extractCooling}'s terms: this is on the snapshot, so it
-   * is asked every frame and its identity is what tells the renderer anything
+   * The held object rather than a fresh read of the map, on
+   * {@link ActorRuntime.extraction}'s terms: this is on the snapshot, so it is
+   * asked every frame and its identity is what tells the renderer anything
    * moved.
    *
-   * Empty for nobody by that name, which {@link equipmentOf} and {@link tagsOf}
-   * distinguish and this does not: what a stranger may not do is the same list
-   * as what somebody with nothing cooling may not do, and there is nothing a
-   * caller could usefully do with the difference.
+   * Null for nobody by that name, which {@link equipmentOf} and {@link tagsOf}
+   * distinguish and this does not: a stranger is working nothing and so is
+   * somebody standing still, and there is nothing a caller could usefully do
+   * with the difference.
    */
-  extractCoolingOf(id: string): readonly ExtractCooling[] {
-    return this.actors.get(id)?.extractCooling ?? NO_COOLING_LIST;
+  extractionOf(id: string): Extraction | null {
+    return this.actors.get(id)?.extraction?.progress ?? null;
   }
 
   /**
@@ -2532,6 +2553,11 @@ export class GameSession implements PlaySession {
     // rather than one settle bleeding into the next.
     this.decay.advance(tickMs);
     this.applyDueDecay();
+
+    // After the bodies and after decay, so a pull knows whether the person
+    // making it moved and whether the thing they were working is still there.
+    // @see advanceExtractions
+    this.advanceExtractions(tickMs);
 
     // Last, and once for the whole board: plates and channels answer to the
     // board the tick leaves behind, not to any particular actor having caused
@@ -3244,65 +3270,146 @@ export class GameSession implements PlaySession {
       if (actor.attackRecoveryMs > 0) {
         actor.attackRecoveryMs = Math.max(0, actor.attackRecoveryMs - tickMs);
       }
-      this.advanceExtractCooldowns(actor, tickMs);
     }
   }
 
   /**
-   * Wind one actor's resource waits down, and strike off the ones that are up.
+   * Wind every pull in progress on, and land or lose the ones that are done.
    *
-   * Beside the swing cooldowns because it is the same kind of clock — a wait
-   * started by an act, wound by the tick, read to decide whether the act may
-   * happen again — and folded into the same pass so a tick walks the actors
-   * once.
+   * **Late in the tick, after the bodies have moved and after decay has
+   * turned whatever it was going to turn.** Deliberately not beside the swing
+   * cooldowns, where this started: a pull is the one clock whose right to
+   * continue depends on what the *rest* of the tick did, so winding it first
+   * meant a player who stepped away kept a tick of progress and a bush that
+   * rotted under somebody was noticed a tick late. Reading the board the tick
+   * leaves behind is what makes "stand still" mean this tick rather than the
+   * next.
+   */
+  private advanceExtractions(tickMs: number) {
+    for (const actor of this.actors.values()) {
+      this.advanceExtraction(actor, tickMs);
+    }
+  }
+
+  /**
+   * Wind one actor's pull on, and see whether it has landed or been lost.
+   *
+   * **The cancel is checked before the clock, not after it.** A player knocked
+   * back on the same tick their pull would have landed must lose it: the whole
+   * arrangement is that a pull can be taken off you, and one that paid out on
+   * the tick it was interrupted would make the last moment of a fourteen-second
+   * mine the only moment nobody could stop you.
    *
    * **Only the start and the end are announced.** The winding itself is silent,
-   * because the entries are wound *in place* and everybody downstream is
-   * already holding them — see {@link ExtractCooling}. A message goes out when
-   * a wait begins and one when it ends, and nothing in between; the bar drawn
-   * under the row fills on its own from the two numbers it was given.
+   * because the value is wound *in place* and everybody downstream is already
+   * holding it — see {@link Extraction}. The bar under the row fills on its own
+   * from the two numbers it was given.
    *
-   * The great majority of actors hold no map at all and pay one null check.
+   * The great majority of actors hold no pull at all and pay one null check.
    */
-  private advanceExtractCooldowns(actor: ActorRuntime, tickMs: number) {
-    const cooldowns = actor.extractCooldowns;
-    if (!cooldowns) return;
-    let expired = false;
-    for (const [key, entry] of cooldowns) {
-      entry.remainingMs -= tickMs;
-      if (entry.remainingMs > 0) continue;
-      // Floored rather than left negative: whatever draws the wait reads this
-      // as a fraction of the whole, and a frame of an over-full bar between the
-      // last tick and the rebuild below is a frame of nonsense.
-      entry.remainingMs = 0;
-      cooldowns.delete(key);
-      expired = true;
+  private advanceExtraction(actor: ActorRuntime, tickMs: number) {
+    const run = actor.extraction;
+    if (!run) return;
+
+    if (!this.holdsExtraction(actor, run)) {
+      this.cancelExtraction(actor, EXTRACT_INTERRUPTED_NOTICE);
+      return;
     }
-    if (expired) this.setExtractCooldowns(actor, cooldowns);
+
+    run.progress.remainingMs -= tickMs;
+    if (run.progress.remainingMs > 0) return;
+    // Floored rather than left negative: whatever draws the pull reads this as
+    // a fraction of the whole, and a frame of an over-full bar would be a frame
+    // of nonsense if the finish below refuses.
+    run.progress.remainingMs = 0;
+    this.finishExtraction(actor, run);
   }
 
   /**
-   * Hold an actor's waits, and keep the list beside them true.
+   * Is this actor still in a position to be making this pull?
    *
-   * The one place either is written, on the terms {@link setEquipment} is the
-   * one place a kit is: the map is what the rules ask and the array is what the
-   * snapshot and the wire carry, and a change to one without the other would be
-   * a row that never comes back or one offered on a resource still counting.
+   * **Standing still is the whole of the movement rule**, and it is one rule
+   * rather than three: a step of their own, a shove that slid them a cell, and
+   * a fall all end with the body somewhere else, and all three should end the
+   * pull. Comparing the cell is what covers them together — the alternative was
+   * a list of the ways a body can move, which is exactly the list that grows a
+   * gap the next time one is added.
    *
-   * The array holds **the map's own entries**, so this runs on the two events
-   * that change the *set* and never on the ticks in between.
+   * Mid-motion counts as moved even before the step commits, so the pull ends
+   * on the frame the player asks to leave rather than on the frame they arrive.
    *
-   * An emptied map is dropped rather than kept, so a player who worked one bush
-   * an hour ago is back to costing one null check on every tick.
+   * The resource itself is re-asked every tick for the reason the cell is: a
+   * vein somebody else emptied, a crate dropped on top of it, or a bush that
+   * turned into a picked bush are all the thing you were working ceasing to be
+   * the thing you were working, and {@link extractKey} carries the tile id
+   * precisely so that shows up here.
    */
-  private setExtractCooldowns(
-    actor: ActorRuntime,
-    cooldowns: Map<string, ExtractCooling>,
-  ) {
-    const empty = cooldowns.size === 0;
-    actor.extractCooldowns = empty ? null : cooldowns;
-    actor.extractCooling = empty ? NO_COOLING_LIST : [...cooldowns.values()];
-    this.extractCoolingChanged.add(actor.id);
+  private holdsExtraction(actor: ActorRuntime, run: ExtractionRun): boolean {
+    if (!this.idle(actor)) return false;
+    const at = this.actorCell(actor.id);
+    if (!at || at.x !== run.from.x || at.y !== run.from.y || at.z !== run.from.z) {
+      return false;
+    }
+    const stack = getStack(this.map, run.ref.x, run.ref.y, run.ref.z);
+    const placed = stack[run.ref.stackIndex];
+    if (!placed || placed.tileId !== run.tileId) return false;
+    return reachableExtractAt(this.map, this.tilesById, this.locate(actor), run.ref)
+      != null;
+  }
+
+  /**
+   * Take a pull off somebody, and give back what it was holding.
+   *
+   * **The reservation is released whatever the reason**, which is the whole
+   * point of holding one: an interrupted mine has to leave the vein exactly as
+   * full as it was, or a room people keep getting knocked out of would silently
+   * become unworkable.
+   *
+   * The notice is optional because two of the callers are not interruptions at
+   * all — a body coming off the board has nobody left to tell, and a player
+   * starting a different pull has already said what they meant by tapping.
+   */
+  private cancelExtraction(actor: ActorRuntime, notice?: string) {
+    const run = actor.extraction;
+    if (!run) return;
+    this.releaseReservation(run);
+    this.setExtraction(actor, null);
+    if (notice) this.say(actor.id, notice);
+  }
+
+  /**
+   * Put the pull back in the vein.
+   *
+   * Refuses to touch a placement that is no longer the one that was reserved,
+   * which is the case {@link extractKey}'s tile id exists to catch: a bush that
+   * became a picked bush took its reservations with it when it was replaced,
+   * and decrementing the picked bush would invent a negative.
+   */
+  private releaseReservation(run: ExtractionRun) {
+    const { ref } = run;
+    const stack = getStack(this.map, ref.x, ref.y, ref.z);
+    const placed = stack[ref.stackIndex];
+    if (!placed || placed.tileId !== run.tileId) return;
+    const next = stack.map((current, i) =>
+      i === ref.stackIndex ? withReservation(current, -1) : current,
+    );
+    this.map = replaceStack(this.map, ref.x, ref.y, ref.z, next);
+  }
+
+  /**
+   * Hold an actor's pull, and tell whoever is drawing it.
+   *
+   * The one place it is written, on the terms {@link setEquipment} is the one
+   * place a kit is: the value goes out on the snapshot and on the wire, and a
+   * change nobody was told about would be a bar that never appears or one that
+   * never goes away.
+   *
+   * Runs on the two events that start and end a pull and never on the ticks in
+   * between — the remainder is wound inside the object this hands over.
+   */
+  private setExtraction(actor: ActorRuntime, run: ExtractionRun | null) {
+    actor.extraction = run;
+    this.extractionChanged.add(actor.id);
   }
 
   /**
@@ -3958,6 +4065,12 @@ export class GameSession implements PlaySession {
     const before = this.hpOf(target);
     if (before === null) return;
 
+    // A blow takes a pull off you, and it is the reason a rich vein is worth
+    // clearing a room for. Gated on the blow being a blow: this same door is how
+    // a bandage is applied (see `consume`), and being healed mid-mine is not an
+    // interruption.
+    if (amount > 0) this.cancelExtraction(target, EXTRACT_INTERRUPTED_NOTICE);
+
     this.floatSwing(target, "hit", amount);
 
     const after = before - amount;
@@ -3986,8 +4099,12 @@ export class GameSession implements PlaySession {
    * so nothing is left swinging at a slot that can never be filled again.
    */
   private kill(target: ActorRuntime) {
-    // Before the body comes off the board, which is what makes it unfindable.
+    // Before the body comes off the board, which is what makes it unfindable —
+    // and before the reservation is looked for, since a vein still owes the
+    // pull a corpse was half way through. No notice: there is nobody left to
+    // read it, and the death screen has already said what happened.
     const loc = this.tryLocate(target);
+    this.cancelExtraction(target);
 
     this.actors.delete(target.id);
     this.forgetTileIndex();
@@ -5842,17 +5959,17 @@ export class GameSession implements PlaySession {
   }
 
   /**
-   * Whose cooling resources have changed since anybody last asked, and clears
-   * the list.
+   * Whose pull has started or ended since anybody last asked, and clears the
+   * list.
    *
    * Its own queue beside the other three, on {@link drainTagChanges}' argument:
-   * a wait starts when somebody works a bush and ends on a tick nothing else
+   * a pull starts when somebody taps a vein and ends on a tick nothing else
    * happened, which is a different event at a different rate from a kit change.
    */
-  drainExtractCoolingChanges(): string[] {
-    if (this.extractCoolingChanged.size === 0) return [];
-    const changed = [...this.extractCoolingChanged];
-    this.extractCoolingChanged.clear();
+  drainExtractionChanges(): string[] {
+    if (this.extractionChanged.size === 0) return [];
+    const changed = [...this.extractionChanged];
+    this.extractionChanged.clear();
     return changed;
   }
 
@@ -6006,54 +6123,44 @@ export class GameSession implements PlaySession {
     return true;
   }
 
-  /**
-   * The resources this actor may not work yet, as a set the rules can ask.
-   *
-   * Read off the live map rather than copied, because nothing here holds it
-   * past the question — and `Map` is already a set of its keys, so a
-   * `ReadonlySet` view of it costs nothing.
-   */
-  private coolingFor(actor: ActorRuntime): CoolingResources {
-    return actor.extractCooldowns ?? NO_COOLING;
-  }
-
   canExtract(ref: ObjectRef, id: string = LOCAL_ACTOR_ID): boolean {
     const actor = this.actor(id);
     if (!this.idle(actor)) return false;
-    return canWorkNow(
+    return canBeginExtract(
       this.map,
       this.tilesById,
       this.locate(actor),
       actor.equipment,
       ref,
-      this.coolingFor(actor),
+      actor.extraction?.progress ?? null,
     );
   }
 
   /**
-   * Take one pull out of a resource. Returns false when it is not on offer.
+   * Start a pull out of a resource. Returns false when it is not on offer.
    *
-   * **Three things move and they are three different owners' state**, which is
-   * what makes this the only interaction in the session that writes to all of
-   * the board, the kit and a private clock in one act:
+   * **Nothing is handed over here.** The tap buys a place at the vein and
+   * nothing else: one of its remaining pulls is held out of the shared count so
+   * nobody else can start on it, a clock begins, and the player has to stand
+   * there for the whole of {@link ExtractInteraction.durationMs} before
+   * anything comes out — see {@link finishExtraction}, which is where the dice
+   * are thrown and the board actually moves. Step, get shoved, get hit or watch
+   * the thing turn into something else, and the pull is gone with nothing to
+   * show for it and the reservation back in the vein.
    *
-   * - the placement loses a pull, and turns into whatever the author named once
-   *   it has none. That is a cell patch, so everybody sees the vein run out.
-   * - the kit gains whatever came up, minted fresh on a reward's terms: two
-   *   people working one bush come away with two distinct berries.
-   * - this player starts waiting on this placement, which nobody else can see
-   *   and which is why the bush is still full for the next person.
+   * That is the whole of the redesign. A cooldown after the fact made a rich
+   * vein a thing to tap and walk away from; a cost paid in front makes it a
+   * thing to hold a room for.
    *
-   * **The dice are the world's and are thrown exactly once**, here, on the
-   * server. `canExtract` above deliberately does not roll — see
-   * `./extract`'s `extractFits`, which asks for room enough for the *best*
-   * possible pull so that offering the row costs no draws and cannot change
-   * what the next creature in the world rolls.
+   * **A pull elsewhere is abandoned rather than refused.** A player who taps a
+   * second crystal has said which one they want, and making them walk away to
+   * say so would be a refusal with nothing on screen explaining it. Tapping the
+   * one they are already on is refused instead — that row is drawing their bar,
+   * and restarting it would be a way to never finish.
    *
-   * **The wait is charged whatever came up.** A crystal that yields nothing on
-   * a bad roll has still been chipped at: the durability went into the swing
-   * rather than into what came out of it, and a pull that cost nothing when it
-   * gave nothing would be a free re-roll.
+   * **A resource authored at zero lands on the tap**, with no reservation and
+   * no clock: there is nothing to interrupt in an instant, and holding one for
+   * a tick would be bookkeeping nobody could see.
    *
    * Gated on {@link idle} like every other board-side act.
    */
@@ -6068,14 +6175,83 @@ export class GameSession implements PlaySession {
     const extract = def && resolveExtract(def);
     if (!def || !extract) return false;
 
-    // Before the board moves, because the key names the tile that is being
-    // worked and the next line may turn it into a different one.
-    const key = extractKey(ref, placed.tileId);
-    const yielded = rollExtract(extract, () => this.rng.next());
+    const at = this.actorCell(actor.id);
+    if (!at) return false;
 
-    if (!this.spendPull(ref, stack, placed, extract)) return false;
+    // Whatever else they had going, they have just said this is the one. Before
+    // the reservation below, so a player tapping two slots of the same cell in
+    // turn releases the first hold before taking the second.
+    this.cancelExtraction(actor);
+
+    const run: ExtractionRun = {
+      ref,
+      tileId: placed.tileId,
+      from: at,
+      progress: {
+        key: extractKey(ref, placed.tileId),
+        remainingMs: extract.durationMs,
+        durationMs: extract.durationMs,
+      },
+    };
+
+    if (extract.durationMs <= 0) return this.finishExtraction(actor, run);
+
+    this.reserve(run);
+    this.setExtraction(actor, run);
+    return true;
+  }
+
+  /** Hold one of this placement's pulls for as long as the pull is being made. */
+  private reserve(run: ExtractionRun) {
+    const { ref } = run;
+    const stack = getStack(this.map, ref.x, ref.y, ref.z);
+    const next = stack.map((current, i) =>
+      i === ref.stackIndex ? withReservation(current, 1) : current,
+    );
+    this.map = replaceStack(this.map, ref.x, ref.y, ref.z, next);
+  }
+
+  /**
+   * Land a pull that has run its course.
+   *
+   * **Three things move and they are three different owners' state**, which is
+   * what makes this the only place in the session that writes to the board, the
+   * kit and a private clock in one act:
+   *
+   * - the placement loses a pull *and* the hold that was on it, in one write,
+   *   and turns into whatever the author named once it has none. That is a cell
+   *   patch, so everybody sees the vein run out.
+   * - the kit gains whatever came up, minted fresh on a reward's terms: two
+   *   people working one vein come away with two distinct shards.
+   * - the pull itself ends, which is what takes the bar off the row.
+   *
+   * **The dice are the world's and are thrown exactly once**, here, at the end.
+   * Nothing rolls when the pull starts — see `./extract`'s `extractFits`, which
+   * asks for room enough for the *best* possible pull so that offering the row
+   * costs no draws and cannot change what the next creature in the world rolls.
+   *
+   * **A finished pull is spent whatever came up.** A crystal that yields
+   * nothing on a bad roll has still been chipped at: the fourteen seconds went
+   * into the swing rather than into what came out of it.
+   *
+   * A board that refuses the swap leaves the pull unfinished and the hold in
+   * place — `spendPull`'s own refusal, which is rare and is the safe direction:
+   * the next tick tries again, and the player is standing there anyway.
+   */
+  private finishExtraction(actor: ActorRuntime, run: ExtractionRun): boolean {
+    const stack = getStack(this.map, run.ref.x, run.ref.y, run.ref.z);
+    const placed = stack[run.ref.stackIndex];
+    if (!placed || placed.tileId !== run.tileId) return false;
+    const def = this.tilesById[placed.tileId];
+    const extract = def && resolveExtract(def);
+    if (!def || !extract) return false;
+
+    const yielded = rollExtract(extract, () => this.rng.next());
+    if (!this.spendPull(run.ref, stack, placed, extract)) return false;
     if (yielded.length > 0) this.giveExtracted(actor, yielded);
-    if (extract.cooldownMs > 0) this.startExtractCooldown(actor, key, extract);
+    // After the board, because the hold came off the placement with the pull —
+    // see `placementAfterPull`. Nothing to release, only a clock to stop.
+    if (actor.extraction === run) this.setExtraction(actor, null);
 
     // After the board and the kit, never before: the sentence says what the
     // player now has, and this is the last place holding both the thing worked
@@ -6092,7 +6268,7 @@ export class GameSession implements PlaySession {
    * plate make: whatever a spent resource becomes has to fit under what has been
    * stacked on it in the meantime. Refused rather than forced, and refused
    * *before* anything is handed over — a pull that could not change the board
-   * has not happened, so nothing is minted and no wait is charged.
+   * has not landed, so nothing is minted and the hold stays where it was.
    */
   private spendPull(
     ref: ObjectRef,
@@ -6122,7 +6298,7 @@ export class GameSession implements PlaySession {
       // becomes has a durability of its own or none at all, and a number left
       // behind would be the old resource's answer worn by a new tile.
       if (!extract.tileId) continue;
-      const { extractsLeft: _spent, ...rest } = current;
+      const { extractsLeft: _spent, ...rest } = withoutReservations(current);
       next.push({ ...rest, tileId: extract.tileId });
     }
 
@@ -6164,22 +6340,6 @@ export class GameSession implements PlaySession {
       ...actor.equipment,
       bag: { ...bag, contents },
     });
-  }
-
-  /** Start this actor waiting on this placement. */
-  private startExtractCooldown(
-    actor: ActorRuntime,
-    key: string,
-    extract: ExtractInteraction,
-  ) {
-    const cooldowns =
-      actor.extractCooldowns ?? new Map<string, ExtractCooling>();
-    cooldowns.set(key, {
-      key,
-      remainingMs: extract.cooldownMs,
-      durationMs: extract.cooldownMs,
-    });
-    this.setExtractCooldowns(actor, cooldowns);
   }
 
   /**
@@ -6998,7 +7158,7 @@ export class GameSession implements PlaySession {
       equipment: self.equipment,
       tags: self.tags,
       conversation: self.conversation,
-      extractCooling: this.extractCoolingOf(self.id),
+      extracting: this.extractionOf(self.id),
       // Seeded by the line above rather than here: `actorSnapshots` asks every
       // body for its stats, which is what fills a fresh player's experience in
       // from their tile. The fallback is for the body that has none to give.
@@ -7071,12 +7231,13 @@ export class GameSession implements PlaySession {
       // time somebody happened to move — and unlike the lean beside it, this
       // one is holding a *step* the player has already asked for.
       if (actor.attackRecoveryMs > 0) return false;
-      // A resource wait is a clock this loop is the only thing winding, on
-      // exactly a cooling stone's terms: falling asleep on one would leave the
-      // row disabled and the bar under it frozen until somebody happened to
-      // move, which is the same freeze the stone clause exists to prevent.
+      // A pull being made is a clock this loop is the only thing winding, on
+      // exactly a cooling stone's terms — and more sharply, because this one is
+      // holding a reward the player is standing there waiting for rather than
+      // merely a row that is grey. Falling asleep under it would freeze the bar
+      // and the vein's reservation together until somebody happened to move.
       // Bounded by what an author wrote, like every other clock in here.
-      if (actor.extractCooldowns) return false;
+      if (actor.extraction) return false;
       if (actor.input.directions.length > 0) return false;
       // Somebody standing still next to the thing they are fighting is not an
       // idle world: the next swing is on a cooldown that only this loop winds

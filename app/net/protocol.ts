@@ -7,7 +7,7 @@ import { STRIKE_KINDS, type StrikeKind } from "../game/strike";
 import type { ConsumeSource } from "../game/itemUse";
 import type { Conversation, TalkAction } from "../game/dialogRuntime";
 import { masteryXpBlockSchema, type MasteryXp } from "../lib/mastery";
-import type { ExtractCooling } from "../game/extract";
+import type { Extraction } from "../game/extract";
 import type { PlacedTile } from "../lib/types";
 import { MAX_CHAT_RAW_LENGTH } from "./chat";
 import { MAX_COMMAND_LENGTH } from "../game/commands";
@@ -106,15 +106,14 @@ const statusPatchSchema = v.object({
 });
 
 /**
- * One resource this viewer is waiting on, and how far through the wait they
- * are.
+ * The pull this viewer is part-way through, and how far through it they are.
  *
- * The shape `../game/extract` already holds it in — see `ExtractCooling`, whose
+ * The shape `../game/extract` already holds it in — see `Extraction`, whose
  * note argues why both numbers travel. Validated rather than trusted like
  * everything else here, and the remainder is not clamped against the duration:
  * a client that draws a bar reads them as a fraction and clamps it there.
  */
-const extractCoolingSchema = v.object({
+const extractionSchema = v.object({
   key: v.string(),
   remainingMs: v.number(),
   durationMs: v.number(),
@@ -577,17 +576,16 @@ export type ServerMessage =
        */
       tags: string[];
       /**
-       * Which resources this viewer may not work just yet.
+       * The pull this viewer is part-way through, if any.
        *
-       * Sent in full on arrival on {@link tags}' terms and for the same
-       * failure: a reconnecting player's waits are still running on the server —
-       * the body at the far end is the one they left — so a client that started
-       * blank would offer rows for bushes it is about to be refused. Sent whole
-       * here rather than left to the first `extractCooling` message, because
-       * that one only fires when something changes and a wait already running
-       * changes nothing.
+       * Sent on arrival on {@link tags}' terms and for the same failure: a
+       * reconnecting player's pull is still running on the server — the body at
+       * the far end is the one they left — so a client that started blank would
+       * offer a row for a vein it is about to be refused. Sent here rather than
+       * left to the first `extracting` message, because that one only fires
+       * when something changes and a pull already running changes nothing.
        */
-      extractCooling: ExtractCooling[];
+      extracting: Extraction | null;
       /**
        * What this viewer has learnt, as raw experience.
        *
@@ -647,23 +645,22 @@ export type ServerMessage =
    */
   | { type: "conversation"; conversation: Conversation | null }
   /**
-   * "Here is every resource you may not work just yet."
+   * "Here is the pull you are part-way through, or nothing."
    *
    * The per-player half of an extract — see `../lib/interactions`'
-   * {@link ExtractInteraction.cooldownMs}. Addressed to one socket on
-   * {@link tags}' terms and whole on them too: the list is what decides which
-   * rows the client offers, and one rebuilt from "this one is cooling now"
-   * events would strand a row hidden for ever the first time a message went
-   * missing.
+   * {@link ExtractInteraction.durationMs}. Addressed to one socket on
+   * {@link tags}' terms and whole on them too: what a client holds is replaced
+   * outright, so a message that went missing costs a row for a moment rather
+   * than stranding a bar on screen for ever.
    *
-   * **Two messages a pull, and none in between.** One when a placement starts
-   * cooling and one when it stops; nothing is sent while a wait merely runs
-   * down. That is what the `durationMs` beside the remainder buys — the client
-   * has both halves of the fraction from the first message, so it can draw the
-   * bar filling on its own rather than being told where it is thirty times a
+   * **Two messages a pull, and none in between.** One when a pull starts and
+   * one when it lands or is taken away; nothing is sent while it merely runs.
+   * That is what the `durationMs` beside the remainder buys — the client has
+   * both halves of the fraction from the first message, so it can draw the bar
+   * filling on its own rather than being told where it is thirty times a
    * second. Exactly the trade {@link StatusPatch} makes.
    */
-  | { type: "extractCooling"; cooling: ExtractCooling[] }
+  | { type: "extracting"; extracting: Extraction | null }
   /**
    * "Here is something to tell you."
    *
@@ -1233,10 +1230,10 @@ const serverMessageSchema = v.variant("type", [
     statusIds: v.optional(v.array(statusIdsPatchSchema), () => []),
     equipment: tolerantEquipmentSchema,
     tags: v.array(v.string()),
-    // Optional with an empty default, on `statusIds`' terms: a version skew
-    // should degrade to "every resource looks ready" — one refused tap — rather
-    // than to a handshake that fails to parse.
-    extractCooling: v.optional(v.array(extractCoolingSchema), () => []),
+    // Optional with a null default, on `statusIds`' terms: a version skew
+    // should degrade to "you are not mining anything" — one refused tap —
+    // rather than to a handshake that fails to parse.
+    extracting: v.optional(v.nullable(extractionSchema), () => null),
     masteryXp: tolerantMasteryXpSchema,
     statuses: v.array(statusPatchSchema),
   }),
@@ -1262,8 +1259,8 @@ const serverMessageSchema = v.variant("type", [
     ),
   }),
   v.object({
-    type: v.literal("extractCooling"),
-    cooling: v.array(extractCoolingSchema),
+    type: v.literal("extracting"),
+    extracting: v.nullable(extractionSchema),
   }),
   v.object({
     type: v.literal("notice"),
@@ -1487,7 +1484,7 @@ export const GAME_SOCKET_PATH = "/online/ws";
  * This is deliberately not the build id. A client deploy that changes no
  * messages should not disconnect anybody, and most client deploys are that.
  */
-export const PROTOCOL_VERSION = 5;
+export const PROTOCOL_VERSION = 6;
 
 /**
  * How often the world says nothing, to keep a proxy from hanging up.

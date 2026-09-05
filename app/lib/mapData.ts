@@ -1001,7 +1001,9 @@ export function flattenMap(map: MapFile): FlatMapFile {
  * `extractsLeft` goes for the same reason one step along: how much of a vein is
  * left is a state of play, and a map saved after somebody spent an afternoon
  * mining would otherwise arrive claiming the author meant those bushes to be
- * half picked.
+ * half picked. `extractsReserved` goes with it and one step further still — it
+ * is a fact about who is standing there this second, and there is nobody
+ * standing anywhere in a file.
  *
  * `itemId` is minted when a world loads and is an identity for a thing while it
  * is being played with — not something anybody typed, and not something worth
@@ -1013,7 +1015,13 @@ export function flattenMap(map: MapFile): FlatMapFile {
  * *in* it, and each of those gets a fresh identity on the next load.
  */
 function authoredPlacement(placed: PlacedTile): PlacedTile {
-  const { itemId: _itemId, extractsLeft: _extractsLeft, contents, ...rest } = placed;
+  const {
+    itemId: _itemId,
+    extractsLeft: _extractsLeft,
+    extractsReserved: _extractsReserved,
+    contents,
+    ...rest
+  } = placed;
   if (!contents) return rest;
   return {
     ...rest,

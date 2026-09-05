@@ -1835,7 +1835,7 @@ export class GameServer {
       // the far end is the one this player left, so a wait they started before
       // the tab closed is still running, and a joiner without this would be
       // shown resources it is about to be refused at.
-      extractCooling: [...session.extractCoolingOf(actorId)],
+      extracting: session.extractionOf(actorId),
       // Theirs alone, beside the kit and the tags, and in full for the same
       // reason all three are: a joiner has nothing to patch against, and the
       // panel showing it is on screen before the first blow.
@@ -1978,7 +1978,7 @@ export class GameServer {
     this.flushBlows();
     this.flushTags();
     this.flushConversations();
-    this.flushExtractCooling();
+    this.flushExtracting();
     this.flushNotices();
     this.flushMasteries();
     // Eating happens between ticks, and the world may be asleep when it does —
@@ -2097,18 +2097,18 @@ export class GameServer {
    * about rewards rather than an assumption in the plumbing.
    */
   /**
-   * Tell whoever's waits changed which resources they may not work yet.
+   * Tell whoever started or stopped a pull what they are now working.
    *
    * Beside {@link flushTags} and shaped exactly like it, because it is the same
    * kind of fact: per player, whole state, and only to the socket it is about.
    * A separate queue rather than a flag on that one, on the session's own
-   * argument — a wait ends on a tick nothing else happened, and sharing a queue
-   * would put a tag list on the wire every time a bush came ready.
+   * argument — a pull ends on a tick nothing else happened, and sharing a queue
+   * would put a tag list on the wire every time somebody finished mining.
    */
-  private flushExtractCooling() {
+  private flushExtracting() {
     const session = this.session;
     if (!session) return;
-    const changed = session.drainExtractCoolingChanges();
+    const changed = session.drainExtractionChanges();
     if (changed.length === 0) return;
 
     const wanted = new Set(changed);
@@ -2117,8 +2117,8 @@ export class GameServer {
       if (!attachment || !wanted.has(attachment.actorId)) continue;
       ws.send(
         JSON.stringify({
-          type: "extractCooling",
-          cooling: [...session.extractCoolingOf(attachment.actorId)],
+          type: "extracting",
+          extracting: session.extractionOf(attachment.actorId),
         } satisfies ServerMessage),
       );
     }
@@ -3134,7 +3134,7 @@ export class GameServer {
     // On the tick as well as on input: a conversation ends when its partner
     // walks out of reach, which is a thing the world notices, not a message.
     this.flushConversations();
-    this.flushExtractCooling();
+    this.flushExtracting();
     // Beside the tag, because it describes the same act — and on the tick as
     // well as on input for the same reason the kit is: nothing guarantees which
     // of the two got there first.
