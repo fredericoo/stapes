@@ -14,7 +14,7 @@ import {
 import { resolveContainer, resolveItem } from "../lib/item";
 import { variantKeys } from "../lib/variant";
 import { useEditorStore } from "../editor/store";
-import { Button, Segmented, Select, Tooltip } from "../ui";
+import { Button, Segmented, Tooltip } from "../ui";
 import { PlacementSettingsDialog } from "./PlacementSettingsDialog";
 import { TilePreview } from "./TilePreview";
 
@@ -189,24 +189,55 @@ function SortableStackItem({
             ]}
           />
         ) : null}
-        {/* A select rather than the Segmented above it: facings are four and
-            fixed, faces are however many the tile authors and are named in
-            prose. Beside it and not in the settings dialog because it is the
-            same kind of fact as the facing — what this placement *is*, not what
-            it is wired to. */}
+        {/* Thumbnails rather than the Segmented above it or a dropdown beside
+            it. Facings are four, fixed and nameless, so four letters in a row
+            say everything; faces are however many the tile authors, named in
+            prose, and the name is the least of what tells them apart. A
+            wrapping row of the art itself is also the only one of the three
+            that survives this panel being dragged narrow. In the row rather
+            than the settings dialog because it is the same kind of fact as the
+            facing: what this placement *is*, not what it is wired to. */}
         {def.type === "variant" ? (
-          <Select
-            className="mt-1 min-w-0 py-0.5 text-xs"
-            ariaLabel={`Face for ${def.name}`}
-            value={placed.variant ?? variantKeys(def)[0] ?? null}
-            options={variantKeys(def).map((key) => ({
-              value: key,
-              label: key,
-            }))}
-            onValueChange={(v) =>
-              useEditorStore.getState().setStackVariant(stackIndex, v ?? "")
-            }
-          />
+          <div
+            role="listbox"
+            aria-label={`Face for ${def.name}`}
+            className="mt-1 flex flex-wrap items-start gap-1"
+          >
+            {variantKeys(def).map((key) => {
+              // A placement naming nothing wears the first authored face, which
+              // is what the renderer draws — so the row answers rather than
+              // showing every face unselected.
+              const active = (placed.variant ?? variantKeys(def)[0]) === key;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  role="option"
+                  aria-selected={active}
+                  aria-label={key}
+                  title={key}
+                  onClick={() =>
+                    useEditorStore.getState().setStackVariant(stackIndex, key)
+                  }
+                  className={[
+                    "border-2 p-0.5",
+                    active
+                      ? "border-accent bg-paper"
+                      : "border-border bg-panel hover:border-ink",
+                  ].join(" ")}
+                >
+                  <TilePreview
+                    tile={def}
+                    tilesets={tilesets}
+                    size={20}
+                    variantKey={key}
+                    chrome={false}
+                    still
+                  />
+                </button>
+              );
+            })}
+          </div>
         ) : null}
         {/* What the placement carries, rather than the fields themselves: the
             row says a wire and a description are set, and the dialog is where
