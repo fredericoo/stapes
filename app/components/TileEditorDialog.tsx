@@ -369,8 +369,18 @@ function validateFrameLights(frames: Frame[]): string | null {
   return null;
 }
 
-function sanitizeSprite(sprite: TileSprite): TileSprite {
+/**
+ * A sprite as the file should carry it: same sprite, with its light values
+ * written in one form so two authorings of the same colour compare equal.
+ */
+export function sanitizeSprite(sprite: TileSprite): TileSprite {
+  // Spread, for the reason `setFrames` spreads: a sprite is not only its
+  // frames. Rebuilding the object from the frames alone dropped `phase` on the
+  // way to the file, so every save of an animated tile silently unphased it —
+  // the dialog showed the offset you had just typed, and the tile written out
+  // was in lockstep.
   return {
+    ...sprite,
     frames: sprite.frames.map((f) => {
       if (!f.light) return f;
       return {
