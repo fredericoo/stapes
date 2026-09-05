@@ -38512,6 +38512,10 @@
         },
         {
           "tileId": "cobblestone"
+        },
+        {
+          "tileId": "pie-maker",
+          "direction": "s"
         }
       ],
       "-2,-2": [
@@ -39530,6 +39534,9 @@
         },
         {
           "tileId": "counter-top"
+        },
+        {
+          "tileId": "apple-pie"
         }
       ],
       "-1,-1": [
@@ -44760,9 +44767,6 @@
           "tileId": "grass-2"
         },
         {
-          "tileId": "dirt"
-        },
-        {
           "tileId": "cobblestone"
         }
       ],
@@ -45784,12 +45788,6 @@
         },
         {
           "tileId": "cobblestone"
-        },
-        {
-          "tileId": "counter-top"
-        },
-        {
-          "tileId": "berry"
         }
       ],
       "5,-1": [
@@ -46831,12 +46829,6 @@
         },
         {
           "tileId": "cobblestone"
-        },
-        {
-          "tileId": "counter-top"
-        },
-        {
-          "tileId": "apple"
         }
       ],
       "6,-1": [
@@ -47964,12 +47956,6 @@
         },
         {
           "tileId": "cobblestone"
-        },
-        {
-          "tileId": "counter-top"
-        },
-        {
-          "tileId": "ale"
         }
       ],
       "7,-1": [
@@ -213432,6 +213418,9 @@
         },
         {
           "tileId": "ladder-top"
+        },
+        {
+          "tileId": "wooden-box"
         }
       ],
       "50,-5": [
@@ -214386,6 +214375,9 @@
       "51,-7": [
         {
           "tileId": "dirt"
+        },
+        {
+          "tileId": "barrel"
         }
       ],
       "51,-6": [
