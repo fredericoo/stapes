@@ -151,11 +151,27 @@ body {
   margin: 0;
 }
 
-button,
-input,
-select,
-textarea {
-  font: inherit;
+/**
+ * Form controls take the page font. Left alone, a `<button>` or `<input>` gets
+ * the browser's own 13.33px system face, which is not the face anything else
+ * on the page is set in.
+ *
+ * This lives in `@layer base` and has to. Tailwind v4 emits its utilities in
+ * `@layer utilities`, and an unlayered rule wins over every layered one no
+ * matter the specificity. Declared outside a layer, this reset beat `text-xs`,
+ * `font-medium` and `font-mono` on every button, input, select and textarea in
+ * the app: a `<button class="font-bold text-xs">` computed to 16px / 400, and
+ * `Button`'s size variants differed only in padding. In `base` the reset still
+ * wins over the browser's stylesheet and loses to utilities, which is the
+ * order a default is supposed to sit in.
+ */
+@layer base {
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
 }
 
 /* Nearest-neighbor for pixel art canvases / imgs */
