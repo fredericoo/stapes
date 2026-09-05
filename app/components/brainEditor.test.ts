@@ -199,6 +199,8 @@ describe("offering selectors", () => {
 
     expect(offered).toEqual([
       "player",
+      "armourer",
+      "blacksmith",
       "cat",
       "cave-troll",
       "deer",

@@ -63,6 +63,20 @@
     "height": 128
   },
   {
+    "id": "smith",
+    "name": "Smith",
+    "file": "smith.png",
+    "width": 128,
+    "height": 128
+  },
+  {
+    "id": "armourer",
+    "name": "Armourer",
+    "file": "armourer.png",
+    "width": 128,
+    "height": 128
+  },
+  {
     "id": "equipment",
     "name": "Equipment",
     "file": "equipment.png",

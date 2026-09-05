@@ -389,6 +389,71 @@ nothing left to decide. All or nothing, and nothing ever reaches the floor. A
 container is never on either side: the schema refuses it with a catalogue in
 hand, and the runtime refuses it without one.
 
+**A trade has one side that is a kit, and the other side is nowhere.**
+`GameSession.attemptDialogEffects` resolves the *player* and runs `planTrade`
+against their equipment alone; the NPC is never asked, and its id is not even
+passed in. So what a trade takes is destroyed and what it gives is minted on
+the spot with a fresh `mintItemId`. A shop has infinite stock and infinite
+money, and **a shopkeeper needs no kit at all** — the blacksmith and the
+armourer are props with no `battler` block, so they have nowhere to keep one,
+and they sell every rung of every rack regardless.
+
+That is worth writing down because the opposite is the obvious guess, and it is
+the guess an author would act on: authoring a shopkeeper carrying one of
+everything it sells would do nothing except roll a kit nothing reads. If stock
+is ever wanted, it is a feature to build and not a field to fill in.
+
+### A shop with a catalogue is a menu of menus, and two limits shape it
+
+Two shops are authored this way: the blacksmith (`blacksmith`), who sells
+three rungs of each of four weapon families plus a rack of shields, and the
+armourer (`armourer`), who sells every piece of armour there is. The shape
+they settled on is worth knowing before authoring the next one, because two
+authored ceilings decide it.
+
+- **A price cannot exceed `MAX_DIALOG_AMOUNT`, which is ninety-nine.** That
+  bound is on a `TradeSide.count`, so the whole of what one trade takes per
+  unit is capped at it. Ninety-five shards is therefore the most expensive
+  thing anybody can sell for shards in one side, and the ladder is 20 / 50 /
+  95 rather than something that doubles indefinitely. Spelling a higher price
+  as two sides of the same tile would work and would read as two prices in
+  the preview, which is worse than a cheaper top rung.
+- **A family per button, a rung per button under it, is exactly as deep as
+  `MAX_DIALOG_DEPTH` allows.** The nesting runs choices → choices →
+  `request_trade` → its `traded` branch, which is three blocks — the last
+  depth `validateDialog` does not warn about. A fourth level of menu would
+  warn, so a shop that grows a fifth family adds a button rather than a
+  drawer.
+- **Every rung's `traded` and `cancel` go back to their own rack's anchor**,
+  not to the top menu: somebody who has just bought a sword is more likely to
+  want the next sword than the bow list. Each rack carries a last button,
+  Back, whose only job is the `goto main` the branches deliberately do not do.
+- **A rack is only limited in depth, never in width.** `choices` takes as many
+  options as an author writes, which is what lets the armourer put all eight
+  body armours on one menu rather than inventing a sub-menu they do not need.
+
+The weapons are ordinary `item` blocks — see `app/lib/item.ts` — and the
+ladder is a requirement ladder rather than a damage one: roughly 6, 20 and 34
+in the family's mastery, which is what `OUTGROWN_FALLOFF` wants, since
+standing still on one rung stops teaching you long before the next one is out
+of reach.
+
+**Armour is racked by slot rather than by rung, and that follows from armour
+not being a ladder.** Defence is a flat subtraction and a resistance answers
+one mastery, so steel plate is not simply better than a warded robe — see
+*Armour is worn, and it may care what hit it* above. What a rack has to do is
+therefore put the pieces that compete for one square next to each other, so
+the armourer's menus are Body, Head, Feet and Charms, priced off what each
+piece actually does rather than off a rung.
+
+**A shopkeeper is a `prop`, not a `battler`, and that is load-bearing.**
+`resolveActor` is satisfied by a `dialog` alone, so a body that only talks is
+adopted, driven and reachable exactly like one that fights. Being a battler
+would give it hit points, and hit points are killable: a world where somebody
+has punched the blacksmith to death is a world with no way to buy a weapon,
+and nothing respawns him. The potion salesman predates this and is still a
+battler, which is the same exposure.
+
 ### Authoring a dialog is a list of commands, with the real panel beside it
 
 The Dialog tab (`app/components/DialogEditor.tsx`) is one row per command in
@@ -2584,6 +2649,22 @@ world.
 - **The `player` tile is the one refusal that is about the file.** A map is
   allowed exactly one, and `requireSinglePlayer` throws rather than choosing, so
   a second one is a world that cannot be opened again.
+- **A count is written `x12`, and only ever directly after the tile.** It means
+  *run the placement that many times*, not "make a pile that big": a hundred
+  shards is a full pile of ninety-nine and one beside it, a hundred crates is a
+  hundred crates until the column runs out, and either way it is the same rule a
+  single `/tile` is under said N times. Sharing the first argument's place with
+  a coordinate is safe because no coordinate can begin with a letter — but only
+  in that position, so `/tile apple +1 x5` is refused as the coordinate `x5` is
+  standing in the place of, which is the honest reading. `MAX_TILE_COUNT` is a
+  sanity bound at 999 rather than a pile's ceiling.
+- **All of a count or none of it.** The whole stack is built against a candidate
+  map before any of it is committed, so a count that runs out of room leaves the
+  cell exactly as it was. Half a command carried out is the one outcome nobody
+  could act on, and it is the rule a trade already keeps. It is also why
+  `summonedOwnerId` takes the names this same command has already minted: with
+  nothing adopted until the end, the runtime cannot see a clash inside one
+  `/tile wolf x3` for itself.
 
 ## A reward happens to the player, not to the board
 

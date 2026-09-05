@@ -116,7 +116,19 @@ const tiles: TileDef[] = [
   tile({ id: "seller", height: 4, walkable: false, interactions: { dialog } }),
   tile({ id: "server", height: 4, walkable: false, interactions: { dialog, brain: standsToServe } }),
   ...normalizeTiles(tilesJson as unknown[]).filter((t) =>
-    ["potion-salesman", "arcane-shard", "luminous-potion", "empty-bottle"].includes(t.id),
+    [
+      "potion-salesman",
+      "arcane-shard",
+      "luminous-potion",
+      "empty-bottle",
+      "blacksmith",
+      "iron-sword",
+      "war-bow",
+      "buckler",
+      "armourer",
+      "leather-cap",
+      "iron-helm",
+    ].includes(t.id),
   ),
 ];
 
@@ -353,5 +365,88 @@ describe("the potion salesman, as authored", () => {
     press(session, 3);
     expect(lastLine(session)).toContain("Mind the dark");
     expect(session.talk({ kind: "choose", index: 0 })).toBe(false);
+  });
+});
+
+describe("the blacksmith, as authored", () => {
+  it("sells off one rack, comes back to it, and refuses when short", () => {
+    let map = fieldWith("blacksmith");
+    // Two piles because a price is peeled across whatever the body is carrying,
+    // and because a hundred and fifteen shards do not fit in one.
+    map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "arcane-shard", count: 95 }]);
+    map = replaceStack(map, 1, 1, 0, [{ tileId: "grass" }, { tileId: "arcane-shard", count: 20 }]);
+    const session = new GameSession(map, tiles, { statuses: catalogue });
+    session.pickUp({ x: 0, y: 1, z: 0, stackIndex: 1 });
+    session.pickUp({ x: 1, y: 1, z: 0, stackIndex: 1 });
+
+    talkTo(session, "blacksmith");
+    expect(lastLine(session)).toContain("Mind the sparks");
+
+    press(session, 0);
+    expect(lastLine(session)).toContain("Blades.");
+    press(session, 0);
+    trade(session, 1);
+    expect(bagOf(session)).toEqual(["arcane-shardx95", "iron-sword"]);
+
+    // A sale lands back on the rack it was made from rather than on the top
+    // menu, so Back is what leaves — and it is the fourth button on every rack.
+    press(session, 3);
+    press(session, 3);
+    expect(lastLine(session)).toContain("Reach is what you're paying for");
+    press(session, 2);
+    trade(session, 1);
+    expect(bagOf(session)).toEqual(["iron-sword", "war-bow"]);
+
+    press(session, 0);
+    trade(session, 1);
+    expect(lastLine(session)).toBe(TRADE_REFUSED);
+    session.talk({ kind: "cancel" });
+    press(session, 3);
+    press(session, 6);
+    expect(lastLine(session)).toContain("something to spend");
+    expect(session.talk({ kind: "choose", index: 0 })).toBe(false);
+  });
+
+  it("sells a shield off the fifth rack", () => {
+    let map = fieldWith("blacksmith");
+    map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "arcane-shard", count: 20 }]);
+    const session = new GameSession(map, tiles, { statuses: catalogue });
+    session.pickUp({ x: 0, y: 1, z: 0, stackIndex: 1 });
+
+    talkTo(session, "blacksmith");
+    press(session, 4);
+    expect(lastLine(session)).toContain("it costs you a hand");
+    press(session, 0);
+    trade(session, 1);
+    expect(bagOf(session)).toEqual(["buckler"]);
+  });
+});
+
+/**
+ * The armourer sells by slot rather than by rung, which is the one thing about
+ * this shop that is not the blacksmith's shape: `docs/notes.md` says armour is
+ * a choice and not a ladder, so what a rack has to do is put the pieces that
+ * compete for one square next to each other.
+ */
+describe("the armourer, as authored", () => {
+  it("sells a helm off the head rack and comes back to it", () => {
+    let map = fieldWith("armourer");
+    map = replaceStack(map, 0, 1, 0, [{ tileId: "grass" }, { tileId: "arcane-shard", count: 55 }]);
+    const session = new GameSession(map, tiles, { statuses: catalogue });
+    session.pickUp({ x: 0, y: 1, z: 0, stackIndex: 1 });
+
+    talkTo(session, "armourer");
+    expect(lastLine(session)).toContain("Cloth, leather or plate");
+
+    press(session, 1);
+    expect(lastLine(session)).toContain("Heads.");
+    press(session, 1);
+    trade(session, 1);
+    expect(bagOf(session)).toEqual(["arcane-shardx15", "iron-helm"]);
+
+    // Back on the head rack, so the cap under it is one press away.
+    press(session, 0);
+    trade(session, 1);
+    expect(bagOf(session)).toEqual(["iron-helm", "leather-cap"]);
   });
 });

@@ -23,6 +23,9 @@ a world in the way.
 - `bun run generate:water` — rebuild the water autotile from two masks: the wave
   frames in `scripts/wave-frames.png` and the green shapes in the `floors` sheet.
   Writes `data/tilesets/water.png` and the `water` tile's 47 slices together
+- `bun run generate:npcs` — recolour the one humanoid in `people.png` into a
+  sheet per NPC, so nobody in town is the player's twin. Writes
+  `data/tilesets/townsfolk.png`, `smith.png` and `armourer.png`
 - `bun run carve:caves` — carve a multi-floor cave system into `data/map.json`,
   then walk every cell of it with the game's own movement rules. What to carve
   is the `SYSTEM` block at the top of the script; `--verify` checks the map as

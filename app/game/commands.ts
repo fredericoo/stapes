@@ -88,7 +88,9 @@ export type CommandName =
  */
 export const COMMAND_USAGE: Record<CommandName, string> = {
   [MASTERY_COMMAND]: `${COMMAND_PREFIX}${MASTERY_COMMAND} <mastery> <${MIN_MASTERY}-${MAX_MASTERY}> [player id]`,
-  [TILE_COMMAND]: `${COMMAND_PREFIX}${TILE_COMMAND} <tile> [x] [y] [z]`,
+  // The count is written `x12` and comes first because it is the one
+  // argument that cannot be told from a coordinate by position alone.
+  [TILE_COMMAND]: `${COMMAND_PREFIX}${TILE_COMMAND} <tile> [xN] [x] [y] [z]`,
   // `clear` is part of the grammar rather than a second verb, because it is the
   // same sentence with the same target and only the thing being put on differs.
   // A debugging command that can only be switched *on* is a poor one: tuning
@@ -164,6 +166,14 @@ export type Command =
        * only the session is in a position to say.
        */
       tileId: string;
+      /**
+       * How many to put down, one unless a `x12` was typed.
+       *
+       * A number of *placements* rather than a pile size — see
+       * {@link MAX_TILE_COUNT} — so it means the same thing for a shard and for
+       * a crate, and the session does not have to know which it got.
+       */
+      count: number;
       at: CellRequest;
     }
   | {
@@ -218,6 +228,7 @@ export type CommandRefusal =
   | { kind: "unknownMastery"; typed: string }
   | { kind: "badLevel"; typed: string }
   | { kind: "badCoordinate"; typed: string }
+  | { kind: "badCount"; typed: string }
   | { kind: "noSuchTarget"; typed: string }
   | { kind: "unteachableTarget"; name: string }
   | { kind: "unknownTile"; typed: string }
@@ -346,7 +357,11 @@ const HERE: Coordinate = { kind: "relative", offset: 0 };
  * thing lands in a stack is a fact about bodies standing in it.
  */
 function parseTileArguments(args: string[]): CommandParse {
-  const [tileToken, ...coordinateTokens] = args;
+  const [tileToken, ...rest] = args;
+  const count = parseCount(rest[0]);
+  // A count is not a coordinate, so a line that opens with one has a token
+  // fewer left to spend on axes.
+  const coordinateTokens = count === null ? rest : rest.slice(1);
   if (
     tileToken === undefined ||
     coordinateTokens.length > MAX_TILE_COORDINATES
@@ -355,6 +370,9 @@ function parseTileArguments(args: string[]): CommandParse {
       ok: false,
       refusal: { kind: "badArguments", command: TILE_COMMAND },
     };
+  }
+  if (count !== null && (count < 1 || count > MAX_TILE_COUNT)) {
+    return { ok: false, refusal: { kind: "badCount", typed: rest[0] ?? "" } };
   }
 
   const coordinates: Coordinate[] = [];
@@ -374,9 +392,52 @@ function parseTileArguments(args: string[]): CommandParse {
     command: {
       name: TILE_COMMAND,
       tileId: tileToken.toLowerCase(),
+      count: count ?? 1,
       at: { x, y, z },
     },
   };
+}
+
+/**
+ * The most one `/tile` may put down at once.
+ *
+ * A sanity bound rather than a balance one, on {@link MAX_COMMAND_HP}'s terms:
+ * wide enough for the case this exists for — a hundred shards to test a price
+ * with — and narrow enough that a typo'd fourth digit reads as malformed rather
+ * than as a command that spends a second filling a cell.
+ *
+ * Deliberately not a pile's ceiling. A count is *how many times the command
+ * runs*, not how big a pile it makes: a hundred shards is a full pile of
+ * ninety-nine and one beside it, and a hundred crates is a hundred crates until
+ * the cell runs out of room.
+ */
+export const MAX_TILE_COUNT = 999;
+
+/**
+ * How many of it, written `x12` and only ever first.
+ *
+ * Null for a token that is not one, which is how the caller tells "no count
+ * was given" from "a count was given and it is out of range" — the first falls
+ * through to the coordinates, the second is a refusal naming the word.
+ *
+ * **`x` cannot collide with a coordinate**, which is what lets the two share a
+ * position: {@link COORDINATE_PATTERN} takes digits with an optional sign and
+ * nothing else, so no coordinate anybody could type starts with a letter. That
+ * is also why the count has to be first — `/tile apple +1 x5` would otherwise
+ * need the parser to decide whether a trailing token is a third axis or a
+ * quantity, and there is no reading of `x5` that makes it an axis. It is
+ * refused as the coordinate it is standing in the place of.
+ */
+const COUNT_PATTERN = /^x(\d+)$/i;
+
+function parseCount(token: string | undefined): number | null {
+  const match = token === undefined ? null : COUNT_PATTERN.exec(token);
+  if (!match) return null;
+  // Whatever it says, in range or not: a `x0` or a `x100000` is a count that
+  // was typed, and the caller owes it a sentence rather than a fallback. A
+  // digit string too long to be a number lands on Infinity and fails the same
+  // range check.
+  return Number(match[1]);
 }
 
 /** The id is required; the target is the one optional argument. */

@@ -7,7 +7,11 @@ import {
   type Mastery,
 } from "../lib/mastery";
 import type { Coord, TileDef } from "../lib/types";
-import { COMMAND_USAGE, type CommandRefusal } from "./commands";
+import {
+  COMMAND_USAGE,
+  MAX_TILE_COUNT,
+  type CommandRefusal,
+} from "./commands";
 
 /**
  * The things the game says to the player in words.
@@ -249,6 +253,10 @@ export function commandRefusalNotice(refusal: CommandRefusal): string {
       // Both spellings shown, because the sign is the whole grammar and a
       // player who typed one of them wrote the other by mistake.
       return `"${refusal.typed}" is not a coordinate. A number is a cell of the map, +1 and -1 are steps from where you stand`;
+    case "badCount":
+      // The ceiling named, because the two ways to get this wrong are a zero
+      // and an extra digit, and neither is guessable from the grammar alone.
+      return `"${refusal.typed}" is not a count. Write x1 to x${MAX_TILE_COUNT}, and write it before the coordinates`;
     case "unknownTile":
       // No list, unlike the masteries above: there are as many tiles as an
       // author cares to draw, and a sentence that tried to name them all would
@@ -303,8 +311,12 @@ function cellName(at: Coord): string {
  * The tile's own name, so what the catalogue calls a thing and what the game
  * calls it are one string.
  */
-export function tileNotice(name: string, at: Coord): string {
-  return `${name} appears at ${cellName(at)}`;
+export function tileNotice(name: string, at: Coord, count = 1): string {
+  // Silent about a count of one, which is every command typed before counts
+  // existed and most of them since: a "x1" where there was never a question
+  // is noise on the common case.
+  const many = count > 1 ? ` ×${count}` : "";
+  return `${name}${many} appears at ${cellName(at)}`;
 }
 
 /**

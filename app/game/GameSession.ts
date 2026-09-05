@@ -6304,48 +6304,72 @@ export class GameSession implements PlaySession {
     }
 
     const at = resolveCell(command.at, from);
-    if (!canPlace(this.map, at.x, at.y, at.z, def, this.tilesById).ok) {
-      return { kind: "noRoom", at };
+    const underfoot = at.x === from.x && at.y === from.y && at.z === from.z;
+
+    // **The count runs the placement again, and the cell is asked every time.**
+    // A pile absorbs most of them — a hundred shards is one pour after another
+    // into the same heap until it is full, then a second heap beside it — and a
+    // hundred crates is a hundred refusals as soon as the column runs out. That
+    // is the same rule a single `/tile` is under, said N times, rather than a
+    // second rule about how much of a thing may exist in a cell.
+    //
+    // Built whole before any of it is committed, so a count that does not fit
+    // leaves the board exactly as it was: half a command carried out is the one
+    // outcome nobody could act on, and every other multi-part move here — a
+    // trade above all — is already all or nothing. The map is persistent, so
+    // the candidate is only the next value of it.
+    let candidate = this.map;
+    const owners: string[] = [];
+    for (let placement = 0; placement < command.count; placement++) {
+      if (!canPlace(candidate, at.x, at.y, at.z, def, this.tilesById).ok) {
+        return { kind: "noRoom", at };
+      }
+
+      const stack = getStack(candidate, at.x, at.y, at.z);
+      const stackIndex = underfoot ? from.stackIndex : stack.length;
+      const placed: PlacedTile = {
+        tileId: def.id,
+        // The editor's rule for an armed tile, so a lamp post summoned into the
+        // world faces the way one stamped into it does.
+        ...(isDirectional(def) ? { direction: DEFAULT_FACING } : {}),
+        // A summoned item is a new item, on the terms a respawned one is: minted
+        // here rather than left to the load sweep, because nothing between now
+        // and the next load would give it one.
+        ...(isItem(def) ? { itemId: mintItemId() } : {}),
+        // The names minted so far ride along because `addActor` has not been
+        // called for them yet: two bodies under one owner is the shape nothing
+        // recovers from, and within one command the runtime cannot yet see the
+        // clash for itself.
+        ...(resolveActor(def)
+          ? { owner: this.summonedOwnerId({ ...at, stackIndex }, new Set(owners)) }
+          : {}),
+      };
+
+      // Poured into a pile already in that cell where one will take it, exactly
+      // as a drop is: `/tile berry` onto a berry is two berries in that tile,
+      // not a second placement of one. A command puts a thing in the world, and
+      // once it is there it should be the thing the world would have had if
+      // somebody had walked over and put it down. See `../lib/piles`.
+      //
+      // A pour makes no placement, so the room `canPlace` asked for above is
+      // more than it needs, and the slot `stackIndex` names is left alone.
+      const poured = pourInto(stack, placed, this.tilesById);
+      const next = poured ?? [...stack];
+      if (!poured) next.splice(stackIndex, 0, placed);
+      candidate = replaceStack(candidate, at.x, at.y, at.z, next);
+
+      if (placed.owner) owners.push(placed.owner);
     }
 
-    const stack = getStack(this.map, at.x, at.y, at.z);
-    const underfoot = at.x === from.x && at.y === from.y && at.z === from.z;
-    const stackIndex = underfoot ? from.stackIndex : stack.length;
-    const placed: PlacedTile = {
-      tileId: def.id,
-      // The editor's rule for an armed tile, so a lamp post summoned into the
-      // world faces the way one stamped into it does.
-      ...(isDirectional(def) ? { direction: DEFAULT_FACING } : {}),
-      // A summoned item is a new item, on the terms a respawned one is: minted
-      // here rather than left to the load sweep, because nothing between now
-      // and the next load would give it one.
-      ...(isItem(def) ? { itemId: mintItemId() } : {}),
-      ...(resolveActor(def)
-        ? { owner: this.summonedOwnerId({ ...at, stackIndex }) }
-        : {}),
-    };
-
-    // Poured into a pile already in that cell where one will take it, exactly as
-    // a drop is: `/tile berry` onto a berry is two berries in that tile, not a
-    // second placement of one. A command puts a thing in the world, and once it
-    // is there it should be the thing the world would have had if somebody had
-    // walked over and put it down. See `../lib/piles`.
-    //
-    // A pour makes no placement, so the room `canPlace` asked for above is more
-    // than it needs, and the slot `stackIndex` names is left alone.
-    const poured = pourInto(stack, placed, this.tilesById);
-    const next = poured ?? [...stack];
-    if (!poured) next.splice(stackIndex, 0, placed);
-    this.map = replaceStack(this.map, at.x, at.y, at.z, next);
-
-    if (placed.owner) {
-      this.addActor(placed.owner, { resident: true, bodyTileId: def.id });
+    this.map = candidate;
+    for (const owner of owners) {
+      this.addActor(owner, { resident: true, bodyTileId: def.id });
     }
     // What arrived may be a plate, may be wired, and is very likely subject to
     // gravity — the same three indexes a respawn rebuilds, for the same reason.
     this.reindexCells([at]);
     this.settleBoardNow();
-    this.say(id, tileNotice(def.name, at));
+    this.say(id, tileNotice(def.name, at, command.count));
     return null;
   }
 
@@ -6365,10 +6389,19 @@ export class GameSession implements PlaySession {
    * falls back to a unique one, and the body wearing it is simply homeless:
    * `residentHome` answers "nowhere" for any name it did not mint, which is
    * already a case brains handle.
+   *
+   * `alsoTaken` is for a `/tile wolf x3`, where the first two are not actors
+   * yet: the map is built whole before anything is adopted, so the runtime
+   * cannot answer for names this same command has already minted.
    */
-  private summonedOwnerId(at: Coord & { stackIndex: number }): string {
+  private summonedOwnerId(
+    at: Coord & { stackIndex: number },
+    alsoTaken: ReadonlySet<string> = new Set(),
+  ): string {
     const home = residentOwnerId(at);
-    return this.actors.has(home) ? `${home},${crypto.randomUUID()}` : home;
+    return this.actors.has(home) || alsoTaken.has(home)
+      ? `${home},${crypto.randomUUID()}`
+      : home;
   }
 
   /**
