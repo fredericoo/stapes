@@ -222,6 +222,11 @@ export function DialogTryOut({ dialog, tiles, tilesets, statusDefs, className = 
             tiles={tiles}
             tilesets={tilesets}
             equipment={pretend.equipment}
+            // The catalogue this panel already holds, so a card in the preview
+            // names what a blade inflicts exactly as the game's would. Masteries
+            // are deliberately left out: there is no player here to read a
+            // weapon in the hands of, so the preview shows a novice's figures.
+            statusDefs={statusDefs}
             onTalk={talk}
           />
         ) : (

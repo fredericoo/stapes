@@ -14,6 +14,7 @@ import {
 } from "../game/equipment";
 import type { BodySlotRef } from "../game/itemMoves";
 import type { MasteryXp } from "../lib/mastery";
+import type { StatusDef } from "../lib/status";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { tilesByIdFromList } from "../lib/validation";
 import { ItemSlot, ITEM_SLOT_SIZE_PX } from "./ItemSlot";
@@ -179,6 +180,7 @@ const ROW_COUNT = Math.max(...SQUARES.map((square) => square.row)) + ROWS_PER_SQ
 export function EquipmentPanel({
   equipment,
   masteryXp = {},
+  statusDefs,
   bagOpen,
   handOpen = null,
   tiles,
@@ -199,6 +201,8 @@ export function EquipmentPanel({
    * is about the hands holding it, and the slot is where it gets said.
    */
   masteryXp?: MasteryXp;
+  /** Every status the world has, by id, for the cards. See `./ItemSlot`. */
+  statusDefs?: Record<string, StatusDef>;
   /**
    * Whether the panel showing the inside of that bag is on screen.
    *
@@ -269,6 +273,7 @@ export function EquipmentPanel({
               drag={drag}
               inspecting={inspecting}
               masteryXp={masteryXp}
+              statusDefs={statusDefs}
             />
           </div>
         ))}

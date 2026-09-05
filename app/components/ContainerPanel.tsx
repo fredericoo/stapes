@@ -4,6 +4,7 @@ import { slotIn, type ContainerRef } from "../game/itemMoves";
 import { resolveContainer } from "../lib/item";
 import type { ItemInstance } from "../lib/itemInstance";
 import type { MasteryXp } from "../lib/mastery";
+import type { StatusDef } from "../lib/status";
 import type { TileDef, TilesetDef } from "../lib/types";
 import { useCoarsePointer } from "../lib/useMediaQuery";
 import { tilesByIdFromList } from "../lib/validation";
@@ -169,6 +170,7 @@ export function ContainerPanel({
   drag,
   inspecting = false,
   masteryXp = {},
+  statusDefs,
   className = "",
 }: {
   /**
@@ -211,6 +213,8 @@ export function ContainerPanel({
    * over it, so what it says depends on whose hands are asking.
    */
   masteryXp?: MasteryXp;
+  /** Every status the world has, by id, for the cards. See `./ItemSlot`. */
+  statusDefs?: Record<string, StatusDef>;
   className?: string;
 }) {
   const tilesById = useMemo(() => tilesByIdFromList(tiles), [tiles]);
@@ -360,6 +364,7 @@ export function ContainerPanel({
               drag={drag}
               inspecting={inspecting}
               masteryXp={masteryXp}
+              statusDefs={statusDefs}
               sizePx={slotPx}
             />
             {/* What the thing is, under it.
