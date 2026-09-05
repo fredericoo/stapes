@@ -803,20 +803,29 @@ export function GameViewport({
               what is in reach. Always present, so nothing below it moves when a
               status lands.
 
-              The hour rides at the end of it, out of the header it used to be
-              in: both halves of this line are the world reporting on itself
-              rather than anything you can press, and the strip is the one row
-              that was already that. The lane takes what is left after the
-              reading, so a clock of fixed width never squeezes it to nothing. */}
-          <div className="flex shrink-0 items-center gap-2 border-b-2 border-paper/20 pb-2">
+              The hour sits on its own line *above* the strip, out of the header
+              it used to be in: both are the world reporting on itself rather
+              than anything you can press, which is why they share a block, and
+              stacking is what keeps them in the column. Beside the strip they
+              could not fit — the lane is `w-full shrink-0`, so it claimed the
+              row's whole width and shoved the reading out past the panel's
+              right edge, where seeing the time meant scrolling the page
+              sideways. */}
+          <div className="flex shrink-0 flex-col gap-2 border-b-2 border-paper/20 pb-2">
+            {readouts ? (
+              // Wraps rather than overflows, because this line holds whatever a
+              // route hands it: `../routes/online` puts a connection chip beside
+              // the hour, and two readings in a narrow column want a second row
+              // rather than a horizontal scrollbar.
+              <div className="flex min-w-0 flex-wrap items-center gap-2">
+                {readouts}
+              </div>
+            ) : null}
             <StatusStrip
               statuses={statuses}
               interactive
               tilesets={tilesets}
             />
-            {readouts ? (
-              <div className="flex shrink-0 items-center gap-2">{readouts}</div>
-            ) : null}
           </div>
           {/* Modes above the list and ruled off from it, because they are a
               different kind of thing: the rows below say what you could do to
