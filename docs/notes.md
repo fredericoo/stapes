@@ -191,6 +191,20 @@ route manifest to the `online-main` chunk and reading the `?v=` it sets, which
 is the chain a browser follows, so a client that failed to activate is caught by
 the same step.
 
+**The number on the `outdated` message is the only thing that says which side is
+behind, and the two want opposite advice.** A tab older than the server is the
+usual case — an open tab through a deploy — and reloading fixes it. A tab
+*newer* than the server is the preview failure above, and there reloading is a
+wait that never ends. So the page compares `serverVersion` against its own
+before deciding: only a server that is ahead earns the automatic reload.
+
+Whichever it is, it ends at `app/components/OutdatedScreen.tsx`. Before that
+existed the refusal had no picture: the reload guard fired, the page sat behind
+`LoadingScreen` saying "Loading…" for ever, and the only thing on screen naming
+the problem was the word OUTDATED in a chip beside the clock. **A wait that will
+never end has to say so.** The preview check above is what stops us shipping the
+mismatch; this is what a player sees on the ones we do not catch.
+
 ## The simulation holds N actors
 
 `GameSession` runs any number of actors. `/play` runs exactly one and never
